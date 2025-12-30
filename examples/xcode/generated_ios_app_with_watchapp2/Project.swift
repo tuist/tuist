@@ -1,0 +1,60 @@
+import ProjectDescription
+
+let project = Project(
+    name: "App",
+    packages: [
+        .package(path: "Packages/LibraryA"),
+    ],
+    targets: [
+        .target(
+            name: "App",
+            destinations: .iOS,
+            product: .app,
+            bundleId: "dev.tuist.App",
+            infoPlist: "Support/App-Info.plist",
+            sources: ["Sources/**"],
+            resources: [
+                // Path to resources can be defined here
+                // "Resources/**"
+            ],
+            dependencies: [
+                // Target dependencies can be defined here
+                // .framework(path: "Frameworks/MyFramework.framework")
+                .target(name: "WatchApp"),
+                .package(product: "LibraryA"),
+            ]
+        ),
+        .target(
+            name: "WatchApp",
+            destinations: [.appleWatch],
+            product: .watch2App,
+            bundleId: "dev.tuist.App.watchkitapp",
+            infoPlist: .default,
+            resources: "WatchApp/**",
+            dependencies: [
+                .target(name: "WatchAppExtension"),
+            ]
+        ),
+        .target(
+            name: "WatchAppExtension",
+            destinations: [.appleWatch],
+            product: .watch2Extension,
+            bundleId: "dev.tuist.App.watchkitapp.watchkitextension",
+            infoPlist: .extendingDefault(with: [
+                "CFBundleDisplayName": "WatchApp Extension",
+            ]),
+            sources: ["WatchAppExtension/**"],
+            resources: ["WatchAppExtension/**/*.xcassets"],
+            dependencies: [
+                .package(product: "LibraryA"),
+            ]
+        ),
+        .target(
+            name: "WatchAppUITests",
+            destinations: [.appleWatch],
+            product: .uiTests,
+            bundleId: "dev.tuist.App.watchkitapp.uitests",
+            dependencies: [.target(name: "WatchApp")]
+        ),
+    ]
+)

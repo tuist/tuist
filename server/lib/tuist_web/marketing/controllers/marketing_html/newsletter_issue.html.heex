@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>{@issue.full_title}</title>
+    <meta charset="UTF-8" />
+    <%= if not @email_version? do %>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <meta name="description" content={Tuist.Marketing.Newsletter.description()} />
+      <meta
+        name="keywords"
+        content="swift, developer tooling, open source, tuist, app development, newsletter"
+      />
+
+      <meta
+        property="og:url"
+        content={Tuist.Environment.app_url(path: @current_path, route_type: :marketing)}
+      />
+      <meta property="og:type" content="website" />
+      <meta property="og:title" content={@issue.full_title} />
+      <meta property="og:description" content={Tuist.Marketing.Newsletter.description()} />
+      <meta
+        property="og:image"
+        content={
+          Tuist.Environment.app_url(
+            path: "/marketing/images/og/generated/newsletter/issues/#{@issue.number}.jpg",
+            marketing: true
+          )
+        }
+      />
+      <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:site" content="@tuistdev" />
+      <meta
+        name="twitter:image"
+        content={
+          Tuist.Environment.app_url(
+            path: "/marketing/images/og/generated/newsletter/issues/#{@issue.number}.jpg",
+            marketing: true
+          )
+        }
+      />
+      <meta name="twitter:title" content={@issue.full_title} />
+      <meta
+        property="twitter:domain"
+        content={Tuist.Environment.app_url(path: "/") |> URI.parse() |> Map.get(:host)}
+      />
+    <% end %>
+  </head>
+  <body style="font-family: 'Arial', sans-serif; margin: 0; padding: 0;">
+    <span class="random" style="opacity: 0">{UUIDv7.generate()}</span>
+    <table
+      width="768"
+      align="center"
+      style="width: 100% !important; max-width: 768px; padding: 1rem 2rem; box-sizing: border-box; vertical-align: middle;"
+    >
+      <tr>
+        <td style="width: 55px;">
+          <img
+            src={Tuist.Environment.email_icon_url()}
+            alt="Tuist Logo"
+            style="width: 55px; height: 55px; vertical-align: middle;"
+          />
+        </td>
+        <td style="width: 100%;">
+          <h1 style="margin: 0; font-size: 24px; vertical-align: middle; color: #2c2250; text-align: left;">
+            Swift Stories
+          </h1>
+        </td>
+        <td style="white-space: nowrap;">
+          <a
+            style="vertical-align: middle; color: #622ed4; text-decoration: underline; font-size: 16px; padding-left: 1rem;"
+            href={Tuist.Environment.app_url(path: @current_path, route_type: :marketing)}
+          >
+            {dgettext("marketing", "View in web browser")}
+          </a>
+        </td>
+      </tr>
+    </table>
+    <div style="background-color: #F3F2FD; padding-top: 2rem; padding-bottom: 2rem; max-width: 100%; box-sizing: border-box; text-align: center;">
+      <%= if not is_nil(@issue.hero["image"]) do %>
+        <% img_src =
+          if(String.starts_with?(@issue.hero["image"], "/"),
+            do: Tuist.Environment.app_url(path: @issue.hero["image"], route_type: :marketing),
+            else: @issue.hero["image"]
+          ) %>
+        <img
+          src={img_src}
+          alt={@issue.hero["alt"]}
+          style={"object-fit: cover; max-width: #{Map.get(@issue.hero, "image_max_width", "150px")}; height: auto; border-radius: 2rem; display: block; margin-left: auto; margin-right: auto;"}
+        />
+      <% end %>
+      <%= if not is_nil(@issue.hero["video"]) do %>
+        <% video_src =
+          if(String.starts_with?(@issue.hero["video"], "/"),
+            do: Tuist.Environment.app_url(path: @issue.hero["video"], route_type: :marketing),
+            else: @issue.hero["video"]
+          ) %>
+        <video
+          src={video_src}
+          alt={@issue.hero["alt"]}
+          autoplay
+          loop
+          playsinline
+          muted
+          style="object-fit: cover; max-width: 150px; height: 300px; display: block; margin-left: auto; margin-right: auto;"
+        />
+      <% end %>
+      <div style="font-size: 16px; line-height: 22px; color: #622ed4;">
+        {raw(@issue.hero["subtitle"])}
+      </div>
+    </div>
+
+    <div style="padding-top: 4rem; padding-bottom: 4rem; max-width: 100%; box-sizing: border-box;">
+      <table
+        width="768"
+        align="center"
+        cellpadding="0"
+        cellspacing="0"
+        style="width: 100% !important; max-width: 768px; padding: 0 32px;"
+      >
+        <tr>
+          <td>
+            <p style="color: #3c315b; font-weight: bold; line-height: 16px; font-size: 16px; text-transform: uppercase; margin: 0;">
+              #{@issue.number} - {@issue.date |> Timex.format!("{Mshort} {D}, {YYYY}")}
+            </p>
+            <h2 style="color: #622ed4; font-weight: bold; line-height: 40px; font-size: 30px; margin: 1rem 0;">
+              {@issue.title}
+            </h2>
+            <%= if not is_nil(@issue.welcome_message) do %>
+              <div style="background: rgb(232, 231, 249); padding: 2rem; border-radius: 2rem; display: table; width: 100%; max-width: 100%; box-sizing: border-box;">
+                <h3 style="font-size: 26px; line-height: 26px; font-weight: bold; color: #622ed4; margin: 0;">
+                  Welcome to issue {@issue.number}!
+                </h3>
+                <div style="font-size: 18px; line-height: 22px; font-weight: bold; color: #2c2250; margin-top: 1rem;">
+                  {raw(@issue.welcome_message)}
+                </div>
+              </div>
+            <% else %>
+              <h3 style="font-weight: bold; color: #622ed4; margin: 0;">
+                Welcome to issue {@issue.number}!
+              </h3>
+            <% end %>
+
+            <div style="color: #2c2250; font-weight: normal; margin: 3rem 0; font-size: 16px; line-height: 22px;">
+              {raw(@issue.body)}
+            </div>
+
+            <hr style="border: 1px solid rgb(232, 231, 249); width: 100%;" />
+
+            <div>
+              <div>
+                <h3 style="font-size: 26px; line-height: 26px; font-weight: bold; color: #622ed4; margin: 3rem 0 2rem 0;">
+                  Tools & sites
+                </h3>
+              </div>
+              <table style="width: 100%; margin: 0 0 3rem 0;">
+                <tr :for={tool <- @issue.tools}>
+                  <td style="vertical-align: top; width: 50%; padding-right: 1rem; padding-bottom: 2rem;">
+                    <a
+                      href={tool["link"]}
+                      target="_blank"
+                      style="text-decoration: none; color: #2c2250;"
+                    >
+                      <h2 style="margin: 1rem 0 0 0; font-size: 18px; font-weight: bold; background: #d7f775; padding: 0.4rem; display: inline-block;">
+                        <span>{tool["title"]}</span>
+                      </h2>
+                    </a>
+                    <p style="margin: 1rem 0 0 0; font-size: 14px; font-weight: normal; line-height: 22px; color: #622ed4;">
+                      {tool["subtitle"]}
+                    </p>
+                  </td>
+                  <td style="vertical-align: top; width: 50%; padding-bottom: 2rem; font-size: 16px; line-height: 22px; color: #2c2250;">
+                    {raw(tool["description"])}
+                  </td>
+                </tr>
+              </table>
+            </div>
+
+            <hr style="border: 1px solid rgb(232, 231, 249); width: 100%;" />
+
+            <div style="background: #f3f2fd; padding: 2rem; border-radius: 2rem; display: table; width: 100%; max-width: 100%; box-sizing: border-box; margin: 3rem 0;">
+              <div style="display: table-row;">
+                <h3 style="font-size: 26px; line-height: 26px; font-weight: bold; color: #622ed4; margin: 0; padding: 1rem 0;">
+                  Worthy Five: {@issue.interview["interviewee"]}
+                </h3>
+                <div style="margin: 1rem 0; color: #2c2250; font-weight: bold; font-size: 16px; line-height: 22px;">
+                  {raw(@issue.interview["interviewee_intro"])}
+                </div>
+              </div>
+
+              <table style="width: 100%;">
+                <tr>
+                  <td style="vertical-align: top; width: 30%; padding-right: 1rem;">
+                    <% interviewee_avatar_src =
+                      if(String.starts_with?(@issue.interview["interviewee_avatar_url"], "/"),
+                        do:
+                          Tuist.Environment.app_url(
+                            path: @issue.interview["interviewee_avatar_url"],
+                            route_type: :marketing
+                          ),
+                        else: @issue.interview["interviewee_avatar_url"]
+                      ) %>
+                    <img
+                      src={interviewee_avatar_src}
+                      alt={@issue.interview["interviewee"]}
+                      style="width: 100%; max-width: 100%; object-fit: cover; border-radius: 1rem;"
+                    />
+                    <p style="font-size: 14px; line-height: 20px; color: #3c315b; margin: 0;">
+                      {@issue.interview["interviewee_subtitle"]}
+                    </p>
+                  </td>
+                  <td style="vertical-align: top; width: 70%;">
+                    <%= for {question, index} <- Enum.with_index(@issue.interview["questions"]) do %>
+                      <div style="display: table-row;">
+                        <p style="margin: 0; font-size: 16px; line-height: 20px; font-weight: bold; color: #2c2250;">
+                          {question["question"]}:
+                        </p>
+                        <div style="margin: 1rem 0; font-size: 16px; line-height: 20px; font-weight: normal; color: #2c2250;">
+                          {raw(question["answer"])}
+                        </div>
+                      </div>
+
+                      <hr
+                        :if={index < Enum.count(@issue.interview["questions"]) - 1}
+                        style="border: 2px solid white; width: 100%; margin-bottom: 1rem;"
+                      />
+                    <% end %>
+                  </td>
+                </tr>
+              </table>
+            </div>
+
+            <hr style="border: 1px solid rgb(232, 231, 249); width: 100%;" />
+
+            <div style="margin: 3rem 0;">
+              <h3 style="font-size: 26px; line-height: 26px; font-weight: bold; color: #622ed4; margin: 0;">
+                Food for thought
+              </h3>
+              <table style="width: 100%; margin-top: 2rem;">
+                <tr :for={item <- @issue.food_for_thought}>
+                  <td style="vertical-align: top; width: 50%; padding-right: 1rem; padding-bottom: 2rem;">
+                    <a
+                      href={item["link"]}
+                      target="_blank"
+                      style="text-decoration: none; color: #2c2250;"
+                    >
+                      <h2 style="margin: 1rem 0 0 0; font-size: 18px; font-weight: bold; background: #ffa8f6; padding: 0.4rem; display: inline-block;">
+                        <span>{item["title"]}</span>
+                      </h2>
+                    </a>
+                    <p style="margin: 1rem 0 0 0; font-size: 14px; font-weight: normal; line-height: 22px; color: #622ed4;">
+                      {item["subtitle"]}
+                    </p>
+                  </td>
+                  <td style="vertical-align: top; width: 50%; padding-bottom: 2rem; font-size: 16px; line-height: 22px; color: #2c2250;">
+                    {raw(item["description"])}
+                  </td>
+                </tr>
+              </table>
+            </div>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <footer style="background: rgb(232, 231, 249); padding-top: 4rem; padding-bottom: 4rem;">
+      <table
+        width="768"
+        align="center"
+        cellpadding="0"
+        cellspacing="0"
+        style="width: 100% !important; max-width: 768px; padding: 0 32px;"
+      >
+        <tr>
+          <td>
+            <div style="width: 100%;">
+              <h3 style="vertical-align: middle; margin: 0; color: #622ed4;">
+                <span style="font-size: 26px; line-height: 26px; font-weight: bold; margin-right: 1rem;">
+                  Enjoyed it?
+                </span>
+                <a
+                  class="share-link"
+                  href={Tuist.Environment.app_url(path: @current_path, route_type: :marketing)}
+                  style="font-size: 14px; line-height: 22px; font-weight: bold; color: #2c2250; border-style: solid; border-width: 2px; border-color: #2c2250; border-radius: 0.25rem; padding: 0.5rem; text-decoration: none;"
+                  rel="noopener noreferrer"
+                  data-title={@issue.full_title}
+                  data-description={Tuist.Marketing.Newsletter.description()}
+                >
+                  Share it
+                </a>
+              </h3>
+              <div>
+                <p style="margin: 1rem 0; font-size: 16px; line-height: 22px; color: #2c2250;">
+                  Swift Stories is a newsletter brought to you by the people behind <a
+                    style="color: #2c2250;"
+                    href="https://tuist.dev"
+                  >Tuist</a>. We love cross-polinating ideas from and to the Swift ecosystem and building tools that make developers' lives easier. If you want to share ideas for future issues, you can do so in our <a
+                    style="color: #2c2250;"
+                    href="https://community.tuist.dev/c/swift-stories/22"
+                  >community forum</a>. If you like this newsletter, you can support us by sharing it with your friends and colleagues.
+                </p>
+                <p style="white-space: nowrap; font-size: 14px; line-height: 20px; font-weight: bold; margin: 2rem 0 1rem 0;">
+                  Stay in touch
+                </p>
+                <div style="display: table; width: 100%;">
+                  <a
+                    href={Tuist.Environment.get_url(:forum)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style="margin-right: 1rem; font-size: 16px; line-height: 22px; color: #2c2250;"
+                  >
+                    Community
+                  </a>
+                  &#9;
+                  <a
+                    href={Tuist.Environment.get_url(:mastodon)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style="margin-right: 1rem; font-size: 16px; line-height: 22px; color: #2c2250;"
+                  >
+                    Mastodon
+                  </a>
+                  &#9;
+                  <a
+                    href={Tuist.Environment.get_url(:github)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style="margin-right: 1rem; font-size: 16px; line-height: 22px; color: #2c2250;"
+                  >
+                    GitHub
+                  </a>
+                  &#9;
+                  <a
+                    href={Tuist.Environment.get_url(:slack)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style="font-size: 16px; line-height: 22px; color: #2c2250;"
+                  >
+                    Slack
+                  </a>
+                </div>
+                <a
+                  href={Tuist.Environment.app_url(path: ~p"/newsletter", route_type: :marketing)}
+                  style="font-size: 14px; line-height: 22px; font-weight: bold; color: #2c2250; border-style: solid; border-width: 2px; border-color: #2c2250; border-radius: 0.25rem; padding: 0.5rem; text-decoration: none; margin: 1rem 0; display: inline-block; box-sizing: content-box;"
+                  rel="noopener noreferrer"
+                >
+                  Subscribe
+                </a>
+              </div>
+
+              <div style="margin-top: 2rem;">
+                <a
+                  style="display: table-cell; vertical-align: middle; padding-right: 1rem; font-size: 16px; line-height: 22px; color: #622ed4;"
+                  href={~p"/terms"}
+                >
+                  Terms of service
+                </a>
+                <div style="display: table-cell; vertical-align: middle; background: #622ed4; width: 2px; max-width: 2px;" />
+                <a
+                  style="display: table-cell; vertical-align: middle; padding: 0 1rem; font-size: 16px; line-height: 22px; color: #622ed4;"
+                  href={~p"/privacy"}
+                >
+                  Privacy policy
+                </a>
+                <div
+                  :if={@email_version?}
+                  style="display: table-cell; vertical-align: middle; background: #622ed4; width: 2px; max-width: 2px;"
+                />
+                <a
+                  :if={@email_version?}
+                  style="display: table-cell; vertical-align: middle; padding-left: 2rem; font-size: 16px; line-height: 22px; color: #622ed4;"
+                  href="{unsubscribe_url}"
+                >
+                  Unsubscribe
+                </a>
+              </div>
+            </div>
+          </td>
+        </tr>
+      </table>
+    </footer>
+  </body>
+
+  <%= if not @email_version? do %>
+    <script nonce={get_csp_nonce()}>
+      document.querySelectorAll('.share-link').forEach(link => {
+        link.addEventListener('click', async (e) => {
+          if (navigator.share) {
+            e.preventDefault();
+            try {
+              await navigator.share({
+                title: link.dataset.title,
+                text: link.dataset.description,
+                url: link.href
+              });
+            } catch (err) {
+              if (err.name !== 'AbortError') {
+                window.open(link.href, '_blank');
+              }
+            }
+          }
+        });
+      });
+    </script>
+  <% end %>
+</html>

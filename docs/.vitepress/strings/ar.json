@@ -1,0 +1,473 @@
+{
+    "aside": {
+        "translate": {
+            "title": {
+                "text": "الترجمة 🌍"
+            },
+            "description": {
+                "text": "ساهم في ترجمة هذه الصفحة أو تحسينها."
+            },
+            "cta": {
+                "text": "ساهم"
+            }
+        }
+    },
+    "search": {
+        "placeholder": "بحث",
+        "translations": {
+            "button": {
+                "button-text": "ابحث في المرجع",
+                "button-aria-label": "ابحث في المرجع"
+            },
+            "modal": {
+                "search-box": {
+                    "reset-button-title": "مسح البحث",
+                    "reset-button-aria-label": "مسح البحث",
+                    "cancel-button-text": "إلغاء",
+                    "cancel-button-aria-label": "إلغاء"
+                },
+                "start-screen": {
+                    "recent-searches-title": "عمليات البحث الأخيرة",
+                    "no-recent-searches-text": "لا توجد عمليات بحث",
+                    "save-recent-search-button-title": "حفظ في عمليات البحث",
+                    "remove-recent-search-button-title": "إزالة من عمليات البحث",
+                    "favorite-searches-title": "المفضلة",
+                    "remove-favorite-search-button-title": "إزالة من المفضلة"
+                },
+                "error-screen": {
+                    "title-text": "تعذر استرجاع النتائج",
+                    "help-text": "تأكد من اتصالك بالإنترنت"
+                },
+                "footer": {
+                    "select-text": "اختيار",
+                    "navigate-text": "التنقل",
+                    "close-text": "إغلاق",
+                    "search-by-text": "محرك البحث"
+                },
+                "no-results-screen": {
+                    "no-results-text": "لا توجد نتائج مطابقة",
+                    "suggested-query-text": "يمكنك تجربة",
+                    "report-missing-results-text": "هل تعتقد أن هناك نتائج لهذا البحث؟",
+                    "report-missing-results-link-text": "ساعدنا في تحسين النتائج"
+                }
+            }
+        }
+    },
+    "navbar": {
+        "guides": {
+            "text": "الإرشادات"
+        },
+        "search": {
+            "placeholder": "بحث",
+            "translations": {
+                "button": {
+                    "button-text": "ابحث في المرجع",
+                    "button-aria-label": "ابحث في المرجع"
+                },
+                "modal": {
+                    "search-box": {
+                        "reset-button-title": "مسح البحث",
+                        "reset-button-aria-label": "مسح البحث",
+                        "cancel-button-text": "إلغاء",
+                        "cancel-button-aria-label": "إلغاء"
+                    },
+                    "start-screen": {
+                        "recent-searches-title": "عمليات البحث الأخيرة",
+                        "no-recent-searches-text": "",
+                        "save-recent-search-button-title": "",
+                        "remove-recent-search-button-title": "",
+                        "favorite-searches-title": "",
+                        "remove-favorite-search-button-title": ""
+                    },
+                    "error-screen": {
+                        "title-text": "",
+                        "help-text": ""
+                    },
+                    "footer": {
+                        "select-text": "",
+                        "navigate-text": "",
+                        "close-text": "",
+                        "search-by-text": ""
+                    },
+                    "no-results-screen": {
+                        "no-results-text": "",
+                        "suggested-query-text": "",
+                        "report-missing-results-text": "",
+                        "report-missing-results-link-text": ""
+                    }
+                }
+            }
+        },
+        "server": {
+            "text": "السيرڤر"
+        },
+        "resources": {
+            "text": "الموارد",
+            "items": {
+                "references": {
+                    "text": "المراجع"
+                },
+                "contributors": {
+                    "text": "المساهمون"
+                },
+                "changelog": {
+                    "text": "سجل التغييرات"
+                }
+            }
+        },
+        "cli": {
+            "text": "CLI"
+        }
+    },
+    "sidebars": {
+        "cli": {
+            "text": "CLI",
+            "items": {
+                "cli": {
+                    "items": {
+                        "logging": {
+                            "text": "تتبع الأحداث"
+                        },
+                        "shell-completions": {
+                            "text": "Shell completions"
+                        },
+                        "directories": {
+                            "text": "الدلائل"
+                        }
+                    }
+                },
+                "commands": {
+                    "text": "الأوامر"
+                }
+            }
+        },
+        "references": {
+            "text": "المراجع",
+            "items": {
+                "examples": {
+                    "text": "الأمثلة"
+                },
+                "migrations": {
+                    "text": "الترقيات",
+                    "items": {
+                        "from-v3-to-v4": {
+                            "text": "من الإصدار 3 إلى الإصدار 4"
+                        }
+                    }
+                }
+            }
+        },
+        "contributors": {
+            "text": "المساهمون",
+            "items": {
+                "get-started": {
+                    "text": "ابدأ"
+                },
+                "issue-reporting": {
+                    "text": "الإبلاغ عن المشاكل"
+                },
+                "code-reviews": {
+                    "text": "مراجعة الكود"
+                },
+                "principles": {
+                    "text": "المبادئ"
+                },
+                "translate": {
+                    "text": "الترجمة"
+                },
+                "releases": {
+                    "text": "الإصدارات"
+                },
+                "cli": {
+                    "text": "CLI",
+                    "items": {
+                        "logging": {
+                            "text": "تتبع الأحداث"
+                        }
+                    }
+                }
+            }
+        },
+        "server": {
+            "items": {
+                "introduction": {
+                    "text": "مقدمة",
+                    "items": {
+                        "why-server": {
+                            "text": "لماذا السيرڤر؟"
+                        },
+                        "accounts-and-projects": {
+                            "text": "الحسابات والمشاريع"
+                        },
+                        "authentication": {
+                            "text": "المصادقة"
+                        },
+                        "integrations": {
+                            "text": "الدمج والربط"
+                        }
+                    }
+                },
+                "on-premise": {
+                    "text": "On-premise",
+                    "items": {
+                        "install": {
+                            "text": "التثبيت"
+                        },
+                        "metrics": {
+                            "text": "المقاييس"
+                        }
+                    }
+                },
+                "api-documentation": {
+                    "text": "وثائق واجهة برمجة التطبيقات (API)"
+                },
+                "status": {
+                    "text": "الحالة"
+                },
+                "metrics-dashboard": {
+                    "text": "لوحة معلومات المقاييس"
+                }
+            }
+        },
+        "guides": {
+            "text": "الإرشادات",
+            "items": {
+                "tuist": {
+                    "text": "Tuist",
+                    "items": {
+                        "about": {
+                            "text": "نبذة عن Tuist"
+                        }
+                    }
+                },
+                "quick-start": {
+                    "text": "بداية سريعة",
+                    "items": {
+                        "install-tuist": {
+                            "text": "تثبيت Tuist"
+                        },
+                        "get-started": {
+                            "text": "ابدأ"
+                        }
+                    }
+                },
+                "features": {
+                    "text": "الميزات"
+                },
+                "examples": {
+                    "text": "الأمثلة",
+                    "items": {
+                        "generated-projects": {
+                            "text": "المشروع المُنشأ"
+                        }
+                    }
+                },
+                "develop": {
+                    "text": "التطوير",
+                    "items": {
+                        "generated-projects": {
+                            "text": "المشروع المُنشأ",
+                            "items": {
+                                "adoption": {
+                                    "text": "التبني",
+                                    "items": {
+                                        "new-project": {
+                                            "text": "إنشاء مشروع جديد"
+                                        },
+                                        "swift-package": {
+                                            "text": "جرب باستخدام Swift Package"
+                                        },
+                                        "migrate": {
+                                            "text": "الانتقال",
+                                            "items": {
+                                                "xcode-project": {
+                                                    "text": "مشروع Xcode"
+                                                },
+                                                "swift-package": {
+                                                    "text": "الحزمة السريعة"
+                                                },
+                                                "xcodegen-project": {
+                                                    "text": "مشروع XcodeGen"
+                                                },
+                                                "bazel-project": {
+                                                    "text": "مشروع بازل"
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "manifests": {
+                                    "text": "المظاهر"
+                                },
+                                "directory-structure": {
+                                    "text": "هيكل الدليل"
+                                },
+                                "editing": {
+                                    "text": "التحرير"
+                                },
+                                "dependencies": {
+                                    "text": "التبعيات"
+                                },
+                                "code-sharing": {
+                                    "text": "مشاركة الرموز"
+                                },
+                                "synthesized-files": {
+                                    "text": "الملفات المركبة"
+                                },
+                                "dynamic-configuration": {
+                                    "text": "التكوين الديناميكي"
+                                },
+                                "templates": {
+                                    "text": "القوالب"
+                                },
+                                "plugins": {
+                                    "text": "المكونات الإضافية"
+                                },
+                                "hashing": {
+                                    "text": "التجزئة"
+                                },
+                                "inspect": {
+                                    "text": "الفحص",
+                                    "items": {
+                                        "implicit-imports": {
+                                            "text": "الواردات الضمنية"
+                                        }
+                                    }
+                                },
+                                "the-cost-of-convenience": {
+                                    "text": "تكلفة الراحة"
+                                },
+                                "tma-architecture": {
+                                    "text": "هندسة معمارية معيارية"
+                                },
+                                "best-practices": {
+                                    "text": "أفضل الممارسات"
+                                },
+                                "metadata-tags": {
+                                    "text": "علامات البيانات الوصفية"
+                                }
+                            }
+                        },
+                        "cache": {
+                            "text": "ذاكرة التخزين المؤقت",
+                            "items": {
+                                "generated-project": {
+                                    "text": ""
+                                },
+                                "xcode-cache": {
+                                    "text": "ذاكرة التخزين المؤقت لـ Xcode"
+                                },
+                                "module-cache": {
+                                    "text": "ذاكرة التخزين المؤقت للوحدة"
+                                }
+                            }
+                        },
+                        "registry": {
+                            "text": "السجل",
+                            "items": {
+                                "registry": {
+                                    "text": "السجل"
+                                },
+                                "xcode-project": {
+                                    "text": "مشروع Xcode"
+                                },
+                                "generated-project": {
+                                    "text": "المشروع المُنشأ"
+                                },
+                                "xcodeproj-integration": {
+                                    "text": "التكامل المستند إلى XcodeProj"
+                                },
+                                "swift-package": {
+                                    "text": "الحزمة السريعة"
+                                },
+                                "continuous-integration": {
+                                    "text": "التكامل المستمر"
+                                }
+                            }
+                        },
+                        "selective-testing": {
+                            "text": "الاختبار الانتقائي",
+                            "items": {
+                                "selective-testing": {
+                                    "text": "الاختبار الانتقائي"
+                                },
+                                "xcode-project": {
+                                    "text": "مشروع Xcode"
+                                },
+                                "generated-project": {
+                                    "text": "المشروع المُنشأ"
+                                }
+                            }
+                        },
+                        "insights": {
+                            "text": "بناء الرؤى"
+                        },
+                        "bundle-size": {
+                            "text": "رؤى الحزمة"
+                        },
+                        "qa": {
+                            "text": "ضمان الجودة"
+                        }
+                    }
+                },
+                "agentic-coding": {
+                    "text": "الترميز التوكيلي",
+                    "items": {
+                        "mcp": {
+                            "text": "MCP"
+                        }
+                    }
+                },
+                "integrations": {
+                    "text": "الدمج والربط",
+                    "items": {
+                        "continuous-integration": {
+                            "text": "التكامل المستمر"
+                        },
+                        "sso": {
+                            "text": "SSO"
+                        },
+                        "git-forges": {
+                            "items": {
+                                "github": {
+                                    "text": "جيثب"
+                                }
+                            },
+                            "text": "صاغة الحدادين"
+                        }
+                    }
+                },
+                "share": {
+                    "text": "شارك",
+                    "items": {
+                        "previews": {
+                            "text": "المعاينات"
+                        }
+                    }
+                },
+                "server": {
+                    "items": {
+                        "self-hosting": {
+                            "items": {
+                                "telemetry": {
+                                    "text": "القياس عن بُعد"
+                                },
+                                "installation": {
+                                    "text": "التركيب"
+                                }
+                            },
+                            "text": "الاستضافة الذاتية"
+                        },
+                        "accounts-and-projects": {
+                            "text": "الحسابات والمشاريع"
+                        },
+                        "authentication": {
+                            "text": "المصادقة"
+                        }
+                    },
+                    "text": "السيرڤر"
+                }
+            }
+        }
+    }
+}

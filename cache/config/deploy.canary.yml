@@ -1,0 +1,8 @@
+servers:
+  web:
+    hosts:
+      - cache-eu-central-canary.tuist.dev
+env:
+  clear:
+    SERVER_URL: https://canary.tuist.dev
+    APPSIGNAL_ENV: can

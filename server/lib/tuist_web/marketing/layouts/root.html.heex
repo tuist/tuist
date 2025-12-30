@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang={Gettext.get_locale()} class="[scrollbar-gutter:stable]">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="csp-nonce" content={get_csp_nonce()} />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <.live_title>
+      {assigns[:head_title] || "Tuist"}
+    </.live_title>
+    <TuistWeb.LayoutComponents.head_meta_meta_tags {assigns} />
+    <TuistWeb.LayoutComponents.head_x_meta_tags {assigns} />
+    <!-- Language alternates for SEO -->
+    <%= for locale <- TuistWeb.Marketing.Localization.all_locales() do %>
+      <link
+        rel="alternate"
+        hreflang={locale}
+        href={
+          Tuist.Environment.app_url(
+            path:
+              TuistWeb.Marketing.Localization.localized_href(
+                TuistWeb.Marketing.Localization.current_path(assigns),
+                locale
+              )
+          )
+        }
+      />
+    <% end %>
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href={
+        Tuist.Environment.app_url(path: TuistWeb.Marketing.Localization.current_path(assigns))
+      }
+    />
+    <script
+      :for={
+        structured_data <-
+          TuistWeb.Marketing.StructuredMarkup.get_json_serialized_structured_data(assigns)
+      }
+      nonce={get_csp_nonce()}
+      type="application/ld+json"
+    >
+      <%= raw structured_data %>
+    </script>
+    <!-- Assets -->
+    <link phx-track-static rel="stylesheet" href={~p"/marketing/assets/bundle.css"} />
+    <script defer phx-track-static type="module" src={~p"/marketing/assets/bundle.js"}>
+    </script>
+    <!-- RSS -->
+    <%= if assigns[:head_include_blog_rss_and_atom] do %>
+      <link
+        rel="alternate"
+        type="application/rss+xml"
+        title={dgettext("marketing", "Tuist Blog")}
+        href={~p"/blog/rss.xml"}
+      />
+      <link
+        rel="alternate"
+        type="application/atom+xml"
+        title={dgettext("marketing", "Tuist Blog")}
+        href={~p"/blog/atom.xml"}
+      />
+    <% end %>
+
+    <%= if assigns[:head_include_changelog_rss_and_atom] do %>
+      <link
+        rel="alternate"
+        type="application/rss+xml"
+        title={dgettext("marketing", "Tuist Changelog")}
+        href={~p"/changelog/rss.xml"}
+      />
+      <link
+        rel="alternate"
+        type="application/atom+xml"
+        title={dgettext("marketing", "Tuist Changelog")}
+        href={~p"/changelog/atom.xml"}
+      />
+    <% end %>
+    
+<!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap"
+      rel="stylesheet"
+    />
+    
+<!-- Analytics -->
+    <TuistWeb.LayoutComponents.head_analytics_scripts page_section="marketing" {assigns} />
+    
+<!-- hCaptcha -->
+    <script nonce={get_csp_nonce()} src="https://js.hcaptcha.com/1/api.js" async defer>
+    </script>
+    <TuistWeb.LayoutComponents.head_plain_script current_user={@current_user} {assigns} />
+    <link rel="canonical" href={Tuist.Environment.app_url(path: @current_path)} />
+  </head>
+  <body data-scrollable="true">
+    <div data-part="content">
+      {@inner_content}
+    </div>
+  </body>
+</html>

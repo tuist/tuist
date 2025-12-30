@@ -1,19 +1,23 @@
 ---
-title: Logging
-titleTemplate: :title · CLI · Contributors · Tuist
-description: Learn how to contribute to Tuist by reviewing code
+{
+  "title": "Logging",
+  "titleTemplate": ":title · CLI · Contributors · Tuist",
+  "description": "Learn how to contribute to Tuist by reviewing code"
+}
 ---
-
 # Logging {#logging}
 
-The CLI embraces the [swift-log](https://github.com/apple/swift-log) interface for logging. The package abstracts away the implementation details of logging, allowing the CLI to be agnostic to the logging backend. The logger is dependency-injected using [swift-service-context](https://github.com/apple/swift-service-context) and can be accessed anywhere using:
+The CLI embraces the [swift-log](https://github.com/apple/swift-log) interface for logging. The package abstracts away the implementation details of logging, allowing the CLI to be agnostic to the logging backend. The logger is dependency-injected using task locals and can be accessed anywhere using:
 
 ```bash
-ServiceContext.current?.logger
+Logger.current
 ```
 
-> [!NOTE]
-> `swift-service-context` passes the instance using [task locals](https://developer.apple.com/documentation/swift/tasklocal) which don't propagate the value when using `Dispatch`, so if you run asynchronous code using `Dispatch`, you'll to get the instance from the context and pass it to the asynchronous operation.
+::: info
+<!-- -->
+Task locals don't propagate the value when using `Dispatch` or detached tasks, so if you use them, you'll need to get it and pass it to the asynchronous operation.
+<!-- -->
+:::
 
 ## What to log {#what-to-log}
 

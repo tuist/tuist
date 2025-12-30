@@ -1,31 +1,25 @@
-import { execa, $ } from "execa";
-import { temporaryDirectoryTask } from "tempy";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
+import * as fs from "node:fs";
 import ejs from "ejs";
 import { localizedString } from "../i18n.mjs";
 
 // Root directory
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const rootDirectory = path.join(__dirname, "../../..");
 
-// Schema
-await execa({
-  stdio: "inherit",
-})`swift build --product ProjectDescription --configuration debug --package-path ${rootDirectory}`;
-await execa({
-  stdio: "inherit",
-})`swift build --product tuist --configuration debug --package-path ${rootDirectory}`;
-var dumpedCLISchema;
-await temporaryDirectoryTask(async (tmpDir) => {
-  // I'm passing --path to sandbox the execution since we are only interested in the schema and nothing else.
-  dumpedCLISchema = await $`${path.join(
-    rootDirectory,
-    ".build/debug/tuist",
-  )} --experimental-dump-help --path ${tmpDir}`;
-});
-const { stdout } = dumpedCLISchema;
-export const schema = JSON.parse(stdout);
+// Load pre-generated schema
+const schemaPath = path.join(__dirname, "../../docs/generated/cli/schema.json");
+let schema;
+try {
+  const schemaContent = fs.readFileSync(schemaPath, "utf-8");
+  schema = JSON.parse(schemaContent);
+} catch (error) {
+  throw new Error(
+    `Failed to load CLI schema from ${schemaPath}. Please run 'mise run generate-cli-docs' first.`,
+  );
+}
+
+export { schema };
 
 // Paths
 function traverse(command, paths) {
@@ -88,22 +82,27 @@ function content(command) {
       ...command,
       spec: {
         ...command.spec,
-        arguments: command.spec.arguments.map((arg) => {
-          const envVarMatch = arg.abstract.match(envVarRegex);
-          return {
-            ...arg,
-            envVar: envVarMatch ? envVarMatch[1] : undefined,
-            isDeprecated:
-              arg.abstract.includes("[Deprecated]") ||
-              arg.abstract.includes("[deprecated]"),
-            abstract: arg.abstract
-              .replace(envVarRegex, "")
-              .replace("[Deprecated]", "")
-              .replace("[deprecated]", "")
-              .trim()
-              .replace(/<([^>]+)>/g, "\\<$1\\>"),
-          };
-        }),
+        arguments: command.spec.arguments
+          .map((arg) => {
+            if (!arg.abstract) {
+              return null;
+            }
+            const envVarMatch = arg.abstract.match(envVarRegex);
+            return {
+              ...arg,
+              envVar: envVarMatch ? envVarMatch[1] : undefined,
+              isDeprecated:
+                arg.abstract.includes("[Deprecated]") ||
+                arg.abstract.includes("[deprecated]"),
+              abstract: arg.abstract
+                .replace(envVarRegex, "")
+                .replace("[Deprecated]", "")
+                .replace("[deprecated]", "")
+                .trim()
+                .replace(/<([^>]+)>/g, "\\<$1\\>"),
+            };
+          })
+          .filter((item) => item != null),
       },
     },
   });
@@ -132,6 +131,13 @@ export async function cliSidebar(locale) {
               "sidebars.cli.items.cli.items.logging.text",
             ),
             link: `/${locale}/cli/logging`,
+          },
+          {
+            text: localizedString(
+              locale,
+              "sidebars.cli.items.cli.items.directories.text",
+            ),
+            link: `/${locale}/cli/directories`,
           },
           {
             text: localizedString(

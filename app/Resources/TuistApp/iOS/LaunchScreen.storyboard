@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="23727" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="01J-lp-oVM">
+    <device id="retina6_12" orientation="portrait" appearance="light"/>
+    <dependencies>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="23721"/>
+        <capability name="Safe area layout guides" minToolsVersion="9.0"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <scenes>
+        <!--View Controller-->
+        <scene sceneID="EHf-IW-A2E">
+            <objects>
+                <viewController id="01J-lp-oVM" sceneMemberID="viewController">
+                    <view key="view" contentMode="scaleToFill" id="Ze5-6b-2t3">
+                        <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" image="LaunchScreenBackground" translatesAutoresizingMaskIntoConstraints="NO" id="5WS-Zz-sof">
+                                <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
+                            </imageView>
+                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" image="TuistRoundedIcon" translatesAutoresizingMaskIntoConstraints="NO" id="gio-2J-OGO">
+                                <rect key="frame" x="139.66666666666666" y="369" width="114" height="114"/>
+                            </imageView>
+                        </subviews>
+                        <viewLayoutGuide key="safeArea" id="Bcu-3y-fUS"/>
+                        <color key="backgroundColor" red="1" green="1" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                        <constraints>
+                            <constraint firstItem="5WS-Zz-sof" firstAttribute="top" secondItem="Ze5-6b-2t3" secondAttribute="top" id="K9s-RK-oz6"/>
+                            <constraint firstItem="5WS-Zz-sof" firstAttribute="trailing" secondItem="Bcu-3y-fUS" secondAttribute="trailing" id="lC8-iV-4s2"/>
+                            <constraint firstItem="5WS-Zz-sof" firstAttribute="leading" secondItem="Bcu-3y-fUS" secondAttribute="leading" id="qlk-wy-r7O"/>
+                            <constraint firstAttribute="bottom" secondItem="5WS-Zz-sof" secondAttribute="bottom" id="vo5-BR-bmN"/>
+                            <constraint firstItem="gio-2J-OGO" firstAttribute="centerY" secondItem="Ze5-6b-2t3" secondAttribute="centerY" id="wGd-vr-4Mh"/>
+                            <constraint firstItem="gio-2J-OGO" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="yTr-zR-4sd"/>
+                        </constraints>
+                    </view>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="iYj-Kq-Ea1" userLabel="First Responder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="52.671755725190835" y="374.64788732394368"/>
+        </scene>
+    </scenes>
+    <resources>
+        <image name="LaunchScreenBackground" width="402" height="874"/>
+        <image name="TuistRoundedIcon" width="114" height="114"/>
+    </resources>
+</document>

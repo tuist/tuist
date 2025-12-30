@@ -1,0 +1,167 @@
+name: Server Production Deployment
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - server/**
+      - .github/workflows/server-production-deployment.yml
+      - server/pnpm-lock.yaml
+
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: The commit SHA to deploy. When not passed, it deploys the latest commit available in `main`.
+        required: false
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: server-production-deployment-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  CI: true
+  RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  PNPM_HOME: ~/.pnpm
+  TUIST_ENABLE_CACHING: "true"
+
+jobs:
+  canary:
+    environment: server-canary
+    name: Canary Deployment
+    env:
+      DOCKER_BUILDKIT: 1
+    runs-on: namespace-profile-default
+    defaults:
+      run:
+        working-directory: server
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        if: ${{ github.event.inputs.commit_sha == '' }}
+      - uses: actions/checkout@v4
+        if: ${{ github.event.inputs.commit_sha != '' }}
+        with:
+          ref: ${{ github.event.inputs.commit_sha }}
+      - uses: jdx/mise-action@v2
+        with:
+          install: false
+      - name: "Get version"
+        id: version
+        run: |
+          version=$(./mise/tasks/generate-version.sh)
+          echo "::set-output name=version::$version"
+      - name: Update version in mix.exs
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          sed -i 's/version: "[^"]*"/version: "'$VERSION'"/' mix.exs
+      - name: Trigger canary deploy with Render CLI
+        run: |
+          mise exec "github:render-oss/cli@2.6.1" -- cli_v2.6.1 deploys create srv-d35uiopr0fns73bfve00 --output json --confirm --wait --commit "$GITHUB_SHA"
+  acceptance-tests:
+    name: Acceptance Tests
+    runs-on: namespace-profile-default-macos
+    timeout-minutes: 30
+    needs: canary
+    environment: server-canary
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+          submodules: recursive
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
+      - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Setup Tuist cache
+        run: tuist setup cache
+      - name: Install Tuist dependencies
+        if: steps.cache-restore.outputs.cache-matched-key == ''
+        run: tuist install
+      - name: Initialize TuistCacheEE submodule
+        env:
+          TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
+        run: mise run cli:ee
+      - name: Test
+        env:
+          TUIST_EE: 1
+        run: tuist test TuistCacheEEAcceptanceTests --no-selective-testing --test-targets TuistCacheEEAcceptanceTests/TuistCacheEECanaryAcceptanceTests
+  production:
+    environment: server-production
+    name: Production Deployment
+    env:
+      DOCKER_BUILDKIT: 1
+    runs-on: namespace-profile-default
+    timeout-minutes: 60
+    if: ${{ !contains(github.event.head_commit.message, '(hotfix)') }}
+    needs: acceptance-tests
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+        if: ${{ github.event.inputs.commit_sha == '' }}
+      - uses: actions/checkout@v4
+        if: ${{ github.event.inputs.commit_sha != '' }}
+        with:
+          ref: ${{ github.event.inputs.commit_sha }}
+      - uses: jdx/mise-action@v2
+        with:
+          install: false
+      - name: "Get version"
+        id: version
+        run: |
+          version=$(./mise/tasks/generate-version.sh)
+          echo "::set-output name=version::$version"
+      - name: Update version in mix.exs
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          sed -i 's/version: "[^"]*"/version: "'$VERSION'"/' mix.exs
+      - name: Trigger canary deploy with Render CLI
+        run: |
+          mise exec "github:render-oss/cli@2.6.1" -- cli_v2.6.1 deploys create srv-d35an4ggjchc73evd8m0 --output json --confirm --wait --commit "$GITHUB_SHA"
+  production-hotfix:
+    environment: server-production
+    name: Hotfix Production Deployment
+    env:
+      DOCKER_BUILDKIT: 1
+    runs-on: namespace-profile-default
+    timeout-minutes: 60
+    if: ${{ contains(github.event.head_commit.message, '(hotfix)') }}
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+        if: ${{ github.event.inputs.commit_sha == '' }}
+      - uses: actions/checkout@v4
+        if: ${{ github.event.inputs.commit_sha != '' }}
+        with:
+          ref: ${{ github.event.inputs.commit_sha }}
+      - uses: jdx/mise-action@v2
+        with:
+          install: false
+      - name: "Get version"
+        id: version
+        run: |
+          version=$(./mise/tasks/generate-version.sh)
+          echo "::set-output name=version::$version"
+      - name: Update version in mix.exs
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          sed -i 's/version: "[^"]*"/version: "'$VERSION'"/' mix.exs
+      - name: Trigger canary deploy with Render CLI
+        run: |
+          mise exec "github:render-oss/cli@2.6.1" -- cli_v2.6.1 deploys create srv-d35an4ggjchc73evd8m0 --output json --confirm --wait --commit "$GITHUB_SHA"

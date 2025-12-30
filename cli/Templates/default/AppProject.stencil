@@ -1,0 +1,41 @@
+import ProjectDescription
+
+let project = Project(
+    name: "{{ name }}",
+    targets: [
+        .target(
+            name: "{{ name }}",
+            destinations: .{{ platform }},
+            product: .app,
+            bundleId: "dev.tuist.{{ bundle_identifier }}",
+{% if platform == "iOS" or platform == "tvOS" %}
+            infoPlist: .extendingDefault(
+                with: [
+                    "UILaunchScreen": [
+                        "UIColorName": "",
+                        "UIImageName": "",
+                    ],
+                ]
+            ),
+{% elif platform == "macOS" %}
+            infoPlist: .default,
+{% endif %}
+            buildableFolders: [
+                "{{ name }}/Sources",
+                "{{ name }}/Resources",
+            ],
+            dependencies: []
+        ),
+        .target(
+            name: "{{ name }}Tests",
+            destinations: .{{ platform }},
+            product: .unitTests,
+            bundleId: "dev.tuist.{{ bundle_identifier }}Tests",
+            infoPlist: .default,
+            buildableFolders: [
+                "{{ name }}/Tests"
+            ],
+            dependencies: [.target(name: "{{ name }}")]
+        ),
+    ]
+)

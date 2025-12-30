@@ -1,357 +1,432 @@
 {
-  "aside": {
-    "translate": {
-      "title": {
-        "text": "Translation 🌍"
-      },
-      "description": {
-        "text": "이 페이지를 번역하거나 기존 번역을 개선할 수 있습니다."
-      },
-      "cta": {
-        "text": "기여"
-      }
-    }
-  },
-  "search": {
-    "placeholder": "검색",
-    "translations": {
-      "button": {
-        "button-text": "문서 검색",
-        "button-aria-label": "문서 검색"
-      },
-      "modal": {
-        "search-box": {
-          "reset-button-title": "쿼리 초기화",
-          "reset-button-aria-label": "쿼리 초기화",
-          "cancel-button-text": "취소",
-          "cancel-button-aria-label": "취소"
-        },
-        "start-screen": {
-          "recent-searches-title": "검색 이력",
-          "no-recent-searches-text": "검색 이력이 없음",
-          "save-recent-search-button-title": "검색 이력 저장",
-          "remove-recent-search-button-title": "검색 이력 삭제",
-          "favorite-searches-title": "즐겨찾기",
-          "remove-favorite-search-button-title": "즐겨찾기 삭제"
-        },
-        "error-screen": {
-          "title-text": "결과를 받을 수 없음",
-          "help-text": "네트워크 연결을 확인해주세요"
-        },
-        "footer": {
-          "select-text": "선택",
-          "navigate-text": "탐색",
-          "close-text": "닫기",
-          "search-by-text": "검색 제공자"
-        },
-        "no-results-screen": {
-          "no-results-text": "관련된 결과를 찾을 수 없음",
-          "suggested-query-text": "다른 검색어를 입력해보세요",
-          "report-missing-results-text": "검색 결과가 있어야 한다고 생각하나요?",
-          "report-missing-results-link-text": "피드백하기"
+    "aside": {
+        "translate": {
+            "title": {
+                "text": "번역 🌍"
+            },
+            "description": {
+                "text": "이 페이지를 번역하거나 기존 번역을 개선할 수 있습니다."
+            },
+            "cta": {
+                "text": "기여"
+            }
         }
-      }
-    }
-  },
-  "navbar": {
-    "guides": {
-      "text": "안내서"
     },
-    "cli": {
-      "text": "CLI"
+    "search": {
+        "placeholder": "검색",
+        "translations": {
+            "button": {
+                "button-text": "문서 검색",
+                "button-aria-label": "문서 검색"
+            },
+            "modal": {
+                "search-box": {
+                    "reset-button-title": "쿼리 초기화",
+                    "reset-button-aria-label": "쿼리 초기화",
+                    "cancel-button-text": "취소",
+                    "cancel-button-aria-label": "취소"
+                },
+                "start-screen": {
+                    "recent-searches-title": "검색 이력",
+                    "no-recent-searches-text": "검색 이력이 없음",
+                    "save-recent-search-button-title": "검색 이력 저장",
+                    "remove-recent-search-button-title": "검색 이력 삭제",
+                    "favorite-searches-title": "즐겨찾기",
+                    "remove-favorite-search-button-title": "즐겨찾기 삭제"
+                },
+                "error-screen": {
+                    "title-text": "결과를 받을 수 없음",
+                    "help-text": "네트워크 연결을 확인해주세요"
+                },
+                "footer": {
+                    "select-text": "선택",
+                    "navigate-text": "탐색",
+                    "close-text": "닫기",
+                    "search-by-text": "검색 제공자"
+                },
+                "no-results-screen": {
+                    "no-results-text": "관련된 결과를 찾을 수 없음",
+                    "suggested-query-text": "다른 검색어를 입력해보세요",
+                    "report-missing-results-text": "검색 결과가 있어야 한다고 생각하나요?",
+                    "report-missing-results-link-text": "피드백하기"
+                }
+            }
+        }
     },
-    "server": {
-      "text": "서버"
+    "navbar": {
+        "guides": {
+            "text": "안내서"
+        },
+        "cli": {
+            "text": "CLI"
+        },
+        "server": {
+            "text": "서버"
+        },
+        "resources": {
+            "text": "리소스",
+            "items": {
+                "references": {
+                    "text": "참고자료"
+                },
+                "contributors": {
+                    "text": "기여자들"
+                },
+                "changelog": {
+                    "text": "수정사항"
+                }
+            }
+        }
     },
-    "resources": {
-      "text": "리소스",
-      "items": {
+    "sidebars": {
+        "cli": {
+            "text": "CLI",
+            "items": {
+                "cli": {
+                    "items": {
+                        "logging": {
+                            "text": "로깅"
+                        },
+                        "shell-completions": {
+                            "text": "Shell 완성"
+                        },
+                        "directories": {
+                            "text": "디렉토리"
+                        }
+                    }
+                },
+                "commands": {
+                    "text": "명령"
+                }
+            }
+        },
         "references": {
-          "text": "참고자료"
+            "text": "참고 자료",
+            "items": {
+                "examples": {
+                    "text": "예제"
+                },
+                "migrations": {
+                    "text": "마이그레이션",
+                    "items": {
+                        "from-v3-to-v4": {
+                            "text": "v3에서 v4로"
+                        }
+                    }
+                }
+            }
         },
         "contributors": {
-          "text": "기여자들"
-        },
-        "changelog": {
-          "text": "수정사항"
-        }
-      }
-    }
-  },
-  "sidebars": {
-    "cli": {
-      "text": "CLI",
-      "items": {
-        "cli": {
-          "items": {
-            "logging": {
-              "text": "로깅"
-            },
-            "shell-completions": {
-              "text": "Shell completions"
-            }
-          }
-        },
-        "commands": {
-          "text": "Commands"
-        }
-      }
-    },
-    "references": {
-      "text": "References",
-      "items": {
-        "examples": {
-          "text": "Examples"
-        },
-        "migrations": {
-          "text": "Migrations",
-          "items": {
-            "from-v3-to-v4": {
-              "text": "From v3 to v4"
-            }
-          }
-        }
-      }
-    },
-    "contributors": {
-      "text": "Contributors",
-      "items": {
-        "get-started": {
-          "text": "Get started"
-        },
-        "issue-reporting": {
-          "text": "Issue reporting"
-        },
-        "code-reviews": {
-          "text": "Code reviews"
-        },
-        "principles": {
-          "text": "Principles"
-        },
-        "translate": {
-          "text": "Translate"
-        },
-        "cli": {
-          "text": "CLI",
-          "items": {
-            "logging": {
-              "text": "로깅"
-            }
-          }
-        }
-      }
-    },
-    "server": {
-      "items": {
-        "introduction": {
-          "text": "Introduction",
-          "items": {
-            "why-server": {
-              "text": "Why a server?"
-            },
-            "accounts-and-projects": {
-              "text": "Accounts and projects"
-            },
-            "authentication": {
-              "text": "Authentication"
-            },
-            "integrations": {
-              "text": "Integrations"
-            }
-          }
-        },
-        "on-premise": {
-          "text": "On-premise",
-          "items": {
-            "install": {
-              "text": "Install"
-            },
-            "metrics": {
-              "text": "Metrics"
-            }
-          }
-        },
-        "api-documentation": {
-          "text": "API documentation"
-        },
-        "status": {
-          "text": "Status"
-        },
-        "metrics-dashboard": {
-          "text": "통계 현황판"
-        }
-      }
-    },
-    "guides": {
-      "text": "안내서",
-      "items": {
-        "tuist": {
-          "text": "Tuist",
-          "items": {
-            "about": {
-              "text": "About Tuist"
-            }
-          }
-        },
-        "quick-start": {
-          "text": "Quick start",
-          "items": {
-            "install-tuist": {
-              "text": "Install Tuist"
-            },
-            "get-started": {
-              "text": "Get started"
-            }
-          }
-        },
-        "develop": {
-          "text": "Develop",
-          "items": {
-            "generated-projects": {
-              "text": "Generated projects",
-              "items": {
-                "adoption": {
-                  "text": "Adoption",
-                  "items": {
-                    "new-project": {
-                      "text": "Create a new project"
-                    },
-                    "swift-package": {
-                      "text": "Try with a Swift Package"
-                    },
-                    "migrate": {
-                      "text": "Migrate",
-                      "items": {
-                        "xcode-project": {
-                          "text": "An Xcode project"
-                        },
-                        "swift-package": {
-                          "text": "A Swift package"
-                        },
-                        "xcodegen-project": {
-                          "text": "An XcodeGen project"
-                        },
-                        "bazel-project": {
-                          "text": "A Bazel project"
+            "text": "기여자",
+            "items": {
+                "get-started": {
+                    "text": "시작하기"
+                },
+                "issue-reporting": {
+                    "text": "이슈 보고"
+                },
+                "code-reviews": {
+                    "text": "코드 리뷰"
+                },
+                "principles": {
+                    "text": "원칙"
+                },
+                "translate": {
+                    "text": "번역"
+                },
+                "cli": {
+                    "text": "CLI",
+                    "items": {
+                        "logging": {
+                            "text": "로깅"
                         }
-                      }
                     }
-                  }
                 },
-                "manifests": {
-                  "text": "Manifests"
-                },
-                "directory-structure": {
-                  "text": "Directory structure"
-                },
-                "editing": {
-                  "text": "Editing"
-                },
-                "dependencies": {
-                  "text": "Dependencies"
-                },
-                "code-sharing": {
-                  "text": "Code sharing"
-                },
-                "synthesized-files": {
-                  "text": "Synthesized files"
-                },
-                "dynamic-configuration": {
-                  "text": "Dynamic configuration"
-                },
-                "templates": {
-                  "text": "Templates"
-                },
-                "plugins": {
-                  "text": "Plugins"
-                },
-                "hashing": {
-                  "text": "Hashing"
-                },
-                "inspect": {
-                  "text": "Inspect",
-                  "items": {
-                    "implicit-imports": {
-                      "text": "Implicit imports"
+                "releases": {
+                    "text": "배포 내역"
+                }
+            }
+        },
+        "server": {
+            "items": {
+                "introduction": {
+                    "text": "소개",
+                    "items": {
+                        "why-server": {
+                            "text": "왜 서버인가?"
+                        },
+                        "accounts-and-projects": {
+                            "text": "계정 및 프로젝트"
+                        },
+                        "authentication": {
+                            "text": "인증"
+                        },
+                        "integrations": {
+                            "text": "통합"
+                        }
                     }
-                  }
                 },
-                "the-cost-of-convenience": {
-                  "text": "The cost of convenience"
+                "on-premise": {
+                    "text": "자체 구축",
+                    "items": {
+                        "install": {
+                            "text": "Install"
+                        },
+                        "metrics": {
+                            "text": "통계"
+                        }
+                    }
                 },
-                "tma-architecture": {
-                  "text": "Modular architecture"
+                "api-documentation": {
+                    "text": "API documentation"
                 },
-                "best-practices": {
-                  "text": "Best practices"
+                "status": {
+                    "text": "Status"
+                },
+                "metrics-dashboard": {
+                    "text": "통계 현황판"
                 }
-              }
-            },
-            "cache": {
-              "text": "Cache"
-            },
-            "registry": {
-              "text": "Registry",
-              "items": {
-                "registry": {
-                  "text": "Registry"
-                },
-                "xcode-project": {
-                  "text": "Xcode project"
-                },
-                "generated-project": {
-                  "text": "Generated project"
-                },
-                "xcodeproj-integration": {
-                  "text": "XcodeProj-based integration"
-                },
-                "swift-package": {
-                  "text": "Swift package"
-                },
-                "continuous-integration": {
-                  "text": "Continuous integration"
-                }
-              }
-            },
-            "selective-testing": {
-              "text": "Selective testing",
-              "items": {
-                "selective-testing": {
-                  "text": "Selective testing"
-                },
-                "xcodebuild": {
-                  "text": "xcode 빌드"
-                },
-                "generated-project": {
-                  "text": "Generated project"
-                }
-              }
-            },
-            "insights": {
-              "text": "Insights"
             }
-          }
         },
-        "automate": {
-          "text": "Automate",
-          "items": {
-            "continuous-integration": {
-              "text": "Continuous integration"
-            },
-            "workflows": {
-              "text": "Workflows"
+        "guides": {
+            "text": "안내서",
+            "items": {
+                "tuist": {
+                    "text": "Tuist",
+                    "items": {
+                        "about": {
+                            "text": "Tuist 소개"
+                        }
+                    }
+                },
+                "quick-start": {
+                    "text": "빠른 시작",
+                    "items": {
+                        "install-tuist": {
+                            "text": "설치하기"
+                        },
+                        "get-started": {
+                            "text": "시작하기"
+                        }
+                    }
+                },
+                "features": {
+                    "text": "기능"
+                },
+                "examples": {
+                    "text": "예제",
+                    "items": {
+                        "generated-projects": {
+                            "text": "생성된 프로젝트"
+                        }
+                    }
+                },
+                "develop": {
+                    "text": "개발",
+                    "items": {
+                        "generated-projects": {
+                            "text": "동적 생성된 프로젝트",
+                            "items": {
+                                "adoption": {
+                                    "text": "적용",
+                                    "items": {
+                                        "new-project": {
+                                            "text": "프로젝트 만들기"
+                                        },
+                                        "swift-package": {
+                                            "text": "Swift 패키지로 시작"
+                                        },
+                                        "migrate": {
+                                            "text": "전환",
+                                            "items": {
+                                                "xcode-project": {
+                                                    "text": "Xcode 프로젝트"
+                                                },
+                                                "swift-package": {
+                                                    "text": "Swift 패키지"
+                                                },
+                                                "xcodegen-project": {
+                                                    "text": "XcodeGen 프로젝트"
+                                                },
+                                                "bazel-project": {
+                                                    "text": "Bazel 프로젝트"
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "manifests": {
+                                    "text": "매니페스트"
+                                },
+                                "directory-structure": {
+                                    "text": "디렉토리 구조"
+                                },
+                                "editing": {
+                                    "text": "편집"
+                                },
+                                "dependencies": {
+                                    "text": "의존성"
+                                },
+                                "code-sharing": {
+                                    "text": "코드 공유"
+                                },
+                                "synthesized-files": {
+                                    "text": "합성된 파일"
+                                },
+                                "dynamic-configuration": {
+                                    "text": "동적 환경설정"
+                                },
+                                "templates": {
+                                    "text": "양식"
+                                },
+                                "plugins": {
+                                    "text": "플러그인인"
+                                },
+                                "hashing": {
+                                    "text": "해시"
+                                },
+                                "inspect": {
+                                    "text": "검사",
+                                    "items": {
+                                        "implicit-imports": {
+                                            "text": "암묵적 가져오기"
+                                        }
+                                    }
+                                },
+                                "the-cost-of-convenience": {
+                                    "text": "편리함의 대가"
+                                },
+                                "tma-architecture": {
+                                    "text": "모듈화 아키텍쳐"
+                                },
+                                "best-practices": {
+                                    "text": "선례"
+                                },
+                                "metadata-tags": {
+                                    "text": "Metadata 태그"
+                                }
+                            }
+                        },
+                        "cache": {
+                            "text": "캐시",
+                            "items": {
+                                "generated-project": {
+                                    "text": ""
+                                },
+                                "xcode-cache": {
+                                    "text": "Xcode 캐시"
+                                },
+                                "module-cache": {
+                                    "text": "모듈 캐시"
+                                }
+                            }
+                        },
+                        "registry": {
+                            "text": "패키지 저장소",
+                            "items": {
+                                "registry": {
+                                    "text": "레지스트리"
+                                },
+                                "xcode-project": {
+                                    "text": "Xcode 프로젝트"
+                                },
+                                "generated-project": {
+                                    "text": "동적 생성된 프로젝트"
+                                },
+                                "xcodeproj-integration": {
+                                    "text": "XcodeProj 기반 통합"
+                                },
+                                "swift-package": {
+                                    "text": "Swift 패키지"
+                                },
+                                "continuous-integration": {
+                                    "text": "지속 통합"
+                                }
+                            }
+                        },
+                        "selective-testing": {
+                            "text": "선택적 테스트",
+                            "items": {
+                                "selective-testing": {
+                                    "text": "선택적 테스트"
+                                },
+                                "xcode-project": {
+                                    "text": "Xcode 프로젝트"
+                                },
+                                "generated-project": {
+                                    "text": "동적 생성된 프로젝트"
+                                }
+                            }
+                        },
+                        "insights": {
+                            "text": "빌드 분석"
+                        },
+                        "bundle-size": {
+                            "text": "번들 분석"
+                        },
+                        "qa": {
+                            "text": "QA"
+                        }
+                    }
+                },
+                "agentic-coding": {
+                    "text": "에이전틱 코딩",
+                    "items": {
+                        "mcp": {
+                            "text": "Model Context Protocol (MCP)"
+                        }
+                    }
+                },
+                "integrations": {
+                    "text": "통합",
+                    "items": {
+                        "continuous-integration": {
+                            "text": "지속 통합"
+                        },
+                        "sso": {
+                            "text": "SSO"
+                        },
+                        "git-forges": {
+                            "items": {
+                                "github": {
+                                    "text": "GitHub"
+                                }
+                            },
+                            "text": "Git 저장소"
+                        }
+                    }
+                },
+                "share": {
+                    "text": "공유",
+                    "items": {
+                        "previews": {
+                            "text": "미리보기"
+                        }
+                    }
+                },
+                "server": {
+                    "items": {
+                        "self-hosting": {
+                            "items": {
+                                "telemetry": {
+                                    "text": "원격 데이터 수집"
+                                },
+                                "installation": {
+                                    "text": "설치"
+                                }
+                            },
+                            "text": "자체 구축"
+                        },
+                        "accounts-and-projects": {
+                            "text": "계정 및 프로젝트"
+                        },
+                        "authentication": {
+                            "text": "인증"
+                        }
+                    },
+                    "text": "서버"
+                }
             }
-          }
-        },
-        "share": {
-          "text": "Share",
-          "items": {
-            "previews": {
-              "text": "Previews"
-            }
-          }
         }
-      }
     }
-  }
 }

@@ -1,0 +1,918 @@
+<div id="builds">
+  <.card
+    title={dgettext("dashboard_builds", "Builds")}
+    icon="chart_arcs"
+    data-part="analytics-card"
+  >
+    <:actions>
+      <.dropdown
+        id="builds-analytics-scheme-dropdown"
+        label={build_scheme_label(@analytics_build_scheme)}
+        secondary_text={dgettext("dashboard_builds", "Scheme:")}
+      >
+        <.dropdown_item
+          value="any"
+          label={dgettext("dashboard_builds", "Any")}
+          patch={"?#{Query.put(@uri.query, "analytics-build-scheme", "any")}"}
+          data-selected={@analytics_build_scheme == "any"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <%= for build_scheme <- @build_schemes do %>
+          <.dropdown_item
+            value={build_scheme}
+            label={build_scheme}
+            patch={"?#{Query.put(@uri.query, "analytics-build-scheme", build_scheme)}"}
+            data-selected={@analytics_build_scheme == build_scheme}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+        <% end %>
+      </.dropdown>
+      <.dropdown
+        id="builds-analytics-configuration-dropdown"
+        label={build_configuration_label(@analytics_build_configuration)}
+        secondary_text={dgettext("dashboard_builds", "Configuration:")}
+      >
+        <.dropdown_item
+          value="any"
+          label={dgettext("dashboard_builds", "Any")}
+          patch={"?#{Query.put(@uri.query, "analytics-build-configuration", "any")}"}
+          data-selected={@analytics_build_configuration == "any"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <%= for build_configuration <- @build_configurations do %>
+          <.dropdown_item
+            value={build_configuration}
+            label={build_configuration}
+            patch={"?#{Query.put(@uri.query, "analytics-build-configuration", build_configuration)}"}
+            data-selected={@analytics_build_configuration == build_configuration}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+        <% end %>
+      </.dropdown>
+      <.dropdown
+        id="builds-analytics-category-dropdown"
+        label={@analytics_build_category |> String.capitalize()}
+        secondary_text={dgettext("dashboard_builds", "Build:")}
+      >
+        <.dropdown_item
+          value="any"
+          label={dgettext("dashboard_builds", "Any")}
+          patch={"?#{Query.put(@uri.query, "analytics-build-category", "any")}"}
+          data-selected={@analytics_build_category == "any"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="incremental"
+          label={dgettext("dashboard_builds", "Incremental")}
+          patch={"?#{Query.put(@uri.query, "analytics-build-category", "incremental")}"}
+          data-selected={@analytics_build_category == "incremental"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="clean"
+          label={dgettext("dashboard_builds", "Clean")}
+          patch={"?#{Query.put(@uri.query, "analytics-build-category", "clean")}"}
+          data-selected={@analytics_build_category == "clean"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+      </.dropdown>
+      <.dropdown
+        id="builds-analytics-environment-dropdown"
+        label={environment_label(@analytics_environment)}
+        secondary_text={dgettext("dashboard_builds", "Environment:")}
+      >
+        <.dropdown_item
+          value="any"
+          label={dgettext("dashboard_builds", "Any")}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "any")}"}
+          data-selected={@analytics_environment == "any"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="local"
+          label={dgettext("dashboard_builds", "Local")}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "local")}"}
+          data-selected={@analytics_environment == "local"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="ci"
+          label={dgettext("dashboard_builds", "CI")}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "ci")}"}
+          data-selected={@analytics_environment == "ci"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+      </.dropdown>
+      <.date_picker
+        id="builds-analytics-date-range-picker"
+        name="analytics-date-range"
+        presets={[
+          %{
+            id: "last-24-hours",
+            label: dgettext("dashboard_builds", "Last 24 hours"),
+            period: {24, :hour}
+          },
+          %{
+            id: "last-7-days",
+            label: dgettext("dashboard_builds", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last-30-days",
+            label: dgettext("dashboard_builds", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{
+            id: "last-12-months",
+            label: dgettext("dashboard_builds", "Last 12 months"),
+            period: {12, :month}
+          },
+          %{id: "custom", label: dgettext("dashboard_builds", "Custom")}
+        ]}
+        selected_preset={@analytics_preset}
+        period={@analytics_period}
+        on_period_change="analytics_period_changed"
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_builds", "Cancel")}
+            variant="secondary"
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel",
+                detail: %{id: "builds-analytics-date-range-picker"}
+              )
+            }
+          />
+          <.button
+            label={dgettext("dashboard_builds", "Apply")}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply",
+                detail: %{id: "builds-analytics-date-range-picker"}
+              )
+            }
+          />
+        </:actions>
+      </.date_picker>
+    </:actions>
+    <div data-part="widgets">
+      <.widget
+        title={dgettext("dashboard_builds", "Total builds")}
+        legend_color="primary"
+        description={dgettext("dashboard_builds", "The total number of builds.")}
+        value={@total_builds_analytics.count}
+        id="widget-total-builds"
+        phx_click="select_widget"
+        phx_value_widget="total-builds"
+        selected={@analytics_selected_widget == "total-builds"}
+        trend_value={@total_builds_analytics.trend}
+        trend_type={:neutral}
+        trend_label={@analytics_trend_label}
+        empty={@total_builds_analytics.count == 0}
+      />
+      <.widget
+        title={dgettext("dashboard_builds", "Build success rate")}
+        legend_color="primary"
+        description={dgettext("dashboard_builds", "The percentage of builds that succeeded.")}
+        value={
+          dgettext("dashboard_builds", "%{percentage}%",
+            percentage: Float.round(@build_success_rate_analytics.success_rate * 100, 1)
+          )
+        }
+        id="widget-build-success-rate"
+        phx_click="select_widget"
+        phx_value_widget="build-success-rate"
+        selected={@analytics_selected_widget == "build-success-rate"}
+        trend_value={@build_success_rate_analytics.trend}
+        trend_label={@analytics_trend_label}
+        empty={@total_builds_analytics.count == 0}
+      />
+      <.widget
+        title={dgettext("dashboard_builds", "Failed builds")}
+        legend_color="destructive"
+        description={dgettext("dashboard_builds", "The number of builds that failed.")}
+        value={@failed_builds_analytics.count}
+        id="widget-failed-builds"
+        phx_click="select_widget"
+        phx_value_widget="failed-builds"
+        selected={@analytics_selected_widget == "failed-builds"}
+        trend_value={@failed_builds_analytics.trend}
+        trend_type={:inverse}
+        trend_label={@analytics_trend_label}
+        empty={@failed_builds_analytics.count == 0}
+      />
+      <.percentile_dropdown_widget
+        id="widget-build-duration"
+        title={
+          case @selected_build_duration_type do
+            "p99" -> dgettext("dashboard_builds", "p99 build duration")
+            "p90" -> dgettext("dashboard_builds", "p90 build duration")
+            "p50" -> dgettext("dashboard_builds", "p50 build duration")
+            _ -> dgettext("dashboard_builds", "Avg. build duration")
+          end
+        }
+        legend_color={
+          case @selected_build_duration_type do
+            "p99" -> "p99"
+            "p90" -> "p90"
+            "p50" -> "p50"
+            _ -> "secondary"
+          end
+        }
+        description={
+          dgettext(
+            "dashboard_builds",
+            "The average build duration with individual percentile intervals."
+          )
+        }
+        value={
+          Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+            case @selected_build_duration_type do
+              "p99" -> @builds_p99_durations.total_percentile_duration
+              "p90" -> @builds_p90_durations.total_percentile_duration
+              "p50" -> @builds_p50_durations.total_percentile_duration
+              _ -> @builds_duration_analytics.total_average_duration
+            end
+          )
+        }
+        metrics={
+          %{
+            avg:
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @builds_duration_analytics.total_average_duration
+              ),
+            p99:
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @builds_p99_durations.total_percentile_duration
+              ),
+            p90:
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @builds_p90_durations.total_percentile_duration
+              ),
+            p50:
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @builds_p50_durations.total_percentile_duration
+              )
+          }
+        }
+        selected_type={@selected_build_duration_type}
+        event_name="select_build_duration_type"
+        phx_click="select_widget"
+        phx_value_widget="build-duration"
+        selected={@analytics_selected_widget == "build-duration"}
+        trend_value={
+          case @selected_build_duration_type do
+            "p99" -> @builds_p99_durations.trend
+            "p90" -> @builds_p90_durations.trend
+            "p50" -> @builds_p50_durations.trend
+            _ -> @builds_duration_analytics.trend
+          end
+        }
+        trend_type={:inverse}
+        trend_label={@analytics_trend_label}
+        empty={@builds_duration_analytics.total_average_duration == 0}
+      />
+    </div>
+    <.card_section
+      :if={@builds_duration_analytics.total_average_duration != 0}
+      data-part="analytics-card-chart-section"
+    >
+      <.chart
+        :if={@analytics_selected_widget == "build-duration"}
+        id="average-build-time-chart"
+        type="line"
+        extra_options={
+          %{
+            legend: %{
+              left: "left",
+              top: "bottom",
+              orient: "horizontal",
+              textStyle: %{
+                color: "var:noora-surface-label-secondary",
+                fontFamily: "monospace",
+                fontWeight: 400,
+                fontSize: 10,
+                lineHeight: 12
+              },
+              icon:
+                "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+              itemWidth: 8,
+              itemHeight: 4
+            },
+            grid: %{
+              width: "97%",
+              left: "0.4%",
+              height: "60%",
+              top: "10%"
+            },
+            xAxis: %{
+              boundaryGap: false,
+              type: "category",
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary",
+                formatter: "fn:toLocaleDate",
+                customValues: [
+                  @builds_duration_analytics.dates |> List.first(),
+                  @builds_duration_analytics.dates |> List.last()
+                ],
+                padding: [10, 0, 0, 0]
+              }
+            },
+            yAxis: %{
+              splitNumber: 4,
+              splitLine: %{
+                lineStyle: %{
+                  color: "var:noora-chart-lines"
+                }
+              },
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary",
+                formatter: "fn:formatSeconds"
+              }
+            },
+            tooltip:
+              if @analytics_preset == "last-24-hours" do
+                %{valueFormat: "fn:formatSeconds", dateFormat: "hour"}
+              else
+                %{valueFormat: "fn:formatSeconds"}
+              end
+          }
+        }
+        series={[
+          %{
+            color: "var:noora-chart-secondary",
+            data:
+              Enum.zip(
+                @builds_duration_analytics.dates,
+                @builds_duration_analytics.values
+                |> Enum.map(&((&1 / 1000) |> Decimal.from_float() |> Decimal.round(1)))
+              )
+              |> Enum.map(&Tuple.to_list/1),
+            name: dgettext("dashboard_builds", "Average"),
+            type: "line",
+            smooth: 0.1,
+            symbol: "none"
+          },
+          %{
+            color: "var:noora-chart-p99",
+            data:
+              Enum.zip(
+                @builds_p99_durations.dates,
+                @builds_p99_durations.values
+                |> Enum.map(&((&1 / 1000) |> Decimal.from_float() |> Decimal.round(1)))
+              )
+              |> Enum.map(&Tuple.to_list/1),
+            name: dgettext("dashboard_builds", "p99"),
+            type: "line",
+            smooth: 0.1,
+            symbol: "none"
+          },
+          %{
+            color: "var:noora-chart-p90",
+            data:
+              Enum.zip(
+                @builds_p90_durations.dates,
+                @builds_p90_durations.values
+                |> Enum.map(&((&1 / 1000) |> Decimal.from_float() |> Decimal.round(1)))
+              )
+              |> Enum.map(&Tuple.to_list/1),
+            name: dgettext("dashboard_builds", "p90"),
+            type: "line",
+            smooth: 0.1,
+            symbol: "none"
+          },
+          %{
+            color: "var:noora-chart-p50",
+            data:
+              Enum.zip(
+                @builds_p50_durations.dates,
+                @builds_p50_durations.values
+                |> Enum.map(&((&1 / 1000) |> Decimal.from_float() |> Decimal.round(1)))
+              )
+              |> Enum.map(&Tuple.to_list/1),
+            name: dgettext("dashboard_builds", "p50"),
+            type: "line",
+            smooth: 0.1,
+            symbol: "none"
+          }
+        ]}
+        y_axis_min={0}
+      />
+      <.chart
+        :if={@analytics_selected_widget == "total-builds"}
+        id="total-builds-chart"
+        type="line"
+        extra_options={
+          %{
+            grid: %{
+              width: "97%",
+              left: "0.4%",
+              height: "88%",
+              top: "5%"
+            },
+            xAxis: %{
+              boundaryGap: false,
+              type: "category",
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary",
+                formatter: "fn:toLocaleDate",
+                customValues: [
+                  @total_builds_analytics.dates |> List.first(),
+                  @total_builds_analytics.dates |> List.last()
+                ],
+                padding: [10, 0, 0, 0]
+              }
+            },
+            yAxis: %{
+              splitNumber: 4,
+              splitLine: %{
+                lineStyle: %{
+                  color: "var:noora-chart-lines"
+                }
+              },
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary"
+              }
+            },
+            legend: %{
+              show: false
+            },
+            tooltip:
+              if @analytics_preset == "last-24-hours" do
+                %{dateFormat: "hour"}
+              else
+                %{}
+              end
+          }
+        }
+        series={[
+          %{
+            color: "var:noora-chart-primary",
+            data:
+              Enum.zip(
+                @total_builds_analytics.dates,
+                @total_builds_analytics.values
+              )
+              |> Enum.map(&Tuple.to_list/1),
+            name: dgettext("dashboard_builds", "Build runs"),
+            type: "line",
+            smooth: 0.1,
+            symbol: "none"
+          }
+        ]}
+        y_axis_min={0}
+      />
+      <.chart
+        :if={@analytics_selected_widget == "failed-builds"}
+        id="failed-builds-chart"
+        type="line"
+        extra_options={
+          %{
+            grid: %{
+              width: "97%",
+              left: "0.4%",
+              height: "88%",
+              top: "5%"
+            },
+            xAxis: %{
+              boundaryGap: false,
+              type: "category",
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary",
+                formatter: "fn:toLocaleDate",
+                customValues: [
+                  @failed_builds_analytics.dates |> List.first(),
+                  @failed_builds_analytics.dates |> List.last()
+                ],
+                padding: [10, 0, 0, 0]
+              }
+            },
+            yAxis: %{
+              splitNumber: 4,
+              splitLine: %{
+                lineStyle: %{
+                  color: "var:noora-chart-lines"
+                }
+              },
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary"
+              }
+            },
+            legend: %{
+              show: false
+            },
+            tooltip:
+              if @analytics_preset == "last-24-hours" do
+                %{dateFormat: "hour"}
+              else
+                %{}
+              end
+          }
+        }
+        series={[
+          %{
+            color: "var:noora-chart-destructive",
+            data:
+              Enum.zip(
+                @failed_builds_analytics.dates,
+                @failed_builds_analytics.values
+              )
+              |> Enum.map(&Tuple.to_list/1),
+            name: dgettext("dashboard_builds", "Failed builds"),
+            type: "line",
+            smooth: 0.1,
+            symbol: "none"
+          }
+        ]}
+        y_axis_min={0}
+      />
+      <.chart
+        :if={@analytics_selected_widget == "build-success-rate"}
+        id="build-success-rate-chart"
+        type="line"
+        extra_options={
+          %{
+            grid: %{
+              width: "97%",
+              left: "0.4%",
+              height: "88%",
+              top: "5%"
+            },
+            xAxis: %{
+              boundaryGap: false,
+              type: "category",
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary",
+                formatter: "fn:toLocaleDate",
+                customValues: [
+                  @build_success_rate_analytics.dates |> List.first(),
+                  @build_success_rate_analytics.dates |> List.last()
+                ],
+                padding: [10, 0, 0, 0]
+              }
+            },
+            yAxis: %{
+              splitLine: %{
+                lineStyle: %{
+                  color: "var:noora-chart-lines"
+                }
+              },
+              axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"}
+            },
+            legend: %{
+              show: false
+            },
+            tooltip:
+              if @analytics_preset == "last-24-hours" do
+                %{valueFormat: "{value}%", dateFormat: "hour"}
+              else
+                %{valueFormat: "{value}%"}
+              end
+          }
+        }
+        series={[
+          %{
+            color: "var:noora-chart-success",
+            data:
+              Enum.zip(
+                @build_success_rate_analytics.dates,
+                @build_success_rate_analytics.values
+                |> Enum.map(&(&1 * 100))
+                |> Enum.map(&Decimal.from_float/1)
+                |> Enum.map(&Decimal.round(&1, 1))
+              )
+              |> Enum.map(&Tuple.to_list/1),
+            name: dgettext("dashboard_builds", "Build success rate"),
+            type: "line",
+            smooth: 0.1,
+            symbol: "none"
+          }
+        ]}
+        y_axis_min={0}
+        y_axis_max={100}
+      />
+    </.card_section>
+    <.empty_card_section
+      :if={@builds_duration_analytics.total_average_duration == 0}
+      title={dgettext("dashboard_builds", "No data yet")}
+    >
+      <:image>
+        <img src="/images/empty_line_chart_light.png" data-theme="light" />
+        <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+      </:image>
+    </.empty_card_section>
+  </.card>
+  <.card
+    title={dgettext("dashboard_builds", "Configuration Insights")}
+    icon="device_laptop"
+    data-part="configuration-insights-card"
+  >
+    <:actions>
+      <.dropdown
+        id="builds-configuration-insights-type-dropdown"
+        label={configuration_insights_label(@configuration_insights_type)}
+        secondary_text={dgettext("dashboard_builds", "Type:")}
+      >
+        <.dropdown_item
+          value="xcode-version"
+          label={dgettext("dashboard_builds", "Xcode version")}
+          patch={"?#{Query.put(@uri.query, "configuration-insights-type", "xcode-version")}"}
+          data-selected={@configuration_insights_type == "xcode-version"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="device"
+          label={dgettext("dashboard_builds", "Device")}
+          patch={"?#{Query.put(@uri.query, "configuration-insights-type", "device")}"}
+          data-selected={@configuration_insights_type == "device"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="macos-version"
+          label={dgettext("dashboard_builds", "macOS version")}
+          patch={"?#{Query.put(@uri.query, "configuration-insights-type", "macos-version")}"}
+          data-selected={@configuration_insights_type == "macos-version"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+      </.dropdown>
+      <.date_picker
+        id="configuration-insights-date-range-picker"
+        name="configuration-insights-date-range"
+        presets={[
+          %{
+            id: "last-24-hours",
+            label: dgettext("dashboard_builds", "Last 24 hours"),
+            period: {24, :hour}
+          },
+          %{
+            id: "last-7-days",
+            label: dgettext("dashboard_builds", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last-30-days",
+            label: dgettext("dashboard_builds", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{
+            id: "last-12-months",
+            label: dgettext("dashboard_builds", "Last 12 months"),
+            period: {12, :month}
+          },
+          %{id: "custom", label: dgettext("dashboard_builds", "Custom")}
+        ]}
+        selected_preset={@configuration_insights_preset}
+        period={@configuration_insights_period}
+        on_period_change="configuration_insights_period_changed"
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_builds", "Cancel")}
+            variant="secondary"
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel",
+                detail: %{id: "configuration-insights-date-range-picker"}
+              )
+            }
+          />
+          <.button
+            label={dgettext("dashboard_builds", "Apply")}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply",
+                detail: %{id: "configuration-insights-date-range-picker"}
+              )
+            }
+          />
+        </:actions>
+      </.date_picker>
+    </:actions>
+    <.card_section
+      :if={@builds_duration_analytics.total_average_duration != 0}
+      data-part="configuration-insights-card-chart-section"
+    >
+      <.legend title={dgettext("dashboard_builds", "Build duration")} style="secondary" />
+      <.chart
+        id="configuration-insights-chart"
+        type="line"
+        style={"height: #{@configuration_insights_chart_height}px"}
+        extra_options={
+          %{
+            grid: %{
+              width: "98%",
+              left: if(@configuration_insights_type == "device", do: "8%", else: "50"),
+              height: "100%",
+              top: "0%"
+            },
+            xAxis: %{
+              boundaryGap: false,
+              type: "value",
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary",
+                formatter: "fn:formatMilliseconds"
+              }
+            },
+            yAxis: %{
+              offset: 40,
+              splitNumber: 4,
+              type: "category",
+              splitLine: %{
+                lineStyle: %{
+                  color: "var:noora-chart-lines"
+                }
+              },
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary"
+              },
+              data: type_labels(@configuration_insights_type, @configuration_insights_analytics)
+            },
+            legend: %{
+              show: false
+            },
+            tooltip:
+              if @configuration_insights_preset == "last-24-hours" do
+                %{valueFormat: "fn:formatMilliseconds", dateFormat: "hour"}
+              else
+                %{valueFormat: "fn:formatMilliseconds"}
+              end
+          }
+        }
+        series={[
+          %{
+            color: "var:noora-chart-secondary",
+            data: Enum.map(@configuration_insights_analytics, & &1.value),
+            name: dgettext("dashboard_builds", "Build duration"),
+            type: "bar",
+            smooth: 0.1,
+            symbol: "none"
+          }
+        ]}
+        bar_width={8}
+        bar_radius={2}
+        x_axis_min={0}
+      />
+    </.card_section>
+    <.empty_card_section
+      :if={Enum.empty?(@configuration_insights_analytics)}
+      title={dgettext("dashboard_builds", "No data yet")}
+      get_started_href="https://docs.tuist.dev/en/guides/develop/insights"
+    >
+      <:image>
+        <img src="/images/empty_horizontal_bar_chart_light.png" data-theme="light" />
+        <img src="/images/empty_horizontal_bar_chart_dark.png" data-theme="dark" />
+      </:image>
+    </.empty_card_section>
+  </.card>
+  <.card
+    title={dgettext("dashboard_builds", "Recent Builds")}
+    icon="dashboard"
+    data-part="recent-builds-card"
+  >
+    <:actions>
+      <.button
+        variant="secondary"
+        label={dgettext("dashboard_builds", "View more")}
+        size="medium"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs"}
+        disabled={Enum.empty?(@recent_builds)}
+      />
+    </:actions>
+    <.card_section :if={not Enum.empty?(@recent_builds)} data-part="recent-builds-card-section">
+      <div data-part="builds-chart">
+        <div data-part="legends">
+          <.legend
+            title={dgettext("dashboard_builds", "Successful builds")}
+            value={@successful_builds_count}
+            style="primary"
+          />
+          <.legend
+            title={dgettext("dashboard_builds", "Failed builds")}
+            value={@failed_builds_count}
+            style="destructive"
+          />
+        </div>
+        <.chart
+          id="recent-build-runs-chart"
+          type="bar"
+          extra_options={
+            %{
+              grid: %{
+                width: "98%",
+                left: "0.4%",
+                right: "7%",
+                height: "88%",
+                top: "5%"
+              },
+              tooltip: %{
+                valueFormat: "fn:formatMilliseconds",
+                dateFormat: "minute"
+              },
+              xAxis: %{
+                axisLabel: %{show: false},
+                data: @recent_builds_chart_data |> Enum.map(& &1.date)
+              },
+              yAxis: %{
+                splitLine: %{
+                  lineStyle: %{
+                    color: "var:noora-chart-lines"
+                  }
+                },
+                axisLabel: %{
+                  color: "var:noora-surface-label-secondary",
+                  formatter: "fn:formatMilliseconds"
+                }
+              },
+              legend: %{
+                show: false
+              }
+            }
+          }
+          series={[
+            %{
+              data: @recent_builds_chart_data,
+              name: "Build",
+              type: "bar"
+            }
+          ]}
+          y_axis_min={0}
+          grid_lines
+          bar_width={8}
+          bar_radius={2}
+        />
+      </div>
+      <.table
+        id="build-runs-table"
+        rows={@recent_builds |> Enum.take(7)}
+        row_navigate={
+          fn build ->
+            url(
+              ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{build.id}"
+            )
+          end
+        }
+      >
+        <:col :let={build} label={dgettext("dashboard_builds", "Scheme")}>
+          <.text_and_description_cell label={
+            build.scheme || dgettext("dashboard_builds", "Unknown")
+          } />
+        </:col>
+        <:col :let={build} label="Status">
+          <%= if build.status == :success do %>
+            <.status_badge_cell label={dgettext("dashboard_builds", "Passed")} status="success" />
+          <% else %>
+            <.status_badge_cell label={dgettext("dashboard_builds", "Failed")} status="error" />
+          <% end %>
+        </:col>
+        <:col :let={build} label={dgettext("dashboard_builds", "Xcode version")}>
+          <.text_cell label={build.xcode_version || dgettext("dashboard_builds", "Unknown")} />
+        </:col>
+        <:col :let={build} label={dgettext("dashboard_builds", "Ran by")}>
+          <.build_ran_by_badge_cell build={build} />
+        </:col>
+        <:col :let={build} label={dgettext("dashboard_builds", "Duration")}>
+          <.text_cell
+            label={
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(build.duration)
+            }
+            icon="history"
+          />
+        </:col>
+        <:col :let={build_run} label={dgettext("dashboard_builds", "Category")}>
+          <.badge_cell
+            label={
+              (build_run.category && Atom.to_string(build_run.category) |> String.capitalize()) ||
+                dgettext("dashboard_builds", "Unknown")
+            }
+            style="light-fill"
+          />
+        </:col>
+        <:col :let={build} label={dgettext("dashboard_builds", "Ran at")}>
+          <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(build.inserted_at)} />
+        </:col>
+      </.table>
+    </.card_section>
+    <.empty_card_section
+      :if={Enum.empty?(@recent_builds)}
+      title={dgettext("dashboard_builds", "No data yet")}
+      get_started_href="https://docs.tuist.dev/en/guides/develop/insights"
+    >
+      <:image>
+        <img src="/images/empty_bar_chart_light.png" data-theme="light" />
+        <img src="/images/empty_bar_chart_dark.png" data-theme="dark" />
+      </:image>
+    </.empty_card_section>
+  </.card>
+</div>

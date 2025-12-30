@@ -1,0 +1,37 @@
+import ProjectDescription
+
+let project = Project(
+    name: "App",
+    packages: [
+        .package(path: "Packages/PackageA"),
+    ],
+    targets: [
+        .target(
+            name: "App",
+            destinations: .iOS,
+            product: .app,
+            bundleId: "dev.tuist.App",
+            infoPlist: "Support/Info.plist",
+            sources: ["Sources/**"],
+            resources: [
+                // Path to resources can be defined here
+                // "Resources/**"
+            ],
+            dependencies: [
+                .framework(path: "Prebuilt/prebuilt/PrebuiltStaticFramework.framework"),
+                .package(product: "LibraryA"),
+            ]
+        ),
+        .target(
+            name: "AppTests",
+            destinations: .iOS,
+            product: .unitTests,
+            bundleId: "dev.tuist.AppTests",
+            infoPlist: "Support/Tests.plist",
+            sources: "Tests/**",
+            dependencies: [
+                .target(name: "App"),
+            ]
+        ),
+    ]
+)

@@ -1,0 +1,18 @@
+{
+  "name": "@tuist/handbook",
+  "version": "0.1.0",
+  "description": "A handbook for Tuist",
+  "private": true,
+  "devDependencies": {
+    "esbuild": "^0.25.10",
+    "vitepress": "^1.6.4",
+    "vitepress-plugin-llmstxt": "^0.4.2",
+    "wrangler": "^4.40.3"
+  },
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview",
+    "deploy": "vitepress build && wrangler pages deploy .vitepress/dist --project-name tuist-handbook --branch main"
+  }
+}

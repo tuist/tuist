@@ -1,0 +1,243 @@
+name: CLI Cache EE
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/cli-cache-ee.yml
+      - mise/tasks/cli/ee.sh
+      - "cli/TuistCacheEE"
+      - "cli/TuistCacheEE/**"
+      - "cli/Tests/TuistCacheEEAcceptanceTests/**"
+      - "cli/Sources/**"
+      - "cli/Tests/**"
+      - "*.swift"
+      - ".github/workflows/cli.yml"
+      - "mise/tasks/cli/lint.sh"
+      - "examples/xcode/**"
+      - "Tuist/**"
+      - ".xcode-version"
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - .github/workflows/cli-cache-ee.yml
+      - mise/tasks/cli/ee.sh
+      - "cli/TuistCacheEE"
+      - "cli/TuistCacheEE/**"
+      - "cli/Tests/TuistCacheEEAcceptanceTests/**"
+      - "cli/Sources/**"
+      - "cli/Tests/**"
+      - "*.swift"
+      - ".github/workflows/cli.yml"
+      - "mise/tasks/cli/lint.sh"
+      - "examples/xcode/**"
+      - "Tuist/**"
+      - ".xcode-version"
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: The commit SHA to trigger the workflow for.
+        required: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
+  TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
+  TUIST_ENABLE_CACHING: "true"
+
+concurrency:
+  group: cli-cache-ee-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-team-membership:
+    name: Check Team Membership
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    outputs:
+      is-team-member: ${{ steps.check.outputs.is-member }}
+    steps:
+      - name: Check if author is team member
+        id: check
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.TUIST_GITHUB_TOKEN || github.token }}
+          script: |
+            // If TUIST_GITHUB_TOKEN is not available (e.g., from a fork), treat as non-member
+            const token = '${{ secrets.TUIST_GITHUB_TOKEN }}';
+            if (!token || token === '') {
+              console.log(`Running from fork - treating ${context.payload.pull_request.user.login} as non-member`);
+              core.setOutput('is-member', 'false');
+              return;
+            }
+
+            try {
+              const { data: membership } = await github.rest.teams.getMembershipForUserInOrg({
+                org: 'tuist',
+                team_slug: 'engineering',
+                username: context.payload.pull_request.user.login
+              });
+              console.log(`User ${context.payload.pull_request.user.login} is a member of @tuist/engineering`);
+              core.setOutput('is-member', 'true');
+            } catch (error) {
+              if (error.status === 404) {
+                console.log(`User ${context.payload.pull_request.user.login} is NOT a member of @tuist/engineering`);
+                core.setOutput('is-member', 'false');
+              } else {
+                throw error;
+              }
+            }
+  inspect-implicit-imports:
+    name: Inspect Implicit Imports
+    runs-on: macos-26
+    timeout-minutes: 60
+    needs: [check-team-membership]
+    if: |
+      always() &&
+      (github.event_name == 'push' ||
+       github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true' && github.event.pull_request.draft == false))
+    steps:
+      - uses: actions/checkout@v4
+        if: ${{ github.event.inputs.commit_sha == '' }}
+        with:
+          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+          submodules: recursive
+      - uses: actions/checkout@v4
+        if: ${{ github.event.inputs.commit_sha != '' }}
+        with:
+          ref: ${{ github.event.inputs.commit_sha }}
+          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+          submodules: recursive
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
+      - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Setup Tuist cache
+        run: tuist setup cache
+      - name: Install Tuist dependencies
+        if: steps.cache-restore.outputs.cache-matched-key == ''
+        run: tuist install
+      - name: Initialize TuistCacheEE submodule
+        run: mise run cli:ee
+      - name: Run tests
+        run: mise x -- tuist inspect implicit-imports
+        env:
+          TUIST_EE: 1
+      - name: Save cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+  acceptance-tests:
+    name: Acceptance Tests
+    runs-on: namespace-profile-default-macos
+    timeout-minutes: 15
+    needs: [check-team-membership]
+    if: |
+      always() &&
+      (github.event_name == 'push' ||
+       github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true' && github.event.pull_request.draft == false))
+    steps:
+      - uses: actions/checkout@v4
+        if: ${{ github.event.inputs.commit_sha == '' }}
+        with:
+          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+          submodules: recursive
+      - uses: actions/checkout@v4
+        if: ${{ github.event.inputs.commit_sha != '' }}
+        with:
+          ref: ${{ github.event.inputs.commit_sha }}
+          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+          submodules: recursive
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
+      - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Setup Tuist cache
+        run: tuist setup cache
+      - name: Install Tuist dependencies
+        if: steps.cache-restore.outputs.cache-matched-key == ''
+        run: tuist install
+      - name: Initialize TuistCacheEE submodule
+        run: mise run cli:ee
+      - name: Run tests
+        run: mise x -- tuist test TuistCacheEEAcceptanceTests
+        env:
+          TUIST_EE: 1
+      - name: Save cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+  unit-tests:
+    name: Unit Tests
+    runs-on: macos-26
+    timeout-minutes: 60
+    needs: [check-team-membership]
+    if: |
+      always() &&
+      (github.event_name == 'push' ||
+       github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true' && github.event.pull_request.draft == false))
+    steps:
+      - uses: actions/checkout@v4
+        if: ${{ github.event.inputs.commit_sha == '' }}
+        with:
+          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+          submodules: recursive
+      - uses: actions/checkout@v4
+        if: ${{ github.event.inputs.commit_sha != '' }}
+        with:
+          ref: ${{ github.event.inputs.commit_sha }}
+          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+          submodules: recursive
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
+      - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Setup Tuist cache
+        run: tuist setup cache
+      - name: Install Tuist dependencies
+        if: steps.cache-restore.outputs.cache-matched-key == ''
+        run: tuist install
+      - name: Initialize TuistCacheEE submodule
+        run: mise run cli:ee
+      - name: Run tests
+        run: mise x -- tuist test TuistCacheEEUnitTests
+        env:
+          TUIST_EE: 1
+      - name: Save cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}

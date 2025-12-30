@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title><%= dgettext("marketing", "Tuist's changelog") %></title>
+  <subtitle><%= dgettext("marketing", "Updates to Tuist's features and improvements.") %></subtitle>
+  <link href="<%= Tuist.Environment.app_url(path: ~p"/changelog") %>"/>
+  <link href="<%= Tuist.Environment.app_url(path: ~p"/changelog/atom.xml") %>" rel="self"/>
+  <id><%= Tuist.Environment.app_url(path: ~p"/changelog") %></id>
+  <updated><%= @last_build_date |> Timex.format!("{RFC1123}") %></updated>
+
+  <%= for entry <- @entries do %>
+    <entry>
+      <title><![CDATA[ <%= entry.title %> ]]></title>
+      <author>
+        <name>Tuist</name>
+      </author>
+      <link href="<%= Tuist.Environment.app_url(path: "#{~p"/changelog"}\##{entry.id}") %>"/>
+      <id><%= Tuist.Environment.app_url(path: "#{~p"/changelog"}\##{entry.id}") %></id>
+      <updated><%= entry.date |> Timex.format!("{RFC1123}") %></updated>
+      <content type="html"><![CDATA[ <%= entry.body %> ]]></content>
+    </entry>
+  <% end %>
+</feed>

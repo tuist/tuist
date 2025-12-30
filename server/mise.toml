@@ -1,0 +1,12 @@
+[tools]
+  pnpm = "10.17.1"
+  node = "24.11.0"
+  sops = "3.9.3"
+  age = "1.2.1"
+  "ubi:aquasecurity/trivy" = "0.63.0"
+  "clickhouse" = "25.5.1"
+  "npm:prettier" = "3.4.2"
+  "elixir" = "1.19.1"
+  "erlang" = "28.1"
+  "asdf:aeons/asdf-minio" = "latest"
+  "npm:appium" = "3.0.1"

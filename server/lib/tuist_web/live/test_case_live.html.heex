@@ -1,0 +1,299 @@
+<div id="test-case">
+  <.button
+    label={dgettext("dashboard_tests", "Test Cases")}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases"}
+  >
+    <:icon_left>
+      <.icon name="arrow_left" />
+    </:icon_left>
+  </.button>
+
+  <div data-part="header">
+    <div data-part="title">
+      <div :if={@test_case_detail.last_status == "success"} data-part="badge-success">
+        <div data-part="icon">
+          <.circle_check />
+        </div>
+      </div>
+      <div :if={@test_case_detail.last_status == "failure"} data-part="badge-failure">
+        <div data-part="icon">
+          <.alert_circle />
+        </div>
+      </div>
+      <div :if={@test_case_detail.last_status == "skipped"} data-part="badge-skipped">
+        <div data-part="icon">
+          <.alert_circle />
+        </div>
+      </div>
+      <h1 data-part="label">
+        {@test_case_detail.name}
+      </h1>
+    </div>
+    <div
+      :if={@test_case_detail.module_name != "" or @test_case_detail.suite_name != ""}
+      data-part="badges"
+    >
+      <.badge
+        :if={@test_case_detail.module_name != ""}
+        label={"#{dgettext("dashboard_tests", "Module")}: #{@test_case_detail.module_name}"}
+        color="primary"
+        style="light-fill"
+        size="large"
+      />
+      <.badge
+        :if={@test_case_detail.suite_name != ""}
+        label={"#{dgettext("dashboard_tests", "Suite")}: #{@test_case_detail.suite_name}"}
+        color="primary"
+        style="light-fill"
+        size="large"
+      />
+    </div>
+  </div>
+
+  <.card
+    title={dgettext("dashboard_tests", "Summary")}
+    icon="chart_arcs"
+    data-part="test-case-details"
+  >
+    <.card_section data-part="test-case-details-section">
+      <div data-part="metadata-grid">
+        <div data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_tests", "Last Status")}</div>
+            <.badge
+              :if={@test_case_detail.last_status == "success"}
+              label={dgettext("dashboard_tests", "Passed")}
+              color="success"
+              style="fill"
+              size="large"
+            />
+            <.badge
+              :if={@test_case_detail.last_status == "failure"}
+              label={dgettext("dashboard_tests", "Failed")}
+              color="destructive"
+              style="fill"
+              size="large"
+            />
+            <.badge
+              :if={@test_case_detail.last_status == "skipped"}
+              label={dgettext("dashboard_tests", "Skipped")}
+              color="warning"
+              style="fill"
+              size="large"
+            />
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_tests", "Last run duration")}</div>
+            <span data-part="value">
+              <.history />
+              {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @test_case_detail.last_duration
+              )}
+            </span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_tests", "Last ran at")}</div>
+            <span data-part="value">
+              {Tuist.Utilities.DateFormatter.format_with_timezone(
+                @test_case_detail.last_ran_at,
+                @user_timezone
+              )}
+            </span>
+          </div>
+        </div>
+      </div>
+      <div data-part="widgets">
+        <.widget
+          title={dgettext("dashboard_tests", "Test reliability")}
+          description={
+            dgettext(
+              "dashboard_tests",
+              "Success rate based on runs from the %{branch} branch. Falls back to all branches if no runs exist on %{branch}.",
+              branch: @selected_project.default_branch
+            )
+          }
+          value={"#{@reliability}%"}
+          id="widget-test-reliability"
+          empty={is_nil(@reliability)}
+          empty_label={dgettext("dashboard_tests", "No data")}
+        />
+        <.widget
+          title={dgettext("dashboard_tests", "Test case runs")}
+          description={
+            dgettext("dashboard_tests", "Total number of times this test case has been executed.")
+          }
+          value={Number.Delimit.number_to_delimited(@analytics.total_count, precision: 0)}
+          id="widget-test-case-runs"
+          empty={@analytics.total_count == 0}
+        />
+        <.widget
+          title={dgettext("dashboard_tests", "Failed test case runs")}
+          description={dgettext("dashboard_tests", "Number of times this test case has failed.")}
+          value={Number.Delimit.number_to_delimited(@analytics.failed_count, precision: 0)}
+          id="widget-failed-test-case-runs"
+          empty={@analytics.total_count == 0}
+        />
+        <.widget
+          title={dgettext("dashboard_tests", "Avg. test case run duration")}
+          description={
+            dgettext(
+              "dashboard_tests",
+              "Average duration of this test case across the last 50 runs."
+            )
+          }
+          value={
+            Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+              @analytics.avg_duration
+            )
+          }
+          id="widget-avg-duration"
+          empty={@analytics.total_count == 0}
+          empty_label={dgettext("dashboard_tests", "No data")}
+        />
+      </div>
+    </.card_section>
+  </.card>
+
+  <.card
+    title={dgettext("dashboard_tests", "Test Case Runs")}
+    icon="exchange"
+    data-part="test-case-runs-card"
+  >
+    <.card_section data-part="test-case-runs-section">
+      <div data-part="filters">
+        <.form for={%{}} phx-change="search-test-case-runs" phx-debounce="200">
+          <.text_input
+            type="search"
+            id="search-test-case-runs"
+            name="search"
+            placeholder={dgettext("dashboard_tests", "Search...")}
+            show_suffix={false}
+            data-part="search"
+            value={@test_case_runs_search}
+          />
+        </.form>
+        <.dropdown
+          id="test-case-runs-sort-by"
+          label={
+            case @test_case_runs_sort_by do
+              "duration" -> dgettext("dashboard_tests", "Duration")
+              _ -> dgettext("dashboard_tests", "Ran at")
+            end
+          }
+          secondary_text={dgettext("dashboard_tests", "Sort by:")}
+        >
+          <.dropdown_item
+            value="ran_at"
+            label={dgettext("dashboard_tests", "Ran at")}
+            patch={sort_by_patch(@uri, "ran_at")}
+            data-selected={@test_case_runs_sort_by == "ran_at"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="duration"
+            label={dgettext("dashboard_tests", "Duration")}
+            patch={sort_by_patch(@uri, "duration")}
+            data-selected={@test_case_runs_sort_by == "duration"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+        <.filter_dropdown
+          id="test-case-runs-filter-dropdown"
+          label={dgettext("dashboard_tests", "Filter")}
+          available_filters={@available_filters}
+          active_filters={@active_filters}
+        />
+      </div>
+      <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+        <.active_filter :for={filter <- @active_filters} filter={filter} />
+      </div>
+      <.table
+        id="test-case-runs-table"
+        rows={@test_case_runs}
+        row_navigate={
+          fn test_case_run ->
+            url(
+              ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs/#{test_case_run.test_run_id}"
+            )
+          end
+        }
+      >
+        <:col :let={test_case_run} label={dgettext("dashboard_tests", "Scheme")}>
+          <.text_and_description_cell label={
+            test_case_run.scheme || dgettext("dashboard_tests", "Unknown")
+          } />
+        </:col>
+        <:col :let={test_case_run} label={dgettext("dashboard_tests", "Status")}>
+          <%= case test_case_run.status do %>
+            <% "success" -> %>
+              <.status_badge_cell label={dgettext("dashboard_tests", "Passed")} status="success" />
+            <% "failure" -> %>
+              <.status_badge_cell label={dgettext("dashboard_tests", "Failed")} status="error" />
+            <% "skipped" -> %>
+              <.status_badge_cell label={dgettext("dashboard_tests", "Skipped")} status="warning" />
+          <% end %>
+        </:col>
+        <:col :let={test_case_run} label={dgettext("dashboard_tests", "Ran by")}>
+          <.test_ran_by_badge_cell test={test_case_run} />
+        </:col>
+        <:col
+          :let={test_case_run}
+          label={dgettext("dashboard_tests", "Duration")}
+          patch={
+            @test_case_runs_sort_by == "duration" &&
+              column_sort_patch(assigns, "duration")
+          }
+          icon={
+            @test_case_runs_sort_by == "duration" &&
+              sort_icon(@test_case_runs_sort_order)
+          }
+        >
+          <.text_cell
+            label={
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                test_case_run.duration
+              )
+            }
+            icon="history"
+          />
+        </:col>
+        <:col
+          :let={test_case_run}
+          label={dgettext("dashboard_tests", "Ran at")}
+          patch={
+            @test_case_runs_sort_by == "ran_at" &&
+              column_sort_patch(assigns, "ran_at")
+          }
+          icon={
+            @test_case_runs_sort_by == "ran_at" &&
+              sort_icon(@test_case_runs_sort_order)
+          }
+        >
+          <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(test_case_run.ran_at)} />
+        </:col>
+        <:empty_state>
+          <.table_empty_state
+            icon="subtask"
+            title={dgettext("dashboard_tests", "No test case runs found")}
+            subtitle={dgettext("dashboard_tests", "Try updating your search")}
+          />
+        </:empty_state>
+      </.table>
+      <.pagination_group
+        :if={@test_case_runs_meta.total_pages > 1}
+        current_page={@test_case_runs_page}
+        number_of_pages={@test_case_runs_meta.total_pages}
+        page_patch={
+          fn page ->
+            "?#{Query.put(@uri.query, "page", page)}"
+          end
+        }
+      />
+    </.card_section>
+  </.card>
+</div>

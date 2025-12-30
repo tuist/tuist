@@ -1,0 +1,218 @@
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-blog-post" phx-hook="CodeCopy">
+    <TuistWeb.Marketing.MarketingComponents.navbar {assigns} />
+
+    <TuistWeb.Marketing.MarketingComponents.header_background />
+
+    <header data-part="header">
+      <div data-part="content">
+        <div data-part="category">
+          <a href={~p"/blog"}>{dgettext("marketing", "Blog")}</a>
+          <.math_slash />
+          <span>{@post.category |> to_string() |> String.capitalize()}</span>
+        </div>
+
+        <h1 data-part="title">
+          {@post.title}
+        </h1>
+
+        <div data-part="metadata">
+          <span>{@post.interviewee_name || @author["name"]}</span>
+          <span>•</span>
+          <span>{Timex.format!(@post.date, "{Mfull} {D}, {YYYY}")}</span>
+        </div>
+      </div>
+
+      <img data-part="image" src={Blog.get_post_image_url(@post)} />
+    </header>
+
+    <section id="blog-post-content" data-part="content" data-prose phx-hook="ShikiHighlight">
+      <%= for chunk <- @processed_content do %>
+        <%= case chunk do %>
+          <% {:html, html} -> %>
+            {raw(html)}
+          <% {:component, :button, data} -> %>
+            <.button href={data.href} label={data.title} variant="secondary">
+              <:icon_left><.chevron_left /></:icon_left>
+              <:icon_right><.chevron_right /></:icon_right>
+            </.button>
+        <% end %>
+      <% end %>
+    </section>
+
+    <section data-part="cta">
+      <.marketing_banner title={dgettext("marketing", "AI writes faster. So should your builds.")} />
+    </section>
+  </main>
+
+  <script nonce={@csp_nonce}>
+    // Generic Intersection Observer for iframe visualizations
+    // Automatically starts/pauses/resumes iframe animations based on visibility
+    (function() {
+      const observerOptions = {
+        root: null,
+        rootMargin: '50px',
+        threshold: 0.1
+      };
+
+      const startedIframes = new WeakSet();
+
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          const iframe = entry.target;
+          if (entry.isIntersecting) {
+            if (!startedIframes.has(iframe)) {
+              startedIframes.add(iframe);
+              iframe.contentWindow?.postMessage({ action: 'start' }, '*');
+            } else {
+              iframe.contentWindow?.postMessage({ action: 'resume' }, '*');
+            }
+          } else {
+            iframe.contentWindow?.postMessage({ action: 'pause' }, '*');
+          }
+        });
+      }, observerOptions);
+
+      document.addEventListener('DOMContentLoaded', () => {
+        const iframes = document.querySelectorAll('iframe[data-visualization]');
+        iframes.forEach(iframe => observer.observe(iframe));
+      });
+    })();
+  </script>
+</TuistWeb.Marketing.Layouts.marketing>
+
+<%!-- <TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main class="marketing__blog_post" aria-label={dgettext("marketing", "Blog post main content")}>
+    <div class="marketing__blog_post__gradient" />
+
+    <header
+      class="marketing__blog_post__header"
+      aria-label={dgettext("marketing", "Blog post header")}
+    >
+      <div class="marketing__blog_post__header__category font-m-strong">
+        {@post.category}
+      </div>
+      <h1 class="marketing__blog_post__header__title font-xxxl-strong">
+        {@post.title}
+      </h1>
+      <p class="marketing__blog_post__header__excerpt font-l">
+        {@post.excerpt}
+      </p>
+    </header>
+
+    <div class="marketing__blog_post__body">
+      <section class="marketing__blog_post__body__content">
+        <%= if not is_nil(@post.image_url) do %>
+          <div class="marketing__blog_post__body__content__image-wrapper">
+            <img
+              class="marketing__blog_post__body__content__image"
+              src={@post.image_url}
+              alt={"'#{@post.title}' featured image"}
+            />
+          </div>
+        <% end %>
+        <div class="marketing_content">
+          {raw(@post.body)}
+        </div>
+      </section>
+      <aside
+        class="marketing__blog_post__body__side"
+        role="complementary"
+        aria-label={dgettext("marketing", "Post details")}
+      >
+        <div
+          class="marketing__blog_post__body__side__date font-xs"
+          aria-label={dgettext("marketing", "Post date")}
+        >
+          {Timex.format!(@post.date, "{Mfull} {D}, {YYYY}")}
+        </div>
+        <div
+          class="marketing__blog_post__body__side__reading_time font-xs"
+          aria-label={dgettext("marketing", "Reading time")}
+        >
+          {dngettext(
+            "marketing",
+            "%{count} minute",
+            "%{count} minutes",
+            ReadingTime.time(@post.body)
+          )}
+        </div>
+        <div class="marketing__blog_post__body__side__written_by font-xs">
+          <%= cond do %>
+            <% not is_nil(@author) -> %>
+              {dgettext("marketing", "Written by")}
+            <% @post.type == "interview" -> %>
+              {dgettext("marketing", "Interviewee")}
+            <% true -> %>
+              <span></span>
+          <% end %>
+        </div>
+        <address class="marketing__blog_post__body__side__person" aria-labelledby="author-info">
+          <% avatar_src =
+            cond do
+              not is_nil(@author) and not is_nil(@author["github_handle"]) ->
+                "https://github.com/#{@author["github_handle"]}.png"
+
+              not is_nil(@author) and not is_nil(@author["image_href"]) ->
+                @author["image_href"]
+
+              @post.type == "interview" ->
+                @post.interviewee_avatar
+
+              true ->
+                nil
+            end %>
+          <img
+            class="marketing__blog_post__body__side__person__avatar"
+            src={avatar_src}
+            alt={dgettext("marketing", "Interviewee or author's avatar")}
+          />
+          <div id="author-info" class="marketing__blog_post__body__side__person__data">
+            <div class="marketing__blog_post__body__side__person__data__name font-m-strong">
+              <%= cond do %>
+                <% not is_nil(@author) -> %>
+                  {@author["name"]}
+                <% @post.type == "interview" -> %>
+                  {@post.interviewee_name}
+                <% true -> %>
+                  <span></span>
+              <% end %>
+            </div>
+            <div class="marketing__blog_post__body__side__person__data__role font-xs">
+              <%= cond do %>
+                <% not is_nil(@author) -> %>
+                  {@author["role"]}
+                <% @post.type == "interview" -> %>
+                  {@post.interviewee_role}
+                <% true -> %>
+                  <span></span>
+              <% end %>
+            </div>
+            <div class="marketing__blog_post__body__side__person__data__role"></div>
+          </div>
+        </address>
+        <div class="marketing__blog_post__body__side__person__share font-xs"></div>
+      </aside>
+    </div>
+
+    <.cta />
+
+    <section class="marketing__blog_post__related" aria-labelledby="related-posts-title">
+      <h2 id="related-posts-title" class="marketing__blog_post__related__title font-xxxl-strong">
+        {dgettext("marketing", "You might also like")}
+      </h2>
+      <div class="marketing__blog_post__related__body">
+        <div class="marketing__blog_post__related__body__cards">
+          <.more_card
+            :for={post <- @related_posts}
+            category={post.category}
+            title={post.title}
+            description={post.excerpt}
+            href={post.slug}
+            class="marketing__blog_post__related__body__cards__card"
+          />
+        </div>
+      </div>
+    </section>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing> --%>

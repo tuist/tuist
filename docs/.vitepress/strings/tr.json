@@ -1,0 +1,429 @@
+{
+    "aside": {
+        "translate": {
+            "title": {
+                "text": "Çeviri 🌍"
+            },
+            "description": {
+                "text": "Bu sayfayı çevirebilir veya çevirisini iyileştirebilirsiniz."
+            },
+            "cta": {
+                "text": "Katkıda Bulunma"
+            }
+        }
+    },
+    "search": {
+        "placeholder": "Arama",
+        "translations": {
+            "button": {
+                "button-text": "Dokümanda ara",
+                "button-aria-label": "Dokümanda ara"
+            },
+            "modal": {
+                "search-box": {
+                    "reset-button-title": "Aramayı temizle",
+                    "reset-button-aria-label": "Aramayı temizle",
+                    "cancel-button-text": "İptal",
+                    "cancel-button-aria-label": "İptal"
+                },
+                "start-screen": {
+                    "recent-searches-title": "Arama geçmişi",
+                    "no-recent-searches-text": "Arama geçmişi yok",
+                    "save-recent-search-button-title": "Arama geçmişine kaydet",
+                    "remove-recent-search-button-title": "Arama geçmişinden kaldır",
+                    "favorite-searches-title": "Favoriler",
+                    "remove-favorite-search-button-title": "Favorilerden kaldır"
+                },
+                "error-screen": {
+                    "title-text": "Sonuçlar getirilemedi",
+                    "help-text": "İnternet bağlantınızı kontrol etmeniz gerekebilir"
+                },
+                "footer": {
+                    "select-text": "Seç",
+                    "navigate-text": "Git",
+                    "close-text": "Kapat",
+                    "search-by-text": "Arama sağlayıcı"
+                },
+                "no-results-screen": {
+                    "no-results-text": "İlgili sonuç bulunamadı",
+                    "suggested-query-text": "Sorgulamayı deneyebilirsiniz",
+                    "report-missing-results-text": "Bu aramanın sonuçları olması gerektiğini mi düşünüyorsunuz?",
+                    "report-missing-results-link-text": "Geri bildirim vermek için tıkla"
+                }
+            }
+        }
+    },
+    "navbar": {
+        "guides": {
+            "text": "Rehberler"
+        },
+        "cli": {
+            "text": "CLI"
+        },
+        "server": {
+            "text": "Sunucu"
+        },
+        "resources": {
+            "text": "Kaynaklar",
+            "items": {
+                "references": {
+                    "text": "Referanslar"
+                },
+                "contributors": {
+                    "text": "Katkıda bulunanlar"
+                },
+                "changelog": {
+                    "text": "Güncelleme geçmişi"
+                }
+            }
+        }
+    },
+    "sidebars": {
+        "cli": {
+            "text": "CLI",
+            "items": {
+                "cli": {
+                    "items": {
+                        "logging": {
+                            "text": "Loglama"
+                        },
+                        "directories": {
+                            "text": "Dizinler"
+                        },
+                        "shell-completions": {
+                            "text": "Shell tamamlamaları"
+                        }
+                    }
+                },
+                "commands": {
+                    "text": "Komutlar"
+                }
+            }
+        },
+        "references": {
+            "text": "Referanslar",
+            "items": {
+                "examples": {
+                    "text": "Örnekler"
+                },
+                "migrations": {
+                    "text": "Aktarmalar",
+                    "items": {
+                        "from-v3-to-v4": {
+                            "text": "v3'ten v4'e"
+                        }
+                    }
+                }
+            }
+        },
+        "contributors": {
+            "text": "Katkıda bulunanlar",
+            "items": {
+                "get-started": {
+                    "text": "Başlayın"
+                },
+                "issue-reporting": {
+                    "text": "Hata bildirimi"
+                },
+                "code-reviews": {
+                    "text": "Kod incelemeleri"
+                },
+                "principles": {
+                    "text": "İlkeler"
+                },
+                "translate": {
+                    "text": "Çeviri"
+                },
+                "releases": {
+                    "text": "Sürümler"
+                },
+                "cli": {
+                    "text": "CLI",
+                    "items": {
+                        "logging": {
+                            "text": "Loglama"
+                        }
+                    }
+                }
+            }
+        },
+        "server": {
+            "items": {
+                "introduction": {
+                    "text": "Başlangıç",
+                    "items": {
+                        "why-server": {
+                            "text": "Neden server?"
+                        },
+                        "accounts-and-projects": {
+                            "text": "Hesaplar ve projeler"
+                        },
+                        "authentication": {
+                            "text": "Kimlik doğrulama"
+                        },
+                        "integrations": {
+                            "text": "Entegrasyonlar"
+                        }
+                    }
+                },
+                "on-premise": {
+                    "text": "Yerel kurulum",
+                    "items": {
+                        "install": {
+                            "text": "İndir"
+                        },
+                        "metrics": {
+                            "text": "Metrikler"
+                        }
+                    }
+                },
+                "api-documentation": {
+                    "text": "API dokümantasyonu"
+                },
+                "status": {
+                    "text": "Durum"
+                },
+                "metrics-dashboard": {
+                    "text": "Metrik paneli"
+                }
+            }
+        },
+        "guides": {
+            "text": "Rehberler",
+            "items": {
+                "tuist": {
+                    "text": "Tuist",
+                    "items": {
+                        "about": {
+                            "text": "Tuist hakkında"
+                        }
+                    }
+                },
+                "quick-start": {
+                    "text": "Hızlı başlangıç",
+                    "items": {
+                        "install-tuist": {
+                            "text": "Tuist'i indir"
+                        },
+                        "get-started": {
+                            "text": "Başlayın"
+                        }
+                    }
+                },
+                "features": {
+                    "text": "Özellikler"
+                },
+                "examples": {
+                    "text": "Örnekler",
+                    "items": {
+                        "generated-projects": {
+                            "text": "Oluşturulmuş projeler"
+                        }
+                    }
+                },
+                "develop": {
+                    "text": "Geliştir",
+                    "items": {
+                        "generated-projects": {
+                            "text": "Oluşturulmuş projeler",
+                            "items": {
+                                "adoption": {
+                                    "text": "Benimseme",
+                                    "items": {
+                                        "new-project": {
+                                            "text": "Yeni proje oluştur"
+                                        },
+                                        "swift-package": {
+                                            "text": "Swift paketi ile deneme"
+                                        },
+                                        "migrate": {
+                                            "text": "Aktar",
+                                            "items": {
+                                                "xcode-project": {
+                                                    "text": "Xcode projesi"
+                                                },
+                                                "swift-package": {
+                                                    "text": "Swift paketi"
+                                                },
+                                                "xcodegen-project": {
+                                                    "text": "XcodeGen projesi"
+                                                },
+                                                "bazel-project": {
+                                                    "text": "Bazel projesi"
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "manifests": {
+                                    "text": "Manifestler"
+                                },
+                                "directory-structure": {
+                                    "text": "Dizin yapısı"
+                                },
+                                "editing": {
+                                    "text": "Düzenleme"
+                                },
+                                "dependencies": {
+                                    "text": "Bağımlılıklar"
+                                },
+                                "code-sharing": {
+                                    "text": "Kod paylaşımı"
+                                },
+                                "synthesized-files": {
+                                    "text": "Sentezlenmiş dosyalar"
+                                },
+                                "dynamic-configuration": {
+                                    "text": "Dinamik konfigürasyon"
+                                },
+                                "templates": {
+                                    "text": "Şablonlar"
+                                },
+                                "plugins": {
+                                    "text": "Eklentiler"
+                                },
+                                "hashing": {
+                                    "text": "Hashleme"
+                                },
+                                "inspect": {
+                                    "text": "İncele",
+                                    "items": {
+                                        "implicit-imports": {
+                                            "text": "Örtülü importlar"
+                                        }
+                                    }
+                                },
+                                "the-cost-of-convenience": {
+                                    "text": "Kolaylığın bedeli"
+                                },
+                                "tma-architecture": {
+                                    "text": "Modüler mimari"
+                                },
+                                "metadata-tags": {
+                                    "text": "Metadata etiketleri"
+                                },
+                                "best-practices": {
+                                    "text": "En doğru yöntemler"
+                                }
+                            }
+                        },
+                        "cache": {
+                            "text": "Önbellek",
+                            "items": {
+                                "xcode-cache": {
+                                    "text": "Xcode önbelleği"
+                                },
+                                "module-cache": {
+                                    "text": "Modül önbelleği"
+                                }
+                            }
+                        },
+                        "registry": {
+                            "text": "Kayıt",
+                            "items": {
+                                "registry": {
+                                    "text": "Kayıt"
+                                },
+                                "xcode-project": {
+                                    "text": "Xcode projesi"
+                                },
+                                "generated-project": {
+                                    "text": "Oluşturulmuş proje"
+                                },
+                                "xcodeproj-integration": {
+                                    "text": "XcodeProj temelli entegrasyon"
+                                },
+                                "swift-package": {
+                                    "text": "Swift paketi"
+                                },
+                                "continuous-integration": {
+                                    "text": "Sürekli Entegrasyon"
+                                }
+                            }
+                        },
+                        "selective-testing": {
+                            "text": "Seçmeli test",
+                            "items": {
+                                "selective-testing": {
+                                    "text": "Seçmeli test"
+                                },
+                                "xcode-project": {
+                                    "text": "Xcode projesi"
+                                },
+                                "generated-project": {
+                                    "text": "Oluşturulmuş projele"
+                                }
+                            }
+                        },
+                        "insights": {
+                            "text": "Derleme analizleri"
+                        },
+                        "bundle-size": {
+                            "text": "Bundle analizleri"
+                        },
+                        "qa": {
+                            "text": "QA"
+                        }
+                    }
+                },
+                "agentic-coding": {
+                    "text": "Yapay zeka destekli kodlama",
+                    "items": {
+                        "mcp": {
+                            "text": "MCP"
+                        }
+                    }
+                },
+                "integrations": {
+                    "text": "Entegrasyonlar",
+                    "items": {
+                        "continuous-integration": {
+                            "text": "Sürekli entegrasyon"
+                        },
+                        "sso": {
+                            "text": "Tek oturum açma"
+                        },
+                        "git-forges": {
+                            "items": {
+                                "github": {
+                                    "text": "GitHub"
+                                }
+                            },
+                            "text": "Git forges"
+                        }
+                    }
+                },
+                "share": {
+                    "text": "Paylaş",
+                    "items": {
+                        "previews": {
+                            "text": "Önizlemeler"
+                        }
+                    }
+                },
+                "server": {
+                    "items": {
+                        "self-hosting": {
+                            "items": {
+                                "telemetry": {
+                                    "text": "Telemetri"
+                                },
+                                "installation": {
+                                    "text": "Kurulum"
+                                }
+                            },
+                            "text": "Yerel barındırma"
+                        },
+                        "accounts-and-projects": {
+                            "text": "Hesaplar ve projeler"
+                        },
+                        "authentication": {
+                            "text": "Kimlik doğrulama"
+                        }
+                    },
+                    "text": "Sunucu"
+                }
+            }
+        }
+    }
+}

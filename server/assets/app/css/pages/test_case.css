@@ -1,0 +1,169 @@
+#test-case {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+  padding: var(--noora-spacing-7) var(--noora-spacing-5);
+
+  & > [data-part="back-button"] {
+    align-self: flex-start;
+  }
+
+  & > [data-part="header"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+
+    & > [data-part="title"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+
+      & > [data-part="badge-success"] {
+        background: var(--noora-icon-success-background);
+
+        & > [data-part="icon"] {
+          color: var(--noora-icon-success-label);
+        }
+      }
+      & > [data-part="badge-failure"] {
+        background: var(--noora-icon-destructive-background);
+        & > [data-part="icon"] {
+          color: var(--noora-icon-destructive-label);
+        }
+      }
+      & > [data-part="badge-skipped"] {
+        background: var(--noora-icon-warning-background);
+        & > [data-part="icon"] {
+          color: var(--noora-icon-warning-label);
+        }
+      }
+
+      & > [data-part="badge-success"],
+      & > [data-part="badge-failure"],
+      & > [data-part="badge-skipped"] {
+        border-radius: var(--noora-radius-large);
+        & > [data-part="icon"] {
+          padding: var(--noora-spacing-3);
+          width: var(--noora-icon-size-large);
+          height: var(--noora-icon-size-large);
+
+          & > svg {
+            width: 100%;
+            height: 100%;
+          }
+        }
+      }
+
+      & > [data-part="label"] {
+        margin: var(--noora-spacing-0);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+      }
+    }
+
+    & > [data-part="badges"] {
+      display: flex;
+      flex-direction: row;
+      gap: var(--noora-spacing-3);
+    }
+  }
+
+  & [data-part="test-case-details-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-8);
+
+    & [data-part="metadata-grid"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-9);
+
+      & [data-part="metadata-row"] {
+        display: flex;
+        flex-direction: row;
+        gap: var(--noora-spacing-7);
+
+        & > [data-part="metadata"] {
+          display: flex;
+          flex: 1;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: var(--noora-spacing-4);
+
+          & > [data-part="title"] {
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+          }
+
+          & > [data-part="value"] {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: var(--noora-spacing-2);
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+            & > svg {
+              width: var(--noora-icon-size-medium);
+              height: var(--noora-icon-size-medium);
+              color: var(--noora-surface-label-secondary);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  & [data-part="test-case-details"] {
+    & [data-part="widgets"] {
+      display: flex;
+      flex-direction: row;
+      gap: var(--noora-spacing-4);
+      background-color: var(--noora-surface-background-primary);
+
+      & > * {
+        flex-grow: 1;
+      }
+
+      @media (max-width: 768px) {
+        & {
+          flex-direction: column;
+        }
+      }
+    }
+  }
+
+  & [data-part="test-case-runs-card"] {
+    & .noora-dropdown-item:not([data-selected]) svg {
+      visibility: hidden;
+    }
+
+    & > [data-part="test-case-runs-section"] {
+      gap: var(--noora-spacing-8);
+
+      & > [data-part="filters"] {
+        display: flex;
+        gap: var(--noora-spacing-6);
+
+        & .noora-text-input {
+          width: 330px;
+        }
+      }
+
+      & > [data-part="active-filters"] {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: var(--noora-spacing-3);
+      }
+
+      & .noora-table {
+        & th:nth-child(1),
+        & td:nth-child(1) {
+          width: 40%;
+        }
+      }
+    }
+  }
+}

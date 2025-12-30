@@ -1,0 +1,274 @@
+<div id="qa-settings">
+  <h1 data-part="title">
+    {@selected_project.name}
+  </h1>
+
+  <.tab_menu_horizontal>
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_qa", "General")}
+      selected={false}
+      navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/settings"}
+    />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_qa", "QA")}
+      selected={true}
+      navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/qa"}
+    />
+  </.tab_menu_horizontal>
+  <h2 data-part="subtitle">
+    {dgettext("dashboard_qa", "QA")}
+  </h2>
+
+  <.card_section data-part="app-description-card-section">
+    <div data-part="explanation">
+      <h3 data-part="title">
+        {dgettext("dashboard_qa", "App description")}
+      </h3>
+      <span data-part="subtitle">
+        {dgettext(
+          "dashboard_qa",
+          "Edit or update the app description to ensure the agent can run tests smoothly:"
+        )}
+      </span>
+      <ul data-part="list">
+        <li>{dgettext("dashboard_qa", "Share your naming conventions with the LLM")}</li>
+        <li>{dgettext("dashboard_qa", "Provide clear instructions for testing")}</li>
+        <li>{dgettext("dashboard_qa", "Include expected outcomes")}</li>
+      </ul>
+    </div>
+    <.form
+      for={@qa_app_description_form}
+      id="qa-app-description-form"
+      data-part="app-description-form"
+      phx-submit="update_qa_app_description"
+      phx-change="validate_qa_app_description"
+      phx-debounce="50"
+    >
+      <.text_area
+        field={@qa_app_description_form[:qa_app_description]}
+        placeholder={dgettext("dashboard_qa", "Enter your app description...")}
+        rows={10}
+        max_length={2000}
+      />
+      <.button
+        type="submit"
+        label={dgettext("dashboard_qa", "Save")}
+        variant="primary"
+        size="medium"
+        disabled={@qa_app_description_unchanged}
+      />
+    </.form>
+  </.card_section>
+
+  <.card_section data-part="credentials-card-section">
+    <div data-part="explanation">
+      <h3 data-part="title">
+        {dgettext("dashboard_qa", "Credentials")}
+      </h3>
+      <span data-part="subtitle">
+        {dgettext(
+          "dashboard_qa",
+          "Modify or update your app credentials. The agent will use these fields to sign in just as a user would."
+        )}
+      </span>
+    </div>
+    <.form
+      for={@qa_credentials_form}
+      id="qa-credentials-form"
+      data-part="credentials-form"
+      phx-submit="update_qa_credentials"
+      phx-change="validate_qa_credentials"
+    >
+      <.text_input
+        field={@qa_credentials_form[:qa_email]}
+        label={dgettext("dashboard_qa", "Email")}
+        placeholder={dgettext("dashboard_qa", "test@example.com")}
+        type="email"
+      />
+      <.text_input
+        field={@qa_credentials_form[:qa_password]}
+        label={dgettext("dashboard_qa", "Password")}
+        placeholder={dgettext("dashboard_qa", "Password for test account")}
+        type="password"
+        show_suffix={false}
+      />
+      <.button
+        type="submit"
+        label={dgettext("dashboard_qa", "Save")}
+        variant="primary"
+        size="medium"
+        disabled={@qa_credentials_unchanged}
+      />
+    </.form>
+  </.card_section>
+
+  <.card
+    data-part="launch-argument-groups-card"
+    icon="password_mobile_phone"
+    title={dgettext("dashboard_qa", "Launch argument groups")}
+  >
+    <:actions>
+      <.modal
+        id="add-launch-argument-modal"
+        title={dgettext("dashboard_qa", "Add launch argument group")}
+        header_size="large"
+        on_dismiss="close_add_launch_argument_modal"
+      >
+        <:trigger :let={attrs}>
+          <.button
+            label={dgettext("dashboard_qa", "Add arguments")}
+            size="medium"
+            variant="secondary"
+            {attrs}
+          />
+        </:trigger>
+        <.form
+          for={@add_launch_argument_form}
+          id="add-launch-argument-form"
+          data-part="add-launch-argument-form"
+          phx-submit="create_launch_argument_group"
+        >
+          <.line_divider />
+          <.text_input
+            field={@add_launch_argument_form[:name]}
+            label={dgettext("dashboard_qa", "Name")}
+            placeholder={dgettext("dashboard_qa", "argument-group-name")}
+            type="basic"
+          />
+          <.text_area
+            field={@add_launch_argument_form[:description]}
+            label={dgettext("dashboard_qa", "Description")}
+            placeholder={dgettext("dashboard_qa", "Launch argument group description")}
+            show_character_count={false}
+          />
+          <.text_area
+            field={@add_launch_argument_form[:value]}
+            label={dgettext("dashboard_qa", "Arguments")}
+            placeholder={dgettext("dashboard_qa", "--my-launch-argument value")}
+            show_character_count={false}
+          />
+        </.form>
+        <.line_divider />
+        <:footer>
+          <.modal_footer>
+            <:action>
+              <.button
+                type="reset"
+                label={dgettext("dashboard_qa", "Cancel")}
+                variant="secondary"
+                phx-click="close_add_launch_argument_modal"
+              />
+            </:action>
+            <:action>
+              <.button
+                type="submit"
+                form="add-launch-argument-form"
+                label={dgettext("dashboard_qa", "Add")}
+                variant="primary"
+              />
+            </:action>
+          </.modal_footer>
+        </:footer>
+      </.modal>
+    </:actions>
+    <.card_section data-part="launch-argument-groups-card-section">
+      <.table id="launch-argument-groups-table" rows={@selected_project.qa_launch_argument_groups}>
+        <:col :let={item} label={dgettext("dashboard_qa", "Name")}>
+          <.text_cell label={item.name} />
+        </:col>
+        <:col :let={item} label={dgettext("dashboard_qa", "Description")}>
+          <.text_cell label={item.description} />
+        </:col>
+        <:col :let={item} label={dgettext("dashboard_qa", "Arguments")}>
+          <.text_cell label={item.value} />
+        </:col>
+        <:col :let={item}>
+          <div data-part="actions-cell">
+            <.modal
+              id={"edit-launch-argument-modal-#{item.id}"}
+              title={dgettext("dashboard_qa", "Edit launch argument group")}
+              header_size="large"
+              on_dismiss="close_edit_launch_argument_modal"
+            >
+              <:trigger :let={attrs}>
+                <.button icon_only size="medium" variant="secondary" {attrs}>
+                  <.pencil />
+                </.button>
+              </:trigger>
+              <.form
+                for={Map.get(@edit_launch_argument_forms, item.id, @edit_launch_argument_form)}
+                id={"edit-launch-argument-form-#{item.id}"}
+                data-part="edit-launch-argument-form"
+                phx-submit="update_launch_argument_group"
+                phx-value-id={item.id}
+              >
+                <.line_divider />
+                <.text_input
+                  field={
+                    Map.get(@edit_launch_argument_forms, item.id, @edit_launch_argument_form)[
+                      :name
+                    ]
+                  }
+                  label={dgettext("dashboard_qa", "Name")}
+                  placeholder={dgettext("dashboard_qa", "argument-group-name")}
+                  type="basic"
+                />
+                <.text_area
+                  field={
+                    Map.get(@edit_launch_argument_forms, item.id, @edit_launch_argument_form)[
+                      :description
+                    ]
+                  }
+                  label={dgettext("dashboard_qa", "Description")}
+                  placeholder={dgettext("dashboard_qa", "Launch argument group description")}
+                  show_character_count={false}
+                />
+                <.text_area
+                  field={
+                    Map.get(@edit_launch_argument_forms, item.id, @edit_launch_argument_form)[
+                      :value
+                    ]
+                  }
+                  label={dgettext("dashboard_qa", "Arguments")}
+                  placeholder="--my-launch-argument value"
+                  show_character_count={false}
+                />
+              </.form>
+              <.line_divider />
+              <:footer>
+                <.modal_footer>
+                  <:action>
+                    <.button
+                      type="reset"
+                      label={dgettext("dashboard_qa", "Cancel")}
+                      variant="secondary"
+                      phx-click="close_edit_launch_argument_modal"
+                      phx-value-id={item.id}
+                    />
+                  </:action>
+                  <:action>
+                    <.button
+                      type="submit"
+                      form={"edit-launch-argument-form-#{item.id}"}
+                      label={dgettext("dashboard_qa", "Update")}
+                      variant="primary"
+                    />
+                  </:action>
+                </.modal_footer>
+              </:footer>
+            </.modal>
+            <.button
+              icon_only
+              size="medium"
+              variant="secondary"
+              phx-click="delete_launch_argument_group"
+              phx-value-id={item.id}
+            >
+              <.trash />
+            </.button>
+          </div>
+        </:col>
+      </.table>
+    </.card_section>
+  </.card>
+</div>

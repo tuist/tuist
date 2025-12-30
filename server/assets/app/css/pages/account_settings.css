@@ -1,0 +1,114 @@
+#account-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-9);
+
+  & > [data-part="title"] {
+    margin: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  & > [data-part="rename-card-section"],
+  & > [data-part="delete-organization-card-section"],
+  & > [data-part="delete-user-card-section"],
+  & > [data-part="region-card-section"],
+  & > [data-part="cache-endpoints-card-section"] {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    border-radius: var(--noora-radius-2xlarge);
+    padding: var(--noora-spacing-0);
+
+    & > [data-part="header"] {
+      display: flex;
+      flex-grow: 1;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+      padding: var(--noora-spacing-8);
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+      }
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+    }
+
+    & > [data-part="content"] {
+      padding: var(--noora-spacing-8);
+    }
+
+    & .noora-modal {
+      & [data-part="body"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-8);
+        min-width: 392px;
+
+        @media (max-width: 768px) {
+          & {
+            min-width: 80vw;
+          }
+        }
+
+        & [data-part="content"] {
+          display: flex;
+          flex-direction: column;
+          gap: var(--noora-spacing-8);
+          padding: var(--noora-spacing-8) var(--noora-spacing-2) var(--noora-spacing-9) var(--noora-spacing-2);
+        }
+      }
+    }
+  }
+
+  & > [data-part="region-card-section"] {
+    & > [data-part="content"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-3);
+      padding: var(--noora-spacing-8);
+      width: 45%;
+      max-width: 482px;
+
+      & > [data-part="select-label"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+    }
+  }
+
+  & > [data-part="cache-endpoints-card-section"] {
+    flex-direction: column;
+    align-items: stretch;
+    min-width: 0;
+    overflow: hidden;
+
+    & > [data-part="header"] {
+      padding-bottom: var(--noora-spacing-0);
+    }
+
+    & > [data-part="content"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-6);
+      padding: var(--noora-spacing-8);
+      min-width: 0;
+
+      & .noora-table {
+        width: 100%;
+        min-width: 0;
+        table-layout: fixed;
+      }
+    }
+  }
+
+  & > [data-part="rename-card-section"],
+  & > [data-part="delete-organization-card-section"],
+  & > [data-part="delete-user-card-section"] {
+    & {
+      box-shadow: var(--noora-border-light-error);
+    }
+  }
+}

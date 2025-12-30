@@ -1,23 +1,36 @@
 ---
-title: Logging
-titleTemplate: :title · CLI · Contributors · Tuist
-description: Learn how to contribute to Tuist by reviewing code
+{
+  "title": "Logging",
+  "titleTemplate": ":title · CLI · Contributors · Tuist",
+  "description": "Learn how to contribute to Tuist by reviewing code"
+}
 ---
+# Registro {#logging}
 
-# Logging {#logging}
-
-The CLI embraces the [swift-log](https://github.com/apple/swift-log) interface for logging. The package abstracts away the implementation details of logging, allowing the CLI to be agnostic to the logging backend. The logger is dependency-injected using [swift-service-context](https://github.com/apple/swift-service-context) and can be accessed anywhere using:
+La CLI adopta la interfaz [swift-log](https://github.com/apple/swift-log) para
+el registro. El paquete abstrae los detalles de implementación de registro,
+permitiendo a la CLI ser agnóstica al backend de registro. El registrador se
+inyecta en la dependencia utilizando tareas locales y se puede acceder en
+cualquier lugar utilizando:
 
 ```bash
-ServiceContext.current?.logger
+Logger.current
 ```
 
-> [!NOTE]
-> `swift-service-context` passes the instance using [task locals](https://developer.apple.com/documentation/swift/tasklocal) which don't propagate the value when using `Dispatch`, so if you run asynchronous code using `Dispatch`, you'll to get the instance from the context and pass it to the asynchronous operation.
+::: info
+<!-- -->
+Las tareas locales no propagan el valor cuando se utiliza `Dispatch` o tareas
+separadas, por lo que si las utiliza, tendrá que obtenerlo y pasarlo a la
+operación asíncrona.
+<!-- -->
+:::
 
-## What to log {#what-to-log}
+## Qué registrar {#what-to-log}
 
-Logs are not the CLI's UI. They are a tool to diagnose issues when they arise.
-Therefore, the more information you provide, the better.
-When building new features, put yourself in the shoes of a developer coming across unexpected behavior, and think about what information would be helpful to them.
-Ensure you you use the right [log level](https://www.swift.org/documentation/server/guides/libraries/log-levels.html). Otherwise developers won't be able to filter out the noise.
+Los registros no son la interfaz de usuario de la CLI. Son una herramienta para
+diagnosticar problemas cuando surgen. Por lo tanto, cuanta más información
+proporcione, mejor. Cuando construyas nuevas funcionalidades, ponte en el lugar
+de un desarrollador que se encuentra con un comportamiento inesperado, y piensa
+qué información le sería útil. Asegúrate de que utilizas el [nivel de
+registro](https://www.swift.org/documentation/server/guides/libraries/log-levels.html)
+adecuado. De lo contrario, los desarrolladores no podrán filtrar el ruido.

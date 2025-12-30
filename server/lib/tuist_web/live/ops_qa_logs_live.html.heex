@@ -1,0 +1,35 @@
+<div id="ops-qa-logs">
+  <div data-part="header">
+    <div data-part="breadcrumb">
+      <.link_button
+        label={dgettext("dashboard_qa", "Back")}
+        navigate={~p"/ops/qa"}
+        variant="secondary"
+      >
+        <:icon_left>
+          <.arrow_left />
+        </:icon_left>
+      </.link_button>
+    </div>
+
+    <div data-part="title-section">
+      <div data-part="meta">
+        <span data-part="project">{@qa_run.account_name}/{@qa_run.project_name}</span>
+        <.status_badge
+          status={map_qa_status_to_badge_status(@qa_run.status)}
+          label={String.capitalize(@qa_run.status)}
+        />
+        <span data-part="time">{DateFormatter.format_iso(@qa_run.inserted_at)}</span>
+      </div>
+    </div>
+  </div>
+
+  <div data-part="logs-section">
+    <.live_component
+      module={TuistWeb.Components.Logs}
+      logs={@formatted_logs}
+      empty_message={dgettext("dashboard_qa", "No logs found for this QA run")}
+      id="ops-qa-logs-logs"
+    />
+  </div>
+</div>

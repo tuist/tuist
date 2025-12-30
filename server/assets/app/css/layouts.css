@@ -1,0 +1,37 @@
+@import "./layouts/header_bar.css";
+@import "./layouts/account.css";
+@import "./layouts/ops.css";
+
+.layout {
+  display: flex;
+  flex-direction: column;
+  min-width: 100vw;
+  min-height: 100vh;
+}
+
+.layout__main {
+  display: flex;
+  flex: 1;
+  flex-direction: row;
+  background: var(--noora-surface-background-primary);
+  overflow: hidden;
+
+  & .noora-sidebar {
+    margin-top: var(--noora-spacing-5);
+  }
+}
+
+@media (max-width: 1024px) {
+  .layout__main {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    justify-items: stretch;
+  }
+}
+
+.layout__content {
+  flex: 1;
+
+  padding: var(--noora-spacing-5);
+  overflow-y: scroll;
+}

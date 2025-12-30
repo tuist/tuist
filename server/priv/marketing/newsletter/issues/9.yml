@@ -1,0 +1,104 @@
+date: 2025-05-16
+hero:
+  image: /marketing/images/newsletter/issues/9/artwork.jpg
+  image_max_width: 250px;
+  alt: "UI design by [T. Costa](https://www.fey.com/)"
+  subtitle: "Featured work: [T. Costa](https://www.fey.com/)"
+title: "The cost of a narrow lens"
+body: |
+  If you’ve developed apps for the Apple ecosystem, you’ve probably noticed how isolated the developer experience is—both in time and space. Everything is scoped tightly to the local environment where a specific action happens. You build an app, and you see it running right there in the simulator. But getting it to escape that environment—into a more collaborative or automated context—requires a lot of plumbing.
+
+  Let’s say you’ve already run the same compiler instructions your colleague needs. You should be able to help them skip redundant work and speed things up. But in Apple’s ecosystem, you can’t. There’s no shared context, and that has a real, negative impact on the developer experience.
+
+  When you compare this to other ecosystems—those that take a more global and integrated approach to development—you start to see what’s missing. Development isn’t just about turning ideas into code and passing that through a compiler. It’s also about shaping solutions collaboratively and building tools and workflows around that collaboration. Whether it's [Figma](https://figma.com) for design, [GitHub](https://github.com) for code, or [Slack](https://slack.com) for communication, these are all places where development happens. But Xcode and Apple’s toolchain behave as if these tools don’t exist. That leads to a mess of indirections—juggling things through CI or external scripts just to make the tools talk to each other.
+
+  That indirection kills what should be magical. Ideally, you’d click a button, your process integrates with GitHub, and the next time you open a PR, you're told whether you’ve introduced a regression in bundle size. But to get there, you often need to work around the constraints of the Apple toolchain.
+
+  This local focus isn’t just spatial—it’s also temporal. Improving your development environment and your apps requires more than just inspecting isolated actions or artifacts. Seeing a single test fail isn’t helpful. But seeing that the same test produces inconsistent results over time? That tells you it’s flaky. Or take build times: a 3-second increase might seem fine in isolation, but if it's a deviation from the usual trend, that change might warrant a second look before merging to `main`.
+
+  To catch these patterns, you need standardized data (not just `.xcresult` files), the right storage and querying infrastructure, and timely feedback in the right places—like a PR comment flagging a build-time regression, or a Slack report pointing out the most flaky tests of the day.
+
+  I like to think of this as a missing layer of developer services. Apple’s services mostly focus on publishing apps. The tools focus on building them. But there’s very little focus on improving the *health* of your codebase and dev environment. And because of that, teams often have to build this themselves. Most tools inherit the same local mindset—probably to avoid asking teams to run a server with a proper database and API to collect and surface these insights.
+
+  I was hopeful when Apple acquired [BuddyBuild](https://appleinsider.com/articles/21/03/01/buddybuild-shutting-down-3-years-after-apple-acquisition), but that promise faded. They folded it into yet another locally-scoped feature inside Xcode—throwing away some of the most compelling ideas around CI and dev tooling.
+
+  Will Apple ever shift this mindset? It’s hard to say. But one thing is clear: this gap needs to be bridged. That’s why we’re investing in the infrastructure and analytics to give teams real visibility into their development process. Because development doesn’t happen in isolation—it’s collaborative, continuous, and evolving. And only by embracing that can we deliver a truly great developer experience.
+
+  **The content has been written by a human and the grammar reviewed with ChatGPT 4o**
+interview:
+  interviewee: "Ivan Ornes"
+  interviewee_role: "Experienced iOS Developer"
+  interviewee_avatar_url: /marketing/images/newsletter/issues/9/ivan.jpg
+  interviewee_intro: |
+    iOS developer since 2011 and Swift enthusiast from day one, he’s a creative and pragmatic builder with deep mobile expertise and a hunger to keep learning.
+
+  questions:
+    - question: "An app worth installing"
+      answer: |
+        [Goodreads](https://apps.apple.com/us/app/goodreads-book-reviews/id355833469) — it helps me keep track of the books I want to read and the ones I’ve already read. Though honestly, the app leaves a bit to be desired when it comes to UI and UX.
+    - question: "An open-source project worth checking out"
+      answer: |
+        [LNPopupController](https://github.com/LeoNatan/LNPopupController) — Leo has been maintaining the library for many years. It’s a great project, but definitely a lot of work. We also use [WebRTC](https://github.com/stasel/WebRTC-iOS) heavily, and it’s the same story — super useful, but very demanding 😅. And of course, [CocoaLumberjack](https://github.com/CocoaLumberjack/CocoaLumberjack) — a classic!
+    - question: "A developer tool worth using"
+      answer: |
+        [LM Studio](https://lmstudio.ai/) shows a lot of promise.
+    - question: "A developer worth following"
+      answer: |
+        For iOS developers, I’d say [Roberto Garrido](https://github.com/che1404). He's very active in the community and shares a lot of valuable resources with the community.
+    - question: "A book worth reading"
+      answer: |
+        [Clean Mobile Architecture](https://www.petrosefthymiou.com/product-page/clean-mobile-architecture) by [Petros Efthymiou](https://www.petrosefthymiou.com/) is worth your attention. It covers architecture and design patterns — it’s fairly basic, but solid. [The Manager’s Path](https://www.goodreads.com/book/show/33369254-the-manager-s-path) by [Camille Fournier](https://en.wikipedia.org/wiki/Camille_Fournier) is also excellent. It’s written by someone who went from being an individual contributor to becoming a CTO, and she shares all the steps and lessons learned along the way.
+
+tools:
+  - title: Cap
+    subtitle: A modern, lightning-quick PoW captcha
+    link: https://capjs.js.org/
+    description: |
+      If you need to add a CAPTCHA to your new Swift-on-server web app and prefer not to rely on third-party services, you might want to check out Cap. It requires deploying a small Node.js service and adding the client-side JavaScript to your app — and you’re good to go.
+  - title: Hypertext TV
+    subtitle: Daily programming for the handmade web.
+    link: https://hypertext.tv/ch/03
+    description: |
+      The web is weird—and Hypertext is a testament to that. Hypertext TV simulates a television in your browser, letting you navigate live channels as they’re airing.
+  - title: SymbolLocator
+    subtitle: Locate and dynamically link to symbols in MachO frameworks at runtime
+    link: https://github.com/OpenSwiftUIProject/SymbolLocator
+    description: |
+      If you ever need to access non-public APIs on Darwin-based operating systems, this Swift package might come in handy. It provides a clean way to interact with lower-level system functionality that’s not exposed through the official SDKs.
+  - title: opencode
+    subtitle: A terminal-based AI assistant for developers
+    link: https://github.com/opencode-ai/opencode
+    description: |
+      opencode brings AI-powered coding experiences into your terminal. If you enjoy working in the terminal, you’ll probably enjoy using it too.
+  - title: xtool
+    subtitle: Cross-platform Xcode replacement
+    link: https://github.com/xtool-org
+    description: |
+      It looks like we’re getting closer to building Apple platform apps from Linux. That’s what xtool is aiming for, and their work shows it’s possible. It integrates with SwiftPM to support compilation from Linux and is showing a lot of promise.
+
+food_for_thought:
+  - title: "An Apple Library Primer"
+    subtitle: "Read"
+    link: "https://developer.apple.com/forums/thread/715385"
+    description: |
+      If you’re puzzled by how libraries and linking work in Apple platforms, this thread by Apple’s Quinn offers a clear, concise primer on static vs dynamic libraries, frameworks, and new concepts like mergeable libraries in Xcode 15.
+  - title: "Internet is fun"
+    subtitle: "Check out"
+    link: "https://projects.kwon.nyc/internet-is-fun/"
+    description: |
+      Ever wondered what it’s like to have your own cozy corner on the internet? It’s fun! If you want to see how others enjoyed building theirs, here’s a collection of websites crafted purely for the joy of making them.
+  - title: "My first experience using Swift, SwiftUI, and XCode"
+    subtitle: "Read"
+    link: "https://austinhenley.com/blog/firstswiftproject.html"
+    description: |
+      If you’ve been building Apple apps for years, it’s easy to forget what getting started feels like today. In this blog post, Austin shares his experience entering the ecosystem as a newcomer.
+  - title: "What Makes a Good iOS App Icon?"
+    subtitle: "Read"
+    link: "https://edwardsanchez.design/what-makes-a-good-ios-app-icon-91431d9626da"
+    description: |
+      Icons are often the first touchpoint with your app, so they should stand out and spark emotion. In this blog post, Edward shares examples to help you choose the right style for your app.
+  - title: "Reservoir Sampling"
+    subtitle: "Read"
+    link: "https://samwho.dev/reservoir-sampling/"
+    description: |
+      I hadn’t heard of reservoir sampling until I came across this blog post. You might never need it in your apps, or maybe you will, but it was a fun and interesting read. It explains how to take samples when you don’t know the size of the data set.

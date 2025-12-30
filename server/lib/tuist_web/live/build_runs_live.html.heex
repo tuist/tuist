@@ -1,0 +1,154 @@
+<div id="build-runs">
+  <.card
+    title={dgettext("dashboard_builds", "Build Runs")}
+    icon="chart_column"
+    data-part="build-runs-card"
+  >
+    <.card_section data-part="build-runs-card-section">
+      <div data-part="filters">
+        <.dropdown
+          id="build-runs-sort-by"
+          label={
+            case @build_runs_sort_by do
+              "duration" -> dgettext("dashboard_builds", "Duration")
+              _ -> dgettext("dashboard_builds", "Ran at")
+            end
+          }
+          secondary_text={dgettext("dashboard_builds", "Sort by:")}
+        >
+          <.dropdown_item
+            value="duration"
+            label={dgettext("dashboard_builds", "Duration")}
+            patch={column_patch_sort(assigns, "duration")}
+            data-selected={@build_runs_sort_by == "duration"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="ran-at"
+            label={dgettext("dashboard_builds", "Ran at")}
+            patch={column_patch_sort(assigns, "ran-at")}
+            data-selected={@build_runs_sort_by == "ran-at"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+        <.filter_dropdown
+          id="filter-dropdown"
+          label={dgettext("dashboard_builds", "Filter")}
+          available_filters={@available_filters}
+          active_filters={@active_filters}
+        />
+      </div>
+      <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+        <.active_filter :for={filter <- @active_filters} filter={filter} />
+      </div>
+      <div :if={not Enum.empty?(@build_runs)} data-part="build-runs-table">
+        <.table
+          id="build-runs-table"
+          rows={@build_runs}
+          row_navigate={
+            fn build_run ->
+              url(
+                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{build_run.id}"
+              )
+            end
+          }
+        >
+          <:col :let={build_run} label={dgettext("dashboard_builds", "Scheme")}>
+            <.text_cell label={build_run.scheme || "None"} />
+          </:col>
+          <:col :let={build_run} label={dgettext("dashboard_builds", "Configuration")}>
+            <.text_cell label={build_run.configuration || dgettext("dashboard_builds", "Unknown")} />
+          </:col>
+          <:col :let={build_run} label="Status">
+            <%= if build_run.status == :success do %>
+              <.status_badge_cell label={dgettext("dashboard_builds", "Passed")} status="success" />
+            <% else %>
+              <.status_badge_cell label={dgettext("dashboard_builds", "Failed")} status="error" />
+            <% end %>
+          </:col>
+          <:col :let={build_run} label={dgettext("dashboard_builds", "Branch")}>
+            <.text_cell icon="git_branch" label={build_run.git_branch || "None"} />
+          </:col>
+          <:col :let={build_run} label={dgettext("dashboard_builds", "Commit SHA")}>
+            <.text_cell label={SHA.format_commit_sha(build_run.git_commit_sha)} />
+          </:col>
+          <:col :let={build_run} label={dgettext("dashboard_builds", "Ran by")}>
+            <.build_ran_by_badge_cell build={build_run} />
+          </:col>
+          <:col
+            :let={build_run}
+            label={dgettext("dashboard_builds", "Duration")}
+            patch={@build_runs_sort_by == "duration" && column_patch_sort(assigns, "duration")}
+            icon={
+              @build_runs_sort_by == "duration" &&
+                sort_icon(@build_runs_sort_order)
+            }
+          >
+            <.text_cell
+              label={
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  build_run.duration
+                )
+              }
+              icon="history"
+            />
+          </:col>
+          <:col :let={build_run} label={dgettext("dashboard_builds", "Category")}>
+            <.badge_cell
+              label={
+                (build_run.category && Atom.to_string(build_run.category) |> String.capitalize()) ||
+                  dgettext("dashboard_builds", "Unknown")
+              }
+              style="light-fill"
+            />
+          </:col>
+          <:col
+            :let={build_run}
+            label={dgettext("dashboard_builds", "Ran at")}
+            patch={@build_runs_sort_by == "ran-at" && column_patch_sort(assigns, "ran-at")}
+            icon={
+              @build_runs_sort_by == "ran-at" &&
+                sort_icon(@build_runs_sort_order)
+            }
+          >
+            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(build_run.inserted_at)} />
+          </:col>
+          <:col :let={build_run} label={dgettext("dashboard_builds", "Xcode version")}>
+            <.text_cell label={build_run.xcode_version || dgettext("dashboard_builds", "Unknown")} />
+          </:col>
+          <:col :let={build_run} label={dgettext("dashboard_builds", "macOS version")}>
+            <.text_cell label={build_run.macos_version || dgettext("dashboard_builds", "Unknown")} />
+          </:col>
+          <:col :let={build_run} label={dgettext("dashboard_builds", "Device")}>
+            <.text_cell label={
+              (build_run.model_identifier && Tuist.Apple.devices()[build_run.model_identifier]) ||
+                dgettext("dashboard_builds", "Unknown")
+            } />
+          </:col>
+        </.table>
+        <.pagination
+          uri={@uri}
+          has_previous_page={@build_runs_meta.has_previous_page?}
+          has_next_page={@build_runs_meta.has_next_page?}
+          start_cursor={@build_runs_meta.start_cursor}
+          end_cursor={@build_runs_meta.end_cursor}
+        />
+      </div>
+
+      <div :if={Enum.empty?(@build_runs)} data-part="empty-build-runs">
+        <.empty_card_section
+          title={dgettext("dashboard_builds", "No data yet")}
+          get_started_href="https://docs.tuist.dev/en/guides/develop/insights"
+          data-part="empty-build-runs-table-card-section"
+        >
+          <:image>
+            <img src="/images/empty_table_light.png" data-theme="light" />
+            <img src="/images/empty_table_dark.png" data-theme="dark" />
+          </:image>
+        </.empty_card_section>
+      </div>
+    </.card_section>
+  </.card>
+</div>

@@ -1,51 +1,79 @@
 ---
-title: Issue reporting
-titleTemplate: :title · Участникам проекта · Tuist
-description: Learn how to contribute to Tuist by reporting bugs
+{
+  "title": "Issue reporting",
+  "titleTemplate": ":title · Contributors · Tuist",
+  "description": "Learn how to contribute to Tuist by reporting bugs"
+}
 ---
+# Отчетность по проблемам {#issue-reporting}
 
-# Issue reporting {#issue-reporting}
+Как пользователь Tuist, вы можете столкнуться с ошибками или неожиданными
+действиями. В этом случае мы рекомендуем вам сообщать о них, чтобы мы могли их
+исправить.
 
-As user of Tuist, you might come across bugs or unexpected behaviors.
-If you do, we encourage you to report them so that we can fix them.
+## GitHub issues - это наша платформа для рассылки тикетов {#github-issues-is-our-ticketing-platform}
 
-## GitHub issues is our ticketing platform {#github-issues-is-our-ticketing-platform}
+О проблемах следует сообщать на GitHub как [GitHub
+issues](https://github.com/tuist/tuist/issues), а не в Slack или на других
+платформах. GitHub лучше подходит для отслеживания и управления проблемами, он
+ближе к кодовой базе и позволяет нам отслеживать прогресс в решении проблемы.
+Кроме того, он поощряет развернутое описание проблемы, что заставляет журналиста
+задуматься о проблеме и предоставить больше контекста.
 
-Issues should be reported on GitHub as [GitHub issues](https://github.com/tuist/tuist/issues) and not on Slack or other platforms. GitHub is better for tracing and managing issues, is closer to the codebase, and allows us to track the progress of the issue. Moreover, it encourages a long-form description of the problem, which forces the reporter to think about the problem and provide more context.
+## Контекст имеет решающее значение {#context-is-crucial}
 
-## Context is crucial {#context-is-crucial}
+Вопрос без достаточного контекста будет считаться неполным, и автору будет
+предложено предоставить дополнительный контекст. Если он не будет предоставлен,
+вопрос будет закрыт. Подумайте об этом так: чем больше контекста вы
+предоставите, тем проще нам будет понять проблему и исправить ее. Поэтому, если
+вы хотите, чтобы ваша проблема была исправлена, предоставьте как можно больше
+контекста. Постарайтесь ответить на следующие вопросы:
 
-An issue without enough context will be deemed incomplete and the author will be asked for additional context. If not provided, the issue will be closed. Think about it this way: the more context you provide, the easier it is for us to understand the problem and fix it. So if you want your issue to be fixed, provide as much context as possible. Try to answer the following questions:
+- Что вы пытались сделать?
+- Как выглядит ваш график?
+- Какую версию Tuist вы используете?
+- Это мешает вам?
 
-- What were you trying to do?
-- How does your graph look?
-- What version of Tuist are you using?
-- Is this blocking you?
+Мы также требуем, чтобы вы предоставили минимальный **воспроизводимый проект**.
 
-We also require you to provide a minimal **reproducible project**.
+## Воспроизводимый проект {#reproducible-project}
 
-## Reproducible project {#reproducible-project}
+### Что такое воспроизводимый проект? {#what-is-a-reproducible-project}
 
-### What is a reproducible project? {#what-is-a-reproducible-project}
+Воспроизводимый проект - это небольшой проект Tuist для демонстрации проблемы -
+часто эта проблема вызвана ошибкой в Tuist. Ваш воспроизводимый проект должен
+содержать минимум функций, необходимых для наглядной демонстрации ошибки.
 
-A reproducible project is a small Tuist project to demonstrate a problem - often this problem is caused by a bug in Tuist. Your reproducible project should contain the bare minimum features needed to clearly demonstrate the bug.
+### Зачем нужно создавать воспроизводимые тестовые примеры? {#why-should-you-create-a-reproducible-test-case}
 
-### Why should you create a reproducible test case? {#why-should-you-create-a-reproducible-test-case}
+Воспроизводимые проекты позволяют выявить причину проблемы, что является первым
+шагом к ее устранению! Самая важная часть любого сообщения об ошибке - это
+описание точных шагов, необходимых для воспроизведения ошибки.
 
-A reproducible projects lets us isolate the cause of a problem, which is the first step towards fixing it! The most important part of any bug report is to describe the exact steps needed to reproduce the bug.
+Воспроизводимый проект - это отличный способ поделиться информацией о конкретном
+окружении, которое вызывает ошибку. Ваш воспроизводимый проект - лучший способ
+помочь людям, которые хотят помочь вам.
 
-A reproducible project is a great way to share a specific environment that causes a bug. Your reproducible project is the best way to help people that want to help you.
+### Шаги по созданию воспроизводимого проекта {#steps-to-create-a-reproducible-project}
 
-### Steps to create a reproducible project {#steps-to-create-a-reproducible-project}
+- Создайте новый git-репозиторий.
+- Инициализируйте проект с помощью `tuist init` в каталоге репозитория.
+- Добавьте код, необходимый для воссоздания возникшей ошибки.
+- Опубликуйте код (для этого подойдет ваш аккаунт на GitHub), а затем ссылайтесь
+  на него при создании проблемы.
 
-- Create a new git repository.
-- Initialize a project using `tuist init` in the repository directory.
-- Add the code needed to recreate the error you’ve seen.
-- Publish the code (your GitHub account is a good place to do this) and then link to it when creating an issue.
+### Преимущества воспроизводимых проектов {#benefits-of-reproducible-projects}
 
-### Benefits of reproducible projects {#benefits-of-reproducible-projects}
-
-- **Smaller surface area:** By removing everything but the error, you don’t have to dig to find the bug.
-- **No need to publish secret code:** You might not be able to publish your main site (for many reasons). Remaking a small part of it as a reproducible test case allows you to publicly demonstrate a problem without exposing any secret code.
-- **Proof of the bug:** Sometimes a bug is caused by some combination of settings on your machine. A reproducible test case allows contributors to pull down your build and test it on their machines as well. This helps verify and narrow down the cause of a problem.
-- **Get help with fixing your bug:** If someone else can reproduce your problem, they often have a good chance of fixing the problem. It’s almost impossible to fix a bug without first being able to reproduce it.
+- **Меньшая площадь поверхности:** Удалив все, кроме ошибки, вам не придется
+  копать, чтобы найти ее.
+- **Нет необходимости публиковать секретный код:** Вы можете не публиковать свой
+  основной сайт (по разным причинам). Переделка небольшой его части в
+  воспроизводимый тестовый пример позволит вам публично продемонстрировать
+  проблему, не раскрывая секретный код.
+- **Доказательство ошибки:** Иногда ошибка возникает из-за некоторой комбинации
+  настроек на вашей машине. Воспроизводимый тестовый пример позволяет участникам
+  взять вашу сборку и протестировать ее на своих машинах. Это помогает проверить
+  и выявить причину проблемы.
+- **Обратитесь за помощью в исправлении ошибки:** Если кто-то другой сможет
+  воспроизвести вашу проблему, у него часто есть все шансы ее устранить.
+  Практически невозможно исправить ошибку, не имея возможности ее воспроизвести.

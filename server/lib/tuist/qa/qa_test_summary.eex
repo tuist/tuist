@@ -1,0 +1,28 @@
+### 🤖 QA Test Summary
+**Prompt:** <%= @prompt %>
+**Issues:** <%= if @issue_count > 0 do %>⚠️ <%= @issue_count %><% else %>✅ 0<% end %>
+**Preview:** [<%= @preview_display_name %>](<%= @preview_url %>)
+**Commit:** [<%= String.slice(@commit_sha, 0, 9) %>](<%= @git_remote_url_origin %>/commit/<%= @commit_sha %>)
+**QA Session:** [View detailed results](<%= @app_url %>/<%= @account_handle %>/<%= @project_handle %>/qa/<%= @qa_run_id %>)
+
+<%= if not Enum.empty?(@run_steps) do %>
+
+🚶 QA Steps
+
+<%= for {step, index} <- Enum.with_index(@run_steps, 1) do %>
+<details>
+<summary><%= index %>. <%= if not Enum.empty?(step.issues) do %>⚠️<% end %> <%= step.action %></summary>
+
+<%= step.result %><%= if not Enum.empty?(step.issues) do %>
+
+**⚠️ Issues Found:**<%= for issue <- step.issues do %>
+1. <%= issue %>
+<% end %><% end %><%= if step.screenshot do %>
+
+<img src="<%= @app_url %>/<%= @account_handle %>/<%= @project_handle %>/qa/runs/<%= @qa_run_id %>/screenshots/<%= step.screenshot.id %>" alt="Screenshot <%= index %>" width="500" />
+<% end %></details>
+
+<% end %>
+</details>
+
+<% end %>

@@ -1,0 +1,83 @@
+.tuist-app-preview {
+  display: flex;
+
+  position: relative;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--noora-spacing-6);
+  box-shadow: var(--noora-light-border-default);
+  border-radius: var(--noora-radius-xlarge);
+  padding: var(--noora-spacing-5);
+  text-decoration: none;
+
+  &:hover {
+    background: var(--noora-surface-background-secondary);
+  }
+
+  &:active {
+    box-shadow: var(--noora-border-light-focus);
+    background: var(--noora-surface-background-primary);
+  }
+
+  & > [data-part="link"] {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: var(--noora-z-index-1);
+  }
+
+  & > [data-part="run-button"] {
+    z-index: var(--noora-z-index-2);
+  }
+
+  & > [data-part="icon"] {
+    --size: 48px;
+    border-radius: var(--tuist-app-icon-radius);
+    width: var(--size);
+    height: var(--size);
+  }
+
+  & > [data-part="metadata"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+
+    & > [data-part="title"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+
+    & > [data-part="extra-metadata"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+
+      & > [data-part="time"] {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: var(--noora-spacing-1);
+
+        & > [data-part="icon"] {
+          display: flex;
+          width: var(--noora-icon-size-small);
+          height: var(--noora-icon-size-small);
+          color: var(--noora-surface-label-secondary);
+
+          & svg {
+            width: 100%;
+            height: 100%;
+          }
+        }
+
+        & > [data-part="label"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-xsmall);
+        }
+      }
+    }
+  }
+}

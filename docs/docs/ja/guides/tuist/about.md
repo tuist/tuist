@@ -1,12 +1,14 @@
 ---
-title: Tuist について
-titleTemplate: :title · Guides · Tuist
-description: Apple 標準の開発ツールを強化し、より大規模で優れたアプリを構築する。
+{
+  "title": "Tuist について",
+  "titleTemplate": ":title · Guides · Tuist",
+  "description": "Apple 標準の開発ツールを強化し、より大規模で優れたアプリを構築する。"
+}
 ---
-
 <script setup>
 import VPFeature from "vitepress/dist/client/theme-default/components/VPFeature.vue";
 </script>
+
 
 # About Tuist {#about-tuist}
 
@@ -26,13 +28,13 @@ Tuist is comprised of a [CLI](https://github.com/tuist/tuist), which is the main
 
 As projects grow and span multiple platforms, modularization becomes crucial. Tuistはこの複雑さを簡素化し、プロジェクトの構造を最適化し、よりよく理解するためのツールを提供します。
 
-**Further reading:** <LocalizedLink href="/guides/develop/projects">Projects</LocalizedLink>
+**Further reading:** <LocalizedLink href="/guides/features/projects">Projects</LocalizedLink>
 
 ### Optimize workflows 🚀 {#optimize-workflows}
 
 Leveraging project information, Tuist enhances efficiency through selective test execution and deterministic binary reuse across builds.
 
-**Further reading:** <LocalizedLink href="/guides/develop/cache">Cache</LocalizedLink>, <LocalizedLink href="/guides/develop/selective-testing">Selective testing</LocalizedLink>, <LocalizedLink href="/guides/develop/registry">Registry</LocalizedLink>, and <LocalizedLink href="/guides/share/previews">Previews</LocalizedLink>
+**Further reading:** <LocalizedLink href="/guides/features/cache">Cache</LocalizedLink>, <LocalizedLink href="/guides/features/selective-testing">Selective testing</LocalizedLink>, <LocalizedLink href="/guides/features/registry">Registry</LocalizedLink>, and <LocalizedLink href="/guides/features/previews">Previews</LocalizedLink>
 
 ### Foster healthy project evolution 📈 {#foster-healthy-project-evolution}
 
@@ -44,7 +46,7 @@ We provide insights into your project's dynamics and expert guidance for informe
 
 Unlike platform-specific ecosystems (e.g., Xcode's contained environment), Tuist offers web-centric experiences and integrates seamlessly with popular tools like Slack, Prometheus, and GitHub, enhancing cross-tool collaboration.
 
-**Further reading:** <LocalizedLink href="/guides/develop/projects">Projects</LocalizedLink>
+**Further reading:** <LocalizedLink href="/guides/features/projects">Projects</LocalizedLink>
 
 ---
 

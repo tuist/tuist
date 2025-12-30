@@ -5,20 +5,22 @@ import {
   guidesSidebar,
   contributorsSidebar,
   referencesSidebar,
-  serverSidebar,
   navBar,
 } from "./bars.mjs";
-import { cliSidebar } from "./data/cli";
+import { cliSidebar } from "./data/cli.js";
 import { localizedString } from "./i18n.mjs";
+import llmstxtPlugin from "vitepress-plugin-llmstxt";
+import postcssRtlcss from "postcss-rtlcss";
+import { validateAdmonitions } from "./validate-admonitions.mjs";
+import { checkLocalePages } from "./check-locale-pages.mjs";
 
 async function themeConfig(locale) {
   const sidebar = {};
   sidebar[`/${locale}/contributors`] = contributorsSidebar(locale);
-  sidebar[`/${locale}/guides/`] = guidesSidebar(locale);
-  sidebar[`/${locale}/server/`] = serverSidebar(locale);
+  sidebar[`/${locale}/guides/`] = await guidesSidebar(locale);
   sidebar[`/${locale}/cli/`] = await cliSidebar(locale);
   sidebar[`/${locale}/references/`] = await referencesSidebar(locale);
-  sidebar[`/${locale}/`] = guidesSidebar(locale);
+  sidebar[`/${locale}/`] = await guidesSidebar(locale);
   return {
     nav: navBar(locale),
     sidebar,
@@ -141,6 +143,11 @@ const searchOptionsLocales = {
   ja: getSearchOptionsForLocale("ja"),
   ru: getSearchOptionsForLocale("ru"),
   es: getSearchOptionsForLocale("es"),
+  pt: getSearchOptionsForLocale("pt"),
+  ar: getSearchOptionsForLocale("ar"),
+  zh_Hans: getSearchOptionsForLocale("zh_Hans"),
+  pl: getSearchOptionsForLocale("pl"),
+  yue_Hant: getSearchOptionsForLocale("yue_Hant"),
 };
 
 export default defineConfig({
@@ -149,6 +156,29 @@ export default defineConfig({
   description: "Scale your Xcode app development",
   srcDir: "docs",
   lastUpdated: false,
+  ignoreDeadLinks: [
+    // Ignore localhost URLs in self-hosting documentation
+    /^http:\/\/localhost/,
+    // Ignore .env.example download link (static file served from public/)
+    /\/server\/self-host\/\.env\.example$/,
+  ],
+  experimental: {
+    metaChunk: true,
+  },
+  vite: {
+    plugins: [llmstxtPlugin()],
+    css: {
+      postcss: {
+        plugins: [
+          postcssRtlcss({
+            ltrPrefix: ':where([dir="ltr"])',
+            rtlPrefix: ':where([dir="rtl"])',
+          }),
+        ],
+      },
+    },
+  },
+  mpa: false,
   locales: {
     en: {
       label: "English",
@@ -180,6 +210,27 @@ export default defineConfig({
       lang: "pt",
       themeConfig: await themeConfig("pt"),
     },
+    ar: {
+      label: "العربية (Arabic)",
+      lang: "ar",
+      dir: "rtl",
+      themeConfig: await themeConfig("ar"),
+    },
+    zh_Hans: {
+      label: "中文 (Chinese)",
+      lang: "zh_Hans",
+      themeConfig: await themeConfig("zh_Hans"),
+    },
+    pl: {
+      label: "Polski (Polish)",
+      lang: "pl",
+      themeConfig: await themeConfig("pl"),
+    },
+    yue_Hant: {
+      label: "廣東話 (Cantonese)",
+      lang: "yue_Hant",
+      themeConfig: await themeConfig("yue_Hant"),
+    },
   },
   cleanUrls: true,
   head: [
@@ -205,14 +256,6 @@ export default defineConfig({
       @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap');
       `,
     ],
-    [
-      "script",
-      {},
-      `
-      !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="capture identify alias people.set people.set_once set_config register register_once unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset isFeatureEnabled onFeatureFlags getFeatureFlag getFeatureFlagPayload reloadFeatureFlags group updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures getActiveMatchingSurveys getSurveys onSessionId".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
-      posthog.init('phc_stva6NJi8LG6EmR6RA6uQcRdrmfTQcAVLoO3vGgWmNZ',{api_host:'https://eu.i.posthog.com'})
-    `,
-    ],
     ["meta", { property: "og:url", content: "https://docs.tuist.io" }, ""],
     ["meta", { property: "og:type", content: "website" }, ""],
     [
@@ -231,11 +274,39 @@ export default defineConfig({
       },
       "",
     ],
+    [
+      "script",
+      {},
+      `
+      (function(d, script) {
+        script = d.createElement('script');
+        script.async = false;
+        script.onload = function(){
+          Plain.init({
+            appId: 'liveChatApp_01JSH1T6AJCSB6QZ1VQ60YC2KM',
+          });
+        };
+        script.src = 'https://chat.cdn-plain.com/index.js';
+        d.getElementsByTagName('head')[0].appendChild(script);
+      }(document));
+      `,
+    ],
   ],
   sitemap: {
     hostname: "https://docs.tuist.io",
   },
   async buildEnd({ outDir }) {
+    // Run validations in parallel
+    await Promise.all([
+      validateAdmonitions(outDir),
+      checkLocalePages(outDir)
+    ]);
+
+    // Copy functions directory to dist
+    const functionsSource = path.join(path.dirname(outDir), "functions");
+    const functionsDest = path.join(outDir, "functions");
+    await fs.cp(functionsSource, functionsDest, { recursive: true });
+
     const redirectsPath = path.join(outDir, "_redirects");
     const redirects = `
 /documentation/tuist/installation /guide/introduction/installation 301
@@ -317,10 +388,28 @@ export default defineConfig({
 /:locale/guides/develop/build/registry /:locale/guides/develop/registry 301
 /:locale/guides/develop/test/selective-testing /:locale/guides/develop/selective-testing 301
 /:locale/guides/develop/inspect/implicit-dependencies /:locale/guides/develop/projects/inspect/implicit-dependencies 301
-/:locale/guides/develop/automate/continuous-integration /:locale/guides/automate/continuous-integration 301
-/:locale/guides/develop/automate/workflows /:locale/guides/automate/workflows 301
+/:locale/guides/develop/automate/continuous-integration /:locale/guides/environments/continuous-integration 301
+/:locale/guides/develop/automate/workflows /:locale/guides/environments/automate/continuous-integration 301
+/:locale/guides/automate/workflows /:locale/guides/environments/automate/continuous-integration 301
+/:locale/guides/automate/* /:locale/guides/environments/:splat 301
+/:locale/guides/develop/* /:locale/guides/features/:splat 301
 /documentation/tuist/* / 301
 /:locale/guides/develop/build/registry /:locale/guides/develop/registry 301
+/:locale/guides/develop/selective-testing/xcodebuild /:locale/guides/develop/selective-testing/xcode-project 301
+/:locale/guides/features/mcp /:locale/guides/features/agentic-coding/mcp 301
+/:locale/guides/features/agentic-building/mcp /:locale/guides/features/agentic-coding/mcp 301
+/:locale/guides/environments/continuous-integration /:locale/guides/integrations/continuous-integration 301
+/:locale/guides/environments/automate/continuous-integration /:locale/guides/integrations/continuous-integration 301
+/:locale/server/introduction/accounts-and-projects /:locale/guides/server/accounts-and-projects 301
+/:locale/server/introduction/authentication /:locale/guides/server/authentication 301
+/:locale/server/introduction/integrations /:locale/guides/integrations/gitforge/github 301
+/:locale/server/on-premise/install /:locale/guides/server/self-host/install 301
+/:locale/server/on-premise/metrics /:locale/guides/server/self-host/telemetry 301
+/:locale/guides/server/install /:locale/guides/server/self-host/install 301
+/:locale/guides/server/metrics /:locale/guides/server/self-host/telemetry 301
+/:locale/server /:locale/guides/server/accounts-and-projects 301
+/:locale/references/examples /:locale/guides/examples/generated-projects 301
+/:locale/references/examples/* /:locale/guides/examples/generated-projects/:splat 301
 ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
   encoding: "utf-8",
 })}

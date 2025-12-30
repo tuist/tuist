@@ -1,0 +1,102 @@
+date: 2025-03-07
+hero:
+  image: /marketing/images/newsletter/issues/5/artwork.jpeg
+  image_max_width: 250px;
+  alt: "UI design by Thomas Cullen"
+  subtitle: "Featured work: [Thomas Cullen](https://thomascullen.io/)"
+title: What if you owned your automation?
+body: |
+  [Continuous integration](https://en.wikipedia.org/wiki/Continuous_integration) is a piece in the software development lifecycle that we've taken for granted. It's that element that ensures our changes do what they are supposed to do and adhere to some conventions. When checks are green and we've got the required reviews, our PRs are ready to merge. One can think of this as a recursive function: push, feedback (CI or human), change, push, feedback... and eventually merge.
+
+  If you think about it, little has changed or improved in how we do CI. We are still required to push YAML files upstream to get them validated. We can't simulate the execution of the pipelines locally because the pipelines and scheduling logic are proprietary solutions that organizations are not willing to trade off for a better developer experience. In the case of our scripting, we are stuck with [Fastlane](https://fastlane.tools), even though most people in the ecosystem would prefer to be writing Swift. I was personally excited when Apple acquired [BuddyBuild](https://www.macrumors.com/2018/01/02/apple-acquires-buddybuild-for-xcode-team/), but the excitement faded when I saw how it materialized as Xcode Cloud. Apple (understandably) uses their control over Xcode to compete with a more tightly integrated solution that still doesn't solve the aforementioned problems.
+
+  **In today's CI, you have weak ownership over your remote automation. It's by design.**
+
+  Some people have accepted that's how things are, and we did too for a long time. But [Dagger](https://dagger.io), created by the [founder](dia.org/wiki/Solomon_Hykes) of [Docker](https://www.docker.com/), has recognized this issue and has started building a solution. Think of it as a CI engine that's platform agnostic. In other words, you can run your pipelines locally or remotely using the same engine, so no more pushing to see if the YAML is valid or how it behaves. Would the same idea work in the Apple ecosystem? I strongly believe so. The execution would need to be different because Dagger uses Docker, and virtualization of macOS images is costlier (images are more heavyweight), but the idea of decoupling the engine from the platform is something worth exploring.
+
+  Fastlane is in fact a step in this direction. It simplifies pipelines by moving their logic to scripts, but it's not sufficient. There's still a dependency on certain CI capabilities, like caching, which is usually built into the pipeline, or steps, which are usually provided from a proprietary marketplace. Imagine if caching needs were declared in comments in your scripts (or Fastlane lanes), and steps became Swift Packages that you could depend on. And the installation of tools? That's something [Mise](https://mise.jdx.dev/) is exceptional at. What would that all mean? That pipelines can be reduced to `mise install && mise run x`, you become the owner of your automation, have the freedom to port it to the platform that aligns best with your needs, and you have a better experience debugging it.
+
+  I don't know about you, but this is a future I feel like enabling.
+interview:
+  interviewee: "giginet"
+  interviewee_role: "Mobile DevOps Engineer"
+  interviewee_avatar_url: /marketing/images/newsletter/issues/5/gigi.jpeg
+  interviewee_intro: |
+    [@giginet](https://github.com/giginet) ([X](https://x.com/giginet)) is a Mobile DevOps Engineer mainly focused on Swift and Apple Platform. He maintains open-sourced developer tools like [fastlane](https://github.com/fastlane/fastlane) / [XcodeGen](https://github.com/yonaskolb/XcodeGen) / [Carthage](https://github.com/Carthage/Carthage) and so on.
+    Recently, he has focused on developing [Scipio](https://github.com/giginet/Scipio), the build tool to generate XCFramework from Swift Packages.
+  questions:
+    - question: "An app worth installing"
+      answer: |
+        My favorite application is [Fantastical](https://flexibits.com/fantastical). It's just a calendar app, but it's actively adapting to the new features and conventions of standards on the Apple platform.
+        It supports iOS/macOS as well as watchOS and visionOS, and correctly implements recent OS features such as Focus Filter and Dynamic Activity. This is a model for developers on the Apple platform.
+    - question: "An open-source project worth checking out"
+      answer: |
+        The biggest news recently is that [swift-build](https://github.com/swiftlang/swift-build) is now OSS.
+        As I have been working on build tools on a regular basis, I'm excited to see the unveiling of the whole build system, which until now has only been tacit knowledge.
+        Otherwise, exploring Apple's OSS, such as swiftc and swift-foundation, is a great daily discovery.
+    - question: "A developer tool worth using"
+      answer: |
+        [SwiftFiddle](https://swiftfiddle.com/), developed by the famous Japanese developer [@kishikawakatsumi](https://github.com/kishikawakatsumi/), is the easiest way to run Swift in various versions. We can choose any version and run it in our browser. It supports not only the stable version but also the trunk!
+        When I hit a bug in the compiler, I often use this tool to check whether it also occurs in the latest Swift. I can't imagine debugging without it.
+    - question: "A developer worth following"
+      answer: |
+        [@stzn3](https://x.com/stzn3) regularly shares summaries of Swift Evolution and Forum topics with the community in Japan. If you keep watch on his X,  we can learn about the latest pitches and Evolution developments.
+    - question: "A book worth reading"
+      answer: |
+        [Team Geek](https://www.oreilly.com/library/view/team-geek/9781449329839/) (2012) is one of the most memorable books of my decade-long career.
+
+        It is almost a classic now, but its content is as fresh as ever. The HRT 🫶 of Humility, Respect, and Trust is the most important thing to become an engineer who plays an active role in their team. This idea still lives in my heart.
+
+tools:
+  - title: The App Fair Project
+    subtitle: The universal free and open-source app marketplace
+    link: https://appfair.org/en/
+    description: |
+      With the European Union now requiring Apple to allow alternative app stores, The App Fair Project is building a marketplace that's free, open-source, and committed to respecting user privacy. To make this vision a reality, they need to reach a milestone of one million downloads for [their browser app, Net Skip](https://apps.apple.com/lt/app/net-skip/id1640618584).
+  - title: xcc
+    subtitle: A CLI for Xcode Cloud
+    link: https://github.com/finnvoor/xcc
+    description: |
+      If you spend significant time working from the terminal, you might appreciate xcc - a powerful command-line tool designed to streamline your interactions with Xcode Cloud. It enables you to efficiently manage workflows, trigger new builds, and access other Xcode Cloud features directly from your terminal environment, eliminating the need to switch contexts.
+  - title: Posting
+    subtitle: The API client that lives in your terminal
+    link: https://posting.sh/
+    description: |
+      And continuing with terminal tools, if you're a fan of Postman or Proxyman but prefer working in your terminal environment, you should explore Posting. Its user interface is remarkably impressive, bringing the power of API testing and network debugging right to your command line with an experience that will truly amaze you.
+  - title: visualizeTouches
+    subtitle: Touch Visualization in SwiftUI
+    link: https://github.com/robb/visualizeTouches
+    description: |
+      If you need to display touch interactions when recording demos of your application, check out [visualizeTouches](https://github.com/robb/visualizeTouches) by [@robb](https://github.com/robb) - a simple yet effective tool for enhancing your app demonstration videos with visible touch feedback.
+  - title: Lynx
+    subtitle: A framework to build apps with web technologies
+    link: https://lynxjs.org/
+    description: |
+      Just when we thought the mobile development framework space was saturated, ByteDance (the company behind TikTok) has open-sourced a framework-agnostic technology allowing developers to build apps using familiar web patterns and technologies like Vue, Svelte, and React.
+
+food_for_thought:
+  - title: "Educational notes on Swift Concurrency compiler errors"
+    subtitle: "Read"
+    link: "https://mastodon.social/@calicoding/114042849947377630"
+    description: |
+      It's truly inspiring to see both the Swift community and Apple engineers like [Holly Borla](https://mastodon.social/@holly@hachyderm.io) dedicating significant resources to help developers navigate the transition to a data-race safe programming model. If you're finding yourself frustrated when confronting compiler errors related to these changes, we highly recommend exploring the newly released educational notes, which provide valuable guidance through this important evolution in Swift development.
+  - title: "DOOM implemented with TypeScript types"
+    subtitle: "Watch"
+    link: "https://www.youtube.com/watch?v=0mCsluv5FXA&t=1s/"
+    description: |
+      Can you imagine DOOM running entirely on Swift's type system? That's exactly what [Michigan Typescript](https://fosstodon.org/@MichiganTypeScript) accomplished - writing 3.5 trillion lines of code, enduring 12 days of processing time, and overcoming countless technical hurdles. Why tackle such an absurd challenge? Simply because it was there to be conquered!
+  - title: "Anatomy of an AI System"
+    subtitle: "Read"
+    link: "https://anatomyof.ai/"
+    description: |
+      Behind every LLM-powered chat interface, Siri, or Alexa exists an intricate web of data collection, processing, and fine-tuning that obscures the true environmental and computational costs of our summarized content and quick answers. This resource provides a comprehensive and detailed mapping of the complex infrastructure that powers modern AI systems, revealing what typically remains hidden from view.
+  - title: "Apple's Software Quality Crisis: When Premium Hardware Meets Subpar Software"
+    subtitle: "Read"
+    link: "https://www.eliseomartelli.it/blog/2025-03-02-apple-quality"
+    description: |
+      In this revealing blog post, [Eliseo Martelli](https://www.eliseomartelli.it/) questions whether Apple is prioritizing hardware advancements over software quality. He describes alarming thermal issues with his iPad Air 11" M2 that made the device painfully hot to touch. The most concerning aspect? These overheating problems occurred during a surprisingly mundane task - simply filling "roughly one page (or 'screen') with handwritten notes," raising serious questions about quality control and optimization in Apple's latest devices.
+  - title: Xcode constantly phones home
+    subtitle: "Read"
+    link: https://lapcatsoftware.com/articles/2025/2/5.html
+    description: |
+      In an eye-opening blog post, [Jeff Johnson](https://lapcatsoftware.com/main/Resume.html) highlights a concerning trend where code editors increasingly rely on network connections to report usage analytics and other business-beneficial information. Apple appears to have crossed a line, with Johnson documenting sudden 50-second delays in build times for "gathering insights." This raises troubling questions: Could Apple be using developers' code and build data to train their AI models without explicit consent? This development represents yet another example of the blurring boundaries between development tools and data collection mechanisms.

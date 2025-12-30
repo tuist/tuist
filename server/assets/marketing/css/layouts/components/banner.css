@@ -1,0 +1,44 @@
+#marketing-banner {
+  display: flex;
+  position: relative;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--noora-spacing-9);
+  box-shadow:
+    0 1px 1px 0 rgba(22, 24, 28, 0.05),
+    0 0 0 1px rgba(46, 51, 56, 0.08),
+    0 1px 1px 0 rgba(46, 51, 56, 0.1);
+  border-radius: var(--noora-radius-xlarge);
+  padding: var(--noora-spacing-15) var(--noora-spacing-10);
+
+  & > [data-part="background"] {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: -1;
+    border-radius: var(--noora-radius-xlarge);
+    background: linear-gradient(93deg, #fef9f4 0.66%, #efe8ff 100%);
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  & > [data-part="title"] {
+    background: linear-gradient(91deg, #000 6.44%, #6a7581 108.71%);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font: var(--noora-font-weight-medium) var(--noora-font-display-large);
+    text-align: center;
+    text-shadow: 0 1px 3px rgba(27, 37, 80, 0.25);
+  }
+
+  & > [data-part="actions"] {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    gap: var(--noora-spacing-4);
+  }
+}

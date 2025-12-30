@@ -1,0 +1,19 @@
+import ProjectDescription
+
+let project = Project(
+    name: "App",
+    options: .options(
+        defaultKnownRegions: ["en-GB", "Base"],
+        developmentRegion: "en-GB"
+    ),
+    targets: [
+        .target(
+            name: "App",
+            destinations: .iOS,
+            product: .app,
+            bundleId: "dev.tuist.app",
+            infoPlist: .default,
+            sources: ["App/Sources/**"]
+        ),
+    ]
+)

@@ -1,0 +1,28 @@
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-newsletter-verify">
+    <TuistWeb.Marketing.MarketingComponents.navbar {assigns} />
+
+    <TuistWeb.Marketing.MarketingComponents.header_background />
+
+    <header data-part="header">
+      <img src={~p"/marketing/images/newsletter/envelope.webp"} data-part="image" />
+      <h1 data-part="title">{dgettext("marketing", "Successfully Subscribed!")}</h1>
+      <p data-part="description">
+        {dgettext(
+          "marketing",
+          "Great! The email %{email} has been confirmed and subscribed to Tuist Digest.",
+          email: @email
+        )}
+      </p>
+    </header>
+
+    <section data-part="content">
+      <p>
+        {dgettext(
+          "marketing",
+          "You'll receive newsletter issues every 6 weeks with the most important work happening in Tuist and our vision for the future of app development at scale."
+        )}
+      </p>
+    </section>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>

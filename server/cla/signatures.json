@@ -1,0 +1,20 @@
+{
+  "signedContributors": [
+    {
+      "name": "Yusuf Özgül",
+      "id": 26109252,
+      "comment_id": "",
+      "created_at": "2025-09-04T00:00:00Z",
+      "repoId": 250427618,
+      "pullRequestNo": 8145
+    },
+    {
+      "name": "Tuist",
+      "id": 187030322,
+      "comment_id": "",
+      "created_at": "2025-10-21T00:00:00Z",
+      "repoId": 250427618,
+      "pullRequestNo": 8145
+    }
+  ]
+}

@@ -1,5 +1,7 @@
 By submitting a pull request, you represent that you have the right to license your contribution to Tuist and the community, and agree by submitting the patch that your contributions are licensed under the MIT License.
 
+**Note:** Contributions to the Tuist Server components (files within the `server/` directory) require signing a separate Contributor License Agreement (CLA). Please see `server/CLA.md` for details.
+
 ---
 
 For more information about how to contribute, please refer to the [Contributors -> Get started](https://docs.tuist.io/documentation/tuist/get-started-as-contributor) section of the documentation.

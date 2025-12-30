@@ -1,0 +1,22 @@
+[data-part="header-background"] {
+  position: absolute;
+  top: calc(-1 * env(safe-area-inset-top, 0px));
+  left: 0;
+  z-index: var(--noora-z-index-0);
+  padding-top: env(safe-area-inset-top, 0px);
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+
+  & > img {
+    width: 100%;
+    height: 635px;
+    object-fit: fill;
+    object-position: top;
+  }
+
+  @media (max-width: 1024px) {
+    filter: blur(40px);
+    background: linear-gradient(180deg, #f4f5fe 0%, #efe8ff 100%);
+  }
+}

@@ -1,0 +1,96 @@
+date: 2025-08-11
+hero:
+  image: /marketing/images/newsletter/issues/11/artwork.jpg
+  image_max_width: 250px;
+  alt: "UI design by [Alex Kyriakides](https://www.alexkyr.com/)"
+  subtitle: "Featured work: [Alex Kyriakides](https://www.alexkyr.com/)"
+title: "Rethinking App Testing in the Age of AI Agents"
+body: |
+  Something fascinating about the use of agents to take over tasks from us, including mobile development tasks, is that it presents opportunities to rethink our workflows. It also makes more apparent the challenges that have always been painful for humans—challenges that are even more painful for agents.
+
+  Take testing, for example. It's an automation tool to ensure the code we write does what it's supposed to do at runtime. Tests range from unit tests, which are fast, reliable, and easier to develop and maintain, to acceptance tests, which are slow, unreliable, and more painful to maintain because they examine the application as a whole. A good balance of both is useful because unit tests, which mock the dependencies of the subject under test, might make incorrect assumptions about integrations, causing the tests to be unrealistic.
+
+  But acceptance tests are quite costly—very costly. The alternative is manual QA, which is financially expensive and doesn't scale well, especially as applications become more complex with numerous possible navigation flows. For many years, we and Apple have tried to reduce the costs of writing and maintaining these tests. For instance, in Xcode 26, you can now generate test code as you navigate the app yourself.
+
+  But still, once the code is written, you become its maintainer. If something breaks, you'll have to dive deep into code that wasn't written by you, that interacts with other code likely not written by you either, and understand test scenarios that might not be obvious from looking at the test. Doesn't sound like the best experience, does it? What if we've been looking at the problem through the wrong lens?
+
+  LLMs and the concept of agents present a perfect opportunity to challenge this approach. Think of it as QA that can dynamically test particular scenarios based on inferred context (for example, from a PR description) and provided context (for example, through a context file). So instead of developing and maintaining a test suite, imagine tests happening on the fly, with the agent given all the information necessary to make decisions and to collect and export the diagnostic information developers need to understand what happened.
+
+  We believe ideas and problems should be continuously challenged because the environment and technological capabilities evolve. This is certainly the case for app testing, where we might be cargo-culting ideas, costs, and challenges that could easily be swept away.
+
+  **The content has been written by a human and the grammar reviewed with Claude Sonnet 4**
+interview:
+  interviewee: "Pratul Kalia"
+  interviewee_role: "Co-founder and CEO at Tramline"
+  interviewee_avatar_url: /marketing/images/newsletter/issues/11/pratul.jpeg
+  interviewee_intro: |
+    Pratul Kalia is the co-founder and CEO at Tramline. He has been working on mobile apps since 2010.
+  questions:
+    - question: "An app worth installing"
+      answer: |
+        Every device I own runs [NextDNS](https://nextdns.io). I've become so accustomed to an ad-free internet that it's only when I use a friend's computer or phone that I realize how poor the average online experience is for most people.
+    - question: "An open-source project worth checking out"
+      answer: |
+        [Mataroa](https://github.com/mataroa-blog/mataroa). The blogging world is largely made up of two extremes: "you have to do everything yourself," or "you do nothing but pay a lot of money." As a platform, I love Theodore's approach to Mataroa, and I'm a happy paying customer. I even wrote a [love letter to it](https://pratul.com/blog/mataroa-just-works-for-me/)!
+    - question: "A developer tool worth using"
+      answer: |
+        I looked through the tools I use on a regular basis and decided to name two: [ack](https://beyondgrep.com/) and [fd](https://github.com/sharkdp/fd). No matter how many IDEs and editors come and go in popularity, it's the command-line tools I truly rely on.
+    - question: "A developer worth following"
+      answer: |
+        I follow many people in my feed reader, so I'm not sure I can single out one specific person. I usually discover interesting developers on [lobste.rs](https://lobste.rs) (more often) and Hacker News (less often).
+    - question: "A book worth reading"
+      answer: |
+        The Soul of a New Machine by Tracy Kidder should be required reading for everyone in the tech industry. It's a roller coaster of emotions, both good and bad, and it made me feel that the industry hasn't changed much in the forty years or so since this book was first published.
+
+tools:
+  - title: Yap
+    subtitle: On-device speech transcription for macOS
+    link: https://github.com/finnvoor/yap
+    description: |
+      macOS 26 got a gift: on-device speech transcription via Apple's Speech.framework. Yap puts this power in your terminal, transcribing audio and video files with support for multiple output formats including SRT for subtitles. Pipe YouTube videos through yt-dlp, get instant transcriptions, and even feed them to AI models for summaries.
+  - title: SketchyBar
+    subtitle: A highly customizable macOS status bar replacement
+    link: https://github.com/FelixKratz/SketchyBar
+    description: |
+      For those who see the macOS status bar as a canvas rather than a constraint, SketchyBar offers complete control through shell scripting. Originally part of the Yabai window manager, it's evolved into a standalone tool where every element—from animations to graphs—can be dynamically configured. If you've ever wished your status bar could do exactly what you want, this is your answer.
+  - title: RepoMix
+    subtitle: Transform codebases into AI-friendly formats
+    link: https://repomix.com/
+    description: |
+      Getting your entire codebase into an AI assistant's context window just got easier. RepoMix packages repositories into single, optimized files that LLMs can digest, complete with token counting and sensitive data detection. Whether you need a code review or architectural advice, this tool bridges the gap between your codebase and AI comprehension.
+  - title: Later
+    subtitle: Private, local-first read-it-later app
+    link: https://apps.apple.com/de/app/later-save-links-for-later/id1507396839
+    description: |
+      In a world of cloud-everything, Later takes a refreshing stance: your reading list belongs on your device. No servers, no tracking, just pure iCloud sync and a commitment to privacy. It even strips tracking parameters from your saved links. Sometimes the best features are the ones that aren't there.
+  - title: OpenHands
+    subtitle: Open-source AI coding agents
+    link: https://github.com/All-Hands-AI/OpenHands
+    description: |
+      While everyone talks about AI replacing developers, OpenHands focuses on augmentation. This open-source platform lets AI agents modify code, run commands, and handle the repetitive parts of development. With support for multiple LLMs and deployment options from cloud to local Docker, it's putting the power of AI development assistance in developers' hands—literally.
+food_for_thought:
+  - title: "macOS Tahoe's ASIF disk image format"
+    subtitle: "Read"
+    link: "https://eclecticlight.co/2025/06/12/macos-tahoe-brings-a-new-disk-image-format/"
+    description: |
+      Apple quietly introduced ASIF (Apple Sparse Image Format) in macOS Tahoe, achieving impressive speeds of 5.8 GB/s read and 6.6 GB/s write on M3 hardware. These sparse disk images are particularly game-changing for virtual machines, offering both space efficiency and performance that leaves previous formats in the dust.
+  - title: "Chris Lattner on Modular's future"
+    subtitle: "Listen"
+    link: "https://www.latent.space/p/modular-2025"
+    description: |
+      The creator of Swift shares his vision for making AI infrastructure accessible through Mojo (10-100× faster than Python) and the MAX inference framework. His "concentric circles" approach to technology layers and commitment to open source shows how complexity in AI compute might finally meet its match.
+  - title: "Shipping a macOS app built by AI"
+    subtitle: "Read"
+    link: "https://www.indragie.com/blog/i-shipped-a-macos-app-built-entirely-by-claude-code"
+    description: |
+      Context, a native SwiftUI debugging tool for MCP servers, was built with less than 1,000 human-written lines out of 20,000 total. The secret? "Context engineering"—priming AI agents with specifications, existing code, and feedback loops. The future of IDEs might be closer than we think.
+  - title: "Native DOM templating API proposal"
+    subtitle: "Read"
+    link: "https://justinfagnani.com/2025/06/30/what-should-a-dom-templating-api-look-like"
+    description: |
+      What if the web platform had built-in templating that felt as natural as template literals? This proposal explores a declarative API using tagged templates, bringing framework-like expressiveness to vanilla JavaScript. Sometimes the best standards are the ones that codify what developers are already doing.
+  - title: "The state of mobile release management"
+    subtitle: "Report"
+    link: "https://www.runway.team/whitepapers/2025-state-of-mobile-release-management-report"
+    description: |
+      Engineers waste 5 hours per release on manual tasks, and 77% of teams need hotfixes every 3-5 releases. Even teams with significant automation still lose 6-10 hours per release. The data paints a clear picture: mobile release processes are broken, and it's costing more than just time.

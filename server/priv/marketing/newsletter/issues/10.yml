@@ -1,0 +1,92 @@
+date: 2025-06-13
+hero:
+  image: /marketing/images/newsletter/issues/10/artwork.jpg
+  image_max_width: 250px;
+  alt: "UI design by [Oğuz Yağız Kara](https://lue.studio/)"
+  subtitle: "Featured work: [Oğuz Yağız Kara](https://lue.studio/)"
+title: "The hidden costs of static instances"
+body: |
+  During a recent WWDC 2025 session, I caught something that made me pause: a test accessing a static shared instance. It reminded me how these seemingly innocent patterns become the silent killers of test parallelization. Here's the thing about tests—while some developers see them as productivity drains, they become indispensable as codebases and teams grow. A single change can cascade through your system in ways you'd never anticipate, surfacing as bugs that only comprehensive testing can catch. Manual testing simply can't cover the exponential complexity of mature products. The variability of scenarios increases exponentially as features multiply, making automated testing not just helpful, but essential.
+
+  Most of us develop on Apple Silicon, which means multiple cores sitting there, ready to run tests in parallel. Add the fact that many tests spend time waiting for IO operations, and you've got a recipe for serious concurrency gains. In theory, your test suite should fly. But practice tells a different story. Swift isn't a pure functional language, which means shared state creeps in everywhere—often without you noticing. Those static shared instances I mentioned? They're perfect hiding spots for global state. Add some without thinking, increase parallelism, and watch your test suite become a flaky mess. Data races emerge. Debugging becomes a nightmare. I've yet to see a codebase that hasn't fallen into this trap, Tuist included.
+
+  So you want faster tests through parallelism, but can't because shared state makes everything unreliable. Retries pile up. Your "optimized" test suite runs slower than before. The solution sounds simple: avoid shared state. Pass everything through function signatures. But that boilerplate adds up, and nobody wants to write it. This is where two recent Swift improvements change the game entirely. First, task locals let you propagate state down a tree of tasks without the ceremony of passing parameters everywhere. Think React context or SwiftUI's Environment, but for your test tasks. Each test gets its own isolated state bubble without the boilerplate overhead.
+
+  Second, Swift Testing's custom traits turn state management into elegant annotations. Need a mocked environment? Add @Test(withMockedEnvironment) to your test. The state stays perfectly scoped to that test. This kind of scoping blew me away when I first encountered it at Elixir. I'm surprised it's not a bigger conversation in the Swift community. We're at a moment where test parallelization isn't just possible—it's essential. Pair it with our upcoming content-addressable store, and we're looking at build and test runs that aren't just fast, but rock-solid reliable. The tools are here. The question is whether we'll use them.
+
+  **The content has been written by a human and the grammar reviewed with Claude Sonnet 4**
+interview:
+  interviewee: "Daniel"
+  interviewee_role: "Fastlane Core Contributor"
+  interviewee_avatar_url: /marketing/images/newsletter/issues/10/daniel.jpg
+  interviewee_intro: |
+    Daniel is a core contributor to Fastlane and a big fan of all things Apple. He writes about iOS development on [mollyiv.dev](https://mollyiv.dev). In his free time, he enjoys running, watching anime, and picking up new skills.
+  questions:
+    - question: "An app worth installing"
+      answer: |
+        [Bear](https://bear.app/) is my go-to note-taking app for capturing ideas and organizing my life. It features a clean, minimal design, beautiful themes, and excellent user experience. Flexible tags help me stay organized while capturing tons of notes and information.
+    - question: "An open-source project worth checking out"
+      answer: |
+        [swift-dependencies](https://github.com/pointfreeco/swift-dependencies) is the best solution for dependency injection on Apple platforms. The library is inspired by SwiftUI’s environment. One of its key strengths is its scoping mechanism, powered by task locals. The documentation is excellent; it not only shows how to use the library but also explains the core concepts behind dependency injection.
+    - question: "A developer tool worth using"
+      answer: |
+        [mise](https://github.com/jdx/mise) is a tool that helps me manage multiple versions of development tools on my system.
+    - question: "A developer worth following"
+      answer: |
+        [Point-Free](https://www.pointfree.co/) is run by Brandon and Stephen, who will take your iOS development skills to a new level. The solutions they share are clever, elegant, and easy to understand. They’ve been producing high-quality content for years.
+    - question: "A book worth reading"
+      answer: |
+        [The Cat Who Taught](https://www.penguin.co.uk/books/454487/the-cat-who-taught-zen-by-norbury-james/9780241640159) Zen by James Norbury is a beautifully illustrated and thoughtful book. It explores core Zen principles like presence, acceptance, and letting go. It encourages you to slow down and reflect on your inner world.
+
+tools:
+  - title: Quarkdown
+    subtitle: Markdown with superpowers
+    link: https://github.com/iamgio/quarkdown
+    description: |
+      Did you ever have to do a presentation or a book and wish you could do it in Markdown? Quarkdown extends Markdown, providing you the tools to turn your writings into beautifully-formatted books or presentations.
+  - title: line-numbers
+    subtitle: A web component to add line numbers
+    link: https://github.com/zachleat/line-numbers
+    description: |
+      Web components are the web-native solution to distribute reusable components like line-numbers, by the creator of [11ty](https://www.11ty.dev/). You can use it to add line numbers to your code blocks on your website.
+  - title: Context7
+    subtitle: "Up-to-date documentation for LLMs and AI code editors"
+    link: https://context7.com/
+    description: |
+      LLMs and AI code editors expect context to be in the form of text, but not all the programming languages and frameworks out there share their content in that way. Luckily, Context7 provides a directory of LLM-ready content from your favorite technologies, like [Swift](https://context7.com/swiftlang/swift).
+  - title: Grog
+    subtitle: "A build tool for monorepos"
+    link: https://grog.build/get-started/
+    description: |
+      If you work on a monorepo and need a tool to declare and interact with a build graph that's agnostic of the underlying tools, you might want to check Grok out.
+  - title: swift-erlang-actor-system
+    subtitle: Erlang/Elixir integration for Swift Distributed Actors
+    link: https://github.com/otp-interop/swift-erlang-actor-system
+    description: |
+      It's not a secret that we are big fans of Elixir and Swift and their actor model, and we are excited to see this project, which bridges actors across languages.
+food_for_thought:
+  - title: "Swift Packages: Packaging as an XCFramework"
+    subtitle: "Read"
+    link: "https://trinhngocthuyen.com/posts/tech/spm-packaging-xcframework-1/"
+    description: |
+      With the removal of the workflow to get an Xcode project from a Swift Package, creating an XCFramework became a bit trickier. In this blog post, Thuyen shares how you can manually create an XCFramework using the artifacts built by SwiftPM.
+  - title: "Disclosure: Covert Web-to-App Tracking via Localhost on Android"
+    subtitle: "Read"
+    link: "https://localmess.github.io/"
+    description: |
+      Did you know that Meta and Yandex rolled out a system that allowed their web SDK to get the user's identity by communicating with the app installed on the device, workarounding any browser built-in protections? This blog post goes into detail about how they made it possible.
+  - title: "Apple Design Award Finalist After 15 Years"
+    subtitle: "Read"
+    link: "https://ia.net/topics/apple-design-award-2025"
+    description: |
+      iA Writer became a finalist in the Apple Design Awards for the first time, and they share how impressive it is that a design that's not novel, but has sustained the test of time, has managed to be in that position.
+  - title: "Codex CLI is going native"
+    subtitle: "Read through"
+    link: "https://github.com/openai/codex/discussions/1174"
+    description: |
+      OpenAI decided to re-implement their codex CLI from Node.js JavaScript to Rust for portability and performance reasons, among others. In this issue, they unfold the reasons behind the decision.
+  - title: ""
+    subtitle: "Swift-Syntax Prebuilts for Macros"
+    link: https://forums.swift.org/t/preview-swift-syntax-prebuilts-for-macros
+    description: |
+      After a lot of wasted build cycles, pre-built macros are finally coming to Apple's toolchain, so you won't have to compile the SwiftSyntax tree of dependencies anymore.

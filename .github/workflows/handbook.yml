@@ -1,0 +1,62 @@
+name: Handbook
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - handbook/**
+      - .github/workflows/handbook.yml
+      - pnpm-lock.yaml
+      - handbook/package.json
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - handbook/**
+      - .github/workflows/handbook.yml
+      - pnpm-lock.yaml
+      - handbook/package.json
+  merge_group:
+
+concurrency:
+  group: handbook-${{ github.head_ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PNPM_HOME: ~/.pnpm
+
+jobs:
+  build-deploy:
+    name: Build & Deploy
+    runs-on: "ubuntu-latest"
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Restore PNPM Cache
+        uses: actions/cache@v3
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v2
+        with:
+          working_directory: handbook
+      - name: Build handbook
+        working-directory: handbook
+        run: mise run build
+      - uses: 1password/install-cli-action@v2
+        if: github.ref == 'refs/heads/main'
+      - name: Deploy to Cloudflare Pages
+        if: github.ref == 'refs/heads/main'
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          CLOUDFLARE_API_TOKEN: op://tuist/Cloudflare/CLOUDFLARE_API_TOKEN
+          CLOUDFLARE_ACCOUNT_ID: op://tuist/Cloudflare/CLOUDFLARE_ACCOUNT_ID
+          NODE_OPTIONS: --max-old-space-size=8192
+        working-directory: handbook
+        run: op run -- mise run deploy

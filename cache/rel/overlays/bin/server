@@ -1,0 +1,23 @@
+#!/bin/sh
+set -eu
+
+cd -P -- "$(dirname -- "$0")"
+
+# Kamal mounts the server's hostname into the container at this path.
+host_file="/etc/host_hostname"
+if [ ! -f "$host_file" ]; then
+  echo "Expected $host_file to be mounted" >&2
+  exit 1
+fi
+
+host_name=$(head -n 1 "$host_file" | tr -d '\r\n')
+host_name=${host_name%% *}
+
+if [ -z "$host_name" ]; then
+  echo "Host name from $host_file is empty" >&2
+  exit 1
+fi
+
+export PHX_HOST="$host_name.tuist.dev"
+
+PHX_SERVER=true exec ./cache start

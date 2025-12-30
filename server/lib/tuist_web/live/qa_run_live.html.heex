@@ -1,0 +1,705 @@
+<div id="qa-run">
+  <div data-part="action-buttons">
+    <.button
+      label={dgettext("dashboard_qa", "QA")}
+      data-part="back-button"
+      variant="secondary"
+      size="medium"
+      navigate={
+        ~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/qa"
+      }
+    >
+      <:icon_left>
+        <.icon name="arrow_left" />
+      </:icon_left>
+    </.button>
+  </div>
+
+  <div data-part="header">
+    <div data-part="icon-with-dots">
+      <div data-part="dots">
+        <.dots_light />
+        <.dots_dark />
+      </div>
+      <img
+        id="qa-run-header-icon"
+        src={~p"/app/images/app-icon-placeholder.svg"}
+        data-image-src={
+          url(
+            ~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/previews/#{@qa_run.app_build.preview.id}/icon.png"
+          )
+        }
+        phx-hook="ImageFallback"
+        alt={
+          dgettext("dashboard_qa", "%{app_name} icon",
+            app_name: @qa_run.app_build.preview.display_name
+          )
+        }
+        data-part="icon"
+      />
+    </div>
+    <h1 data-part="title">{@qa_run.app_build.preview.display_name}</h1>
+    <div data-part="version">
+      <div data-part="icon">
+        <.brand_apple />
+      </div>
+      <span data-part="label">
+        {dgettext("dashboard_qa", "V %{version}", version: @qa_run.app_build.preview.version)}
+      </span>
+    </div>
+    <div data-part="preview-link">
+      {@qa_run.app_build.preview.display_name} QA
+      <div data-part="icon">
+        <.arrows_exchange_2 />
+      </div>
+
+      <.link_button
+        navigate={
+          ~p"/#{@selected_account.name}/#{@selected_project.name}/previews/#{@qa_run.app_build.preview.id}"
+        }
+        variant="secondary"
+        size="medium"
+        label={
+"#{@qa_run.app_build.preview.display_name} Preview"}
+      >
+        <:icon_right>
+          <.external_link />
+        </:icon_right>
+      </.link_button>
+    </div>
+  </div>
+
+  <.tab_menu_horizontal>
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_qa", "Overview")}
+      selected={@live_action == :overview}
+      navigate={
+        ~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/qa/#{@qa_run.id}"
+      }
+    />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_qa", "Logs")}
+      selected={@live_action == :logs}
+      navigate={
+        ~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/qa/#{@qa_run.id}/logs"
+      }
+    />
+  </.tab_menu_horizontal>
+
+  <div :if={@live_action in [:overview]} data-part="overview">
+    <div :if={@qa_run.status in ["running", "pending"]} data-part="running-state">
+      <img src="/images/qa_running_state_light.png" data-theme="light" />
+      <img src="/images/qa_running_state_dark.png" data-theme="dark" />
+      <div data-part="labels">
+        <span data-part="title">
+          {dgettext("dashboard_qa", "The agent is currently running tests")}
+        </span>
+        <span data-part="subtitle">
+          {dgettext("dashboard_qa", "Check the live ")}<.link_button
+            navigate={
+              ~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/qa/#{@qa_run.id}/logs"
+            }
+            label={dgettext("dashboard_qa", "logs")}
+            underline
+          />{dgettext("dashboard_qa", " or sit back and relax...")}
+        </span>
+      </div>
+    </div>
+    <.card data-part="details-card" icon="chart_arcs" title={dgettext("dashboard_qa", "Details")}>
+      <.card_section data-part="details-card-section">
+        <div data-part="metadata-grid">
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_qa", "Platform")}</div>
+              <.platform_tag platform={
+                @qa_run.app_build.preview.supported_platforms
+                |> Preview.map_simulators_to_devices()
+                |> List.first()
+              } />
+            </div>
+          </div>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_qa", "QA duration")}</div>
+              <span data-part="label">
+                <%= if @qa_run.status in ["running", "pending"] do %>
+                  {dgettext("dashboard_qa", "Running tests...")}
+                <% else %>
+                  {Tuist.Utilities.DateFormatter.format_duration_from_seconds(@duration)}
+                <% end %>
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_qa", "Created at")}</div>
+              <span data-part="label">
+                {DateFormatter.format_full(@qa_run.inserted_at)}
+              </span>
+            </div>
+          </div>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_qa", "Branch")}</div>
+              <span data-part="label">
+                <.git_branch />
+                {@qa_run.app_build.preview.git_branch || dgettext("dashboard_qa", "None")}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_qa", "Commit SHA")}</div>
+              <span data-part="label">
+                {format_commit_sha(@qa_run.app_build.preview.git_commit_sha)}
+              </span>
+            </div>
+          </div>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_qa", "PR Comment")}</div>
+              <span data-part="label">
+                <%= if @pr_comment_url do %>
+                  <.link href={@pr_comment_url} target="_blank">
+                    #{@pr_number}
+                    <.external_link />
+                  </.link>
+                <% else %>
+                  {dgettext("dashboard_qa", "None")}
+                <% end %>
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_qa", "Bundle identifier")}</div>
+              <span data-part="label">
+                {@qa_run.app_build.preview.bundle_identifier ||
+                  dgettext("dashboard_qa", "Unknown")}
+              </span>
+            </div>
+          </div>
+        </div>
+      </.card_section>
+    </.card>
+
+    <.card
+      icon="file_alert"
+      title={dgettext("dashboard_qa", "Issues identified")}
+      data-part="issues-card"
+    >
+      <.empty_card_section
+        :if={Enum.empty?(@issues)}
+        title={dgettext("dashboard_qa", "No issues identified")}
+        data-part="empty-issues-card-section"
+      >
+        <:image>
+          <img src="/images/empty_insights_light.png" data-theme="light" />
+          <img src="/images/empty_insights_dark.png" data-theme="dark" />
+        </:image>
+      </.empty_card_section>
+      <.card_section :if={not Enum.empty?(@issues)} data-part="issues-card-section">
+        <%= for {issue_data, index} <- @issues do %>
+          <div
+            id={"issue-#{index}-collapsible"}
+            phx-hook="NooraCollapsible"
+            data-part="issue-item"
+          >
+            <div data-part="root">
+              <div data-part="trigger" data-state="closed">
+                <div data-part="issue-icon">
+                  <.icon name="alert_hexagon" />
+                </div>
+                <div data-part="issue-title">
+                  {dgettext("dashboard_qa", "Temporary visual inconsistency")}
+                </div>
+                <div data-part="issue-toggle">
+                  <.neutral_button
+                    data-part="closed-collapsible-button"
+                    variant="secondary"
+                    size="medium"
+                  >
+                    <.chevron_down />
+                  </.neutral_button>
+                  <.neutral_button
+                    data-part="open-collapsible-button"
+                    variant="secondary"
+                    size="medium"
+                  >
+                    <.chevron_up />
+                  </.neutral_button>
+                </div>
+              </div>
+              <div data-part="content" data-state="closed">
+                <div data-part="issue-content-wrapper">
+                  <div :if={issue_data.screenshot} data-part="screenshots-column">
+                    <div data-part="screenshot-thumb">
+                      <img
+                        src={
+                          ~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/qa/runs/#{@qa_run.id}/screenshots/#{issue_data.screenshot.id}"
+                        }
+                        alt="Screenshot"
+                      />
+                    </div>
+                  </div>
+
+                  <div data-part="step-details">
+                    <div data-part="step-detail">
+                      <.badge label="Action" color="neutral" style="light-fill" size="large" />
+                      <span data-part="detail-value">
+                        {raw(Markdown.to_html(issue_data.step.action))}
+                      </span>
+                    </div>
+
+                    <div data-part="step-detail">
+                      <.badge label="Result" color="information" style="light-fill" size="large" />
+                      <span data-part="detail-value" data-variant="success">
+                        {raw(Markdown.to_html(issue_data.step.result))}
+                      </span>
+                    </div>
+
+                    <div data-part="step-detail">
+                      <.badge label="Issue" color="warning" style="light-fill" size="large" />
+                      <span data-part="detail-value" data-variant="warning">
+                        {raw(Markdown.to_html(issue_data.issue))}
+                      </span>
+                    </div>
+
+                    <div data-part="step-detail">
+                      <.badge label="Timestamp" color="focus" style="light-fill" size="large" />
+                      <%= if @qa_run.recording do %>
+                        <span
+                          :if={@qa_run.recording}
+                          data-part="detail-value"
+                          data-link
+                          phx-click="seek_to_step"
+                          phx-value-step-index={
+                            Enum.find_index(@steps, &(&1.id == issue_data.step.id))
+                          }
+                          phx-value-scroll-to-element="steps-card-section"
+                        >
+                          {format_time(Enum.find(@steps, &(&1.id == issue_data.step.id)).time)}/{format_time(
+                            @duration
+                          )}
+                        </span>
+                      <% else %>
+                        <span data-part="detail-value">
+                          {DateFormatter.format_full(issue_data.step.inserted_at)}
+                        </span>
+                      <% end %>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        <% end %>
+      </.card_section>
+    </.card>
+
+    <.card
+      :if={@qa_run.recording}
+      icon="file_spreadsheet"
+      title={dgettext("dashboard_qa", "Steps")}
+      data-part="steps-card"
+    >
+      <.card_section
+        id="steps-card-section"
+        data-part="steps-card-section"
+        phx-hook="ScrollIntoView"
+      >
+        <.card_section data-part="recording-card-section">
+          <div data-part="device">
+            <video id="qa-recording" phx-hook="VideoPlayer" phx-update="ignore">
+              <source src={@video_url} type="video/mp4" />
+            </video>
+            <img src={~p"/images/iphone-16-pro.png"} />
+          </div>
+
+          <.card_section :if={not is_nil(@current_step)} data-part="current-step-card-section">
+            <div data-part="step-details-container">
+              <div data-part="step-detail-item">
+                <span data-part="title">
+                  {dgettext("dashboard_qa", "Action")}
+                </span>
+                <span data-part="value">
+                  {@current_step.action}
+                </span>
+              </div>
+              <div :if={not Enum.empty?(@current_step.issues)} data-part="step-detail-item">
+                <div data-part="header">
+                  <.badge icon_only label="" color="warning" style="light-fill" size="large">
+                    <:icon>
+                      <.alert_hexagon />
+                    </:icon>
+                  </.badge>
+                  <span data-part="title">
+                    {dgettext("dashboard_qa", "Issues")}
+                  </span>
+                </div>
+                <%= for issue <- @current_step.issues do %>
+                  <span data-part="value">
+                    {issue}
+                  </span>
+                <% end %>
+              </div>
+
+              <div data-part="step-detail-item">
+                <span data-part="title">
+                  {dgettext("dashboard_qa", "Timestamp")}
+                </span>
+                <span
+                  data-part="value"
+                  data-link
+                  phx-click="seek_to_step"
+                  phx-value-step-index={@current_step.index}
+                >
+                  {format_time(@current_step.time)}/{format_time(@duration)}
+                </span>
+              </div>
+              <div :if={not is_nil(@current_step.result)} data-part="step-detail-item">
+                <div data-part="header">
+                  <span data-part="title">
+                    {dgettext("dashboard_qa", "Result")}
+                  </span>
+                  <.badge
+                    :if={
+                      @current_time >= @current_step.started_time and
+                        @current_time <= @current_step.time
+                    }
+                    label={dgettext("dashboard_qa", "In progress")}
+                    color="primary"
+                    style="light-fill"
+                    size="large"
+                  />
+                </div>
+                <span data-part="value">
+                  {raw(Tuist.Markdown.to_html(@current_step.result))}
+                </span>
+              </div>
+            </div>
+            <div data-part="step-navigation-buttons">
+              <div
+                :if={@current_step.index > 0}
+                data-part="step-button-previous"
+                phx-click="seek_previous_step"
+              >
+                <div data-part="header">
+                  <.chevron_left />
+                  <span data-part="title">
+                    {dgettext("dashboard_qa", "Previous step")}
+                  </span>
+                </div>
+                <span data-part="step-number">
+                  {dgettext("dashboard_qa", "Step %{step_number}",
+                    step_number: @current_step.index
+                  )}
+                </span>
+                <span data-part="step-action">
+                  {Enum.at(@steps, @current_step.index - 1).action}
+                </span>
+              </div>
+              <div data-part="spacer"></div>
+              <div
+                :if={@current_step.index < length(@steps) - 1}
+                data-part="step-button-next"
+                phx-click="seek_next_step"
+              >
+                <div data-part="header">
+                  <span data-part="title">
+                    {dgettext("dashboard_qa", "Next step")}
+                  </span>
+                  <.chevron_right />
+                </div>
+                <span data-part="step-number">
+                  {dgettext("dashboard_qa", "Step %{step_number}",
+                    step_number: @current_step.index + 2
+                  )}
+                </span>
+                <span data-part="step-action">
+                  {Enum.at(@steps, @current_step.index + 1).action}
+                </span>
+              </div>
+            </div>
+          </.card_section>
+        </.card_section>
+        <.card_section data-part="timeline-card-section">
+          <div data-part="video-main-panel">
+            <span data-part="time-display">
+              {format_time(@current_time)}/{format_time(@duration)}
+            </span>
+            <div data-part="seek-controls">
+              <.button
+                variant="secondary"
+                size="small"
+                icon_only
+                id="seek-previous-button"
+                phx-hook="BlurOnClick"
+                phx-click="seek_previous_step"
+                disabled={@current_time == 0}
+              >
+                <.player_track_prev />
+              </.button>
+              <.button
+                variant="secondary"
+                size="small"
+                icon_only
+                id="play-pause-button"
+                phx-hook="BlurOnClick"
+                phx-click="play_pause"
+              >
+                <.player_play :if={not @is_playing} />
+                <.player_pause :if={@is_playing} />
+              </.button>
+              <.button
+                variant="secondary"
+                size="small"
+                icon_only
+                id="seek-next-button"
+                phx-hook="BlurOnClick"
+                phx-click="seek_next_step"
+                disabled={!@current_step || @current_step.index == length(@steps) - 1}
+              >
+                <.player_track_next />
+              </.button>
+            </div>
+            <div data-part="playback-right-section">
+              <.inline_dropdown
+                id="playback-speed-dropdown"
+                label={format_playback_speed(@playback_speed)}
+              >
+                <:icon><.clock_hour_4 /></:icon>
+                <.dropdown_item
+                  value="1.0"
+                  label="1x"
+                  phx-click="change_playback_speed"
+                  phx-value-speed="1.0"
+                  data-selected={@playback_speed == 1.0}
+                >
+                  <:right_icon><.check /></:right_icon>
+                </.dropdown_item>
+                <.dropdown_item
+                  value="1.25"
+                  label="1.25x"
+                  phx-click="change_playback_speed"
+                  phx-value-speed="1.25"
+                  data-selected={@playback_speed == 1.25}
+                >
+                  <:right_icon><.check /></:right_icon>
+                </.dropdown_item>
+                <.dropdown_item
+                  value="1.5"
+                  label="1.5x"
+                  phx-click="change_playback_speed"
+                  phx-value-speed="1.5"
+                  data-selected={@playback_speed == 1.5}
+                >
+                  <:right_icon><.check /></:right_icon>
+                </.dropdown_item>
+                <.dropdown_item
+                  value="2.0"
+                  label="2x"
+                  phx-click="change_playback_speed"
+                  phx-value-speed="2.0"
+                  data-selected={@playback_speed == 2.0}
+                >
+                  <:right_icon><.check /></:right_icon>
+                </.dropdown_item>
+                <.dropdown_item
+                  value="3.0"
+                  label="3x"
+                  phx-click="change_playback_speed"
+                  phx-value-speed="3.0"
+                  data-selected={@playback_speed == 3.0}
+                >
+                  <:right_icon><.check /></:right_icon>
+                </.dropdown_item>
+              </.inline_dropdown>
+              <span data-part="steps-counter" id="steps-counter">
+                {dgettext("dashboard_qa", "%{current_step}/%{total_steps} steps",
+                  current_step: (@current_step && @current_step.index + 1) || 0,
+                  total_steps: length(@steps)
+                )}
+              </span>
+            </div>
+          </div>
+          <div id="timeline-track" data-part="timeline">
+            <div
+              data-part="timeline-content"
+              id="timeline-content"
+              phx-hook="TimelineSeek"
+              data-duration={@duration}
+            >
+              <div
+                data-part="playhead-area"
+                id="playhead-area"
+                phx-update="ignore"
+                style={"width: #{@duration / ceil(@duration) * 100}%"}
+              >
+              </div>
+
+              <div data-part="time-markers" id="time-markers">
+                <%= if @duration < 120 do %>
+                  <%= for time <- 0..floor(@duration)//5 do %>
+                    <span data-part="time-marker">
+                      {format_time(time)}
+                    </span>
+                    <%= if time == (0..floor(@duration)//5 |> Enum.to_list() |> List.last()) do %>
+                      <span :for={_index <- 1..rem(ceil(@duration), 5)} data-part="dot">
+                        •
+                      </span>
+                    <% else %>
+                      <span :for={_index <- 1..4} data-part="dot">
+                        •
+                      </span>
+                    <% end %>
+                  <% end %>
+                <% else %>
+                  <%= for time <- 0..ceil(@duration)//30 do %>
+                    <span data-part="time-marker">
+                      {format_time(time)}
+                    </span>
+                    <%= if time == (0..ceil(@duration)//30 |> Enum.to_list() |> List.last()) do %>
+                      <span :for={_index <- 1..div(rem(ceil(@duration), 30), 6)} data-part="dot">
+                        •
+                      </span>
+                    <% else %>
+                      <span :for={_index <- 1..4} data-part="dot">
+                        •
+                      </span>
+                    <% end %>
+                  <% end %>
+                <% end %>
+              </div>
+
+              <div
+                data-part="step-bars-track"
+                style={"width: #{@duration / ceil(@duration) * 100}%"}
+              >
+                <div
+                  :for={step <- @steps}
+                  :if={step.started_time}
+                  data-part="step-bar"
+                  data-has-issues={length(step.issues) > 0}
+                  style={"--step-start-percentage: #{step.started_time / @duration * 100}; --step-end-percentage: #{step.time / @duration * 100}"}
+                >
+                </div>
+              </div>
+
+              <div
+                data-part="steps-track"
+                id="steps-track"
+                style={"width: #{@duration / ceil(@duration) * 100}%"}
+              >
+                <div
+                  :for={{step, index} <- Enum.with_index(@steps)}
+                  data-part="step-item"
+                  style={"--step-percentage: #{step.time / @duration * 100}"}
+                  phx-click="seek_to_step"
+                  phx-value-step-index={index}
+                  phx-hook="StopPropagationOnDrag"
+                  id={"step-item-#{index}"}
+                >
+                  <div data-part="step-thumbnail" data-has-issues={not Enum.empty?(step.issues)}>
+                    <img
+                      :if={step.screenshot}
+                      draggable="false"
+                      src={
+                        ~p"/#{@qa_run.app_build.preview.project.account.name}/#{@qa_run.app_build.preview.project.name}/qa/runs/#{@qa_run.id}/screenshots/#{step.screenshot.id}"
+                      }
+                      alt={"Step #{index + 1} screenshot"}
+                    />
+                  </div>
+                  <span data-part="step-label">
+                    {dgettext("dashboard_qa", "Step %{step_index}", step_index: index + 1)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <svg
+              data-part="playhead"
+              id="playhead"
+              width="11"
+              height="179"
+              viewBox="0 0 11 179"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              phx-update="ignore"
+            >
+              <path
+                d="M5.5 0.453125C8.53753 0.453168 11 2.91559 11 5.95312C11 7.53058 10.3358 8.95234 9.2719 9.95472C7.76529 11.3742 6 13.0143 6 15.0843V177.953C6 178.229 5.77614 178.453 5.5 178.453V178.453C5.22386 178.453 5 178.229 5 177.953V15.0844C5 13.0144 3.23462 11.3742 1.72801 9.95471C0.664121 8.95233 0 7.53058 0 5.95312C0 2.91556 2.46243 0.453125 5.5 0.453125Z"
+                fill="#6F2CFF"
+              />
+            </svg>
+          </div>
+        </.card_section>
+      </.card_section>
+    </.card>
+
+    <.card
+      :if={
+        @qa_run.launch_argument_groups != [] or @qa_run.app_description != "" or
+          (@qa_run.email != "" and @qa_run.password != "")
+      }
+      data-part="app-context-card"
+      icon="file_text"
+      title={dgettext("dashboard_qa", "App context")}
+    >
+      <.card_section data-part="app-context-card-section">
+        <div :if={@qa_run.email != "" and @qa_run.password != ""} data-part="credentials">
+          <div data-part="email">
+            <.text_input
+              name="email"
+              label={dgettext("dashboard_qa", "Email")}
+              value={@qa_run.email}
+              disabled
+            />
+          </div>
+          <div data-part="password">
+            <.text_input
+              name="password"
+              label={dgettext("dashboard_qa", "Password")}
+              value={@qa_run.password}
+              show_prefix={false}
+              show_suffix={false}
+              disabled
+            />
+          </div>
+        </div>
+        <div :if={@qa_run.launch_argument_groups != []} data-part="launch-arguments">
+          <h3 data-part="title">
+            {dgettext("dashboard_qa", "Launch arguments")}
+          </h3>
+          <.table id="launch-arguments-table" rows={@qa_run.launch_argument_groups}>
+            <:col :let={group} label={dgettext("dashboard_qa", "Name")}>
+              <.text_and_description_cell label={group["name"]} data-part="name-cell" />
+            </:col>
+            <:col :let={group} label={dgettext("dashboard_qa", "Description")}>
+              <.text_cell label={group["description"] || ""} />
+            </:col>
+            <:col :let={group} label={dgettext("dashboard_qa", "Arguments")}>
+              <.text_cell label={group["value"]} />
+            </:col>
+          </.table>
+        </div>
+        <div :if={@qa_run.app_description != ""} data-part="app-description">
+          <h3 data-part="title">
+            {dgettext("dashboard_qa", "App description")}
+          </h3>
+
+          <span data-part="description">
+            {raw(Markdown.to_html(@qa_run.app_description))}
+          </span>
+        </div>
+      </.card_section>
+    </.card>
+  </div>
+
+  <div :if={@live_action == :logs} data-part="logs-tab">
+    <.live_component
+      module={TuistWeb.Components.Logs}
+      logs={@formatted_logs || []}
+      empty_message={
+        if @qa_run.status in ["running", "pending"],
+          do: dgettext("dashboard_qa", "Preparing the agent environment..."),
+          else: dgettext("dashboard_qa", "No logs found")
+      }
+      id="qa-run-logs"
+    />
+  </div>
+</div>

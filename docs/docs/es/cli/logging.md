@@ -1,29 +1,53 @@
 ---
-title: Logging
-titleTemplate: :title · CLI · Tuist
-description: Learn how to enable and configure logging in Tuist.
+{
+  "title": "Logging",
+  "titleTemplate": ":title · CLI · Tuist",
+  "description": "Learn how to enable and configure logging in Tuist."
+}
 ---
+# Registro {#logging}
 
-# Logging {#logging}
+La CLI registra mensajes internamente para ayudarle a diagnosticar problemas.
 
-The CLI logs messages internally to help you diagnose issues.
+## Diagnosticar problemas utilizando registros {#diagnose-issues-using-logs}
 
-## Diagnose issues using logs {#diagnose-issues-using-logs}
+Si la invocación de un comando no produce los resultados esperados, puede
+diagnosticar el problema inspeccionando los registros. La CLI envía los
+registros a [OSLog](https://developer.apple.com/documentation/os/oslog) y al
+sistema de archivos.
 
-If a command invocation doesn't yield the intended results, you can diagnose the issue by inspecting the logs. The CLI forwards the logs to [OSLog](https://developer.apple.com/documentation/os/oslog) and the file-system.
+En cada ejecución, crea un archivo de registro en
+`$XDG_STATE_HOME/tuist/logs/{uuid}.log` donde `$XDG_STATE_HOME` toma el valor
+`~/.local/state` si la variable de entorno no está establecida. También puede
+utilizar `$TUIST_XDG_STATE_HOME` para establecer un directorio de estado
+específico de Tuist, que tiene prioridad sobre `$XDG_STATE_HOME`.
 
-In every run, it creates a log file at `$XDG_STATE_HOME/tuist/logs/{uuid}.log` where `$XDG_STATE_HOME` takes the value `~/.local/state` if the environment variable is not set.
+::: consejo
+<!-- -->
+Obtenga más información sobre la organización de directorios de Tuist y sobre
+cómo configurar directorios personalizados en la documentación
+<LocalizedLink href="/cli/directories">Directorios</LocalizedLink>.
+<!-- -->
+:::
 
-By default, the CLI outputs the logs path when the execution exits unexpectedly. If it doesn't, you can find the logs in the path mentioned above (i.e., the most recent log file).
+Por defecto, la CLI muestra la ruta de logs cuando la ejecución finaliza
+inesperadamente. Si no lo hace, puede encontrar los registros en la ruta
+mencionada anteriormente (es decir, el archivo de registro más reciente).
 
-> [!IMPORTANT]
-> Sensitive information is not redacted, so be cautious when sharing logs.
+::: advertencia
+<!-- -->
+La información sensible no se redacta, así que tenga cuidado al compartir los
+registros.
+<!-- -->
+:::
 
-### Continuous integration {#diagnose-issues-using-logs-ci}
+### Integración continua {#diagnose-issues-using-logs-ci}
 
-In CI, where environments are disposable, you might want to configure your CI pipeline to export Tuist logs.
-Exporting artifacts is a common capability across CI services, and the configuration depends on the service you use.
-For example, in GitHub Actions, you can use the `actions/upload-artifact` action to upload the logs as an artifact:
+En CI, donde los entornos son desechables, es posible que desee configurar su
+tubería CI para exportar los registros de Tuist. La exportación de artefactos es
+una capacidad común en todos los servicios de CI, y la configuración depende del
+servicio que utilices. Por ejemplo, en GitHub Actions, puedes usar la acción
+`actions/upload-artifact` para subir los registros como un artefacto:
 
 ```yaml
 name: Node CI
@@ -31,7 +55,7 @@ name: Node CI
 on: [push]
 
 env:
-  XDG_STATE_HOME: /tmp
+  TUIST_XDG_STATE_HOME: /tmp
 
 jobs:
   build:
@@ -43,8 +67,24 @@ jobs:
       - run: tuist generate
       # ... do something with the project
       - name: Export Tuist logs
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: tuist-logs
           path: /tmp/tuist/logs/*.log
 ```
+
+### Depuración del demonio de caché {#cache-daemon-debugging}
+
+Para depurar problemas relacionados con la caché, Tuist registra las operaciones
+del demonio de caché utilizando `os_log` con el subsistema `dev.tuist.cache`.
+Puede transmitir estos registros en tiempo real utilizando:
+
+```bash
+log stream --predicate 'subsystem == "dev.tuist.cache"' --debug
+```
+
+Estos registros también son visibles en Console.app filtrando por el subsistema
+`dev.tuist.cache`. Esto proporciona información detallada sobre las operaciones
+de caché, lo que puede ayudar a diagnosticar problemas de carga, descarga y
+comunicación de la caché.

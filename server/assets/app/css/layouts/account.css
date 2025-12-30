@@ -1,0 +1,48 @@
+.account-layout {
+  display: flex;
+  flex-grow: 1;
+  flex-direction: column;
+  gap: var(--noora-spacing-9);
+  background: var(--noora-surface-background-primary);
+  padding: var(--noora-spacing-15) var(--noora-spacing-5);
+  min-height: 100%;
+
+  @media (max-width: 768px) {
+    & {
+      gap: var(--noora-spacing-3);
+      padding: var(--noora-spacing-5) var(--noora-spacing-4);
+    }
+  }
+
+  & > [data-part="title"] {
+    display: flex;
+    margin: 0;
+    padding: var(--noora-spacing-0) var(--noora-spacing-16);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-xlarge);
+    @media (max-width: 768px) {
+      & {
+        padding: var(--noora-spacing-0) var(--noora-spacing-4);
+      }
+    }
+  }
+
+  & > [data-part="tabs"] {
+    margin: var(--noora-spacing-0) var(--noora-spacing-16);
+    padding: 0;
+    @media (max-width: 768px) {
+      & {
+        margin: var(--noora-spacing-0) var(--noora-spacing-4) var(--noora-spacing-5) var(--noora-spacing-4);
+      }
+    }
+  }
+
+  & > [data-part="content"] {
+    padding: var(--noora-spacing-0) var(--noora-spacing-16);
+    @media (max-width: 768px) {
+      & {
+        padding: var(--noora-spacing-0) var(--noora-spacing-4);
+      }
+    }
+  }
+}

@@ -11,7 +11,7 @@ The Tuist repo is scanned frequently for code and dependency vulnerabilities. No
 
 If you discover a potential security issue, do let us know as soon as possible. We'll work toward a resolution as quickly as possible, so please provide us with a reasonable amount of time before disclosure to the public or a third-party.
 
-Contact us at [security@tuist.io](mailto:security@tuist.io)
+Contact us at [contact@tuist.dev](mailto:security@tuist.dev)
 
 Thank you for helping improve Tuist security!
 

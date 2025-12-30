@@ -1,11 +1,13 @@
-name: 'Close stale issues and PRs'
+name: stale
 on:
   schedule:
     - cron: '30 1 * * *'
 
 jobs:
   stale:
+    name: Close Stale Issues & PRs
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/stale@v8
         with:

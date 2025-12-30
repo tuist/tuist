@@ -1,9 +1,10 @@
 ---
-title: Principles
-titleTemplate: :title · Contributors · Tuist
-description: This document describes the principles that guide the development of Tuist.
+{
+  "title": "Principles",
+  "titleTemplate": ":title · Contributors · Tuist",
+  "description": "This document describes the principles that guide the development of Tuist."
+}
 ---
-
 # Principles {#principles}
 
 This page describes principles that are pillars to the design and development of Tuist. They evolve with the project and are meant to ensure a sustainable growth that is well-aligned with the project foundation.
@@ -34,8 +35,11 @@ The definition of dependencies is a good example of that. While developers can d
 
 **Designing the API to be explicit allows Tuist to run some checks and optimizations on the projects that otherwise wouldn’t be possible.** Moreover, it enables features like `tuist graph`, which exports a representation of the dependency graph, or `tuist cache`, which caches all the targets as binaries.
 
-> [!TIP]
-> We should treat each request to port features from Xcode as an opportunity to simplify concepts with simple and explicit APIs.
+::: tip
+<!-- -->
+We should treat each request to port features from Xcode as an opportunity to simplify concepts with simple and explicit APIs.
+<!-- -->
+:::
 
 ## Keep it simple {#keep-it-simple}
 

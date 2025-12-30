@@ -1,0 +1,38 @@
+name: Cache Staging Deploy
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Sha of the commit to be deployed
+        required: true
+
+defaults:
+  run:
+    working-directory: cache
+
+jobs:
+  deploy:
+    runs-on: namespace-profile-default
+    timeout-minutes: 30
+    environment: cache-staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: 1password/install-cli-action@v2
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: cache
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.CACHE_SSH_PRIVATE_KEY }}
+      - name: Deploy with Kamal
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
+          SECRETS: ${{ secrets.CACHE_KAMAL_SECRETS }}
+        run: |
+          mise run deploy "staging"

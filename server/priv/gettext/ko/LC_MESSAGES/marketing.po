@@ -1,0 +1,914 @@
+msgid ""
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-12-24 11:49+0000\nLast-Translator: Weblate Admin <admin@cloudron.local>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15.1\n"
+
+# # This file is a PO Template file.
+# #
+# # "msgid"s here are often extracted from source code.
+# # Add new messages manually only if they're dynamic
+# # messages that can't be statically extracted.
+# #
+# # Run "mix gettext.extract" to bring this file up to
+# # date. Leave "msgstr"s empty as changing them here has no
+# # effect: edit them in PO (.po) files instead.
+#
+msgid "\"We could solve our immediate problems and do so while maintaining a familiar"
+msgstr "\"우리는 직면한 문제를 해결하고 익숙한 개발 경험을 유지할 수 있습니다\""
+
+msgid "105 remote binaries pulled"
+msgstr "105개의 원격 바이너리"
+
+msgid "10K+"
+msgstr "10K+"
+
+msgid "1400+"
+msgstr "1400+"
+
+msgid "300+"
+msgstr "300+"
+
+msgid "5K+"
+msgstr "5K+"
+
+msgid "8300+"
+msgstr "8300+"
+
+msgid "9+"
+msgstr "9+"
+
+msgid ""
+"<p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with \"contact sales\" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>\n"
+"<p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>\n"
+msgstr "<p>오픈 소스에 대한 저희의 헌신과 핵심 가치는 독특한 가격 정책을 만듭니다. \"영업팀에 문의\"를 유도하거나 제한된 데모를 제공하는 등 여러 영업 전략으로 돈을 더 받아내려는 수많은 모델과 달리, 저희는 공정성과 투명성을 믿습니다. 저희는 모두 동등하게 대하고 모두에게 공정한 가격을 책정합니다. 저희 서비스를 선택하면 훌륭한 제품을 얻는 동시에 더 많은 오픈 소스 프로젝트의 발전을 지원하게 됩니다. 저희는 비지니스의 성공을 비양심적인 관행으로 가득 찬 단거리 경주가 아닌 장기적으로 바라봅니다. 저희의 철학에 대한 자세한 내용은 %{여기}에서 확인할 수 있습니다.</p>\n<p>Tuist를 후원함으로써, 여러분은 Swift 생태계를 위한 더 많은 오픈 소스 소프트웨어 개발 또한 후원하게 됩니다.</p>\n"
+
+msgid "A confirmation email has been sent to your account with further details."
+msgstr "추가 안내가 포함된 확인 이메일이 귀하의 계정으로 발송되었습니다."
+
+msgid "A newsletter from the Tuist team sharing product updates, our perspective on modern app development, and what's on the horizon. Stay in the loop with where we're headed and why."
+msgstr "Tuist 팀이 전하는 뉴스레터로 제품 업데이트, 최신 앱 개발에 대한 관점, 앞으로의 계획을 공유합니다. 저희가 나아가는 방향과 그 이유를 함께 알아보세요."
+
+msgid "API Documentation"
+msgstr "API 문서"
+
+msgid "About"
+msgstr "소개"
+
+msgid "Active community members and counting"
+msgstr "활동 중인 커뮤니티 회원 수"
+
+msgid "Agentic QA"
+msgstr "에이전트 기반 QA"
+
+msgid "Agentic testing of your app completed"
+msgstr "에이전트 기반 앱 테스트 완료"
+
+msgid "Air"
+msgstr "Air"
+
+msgid "All"
+msgstr "전체"
+
+msgid "All features, no credit card required"
+msgstr "모든 기능 사용 가능, 신용카드는 필요하지 않음"
+
+msgid "All systems normal"
+msgstr "모든 시스템 정상"
+
+msgid "All the features you need,"
+msgstr "필요한 모든 기능을,"
+
+msgid "Analyze build times per target and file with metadata like environment, Xcode version, and commit."
+msgstr "환경, Xcode 버전, 커밋 등의 메타데이터로 타겟 및 파일 빌드 시간을 분석하세요."
+
+msgid "Automate testing your apps for Apple platforms using agents."
+msgstr "에이전트를 사용해 Apple 플랫폼에 대한 앱 테스트를 자동화합니다."
+
+msgid "Base price"
+msgstr "기본 가격"
+
+msgid "Best for teams and growing startups."
+msgstr "팀과 성장 중인 스타트업에 가장 적합합니다."
+
+msgid "Beyond expectations"
+msgstr "기대 그 이상"
+
+msgid "Blog"
+msgstr "블로그"
+
+msgid "Blog posts by the Tuist team."
+msgstr "Tuist 팀이 작성한 블로그 게시글입니다."
+
+msgid "Bluesky"
+msgstr "Bluesky"
+
+msgid "Build Insights"
+msgstr "빌드 분석"
+
+msgid "Build insights"
+msgstr "빌드 분석"
+
+msgid "Build times reduced by 80%"
+msgstr "빌드 시간 80% 단축"
+
+msgid "Building the future of scalable app development"
+msgstr "확장 가능한 앱 개발의 미래를 만들어갑니다"
+
+msgid "Builds"
+msgstr "빌드"
+
+msgid "Bumble solved key issues without changing the core dev experience"
+msgstr "Bumble은 핵심 개발 경험을 유지하면서 주요 문제를 해결했습니다"
+
+msgid "Bundle Insights"
+msgstr "번들 분석"
+
+msgid "Bundle analysis"
+msgstr "번들 분석"
+
+msgid "Bundle insights"
+msgstr "번들 분석"
+
+msgid "Cache"
+msgstr "캐시"
+
+msgid "Can I change or cancel my plan at any time?"
+msgstr "언제나 요금제를 변경하거나 취소할 수 있나요?"
+
+msgid "Changelog"
+msgstr "변경사항"
+
+msgid "Chat with the founders"
+msgstr "창립자들과 이야기 나누기"
+
+msgid "Check our sources, issues, and PRs"
+msgstr "소스, 이슈, PR 확인"
+
+msgid "Check out our GitHub to see all the action—where the magic happens and collaboration thrives."
+msgstr "우리의 이 모든 마법이 일어나고 협업이 이루어지고 있는 GitHub을 확인해보세요."
+
+msgid "Check out our REST API documentation"
+msgstr "REST API 문서 확인"
+
+msgid "Check out our documentation"
+msgstr "설명서 보기"
+
+msgid "Close menu"
+msgstr "닫기"
+
+msgid "Community"
+msgstr "커뮤니티"
+
+msgid "Community Forum"
+msgstr "온라인 커뮤니티"
+
+msgid "Community forum"
+msgstr "온라인 커뮤니티"
+
+msgid "Community support"
+msgstr "커뮤니티 지원"
+
+msgid "Community support via forum"
+msgstr "온라인으로 커뮤니티 지원"
+
+msgid "Company"
+msgstr "회사"
+
+msgid "Compare our plans"
+msgstr "요금제 비교"
+
+msgid "Concise Summary"
+msgstr "요약"
+
+msgid "Connect with other Tuist users, share experiences, and get help from the community."
+msgstr "커뮤니티를 통해 다른 Tuist 사용자와 연락 및 경험을 공유하고 도움을 받을 수 있습니다."
+
+msgid "Contact"
+msgstr "문의"
+
+msgid "Contact us"
+msgstr "우리에게 문의하세요"
+
+msgid "Contributors"
+msgstr "기여자들"
+
+msgid "Cookie policy"
+msgstr "쿠키 정책"
+
+msgid "Create your plan or self-host your instance."
+msgstr "계획을 만들거나 자체 구축하세요."
+
+msgid "Custom legal agreements and terms of service tailored to your organization's needs."
+msgstr "귀사의 요구에 맞게 법적 계약서 및 사용 약관을 수정하세요."
+
+msgid "Cuts build times by caching and reusing binaries"
+msgstr "바이너리 캐싱과 재사용으로 빌드 시간을 줄여줍니다"
+
+msgid "Dashboard"
+msgstr "서비스 현황"
+
+msgid "Designed for large scale organizations."
+msgstr "대규모 조직을 위해 설계됨."
+
+msgid "Developers"
+msgstr "개발자들"
+
+msgid "Discover our flexible pricing plans at Tuist. Enjoy a free tier with no time limits, and pay only for what you use. Plus, it's free forever for open source projects."
+msgstr "Tuist의 유동적인 요금제를 확인하세요. 제한 없는 무료 요금제를 사용해보고 필요할 때만 지불하세요. 추가로 오픈소스 프로젝트들에는 영원히 무료로 제공됩니다."
+
+msgid "Do you offer annual billing discounts?"
+msgstr "연간 할인을 제공합니까?"
+
+msgid "Do you offer discounts for non-profits and open-source?"
+msgstr "비영리 단체나 오픈소스 프로젝트를 위한 할인을 제공합니까?"
+
+msgid "Do you support a seat-based pricing model?"
+msgstr "사용자(개발자) 수 기반의 요금제를 제공합니까?"
+
+msgid "Docs"
+msgstr "설명서"
+
+msgid "Documentation"
+msgstr "설명서"
+
+msgid "Download"
+msgstr "다운로드"
+
+msgid "Download our iOS and macOS apps"
+msgstr "iOS나 macOS용 앱 다운로드"
+
+msgid "Effortlessly share your app with a single URL."
+msgstr "하나의 URL로 손쉽게 여러분의 앱을 공유하세요."
+
+msgid "Email Support"
+msgstr "이메일 지원"
+
+msgid "Enhance your development environment with actionable insights."
+msgstr "활용 가능한 분석 결과로 개발 환경을 개선하세요."
+
+msgid "Enterprise"
+msgstr "기업용"
+
+msgid "Explore our documentation—your go-to guide for mastering all things."
+msgstr "처음부터 끝까지 숙련하기 위한 모든 사용 방법이 있는 설명서를 보세요."
+
+msgid "Faster & more lightweight OSS packages resolution"
+msgstr "더 빠르고 가벼운 오픈소스 의존성 처리"
+
+msgid "Features"
+msgstr "기능"
+
+msgid "For direct assistance with technical issues or account-related questions, reach out to our support team via email."
+msgstr "기술적 문제나 계정에 관련된 직접적인 지원이 필요하면 이메일을 통해 고객센터로 문의해주세요."
+
+msgid "Forum"
+msgstr "온라인 커뮤니티"
+
+msgid "Free under tier limits"
+msgstr "제한 있는 무료"
+
+msgid "Frequently Asked Questions"
+msgstr "자주하는 질문들"
+
+msgid "Generated Projects"
+msgstr "프로젝트 동적 생성"
+
+msgid "Generated projects"
+msgstr "프로젝트 동적 생성"
+
+msgid "Get Support"
+msgstr "지원 받기"
+
+msgid "Get early access"
+msgstr "미리 사용 신청하기"
+
+msgid "Get help when you need it through various support channels."
+msgstr "다양한 지원 경로를 통해 필요할 때 도움 받으세요."
+
+msgid "Get started"
+msgstr "시작하기"
+
+msgid "Get started with Tuist at no cost, and only invest more when you're ready for higher limits, personalized support, or alternative billing options."
+msgstr "Tuist는 비용 없이 시작할 수 있으며, 더 높은 한도, 맞춤형 지원, 혹은 다른 결제 옵션이 필요할 때만 추가로 투자하면 됩니다."
+
+msgid "Get started with no credit card required."
+msgstr "신용카드 없이 시작해 보세요."
+
+msgid "GitHub"
+msgstr "GitHub"
+
+msgid "Got ideas or questions? Join the conversation in our community forum."
+msgstr "의견이나 질문이 있나요? 온라인 커뮤니티 대화에 참여해보세요."
+
+msgid "Great! The email %{email} has been confirmed and subscribed to Tuist Digest."
+msgstr "훌륭해요! %{email} 이메일이 확인되어 Tuist Digest 구독이 시작되었습니다."
+
+msgid "Happiness"
+msgstr "행복"
+
+msgid "Hear from our community about their experience with Tuist"
+msgstr "Tuist 사용 경험에 대한 온라인 커뮤니티의 의견"
+
+msgid "Host Tuist server on your own infrastructure for complete control and data sovereignty."
+msgstr "완벽한 제어와 데이터 소유를 위해 자체 인프라에 Tuist 서버를 구축하세요."
+
+msgid "How can I estimate the cost for my project?"
+msgstr "프로젝트에 부과되는 비용을 미리 계산해볼 수 있나요?"
+
+msgid "How can I estimate the cost of my project?"
+msgstr "프로젝트에 부과될 비용을 어떻게 계산 하나요?"
+
+msgid "How do we calculate units?"
+msgstr "사용자 단위를 어떻게 계산합니까?"
+
+msgid "Ideal for individual developers."
+msgstr "개인 개발자들에게 이상적."
+
+msgid "Imprint"
+msgstr "발행인 정보"
+
+msgid "Insights"
+msgstr "분석"
+
+msgid "Insights from your builds and test runs"
+msgstr "빌드와 테스트 실행에 대한 분석 결과"
+
+msgid "Instantly share your app using a URL"
+msgstr "URL로 즉시 앱 공유"
+
+msgid "Invalid verification link. Please try signing up again."
+msgstr "유효하지 않은 확인 링크 입니다. 다시 로그인 시도해 보세요."
+
+msgid "Is there a free trial for paid plans?"
+msgstr "유료 요금제를 시험하기 위한 무료 기간이 제공되나요?"
+
+msgid "Is there a free trial on paid plans?"
+msgstr "유료 요금제에서 무료 시험 사용 기간이 제공되나요??"
+
+msgid "Is there a minimum contract length?"
+msgstr "최소 이용 기간이 있나요?"
+
+msgid "Issue Tracking"
+msgstr "이슈 확인"
+
+msgid "Issues"
+msgstr "발견된 문제들"
+
+msgid "Join discussions and share ideas on our Discourse forum"
+msgstr "Discourse 커뮤니티에 가입해서 논의에 참여하고 아이디어를 공유해보세요"
+
+msgid "Join our Slack group for real-time conversations and to connect with the Tuist community"
+msgstr "Slack 그룹에 가입해서 실시간으로 대화하고 Tuist 커뮤니티를 만나보세요"
+
+msgid "Join the community on Slack"
+msgstr "Slack 커뮤니티 가입하기"
+
+msgid "Jonathan Crooke, Bumble"
+msgstr "Jonathan Crooke, Bumble"
+
+msgid "Keep up with the latest and greatest changes in Tuist."
+msgstr "Tuist의 최신 정보와 주요한 변경 사항들을 계속 확인하세요."
+
+msgid "Last updated %{date}"
+msgstr "%{date}에 마지막 업데이트"
+
+msgid "Learn & contribute to our source code"
+msgstr "오픈소스에서 배우고 기여하기"
+
+msgid "Learn about Tuist and meet the team"
+msgstr "Tuist를 배우고 개발자 만나기"
+
+msgid "Legal"
+msgstr "법적 고지사항"
+
+msgid "LinkedIn"
+msgstr "링크드인"
+
+msgid "Load more"
+msgstr "더 불러오기"
+
+msgid "Log in"
+msgstr "로그인"
+
+msgid "Longevity"
+msgstr "지속성"
+
+msgid "Make Xcode projects easier to manage and scale"
+msgstr "Xcode 프로젝트들을 더 쉽게 관리하고 확장할 수 있게 해보세요"
+
+msgid "Make mobile"
+msgstr "모바일로"
+
+msgid "Make modular Xcode projects more manageable"
+msgstr "더 관리가 용이하게 모듈화된 Xcode 프로젝트들을 만드세요"
+
+msgid "Mastodon"
+msgstr "Mastodon"
+
+msgid "Module cache"
+msgstr "모듈 캐시"
+
+msgid "Most popular"
+msgstr "가장 유명"
+
+msgid "Newsletter"
+msgstr "관련 소식"
+
+msgid "Newsletter Verification Failed"
+msgstr "소식지 인증 실패"
+
+msgid "Newsletter issues are sent every 6 weeks and you can unsubscribe at any time."
+msgstr "소식지의 문제들은 매 6주마다 발송 됩니다, 언제든 구독 해제 할 수 있어요."
+
+msgid "No, there's no minimum contract length. You're free to cancel at any time."
+msgstr "아니오. 요금제에 대한 최소 계약 기간은 없습니다. 언제든 취소할 수 있어요."
+
+msgid "Ongoing incident"
+msgstr "지속된 문제"
+
+msgid "Open the %{feature} feature documentation"
+msgstr "%{feature} 기능에 대한 설명서 열기"
+
+msgid "Openness"
+msgstr "공개 방침"
+
+msgid "Optimized app bundles"
+msgstr "최적화된 앱 번들"
+
+msgid "Our approach is rooted in curiosity and open collaboration. We share our journey, contribute tools as open source, and cultivate communities where developers learn and grow together. When we solve problems in the open, everyone wins."
+msgstr "우리의 방식은 호기심과 열린 협업을 기반으로 합니다. 우리는 우리의 여정을 공유하고 오픈소스에 기여하며 개발자들이 함께 배우고 성장하는 커뮤니티를 지원합니다. 우리가 문제를 해결하면 공개하고 모두에게 도움이 됩니다."
+
+msgid "Our cache solution integrates with Xcode 26's build system cache capabilities."
+msgstr "우리의 캐시 기능은 Xcode 26의 빌드 시스템 캐시 기능과 통합 됩니다."
+
+msgid "Pay nothing if below free tier limits"
+msgstr "무료 사용량 이하에서는, 아무것도 지불하지 마세요"
+
+msgid "Pay only for what you use per feature"
+msgstr "기능마다 사용한 만큼만 지불하세요"
+
+msgid "People"
+msgstr "참여자"
+
+msgid "Please check your email to confirm your subscription."
+msgstr "이메일을 확인해서 구독을 완료하세요."
+
+msgid "Powered by"
+msgstr "만들어 졌습니다,"
+
+msgid "Previews"
+msgstr "미리보기"
+
+msgid "Price per unit above free tier"
+msgstr "무료 요금제 이상에서 사용 단위에 따른 가격"
+
+msgid "Pricing"
+msgstr "요금제"
+
+msgid "Priority support"
+msgstr "우선 지원"
+
+msgid "Priority support via Slack channel"
+msgstr "Slack 채널을 통한 우선 지원"
+
+msgid "Privacy policy"
+msgstr "개인 정보 보호 방침"
+
+msgid "Pro"
+msgstr "Pro"
+
+msgid "Product"
+msgstr "제품"
+
+msgid "Pull requests merged"
+msgstr "병합된 PR 수"
+
+msgid "QA"
+msgstr "자주하는 질문"
+
+msgid "Read engaging stories and expert insights."
+msgstr "매력적인 스토리와 전문가의 견해를 읽어보세요."
+
+msgid "Read the Bumble customer story"
+msgstr "사용자들의 실수 경험담을 읽어보세요"
+
+msgid "Read the Trendyol customer story"
+msgstr "성공한 사용 경험담을 읽어보세요"
+
+msgid "Registry"
+msgstr "패키지 저장소"
+
+msgid "Requires a generated project"
+msgstr "프로젝트 동적 생성을 요구합니다"
+
+msgid "Resources"
+msgstr "참고자료"
+
+msgid "Right Inside Your Workflow"
+msgstr "바로 당신의 업무 과정 안에"
+
+msgid "Screenshots & Replays"
+msgstr "스크린샷 & 다시보기"
+
+msgid "Security"
+msgstr "보안"
+
+msgid "Selective testing"
+msgstr "선택적 테스트"
+
+msgid "Self-host your instance of Tuist"
+msgstr "Tuist 자체 구축하기"
+
+msgid "Self-hosting Tuist instance"
+msgstr "Tuist 자체 구축하기"
+
+msgid "Send us an email"
+msgstr "이메일 보내기"
+
+msgid "Share your app builds with others via URL for testing on simulators or devices."
+msgstr "시뮬레이터나 기기에서 테스트를 위해 URL로 빌드를 공유하세요."
+
+msgid "Shared app preview with the team"
+msgstr "팀에 공유된 앱 미리보기"
+
+msgid "Shrink your app by cleaning up code and assets"
+msgstr "코드와 에셋을 정리해서 앱을 축소하세요"
+
+msgid "Sign up"
+msgstr "가입하기"
+
+msgid "Sign up to get early access to Tuist QA"
+msgstr "Tuist QA를 위한 미리 사용에 가입하세요"
+
+msgid "Since adopting Tuist in our iOS project, we've seen major improvements in scalability and productivity. Overall, it has made our development process faster and more efficient, allowing the team to focus on building features without being slowed down by tool limitations."
+msgstr "Tuist를 iOS 프로젝트에 적용했더니 확장성과 생산성이 눈에 띄게 향상되었습니다. 게다가, 개발 속도도 빨라지고 더 효율적으로 변해서, 팀은 개발 도구 속도에 영향 받지 않고 기능 구현에 집중할 수 있게 되었습니다."
+
+msgid "Skipped repetitive tests"
+msgstr "불필요한 반복 테스트 생략"
+
+msgid "Slack"
+msgstr "Slack"
+
+msgid "Social Media Links"
+msgstr "SNS 링크들"
+
+msgid "Socials"
+msgstr "SNS"
+
+msgid "Something went wrong. Please try again."
+msgstr "뭔가 잘못되었습니다. 다시 시도해 보세요."
+
+msgid "Sources"
+msgstr "소스"
+
+msgid "Speed up clean builds by caching binaries for cacheable targets and Swift tasks."
+msgstr "캐싱 가능한 타겟과 Swift 작업에 대한 바이너리 캐싱으로 클린 빌드 속도를 향상 시키세요."
+
+msgid "Speed up test runs by skipping test suites whose tests are not impacted by the changes."
+msgstr "변경 사항에 영향 받지 않은 테스트는 제외해서 테스트 속도를 향상 시키세요."
+
+msgid "Speed up your builds and test runs."
+msgstr "빌드와 테스트 속도를 올리세요."
+
+msgid "Speeds up builds by reusing compiled binaries, cutting down build times in both local development and CI."
+msgstr "로컬 개발환경과 CI에서 빌드 시간을 줄이고 컴파일된 바이너리를 재사용해서 빌드 속도를 올리세요."
+
+msgid "Standard support"
+msgstr "기본 지원"
+
+msgid "Standard support via Slack and email"
+msgstr "Slack과 이메일을 통한 기본 지원"
+
+msgid "Standards"
+msgstr "선택"
+
+msgid "Stars on GitHub"
+msgstr "Github에서 받은 별 개수"
+
+msgid "Start free,"
+msgstr "무료로 시작하고,"
+
+msgid "Start free, scale as you grow"
+msgstr "무료로 시작하고, 성장에 맞춰 확장하세요"
+
+msgid "Stay in touch"
+msgstr "연락하세요"
+
+msgid "Stay updated with the latest changes and improvements in Tuist."
+msgstr "항상 Tuist의 최신 변경사항과 개선사항을 확인하세요."
+
+msgid "Stay updated with the latest changes and improvements in Tuist. Read our changelog for detailed information about new features, bug fixes, and enhancements."
+msgstr "항상 Tuist의 최신 변경 사항과 개선점들을 확인하세요. 새로운 기능, 버그 수정, 개선점이 담긴 변경 사항 공지를 읽으세요."
+
+msgid "Stay updated—subscribe to our newsletter"
+msgstr "소식을 구독해서 최신 버전을 유지하세요"
+
+msgid "Subscribe"
+msgstr "구독하기"
+
+msgid "Successfully Subscribed!"
+msgstr "구독 성공!"
+
+msgid "Supercharge your app development"
+msgstr "앱 개발에 날개를 달다"
+
+msgid "Support"
+msgstr "고객지원"
+
+msgid "Swift Stories Newsletter"
+msgstr "Swift 소식"
+
+msgid "Tailored agreement for specific needs"
+msgstr "특정 요구에 따른 계약서"
+
+msgid "Tailored legal terms"
+msgstr "맞춤형 법적 약관"
+
+msgid "Talk to us"
+msgstr "연락하세요"
+
+msgid "Teams using Tuist"
+msgstr "Tuist를 사용하는 팀들"
+
+msgid "Terms of service"
+msgstr "서비스 약관"
+
+msgid "Test only the code impacted by the changes"
+msgstr "변경에 영향 받은 코드만 테스트 하세요"
+
+msgid "That's why Tuist exists—to restore the joy of development at any scale. We enhance Apple's native tooling by bringing innovative ideas from across the development ecosystem, so teams can focus on creating exceptional apps instead of fighting their build system."
+msgstr "어떤 규모가 되든 개발이 즐거웠던 때로 되돌리기 위해 Tuist가 있는 겁니다. 우리가 개발 생태계에서 가져온 창의적인 아이디어를 통해 Apple의 기본 도구를 향상 시켜서 팀들은 빌드 시스템과 씨름 하는 대신 특별한 앱을 만드는 것에만 집중할 수 있습니다."
+
+msgid "The newsletter issue %{issue_number} was not found."
+msgstr "%{issue_number} 이슈 소식을 찾을 수 없습니다."
+
+msgid "The newsletter issue number %{issue_number} is not a valid number."
+msgstr "소식지 이슈 번호 %{issue_number} 는 유효하지 않습니다."
+
+msgid "The same iOS tooling that powers apps with millions of users, delivered as a service for your team"
+msgstr "수백만 사용자를 가진 앱들을 구동하는 동일한 iOS 도구가 여러분의 팀에게도 서비스 됩니다"
+
+msgid "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
+msgstr "수억의 사용자를 가진 앱들을 구동하는 동일한 iOS 도구가 여러분의 팀에게도 제공 됩니다"
+
+msgid "The team"
+msgstr "팀"
+
+msgid "There was an error signing you up on the newsletter"
+msgstr "소식지 로그인에 문제가 있습니다"
+
+msgid "Track and reduce app size by spotting duplicate assets and bloated resources."
+msgstr "중복된 에셋과 증가한 리소스를 확인해서 앱의 크기를 추적하고 줄이세요."
+
+msgid "Trendyol reduced build times by 65% with Tuist"
+msgstr "Tuist로 빌드 시간을 65% 대폭 감소"
+
+msgid "Trusted by the world's best developer teams"
+msgstr "세계 최고의 팀들이 사용하고 있습니다"
+
+msgid "Tuist"
+msgstr "Tuist"
+
+msgid "Tuist Blog"
+msgstr "Tuist 블로그"
+
+msgid "Tuist Changelog"
+msgstr "Tuist 변경 사항 공지"
+
+msgid "Tuist Digest"
+msgstr "Tuist 개요"
+
+msgid "Tuist Digest Newsletter"
+msgstr "Tuist 개요 소식지"
+
+msgid "Tuist Icon"
+msgstr "Tuist 아이콘"
+
+msgid "Tuist Pro includes support through our community forum and GitHub issues. Enterprise plans include dedicated support via Slack channels with high priority response times."
+msgstr "Tuist Pro는 온라인 커뮤니티와 Github 이슈를 통한 지원을 포함합니다. 기업 요금제는 Slack 채널을 통한 특별 우선 지원을 포함합니다."
+
+msgid "Tuist QA"
+msgstr "Tuist 품질검증"
+
+msgid "Tuist QA runs AI-powered tests from your PRs, giving you summaries with issues, steps, and screenshots — so bugs are caught before they reach main."
+msgstr "Tuist 품질검증은 당신의 PR에 대해 AI로 강화된 테스트를 실행하고, 이슈/단계/스크린샷 등을 제공해서 main에 병합되기 전에 버그를 찾아낼 수 있습니다."
+
+msgid "Tuist bridges the gaps in Apple's tooling that prevent teams from moving fast. We solve the build complexity, workflow friction, and collaboration challenges—so you can deliver exceptional apps at speed."
+msgstr "Tuist는 팀들의 빠른 작업을 방해하는 Apple 도구의 문제를 개선 합니다. 우리가 빌드의 복잡성, 작업의 방해요소, 협업 문제 관련 문제들을 해서 여러분은 특별한 앱을 빠르게 출시할 수 있습니다."
+
+msgid "Tuist has allowed us to migrate our existing monolythic codebase to a modular one. We extracted our different domains into specific modules. It allowed us to remove extra dependencies, ease testability and made our development cycles faster than ever. It even allowed us to bring up 'Test Apps' for speeding up our development on each module."
+msgstr "Tuist는 우리의 기존 mono 기반 소스를 모듈화 할 수 있게 했습니다. 우리의 도메인 간 차이점을 모듈로 추출해내서 추가적인 의존성을 제거하게 했고 테스트를 쉽게 했으며 개발 과정을 전 보다 더 빠르게 했습니다. 그래서 각 모듈에 대한 개발 테스트 속도를 향상 시키는 '앱 테스트'가 가능해졌습니다."
+
+msgid "Tuist has been a game-changer for our large codebase, where multiple engineers collaborate simultaneously. I've been using it since version 1, and it's been incredible to see how the product has evolved and expanded with new features over time."
+msgstr "Tuist는 여러 개발자들이 동시에 협업 하는 대규모 소스에 대한 시장의 판도를 바꿀 기술이 되어왔습니다. 저는 버전 1부터 사용해서, 단순히 새로운 기능을 넘어서 어떻게 혁신 되고 확장되었는 지를 봐왔습니다."
+
+msgid "Tuist has revolutionized our iOS development workflow at DraftKings. Its automation capabilities have streamlined project generation, build settings, and dependency management. Highly recommended for iOS teams seeking workflow optimization."
+msgstr "Tuist는 DraftKings의 개발 작업을 혁신 했습니다. 자동화 기능은 프로젝트 생성/빌드 설정/의존성 관리를 자연스럽게 했습니다. 작업 환경 최적화 방법을 찾는 iOS 팀들에게 정말 추천합니다."
+
+msgid "Tuist is designed to grow with you. Only add a card if you need more than the free tier limits or dedicated support."
+msgstr "Tuist는 여러분의 성장을 위해 만들어졌습니다. 무료 요금제를 초과한 제한이나 특별한 지원이 필요할 때만 신용 카드를 추가 하세요."
+
+msgid "Tuist's blog"
+msgstr "Tuist의 블로그"
+
+msgid "Tuist's changelog"
+msgstr "Tuist 변경 사항"
+
+msgid "Turn projects defined with a Swift-DSL into Xcode workspaces and projects."
+msgstr "Swift-DSL로 정의된 프로젝트를 Xcode 워크스페이스와 프로젝트로 전환하세요."
+
+msgid "Unlimited"
+msgstr "무제한"
+
+msgid "Unlock your iOS team's full potential"
+msgstr "iOS 팀 최대의 가능성을 개방하세요"
+
+msgid "Updates to Tuist's features and improvements."
+msgstr "Tuist의 기능과 개선 사항 업데이트."
+
+msgid "Usage-based pricing after free tier."
+msgstr "무료 요금제 제한 이상에서 사용량 기반 과금."
+
+msgid "Usage/seat based pricing"
+msgstr "사용량/사용자 기반 과금"
+
+msgid "Using Tuist in our current project has been a game-changer. It has significantly de-stressed our build times and reduced conflicts within the team, allowing us to focus more on development and less on configuration issues. We're confident that it will continue to enhance our productivity and collaboration in future projects."
+msgstr "Tuist를 사용하는 것은 우리에게 시장의 판도를 바꿀 기술이 되어왔습니다. 빌드 시간으로 인한 스트레스, 팀 간의 소스 충돌을 줄여줘서 우리는 좀 더 개발에 집중하고 환경 설정 문제는 덜 신경 쓸 수 있게 되었습니다. 우리는 Tuist가 우리의 생산성과 앞으로 다른 프로젝트의 협업도 계속 향상 시킬 거라고 생각합니다."
+
+msgid "Verification failed. Please try signing up again."
+msgstr "인증 실패. 로그인을 다시 시도하세요."
+
+msgid "Verification link expired or invalid. Please try signing up again."
+msgstr "인증 링크가 만료되거나 유효하지 않습니다. 로그인을 다시 해보세요."
+
+msgid "Videos"
+msgstr "영상"
+
+msgid "View all"
+msgstr "전체 보기"
+
+msgid "View in web browser"
+msgstr "웹 브라우저에서 보기"
+
+msgid "Visit the forum"
+msgstr "온라인 커뮤니티 방문"
+
+msgid "We accept credit card payments and wire transfers."
+msgstr "신용카드나 계좌 이체를 사용할 수 있습니다."
+
+msgid "We believe openness builds better tools, keeping only what’s needed closed for sustainable development."
+msgstr "우리는 개방성이 도구를 더 낫게 만들 것이라고 믿습니다. 개발 지속을 위해 필요한 것만 폐쇄 합니다."
+
+msgid "We embrace standards for long-term success while respecting freedom of choice."
+msgstr "우리는 여러분의 선택을 존중하고 미래의 성공 가능성을 받아들입니다."
+
+msgid "We have a generous free tier on every paid plan so you can try out the features before paying any money."
+msgstr "우리는 모든 요금제에 대해 관대한 체험 기간을 제공해서, 실제로 지불하기 전에 기능들을 시험해볼 수 있습니다."
+
+msgid "We prioritize developer happiness because it's closely tied to creating better apps."
+msgstr "우리는 더 나은 앱들을 위해 개발자의 행복을 우선 합니다."
+
+msgid "We want to enable teams to scale with joy"
+msgstr "팀이 즐겁게 성장할 수 있도록 돕고 싶습니다"
+
+msgid "We're a group of builders who believe scaling your app shouldn't kill your creativity. We've experienced the frustration of watching exciting Swift projects turn into build-time nightmares and tooling headaches as they grow, so we decided to build something better."
+msgstr "우리는 당신의 앱을 확장하는 것이 생산성을 해치지 않는다고 믿는 사람들이 모여있습니다. 우리는 멋진 Swift 프로젝트들이 커지면서 빌드 시간 악몽과 도구 사용 장애를 봐왔기 때문에 뭔가 더 나은 것을 만들기로 결심했습니다."
+
+msgid "We're here to help you succeed with Tuist. Whether you need technical assistance, have questions about features or have ideas how to improve the project, we have multiple ways you can reach out to us."
+msgstr "당신의 성공을 돕기 위해 Tuist와 우리가 있습니다. 기술 지원이 필요하거나 기능에 대한 질문 / 좋은 아이디어가 있다면, 여러 경로로 우리에게 연락할 수 있습니다."
+
+msgid "We’re a small, passionate team that cares deeply about developer experience and takes pride in crafting tools with care and attention to detail."
+msgstr "우리는 작고 열정적인 팀이지만, 개발자들의 경험에 관심을 가지고 정성스럽게 도구를 만드는 것에 대한 자부심을 가졌습니다."
+
+msgid "We’ve sent a confirmation email to your inbox. Please check your spam or promotions folder and confirm your subscription."
+msgstr "받은 편지함으로 확인 이메일을 보냈습니다. 스팸이나 광고 보관함으로 들어가지 않았는지 확인하고 구독 확인을 눌러주세요."
+
+msgid "What happens if I exceed my plan limits?"
+msgstr "요금제 제한을 초과하면 어떻게 되나요?"
+
+msgid "What payment methods do you accept?"
+msgstr "결제 수단은 어떤 것들이 있나요?"
+
+msgid "What support is included with each plan?"
+msgstr "각 요금제에 어떤 지원이 포함되나요?"
+
+msgid "What we believe in"
+msgstr "우리는 믿습니다"
+
+msgid "Why is your pricing model more accessible compared to traditional enterprise models?"
+msgstr "왜 당신의 요금제가 이전 기업용 모델보다 더 접근 가능 합니까?"
+
+msgid "With macros, external SDKs, and many SPM modules (fully modularized app) Xcode was constantly slow or stuck on my M1 device. SPM kept resolving, code completion didn't work, and swift-syntax compiled forever. It's not just for big teams with big apps. Tuist gave me back my productivity as indie developer for my side projects."
+msgstr "내 M1 기기에서 macOS나 외부 SDK, 많은 SPM 모듈들에서 Xcode는 계속 느리고 멈췄습니다. SPM는 계속 불러오는 중이고 코드 자동 완성은 동작하지 않았으며 Swift 문법 검사는 끝나지 않았습니다. 이건 큰 앱을 가진 큰 팀 뿐만의 문제가 아닙니다. Tuist는 우리 같은 사이드 프로젝트를 하는 개인 개발자들에게 생산성을 돌려줬습니다."
+
+msgid "Xcode Cache"
+msgstr "Xcode 캐시"
+
+msgid "Years of building OSS Foundation"
+msgstr "오픈소스 활동"
+
+msgid "Yes, we do. Please contact us at contact@tuist.dev to discuss your team's needs and we'll set up a custom plan that works for you."
+msgstr "네, 제공 합니다. 요구사항에 대해 의논하고 요금제를 계획에 맞게 수정할 수 있게 contact@tuist.dev로 연락하세요."
+
+msgid "Yes, we do. Please reach out to contact@tuist.dev for more information."
+msgstr "네, 제공합니다. 더 자세한 정보를 원하시면 contact@tuist.dev로 연락 주세요."
+
+msgid "Yes, we do. Please reach out to oss@tuist.io for more information."
+msgstr "네, 가능합니다. 더 자세한 정보를 원하시면 oss@tuist.io로 연락하세요."
+
+msgid "Yes, we offer discounts for yearly subscriptions. Please contact us at contact@tuist.dev to learn more."
+msgstr "네, 연간 할인을 제공합니다. 할인이 더 필요하시면 contact@tuist.dev로 연락하세요."
+
+msgid "Yes, you can manage your plan at any time through our management interface."
+msgstr "네, 언제든 관리 페이지를 통해서 요금제를 관리하실 수 있습니다."
+
+msgid "You can set up the Air plan and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
+msgstr "가벼운 요금제를 설정하고 사용량을 계산하기 위해 기능을 몇 일 동안 사용해볼 수 있습니다. 더 많은 제한이 필요하면 알려주세요 요금제 설정을 도와드리겠습니다."
+
+msgid "You can set up the Air plan, and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
+msgstr "가벼운 요금제를 설정하고 사용량을 계산하기 위해 기능을 몇 일 동안 사용해볼 수 있습니다. 더 많은 제한이 필요하면 알려주세요 요금제 설정을 도와드리겠습니다."
+
+msgid "You'll be warned before reaching your plan limits. Once reached, the plan will cap interactions to prevent unexpected charges."
+msgstr "여러분은 요금제 제한에 도달하면 경고를 받을 겁니다. 제한에 도달하면 예상하지 못한 추가 과금을 막기 위해 사용 제한을 겁니다."
+
+msgid "You'll receive newsletter issues every 6 weeks with the most important work happening in Tuist and our vision for the future of app development at scale."
+msgstr "여러분은 Tuist에서 발생한 중요한 내용과 확장을 위한 앱 개발의 미래에 대한 비전을 담은 소식지를 6주마다 받게 됩니다."
+
+msgid "You're only charged for the features you use, based on your usage, and only after you exceed a free threshold."
+msgstr "여러분이 사용한 기능과 사용량에 기반해서 무료 요금제 사용량을 초과한 경우 만 과금 됩니다."
+
+msgid "Your platform team, as a service"
+msgstr "여러분을 위한 플랫폼 팀이 서비스로 제공됩니다"
+
+msgid "core development experience\""
+msgstr "핵심 개발 경험\""
+
+msgid "in one platform"
+msgstr "하나의 플랫폼에서"
+
+msgid "open source"
+msgstr "오픈소스"
+
+msgid "pay as you go"
+msgstr "필요할 때 지불하세요"
+
+msgid "pinpoint the exact moment of the issue during testing"
+msgstr "테스트하는 동안 정확히 언제 문제가 발생하지 찾아내세요"
+
+msgid "read more"
+msgstr "더 보기"
+
+msgid "review every step the agent took with visual context"
+msgstr "시각 정보로 에이전트가 수행한 모든 단계를 검사하세요"
+
+msgid "see what was tested, issues found, and results at a glance"
+msgstr "어떤 것이 테스트 되었는지, 발견된 문제와 결과를 한번에 보세요"
+
+msgid "via Community Forum"
+msgstr "온라인 커뮤니티를 통해"
+
+msgid "via dedicated Slack"
+msgstr "Slack 채널을 통해"
+
+msgid "your competitive advantage"
+msgstr "경쟁력을 높이세요"
+
+msgid "Custom"
+msgstr "맞춤형"
+
+msgid "Free"
+msgstr "무료"
+
+msgid "and up"
+msgstr "그리고 업그레이드"
+
+msgid "per additional unit"
+msgstr "추가 사용자 마다"
+
+msgid "AI writes faster. So should your builds."
+msgstr "AI는 더 빠르게 작성해서 당신의 빌드를 합니다."
+
+msgid "A Tuist command execution that interacts with the server pull test result information. As an estimate, this is roughly equivalent to the number of test runs on CI."
+msgstr "서버와 상호 작용하여 테스트 결과를 가져오는 Tuist 명령 실행 입니다. 대략 CI에서 테스트 실행 횟수와 거의 같습니다."
+
+msgid "A Tuist command execution that interacts with the server to pull module binaries. As an estimate, this is roughly equivalent to the number of clean builds on CI, plus local project generations that aren't cached locally."
+msgstr "서버와 상호 작용해서 모듈 바이너리를 가져오는 Tuist 명령 입니다. 대략 CI에서 clean 빌드하는 횟수에 로컬에서 캐시 되지 않는 로컬 프로젝트 생성 횟수를 더한 것과 같습니다."
+
+msgid "About us"
+msgstr "제작자 소개"
+
+msgid "Hits"
+msgstr "조회수"
+
+msgid "Read customer story"
+msgstr "사용자 경험 읽기"
+
+msgid "Explore Tuist's features"
+msgstr "Tuist의 기능 사용 현황을 보세요"
+
+msgid "Explore features"
+msgstr "기능 사용 현황을 보세요,"
+
+msgid "live on our dashboard"
+msgstr "현황판에서 실시간으로"
+
+msgid "Language"
+msgstr "언어"

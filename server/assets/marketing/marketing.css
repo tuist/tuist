@@ -1,0 +1,65 @@
+@import "noora/noora.css";
+@import "css/shared/tokens.css";
+@import "css/shared/prose.css";
+@import "css/shared/pages.css";
+@import "css/routes/shared/page.css";
+@import "css/routes/home.css";
+@import "css/routes/about.css";
+@import "css/routes/blog.css";
+@import "css/routes/blog-post.css";
+@import "css/routes/case-studies.css";
+@import "css/routes/case-study.css";
+@import "css/routes/changelog.css";
+@import "css/routes/pricing.css";
+@import "css/routes/newsletter.css";
+@import "css/routes/newsletter-verify.css";
+@import "css/components/header-background.css";
+@import "css/layouts/components/navbar.css";
+@import "css/layouts/components/footer.css";
+@import "css/layouts/components/banner.css";
+@import "css/layouts/components/window.css";
+@import "css/layouts/components/prose-banner.css";
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-11);
+  box-sizing: border-box;
+  margin-top: 0;
+  margin-right: 0;
+  margin-bottom: 0;
+  margin-left: 0;
+  background: oklch(98.5% 0.004 264.5);
+  padding: 0px;
+  overflow-x: hidden;
+  font-family: var(--noora-font-body);
+
+  & > div[data-part="content"] {
+    background: var(--noora-surface-background-primary);
+  }
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-block-start: 0;
+  margin-block-end: 0;
+}
+
+/* Screen-reader only: visually hidden but accessible to assistive technologies */
+.sr-only {
+  position: absolute;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  margin: -1px;
+  border: 0;
+  padding: 0;
+  width: 1px;
+  height: 1px;
+  white-space: nowrap;
+}

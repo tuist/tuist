@@ -1,9 +1,10 @@
 ---
-title: Code reviews
-titleTemplate: :title · Contributors · Tuist
-description: Learn how to contribute to Tuist by reviewing code
+{
+  "title": "Code reviews",
+  "titleTemplate": ":title · Contributors · Tuist",
+  "description": "Learn how to contribute to Tuist by reviewing code"
+}
 ---
-
 # Code reviews {#code-reviews}
 
 Reviewing pull requests is a common type of contribution. Despite continuous integration (CI) ensuring the code does what’s supposed to do, it’s not enough. There are contribution traits that can’t be automated: design, code structure & architecture, tests quality, or typos. The following sections represent different aspects of the code review process.
@@ -16,8 +17,11 @@ Does the code express its intention clearly? **If you need to spend a bunch of t
 
 Large pull requests are hard to review and it’s easier to miss out details. If a pull request becomes too large and unmanageable, suggest the author to break it down.
 
-> [!NOTE] EXCEPTIONS
-> There are few scenarios where splitting up the pull request is not possible, like when the changes are tightly coupled and can’t be split. In those cases, the author should provide a clear explanation of the changes and the reasoning behind them.
+::: info EXCEPTIONS
+<!-- -->
+There are few scenarios where splitting up the pull request is not possible, like when the changes are tightly coupled and can’t be split. In those cases, the author should provide a clear explanation of the changes and the reasoning behind them.
+<!-- -->
+:::
 
 ## Consistency {#consistency}
 

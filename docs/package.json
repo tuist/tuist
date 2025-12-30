@@ -5,32 +5,27 @@
   "license": "MIT",
   "type": "module",
   "devDependencies": {
-    "cross-spawn": "^7.0.5",
+    "cross-spawn": "^7.0.6",
     "ejs": "^3.1.10",
-    "esbuild": ">=0.25.0",
-    "execa": "^9.3.1",
-    "fast-glob": "^3.3.2",
+    "esbuild": "^0.25.10",
+    "execa": "^9.6.0",
+    "fast-glob": "^3.3.3",
     "micromatch": "^4.0.8",
-    "nanoid": "^3.3.8",
+    "nanoid": "^3.3.11",
     "path-to-regexp": "^6.3.0",
+    "postcss-rtlcss": "^5.7.1",
     "tempy": "^3.1.0",
-    "undici": "^7.3.0",
-    "vite": "^6.0",
-    "vitepress": "^1.5.0",
-    "vue": "^3.4.31",
-    "wrangler": "^3.64.0"
+    "undici": "^7.16.0",
+    "vite": "^6.3.6",
+    "vitepress": "^1.6.4",
+    "vitepress-plugin-llmstxt": "^0.4.2",
+    "vue": "^3.5.22",
+    "wrangler": "^3.114.14"
   },
   "scripts": {
     "dev": "vitepress dev",
     "build": "vitepress build",
     "preview": "vitepress preview",
     "deploy": "vitepress build && wrangler pages deploy .vitepress/dist --project-name tuist-docs-next --branch main"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "sharp",
-      "workerd"
-    ]
   }
 }

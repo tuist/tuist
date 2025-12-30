@@ -1,0 +1,126 @@
+<%= if @previews |> Enum.empty? do %>
+  <.empty_state
+    command="tuist share"
+    id="previews-empty-state"
+    title={dgettext("dashboard_previews", "Share app previews in one click")}
+    subtitle={dgettext("dashboard_previews", "Run the following command to share app preview.")}
+    learn_more_href="https://docs.tuist.dev/en/guides/features/previews"
+  >
+    <:light_background>
+      <.empty_state_light_background />
+    </:light_background>
+    <:dark_background>
+      <.empty_state_dark_background />
+    </:dark_background>
+  </.empty_state>
+<% else %>
+  <div id="previews">
+    <.card
+      title={dgettext("dashboard_previews", "Previews")}
+      icon="devices"
+      data-part="latest-previews"
+    >
+      <.card_section data-part="latest-app-previews">
+        <span data-part="title">{dgettext("dashboard_previews", "Latest app previews")}</span>
+        <div data-part="apps">
+          <%= for preview <- @latest_app_previews do %>
+            <.app_preview preview={preview} user_agent={@user_agent} />
+          <% end %>
+        </div>
+      </.card_section>
+    </.card>
+    <.card
+      title={dgettext("dashboard_previews", "Previews")}
+      icon="screen_share"
+      data-part="previews"
+    >
+      <.card_section data-part="previews-table-section">
+        <div data-part="filters">
+          <.form for={%{}} phx-change="search-name" phx-debounce="300">
+            <.text_input
+              type="search"
+              id="filter-name"
+              name="name"
+              placeholder={dgettext("dashboard_previews", "Search...")}
+              show_suffix={false}
+              data-part="search"
+              value={@filter_name}
+            />
+          </.form>
+          <.filter_dropdown
+            id="filter-dropdown"
+            label={dgettext("dashboard_previews", "Filter")}
+            available_filters={@available_filters}
+            active_filters={@active_filters}
+          />
+        </div>
+        <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+          <.active_filter :for={filter <- @active_filters} filter={filter} />
+        </div>
+        <.table
+          id="previews-table"
+          rows={@previews}
+          row_navigate={
+            fn preview ->
+              url(
+                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/previews/#{preview.id}"
+              )
+            end
+          }
+        >
+          <:col :let={preview} label={dgettext("dashboard_previews", "Name")}>
+            <.text_and_description_cell label={preview.display_name} />
+          </:col>
+          <:col :let={preview} label={dgettext("dashboard_previews", "Platforms")}>
+            <div data-part="platforms">
+              <%= for platform <- Enum.sort(preview.supported_platforms) do %>
+                <.platform_cell platform={platform} />
+              <% end %>
+            </div>
+          </:col>
+          <:col :let={preview} label={dgettext("dashboard_previews", "Track")}>
+            <.text_cell label={format_track(preview.track)} />
+          </:col>
+          <:col :let={preview} label={dgettext("dashboard_previews", "Branch")}>
+            <.text_cell icon="git_branch" label={preview.git_branch || "None"} />
+          </:col>
+          <:col :let={preview} label={dgettext("dashboard_previews", "Commit SHA")}>
+            <.text_cell label={SHA.format_commit_sha(preview.git_commit_sha)} />
+          </:col>
+          <:col :let={preview} label={dgettext("dashboard_previews", "Ran by")}>
+            <.preview_ran_by_badge_cell preview={preview} />
+          </:col>
+          <:col :let={preview} label={dgettext("dashboard_previews", "Built at")}>
+            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(preview.inserted_at)} />
+          </:col>
+          <:col :let={preview}>
+            <.button_cell>
+              <:button>
+                <.run_button preview={preview} user_agent={@user_agent} />
+              </:button>
+              <:button>
+                <.button
+                  variant="secondary"
+                  size="small"
+                  icon_only
+                  href={
+                    ~p"/#{preview.project.account.name}/#{preview.project.name}/previews/#{preview.id}/download"
+                  }
+                >
+                  <.download />
+                </.button>
+              </:button>
+            </.button_cell>
+          </:col>
+        </.table>
+        <.pagination
+          uri={@uri}
+          has_previous_page={@previews_meta.has_previous_page?}
+          has_next_page={@previews_meta.has_next_page?}
+          start_cursor={@previews_meta.start_cursor}
+          end_cursor={@previews_meta.end_cursor}
+        />
+      </.card_section>
+    </.card>
+  </div>
+<% end %>

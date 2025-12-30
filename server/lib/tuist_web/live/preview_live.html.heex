@@ -1,0 +1,217 @@
+<div id="preview">
+  <.alert
+    :if={@user_agent.os.family != "iOS"}
+    id="download-tuist-app-alert"
+    phx-hook="DeeplinkValidation"
+    data-deeplink-element-id="preview-run-button"
+    size="large"
+    status="information"
+    dismissible
+    title={dgettext("dashboard_previews", "Don't have the Tuist app installed?")}
+    description={
+      dgettext(
+        "dashboard_previews",
+        "To run the preview directly from the browser, download and install the Tuist macOS app"
+      )
+    }
+  >
+    <:action>
+      <.link_button
+        size="large"
+        variant="secondary"
+        underline
+        label={dgettext("dashboard_previews", "Download")}
+      />
+    </:action>
+  </.alert>
+  <div :if={Map.get(assigns, :selected_project)} data-part="action-buttons">
+    <.button
+      label={dgettext("dashboard_previews", "Previews")}
+      data-part="back-button"
+      variant="secondary"
+      size="medium"
+      navigate={~p"/#{@selected_project.account.name}/#{@selected_project.name}/previews"}
+    >
+      <:icon_left>
+        <.icon name="arrow_left" />
+      </:icon_left>
+    </.button>
+    <.button
+      label={dgettext("dashboard_previews", "Delete preview")}
+      data-part="delete-button"
+      variant="secondary"
+      size="medium"
+      phx-click="delete_preview"
+    >
+      <:icon_left>
+        <.icon name="trash" />
+      </:icon_left>
+    </.button>
+  </div>
+  <div data-part="header">
+    <div data-part="icon-with-dots">
+      <div data-part="dots">
+        <.dots_light />
+        <.dots_dark />
+      </div>
+      <img
+        id="preview-header-icon"
+        src={~p"/app/images/app-icon-placeholder.svg"}
+        data-image-src={
+          url(
+            ~p"/#{@preview.project.account.name}/#{@preview.project.name}/previews/#{@preview.id}/icon.png"
+          )
+        }
+        phx-hook="ImageFallback"
+        alt={dgettext("dashboard_previews", "%{app_name} icon", app_name: @preview.display_name)}
+        data-part="icon"
+      />
+    </div>
+    <h1 data-part="title">{@preview.display_name}</h1>
+    <div data-part="version">
+      <div data-part="icon">
+        <.brand_apple />
+      </div>
+      <span data-part="label">
+        {dgettext("dashboard_previews", "V %{version}", version: @preview.version)}
+      </span>
+    </div>
+  </div>
+  <div data-part="actions">
+    <.button
+      label={dgettext("dashboard_previews", "Download")}
+      variant="secondary"
+      href={
+        ~p"/#{@preview.project.account.name}/#{@preview.project.name}/previews/#{@preview.id}/download"
+      }
+    >
+      <:icon_left><.download /></:icon_left>
+    </.button>
+    <.button
+      :if={not is_nil(@run_button_href)}
+      id="preview-run-button"
+      label={dgettext("dashboard_previews", "Run")}
+      variant="primary"
+      size="large"
+      href={@run_button_href}
+    >
+      <:icon_left><.player_play /></:icon_left>
+    </.button>
+  </div>
+  <.card
+    data-part="details-card"
+    icon="chart_arcs"
+    title={dgettext("dashboard_previews", "Details")}
+  >
+    <.card_section data-part="details-card-section">
+      <div data-part="metadata-grid">
+        <div data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_previews", "Supported platforms")}</div>
+            <div data-part="supported-platforms">
+              <%= for supported_platform <- Enum.sort(@preview.supported_platforms) do %>
+                <.platform_tag platform={supported_platform} />
+              <% end %>
+            </div>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_previews", "Created by")}</div>
+            <.preview_ran_by_badge_cell preview={@preview} />
+          </div>
+        </div>
+        <div data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_previews", "Bundle identifier")}</div>
+            <span data-part="label">
+              {@preview.bundle_identifier}
+            </span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_previews", "Ran at")}</div>
+            <span data-part="label">
+              {Tuist.Utilities.DateFormatter.format_with_timezone(
+                @preview.inserted_at,
+                @user_timezone
+              )}
+            </span>
+          </div>
+        </div>
+        <div data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_previews", "Branch")}</div>
+            <span data-part="label">
+              <.git_branch />
+              {@preview.git_branch || dgettext("dashboard_previews", "None")}
+            </span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_previews", "Commit SHA")}</div>
+            <span data-part="label">
+              {SHA.format_commit_sha(@preview.git_commit_sha)}
+            </span>
+          </div>
+        </div>
+        <div :if={@preview.track != ""} data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_previews", "Track")}</div>
+            <span data-part="label">
+              {@preview.track}
+            </span>
+          </div>
+        </div>
+      </div>
+    </.card_section>
+  </.card>
+  <.card
+    data-part="install-app-card"
+    icon="devices_down"
+    title={dgettext("dashboard_previews", "Install App")}
+  >
+    <.card_section data-part="install-app-card-section">
+      <div
+        :if={not is_nil(Tuist.AppBuilds.latest_ipa_app_build_for_preview(@preview))}
+        data-part="scan-qr-code"
+      >
+        <h2 data-part="title">
+          {dgettext("dashboard_previews", "Scan QR code")}
+        </h2>
+        <span data-part="subtitle">
+          {dgettext(
+            "dashboard_previews",
+            "Scan this QR code on your iOS device to install this version of the app"
+          )}
+        </span>
+        <img
+          data-part="qr-code"
+          src={
+            ~p"/#{@preview.project.account.name}/#{@preview.project.name}/previews/#{@preview.id}/qr-code.svg"
+          }
+          alt={dgettext("dashboard_previews", "QR code")}
+        />
+      </div>
+      <div
+        :if={is_nil(Tuist.AppBuilds.latest_ipa_app_build_for_preview(@preview))}
+        data-part="device-not-available"
+      >
+        <img data-theme="light" src="/images/macbook_preview_light.png" />
+        <img data-theme="dark" src="/images/macbook_preview_dark.png" />
+        <div data-part="explanation">
+          <h2 data-part="title">
+            {dgettext(
+              "dashboard_previews",
+              "This preview isn't available for device installation"
+            )}
+          </h2>
+          <span data-part="subtitle">
+            {dgettext(
+              "dashboard_previews",
+              "This preview is only supported on simulators and can't be installed on a physical device"
+            )}
+          </span>
+        </div>
+      </div>
+      <.line_divider text={dgettext("dashboard_previews", "Or run using CLI")} />
+      <.terminal id="install-app-card-terminal" command={"tuist run #{@preview_url}"} />
+    </.card_section>
+  </.card>
+</div>

@@ -1,0 +1,174 @@
+<div id="ops-qa">
+  <div data-part="charts-row">
+    <.card title={dgettext("dashboard_qa", "QA Runs (Last 30 Days)")} icon="chart_arcs">
+      <.card_section>
+        <.chart
+          id="qa-runs-chart"
+          type="line"
+          extra_options={
+            %{
+              grid: %{
+                width: "97%",
+                left: "0.4%",
+                height: "88%",
+                top: "5%"
+              },
+              xAxis: %{
+                boundaryGap: false,
+                axisLabel: %{
+                  color: "var:noora-surface-label-secondary"
+                }
+              },
+              yAxis: %{
+                splitNumber: 4,
+                splitLine: %{
+                  lineStyle: %{
+                    color: "var:noora-chart-lines"
+                  }
+                },
+                axisLabel: %{
+                  color: "var:noora-surface-label-secondary"
+                }
+              },
+              legend: %{
+                show: false
+              }
+            }
+          }
+          series={[
+            %{
+              color: "var:noora-chart-primary",
+              data: @qa_runs_chart_data,
+              name: dgettext("dashboard_qa", "QA Runs"),
+              type: "line",
+              smooth: 0.1,
+              symbol: "none"
+            }
+          ]}
+          y_axis_min={0}
+        />
+      </.card_section>
+    </.card>
+
+    <.card title={dgettext("dashboard_qa", "Projects Using QA (Last 30 Days)")} icon="chart_arcs">
+      <.card_section>
+        <.chart
+          id="projects-usage-chart"
+          type="line"
+          extra_options={
+            %{
+              grid: %{
+                width: "97%",
+                left: "0.4%",
+                height: "88%",
+                top: "5%"
+              },
+              xAxis: %{
+                boundaryGap: false,
+                axisLabel: %{
+                  color: "var:noora-surface-label-secondary"
+                }
+              },
+              yAxis: %{
+                splitNumber: 4,
+                splitLine: %{
+                  lineStyle: %{
+                    color: "var:noora-chart-lines"
+                  }
+                },
+                axisLabel: %{
+                  color: "var:noora-surface-label-secondary"
+                }
+              },
+              legend: %{
+                show: false
+              }
+            }
+          }
+          series={[
+            %{
+              color: "var:noora-chart-secondary",
+              data: @projects_usage_chart_data,
+              name: dgettext("dashboard_qa", "Projects"),
+              type: "line",
+              smooth: 0.1,
+              symbol: "none"
+            }
+          ]}
+          y_axis_min={0}
+        />
+      </.card_section>
+    </.card>
+  </div>
+
+  <div data-part="token-usage-section">
+    <.card title={dgettext("dashboard_qa", "Token Usage by Account")} icon="chart_arcs">
+      <.card_section>
+        <.table id="token-usage-table" rows={@token_usage_by_account}>
+          <:col :let={usage} label={dgettext("dashboard_qa", "Account")}>
+            <.text_cell label={usage.account_name} />
+          </:col>
+          <:col :let={usage} label={dgettext("dashboard_qa", "Last 30 Days")}>
+            <.text_cell label={"#{format_number(usage.thirty_day.total_input_tokens)} / #{format_number(usage.thirty_day.total_output_tokens)}"} />
+          </:col>
+          <:col :let={usage} label={dgettext("dashboard_qa", "Last Year")}>
+            <.text_cell label={"#{format_number(usage.twelve_month.total_input_tokens)} / #{format_number(usage.twelve_month.total_output_tokens)}"} />
+          </:col>
+          <:col :let={usage} label={dgettext("dashboard_qa", "Average Tokens per Run")}>
+            <.text_cell label={format_number(usage.twelve_month.average_tokens)} />
+          </:col>
+          <:empty_state>
+            <.table_empty_state
+              icon="chart_arcs"
+              title={dgettext("dashboard_qa", "No token usage found")}
+              subtitle={
+                dgettext(
+                  "dashboard_qa",
+                  "Token usage will appear here once QA runs start using LLM features"
+                )
+              }
+            />
+          </:empty_state>
+        </.table>
+      </.card_section>
+    </.card>
+  </div>
+
+  <div data-part="qa-runs-section">
+    <.card title={dgettext("dashboard_qa", "Recent QA Runs")} icon="history">
+      <.card_section>
+        <.table id="recent-qa-runs-table" rows={@recent_qa_runs}>
+          <:col :let={qa_run} label={dgettext("dashboard_qa", "Project")}>
+            <.text_cell label={"#{qa_run.account_name}/#{qa_run.project_name}"} />
+          </:col>
+          <:col :let={qa_run} label={dgettext("dashboard_qa", "Status")}>
+            <.text_cell label={String.capitalize(qa_run.status)} />
+          </:col>
+          <:col :let={qa_run} label={dgettext("dashboard_qa", "Prompt")}>
+            <.text_cell label={String.slice(qa_run.prompt || "No prompt", 0, 50) <> if(String.length(qa_run.prompt || "") > 50, do: "...", else: "")} />
+          </:col>
+          <:col :let={qa_run} label={dgettext("dashboard_qa", "Token usage")}>
+            <.text_cell label={format_qa_run_token_usage(qa_run)} />
+          </:col>
+          <:col :let={qa_run} label={dgettext("dashboard_qa", "Ran at")}>
+            <.text_cell label={DateFormatter.format_iso(qa_run.inserted_at)} />
+          </:col>
+          <:col :let={qa_run} label={dgettext("dashboard_qa", "Actions")}>
+            <.button
+              variant="secondary"
+              label={dgettext("dashboard_qa", "View Logs")}
+              navigate={~p"/ops/qa/#{qa_run.id}/logs"}
+            />
+          </:col>
+          <:empty_state>
+            <.table_empty_state
+              icon="history"
+              title={dgettext("dashboard_qa", "No QA runs found")}
+              subtitle={dgettext("dashboard_qa", "Get our customers to run some QA!")}
+            />
+          </:empty_state>
+        </.table>
+      </.card_section>
+    </.card>
+  </div>
+</div>

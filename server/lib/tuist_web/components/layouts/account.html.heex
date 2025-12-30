@@ -1,0 +1,65 @@
+<main class="layout">
+  <TuistWeb.AppLayoutComponents.headerbar
+    breadcrumbs={Map.get(assigns, :breadcrumbs, [])}
+    current_user={@current_user}
+    selected_account={@selected_account}
+    latest_cli_release={@latest_cli_release}
+    latest_app_release={@latest_app_release}
+  />
+  <section class="account-layout">
+    <h1 data-part="title">{@selected_account.name}</h1>
+
+    <.tab_menu_horizontal data-part="tabs">
+      <.tab_menu_horizontal_item
+        label={dgettext("dashboard", "Projects")}
+        selected={@selected_tab == "projects"}
+        navigate={~p"/#{@selected_account.name}"}
+      />
+      <.tab_menu_horizontal_item
+        :if={Tuist.Accounts.organization?(@selected_account)}
+        label={dgettext("dashboard", "Members")}
+        selected={@selected_tab == "members"}
+        navigate={~p"/#{@selected_account.name}/members"}
+      />
+      <.tab_menu_horizontal_item
+        :if={
+          Tuist.Authorization.authorize(
+            :account_update,
+            @current_user,
+            @selected_account
+          ) == :ok
+        }
+        label={dgettext("dashboard", "Billing")}
+        selected={@selected_tab == "billing"}
+        navigate={~p"/#{@selected_account.name}/billing"}
+      />
+      <.tab_menu_horizontal_item
+        :if={
+          Tuist.Authorization.authorize(
+            :account_update,
+            @current_user,
+            @selected_account
+          ) == :ok
+        }
+        label={dgettext("dashboard", "Integrations")}
+        selected={@selected_tab == "integrations"}
+        navigate={~p"/#{@selected_account.name}/integrations"}
+      />
+      <.tab_menu_horizontal_item
+        :if={
+          Tuist.Authorization.authorize(
+            :account_update,
+            @current_user,
+            @selected_account
+          ) == :ok
+        }
+        label={dgettext("dashboard", "Settings")}
+        selected={@selected_tab == "settings"}
+        navigate={~p"/#{@selected_account.name}/settings"}
+      />
+    </.tab_menu_horizontal>
+    <div data-part="content">
+      {@inner_content}
+    </div>
+  </section>
+</main>

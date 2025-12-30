@@ -1,0 +1,706 @@
+<% plans = [
+  %{
+    name: dgettext("marketing", "Air"),
+    description: [
+      dgettext("marketing", "Get started with no credit card required."),
+      dgettext("marketing", "Ideal for individual developers.")
+    ],
+    price: dgettext("marketing", "Free"),
+    price_extra: nil,
+    cta_label: dgettext("marketing", "Get started"),
+    cta_href: ~p"/users/register",
+    cta_variant: "secondary",
+    popular: false,
+    traits: [
+      dgettext("marketing", "Free under tier limits"),
+      dgettext("marketing", "All features, no credit card required"),
+      dgettext("marketing", "Community support via forum")
+    ]
+  },
+  %{
+    name: dgettext("marketing", "Pro"),
+    description: [
+      dgettext("marketing", "Usage-based pricing after free tier."),
+      dgettext("marketing", "Best for teams and growing startups.")
+    ],
+    price: "$0",
+    price_extra: dgettext("marketing", "and up"),
+    cta_label: dgettext("marketing", "Get started"),
+    cta_href: ~p"/users/register",
+    cta_variant: "primary",
+    popular: true,
+    traits: [
+      dgettext("marketing", "Pay nothing if below free tier limits"),
+      dgettext("marketing", "Pay only for what you use per feature"),
+      dgettext("marketing", "Standard support via Slack and email")
+    ]
+  },
+  %{
+    name: dgettext("marketing", "Enterprise"),
+    description: [
+      dgettext("marketing", "Create your plan or self-host your instance."),
+      dgettext("marketing", "Designed for large scale organizations.")
+    ],
+    price: dgettext("marketing", "Custom"),
+    price_extra: nil,
+    cta_label: dgettext("marketing", "Contact us"),
+    cta_href: "https://cal.tuist.dev/team/tuist/tuist",
+    cta_variant: "secondary",
+    popular: false,
+    traits: [
+      dgettext("marketing", "Tailored agreement for specific needs"),
+      dgettext("marketing", "Self-host your instance of Tuist"),
+      dgettext("marketing", "Priority support via Slack channel")
+    ]
+  }
+]
+
+features = [
+  %{
+    name: dgettext("marketing", "Base price"),
+    description: nil,
+    hint: nil,
+    values: [
+      dgettext("marketing", "Free"),
+      %{
+        price: "$0 " <> dgettext("marketing", "and up"),
+        description: dgettext("marketing", "Price per unit above free tier")
+      },
+      %{
+        price: dgettext("marketing", "Custom"),
+        description: dgettext("marketing", "Usage/seat based pricing")
+      }
+    ]
+  },
+  %{
+    name: dgettext("marketing", "Module cache"),
+    description:
+      dgettext(
+        "marketing",
+        "Speed up clean builds by caching binaries for cacheable targets and Swift tasks."
+      ),
+    hint: dgettext("marketing", "How do we calculate units?"),
+    hint_text:
+      dgettext(
+        "marketing",
+        "A Tuist command execution that interacts with the server to pull module binaries. As an estimate, this is roughly equivalent to the number of clean builds on CI, plus local project generations that aren't cached locally."
+      ),
+    values: [
+      "200",
+      %{value: "200", description: "+ $0.5 " <> dgettext("marketing", "per additional unit")},
+      dgettext("marketing", "Custom")
+    ]
+  },
+  %{
+    name: dgettext("marketing", "Xcode Cache"),
+    description:
+      dgettext(
+        "marketing",
+        "Our cache solution integrates with Xcode 26's build system cache capabilities."
+      ),
+    hint: nil,
+    values: [
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited")
+    ]
+  },
+  %{
+    name: dgettext("marketing", "Selective testing"),
+    description:
+      dgettext(
+        "marketing",
+        "Speed up test runs by skipping test suites whose tests are not impacted by the changes."
+      ),
+    hint: dgettext("marketing", "How do we calculate units?"),
+    hint_text:
+      dgettext(
+        "marketing",
+        "A Tuist command execution that interacts with the server pull test result information. As an estimate, this is roughly equivalent to the number of test runs on CI."
+      ),
+    values: [
+      "200",
+      %{value: "200", description: "+ $0.5 " <> dgettext("marketing", "per additional unit")},
+      dgettext("marketing", "Custom")
+    ]
+  },
+  %{
+    name: dgettext("marketing", "Generated Projects"),
+    description:
+      dgettext(
+        "marketing",
+        "Turn projects defined with a Swift-DSL into Xcode workspaces and projects."
+      ),
+    hint: nil,
+    values: [
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited")
+    ]
+  },
+  %{
+    name: dgettext("marketing", "Previews"),
+    description:
+      dgettext(
+        "marketing",
+        "Share your app builds with others via URL for testing on simulators or devices."
+      ),
+    hint: nil,
+    values: [
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited")
+    ]
+  },
+  %{
+    name: dgettext("marketing", "Registry"),
+    description: dgettext("marketing", "Faster & more lightweight OSS packages resolution"),
+    hint: nil,
+    values: [
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited")
+    ]
+  },
+  %{
+    name: dgettext("marketing", "Build Insights"),
+    description:
+      dgettext(
+        "marketing",
+        "Analyze build times per target and file with metadata like environment, Xcode version, and commit."
+      ),
+    hint: nil,
+    values: [
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited")
+    ]
+  },
+  %{
+    name: dgettext("marketing", "Bundle Insights"),
+    description:
+      dgettext(
+        "marketing",
+        "Track and reduce app size by spotting duplicate assets and bloated resources."
+      ),
+    hint: nil,
+    values: [
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited"),
+      dgettext("marketing", "Unlimited")
+    ]
+  },
+  %{
+    name: dgettext("marketing", "Self-hosting Tuist instance"),
+    description:
+      dgettext(
+        "marketing",
+        "Host Tuist server on your own infrastructure for complete control and data sovereignty."
+      ),
+    hint: nil,
+    values: [:unavailable, :unavailable, :available]
+  },
+  %{
+    name: dgettext("marketing", "Tailored legal terms"),
+    description:
+      dgettext(
+        "marketing",
+        "Custom legal agreements and terms of service tailored to your organization's needs."
+      ),
+    hint: nil,
+    values: [:unavailable, :unavailable, :available]
+  },
+  %{
+    name: dgettext("marketing", "Support"),
+    description:
+      dgettext("marketing", "Get help when you need it through various support channels."),
+    hint: nil,
+    values: [
+      %{
+        level: dgettext("marketing", "Community support"),
+        description: dgettext("marketing", "via Community Forum")
+      },
+      %{
+        level: dgettext("marketing", "Standard support"),
+        description: dgettext("marketing", "via Community Forum")
+      },
+      %{
+        level: dgettext("marketing", "Priority support"),
+        description: dgettext("marketing", "via dedicated Slack")
+      }
+    ]
+  }
+] %>
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-pricing">
+    <TuistWeb.Marketing.MarketingComponents.navbar {assigns} />
+
+    <TuistWeb.Marketing.MarketingComponents.header_background />
+
+    <header data-part="header">
+      <img data-part="logo" src={~p"/marketing/images/pricing/logo.webp"} data-part="logo" />
+      <h1 data-part="title">
+        {dgettext("marketing", "Start free,")}
+        <br />
+        {dgettext("marketing", "pay as you go")}
+      </h1>
+      <p data-part="description">
+        {dgettext(
+          "marketing",
+          "Get started with Tuist at no cost, and only invest more when you're ready for higher limits, personalized support, or alternative billing options."
+        )}
+        {" "}
+        <.link href={~p"/case-studies"} data-part="case-studies-link">
+          {dgettext(
+            "marketing",
+            "See how leading tech companies are scaling their development with Tuist."
+          )}
+        </.link>
+      </p>
+    </header>
+
+    <section data-part="plans">
+      <div :for={plan <- plans} data-part="plan" data-popular={plan.popular}>
+        <%= if plan.popular do %>
+          <div data-part="notch">
+            <img
+              data-part="image"
+              src={~p"/marketing/images/pricing/popular-plan-notch.webp"}
+              alt=""
+            />
+            <span data-part="text">{dgettext("marketing", "Most popular")}</span>
+          </div>
+        <% end %>
+        <header data-part="header">
+          <h3 data-part="title">{plan.name}</h3>
+          <p data-part="description">
+            {Enum.at(plan.description, 0)}
+            <br />
+            {Enum.at(plan.description, 1)}
+          </p>
+        </header>
+        <div data-part="main">
+          <div data-part="price">
+            <div data-part="value">{plan.price}</div>
+            <div data-part="extra">{plan.price_extra}</div>
+          </div>
+          <.button
+            variant={plan.cta_variant}
+            size="large"
+            label={plan.cta_label}
+            href={plan.cta_href}
+          />
+          <ul data-part="traits">
+            <li :for={trait <- plan.traits} data-part="trait">
+              <.system_check />
+              <span>{trait}</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section data-part="pricing">
+      <header data-part="header">
+        <h2 data-part="title">{dgettext("marketing", "Features")}</h2>
+        <p data-part="description">
+          {dgettext(
+            "marketing",
+            "You're only charged for the features you use, based on your usage, and only after you exceed a free threshold."
+          )}
+        </p>
+      </header>
+
+      <div data-part="plan-selector">
+        <div data-part="title">{dgettext("marketing", "Compare our plans")}</div>
+        <.button_group size="large">
+          <.button_group_item
+            :for={{plan, index} <- Enum.with_index(plans)}
+            label={plan.name}
+            data-selected={if index == 0, do: true, else: nil}
+            phx-click={
+              JS.add_class("active", to: "[data-plan-index='#{index}']")
+              |> JS.remove_class("active",
+                to: "[data-plan-index]:not([data-plan-index='#{index}'])"
+              )
+              |> JS.set_attribute({"data-selected", "true"},
+                to: ".noora-button-group-item:nth-child(#{index + 1})"
+              )
+              |> JS.remove_attribute("data-selected",
+                to: ".noora-button-group-item:not(:nth-child(#{index + 1}))"
+              )
+            }
+          />
+        </.button_group>
+      </div>
+
+      <table data-part="table">
+        <thead data-part="head">
+          <tr data-part="row">
+            <th data-part="cell-header" scope="col">
+              <h2 data-part="title">{dgettext("marketing", "Compare our plans")}</h2>
+            </th>
+            <th
+              :for={{plan, index} <- Enum.with_index(plans)}
+              data-part="cell-header"
+              data-popular={plan.popular}
+              data-plan-index={index}
+              class={if index == 0, do: "active", else: ""}
+              scope="col"
+            >
+              <div data-part="plan-name">{plan.name}</div>
+              <.button
+                variant={plan.cta_variant}
+                size="medium"
+                label={plan.cta_label}
+                href={plan.cta_href}
+              />
+            </th>
+          </tr>
+        </thead>
+        <tbody data-part="body">
+          <tr :for={feature <- features} data-part="row">
+            <th data-part="cell-feature" scope="row">
+              <div data-part="feature-name">{feature.name}</div>
+              <div :if={feature.description} data-part="feature-description">
+                {feature.description}
+              </div>
+
+              <.tooltip
+                :if={not is_nil(feature.hint) and not is_nil(feature.hint_text)}
+                id={"#{feature.name}-hint"}
+                size="large"
+                description={feature.hint_text}
+                title={dgettext("marketing", "Hits")}
+              >
+                <:trigger :let={attrs}>
+                  <span {attrs}>
+                    <.hint_text label={feature.hint} />
+                  </span>
+                </:trigger>
+              </.tooltip>
+            </th>
+            <td
+              :for={{value, index} <- Enum.with_index(feature.values)}
+              data-part="cell-value"
+              data-plan-index={index}
+              class={if index == 0, do: "active", else: ""}
+              data-available={
+                cond do
+                  value == :available -> true
+                  value == :unavailable -> false
+                  true -> nil
+                end
+              }
+            >
+              <%= cond do %>
+                <% value == :available -> %>
+                  <.system_check />
+                <% value == :unavailable -> %>
+                  <.math_x />
+                <% is_map(value) and Map.has_key?(value, :price) -> %>
+                  <div data-part="price">{value.price}</div>
+                  <div data-part="description">{value.description}</div>
+                <% is_map(value) and Map.has_key?(value, :value) -> %>
+                  <div data-part="value">{value.value}</div>
+                  <div data-part="description">{value.description}</div>
+                <% is_map(value) and Map.has_key?(value, :level) -> %>
+                  <div data-part="support-level">{value.level}</div>
+                  <div data-part="description">{value.description}</div>
+                <% true -> %>
+                  {value}
+              <% end %>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section data-part="faq">
+      <h2 data-part="title" id="qa">{dgettext("marketing", "Frequently Asked Questions")}</h2>
+      <div data-part="questions">
+        <div data-part="question" data-expanded="false">
+          <button
+            data-part="header"
+            phx-hook="FaqAccordion"
+            id="faq-question-1"
+            type="button"
+            aria-expanded="false"
+            aria-controls="faq-answer-1"
+          >
+            <h3 data-part="question">
+              {dgettext("marketing", "Do you support a seat-based pricing model?")}
+            </h3>
+            <.chevron_down />
+          </button>
+          <div
+            data-part="response"
+            id="faq-answer-1"
+            role="region"
+            aria-labelledby="faq-question-1"
+          >
+            <p>
+              {dgettext(
+                "marketing",
+                "Yes, we do. Please contact us at contact@tuist.dev to discuss your team's needs and we'll set up a custom plan that works for you."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="question" data-expanded="false">
+          <button
+            data-part="header"
+            phx-hook="FaqAccordion"
+            id="faq-question-3"
+            type="button"
+            aria-expanded="false"
+            aria-controls="faq-answer-3"
+          >
+            <h3 data-part="question">
+              {dgettext("marketing", "What payment methods do you accept?")}
+            </h3>
+            <.chevron_down />
+          </button>
+          <div
+            data-part="response"
+            id="faq-answer-3"
+            role="region"
+            aria-labelledby="faq-question-3"
+          >
+            <p>
+              {dgettext("marketing", "We accept credit card payments and wire transfers.")}
+            </p>
+          </div>
+        </div>
+        <div data-part="question" data-expanded="false">
+          <button
+            data-part="header"
+            phx-hook="FaqAccordion"
+            id="faq-question-4"
+            type="button"
+            aria-expanded="false"
+            aria-controls="faq-answer-4"
+          >
+            <h3 data-part="question">
+              {dgettext("marketing", "Can I change or cancel my plan at any time?")}
+            </h3>
+            <.chevron_down />
+          </button>
+          <div
+            data-part="response"
+            id="faq-answer-4"
+            role="region"
+            aria-labelledby="faq-question-4"
+          >
+            <p>
+              {dgettext(
+                "marketing",
+                "Yes, you can manage your plan at any time through our management interface."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="question" data-expanded="false">
+          <button
+            data-part="header"
+            phx-hook="FaqAccordion"
+            id="faq-question-5"
+            type="button"
+            aria-expanded="false"
+            aria-controls="faq-answer-5"
+          >
+            <h3 data-part="question">
+              {dgettext("marketing", "What happens if I exceed my plan limits?")}
+            </h3>
+            <.chevron_down />
+          </button>
+          <div
+            data-part="response"
+            id="faq-answer-5"
+            role="region"
+            aria-labelledby="faq-question-5"
+          >
+            <p>
+              {dgettext(
+                "marketing",
+                "You'll be warned before reaching your plan limits. Once reached, the plan will cap interactions to prevent unexpected charges."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="question" data-expanded="false">
+          <button
+            data-part="header"
+            phx-hook="FaqAccordion"
+            id="faq-question-6"
+            type="button"
+            aria-expanded="false"
+            aria-controls="faq-answer-6"
+          >
+            <h3 data-part="question">
+              {dgettext("marketing", "Do you offer annual billing discounts?")}
+            </h3>
+            <.chevron_down />
+          </button>
+          <div
+            data-part="response"
+            id="faq-answer-6"
+            role="region"
+            aria-labelledby="faq-question-6"
+          >
+            <p>
+              {dgettext(
+                "marketing",
+                "Yes, we offer discounts for yearly subscriptions. Please contact us at contact@tuist.dev to learn more."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="question" data-expanded="false">
+          <button
+            data-part="header"
+            phx-hook="FaqAccordion"
+            id="faq-question-7"
+            type="button"
+            aria-expanded="false"
+            aria-controls="faq-answer-7"
+          >
+            <h3 data-part="question">
+              {dgettext("marketing", "Is there a minimum contract length?")}
+            </h3>
+            <.chevron_down />
+          </button>
+          <div
+            data-part="response"
+            id="faq-answer-7"
+            role="region"
+            aria-labelledby="faq-question-7"
+          >
+            <p>
+              {dgettext(
+                "marketing",
+                "No, there's no minimum contract length. You're free to cancel at any time."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="question" data-expanded="false">
+          <button
+            data-part="header"
+            phx-hook="FaqAccordion"
+            id="faq-question-8"
+            type="button"
+            aria-expanded="false"
+            aria-controls="faq-answer-8"
+          >
+            <h3 data-part="question">
+              {dgettext("marketing", "What support is included with each plan?")}
+            </h3>
+            <.chevron_down />
+          </button>
+          <div
+            data-part="response"
+            id="faq-answer-8"
+            role="region"
+            aria-labelledby="faq-question-8"
+          >
+            <p>
+              {dgettext(
+                "marketing",
+                "Tuist Pro includes support through our community forum and GitHub issues. Enterprise plans include dedicated support via Slack channels with high priority response times."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="question" data-expanded="false">
+          <button
+            data-part="header"
+            phx-hook="FaqAccordion"
+            id="faq-question-9"
+            type="button"
+            aria-expanded="false"
+            aria-controls="faq-answer-9"
+          >
+            <h3 data-part="question">
+              {dgettext("marketing", "How can I estimate the cost for my project?")}
+            </h3>
+            <.chevron_down />
+          </button>
+          <div
+            data-part="response"
+            id="faq-answer-9"
+            role="region"
+            aria-labelledby="faq-question-9"
+          >
+            <p>
+              {dgettext(
+                "marketing",
+                "You can set up the Air plan and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="question" data-expanded="false">
+          <button
+            data-part="header"
+            phx-hook="FaqAccordion"
+            id="faq-question-10"
+            type="button"
+            aria-expanded="false"
+            aria-controls="faq-answer-10"
+          >
+            <h3 data-part="question">
+              {dgettext("marketing", "Is there a free trial for paid plans?")}
+            </h3>
+            <.chevron_down />
+          </button>
+          <div
+            data-part="response"
+            id="faq-answer-10"
+            role="region"
+            aria-labelledby="faq-question-10"
+          >
+            <p>
+              {dgettext(
+                "marketing",
+                "We have a generous free tier on every paid plan so you can try out the features before paying any money."
+              )}
+            </p>
+          </div>
+        </div>
+        <div data-part="question" data-expanded="false">
+          <button
+            data-part="header"
+            phx-hook="FaqAccordion"
+            id="faq-question-11"
+            type="button"
+            aria-expanded="false"
+            aria-controls="faq-answer-11"
+          >
+            <h3 data-part="question">
+              {dgettext("marketing", "Do you offer discounts for non-profits and open-source?")}
+            </h3>
+            <.chevron_down />
+          </button>
+          <div
+            data-part="response"
+            id="faq-answer-11"
+            role="region"
+            aria-labelledby="faq-question-11"
+          >
+            <p>
+              {dgettext(
+                "marketing",
+                "Yes, we do. Please reach out to contact@tuist.dev for more information."
+              )}
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section data-part="cta">
+      <.marketing_banner title={dgettext("marketing", "Start free, scale as you grow")} />
+    </section>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>

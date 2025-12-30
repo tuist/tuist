@@ -1,0 +1,126 @@
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-blog" phx-hook="ScrollToTop" data-scroll-target='[data-part="filters-bar"]'>
+    <TuistWeb.Marketing.MarketingComponents.navbar current_user={@current_user} />
+
+    <TuistWeb.Marketing.MarketingComponents.header_background />
+
+    <section data-part="header">
+      <div data-part="title">
+        <h1 data-part="title">
+          {dgettext("marketing", "Blog")}
+        </h1>
+      </div>
+      <.link
+        data-part="main"
+        href={
+          TuistWeb.Marketing.MarketingHTML.localized_href(
+            Content.get_entry_slug(@highlighted_post)
+          )
+        }
+      >
+        <img data-part="image" src={Content.get_entry_image_url(@highlighted_post)} />
+        <div data-part="content">
+          <h2 data-part="title">
+            {Content.get_entry_title(@highlighted_post)}
+          </h2>
+          <p data-part="excerpt">{Content.get_entry_excerpt(@highlighted_post)}</p>
+          <div data-part="footer">
+            <div data-part="metadata">
+              <div data-part="author">{Content.get_entry_author_name(@highlighted_post)}</div>
+              <div>•</div>
+              <div data-part="date">
+                {Timex.format!(Content.get_entry_date(@highlighted_post), "{Mfull} {D}, {YYYY}")}
+              </div>
+            </div>
+            <.arrow_right data-part="icon" />
+          </div>
+        </div>
+      </.link>
+    </section>
+
+    <section data-part="filters-bar">
+      <div data-part="categories">
+        <.link
+          patch={~p"/blog"}
+          data-selected={is_nil(@selected_category)}
+          data-part="category"
+        >
+          {dgettext("marketing", "All")}
+        </.link>
+        <.link
+          :for={category <- Enum.reject(@categories, &is_nil/1)}
+          patch={~p"/blog?category=#{to_string(category)}"}
+          data-selected={@selected_category == to_string(category)}
+          data-part="category"
+        >
+          {category |> to_string() |> String.capitalize()}
+        </.link>
+      </div>
+      <div data-part="actions">
+        <form phx-submit="search" phx-change="search">
+          <.text_input
+            id="text-input-types-search"
+            name="search"
+            type="search"
+            placeholder="Search..."
+            value={@search_query}
+            show_suffix={false}
+          />
+        </form>
+        <.button variant="secondary" icon_only={true} size="large" href={~p"/blog/rss.xml"}>
+          <.rss />
+        </.button>
+        <.button variant="secondary" icon_only={true} size="large" href={~p"/blog/atom.xml"}>
+          <.atom />
+        </.button>
+      </div>
+    </section>
+
+    <section data-part="posts">
+      <.link
+        :for={post <- @filtered_posts}
+        data-part="post"
+        href={TuistWeb.Marketing.MarketingHTML.localized_href(Content.get_entry_slug(post))}
+      >
+        <img data-part="image" src={Content.get_entry_image_url(post)} />
+        <div data-part="content">
+          <header data-part="header">
+            <div data-part="metadata">
+              <div data-part="author">{Content.get_entry_author_name(post)}</div>
+              <div>•</div>
+              <div data-part="date">
+                {Timex.format!(Content.get_entry_date(post), "{Mfull} {D}, {YYYY}")}
+              </div>
+            </div>
+            <.arrow_right />
+          </header>
+          <h3 data-part="title">{Content.get_entry_title(post)}</h3>
+          <p data-part="excerpt">{Content.get_entry_excerpt(post)}</p>
+        </div>
+      </.link>
+    </section>
+
+    <section data-part="pagination-control">
+      <.pagination_group
+        page_patch={
+          fn page ->
+            params = []
+
+            params =
+              if @search_query != "",
+                do: ["search=#{URI.encode_www_form(@search_query)}" | params],
+                else: params
+
+            params =
+              if @selected_category, do: ["category=#{@selected_category}" | params], else: params
+
+            params = ["page=#{page}" | params]
+            "?#{Enum.join(params, "&")}"
+          end
+        }
+        current_page={@current_page}
+        number_of_pages={@total_pages}
+      />
+    </section>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>

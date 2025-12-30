@@ -1,0 +1,307 @@
+<div id="account-settings">
+  <h1 data-part="title">
+    {dgettext("dashboard_account", "Settings")}
+  </h1>
+  <%= if is_nil(@selected_account.user_id) do %>
+    <.region_selection_section
+      region_form={@region_form}
+      selected_account={@selected_account}
+    />
+    <.cache_endpoints_section
+      :if={FunWithFlags.enabled?(:custom_cache_endpoints, for: @selected_account)}
+      cache_endpoints={@cache_endpoints}
+      add_cache_endpoint_form={@add_cache_endpoint_form}
+    />
+    <.card_section data-part="rename-card-section">
+      <div data-part="header">
+        <span data-part="title">
+          {dgettext("dashboard_account", "Rename organization")}
+        </span>
+        <span data-part="subtitle">
+          {dgettext(
+            "dashboard_account",
+            "Renaming your organization can have unintended side effects."
+          )}
+        </span>
+      </div>
+      <div data-part="content">
+        <.form
+          data-part="form"
+          for={@rename_account_form}
+          id="rename-organization"
+          phx-submit="rename_account"
+        >
+          <.modal
+            id="rename-organization-modal"
+            title={dgettext("dashboard_account", "Rename your organization?")}
+            header_size="large"
+            on_dismiss="close-rename-organization-modal"
+          >
+            <:trigger :let={attrs}>
+              <.button
+                label={dgettext("dashboard_account", "Rename organization")}
+                variant="destructive"
+                size="medium"
+                {attrs}
+              />
+            </:trigger>
+            <.line_divider />
+            <div data-part="content">
+              <.alert
+                status="error"
+                type="secondary"
+                size="small"
+                title={dgettext("dashboard_account", "Renaming can have unexpected consequences")}
+              />
+              <.text_input
+                field={@rename_account_form[:name]}
+                type="basic"
+                placeholder={dgettext("dashboard_account", "Organization name")}
+              />
+            </div>
+            <.line_divider />
+            <:footer>
+              <.modal_footer>
+                <:action>
+                  <.button
+                    type="reset"
+                    label={dgettext("dashboard_account", "Cancel")}
+                    variant="secondary"
+                    phx-click="close-rename-organization-modal"
+                  />
+                </:action>
+                <:action>
+                  <.button
+                    type="submit"
+                    label={dgettext("dashboard_account", "Rename")}
+                    variant="destructive"
+                  />
+                </:action>
+              </.modal_footer>
+            </:footer>
+          </.modal>
+        </.form>
+      </div>
+    </.card_section>
+    <.card_section data-part="delete-organization-card-section">
+      <div data-part="header">
+        <span data-part="title">
+          {dgettext("dashboard_account", "Delete organization")}
+        </span>
+        <span data-part="subtitle">
+          {dgettext("dashboard_account", "This action cannot be undone.")}
+        </span>
+      </div>
+      <div data-part="content">
+        <.form
+          data-part="form"
+          for={@rename_account_form}
+          id="delete-organization-form"
+          phx-submit="delete_organization"
+        >
+          <.modal
+            id="delete-organization-modal"
+            title={dgettext("dashboard_account", "Are you sure you want to delete this?")}
+            header_size="large"
+            on_dismiss="close-delete-organization-modal"
+          >
+            <:trigger :let={attrs}>
+              <.button
+                label={dgettext("dashboard_account", "Delete organization")}
+                variant="destructive"
+                size="medium"
+                {attrs}
+              />
+            </:trigger>
+            <.line_divider />
+            <div data-part="content">
+              <.alert
+                status="warning"
+                type="secondary"
+                size="small"
+                title={
+                  dgettext(
+                    "dashboard_account",
+                    "Deleting the organization will delete all of its projects"
+                  )
+                }
+              />
+              <.text_input
+                label={dgettext("dashboard_account", "Enter this organization's name to confirm")}
+                field={@delete_organization_form[:name]}
+                type="basic"
+                placeholder={dgettext("dashboard_account", "Organization name")}
+              />
+            </div>
+            <.line_divider />
+            <:footer>
+              <.modal_footer>
+                <:action>
+                  <.button
+                    type="reset"
+                    label={dgettext("dashboard_account", "Cancel")}
+                    variant="secondary"
+                    phx-click="close-delete-organization-modal"
+                  />
+                </:action>
+                <:action>
+                  <.button
+                    type="submit"
+                    label={dgettext("dashboard_account", "Delete")}
+                    variant="destructive"
+                  />
+                </:action>
+              </.modal_footer>
+            </:footer>
+          </.modal>
+        </.form>
+      </div>
+    </.card_section>
+  <% else %>
+    <.region_selection_section
+      region_form={@region_form}
+      selected_account={@selected_account}
+    />
+    <.card_section data-part="rename-card-section">
+      <div data-part="header">
+        <span data-part="title">
+          {dgettext("dashboard_account", "Update username")}
+        </span>
+        <span data-part="subtitle">
+          {dgettext(
+            "dashboard_account",
+            "Updating your username can have unintended consequences."
+          )}
+        </span>
+      </div>
+      <div data-part="content">
+        <.form
+          data-part="form"
+          for={@rename_account_form}
+          id="rename-account"
+          phx-submit="rename_account"
+        >
+          <.modal
+            id="rename-account-modal"
+            title={dgettext("dashboard_account", "Update your username?")}
+            header_size="large"
+            on_dismiss="close-rename-account-modal"
+          >
+            <:trigger :let={attrs}>
+              <.button
+                label={dgettext("dashboard_account", "Update username")}
+                variant="destructive"
+                size="medium"
+                {attrs}
+              />
+            </:trigger>
+            <.line_divider />
+            <.alert
+              status="error"
+              type="secondary"
+              size="small"
+              title={dgettext("dashboard_account", "Renaming can have unexpected consequences")}
+            />
+            <.text_input
+              field={@rename_account_form[:name]}
+              type="basic"
+              placeholder={dgettext("dashboard_account", "Username")}
+            />
+            <.line_divider />
+            <:footer>
+              <.modal_footer>
+                <:action>
+                  <.button
+                    type="reset"
+                    label={dgettext("dashboard_account", "Cancel")}
+                    variant="secondary"
+                    phx-click="close-rename-account-modal"
+                  />
+                </:action>
+                <:action>
+                  <.button
+                    type="submit"
+                    label={dgettext("dashboard_account", "Rename")}
+                    variant="destructive"
+                  />
+                </:action>
+              </.modal_footer>
+            </:footer>
+          </.modal>
+        </.form>
+      </div>
+    </.card_section>
+    <.card_section data-part="delete-user-card-section">
+      <div data-part="header">
+        <span data-part="title">
+          {dgettext("dashboard_account", "Delete account")}
+        </span>
+        <span data-part="subtitle">
+          {dgettext("dashboard_account", "This action cannot be undone.")}
+        </span>
+      </div>
+      <div data-part="content">
+        <.form
+          data-part="form"
+          for={@delete_user_form}
+          id="delete-user-form"
+          phx-submit="delete_user"
+        >
+          <.modal
+            id="delete-user-modal"
+            title={dgettext("dashboard_account", "Are you sure you want to delete this?")}
+            header_size="large"
+            on_dismiss="close-delete-user-modal"
+          >
+            <:trigger :let={attrs}>
+              <.button
+                label={dgettext("dashboard_account", "Delete account")}
+                variant="destructive"
+                size="medium"
+                {attrs}
+              />
+            </:trigger>
+            <.line_divider />
+            <.alert
+              status="warning"
+              type="secondary"
+              size="small"
+              title={
+                dgettext(
+                  "dashboard_account",
+                  "Deleting your account will also delete all the projects that belong to it"
+                )
+              }
+            />
+            <.text_input
+              label={dgettext("dashboard_account", "Enter your username to confirm")}
+              field={@delete_user_form[:name]}
+              type="basic"
+              placeholder={dgettext("dashboard_account", "Username")}
+            />
+            <.line_divider />
+            <:footer>
+              <.modal_footer>
+                <:action>
+                  <.button
+                    type="reset"
+                    label={dgettext("dashboard_account", "Cancel")}
+                    variant="secondary"
+                    phx-click="close-delete-user-modal"
+                  />
+                </:action>
+                <:action>
+                  <.button
+                    type="submit"
+                    label={dgettext("dashboard_account", "Delete")}
+                    variant="destructive"
+                  />
+                </:action>
+              </.modal_footer>
+            </:footer>
+          </.modal>
+        </.form>
+      </div>
+    </.card_section>
+  <% end %>
+</div>

@@ -1,66 +1,174 @@
 ---
-title: Principles
-titleTemplate: :title · Contributors · Tuist
-description: This document describes the principles that guide the development of Tuist.
+{
+  "title": "Principles",
+  "titleTemplate": ":title · Contributors · Tuist",
+  "description": "This document describes the principles that guide the development of Tuist."
+}
 ---
+# Principios {#principles}
 
-# Principles {#principles}
+En esta página se describen los principios que constituyen los pilares del
+diseño y el desarrollo de Tuist. Evolucionan con el proyecto y pretenden
+garantizar un crecimiento sostenible que esté bien alineado con los cimientos
+del proyecto.
 
-This page describes principles that are pillars to the design and development of Tuist. They evolve with the project and are meant to ensure a sustainable growth that is well-aligned with the project foundation.
+## Convenciones por defecto {#default-to-conventions}
 
-## Default to conventions {#default-to-conventions}
+Una de las razones por las que Tuist existe es porque Xcode es débil en
+convenciones y eso lleva a proyectos complejos que son difíciles de escalar y
+mantener. Por esa razón, Tuist adopta un enfoque diferente por defecto a las
+convenciones simples y bien diseñados. **Los desarrolladores pueden optar por
+las convenciones, pero eso es una decisión consciente que no se siente
+natural.**
 
-One of the reasons why Tuist exists is because Xcode is weak in conventions and that leads to complex projects that are hard to scale up and maintain. For that reason, Tuist takes a different approach by defaulting to simple and thoroughly designed conventions. **Developers can opt-out from the conventions, but that’s a conscious decision that doesn’t feel natural.**
+Por ejemplo, existe una convención para definir dependencias entre objetivos
+utilizando la interfaz pública proporcionada. Al hacer esto, Tuist se asegura de
+que los proyectos se generan con las configuraciones correctas para que la
+vinculación funcione. Los desarrolladores tienen la opción de definir las
+dependencias a través de la configuración de compilación, pero lo estarían
+haciendo implícitamente y por lo tanto rompiendo características de Tuist como
+`tuist graph` o `tuist cache` que dependen de que se sigan algunas convenciones.
 
-For example, there’s a convention for defining dependencies between targets by using the provided public interface. By doing that, Tuist ensures that the projects are generated with the right configurations for the linking to work. Developers have the option to define the dependencies through build settings, but they’d be doing it implicitly and therefore breaking Tuist features such as `tuist graph` or `tuist cache` that rely on some conventions being followed.
+La razón por la que recurrimos a las convenciones es que cuantas más decisiones
+podamos tomar en nombre de los desarrolladores, más centrados estarán en crear
+características para sus aplicaciones. Cuando nos quedamos sin convenciones,
+como ocurre en muchos proyectos, tenemos que tomar decisiones que terminarán por
+no ser coherentes con otras decisiones y, como consecuencia, habrá una
+complejidad accidental que será difícil de gestionar.
 
-The reason why we default to conventions is that the more decision we can make on behalf of the developers, the more focus they’ll have crafting features for their apps. When we are left with no conventions like it’s the case in many projects, we have to make decisions that will end up not being consistent with other decisions and as a consequence, there’ll be an accidental complexity that will be hard to manage.
+## Los manifiestos son la fuente de la verdad {#manifests-are-the-source-of-truth}
 
-## Manifests are the source of truth {#manifests-are-the-source-of-truth}
+Tener muchas capas de configuraciones y contratos entre ellas da como resultado
+una configuración del proyecto difícil de razonar y mantener. Piensa por un
+segundo en un proyecto medio. La definición del proyecto vive en los directorios
+`.xcodeproj`, la CLI en scripts (por ejemplo `Fastfiles`), y la lógica CI en
+pipelines. Son tres capas con contratos entre ellas que tenemos que mantener.
+*¿Cuántas veces te has encontrado en una situación en la que has cambiado algo
+en tus proyectos, y luego una semana más tarde te diste cuenta de que los
+scripts de lanzamiento se rompieron?*
 
-Having many layers of configurations and contracts between them results in a project setup that is hard to reason about and maintain. Think for a second on an average project. The definition of the project lives in the `.xcodeproj` directories, the CLI in scripts (e.g `Fastfiles`), and the CI logic in pipelines. Those are three layers with contracts between them that we need to maintain. _How often have you been in a situation where you changed something in your projects, and then a week later you realized that the release scripts broke?_
+Podemos simplificar esto teniendo una única fuente de verdad, los archivos de
+manifiesto. Esos archivos proporcionan a Tuist la información que necesita para
+generar proyectos Xcode que los desarrolladores pueden utilizar para editar sus
+archivos. Además, permite disponer de comandos estándar para construir proyectos
+desde un entorno local o CI.
 
-We can simplify this by having a single source of truth, the manifest files. Those files provide Tuist with the information that it needs to generate Xcode projects that developers can use to edit their files. Moreover, it allows having standard commands for building projects from a local or CI environment.
+**Tuist debe asumir la complejidad y exponer una interfaz sencilla, segura y
+agradable para describir sus proyectos de la forma más explícita posible.**
 
-**Tuist should own the complexity and expose a simple, safe, and enjoyable interface to describe their projects as explicitly as possible.**
+## Explicitar lo implícito {#make-the-implicit-explicit}
 
-## Make the implicit explicit {#make-the-implicit-explicit}
+Xcode soporta configuraciones implícitas. Un buen ejemplo de ello es inferir las
+dependencias definidas implícitamente. Mientras que la implicitud está bien para
+proyectos pequeños, donde las configuraciones son simples, a medida que los
+proyectos se hacen más grandes puede causar lentitud o comportamientos extraños.
 
-Xcode supports implicit configurations. A good example of that is inferring the implicitly defined dependencies. While implicitness is fine for small projects, where configurations are simple, as projects get larger it might cause slowness or odd behaviors.
+Tuist debería proporcionar APIs explícitas para los comportamientos implícitos
+de Xcode. También debería soportar la definición de implícitos de Xcode, pero
+implementado de tal manera que anime a los desarrolladores a optar por el
+enfoque explícito. Apoyar las implícitas de Xcode y sus complejidades facilita
+la adopción de Tuist, después de lo cual los equipos pueden tomar algún tiempo
+para deshacerse de las implícitas.
 
-Tuist should provide explicit APIs for implicit Xcode behaviors. It should also support defining Xcode implicitness but implemented in such a way that encourages developers to opt for the explicit approach. Supporting Xcode implicitness and intricacies facilitates the adoption of Tuist, after which teams can take some time to get rid of the implicitness.
+La definición de dependencias es un buen ejemplo de ello. Aunque los
+desarrolladores pueden definir las dependencias a través de la configuración y
+las fases de compilación, Tuist proporciona una bonita API que fomenta su
+adopción.
 
-The definition of dependencies is a good example of that. While developers can define dependencies through build settings and phases, Tuist provides a beautiful API that encourages its adoption.
+**Diseñar la API para que sea explícita permite a Tuist ejecutar algunas
+comprobaciones y optimizaciones en los proyectos que de otro modo no serían
+posibles.** Además, permite funciones como `tuist graph`, que exporta una
+representación del gráfico de dependencias, o `tuist cache`, que almacena en
+caché todos los objetivos como binarios.
 
-**Designing the API to be explicit allows Tuist to run some checks and optimizations on the projects that otherwise wouldn’t be possible.** Moreover, it enables features like `tuist graph`, which exports a representation of the dependency graph, or `tuist cache`, which caches all the targets as binaries.
+::: consejo
+<!-- -->
+Deberíamos tratar cada solicitud de portar funciones de Xcode como una
+oportunidad para simplificar conceptos con API sencillas y explícitas.
+<!-- -->
+:::
 
-> [!TIP]
-> We should treat each request to port features from Xcode as an opportunity to simplify concepts with simple and explicit APIs.
+## Que sea sencillo {#keep-it-simple}
 
-## Keep it simple {#keep-it-simple}
+Uno de los principales retos a la hora de escalar proyectos Xcode viene del
+hecho de que **Xcode expone mucha complejidad a los usuarios.** Debido a eso,
+los equipos tienen un alto factor de bus y sólo unas pocas personas en el equipo
+entienden el proyecto y los errores que arroja el sistema de compilación. Esa es
+una mala situación para estar porque el equipo depende de unas pocas personas.
 
-One of the main challenges when scaling Xcode projects comes from the fact that **Xcode exposes a lot of complexity to the users.** Due to that, teams have a high bus factor and only a few people in the team understand the project and the errors that the build system throws. That’s a bad situation to be in because the team relies on a few people.
+Xcode es una gran herramienta, pero tantos años de mejoras, nuevas plataformas y
+lenguajes de programación se reflejan en su superficie, que lucha por seguir
+siendo sencilla.
 
-Xcode is a great tool, but so many years of improvements, new platforms, and programming languages, are reflected on their surface, which struggled to remain simple.
+Tuist debería aprovechar la oportunidad de mantener las cosas sencillas porque
+trabajar en cosas sencillas es divertido y nos motiva. Nadie quiere perder el
+tiempo tratando de depurar un error que se produce al final del proceso de
+compilación, o entender por qué no son capaces de ejecutar la aplicación en sus
+dispositivos. Xcode delega las tareas a su sistema de compilación subyacente y
+en algunos casos hace un trabajo muy pobre traduciendo los errores en elementos
+procesables. ¿Alguna vez has recibido un error en *"framework X not found"* y no
+has sabido qué hacer? Imagina que tuviéramos una lista de las posibles causas
+del error.
 
-Tuist should take the opportunity to keep things simple because working on simple things is fun and motivates us. No one wants to spend time trying to debug an error that happens at the very end of the compilation process, or understanding why they are not able to run the app on their devices. Xcode delegates the tasks to its underlying build system and in some cases it does a very poor job translating errors into actionable items. Have you ever got a _“framework X not found”_ error and you didn’t know what to do? Imagine if we got a list of potential root causes for the bug.
+## Partir de la experiencia del promotor {#start-from-the-developers-experience}
 
-## Start from the developer’s experience {#start-from-the-developers-experience}
+Parte de la razón por la que hay una falta de innovación en torno a Xcode, o
+dicho de otro modo, no tanta como en otros entornos de programación, es porque
+**solemos empezar a analizar los problemas a partir de soluciones ya
+existentes.** Como consecuencia, la mayoría de las soluciones que encontramos
+hoy en día giran en torno a las mismas ideas y flujos de trabajo. Aunque es
+bueno incluir soluciones existentes en las ecuaciones, no debemos dejar que
+limiten nuestra creatividad.
 
-Part of the reason why there is a lack of innovation around Xcode, or put differently, not as much as in other programming environments, is because **we often start analyzing problems from existing solutions.** As a consequence, most of the solutions that we find nowadays revolve around the same ideas and workflows. While it’s good to include existing solutions in the equations, we should not let them constrain our creativity.
+Nos gusta pensar como dice [Tom Preston](https://tom.preston-werner.com/) en
+[este podcast](https://tom.preston-werner.com/): *"La mayoría de las cosas se
+pueden conseguir, cualquier cosa que tengas en la cabeza probablemente puedas
+llevarla a cabo con código siempre que sea posible dentro de las limitaciones
+del universo".* Si **imaginamos cómo nos gustaría que fuera la experiencia del
+desarrollador**, sólo es cuestión de tiempo conseguirlo: empezar a analizar los
+problemas desde la experiencia del desarrollador nos da un punto de vista único
+que nos llevará a soluciones que a los usuarios les encantará utilizar.
 
-We like to think as [Tom Preston](https://tom.preston-werner.com/) puts it in [this podcast](https://tom.preston-werner.com/): _“Most things can be achieved, whatever you have in your head you can probably pull off with code as long as is possible within the constrains of the universe”._ If **we imagine how we’d like the developer experience to be**, it’s just a matter of time to pull it off — by starting to analyze the problems from the developer experience gives us a unique point of view that will lead us to solutions that users will love to use.
+Podríamos sentirnos tentados de seguir lo que hace todo el mundo, aunque eso
+signifique aguantar los inconvenientes de los que todo el mundo sigue
+quejándose. No lo hagamos. ¿Cómo me imagino archivando mi aplicación? ¿Cómo me
+gustaría que fuera la firma de código? ¿Qué procesos puedo ayudar a agilizar con
+Tuist? Por ejemplo, añadir soporte para [Fastlane](https://fastlane.tools/) es
+una solución a un problema que tenemos que entender primero. Podemos llegar a la
+raíz del problema haciendo preguntas del tipo "¿por qué? Una vez que acotamos de
+dónde viene la motivación, podemos pensar en cómo Tuist puede ayudarles mejor.
+Quizá la solución sea integrarse en Fastlane, pero es importante que no
+despreciemos otras soluciones igualmente válidas que podemos poner sobre la mesa
+antes de hacer concesiones.
 
-We might feel tempted to follow what everyone is doing, even if that means sticking with the inconveniences that everyone continues to complain about. Let’s not do that. How do I imagine archiving my app? How would I love code signing to be? What processes can I help streamline with Tuist? For example, adding support for [Fastlane](https://fastlane.tools/) is a solution to a problem that we need to understand first. We can get to the root of the problem by asking “why” questions. Once we narrow down where the motivation comes from, we can think of how Tuist can help them best. Maybe the solution is integrating with Fastlane, but it’s important we don’t disregard other equally valid solutions that we can put on the table before making trade-offs.
+## Los errores pueden ocurrir y ocurrirán {#errors-can-and-will-happen}
 
-## Errors can and will happen {#errors-can-and-will-happen}
+Nosotros, los desarrolladores, tenemos la tentación inherente de ignorar que
+pueden producirse errores. Como resultado, diseñamos y probamos el software
+teniendo en cuenta únicamente el escenario ideal.
 
-We, developers, have an inherent temptation to disregard that errors can happen. As a result, we design and test software only considering the ideal scenario.
+Swift, su sistema de tipos y un código bien diseñado pueden ayudar a prevenir
+algunos errores, pero no todos, porque algunos están fuera de nuestro control.
+No podemos asumir que el usuario siempre tendrá conexión a Internet, o que los
+comandos del sistema volverán con éxito. Los entornos en los que se ejecuta
+Tuist no son cajas de arena que controlemos, y por eso tenemos que hacer un
+esfuerzo para entender cómo pueden cambiar y afectar a Tuist.
 
-Swift, its type system, and a well-architected code might help prevent some errors, but not all of them because some are out of our control. We can’t assume the user will always have an internet connection, or that the system commands will return successfully. The environments in which Tuist runs are not sandboxes that we control, and hence we need to make an effort to understand how they might change and impact Tuist.
+Los errores mal gestionados dan lugar a una mala experiencia de usuario, y los
+usuarios pueden perder la confianza en el proyecto. Queremos que los usuarios
+disfruten de cada pieza de Tuist, incluso de la forma en que les presentamos los
+errores.
 
-Poorly handled errors result in bad user experience, and users might lose trust in the project. We want users to enjoy every single piece of Tuist, even the way we present errors to them.
+Deberíamos ponernos en la piel de los usuarios e imaginar qué esperaríamos que
+nos dijera el error. Si el lenguaje de programación es el canal de comunicación
+por el que se propagan los errores, y los usuarios son el destino de los
+errores, éstos deberían estar escritos en el mismo idioma que hablan los
+destinatarios (los usuarios). Deben incluir información suficiente para saber
+qué ha pasado y ocultar la información que no sea relevante. Además, deben ser
+procesables, indicando a los usuarios los pasos que pueden dar para recuperarse
+de ellos.
 
-We should put ourselves in the shoes of users and imagine what we’d expect the error to tell us. If the programming language is the communication channel through which errors propagate, and the users are the destination of the errors, they should be written in the same language that the target (users) speak. They should include enough information to know what happened and hide the information that is not relevant. Also, they should be actionable by telling users what steps they can take to recover from them.
-
-And last but not least, our test cases should contemplate failing scenarios. Not only they ensure that we are handling errors as we are supposed to, but prevent future developers from breaking that logic.
+Y por último, pero no menos importante, nuestros casos de prueba deben
+contemplar escenarios de fallo. No solo garantizan que estamos gestionando los
+errores como se supone que debemos, sino que evitan que futuros desarrolladores
+rompan esa lógica.

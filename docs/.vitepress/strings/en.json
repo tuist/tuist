@@ -87,6 +87,9 @@
             "logging": {
               "text": "Logging"
             },
+            "directories": {
+              "text": "Directories"
+            },
             "shell-completions": {
               "text": "Shell completions"
             }
@@ -130,6 +133,9 @@
         },
         "translate": {
           "text": "Translate"
+        },
+        "releases": {
+          "text": "Releases"
         },
         "cli": {
           "text": "CLI",
@@ -201,6 +207,17 @@
             },
             "get-started": {
               "text": "Get started"
+            }
+          }
+        },
+        "features": {
+          "text": "Features"
+        },
+        "examples": {
+          "text": "Examples",
+          "items": {
+            "generated-projects": {
+              "text": "Generated projects"
             }
           }
         },
@@ -282,13 +299,24 @@
                 "tma-architecture": {
                   "text": "Modular architecture"
                 },
+                "metadata-tags": {
+                  "text": "Metadata tags"
+                },
                 "best-practices": {
                   "text": "Best practices"
                 }
               }
             },
             "cache": {
-              "text": "Cache"
+              "text": "Cache",
+              "items": {
+                "xcode-cache": {
+                  "text": "Xcode cache"
+                },
+                "module-cache": {
+                  "text": "Module cache"
+                }
+              }
             },
             "registry": {
               "text": "Registry",
@@ -319,8 +347,8 @@
                 "selective-testing": {
                   "text": "Selective testing"
                 },
-                "xcodebuild": {
-                  "text": "xcodebuild"
+                "xcode-project": {
+                  "text": "Xcode project"
                 },
                 "generated-project": {
                   "text": "Generated project"
@@ -328,18 +356,62 @@
               }
             },
             "insights": {
-              "text": "Insights"
+              "text": "Build insights"
+            },
+            "bundle-size": {
+              "text": "Bundle insights"
+            },
+            "qa": {
+              "text": "QA"
             }
           }
         },
-        "automate": {
-          "text": "Automate",
+        "agentic-coding": {
+          "text": "Agentic Coding",
+          "items": {
+            "mcp": {
+              "text": "MCP"
+            }
+          }
+        },
+        "integrations": {
+          "text": "Integrations",
           "items": {
             "continuous-integration": {
               "text": "Continuous integration"
             },
-            "workflows": {
-              "text": "Workflows"
+            "sso": {
+              "text": "SSO"
+            },
+            "git-forges": {
+              "text": "Git forges",
+              "items": {
+                "github": {
+                  "text": "GitHub"
+                }
+              }
+            }
+          }
+        },
+        "server": {
+          "text": "Server",
+          "items": {
+            "accounts-and-projects": {
+              "text": "Accounts and projects"
+            },
+            "authentication": {
+              "text": "Authentication"
+            },
+            "self-hosting": {
+              "text": "Self-hosting",
+              "items": {
+                "installation": {
+                  "text": "Installation"
+                },
+                "telemetry": {
+                  "text": "Telemetry"
+                }
+              }
             }
           }
         },

@@ -3,3 +3,5 @@ files:
     translation: /docs/docs/%two_letters_code%/**/%original_file_name%
   - source: /docs/.vitepress/strings/en.json
     translation: /docs/.vitepress/strings/%two_letters_code%.json
+  - source: /server/priv/gettext/en/LC_MESSAGES/default.po
+    translation: /server/priv/gettext/%two_letters_code%/LC_MESSAGES/default.po

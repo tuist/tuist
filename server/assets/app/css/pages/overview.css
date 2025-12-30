@@ -1,0 +1,191 @@
+.overview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+  padding: var(--noora-spacing-7) var(--noora-spacing-5);
+  & [data-part="widgets"] {
+    display: flex;
+    flex-direction: row;
+    gap: var(--noora-spacing-4);
+
+    & > * {
+      flex: 1;
+    }
+
+    @media (max-width: 768px) {
+      & {
+        flex-direction: column;
+      }
+    }
+  }
+
+  & .noora-chart {
+    width: 105%;
+    height: 148px;
+  }
+
+  & [data-part="legends"] {
+    display: flex;
+    flex-direction: row;
+    gap: var(--noora-spacing-5);
+    & > * {
+      flex-grow: 1;
+    }
+  }
+
+  & [data-part="average-build-time-card-section"] {
+    position: unset;
+    & [data-part="view-more"] {
+      position: absolute;
+      top: var(--noora-spacing-9);
+      right: var(--noora-spacing-9);
+    }
+  }
+
+  & [data-part="cache-cards-section"] {
+    display: flex;
+    flex-direction: row;
+    gap: var(--noora-spacing-4);
+
+    @media (max-width: 768px) {
+      & {
+        flex-direction: column;
+      }
+    }
+
+    & > * {
+      min-width: 0;
+    }
+
+    & [data-part="cache-effectiveness-card-chart-section"] {
+      flex: 2;
+    }
+
+    & [data-part="time-saved-card-chart-section"] {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+    }
+  }
+
+  & [data-part="effectiveness-chart"],
+  & [data-part="build-runs-chart"],
+  & [data-part="test-runs-chart"],
+  & [data-part="average-build-time-chart"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-7);
+    padding: var(--noora-spacing-5);
+  }
+
+  & .noora-dropdown-item:not([data-selected]) svg {
+    visibility: hidden;
+  }
+
+  & [data-part="test-runs-chart"] {
+    & > [data-part="label"] {
+      padding-left: var(--noora-spacing-7);
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-small);
+    }
+  }
+
+  & [data-part="empty-previews-card-section"] {
+    padding-top: var(--noora-spacing-8);
+    padding-bottom: var(--noora-spacing-8);
+    & > [data-part="title"] {
+      padding-top: var(--noora-spacing-5);
+    }
+    & > [data-part="image"] {
+      height: 54px;
+
+      & > img {
+        &[data-theme="light"] {
+          box-shadow: unset;
+        }
+        &[data-theme="dark"] {
+          box-shadow: unset;
+        }
+      }
+    }
+  }
+
+  & [data-part="latest-app-previews"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-8);
+    padding: var(--noora-spacing-8) var(--noora-spacing-9);
+
+    & > [data-part="title"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
+    }
+
+    & > [data-part="apps"] {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--noora-spacing-4);
+    }
+  }
+
+  & > [data-part="bundle-size-card"] {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    & .noora-dropdown-item:not([data-selected]) svg {
+      visibility: hidden;
+    }
+    & [data-part="widgets"] {
+      display: flex;
+      flex-direction: row;
+      gap: var(--noora-spacing-4);
+      & > * {
+        flex: 1;
+      }
+    }
+    & .noora-card {
+      overflow-x: hidden;
+    }
+
+    & .noora-chart {
+      width: 105%;
+      height: 148px;
+    }
+
+    & > [data-part="bundle-size-chart-card-section"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-7);
+      & > [data-part="legend"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+      }
+    }
+  }
+
+  & [data-part="builds-card-sections"] {
+    display: flex;
+    position: relative;
+    flex-direction: row;
+    align-items: stretch;
+    gap: var(--noora-spacing-4);
+    @media (max-width: 768px) {
+      & {
+        flex-direction: column;
+      }
+    }
+
+    & > .noora-card__section {
+      flex: 1;
+      min-width: 0px;
+    }
+
+    & [data-part="build-runs-chart"] {
+      & > [data-part="label"] {
+        padding-left: var(--noora-spacing-7);
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-code-small);
+      }
+    }
+  }
+}

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en" class="[scrollbar-gutter:stable]">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csp-nonce" content={get_csp_nonce()} />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <script nonce={get_csp_nonce()}>
+      (function() {
+        function getPreferredTheme() {
+          try {
+            const preferredTheme = localStorage.getItem("preferred-theme");
+            return preferredTheme === "null" || preferredTheme === null ? "system" : preferredTheme;
+          } catch (e) {
+            return "system";
+          }
+        }
+        
+        function setInitialTheme() {
+          const theme = getPreferredTheme();
+          const resolvedColorScheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+          document.documentElement.style.setProperty("color-scheme", theme === "system" ? "light dark" : theme);
+          document.documentElement.setAttribute("data-theme", theme === "system" ? resolvedColorScheme : theme);
+        }
+        
+        setInitialTheme();
+      })();
+    </script>
+    <.live_title>
+      {assigns[:head_title] || "Tuist"}
+    </.live_title>
+    <TuistWeb.LayoutComponents.head_meta_meta_tags {assigns} />
+    <TuistWeb.LayoutComponents.head_x_meta_tags {assigns} />
+    
+<!-- Assets -->
+    <link phx-track-static rel="stylesheet" href={~p"/app/assets/bundle.css"} />
+    <script defer phx-track-static type="module" src={~p"/app/assets/bundle.js"}>
+    </script>
+    <script nonce={get_csp_nonce()}>
+      function cssvar(name) {
+        return getComputedStyle(document.documentElement).getPropertyValue(name);
+      }
+    </script>
+    <TuistWeb.LayoutComponents.head_analytics_scripts page_section="dashboard" {assigns} />
+  </head>
+  <body class="tuist-web">
+    {@inner_content}
+  </body>
+</html>

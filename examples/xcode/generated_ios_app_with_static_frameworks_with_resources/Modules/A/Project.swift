@@ -1,0 +1,31 @@
+import ProjectDescription
+
+let project = Project(
+    name: "A",
+    targets: [
+        .target(
+            name: "A",
+            destinations: .iOS,
+            product: .staticFramework,
+            bundleId: "dev.tuist.A",
+            infoPlist: "Info.plist",
+            sources: "Sources/**",
+            resources: "Resources/**",
+            dependencies: [
+                .project(target: "B", path: "../B"),
+                .project(target: "C", path: "../C"),
+            ]
+        ),
+        .target(
+            name: "ATests",
+            destinations: .iOS,
+            product: .unitTests,
+            bundleId: "dev.tuist.ATests",
+            infoPlist: "Tests.plist",
+            sources: "Tests/**",
+            dependencies: [
+                .target(name: "A"),
+            ]
+        ),
+    ]
+)

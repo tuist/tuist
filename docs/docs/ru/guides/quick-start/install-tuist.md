@@ -1,39 +1,52 @@
 ---
-title: Установка Tuist
-titleTemplate: :title · Начало · Руководства · Tuist
-description: Узнайте, как установить Tuist в вашей среде.
+{
+  "title": "Install Tuist",
+  "titleTemplate": ":title · Quick-start · Guides · Tuist",
+  "description": "Learn how to install Tuist in your environment."
+}
 ---
-
 # Установка Tuist {#install-tuist}
 
-Tuist CLI состоит из исполняемого файла, динамических фреймворков и набора ресурсов (например, шаблонов). Хотя вы можете самостоятельно собрать Tuist из  [исходников](https://github.com/tuist/tuist,  **мы рекомендуем использовать один из следующих методов установки.**
+CLI Tuist состоит из исполняемого файла, динамических фреймворков и набора
+ресурсов (например, шаблонов). Хотя вы можете собрать Tuist вручную из
+[исходного кода](https://github.com/tuist/tuist), **мы рекомендуем использовать
+один из следующих способов установки, чтобы гарантировать корректную
+установку.**
 
 ### <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
 
-:::info
-Mise является рекомендуемой альтернативой [Homebrew](https://brew.sh), если вы работаете в команде или организации, которая должна обеспечить детерминированные версии инструментов в различных средах.
+::: info
+<!-- -->
+Mise – рекомендуемая альтернатива [Homebrew](https://brew.sh) для команд и
+организаций, которым нужно обеспечивать детерминированные версии инструментов в
+разных средах.
+<!-- -->
 :::
 
-Вы можете установить Tuist с помощью любой из следующих команд:
+Установить Tuist можно с помощью одной из следующих команд:
 
 ```bash
-mise install tuist            # Установить текущую версию, указанную в .tool-versions/.mise.toml
-mise install tuist@x.y.z      # Установить версию с указанным номером
-mise install tuist@3          # Установить версию с нестрогим номером
+mise install tuist            # Install the current version specified in .tool-versions/.mise.toml
+mise install tuist@x.y.z      # Install a specific version number
+mise install tuist@3          # Install a fuzzy version number
 ```
 
-Обратите внимание, что в отличие от инструментов, таких как Homebrew, устанавливающих и активирующих одну версию инструмента глобально, **Mise требует активации версии** либо глобально, либо в рамках проекта. Это делается выполнением `mise use`:
+Обратите внимание, что в отличие от Homebrew, который устанавливает и активирует
+одну версию инструмента глобально, **Mise требует активации версии** – либо
+глобально, либо в рамках конкретного проекта. Это делается с помощью команды
+`mise use`:
 
 ```bash
-mise use tuist@x.y.z          # Использовать tuist версии x.y.z в текущей директории
-mise use tuist@latest         # Использовать tuist последней версии в текущей директории
-mise use -g tuist@x.y.z       # Использовать tuist версии x.y.z глобально
-mise use -g tuist@system      # Использовать системный tuist глобально
+mise use tuist@x.y.z          # Use tuist-x.y.z in the current project
+mise use tuist@latest         # Use the latest tuist in the current directory
+mise use -g tuist@x.y.z       # Use tuist-x.y.z as the global default
+mise use -g tuist@system      # Use the system's tuist as the global default
 ```
 
 ### <a href="https://brew.sh">Homebrew</a> {#recommended-homebrew}
 
-Вы можете установить Tuist, используя [Homebrew](https://brew.sh) и [наши формулы](https://github.com/tuist/homebrew-tuist):
+Вы можете установить Tuist с помощью [Homebrew](https://brew.sh) и [наших
+формул](https://github.com/tuist/homebrew-tuist):
 
 ```bash
 brew tap tuist/tuist
@@ -41,10 +54,14 @@ brew install --formula tuist
 brew install --formula tuist@x.y.z
 ```
 
-:::tip ПОДТВЕРЖДЕНИЕ ПОДЛИННОСТИ БИНАРНЫХ ФАЙЛОВ
+::: tip ПРОВЕРКА ПОДЛИННОСТИ БИНАРНЫХ ФАЙЛОВ
+<!-- -->
+Вы можете убедиться, что бинарные файлы вышей установки было собраны нами,
+выполнив следующую команду, которая проверяет, что идентификатор команды в
+сертификате – `U6LC622NKF`:
 
 ```bash
 curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
 ```
-
+<!-- -->
 :::

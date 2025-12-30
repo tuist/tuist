@@ -1,0 +1,78 @@
+<main class="layout">
+  <TuistWeb.AppLayoutComponents.headerbar
+    breadcrumbs={Map.get(assigns, :breadcrumbs, [])}
+    current_user={@current_user}
+    selected_account={@current_user && @current_user.account}
+    latest_cli_release={@latest_cli_release}
+    latest_app_release={@latest_app_release}
+  />
+  <section class="ops-layout">
+    <div data-part="header">
+      <h1 data-part="title">{dgettext("dashboard", "Operations")}</h1>
+
+      <nav data-part="navigation">
+        <.tab_menu_horizontal>
+          <.tab_menu_horizontal_item
+            label={dgettext("dashboard", "QA")}
+            selected={String.starts_with?(@current_path, "/ops/qa")}
+            navigate={~p"/ops/qa"}
+          />
+          <.tab_menu_horizontal_item
+            label={dgettext("dashboard", "LiveDashboard")}
+            selected={String.starts_with?(@current_path, "/ops/dashboard")}
+            navigate={~p"/ops/dashboard"}
+          />
+          <.tab_menu_horizontal_item
+            label={dgettext("dashboard", "Jobs")}
+            selected={String.starts_with?(@current_path, "/ops/oban")}
+            navigate={~p"/ops/oban"}
+          />
+          <.tab_menu_horizontal_item
+            label={dgettext("dashboard", "Flags")}
+            selected={String.starts_with?(@current_path, "/ops/flags")}
+            navigate={~p"/ops/flags"}
+          />
+          <%= if Tuist.Environment.dev?() do %>
+            <.tab_menu_horizontal_item
+              label={dgettext("dashboard", "Emails")}
+              selected={String.starts_with?(@current_path, "/ops/sent_emails")}
+              navigate={~p"/ops/sent_emails"}
+            />
+          <% end %>
+          <%= if not Tuist.Environment.dev_use_remote_storage?() do %>
+            <.tab_menu_horizontal_item
+              label={dgettext("dashboard", "Storage")}
+              href={"http://localhost:#{Tuist.Environment.minio_console_port()}"}
+              target="_blank"
+              rel="noopener noreferrer"
+            />
+          <% end %>
+          <.tab_menu_horizontal_item
+            label={dgettext("dashboard", "Errors")}
+            href="https://appsignal.com/tuist-cloud/sites/6607b64d83eb6789e61c8ba7/dashboard"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <:icon_right>
+              <Noora.Icon.external_link />
+            </:icon_right>
+          </.tab_menu_horizontal_item>
+          <.tab_menu_horizontal_item
+            label={dgettext("dashboard", "Grafana")}
+            href="https://tuist.grafana.net"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <:icon_right>
+              <Noora.Icon.external_link />
+            </:icon_right>
+          </.tab_menu_horizontal_item>
+        </.tab_menu_horizontal>
+      </nav>
+    </div>
+
+    <div data-part="content">
+      {@inner_content}
+    </div>
+  </section>
+</main>

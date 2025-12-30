@@ -1,0 +1,6 @@
+/* 
+  Localizable.strings
+  GeneratediOSStaticLibraryWithStringResources
+*/
+
+"Hello World" = "Hola";

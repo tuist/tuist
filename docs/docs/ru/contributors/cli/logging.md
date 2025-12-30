@@ -1,23 +1,36 @@
 ---
-title: Логирование
-titleTemplate: :title · CLI · Contributors · Tuist
-description: Узнайте, как внести вклад в Tuist, проводя ревью на пулл-реквесты
+{
+  "title": "Logging",
+  "titleTemplate": ":title · CLI · Contributors · Tuist",
+  "description": "Learn how to contribute to Tuist by reviewing code"
+}
 ---
+# Ведение журнала {#logging}
 
-# Логирование {#logging}
-
-The CLI embraces the [swift-log](https://github.com/apple/swift-log) interface for logging. The package abstracts away the implementation details of logging, allowing the CLI to be agnostic to the logging backend. The logger is dependency-injected using [swift-service-context](https://github.com/apple/swift-service-context) and can be accessed anywhere using:
+CLI использует интерфейс [swift-log](https://github.com/apple/swift-log) для
+ведения журнала. Пакет абстрагирует детали реализации протоколирования, позволяя
+CLI быть независимым от бэкенда протоколирования. Логгер встраивается в
+зависимости с помощью локалей задач и может быть доступен в любом месте с
+помощью:
 
 ```bash
-ServiceContext.current?.logger
+Logger.current
 ```
 
-> [!NOTE]
-> `swift-service-context` passes the instance using [task locals](https://developer.apple.com/documentation/swift/tasklocal) which don't propagate the value when using `Dispatch`, so if you run asynchronous code using `Dispatch`, you'll to get the instance from the context and pass it to the asynchronous operation.
+::: info
+<!-- -->
+Локальные задачи не передают значение при использовании `Dispatch` или
+отсоединенных задач, поэтому если вы используете их, вам нужно получить значение
+и передать его асинхронной операции.
+<!-- -->
+:::
 
-## What to log {#what-to-log}
+## Что записывать в журнал {#what-to-log}
 
-Logs are not the CLI's UI. They are a tool to diagnose issues when they arise.
-Therefore, the more information you provide, the better.
-When building new features, put yourself in the shoes of a developer coming across unexpected behavior, and think about what information would be helpful to them.
-Ensure you you use the right [log level](https://www.swift.org/documentation/server/guides/libraries/log-levels.html). Otherwise developers won't be able to filter out the noise.
+Журналы - это не пользовательский интерфейс CLI. Это инструмент для диагностики
+проблем при их возникновении. Поэтому чем больше информации вы предоставите, тем
+лучше. При создании новых функций поставьте себя на место разработчика,
+столкнувшегося с неожиданным поведением, и подумайте, какая информация была бы
+ему полезна. Убедитесь, что вы используете правильный [уровень
+журнала](https://www.swift.org/documentation/server/guides/libraries/log-levels.html).
+В противном случае разработчики не смогут отфильтровать шум.

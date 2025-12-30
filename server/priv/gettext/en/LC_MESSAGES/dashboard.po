@@ -1,0 +1,439 @@
+## "msgid"s in this file come from POT (.pot) files.
+###
+### Do not add, change, or remove "msgid"s manually here as
+### they're tied to the ones in the corresponding POT file
+### (with the same domain).
+###
+### Use "mix gettext.extract --merge" or "mix gettext.merge"
+### to merge POT files into PO files.
+msgid ""
+msgstr ""
+"Language: en\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: lib/tuist_web/components/previews/app_preview.ex:24
+#, elixir-autogen, elixir-format
+msgid "%{app_name} icon"
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:22
+#, elixir-autogen, elixir-format
+msgid "400"
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:37
+#, elixir-autogen, elixir-format
+msgid "401"
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:58
+#, elixir-autogen, elixir-format
+msgid "404"
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:79
+#, elixir-autogen, elixir-format
+msgid "429"
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:94
+#, elixir-autogen, elixir-format
+msgid "500"
+msgstr ""
+
+#: lib/tuist_web/components/account_dropdown.ex:60
+#, elixir-autogen, elixir-format
+msgid "Account settings"
+msgstr ""
+
+#: lib/tuist_web/components/percentile_dropdown_widget.ex:121
+#: lib/tuist_web/components/percentile_dropdown_widget.ex:125
+#, elixir-autogen, elixir-format
+msgid "Avg."
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:16
+#, elixir-autogen, elixir-format
+msgid "Bad request"
+msgstr ""
+
+#: lib/tuist_web/components/layouts/account.html.heex:32
+#, elixir-autogen, elixir-format
+msgid "Billing"
+msgstr ""
+
+#: lib/tuist_web/components/app_layout_components.ex:45
+#, elixir-autogen, elixir-format
+msgid "Build Runs"
+msgstr ""
+
+#: lib/tuist_web/components/app_layout_components.ex:28
+#, elixir-autogen, elixir-format
+msgid "Builds"
+msgstr ""
+
+#: lib/tuist_web/components/app_layout_components.ex:180
+#, elixir-autogen, elixir-format
+msgid "Bundles"
+msgstr ""
+
+#: lib/tuist_web/components/runs/ran_by_badge.ex:15
+#: lib/tuist_web/components/runs/ran_by_badge.ex:42
+#: lib/tuist_web/components/runs/ran_by_badge.ex:63
+#, elixir-autogen, elixir-format
+msgid "CI"
+msgstr ""
+
+#: lib/tuist_web/components/app_layout_components.ex:122
+#, elixir-autogen, elixir-format
+msgid "Cache Runs"
+msgstr ""
+
+#: lib/tuist_web/live/layout_live.ex:96
+#: lib/tuist_web/live/layout_live.ex:165
+#, elixir-autogen, elixir-format
+msgid "Create organization"
+msgstr ""
+
+#: lib/tuist_web/components/account_dropdown.ex:75
+#, elixir-autogen, elixir-format
+msgid "Download macOS app"
+msgstr ""
+
+#: lib/tuist_web/components/layouts/ops.html.heex:37
+#, elixir-autogen, elixir-format
+msgid "Emails"
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:121
+#, elixir-autogen, elixir-format
+msgid "Error"
+msgstr ""
+
+#: lib/tuist_web/components/layouts/ops.html.heex:51
+#, elixir-autogen, elixir-format
+msgid "Errors"
+msgstr ""
+
+#: lib/tuist_web/components/layouts/ops.html.heex:31
+#, elixir-autogen, elixir-format
+msgid "Flags"
+msgstr ""
+
+#: lib/tuist_web/components/app_layout_components.ex:134
+#, elixir-autogen, elixir-format
+msgid "Generate Runs"
+msgstr ""
+
+#: lib/tuist_web/components/empty_card_section.ex:29
+#, elixir-autogen, elixir-format
+msgid "Get started"
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:143
+#, elixir-autogen, elixir-format
+msgid "Go to dashboard"
+msgstr ""
+
+#: lib/tuist_web/components/layouts/ops.html.heex:61
+#, elixir-autogen, elixir-format
+msgid "Grafana"
+msgstr ""
+
+#: lib/tuist_web/components/layouts/account.html.heex:44
+#, elixir-autogen, elixir-format
+msgid "Integrations"
+msgstr ""
+
+#: lib/tuist_web/controllers/github_app_setup_controller.ex:26
+#: lib/tuist_web/controllers/github_app_setup_controller.ex:29
+#, elixir-autogen, elixir-format
+msgid "Invalid GitHub app installation. Please try again."
+msgstr ""
+
+#: lib/tuist_web/controllers/github_app_setup_controller.ex:32
+#, elixir-autogen, elixir-format
+msgid "Invalid installation request. Please try again."
+msgstr ""
+
+#: lib/tuist_web/components/layouts/ops.html.heex:26
+#, elixir-autogen, elixir-format
+msgid "Jobs"
+msgstr ""
+
+#: lib/tuist_web/components/empty_state.ex:42
+#, elixir-autogen, elixir-format
+msgid "Learn more"
+msgstr ""
+
+#: lib/tuist_web/components/layouts/ops.html.heex:21
+#, elixir-autogen, elixir-format
+msgid "LiveDashboard"
+msgstr ""
+
+#: lib/tuist_web/components/account_dropdown.ex:93
+#, elixir-autogen, elixir-format
+msgid "Log out"
+msgstr ""
+
+#: lib/tuist_web/components/layouts/account.html.heex:20
+#, elixir-autogen, elixir-format
+msgid "Members"
+msgstr ""
+
+#: lib/tuist_web/components/app_layout_components.ex:99
+#, elixir-autogen, elixir-format
+msgid "Module Cache"
+msgstr ""
+
+#: lib/tuist_web/components/percentile_dropdown_widget.ex:115
+#, elixir-autogen, elixir-format
+msgid "N/A"
+msgstr ""
+
+#: lib/tuist_web/components/app_components.ex:60
+#, elixir-autogen, elixir-format
+msgid "Next"
+msgstr ""
+
+#: lib/tuist_web/components/widget.ex:144
+#, elixir-autogen, elixir-format
+msgid "No data yet"
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:52
+#, elixir-autogen, elixir-format
+msgid "Not found"
+msgstr ""
+
+#: lib/tuist_web/authorization.ex:27
+#: lib/tuist_web/authorization.ex:46
+#, elixir-autogen, elixir-format
+msgid "Only operations roles can access this page."
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:86
+#, elixir-autogen, elixir-format
+msgid "Oops! Something went wrong"
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:53
+#, elixir-autogen, elixir-format
+msgid "Oops, we couldn't find that page"
+msgstr ""
+
+#: lib/tuist_web/components/account_dropdown.ex:68
+#: lib/tuist_web/components/layouts/ops.html.heex:11
+#, elixir-autogen, elixir-format
+msgid "Operations"
+msgstr ""
+
+#: lib/tuist_web/components/app_layout_components.ex:21
+#, elixir-autogen, elixir-format
+msgid "Overview"
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:32
+#, elixir-autogen, elixir-format
+msgid "Please, make sure you are accessing the right resource and that you have the permissions to access it."
+msgstr ""
+
+#: lib/tuist_web/components/app_components.ex:51
+#, elixir-autogen, elixir-format
+msgid "Prev"
+msgstr ""
+
+#: lib/tuist_web/components/app_layout_components.ex:157
+#, elixir-autogen, elixir-format
+msgid "Previews"
+msgstr ""
+
+#: lib/tuist_web/components/layouts/account.html.heex:14
+#, elixir-autogen, elixir-format
+msgid "Projects"
+msgstr ""
+
+#: lib/tuist_web/components/app_layout_components.ex:169
+#: lib/tuist_web/components/layouts/ops.html.heex:16
+#, elixir-autogen, elixir-format
+msgid "QA"
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:85
+#, elixir-autogen, elixir-format
+msgid "Server error"
+msgstr ""
+
+#: lib/tuist_web/components/app_layout_components.ex:192
+#: lib/tuist_web/components/layouts/account.html.heex:56
+#, elixir-autogen, elixir-format
+msgid "Settings"
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:89
+#, elixir-autogen, elixir-format
+msgid "Sorry, something went wrong on our side. Contact us at contact@tuist.dev and we'll look into it."
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:46
+#, elixir-autogen, elixir-format
+msgid "Sorry, the page you are looking for doesn't exist or has been moved."
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:67
+#, elixir-autogen, elixir-format
+msgid "Sorry, you made too many requests. Please try again later."
+msgstr ""
+
+#: lib/tuist_web/components/layouts/ops.html.heex:44
+#, elixir-autogen, elixir-format
+msgid "Storage"
+msgstr ""
+
+#: lib/tuist_web/components/account_dropdown.ex:84
+#, elixir-autogen, elixir-format
+msgid "Switch to your preferred theme"
+msgstr ""
+
+#: lib/tuist_web/components/app_layout_components.ex:86
+#, elixir-autogen, elixir-format
+msgid "Test Cases"
+msgstr ""
+
+#: lib/tuist_web/components/app_layout_components.ex:75
+#, elixir-autogen, elixir-format
+msgid "Test Runs"
+msgstr ""
+
+#: lib/tuist_web/components/app_layout_components.ex:58
+#, elixir-autogen, elixir-format
+msgid "Tests"
+msgstr ""
+
+#: lib/tuist_web/plugs/loader_plug.ex:51
+#, elixir-autogen, elixir-format
+msgid "The account %{account_handle} was not found."
+msgstr ""
+
+#: lib/tuist_web/live/layout_live.ex:142
+#, elixir-autogen, elixir-format
+msgid "The account you are looking for doesn't exist or has been moved."
+msgstr ""
+
+#: lib/tuist_web/controllers/auth_controller.ex:23
+#, elixir-autogen, elixir-format
+msgid "The authentication URL is not supported"
+msgstr ""
+
+#: lib/tuist_web/authorization.ex:63
+#: lib/tuist_web/authorization.ex:79
+#, elixir-autogen, elixir-format
+msgid "The page you are looking for doesn't exist or has been moved."
+msgstr ""
+
+#: lib/tuist_web/controllers/preview_controller.ex:132
+#, elixir-autogen, elixir-format
+msgid "The preview ipa doesn't exist or has expired."
+msgstr ""
+
+#: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:32
+#: lib/tuist_web/plugs/loader_plug.ex:107
+#, elixir-autogen, elixir-format
+msgid "The project %{project_slug} was not found."
+msgstr ""
+
+#: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:41
+#: lib/tuist_web/plugs/loader_plug.ex:111
+#, elixir-autogen, elixir-format
+msgid "The project full handle %{project_slug} is invalid. It should follow the convention 'account_handle/project_handle'."
+msgstr ""
+
+#: lib/tuist_web/live/layout_live.ex:61
+#, elixir-autogen, elixir-format
+msgid "The project you are looking for doesn't exist or has been moved."
+msgstr ""
+
+#: lib/tuist_web/plugs/loader_plug.ex:89
+#, elixir-autogen, elixir-format
+msgid "The run with ID %{run_id} was not found."
+msgstr ""
+
+#: lib/tuist_web/live/layout_live.ex:242
+#, elixir-autogen, elixir-format
+msgid "The run you are looking for doesn't exist or has been moved."
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:73
+#, elixir-autogen, elixir-format
+msgid "Too many requests"
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:74
+#, elixir-autogen, elixir-format
+msgid "Too many requests."
+msgstr ""
+
+#: lib/tuist_web/components/app_layout_components.ex:219
+#: lib/tuist_web/components/app_layout_components.ex:246
+#, elixir-autogen, elixir-format
+msgid "Tuist Icon"
+msgstr ""
+
+#: lib/tuist_web/components/layout_components.ex:56
+#, elixir-autogen, elixir-format
+msgid "Tuist extends Apple's tools, helping you ship apps that stand out."
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:28
+#, elixir-autogen, elixir-format
+msgid "Unauthorized"
+msgstr ""
+
+#: lib/tuist_web/components/runs/ran_by_badge.ex:29
+#: lib/tuist_web/components/runs/ran_by_badge.ex:77
+#, elixir-autogen, elixir-format
+msgid "Unknown"
+msgstr ""
+
+#: lib/tuist_web/components/app_layout_components.ex:149
+#, elixir-autogen, elixir-format
+msgid "Xcode Cache"
+msgstr ""
+
+#: lib/tuist_web/controllers/error_html.ex:29
+#, elixir-autogen, elixir-format
+msgid "You are not authorized to view this page"
+msgstr ""
+
+#: lib/tuist_web/authorization.ex:21
+#: lib/tuist_web/authorization.ex:40
+#: lib/tuist_web/authorization.ex:56
+#: lib/tuist_web/authorization.ex:72
+#, elixir-autogen, elixir-format
+msgid "You need to be authenticated to access this page."
+msgstr ""
+
+#: lib/tuist_web/controllers/user_session_controller.ex:28
+#, elixir-autogen, elixir-format
+msgid "You've exceeded the rate limit. Try again later."
+msgstr ""
+
+#: lib/tuist_web/components/terminal.ex:10
+#, elixir-autogen, elixir-format
+msgid "bash"
+msgstr ""
+
+#: lib/tuist_web/components/percentile_dropdown_widget.ex:124
+#, elixir-autogen, elixir-format
+msgid "p50"
+msgstr ""
+
+#: lib/tuist_web/components/percentile_dropdown_widget.ex:123
+#, elixir-autogen, elixir-format
+msgid "p90"
+msgstr ""
+
+#: lib/tuist_web/components/percentile_dropdown_widget.ex:122
+#, elixir-autogen, elixir-format
+msgid "p99"
+msgstr ""

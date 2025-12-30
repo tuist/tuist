@@ -1,0 +1,756 @@
+---
+components:
+  responses: {}
+  schemas:
+    CompleteMultipartUploadRequest:
+      description: Request to complete a multipart upload
+      properties:
+        parts:
+          description: Ordered list of part numbers that were uploaded
+          items:
+            type: integer
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - parts
+      title: CompleteMultipartUploadRequest
+      type: object
+      x-struct: Elixir.CacheWeb.API.Schemas.CompleteMultipartUploadRequest
+      x-validate:
+    Error:
+      properties:
+        message:
+          description: The error message
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - message
+      title: Error
+      type: object
+      x-struct: Elixir.CacheWeb.API.Schemas.Error
+      x-validate:
+    KeyValueResponse:
+      properties:
+        entries:
+          description: The list of key-value entries
+          items:
+            properties:
+              value:
+                description: The value
+                type: string
+                x-struct:
+                x-validate:
+            required:
+              - value
+            type: object
+            x-struct:
+            x-validate:
+          type: array
+          x-struct:
+          x-validate:
+      required:
+        - entries
+      title: KeyValueResponse
+      type: object
+      x-struct: Elixir.CacheWeb.API.Schemas.KeyValueResponse
+      x-validate:
+    StartMultipartUploadResponse:
+      description: Response from starting a multipart upload
+      properties:
+        upload_id:
+          description: The upload ID to use for subsequent part uploads. Null if artifact already exists.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - upload_id
+      title: StartMultipartUploadResponse
+      type: object
+      x-struct: Elixir.CacheWeb.API.Schemas.StartMultipartUploadResponse
+      x-validate:
+  securitySchemes:
+    authorization:
+      scheme: bearer
+      type: http
+info:
+  title: Tuist Cache
+  version: 0.1.0
+openapi: 3.0.0
+paths:
+  /api/cache/cas/{id}:
+    get:
+      callbacks: {}
+      operationId: downloadCASArtifact
+      parameters:
+        - description: The artifact identifier
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the account
+          in: query
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project
+          in: query
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/octet-stream: {}
+          description: Artifact content
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Artifact not found
+      summary: Download a CAS artifact
+      tags:
+        - CAS
+    post:
+      callbacks: {}
+      operationId: saveCASArtifact
+      parameters:
+        - description: The artifact identifier
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the account
+          in: query
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project
+          in: query
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/octet-stream: {}
+        description: The CAS artifact data
+        required: true
+      responses:
+        '204':
+          description: Upload successful
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '408':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request body read timed out
+        '413':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request body exceeded allowed size
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Failed to persist artifact
+      summary: Save a CAS artifact
+      tags:
+        - CAS
+  /api/cache/keyvalue:
+    put:
+      callbacks: {}
+      operationId: putKeyValue
+      parameters:
+        - description: The handle of the account
+          in: query
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project
+          in: query
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                cas_id:
+                  description: The CAS ID
+                  type: string
+                  x-struct:
+                  x-validate:
+                entries:
+                  items:
+                    properties:
+                      value:
+                        description: The value
+                        type: string
+                        x-struct:
+                        x-validate:
+                    type: object
+                    x-struct:
+                    x-validate:
+                  type: array
+                  x-struct:
+                  x-validate:
+              required:
+                - cas_id
+                - entries
+              type: object
+              x-struct:
+              x-validate:
+        description: Key-value entry data
+        required: true
+      responses:
+        '204':
+          description: Success
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+      summary: Put a key-value entry
+      tags:
+        - KeyValue
+  /api/cache/keyvalue/{cas_id}:
+    get:
+      callbacks: {}
+      operationId: getKeyValue
+      parameters:
+        - description: The CAS ID
+          in: path
+          name: cas_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the account
+          in: query
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project
+          in: query
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KeyValueResponse'
+          description: Key-value entry
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Entry not found
+      summary: Get a key-value entry
+      tags:
+        - KeyValue
+  /api/cache/module/complete:
+    post:
+      callbacks: {}
+      operationId: completeModuleCacheMultipartUpload
+      parameters:
+        - description: The handle of the account
+          in: query
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project
+          in: query
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The upload ID from start_multipart
+          in: query
+          name: upload_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompleteMultipartUploadRequest'
+        description: Completion request
+        required: true
+      responses:
+        '204':
+          description: Upload completed successfully
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Parts mismatch or missing parts
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Upload not found
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Failed to assemble artifact
+      summary: Complete a multipart module cache upload
+      tags:
+        - ModuleCache
+  /api/cache/module/part:
+    post:
+      callbacks: {}
+      operationId: uploadModuleCachePart
+      parameters:
+        - description: The handle of the account
+          in: query
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project
+          in: query
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The upload ID from start_multipart
+          in: query
+          name: upload_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Part number (1-indexed)
+          in: query
+          name: part_number
+          required: true
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
+      requestBody:
+        content:
+          application/octet-stream: {}
+        description: The part data
+        required: true
+      responses:
+        '204':
+          description: Part uploaded successfully
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Upload not found
+        '408':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Request body read timed out
+        '413':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Part exceeds 10MB limit
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Total upload size exceeds 500MB limit
+      summary: Upload a part of a multipart module cache upload
+      tags:
+        - ModuleCache
+  /api/cache/module/start:
+    post:
+      callbacks: {}
+      operationId: startModuleCacheMultipartUpload
+      parameters:
+        - description: The handle of the account
+          in: query
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project
+          in: query
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Artifact hash
+          in: query
+          name: hash
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Artifact name
+          in: query
+          name: name
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Cache category (builds)
+          in: query
+          name: cache_category
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StartMultipartUploadResponse'
+          description: Upload started
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+      summary: Start a multipart module cache upload
+      tags:
+        - ModuleCache
+  /api/cache/module/{id}:
+    get:
+      callbacks: {}
+      operationId: downloadModuleCacheArtifact
+      parameters:
+        - description: The artifact identifier
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the account
+          in: query
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project
+          in: query
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Artifact hash
+          in: query
+          name: hash
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Artifact name
+          in: query
+          name: name
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Cache category (builds)
+          in: query
+          name: cache_category
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/octet-stream: {}
+          description: Artifact content
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Artifact not found
+      summary: Download a module cache artifact
+      tags:
+        - ModuleCache
+    head:
+      callbacks: {}
+      operationId: moduleCacheArtifactExists
+      parameters:
+        - description: The artifact identifier
+          in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the account
+          in: query
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project
+          in: query
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Artifact hash
+          in: query
+          name: hash
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Artifact name
+          in: query
+          name: name
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Cache category (builds)
+          in: query
+          name: cache_category
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '204':
+          description: Artifact exists
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Bad request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Artifact not found
+      summary: Check if a module cache artifact exists
+      tags:
+        - ModuleCache
+security:
+  - authorization: []
+servers:
+  - url: http://localhost:8087
+    variables: {}
+tags: []

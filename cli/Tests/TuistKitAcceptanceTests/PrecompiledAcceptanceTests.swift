@@ -1,0 +1,104 @@
+import TuistAcceptanceTesting
+import TuistSupport
+import TuistTesting
+import XcodeProj
+import XCTest
+
+final class PrecomiledAcceptanceTestiOSAppWithStaticFrameworks: TuistAcceptanceTestCase {
+    func test_ios_app_with_static_frameworks() async throws {
+        try await setUpFixture("generated_ios_app_with_static_frameworks")
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+    }
+}
+
+final class PrecomiledAcceptanceTestiOSAppWithStaticLibraries: TuistAcceptanceTestCase {
+    func test_ios_app_with_static_libraries() async throws {
+        try await setUpFixture("generated_ios_app_with_static_libraries")
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+    }
+}
+
+final class PrecomiledAcceptanceTestiOSAppWithTransitiveFramework: TuistAcceptanceTestCase {
+    func test_ios_app_with_transitive_framework() async throws {
+        try await setUpFixture("generated_ios_app_with_transitive_framework")
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "App", "--platform", "iOS")
+        try await XCTAssertProductWithDestinationContainsFrameworkWithArchitecture(
+            framework: "Framework1",
+            architecture: "arm64"
+        )
+        try await XCTAssertProductWithDestinationDoesNotContainHeaders(
+            "App.app",
+            destination: "Debug-iphonesimulator"
+        )
+        try await run(BuildCommand.self, "Framework1-iOS", "--platform", "iOS")
+        try await run(BuildCommand.self, "Framework1-macOS", "--platform", "macOS")
+        try await run(BuildCommand.self, "Framework1Tests-iOS", "--platform", "iOS")
+        try await run(BuildCommand.self, "Framework1Tests-macOS", "--platform", "macOS")
+        try await run(BuildCommand.self, "StaticFramework1", "--platform", "iOS")
+    }
+}
+
+final class PrecompiledAcceptanceTestiOSAppWithStaticLibraryAndPackage: TuistAcceptanceTestCase {
+    func test_ios_app_with_static_library_and_package() async throws {
+        try await setUpFixture("generated_ios_app_with_static_library_and_package")
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+    }
+}
+
+final class PrecompiledAcceptanceTestiOSAppWithXCFrameworks: TuistAcceptanceTestCase {
+    func test_ios_app_with_xcframeworks() async throws {
+        try await setUpFixture("generated_ios_app_with_xcframeworks")
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+        try await XCTAssertProductWithDestinationContainsFrameworkWithArchitecture(
+            framework: "MyFramework",
+            architecture: "x86_64"
+        )
+        try await XCTAssertProductWithDestinationDoesNotContainHeaders(
+            "App.app",
+            destination: "Debug-iphonesimulator"
+        )
+    }
+}
+
+extension TuistAcceptanceTestCase {
+    func XCTAssertProductWithDestinationContainsFrameworkWithArchitecture(
+        _ product: String = "App.app",
+        destination: String = "Debug-iphonesimulator",
+        framework: String,
+        architecture: String,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) async throws {
+        let productPath = try await productPath(
+            for: product,
+            destination: destination
+        )
+
+        guard let frameworkPath = try await fileSystem.glob(
+            directory: productPath,
+            include: ["**/Frameworks/\(framework).framework"]
+        ).collect().first,
+            try await fileSystem.exists(frameworkPath)
+        else {
+            XCTFail(
+                "Framework \(framework) not found for product \(product) and destination \(destination)",
+                file: file,
+                line: line
+            )
+            return
+        }
+
+        let fileInfo = try await System.shared.runAndCollectOutput(
+            [
+                "file",
+                frameworkPath.appending(component: framework).pathString,
+            ]
+        )
+        XCTAssertTrue(fileInfo.standardOutput.contains(architecture))
+    }
+}

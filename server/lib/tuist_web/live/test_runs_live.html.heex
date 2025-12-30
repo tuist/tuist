@@ -1,0 +1,485 @@
+<div id="test-runs">
+  <.card title={dgettext("dashboard_tests", "Analytics")} icon="chart_arcs" data-part="analytics">
+    <:actions>
+      <.dropdown
+        id="test-runs-analytics-environment-dropdown"
+        label={@analytics_environment_label}
+        secondary_text={dgettext("dashboard_tests", "Environment:")}
+      >
+        <.dropdown_item
+          value="any"
+          label="Any"
+          patch={"?#{Query.put(@uri.query, "analytics_environment", "any")}"}
+          data-selected={@analytics_environment == "any"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="local"
+          label="Local"
+          patch={"?#{Query.put(@uri.query, "analytics_environment", "local")}"}
+          data-selected={@analytics_environment == "local"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="ci"
+          label="CI"
+          patch={"?#{Query.put(@uri.query, "analytics_environment", "ci")}"}
+          data-selected={@analytics_environment == "ci"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+      </.dropdown>
+      <.date_picker
+        id="test-runs-date-range-picker"
+        name="analytics-date-range"
+        presets={[
+          %{
+            id: "last-24-hours",
+            label: dgettext("dashboard_tests", "Last 24 hours"),
+            period: {24, :hour}
+          },
+          %{
+            id: "last-7-days",
+            label: dgettext("dashboard_tests", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last-30-days",
+            label: dgettext("dashboard_tests", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{
+            id: "last-12-months",
+            label: dgettext("dashboard_tests", "Last 12 months"),
+            period: {12, :month}
+          },
+          %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
+        ]}
+        selected_preset={@analytics_preset}
+        period={@analytics_period}
+        on_period_change="analytics_period_changed"
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_tests", "Cancel")}
+            variant="secondary"
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel", detail: %{id: "test-runs-date-range-picker"})
+            }
+          />
+          <.button
+            label={dgettext("dashboard_tests", "Apply")}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply", detail: %{id: "test-runs-date-range-picker"})
+            }
+          />
+        </:actions>
+      </.date_picker>
+    </:actions>
+    <div data-part="widgets">
+      <.widget
+        title={dgettext("dashboard_tests", "Test run count")}
+        description={
+          dgettext(
+            "dashboard_tests",
+            "Test run count represents a number of how many test runs were run during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
+          )
+        }
+        value={@test_runs_analytics.count}
+        id="widget-test-run-count"
+        trend_value={@test_runs_analytics.trend}
+        trend_type={:neutral}
+        trend_label={@analytics_trend_label}
+        phx_click="select_widget"
+        phx_value_widget="test_run_count"
+        selected={@analytics_selected_widget == "test_run_count"}
+        empty={@test_runs_analytics.count == 0}
+      />
+      <.widget
+        title={dgettext("dashboard_tests", "Failed run count")}
+        description={
+          dgettext(
+            "dashboard_tests",
+            "Failed run count represents a number of how many test runs failed during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
+          )
+        }
+        value={@failed_test_runs_analytics.count}
+        id="widget-failed-test-run-count"
+        trend_value={@failed_test_runs_analytics.trend}
+        trend_label={@analytics_trend_label}
+        trend_type={:inverse}
+        phx_click="select_widget"
+        phx_value_widget="failed_test_run_count"
+        selected={@analytics_selected_widget == "failed_test_run_count"}
+        empty={@test_runs_analytics.count == 0}
+      />
+      <.percentile_dropdown_widget
+        id="widget-test-run-duration"
+        title={
+          case @selected_duration_type do
+            "avg" -> dgettext("dashboard_tests", "Avg. test run duration")
+            "p99" -> dgettext("dashboard_tests", "p99 test run duration")
+            "p90" -> dgettext("dashboard_tests", "p90 test run duration")
+            "p50" -> dgettext("dashboard_tests", "p50 test run duration")
+          end
+        }
+        legend_color={
+          case @selected_duration_type do
+            "p99" -> "p99"
+            "p90" -> "p90"
+            "p50" -> "p50"
+            _ -> "primary"
+          end
+        }
+        description={
+          dgettext("dashboard_tests", "Average duration of test runs during a given period.")
+        }
+        value={
+          Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+            case @selected_duration_type do
+              "avg" -> @test_runs_duration_analytics.total_average_duration
+              "p99" -> @test_runs_duration_analytics.p99
+              "p90" -> @test_runs_duration_analytics.p90
+              "p50" -> @test_runs_duration_analytics.p50
+            end
+          )
+        }
+        metrics={
+          %{
+            avg:
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @test_runs_duration_analytics.total_average_duration
+              ),
+            p99:
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @test_runs_duration_analytics.p99
+              ),
+            p90:
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @test_runs_duration_analytics.p90
+              ),
+            p50:
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @test_runs_duration_analytics.p50
+              )
+          }
+        }
+        selected_type={@selected_duration_type}
+        event_name="select_duration_type"
+        trend_value={@test_runs_duration_analytics.trend}
+        trend_label={@analytics_trend_label}
+        trend_type={:inverse}
+        phx_click="select_widget"
+        phx_value_widget="test_run_duration"
+        selected={@analytics_selected_widget == "test_run_duration"}
+        empty={@test_runs_analytics.count == 0}
+        empty_label={dgettext("dashboard_tests", "No data")}
+      />
+    </div>
+    <.card_section :if={@test_runs_analytics.count != 0}>
+      <div data-part="analytics-chart">
+        <.chart
+          :if={@analytics_selected_widget != "test_run_duration"}
+          id="test-runs-analytics-chart"
+          type="line"
+          extra_options={
+            %{
+              grid: %{
+                width: "93%",
+                left: "0.4%",
+                right: "7%",
+                height: "88%",
+                top: "5%"
+              },
+              xAxis: %{
+                boundaryGap: false,
+                type: "category",
+                axisLabel: %{
+                  color: "var:noora-surface-label-secondary",
+                  formatter: "fn:toLocaleDate",
+                  customValues: [
+                    @analytics_chart_data.dates |> List.first(),
+                    @analytics_chart_data.dates |> List.last()
+                  ],
+                  padding: [10, 0, 0, 0]
+                }
+              },
+              yAxis: %{
+                splitLine: %{
+                  lineStyle: %{
+                    color: "var:noora-chart-lines"
+                  }
+                },
+                axisLabel: %{
+                  color: "var:noora-surface-label-secondary",
+                  formatter: @analytics_chart_data.value_formatter
+                }
+              },
+              tooltip:
+                if @analytics_preset == "last-24-hours" do
+                  %{valueFormat: @analytics_chart_data.value_formatter, dateFormat: "hour"}
+                else
+                  %{valueFormat: @analytics_chart_data.value_formatter}
+                end,
+              legend: %{
+                show: false
+              }
+            }
+          }
+          series={[
+            %{
+              data:
+                Enum.zip(
+                  @analytics_chart_data.dates,
+                  @analytics_chart_data.values
+                )
+                |> Enum.map(&Tuple.to_list/1),
+              name: @analytics_chart_data.name,
+              type: "line",
+              smooth: 0.1,
+              symbol: "none"
+            }
+          ]}
+          y_axis_min={0}
+        />
+        <.chart
+          :if={@analytics_selected_widget == "test_run_duration"}
+          id="test-runs-duration-analytics-chart"
+          type="line"
+          extra_options={
+            %{
+              legend: %{
+                left: "left",
+                top: "bottom",
+                orient: "horizontal",
+                textStyle: %{
+                  color: "var:noora-surface-label-secondary",
+                  fontFamily: "monospace",
+                  fontWeight: 400,
+                  fontSize: 10,
+                  lineHeight: 12
+                },
+                icon:
+                  "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+                itemWidth: 8,
+                itemHeight: 4
+              },
+              grid: %{
+                width: "93%",
+                left: "0.4%",
+                right: "7%",
+                height: "60%",
+                top: "10%"
+              },
+              xAxis: %{
+                boundaryGap: false,
+                type: "category",
+                axisLabel: %{
+                  color: "var:noora-surface-label-secondary",
+                  formatter: "fn:toLocaleDate",
+                  customValues: [
+                    @test_runs_duration_analytics.dates |> List.first(),
+                    @test_runs_duration_analytics.dates |> List.last()
+                  ],
+                  padding: [10, 0, 0, 0]
+                }
+              },
+              yAxis: %{
+                splitNumber: 4,
+                splitLine: %{
+                  lineStyle: %{
+                    color: "var:noora-chart-lines"
+                  }
+                },
+                axisLabel: %{
+                  color: "var:noora-surface-label-secondary",
+                  formatter: "fn:formatMilliseconds"
+                }
+              },
+              tooltip:
+                if @analytics_preset == "last-24-hours" do
+                  %{valueFormat: "fn:formatMilliseconds", dateFormat: "hour"}
+                else
+                  %{valueFormat: "fn:formatMilliseconds"}
+                end
+            }
+          }
+          series={[
+            %{
+              color: "var:noora-chart-secondary",
+              data:
+                Enum.zip(
+                  @test_runs_duration_analytics.dates,
+                  @test_runs_duration_analytics.values
+                )
+                |> Enum.map(&Tuple.to_list/1),
+              name: dgettext("dashboard_tests", "Average"),
+              type: "line",
+              smooth: 0.1,
+              symbol: "none"
+            },
+            %{
+              color: "var:noora-chart-p99",
+              data:
+                Enum.zip(
+                  @test_runs_duration_analytics.dates,
+                  @test_runs_duration_analytics.p99_values
+                )
+                |> Enum.map(&Tuple.to_list/1),
+              name: dgettext("dashboard_tests", "p99"),
+              type: "line",
+              smooth: 0.1,
+              symbol: "none"
+            },
+            %{
+              color: "var:noora-chart-p90",
+              data:
+                Enum.zip(
+                  @test_runs_duration_analytics.dates,
+                  @test_runs_duration_analytics.p90_values
+                )
+                |> Enum.map(&Tuple.to_list/1),
+              name: dgettext("dashboard_tests", "p90"),
+              type: "line",
+              smooth: 0.1,
+              symbol: "none"
+            },
+            %{
+              color: "var:noora-chart-p50",
+              data:
+                Enum.zip(
+                  @test_runs_duration_analytics.dates,
+                  @test_runs_duration_analytics.p50_values
+                )
+                |> Enum.map(&Tuple.to_list/1),
+              name: dgettext("dashboard_tests", "p50"),
+              type: "line",
+              smooth: 0.1,
+              symbol: "none"
+            }
+          ]}
+          y_axis_min={0}
+        />
+      </div>
+    </.card_section>
+    <.empty_card_section
+      :if={@test_runs_analytics.count == 0}
+      title={dgettext("dashboard_tests", "No data yet")}
+    >
+      <:image>
+        <img src="/images/empty_line_chart_light.png" data-theme="light" />
+        <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+      </:image>
+    </.empty_card_section>
+  </.card>
+  <.card title={dgettext("dashboard_tests", "Test Runs")} icon="dashboard" data-part="test-runs">
+    <.card_section data-part="test-runs-section">
+      <div data-part="filters">
+        <.form for={%{}} phx-change="search-test-runs" phx-debounce="200">
+          <.text_input
+            type="search"
+            id="search-test-runs"
+            name="search"
+            placeholder={dgettext("dashboard_tests", "Search...")}
+            show_suffix={false}
+            data-part="search"
+            value={@test_runs_filter}
+          />
+        </.form>
+        <.filter_dropdown
+          id="filter-dropdown"
+          label={dgettext("dashboard_tests", "Filter")}
+          available_filters={@available_filters}
+          active_filters={@active_filters}
+        />
+      </div>
+      <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+        <.active_filter :for={filter <- @active_filters} filter={filter} />
+      </div>
+
+      <div :if={not Enum.empty?(@test_runs)} data-part="test-runs-table">
+        <.table
+          id="test-runs-table"
+          rows={@test_runs}
+          row_navigate={
+            fn test_run ->
+              url(
+                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs/#{test_run.id}"
+              )
+            end
+          }
+        >
+          <:col :let={test_run} label={dgettext("dashboard_tests", "Scheme")}>
+            <.text_and_description_cell label={
+              (test_run.scheme !== "" && test_run.scheme) || "Unknown"
+            } />
+          </:col>
+          <:col :let={test_run} label="Status">
+            <.status_badge_cell
+              :if={test_run.status == "success"}
+              label={dgettext("dashboard_tests", "Passed")}
+              status="success"
+            />
+            <.status_badge_cell
+              :if={test_run.status == "failure"}
+              label={dgettext("dashboard_tests", "Failed")}
+              status="error"
+            />
+            <.status_badge_cell
+              :if={test_run.status == "skipped"}
+              label={dgettext("dashboard_tests", "Skipped")}
+              status="warning"
+            />
+          </:col>
+          <:col :let={test_run} label={dgettext("dashboard_tests", "Branch")}>
+            <.text_cell
+              icon="git_branch"
+              label={
+                if test_run.git_branch == "",
+                  do: dgettext("dashboard_tests", "Unknown"),
+                  else: test_run.git_branch
+              }
+            />
+          </:col>
+          <:col :let={test_run} label={dgettext("dashboard_tests", "Ran by")}>
+            <.test_ran_by_badge_cell test={test_run} />
+          </:col>
+          <:col :let={test_run} label={dgettext("dashboard_tests", "Duration")}>
+            <.text_cell
+              label={
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(test_run.duration)
+              }
+              icon="history"
+            />
+          </:col>
+          <:col :let={test_run} label={dgettext("dashboard_tests", "Ran at")}>
+            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(test_run.ran_at)} />
+          </:col>
+        </.table>
+        <.pagination
+          uri={@uri}
+          has_previous_page={@test_runs_meta.has_previous_page?}
+          has_next_page={@test_runs_meta.has_next_page?}
+          start_cursor={@test_runs_meta.start_cursor}
+          end_cursor={@test_runs_meta.end_cursor}
+        />
+      </div>
+
+      <div :if={Enum.empty?(@test_runs)} data-part="empty-test-runs">
+        <.empty_card_section
+          title={dgettext("dashboard_tests", "No data yet")}
+          get_started_href="https://docs.tuist.dev/en/guides/features/insights#tests"
+          data-part="empty-test-runs-table-card-section"
+        >
+          <:image>
+            <img src="/images/empty_table_light.png" data-theme="light" />
+            <img src="/images/empty_table_dark.png" data-theme="dark" />
+          </:image>
+        </.empty_card_section>
+      </div>
+    </.card_section>
+  </.card>
+</div>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title><%= dgettext("marketing", "Tuist's changelog") %></title>
+    <description><%= dgettext("marketing", "Updates to Tuist's features and improvements.") %></description>
+    <link><%= Tuist.Environment.app_url(path: ~p"/changelog") %></link>
+    <lastBuildDate><%= @last_build_date |> Timex.format!("{RFC1123}") %></lastBuildDate>
+    <pubDate><%= @last_build_date |> Timex.format!("{RFC1123}") %></pubDate>
+    <ttl>1800</ttl>
+    <atom:link href="<%= Tuist.Environment.app_url(path: ~p"/changelog/rss.xml") %>" rel="self" type="application/rss+xml"/>
+
+    <%= for entry <- @entries do %>
+      <item>
+        <title><![CDATA[ <%= entry.title %> ]]></title>
+        <description><![CDATA[ <%= entry.body %> ]]></description>
+        <link><%= Tuist.Environment.app_url(path: "#{~p"/changelog"}\##{entry.id}") %></link>
+        <guid isPermaLink="false"><%= entry.id %></guid>
+        <pubDate><%= entry.date |> Timex.format!("{RFC1123}")  %></pubDate>
+      </item>
+    <% end %>
+  </channel>
+</rss>

@@ -1,18 +1,19 @@
 ---
-title: 依存関係の追加
-titleTemplate: :title · クイックスタート · ガイド · Tuist
-description: 最初のSwiftプロジェクトに依存関係を追加する方法を学ぶ
+{
+  "title": "Add dependencies",
+  "titleTemplate": ":title · Quick-start · Guides · Tuist",
+  "description": "Learn how to add dependencies to your first Swift project"
+}
 ---
+# 依存関係の追加{#add-dependencies}
 
-# 依存関係の追加 {#add-dependencies}
-
-プロジェクトが追加機能を提供するためにサードパーティのライブラリに依存することは一般的です。 そのために、プロジェクトを編集するための最適な体験を得るために、次のコマンドを実行します。 そのために、プロジェクトを編集するための最適な体験を得るために、次のコマンドを実行します。
+追加機能を提供するために、プロジェクトがサードパーティのライブラリに依存することはよくあることです。そのためには、以下のコマンドを実行すると、プロジェクトの編集がより快適になります：
 
 ```bash
 tuist edit
 ```
 
-Xcodeプロジェクトが開き、プロジェクトファイルが表示されます。 Package.swiftを編集し、以下を追加します。
+プロジェクト・ファイルを含むXcodeプロジェクトが開きます。`Package.swift` 。
 
 ```swift
 // swift-tools-version: 5.9
@@ -40,7 +41,7 @@ let package = Package(
 )
 ```
 
-次に、プロジェクト内のアプリケーションターゲットを編集して、`Kingfisher` を依存関係として宣言します。
+次に、プロジェクトのアプリケーション・ターゲットを編集して、`Kingfisher` を依存関係として宣言します：
 
 ```swift
 import ProjectDescription
@@ -52,14 +53,16 @@ let project = Project(
             name: "MyApp",
             destinations: .iOS,
             product: .app,
-            bundleId: "io.tuist.MyApp",
+            bundleId: "dev.tuist.MyApp",
             infoPlist: .extendingDefault(
                 with: [
                     "UILaunchStoryboardName": "LaunchScreen.storyboard",
                 ]
             ),
-            sources: ["MyApp/Sources/**"],
-            resources: ["MyApp/Resources/**"],
+            buildableFolders: [
+                "MyApp/Sources",
+                "MyApp/Resources",
+            ],
             dependencies: [
                 .external(name: "Kingfisher") // [!code ++]
             ]
@@ -68,7 +71,7 @@ let project = Project(
             name: "MyAppTests",
             destinations: .iOS,
             product: .unitTests,
-            bundleId: "io.tuist.MyAppTests",
+            bundleId: "dev.tuist.MyAppTests",
             infoPlist: .default,
             sources: ["MyApp/Tests/**"],
             resources: [],
@@ -78,26 +81,31 @@ let project = Project(
 )
 ```
 
-次に、`tuist install` を実行して、[Swift Package Manager](https://www.swift.org/documentation/package-manager/) を使用して依存関係を解決し、取得します。
+それから`tuist install` を実行し、[Swift Package
+Manager](https://www.swift.org/documentation/package-manager/)を使って依存関係を解決し、取り出します。
 
-> [!NOTE] 依存関係解決ツールとしてのSPM
-> Tuistの推奨する依存関係のアプローチは、依存関係を解決するためにSwift Package Manager (SPM) を使用することです。 TuistはそれらをXcodeプロジェクトとターゲットに変換し、最大限の構成可能性と制御を提供します。 TuistはそれらをXcodeプロジェクトとターゲットに変換し、最大限の構成可能性と制御を提供します。 TuistはそれらをXcodeプロジェクトとターゲットに変換し、最大限の構成可能性と制御を提供します。 TuistはそれらをXcodeプロジェクトとターゲットに変換し、最大限の構成可能性と制御を提供します。 TuistはそれらをXcodeプロジェクトとターゲットに変換し、最大限の構成可能性と制御を提供します。
+::: info SPM AS A DEPENDENCY RESOLVER
+<!-- -->
+依存関係に対するTuistの推奨アプローチは、依存関係を解決するためにSwift Package Manager
+(SPM)のみを使用する。そしてTuistはそれらをXcodeプロジェクトとターゲットに変換し、最大限の設定と制御を可能にする。
+<!-- -->
+:::
 
-## プロジェクトの可視化 {#visualize-the-project}
+## プロジェクトを可視化する{#visualize-the-project}
 
-次のコマンドを実行してプロジェクト構造を可視化できます。
+を実行することで、プロジェクトの構造を可視化することができる：
 
 ```bash
 tuist graph
 ```
 
-このコマンドは、プロジェクトのディレクトリ内に `graph.png` ファイルを出力して開きます：
+このコマンドは、プロジェクトのディレクトリにある`graph.png` ファイルを出力し、開きます：
 
-![Project graph](/images/guides/quick-start/graph.png)
+プロジェクトグラフ
 
-## 依存関係の使用 {#use-the-dependency}
+## 依存関係を利用する{#use-the-dependency}
 
-`tuist generate` を実行してプロジェクトをXcodeで開き、`ContentView.swift` ファイルに次の変更を加えます。
+`tuist generate` を実行して Xcode でプロジェクトを開き、`ContentView.swift` ファイルに以下の変更を加えます：
 
 ```swift
 import SwiftUI

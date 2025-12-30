@@ -1,0 +1,382 @@
+<%= if @has_qa_runs do %>
+  <div id="qa">
+    <.card title={dgettext("dashboard_qa", "Analytics")} icon="chart_arcs" data-part="analytics">
+      <:actions>
+        <.dropdown
+          id="qa-analytics-app-dropdown"
+          label={@analytics_app_label}
+          secondary_text={dgettext("dashboard_qa", "App:")}
+        >
+          <.dropdown_item
+            value="any"
+            label="Any"
+            patch={"?#{TuistWeb.Utilities.Query.put(@uri.query, "analytics_app", "any")}"}
+            data-selected={@analytics_app == "any"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            :for={{app_name, app_label} <- @available_apps}
+            value={app_name}
+            label={app_label}
+            patch={"?#{TuistWeb.Utilities.Query.put(@uri.query, "analytics_app", app_name)}"}
+            data-selected={@analytics_app == app_name}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+        <.date_picker
+          id="qa-analytics-date-range-picker"
+          name="analytics-date-range"
+          presets={[
+            %{
+              id: "last-24-hours",
+              label: dgettext("dashboard_qa", "Last 24 hours"),
+              period: {24, :hour}
+            },
+            %{
+              id: "last-7-days",
+              label: dgettext("dashboard_qa", "Last 7 days"),
+              period: {7, :day}
+            },
+            %{
+              id: "last-30-days",
+              label: dgettext("dashboard_qa", "Last 30 days"),
+              period: {30, :day}
+            },
+            %{
+              id: "last-12-months",
+              label: dgettext("dashboard_qa", "Last 12 months"),
+              period: {12, :month}
+            },
+            %{id: "custom", label: dgettext("dashboard_qa", "Custom")}
+          ]}
+          selected_preset={@analytics_preset}
+          period={@analytics_period}
+          on_period_change="analytics_period_changed"
+          max={Date.utc_today()}
+        >
+          <:actions>
+            <.button
+              label={dgettext("dashboard_qa", "Cancel")}
+              variant="secondary"
+              phx-click={
+                JS.dispatch("phx:date-picker-cancel",
+                  detail: %{id: "qa-analytics-date-range-picker"}
+                )
+              }
+            />
+            <.button
+              label={dgettext("dashboard_qa", "Apply")}
+              phx-click={
+                JS.dispatch("phx:date-picker-apply",
+                  detail: %{id: "qa-analytics-date-range-picker"}
+                )
+              }
+            />
+          </:actions>
+        </.date_picker>
+      </:actions>
+      <div data-part="widgets">
+        <.widget
+          title={dgettext("dashboard_qa", "QA runs")}
+          description={
+            dgettext(
+              "dashboard_qa",
+              "QA runs represent the number of QA test sessions executed during a given period."
+            )
+          }
+          value={@qa_runs_analytics.count}
+          id="widget-qa-run-count"
+          trend_value={@qa_runs_analytics.trend}
+          trend_type={:neutral}
+          trend_label={@analytics_trend_label}
+          phx_click="select_widget"
+          phx_value_widget="qa_run_count"
+          selected={@analytics_selected_widget == "qa_run_count"}
+          empty={@qa_runs_analytics.count == 0}
+        />
+        <.widget
+          title={dgettext("dashboard_qa", "App issues found")}
+          description={
+            dgettext(
+              "dashboard_qa",
+              "App issues found represents the total number of issues discovered during QA testing in a given period."
+            )
+          }
+          value={@qa_issues_analytics.count}
+          id="widget-qa-issues-count"
+          trend_value={@qa_issues_analytics.trend}
+          trend_label={@analytics_trend_label}
+          trend_type={:inverse}
+          phx_click="select_widget"
+          phx_value_widget="qa_issues_count"
+          selected={@analytics_selected_widget == "qa_issues_count"}
+          empty={@qa_runs_analytics.count == 0}
+        />
+        <.widget
+          title={dgettext("dashboard_qa", "Avg. QA duration")}
+          description={
+            dgettext(
+              "dashboard_qa",
+              "Average QA duration represents the average time it took to complete a QA session during a given period."
+            )
+          }
+          value={
+            dgettext("dashboard_qa", "%{qa_average_duration}s",
+              qa_average_duration:
+                (@qa_duration_analytics.total_average_duration / 1000)
+                |> Decimal.from_float()
+                |> Decimal.round(1)
+            )
+          }
+          id="widget-qa-duration"
+          trend_value={@qa_duration_analytics.trend}
+          trend_label={@analytics_trend_label}
+          trend_type={:inverse}
+          phx_click="select_widget"
+          phx_value_widget="qa_duration"
+          selected={@analytics_selected_widget == "qa_duration"}
+          empty={@qa_runs_analytics.count == 0}
+        />
+      </div>
+      <.card_section :if={@qa_runs_analytics.count != 0}>
+        <div data-part="analytics-chart">
+          <.chart
+            id="qa-analytics-chart"
+            type="line"
+            extra_options={
+              %{
+                grid: %{
+                  width: "93%",
+                  left: "0.4%",
+                  right: "7%",
+                  height: "88%",
+                  top: "5%"
+                },
+                xAxis: %{
+                  boundaryGap: false,
+                  type: "category",
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "fn:toLocaleDate",
+                    customValues: [
+                      @analytics_chart_data.dates |> List.first(),
+                      @analytics_chart_data.dates |> List.last()
+                    ],
+                    padding: [10, 0, 0, 0]
+                  }
+                },
+                yAxis: %{
+                  splitLine: %{
+                    lineStyle: %{
+                      color: "var:noora-chart-lines"
+                    }
+                  },
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: @analytics_chart_data.value_formatter
+                  }
+                },
+                tooltip:
+                  if @analytics_preset == "last-24-hours" do
+                    %{valueFormat: @analytics_chart_data.value_formatter, dateFormat: "hour"}
+                  else
+                    %{valueFormat: @analytics_chart_data.value_formatter}
+                  end,
+                legend: %{
+                  show: false
+                }
+              }
+            }
+            series={[
+              %{
+                data:
+                  Enum.zip(
+                    @analytics_chart_data.dates,
+                    @analytics_chart_data.values
+                  )
+                  |> Enum.map(&Tuple.to_list/1),
+                name: @analytics_chart_data.name,
+                type: "line",
+                smooth: 0.1,
+                symbol: "none"
+              }
+            ]}
+            y_axis_min={0}
+          />
+        </div>
+      </.card_section>
+      <.empty_card_section
+        :if={@qa_runs_analytics.count == 0}
+        title={dgettext("dashboard_qa", "No data yet")}
+      >
+        <:image>
+          <img src="/images/empty_line_chart_light.png" data-theme="light" />
+          <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+        </:image>
+      </.empty_card_section>
+    </.card>
+    <.card title={dgettext("dashboard_qa", "QA Sessions")} icon="devices_code" data-part="qa-runs">
+      <.card_section data-part="qa-runs-section">
+        <div :if={not Enum.empty?(@qa_runs)} data-part="qa-runs-table">
+          <.table
+            id="qa-runs-table"
+            rows={@qa_runs}
+            row_navigate={
+              fn run ->
+                url(~p"/#{@selected_project.account.name}/#{@selected_project.name}/qa/#{run.id}")
+              end
+            }
+          >
+            <:col :let={run} label={dgettext("dashboard_qa", "Name")}>
+              <.text_cell label={run.app_build.preview.display_name} />
+            </:col>
+            <:col :let={run} label={dgettext("dashboard_qa", "Status")}>
+              <.badge_cell
+                label={
+                  case run.status do
+                    "running" -> dgettext("dashboard_qa", "Running")
+                    "pending" -> dgettext("dashboard_qa", "Pending")
+                    "failed" -> dgettext("dashboard_qa", "Failed")
+                    "completed" -> dgettext("dashboard_qa", "Completed")
+                  end
+                }
+                color={
+                  case run.status do
+                    "running" -> "attention"
+                    "pending" -> "information"
+                    "failed" -> "destructive"
+                    "completed" -> "primary"
+                  end
+                }
+                style="light-fill"
+              />
+            </:col>
+            <:col :let={run} label={dgettext("dashboard_qa", "Platform")}>
+              <.platform_cell platform={
+                run.app_build.preview.supported_platforms
+                |> Preview.map_simulators_to_devices()
+                |> List.first()
+              } />
+            </:col>
+            <:col :let={run} label={dgettext("dashboard_qa", "Issues")}>
+              <% issue_count = length(Enum.flat_map(run.run_steps, & &1.issues)) %>
+              <.badge_cell
+                label={"#{issue_count} #{dngettext("dashboard_qa", "issue", "issues", issue_count)}"}
+                color={if issue_count > 0, do: "warning", else: "success"}
+                style="light-fill"
+                icon={if issue_count > 0, do: "alert_hexagon", else: "check"}
+              />
+            </:col>
+            <:col :let={run} label={dgettext("dashboard_qa", "Branch")}>
+              <.text_cell
+                icon="git_branch"
+                label={run.app_build.preview.git_branch || dgettext("dashboard_qa", "None")}
+              />
+            </:col>
+            <:col :let={run} label={dgettext("dashboard_qa", "Commit SHA")}>
+              <.text_cell label={SHA.format_commit_sha(run.app_build.preview.git_commit_sha)} />
+            </:col>
+            <:col :let={run} label={dgettext("dashboard_qa", "Duration")}>
+              <.text_cell
+                :if={is_nil(run.finished_at)}
+                label={dgettext("dashboard_qa", "In progress")}
+              />
+              <.text_cell
+                :if={not is_nil(run.finished_at)}
+                icon="history"
+                label={
+                  DateFormatter.format_duration_from_milliseconds(
+                    DateTime.diff(run.finished_at, run.inserted_at, :millisecond),
+                    include_seconds: false
+                  )
+                }
+              />
+            </:col>
+            <:col :let={run} label={dgettext("dashboard_qa", "Started at")}>
+              <.text_cell label={DateFormatter.from_now(run.inserted_at)} />
+            </:col>
+          </.table>
+          <.pagination
+            uri={@uri}
+            has_previous_page={Map.get(@qa_runs_meta, :has_previous_page?, false)}
+            has_next_page={Map.get(@qa_runs_meta, :has_next_page?, false)}
+            start_cursor={Map.get(@qa_runs_meta, :start_cursor)}
+            end_cursor={Map.get(@qa_runs_meta, :end_cursor)}
+          />
+        </div>
+
+        <div :if={Enum.empty?(@qa_runs)} data-part="empty-qa-runs">
+          <.empty_card_section
+            title={dgettext("dashboard_qa", "No QA runs yet")}
+            data-part="empty-qa-runs-table-card-section"
+          >
+            <:image>
+              <img src="/images/empty_table_light.png" data-theme="light" />
+              <img src="/images/empty_table_dark.png" data-theme="dark" />
+            </:image>
+          </.empty_card_section>
+        </div>
+      </.card_section>
+    </.card>
+  </div>
+<% else %>
+  <div id="qa-empty-state">
+    <div data-part="background">
+      <div data-part="illustration">
+        <!-- Replace the static images with SVG backgrounds -->
+        <div data-theme="light">
+          <.empty_state_light_background />
+        </div>
+        <div data-theme="dark">
+          <.empty_state_dark_background />
+        </div>
+      </div>
+    </div>
+    <div data-part="content">
+      <.card_section data-part="step-one">
+        <div data-part="header">
+          <span data-part="title">
+            {dgettext("dashboard_qa", "1. Upload a preview from a PR")}
+          </span>
+          <span data-part="subtitle">
+            {dgettext(
+              "dashboard_qa",
+              "Upload a preview from a PR to kick off the QA session, following the instructions in the documentation below."
+            )}
+          </span>
+        </div>
+        <.button
+          data-part="documentation-button"
+          label={dgettext("dashboard_qa", "Tuist documentation")}
+          variant="primary"
+          size="large"
+          href="https://docs.tuist.dev/en/guides/features/qa"
+          target="_blank"
+        >
+          <:icon_right><.chevron_right /></:icon_right>
+        </.button>
+      </.card_section>
+
+      <.card_section data-part="step-two">
+        <div data-part="header">
+          <span data-part="title">
+            {dgettext("dashboard_qa", "2. Trigger the QA session from the PR")}
+          </span>
+          <span data-part="subtitle">
+            {dgettext(
+              "dashboard_qa",
+              "Start the QA session from GitHub with the sample command below."
+            )}
+          </span>
+        </div>
+        <.terminal
+          id="qa-empty-state-terminal"
+          title={dgettext("dashboard_qa", "GitHub comment")}
+          command="/tuist qa <prompt for the agent>"
+        />
+      </.card_section>
+    </div>
+  </div>
+<% end %>

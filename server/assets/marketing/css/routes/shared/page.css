@@ -1,0 +1,52 @@
+#marketing-page {
+  display: flex;
+  position: relative;
+  flex-direction: column;
+  gap: var(--noora-spacing-11);
+  z-index: var(--noora-z-index-1);
+  padding-bottom: var(--noora-spacing-15);
+
+  @media (min-width: 370px) {
+    gap: var(--noora-spacing-9);
+  }
+
+  & > :is([data-part="body"], [data-part="header"]):not(#marketing-navbar) {
+    padding-right: var(--noora-spacing-6);
+    padding-left: var(--noora-spacing-6);
+
+    @media (min-width: 1024px) {
+      margin-right: auto;
+      margin-left: auto;
+      padding-right: var(--noora-spacing-6);
+      padding-left: var(--noora-spacing-6);
+      width: 650px;
+      max-width: 650px;
+    }
+  }
+
+  & > [data-part="header"]:not(#marketing-navbar) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--noora-spacing-6);
+    padding-top: var(--noora-spacing-12);
+
+    @media (min-width: 370px) {
+      padding-top: var(--noora-spacing-10);
+    }
+
+    & > [data-part="logo"] {
+      filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.06)) drop-shadow(0 10px 10px rgba(0, 0, 0, 0.05))
+        drop-shadow(0 23px 14px rgba(0, 0, 0, 0.03)) drop-shadow(0 41px 16px rgba(0, 0, 0, 0.01));
+      width: 130px;
+      height: 130px;
+    }
+
+    & > [data-part="title"] {
+      font: var(--noora-font-weight-medium) var(--noora-font-display-small);
+    }
+    & > [data-part="last-updated"] {
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    }
+  }
+}

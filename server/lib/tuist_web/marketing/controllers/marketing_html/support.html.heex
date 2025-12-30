@@ -1,0 +1,65 @@
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main class="marketing__support" aria-label={dgettext("marketing", "Support")}>
+    <div class="marketing__support__intro">
+      <div class="marketing__support__intro__left">
+        <h2 class="marketing__support__intro__left__title font-xxxl-strong">
+          {dgettext("marketing", "Get Support")}
+        </h2>
+        <p class="marketing__support__intro__subtitle font-l">
+          {dgettext(
+            "marketing",
+            "We're here to help you succeed with Tuist. Whether you need technical assistance, have questions about features or have ideas how to improve the project, we have multiple ways you can reach out to us."
+          )}
+        </p>
+      </div>
+    </div>
+
+    <div class="marketing__support__channels">
+      <div class="marketing__support__channels__items">
+        <div class="marketing__support__channels__items__channel">
+          <div class="marketing__support__channels__items__channel__content">
+            <h3 class="marketing__support__channels__items__channel__content__title font-xl-strong">
+              {dgettext("marketing", "Email Support")}
+            </h3>
+            <p class="marketing__support__channels__items__channel__content__description font-m">
+              {dgettext(
+                "marketing",
+                "For direct assistance with technical issues or account-related questions, reach out to our support team via email."
+              )}
+            </p>
+            <.link
+              href={Application.get_env(:tuist, :urls)[:contact]}
+              class="marketing__support__channels__items__channel__content__link font-m-strong"
+              target="_blank"
+            >
+              {dgettext("marketing", "Send us an email")}
+            </.link>
+          </div>
+        </div>
+
+        <div class="marketing__support__channels__items__channel">
+          <div class="marketing__support__channels__items__channel__content">
+            <h3 class="marketing__support__channels__items__channel__content__title font-xl-strong">
+              {dgettext("marketing", "Community Forum")}
+            </h3>
+            <p class="marketing__support__channels__items__channel__content__description font-m">
+              {dgettext(
+                "marketing",
+                "Connect with other Tuist users, share experiences, and get help from the community."
+              )}
+            </p>
+            <.link
+              href={Application.get_env(:tuist, :urls)[:forum]}
+              class="marketing__support__channels__items__channel__content__link font-m-strong"
+              target="_blank"
+            >
+              {dgettext("marketing", "Visit the forum")}
+            </.link>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <.cta />
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>

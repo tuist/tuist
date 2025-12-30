@@ -1,0 +1,684 @@
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-home">
+    <TuistWeb.Marketing.MarketingComponents.navbar {assigns} />
+
+    <div data-part="container">
+      <div data-part="background" aria-hidden="true">
+        <img src="/marketing/images/background.webp" alt="Background decoration" />
+      </div>
+    </div>
+
+    <section data-part="hero">
+      <header data-part="title">
+        <div data-part="title">
+          <h1>{dgettext("marketing", "Make mobile")}</h1>
+        </div>
+        <div data-part="title">
+          <h1>{dgettext("marketing", "your competitive advantage")}</h1>
+        </div>
+      </header>
+
+      <div data-part="subtitle">
+        <p>
+          {dgettext(
+            "marketing",
+            "The same iOS tooling that powers apps with millions of users, delivered as a service for your team"
+          )}
+        </p>
+      </div>
+
+      <nav data-part="actions" aria-label="Primary actions">
+        <.button
+          href={localized_href("https://docs.tuist.dev/")}
+          target="_blank"
+          rel="noopener noreferrer"
+          label={dgettext("marketing", "Get started")}
+        >
+        </.button>
+        <.button
+          target="_blank"
+          rel="noopener noreferrer"
+          href="https://cal.tuist.dev/team/tuist/tuist?overlayCalendar=true"
+          variant="secondary"
+          label={dgettext("marketing", "Talk to us")}
+        >
+        </.button>
+      </nav>
+    </section>
+
+    <section data-part="graphic" aria-labelledby="metrics-heading">
+      <div data-part="left-column">
+        <div data-part="build-card">
+          <img data-part="graphic" src={~p"/marketing/images/home/cards/line-chart.webp"} />
+          <span data-part="title">{dgettext("marketing", "Build times reduced by 80%")}</span>
+        </div>
+        <div data-part="selective-tests-card">
+          <div data-part="graphic">
+            <img src={~p"/marketing/images/home/cards/selective-tests.webp"} />
+          </div>
+          <span data-part="title">{dgettext("marketing", "Skipped repetitive tests")}</span>
+        </div>
+        <div data-part="optimized-app-bundles-card">
+          <img
+            data-part="graphic"
+            src={~p"/marketing/images/home/cards/optimized-app-bundles.webp"}
+          />
+          <span data-part="title">{dgettext("marketing", "Optimized app bundles")}</span>
+        </div>
+      </div>
+      <div data-part="right-column">
+        <div data-part="agentic-qa-card">
+          <span data-part="title">
+            {dgettext("marketing", "Agentic testing of your app completed")}
+          </span>
+          <div data-part="graphic">
+            <img src={~p"/marketing/images/home/cards/agentic-qa.webp"} />
+          </div>
+        </div>
+        <div data-part="previews-card">
+          <span data-part="title">
+            {dgettext("marketing", "Shared app preview with the team")}
+          </span>
+          <img data-part="graphic" src={~p"/marketing/images/home/cards/qrcode.webp"} />
+        </div>
+        <div data-part="remote-binaries-card">
+          <span data-part="title">{dgettext("marketing", "105 remote binaries pulled")}</span>
+          <img
+            data-part="graphic"
+            src={~p"/marketing/images/home/cards/remote-binaries.webp"}
+          />
+        </div>
+      </div>
+      <img data-part="background" src={~p"/marketing/images/home/hero/background.webp"} />
+      <img
+        data-part="background-mobile"
+        src={~p"/marketing/images/home/hero/background-mobile.webp"}
+      />
+    </section>
+
+    <section data-part="supporters">
+      <h3>{dgettext("marketing", "Trusted by the world's best developer teams")}</h3>
+    </section>
+
+    <section
+      data-part="orgs-list"
+      aria-label="Organizations using Tuist"
+      phx-hook="InfiniteScrollLogos"
+      id="orgs-list-scroll"
+    >
+      <div data-part="rows">
+        <%= if Gettext.get_locale() == "ko" do %>
+          <div
+            data-part="org-logo"
+            aria-label="Socar"
+          >
+            <.socar_org_logo />
+          </div>
+        <% else %>
+          <div
+            data-part="org-logo"
+            aria-label="Trendyol"
+          >
+            <.trendyol_org_logo />
+          </div>
+        <% end %>
+        <div
+          data-part="org-logo"
+          aria-label="Adidas"
+        >
+          <%= if Gettext.get_locale() == "ko" do %>
+            <.adidas_org_logo_color />
+          <% else %>
+            <.adidas_org_logo />
+          <% end %>
+        </div>
+        <div
+          data-part="org-logo"
+          aria-label="monday.com"
+        >
+          <%= if Gettext.get_locale() == "ko" do %>
+            <.monday_org_logo_color />
+          <% else %>
+            <.monday_org_logo />
+          <% end %>
+        </div>
+        <div
+          data-part="org-logo"
+          aria-label="Chegg"
+        >
+          <%= if Gettext.get_locale() == "ko" do %>
+            <.chegg_org_logo_color />
+          <% else %>
+            <.chegg_org_logo />
+          <% end %>
+        </div>
+      </div>
+      <div data-part="rows">
+        <div
+          data-part="org-logo"
+          aria-label="Asana"
+        >
+          <%= if Gettext.get_locale() == "ko" do %>
+            <.asana_org_logo_color />
+          <% else %>
+            <.asana_org_logo />
+          <% end %>
+        </div>
+        <div
+          data-part="org-logo"
+          aria-label="Bending Spoons"
+        >
+          <%= if Gettext.get_locale() == "ko" do %>
+            <.bending_spoons_org_logo_color />
+          <% else %>
+            <.bending_spoons_org_logo />
+          <% end %>
+        </div>
+        <div
+          data-part="org-logo"
+          aria-label="Etsy"
+        >
+          <%= if Gettext.get_locale() == "ko" do %>
+            <.etsy_org_logo_color />
+          <% else %>
+            <.etsy_org_logo />
+          <% end %>
+        </div>
+      </div>
+    </section>
+
+    <section data-part="features-title">
+      <h2>
+        <span>{dgettext("marketing", "All the features you need,")}</span>
+        <span data-part="box">{dgettext("marketing", "in one platform")}</span>
+      </h2>
+    </section>
+
+    <section data-part="features" aria-label="Product features">
+      <div data-part="row">
+        <article data-part="generated-projects">
+          <a
+            data-part="overlay-link"
+            href={localized_href("https://docs.tuist.dev/guides/features/projects")}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={
+              dgettext("marketing", "Open the %{feature} feature documentation",
+                feature: dgettext("marketing", "Generated projects")
+              )
+            }
+          >
+          </a>
+          <div data-part="background" aria-hidden="true">
+            <img
+              src="/marketing/images/features/generated-projects/background.webp"
+              alt=""
+            />
+          </div>
+          <div data-part="graphic">
+            <img
+              src="/marketing/images/features/generated-projects/graphic.webp"
+              alt=""
+            />
+          </div>
+          <div data-part="content">
+            <p data-part="title">
+              {dgettext("marketing", "Generated Projects")} <.arrow_right />
+            </p>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Turn projects defined with a Swift-DSL into Xcode workspaces and projects."
+              )}
+            </p>
+          </div>
+        </article>
+
+        <article data-part="cache">
+          <a
+            data-part="overlay-link"
+            href={localized_href("https://docs.tuist.dev/guides/features/cache")}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={
+              dgettext("marketing", "Open the %{feature} feature documentation",
+                feature: dgettext("marketing", "Cache")
+              )
+            }
+          >
+          </a>
+          <div data-part="background" aria-hidden="true">
+            <img
+              src="/marketing/images/features/cache/background.webp"
+              alt=""
+            />
+          </div>
+          <div data-part="graphic">
+            <img src="/marketing/images/features/cache/graphic.webp" alt="" />
+          </div>
+          <div data-part="content">
+            <p data-part="title">{dgettext("marketing", "Cache")} <.arrow_right /></p>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Speeds up builds by reusing compiled binaries, cutting down build times in both local development and CI."
+              )}
+            </p>
+          </div>
+        </article>
+      </div>
+
+      <div data-part="row">
+        <article data-part="previews">
+          <a
+            data-part="overlay-link"
+            href={localized_href("https://docs.tuist.dev/guides/features/previews")}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={
+              dgettext("marketing", "Open the %{feature} feature documentation",
+                feature: dgettext("marketing", "Previews")
+              )
+            }
+          >
+          </a>
+          <div data-part="background" aria-hidden="true">
+            <img
+              src="/marketing/images/features/previews/background.webp"
+              alt=""
+            />
+          </div>
+          <div data-part="graphic">
+            <img src="/marketing/images/features/previews/graphic.webp" alt="" />
+          </div>
+          <div data-part="content">
+            <p data-part="title">{dgettext("marketing", "Previews")} <.arrow_right /></p>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Share your app builds with others via URL for testing on simulators or devices."
+              )}
+            </p>
+          </div>
+        </article>
+
+        <article data-part="selective-testing">
+          <a
+            data-part="overlay-link"
+            href={localized_href("https://docs.tuist.dev/guides/features/selective-testing")}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={
+              dgettext("marketing", "Open the %{feature} feature documentation",
+                feature: dgettext("marketing", "Selective testing")
+              )
+            }
+          >
+          </a>
+          <div data-part="graphic">
+            <img
+              src="/marketing/images/features/selective-testing/graphic.webp"
+              alt=""
+            />
+          </div>
+          <div data-part="content">
+            <p data-part="title">{dgettext("marketing", "Selective testing")} <.arrow_right /></p>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Speed up test runs by skipping test suites whose tests are not impacted by the changes."
+              )}
+            </p>
+          </div>
+        </article>
+      </div>
+
+      <div data-part="row">
+        <article data-part="builds">
+          <a
+            data-part="overlay-link"
+            href={localized_href("https://docs.tuist.dev/guides/features/insights")}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={
+              dgettext("marketing", "Open the %{feature} feature documentation",
+                feature: dgettext("marketing", "Builds")
+              )
+            }
+          >
+          </a>
+          <div data-part="background" aria-hidden="true">
+            <img
+              src="/marketing/images/features/builds/background.webp"
+              alt=""
+            />
+          </div>
+          <div data-part="graphic">
+            <img src="/marketing/images/features/builds/graphic.webp" alt="" />
+          </div>
+          <div data-part="content">
+            <p data-part="title">{dgettext("marketing", "Build Insights")} <.arrow_right /></p>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Analyze build times per target and file with metadata like environment, Xcode version, and commit."
+              )}
+            </p>
+          </div>
+        </article>
+
+        <article data-part="bundle-analysis">
+          <a
+            data-part="overlay-link"
+            href={localized_href("https://docs.tuist.dev/guides/features/bundle-size")}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={
+              dgettext("marketing", "Open the %{feature} feature documentation",
+                feature: dgettext("marketing", "Bundle analysis")
+              )
+            }
+          >
+          </a>
+          <div data-part="background" aria-hidden="true">
+            <img
+              src="/marketing/images/features/bundle-analysis/background.webp"
+              alt=""
+            />
+          </div>
+          <div data-part="graphic">
+            <img
+              src="/marketing/images/features/bundle-analysis/graphic.webp"
+              alt=""
+            />
+          </div>
+          <div data-part="content">
+            <p data-part="title">{dgettext("marketing", "Bundle Insights")} <.arrow_right /></p>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Track and reduce app size by spotting duplicate assets and bloated resources."
+              )}
+            </p>
+          </div>
+        </article>
+
+        <article data-part="registry">
+          <a
+            data-part="overlay-link"
+            href={localized_href("https://docs.tuist.dev/guides/features/registry")}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={
+              dgettext("marketing", "Open the %{feature} feature documentation",
+                feature: dgettext("marketing", "Registry")
+              )
+            }
+          >
+          </a>
+          <div data-part="background" aria-hidden="true">
+            <img
+              src="/marketing/images/features/registry/background.webp"
+              alt=""
+            />
+          </div>
+          <div data-part="graphic">
+            <img src="/marketing/images/features/registry/graphic.webp" alt="" />
+          </div>
+          <div data-part="content">
+            <p data-part="title">{dgettext("marketing", "Registry")} <.arrow_right /></p>
+            <p data-part="description">
+              {dgettext(
+                "marketing",
+                "Faster & more lightweight OSS packages resolution"
+              )}
+            </p>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section data-part="public-dashboard">
+      <h2 data-part="title">
+        <span>{dgettext("marketing", "Explore features")}</span>
+        <span>{dgettext("marketing", "live on our dashboard")}</span>
+      </h2>
+      <main data-part="dashboard">
+        <a
+          data-part="overlay-link"
+          href="/tuist/tuist"
+          aria-label={dgettext("marketing", "Explore Tuist's features")}
+        >
+        </a>
+        <img data-part="default" src="/marketing/images/home/dashboard.webp" />
+        <img data-part="hover" src="/marketing/images/home/dashboard-hover.webp" />
+        <img data-part="default-mobile" src="/marketing/images/home/dashboard-mobile.webp" />
+        <img data-part="hover-mobile" src="/marketing/images/home/dashboard-hover-mobile.webp" />
+        <.button
+          href="/tuist/tuist"
+          label={dgettext("marketing", "Explore Tuist's features")}
+        />
+      </main>
+    </section>
+
+    <section data-part="testimonial">
+      <blockquote data-part="quote">
+        <h3>
+          <span data-part="line-one">
+            {@featured_testimonials.quote_line_one}
+          </span>
+          <span data-part="line-two">
+            {@featured_testimonials.quote_line_two}
+          </span>
+        </h3>
+      </blockquote>
+      <footer data-part="name">
+        <.avatar
+          id="avatar-basic-with-image"
+          name={@featured_testimonials.author_name}
+          image_href={@featured_testimonials.author_avatar}
+          size="small"
+        />
+        <p>{@featured_testimonials.author_name}</p>
+      </footer>
+    </section>
+
+    <section data-part="case-study">
+      <article data-part="customer-one">
+        <a
+          data-part="overlay-link"
+          href="/blog/2023/09/08/trendyol-and-tuist"
+          aria-label={dgettext("marketing", "Read the Trendyol customer story")}
+        >
+        </a>
+        <div data-part="background" aria-hidden="true">
+          <img
+            src="/marketing/images/testimonials/trendyol/background.webp"
+            alt=""
+          />
+        </div>
+        <header data-part="content">
+          <div data-part="name">
+            <.trendyol_testimonial_logo />
+            <.button
+              href="/blog/2023/09/08/trendyol-and-tuist"
+              variant="secondary"
+              label={dgettext("marketing", "Read customer story")}
+              data-part="customer-story-button"
+            >
+              <:icon_right><.chevron_right /></:icon_right>
+            </.button>
+          </div>
+          <h3>{dgettext("marketing", "Trendyol reduced build times by 65% with Tuist")}</h3>
+        </header>
+        <div data-part="graphic">
+          <img src="/marketing/images/testimonials/trendyol/graphic.webp" alt="Trendyol graph" />
+        </div>
+      </article>
+
+      <article data-part="customer-two">
+        <a
+          data-part="overlay-link"
+          href="https://medium.com/bumble-tech/scaling-ios-at-bumble-76754fa874f7"
+          aria-label={dgettext("marketing", "Read the Bumble customer story")}
+        >
+        </a>
+        <div data-part="background" aria-hidden="true">
+          <img
+            src="/marketing/images/testimonials/bumble/background.webp"
+            alt=""
+          />
+        </div>
+        <header data-part="content">
+          <div data-part="name">
+            <div aria-hidden="true" style="height: 64px;"></div>
+            <.button
+              href="https://medium.com/bumble-tech/scaling-ios-at-bumble-76754fa874f7"
+              variant="secondary"
+              label={dgettext("marketing", "Read story")}
+              data-part="customer-story-button"
+            >
+              <:icon_right><.chevron_right /></:icon_right>
+            </.button>
+          </div>
+          <h3>
+            {dgettext(
+              "marketing",
+              "Bumble solved key issues without changing the core dev experience"
+            )}
+          </h3>
+        </header>
+        <div data-part="graphic">
+          <img src="/marketing/images/testimonials/bumble/graphic.webp" alt="Bumble graphic" />
+        </div>
+      </article>
+    </section>
+
+    <section data-part="features-title">
+      <h2>{dgettext("marketing", "Powered by")}
+        <span data-part="box">{dgettext("marketing", "open source")}</span></h2>
+    </section>
+
+    <section data-part="stats" aria-label="Platform statistics">
+      <div data-part="column">
+        <article data-part="github-card">
+          <div data-part="background">
+            <img src="/marketing/images/stats/github.webp" alt="" />
+          </div>
+          <div data-part="content">
+            <h1>{dgettext("marketing", "5K+")}</h1>
+            <p>{dgettext("marketing", "Stars on GitHub")}</p>
+          </div>
+        </article>
+
+        <article data-part="oss-card">
+          <div data-part="background">
+            <img src="/marketing/images/stats/oss.webp" alt="" />
+          </div>
+          <div data-part="content">
+            <h1>{dgettext("marketing", "9+")}</h1>
+            <p>{dgettext("marketing", "Years of building OSS Foundation")}</p>
+          </div>
+        </article>
+      </div>
+
+      <div data-part="column">
+        <article data-part="minutes-card">
+          <div data-part="background">
+            <img src="/marketing/images/stats/minutes.webp" alt="" />
+          </div>
+          <div data-part="content">
+            <h1>{dgettext("marketing", "8300+")}</h1>
+            <p>{dgettext("marketing", "Pull requests merged")}</p>
+          </div>
+        </article>
+
+        <article data-part="slack-card">
+          <div data-part="background">
+            <img src="/marketing/images/stats/slack.webp" alt="" />
+          </div>
+          <div data-part="content">
+            <h1>{dgettext("marketing", "1400+")}</h1>
+            <p>{dgettext("marketing", "Active community members and counting")}</p>
+          </div>
+        </article>
+      </div>
+
+      <div data-part="column">
+        <article data-part="teams-card">
+          <div data-part="background">
+            <img src="/marketing/images/stats/teams.webp" alt="" />
+          </div>
+          <div data-part="content">
+            <h1>{dgettext("marketing", "10K+")}</h1>
+            <p>{dgettext("marketing", "Teams using Tuist")}</p>
+          </div>
+        </article>
+
+        <article data-part="contributors-card">
+          <div data-part="background">
+            <img src="/marketing/images/stats/contributors.webp" alt="" />
+          </div>
+          <div data-part="content">
+            <h1>{dgettext("marketing", "300+")}</h1>
+            <p>{dgettext("marketing", "Contributors")}</p>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section data-part="testimonials" aria-labelledby="testimonials-title">
+      <div data-part="background" aria-hidden="true">
+        <img src="/marketing/images/home/testimonials/background.webp" alt="" />
+      </div>
+      <header data-part="header">
+        <h2 id="testimonials-title" data-part="title">
+          {dgettext("marketing", "Beyond expectations")}
+        </h2>
+        <p data-part="subtitle">
+          {dgettext("marketing", "Hear from our community about their experience with Tuist")}
+        </p>
+        <nav data-part="actions" aria-label="Community links">
+          <.button
+            label="Slack"
+            variant="secondary"
+            href="https://slack.tuist.dev"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <:icon_left><.brand_slack /></:icon_left>
+          </.button>
+          <.button
+            label={dgettext("marketing", "Community forum")}
+            variant="secondary"
+            href="https://community.tuist.dev"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <:icon_left><.message_circle /></:icon_left>
+          </.button>
+        </nav>
+      </header>
+      <ul data-part="main">
+        <li :for={column <- @testimonial_columns} data-part="column">
+          <.home_testimonial_card
+            :for={testimonial <- column}
+            quote={testimonial.quote}
+            name={testimonial.name}
+            role={testimonial.role}
+            avatar_src={testimonial.avatar_src}
+            data-highlighted={if testimonial.highlighted, do: "true", else: nil}
+          >
+            <:logo :if={testimonial.logo_svg}>
+              {Phoenix.HTML.raw(testimonial.logo_svg)}
+            </:logo>
+          </.home_testimonial_card>
+        </li>
+      </ul>
+    </section>
+
+    <section data-part="cta">
+      <.marketing_banner title={dgettext("marketing", "Supercharge your app development")} />
+    </section>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>

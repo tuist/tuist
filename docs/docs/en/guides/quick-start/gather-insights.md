@@ -1,9 +1,10 @@
 ---
-title: Gather insights
-titleTemplate: :title · Quick-start · Guides · Tuist
-description: Learn how to gather insights about your project.
+{
+  "title": "Gather insights",
+  "titleTemplate": ":title · Quick-start · Guides · Tuist",
+  "description": "Learn how to gather insights about your project."
+}
 ---
-
 # Gather insights {#gather-insights}
 
 Tuist can integrate with a server to extend its capabilities. One of those capabilities is gathering insights about your project and builds. All you need is to have an account with a project in the server.
@@ -38,8 +39,11 @@ let tuist = Tuist(fullHandle: "my-handle/MyApp")
 
 Voilà! You're now ready to gather insights about your project and builds. Run `tuist test` to run the tests reporting the results to the server.
 
-> [!NOTE]
-> Tuist enqueues the results locally and tries to send them without blocking the command. Therefore, they might not be sent immediately after the command finishes. In CI, the results are sent immediately.
+::: info
+<!-- -->
+Tuist enqueues the results locally and tries to send them without blocking the command. Therefore, they might not be sent immediately after the command finishes. In CI, the results are sent immediately.
+<!-- -->
+:::
 
 
 ![An image that shows a list of runs in the server](/images/guides/quick-start/runs.png)

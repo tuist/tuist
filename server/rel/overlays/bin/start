@@ -1,0 +1,28 @@
+#!/bin/sh
+cd -P -- "$(dirname -- "$0")"
+
+echo "Obtaining the database schema version..."
+BEFORE_MIGRATION_SCHEMA_VERSION=$(psql $DATABASE_URL -t -c "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1;")
+BEFORE_MIGRATION_SCHEMA_VERSION=$(echo $BEFORE_MIGRATION_SCHEMA_VERSION | xargs)
+echo "Current database schema version: $BEFORE_MIGRATION_SCHEMA_VERSION"
+
+# Running migrations
+echo "Running migration..."
+./tuist eval Tuist.Release.migrate
+if [ $? -ne 0 ]; then
+  echo "Migration failed!"
+  AFTER_MIGRATION_SCHEMA_VERSION=$(psql $DATABASE_URL -t -c "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1;")
+  AFTER_MIGRATION_SCHEMA_VERSION=$(echo $AFTER_MIGRATION_SCHEMA_VERSION | xargs)
+
+  if [ "$BEFORE_MIGRATION_SCHEMA_VERSION" != "$AFTER_MIGRATION_SCHEMA_VERSION" ]; then
+    echo "Rolling back from version $AFTER_MIGRATION_SCHEMA_VERSION to $BEFORE_MIGRATION_SCHEMA_VERSION (excluded)"
+    ROLLBACK_VERSION=$BEFORE_MIGRATION_SCHEMA_VERSION ./tuist eval Tuist.Release.rollback
+  fi
+  exit 1
+fi
+
+echo "Migration completed successfully."
+
+# Starting the server
+echo "Starting the server..."
+TUIST_WEB=true exec ./tuist start

@@ -22,5 +22,7 @@ type_name:
   min_length:
     error: 1
     warning: 1
-excluded: 
-  - Sources/TuistServer/OpenAPI
+excluded:
+  - cli/Sources/TuistServer/OpenAPI
+  - cli/Sources/TuistCache/OpenAPI
+  - cli/Sources/TuistCAS/Generated

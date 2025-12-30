@@ -1,8 +1,0 @@
-#!/bin/bash
-# mise description="Install all necessary dependencies"
-
-set -euo pipefail
-
-pnpm install -C $MISE_PROJECT_ROOT/docs/
-swift package --package-path $MISE_PROJECT_ROOT resolve
-swift package --package-path $MISE_PROJECT_ROOT/app resolve

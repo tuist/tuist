@@ -1,0 +1,91 @@
+#marketing-blog-post {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--noora-spacing-9);
+  padding-bottom: var(--noora-spacing-11);
+
+  @media (min-width: 1024px) {
+    gap: var(--noora-spacing-11);
+  }
+
+  & > [data-part="header"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--noora-spacing-11);
+    padding-top: var(--noora-spacing-10);
+
+    @media (min-width: 1024px) {
+      padding-top: var(--noora-spacing-12);
+    }
+
+    & > [data-part="content"] {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--noora-spacing-6);
+
+      & > [data-part="category"] {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: var(--noora-spacing-2);
+        color: var(--noora-neutral-light-1100);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+
+        & > a {
+          color: inherit;
+          text-decoration: none;
+
+          &:hover {
+            text-decoration: underline;
+          }
+        }
+
+        & > svg {
+          margin: var(--noora-spacing-3);
+          color: var(--noora-neutral-light-700);
+        }
+      }
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-display-small);
+        text-align: center;
+        text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
+      }
+
+      & > [data-part="metadata"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+    }
+
+    & > [data-part="image"] {
+      box-shadow:
+        0 102px 28px 0 rgba(0, 0, 0, 0),
+        0 65px 26px 0 rgba(0, 0, 0, 0.01),
+        0 37px 22px 0 rgba(0, 0, 0, 0.02),
+        0 16px 16px 0 rgba(0, 0, 0, 0.04),
+        0 4px 9px 0 rgba(0, 0, 0, 0.04);
+      border-radius: var(--noora-radius-2xlarge);
+      background: #fff;
+      width: 100%;
+      max-width: 780px;
+      height: auto;
+    }
+  }
+
+  & > [data-part="content"] {
+    box-sizing: border-box;
+    padding-right: var(--noora-spacing-6);
+    padding-left: var(--noora-spacing-6);
+    width: 100%;
+
+    @media (min-width: 1024px) {
+      align-self: center;
+      max-width: 650px;
+    }
+  }
+}

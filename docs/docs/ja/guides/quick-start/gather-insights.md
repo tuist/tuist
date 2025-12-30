@@ -1,22 +1,23 @@
 ---
-title: インサイトを収集する
-titleTemplate: :title · クイックスタート · ガイド · Tuist
-description: プロジェクトに関するインサイトを収集する方法を学びます。
+{
+  "title": "Gather insights",
+  "titleTemplate": ":title · Quick-start · Guides · Tuist",
+  "description": "Learn how to gather insights about your project."
+}
 ---
+# 洞察を集める{#gather-insights}
 
-# インサイトを収集する {#gather-insights}
+Tuistはサーバーと統合してその機能を拡張することができる。その機能のひとつが、プロジェクトやビルドに関するインサイトを収集することだ。必要なのは、サーバーにプロジェクトを持つアカウントがあることだけだ。
 
-Tuistはサーバーと統合してその機能を拡張できます。 その機能の一つは、プロジェクトやビルドに関するインサイトを収集することです。 サーバー上にプロジェクトのアカウントを持っているだけで済みます。
-
-まず最初に、次のコマンドを実行して認証を行う必要があります：
+まず、認証を実行する必要がある：
 
 ```bash
 tuist auth login
 ```
 
-## プロジェクトの作成 {#create-a-project}
+## プロジェクトを作成する{#create-a-project}
 
-次に、次のコマンドを実行してプロジェクトを作成できます：
+プロジェクトを作成するには
 
 ```bash
 tuist project create my-handle/MyApp
@@ -24,11 +25,12 @@ tuist project create my-handle/MyApp
 # Tuist project my-handle/MyApp was successfully created 🎉 {#tuist-project-myhandlemyapp-was-successfully-created-}
 ```
 
-`my-handle/MyApp` をコピーします。これはプロジェクトの完全なハンドルを表します。
+コピー`my-handle/MyApp` 、これはプロジェクトの完全なハンドルを表す。
 
-## プロジェクトを接続する {#connect-projects}
+## コネクト・プロジェクト{#connect-projects}
 
-サーバー上にプロジェクトを作成した後、ローカルプロジェクトに接続する必要があります。 サーバー上にプロジェクトを作成した後、ローカルプロジェクトに接続する必要があります。 サーバー上にプロジェクトを作成した後、ローカルプロジェクトに接続する必要があります。 サーバー上にプロジェクトを作成した後、ローカルプロジェクトに接続する必要があります。 サーバー上にプロジェクトを作成した後、ローカルプロジェクトに接続する必要があります。 サーバー上にプロジェクトを作成した後、ローカルプロジェクトに接続する必要があります。 Run `tuist edit` and edit the `Tuist.swift` file to include the full handle of the project:
+サーバー上にプロジェクトを作成したら、それをローカル・プロジェクトに接続する必要があります。`tuist edit` を実行し、`Tuist.swift`
+ファイルを編集して、プロジェクトの完全なハンドルを含めます：
 
 ```swift
 import ProjectDescription
@@ -36,12 +38,15 @@ import ProjectDescription
 let tuist = Tuist(fullHandle: "my-handle/MyApp")
 ```
 
-ほら！ これで、プロジェクトやビルドに関するインサイトを収集する準備が整いましたよ。 `tuist test` を実行してテストを実行し、結果をサーバーに報告します。
+完了です！これで、プロジェクトとビルドに関する情報を収集する準備が整いました。`tuist test` を実行して、結果をサーバーに報告するテストを実行します。
 
-> [!NOTE]
-> Tuistは結果をローカルにキューイングし、コマンドをブロックすることなく送信しようとします。 したがって、コマンドが終了した直後に結果が送信されない場合があります。 CIでは結果が即座に送信されます。
+::: info
+<!-- -->
+Tuistは結果をローカルにキューに入れ、コマンドをブロックすることなく送信しようとする。そのため、コマンドの終了直後に送信されないことがある。CIでは、結果は直ちに送信される。
+<!-- -->
+:::
 
-![An image that shows a list of runs in the server](/images/guides/quick-start/runs.png)
 
-プロジェクトやビルドからデータを取得することは、情報に基づいた意思決定を行う上で重要です。
-Tuistはその機能を拡張し続け、プロジェクトの設定を変更することなくその恩恵を受けることができます。 魔法のようですね？ 🪄
+サーバー内のランのリストを表示する画像](/images/guides/quick-start/runs.png)。
+
+プロジェクトやビルドからデータを得ることは、情報に基づいた意思決定を行う上で非常に重要です。Tuistはその機能を拡張し続け、あなたはプロジェクト構成を変更することなく、その恩恵を受けることができる。魔法のようでしょう？🪄

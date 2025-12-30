@@ -1,0 +1,19 @@
+{
+  "name": "@tuist/server",
+  "private": true,
+  "dependencies": {
+    "@scalar/api-reference": "^1.40.1",
+    "echarts": "^5.6.0",
+    "prettier-plugin-css-order": "^2.1.2",
+    "shiki": "3.7.0",
+    "vanilla-cookieconsent": "3.1.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "vue-demi"
+    ],
+    "overrides": {
+      "mdast-util-to-hast": "13.2.1"
+    }
+  }
+}

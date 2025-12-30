@@ -1,0 +1,731 @@
+<div id="run-detail">
+  <.button
+    :if={@run.name == "test"}
+    label={dgettext("dashboard_builds", "Test Runs")}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs"}
+  >
+    <:icon_left>
+      <.icon name="arrow_left" />
+    </:icon_left>
+  </.button>
+  <.button
+    :if={@run.name == "cache"}
+    label={dgettext("dashboard_builds", "Cache Runs")}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={
+      ~p"/#{@selected_project.account.name}/#{@selected_project.name}/module-cache/cache-runs"
+    }
+  >
+    <:icon_left>
+      <.icon name="arrow_left" />
+    </:icon_left>
+  </.button>
+  <.button
+    :if={@run.name == "generate"}
+    label={dgettext("dashboard_builds", "Generate Runs")}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={
+      ~p"/#{@selected_project.account.name}/#{@selected_project.name}/module-cache/generate-runs"
+    }
+  >
+    <:icon_left>
+      <.icon name="arrow_left" />
+    </:icon_left>
+  </.button>
+  <div data-part="header">
+    <div data-part="title">
+      <div :if={@run.status == :success} data-part="badge-success">
+        <div data-part="icon">
+          <.circle_check />
+        </div>
+      </div>
+      <div :if={@run.status == :failure} data-part="badge-failure">
+        <div data-part="icon">
+          <.alert_circle />
+        </div>
+      </div>
+      <h1 data-part="label">
+        {"tuist #{@run.name}" <> if @run.subcommand, do: " #{@run.subcommand}", else: ""}
+      </h1>
+    </div>
+    <.button
+      :if={@has_result_bundle.ok? && @has_result_bundle.result}
+      href={
+        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{@run.id}/download"
+      }
+      label={dgettext("dashboard_builds", "Download result")}
+      variant="secondary"
+      size="medium"
+    >
+      <:icon_left><.download /></:icon_left>
+    </.button>
+  </div>
+  <.tab_menu_horizontal>
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_builds", "Overview")}
+      selected={@selected_tab == "overview"}
+      patch={"?#{Query.put(@uri.query, "tab", "overview")}"}
+      replace={true}
+    />
+    <.tab_menu_horizontal_item
+      :if={@has_selective_testing_data}
+      label={dgettext("dashboard_builds", "Test Optimizations")}
+      selected={@selected_tab == "test-optimizations"}
+      patch={"?#{Query.put(@uri.query, "tab", "test-optimizations")}"}
+      replace={true}
+    />
+    <.tab_menu_horizontal_item
+      :if={@has_binary_cache_data}
+      label={dgettext("dashboard_builds", "Module Cache")}
+      selected={@selected_tab == "compilation-optimizations"}
+      patch={"?#{Query.put(@uri.query, "tab", "compilation-optimizations")}"}
+      replace={true}
+    />
+  </.tab_menu_horizontal>
+  <%= if @selected_tab == "overview" do %>
+    <.card
+      title={dgettext("dashboard_builds", "Test Details")}
+      icon="chart_arcs"
+      data-part="test-details"
+    >
+      <.card_section data-part="test-details-section">
+        <div data-part="metadata-grid">
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_builds", "Command")}</div>
+              <span data-part="command">
+                {if @run.command_arguments,
+                  do: ("tuist " <> @run.command_arguments) |> String.split(" ") |> Enum.join(" "),
+                  else: "tuist #{@run.name}"}
+              </span>
+            </div>
+          </div>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_builds", "Cache Endpoint")}</div>
+              <span data-part="label">
+                <.server />
+                {format_cache_endpoint(@run.cache_endpoint)}
+              </span>
+            </div>
+          </div>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_builds", "Status")}</div>
+              <%= if @run.status == :success do %>
+                <.badge
+                  label={dgettext("dashboard_builds", "Passed")}
+                  color="success"
+                  style="fill"
+                  size="large"
+                />
+              <% else %>
+                <.badge
+                  label={dgettext("dashboard_builds", "Failed")}
+                  color="destructive"
+                  style="fill"
+                  size="large"
+                />
+              <% end %>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_builds", "Ran by")}</div>
+              <.run_ran_by_badge_cell run={@run} ran_by_name={@user && @user.account.name} />
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_builds", "Ran at")}</div>
+              <span data-part="label">
+                {Tuist.Utilities.DateFormatter.format_with_timezone(@run.ran_at, @user_timezone)}
+              </span>
+            </div>
+          </div>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_builds", "Source")}</div>
+              <span data-part="label">
+                <.git_branch />
+                {@run.git_branch || dgettext("dashboard_builds", "None")}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_builds", "Commit SHA")}</div>
+              <span data-part="label">
+                {@run.git_commit_sha || dgettext("dashboard_builds", "None")}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_builds", "Run duration")}</div>
+              <span data-part="label">
+                <.history />
+                {dgettext("dashboard_builds", "%{run_duration}s",
+                  run_duration: (@run.duration / 1000) |> Decimal.from_float() |> Decimal.round(2)
+                )}
+              </span>
+            </div>
+          </div>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_builds", "Tuist version")}</div>
+              <span data-part="label">
+                <.brand_tuist />
+                {@run.tuist_version}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_builds", "Swift version")}</div>
+              <span data-part="label">
+                <.brand_swift />
+                {@run.swift_version}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_builds", "macOS version")}</div>
+              <span data-part="label">
+                <.device_laptop />
+                {@run.macos_version}
+              </span>
+            </div>
+          </div>
+        </div>
+      </.card_section>
+    </.card>
+  <% end %>
+  <%= if @selected_tab == "test-optimizations" do %>
+    <.card
+      title={dgettext("dashboard_builds", "Optimization Summary")}
+      icon="chart_arcs"
+      data-part="optimization-summary"
+    >
+      <.card_section data-part="optimization-summary-section">
+        <.widget
+          title={dgettext("dashboard_builds", "Total modules")}
+          description={
+            dgettext(
+              "dashboard_builds",
+              "Total modules represents the total number of testable modules."
+            )
+          }
+          value={@selective_testing_analytics.total_modules_count}
+          id="widget-optimization-summary-total-modules"
+        />
+        <.widget
+          title={dgettext("dashboard_builds", "Selective test hits")}
+          description={
+            dgettext(
+              "dashboard_builds",
+              "Selective test hits represents the number of test modules that were skipped thanks to the selective testing."
+            )
+          }
+          value={
+            @selective_testing_analytics.selective_testing_local_hits_count +
+              @selective_testing_analytics.selective_testing_remote_hits_count
+          }
+          id="widget-optimization-summary-selective-test-hits"
+        />
+        <.widget
+          title={dgettext("dashboard_builds", "Selective test misses")}
+          description={
+            dgettext(
+              "dashboard_builds",
+              "Selective test misses represents the number of test modules that were run as they were not successfully run before."
+            )
+          }
+          value={@selective_testing_analytics.selective_testing_misses_count}
+          id="widget-optimization-summary-selective-test-misses"
+        />
+      </.card_section>
+    </.card>
+    <.card
+      title={dgettext("dashboard_builds", "Selective Testing")}
+      icon="history_toggle"
+      data-part="selective-testing"
+    >
+      <.card_section data-part="selective-testing-section">
+        <.form for={%{}} phx-change="search-selective-testing" phx-debounce="200">
+          <.text_input
+            type="search"
+            id="search-selective-testing"
+            name="search"
+            placeholder={dgettext("dashboard_builds", "Search...")}
+            show_suffix={false}
+            data-part="search"
+            value={@selective_testing_filter}
+          />
+        </.form>
+        <.table id="selective-testing-table" rows={@selective_testing_analytics.test_modules}>
+          <:col
+            :let={test_module}
+            label={dgettext("dashboard_builds", "Module")}
+            patch={
+              "?#{@uri.query
+              |> Query.put("selective-testing-sort-by", "name")
+              |> Query.put("selective-testing-sort-order", sort_order_patch_value("name", @selective_testing_sort_by, @selective_testing_sort_order))
+              |> Query.drop("selective-testing-page")}"
+            }
+            icon={
+              @selective_testing_sort_by == "name" &&
+                sort_icon(@selective_testing_sort_order)
+            }
+          >
+            <.text_and_description_cell label={test_module.name} />
+          </:col>
+          <:col :let={test_module} label={dgettext("dashboard_builds", "Hit")}>
+            <%= case test_module.selective_testing_hit do %>
+              <% :remote -> %>
+                <.badge_cell
+                  label={dgettext("dashboard_builds", "Remote")}
+                  color="focus"
+                  style="light-fill"
+                />
+              <% :local -> %>
+                <.badge_cell
+                  label={dgettext("dashboard_builds", "Local")}
+                  color="secondary"
+                  style="light-fill"
+                />
+              <% :miss -> %>
+                <.badge_cell
+                  label={dgettext("dashboard_builds", "Missed")}
+                  color="warning"
+                  style="light-fill"
+                />
+            <% end %>
+          </:col>
+          <:col :let={test_module} label={dgettext("dashboard_builds", "Hash")}>
+            <.text_cell label={
+              test_module.selective_testing_hash || dgettext("dashboard_builds", "Unknown")
+            } />
+          </:col>
+          <:empty_state>
+            <.table_empty_state
+              icon="history_toggle"
+              title={dgettext("dashboard_builds", "No modules found")}
+              subtitle={dgettext("dashboard_builds", "Try changing your search term")}
+            />
+          </:empty_state>
+        </.table>
+        <.pagination_group
+          :if={@selective_testing_page_count > 1}
+          current_page={@selective_testing_page}
+          number_of_pages={@selective_testing_page_count}
+          page_patch={
+            fn page ->
+              "?#{Query.put(@uri.query, "selective-testing-page", page)}"
+            end
+          }
+        />
+      </.card_section>
+    </.card>
+  <% end %>
+  <%= if @selected_tab == "compilation-optimizations" do %>
+    <.card
+      title={dgettext("dashboard_builds", "Summary")}
+      icon="chart_arcs"
+      data-part="optimization-summary"
+    >
+      <.card_section data-part="optimization-summary-section">
+        <.widget
+          title={dgettext("dashboard_builds", "Cache hits")}
+          description={
+            dgettext(
+              "dashboard_builds",
+              "Total number of modules taken from either the local or the remote cache."
+            )
+          }
+          value={
+            @binary_cache_analytics.binary_cache_local_hits_count +
+              @binary_cache_analytics.binary_cache_remote_hits_count
+          }
+          id="widget-optimization-summary-binary-cache-hits"
+        />
+        <.widget
+          title={dgettext("dashboard_builds", "Cache misses")}
+          description={
+            dgettext(
+              "dashboard_builds",
+              "Total number of modules that could have been taken from the cache if it was fully populated."
+            )
+          }
+          value={@binary_cache_analytics.binary_cache_misses_count}
+          id="widget-optimization-summary-binary-cache-misses"
+        />
+        <.widget
+          title={dgettext("dashboard_builds", "Cache hit rate")}
+          description={
+            dgettext(
+              "dashboard_builds",
+              "Percentage of modules that were successfully retrieved from the cache."
+            )
+          }
+          value={"#{@binary_cache_analytics.cache_hit_rate}%"}
+          id="widget-optimization-summary-cache-hit-rate"
+        />
+      </.card_section>
+    </.card>
+    <.card
+      title={dgettext("dashboard_builds", "Module Cache")}
+      icon="database"
+      data-part="binary-cache"
+    >
+      <:actions>
+        <.button
+          id="copy-binary-cache-json"
+          variant="secondary"
+          label={dgettext("dashboard_builds", "Copy as JSON")}
+          size="medium"
+          phx-hook="Clipboard"
+          data-clipboard-value={@binary_cache_json}
+          disabled={Enum.empty?(@binary_cache_analytics.cacheable_targets)}
+        >
+          <:icon_left><.copy /></:icon_left>
+        </.button>
+      </:actions>
+      <.card_section data-part="binary-cache-section">
+        <.card_section
+          :if={
+            @binary_cache_analytics.binary_cache_local_hits_count +
+              @binary_cache_analytics.binary_cache_remote_hits_count +
+              @binary_cache_analytics.binary_cache_misses_count > 0
+          }
+          data-part="cacheable-targets-card-section"
+        >
+          <div data-part="title">
+            <span data-part="label">
+              {dgettext("dashboard_builds", "Cacheable targets:")}
+            </span>
+            <span data-part="value">
+              {@binary_cache_analytics.binary_cache_local_hits_count +
+                @binary_cache_analytics.binary_cache_remote_hits_count +
+                @binary_cache_analytics.binary_cache_misses_count}
+            </span>
+          </div>
+          <.chart
+            id="cacheable-targets-breakdown-chart"
+            type="bar"
+            extra_options={
+              %{
+                tooltip: %{
+                  trigger: "axis",
+                  axisPointer: %{
+                    type: "none"
+                  }
+                },
+                legend: %{
+                  left: "-0.3%",
+                  top: "bottom",
+                  orient: "horizontal",
+                  textStyle: %{
+                    color: "var:noora-surface-label-primary",
+                    fontFamily: "monospace",
+                    fontWeight: 400,
+                    fontSize: 10,
+                    lineHeight: 12
+                  },
+                  icon:
+                    "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+                  itemWidth: 8,
+                  itemHeight: 4
+                },
+                grid: %{
+                  width: "99%",
+                  left: "0%",
+                  height: "60%",
+                  top: "0%"
+                },
+                xAxis: %{
+                  type: "value",
+                  axisLabel: %{
+                    show: false
+                  },
+                  splitLine: %{show: false}
+                },
+                yAxis: %{
+                  type: "category",
+                  data: [dgettext("dashboard_builds", "Cacheable targets")],
+                  axisLabel: %{
+                    show: false
+                  }
+                }
+              }
+            }
+            series={
+              local_hits = @binary_cache_analytics.binary_cache_local_hits_count
+              remote_hits = @binary_cache_analytics.binary_cache_remote_hits_count
+              misses = @binary_cache_analytics.binary_cache_misses_count
+
+              [
+                %{
+                  name: dgettext("dashboard_builds", "Local"),
+                  type: "bar",
+                  stack: "total",
+                  emphasis: %{
+                    focus: "series"
+                  },
+                  data: [local_hits],
+                  color: "var:hits-chart-legend-local",
+                  itemStyle: %{
+                    borderRadius:
+                      cache_chart_border_radius(local_hits, remote_hits, misses, :local)
+                  }
+                },
+                %{
+                  name: dgettext("dashboard_builds", "Remote"),
+                  type: "bar",
+                  stack: "total",
+                  emphasis: %{
+                    focus: "series"
+                  },
+                  data: [remote_hits],
+                  color: "var:hits-chart-legend-remote",
+                  itemStyle: %{
+                    borderRadius:
+                      cache_chart_border_radius(local_hits, remote_hits, misses, :remote)
+                  }
+                },
+                %{
+                  name: dgettext("dashboard_builds", "Missed"),
+                  type: "bar",
+                  stack: "total",
+                  emphasis: %{
+                    focus: "series"
+                  },
+                  data: [misses],
+                  color: "var:hits-chart-legend-missed",
+                  itemStyle: %{
+                    borderRadius:
+                      cache_chart_border_radius(local_hits, remote_hits, misses, :misses)
+                  }
+                }
+              ]
+            }
+            x_axis_min={0}
+            x_axis_max={
+              @binary_cache_analytics.binary_cache_local_hits_count +
+                @binary_cache_analytics.binary_cache_remote_hits_count +
+                @binary_cache_analytics.binary_cache_misses_count
+            }
+          />
+        </.card_section>
+        <div data-part="filters">
+          <.form for={%{}} phx-change="search-binary-cache" phx-debounce="200">
+            <.text_input
+              type="search"
+              id="search-binary-cache"
+              name="search"
+              placeholder={dgettext("dashboard_builds", "Search...")}
+              show_suffix={false}
+              data-part="search"
+              value={@binary_cache_filter}
+            />
+          </.form>
+          <.filter_dropdown
+            id="binary-cache-filter-dropdown"
+            label={dgettext("dashboard_builds", "Filter")}
+            available_filters={@available_filters}
+            active_filters={@binary_cache_active_filters}
+          />
+        </div>
+        <div :if={Enum.any?(@binary_cache_active_filters)} data-part="active-filters">
+          <.active_filter :for={filter <- @binary_cache_active_filters} filter={filter} />
+        </div>
+        <.table
+          id="binary-cache-table"
+          rows={@binary_cache_analytics.cacheable_targets}
+          row_key={fn target -> target.name end}
+          row_expandable={fn target -> target.product_name != "" end}
+          expanded_rows={MapSet.to_list(@expanded_target_names)}
+        >
+          <:col
+            :let={binary_cache_module}
+            label={dgettext("dashboard_builds", "Module")}
+            patch={
+              "?#{@uri.query
+              |> Query.put("binary-cache-sort-by", "name")
+              |> Query.put("binary-cache-sort-order", sort_order_patch_value("name", @binary_cache_sort_by, @binary_cache_sort_order))
+              |> Query.drop("binary-cache-page")}"
+            }
+            icon={
+              @binary_cache_sort_by == "name" &&
+                sort_icon(@binary_cache_sort_order)
+            }
+          >
+            <.text_and_description_cell label={binary_cache_module.name} />
+          </:col>
+          <:col :let={binary_cache_module} label={dgettext("dashboard_builds", "Hit")}>
+            <%= case binary_cache_module.binary_cache_hit do %>
+              <% :remote -> %>
+                <.badge_cell
+                  label={dgettext("dashboard_builds", "Remote")}
+                  color="focus"
+                  style="light-fill"
+                />
+              <% :local -> %>
+                <.badge_cell
+                  label={dgettext("dashboard_builds", "Local")}
+                  color="secondary"
+                  style="light-fill"
+                />
+              <% :miss -> %>
+                <.badge_cell
+                  label={dgettext("dashboard_builds", "Missed")}
+                  color="warning"
+                  style="light-fill"
+                />
+            <% end %>
+          </:col>
+          <:col :let={binary_cache_module} label={dgettext("dashboard_builds", "Hash")}>
+            <.text_cell label={
+              binary_cache_module.binary_cache_hash || dgettext("dashboard_builds", "Unknown")
+            } />
+          </:col>
+          <:expanded_content :let={target}>
+            <div data-part="subhashes-list">
+              <div :if={target.product != ""} data-part="subhash-item">
+                <span data-part="subhash-label">{dgettext("dashboard_builds", "Product")}:</span>
+                <span data-part="subhash-value">{target.product}</span>
+              </div>
+              <div :if={target.product_name != ""} data-part="subhash-item">
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Product name")}:
+                </span>
+                <span data-part="subhash-value">{target.product_name}</span>
+              </div>
+              <div :if={target.bundle_id != ""} data-part="subhash-item">
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Bundle ID")}:
+                </span>
+                <span data-part="subhash-value">{target.bundle_id}</span>
+              </div>
+              <div :if={not Enum.empty?(target.destinations || [])} data-part="subhash-item">
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Destinations")}:
+                </span>
+                <span data-part="subhash-value">
+                  {target.destinations
+                  |> Enum.map(&Xcode.humanize_xcode_target_destination/1)
+                  |> Enum.join(", ")}
+                </span>
+              </div>
+              <div :if={target.external_hash != ""} data-part="subhash-item">
+                <span data-part="subhash-label">{dgettext("dashboard_builds", "External")}:</span>
+                <span data-part="subhash-value">{target.external_hash}</span>
+              </div>
+              <div :if={target.sources_hash != ""} data-part="subhash-item">
+                <span data-part="subhash-label">{dgettext("dashboard_builds", "Sources")}:</span>
+                <span data-part="subhash-value">{target.sources_hash}</span>
+              </div>
+              <div :if={target.resources_hash != ""} data-part="subhash-item">
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Resources")}:
+                </span>
+                <span data-part="subhash-value">{target.resources_hash}</span>
+              </div>
+              <div :if={target.copy_files_hash != ""} data-part="subhash-item">
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Copy files")}:
+                </span>
+                <span data-part="subhash-value">{target.copy_files_hash}</span>
+              </div>
+              <div :if={target.core_data_models_hash != ""} data-part="subhash-item">
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Core data models")}:
+                </span>
+                <span data-part="subhash-value">{target.core_data_models_hash}</span>
+              </div>
+              <div :if={target.target_scripts_hash != ""} data-part="subhash-item">
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Target scripts")}:
+                </span>
+                <span data-part="subhash-value">{target.target_scripts_hash}</span>
+              </div>
+              <div :if={target.environment_hash != ""} data-part="subhash-item">
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Environment")}:
+                </span>
+                <span data-part="subhash-value">{target.environment_hash}</span>
+              </div>
+              <div :if={target.headers_hash != ""} data-part="subhash-item">
+                <span data-part="subhash-label">{dgettext("dashboard_builds", "Headers")}:</span>
+                <span data-part="subhash-value">{target.headers_hash}</span>
+              </div>
+              <div :if={target.deployment_target_hash != ""} data-part="subhash-item">
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Deployment target")}:
+                </span>
+                <span data-part="subhash-value">{target.deployment_target_hash}</span>
+              </div>
+              <div :if={target.info_plist_hash != ""} data-part="subhash-item">
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Info.plist")}:
+                </span>
+                <span data-part="subhash-value">{target.info_plist_hash}</span>
+              </div>
+              <div :if={target.entitlements_hash != ""} data-part="subhash-item">
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Entitlements")}:
+                </span>
+                <span data-part="subhash-value">{target.entitlements_hash}</span>
+              </div>
+              <div :if={target.dependencies_hash != ""} data-part="subhash-item">
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Dependencies")}:
+                </span>
+                <span data-part="subhash-value">{target.dependencies_hash}</span>
+              </div>
+              <div :if={target.project_settings_hash != ""} data-part="subhash-item">
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Project settings")}:
+                </span>
+                <span data-part="subhash-value">{target.project_settings_hash}</span>
+              </div>
+              <div :if={target.target_settings_hash != ""} data-part="subhash-item">
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Target settings")}:
+                </span>
+                <span data-part="subhash-value">{target.target_settings_hash}</span>
+              </div>
+              <div :if={target.buildable_folders_hash != ""} data-part="subhash-item">
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Buildable folders")}:
+                </span>
+                <span data-part="subhash-value">{target.buildable_folders_hash}</span>
+              </div>
+              <div :if={not Enum.empty?(target.additional_strings || [])} data-part="subhash-item">
+                <span data-part="subhash-label">
+                  {dgettext("dashboard_builds", "Additional strings")}:
+                </span>
+                <span data-part="subhash-value">
+                  {Enum.join(target.additional_strings, ", ")}
+                </span>
+              </div>
+            </div>
+          </:expanded_content>
+          <:empty_state>
+            <.table_empty_state
+              icon="database"
+              title={dgettext("dashboard_builds", "No modules found")}
+              subtitle={dgettext("dashboard_builds", "Try changing your search term")}
+            />
+          </:empty_state>
+        </.table>
+        <.pagination_group
+          :if={@binary_cache_page_count > 1}
+          current_page={@binary_cache_page}
+          number_of_pages={@binary_cache_page_count}
+          page_patch={
+            fn page ->
+              "?#{Query.put(@uri.query, "binary-cache-page", page)}"
+            end
+          }
+        />
+      </.card_section>
+    </.card>
+  <% end %>
+</div>

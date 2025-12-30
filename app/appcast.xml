@@ -3,31 +3,49 @@
     <channel>
         <title>Tuist</title>
         <item>
-            <title>0.9.0</title>
-            <pubDate>Tue, 03 Dec 2024 15:37:24 +0000</pubDate>
+            <title>0.23.0</title>
+            <pubDate>Thu, 20 Nov 2025 22:03:18 +0000</pubDate>
             <link>https://github.com/tuist/tuist/releases</link>
-            <sparkle:version>0.9.0</sparkle:version>
-            <sparkle:shortVersionString>0.9.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/tuist/tuist/releases/download/app@0.9.0/Tuist.dmg" length="21390680" type="application/octet-stream" sparkle:edSignature="KgvfY5Uao7pfqhOl8D/c9FcEbkTvdkRQPEdmBuJTmGSP3MSq7cQEuL+2nWF1O5j+W973oz+mkAhiaF5S5zM2BA=="/>
+            <sparkle:version>9127</sparkle:version>
+            <sparkle:shortVersionString>0.23.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/tuist/tuist/releases/download/app@0.23.0/Tuist.dmg" length="32163959" type="application/octet-stream" sparkle:edSignature="toBXipgbofTyZq6ChqXnd2rkEeVT8BApl/WDWcBhPYczWGVO9d6xLSF3aJwh99epGIt5lZA+NEHRmzUGBIFZAA=="/>
         </item>
         <item>
-            <title>0.8.1</title>
-            <pubDate>Wed, 27 Nov 2024 16:18:34 +0000</pubDate>
+            <title>0.22.7</title>
+            <pubDate>Mon, 29 Sep 2025 08:36:51 +0000</pubDate>
             <link>https://github.com/tuist/tuist/releases</link>
-            <sparkle:version>0.8.1</sparkle:version>
-            <sparkle:shortVersionString>0.8.1</sparkle:shortVersionString>
+            <sparkle:version>8759</sparkle:version>
+            <sparkle:shortVersionString>0.22.7</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/tuist/tuist/releases/download/app@0.8.1/Tuist.dmg" length="21384983" type="application/octet-stream" sparkle:edSignature="gCZt/fOdW6eIa8to4p56FGk1EBTVt7FRSVrZi9eCwi1q+p9C1/GIiXKyP2TAI4qvuDlse3SWbfHRANePB2OvAA=="/>
+            <enclosure url="https://github.com/tuist/tuist/releases/download/app@0.22.7/Tuist.dmg" length="31713769" type="application/octet-stream" sparkle:edSignature="7dTqY1w4izSmYE/8hv6aBF0/3gzGlheNbLrHJFWUcEYMqj4wRvAN2ZZWy7Jkrto9RLP7k7NOes50RZd6Syo3Aw=="/>
         </item>
         <item>
-            <title>0.8.0</title>
-            <pubDate>Tue, 26 Nov 2024 18:59:46 +0000</pubDate>
+            <title>0.24.0</title>
+            <pubDate>Tue, 30 Dec 2025 10:43:19 +0000</pubDate>
             <link>https://github.com/tuist/tuist/releases</link>
-            <sparkle:version>0.8.0</sparkle:version>
-            <sparkle:shortVersionString>0.8.0</sparkle:shortVersionString>
+            <sparkle:version>3223</sparkle:version>
+            <sparkle:shortVersionString>0.24.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/tuist/tuist/releases/download/app@0.24.0/Tuist.dmg" length="26278247" type="application/octet-stream" sparkle:edSignature="0kXAcMndxo1XDRISPmgkVMiP0ktXboI/u6VLm/VhvSdgo5LwopBlIUtBQM+Xc+c6qAVQ0EET7QSSEwmxLhygAg=="/>
+        </item>
+        <item>
+            <title>0.20.2</title>
+            <pubDate>Thu, 24 Jul 2025 07:40:27 +0000</pubDate>
+            <link>https://github.com/tuist/tuist/releases</link>
+            <sparkle:version>0.20.2</sparkle:version>
+            <sparkle:shortVersionString>0.20.2</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/tuist/tuist/releases/download/app@0.8.0/Tuist.dmg" length="21378878" type="application/octet-stream" sparkle:edSignature="3UE5onNw/Z2CvrVYy0EDZ0emNzJf/dJzQnv5M1mCwVtuM7GQ1tFgD8W/A1nq2DMKJT8J2gkdXwbVhJH9rpEzCg=="/>
+            <enclosure url="https://github.com/tuist/tuist/releases/download/app@0.20.2/Tuist.dmg" length="24560300" type="application/octet-stream" sparkle:edSignature="S8iw0mOuTHu58xxSvCHXeK5CnC4uWXVonA37S6V7wpdnSmzb4Orl/5EmUBdunpAelIvt3Y0ehJYh0CtkcEIhCQ=="/>
+        </item>
+        <item>
+            <title>0.20.1</title>
+            <pubDate>Wed, 23 Jul 2025 11:13:50 +0000</pubDate>
+            <link>https://github.com/tuist/tuist/releases</link>
+            <sparkle:version>0.20.1</sparkle:version>
+            <sparkle:shortVersionString>0.20.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/tuist/tuist/releases/download/app@0.20.1/Tuist.dmg" length="24498224" type="application/octet-stream" sparkle:edSignature="0iRQump7FH6sZaXKkmKFG8spSqofqCG7w6QqlVhn3AU3ff5inlqAE8duWHgLAFLjwD1xQVIcRlrok0zpQ7w6Cg=="/>
         </item>
     </channel>
 </rss>

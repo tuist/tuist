@@ -1,0 +1,575 @@
+<% custom_head =
+  ~s|<script nonce="#{get_csp_nonce()}" src="https://d3js.org/d3.v7.min.js"></script>
+    <script nonce="#{get_csp_nonce()}" src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>|
+
+custom_styles = """
+  #viz-container {
+    width: 100%;
+    height: 650px;
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+    padding: 0 15px;
+    box-sizing: border-box;
+  }
+
+  #sankey {
+    flex: 1;
+  }
+
+  .queue-counter {
+    font-size: 11px;
+    color: var(--noora-surface-label-secondary, #9ca3af);
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+    font-weight: 600;
+  }
+
+  .ci-pool {
+    padding: 0 20px;
+    text-align: center;
+  }
+
+  .ci-pool-label {
+    font-size: 10px;
+    color: var(--noora-surface-label-tertiary, #6b7280);
+    font-weight: 500;
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  .ci-pool-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 8px;
+    width: 100%;
+    margin: 0 auto;
+    margin-bottom: 16px;
+  }
+
+  .ci-env {
+    width: 100%;
+    height: 28px;
+    border: 2px solid var(--noora-border-secondary, #e5e7eb);
+    background: var(--noora-background-secondary, #f9fafb);
+    transition: all 0.3s ease;
+  }
+
+  .ci-env.running {
+    border-color: currentColor;
+  }
+
+  .queue-pool-label {
+    font-size: 10px;
+    color: var(--noora-surface-label-tertiary, #6b7280);
+    font-weight: 500;
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  .queue-pool-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 8px;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  .queue-slot {
+    width: 100%;
+    height: 28px;
+    border: 2px solid var(--noora-border-secondary, #e5e7eb);
+    background: var(--noora-background-secondary, #f9fafb);
+    transition: all 0.3s ease;
+  }
+
+  .queue-slot.occupied {
+    border-color: currentColor;
+  }
+"""
+
+custom_script = """
+    document.addEventListener('DOMContentLoaded', function() {
+      const container = document.getElementById('viz-container');
+      if (!container) {
+        console.error('viz-container not found');
+        return;
+      }
+
+      const width = container.clientWidth;
+      const height = 500;
+      // Calculate margins for responsive layout - ensure enough space for labels
+      const isMobile = width < 768;
+      // On mobile, use smaller fixed margins; on desktop, use percentage-based
+      const leftLabelSpace = isMobile ? 95 : Math.max(170, width * 0.22);
+      const rightLabelSpace = isMobile ? 85 : Math.max(120, width * 0.17);
+      const margin = {
+        top: 30,
+        right: rightLabelSpace,
+        bottom: 120,
+        left: leftLabelSpace
+      };
+
+      // Colors - expanded palette
+      const colors = {
+        developer1: "#3b82f6",
+        developer2: "#06b6d4",
+        developer3: "#10b981",
+        developer4: "#8b5cf6",
+        codexLocal: "#ec4899",
+        codexRemote: "#f59e0b",
+        gate: "#f59e0b",
+        main: "#10b981"
+      };
+
+      // State
+      let commitsToday = 0;
+      let svg, graph;
+      let ciQueue = [];
+      let runningJobs = [];
+
+      // Very fast commit rates to saturate CI runners
+      const commitRates = {
+        developer: 3,    // Very fast - 3 seconds
+        codexLocal: 4,   // Very fast - 4 seconds
+        codexRemote: 5   // Very fast - 5 seconds
+      };
+
+      // CI and review settings - higher rejection rate
+      const ciDuration = 7000; // 7 seconds for CI to run - increased so commits spend more time at the gate
+      const conflictProbability = 0.25; // 25% chance - more conflicts with more people
+      const ciFailureProbability = 0.15; // 15% chance - more failures
+
+      function updateVisualization() {
+        // Define more sources - 4 developers + 4 codex instances
+        const nodeData = [
+          // Left column - developers
+          { id: "developer1", label: "Dev (Alice)", color: colors.developer1 },
+          { id: "developer2", label: "Dev (Bob)", color: colors.developer2 },
+          { id: "developer3", label: "Dev (Carol)", color: colors.developer3 },
+          { id: "developer4", label: "Dev (Dave)", color: colors.developer4 },
+          // Left column - codex instances
+          { id: "codex-local-0", label: "Codex (local)", color: colors.codexLocal },
+          { id: "codex-local-1", label: "Codex (local)", color: colors.codexLocal },
+          { id: "codex-remote-0", label: "Codex (remote)", color: colors.codexRemote },
+          { id: "codex-remote-1", label: "Codex (remote)", color: colors.codexRemote },
+          // Middle column - PR/CI gate
+          { id: "gate", label: "PR + CI", color: colors.gate },
+          // Right column - main
+          { id: "main", label: "main", color: colors.main }
+        ];
+
+        const links = [
+          // Developers to gate
+          { source: "developer1", target: "gate", value: 2 },
+          { source: "developer2", target: "gate", value: 2 },
+          { source: "developer3", target: "gate", value: 2 },
+          { source: "developer4", target: "gate", value: 2 },
+          // Codex to gate
+          { source: "codex-local-0", target: "gate", value: 1.5 },
+          { source: "codex-local-1", target: "gate", value: 1.5 },
+          { source: "codex-remote-0", target: "gate", value: 1.5 },
+          { source: "codex-remote-1", target: "gate", value: 1.5 },
+          // Gate to main
+          { source: "gate", target: "main", value: 8 }
+        ];
+
+        const data = { nodes: nodeData, links };
+
+        // Clear previous visualization
+        d3.select("#sankey").selectAll("*").remove();
+
+        // Create SVG
+        svg = d3.select("#sankey")
+          .attr("width", width)
+          .attr("height", height)
+          .attr("viewBox", [0, 0, width, height])
+          .style("background", "transparent");
+
+        // Add subtle grid
+        const gridGroup = svg.append("g").attr("class", "grid");
+        for (let i = margin.top; i < height - margin.bottom; i += 40) {
+          gridGroup.append("line")
+            .attr("class", "grid-line")
+            .attr("x1", margin.left)
+            .attr("y1", i)
+            .attr("x2", width - margin.right)
+            .attr("y2", i);
+        }
+
+        // Create Sankey generator
+        const sankey = d3.sankey()
+          .nodeId(d => d.id)
+          .nodeWidth(16)
+          .nodePadding(12)  // Tighter spacing for more nodes
+          .extent([[margin.left, margin.top], [width - margin.right, height - margin.bottom]]);
+
+        // Process the data
+        graph = sankey({
+          nodes: data.nodes.map(d => Object.assign({}, d)),
+          links: data.links.map(d => Object.assign({}, d))
+        });
+
+        // Draw links
+        svg.append("g")
+          .selectAll("path")
+          .data(graph.links)
+          .join("path")
+          .attr("class", "link")
+          .attr("d", d3.sankeyLinkHorizontal())
+          .attr("stroke", d => {
+            const sourceNode = data.nodes.find(n => n.id === d.source.id);
+            return sourceNode.color;
+          });
+
+        // Draw nodes
+        const nodeGroups = svg.append("g")
+          .selectAll("g")
+          .data(graph.nodes)
+          .join("g");
+
+        // Node rectangles
+        nodeGroups.append("rect")
+          .attr("class", d => (d.id !== "main" && d.id !== "gate") ? "node-rect coding" : "node-rect")
+          .attr("x", d => d.x0)
+          .attr("y", d => d.y0)
+          .attr("height", d => d.y1 - d.y0)
+          .attr("width", d => d.x1 - d.x0)
+          .attr("fill", d => d.color)
+          .attr("rx", 2);
+
+        // Add labels with responsive offsets
+        const labelOffset = 8;
+        const diagramLeft = margin.left + (width - margin.left - margin.right) / 3;
+        const diagramRight = margin.left + 2 * (width - margin.left - margin.right) / 3;
+
+        nodeGroups.append("text")
+          .attr("class", "node-label")
+          .attr("x", d => {
+            if (d.x0 < diagramLeft) {
+              // Left side - position at margin edge
+              return margin.left - labelOffset;
+            } else if (d.x0 > diagramRight) {
+              // Right side
+              return d.x1 + labelOffset;
+            } else {
+              // Middle
+              return (d.x0 + d.x1) / 2;
+            }
+          })
+          .attr("y", d => d.x0 >= diagramLeft && d.x0 <= diagramRight ? d.y0 - 8 : (d.y0 + d.y1) / 2)
+          .attr("text-anchor", d => d.x0 < diagramLeft ? "end" : (d.x0 > diagramRight ? "start" : "middle"))
+          .attr("dy", d => d.x0 >= diagramLeft && d.x0 <= diagramRight ? "0" : "0.35em")
+          .style("font-size", isMobile ? "11px" : null)
+          .text(d => {
+            // Shorten labels on mobile
+            if (isMobile) {
+              if (d.label.includes("Dev (Alice)")) return "Alice";
+              if (d.label.includes("Dev (Bob)")) return "Bob";
+              if (d.label.includes("Dev (Carol)")) return "Carol";
+              if (d.label.includes("Dev (Dave)")) return "Dave";
+              if (d.label.includes("Codex (local)")) return "Codex (L)";
+              if (d.label.includes("Codex (remote)")) return "Codex (R)";
+            }
+            return d.label;
+          });
+
+        // Add commits counter under main
+        nodeGroups
+          .filter(d => d.id === "main")
+          .append("text")
+          .attr("class", "commit-counter")
+          .attr("id", "commits-today")
+          .attr("x", d => d.x1 + labelOffset)
+          .attr("y", d => (d.y0 + d.y1) / 2 + 20)
+          .attr("text-anchor", "start")
+          .style("font-size", isMobile ? "11px" : null)
+          .text("0 commits");
+
+        // Schedule commits for all sources
+        const sourceNodes = graph.nodes.filter(d => d.id.includes("developer") || d.id.includes("codex"));
+        sourceNodes.forEach(node => {
+          scheduleCommit(node);
+        });
+
+        // Update visual queue periodically
+        setInterval(updateQueueVisualization, 100);
+      }
+
+      function updateQueueVisualization() {
+        // Clear all queue slots
+        for (let i = 0; i < 8; i++) {
+          const slot = document.getElementById(`queue-slot-${i}`);
+          slot.classList.remove('occupied');
+          slot.style.borderColor = '';
+          slot.style.background = '';
+        }
+
+        // Fill queue slots based on queue length
+        const queueLength = Math.min(ciQueue.length, 8);
+        for (let i = 0; i < queueLength; i++) {
+          const slot = document.getElementById(`queue-slot-${i}`);
+          const job = ciQueue[i];
+          const color = job.sourceNode.color;
+
+          slot.classList.add('occupied');
+          slot.style.borderColor = color;
+          slot.style.background = `${color}15`;
+        }
+      }
+
+      let isPaused = false;
+      let commitTimers = [];
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+          isPaused = true;
+          // Clear all pending commit timers
+          commitTimers.forEach(timer => clearTimeout(timer));
+          commitTimers = [];
+        } else {
+          isPaused = false;
+          // Restart commit scheduling
+          const sourceNodes = graph.nodes.filter(d => d.id.includes("developer") || d.id.includes("codex"));
+          sourceNodes.forEach(node => {
+            scheduleCommit(node);
+          });
+        }
+      });
+
+      // Listen for pause/resume messages from parent page
+      window.addEventListener('message', (event) => {
+        if (event.data.action === 'pause') {
+          isPaused = true;
+          // Clear all pending commit timers
+          commitTimers.forEach(timer => clearTimeout(timer));
+          commitTimers = [];
+        } else if (event.data.action === 'resume') {
+          isPaused = false;
+          // Restart commit scheduling
+          const sourceNodes = graph.nodes.filter(d => d.id.includes("developer") || d.id.includes("codex"));
+          sourceNodes.forEach(node => {
+            scheduleCommit(node);
+          });
+        }
+      });
+
+      function scheduleCommit(sourceNode) {
+        if (isPaused) return;
+
+        let rate = commitRates.developer;
+        if (sourceNode.id.includes("codex-local")) {
+          rate = commitRates.codexLocal;
+        } else if (sourceNode.id.includes("codex-remote")) {
+          rate = commitRates.codexRemote;
+        }
+
+        const delay = (rate * 1000) * (0.5 + Math.random());
+
+        const timer = setTimeout(() => {
+          if (!isPaused) {
+            animateCommit(sourceNode);
+            scheduleCommit(sourceNode);
+          }
+        }, delay);
+
+        commitTimers.push(timer);
+      }
+
+      function animateCommit(sourceNode) {
+        const pathToGate = svg.selectAll(".link")
+          .filter(d => d.source.id === sourceNode.id && d.target.id === "gate")
+          .node();
+
+        if (!pathToGate) return;
+
+        const pathLength = pathToGate.getTotalLength();
+        const startPoint = pathToGate.getPointAtLength(0);
+
+        const commitDot = svg.append("circle")
+          .attr("class", "commit-dot")
+          .attr("cx", startPoint.x)
+          .attr("cy", startPoint.y)
+          .attr("r", 5)
+          .attr("fill", sourceNode.color);
+
+        commitDot
+          .transition()
+          .duration(800)
+          .ease(d3.easeCubicInOut)
+          .tween("pathTween", function() {
+            return function(t) {
+              const point = pathToGate.getPointAtLength(t * pathLength);
+              d3.select(this)
+                .attr("cx", point.x)
+                .attr("cy", point.y);
+            };
+          })
+          .on("end", () => {
+            const hasConflict = Math.random() < conflictProbability;
+            const ciFailure = Math.random() < ciFailureProbability;
+            const rejected = hasConflict || ciFailure;
+
+            if (rejected) {
+              // Animate back to source
+              setTimeout(() => {
+                commitDot
+                  .transition()
+                  .duration(800)
+                  .ease(d3.easeCubicInOut)
+                  .tween("pathTweenBack", function() {
+                    return function(t) {
+                      // Animate backwards along the path (1 - t)
+                      const point = pathToGate.getPointAtLength((1 - t) * pathLength);
+                      d3.select(this)
+                        .attr("cx", point.x)
+                        .attr("cy", point.y);
+                    };
+                  })
+                  .on("end", () => {
+                    // Fade out at source
+                    commitDot
+                      .transition()
+                      .duration(300)
+                      .attr("r", 0)
+                      .attr("opacity", 0)
+                      .remove();
+                  });
+              }, 300);
+            } else {
+              ciQueue.push({ dot: commitDot, sourceNode });
+            }
+          });
+      }
+
+      function processCIQueue() {
+        const maxRunners = 8;
+
+        while (runningJobs.length < maxRunners && ciQueue.length > 0) {
+          const job = ciQueue.shift();
+          const envIndex = findAvailableEnv();
+
+          if (envIndex !== -1) {
+            startCIJob(job, envIndex);
+          }
+        }
+      }
+
+      function findAvailableEnv() {
+        for (let i = 0; i < 8; i++) {
+          const env = document.getElementById(`ci-env-${i}`);
+          if (!env.classList.contains('running')) {
+            return i;
+          }
+        }
+        return -1;
+      }
+
+      function startCIJob(job, envIndex) {
+        const env = document.getElementById(`ci-env-${envIndex}`);
+        const color = job.sourceNode.color;
+
+        env.classList.add('running');
+        env.style.color = color;
+        env.style.background = `${color}15`;
+
+        runningJobs.push({ job, envIndex });
+
+        // Wait for CI duration before proceeding to main
+        setTimeout(() => {
+          const pathToMain = svg.selectAll(".link")
+            .filter(d => d.source.id === "gate" && d.target.id === "main")
+            .node();
+
+          if (!pathToMain) return;
+
+          const pathLength2 = pathToMain.getTotalLength();
+
+          job.dot
+            .transition()
+            .duration(1000)
+            .ease(d3.easeCubicInOut)
+            .tween("pathTween2", function() {
+              return function(t) {
+                const point = pathToMain.getPointAtLength(t * pathLength2);
+                d3.select(this)
+                  .attr("cx", point.x)
+                  .attr("cy", point.y);
+              };
+            })
+            .on("end", () => {
+              job.dot
+                .transition()
+                .duration(200)
+                .attr("r", 8)
+                .attr("opacity", 0.5)
+                .transition()
+                .duration(200)
+                .attr("r", 0)
+                .attr("opacity", 0)
+                .remove();
+
+              commitsToday++;
+              d3.select("#commits-today").text(`${commitsToday} commits`);
+
+              env.classList.remove('running');
+              env.style.color = '';
+              env.style.background = '';
+
+              runningJobs = runningJobs.filter(j => j.envIndex !== envIndex);
+
+              processCIQueue();
+            });
+        }, ciDuration);
+      }
+
+      setInterval(processCIQueue, 100);
+
+      updateVisualization();
+
+      // Redraw on window resize for responsive behavior
+      let resizeTimeout;
+      window.addEventListener('resize', () => {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(() => {
+          updateVisualization();
+        }, 250);
+      });
+    });
+""" %>
+
+<TuistWeb.Marketing.Components.BlogIframeLayout.base
+  custom_styles={custom_styles}
+  custom_script={custom_script}
+  custom_head={custom_head}
+>
+  <div id="viz-container" phx-update="ignore">
+    <svg id="sankey"></svg>
+
+    <div class="ci-pool">
+      <span class="ci-pool-label">CI Runners</span>
+      <div class="ci-pool-grid">
+        <div class="ci-env" id="ci-env-0"></div>
+        <div class="ci-env" id="ci-env-1"></div>
+        <div class="ci-env" id="ci-env-2"></div>
+        <div class="ci-env" id="ci-env-3"></div>
+        <div class="ci-env" id="ci-env-4"></div>
+        <div class="ci-env" id="ci-env-5"></div>
+        <div class="ci-env" id="ci-env-6"></div>
+        <div class="ci-env" id="ci-env-7"></div>
+      </div>
+
+      <span class="queue-pool-label">Queue</span>
+      <div class="queue-pool-grid">
+        <div class="queue-slot" id="queue-slot-0"></div>
+        <div class="queue-slot" id="queue-slot-1"></div>
+        <div class="queue-slot" id="queue-slot-2"></div>
+        <div class="queue-slot" id="queue-slot-3"></div>
+        <div class="queue-slot" id="queue-slot-4"></div>
+        <div class="queue-slot" id="queue-slot-5"></div>
+        <div class="queue-slot" id="queue-slot-6"></div>
+        <div class="queue-slot" id="queue-slot-7"></div>
+      </div>
+    </div>
+  </div>
+</TuistWeb.Marketing.Components.BlogIframeLayout.base>

@@ -1,0 +1,22 @@
+<main class="layout">
+  <TuistWeb.AppLayoutComponents.headerbar
+    breadcrumbs={Map.get(assigns, :breadcrumbs, [])}
+    current_user={@current_user}
+    selected_account={@selected_account}
+    latest_cli_release={@latest_cli_release}
+    latest_app_release={@latest_app_release}
+  />
+  <section class="layout__main">
+    <TuistWeb.AppLayoutComponents.project_sidebar
+      :if={Map.get(assigns, :sidebar_enabled?, true)}
+      current_path={@current_path}
+      selected_project={@selected_project}
+      selected_account={@selected_account}
+      selected_run={@selected_run}
+      current_user={@current_user}
+    />
+    <div class="layout__content">
+      {@inner_content}
+    </div>
+  </section>
+</main>

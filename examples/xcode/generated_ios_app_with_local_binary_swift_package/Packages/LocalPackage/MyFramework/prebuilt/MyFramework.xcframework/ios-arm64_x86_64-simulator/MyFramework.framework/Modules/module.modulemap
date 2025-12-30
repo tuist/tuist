@@ -1,0 +1,4 @@
+framework module MyFramework {
+  header "MyFramework-Swift.h"
+  requires objc
+}

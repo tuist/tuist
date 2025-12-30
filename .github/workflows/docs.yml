@@ -1,0 +1,123 @@
+name: Documentation
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - docs/**
+      - .github/workflows/docs.yml
+      - cli/Sources/**
+      - Package.swift
+      - Package.resolved
+      - mise/tasks/docs/**
+      - docs/pnpm-lock.yaml
+      - handbook/package.json
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - docs/**
+      - .github/workflows/docs.yml
+      - cli/Sources/**
+      - Package.swift
+      - Package.resolved
+      - mise/tasks/docs/**
+      - docs/pnpm-lock.yaml
+      - handbook/package.json
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  PNPM_HOME: ~/.pnpm
+  TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
+
+concurrency:
+  group: docs-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-docker-compose:
+    name: Test Docker Compose
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test docker-compose configuration
+        run: ./docs/test-docker-compose.sh
+
+  build-deploy:
+    name: Build & Deploy
+    runs-on: macos-26
+    timeout-minutes: 60
+    if: github.event.pull_request.head.repo.fork != true && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore PNPM Cache
+        uses: actions/cache@v3
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-docs-${{ hashFiles('./Package.resolved') }}
+          restore-keys: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-docs-
+      - uses: jdx/mise-action@v2
+        with:
+          working_directory: docs
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Setup Tuist cache
+        run: tuist setup cache
+      - name: Generate CLI docs
+        working-directory: docs
+        run: mise run generate-cli-docs
+      - name: Generate manifest docs
+        working-directory: docs
+        run: mise run generate-manifests-docs
+      - name: Lint localization
+        working-directory: docs
+        run: mise run lint-localization
+      - name: Free space
+        # Our build process takes a lot of disk space, hitting limits on GitHub Actions runners.
+        # This step ensures that we have enough space to build the documentation.
+        # Reference: https://github.com/actions/runner-images/issues/2840?ref=dzombak.com#issuecomment-790492173
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+      - name: Build the documentation
+        # VitePress is not memory-efficient, loading all the pages into memory when building
+        # the site. This can potentially lead to out-of-memory errors in localized documentation
+        # sites where the number of pages is multiplied by the number of languages.
+        env:
+          NODE_OPTIONS: --max-old-space-size=12288
+        working-directory: docs
+        run: mise run build
+      - uses: 1password/install-cli-action@v2
+        if: github.ref == 'refs/heads/main'
+      - name: Deploy to Cloudflare Pages
+        if: github.ref == 'refs/heads/main'
+        working-directory: docs
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          CLOUDFLARE_API_TOKEN: op://tuist/Cloudflare/CLOUDFLARE_API_TOKEN
+          CLOUDFLARE_ACCOUNT_ID: op://tuist/Cloudflare/CLOUDFLARE_ACCOUNT_ID
+        run: |
+          op run -- wrangler pages deploy --commit-hash ${{ github.sha }} --branch ${{ github.ref_name }} --project-name tuist-docs .vitepress/dist
+      - name: Save cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}

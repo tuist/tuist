@@ -8,21 +8,156 @@ public enum Module: String, CaseIterable {
     case projectDescription = "ProjectDescription"
     case projectAutomation = "ProjectAutomation"
     case acceptanceTesting = "TuistAcceptanceTesting"
+    case testing = "TuistTesting"
     case support = "TuistSupport"
     case kit = "TuistKit"
     case core = "TuistCore"
     case generator = "TuistGenerator"
     case scaffold = "TuistScaffold"
     case loader = "TuistLoader"
-    case asyncQueue = "TuistAsyncQueue"
     case plugin = "TuistPlugin"
-    case analytics = "TuistAnalytics"
     case migration = "TuistMigration"
     case dependencies = "TuistDependencies"
     case automation = "TuistAutomation"
     case server = "TuistServer"
+    case oidc = "TuistOIDC"
     case hasher = "TuistHasher"
     case cache = "TuistCache"
+    case simulator = "TuistSimulator"
+    case xcActivityLog = "TuistXCActivityLog"
+    case git = "TuistGit"
+    case rootDirectoryLocator = "TuistRootDirectoryLocator"
+    case process = "TuistProcess"
+    case ci = "TuistCI"
+    case xcodeProjectOrWorkspacePathLocator = "TuistXcodeProjectOrWorkspacePathLocator"
+    case xcResultService = "TuistXCResultService"
+    case cas = "TuistCAS"
+    case casAnalytics = "TuistCASAnalytics"
+    case launchctl = "TuistLaunchctl"
+    case http = "TuistHTTP"
+
+    func forceStaticLinking() -> Bool {
+        return Environment.forceStaticLinking.getBoolean(default: false)
+    }
+
+    public static func includeEE() -> Bool {
+        return Environment.ee.getBoolean(default: false)
+    }
+
+    public static func allTargets() -> [Target] {
+        var targets = Module.allCases.flatMap(\.targets)
+        targets.append(contentsOf: cacheEETargets())
+        return targets
+    }
+
+    public static func cacheEETargets() -> [Target] {
+        guard includeEE() else { return [] }
+
+        return [
+            .target(
+                name: "TuistCacheEE",
+                destinations: [.mac],
+                product: .staticFramework,
+                bundleId: "dev.tuist.TuistCacheEE",
+                deploymentTargets: .macOS("15.0"),
+                infoPlist: .default,
+                buildableFolders: ["cli/TuistCacheEE/Sources/"],
+                dependencies: [
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.support.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.cache.targetName),
+                    .target(name: Module.automation.targetName),
+                    .target(name: Module.hasher.targetName),
+                    .target(name: Module.http.targetName),
+                    .target(name: Module.cas.targetName),
+                    .external(name: "XcodeGraph"),
+                    .external(name: "Path"),
+                    .external(name: "FileSystem"),
+                    .external(name: "SwiftECC"),
+                    .external(name: "CryptoSwift"),
+                    .external(name: "Noora"),
+                    .external(name: "HTTPTypes"),
+                    .external(name: "OpenAPIRuntime"),
+                    .external(name: "OpenAPIURLSession"),
+                    .external(name: "Mockable"),
+                ],
+                settings: .settings(
+                    configurations: [
+                        .debug(
+                            name: "Debug",
+                            settings: [
+                                "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) MOCKING",
+                            ],
+                            xcconfig: nil
+                        ),
+                        .release(
+                            name: "Release",
+                            settings: [:],
+                            xcconfig: nil
+                        ),
+                    ]
+                ),
+                metadata: .metadata(tags: ["domain:generation", "layer:feature", "ee:true"])
+            ),
+            .target(
+                name: "TuistCacheEETests",
+                destinations: [.mac],
+                product: .unitTests,
+                bundleId: "dev.tuist.TuistCacheEETests",
+                deploymentTargets: .macOS("15.0"),
+                infoPlist: .default,
+                buildableFolders: [.folder("cli/Tests/TuistCacheEETests")],
+                dependencies: [
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.support.targetName),
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.hasher.targetName),
+                    .target(name: Module.automation.targetName),
+                    .target(name: Module.cache.targetName),
+                    .target(name: Module.cas.targetName),
+                    .target(name: "TuistCacheEE"),
+                    .external(name: "XcodeGraph"),
+                    .external(name: "Path"),
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
+                    .external(name: "Mockable"),
+                    .external(name: "HTTPTypes"),
+                    .external(name: "OpenAPIRuntime"),
+                    .external(name: "OpenAPIURLSession"),
+                ],
+                metadata: .metadata(tags: ["domain:generation", "layer:testing", "ee:true"])
+            ),
+            .target(
+                name: "TuistCacheEEAcceptanceTests",
+                destinations: [.mac],
+                product: .unitTests,
+                bundleId: "dev.tuist.TuistCacheEEAcceptanceTests",
+                deploymentTargets: .macOS("15.0"),
+                infoPlist: .default,
+                buildableFolders: ["cli/Tests/TuistCacheEEAcceptanceTests"],
+                dependencies: [
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.support.targetName),
+                    .target(name: Module.acceptanceTesting.targetName),
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.kit.targetName),
+                    .target(name: Module.projectDescription.targetName),
+                    .target(name: "TuistCacheEE"),
+                    .external(name: "XcodeGraph"),
+                    .external(name: "XcodeProj"),
+                    .external(name: "Path"),
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
+                    .external(name: "Mockable"),
+                    .external(name: "TSCTestSupport"),
+                ],
+                metadata: .metadata(tags: ["domain:generation", "layer:testing", "ee:true"])
+            ),
+        ]
+    }
 
     public var isRunnable: Bool {
         switch self {
@@ -64,17 +199,6 @@ public enum Module: String, CaseIterable {
             )
         }
 
-        if let integrationTestsTargetName {
-            targets.append(
-                target(
-                    name: integrationTestsTargetName,
-                    product: .unitTests,
-                    dependencies: integrationTestsDependencies,
-                    isTestingTarget: false
-                )
-            )
-        }
-
         return targets
     }
 
@@ -83,19 +207,7 @@ public enum Module: String, CaseIterable {
     }
 
     public var targets: [Target] {
-        var targets: [Target] = sourceTargets
-
-        if let testingTargetName {
-            targets.append(
-                target(
-                    name: testingTargetName,
-                    product: product,
-                    dependencies: testingDependencies,
-                    isTestingTarget: true
-                )
-            )
-        }
-
+        let targets: [Target] = sourceTargets
         return targets + testTargets
     }
 
@@ -115,7 +227,6 @@ public enum Module: String, CaseIterable {
     fileprivate var sharedDependencies: [TargetDependency] {
         return [
             .external(name: "Path"),
-            .external(name: "ServiceContextModule"),
             .external(name: "SystemPackage"),
         ]
     }
@@ -129,37 +240,14 @@ public enum Module: String, CaseIterable {
         }
     }
 
-    public var testingTargetName: String? {
-        switch self {
-        case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .kit, .projectAutomation,
-             .projectDescription, .analytics,
-             .dependencies, .acceptanceTesting, .server, .hasher, .cache, .scaffold:
-            return nil
-        default:
-            return "\(rawValue)Testing"
-        }
-    }
-
     public var unitTestsTargetName: String? {
-        switch self {
-        case .analytics, .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
-             .projectDescription,
-             .acceptanceTesting:
-            return nil
-        default:
-            return "\(rawValue)Tests"
-        }
-    }
-
-    public var integrationTestsTargetName: String? {
         switch self {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
              .projectDescription,
-             .asyncQueue,
-             .plugin, .analytics, .dependencies, .acceptanceTesting, .server, .hasher:
+             .acceptanceTesting, .simulator, .testing, .process:
             return nil
         default:
-            return "\(rawValue)IntegrationTests"
+            return "\(rawValue)Tests"
         }
     }
 
@@ -172,7 +260,7 @@ public enum Module: String, CaseIterable {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator:
             return .commandLineTool
         case .projectAutomation, .projectDescription:
-            return .framework
+            return forceStaticLinking() ? .staticFramework : .framework
         default:
             return .staticFramework
         }
@@ -185,34 +273,43 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.support.targetName),
                     .target(name: Module.acceptanceTesting.targetName),
-                    .target(name: Module.support.testingTargetName!),
+                    .target(name: Module.testing.targetName),
                     .external(name: "XcodeProj"),
+                    .external(name: "FileSystem"),
                 ]
             case .automation:
                 [
                     .target(name: Module.acceptanceTesting.targetName),
-                    .target(name: Module.support.testingTargetName!),
+                    .target(name: Module.testing.targetName),
                     .target(name: Module.kit.targetName),
                     .target(name: Module.support.targetName),
+                    .target(name: Module.automation.targetName),
+                    .target(name: Module.core.targetName),
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
                 ]
             case .dependencies:
                 [
                     .target(name: Module.acceptanceTesting.targetName),
-                    .target(name: Module.support.testingTargetName!),
+                    .target(name: Module.testing.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.kit.targetName),
                     .external(name: "XcodeProj"),
                     .external(name: "Command"),
+                    .external(name: "FileSystem"),
                 ]
             case .kit:
                 [
                     .target(name: Module.acceptanceTesting.targetName),
-                    .target(name: Module.support.testingTargetName!),
+                    .target(name: Module.testing.targetName),
                     .target(name: Module.kit.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.core.targetName),
                     .external(name: "XcodeProj"),
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
+                    .external(name: "Command"),
                 ]
             default:
                 []
@@ -231,19 +328,90 @@ public enum Module: String, CaseIterable {
         }
     }
 
+    public var tags: [String] {
+        var moduleTags: [String] = []
+
+        // Domain tags
+        switch self {
+        case .projectDescription, .projectAutomation, .support, .core:
+            moduleTags.append("domain:foundation")
+        case .generator, .hasher, .cache:
+            moduleTags.append("domain:generation")
+        case .loader, .scaffold:
+            moduleTags.append("domain:project-loading")
+        case .dependencies:
+            moduleTags.append("domain:dependencies")
+        case .server, .oidc:
+            moduleTags.append("domain:server")
+        case .kit:
+            moduleTags.append("domain:cli")
+        case .tuist, .tuistBenchmark, .tuistFixtureGenerator:
+            moduleTags.append("domain:cli-tools")
+        case .testing, .acceptanceTesting:
+            moduleTags.append("domain:testing")
+        case .automation:
+            moduleTags.append("domain:automation")
+        case .migration:
+            moduleTags.append("domain:migration")
+        case .plugin:
+            moduleTags.append("domain:plugins")
+        case .simulator, .xcActivityLog, .git, .rootDirectoryLocator,
+             .process, .ci, .cas, .casAnalytics, .launchctl, .xcResultService, .xcodeProjectOrWorkspacePathLocator,
+             .http:
+            moduleTags.append("domain:infrastructure")
+        }
+
+        // Layer tags
+        switch self {
+        case .projectDescription, .projectAutomation, .support, .core:
+            moduleTags.append("layer:foundation")
+        case .tuist, .tuistBenchmark, .tuistFixtureGenerator:
+            moduleTags.append("layer:tool")
+        case .testing, .acceptanceTesting:
+            moduleTags.append("layer:testing")
+        default:
+            moduleTags.append("layer:feature")
+        }
+
+        return moduleTags
+    }
+
     public var dependencies: [TargetDependency] {
         var dependencies: [TargetDependency] =
             switch self {
+            case .process:
+                []
+            case .testing:
+                [
+                    .target(name: Module.projectDescription.targetName),
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.support.targetName),
+                    .target(name: Module.http.targetName),
+                    .external(name: "XcodeGraph"),
+                    .external(name: "XcodeProj"),
+                    .external(name: "Difference"),
+                    .external(name: "SwiftToolsSupport"),
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
+                    .external(name: "Command"),
+                    .external(name: "Logging"),
+                    .external(name: "ArgumentParser"),
+                    .external(name: "Noora"),
+                    .xctest,
+                ]
             case .acceptanceTesting:
                 [
                     .target(name: Module.projectDescription.targetName),
                     .target(name: Module.kit.targetName),
                     .target(name: Module.support.targetName),
-                    .target(name: Module.support.testingTargetName!),
+                    .target(name: Module.testing.targetName),
                     .target(name: Module.core.targetName),
                     .external(name: "XcodeProj"),
                     .external(name: "XcodeGraph"),
                     .external(name: "FileSystem"),
+                    .external(name: "ArgumentParser"),
+                    .external(name: "Command"),
                 ]
             case .tuist:
                 [
@@ -255,10 +423,12 @@ public enum Module: String, CaseIterable {
                     .external(name: "GraphViz"),
                     .external(name: "ArgumentParser"),
                     .external(name: "SwiftToolsSupport"),
+                    .external(name: "FileSystem"),
                     .external(name: "Noora"),
                 ]
             case .tuistBenchmark:
                 [
+                    .target(name: Module.support.targetName),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "ArgumentParser"),
                     .external(name: "FileSystem"),
@@ -266,6 +436,7 @@ public enum Module: String, CaseIterable {
             case .tuistFixtureGenerator:
                 [
                     .target(name: Module.projectDescription.targetName),
+                    .target(name: Module.support.targetName),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "ArgumentParser"),
                 ]
@@ -278,7 +449,6 @@ public enum Module: String, CaseIterable {
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "AnyCodable"),
                     .external(name: "XcodeProj"),
-                    .external(name: "KeychainAccess"),
                     .external(name: "Logging"),
                     .external(name: "ZIPFoundation"),
                     .external(name: "Difference"),
@@ -303,10 +473,21 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.scaffold.targetName),
                     .target(name: Module.dependencies.targetName),
                     .target(name: Module.migration.targetName),
-                    .target(name: Module.asyncQueue.targetName),
-                    .target(name: Module.analytics.targetName),
                     .target(name: Module.plugin.targetName),
                     .target(name: Module.cache.targetName),
+                    .target(name: Module.simulator.targetName),
+                    .target(name: Module.rootDirectoryLocator.targetName),
+                    .target(name: Module.git.targetName),
+                    .target(name: Module.xcActivityLog.targetName),
+                    .target(name: Module.ci.targetName, condition: .when([.macos])),
+                    .target(name: Module.process.targetName, condition: .when([.macos])),
+                    .target(name: Module.xcodeProjectOrWorkspacePathLocator.targetName),
+                    .target(name: Module.xcResultService.targetName),
+                    .target(name: Module.cas.targetName),
+                    .target(name: Module.launchctl.targetName),
+                    .target(name: Module.oidc.targetName),
+                    .target(name: Module.http.targetName),
+                    .external(name: "MCP"),
                     .external(name: "FileSystem"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "XcodeGraph"),
@@ -315,24 +496,31 @@ public enum Module: String, CaseIterable {
                     .external(name: "GraphViz"),
                     .external(name: "AnyCodable"),
                     .external(name: "OpenAPIRuntime"),
-                    .external(name: "XCResultKit"),
+                    .external(name: "OpenAPIURLSession"),
+                    .external(name: "GRPCCore"),
+                    .external(name: "GRPCNIOTransportHTTP2"),
                     .external(name: "Noora"),
-                ]
+                    .external(name: "SwiftyJSON"),
+                    .external(name: "Rosalind"),
+                ] + (Self.includeEE() ? [.target(name: "TuistCacheEE")] : [])
             case .core:
                 [
                     .target(name: Module.projectDescription.targetName),
                     .target(name: Module.support.targetName),
+                    .target(name: Module.simulator.targetName),
                     .external(name: "XcodeGraph"),
                     .external(name: "XcodeProj"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "AnyCodable"),
                     .external(name: "Command"),
                     .external(name: "FileSystem"),
+                    .external(name: "XcodeMetadata"),
                 ]
             case .generator:
                 [
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
+                    .target(name: Module.rootDirectoryLocator.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "XcodeGraph"),
                     .external(name: "SwiftGenKit"),
@@ -347,6 +535,7 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
+                    .target(name: Module.rootDirectoryLocator.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "XcodeGraph"),
                     .external(name: "PathKit"),
@@ -356,21 +545,15 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
+                    .target(name: Module.rootDirectoryLocator.targetName),
                     .target(name: Module.projectDescription.targetName),
+                    .target(name: Module.git.targetName),
+                    .target(name: Module.simulator.targetName),
                     .external(name: "XcodeGraph"),
                     .external(name: "FileSystem"),
                     .external(name: "XcodeProj"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "_NIOFileSystem"),
-                ]
-            case .asyncQueue:
-                [
-                    .target(name: Module.core.targetName),
-                    .target(name: Module.support.targetName),
-                    .external(name: "FileSystem"),
-                    .external(name: "XcodeGraph"),
-                    .external(name: "Queuer"),
-                    .external(name: "XcodeProj"),
                 ]
             case .plugin:
                 [
@@ -378,17 +561,10 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.loader.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.scaffold.targetName),
+                    .target(name: Module.git.targetName),
+                    .target(name: Module.http.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "SwiftToolsSupport"),
-                ]
-            case .analytics:
-                [
-                    .target(name: Module.asyncQueue.targetName),
-                    .target(name: Module.core.targetName),
-                    .target(name: Module.loader.targetName),
-                    .target(name: Module.support.targetName),
-                    .external(name: "AnyCodable"),
-                    .external(name: "XcodeGraph"),
                 ]
             case .migration:
                 [
@@ -406,11 +582,13 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
                     .external(name: "XcodeGraph"),
+                    .external(name: "Logging"),
                 ]
             case .automation:
                 [
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
+                    .target(name: Module.simulator.targetName),
                     .external(name: "Command"),
                     .external(name: "FileSystem"),
                     .external(name: "XcodeProj"),
@@ -420,28 +598,126 @@ public enum Module: String, CaseIterable {
                 ]
             case .server:
                 [
-                    .target(name: Module.core.targetName),
-                    .target(name: Module.support.targetName),
-                    .target(name: Module.cache.targetName),
+                    .target(name: Module.support.targetName, condition: .when([.macos])),
+                    .target(name: Module.core.targetName, condition: .when([.macos])),
+                    .target(name: Module.http.targetName),
+                    .target(name: Module.xcActivityLog.targetName, condition: .when([.macos])),
+                    .target(name: Module.xcResultService.targetName, condition: .when([.macos])),
+                    .target(name: Module.simulator.targetName),
+                    .target(name: Module.automation.targetName, condition: .when([.macos])),
+                    .target(name: Module.ci.targetName, condition: .when([.macos])),
+                    .target(name: Module.process.targetName, condition: .when([.macos])),
+                    .target(name: Module.git.targetName, condition: .when([.macos])),
                     .external(name: "FileSystem"),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "OpenAPIURLSession"),
                     .external(name: "HTTPTypes"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "XcodeGraph"),
+                    .external(name: "Rosalind", condition: .when([.macos])),
+                    .external(name: "KeychainAccess"),
                 ]
             case .hasher:
                 [
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
+                    .target(name: Module.rootDirectoryLocator.targetName),
                     .external(name: "XcodeGraph"),
+                    .external(name: "FileSystem"),
+                    .external(name: "OrderedSet"),
+                    .external(name: "Logging"),
+                    .external(name: "TSCBasic"),
                 ]
             case .cache:
                 [
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.hasher.targetName),
+                    .target(name: Module.http.targetName),
+                    .target(name: Module.server.targetName),
                     .external(name: "XcodeGraph"),
+                    .external(name: "OpenAPIRuntime"),
+                    .external(name: "OpenAPIURLSession"),
+                    .external(name: "HTTPTypes"),
+                ]
+            case .simulator:
+                [
+                    .external(name: "XcodeGraph"),
+                ]
+            case .xcActivityLog:
+                [
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.support.targetName),
+                    .target(name: Module.rootDirectoryLocator.targetName),
+                    .target(name: Module.casAnalytics.targetName),
+                    .target(name: Module.git.targetName),
+                    .external(name: "FileSystem"),
+                    .external(name: "XCLogParser"),
+                    .external(name: "SwiftToolsSupport"),
+                ]
+            case .rootDirectoryLocator:
+                [
+                    .target(name: Module.support.targetName),
+                    .target(name: Module.core.targetName),
+                    .external(name: "FileSystem"),
+                ]
+            case .git:
+                [
+                    .target(name: Module.support.targetName),
+                    .external(name: "SwiftToolsSupport"),
+                    .external(name: "FileSystem"),
+                ]
+            case .ci:
+                [
+                    .target(name: Module.support.targetName),
+                ]
+            case .xcodeProjectOrWorkspacePathLocator:
+                [
+                    .target(name: Module.support.targetName),
+                    .external(name: "FileSystem"),
+                ]
+            case .xcResultService:
+                [
+                    .target(name: Module.support.targetName),
+                    .target(name: Module.xcActivityLog.targetName),
+                    .external(name: "Command"),
+                    .external(name: "FileSystem"),
+                ]
+            case .cas:
+                [
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.support.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.cache.targetName),
+                    .target(name: Module.casAnalytics.targetName),
+                    .target(name: Module.http.targetName),
+                    .external(name: "FileSystem"),
+                    .external(name: "OpenAPIRuntime"),
+                    .external(name: "GRPCCore"),
+                    .external(name: "GRPCNIOTransportHTTP2"),
+                    .external(name: "GRPCProtobuf"),
+                    .external(name: "SwiftProtobuf"),
+                    .external(name: "libzstd"),
+                ]
+            case .casAnalytics:
+                [
+                    .target(name: Module.support.targetName),
+                    .external(name: "FileSystem"),
+                ]
+            case .launchctl:
+                [
+                    .external(name: "Command"),
+                ]
+            case .oidc:
+                [
+                    .target(name: Module.support.targetName),
+                ]
+            case .http:
+                [
+                    .target(name: Module.support.targetName, condition: .when([.macos])),
+                    .external(name: "OpenAPIRuntime"),
+                    .external(name: "HTTPTypes"),
+                    .external(name: "FileSystem"),
                 ]
             }
         if self != .projectDescription, self != .projectAutomation {
@@ -453,7 +729,7 @@ public enum Module: String, CaseIterable {
     public var unitTestDependencies: [TargetDependency] {
         var dependencies: [TargetDependency] =
             switch self {
-            case .tuist, .tuistBenchmark, .acceptanceTesting:
+            case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .process:
                 []
             case .tuistFixtureGenerator:
                 [
@@ -462,14 +738,16 @@ public enum Module: String, CaseIterable {
             case .support:
                 [
                     .target(name: Module.core.targetName),
+                    .target(name: Module.testing.targetName),
                     .external(name: "XcodeGraph"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
                     .external(name: "Command"),
                 ]
             case .projectDescription:
                 [
-                    .target(name: Module.support.testingTargetName!),
+                    .target(name: Module.testing.targetName),
                     .target(name: Module.support.targetName),
                 ]
             case .projectAutomation:
@@ -481,22 +759,25 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.cache.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.scaffold.targetName),
-                    .target(name: Module.analytics.targetName),
                     .target(name: Module.loader.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.generator.targetName),
-                    .target(name: Module.support.testingTargetName!),
-                    .target(name: Module.core.testingTargetName!),
+                    .target(name: Module.testing.targetName),
                     .target(name: Module.projectDescription.targetName),
                     .target(name: Module.projectAutomation.targetName),
-                    .target(name: Module.loader.testingTargetName!),
-                    .target(name: Module.generator.testingTargetName!),
-                    .target(name: Module.automation.testingTargetName!),
-                    .target(name: Module.migration.testingTargetName!),
-                    .target(name: Module.asyncQueue.targetName),
-                    .target(name: Module.asyncQueue.testingTargetName!),
+                    .target(name: Module.migration.targetName),
                     .target(name: Module.plugin.targetName),
-                    .target(name: Module.plugin.testingTargetName!),
+                    .target(name: Module.git.targetName),
+                    .target(name: Module.rootDirectoryLocator.targetName),
+                    .target(name: Module.hasher.targetName),
+                    .target(name: Module.xcActivityLog.targetName),
+                    .target(name: Module.ci.targetName, condition: .when([.macos])),
+                    .target(name: Module.process.targetName, condition: .when([.macos])),
+                    .target(name: Module.xcResultService.targetName),
+                    .target(name: Module.xcodeProjectOrWorkspacePathLocator.targetName),
+                    .target(name: Module.launchctl.targetName),
+                    .target(name: Module.oidc.targetName),
+                    .target(name: Module.http.targetName),
                     .external(name: "ArgumentParser"),
                     .external(name: "GraphViz"),
                     .external(name: "AnyCodable"),
@@ -504,33 +785,50 @@ public enum Module: String, CaseIterable {
                     .external(name: "XcodeProj"),
                     .external(name: "FileSystem"),
                     .external(name: "XcodeGraph"),
+                    .external(name: "XcodeGraphMapper"),
                     .external(name: "SwiftToolsSupport"),
-                ]
+                    .external(name: "FileSystemTesting"),
+                    .external(name: "GRPCNIOTransportHTTP2"),
+                    .external(name: "SwiftyJSON"),
+                    .external(name: "Rosalind"),
+                    .external(name: "MCP"),
+                    .external(name: "Noora"),
+                    .external(name: "Command"),
+                    .external(name: "OpenAPIRuntime"),
+                ] + (Self.includeEE() ? [.target(name: "TuistCacheEE")] : [])
             case .core:
                 [
                     .target(name: Module.support.targetName),
-                    .target(name: Module.support.testingTargetName!),
+                    .target(name: Module.testing.targetName),
                     .external(name: "XcodeGraph"),
                     .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
+                    .external(name: "XcodeMetadata"),
+                    .external(name: "SwiftToolsSupport"),
+                    .external(name: "Command"),
                 ]
             case .generator:
                 [
-                    .external(name: "PathKit"),
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
-                    .target(name: Module.core.testingTargetName!),
-                    .target(name: Module.support.testingTargetName!),
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.loader.targetName),
+                    .target(name: Module.rootDirectoryLocator.targetName),
+                    .external(name: "PathKit"),
                     .external(name: "XcodeProj"),
                     .external(name: "GraphViz"),
                     .external(name: "XcodeGraph"),
                     .external(name: "SwiftToolsSupport"),
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
+                    .external(name: "XcodeMetadata"),
                 ]
             case .scaffold:
                 [
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
-                    .target(name: Module.support.testingTargetName!),
-                    .target(name: Module.core.testingTargetName!),
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.rootDirectoryLocator.targetName),
                     .external(name: "FileSystem"),
                 ]
             case .loader:
@@ -538,274 +836,193 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.projectDescription.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
-                    .target(name: Module.support.testingTargetName!),
-                    .target(name: Module.core.testingTargetName!),
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.rootDirectoryLocator.targetName),
+                    .target(name: Module.git.targetName),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
                     .external(name: "XcodeGraph"),
                     .external(name: "_NIOFileSystem"),
-                ]
-            case .asyncQueue:
-                [
-                    .target(name: Module.core.targetName),
-                    .target(name: Module.support.targetName),
-                    .target(name: Module.support.testingTargetName!),
-                    .target(name: Module.core.testingTargetName!),
-                    .external(name: "Queuer"),
                 ]
             case .plugin:
                 [
                     .target(name: Module.projectDescription.targetName),
-                    .target(name: Module.loader.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.scaffold.targetName),
-                    .target(name: Module.loader.testingTargetName!),
+                    .target(name: Module.loader.targetName),
                     .target(name: Module.support.targetName),
-                    .target(name: Module.support.testingTargetName!),
-                    .target(name: Module.core.testingTargetName!),
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.git.targetName),
                     .external(name: "XcodeGraph"),
                     .external(name: "SwiftToolsSupport"),
                 ]
-            case .analytics:
-                [
-                    .target(name: Module.support.testingTargetName!),
-                    .target(name: Module.core.testingTargetName!),
-                ]
+
             case .migration:
                 [
-                    .target(name: Module.support.testingTargetName!),
-                    .target(name: Module.core.testingTargetName!),
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.support.targetName),
                 ]
             case .dependencies:
                 [
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
-                    .target(name: Module.core.testingTargetName!),
-                    .target(name: Module.loader.testingTargetName!),
-                    .target(name: Module.support.testingTargetName!),
+                    .target(name: Module.loader.targetName),
+                    .target(name: Module.testing.targetName),
                     .external(name: "XcodeGraph"),
                 ]
             case .automation:
                 [
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
-                    .target(name: Module.support.testingTargetName!),
-                    .target(name: Module.core.testingTargetName!),
+                    .target(name: Module.testing.targetName),
                     .external(name: "XcodeGraph"),
                     .external(name: "FileSystem"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "Command"),
+                    .external(name: "FileSystemTesting"),
                 ]
             case .server:
                 [
                     .target(name: Module.support.targetName),
-                    .target(name: Module.support.testingTargetName!),
-                    .target(name: Module.core.testingTargetName!),
+                    .target(name: Module.testing.targetName),
                     .target(name: Module.core.targetName),
+                    .target(name: Module.git.targetName),
+                    .target(name: Module.http.targetName),
                     .external(name: "XcodeGraph"),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "HTTPTypes"),
                     .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
                     .external(name: "SwiftToolsSupport"),
+                    .external(name: "Command"),
                 ]
             case .hasher:
                 [
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
-                    .target(name: Module.support.testingTargetName!),
+                    .target(name: Module.rootDirectoryLocator.targetName),
+                    .target(name: Module.testing.targetName),
                     .external(name: "XcodeGraph"),
                     .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
                 ]
             case .cache:
                 [
                     .target(name: Module.core.targetName),
                     .target(name: Module.hasher.targetName),
-                    .target(name: Module.support.testingTargetName!),
+                    .target(name: Module.testing.targetName),
                     .target(name: Module.support.targetName),
+                    .target(name: Module.http.targetName),
+                    .target(name: Module.server.targetName),
                     .external(name: "XcodeGraph"),
                     .external(name: "SwiftToolsSupport"),
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
+                    .external(name: "HTTPTypes"),
+                    .external(name: "OpenAPIRuntime"),
+                ]
+            case .xcActivityLog:
+                [
+                    .target(name: Module.rootDirectoryLocator.targetName),
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.support.targetName),
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
+                ]
+            case .rootDirectoryLocator:
+                [
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.support.targetName),
+                ]
+            case .git:
+                [
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.support.targetName),
+                    .external(name: "SwiftToolsSupport"),
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
+                ]
+            case .ci:
+                [
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.support.targetName),
+                ]
+            case .xcodeProjectOrWorkspacePathLocator:
+                [
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.support.targetName),
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
+                ]
+            case .xcResultService:
+                [
+                    .target(name: Module.testing.targetName),
+                    .external(name: "FileSystemTesting"),
+                ]
+            case .cas:
+                [
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.support.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.cache.targetName),
+                    .target(name: Module.casAnalytics.targetName),
+                    .target(name: Module.http.targetName),
+                    .external(name: "FileSystem"),
+                    .external(name: "OpenAPIRuntime"),
+                    .external(name: "GRPCCore"),
+                    .external(name: "GRPCProtobuf"),
+                    .external(name: "SwiftProtobuf"),
+                ]
+            case .casAnalytics:
+                [
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.support.targetName),
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
+                ]
+            case .launchctl:
+                [
+                    .target(name: Module.testing.targetName),
+                    .external(name: "Command"),
+                ]
+            case .oidc:
+                [
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.support.targetName),
+                ]
+            case .http:
+                [
+                    .target(name: Module.testing.targetName),
+                    .external(name: "OpenAPIRuntime"),
+                    .external(name: "HTTPTypes"),
                 ]
             }
         dependencies =
             dependencies + sharedDependencies + [
-                .target(name: targetName), .external(name: "Mockable"), .external(name: "SnapshotTesting"),
+                .target(name: targetName), .external(name: "Mockable"),
+                .external(name: "SnapshotTesting"),
             ]
-        if let testingTargetName {
-            dependencies.append(.target(name: testingTargetName))
-        }
+
         return dependencies
     }
 
-    public var testingDependencies: [TargetDependency] {
-        let dependencies: [TargetDependency] =
-            switch self {
-            case .tuist, .projectAutomation, .projectDescription, .acceptanceTesting, .hasher,
-                 .analytics,
-                 .migration, .tuistFixtureGenerator, .cache, .scaffold:
-                []
-            case .server:
-                [
-                    .external(name: "FileSystem"),
-                ]
-            case .asyncQueue:
-                [
-                    .target(name: Module.core.targetName),
-                ]
-            case .tuistBenchmark:
-                [
-                    .external(name: "ArgumentParser"),
-                ]
-            case .support:
-                [
-                    .target(name: Module.projectDescription.targetName),
-                    .target(name: Module.core.targetName),
-                    .external(name: "XcodeGraph"),
-                    .external(name: "Difference"),
-                    .external(name: "SwiftToolsSupport"),
-                    .external(name: "FileSystem"),
-                    .external(name: "Command"),
-                    .external(name: "Logging"),
-                ]
-            case .kit:
-                []
-            case .core:
-                [
-                    .target(name: Module.support.targetName),
-                    .target(name: Module.support.testingTargetName!),
-                    .target(name: Module.projectDescription.targetName),
-                    .external(name: "XcodeGraph"),
-                ]
-            case .generator:
-                [
-                    .target(name: Module.core.targetName),
-                    .target(name: Module.support.targetName),
-                    .target(name: Module.core.testingTargetName!),
-                    .target(name: Module.support.testingTargetName!),
-                    .external(name: "XcodeProj"),
-                    .external(name: "XcodeGraph"),
-                ]
-            case .loader:
-                [
-                    .target(name: Module.support.targetName),
-                    .target(name: Module.core.targetName),
-                    .target(name: Module.projectDescription.targetName),
-                    .target(name: Module.support.testingTargetName!),
-                    .external(name: "XcodeGraph"),
-                ]
-            case .plugin:
-                [
-                    .target(name: Module.core.targetName),
-                    .external(name: "XcodeGraph"),
-                ]
-            case .dependencies:
-                [
-                    .target(name: Module.projectDescription.targetName),
-                ]
-            case .automation:
-                [
-                    .target(name: Module.core.targetName),
-                    .target(name: Module.core.testingTargetName!),
-                    .target(name: Module.projectDescription.targetName),
-                    .target(name: Module.support.testingTargetName!),
-                    .external(name: "XcodeGraph"),
-                    .external(name: "SwiftToolsSupport"),
-                ]
-            }
-        return dependencies + sharedDependencies + [.target(name: targetName)]
+    private var destinations: Destinations {
+        switch self {
+        case .simulator, .server, .http:
+            [.mac, .iPhone, .iPad]
+        default:
+            [.mac]
+        }
     }
 
-    public var integrationTestsDependencies: [TargetDependency] {
-        var dependencies: [TargetDependency] =
-            switch self {
-            case .tuistBenchmark, .tuistFixtureGenerator, .support, .projectAutomation,
-                 .projectDescription, .acceptanceTesting,
-                 .asyncQueue, .plugin, .analytics, .dependencies, .server, .hasher:
-                []
-            case .cache:
-                [
-                    .target(name: Module.core.targetName),
-                    .target(name: Module.support.targetName),
-                    .target(name: Module.support.testingTargetName!),
-                    .target(name: Module.hasher.targetName),
-                    .external(name: "XcodeGraph"),
-                    .external(name: "SwiftToolsSupport"),
-                ]
-            case .tuist:
-                [
-                    .target(name: Module.generator.targetName),
-                    .target(name: Module.support.testingTargetName!),
-                    .target(name: Module.support.targetName),
-                    .target(name: Module.core.testingTargetName!),
-                    .target(name: Module.loader.testingTargetName!),
-                    .external(name: "SwiftToolsSupport"),
-                    .external(name: "XcodeProj"),
-                ]
-            case .kit:
-                [
-                    .target(name: Module.core.targetName),
-                    .target(name: Module.support.targetName),
-                    .target(name: Module.loader.targetName),
-                    .target(name: Module.core.testingTargetName!),
-                    .target(name: Module.support.testingTargetName!),
-                    .target(name: Module.projectDescription.targetName),
-                    .target(name: Module.automation.targetName),
-                    .target(name: Module.loader.testingTargetName!),
-                    .external(name: "XcodeProj"),
-                    .external(name: "XcodeGraph"),
-                    .external(name: "FileSystem"),
-                ]
-            case .core:
-                [
-                    .target(name: Module.support.targetName),
-                    .target(name: Module.support.testingTargetName!),
-                    .external(name: "FileSystem"),
-                ]
-            case .generator:
-                [
-                    .target(name: Module.core.targetName),
-                    .target(name: Module.support.targetName),
-                    .target(name: Module.loader.testingTargetName!),
-                    .target(name: Module.core.testingTargetName!),
-                    .target(name: Module.support.testingTargetName!),
-                    .external(name: "XcodeProj"),
-                    .external(name: "XcodeGraph"),
-                    .external(name: "SwiftToolsSupport"),
-                    .external(name: "FileSystem"),
-                ]
-            case .scaffold:
-                [
-                    .target(name: Module.core.targetName),
-                    .target(name: Module.support.targetName),
-                    .target(name: Module.support.testingTargetName!),
-                ]
-            case .loader:
-                [
-                    .target(name: Module.core.targetName),
-                    .target(name: Module.support.targetName),
-                    .target(name: Module.support.testingTargetName!),
-                    .target(name: Module.projectDescription.targetName),
-                    .external(name: "FileSystem"),
-                ]
-            case .migration:
-                [
-                    .target(name: Module.support.targetName),
-                    .target(name: Module.support.testingTargetName!),
-                    .target(name: Module.core.testingTargetName!),
-                ]
-            case .automation:
-                [
-                    .target(name: Module.core.targetName),
-                    .target(name: Module.support.targetName),
-                    .target(name: Module.support.testingTargetName!),
-                ]
-            }
-        dependencies.append(contentsOf: sharedDependencies)
-        dependencies.append(.target(name: targetName))
-        dependencies.append(.external(name: "Mockable"))
-        if let testingTargetName {
-            dependencies.append(contentsOf: [.target(name: testingTargetName)])
+    private var deploymentTargets: DeploymentTargets {
+        switch self {
+        case .simulator, .server, .http: .multiplatform(iOS: "18.0", macOS: "15.0")
+        default: .macOS("15.0")
         }
-        return dependencies
     }
 
     fileprivate func target(
@@ -831,14 +1048,17 @@ public enum Module: String, CaseIterable {
         let rootFolder: String
         switch product {
         case .unitTests:
-            rootFolder = "Tests"
+            rootFolder = "cli/Tests"
             debugSettings["CODE_SIGN_IDENTITY"] = ""
         default:
-            rootFolder = "Sources"
+            rootFolder = "cli/Sources"
         }
 
+        var baseSettings = settings.base
+        baseSettings["MACOSX_DEPLOYMENT_TARGET"] = "15.0"
+
         let settings = Settings.settings(
-            base: settings.base,
+            base: baseSettings,
             configurations: [
                 .debug(
                     name: "Debug",
@@ -852,16 +1072,30 @@ public enum Module: String, CaseIterable {
                 ),
             ]
         )
+
+        let destinations: Destinations =
+            switch product {
+            case .framework, .staticFramework: destinations
+            default: [.mac]
+            }
+
+        let deploymentTargets: DeploymentTargets =
+            switch product {
+            case .framework, .staticFramework: deploymentTargets
+            default: .macOS("15.0")
+            }
+
         return .target(
             name: name,
-            destinations: [.mac],
+            destinations: destinations,
             product: product,
-            bundleId: "io.tuist.\(name)",
-            deploymentTargets: .macOS("13.0"),
+            bundleId: "dev.tuist.\(name)",
+            deploymentTargets: deploymentTargets,
             infoPlist: .default,
-            sources: ["\(rootFolder)/\(name)/**/*.swift"],
+            buildableFolders: [.folder("\(rootFolder)/\(name)/")],
             dependencies: dependencies,
-            settings: settings
+            settings: settings,
+            metadata: .metadata(tags: tags)
         )
     }
 

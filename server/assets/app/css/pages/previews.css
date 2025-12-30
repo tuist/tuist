@@ -1,0 +1,58 @@
+#previews {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+  padding: var(--noora-spacing-7) var(--noora-spacing-5);
+
+  & [data-part="previews-table-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+  }
+
+  & [data-part="filters"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-6);
+
+    & [data-part="search"] {
+      width: 200px;
+    }
+  }
+
+  & [data-part="active-filters"] {
+    display: flex;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="platforms"] {
+    display: flex;
+    gap: var(--noora-spacing-2);
+    & > [data-part="cell"] {
+      padding-right: var(--noora-spacing-0);
+      padding-left: var(--noora-spacing-0);
+
+      &:first-child {
+        padding-left: var(--noora-spacing-7);
+      }
+    }
+  }
+
+  & [data-part="latest-app-previews"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-8);
+    padding: var(--noora-spacing-8) var(--noora-spacing-9);
+
+    & > [data-part="title"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
+    }
+
+    & > [data-part="apps"] {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--noora-spacing-4);
+    }
+  }
+}

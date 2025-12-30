@@ -1,0 +1,4 @@
+ℹ︎ Uploading AppTwo ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒   0%
+✔︎ AppTwo uploaded [0.0s]
+✔ Success
+  Share AppTwo with others using the following link: https://test.tuist.io

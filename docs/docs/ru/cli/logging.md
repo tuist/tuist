@@ -1,29 +1,53 @@
 ---
-title: Логирование
-titleTemplate: :title · Интерфейс командной строки (CLI) · Tuist
-description: Узнайте, как включить и настроить логирование в Tuist.
+{
+  "title": "Logging",
+  "titleTemplate": ":title · CLI · Tuist",
+  "description": "Learn how to enable and configure logging in Tuist."
+}
 ---
+# Ведение журнала {#logging}
 
-# Логирование {#logging}
+CLI ведет внутренний журнал сообщений, чтобы помочь вам диагностировать
+проблемы.
 
-CLI логирует сообщения внутри, чтобы помочь вам диагностировать проблемы.
+## Диагностика проблем с помощью журналов {#diagnose-issues-using-logs}
 
-## Diagnose issues using logs {#diagnose-issues-using-logs}
+Если вызов команды не приводит к желаемым результатам, вы можете диагностировать
+проблему, просмотрев журналы. CLI направляет журналы в
+[OSLog](https://developer.apple.com/documentation/os/oslog) и файловую систему.
 
-If a command invocation doesn't yield the intended results, you can diagnose the issue by inspecting the logs. The CLI forwards the logs to [OSLog](https://developer.apple.com/documentation/os/oslog) and the file-system.
+При каждом запуске создается файл журнала по адресу
+`$XDG_STATE_HOME/tuist/logs/{uuid}.log`, где `$XDG_STATE_HOME` принимает
+значение `~/.local/state`, если переменная окружения не установлена. Вы также
+можете использовать `$TUIST_XDG_STATE_HOME` для установки каталога состояния,
+специфичного для Туиста, который имеет приоритет над `$XDG_STATE_HOME`.
 
-In every run, it creates a log file at `$XDG_STATE_HOME/tuist/logs/{uuid}.log` where `$XDG_STATE_HOME` takes the value `~/.local/state` if the environment variable is not set.
+::: tip
+<!-- -->
+Подробнее об организации каталогов в Tuist и о том, как настроить
+пользовательские каталоги, вы можете узнать из документации
+<LocalizedLink href="/cli/directories">Directories</LocalizedLink>.
+<!-- -->
+:::
 
-По умолчанию, CLI выводит путь логов когда исполнение неожиданно завершается. Если это не так, то логи могут быть найдены в указанном выше пути (то есть в самом последнем лог-файле).
+По умолчанию CLI выводит путь к журналам, когда выполнение неожиданно
+завершается. Если этого не происходит, вы можете найти журналы по указанному
+выше пути (т. е. в самом последнем файле журнала).
 
-> [!ВАЖНО]
-> Конфиденциальная информация - не редактируется, поэтому будьте острожно при публикации логов.
+::: warning
+<!-- -->
+Конфиденциальная информация не редактируется, поэтому будьте осторожны при
+передаче журналов.
+<!-- -->
+:::
 
-### Непрерывная интеграция (CI) {#diagnose-issues-using-logs-ci}
+### Непрерывная интеграция {#diagnose-issues-using-logs-ci}
 
-В CI, где окружения сбрасываемы, вы можете захотеть сконфигурировать ваш CI конвейер для экспорта логов Tuist.
-Экспорт артефактов является общей возможностью CI-служб, и их конфигурации зависят от используемой вами службы.
-Например, в GitHub Actions вы можете использовать действие `actions/upload-artifact` для выгрузки логов в качестве артефакта:
+В CI, где окружения являются одноразовыми, вы можете захотеть настроить свой
+CI-конвейер на экспорт журналов Tuist. Экспорт артефактов - это общая
+возможность для всех сервисов CI, и конфигурация зависит от используемого
+сервиса. Например, в GitHub Actions вы можете использовать действие
+`actions/upload-artifact` для загрузки журналов в качестве артефакта:
 
 ```yaml
 name: Node CI
@@ -31,7 +55,7 @@ name: Node CI
 on: [push]
 
 env:
-  XDG_STATE_HOME: /tmp
+  TUIST_XDG_STATE_HOME: /tmp
 
 jobs:
   build:
@@ -43,8 +67,24 @@ jobs:
       - run: tuist generate
       # ... do something with the project
       - name: Export Tuist logs
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: tuist-logs
           path: /tmp/tuist/logs/*.log
 ```
+
+### Отладка демона кэша {#cache-daemon-debugging}
+
+Для отладки проблем, связанных с кэшем, Tuist регистрирует операции демона кэша
+с помощью `os_log` с подсистемой `dev.tuist.cache`. Вы можете транслировать эти
+журналы в режиме реального времени, используя:
+
+```bash
+log stream --predicate 'subsystem == "dev.tuist.cache"' --debug
+```
+
+Эти журналы также можно увидеть в Console.app, отфильтровав их для подсистемы
+`dev.tuist.cache`. Это позволяет получить подробную информацию об операциях с
+кэшем, что может помочь в диагностике проблем с загрузкой, выгрузкой и связью
+кэша.

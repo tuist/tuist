@@ -55,6 +55,7 @@ xcuserdata/
 ## Obj-C/Swift specific
 *.hmap
 *.ipa
+!cli/Tests/Fixtures/*.ipa
 
 ## Playgrounds
 timeline.xctimeline
@@ -66,7 +67,7 @@ playground.xcworkspace
 # Packages/
 # Package.pins
 .build/
-.swiftpm
+.swiftpm/xcode
 
 # CocoaPods - Refactored to standalone file
 
@@ -111,6 +112,9 @@ Tuist/Dependencies/graph.json
 # Release artifacts
 .bundle
 
-# Tuist Cloud
-TuistCloud
-!make/tasks/cloud
+.claude/
+mise.local.toml
+*.p12
+./minio
+!.github
+cli/Tests/Fixtures/*.xcresult/database.sqlite3

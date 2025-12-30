@@ -1,0 +1,4 @@
+ℹ︎ Uploading AppClip ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒   0%
+✔︎ AppClip uploaded [0.0s]
+✔ Success
+  Share AppClip with others using the following link: https://test.tuist.io

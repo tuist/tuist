@@ -1,81 +1,84 @@
 ---
-title: Translate
-titleTemplate: :title · Contributors · Tuist
-description: This document describes the principles that guide the development of Tuist.
+{
+  "title": "Translate",
+  "titleTemplate": ":title · Contributors · Tuist",
+  "description": "This document describes the principles that guide the development of Tuist."
+}
 ---
+# Traducir {#translate}
 
-# Translate {#translate}
+Los idiomas pueden ser barreras para la comprensión. Queremos asegurarnos de que
+Tuist sea accesible al mayor número de personas posible. Si hablas un idioma que
+Tuist no admite, puedes ayudarnos traduciendo las distintas superficies de
+Tuist.
 
-Languages can be barriers to understanding. We want to make sure that Tuist is accessible to as many people as possible. If you speak a language that Tuist doesn't support, you can help us by translating the various surfaces of Tuist.
+Dado que el mantenimiento de las traducciones es un esfuerzo continuo, añadimos
+idiomas a medida que vemos colaboradores dispuestos a ayudarnos a mantenerlos.
+Actualmente se admiten los siguientes idiomas:
 
-Since maintaining translations is a continuous effort, we add languages as we see contributors willing to help us maintain them. The following languages are currently supported:
+- Inglés
+- Coreano
+- Japonés
+- Ruso
+- Chino
+- Español
+- Portugués
 
-- English
-- Korean
-- Japanese
-- Russian
-
-> [!TIP] REQUEST A NEW LANGUAGE
-> If you believe Tuist would benefit from supporting a new language, please create a new [topic in the community forum](https://community.tuist.io/c/general/4) to discuss it with the community.
-
-## How to translate
-
-We use [Crowdin](https://crowdin.com/) to manage the translations. First, go to the project that you want to contribute to:
-
-- [Documentation](https://crowdin.com/project/tuist-documentation)
-- [Website](https://crowdin.com/project/tuist-documentation)
-
-You'll need an account to start translating. You can sign in with GitHub. Once you have access, you can start translating. You'll see the list of resources that are available for translation. When you click on a resource, the editor will open, and you'll see a split view with the resource in the source language on the left and the translation on the right. Translate the text on the right and save your changes.
-
-As translations are updated, Crowdin will push them automatically to the right repository opening a pull request, which the maintainers will review and merge.
-
-> [!IMPORTANT] DON'T MODIFY THE RESOURCES IN THE TARGET LANGUAGE
-> Crowdin segments the files to bind source and target languages. If you modify the source language, you'll break the binding, and the reconciliation might yield unexpected results.
-
-## Guidelines
-
-The following are the guidelines we follow when translating.
-
-### Custom containers and GitHub alerts
-
-When translating [custom containers](https://vitepress.dev/guide/markdown#custom-containers) or [GitHub Alerts](https://docs.github.com/es/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#alerts), only translate the title and the content **but not the type of alert**.
-
-:::details Example with GitHub Alert
-
-````markdown
-    > [!WARNING] 루트 변수
-    > 매니페스트의 루트에 있어야 하는 변수는...
-
-    // Instead of
-    > [!주의] 루트 변수
-    > 매니페스트의 루트에 있어야 하는 변수는...
-    ```
+::: tip REQUEST A NEW LANGUAGE
+<!-- -->
+Si crees que Tuist se beneficiaría de apoyar un nuevo idioma, por favor crea un
+nuevo [tema en el foro de la comunidad](https://community.tuist.io/c/general/4)
+para discutirlo con la comunidad.
+<!-- -->
 :::
 
+## Cómo traducir {#how-to-translate}
 
-::: details Example with custom container
+Tenemos una instancia de [Weblate](https://weblate.org/en-gb/) funcionando en
+[translate.tuist.dev](https://translate.tuist.dev). Puedes dirigirte a [el
+proyecto](https://translate.tuist.dev/engage/tuist/), crear una cuenta y empezar
+a traducir.
+
+Las traducciones se sincronizan con el repositorio fuente mediante pull requests
+de GitHub que los mantenedores revisarán y fusionarán.
+
+::: warning DON'T MODIFY THE RESOURCES IN THE TARGET LANGUAGE
+<!-- -->
+Weblate segmenta los archivos para enlazar los idiomas de origen y de destino.
+Si modificas el idioma de origen, romperás el enlace y la reconciliación podría
+dar resultados inesperados.
+<!-- -->
+:::
+
+## Directrices {#guidelines}
+
+A continuación se indican las directrices que seguimos al traducir.
+
+### Contenedores personalizados y alertas de GitHub {#custom-containers-and-github-alerts}
+
+Al traducir [custom
+containers](https://vitepress.dev/guide/markdown#custom-containers) sólo se
+traducen el título y el contenido **pero no el tipo de alerta**.
+
 ```markdown
-    ::: warning 루트 변수\
-    매니페스트의 루트에 있어야 하는 변수는...
-    :::
-
-    # Instead of
-    ::: 주의 루트 변수\
-    매니페스트의 루트에 있어야 하는 변수는...
-    :::
-````
-
+<!-- -->
+::: warning 루트 변수
+<!-- -->
+매니페스트의 루트에 있어야 하는 변수는...
+<!-- -->
 :::
+```
 
-### Heading titles
+### Títulos de las rúbricas {#heading-titles}
 
-When translating headings, only translate tht title but not the id. For example, when translating the following heading:
+Al traducir títulos, traduzca sólo el título, pero no el id. Por ejemplo, al
+traducir el siguiente título:
 
 ```markdown
 # Add dependencies {#add-dependencies}
 ```
 
-It should be translated as (note the id is not translated):
+Debería traducirse como (nótese que el id no se traduce):
 
 ```markdown
 # 의존성 추가하기 {#add-dependencies}

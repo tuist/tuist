@@ -1,0 +1,120 @@
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <script type="text/javascript" nonce={get_csp_nonce()}>
+    document.addEventListener('DOMContentLoaded', function() {
+      const form = document.getElementById('newsletter-form');
+      const errorAlert = document.getElementById('newsletter-error-alert');
+      const successAlert = document.getElementById('newsletter-success-alert');
+
+      function showAlert(alertElement, message) {
+        const titleElement = alertElement.querySelector('[data-part="title"]');
+        if (titleElement) {
+          titleElement.textContent = message;
+        }
+        alertElement.style.display = 'flex';
+      }
+
+      function hideAlerts() {
+        errorAlert.style.display = 'none';
+        successAlert.style.display = 'none';
+      }
+
+      form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const formData = new FormData(form);
+        const submitButton = form.querySelector('button[type="submit"]');
+        const originalButtonText = submitButton.textContent;
+
+        submitButton.disabled = true;
+        hideAlerts();
+
+        try {
+          const response = await fetch(form.action, {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin'
+          });
+
+          const result = await response.json();
+
+          if (result.success) {
+            showAlert(successAlert, result.message);
+            form.reset();
+          } else {
+            showAlert(errorAlert, result.message);
+          }
+        } catch (error) {
+          showAlert(errorAlert, 'Something went wrong. Please try again.');
+        } finally {
+          submitButton.textContent = originalButtonText;
+          submitButton.disabled = false;
+        }
+      });
+    });
+  </script>
+
+  <main id="marketing-newsletter">
+    <TuistWeb.Marketing.MarketingComponents.navbar {assigns} />
+
+    <TuistWeb.Marketing.MarketingComponents.header_background />
+
+    <header data-part="header">
+      <img src={~p"/marketing/images/newsletter/envelope.webp"} data-part="image" />
+      <h1 data-part="title">{dgettext("marketing", "Tuist Digest")}</h1>
+      <p data-part="description">
+        {dgettext(
+          "marketing",
+          "A newsletter from the Tuist team sharing product updates, our perspective on modern app development, and what's on the horizon. Stay in the loop with where we're headed and why."
+        )}
+      </p>
+    </header>
+
+    <section data-part="form">
+      <h2 data-part="title">{dgettext("marketing", "Subscribe")}</h2>
+      <p data-part="description">
+        {dgettext(
+          "marketing",
+          "Newsletter issues are sent every 6 weeks and you can unsubscribe at any time."
+        )}
+      </p>
+
+      <.alert
+        data-part="alert"
+        id="newsletter-success-alert"
+        status="information"
+        type="secondary"
+        title={
+          dgettext(
+            "marketing",
+            "We’ve sent a confirmation email to your inbox. Please check your spam or promotions folder and confirm your subscription."
+          )
+        }
+      />
+
+      <.alert
+        data-part="alert"
+        id="newsletter-error-alert"
+        status="error"
+        type="secondary"
+        title={
+          dgettext(
+            "marketing",
+            "There was an error signing you up on the newsletter"
+          )
+        }
+      />
+
+      <form
+        id="newsletter-form"
+        data-part="form"
+        method="post"
+        action={~p"/newsletter"}
+      >
+        <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+        <.text_input id="email" label="Email" name="email" type="email" required />
+
+        <.button label={dgettext("marketing", "Subscribe")} variant="primary" type="submit" />
+      </form>
+    </section>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>

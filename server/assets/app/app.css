@@ -1,0 +1,114 @@
+@import "./css/layouts.css";
+@import "./css/components.css";
+@import "./css/components/previews/app_preview.css";
+@import "./css/pages.css";
+
+@import "noora/noora.css";
+
+:root * {
+  --tuist-app-icon-radius: calc(var(--size) / 2 * 0.4453125);
+}
+
+body {
+  margin: 0;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 0;
+}
+
+html {
+  --hits-chart-legend-remote: light-dark(var(--noora-blue-300), var(--noora-blue-700));
+  --hits-chart-legend-missed: light-dark(var(--noora-orange-300), var(--noora-orange-700));
+  --hits-chart-legend-local: light-dark(var(--noora-pink-300), var(--noora-pink-700));
+}
+
+html:not(:has([data-theme])) {
+  @media (prefers-color-scheme: dark) {
+    & img[data-theme="light"] {
+      display: none;
+    }
+  }
+
+  @media (prefers-color-scheme: light) {
+    & img[data-theme="dark"] {
+      display: none;
+    }
+  }
+}
+
+p {
+  margin: unset;
+}
+
+a {
+  outline: unset;
+}
+
+/* This fixes an issue on iOS when an element is zoomed in when selected */
+@media screen and (-webkit-min-device-pixel-ratio: 0) {
+  select,
+  textarea,
+  input {
+    font-size: 16px;
+  }
+}
+
+.tuist-legend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-5);
+  padding-bottom: var(--noora-spacing-7);
+
+  & > [data-part="header"] {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    gap: var(--noora-spacing-3);
+
+    & [data-part="indicator"] {
+      border-radius: var(--noora-radius-xsmall);
+      background-color: var(--indicator-color);
+      width: 6px;
+    }
+
+    & > [data-part="title"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+    }
+  }
+
+  & > [data-part="value"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  &[data-style="primary"] {
+    --indicator-color: var(--noora-chart-legend-primary);
+  }
+
+  &[data-style="primary-translucent"] {
+    --indicator-color: var(--noora-chart-legend-primary-translucent);
+  }
+
+  &[data-style="secondary"] {
+    --indicator-color: var(--noora-chart-legend-secondary);
+  }
+
+  &[data-style="destructive"] {
+    --indicator-color: var(--noora-chart-destructive);
+  }
+}
+
+.tuist-pagination {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: var(--noora-spacing-4);
+}

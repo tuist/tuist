@@ -1,0 +1,66 @@
+<!doctype html>
+<html>
+  <head>
+    <title>API Documentation · Tuist</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Meta Meta Tags -->
+    <meta property="og:url" content={Tuist.Environment.app_url(path: "/")} />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={assigns[:head_title] || "Tuist"} />
+    <meta
+      property="og:image"
+      content={Tuist.Environment.app_url(path: "/images/open-graph/api-docs-card.jpeg")}
+    />
+    <!-- Twitter Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@tuistdev" />
+    <meta name="twitter:image" content={Tuist.Environment.app_url(path: "/")} />
+    <meta name="twitter:title" content={assigns[:head_title] || "Tuist"} />
+    <meta
+      property="twitter:domain"
+      content={Tuist.Environment.app_url(path: "/") |> URI.parse() |> Map.get(:host)}
+    />
+    <meta property="twitter:url" content={Tuist.Environment.app_url()} />
+    
+<!-- Assets -->
+    <script defer phx-track-static type="module" src={~p"/apidocs/assets/bundle.js"}>
+    </script>
+    <link phx-track-static rel="stylesheet" href={~p"/apidocs/assets/bundle.css"} />
+  </head>
+  <body>
+    <!--
+    const dataConfiguration = JSON.stringify({
+      theme: 'purple',
+      servers: [
+        {
+          url: 'https://tuist.dev',
+          description: 'Production server',
+        },
+      ],
+      spec: {
+        url: '/api/spec'
+      },
+      authentication: {
+        preferredSecurityScheme: 'authorization',
+        http: {
+          basic: 'token',
+          bearer: 'token',
+        }
+      }
+    })
+    -->
+    <% data_configuration =
+      ~c'{"theme":"purple","servers":[{"url":"#{Tuist.Environment.app_url()}","description":"Production server"}],"spec":{"url":"/api/spec"},"authentication":{"preferredSecurityScheme":"authorization","http":{"bearer": { "token": "#{@bearer_token}"}, "basic": {}}}}' %>
+    <script
+      nonce={get_csp_nonce()}
+      id="api-reference"
+      data-url="/api/spec"
+      data-configuration={data_configuration}
+    >
+    </script>
+    <script nonce={get_csp_nonce()} src="https://cdn.jsdelivr.net/npm/@scalar/api-reference">
+    </script>
+    <TuistWeb.LayoutComponents.head_analytics_scripts page_section="api-docs" {assigns} />
+  </body>
+</html>

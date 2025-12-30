@@ -1,0 +1,10 @@
+packages:
+  - docs/
+  - handbook/
+  - cas-worker/
+  - "!server/"
+
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+  - workerd

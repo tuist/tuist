@@ -1,8 +1,8 @@
 # file options
 
 --symlinks ignore
---exclude Tests/XCTestManifests.swift,Sources/TuistSupport/Vendored,fixtures/Targets/SlothCreator,Sources/TuistAutomation/XcodeBuild/XcodeBuildController.swift
---exclude fixtures/tuist_plugin,Sources/TuistServer/OpenAPI
+--exclude cli/Tests/XCTestManifests.swift,cli/Sources/TuistSupport/Vendored,cli/Sources/TuistAutomation/XcodeBuild/XcodeBuildController.swift,cli/Sources/TuistAsyncQueue/AsyncQueue.swift
+--exclude cli/Fixtures/tuist_plugin,cli/Sources/TuistServer/OpenAPI,cli/Sources/TuistCache/OpenAPI,app/build
 --exclude **/Derived
 --disable conditionalAssignment
 --disable hoistAwait
@@ -46,3 +46,5 @@
 --wrapcollections before-first
 --wrapconditions after-first
 --wrapparameters before-first
+--enable blockComments
+--enable docComments

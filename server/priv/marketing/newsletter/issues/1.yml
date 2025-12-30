@@ -1,0 +1,94 @@
+date: 2025-01-10
+hero:
+  image: /marketing/images/newsletter/issues/1/hero.png
+  alt: "Matthew Skiles's most recent app design work for the macOS app PolyCapture"
+  subtitle: "Featured work: [Matthew Skiles](https://elk.zone/mastodon.design/@matthewskiles/113206035527598619)"
+title: "Welcome to Swift Stories"
+welcome_message: |
+  We are excited to kick off 2025 with a new project: Swift Stories, a newsletter designed to be a welcoming space for fresh voices to share their stories and ideas.
+body: |
+  Swift's [structured concurrency](https://developer.apple.com/tutorials/app-dev-training/managing-structured-concurrency) introduced a powerful new mental model, enhancing app stability by catching data race issues at compile time. If you haven't adopted it yet, consider exploring it with [this resource](https://www.swift.org/migration/documentation/migrationguide/) as a reference.
+
+  One intriguing aspect of structured concurrency is how its underlying concepts mirror ideas from [Erlang's VM](https://en.wikipedia.org/wiki/BEAM_(Erlang_virtual_machine)). In Swift, we have [isolation domains](https://www.massicotte.org/intro-to-isolation), and in Erlang, we have [processes](https://www.erlang.org/doc/system/ref_man_processes.html). Both languages allow passing types safely across boundaries: Swift uses [Sendable](https://developer.apple.com/documentation/swift/sendable) types, while Erlang relies on copying any type across processes. This shared principle of isolation underpins their ability to manage concurrent tasks effectively.
+
+  Unlike Erlang—which was designed with concurrency as a core principle—Apple had to integrate structured concurrency into an existing ecosystem of legacy code and patterns. This required reconciling the new mental model with an “unsafe” past while making the compiler aware of these scenarios. Despite this incremental approach, **it’s fascinating to imagine how the app ecosystem could evolve if programming languages and their standard libraries fully embraced domains and message passing as the foundation for architecting code.***
+
+  [Joe Armstrong](https://en.wikipedia.org/wiki/Joe_Armstrong_(programmer)), one of Erlang’s creators, [introduced](https://erlang.org/download/armstrong_thesis_2003.pdf) the concept of **"Concurrency Oriented Programming Languages" (COPLs)**. He said:
+
+  > In the real world, sequential activities are a rarity. As we walk down the street, we would be very surprised to find only one thing happening; we expect to encounter many simultaneous events.
+
+  > If we did not have the ability to analyze and predict the outcome of many simultaneous events, we would live in great danger, and tasks like driving a car would be impossible. The fact that we can do things requiring processing massive amounts of parallel information suggests that we are equipped with perceptual mechanisms allowing us to intuitively understand concurrency without consciously thinking about it.
+
+  > When it comes to computer programming, things suddenly become inverted. Programming a sequential chain of activities is viewed as the norm and is thought of as easy, whereas programming collections of concurrent activities is avoided as much as possible and generally perceived as difficult.
+
+  > I believe this is due to the poor support provided for concurrency in virtually all conventional programming languages. The vast majority of programming languages are essentially sequential; any concurrency in the language is provided by the underlying operating system, not by the programming language.
+
+  Imagine, for a moment, if we modeled the business logic of our apps after concurrent actions instead of artificial constructs like *interactors*, *controllers*, and *services*—structures that don’t exist in the real world. This approach in Erlang **enabled solutions that are simple by design**. A similar shift in Swift could open doors to fault-tolerant, maintainable, and scalable apps, particularly as Swift expands into server environments.
+
+  Instead of prioritizing classes, structs, enums, and design patterns like repositories, builders, or adapters, we could focus on the core unit of isolation domains: actors. Actors could even supervise child actors, as in Erlang. For instance, an actor managing local data could have child actors responsible for individual data types. If a child actor crashes, the system could automatically restart it, introducing resilience. This actor-based mental model not only enhances data race safety but also enables fault tolerance by turning isolation domains into error boundaries.
+
+  **Isolation domains can also revolutionize testing.** If each end-to-end interaction with the app were modeled as an actor, you could test numerous interactions in parallel with minimal risk of flakiness in your test suite. This safe parallelism scales testing while maintaining reliability.
+
+  We believe these new mental models can radically improve app stability, maintainability, and testing scalability through safe parallelism. Adopting these ideas requires deeper familiarity and a willingness to think outside the box, but the building blocks for this transformation are already in place.
+
+interview:
+  interviewee: "Jeff Dickey"
+  interviewee_role: "Mise BDFL"
+  interviewee_avatar_url: https://avatars.githubusercontent.com/u/216188
+  interviewee_intro: |
+    Jeff Dickey, known on the Internet as [@jdx](https://github.com/jdx), is a software engineer with a passion for open-source and developer tools. You might know him from his work on the [Heroku CLI](https://devcenter.heroku.com/articles/heroku-cli), the [OCLIF Framework](https://www.google.com/search?client=safari&rls=en&q=oclif+framework&ie=UTF-8&oe=UTF-8) for building CLIs, and most recently [Mise](https://github.com/tuist/mise), a front-end for dev environments.
+  questions:
+    - question: "An app worth installing"
+      answer: |
+        [Ghostty](https://ghostty.org). I've tried all of the terminal emulators out there and with each of them you need to give up something. It's written by [mitchellh](https://github.com/mitchellh) who wrote [Terraform](https://www.terraform.io) and co-founded [Hashicorp](https://www.hashicorp.com) but has spent the last year just making Ghostty. Ghostty hits everything you need—minus search, but that's the only major thing missing and I think it'll land soon. It's the most exciting open source project I've seen in a while for sure.
+    - question: "An open-source project worth checking out"
+      answer: |
+        I mentioned aqua before, but the [aqua-registry](https://github.com/aquaproj/aqua-registry) is the portion used by both mise and aqua and we could use everyone's help to improve it. We'd like it to be the standard source of truth for how all dev tools are fetched securely.
+    - question: "A developer tool worth using"
+      answer: |
+        Something that I think pretty much everyone could benefit from that people likely haven't heard of is [jnv](https://github.com/ynqa/jnv). It's an interactive [jq](https://jqlang.github.io/jq/) query editor. jq syntax is not easy to write, but using jnv it shows you what effect your query has as you type it so it's easy to break down a large json structure to extract what you want. There is also [ijq](https://github.com/fiatjaf/ijq)–I haven't used both of them enough to compare which is better, but jnv is written in rust so... it's my pick lol.
+    - question: "A developer worth following"
+      answer: |
+        [@suzuki-shunsuke](https://github.com/suzuki-shunsuke). Shunsuke wrote a dev tool manager called [aqua](https://github.com/aquaproj/aqua) (which mise uses the registry of) that puts an emphasis on supply chain security. His work has been a big help making mise more secure to use. He's written a ton of other tools as well including Terraform and GitHub actions tools. He's definitely one to follow since I'm sure he'll be continuing to build more and more impressive tools.
+    - question: "A book worth reading"
+      answer: |
+        ["Spark: The Revolutionary New Science of Exercise and the Brain"](https://app.thestorygraph.com/books/59721d6d-0ebb-4bc6-b59b-000e16a36552) - the gist is that exercise has so many mental benefits that the physical benefits of exercise could easily be thought of as simple side-effects. Really amazing stuff—and helpful even if you just want to indoctrinate yourself into exercising more.
+
+tools:
+  - title: SuperMD
+    subtitle: A Markdown extension
+    link: https://zine-ssg.io/docs/supermd/
+    description: |
+      SuperMD upgrades Markdown to a full-fledged markup format that is not dependent on HTML.
+  - title: YouPlot
+    subtitle: A command line tool that draw plots in the terminal.
+    link: https://github.com/red-data-tools/YouPlot
+    description: |
+      Who would have thought that you could draw plots in the terminal? With YouPlot you can draw histograms, lineplots, and many other types of plots. It's a great tool for quick data exploration and analysis.
+  - title: SwiftUI Theming
+    subtitle: "Theming for Swift UI"
+    link: "https://github.com/alexanderwe/swiftui-theming"
+    description: |
+      Imagine giving people the ability to dynamically change the theme of your app. Thanks to [Alexander Weiss](https://github.com/alexanderwe)'s most recent Swift Package, swift-ui-theming, it's never been easier.
+  - title: Swift Service Context
+    subtitle: "A context-propagation container"
+    link: https://github.com/apple/swift-service-context
+    description: |
+      At Tuist we [started using](https://github.com/tuist/tuist/pull/7194) swift-service-context as a dependency-injection tool and thanks to it we can now easily scope state to test cases ensuring they run fully isolated from each other.
+
+food_for_thought:
+  - title: "Making reliable distributed systems in the presence of sodware errors"
+    subtitle: "Read"
+    link: "https://erlang.org/download/armstrong_thesis_2003.pdf"
+    description: |
+      The section "The Architectural Model" from Joe Armstrong's thesis on Erlang is a must-read if you are diving into Swift's new structured concurrency model.
+  - title: "Swift Parameterized Testing"
+    subtitle: "Try"
+    link: "https://useyourloaf.com/blog/swift-parameterized-testing/"
+    description: |
+      Different scenarios within a test case can now be expressed through parameters, and Xcode's UI and xcodebuild provide a beautiful way to visualize the results. If you migrated from [XCTest](https://developer.apple.com/documentation/xctest), we recommend taking the opportunity to explore this new feature.
+  - title: "[Pitch] Swift's Explicit specialization"
+    subtitle: Read
+    link: https://forums.swift.org/t/pitch-explicit-specialization/76967
+    description: |
+      Swift might soon have a new annotation to force mono-morphic compilation. This could be particularly useful when generic values are type-erased, limiting compiler optimizations without the proposed annotation.

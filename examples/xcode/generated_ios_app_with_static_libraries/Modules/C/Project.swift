@@ -1,0 +1,31 @@
+import ProjectDescription
+
+let project = Project(
+    name: "C",
+    targets: [
+        .target(
+            name: "C",
+            destinations: .iOS,
+            product: .staticLibrary,
+            bundleId: "dev.tuist.C",
+            infoPlist: "Info.plist",
+            sources: "Sources/**",
+            dependencies: [
+                // Target dependencies can be defined here
+                // .framework(path: "framework")
+            ],
+            settings: .settings(base: ["BUILD_LIBRARY_FOR_DISTRIBUTION": "YES"])
+        ),
+        .target(
+            name: "CTests",
+            destinations: .iOS,
+            product: .unitTests,
+            bundleId: "dev.tuist.BTests",
+            infoPlist: "Tests.plist",
+            sources: "Tests/**",
+            dependencies: [
+                .target(name: "C"),
+            ]
+        ),
+    ]
+)

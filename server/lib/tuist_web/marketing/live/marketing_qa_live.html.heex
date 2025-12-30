@@ -1,0 +1,104 @@
+<main id="qa">
+  <div :if={@email_submitted?} data-part="confirmation">
+    <.alert
+      id="confirmation-alert"
+      status="information"
+      title={
+        dgettext(
+          "marketing",
+          "A confirmation email has been sent to your account with further details."
+        )
+      }
+      dismissible
+    />
+  </div>
+  <div data-part="header">
+    <div data-part="background" aria-hidden="true">
+      <img src="/marketing/images/qa/header-background.webp" alt="Background decoration" />
+    </div>
+
+    <img data-part="logo" src="/marketing/images/qa/header-logo.webp" />
+    <h1 data-part="title">
+      {dgettext("marketing", "Agentic QA")}<br /> {dgettext(
+        "marketing",
+        "Right Inside Your Workflow"
+      )}
+    </h1>
+    <p data-part="description">
+      {dgettext(
+        "marketing",
+        "Tuist QA runs AI-powered tests from your PRs, giving you summaries with issues, steps, and screenshots — so bugs are caught before they reach main."
+      )}
+    </p>
+    <.form id="header-form" for={@form} data-part="form" phx-submit="add-to-waiting-list">
+      <.text_input
+        id="header-form-email"
+        field={@form[:email]}
+        type="email"
+        placeholder="hello@tuist.dev"
+        value={if @current_user, do: @current_user.email, else: ""}
+      />
+      <.button label={dgettext("marketing", "Get early access")} variant="primary" size="large" />
+    </.form>
+  </div>
+
+  <div data-part="main">
+    <div data-part="feature">
+      <div data-part="text">
+        <h2 id="summary" data-part="title">
+          <a href="#summary">{dgettext("marketing", "Concise Summary")}</a>
+        </h2>
+        <p data-part="description">
+          {dgettext("marketing", "see what was tested, issues found, and results at a glance")}
+        </p>
+      </div>
+
+      <img data-part="image" src="/marketing/images/qa/summary.webp" />
+    </div>
+
+    <div data-part="feature" data-reverse>
+      <div data-part="text">
+        <h2 id="screenshots" data-part="title">
+          <a href="#screenshots">{dgettext("marketing", "Screenshots & Replays")}</a>
+        </h2>
+        <p data-part="description">
+          {dgettext("marketing", "review every step the agent took with visual context")}
+        </p>
+      </div>
+
+      <img data-part="image" src="/marketing/images/qa/screenshots.webp" />
+    </div>
+
+    <div data-part="feature">
+      <div data-part="text">
+        <h2 id="issue-tracking" data-part="title">
+          <a href="#issue-tracking">{dgettext("marketing", "Issue Tracking")}</a>
+        </h2>
+        <p data-part="description">
+          {dgettext("marketing", "pinpoint the exact moment of the issue during testing")}
+        </p>
+      </div>
+
+      <img data-part="image" src="/marketing/images/qa/issue-tracking.webp" />
+    </div>
+  </div>
+
+  <div data-part="footer">
+    <div data-part="background" aria-hidden="true">
+      <img src="/marketing/images/qa/footer-background.webp" alt="Background decoration" />
+    </div>
+
+    <h2 data-part="title">{dgettext("marketing", "Sign up to get early access to Tuist QA")}</h2>
+
+    <.form id="footer-form" for={@form} data-part="form" phx-submit="add-to-waiting-list">
+      <.text_input
+        id="footer-form-email"
+        field={@form[:email]}
+        type="email"
+        placeholder="hello@tuist.dev"
+        value={if @current_user, do: @current_user.email, else: ""}
+      />
+      <.button label={dgettext("marketing", "Get early access")} variant="primary" size="large" />
+    </.form>
+  </div>
+</main>

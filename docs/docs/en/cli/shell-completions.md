@@ -1,16 +1,19 @@
 ---
-title: Shell completions
-titleTemplate: :title · CLI · Tuist
-description: Learn how to configure your shell to auto-complete Tuist commands.
+{
+  "title": "Shell completions",
+  "titleTemplate": ":title · CLI · Tuist",
+  "description": "Learn how to configure your shell to auto-complete Tuist commands."
+}
 ---
-
 # Shell completions
 
 If you have Tuist **globally installed** (e.g., via Homebrew),
 you can install shell completions for Bash and Zsh to autocomplete commands and options.
 
 ::: warning WHAT IS A GLOBAL INSTALLATION
+<!-- -->
 A global installation is an installation that's available in your shell's `$PATH` environment variable. This means you can run `tuist` from any directory in your terminal. This is the default installation method for Homebrew.
+<!-- -->
 :::
 
 #### Zsh {#zsh}

@@ -1,0 +1,59 @@
+name: Server Canary Deployment
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: The commit SHA to deploy. When not passed, it deploys the latest commit available in `main`.
+        required: false
+
+concurrency:
+  group: deployment-canary-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  CI: true
+  RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  PNPM_HOME: ~/.pnpm
+
+defaults:
+  run:
+    working-directory: server
+
+jobs:
+  canary:
+    environment: server-canary
+    name: Canary Deployment
+    env:
+      DOCKER_BUILDKIT: 1
+    runs-on: namespace-profile-default
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        if: ${{ github.event.inputs.commit_sha == '' }}
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        if: ${{ github.event.inputs.commit_sha != '' }}
+        with:
+          ref: ${{ github.event.inputs.commit_sha }}
+          fetch-depth: 0
+      - uses: jdx/mise-action@v2
+        with:
+          install: false
+      - name: "Get version"
+        id: version
+        run: |
+          version=$(./mise/tasks/generate-version.sh)
+          echo "::set-output name=version::$version"
+      - name: Update version in mix.exs
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          sed -i 's/version: "[^"]*"/version: "'$VERSION'"/' mix.exs
+      - name: Trigger canary deploy with Render CLI
+        run: |
+          mise exec "github:render-oss/cli@2.6.1" -- cli_v2.6.1 deploys create srv-d35uiopr0fns73bfve00 --output json --confirm --wait --commit "$GITHUB_SHA"

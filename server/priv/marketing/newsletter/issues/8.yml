@@ -1,0 +1,95 @@
+date: 2025-04-28
+hero:
+  image: /marketing/images/newsletter/issues/8/artwork.jpg
+  image_max_width: 250px;
+  alt: "UI design by [Oğuz Yağız Kara](https://oguzyagiz.com)"
+  subtitle: "Featured work: [Oğuz Yağız Kara](https://oguzyagiz.com)"
+title: "On software's momentum"
+body: |
+  Most solutions we build with software start with an idea: that solution you've always dreamed of having, that app with all the features you miss in other apps, some crazy new concept no one has thought about before, or simply an innovative solution to your employer's needs. These ideas emerge with energy that can fade if not paired with a building momentum that keeps you excited during development.
+  Unfortunately, software has grown larger and more complex. Layers of abstraction emerge to hide this complexity, but complexity eventually leaks through these layers and steals your momentum, potentially putting the realization of your idea at risk. In the case of Apple's ecosystem, that momentum-spoiling culprit is Xcode's build system.
+
+  Xcode's build system, initially designed to support a single platform and product type, had to evolve quickly to support many platforms, programming languages, and product types. On it, many editor and compile-time features were [built—from previews](https://developer.apple.com/documentation/swiftui/previews-in-xcode) to [Swift macros](https://docs.swift.org/swift-book/documentation/the-swift-programming-language/macros/). It was asked to handle more than it could manage, and it's suffering. That idea you wanted to bring to life now faces slow compilation cycles, constant cleanups of derived data, and unreliable previews.
+
+  In a business context, this eventually leads leadership to push for radical shifts, from migrating everything to [React Native](https://shopify.engineering/five-years-of-react-native-at-shopify) to match the delivery speed on other platforms, to multi-year efforts to revamp a company's tech stack, including changing the build system. [Reddit had to do exactly this](https://newsletter.pragmaticengineer.com/p/building-reddits-ios-and-android) to stay competitive in the mobile landscape.
+
+  Now you might wonder, is Apple doing anything about it? They are, but it will take many years until the ecosystem transitions to this new world. First, they introduced [explicit modules](https://developer.apple.com/documentation/xcode/building-your-project-with-explicit-module-dependencies), though adoption hasn't met expectations. These modules will play a crucial role in enabling a faster and more reliable future, and it would be beneficial if Apple emphasized them more. However, explicitness shifts build-graph complexity to Xcode projects, something teams generally avoid, and [SwiftPM](https://www.swift.org/documentation/package-manager/) is already struggling to provide the developer experience that developers need. Will we see a new Xcode project format? Or perhaps an evolution of the current one? Time will tell.
+
+  The second piece in development is the unification of build systems, which will include a content-addressable store—the same mechanism [Bazel](https://bazel.build) uses internally to optimize compilations by pulling and storing binaries through the network. We might see elements of this announced at this year's WWDC. Still, explicitness and content-addressable storage are just foundational tools. If the layers above, including the language and project build settings, continue to allow side effects and implicitness, these foundational tools cannot perform optimally. Apple needs to rethink the high-level layers, perhaps introducing a [language](https://bazel.build/rules/language) like Bazel did that's designed to prevent the issues that have brought Xcode's build system to its current state.
+
+  Staying close to the platform is always advisable, whether that platform is the Web, iOS, or watchOS. However, if doing so means constantly disrupting developers' momentum and flow, it's understandable that organizations and developers explore abstractions that restore that sense of momentum they lose when working directly with the platform. At Tuist, we built an abstraction — generated projects — to shield developers from Xcode's complexities and build slowness, ensuring they could stay productive. Ideally, we would love to peel back that layer in the future, should Apple address these challenges more effectively at a lower level. The ball is now in Apple's court to demonstrate that developers don't need additional abstractions to remain productive while building for their platforms, and that their tools can match others' productivity levels and reliability. Perhaps this WWDC?
+interview:
+  interviewee: "Elvira Burchik"
+  interviewee_role: "Senior Mobile Engineer"
+  interviewee_avatar_url: /marketing/images/newsletter/issues/8/elvira.jpg
+  interviewee_intro: |
+    Elvira Burchik is a Berlin-based Senior Mobile Engineer from Minsk. She enjoys crafting mobile experiences, and supporting other women who are starting a career in IT.
+  questions:
+    - question: "An app worth installing"
+      answer: |
+        [Dimensional](https://www.dimensional.me/) is a really nice app with personality tests that give you good insights and a different perspective about yourself. It has just the right balance of being engaging without overloading you. Give it a try!
+    - question: "An open-source project worth checking out"
+      answer: |
+        I'd use this opportunity to spread awareness about [Shopify/tophat](https://github.com/Shopify/tophat), a fantastic tool that makes installing and testing mobile apps a breeze. It deserves more recognition!
+    - question: "A developer tool worth using"
+      answer: |
+        It's somewhat niche, but I'd recommend the [Refi App](https://firebaseopensource.com/projects/thanhlmm/refi-app/) to Firestore users. It's a frontend to manage and edit your data. I used it to replicate its functionality in a simpler Python + Excel setup until my friend introduced me to Refi, which makes the whole database interaction much more convenient.
+    - question: "A developer worth following"
+      answer: |
+        It's very hard to recommend following anyone these days with people splitting to different platforms or opting out of reading or posting completely. So I will suggest not a developer, but a community that made my Twitter-presence more tolerable – [@hikingshawty](https://instagram.com/hikingshawty) and her "today i walked..." where people share pictures of their walks. It's beautiful and very refreshing.
+    - question: "A book worth reading"
+      answer: |
+        Benjamín Labatut's ["The MANIAC"](https://www.goodreads.com/book/show/75665931-the-maniac). I'm forever grateful for a random recommendation of his other book "When We Cease to Understand the World" that popped up on my Twitter feed. Both books are great, but "The MANIAC" is more relevant now being about AI, though from an angle you wouldn't expect.
+
+tools:
+  - title: Cooklang
+    subtitle: Recipe Markup Language
+    link: https://cooklang.org
+    description: |
+      If you like Markdown and cooking, you'll love this language. It lets you define recipes and ingredients, then generate instructions for any number of people or even create shopping lists from multiple recipes.
+  - title: ShaderGPT
+    subtitle: AI-generated shaders
+    link: https://shadergpt.14islands.com
+    description: |
+      This tool uses LLMs to automatically generate shaders. It creates code in OpenGL's shading language that you can incorporate into your websites or apps, for example using [SwiftGL](https://github.com/SwiftGL).
+  - title: swift-subprocess
+    subtitle: A cross-platform package for spawning processes in Swift
+    link: https://github.com/swiftlang/swift-subprocess
+    description: |
+      The wait is over! Apple has released a Swift Package featuring a convenient interface for running system processes on macOS, Linux, and Windows.
+  - title: Hana
+    subtitle: A new canvas for interactive design
+    link: https://blog.spline.design/introducing-hana
+    description: |
+      What if Figma's web-based collaborative experience were applied to other disciplines like interaction design? Hana believes this is possible and has built exactly that.
+  - title: infat
+    subtitle: A CLI to set default openers
+    link: https://github.com/philocalyst/infat
+    description: |
+      infat is a CLI that allows you to control the association between formats and applications just from your terminal.
+food_for_thought:
+  - title: "Vibe coding with GitHub Copilot"
+    subtitle: "Read"
+    link: "https://github.blog/news-insights/product-news/github-copilot-agent-mode-activated/"
+    description: |
+      Vibe Coding is coming to all editors. Will we see Xcode vibing too at this WWDC?
+  - title: "Two Years Building Workbrew, a Remote-First Enterprise Homebrew Startup"
+    subtitle: "Read"
+    link: "https://mikemcquaid.com/two-years-building-workbrew-a-remote-first-enterprise-homebrew-startup/"
+    description: |
+      Developer tools should be open source, but with the right contributor incentives. We're not alone—Homebrew followed a similar path before us. Learning from others' experiences is valuable.
+  - title: "Design for the AI age"
+    subtitle: "Read"
+    link: "https://linear.app/blog/design-for-the-ai-age"
+    description: |
+      LLMs offer a fresh opportunity to reimagine user interface and product design. Linear, renowned for their UI craftsmanship, shares their vision for the future of AI and design.
+  - title: "Telepathic Instruments"
+    subtitle: "Scroll through"
+    link: "https://telepathicinstruments.com"
+    description: |
+      HTML and CSS alone can create impressive web experiences that showcase your product's excellence. Check this out.
+  - title: "What the Hell Is a Target Triple?"
+    subtitle: "Read"
+    link: "https://mcyoung.xyz/2025/04/14/target-triples/"
+    description: |
+      If you've used triples like `aarch64-apple-ios` for years and wondered about their history, you'll enjoy this article. You might be surprised by the numerous inconsistencies that have emerged over time.

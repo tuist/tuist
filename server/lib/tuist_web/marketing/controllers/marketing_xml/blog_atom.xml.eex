@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title><%= dgettext("marketing", "Tuist's blog") %></title>
+  <subtitle><%= dgettext("marketing", "Blog posts by the Tuist team.") %></subtitle>
+  <link href="<%= Tuist.Environment.app_url(path: ~p"/blog") %>"/>
+  <link href="<%= Tuist.Environment.app_url(path: ~p"/blog/atom.xml") %>" rel="self"/>
+  <id><%= Tuist.Environment.app_url(path: ~p"/blog") %></id>
+  <updated><%= @last_build_date |> Timex.format!("{RFC1123}") %></updated>
+
+  <%= for entry <- @entries do %>
+    <entry>
+      <title><![CDATA[ <%= Tuist.Marketing.Content.get_entry_title(entry) %> ]]></title>
+      <% author_name = Tuist.Marketing.Content.get_entry_author_name(entry) %>
+      <%= if not is_nil(author_name) do %>
+      <author>
+        <name><![CDATA[ <%= author_name %> ]]></name>
+      </author>
+      <% else %>
+      <author>
+        <name>Tuist</name>
+      </author>
+      <% end %>
+      <summary type="html"><![CDATA[ <%= Tuist.Marketing.Content.get_entry_excerpt(entry) %> ]]></summary>
+      <link href="<%= Tuist.Environment.app_url(path: Tuist.Marketing.Content.get_entry_slug(entry)) %>"/>
+      <id><%= Tuist.Environment.app_url(path: Tuist.Marketing.Content.get_entry_slug(entry)) %></id>
+      <updated><%= entry |> Tuist.Marketing.Content.get_entry_date() |> Timex.format!("{RFC1123}") %></updated>
+      <content type="html"><![CDATA[ <%= Tuist.Marketing.Content.get_entry_body(entry) %> ]]></content>
+    </entry>
+  <% end %>
+</feed>

@@ -1,0 +1,575 @@
+name: Server
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - server/**
+      - .github/workflows/server.yml
+      - server/pnpm-lock.yaml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - server/**
+      - .github/workflows/server.yml
+      - server/pnpm-lock.yaml
+      - pnpm-lock.yaml
+  merge_group: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tuist-server-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  MIX_ENV: test
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  PNPM_HOME: ~/.pnpm
+
+defaults:
+  run:
+    working-directory: server
+
+jobs:
+  gettext_marketing:
+    name: Gettext (Marketing)
+    runs-on: namespace-profile-default
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        id: mix-cache
+        with:
+          path: |
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
+      - name: Restore PNPM Cache
+        uses: actions/cache@v4
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: server
+      - run: mise run install
+      - name: Check marketing gettext template is up-to-date
+        run: |
+          # Extract only (without --merge) to check if marketing.pot changes
+          # DO NOT use --merge here as it would modify .po translation files
+          cp priv/gettext/marketing.pot priv/gettext/marketing.pot.backup
+          mix gettext.extract > /dev/null 2>&1 || true
+
+          if ! diff -q priv/gettext/marketing.pot.backup priv/gettext/marketing.pot > /dev/null; then
+            echo "::error title=Marketing gettext template out of sync::The marketing.pot file is not up-to-date. Please run 'mix gettext.extract' (WITHOUT --merge) in the server directory and commit the changes."
+            rm priv/gettext/marketing.pot.backup
+            exit 1
+          else
+            echo "✅ Marketing gettext template is up-to-date"
+            rm priv/gettext/marketing.pot.backup
+          fi
+      - name: Check marketing translations exist
+        run: |
+          # Check if marketing.pot exists
+          if [ ! -f priv/gettext/marketing.pot ]; then
+            echo "::error title=Missing marketing translations::marketing.pot file is missing. Please run 'mix gettext.extract' in the server directory."
+            exit 1
+          fi
+
+          # Check if all languages have marketing.po files
+          for lang_dir in priv/gettext/*/LC_MESSAGES; do
+            lang=$(basename $(dirname "$lang_dir"))
+            marketing_po="$lang_dir/marketing.po"
+
+            if [ ! -f "$marketing_po" ]; then
+              echo "::error title=Missing marketing translation::Missing $marketing_po for language '$lang'. Marketing domain translations are required for all languages."
+              exit 1
+            fi
+          done
+
+          echo "✅ All marketing translations present"
+  gettext_dashboard:
+    name: Gettext (Dashboard)
+    runs-on: namespace-profile-default
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        id: mix-cache
+        with:
+          path: |
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
+      - name: Restore PNPM Cache
+        uses: actions/cache@v4
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: server
+      - run: mise run install
+      - name: Check dashboard gettext templates are up-to-date
+        run: |
+          # Dashboard domains to check
+          DASHBOARD_DOMAINS="dashboard dashboard_account dashboard_auth dashboard_builds dashboard_cache dashboard_integrations dashboard_previews dashboard_projects dashboard_qa dashboard_tests"
+
+          # Backup all dashboard .pot files
+          for domain in $DASHBOARD_DOMAINS; do
+            if [ -f "priv/gettext/${domain}.pot" ]; then
+              cp "priv/gettext/${domain}.pot" "priv/gettext/${domain}.pot.backup"
+            fi
+          done
+
+          # Extract only (without --merge) to check if any .pot changes
+          # DO NOT use --merge here as it would modify .po translation files
+          mix gettext.extract > /dev/null 2>&1 || true
+
+          # Check each domain for changes
+          CHANGED_DOMAINS=""
+          for domain in $DASHBOARD_DOMAINS; do
+            if [ -f "priv/gettext/${domain}.pot.backup" ]; then
+              if ! diff -q "priv/gettext/${domain}.pot.backup" "priv/gettext/${domain}.pot" > /dev/null 2>&1; then
+                CHANGED_DOMAINS="$CHANGED_DOMAINS $domain"
+              fi
+              rm "priv/gettext/${domain}.pot.backup"
+            elif [ -f "priv/gettext/${domain}.pot" ]; then
+              # New domain file was created
+              CHANGED_DOMAINS="$CHANGED_DOMAINS $domain"
+            fi
+          done
+
+          if [ -n "$CHANGED_DOMAINS" ]; then
+            echo "::error title=Dashboard gettext templates out of sync::The following .pot files are not up-to-date:$CHANGED_DOMAINS. Please run 'mix gettext.extract' (WITHOUT --merge) in the server directory and commit the changes."
+            exit 1
+          else
+            echo "✅ All dashboard gettext templates are up-to-date"
+          fi
+      - name: Check dashboard translations templates exist
+        run: |
+          # Dashboard domains to check
+          DASHBOARD_DOMAINS="dashboard dashboard_account dashboard_auth dashboard_builds dashboard_cache dashboard_integrations dashboard_previews dashboard_projects dashboard_qa dashboard_tests"
+
+          MISSING_DOMAINS=""
+          for domain in $DASHBOARD_DOMAINS; do
+            if [ ! -f "priv/gettext/${domain}.pot" ]; then
+              MISSING_DOMAINS="$MISSING_DOMAINS $domain"
+            fi
+          done
+
+          if [ -n "$MISSING_DOMAINS" ]; then
+            echo "::error title=Missing dashboard translations::The following .pot files are missing:$MISSING_DOMAINS. Please run 'mix gettext.extract' in the server directory."
+            exit 1
+          fi
+
+          echo "✅ All dashboard translation templates present"
+  translation_protection:
+    name: Translation Protection
+    runs-on: namespace-profile-default
+    timeout-minutes: 5
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check for .po file modifications by non-bot users
+        run: |
+          # Get the PR author
+          PR_AUTHOR="${{ github.event.pull_request.user.login }}"
+
+          # Get list of added and modified .po files in this PR
+          ADDED_PO_FILES=$(git diff --name-only --diff-filter=A origin/${{ github.base_ref }}...HEAD | grep '\.po$' || true)
+          MODIFIED_PO_FILES=$(git diff --name-only --diff-filter=M origin/${{ github.base_ref }}...HEAD | grep '\.po$' || true)
+
+          if [ -z "$ADDED_PO_FILES" ] && [ -z "$MODIFIED_PO_FILES" ]; then
+            echo "✅ No .po files modified in this PR"
+            exit 0
+          fi
+
+          # Allow adding new language directories (one-time setup), but block modifications to non-English translations
+          if [ "$PR_AUTHOR" != "tuistit" ]; then
+            # Filter out English .po files from modified files (developers can modify English source translations)
+            NON_ENGLISH_MODIFIED=$(echo "$MODIFIED_PO_FILES" | grep -v '/en/LC_MESSAGES/' || true)
+
+            if [ -n "$NON_ENGLISH_MODIFIED" ]; then
+              echo "::error title=Translation files modified::Non-English translation files (.po) were modified by $PR_AUTHOR. Only the tuistit bot should modify translation files. Translations should be managed through Weblate."
+              echo ""
+              echo "Modified translation files:"
+              echo "$NON_ENGLISH_MODIFIED"
+              echo ""
+              echo "If you need to update translations, please use Weblate instead of editing .po files directly."
+              echo "You should only commit .pot (template) files, not .po (translation) files."
+              echo "Note: English .po files (en/LC_MESSAGES/*.po) can be modified by developers."
+              exit 1
+            fi
+
+            # Report on English modifications (allowed)
+            ENGLISH_MODIFIED=$(echo "$MODIFIED_PO_FILES" | grep '/en/LC_MESSAGES/' || true)
+            if [ -n "$ENGLISH_MODIFIED" ]; then
+              echo "✅ English translation files modified by $PR_AUTHOR (allowed):"
+              echo "$ENGLISH_MODIFIED"
+              echo ""
+            fi
+
+            if [ -n "$ADDED_PO_FILES" ]; then
+              echo "⚠️  New translation files added by $PR_AUTHOR:"
+              echo "$ADDED_PO_FILES"
+              echo ""
+              echo "✅ Allowing new language setup. Future modifications should go through Weblate."
+            fi
+          else
+            echo "✅ Translation files modified by tuistit bot"
+          fi
+  test:
+    name: Test
+    runs-on: namespace-profile-default
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    services:
+      postgres:
+        image: timescale/timescaledb-ha:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        id: mix-cache
+        with:
+          path: |
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
+      - name: Restore PNPM Cache
+        uses: actions/cache@v4
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: server
+      - run: mise run install
+      - run: mise run clickhouse:start
+      - run: mise run db:reset
+      - name: Run tests
+        run: mix test --warnings-as-errors
+  credo:
+    name: Credo
+    runs-on: namespace-profile-default
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        id: mix-cache
+        with:
+          path: |
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
+      - name: Restore PNPM Cache
+        uses: actions/cache@v4
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: server
+      - run: mise run install
+      - name: Run Credo
+        run: mix credo
+  format:
+    name: Format
+    runs-on: namespace-profile-default
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        id: mix-cache
+        with:
+          path: |
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
+      - name: Restore PNPM Cache
+        uses: actions/cache@v4
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: server
+      - run: mise run install
+      - name: Check format
+        run: mise run format --check
+  esbuild:
+    name: esbuild
+    runs-on: namespace-profile-default
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4 # v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        id: mix-cache
+        with:
+          path: |
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
+      - name: Restore PNPM Cache
+        uses: actions/cache@v4
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: server
+      - run: mise run install
+      - name: Install esbuild
+        run: mix esbuild.install
+      - name: Check esbuild output
+        run: |
+          # Run esbuild and capture output
+          output=$(mix esbuild app --log-level=warning 2>&1 || true)
+
+          # Filter out known non-warning messages
+          warnings=$(echo "$output" | grep -v "^==> " | grep -v "^Compiling" | grep -v "^Generated" | grep -v "Downloading esbuild" | grep -v "^$" || true)
+
+          if [ -z "$warnings" ]; then
+            echo "No esbuild warnings detected."
+            exit 0
+          else
+            echo "::error title=esbuild warnings detected::asset build has warnings."
+            echo "$warnings"
+            exit 1
+          fi
+  security:
+    name: Security
+    runs-on: namespace-profile-default
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        id: mix-cache
+        with:
+          path: |
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
+      - name: Restore PNPM Cache
+        uses: actions/cache@v4
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: server
+      - run: mise run install
+      - name: Check
+        run: mise run security
+  docker_build:
+    name: Docker build
+    runs-on: namespace-profile-default
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        id: mix-cache
+        with:
+          path: |
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
+      - name: Restore PNPM Cache
+        uses: actions/cache@v4
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: server
+      - run: mise run install
+      # We move it so that we can copy it inside the Docker image for
+      # reproducibility of dependency resolution.
+      - name: Docker build
+        uses: docker/build-push-action@v6
+        with:
+          context: ./server
+          file: ./server/Dockerfile
+          push: false
+          tags: tuist/tuist
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            TUIST_HOSTED=0
+            TUIST_VERSION=1.24.11.11
+            MIX_ENV=prod
+  # The Codegen produces non-deterministic results, so we're skipping it for now
+  # api-codegen:
+  #   name: API Codegen Check
+  #   runs-on: namespace-profile-default
+  #   timeout-minutes: 15
+  #   services:
+  #     postgres:
+  #       image: timescale/timescaledb-ha:pg16
+  #       env:
+  #         POSTGRES_USER: postgres
+  #         POSTGRES_PASSWORD: postgres
+  #       ports:
+  #         - 5432:5432
+  #       options: >-
+  #         --health-cmd pg_isready
+  #         --health-interval 10s
+  #         --health-timeout 5s
+  #         --health-retries 5
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: Restore Mix Cache
+  #       uses: actions/cache@v4
+  #       id: mix-cache
+  #       with:
+  #         path: |
+  #           deps
+  #           _build
+  #           _site
+  #         key: mix-${{ hashFiles('mix.lock') }}
+  #     - name: Restore PNPM Cache
+  #       uses: actions/cache@v4
+  #       id: pnpm-cache
+  #       with:
+  #         path: |
+  #           ~/.pnpm/store
+  #         key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+  #     - uses: jdx/mise-action@v3.2.0
+  #       with:
+  #         cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+  #     - run: mise run install
+  #     - run: mise run clickhouse:start
+  #     - run: mise run db:reset
+  #     - name: Generate OpenAPI spec
+  #       run: MIX_ENV=dev mix openapi.spec.yaml --spec TuistWeb.API.Spec ../cli/Sources/TuistServer/OpenAPI/server.yml
+  #     - name: Check for uncommitted changes
+  #       run: |
+  #         if [ -n "$(git status --porcelain)" ]; then
+  #           echo "::error title=OpenAPI spec out of sync::The generated OpenAPI spec is not up-to-date. Please run 'mise run generate-api-cli-code' in the server directory and commit the changes."
+  #           echo "Changed files:"
+  #           git status --porcelain
+  #           echo "Diff:"
+  #           git diff
+  #           exit 1
+  #         else
+  #           echo "✅ Generated OpenAPI spec is up-to-date"
+  #         fi
+  seed:
+    name: Seed
+    runs-on: namespace-profile-default
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    services:
+      postgres:
+        image: timescale/timescaledb-ha:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        id: mix-cache
+        with:
+          path: |
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
+      - name: Restore PNPM Cache
+        uses: actions/cache@v4
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: server
+      - run: mise run install
+      - run: mise run clickhouse:start
+      - run: mise run db:reset
+      - name: Run migrations
+        run: mix ecto.migrate
+      - name: Seed the database
+        run: mix run priv/repo/seeds.exs

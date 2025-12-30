@@ -1,0 +1,10 @@
+servers:
+  web:
+    hosts:
+      - cache-eu-central-staging.tuist.dev
+      - cache-us-east-staging.tuist.dev
+
+env:
+  clear:
+    SERVER_URL: https://staging.tuist.dev
+    APPSIGNAL_ENV: stag

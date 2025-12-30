@@ -1,20 +1,17 @@
 name: conventional-pr
 on:
   pull_request:
-    paths:
-      - 'app/**'
-    branches:
-      - main
-    types:
-      - opened
-      - edited
-      - synchronize
+    types: [opened, edited, synchronize]
 
 jobs:
   lint-pr:
+    name: Lint PR
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v2
-      - uses: CondeNast/conventional-pull-request-action@v0.2.0
+      - uses: amannn/action-semantic-pull-request@v5
+        with:
+          requireScope: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,19 +1,96 @@
 [tools]
-tuist = "4.44.3"
-swiftlint = "0.54.0"
-swiftformat = "0.53.3"
-pnpm = "10.5.2"
-node = "20.12.0"
-git-cliff = "2.6.0"
-"spm:tuist/sourcedocs" = "2.0.2"
-"spm:apple/swift-openapi-generator" = "1.3.1"
-"asdf:tuist/asdf-create-dmg" = "1.2.2"
+    tuist = "4.119.1"
+    swiftlint = "0.59.1"
+    swiftformat = "0.57.2"
+    git-cliff = "2.6.0"
+    sops = "3.9.3"
+    age = "1.2.1"
+    protoc = "32.1"
+    "1password-cli" = "2.32.0"
 
 [hooks]
-postinstall = "mise run install"
+    postinstall = "{{config_root}}/mise/tasks/install.sh"
 
+[env]
+    TUIST_EXPERIMENTAL_MODULE_CACHE="1"
+    TUIST_CACHE_CONCURRENCY_LIMIT="none"
+    # Elixir recommends half of the number of cores: https://elixir-lang.org/blog/2025/10/16/elixir-v1-19-0-released/
+    MIX_OS_DEPS_COMPILE_PARTITION_COUNT=4
+    TUIST_HOSTED = "1"
+    TUIST_S3_VIRTUAL_HOST = "1"
+    TUIST_S3_BUCKET_AS_HOST = "1"
+    TUIST_S3_REGION = "auto"
+    TUIST_S3_TIGRIS_BUCKET_AS_HOST = "0"
+    TUIST_S3_TIGRIS_VIRTUAL_HOST = "0"
+    ERL_AFLAGS = "-kernel shell_history enabled -kernel shell_history_file_bytes 1024000"
+    # Only used in a local, development environment
+    TUIST_CACHE_API_KEY = "7a3de63bb6136d94539e9976b1c54bfd553467c2c4775f84b7b2baf27f8b38c6"
+
+[tasks.cla-sign]
+    description = "Sign the CLA by adding current user to signatures.json"
+    run = '''
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    SIGNATURES_FILE="server/cla/signatures.json"
+    REPO_ID="250427618"  # tuist/tuist repository ID
+
+    echo "Adding your signature to the CLA..."
+
+    # Get current user info from GitHub
+    user_info=$(gh api user)
+    user_login=$(echo "$user_info" | jq -r '.login')
+    user_name=$(echo "$user_info" | jq -r '.name // .login')
+    user_id=$(echo "$user_info" | jq -r '.id')
+
+    echo "Signing CLA for: $user_name ($user_login)"
+
+    # Check if user already signed
+    if [[ -f "$SIGNATURES_FILE" ]]; then
+        existing_signature=$(jq -r --arg login "$user_login" '.signedContributors[]? | select(.id == ($login | tonumber))' "$SIGNATURES_FILE" 2>/dev/null || echo "")
+        if [[ -n "$existing_signature" ]]; then
+            echo "✅ You have already signed the CLA!"
+            exit 0
+        fi
+    fi
+
+    # Create signatures file if it doesn't exist
+    if [[ ! -f "$SIGNATURES_FILE" ]]; then
+        echo '{"signedContributors":[]}' > "$SIGNATURES_FILE"
+    fi
+
+    # Create new signature entry
+    current_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    new_signature=$(jq -n \
+        --arg name "$user_name" \
+        --arg id "$user_id" \
+        --arg created_at "$current_time" \
+        --arg repo_id "$REPO_ID" \
+        '{
+            name: $name,
+            id: ($id | tonumber),
+            comment_id: "",
+            created_at: $created_at,
+            repoId: ($repo_id | tonumber),
+            pullRequestNo: null
+        }')
+
+    # Add signature to the file
+    temp_file=$(mktemp)
+    jq --argjson new_sig "$new_signature" '.signedContributors += [$new_sig]' "$SIGNATURES_FILE" > "$temp_file"
+    mv "$temp_file" "$SIGNATURES_FILE"
+
+    echo "✅ CLA signature added successfully!"
+    echo "📝 Your signature has been recorded in $SIGNATURES_FILE"
+    echo ""
+    echo "Next steps:"
+    echo "1. Commit the updated signatures file: git add $SIGNATURES_FILE && git commit -m \"add CLA signature for $user_name\""
+    echo "2. Push your changes to complete the CLA signing process"
+    '''
 
 [settings]
-jobs = 6
-http_timeout = "60"
-experimental = true
+    jobs = 6
+    http_timeout = "60"
+    experimental = true
+    sops.age_key_file = "~/.config/mise/tuist-age.txt"
+    sops.strict = false

@@ -1,0 +1,692 @@
+<div id="bundle">
+  <div data-part="action-buttons">
+    <.button
+      variant="secondary"
+      size="medium"
+      label="Bundles"
+      navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/bundles"}
+    >
+      <:icon_left>
+        <.icon name="arrow_left" />
+      </:icon_left>
+    </.button>
+    <.button
+      label={dgettext("dashboard_cache", "Delete bundle")}
+      data-part="delete-button"
+      variant="secondary"
+      size="medium"
+      phx-click="delete_bundle"
+    >
+      <:icon_left>
+        <.icon name="trash" />
+      </:icon_left>
+    </.button>
+  </div>
+  <.card icon="chart_arcs" title="Details" data-part="details-card">
+    <.card_section data-part="details-card-section">
+      <div data-part="metadata-grid">
+        <div data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">
+              {dgettext("dashboard_cache", "Install size deviation")}
+            </div>
+            <div data-part="trend">
+              <span data-part="label">
+                {format_bytes(@bundle.install_size)}
+              </span>
+              <.trend_badge trend_value={@install_size_deviation * 100} trend_type={:inverse} />
+              <.link_button
+                :if={not is_nil(@last_bundle)}
+                navigate={
+                  ~p"/#{@selected_account.name}/#{@selected_project.name}/bundles/#{@last_bundle.id}"
+                }
+                label={dgettext("dashboard_cache", "compared to last bundle")}
+                variant="secondary"
+                size="medium"
+                target="_blank"
+                underline
+              />
+            </div>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_cache", "Type")}</div>
+            <span data-part="label">
+              {format_bundle_type(@bundle.type)}
+            </span>
+          </div>
+        </div>
+        <div data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_cache", "Name")}</div>
+            <span data-part="label">
+              {@bundle.name}
+            </span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_cache", "Bundle ID")}</div>
+            <span data-part="label">
+              {@bundle.app_bundle_id}
+            </span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_cache", "Platform")}</div>
+            <.platform_label platform={@bundle.supported_platforms |> hd()} />
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_cache", "Branch")}</div>
+            <span data-part="label">
+              {@bundle.git_branch || dgettext("dashboard_cache", "Unknown")}
+            </span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_cache", "Created at")}</div>
+            <span data-part="label">
+              {Tuist.Utilities.DateFormatter.format_with_timezone(
+                @bundle.inserted_at,
+                @user_timezone
+              )}
+            </span>
+          </div>
+        </div>
+        <div data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_cache", "Version")}</div>
+            <span data-part="label">
+              {@bundle.version}
+            </span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title-with-tooltip">
+              <span data-part="title">{dgettext("dashboard_cache", "Download size")}</span>
+              <.tooltip
+                id="bundle-download-size-tooltip"
+                title={dgettext("dashboard_cache", "Download size")}
+                description={
+                  dgettext(
+                    "dashboard_cache",
+                    "Represents the size of the compressed app bundle that gets downloaded by a user over the network."
+                  )
+                }
+                size="large"
+              >
+                <:trigger :let={attrs}>
+                  <span {attrs} data-part="tooltip-icon">
+                    <.alert_circle />
+                  </span>
+                </:trigger>
+              </.tooltip>
+            </div>
+            <span data-part="label">
+              {if is_nil(@bundle.download_size),
+                do: dgettext("dashboard_cache", "Not available"),
+                else: format_bytes(@bundle.download_size)}
+            </span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title-with-tooltip">
+              <span data-part="title">{dgettext("dashboard_cache", "Install size")}</span>
+              <.tooltip
+                id="bundle-install-size-tooltip"
+                title={dgettext("dashboard_cache", "Install size")}
+                description={
+                  dgettext(
+                    "dashboard_cache",
+                    "Represents the size of the uncompressed app bundle that gets installed by a user. This is the number that gets shown in the App Store."
+                  )
+                }
+                size="large"
+              >
+                <:trigger :let={attrs}>
+                  <span {attrs} data-part="tooltip-icon">
+                    <.alert_circle />
+                  </span>
+                </:trigger>
+              </.tooltip>
+            </div>
+            <span data-part="label">
+              {format_bytes(@bundle.install_size)}
+            </span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_cache", "Uploaded by")}</div>
+            <.bundle_uploaded_by_badge_cell bundle={@bundle} />
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_cache", "Commit SHA")}</div>
+            <span data-part="label">
+              {if is_nil(@bundle.git_commit_sha),
+                do: dgettext("dashboard_cache", "Unknown"),
+                else: @bundle.git_commit_sha |> String.slice(0, 9)}
+            </span>
+          </div>
+        </div>
+      </div>
+    </.card_section>
+  </.card>
+  <.tab_menu_horizontal>
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_cache", "Overview")}
+      selected={@selected_tab == "overview"}
+      patch={"?#{Query.put(@uri.query, "tab", "overview")}"}
+      replace={true}
+    />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_cache", "File Breakdown")}
+      selected={@selected_tab == "file-breakdown"}
+      patch={"?#{Query.put(@uri.query, "tab", "file-breakdown")}"}
+      replace={true}
+    />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_cache", "Module Breakdown")}
+      selected={@selected_tab == "module-breakdown"}
+      patch={"?#{Query.put(@uri.query, "tab", "module-breakdown")}"}
+      replace={true}
+    />
+  </.tab_menu_horizontal>
+  <.card
+    :if={@selected_tab == "overview"}
+    data-part="bundle-size-analysis-card"
+    icon="chart_donut_4"
+    title={dgettext("dashboard_cache", "Bundle Size Analysis")}
+  >
+    <.card_section data-part="bundle-size-analysis-card-section">
+      <div data-part="header">
+        <div data-part="legend">
+          <div data-part="item">
+            <div data-part="indicator" data-type="directory"></div>
+            <span data-part="label">{dgettext("dashboard_cache", "Directory")}</span>
+          </div>
+          <div data-part="item">
+            <div data-part="indicator" data-type="binaries"></div>
+            <span data-part="label">{dgettext("dashboard_cache", "Binaries")}</span>
+          </div>
+          <div data-part="item">
+            <div data-part="indicator" data-type="localizations"></div>
+            <span data-part="label">{dgettext("dashboard_cache", "Localizations")}</span>
+          </div>
+          <div data-part="item">
+            <div data-part="indicator" data-type="fonts"></div>
+            <span data-part="label">{dgettext("dashboard_cache", "Fonts")}</span>
+          </div>
+          <div data-part="item">
+            <div data-part="indicator" data-type="assets"></div>
+            <span data-part="label">{dgettext("dashboard_cache", "Assets")}</span>
+          </div>
+          <div data-part="item">
+            <div data-part="indicator" data-type="duplicates"></div>
+            <span data-part="label">{dgettext("dashboard_cache", "Duplicates")}</span>
+          </div>
+          <div data-part="item">
+            <div data-part="indicator" data-type="file"></div>
+            <span data-part="label">{dgettext("dashboard_cache", "File")}</span>
+          </div>
+          <div data-part="item">
+            <div data-part="indicator" data-type="unknown"></div>
+            <span data-part="label">{dgettext("dashboard_cache", "Unknown")}</span>
+          </div>
+        </div>
+      </div>
+
+      <div data-part="breadcrumbs">
+        <.breadcrumbs style="arrow">
+          <%= for {path_component, index} <- Enum.with_index(@bundle_size_analysis_sunburst_chart_selected_artifact.path |> String.split("/")) do %>
+            <% breadcrumb_path =
+              @bundle_size_analysis_sunburst_chart_selected_artifact.path
+              |> String.split("/")
+              |> Enum.take(index + 1)
+              |> Enum.join("/")
+
+            breadcrumb_artifact = Map.get(@artifacts_by_path, breadcrumb_path) %>
+            <.breadcrumb
+              :if={breadcrumb_artifact}
+              id={"bundle-size-analysis-breadcrumb-#{index}"}
+              label={if index == 0, do: @bundle.name, else: path_component}
+              phx-click={
+                JS.dispatch(
+                  "bundle-size-analysis-breadcrumb-clicked",
+                  to: "#bundle-size-analysis-current-contents",
+                  detail: %{artifact_id: breadcrumb_artifact.id}
+                )
+              }
+            >
+            </.breadcrumb>
+          <% end %>
+        </.breadcrumbs>
+      </div>
+      <div data-part="chart">
+        <.chart
+          id="bundle-size-analysis-sunburst"
+          colors={[
+            "var:noora-sunburst-directory"
+          ]}
+          type="line"
+          series={[
+            @series
+          ]}
+        />
+        <div
+          id="bundle-size-analysis-current-contents"
+          phx-hook="BundleSizeSunburstChartLegend"
+          data-chart-id="bundle-size-analysis-sunburst"
+        >
+          <.table
+            id="bundle-size-analysis-sunburst-chart-table"
+            rows={@bundle_size_analysis_sunburst_chart_table_current_page_artifacts}
+            row_click={
+              fn artifact ->
+                if Map.get(artifact, :collapsed?) do
+                  nil
+                else
+                  %{
+                    "phx-click" =>
+                      JS.dispatch(
+                        "bundle-size-analysis-table-row-clicked",
+                        to: "#bundle-size-analysis-current-contents",
+                        detail: %{
+                          artifact: %{
+                            name: artifact.name,
+                            artifact_type: artifact.artifact_type,
+                            artifact_id: Map.get(artifact, :artifact_id),
+                            path: Map.get(artifact, :path),
+                            current_path:
+                              @bundle_size_analysis_sunburst_chart_selected_artifact.path
+                          }
+                        }
+                      )
+                  }
+                end
+              end
+            }
+          >
+            <:col :let={artifact} label={@bundle_size_analysis_sunburst_chart_table_artifact.name}>
+              <div data-part="artifact-cell-name">
+                <div
+                  data-part="dot"
+                  data-type={artifact.artifact_type}
+                  data-duplicate={artifact.duplicate?}
+                >
+                </div>
+                <span data-part="label">{artifact.name}</span>
+              </div>
+            </:col>
+            <:col
+              :let={artifact}
+              label={format_bytes(@bundle_size_analysis_sunburst_chart_table_artifact.value)}
+            >
+              <.text_cell label={format_bytes(artifact.value)} />
+            </:col>
+          </.table>
+          <.pagination_group
+            :if={@bundle_size_analysis_sunburst_chart_table_page_count > 1}
+            current_page={@bundle_size_analysis_sunburst_chart_table_page}
+            number_of_pages={@bundle_size_analysis_sunburst_chart_table_page_count}
+            page_patch={
+              fn page ->
+                "?#{Query.put(@uri.query, @bundle_size_analysis_sunburst_chart_table_page_param, page)}"
+              end
+            }
+          />
+        </div>
+      </div>
+    </.card_section>
+  </.card>
+  <.card :if={@selected_tab == "overview"} icon="bulb" title="Insights" data-part="insights-card">
+    <.empty_card_section
+      :if={Enum.empty?(@duplicates)}
+      title={dgettext("dashboard_cache", "No insights yet")}
+      data-part="empty-insights-card-section"
+    >
+      <:image>
+        <img src="/images/empty_insights_light.png" data-theme="light" />
+        <img src="/images/empty_insights_dark.png" data-theme="dark" />
+      </:image>
+    </.empty_card_section>
+
+    <.card_section :if={not Enum.empty?(@duplicates)} data-part="insights-card-section">
+      <div
+        data-part="insights-category"
+        id="insights-duplicates"
+        phx-hook="NooraCollapsible"
+        class="collapsible"
+      >
+        <div data-part="root">
+          <div data-part="trigger" data-state="closed">
+            <div data-part="header">
+              <h2 data-part="title">{dgettext("dashboard_cache", "Remove duplicate files")}</h2>
+              <span data-part="savings-label">
+                {dgettext("dashboard_cache", "Potential savings")}
+              </span>
+              <span data-part="savings-value">
+                {format_bytes(
+                  Enum.flat_map(@duplicates, & &1.artifacts)
+                  |> Enum.reduce(0, fn duplicate, acc -> acc + duplicate.size end)
+                )}
+              </span>
+              <.badge
+                label={
+                  dgettext("dashboard_cache", "%{savings} %",
+                    savings:
+                      Decimal.from_float(
+                        (@duplicates
+                         |> Enum.reduce(0, fn duplicate, acc -> acc + duplicate.size end)) /
+                          @bundle.install_size * 100
+                      )
+                      |> Decimal.round(2)
+                  )
+                }
+                color="success"
+                style="light-fill"
+                size="large"
+              />
+            </div>
+            <.button
+              data-part="closed-collapsible-button"
+              icon_only
+              variant="secondary"
+              size="medium"
+            >
+              <.chevron_down />
+            </.button>
+            <.button
+              data-part="open-collapsible-button"
+              icon_only
+              variant="secondary"
+              size="medium"
+            >
+              <.chevron_up />
+            </.button>
+          </div>
+          <div data-part="content" data-state="closed">
+            <%= for duplicate <- @duplicates do %>
+              <div
+                id={"#{duplicate.shasum}-insights-duplicate-collapsible"}
+                phx-hook="NooraCollapsible"
+                data-part="collapsible"
+                data-state="closed"
+              >
+                <div data-part="root">
+                  <div data-part="trigger">
+                    <div data-part="header">
+                      <h3 data-part="title">
+                        {"/" <> List.last(String.split(hd(duplicate.artifacts).path, "/"))}
+                      </h3>
+                      <.badge
+                        label={format_bytes(duplicate.size)}
+                        color="information"
+                        style="light-fill"
+                        size="small"
+                      />
+                      <.badge
+                        label={
+                          dgettext("dashboard_cache", "%{duplicates_count} duplicates",
+                            duplicates_count: Enum.count(duplicate.artifacts)
+                          )
+                        }
+                        color="destructive"
+                        style="light-fill"
+                        size="small"
+                      />
+                    </div>
+                    <.neutral_button
+                      data-part="closed-collapsible-button"
+                      variant="secondary"
+                      size="small"
+                    >
+                      <.chevron_down />
+                    </.neutral_button>
+                    <.neutral_button
+                      data-part="open-collapsible-button"
+                      variant="secondary"
+                      size="small"
+                    >
+                      <.chevron_up />
+                    </.neutral_button>
+                  </div>
+                  <div data-part="content">
+                    <%= for artifact <- duplicate.artifacts do %>
+                      <div data-part="duplicate">
+                        <span data-part="title">{artifact.path}</span>
+                        <.badge
+                          label={format_bytes(artifact.size)}
+                          color="information"
+                          style="light-fill"
+                          size="small"
+                        />
+                      </div>
+                    <% end %>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </.card_section>
+  </.card>
+  <.card
+    :if={@selected_tab == "file-breakdown"}
+    title={dgettext("dashboard_cache", "File Breakdown")}
+    icon="folders"
+    data-part="file-breakdown-card"
+  >
+    <.card_section data-part="file-breakdown-card-section">
+      <div data-part="filters">
+        <.form for={%{}} phx-change="search-file-breakdown" phx-debounce="200">
+          <.text_input
+            type="search"
+            id="search-file-breakdown"
+            name="search"
+            placeholder={dgettext("dashboard_cache", "Search...")}
+            show_suffix={false}
+            data-part="search"
+            value={@file_breakdown_filter}
+          />
+        </.form>
+        <.dropdown
+          id="file-breakdown-sort-by"
+          label={
+            case @file_breakdown_sort_by do
+              "size" -> dgettext("dashboard_cache", "Size")
+              _ -> dgettext("dashboard_cache", "Path")
+            end
+          }
+          secondary_text={dgettext("dashboard_cache", "Sort by:")}
+        >
+          <.dropdown_item
+            value="path"
+            label={dgettext("dashboard_cache", "Path")}
+            patch={file_breakdown_dropdown_item_patch_sort("path", @uri)}
+            data-selected={@file_breakdown_sort_by == "path"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="size"
+            label={dgettext("dashboard_cache", "Size")}
+            patch={file_breakdown_dropdown_item_patch_sort("size", @uri)}
+            data-selected={@file_breakdown_sort_by == "size"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+      </div>
+      <.table id="file-breakdown-table" rows={@file_breakdown_current_page_artifacts}>
+        <:col
+          :let={artifact}
+          label={dgettext("dashboard_cache", "Path")}
+          patch={
+            @file_breakdown_sort_by == "path" &&
+              file_breakdown_column_patch_sort(assigns, "path")
+          }
+          icon={
+            @file_breakdown_sort_by == "path" &&
+              sort_icon(@file_breakdown_sort_order)
+          }
+        >
+          <.text_and_description_cell label={
+            artifact.path |> String.split("/") |> Enum.drop(1) |> Enum.join("/")
+          } />
+        </:col>
+        <:col :let={artifact} label={dgettext("dashboard_cache", "Type")}>
+          <.tag_cell
+            label={
+              case artifact.artifact_type do
+                :binary -> dgettext("dashboard_cache", "Binary")
+                :localization -> dgettext("dashboard_cache", "Localization")
+                :asset -> dgettext("dashboard_cache", "Asset")
+                :font -> dgettext("dashboard_cache", "Font")
+                :file -> dgettext("dashboard_cache", "File")
+                :directory -> dgettext("dashboard_cache", "Directory")
+                :unknown -> dgettext("dashboard_cache", "Other")
+              end
+            }
+            icon={
+              case artifact.artifact_type do
+                :binary -> "database"
+                :localization -> "language"
+                :asset -> "asset"
+                :font -> "layout_grid"
+                :file -> "file"
+                :directory -> "directory"
+                :unknown -> "stack_2"
+              end
+            }
+          />
+        </:col>
+        <:col
+          :let={artifact}
+          label={dgettext("dashboard_cache", "Size")}
+          patch={
+            @file_breakdown_sort_by == "size" &&
+              file_breakdown_column_patch_sort(assigns, "size")
+          }
+          icon={
+            @file_breakdown_sort_by == "size" &&
+              sort_icon(@file_breakdown_sort_order)
+          }
+        >
+          <.text_cell label={format_bytes(artifact.size)} />
+        </:col>
+        <:col :let={artifact} label={dgettext("dashboard_cache", "Space usage")}>
+          <.text_cell label={space_usage(artifact, @bundle)} />
+        </:col>
+        <:empty_state>
+          <.table_empty_state
+            icon="folders"
+            title={dgettext("dashboard_cache", "No files found")}
+            subtitle={dgettext("dashboard_cache", "Try changing your search term")}
+          />
+        </:empty_state>
+      </.table>
+      <.pagination_group
+        :if={@file_breakdown_page_count > 1}
+        current_page={@file_breakdown_page}
+        number_of_pages={@file_breakdown_page_count}
+        page_patch={
+          fn page ->
+            "?#{Query.put(@uri.query, "file-breakdown-page", page)}"
+          end
+        }
+      />
+    </.card_section>
+  </.card>
+  <.card
+    :if={@selected_tab == "module-breakdown"}
+    title={dgettext("dashboard_cache", "Module Breakdown")}
+    icon="file_zip"
+    data-part="module-breakdown-card"
+  >
+    <.card_section data-part="module-breakdown-card-section">
+      <div data-part="filters">
+        <.form for={%{}} phx-change="search-module-breakdown" phx-debounce="200">
+          <.text_input
+            type="search"
+            id="search-module-breakdown"
+            name="search"
+            placeholder={dgettext("dashboard_cache", "Search...")}
+            show_suffix={false}
+            data-part="search"
+            value={@module_breakdown_filter}
+          />
+        </.form>
+        <.dropdown
+          id="module-breakdown-sort-by"
+          label={
+            case @module_breakdown_sort_by do
+              "size" -> dgettext("dashboard_cache", "Size")
+              _ -> dgettext("dashboard_cache", "Name")
+            end
+          }
+          secondary_text={dgettext("dashboard_cache", "Sort by:")}
+        >
+          <.dropdown_item
+            value="name"
+            label={dgettext("dashboard_cache", "Name")}
+            patch={module_breakdown_dropdown_item_patch_sort("name", @uri)}
+            data-selected={@module_breakdown_sort_by == "name"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="size"
+            label={dgettext("dashboard_cache", "Size")}
+            patch={module_breakdown_dropdown_item_patch_sort("size", @uri)}
+            data-selected={@module_breakdown_sort_by == "size"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+      </div>
+      <.table id="module-breakdown-table" rows={@module_breakdown_current_page_artifacts}>
+        <:col
+          :let={module}
+          label={dgettext("dashboard_cache", "Name")}
+          patch={
+            @module_breakdown_sort_by == "name" &&
+              module_breakdown_column_patch_sort(assigns, "name")
+          }
+          icon={
+            @module_breakdown_sort_by == "name" &&
+              sort_icon(@module_breakdown_sort_order)
+          }
+        >
+          <.text_and_description_cell label={module.name} />
+        </:col>
+        <:col
+          :let={module}
+          label={dgettext("dashboard_cache", "Size")}
+          patch={
+            @module_breakdown_sort_by == "size" &&
+              module_breakdown_column_patch_sort(assigns, "size")
+          }
+          icon={
+            @module_breakdown_sort_by == "size" &&
+              sort_icon(@module_breakdown_sort_order)
+          }
+        >
+          <.text_cell label={format_bytes(module.size)} />
+        </:col>
+        <:col :let={module} label={dgettext("dashboard_cache", "Space usage")}>
+          <.text_cell label={space_usage(module, @bundle)} />
+        </:col>
+        <:empty_state>
+          <.table_empty_state
+            icon="folders"
+            title={dgettext("dashboard_cache", "No modules found")}
+            subtitle={dgettext("dashboard_cache", "Try changing your search term")}
+          />
+        </:empty_state>
+      </.table>
+      <.pagination_group
+        :if={@module_breakdown_page_count > 1}
+        current_page={@module_breakdown_page}
+        number_of_pages={@module_breakdown_page_count}
+        page_patch={
+          fn page ->
+            "?#{Query.put(@uri.query, "module-breakdown-page", page)}"
+          end
+        }
+      />
+    </.card_section>
+  </.card>
+</div>

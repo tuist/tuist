@@ -1,0 +1,131 @@
+import ProjectDescription
+
+let project = Project(
+    name: "App",
+    targets: [
+        .target(
+            name: "App",
+            destinations: .iOS,
+            product: .app,
+            bundleId: "dev.tuist.App",
+            infoPlist: "Info.plist",
+            sources: ["Sources/**"],
+            dependencies: [
+                .target(name: "StickersPackExtension"),
+                .target(name: "NotificationServiceExtension"),
+                .target(name: "WidgetExtension"),
+                .target(name: "AppIntentExtension"),
+            ]
+        ),
+        // We need a separate app to test out Message Extensions
+        // as having both stickers pack and message extensions in one app
+        // doesn't seem to be supported.
+        .target(
+            name: "AppWithMessagesExtension",
+            destinations: .iOS,
+            product: .app,
+            bundleId: "dev.tuist.App2",
+            infoPlist: "Info.plist",
+            sources: ["Sources/**"],
+            dependencies: [
+                .target(name: "MessageExtension"),
+                .target(name: "NotificationServiceExtension"),
+            ]
+        ),
+        .target(
+            name: "StickersPackExtension",
+            destinations: .iOS,
+            product: .stickerPackExtension,
+            bundleId: "dev.tuist.App.StickersPackExtension",
+            infoPlist: .extendingDefault(with: [
+                "CFBundleDisplayName": "$(PRODUCT_NAME)",
+                "NSExtension": [
+                    "NSExtensionPointIdentifier": "com.apple.message-payload-provider",
+                    "NSExtensionPrincipalClass": "StickerBrowserViewController",
+                ],
+            ]),
+            sources: [],
+            resources: ["StickersPackExtension/**"],
+            dependencies: [
+            ]
+        ),
+        .target(
+            name: "NotificationServiceExtension",
+            destinations: .iOS,
+            product: .appExtension,
+            bundleId: "dev.tuist.App.NotificationServiceExtension",
+            infoPlist: .extendingDefault(with: [
+                "CFBundleDisplayName": "$(PRODUCT_NAME)",
+                "NSExtension": [
+                    "NSExtensionPointIdentifier": "com.apple.usernotifications.service",
+                    "NSExtensionPrincipalClass": "$(PRODUCT_MODULE_NAME).NotificationService",
+                ],
+            ]),
+            sources: "NotificationServiceExtension/**",
+            dependencies: [
+            ]
+        ),
+        .target(
+            name: "MessageExtension",
+            destinations: .iOS,
+            product: .messagesExtension,
+            bundleId: "dev.tuist.App2.MessageExtension",
+            infoPlist: .extendingDefault(with: [
+                "CFBundleDisplayName": "$(PRODUCT_NAME)",
+                "NSExtension": [
+                    "NSExtensionMainStoryboard": "MainInterface",
+                    "NSExtensionPointIdentifier": "com.apple.message-payload-provider",
+                ],
+            ]),
+            sources: "MessageExtension/Sources/**",
+            resources: "MessageExtension/Resources/**",
+            dependencies: [
+            ]
+        ),
+        .target(
+            name: "WidgetExtension",
+            destinations: .iOS,
+            product: .appExtension,
+            bundleId: "dev.tuist.App.WidgetExtension",
+            infoPlist: .extendingDefault(with: [
+                "CFBundleDisplayName": "$(PRODUCT_NAME)",
+                "NSExtension": [
+                    "NSExtensionPointIdentifier": "com.apple.widgetkit-extension",
+                ],
+            ]),
+            sources: "WidgetExtension/Sources/**",
+            resources: "WidgetExtension/Resources/**",
+            dependencies: [
+                .target(name: "Bundle"),
+                .target(name: "StaticFramework"),
+            ]
+        ),
+        .target(
+            name: "StaticFramework",
+            destinations: .iOS,
+            product: .staticFramework,
+            bundleId: "dev.tuist.App.StaticFramework",
+            infoPlist: .default,
+            sources: "StaticFramework/Sources/**"
+        ),
+        .target(
+            name: "AppIntentExtension",
+            destinations: .iOS,
+            product: .extensionKitExtension,
+            bundleId: "dev.tuist.App.AppIntentExtension",
+            infoPlist: .extendingDefault(with: [
+                "EXAppExtensionAttributes": [
+                    "EXExtensionPointIdentifier": "com.apple.appintents-extension",
+                ],
+            ]),
+            sources: "AppIntentExtension/Sources/**"
+        ),
+        .target(
+            name: "Bundle",
+            destinations: .iOS,
+            product: .bundle,
+            bundleId: "dev.tuist.App.Bundle",
+            resources: "Bundle/**"
+        ),
+    ]
+)

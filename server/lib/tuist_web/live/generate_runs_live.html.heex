@@ -1,0 +1,142 @@
+<div id="generate-runs">
+  <.card
+    title={dgettext("dashboard_builds", "Generate Runs")}
+    icon="filters"
+    data-part="generate-runs"
+  >
+    <.card_section data-part="generate-runs-table-section">
+      <div data-part="filters">
+        <.dropdown
+          id="generate-runs-sort-by"
+          label={
+            case @generate_runs_sort_by do
+              "duration" -> dgettext("dashboard_builds", "Duration")
+              _ -> dgettext("dashboard_builds", "Ran at")
+            end
+          }
+          secondary_text={dgettext("dashboard_builds", "Sort by:")}
+        >
+          <.dropdown_item
+            value="duration"
+            label={dgettext("dashboard_builds", "Duration")}
+            patch={generate_runs_dropdown_item_patch_sort("duration", @uri)}
+            data-selected={@generate_runs_sort_by == "duration"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="ran_at"
+            label={dgettext("dashboard_builds", "Ran at")}
+            patch={generate_runs_dropdown_item_patch_sort("ran_at", @uri)}
+            data-selected={@generate_runs_sort_by == "ran_at"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+        <.filter_dropdown
+          id="filter-dropdown"
+          label={dgettext("dashboard_builds", "Filter")}
+          available_filters={@available_filters}
+          active_filters={@active_filters}
+        />
+      </div>
+      <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+        <.active_filter :for={filter <- @active_filters} filter={filter} />
+      </div>
+      <.table
+        :if={not Enum.empty?(@generate_runs)}
+        id="generate-runs-table"
+        rows={@generate_runs}
+        row_navigate={
+          fn generate_run ->
+            url(
+              ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{generate_run.id}"
+            )
+          end
+        }
+      >
+        <:col :let={generate_run} label={dgettext("dashboard_builds", "Command")}>
+          <.text_and_description_cell label={"tuist " <> (if generate_run.command_arguments, do: (generate_run.command_arguments |> String.split(" ") |> Enum.take(2) |> Enum.join(" ")), else: generate_run.name)} />
+        </:col>
+        <:col :let={generate_run} label={dgettext("dashboard_builds", "Hit rate")}>
+          <.text_cell label={
+            dgettext("dashboard_builds", "%{hit_rate}%",
+              hit_rate:
+                if(Enum.count(generate_run.cacheable_targets) == 0,
+                  do: 0,
+                  else:
+                    ((Enum.count(generate_run.local_cache_target_hits) +
+                        Enum.count(generate_run.remote_cache_target_hits)) /
+                       Enum.count(generate_run.cacheable_targets) * 100)
+                    |> Decimal.from_float()
+                    |> Decimal.round(1)
+                )
+            )
+          } />
+        </:col>
+        <:col :let={generate_run} label="Status">
+          <%= if generate_run.status == :success do %>
+            <.status_badge_cell label={dgettext("dashboard_builds", "Passed")} status="success" />
+          <% else %>
+            <.status_badge_cell label={dgettext("dashboard_builds", "Failed")} status="error" />
+          <% end %>
+        </:col>
+        <:col :let={generate_run} label={dgettext("dashboard_builds", "Branch")}>
+          <.text_cell icon="git_branch" label={generate_run.git_branch || "None"} />
+        </:col>
+        <:col :let={generate_run} label={dgettext("dashboard_builds", "Ran by")}>
+          <.run_ran_by_badge_cell run={generate_run} ran_by_name={generate_run.user_account_name} />
+        </:col>
+        <:col
+          :let={generate_run}
+          label={dgettext("dashboard_builds", "Duration")}
+          patch={@generate_runs_sort_by == "duration" && column_patch_sort(assigns, "duration")}
+          icon={
+            @generate_runs_sort_by == "duration" &&
+              sort_icon(@generate_runs_sort_order)
+          }
+        >
+          <.text_cell
+            label={
+              dgettext("dashboard_builds", "%{run_duration}s",
+                run_duration:
+                  (generate_run.duration / 1000) |> Decimal.from_float() |> Decimal.round(2)
+              )
+            }
+            icon="history"
+          />
+        </:col>
+        <:col
+          :let={generate_run}
+          label={dgettext("dashboard_builds", "Ran at")}
+          patch={@generate_runs_sort_by == "ran_at" && column_patch_sort(assigns, "ran_at")}
+          icon={
+            @generate_runs_sort_by == "ran_at" &&
+              sort_icon(@generate_runs_sort_order)
+          }
+        >
+          <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(generate_run.ran_at)} />
+        </:col>
+      </.table>
+      <.pagination
+        :if={not Enum.empty?(@generate_runs)}
+        uri={@uri}
+        has_previous_page={@generate_runs_meta.has_previous_page?}
+        has_next_page={@generate_runs_meta.has_next_page?}
+        start_cursor={@generate_runs_meta.start_cursor}
+        end_cursor={@generate_runs_meta.end_cursor}
+      />
+      <.empty_card_section
+        :if={Enum.empty?(@generate_runs)}
+        title={dgettext("dashboard_builds", "No data yet")}
+        get_started_href="https://docs.tuist.dev/en/guides/develop/projects"
+        data-part="empty-generate-runs-table-card-section"
+      >
+        <:image>
+          <img src="/images/empty_table_light.png" data-theme="light" />
+          <img src="/images/empty_table_dark.png" data-theme="dark" />
+        </:image>
+      </.empty_card_section>
+    </.card_section>
+  </.card>
+</div>

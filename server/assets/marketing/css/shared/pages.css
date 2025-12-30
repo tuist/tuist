@@ -1,0 +1,20 @@
+[id^="marketing-"] {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  & > section,
+  & > header:not(#marketing-navbar),
+  & > figure {
+    position: relative;
+    z-index: var(--noora-z-index-1);
+    margin-right: var(--noora-spacing-6);
+    margin: var(--noora-spacing-6);
+
+    @media (min-width: 1024px) {
+      margin-right: var(--noora-spacing-14);
+      margin-left: var(--noora-spacing-14);
+      max-width: 1296px;
+    }
+  }
+}
