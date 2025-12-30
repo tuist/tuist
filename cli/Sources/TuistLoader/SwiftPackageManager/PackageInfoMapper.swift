@@ -100,7 +100,8 @@ public protocol PackageInfoMapping {
         path: AbsolutePath,
         packageType: PackageType,
         packageSettings: TuistCore.PackageSettings,
-        packageModuleAliases: [String: [String: String]]
+        packageModuleAliases: [String: [String: String]],
+        enabledTraits: Set<String>
     ) async throws -> ProjectDescription.Project?
 }
 
@@ -122,6 +123,34 @@ public final class PackageInfoMapper: PackageInfoMapping {
         self.moduleMapGenerator = moduleMapGenerator
         self.fileSystem = fileSystem
         self.rootDirectoryLocator = rootDirectoryLocator
+    }
+
+    /// Extracts the enabled traits for each package dependency from the root package and all packages in the dependency graph.
+    /// - Parameters:
+    ///   - rootPackageInfo: The `PackageInfo` of the root package (the Tuist `Package.swift`)
+    ///   - packageInfos: All `PackageInfo`s in the dependency graph, keyed by package identity
+    /// - Returns: A dictionary where keys are package identities and values are the set of enabled trait names
+    public static func enabledTraits(
+        rootPackageInfo: PackageInfo,
+        packageInfos: [String: PackageInfo]
+    ) -> [String: Set<String>] {
+        var result: [String: Set<String>] = [:]
+
+        for dependency in rootPackageInfo.dependencies {
+            if !dependency.traits.isEmpty {
+                result[dependency.identity, default: []].formUnion(dependency.traits)
+            }
+        }
+
+        for (_, packageInfo) in packageInfos {
+            for dependency in packageInfo.dependencies {
+                if !dependency.traits.isEmpty {
+                    result[dependency.identity, default: []].formUnion(dependency.traits)
+                }
+            }
+        }
+
+        return result
     }
 
     /// Resolves all SwiftPackageManager dependencies.
@@ -271,7 +300,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
         path: AbsolutePath,
         packageType: PackageType,
         packageSettings: TuistCore.PackageSettings,
-        packageModuleAliases: [String: [String: String]]
+        packageModuleAliases: [String: [String: String]],
+        enabledTraits: Set<String>
     ) async throws -> ProjectDescription.Project? {
         // Hardcoded mapping for some well known libraries, until the logic can handle those properly
         let productTypes = packageSettings.productTypes.merging(
@@ -326,7 +356,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     targetSettings: packageSettings.targetSettings,
                     packageModuleAliases: packageModuleAliases,
                     packageTraits: packageInfo.traits ?? [],
-                    packageSettingsProductTraits: packageSettings.productTraits
+                    enabledTraits: enabledTraits
                 )
             }
 
@@ -382,7 +412,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         targetSettings: [String: XcodeGraph.Settings],
         packageModuleAliases: [String: [String: String]],
         packageTraits: [PackageTrait],
-        packageSettingsProductTraits: [String: [TuistCore.PackageSettingsTrait]]
+        enabledTraits: Set<String>
     ) async throws -> ProjectDescription.Target? {
         // Ignores or passes a target based on the `type` and the `packageType`.
         // After that, it assumes that no target is ignored.
@@ -578,7 +608,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             targetSettings: targetSettings[target.name],
             dependencyModuleAliases: dependencyModuleAliases,
             packageTraits: packageTraits,
-            packageSettingsProductTraits: packageSettingsProductTraits
+            enabledTraits: enabledTraits
         )
 
         return .target(
@@ -1044,7 +1074,7 @@ extension ProjectDescription.Settings {
         targetSettings: XcodeGraph.Settings?,
         dependencyModuleAliases: [String: String],
         packageTraits: [PackageTrait],
-        packageSettingsProductTraits: [String: [TuistCore.PackageSettingsTrait]]
+        enabledTraits: Set<String>
     ) async throws -> Self? {
         let mainPath = try await target.basePath(packageFolder: packageFolder)
         let mainRelativePath = mainPath.relative(to: packageFolder)
@@ -1068,27 +1098,20 @@ extension ProjectDescription.Settings {
             "OTHER_SWIFT_FLAGS": ["$(inherited)"],
         ]
 
-        if let traits = packageSettingsProductTraits[productName], !packageTraits.isEmpty {
-            let activeConditions = traits.flatMap { trait in
-                switch trait {
-                case .default:
-                    if let defaultTrait = packageTraits.first(where: { $0.name == "default" }) {
-                        return defaultTrait.enabledTraits
-                    } else {
-                        return []
-                    }
-                case let .named(name):
-                    if packageTraits.contains(where: { $0.name == name }) {
-                        return [name]
-                    } else {
-                        return []
+        if !enabledTraits.isEmpty {
+            var traitConditions: [String] = []
+            for traitName in enabledTraits.sorted() {
+                if packageTraits.contains(where: { $0.name == traitName }) {
+                    traitConditions.append(traitName)
+                    if let trait = packageTraits.first(where: { $0.name == traitName }) {
+                        traitConditions.append(contentsOf: trait.enabledTraits)
                     }
                 }
-            }.joined(separator: " ")
-            settingsDictionary.merge(
-                ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": "$(inherited) \(activeConditions)"],
-                uniquingKeysWith: { $1 }
-            )
+            }
+            if !traitConditions.isEmpty {
+                settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] =
+                    .array(["$(inherited)"] + traitConditions)
+            }
         }
 
         // Force enable testing search paths

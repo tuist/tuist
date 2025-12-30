@@ -9,24 +9,30 @@ extension PackageInfo {
           "cxxLanguageStandard" : null,
           "dependencies" : [
             {
-              "sourceControl" : [
-                {
-                  "identity" : "a-dependency",
-                  "traits" : [
-
-                  ]
-                }
-              ]
+              "name" : "a-dependency",
+              "productFilter" : null,
+              "requirement" : {
+                "range" : [
+                  {
+                    "lowerBound" : "0.4.0",
+                    "upperBound" : "1.0.0"
+                  }
+                ]
+              },
+              "url" : "https://github.com/tuist/a-dependency"
             },
             {
-              "sourceControl" : [
-                {
-                  "identity" : "another-dependency",
-                  "traits" : [
-
-                  ]
-                }
-              ]
+              "name" : "another-dependency",
+              "productFilter" : null,
+              "requirement" : {
+                "range" : [
+                  {
+                    "lowerBound" : "0.1.3",
+                    "upperBound" : "1.0.0"
+                  }
+                ]
+              },
+              "url" : "https://github.com/tuist/another-dependency"
             }
           ],
           "name" : "tuist",
@@ -272,24 +278,30 @@ extension PackageInfo {
           "cxxLanguageStandard" : null,
           "dependencies" : [
             {
-              "sourceControl" : [
-                {
-                  "identity" : "a-dependency",
-                  "traits" : [
-
-                  ]
-                }
-              ]
+              "name" : "a-dependency",
+              "productFilter" : null,
+              "requirement" : {
+                "range" : [
+                  {
+                    "lowerBound" : "0.4.0",
+                    "upperBound" : "1.0.0"
+                  }
+                ]
+              },
+              "url" : "https://github.com/tuist/a-dependency"
             },
             {
-              "sourceControl" : [
-                {
-                  "identity" : "another-dependency",
-                  "traits" : [
-
-                  ]
-                }
-              ]
+              "name" : "another-dependency",
+              "productFilter" : null,
+              "requirement" : {
+                "range" : [
+                  {
+                    "lowerBound" : "0.1.3",
+                    "upperBound" : "1.0.0"
+                  }
+                ]
+              },
+              "url" : "https://github.com/tuist/another-dependency"
             }
           ],
           "name" : "tuist",
@@ -646,10 +658,7 @@ extension PackageInfo {
                 ),
             ],
             traits: nil,
-            dependencies: [
-                .init(identity: "a-dependency", traits: []),
-                .init(identity: "another-dependency", traits: []),
-            ],
+            dependencies: [],
             platforms: [
                 .init(platformName: "ios", version: "11.0", options: []),
                 .init(platformName: "macos", version: "10.15", options: []),
@@ -699,10 +708,7 @@ extension PackageInfo {
                 ),
             ],
             traits: nil,
-            dependencies: [
-                .init(identity: "GoogleUtilities", traits: []),
-                .init(identity: "nanopb", traits: []),
-            ],
+            dependencies: [],
             platforms: [
                 .init(platformName: "ios", version: ProjectDescription.Platform.iOS.testVersion(), options: []),
                 .init(platformName: "macos", version: ProjectDescription.Platform.macOS.testVersion(), options: []),
@@ -947,24 +953,32 @@ extension PackageInfo {
           "cxxLanguageStandard" : "gnu++14",
           "dependencies" : [
             {
-              "sourceControl" : [
-                {
-                  "identity" : "GoogleUtilities",
-                  "traits" : [
-
-                  ]
-                }
-              ]
+              "explicitName" : "GoogleUtilities",
+              "name" : "GoogleUtilities",
+              "productFilter" : null,
+              "requirement" : {
+                "range" : [
+                  {
+                    "lowerBound" : "7.2.1",
+                    "upperBound" : "8.0.0"
+                  }
+                ]
+              },
+              "url" : "https://github.com/google/GoogleUtilities.git"
             },
             {
-              "sourceControl" : [
-                {
-                  "identity" : "nanopb",
-                  "traits" : [
-
-                  ]
-                }
-              ]
+              "explicitName" : "nanopb",
+              "name" : "nanopb",
+              "productFilter" : null,
+              "requirement" : {
+                "range" : [
+                  {
+                    "lowerBound" : "2.30908.0",
+                    "upperBound" : "2.30909.0"
+                  }
+                ]
+              },
+              "url" : "https://github.com/firebase/nanopb.git"
             }
           ],
           "name" : "GoogleAppMeasurement",
@@ -1373,10 +1387,7 @@ extension PackageInfo {
                 ),
             ],
             traits: nil,
-            dependencies: [
-                .init(identity: "GoogleUtilities", traits: []),
-                .init(identity: "nanopb", traits: []),
-            ],
+            dependencies: [],
             platforms: [
                 .init(platformName: "ios", version: "10.0", options: []),
             ],

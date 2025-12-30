@@ -92,6 +92,8 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             .decode(SwiftPackageManagerWorkspaceState.self, from: try await fileSystem.readFile(at: workspacePath))
 
         try await validatePackageResolved(at: packagePath.parentDirectory)
+        
+        let rootPackage = try await manifestLoader.loadPackage(at: packagePath.parentDirectory, disableSandbox: disableSandbox)
 
         var packageInfos: [
             // swiftlint:disable:next large_tuple
@@ -199,6 +201,12 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             packageModuleAliases: mutablePackageModuleAliases
         )
 
+        let packageInfoDictionaryById = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.id, $0.info) })
+        let enabledTraitsPerPackage = PackageInfoMapper.enabledTraits(
+            rootPackageInfo: rootPackage,
+            packageInfos: packageInfoDictionaryById
+        )
+
         let packageModuleAliases = mutablePackageModuleAliases
         let mappedPackageInfos = try await packageInfos.concurrentMap { packageInfo in
             (
@@ -209,7 +217,8 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                     path: packageInfo.folder,
                     packageType: .external(artifactPaths: packageToTargetsToArtifactPaths[packageInfo.name] ?? [:]),
                     packageSettings: packageSettings,
-                    packageModuleAliases: packageModuleAliases
+                    packageModuleAliases: packageModuleAliases,
+                    enabledTraits: enabledTraitsPerPackage[packageInfo.id] ?? []
                 )
             )
         }
