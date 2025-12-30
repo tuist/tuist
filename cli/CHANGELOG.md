@@ -1,8 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.118.2<!-- RELEASE NOTES START -->
+## What's Changed in 4.119.0<!-- RELEASE NOTES START -->
 
+### ⛰️  Features
+
+* custom cache endpoints by [@cschmatzler](https://github.com/cschmatzler) in [#8980](https://github.com/tuist/tuist/pull/8980)
 ### 🐛 Bug Fixes
 
 * Generate TuistBundle if buildableFolders contains synthesized file by [@denisgaskov](https://github.com/denisgaskov) in [#8998](https://github.com/tuist/tuist/pull/8998)
@@ -14,7 +17,7 @@ All notable changes to this project will be documented in this file.
 ## New Contributors
 * [@denisgaskov](https://github.com/denisgaskov) made their first contribution in [#8998](https://github.com/tuist/tuist/pull/8998)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.118.1...4.118.2
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.118.1...4.119.0
 
 ## What's Changed in 4.118.1<!-- RELEASE NOTES START -->
 
