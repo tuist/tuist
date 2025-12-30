@@ -154,11 +154,7 @@ defmodule TuistWeb.AccountSettingsLive do
     end
   end
 
-  def handle_event(
-        "delete_cache_endpoint",
-        %{"id" => endpoint_id},
-        socket
-      ) do
+  def handle_event("delete_cache_endpoint", %{"id" => endpoint_id}, socket) do
     case delete_cache_endpoint(socket, endpoint_id) do
       {:ok, cache_endpoints} ->
         {:noreply, assign(socket, cache_endpoints: cache_endpoints)}
@@ -168,11 +164,7 @@ defmodule TuistWeb.AccountSettingsLive do
     end
   end
 
-  def handle_event(
-        "confirm_delete_last_cache_endpoint",
-        %{"id" => endpoint_id},
-        socket
-      ) do
+  def handle_event("confirm_delete_last_cache_endpoint", %{"id" => endpoint_id}, socket) do
     case delete_cache_endpoint(socket, endpoint_id) do
       {:ok, cache_endpoints} ->
         socket =
@@ -188,9 +180,7 @@ defmodule TuistWeb.AccountSettingsLive do
   end
 
   def handle_event("close-delete-endpoint-modal-" <> endpoint_id, _, socket) do
-    socket =
-      socket
-      |> push_event("close-modal", %{id: "delete-endpoint-#{endpoint_id}-modal"})
+    socket = push_event(socket, "close-modal", %{id: "delete-endpoint-#{endpoint_id}-modal"})
 
     {:noreply, socket}
   end
@@ -406,7 +396,6 @@ defmodule TuistWeb.AccountSettingsLive do
             </:footer>
           </.modal>
         </.form>
-
       </div>
     </.card_section>
     """
