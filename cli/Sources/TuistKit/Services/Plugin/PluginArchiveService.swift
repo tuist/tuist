@@ -16,7 +16,7 @@ final class PluginArchiveService {
     init(
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
         packageInfoLoader: PackageInfoLoading = PackageInfoLoader(),
-        manifestLoader: ManifestLoading = ManifestLoader(),
+        manifestLoader: ManifestLoading = ManifestLoader.current,
         fileArchiverFactory: FileArchivingFactorying = FileArchivingFactory(),
         fileSystem: FileSystem = FileSystem()
     ) {
