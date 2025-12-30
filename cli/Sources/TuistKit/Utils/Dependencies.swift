@@ -2,9 +2,9 @@ import Foundation
 import Noora
 import Path
 import TSCBasic
+import TuistLoader
 import TuistServer
 import TuistSupport
-import TuistLoader
 
 #if canImport(TuistCacheEE)
     import TuistCacheEE
@@ -69,7 +69,6 @@ private func withInitializedManifestLoader(_ action: () async throws -> Void) as
     return try await ManifestLoader.$current.withValue(useCache ? CachedManifestLoader() : ManifestLoader()) {
         return try await action()
     }
-    
 }
 
 private func initEnv() async throws {

@@ -92,7 +92,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             .decode(SwiftPackageManagerWorkspaceState.self, from: try await fileSystem.readFile(at: workspacePath))
 
         try await validatePackageResolved(at: packagePath.parentDirectory)
-        
+
         let rootPackage = try await manifestLoader.loadPackage(at: packagePath.parentDirectory, disableSandbox: disableSandbox)
 
         var packageInfos: [
