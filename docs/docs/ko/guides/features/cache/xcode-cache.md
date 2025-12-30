@@ -96,11 +96,11 @@ let tuist = Tuist(
 CI 환경에서 캐싱을 활성화하려면, 로컬 환경과 동일한 명령을 실행해야 합니다: `tuist setup cache`.
 
 인증의 경우 <LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
-인증</LocalizedLink>(지원되는 CI 제공업체에 권장됨) 또는 `TUIST_TOKEN` 환경 변수를 통해
+인증</LocalizedLink>(지원되는 CI 제공자에게 권장됨) 또는 `TUIST_TOKEN` 환경 변수를 통해
 <LocalizedLink href="/guides/server/authentication#account-tokens">계정
-토큰</LocalizedLink>을 사용할 수 있습니다.
+Token</LocalizedLink>을 사용할 수 있습니다.
 
-OIDC 인증을 사용하는 GitHub 작업의 워크플로 예시입니다:
+OIDC 인증을 사용하는 GitHub Actions Workflow 예시입니다:
 ```yaml
 name: Build
 
@@ -119,6 +119,6 @@ jobs:
       - # Your build steps
 ```
 
-토큰 기반 인증 및 Xcode Cloud, CircleCI, Bitrise, Codemagic과 같은 기타 CI 플랫폼을 포함한 더 많은 예제는
-<LocalizedLink href="/guides/integrations/continuous-integration">지속 통합
+토큰 기반 인증 및 Xcode Cloud, CircleCI, Bitrise, Codemagic과 같은 기타 CI 플랫폼을 포함한, 더 많은
+예제는 <LocalizedLink href="/guides/integrations/continuous-integration">지속 통합
 가이드</LocalizedLink>를 참조하세요.
