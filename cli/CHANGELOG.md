@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.119.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* use generic destination for Mac Catalyst cache builds by [@pepicrft](https://github.com/pepicrft) in [#9038](https://github.com/tuist/tuist/pull/9038)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.119.0...4.119.1
+
 ## What's Changed in 4.119.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
