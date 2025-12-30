@@ -4787,7 +4787,8 @@ struct PackageInfoMapperTests {
             path: packagePath,
             packageType: .local,
             packageSettings: .test(),
-            packageModuleAliases: [:]
+            packageModuleAliases: [:],
+            enabledTraits: []
         )
 
         #expect(project != nil)
@@ -4831,7 +4832,8 @@ struct PackageInfoMapperTests {
                 path: packagePath,
                 packageType: .local,
                 packageSettings: .test(),
-                packageModuleAliases: [:]
+                packageModuleAliases: [:],
+                enabledTraits: []
             )
         }
     }
@@ -4870,7 +4872,8 @@ struct PackageInfoMapperTests {
             path: packagePath,
             packageType: .local,
             packageSettings: .test(),
-            packageModuleAliases: [:]
+            packageModuleAliases: [:],
+            enabledTraits: []
         )
 
         #expect(project != nil)
@@ -4914,7 +4917,8 @@ struct PackageInfoMapperTests {
             path: packagePath,
             packageType: .local,
             packageSettings: .test(),
-            packageModuleAliases: [:]
+            packageModuleAliases: [:],
+            enabledTraits: []
         )
 
         #expect(project != nil)
@@ -4963,7 +4967,8 @@ struct PackageInfoMapperTests {
             path: packagePath,
             packageType: .local,
             packageSettings: .test(),
-            packageModuleAliases: [:]
+            packageModuleAliases: [:],
+            enabledTraits: []
         )
 
         #expect(project != nil)
@@ -5011,7 +5016,8 @@ struct PackageInfoMapperTests {
             path: packagePath,
             packageType: .local,
             packageSettings: .test(),
-            packageModuleAliases: [:]
+            packageModuleAliases: [:],
+            enabledTraits: []
         )
 
         #expect(project != nil)
@@ -5052,7 +5058,8 @@ extension PackageInfoMapping {
         packageSettings: TuistCore.PackageSettings = .test(
             baseSettings: .default
         ),
-        packageModuleAliases: [String: [String: String]] = [:]
+        packageModuleAliases: [String: [String: String]] = [:],
+        enabledTraits: Set<String> = []
     ) async throws -> ProjectDescription.Project? {
         let packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]] = try packageInfos
             .reduce(into: [:]) { packagesResult, element in
@@ -5079,7 +5086,8 @@ extension PackageInfoMapping {
             path: basePath.appending(component: package),
             packageType: packageType ?? .external(artifactPaths: packageToTargetsToArtifactPaths[package]!),
             packageSettings: packageSettings,
-            packageModuleAliases: packageModuleAliases
+            packageModuleAliases: packageModuleAliases,
+            enabledTraits: enabledTraits
         )
     }
 }

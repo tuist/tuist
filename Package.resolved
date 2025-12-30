@@ -1,5 +1,5 @@
 {
-  "originHash" : "6acea3541734d2e6524cf8f612a168d77f4ea9f2ba5ab45490b9c5dfeb41b8c2",
+  "originHash" : "78ef64857444e1e5a86ca041e96b7b8867bd4b0c14649660c96ab92d1c2e5827",
   "pins" : [
     {
       "identity" : "aexml",
@@ -48,7 +48,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.6.4"
+        "version" : "1.8.0"
       }
     },
     {
@@ -704,7 +704,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.13.35"
+        "version" : "0.14.8"
       }
     },
     {
@@ -748,19 +748,11 @@
       }
     },
     {
-      "identity" : "tuist.XcodeGraph",
-      "kind" : "registry",
-      "location" : "",
-      "state" : {
-        "version" : "1.29.15"
-      }
-    },
-    {
       "identity" : "tuist.XcodeProj",
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "9.6.0"
+        "version" : "9.7.1"
       }
     },
     {
@@ -778,6 +770,15 @@
       "state" : {
         "revision" : "4def3c1c772ca90ad5e7bfc8ac437c3b0b4276cf",
         "version" : "7.1.5"
+      }
+    },
+    {
+      "identity" : "xcodegraph",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tuist/XcodeGraph",
+      "state" : {
+        "branch" : "add-package-dependencies-with-traits",
+        "revision" : "e602edbd86c575cdc10411d9637782b6924b7899"
       }
     },
     {
