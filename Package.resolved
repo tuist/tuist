@@ -24,7 +24,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.6.2"
+        "version" : "1.7.0"
       }
     },
     {
@@ -124,7 +124,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "3.1.1"
+        "version" : "3.1.2"
       }
     },
     {
@@ -192,8 +192,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/lfroms/fluid-menu-bar-extra",
       "state" : {
-        "revision" : "e152a3a1a25aca24906217f8d4d63afbb08d7f97",
-        "version" : "1.1.0"
+        "revision" : "81c7af7a2bc7ba0e9d8cd0d7faf58a8c870306fa",
+        "version" : "1.2.0"
       }
     },
     {
@@ -218,7 +218,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "2.2.0"
+        "version" : "2.2.1"
       }
     },
     {
@@ -226,7 +226,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "2.3.0"
+        "version" : "2.4.0"
       }
     },
     {
@@ -234,7 +234,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "2.1.1"
+        "version" : "2.1.2"
       }
     },
     {
@@ -720,7 +720,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.51.2"
+        "version" : "0.53.0"
       }
     },
     {
@@ -736,7 +736,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.6.63"
+        "version" : "0.6.111"
       }
     },
     {
@@ -795,8 +795,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/xctest-dynamic-overlay",
       "state" : {
-        "revision" : "4c27acf5394b645b70d8ba19dc249c0472d5f618",
-        "version" : "1.7.0"
+        "revision" : "31073495cae9caf243c440eac94b3ab067e3d7bc",
+        "version" : "1.8.0"
       }
     },
     {
