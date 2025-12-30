@@ -5,7 +5,7 @@
   "description": "Get insights into your projects to maintain a product developer environment."
 }
 ---
-# 인사이트 {#인사이트}
+# 분석 {#insights}
 
 ::: warning 요구 사항
 <!-- -->
@@ -23,13 +23,13 @@
 - 지난 주에 빌드 시간이 크게 증가했나요?
 - 테스트 속도가 느려졌나요? 어떤 테스트가?
 
-::: info Mise란?
+::: info
 <!-- -->
 튜이스트 인사이트는 초기 개발 단계에 있습니다.
 <!-- -->
 :::
 
-## 빌드 {#빌드}
+## 빌드 {#builds}
 
 CI 워크플로우의 성능에 대한 몇 가지 지표가 있을 수 있지만 로컬 개발 환경에 대한 가시성은 동일하지 않을 수 있습니다. 하지만 로컬 빌드
 시간은 개발자 경험에 영향을 미치는 가장 중요한 요소 중 하나입니다.
@@ -39,13 +39,13 @@ CI 워크플로우의 성능에 대한 몇 가지 지표가 있을 수 있지만
 ![빌드 검사를 위한 사후
 작업](/images/guides/features/insights/inspect-build-scheme-post-action.png)
 
-::: info Mise란?
+::: info
 <!-- -->
 "빌드 설정 제공 위치"를 실행 파일 또는 기본 빌드 대상으로 설정하여 Tuist에서 빌드 구성을 추적할 수 있도록 하는 것이 좋습니다.
 <!-- -->
 :::
 
-::: info Mise란?
+::: info
 <!-- -->
 1} 생성된 프로젝트</LocalizedLink>를 사용하지 않는 경우 빌드 실패 시 사후 체계 작업이 실행되지 않습니다.
 <!-- -->
@@ -68,7 +68,7 @@ Mise](https://mise.jdx.dev/)를 사용하는 경우, 스크립트는 액션 후 
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 ```
 
-::: 팁 실수 및 프로젝트 경로
+::: tip Mise 와 프로젝트 경로
 <!-- -->
 환경의 `PATH` 환경 변수는 스키마 포스트 액션에 의해 상속되지 않으므로 Mise의 절대 경로를 사용해야 하며, 이는 Mise 설치 방법에
 따라 달라집니다. 또한 프로젝트의 대상에서 빌드 설정을 상속하여 $SRCROOT가 가리키는 디렉토리에서 Mise를 실행할 수 있도록 하는 것을
@@ -89,7 +89,7 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 
 ![빌드 인사이트가 있는 대시보드](/images/guides/features/insights/builds-dashboard.png)
 
-## 테스트 {#테스트}
+## 테스트 {#tests}
 
 빌드를 추적하는 것 외에도 테스트를 모니터링할 수도 있습니다. 테스트 인사이트를 통해 느린 테스트를 식별하거나 실패한 CI 실행을 빠르게 이해할
 수 있습니다.
@@ -106,7 +106,7 @@ Mise](https://mise.jdx.dev/)를 사용하는 경우, 스크립트는 액션 후 
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 ```
 
-::: 팁 실수 및 프로젝트 경로
+::: tip Mise 와 프로젝트 경로
 <!-- -->
 환경의 `PATH` 환경 변수는 스키마 포스트 액션에 의해 상속되지 않으므로 Mise의 절대 경로를 사용해야 하며, 이는 Mise 설치 방법에
 따라 달라집니다. 또한 프로젝트의 대상에서 빌드 설정을 상속하여 $SRCROOT가 가리키는 디렉토리에서 Mise를 실행할 수 있도록 하는 것을
@@ -125,7 +125,7 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 
 ## Generated 프로젝트 {#generated-projects}
 
-::: info Mise란?
+::: info
 <!-- -->
 자동 생성된 계획에는 `tuist inspect build` 및 `tuist inspect test` 포스트 액션이 모두 자동으로 포함됩니다.
 <!-- -->
