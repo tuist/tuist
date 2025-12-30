@@ -136,18 +136,28 @@ public final class PackageInfoMapper: PackageInfoMapping {
     ) -> [String: Set<String>] {
         var result: [String: Set<String>] = [:]
 
-        for dependency in rootPackageInfo.dependencies {
-            if !dependency.traits.isEmpty {
-                result[dependency.identity, default: []].formUnion(dependency.traits)
+        func processTraits(
+            from dependencies: [PackageDependency],
+            enabledTraitsForCurrentPackage: Set<String>
+        ) {
+            for dependency in dependencies {
+                for trait in dependency.traits {
+                    if let condition = trait.condition {
+                        if !condition.isDisjoint(with: enabledTraitsForCurrentPackage) {
+                            result[dependency.identity, default: []].insert(trait.name)
+                        }
+                    } else {
+                        result[dependency.identity, default: []].insert(trait.name)
+                    }
+                }
             }
         }
 
-        for (_, packageInfo) in packageInfos {
-            for dependency in packageInfo.dependencies {
-                if !dependency.traits.isEmpty {
-                    result[dependency.identity, default: []].formUnion(dependency.traits)
-                }
-            }
+        processTraits(from: rootPackageInfo.dependencies, enabledTraitsForCurrentPackage: [])
+
+        for (packageId, packageInfo) in packageInfos {
+            let enabledForThisPackage = result[packageId] ?? []
+            processTraits(from: packageInfo.dependencies, enabledTraitsForCurrentPackage: enabledForThisPackage)
         }
 
         return result
@@ -1099,18 +1109,25 @@ extension ProjectDescription.Settings {
         ]
 
         if !enabledTraits.isEmpty {
-            var traitConditions: [String] = []
-            for traitName in enabledTraits.sorted() {
-                if packageTraits.contains(where: { $0.name == traitName }) {
-                    traitConditions.append(traitName)
-                    if let trait = packageTraits.first(where: { $0.name == traitName }) {
-                        traitConditions.append(contentsOf: trait.enabledTraits)
+            var traitConditions: Set<String> = []
+
+            func resolveTraits(_ traitNames: some Collection<String>) {
+                for traitName in traitNames {
+                    guard let trait = packageTraits.first(where: { $0.name == traitName }) else {
+                        continue
                     }
+                    if traitName != "default" {
+                        traitConditions.insert(traitName)
+                    }
+                    resolveTraits(trait.enabledTraits)
                 }
             }
+
+            resolveTraits(enabledTraits)
+
             if !traitConditions.isEmpty {
                 settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] =
-                    .array(["$(inherited)"] + traitConditions)
+                    .array(["$(inherited)"] + traitConditions.sorted())
             }
         }
 
