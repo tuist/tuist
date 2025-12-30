@@ -13,6 +13,24 @@ defmodule TuistWeb.SlackOAuthController do
 
   @slack_scopes "chat:write,chat:write.public,channels:read,groups:read"
 
+  def callback(conn, %{"error" => "access_denied", "state" => state_token}) do
+    case verify_state_token(state_token) do
+      {:ok, account_id} ->
+        case Accounts.get_account_by_id(account_id) do
+          {:ok, account} ->
+            redirect(conn, to: ~p"/#{account.name}/integrations")
+
+          {:error, :not_found} ->
+            raise BadRequestError,
+                  dgettext("dashboard_slack", "Account not found. Please try again.")
+        end
+
+      {:error, :invalid_state_token} ->
+        raise BadRequestError,
+              dgettext("dashboard_slack", "Invalid authorization request. Please try again.")
+    end
+  end
+
   def callback(conn, %{"code" => code, "state" => state_token})
       when is_binary(code) and code != "" and is_binary(state_token) do
     with {:ok, account_id} <- verify_state_token(state_token),
@@ -22,21 +40,25 @@ defmodule TuistWeb.SlackOAuthController do
       redirect(conn, to: ~p"/#{account.name}/integrations")
     else
       {:error, :invalid_state_token} ->
-        raise BadRequestError, dgettext("dashboard", "Invalid authorization request. Please try again.")
+        raise BadRequestError,
+              dgettext("dashboard_slack", "Invalid authorization request. Please try again.")
 
       {:error, :not_found} ->
-        raise BadRequestError, dgettext("dashboard", "Account not found. Please try again.")
+        raise BadRequestError, dgettext("dashboard_slack", "Account not found. Please try again.")
 
       {:error, reason} when is_binary(reason) ->
-        raise BadRequestError, dgettext("dashboard", "Slack authorization failed: %{reason}", reason: reason)
+        raise BadRequestError,
+              dgettext("dashboard_slack", "Slack authorization failed: %{reason}", reason: reason)
 
       {:error, %Ecto.Changeset{}} ->
-        raise BadRequestError, dgettext("dashboard", "Failed to save Slack installation. Please try again.")
+        raise BadRequestError,
+              dgettext("dashboard_slack", "Failed to save Slack installation. Please try again.")
     end
   end
 
   def callback(_conn, _params) do
-    raise BadRequestError, dgettext("dashboard", "Invalid Slack authorization. Please try again.")
+    raise BadRequestError,
+          dgettext("dashboard_slack", "Invalid Slack authorization. Please try again.")
   end
 
   def install_url(account_id) do
@@ -71,6 +93,6 @@ defmodule TuistWeb.SlackOAuthController do
   end
 
   defp slack_redirect_uri do
-    Environment.app_url(path: "/integrations/slack/callback")
+    Environment.app_url(path: ~p"/integrations/slack/callback")
   end
 end

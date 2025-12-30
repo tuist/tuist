@@ -45,7 +45,7 @@ defmodule Tuist.Slack do
   end
 
   def verify_state_token(token) do
-    token_max_age_seconds = 7_776_000
+    token_max_age_seconds = 600
     Phoenix.Token.verify(TuistWeb.Endpoint, "slack_state", token, max_age: token_max_age_seconds)
   end
 

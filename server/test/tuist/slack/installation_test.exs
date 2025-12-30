@@ -1,5 +1,5 @@
 defmodule Tuist.Slack.InstallationTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.Slack.Installation
   alias TuistTestSupport.Fixtures.AccountsFixtures

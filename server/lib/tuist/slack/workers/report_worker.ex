@@ -22,7 +22,7 @@ defmodule Tuist.Slack.Workers.ReportWorker do
 
     if project do
       project = Repo.preload(project, account: :slack_installation)
-      send_report(project)
+      :ok = send_report(project)
     end
 
     :ok
@@ -40,7 +40,7 @@ defmodule Tuist.Slack.Workers.ReportWorker do
 
     for project <- projects, is_due?(project, now) do
       %{project_id: project.id}
-      |> __MODULE__.new()
+      |> __MODULE__.new(unique: [period: 3600, keys: [:project_id]])
       |> Oban.insert()
     end
 
@@ -71,11 +71,13 @@ defmodule Tuist.Slack.Workers.ReportWorker do
       last_report_at = get_last_report_time(project.id)
       blocks = Reports.report(project, last_report_at: last_report_at)
       SlackClient.post_message(slack_installation.access_token, project.slack_channel_id, blocks)
+    else
+      :ok
     end
   end
 
   defp get_last_report_time(project_id) do
-    worker_name = inspect(__MODULE__)
+    worker_name = to_string(__MODULE__)
     project_id_string = to_string(project_id)
 
     from(j in "oban_jobs",

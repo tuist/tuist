@@ -1,5 +1,5 @@
 defmodule Tuist.Slack.Workers.ReportWorkerTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   alias Tuist.Projects
@@ -64,7 +64,7 @@ defmodule Tuist.Slack.Workers.ReportWorkerTest do
       assert :ok = ReportWorker.perform(%Oban.Job{args: %{}})
     end
 
-    test "does not send reports for disabled projects", %{project: project} do
+    test "does not send reports for projects with the report disabled", %{project: project} do
       now = ~U[2025-01-15 09:00:00Z]
 
       {:ok, _project} =
