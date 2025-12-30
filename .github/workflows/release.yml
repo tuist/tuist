@@ -442,12 +442,6 @@ jobs:
             SPARKLE_GENERATE_APPCAST=".build/artifacts/sparkle-project.Sparkle/Sparkle/bin/generate_appcast"
           fi
           if [ ! -x "$SPARKLE_GENERATE_APPCAST" ]; then
-            SPARKLE_GENERATE_APPCAST="app/build/app/derived/SourcePackages/artifacts/sparkle/Sparkle/bin/generate_appcast"
-          fi
-          if [ ! -x "$SPARKLE_GENERATE_APPCAST" ]; then
-            SPARKLE_GENERATE_APPCAST="app/build/app/derived/SourcePackages/artifacts/sparkle-project.Sparkle/Sparkle/bin/generate_appcast"
-          fi
-          if [ ! -x "$SPARKLE_GENERATE_APPCAST" ]; then
             echo "generate_appcast not found in .build or DerivedData artifacts" >&2
             exit 1
           fi
