@@ -972,3 +972,13 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "URL"
 msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.ex:323
+#, elixir-autogen, elixir-format
+msgid "Delete last cache endpoint?"
+msgstr ""
+
+#: lib/tuist_web/live/account_settings_live.ex:333
+#, elixir-autogen, elixir-format
+msgid "Removing the last custom cache endpoint will switch your organization back to Tuist-hosted caching. This affects all builds across your organization."
+msgstr ""

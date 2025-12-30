@@ -67,27 +67,7 @@ defmodule TuistWeb.API.CacheController do
   )
 
   def endpoints(conn, params) do
-    endpoints =
-      case params do
-        %{account_handle: account_handle} when is_binary(account_handle) ->
-          case Accounts.get_account_by_handle(account_handle) do
-            nil ->
-              Tuist.Environment.cache_endpoints()
-
-            account ->
-              custom_endpoints = Accounts.list_account_cache_endpoints(account)
-
-              if Enum.empty?(custom_endpoints) do
-                Tuist.Environment.cache_endpoints()
-              else
-                Enum.map(custom_endpoints, & &1.url)
-              end
-          end
-
-        _ ->
-          Tuist.Environment.cache_endpoints()
-      end
-
+    endpoints = Accounts.get_cache_endpoints_for_handle(params[:account_handle])
     json(conn, %{endpoints: endpoints})
   end
 

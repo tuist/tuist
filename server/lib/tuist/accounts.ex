@@ -1698,6 +1698,20 @@ defmodule Tuist.Accounts do
   end
 
   @doc """
+  Returns custom cache endpoint URLs for the given account handle, or default endpoints if none configured.
+  """
+  def get_cache_endpoints_for_handle(account_handle) when is_binary(account_handle) do
+    with %Account{} = account <- get_account_by_handle(account_handle),
+         [_ | _] = endpoints <- list_account_cache_endpoints(account) do
+      Enum.map(endpoints, & &1.url)
+    else
+      _ -> Environment.cache_endpoints()
+    end
+  end
+
+  def get_cache_endpoints_for_handle(_), do: Environment.cache_endpoints()
+
+  @doc """
   Creates a custom cache endpoint for the given account.
   """
   def create_account_cache_endpoint(%Account{} = account, attrs) do
@@ -1718,6 +1732,14 @@ defmodule Tuist.Accounts do
   """
   def get_account_cache_endpoint!(id) do
     Repo.get!(AccountCacheEndpoint, id)
+  end
+
+  @doc """
+  Gets a custom cache endpoint by ID, scoped to the given account.
+  Returns `nil` if the endpoint doesn't exist or doesn't belong to the account.
+  """
+  def get_account_cache_endpoint(%Account{} = account, id) do
+    Repo.get_by(AccountCacheEndpoint, id: id, account_id: account.id)
   end
 
   defp default_confirmed_at do

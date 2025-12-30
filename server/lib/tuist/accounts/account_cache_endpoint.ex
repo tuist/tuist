@@ -25,6 +25,7 @@ defmodule Tuist.Accounts.AccountCacheEndpoint do
     |> validate_required([:url, :account_id])
     |> validate_url(:url)
     |> foreign_key_constraint(:account_id)
+    |> unique_constraint([:account_id, :url], message: "has already been added")
   end
 
   defp validate_url(changeset, field) do

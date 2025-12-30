@@ -34,6 +34,7 @@ defmodule TuistWeb.AccountSettingsLive do
       |> assign(region_form: region_form)
       |> assign(add_cache_endpoint_form: add_cache_endpoint_form)
       |> assign(cache_endpoints: cache_endpoints)
+      |> assign(pending_delete_endpoint_id: nil)
       |> assign(:head_title, "#{dgettext("dashboard_account", "Settings")} · #{selected_account.name} · Tuist")
 
     {:ok, socket}
@@ -157,13 +158,53 @@ defmodule TuistWeb.AccountSettingsLive do
   def handle_event(
         "delete_cache_endpoint",
         %{"id" => endpoint_id},
-        %{assigns: %{selected_account: selected_account}} = socket
+        %{assigns: %{cache_endpoints: cache_endpoints}} = socket
       ) do
-    endpoint = Accounts.get_account_cache_endpoint!(endpoint_id)
-    {:ok, _} = Accounts.delete_account_cache_endpoint(endpoint)
-    cache_endpoints = Accounts.list_account_cache_endpoints(selected_account)
+    if length(cache_endpoints) == 1 do
+      socket =
+        socket
+        |> assign(pending_delete_endpoint_id: endpoint_id)
+        |> push_event("open-modal", %{id: "delete-last-cache-endpoint-modal"})
 
-    {:noreply, assign(socket, cache_endpoints: cache_endpoints)}
+      {:noreply, socket}
+    else
+      case delete_cache_endpoint(socket, endpoint_id) do
+        {:ok, cache_endpoints} ->
+          {:noreply, assign(socket, cache_endpoints: cache_endpoints)}
+
+        :error ->
+          {:noreply, socket}
+      end
+    end
+  end
+
+  def handle_event(
+        "confirm_delete_last_cache_endpoint",
+        _params,
+        %{assigns: %{pending_delete_endpoint_id: endpoint_id}} = socket
+      ) do
+    case delete_cache_endpoint(socket, endpoint_id) do
+      {:ok, cache_endpoints} ->
+        socket =
+          socket
+          |> assign(cache_endpoints: cache_endpoints)
+          |> assign(pending_delete_endpoint_id: nil)
+          |> push_event("close-modal", %{id: "delete-last-cache-endpoint-modal"})
+
+        {:noreply, socket}
+
+      :error ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("close-delete-last-cache-endpoint-modal", _, socket) do
+    socket =
+      socket
+      |> assign(pending_delete_endpoint_id: nil)
+      |> push_event("close-modal", %{id: "delete-last-cache-endpoint-modal"})
+
+    {:noreply, socket}
   end
 
   def handle_event("close-add-cache-endpoint-modal", _, socket) do
@@ -175,6 +216,17 @@ defmodule TuistWeb.AccountSettingsLive do
       |> assign(add_cache_endpoint_form: add_cache_endpoint_form)
 
     {:noreply, socket}
+  end
+
+  defp delete_cache_endpoint(socket, endpoint_id) do
+    selected_account = socket.assigns.selected_account
+
+    with endpoint when not is_nil(endpoint) <- Accounts.get_account_cache_endpoint(selected_account, endpoint_id),
+         {:ok, _} <- Accounts.delete_account_cache_endpoint(endpoint) do
+      {:ok, Accounts.list_account_cache_endpoints(selected_account)}
+    else
+      _ -> :error
+    end
   end
 
   attr(:region_form, Form, required: true)
@@ -311,6 +363,48 @@ defmodule TuistWeb.AccountSettingsLive do
             </:footer>
           </.modal>
         </.form>
+        <.modal
+          id="delete-last-cache-endpoint-modal"
+          title={dgettext("dashboard_account", "Delete last cache endpoint?")}
+          header_size="large"
+          on_dismiss="close-delete-last-cache-endpoint-modal"
+        >
+          <.line_divider />
+          <div data-part="content">
+            <.alert
+              status="warning"
+              type="secondary"
+              size="small"
+              title={
+                dgettext(
+                  "dashboard_account",
+                  "Removing the last custom cache endpoint will switch your organization back to Tuist-hosted caching. This affects all builds across your organization."
+                )
+              }
+            />
+          </div>
+          <.line_divider />
+          <:footer>
+            <.modal_footer>
+              <:action>
+                <.button
+                  type="button"
+                  label={dgettext("dashboard_account", "Cancel")}
+                  variant="secondary"
+                  phx-click="close-delete-last-cache-endpoint-modal"
+                />
+              </:action>
+              <:action>
+                <.button
+                  type="button"
+                  label={dgettext("dashboard_account", "Delete")}
+                  variant="destructive"
+                  phx-click="confirm_delete_last_cache_endpoint"
+                />
+              </:action>
+            </.modal_footer>
+          </:footer>
+        </.modal>
       </div>
     </.card_section>
     """
