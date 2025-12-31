@@ -47,9 +47,17 @@ defmodule Cache.Authentication do
     cache_key = {generate_cache_key(auth_header), requested_handle}
 
     case Cachex.get(cache_name(), cache_key) do
-      {:ok, nil} -> authorize_with_jwt_or_api(auth_header, cache_key, requested_handle, conn)
-      {:ok, result} -> result
-      _ -> authorize_with_jwt_or_api(auth_header, cache_key, requested_handle, conn)
+      {:ok, nil} ->
+        Logger.info("Auth cache miss for #{requested_handle}, performing authorization")
+        authorize_with_jwt_or_api(auth_header, cache_key, requested_handle, conn)
+
+      {:ok, result} ->
+        Logger.info("Auth cache hit for #{requested_handle}: #{inspect(result)}")
+        result
+
+      _ ->
+        Logger.info("Auth cache error for #{requested_handle}, performing authorization")
+        authorize_with_jwt_or_api(auth_header, cache_key, requested_handle, conn)
     end
   end
 
@@ -58,16 +66,20 @@ defmodule Cache.Authentication do
 
     case verify_jwt(token, requested_handle) do
       {:ok, ttl} ->
+        Logger.info("JWT verification succeeded for #{requested_handle}, caching for #{inspect(ttl)}")
         cache_result(cache_key, :ok, ttl)
 
       {:error, :not_jwt} ->
-        fetch_and_cache_projects(auth_header, cache_key, conn)
+        Logger.info("Token is not a JWT for #{requested_handle}, falling back to API")
+        fetch_and_cache_projects(auth_header, cache_key, requested_handle, conn)
 
       {:error, :project_not_in_jwt} ->
-        fetch_and_cache_projects(auth_header, cache_key, conn)
+        Logger.info("Project #{requested_handle} not in JWT claims, falling back to API")
+        fetch_and_cache_projects(auth_header, cache_key, requested_handle, conn)
 
-      {:error, _reason} ->
-        fetch_and_cache_projects(auth_header, cache_key, conn)
+      {:error, reason} ->
+        Logger.info("JWT verification failed for #{requested_handle}: #{inspect(reason)}, falling back to API")
+        fetch_and_cache_projects(auth_header, cache_key, requested_handle, conn)
     end
   end
 
@@ -80,6 +92,10 @@ defmodule Cache.Authentication do
         projects = Map.get(claims, "projects", [])
         exp = Map.get(claims, "exp")
 
+        Logger.info(
+          "JWT decoded for #{requested_handle}, projects in claim: #{inspect(projects)}, exp: #{inspect(exp)}"
+        )
+
         if requested_handle in projects do
           ttl = calculate_ttl(exp)
           {:ok, ttl}
@@ -87,7 +103,8 @@ defmodule Cache.Authentication do
           {:error, :project_not_in_jwt}
         end
 
-      {:error, _reason} ->
+      {:error, reason} ->
+        Logger.info("JWT decode failed: #{inspect(reason)}")
         {:error, :not_jwt}
     end
   end
@@ -107,25 +124,36 @@ defmodule Cache.Authentication do
 
   defp calculate_ttl(_), do: success_ttl()
 
-  defp fetch_and_cache_projects(auth_header, cache_key, conn) do
+  defp fetch_and_cache_projects(auth_header, cache_key, requested_handle, conn) do
     headers = build_headers(auth_header, conn)
     options = request_options(headers)
 
+    Logger.info("Fetching projects from server API for #{requested_handle}")
+
     case Req.get(options) do
       {:ok, %{status: 200, body: %{"projects" => projects}}} ->
-        cache_projects(cache_key, projects)
+        project_names = Enum.map(projects, &Map.get(&1, "full_name", "unknown"))
+
+        Logger.info(
+          "Server returned #{length(projects)} projects for #{requested_handle}: #{inspect(project_names)}"
+        )
+
+        cache_projects(cache_key, requested_handle, projects)
 
       {:ok, %{status: 403}} ->
+        Logger.warning("Server returned 403 for #{requested_handle}")
         cache_result(cache_key, {:error, 403, "You don't have access to this project"}, failure_ttl())
 
       {:ok, %{status: 401}} ->
+        Logger.warning("Server returned 401 for #{requested_handle}")
         cache_result(cache_key, {:error, 401, "Unauthorized"}, failure_ttl())
 
-      {:ok, %{status: status}} ->
+      {:ok, %{status: status, body: body}} ->
+        Logger.warning("Server returned unexpected status #{status} for #{requested_handle}: #{inspect(body)}")
         {:error, status, "Server responded with status #{status}"}
 
       {:error, reason} ->
-        Logger.warning("Failed to fetch accessible projects: #{inspect(reason)}")
+        Logger.warning("Failed to fetch accessible projects for #{requested_handle}: #{inspect(reason)}")
         {:error, 500, "Failed to fetch accessible projects"}
     end
   end
@@ -172,7 +200,7 @@ defmodule Cache.Authentication do
     |> Base.encode16(case: :lower)
   end
 
-  defp cache_projects({auth_key, requested_handle}, projects) do
+  defp cache_projects({auth_key, requested_handle}, requested_handle, projects) do
     ttl = success_ttl()
 
     project_handles =
@@ -186,8 +214,13 @@ defmodule Cache.Authentication do
 
     result =
       if MapSet.member?(project_handles, requested_handle) do
+        Logger.info("Project #{requested_handle} found in server response, granting access")
         :ok
       else
+        Logger.warning(
+          "Project #{requested_handle} NOT found in server response. Available: #{inspect(MapSet.to_list(project_handles))}"
+        )
+
         {:error, 403, "You don't have access to this project"}
       end
 
