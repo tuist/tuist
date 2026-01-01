@@ -150,7 +150,7 @@ defmodule Tuist.Ops.DailySlackReportWorker do
   end
 
   defp percentage_increase(_, previous_count) when previous_count == 0 do
-    0.0
+    0
   end
 
   defp percentage_increase(current_count, previous_count) do
