@@ -214,7 +214,7 @@ defmodule TuistWeb.API.Cache.GradleControllerTest do
         |> get("/api/cache/gradle/#{account_handle}/#{project_handle}/#{hash}")
 
       assert conn.status == 403
-      assert json_response(conn, 403)["error"] == "Token does not have cache access"
+      assert json_response(conn, 403)["message"] =~ "not authorized"
     end
 
     test "returns 404 when project doesn't exist", %{
@@ -224,13 +224,11 @@ defmodule TuistWeb.API.Cache.GradleControllerTest do
     } do
       hash = "abc123def456"
 
-      conn =
+      assert_raise TuistWeb.Errors.NotFoundError, fn ->
         conn
         |> put_req_header("authorization", elem(basic_auth_header(token), 1))
         |> get("/api/cache/gradle/#{account_handle}/nonexistent-project/#{hash}")
-
-      assert conn.status == 404
-      assert json_response(conn, 404)["error"] == "Project not found"
+      end
     end
 
     test "returns 404 when token belongs to different account", %{
@@ -250,12 +248,12 @@ defmodule TuistWeb.API.Cache.GradleControllerTest do
 
       hash = "abc123def456"
 
-      conn =
+      # Raises NotFoundError because project doesn't exist under other org's account
+      assert_raise TuistWeb.Errors.NotFoundError, fn ->
         conn
         |> put_req_header("authorization", elem(basic_auth_header(other_token), 1))
         |> get("/api/cache/gradle/#{other_org.account.name}/#{project_handle}/#{hash}")
-
-      assert conn.status == 404
+      end
     end
   end
 end
