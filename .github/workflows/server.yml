@@ -575,74 +575,75 @@ jobs:
         run: mix ecto.migrate
       - name: Seed the database
         run: mix run priv/repo/seeds.exs
-  gradle_cache_acceptance:
-    name: Gradle Cache Acceptance
-    runs-on: namespace-profile-default
-    timeout-minutes: 20
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
-    env:
-      MIX_ENV: dev
-      DATABASE_HOST: localhost
-      DATABASE_USERNAME: postgres
-      DATABASE_PASSWORD: postgres
-    services:
-      postgres:
-        image: timescale/timescaledb-ha:pg16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    steps:
-      - uses: actions/checkout@v4
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        id: mix-cache
-        with:
-          path: |
-            server/deps
-            server/_build
-          key: mix-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            mix-
-      - name: Restore PNPM Cache
-        uses: actions/cache@v4
-        id: pnpm-cache
-        with:
-          path: |
-            ~/.pnpm/store
-          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: server
-      - name: Set up JDK
-        uses: actions/setup-java@v4
-        with:
-          java-version: "17"
-          distribution: "temurin"
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-      - run: mise run install
-      - run: mise run clickhouse:start
-      - run: mise run db:reset
-      - name: Run migrations
-        run: mix ecto.migrate
-      - name: Seed the database
-        run: mix run priv/repo/seeds.exs
-      - name: Start server
-        run: |
-          mix phx.server &
-          echo $! > /tmp/server.pid
-          # Wait for server to be ready
-          for i in {1..30}; do
-            curl -sf http://localhost:8080 >/dev/null 2>&1 && break
-            sleep 2
-          done
-      - name: Run Gradle cache acceptance test
-        run: KEEP_SERVER=true mise run e2e gradle_cache
+  # TODO: Enable once secret management is sorted out for dev mode seeding
+  # gradle_cache_acceptance:
+  #   name: Gradle Cache Acceptance
+  #   runs-on: namespace-profile-default
+  #   timeout-minutes: 20
+  #   if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+  #   env:
+  #     MIX_ENV: dev
+  #     DATABASE_HOST: localhost
+  #     DATABASE_USERNAME: postgres
+  #     DATABASE_PASSWORD: postgres
+  #   services:
+  #     postgres:
+  #       image: timescale/timescaledb-ha:pg16
+  #       env:
+  #         POSTGRES_USER: postgres
+  #         POSTGRES_PASSWORD: postgres
+  #       ports:
+  #         - 5432:5432
+  #       options: >-
+  #         --health-cmd pg_isready
+  #         --health-interval 10s
+  #         --health-timeout 5s
+  #         --health-retries 5
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: Restore Mix Cache
+  #       uses: actions/cache@v4
+  #       id: mix-cache
+  #       with:
+  #         path: |
+  #           server/deps
+  #           server/_build
+  #         key: mix-${{ hashFiles('server/mix.lock') }}
+  #         restore-keys: |
+  #           mix-
+  #     - name: Restore PNPM Cache
+  #       uses: actions/cache@v4
+  #       id: pnpm-cache
+  #       with:
+  #         path: |
+  #           ~/.pnpm/store
+  #         key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+  #     - uses: jdx/mise-action@v3.2.0
+  #       with:
+  #         cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+  #         working_directory: server
+  #     - name: Set up JDK
+  #       uses: actions/setup-java@v4
+  #       with:
+  #         java-version: "17"
+  #         distribution: "temurin"
+  #     - name: Set up Android SDK
+  #       uses: android-actions/setup-android@v3
+  #     - run: mise run install
+  #     - run: mise run clickhouse:start
+  #     - run: mise run db:reset
+  #     - name: Run migrations
+  #       run: mix ecto.migrate
+  #     - name: Seed the database
+  #       run: mix run priv/repo/seeds.exs
+  #     - name: Start server
+  #       run: |
+  #         mix phx.server &
+  #         echo $! > /tmp/server.pid
+  #         # Wait for server to be ready
+  #         for i in {1..30}; do
+  #           curl -sf http://localhost:8080 >/dev/null 2>&1 && break
+  #           sleep 2
+  #         done
+  #     - name: Run Gradle cache acceptance test
+  #       run: KEEP_SERVER=true mise run e2e gradle_cache
