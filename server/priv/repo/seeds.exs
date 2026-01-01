@@ -1,6 +1,7 @@
 import Ecto.Query
 
 alias Tuist.Accounts
+alias Tuist.Accounts.AccountToken
 alias Tuist.Alerts.Alert
 alias Tuist.Alerts.AlertRule
 alias Tuist.AppBuilds.AppBuild
@@ -366,14 +367,14 @@ gradle_token_hash = "gradlecachedevtoken"
 # tuist_01234567-89ab-cdef-0123-456789abcdef_gradlecachedevtoken
 gradle_full_token = "tuist_#{gradle_token_id}_#{gradle_token_hash}"
 
-existing_gradle_token = Repo.get(Tuist.Accounts.AccountToken, gradle_token_id)
+existing_gradle_token = Repo.get(AccountToken, gradle_token_id)
 
 if is_nil(existing_gradle_token) do
   encrypted_token_hash =
     Bcrypt.hash_pwd_salt(gradle_token_hash <> Tuist.Environment.secret_key_password())
 
   changeset =
-    Tuist.Accounts.AccountToken.create_changeset(%{
+    AccountToken.create_changeset(%{
       account_id: organization.account.id,
       encrypted_token_hash: encrypted_token_hash,
       scopes: ["project:cache:read", "project:cache:write"],
