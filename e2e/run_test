@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# E2E test runner
+# Usage: ./run_test <test_script>
+set -euo pipefail
+
+E2E_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$E2E_DIR/.." && pwd)"
+
+# shellcheck source=lib/style.sh
+source "$E2E_DIR/lib/style.sh"
+
+if [[ $# -lt 1 ]]; then
+    err "Usage: $0 <test_script>"
+    exit 1
+fi
+
+TEST_SCRIPT="$1"
+if [[ ! -f "$TEST_SCRIPT" ]]; then
+    if [[ -f "$E2E_DIR/$TEST_SCRIPT" ]]; then
+        TEST_SCRIPT="$E2E_DIR/$TEST_SCRIPT"
+    else
+        err "Test script not found: $TEST_SCRIPT"
+        exit 1
+    fi
+fi
+
+TEST_NAME="$(basename "$TEST_SCRIPT")"
+
+run_test() {
+    local status=0
+    local start end duration
+
+    start="$(date +%s)"
+
+    start_group "E2E: $TEST_NAME"
+
+    # Export variables for the test
+    export E2E_DIR
+    export REPO_ROOT
+    export TEST_NAME
+
+    bash -euo pipefail "$TEST_SCRIPT" || status=$?
+
+    end="$(date +%s)"
+    duration=$((end - start))
+
+    end_group
+
+    if [[ $status -eq 0 ]]; then
+        ok "$TEST_NAME passed (${duration}s)"
+    else
+        err "$TEST_NAME failed with exit code $status (${duration}s)"
+    fi
+
+    return $status
+}
+
+run_test
