@@ -649,4 +649,5 @@ jobs:
             sleep 2
           done
       - name: Run Gradle cache acceptance test
+        working-directory: .
         run: KEEP_SERVER=true mise run e2e gradle_cache
