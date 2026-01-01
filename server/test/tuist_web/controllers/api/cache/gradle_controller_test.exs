@@ -6,6 +6,7 @@ defmodule TuistWeb.API.Cache.GradleControllerTest do
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistWeb.Errors.NotFoundError
 
   setup do
     organization = AccountsFixtures.organization_fixture()
@@ -224,7 +225,7 @@ defmodule TuistWeb.API.Cache.GradleControllerTest do
     } do
       hash = "abc123def456"
 
-      assert_raise TuistWeb.Errors.NotFoundError, fn ->
+      assert_raise NotFoundError, fn ->
         conn
         |> put_req_header("authorization", elem(basic_auth_header(token), 1))
         |> get("/api/cache/gradle/#{account_handle}/nonexistent-project/#{hash}")
@@ -249,7 +250,7 @@ defmodule TuistWeb.API.Cache.GradleControllerTest do
       hash = "abc123def456"
 
       # Raises NotFoundError because project doesn't exist under other org's account
-      assert_raise TuistWeb.Errors.NotFoundError, fn ->
+      assert_raise NotFoundError, fn ->
         conn
         |> put_req_header("authorization", elem(basic_auth_header(other_token), 1))
         |> get("/api/cache/gradle/#{other_org.account.name}/#{project_handle}/#{hash}")
