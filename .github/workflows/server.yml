@@ -630,11 +630,19 @@ jobs:
         uses: android-actions/setup-android@v3
       - run: mise run install
       - run: mise run clickhouse:start
-      - name: Setup database
-        run: |
-          mix ecto.create
-          mix ecto.migrate
+      - run: mise run db:reset
+      - name: Run migrations
+        run: mix ecto.migrate
       - name: Seed the database
         run: mix run priv/repo/seeds.exs
+      - name: Start server
+        run: |
+          mix phx.server &
+          echo $! > /tmp/server.pid
+          # Wait for server to be ready
+          for i in {1..30}; do
+            curl -sf http://localhost:8080 >/dev/null 2>&1 && break
+            sleep 2
+          done
       - name: Run Gradle cache acceptance test
-        run: mise run e2e gradle_cache
+        run: KEEP_SERVER=true mise run e2e gradle_cache
