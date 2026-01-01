@@ -14,15 +14,15 @@
 <!-- -->
 :::
 
-앱을 빌드할 때 다른 사람들과 공유하여 피드백을 받고 싶을 수 있습니다. 일반적으로 팀은 앱을 빌드하고 서명하여 Apple의
-[TestFlight](https://developer.apple.com/testflight/)와 같은 플랫폼에 푸시하는 방식으로 이 작업을
+앱을 빌드할 때 다른 사람의 피드백을 받기 위해 공유하고 싶을 수 있습니다. 일반적으로 팀은 앱을 빌드하고 서명하여 Apple의
+[TestFlight](https://developer.apple.com/testflight/)와 같은 플랫폼에 올리는 방식으로 이 작업을
 수행합니다. 하지만 이 과정은 번거롭고 느릴 수 있으며, 특히 동료나 친구로부터 빠른 피드백을 받고자 할 때는 더욱 그렇습니다.
 
-이 과정을 더욱 간소화하기 위해 Tuist는 앱의 미리보기를 생성하고 누구와도 공유할 수 있는 방법을 제공합니다.
+이 과정을 더욱 간소화하기 위해, Tuist는 앱의 미리보기를 생성하고 누구와도 공유할 수 있는 방법을 제공합니다.
 
-::: warning DEVICE BUILDS NEED TO BE SIGNED
+::: warning 기기용 빌드는 서명 필요
 <!-- -->
-디바이스용으로 빌드할 때 앱이 올바르게 서명되었는지 확인하는 것은 현재 사용자의 책임입니다. 향후 이 과정을 간소화할 계획입니다.
+기기용으로 빌드할 때, 앱이 올바르게 서명되었는지 확인하는 것은 현재는 여러분의 책임이지만, 향후 이 과정을 간소화할 계획입니다.
 <!-- -->
 :::
 
@@ -50,9 +50,9 @@ tuist run {url}
 tuist run --device "My iPhone" {url} # Run the app on a specific device
 ```
 
-`.ipa` 파일을 공유할 때 미리 보기 링크를 사용하여 모바일 장치에서 직접 앱을 다운로드할 수 있습니다. ` .ipa` 미리보기 링크는
-기본적으로 _비공개_ 로 되어 있으므로 수신자는 앱을 다운로드하려면 자신의 Tuist 계정으로 인증해야 합니다. 앱을 다른 사람과 공유하려는
-경우 프로젝트 설정에서 공개로 변경할 수 있습니다.
+`.ipa` 파일을 공유할 때, **미리 보기** 링크를 사용하여 모바일 기기에서 직접 앱을 다운로드할 수 있습니다. ` .ipa` 미리 보기
+링크는 기본적으로 _비공개_ 로 되어 있는데, 수신자가 앱을 다운로드하려면 자신의 Tuist 계정으로 인증해야 하는 것을 의미 합니다. 앱을
+다른 사람과 공유하려는 경우 프로젝트 설정에서 _공개_로 변경할 수 있습니다.
 
 `tuist run` 을 사용하면 `최신`, 브랜치 이름 또는 특정 커밋 해시와 같은 지정자를 기반으로 최신 미리보기를 실행할 수도 있습니다:
 
@@ -62,9 +62,9 @@ tuist run App@my-feature-branch # Runs latest App preview associated with a give
 tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview associated with a given git commit sha
 ```
 
-::: warning UNIQUE BUILD NUMBERS IN CI
+::: warning CI의 고유 빌드 번호
 <!-- -->
-대부분의 CI 제공업체가 노출하는 CI 실행 번호를 활용하여 `CFBundleVersion` (빌드 버전)이 고유한지 확인하세요. 예를 들어,
+대부분의 CI 제공업체가 제공하는 CI 실행 번호를 활용하여 `CFBundleVersion` (빌드 버전)이 고유하도록 만드세요. 예를 들어,
 GitHub Actions에서 `CFBundleVersion` 을 <code v-pre>${{ github.run_number }}</code>
 변수로 설정할 수 있습니다.
 
@@ -75,7 +75,7 @@ GitHub Actions에서 `CFBundleVersion` 을 <code v-pre>${{ github.run_number }}<
 ## 트랙 {#tracks}
 
 트랙을 사용하면 미리 보기를 이름 지정된 그룹으로 구성할 수 있습니다. 예를 들어 내부 테스터를 위한 `베타` 트랙과 자동화된 빌드를 위한
-`야간` 트랙이 있을 수 있습니다. 트랙은 느리게 생성되므로 공유할 때 트랙 이름을 지정하기만 하면 트랙이 없는 경우 자동으로 생성됩니다.
+`선공개` 트랙이 있을 수 있습니다. 트랙은 느리게 생성되므로 공유할 때 트랙 이름을 지정하기만 하면 트랙이 없는 경우 자동으로 생성됩니다.
 
 특정 트랙에서 미리보기를 공유하려면 `--track` 옵션을 사용하세요:
 
@@ -84,12 +84,12 @@ tuist share App --track beta
 tuist share App --track nightly
 ```
 
-이 기능은 다음과 같은 경우에 유용합니다:
-- **미리보기 구성하기**: 목적별 그룹 미리보기(예: `베타`, `야간`, `내부`)
-- **인앱 업데이트**: Tuist SDK는 트랙을 사용하여 사용자에게 알릴 업데이트를 결정합니다.
-- **필터링**: 튜이스트 대시보드에서 트랙별 미리보기를 쉽게 찾고 관리할 수 있습니다.
+이 기능은 아래 경우에 유용합니다:
+- **미리보기 구성**: 목적별 그룹 미리보기(예: `베타`, `선공개`, `내부`)
+- **인앱 업데이트**: Tuist SDK는 트랙을 사용하여 사용자에게 알릴 업데이트를 결정합니다
+- **필터링**: Tuist 대시보드에서 트랙별 미리보기를 쉽게 찾고 관리할 수 있습니다
 
-::: warning PREVIEWS' VISIBILITY
+::: warning 미리 보기 권한
 <!-- -->
 프로젝트가 속한 조직에 대한 액세스 권한이 있는 사람만 미리 보기에 액세스할 수 있습니다. 만료되는 링크에 대한 지원도 추가할 계획입니다.
 <!-- -->
@@ -104,9 +104,9 @@ tuist share App --track nightly
     <img src="/images/guides/features/menu-bar-app.png" style="width: 300px;" />
 </div>
 
-튜이스트 프리뷰를 더욱 쉽게 실행할 수 있도록, 튜이스트는 튜이스트 macOS 메뉴바 앱을 개발했습니다. 튜이스트 CLI를 통해 미리 보기를
-실행하는 대신, macOS 앱을 [다운로드](https://tuist.dev/download)할 수 있습니다. ` brew install
---cask tuist/tuist/tuist` 을 실행하여 앱을 설치할 수도 있습니다.
+Tuist 미리 보기를 더욱 쉽게 실행할 수 있도록, Tuist는 Tuist macOS 메뉴바 앱을 개발했습니다. Tuist CLI를 통해 미리
+보기를 실행하는 대신, macOS 앱을 [다운로드](https://tuist.dev/download)할 수 있습니다. ` brew install
+--cask tuist/tuist/tuist`을 실행하여 앱을 설치할 수도 있습니다.
 
 이제 미리보기 페이지에서 '실행'을 클릭하면 현재 선택한 기기에서 macOS 앱이 자동으로 실행됩니다.
 
@@ -218,7 +218,7 @@ let task = sdk.monitorPreviewUpdates { preview in
 task.cancel()
 ```
 
-::: info Mise란?
+::: info
 <!-- -->
 시뮬레이터 및 App Store 빌드에서는 업데이트 확인이 자동으로 비활성화됩니다.
 <!-- -->
