@@ -65,7 +65,7 @@ let template = Template(
 tuist scaffold name_of_template --name Name --platform macos
 ```
 
-::: info Mise란?
+::: info
 <!-- -->
 플랫폼은 선택적 인자이므로 `--platform macos` 인수 없이 명령을 호출할 수도 있습니다.
 <!-- -->
