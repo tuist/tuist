@@ -582,6 +582,9 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     env:
       MIX_ENV: dev
+      DATABASE_HOST: localhost
+      DATABASE_USERNAME: postgres
+      DATABASE_PASSWORD: postgres
     services:
       postgres:
         image: timescale/timescaledb-ha:pg16
