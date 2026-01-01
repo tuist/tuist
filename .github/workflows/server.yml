@@ -629,4 +629,4 @@ jobs:
       - name: Seed the database
         run: mix run priv/repo/seeds.exs
       - name: Run Gradle cache acceptance test
-        run: mise run acceptance:gradle-cache --verbose
+        run: mise run e2e gradle_cache
