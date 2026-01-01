@@ -346,6 +346,59 @@ if is_nil(Repo.get_by(QA.LaunchArgumentGroup, project_id: tuist_project.id, name
   |> Repo.insert!()
 end
 
+# Create a Gradle project for testing
+gradle_project =
+  case Projects.get_project_by_slug("tuist/gradle") do
+    {:ok, project} ->
+      project
+
+    {:error, _} ->
+      Projects.create_project!(
+        %{
+          name: "gradle",
+          account: %{id: organization.account.id}
+        },
+        build_system: :gradle
+      )
+  end
+
+# Create a known account token for Gradle cache testing
+# Use a fixed UUID so the token is fully deterministic for dev/testing
+gradle_token_id = "01234567-89ab-cdef-0123-456789abcdef"
+gradle_token_name = "gradle-cache-dev"
+gradle_token_hash = "gradlecachedevtoken"
+
+# The full token for use in Gradle config:
+# tuist_01234567-89ab-cdef-0123-456789abcdef_gradlecachedevtoken
+gradle_full_token = "tuist_#{gradle_token_id}_#{gradle_token_hash}"
+
+existing_gradle_token = Repo.get(Tuist.Accounts.AccountToken, gradle_token_id)
+
+if is_nil(existing_gradle_token) do
+  encrypted_token_hash =
+    Bcrypt.hash_pwd_salt(gradle_token_hash <> Tuist.Environment.secret_key_password())
+
+  changeset =
+    Tuist.Accounts.AccountToken.create_changeset(%{
+      account_id: organization.account.id,
+      encrypted_token_hash: encrypted_token_hash,
+      scopes: ["project:cache:read", "project:cache:write"],
+      name: gradle_token_name,
+      all_projects: true
+    })
+
+  # Force the specific ID for deterministic token
+  changeset
+  |> Ecto.Changeset.force_change(:id, gradle_token_id)
+  |> Repo.insert!()
+
+  IO.puts("Created Gradle cache token: #{gradle_full_token}")
+else
+  IO.puts("Gradle cache token already exists: #{gradle_full_token}")
+end
+
+IO.puts("Gradle project created: tuist/gradle (build_system: gradle)")
+
 IO.puts("Generating #{seed_config.build_runs} build runs in parallel...")
 
 org_account_id = organization.account.id

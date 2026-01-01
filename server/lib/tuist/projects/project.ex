@@ -27,6 +27,7 @@ defmodule Tuist.Projects.Project do
     field :qa_app_description, :string, default: ""
     field :qa_email, :string, default: ""
     field :qa_password, :string, default: ""
+    field :build_system, Ecto.Enum, values: [:xcode, :gradle], default: :xcode
 
     field :slack_channel_id, :string
     field :slack_channel_name, :string
@@ -66,12 +67,14 @@ defmodule Tuist.Projects.Project do
       :name,
       :created_at,
       :visibility,
-      :default_previews_visibility
+      :default_previews_visibility,
+      :build_system
     ])
     |> validate_inclusion(:visibility, [:private, :public])
     |> validate_required([:token, :account_id, :name])
     |> validate_name()
     |> validate_inclusion(:default_previews_visibility, [:private, :public])
+    |> validate_inclusion(:build_system, [:xcode, :gradle])
   end
 
   def update_changeset(project, attrs) do
