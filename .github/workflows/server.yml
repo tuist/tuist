@@ -575,3 +575,115 @@ jobs:
         run: mix ecto.migrate
       - name: Seed the database
         run: mix run priv/repo/seeds.exs
+  gradle_cache_acceptance:
+    name: Gradle Cache Acceptance
+    runs-on: namespace-profile-default
+    timeout-minutes: 20
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    services:
+      postgres:
+        image: timescale/timescaledb-ha:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        id: mix-cache
+        with:
+          path: |
+            server/deps
+            server/_build
+          key: mix-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            mix-
+      - name: Restore PNPM Cache
+        uses: actions/cache@v4
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: server
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - run: mise run install
+      - run: mise run clickhouse:start
+      - run: mise run db:reset
+      - name: Seed the database
+        run: mix run priv/repo/seeds.exs
+      - name: Start server in background
+        run: |
+          mix phx.server &
+          echo $! > /tmp/server.pid
+          # Wait for server to be ready
+          for i in {1..30}; do
+            if curl -s http://localhost:8080 > /dev/null 2>&1; then
+              echo "Server is ready"
+              break
+            fi
+            echo "Waiting for server... ($i/30)"
+            sleep 2
+          done
+        env:
+          MIX_ENV: dev
+      - name: Build Android app (first build - push to cache)
+        working-directory: examples/gradle/simple_android_app
+        run: |
+          ./gradlew clean
+          ./gradlew assembleDebug --build-cache --info 2>&1 | tee /tmp/first_build.log
+        env:
+          TUIST_TOKEN: tuist_01234567-89ab-cdef-0123-456789abcdef_gradlecachedevtoken
+      - name: Clear local Gradle cache
+        run: rm -rf ~/.gradle/caches/build-cache-1/*
+      - name: Build Android app (second build - pull from cache)
+        working-directory: examples/gradle/simple_android_app
+        run: |
+          ./gradlew clean
+          ./gradlew assembleDebug --build-cache --info 2>&1 | tee /tmp/second_build.log
+        env:
+          TUIST_TOKEN: tuist_01234567-89ab-cdef-0123-456789abcdef_gradlecachedevtoken
+      - name: Verify cache hits from remote
+        run: |
+          echo "=== Checking second build for remote cache hits ==="
+
+          # Check that the build used the remote cache
+          if ! grep -q "Using remote HTTP build cache" /tmp/second_build.log; then
+            echo "::error::Remote HTTP build cache was not used"
+            exit 1
+          fi
+
+          # Count FROM-CACHE tasks
+          CACHE_HITS=$(grep -c "FROM-CACHE" /tmp/second_build.log || echo "0")
+          echo "Cache hits: $CACHE_HITS"
+
+          if [ "$CACHE_HITS" -lt 5 ]; then
+            echo "::error::Expected at least 5 cache hits, got $CACHE_HITS"
+            echo "=== Build log ==="
+            cat /tmp/second_build.log
+            exit 1
+          fi
+
+          echo "✅ Gradle cache acceptance test passed with $CACHE_HITS cache hits"
+      - name: Stop server
+        if: always()
+        run: |
+          if [ -f /tmp/server.pid ]; then
+            kill $(cat /tmp/server.pid) || true
+          fi
