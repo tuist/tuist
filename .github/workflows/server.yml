@@ -580,6 +580,8 @@ jobs:
     runs-on: namespace-profile-default
     timeout-minutes: 20
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    env:
+      MIX_ENV: dev
     services:
       postgres:
         image: timescale/timescaledb-ha:pg16
