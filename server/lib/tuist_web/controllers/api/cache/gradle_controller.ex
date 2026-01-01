@@ -42,7 +42,7 @@ defmodule TuistWeb.API.Cache.GradleController do
 
     case Plug.Conn.read_body(conn, length: @max_artifact_size) do
       {:ok, body, conn} ->
-        unless Storage.object_exists?(key, current_subject) do
+        if !Storage.object_exists?(key, current_subject) do
           Storage.put_object(key, body, current_subject)
         end
 
