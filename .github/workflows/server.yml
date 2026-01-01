@@ -631,6 +631,8 @@ jobs:
       - run: mise run install
       - run: mise run clickhouse:start
       - run: mise run db:reset
+      - name: Run migrations
+        run: mix ecto.migrate
       - name: Seed the database
         run: mix run priv/repo/seeds.exs
       - name: Run Gradle cache acceptance test
