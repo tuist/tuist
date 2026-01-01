@@ -425,6 +425,20 @@ defmodule TuistWeb.Router do
     end
 
     scope "/cache" do
+      scope "/keyvalue" do
+        put "/", Cache.KeyValueController, :put_value
+        get "/:cas_id", Cache.KeyValueController, :get_value
+      end
+
+      scope "/cas" do
+        get "/:id", CASController, :load
+        post "/:id", CASController, :save
+      end
+
+      scope "/gradle/:account_handle/:project_handle" do
+        get "/:hash", Cache.GradleController, :load
+        put "/:hash", Cache.GradleController, :save
+      end
       get "/endpoints", CacheController, :endpoints
       get "/", CacheController, :download
       get "/exists", CacheController, :exists
