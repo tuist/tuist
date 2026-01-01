@@ -27,7 +27,7 @@ defmodule Tuist.Projects.Project do
     field :qa_app_description, :string, default: ""
     field :qa_email, :string, default: ""
     field :qa_password, :string, default: ""
-    field :build_system, Ecto.Enum, values: [:xcode, :gradle], default: :xcode
+    field :build_system, Ecto.Enum, values: [xcode: 0, gradle: 1], default: :xcode
 
     field :slack_channel_id, :string
     field :slack_channel_name, :string

@@ -3,7 +3,7 @@ defmodule Tuist.Repo.Migrations.AddBuildSystemToProjects do
 
   def change do
     alter table(:projects) do
-      add :build_system, :string, default: "xcode", null: false
+      add :build_system, :integer, default: 0, null: false
     end
 
     create index(:projects, [:build_system])
