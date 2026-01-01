@@ -62,7 +62,7 @@ defmodule Tuist.Ops.DailySlackReportWorkerTest do
                          type: "rich_text_section",
                          elements: [
                            %{type: "text", text: "👩‍💻 Users: ", style: %{bold: true}},
-                           %{type: "text", text: "1 created (↑ 0.0%) | Total: 1\n"}
+                           %{type: "text", text: "1 created (↑ 0%) | Total: 1\n"}
                          ]
                        },
                        %{
@@ -73,14 +73,14 @@ defmodule Tuist.Ops.DailySlackReportWorkerTest do
                              text: "💼 Organizations: ",
                              style: %{bold: true}
                            },
-                           %{type: "text", text: "1 created (↑ 0.0%) | Total: 1\n"}
+                           %{type: "text", text: "1 created (↑ 0%) | Total: 1\n"}
                          ]
                        },
                        %{
                          type: "rich_text_section",
                          elements: [
                            %{type: "text", text: "⚙️ Projects: ", style: %{bold: true}},
-                           %{type: "text", text: "1 created (↑ 0.0%) | Total: 1\n"}
+                           %{type: "text", text: "1 created (↑ 0%) | Total: 1\n"}
                          ]
                        },
                        %{
@@ -91,7 +91,7 @@ defmodule Tuist.Ops.DailySlackReportWorkerTest do
                              text: "▶️ Command events: ",
                              style: %{bold: true}
                            },
-                           %{type: "text", text: "1 created (↑ 0.0%) | Total: 1\n"}
+                           %{type: "text", text: "1 created (↑ 0%) | Total: 1\n"}
                          ]
                        }
                      ],
