@@ -92,5 +92,6 @@ defmodule Tuist.Runs.Build do
     ])
     |> validate_inclusion(:status, [:success, :failure])
     |> validate_inclusion(:ci_provider, [:github, :gitlab, :bitrise, :circleci, :buildkite, :codemagic])
+    |> unique_constraint(:id, match: :suffix, name: "build_runs_pkey")
   end
 end

@@ -34,7 +34,7 @@ struct CASServiceTests {
         serverAuthenticationController = .init()
 
         given(cacheURLStore)
-            .getCacheURL(for: .any)
+            .getCacheURL(for: .any, accountHandle: .any)
             .willReturn(URL(string: "https://cache.example.com")!)
 
         given(serverAuthenticationController)

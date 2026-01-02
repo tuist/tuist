@@ -6289,7 +6289,7 @@ public struct Client: APIProtocol {
     }
     /// Get cache endpoints.
     ///
-    /// This endpoint returns a list of available cache endpoints.
+    /// Returns custom cache endpoints if configured for the account, otherwise returns default endpoints.
     ///
     /// - Remark: HTTP `GET /api/cache/endpoints`.
     /// - Remark: Generated from `#/paths//api/cache/endpoints/get(getCacheEndpoints)`.
@@ -6307,6 +6307,13 @@ public struct Client: APIProtocol {
                     method: .get
                 )
                 suppressMutabilityWarning(&request)
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "account_handle",
+                    value: input.query.account_handle
+                )
                 converter.setAcceptHeader(
                     in: &request.headerFields,
                     contentTypes: input.headers.accept

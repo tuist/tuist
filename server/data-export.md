@@ -18,6 +18,7 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - Organization memberships and roles
 - Account billing information and subscriptions
 - API tokens and project tokens (existence only, not values)
+- Custom cache endpoint configurations
 
 ### Projects & Development
 - Project information (names, settings, repositories)

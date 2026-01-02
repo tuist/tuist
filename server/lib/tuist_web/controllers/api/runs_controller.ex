@@ -792,7 +792,7 @@ defmodule TuistWeb.API.RunsController do
         {:ok, build}
 
       nil ->
-        Runs.create_build(%{
+        build_attrs = %{
           id: params.id,
           duration: params.duration,
           macos_version: Map.get(params, :macos_version),
@@ -817,7 +817,24 @@ defmodule TuistWeb.API.RunsController do
           targets: Map.get(params, :targets, []),
           cacheable_tasks: Map.get(params, :cacheable_tasks, []),
           cas_outputs: Map.get(params, :cas_outputs, [])
-        })
+        }
+
+        build_attrs
+        |> Runs.create_build()
+        |> handle_build_creation_result(params.id)
+    end
+  end
+
+  defp handle_build_creation_result({:ok, build}, _build_id), do: {:ok, build}
+
+  defp handle_build_creation_result({:error, changeset}, build_id) do
+    if Keyword.has_key?(changeset.errors, :id) do
+      case Runs.get_build(build_id) do
+        %Runs.Build{} = build -> {:ok, build}
+        nil -> {:error, :creation_failed}
+      end
+    else
+      {:error, changeset}
     end
   end
 
