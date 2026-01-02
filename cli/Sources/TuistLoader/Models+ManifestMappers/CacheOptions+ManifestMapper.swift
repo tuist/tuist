@@ -78,7 +78,8 @@ extension TuistCore.CacheProfile {
     ) -> Self {
         .init(
             base: .from(manifest: manifest.base),
-            targetQueries: manifest.targetQueries.map { .from(manifest: $0) }
+            targetQueries: manifest.targetQueries.map { .from(manifest: $0) },
+            exceptTargetQueries: manifest.exceptTargetQueries.map { .from(manifest: $0) }
         )
     }
 }

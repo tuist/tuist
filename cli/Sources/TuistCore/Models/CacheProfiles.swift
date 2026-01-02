@@ -43,22 +43,28 @@ public struct CacheProfile: Codable, Equatable, Sendable, Hashable {
     /// Target names or tags to replace with cached binaries (in addition to base behavior)
     public let targetQueries: [TargetQuery]
 
+    /// Target names or tags to exclude from binary caching.
+    /// These exceptions override both the base profile behavior and any targets specified in `targetQueries`.
+    public let exceptTargetQueries: [TargetQuery]
+
     public init(
         base: BaseCacheProfile,
-        targetQueries: [TargetQuery]
+        targetQueries: [TargetQuery],
+        exceptTargetQueries: [TargetQuery] = []
     ) {
         self.base = base
         self.targetQueries = targetQueries
+        self.exceptTargetQueries = exceptTargetQueries
     }
 
     /// A cache profile that replaces external dependencies only
-    public static let onlyExternal = CacheProfile(base: .onlyExternal, targetQueries: [])
+    public static let onlyExternal = CacheProfile(base: .onlyExternal, targetQueries: [], exceptTargetQueries: [])
 
     /// A cache profile that replaces as many targets as possible with cached binaries
-    public static let allPossible = CacheProfile(base: .allPossible, targetQueries: [])
+    public static let allPossible = CacheProfile(base: .allPossible, targetQueries: [], exceptTargetQueries: [])
 
     /// A cache profile that disables all binary caching
-    public static let none = CacheProfile(base: .none, targetQueries: [])
+    public static let none = CacheProfile(base: .none, targetQueries: [], exceptTargetQueries: [])
 }
 
 public struct CacheProfiles: Codable, Equatable, Sendable, Hashable {
