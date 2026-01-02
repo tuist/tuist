@@ -393,6 +393,9 @@
                                 }
                             },
                             "text": "Kuźnie Git"
+                        },
+                        "slack": {
+                            "text": "Slack"
                         }
                     }
                 },
