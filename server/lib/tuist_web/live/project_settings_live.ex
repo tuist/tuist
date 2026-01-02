@@ -310,6 +310,9 @@ defmodule TuistWeb.ProjectSettingsLive do
   defp format_day_group([first, last]), do: "#{Timex.day_shortname(first)}, #{Timex.day_shortname(last)}"
   defp format_day_group([first | rest]), do: "#{Timex.day_shortname(first)}-#{Timex.day_shortname(List.last(rest))}"
 
+  defp format_selected_days([]), do: dgettext("dashboard_projects", "Select days")
+  defp format_selected_days(days), do: format_days_range(days)
+
   defp format_slack_reports_tag(%{selected_project: project, user_timezone: user_timezone}) do
     channel_str = "##{project.slack_channel_name}"
     days = project.slack_report_days_of_week
