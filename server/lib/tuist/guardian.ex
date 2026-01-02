@@ -31,18 +31,18 @@ defmodule Tuist.Guardian do
   end
 
   def resource_from_claims(%{"sub" => id, "type" => "account"} = claims) do
-    account = Accounts.get_account_by_id(id)
+    case Accounts.get_account_by_id(id) do
+      {:ok, account} ->
+        {:ok,
+         %AuthenticatedAccount{
+           account: account,
+           scopes: claims["scopes"],
+           all_projects: false,
+           project_ids: extract_project_ids(claims)
+         }}
 
-    if account do
-      {:ok,
-       %AuthenticatedAccount{
-         account: account,
-         scopes: claims["scopes"],
-         all_projects: false,
-         project_ids: extract_project_ids(claims)
-       }}
-    else
-      {:error, :resource_not_found}
+      {:error, :not_found} ->
+        {:error, :resource_not_found}
     end
   end
 

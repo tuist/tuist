@@ -53,7 +53,7 @@ defmodule Tuist.Projects do
         nil
 
       _ ->
-        account = Accounts.get_account_by_id(project.account_id)
+        {:ok, account} = Accounts.get_account_by_id(project.account_id)
 
         %ProjectAccount{
           handle: "#{account.name}/#{project.name}",

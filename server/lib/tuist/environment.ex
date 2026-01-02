@@ -401,6 +401,18 @@ defmodule Tuist.Environment do
     get([:slack, :tuist, :token], secrets)
   end
 
+  def slack_client_id(secrets \\ secrets()) do
+    get([:slack, :client_id], secrets)
+  end
+
+  def slack_client_secret(secrets \\ secrets()) do
+    get([:slack, :client_secret], secrets)
+  end
+
+  def slack_configured?(secrets \\ secrets()) do
+    slack_client_id(secrets) != nil and slack_client_secret(secrets) != nil
+  end
+
   def stripe_api_key(secrets \\ secrets()) do
     get([:stripe, :secret_key], secrets)
   end

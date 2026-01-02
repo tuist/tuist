@@ -173,9 +173,11 @@ if Enum.member?([:prod, :stag, :can, :dev], env) do
       {_env, _host} -> {0, 0, 0, 0, 0, 0, 0, 0}
     end
 
+  check_origin = if env == :dev, do: false, else: [app_url]
+
   config :tuist, TuistWeb.Endpoint,
     url: [host: app_url_host, port: app_url_port, scheme: app_url_scheme],
-    check_origin: [app_url],
+    check_origin: check_origin,
     http: [
       ip: http_ip,
       port: port
@@ -358,6 +360,7 @@ config :tuist, Oban,
            {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
            {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
            {"@hourly", Tuist.Registry.Swift.Workers.SyncPackagesWorker},
+           {"@hourly", Tuist.Slack.Workers.ReportWorker},
            {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
            {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker}
          ],

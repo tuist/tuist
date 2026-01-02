@@ -20,7 +20,7 @@ defmodule TuistWeb.GitHubAppSetupControllerTest do
 
       expect(Accounts, :get_account_by_id, fn account_id ->
         assert account_id == account.id
-        account
+        {:ok, account}
       end)
 
       conn =

@@ -83,6 +83,11 @@ defmodule Tuist do
       QA,
       QA.LaunchArgumentGroup,
       VCS.GitHubAppInstallation,
+      Slack,
+      Slack.Client,
+      Slack.Installation,
+      Slack.Reports,
+      Slack.Workers.ReportWorker,
       # Support
       # -----
       # These modules represent Tuist-agnostic utilities that are used by other features.

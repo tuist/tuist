@@ -1149,7 +1149,7 @@ defmodule Tuist.AccountsTest do
 
       # Then
       assert Accounts.get_organization_by_id(organization.id) == {:error, :not_found}
-      assert Accounts.get_account_by_id(account.id) == nil
+      assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
     end
   end
 
@@ -1461,7 +1461,7 @@ defmodule Tuist.AccountsTest do
 
       # Then
       assert Accounts.get_user_by_id(user.id) == nil
-      assert Accounts.get_account_by_id(account.id) == nil
+      assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
       assert Projects.get_project_by_id(project.id) == nil
 
       assert Accounts.get_oauth2_identity_by_provider_and_id(
@@ -3162,7 +3162,7 @@ defmodule Tuist.AccountsTest do
 
       # Then
       assert Accounts.get_user_by_id(user.id) == nil
-      assert Accounts.get_account_by_id(account.id) == nil
+      assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
     end
 
     test "deletes an organization account successfully" do
@@ -3176,7 +3176,7 @@ defmodule Tuist.AccountsTest do
 
       # Then
       assert Accounts.get_organization_by_id(organization.id) == {:error, :not_found}
-      assert Accounts.get_account_by_id(account.id) == nil
+      assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
     end
   end
 
@@ -3367,7 +3367,8 @@ defmodule Tuist.AccountsTest do
 
       # Then
       assert reason == error_reason
-      assert is_nil(Accounts.get_account_by_id(account.id).namespace_tenant_id)
+      {:ok, reloaded_account} = Accounts.get_account_by_id(account.id)
+      assert is_nil(reloaded_account.namespace_tenant_id)
     end
   end
 

@@ -122,7 +122,7 @@ defmodule TuistWeb.API.CacheControllerTest do
     test "returns download url", %{conn: conn, cache: cache} do
       # Given
       project = ProjectsFixtures.project_fixture()
-      account = Accounts.get_account_by_id(project.account_id)
+      {:ok, account} = Accounts.get_account_by_id(project.account_id)
       hash = "hash"
       name = "name"
       project_slug = "#{account.name}/#{project.name}"
@@ -168,7 +168,7 @@ defmodule TuistWeb.API.CacheControllerTest do
     } do
       # Given
       project = ProjectsFixtures.project_fixture()
-      account = Accounts.get_account_by_id(project.account_id)
+      {:ok, account} = Accounts.get_account_by_id(project.account_id)
 
       Repo.update!(
         Ecto.Changeset.change(account,
@@ -249,7 +249,7 @@ defmodule TuistWeb.API.CacheControllerTest do
     test "returns cache action item", %{conn: conn, cache: cache} do
       # Given
       project = ProjectsFixtures.project_fixture()
-      account = Accounts.get_account_by_id(project.account_id)
+      {:ok, account} = Accounts.get_account_by_id(project.account_id)
       hash = "hash"
       stub(Tuist.Environment, :dev?, fn -> false end)
       stub(Tuist.Environment, :test?, fn -> false end)
@@ -284,7 +284,7 @@ defmodule TuistWeb.API.CacheControllerTest do
     } do
       # Given
       project = ProjectsFixtures.project_fixture()
-      account = Accounts.get_account_by_id(project.account_id)
+      {:ok, account} = Accounts.get_account_by_id(project.account_id)
 
       conn = Authentication.put_current_project(conn, project)
 
@@ -304,7 +304,7 @@ defmodule TuistWeb.API.CacheControllerTest do
          %{conn: conn, cache: cache} do
       # Given
       project = ProjectsFixtures.project_fixture()
-      account = Accounts.get_account_by_id(project.account_id)
+      {:ok, account} = Accounts.get_account_by_id(project.account_id)
       hash = "hash"
 
       Repo.update!(
@@ -506,7 +506,7 @@ defmodule TuistWeb.API.CacheControllerTest do
     test "starts multipart upload", %{conn: conn, cache: cache} do
       # Given
       project = ProjectsFixtures.project_fixture()
-      account = Accounts.get_account_by_id(project.account_id)
+      {:ok, account} = Accounts.get_account_by_id(project.account_id)
       hash = "hash"
       name = "name"
       project_id = "#{account.name}/#{project.name}"
@@ -539,7 +539,7 @@ defmodule TuistWeb.API.CacheControllerTest do
          %{conn: conn, cache: cache} do
       # Given
       project = ProjectsFixtures.project_fixture()
-      account = Accounts.get_account_by_id(project.account_id)
+      {:ok, account} = Accounts.get_account_by_id(project.account_id)
       hash = "hash"
       name = "name"
       project_id = "#{account.name}/#{project.name}"
@@ -574,7 +574,7 @@ defmodule TuistWeb.API.CacheControllerTest do
     test "generates the url", %{conn: conn, cache: cache} do
       # Given
       project = ProjectsFixtures.project_fixture()
-      account = Accounts.get_account_by_id(project.account_id)
+      {:ok, account} = Accounts.get_account_by_id(project.account_id)
       hash = "hash"
       name = "name"
       project_id = "#{account.name}/#{project.name}"
@@ -613,7 +613,7 @@ defmodule TuistWeb.API.CacheControllerTest do
          %{conn: conn, cache: cache} do
       # Given
       project = ProjectsFixtures.project_fixture()
-      account = Accounts.get_account_by_id(project.account_id)
+      {:ok, account} = Accounts.get_account_by_id(project.account_id)
       hash = "hash"
       name = "name"
       project_id = "#{account.name}/#{project.name}"
@@ -650,7 +650,7 @@ defmodule TuistWeb.API.CacheControllerTest do
     test "completes a multipart upload", %{conn: conn, cache: cache} do
       # Given
       project = ProjectsFixtures.project_fixture()
-      account = Accounts.get_account_by_id(project.account_id)
+      {:ok, account} = Accounts.get_account_by_id(project.account_id)
       hash = "hash"
       name = "name"
       project_slug = "#{account.name}/#{project.name}"
@@ -698,7 +698,7 @@ defmodule TuistWeb.API.CacheControllerTest do
     } do
       # Given
       project = ProjectsFixtures.project_fixture()
-      account = Accounts.get_account_by_id(project.account_id)
+      {:ok, account} = Accounts.get_account_by_id(project.account_id)
       hash = "hash"
       name = "name"
       project_id = "#{account.name}/#{project.name}"
@@ -740,7 +740,7 @@ defmodule TuistWeb.API.CacheControllerTest do
     } do
       # Given
       project = ProjectsFixtures.project_fixture()
-      account = Accounts.get_account_by_id(project.account_id)
+      {:ok, account} = Accounts.get_account_by_id(project.account_id)
       hash = "hash"
       name = "name"
       project_slug = "#{account.name}/#{project.name}"
@@ -780,7 +780,7 @@ defmodule TuistWeb.API.CacheControllerTest do
          %{conn: conn, cache: cache} do
       # Given
       project = ProjectsFixtures.project_fixture()
-      account = Accounts.get_account_by_id(project.account_id)
+      {:ok, account} = Accounts.get_account_by_id(project.account_id)
       hash = "hash"
       name = "name"
       project_slug = "#{account.name}/#{project.name}"
