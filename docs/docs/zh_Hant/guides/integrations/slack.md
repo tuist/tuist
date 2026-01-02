@@ -5,64 +5,48 @@
   "description": "Learn how to integrate Tuist with Slack."
 }
 ---
-# Slack integration {#slack}
+# Slack 整合{#slack}
 
-If your organization uses Slack, you can integrate Tuist to surface insights
-directly in your channels. This turns monitoring from something your team has to
-remember to do into something that just happens. For example, your team can
-receive daily summaries of build performance, cache hit rates, or bundle size
-trends.
+如果您的組織使用 Slack，您可以整合 Tuist
+直接在您的頻道中顯示洞察力。這將監控從您的團隊必須記住要做的事，轉變為即時發生的事。例如，您的團隊可以收到建立效能、快取點擊率或捆綁大小趨勢的每日摘要。
 
-## Setup {#setup}
+## 設定{#setup}
 
-### Connect your Slack workspace {#connect-workspace}
+### 連接您的 Slack 工作區{#connect-workspace}
 
-First, connect your Slack workspace to your Tuist account in the `Integrations`
-tab:
+首先，在`Integrations` 標籤中將您的 Slack 工作區連接到 Tuist 帳戶：
 
-![An image that shows the integrations tab with Slack
-connection](/images/guides/integrations/slack/integrations.png)
+![顯示與 Slack 連線的整合索引標籤的影像](/images/guides/integrations/slack/integrations.png)。
 
-Click **Connect Slack** to authorize Tuist to post messages to your workspace.
-This will redirect you to Slack's authorization page where you can approve the
-connection.
+按一下**Connect Slack** 授權 Tuist 在您的工作區發佈訊息。這會將您重定向到 Slack 的授權頁面，您可以在此批准連線。
 
-> [!NOTE] SLACK ADMIN APPROVAL If your Slack workspace restricts app
-> installations, you may need to request approval from a Slack administrator.
-> Slack will guide you through the approval request process during
-> authorization.
+> [如果您的 Slack 工作區限制安裝應用程式，您可能需要向 Slack 管理員申請批准。在授權期間，Slack 會引導您完成核准請求程序。
 
-### Project reports {#project-reports}
+### 專案報告{#project-reports}
 
-After connecting Slack, configure reports for each project in the project
-settings:
+連接 Slack 後，在專案設定中為每個專案設定報告：
 
-![An image that shows the project settings with Slack report
-configuration](/images/guides/integrations/slack/project-settings.png)
+![顯示專案設定與 Slack
+報告設定的影像](/images/guides/integrations/slack/project-settings.png)。
 
-You can configure:
-- **Channel**: Select which Slack channel receives the reports
-- **Schedule**: Choose which days of the week to receive reports
-- **Time**: Set the time of day
+您可以設定：
+- **頻道** ：選擇哪個 Slack 頻道會接收報告
+- **排程** ：選擇每週哪幾天接收報告
+- **時間**: 設定每天的時間
 
-Once configured, Tuist sends automated daily reports to your selected Slack
-channel:
+設定完成後，Tuist 會自動將每日報告傳送至您選定的 Slack 頻道：
 
 <img src="/images/guides/integrations/slack/report.png" alt="An image that shows a Slack report message" style="max-width: 500px;" />
 
-## On-premise installations {#on-premise}
+## 現場安裝{#on-premise}
 
-For on-premise Tuist installations, you'll need to create your own Slack app and
-configure the necessary environment variables.
+對於內部部署的 Tuist 安裝，您需要建立自己的 Slack 應用程式，並設定必要的環境變數。
 
-### Create a Slack app {#create-slack-app}
+### 建立 Slack 應用程式{#create-slack-app}
 
-1. Go to the [Slack API Apps page](https://api.slack.com/apps) and click
-   **Create New App**
-2. Choose **From an app manifest** and select the workspace where you want to
-   install the app
-3. Paste the following manifest, replacing the redirect URL with your Tuist
-   server URL:
+1. 前往 [Slack API 應用程式頁面](https://api.slack.com/apps)，然後按一下**建立新應用程式**
+2. 選擇**從應用程式清單** ，然後選擇要安裝應用程式的工作區
+3. 貼上下列清單，將重定向 URL 替換為您的 Tuist 伺服器 URL：
 
 ```json
 {
@@ -97,12 +81,11 @@ configure the necessary environment variables.
 }
 ```
 
-4. Review and create the app
+4. 檢視並建立應用程式
 
-### Configure environment variables {#configure-environment}
+### 設定環境變數{#configure-environment}
 
-Set the following environment variables on your Tuist server:
+在 Tuist 伺服器上設定下列環境變數：
 
-- `SLACK_CLIENT_ID` - The Client ID from your Slack app's Basic Information page
-- `SLACK_CLIENT_SECRET` - The Client Secret from your Slack app's Basic
-  Information page
+- `SLACK_CLIENT_ID` - 您的 Slack 應用程式基本資訊頁面中的用戶端 ID
+- `SLACK_CLIENT_SECRET` - 您的 Slack 應用程式基本資訊頁面中的用戶端秘密
