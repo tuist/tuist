@@ -1,5 +1,17 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-12-24 11:48+0000\nLast-Translator: Weblate Admin <admin@cloudron.local>\nLanguage-Team: Spanish <https://translate.tuist.dev/projects/tuist/marketing/es/>\nLanguage: es\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n != 1;\nX-Generator: Weblate 5.15.1\n"
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-11-05 17:58+0000\n"
+"PO-Revision-Date: 2025-12-28 20:02+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Language-Team: Spanish <https://translate.tuist.dev/projects/tuist/marketing/es/>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"X-Generator: Weblate 5.15.1\n"
 
 # # This file is a PO Template file.
 # #
@@ -38,7 +50,9 @@ msgstr "9+"
 msgid ""
 "<p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with \"contact sales\" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>\n"
 "<p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>\n"
-msgstr "<p>Nuestro compromiso con el código abierto y nuestros valores fundamentales conforman nuestro enfoque único de los precios. A diferencia de muchos modelos que intentan sacarle hasta el último dólar con llamadas de \"ventas de contacto\", demostraciones limitadas y otras tácticas de venta, nosotros creemos en la equidad y la transparencia. Tratamos a todos por igual y fijamos precios justos para todos. Al elegir nuestros servicios, no sólo obtiene un gran producto, sino que también apoya el desarrollo de más proyectos de código abierto. Entendemos la creación de un negocio próspero como un viaje a largo plazo, no como un sprint a corto plazo lleno de prácticas turbias. Puedes %{read_more} sobre nuestra filosofía.</p>\n<p>Al apoyar a Tuist, también estás apoyando el desarrollo de más software de código abierto para el ecosistema Swift.</p>\n"
+msgstr ""
+"<p>Nuestro compromiso con el código abierto y nuestros valores fundamentales conforman nuestro enfoque único de los precios. A diferencia de muchos modelos que intentan sacarle hasta el último dólar con llamadas de \"ventas de contacto\", demostraciones limitadas y otras tácticas de venta, nosotros creemos en la equidad y la transparencia. Tratamos a todos por igual y fijamos precios justos para todos. Al elegir nuestros servicios, no sólo obtiene un gran producto, sino que también apoya el desarrollo de más proyectos de código abierto. Entendemos la creación de un negocio próspero como un viaje a largo plazo, no como un sprint a corto plazo lleno de prácticas turbias. Puedes %{read_more} sobre nuestra filosofía.</p>\n"
+"<p>Al apoyar a Tuist, también estás apoyando el desarrollo de más software de código abierto para el ecosistema Swift.</p>\n"
 
 msgid "A confirmation email has been sent to your account with further details."
 msgstr "Se ha enviado un correo electrónico de confirmación a su cuenta con más detalles."
@@ -912,6 +926,66 @@ msgstr "en vivo en nuestro panel"
 
 msgid "Language"
 msgstr "Idioma"
+
+#, fuzzy
+msgid "Read story"
+msgstr "Leer el artículo"
+
+#, fuzzy
+msgid "%{company} case study"
+msgstr "Estudio de caso %{empresa"
+
+#, fuzzy
+msgid "(opens in new tab)"
+msgstr "(se abre en una nueva pestaña)"
+
+#, fuzzy
+msgid "Case Studies"
+msgstr "Casos prácticos"
+
+#, fuzzy
+msgid "Discover how teams around the world use Tuist to build high-quality apps faster, streamline workflows, and save countless hours of engineering time."
+msgstr "Descubre cómo equipos de todo el mundo utilizan Tuist para crear aplicaciones de alta calidad más rápidamente, agilizar los flujos de trabajo y ahorrar incontables horas de tiempo de ingeniería."
+
+#, fuzzy
+msgid "Founded"
+msgstr "Fundada"
+
+#, fuzzy
+msgid "Learn how teams use Tuist to scale their iOS development."
+msgstr "Descubre cómo los equipos utilizan Tuist para escalar su desarrollo iOS."
+
+#, fuzzy
+msgid "Onboarded"
+msgstr "A bordo"
+
+#, fuzzy
+msgid "Read next"
+msgstr "Leer más"
+
+#, fuzzy
+msgid "Tuist Case Studies"
+msgstr "Casos prácticos Tuist"
+
+#, fuzzy
+msgid "Case studies"
+msgstr "Casos prácticos"
+
+#, fuzzy
+msgid "Explore Tuist's features on the public dashboard"
+msgstr "Explora las funciones de Tuist en el panel de control público"
+
+#, fuzzy
+msgid "Public dashboard"
+msgstr "Cuadro de mandos público"
+
+#, fuzzy
+msgid "See how leading teams scale with Tuist"
+msgstr "Vea cómo los equipos líderes escalan con Tuist"
+
+#, fuzzy
+msgid "See how leading tech companies are scaling their development with Tuist."
+msgstr "Descubre cómo las principales empresas tecnológicas están escalando su desarrollo con Tuist."
 
 #~ msgid "$0"
 #~ msgstr "$0"
