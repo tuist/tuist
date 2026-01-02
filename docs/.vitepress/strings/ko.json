@@ -393,6 +393,9 @@
                                 }
                             },
                             "text": "Git 저장소"
+                        },
+                        "slack": {
+                            "text": "Slack"
                         }
                     }
                 },
