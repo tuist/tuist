@@ -1,10 +1,10 @@
 # Aws (Context)
 
-This context owns business logic and data related to aws.
+This context provides AWS HTTP client integration for ExAws.
 
 ## Responsibilities
-- Implement domain logic for aws.
-- Own persistence and queries related to aws when applicable.
+- Implement ExAws HTTP client using Req + Finch.
+- Apply configurable request options for ExAws requests.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.

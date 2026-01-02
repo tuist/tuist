@@ -1,10 +1,10 @@
 # Api (Context)
 
-This context owns business logic and data related to api.
+This context owns API ingestion pipeline logic.
 
 ## Responsibilities
-- Implement domain logic for api.
-- Own persistence and queries related to api when applicable.
+- Batch and process API events via Broadway pipeline.
+- Push events asynchronously to the configured producer (OffBroadway memory buffer).
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.

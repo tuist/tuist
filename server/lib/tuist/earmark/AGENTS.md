@@ -1,10 +1,10 @@
 # Earmark (Context)
 
-This context owns business logic and data related to earmark.
+This context customizes Earmark markdown rendering.
 
 ## Responsibilities
-- Implement domain logic for earmark.
-- Own persistence and queries related to earmark when applicable.
+- Override AST processing for code blocks and headings.
+- Inject marketing-specific HTML wrappers and anchor links.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.

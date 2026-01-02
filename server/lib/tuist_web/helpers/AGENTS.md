@@ -1,10 +1,9 @@
 # Helpers (Web Layer)
 
-This area owns the web-facing helpers concerns for the server.
+This area owns helper functions for views, forms, and UI utilities.
 
 ## Responsibilities
-- Implement helpers for the Phoenix web layer.
-- Keep web-specific behavior here, delegating business logic to `server/lib/tuist`.
+- Provide helpers for formatting, rendering, and UI convenience.
 
 ## Boundaries
 - Domain logic belongs in `server/lib/tuist` contexts.

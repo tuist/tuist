@@ -1,10 +1,10 @@
 # Channels (Web Layer)
 
-This area owns the web-facing channels concerns for the server.
+This area owns Phoenix channels for real-time features.
 
 ## Responsibilities
-- Implement channels for the Phoenix web layer.
-- Keep web-specific behavior here, delegating business logic to `server/lib/tuist`.
+- Handle WebSocket channels (e.g., QA log streaming).
+- Authorize channel access via `Tuist.Authorization`.
 
 ## Boundaries
 - Domain logic belongs in `server/lib/tuist` contexts.

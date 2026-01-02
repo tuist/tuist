@@ -1,10 +1,11 @@
 # Registry (Context)
 
-This context owns business logic and data related to registry.
+This context owns Swift package registry behavior.
 
 ## Responsibilities
-- Implement domain logic for registry.
-- Own persistence and queries related to registry when applicable.
+- Manage Swift package metadata, releases, and manifests.
+- Fetch repository tags via VCS and map versions to SwiftPM semantics.
+- Store package artifacts in object storage.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.
@@ -12,7 +13,7 @@ This context owns business logic and data related to registry.
 - Schema changes and migrations live in `server/priv`.
 
 ## Guardrails
-- If changes add or modify stored customer data, update `server/data-export.md`.
+- Registry data and artifacts are customer data; update `server/data-export.md` on schema changes.
 
 ## Related Context
 - Parent business logic: `server/lib/tuist/AGENTS.md`

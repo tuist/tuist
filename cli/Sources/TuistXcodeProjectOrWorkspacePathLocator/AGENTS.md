@@ -3,8 +3,8 @@
 This module provides helpers for resolving Xcode project/workspace paths.
 
 ## Responsibilities
-- Implement helpers for resolving Xcode project/workspace paths.
-- Keep the module cohesive around its named concern
+- Locate `.xcworkspace` or `.xcodeproj` under a given path.
+- Honor `TUIST_WORKSPACE_PATH` (via `Environment.current.workspacePath`) when set.
 
 ## Boundaries
 - Keep CLI command wiring in `cli/Sources/TuistKit`.
@@ -13,3 +13,6 @@ This module provides helpers for resolving Xcode project/workspace paths.
 ## Related Context
 - cli/Sources/TuistGenerator/AGENTS.md
 - cli/Sources/TuistLoader/AGENTS.md
+
+## Invariants
+- Workspace has precedence over project; falls back to project if workspace is missing.

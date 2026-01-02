@@ -1,10 +1,10 @@
 # Utilities (Web Layer)
 
-This area owns the web-facing utilities concerns for the server.
+This area owns web-layer utilities (query helpers, hashing).
 
 ## Responsibilities
-- Implement utilities for the Phoenix web layer.
-- Keep web-specific behavior here, delegating business logic to `server/lib/tuist`.
+- Provide query string manipulation utilities.
+- Provide helpers like SHA and misc web utilities.
 
 ## Boundaries
 - Domain logic belongs in `server/lib/tuist` contexts.

@@ -3,12 +3,16 @@
 This module provides manifest-facing types used to describe projects, targets, and settings.
 
 ## Responsibilities
-- Implement manifest-facing types used to describe projects, targets, and settings.
-- Keep the module cohesive around its named concern
+- Define the public manifest DSL: `Project`, `Target`, `Scheme`, actions, settings, and resource definitions.
+- Encode manifest structures as `Codable` so they can be loaded and serialized by `TuistLoader`.
 
 ## Boundaries
-- Keep CLI command wiring in `cli/Sources/TuistKit`.
-- Keep shared low-level utilities in `cli/Sources/TuistSupport`.
+- Manifest loading/evaluation lives in `cli/Sources/TuistLoader`.
+- Graph and generation logic lives in `cli/Sources/TuistGenerator`/`TuistCore`.
+
+## Invariants
+- Manifest types are `Codable`/`Equatable` and designed to be stable across versions.
+- `Project` maps 1:1 to `Project.swift` manifests and includes targets, schemes, settings, and packages.
 
 ## Related Context
 - cli/Sources/TuistLoader/AGENTS.md

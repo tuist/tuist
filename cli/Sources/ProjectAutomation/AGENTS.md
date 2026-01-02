@@ -1,14 +1,16 @@
 # ProjectAutomation (CLI Module)
 
-This module provides project automation helpers and models used by Tuist.
+This module provides the serialized output schema used by automation tooling.
 
 ## Responsibilities
-- Implement project automation helpers and models used by Tuist.
-- Keep the module cohesive around its named concern
+- Define `Graph`, `Project`, `Target`, `Scheme`, and related types for automation outputs.
+- Provide a stable, `Codable` representation of the generated Xcode project graph.
 
 ## Boundaries
-- Keep CLI command wiring in `cli/Sources/TuistKit`.
-- Keep shared low-level utilities in `cli/Sources/TuistSupport`.
+- This is an output schema, not the manifest DSL (`ProjectDescription`) or generator logic.
+
+## Invariants
+- Types are `Codable`/`Equatable` and reflect generated project state (paths, targets, schemes).
 
 ## Related Context
 - cli/Sources/ProjectDescription/AGENTS.md

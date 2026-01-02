@@ -1,10 +1,10 @@
 # Api (Web Layer)
 
-This area owns the web-facing api concerns for the server.
+This area owns the OpenAPI spec and schema definitions for the server API.
 
 ## Responsibilities
-- Implement api for the Phoenix web layer.
-- Keep web-specific behavior here, delegating business logic to `server/lib/tuist`.
+- Define the OpenAPI spec (`TuistWeb.API.Spec`) and security schemes.
+- Provide schema modules used by the API controllers and docs.
 
 ## Boundaries
 - Domain logic belongs in `server/lib/tuist` contexts.

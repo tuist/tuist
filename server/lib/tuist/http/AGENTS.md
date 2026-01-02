@@ -1,10 +1,10 @@
 # Http (Context)
 
-This context owns business logic and data related to http.
+This context defines HTTP PromEx metrics integration.
 
 ## Responsibilities
-- Implement domain logic for http.
-- Own persistence and queries related to http when applicable.
+- Emit Prometheus metrics for Finch request lifecycle (queue, connection, send, receive).
+- Sanitize tags for request metrics.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.

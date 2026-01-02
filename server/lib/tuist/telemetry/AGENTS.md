@@ -1,10 +1,9 @@
 # Telemetry (Context)
 
-This context owns business logic and data related to telemetry.
+This context defines telemetry event names used across the server.
 
 ## Responsibilities
-- Implement domain logic for telemetry.
-- Own persistence and queries related to telemetry when applicable.
+- Provide consistent event name helpers for storage, cache, repo pool, and run events.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.

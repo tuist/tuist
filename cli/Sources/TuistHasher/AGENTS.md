@@ -3,8 +3,8 @@
 This module provides hashing utilities used across CLI modules.
 
 ## Responsibilities
-- Implement hashing utilities used across CLI modules.
-- Keep the module cohesive around its named concern
+- Provide content hashing for files, strings, and structured inputs.
+- Offer cached hashing (`CachedContentHasher`) to avoid recomputation.
 
 ## Boundaries
 - Keep CLI command wiring in `cli/Sources/TuistKit`.
@@ -12,3 +12,6 @@ This module provides hashing utilities used across CLI modules.
 
 ## Related Context
 - cli/Sources/TuistSupport/AGENTS.md
+
+## Invariants
+- Cached hashes are stored in-memory and keyed by absolute file path.

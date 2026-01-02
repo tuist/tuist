@@ -1,10 +1,11 @@
 # Storage (Context)
 
-This context owns business logic and data related to storage.
+This context owns object storage access (S3-compatible).
 
 ## Responsibilities
-- Implement domain logic for storage.
-- Own persistence and queries related to storage when applicable.
+- Generate presigned URLs for upload/download (including multipart uploads).
+- Stream and upload objects, check existence, and delete by prefix.
+- Emit telemetry for storage operations.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.
@@ -12,7 +13,7 @@ This context owns business logic and data related to storage.
 - Schema changes and migrations live in `server/priv`.
 
 ## Guardrails
-- If changes add or modify stored customer data, update `server/data-export.md`.
+- Storage keys are customer data; update `server/data-export.md` when keys/paths change.
 
 ## Related Context
 - Parent business logic: `server/lib/tuist/AGENTS.md`

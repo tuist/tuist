@@ -3,8 +3,8 @@
 This module provides testing helpers used by CLI modules and tests.
 
 ## Responsibilities
-- Implement testing helpers used by CLI modules and tests.
-- Keep the module cohesive around its named concern
+- Provide test-only helpers and fixtures (e.g., `MockFatalError`, test data extensions).
+- Supply data builders for HTTP responses and fixtures.
 
 ## Boundaries
 - Keep CLI command wiring in `cli/Sources/TuistKit`.
@@ -12,3 +12,6 @@ This module provides testing helpers used by CLI modules and tests.
 
 ## Related Context
 - cli/Sources/TuistSupport/AGENTS.md
+
+## Invariants
+- Test helpers must avoid mutating global process environment.

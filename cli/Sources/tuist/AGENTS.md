@@ -1,10 +1,14 @@
 # CLI Entry Point (tuist)
 
-This module defines the CLI entry point and command dispatch for the `tuist` binary.
+This module defines the CLI entry point for the `tuist` binary.
 
 ## Responsibilities
-- Parse CLI arguments and route to the appropriate command implementation.
-- Configure process-wide defaults (logging, analytics wiring, environment).
+- Boot the CLI runtime by calling `initDependencies` and delegating to `TuistCommand.main`.
+- Provide the `@main` entry that wires the binary to `TuistKit` command execution.
+
+## Invariants
+- Entrypoint should remain thin: no command logic or option parsing here.
+- Logging and error presentation remain centralized in `TuistKit`.
 
 ## Related Context
 - Command definitions and wiring: `cli/Sources/TuistKit/AGENTS.md`

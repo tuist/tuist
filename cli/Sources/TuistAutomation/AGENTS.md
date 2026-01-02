@@ -3,8 +3,8 @@
 This module provides automation workflows and helpers used by CLI commands.
 
 ## Responsibilities
-- Implement automation workflows and helpers used by CLI commands.
-- Keep the module cohesive around its named concern
+- Provide device automation via `devicectl` (install/launch apps, list devices).
+- Apply project mappers to enable/disable testing targets for automation workflows.
 
 ## Boundaries
 - Keep CLI command wiring in `cli/Sources/TuistKit`.
@@ -13,3 +13,7 @@ This module provides automation workflows and helpers used by CLI commands.
 ## Related Context
 - cli/Sources/ProjectAutomation/AGENTS.md
 - cli/Sources/TuistKit/AGENTS.md
+
+## Invariants
+- Device discovery relies on `xcrun devicectl` JSON output.
+- Unit/UI test targets are tagged `tuist:prunable` to enable pruning.

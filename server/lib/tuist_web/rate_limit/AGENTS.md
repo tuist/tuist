@@ -1,10 +1,10 @@
 # Rate Limit (Web Layer)
 
-This area owns the web-facing rate limit concerns for the server.
+This area owns request rate limiting helpers.
 
 ## Responsibilities
-- Implement rate limit for the Phoenix web layer.
-- Keep web-specific behavior here, delegating business logic to `server/lib/tuist`.
+- Apply auth rate limits with in-memory or Redis-backed token buckets.
+- Compute rate limit keys using client IP.
 
 ## Boundaries
 - Domain logic belongs in `server/lib/tuist` contexts.

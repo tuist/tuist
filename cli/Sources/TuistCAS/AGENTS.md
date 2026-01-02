@@ -1,10 +1,10 @@
 # TuistCAS (CLI Module)
 
-This module provides content-addressable storage (CAS) helpers used by cache features.
+This module provides content-addressable storage (CAS) protobuf and gRPC stubs used by cache features.
 
 ## Responsibilities
-- Implement content-addressable storage (CAS) helpers used by cache features.
-- Keep the module cohesive around its named concern
+- Define gRPC/protobuf types for CAS and key-value operations (`cas.pb.swift`, `keyvalue.pb.swift`).
+- Expose generated gRPC clients used by cache integrations.
 
 ## Boundaries
 - Keep CLI command wiring in `cli/Sources/TuistKit`.

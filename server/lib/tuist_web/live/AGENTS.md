@@ -1,10 +1,10 @@
 # Live (Web Layer)
 
-This area owns the web-facing live concerns for the server.
+This area owns LiveView pages and components for the web UI.
 
 ## Responsibilities
-- Implement live for the Phoenix web layer.
-- Keep web-specific behavior here, delegating business logic to `server/lib/tuist`.
+- Render LiveView pages and handle UI events.
+- Orchestrate UI state while delegating domain operations to `server/lib/tuist`.
 
 ## Boundaries
 - Domain logic belongs in `server/lib/tuist` contexts.

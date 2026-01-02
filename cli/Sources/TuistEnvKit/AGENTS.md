@@ -1,10 +1,9 @@
 # TuistEnvKit (CLI Module)
 
-This module provides environment and configuration helpers for CLI execution.
+This module provides lightweight environment helpers for CLI tooling.
 
 ## Responsibilities
-- Implement environment and configuration helpers for CLI execution.
-- Keep the module cohesive around its named concern
+- Provide shared logging scope for env-related utilities.
 
 ## Boundaries
 - Keep CLI command wiring in `cli/Sources/TuistKit`.

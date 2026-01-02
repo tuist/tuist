@@ -1,10 +1,10 @@
 # Qa (Context)
 
-This context owns business logic and data related to qa.
+This context owns QA run schemas and artifacts (steps, recordings, screenshots).
 
 ## Responsibilities
-- Implement domain logic for qa.
-- Own persistence and queries related to qa when applicable.
+- Define schemas and changesets for QA runs and related artifacts.
+- Support QA workflows with launch arguments, logs, and recordings.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.
@@ -12,7 +12,7 @@ This context owns business logic and data related to qa.
 - Schema changes and migrations live in `server/priv`.
 
 ## Guardrails
-- If changes add or modify stored customer data, update `server/data-export.md`.
+- QA run data is customer data; update `server/data-export.md` on schema changes.
 
 ## Related Context
 - Parent business logic: `server/lib/tuist/AGENTS.md`

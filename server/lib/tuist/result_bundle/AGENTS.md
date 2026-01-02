@@ -1,10 +1,10 @@
 # Result Bundle (Context)
 
-This context owns business logic and data related to result bundle.
+This context models xcresult/action result bundle structures.
 
 ## Responsibilities
-- Implement domain logic for result bundle.
-- Own persistence and queries related to result bundle when applicable.
+- Define schemas for action invocation records, test plans, and references.
+- Parse and structure result bundle metadata for server-side processing.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.
@@ -12,7 +12,7 @@ This context owns business logic and data related to result bundle.
 - Schema changes and migrations live in `server/priv`.
 
 ## Guardrails
-- If changes add or modify stored customer data, update `server/data-export.md`.
+- Result bundles are stored in object storage; update `server/data-export.md` when schema or keys change.
 
 ## Related Context
 - Parent business logic: `server/lib/tuist/AGENTS.md`

@@ -1,10 +1,10 @@
 # Vcs (Context)
 
-This context owns business logic and data related to vcs.
+This context owns VCS models and GitHub App integrations.
 
 ## Responsibilities
-- Implement domain logic for vcs.
-- Own persistence and queries related to vcs when applicable.
+- Model VCS entities (comments, users, installations, repositories).
+- Provide workers for VCS-related background tasks.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.

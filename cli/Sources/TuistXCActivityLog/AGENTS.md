@@ -1,10 +1,10 @@
 # TuistXCActivityLog (CLI Module)
 
-This module provides XCActivityLog parsing helpers.
+This module provides XCActivityLog parsing helpers, especially for CAS output analysis.
 
 ## Responsibilities
-- Implement XCActivityLog parsing helpers.
-- Keep the module cohesive around its named concern
+- Model CAS outputs and their types (swift artifacts, diagnostics, dependency scans).
+- Track CAS operations (upload/download) with size and duration metadata.
 
 ## Boundaries
 - Keep CLI command wiring in `cli/Sources/TuistKit`.
@@ -12,3 +12,6 @@ This module provides XCActivityLog parsing helpers.
 
 ## Related Context
 - cli/Sources/TuistGenerator/AGENTS.md
+
+## Invariants
+- CAS output types map to compiler artifact identifiers (e.g., `swiftdoc`, `swiftinterface`).

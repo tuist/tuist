@@ -1,10 +1,11 @@
 # Bundles (Context)
 
-This context owns business logic and data related to bundles.
+This context owns bundle metadata and artifact trees.
 
 ## Responsibilities
-- Implement domain logic for bundles.
-- Own persistence and queries related to bundles when applicable.
+- Create bundles with artifacts using `Ecto.Multi` and batch inserts.
+- Fetch bundles and build nested artifact trees in memory.
+- Compute install size deviations and list distinct bundles per project.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.
@@ -12,7 +13,7 @@ This context owns business logic and data related to bundles.
 - Schema changes and migrations live in `server/priv`.
 
 ## Guardrails
-- If changes add or modify stored customer data, update `server/data-export.md`.
+- Bundle and artifact data is customer data; update `server/data-export.md` on schema changes.
 
 ## Related Context
 - Parent business logic: `server/lib/tuist/AGENTS.md`

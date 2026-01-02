@@ -1,10 +1,10 @@
 # Marketing (Context)
 
-This context owns business logic and data related to marketing.
+This context owns marketing content aggregation (blog posts, case studies, changelogs).
 
 ## Responsibilities
-- Implement domain logic for marketing.
-- Own persistence and queries related to marketing when applicable.
+- Load and aggregate content entries, categories, and metadata.
+- Provide helpers for blog, case study, and changelog content rendering.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.

@@ -3,8 +3,8 @@
 This module provides helpers to resolve the Tuist root directory.
 
 ## Responsibilities
-- Implement helpers to resolve the Tuist root directory.
-- Keep the module cohesive around its named concern
+- Locate the root by walking up the tree and checking for `Tuist/`, `Tuist.swift`, `Plugin.swift`, or `.git`.
+- Cache discovered root directories to avoid repeated traversal.
 
 ## Boundaries
 - Keep CLI command wiring in `cli/Sources/TuistKit`.
@@ -13,3 +13,6 @@ This module provides helpers to resolve the Tuist root directory.
 ## Related Context
 - cli/Sources/TuistLoader/AGENTS.md
 - cli/Sources/TuistKit/AGENTS.md
+
+## Invariants
+- Root detection is ordered: Tuist dir, Tuist manifest, Plugin manifest, .git.

@@ -1,10 +1,10 @@
 # TuistCI (CLI Module)
 
-This module provides CI-related detection and helpers for CLI workflows.
+This module provides CI detection and metadata extraction for CLI workflows.
 
 ## Responsibilities
-- Implement CI-related detection and helpers for CLI workflows.
-- Keep the module cohesive around its named concern
+- Detect CI providers (GitHub Actions, GitLab, Bitrise, CircleCI, Buildkite, Codemagic).
+- Produce `CIInfo` with provider, run ID, and project handle.
 
 ## Boundaries
 - Keep CLI command wiring in `cli/Sources/TuistKit`.
@@ -12,3 +12,6 @@ This module provides CI-related detection and helpers for CLI workflows.
 
 ## Related Context
 - cli/Sources/TuistSupport/AGENTS.md
+
+## Invariants
+- CI detection is purely environment-variable based.

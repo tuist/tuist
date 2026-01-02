@@ -1,10 +1,11 @@
 # Projects (Context)
 
-This context owns business logic and data related to projects.
+This context owns project records, tokens, and account/project handle resolution.
 
 ## Responsibilities
-- Implement domain logic for projects.
-- Own persistence and queries related to projects when applicable.
+- Resolve projects by handles, tokens (legacy and new), and slugs.
+- List accessible projects based on account/org membership.
+- Manage project tokens and VCS connections.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.
@@ -12,7 +13,7 @@ This context owns business logic and data related to projects.
 - Schema changes and migrations live in `server/priv`.
 
 ## Guardrails
-- If changes add or modify stored customer data, update `server/data-export.md`.
+- Project data is customer data; update `server/data-export.md` on schema changes.
 
 ## Related Context
 - Parent business logic: `server/lib/tuist/AGENTS.md`

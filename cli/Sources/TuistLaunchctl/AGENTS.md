@@ -3,8 +3,7 @@
 This module provides launchctl integration helpers for macOS automation.
 
 ## Responsibilities
-- Implement launchctl integration helpers for macOS automation.
-- Keep the module cohesive around its named concern
+- Load/unload LaunchAgents and LaunchDaemons via `launchctl`.
 
 ## Boundaries
 - Keep CLI command wiring in `cli/Sources/TuistKit`.
@@ -12,3 +11,6 @@ This module provides launchctl integration helpers for macOS automation.
 
 ## Related Context
 - cli/Sources/TuistAutomation/AGENTS.md
+
+## Invariants
+- Uses `/bin/launchctl` and waits for command completion.

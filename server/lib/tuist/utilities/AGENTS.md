@@ -1,10 +1,9 @@
 # Utilities (Context)
 
-This context owns business logic and data related to utilities.
+This context provides small formatting helpers for reporting.
 
 ## Responsibilities
-- Implement domain logic for utilities.
-- Own persistence and queries related to utilities when applicable.
+- Format byte sizes, dates, and throughput for UI/reporting.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.

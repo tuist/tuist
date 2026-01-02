@@ -1,10 +1,9 @@
 # Errors (Web Layer)
 
-This area owns the web-facing errors concerns for the server.
+This area owns structured error modules used in the web layer.
 
 ## Responsibilities
-- Implement errors for the Phoenix web layer.
-- Keep web-specific behavior here, delegating business logic to `server/lib/tuist`.
+- Define error types for request validation and 404/400 scenarios.
 
 ## Boundaries
 - Domain logic belongs in `server/lib/tuist` contexts.

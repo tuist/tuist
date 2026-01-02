@@ -1,10 +1,11 @@
 # Billing (Context)
 
-This context owns business logic and data related to billing.
+This context owns billing, plan management, and Stripe integration.
 
 ## Responsibilities
-- Implement domain logic for billing.
-- Own persistence and queries related to billing when applicable.
+- Define plan metadata (Air/Pro/Enterprise) and pricing thresholds.
+- Create Stripe customers, billing portal sessions, and manage subscriptions.
+- Record usage-based metering events (e.g., remote cache hits).
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.
@@ -12,7 +13,7 @@ This context owns business logic and data related to billing.
 - Schema changes and migrations live in `server/priv`.
 
 ## Guardrails
-- If changes add or modify stored customer data, update `server/data-export.md`.
+- Billing data is customer data; update `server/data-export.md` for schema or usage changes.
 
 ## Related Context
 - Parent business logic: `server/lib/tuist/AGENTS.md`

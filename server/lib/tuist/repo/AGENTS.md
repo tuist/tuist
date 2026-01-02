@@ -1,10 +1,10 @@
 # Repo (Context)
 
-This context owns business logic and data related to repo.
+This context owns the primary Ecto repository and DB pool utilities.
 
 ## Responsibilities
-- Implement domain logic for repo.
-- Own persistence and queries related to repo when applicable.
+- Define the Postgres repo and check Timescale availability.
+- Surface connection pool metrics for monitoring.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.

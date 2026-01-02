@@ -1,10 +1,10 @@
 # TuistCASAnalytics (CLI Module)
 
-This module provides CAS analytics helpers used by cache features.
+This module provides CAS analytics storage helpers used by cache features.
 
 ## Responsibilities
-- Implement CAS analytics helpers used by cache features.
-- Keep the module cohesive around its named concern
+- Persist metadata about CAS outputs and key-value entries.
+- Provide stores for reading/writing metadata (e.g., `CASNodeStore`, `KeyValueMetadataStore`).
 
 ## Boundaries
 - Keep CLI command wiring in `cli/Sources/TuistKit`.

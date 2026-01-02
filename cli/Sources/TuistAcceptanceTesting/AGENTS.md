@@ -3,8 +3,8 @@
 This module provides helpers used by CLI acceptance tests.
 
 ## Responsibilities
-- Implement helpers used by CLI acceptance tests.
-- Keep the module cohesive around its named concern
+- Provide assertions over generated Xcode projects (framework linking, bundles, xcframework embedding).
+- Use Swift Testing `Issue` recording to report assertion failures.
 
 ## Boundaries
 - Keep CLI command wiring in `cli/Sources/TuistKit`.
@@ -12,3 +12,6 @@ This module provides helpers used by CLI acceptance tests.
 
 ## Related Context
 - cli/Sources/TuistTesting/AGENTS.md
+
+## Invariants
+- Assertions read `XcodeProj` files directly and inspect build phases.

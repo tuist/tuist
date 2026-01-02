@@ -1,10 +1,9 @@
 # Vault (Context)
 
-This context owns business logic and data related to vault.
+This context provides encryption types for Ecto fields.
 
 ## Responsibilities
-- Implement domain logic for vault.
-- Own persistence and queries related to vault when applicable.
+- Define Cloak-backed encrypted binary types.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.

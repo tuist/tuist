@@ -1,10 +1,9 @@
 # Ecto (Context)
 
-This context owns business logic and data related to ecto.
+This context provides Ecto helper utilities.
 
 ## Responsibilities
-- Implement domain logic for ecto.
-- Own persistence and queries related to ecto when applicable.
+- Provide changeset error helpers (unique constraint detection, error formatting).
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.

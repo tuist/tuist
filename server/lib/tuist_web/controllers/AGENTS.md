@@ -1,10 +1,10 @@
 # Controllers (Web Layer)
 
-This area owns the web-facing controllers concerns for the server.
+This area owns Phoenix controllers for HTML and API endpoints.
 
 ## Responsibilities
-- Implement controllers for the Phoenix web layer.
-- Keep web-specific behavior here, delegating business logic to `server/lib/tuist`.
+- Handle request/response flow and rendering for controller actions.
+- Delegate business logic to `server/lib/tuist` contexts.
 
 ## Boundaries
 - Domain logic belongs in `server/lib/tuist` contexts.

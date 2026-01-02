@@ -1,10 +1,11 @@
 # Xcode (Context)
 
-This context owns business logic and data related to xcode.
+This context owns Xcode graph ingestion and analytics.
 
 ## Responsibilities
-- Implement domain logic for xcode.
-- Own persistence and queries related to xcode when applicable.
+- Ingest Xcode graphs and targets into ClickHouse buffers.
+- Compute selective testing and binary cache analytics for runs.
+- Provide counts for cache hits/misses and selective testing hits.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.
@@ -12,7 +13,7 @@ This context owns business logic and data related to xcode.
 - Schema changes and migrations live in `server/priv`.
 
 ## Guardrails
-- If changes add or modify stored customer data, update `server/data-export.md`.
+- Xcode graph data is analytics data; update `server/data-export.md` on schema changes.
 
 ## Related Context
 - Parent business logic: `server/lib/tuist/AGENTS.md`

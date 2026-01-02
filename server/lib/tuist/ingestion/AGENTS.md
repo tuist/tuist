@@ -1,10 +1,10 @@
 # Ingestion (Context)
 
-This context owns business logic and data related to ingestion.
+This context owns ingestion buffers for ClickHouse writes.
 
 ## Responsibilities
-- Implement domain logic for ingestion.
-- Own persistence and queries related to ingestion when applicable.
+- Buffer RowBinary inserts in memory and flush on size/time thresholds.
+- Provide a GenServer interface for async insert and flush operations.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.

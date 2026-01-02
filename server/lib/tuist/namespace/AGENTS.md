@@ -1,10 +1,10 @@
 # Namespace (Context)
 
-This context owns business logic and data related to namespace.
+This context owns Namespace integration (JWT generation and instance metadata).
 
 ## Responsibilities
-- Implement domain logic for namespace.
-- Own persistence and queries related to namespace when applicable.
+- Generate Namespace OIDC ID tokens and JWKS entries.
+- Provide issuer and trusted issuer metadata.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.

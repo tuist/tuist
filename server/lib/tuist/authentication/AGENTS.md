@@ -1,10 +1,11 @@
 # Authentication (Context)
 
-This context owns business logic and data related to authentication.
+This context owns authentication flows and token handling.
 
 ## Responsibilities
-- Implement domain logic for authentication.
-- Own persistence and queries related to authentication when applicable.
+- Resolve authenticated subjects from JWTs, user tokens, and account/project tokens.
+- Refresh tokens while updating `preferred_username` claims.
+- Encode/sign tokens with recent accessible project handles.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.

@@ -1,10 +1,10 @@
 # Plugs (Web Layer)
 
-This area owns the web-facing plugs concerns for the server.
+This area owns Plug middleware for request processing.
 
 ## Responsibilities
-- Implement plugs for the Phoenix web layer.
-- Keep web-specific behavior here, delegating business logic to `server/lib/tuist`.
+- Implement request/response middleware (auth, analytics, rate limiting).
+- Enforce cross-cutting concerns before controllers/LiveViews.
 
 ## Boundaries
 - Domain logic belongs in `server/lib/tuist` contexts.

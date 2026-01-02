@@ -1,10 +1,10 @@
 # Cache Action Items (Context)
 
-This context owns business logic and data related to cache action items.
+This context owns cache action item tracking (per-project hashes).
 
 ## Responsibilities
-- Implement domain logic for cache action items.
-- Own persistence and queries related to cache action items when applicable.
+- Insert cache action items idempotently (conflict on project/hash).
+- Fetch and delete action items for a project.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.
@@ -12,7 +12,7 @@ This context owns business logic and data related to cache action items.
 - Schema changes and migrations live in `server/priv`.
 
 ## Guardrails
-- If changes add or modify stored customer data, update `server/data-export.md`.
+- Cache action items are stored in Postgres; update `server/data-export.md` on schema changes.
 
 ## Related Context
 - Parent business logic: `server/lib/tuist/AGENTS.md`

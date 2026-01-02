@@ -1,10 +1,11 @@
 # Runs (Context)
 
-This context owns business logic and data related to runs.
+This context owns build/test run ingestion and analytics.
 
 ## Responsibilities
-- Implement domain logic for runs.
-- Own persistence and queries related to runs when applicable.
+- Create builds/tests and ingest related data (files, targets, issues, cacheable tasks, CAS outputs).
+- Query runs and test runs from ClickHouse with pagination.
+- Broadcast build creation events via PubSub.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.
@@ -12,7 +13,7 @@ This context owns business logic and data related to runs.
 - Schema changes and migrations live in `server/priv`.
 
 ## Guardrails
-- If changes add or modify stored customer data, update `server/data-export.md`.
+- Runs and analytics live in ClickHouse; update `server/data-export.md` on schema changes.
 
 ## Related Context
 - Parent business logic: `server/lib/tuist/AGENTS.md`

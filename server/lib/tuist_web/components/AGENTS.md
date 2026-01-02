@@ -1,10 +1,10 @@
 # Components (Web Layer)
 
-This area owns the web-facing components concerns for the server.
+This area owns shared UI components for LiveView and templates.
 
 ## Responsibilities
-- Implement components for the Phoenix web layer.
-- Keep web-specific behavior here, delegating business logic to `server/lib/tuist`.
+- Provide reusable UI components (navigation, auth components, forms).
+- Keep rendering logic here; avoid domain logic.
 
 ## Boundaries
 - Domain logic belongs in `server/lib/tuist` contexts.

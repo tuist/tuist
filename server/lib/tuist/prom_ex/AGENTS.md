@@ -1,10 +1,9 @@
 # Prom Ex (Context)
 
-This context owns business logic and data related to prom ex.
+This context owns PromEx helpers and buckets configuration.
 
 ## Responsibilities
-- Implement domain logic for prom ex.
-- Own persistence and queries related to prom ex when applicable.
+- Provide custom bucket configuration for PromEx/Peep distributions.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.

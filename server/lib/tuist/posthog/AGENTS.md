@@ -1,10 +1,9 @@
 # Posthog (Context)
 
-This context owns business logic and data related to posthog.
+This context owns PostHog HTTP integration.
 
 ## Responsibilities
-- Implement domain logic for posthog.
-- Own persistence and queries related to posthog when applicable.
+- Provide PostHog HTTP client using Req + Finch.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.

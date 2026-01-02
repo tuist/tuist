@@ -1,10 +1,10 @@
 # Marketing (Web Layer)
 
-This area owns the web-facing marketing concerns for the server.
+This area owns marketing controllers and components for the public site.
 
 ## Responsibilities
-- Implement marketing for the Phoenix web layer.
-- Keep web-specific behavior here, delegating business logic to `server/lib/tuist`.
+- Render marketing pages and UI components.
+- Bridge marketing content from `Tuist.Marketing` into controllers/views.
 
 ## Boundaries
 - Domain logic belongs in `server/lib/tuist` contexts.

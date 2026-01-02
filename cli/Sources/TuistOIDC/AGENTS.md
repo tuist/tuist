@@ -3,8 +3,8 @@
 This module provides OIDC auth helpers for CLI/server integration.
 
 ## Responsibilities
-- Implement OIDC auth helpers for CLI/server integration.
-- Keep the module cohesive around its named concern
+- Fetch OIDC tokens using a bearer request token and audience.
+- Validate token request URLs and surface request failures.
 
 ## Boundaries
 - Keep CLI command wiring in `cli/Sources/TuistKit`.
@@ -12,3 +12,6 @@ This module provides OIDC auth helpers for CLI/server integration.
 
 ## Related Context
 - cli/Sources/TuistServer/AGENTS.md
+
+## Invariants
+- OIDC token fetch expects HTTP 200 and a JSON payload with `value`.

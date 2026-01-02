@@ -1,10 +1,11 @@
 # Key Value Store (Context)
 
-This context owns business logic and data related to key value store.
+This context owns key-value caching with Redis and in-memory fallbacks.
 
 ## Responsibilities
-- Implement domain logic for key value store.
-- Own persistence and queries related to key value store when applicable.
+- Provide `get_or_update` with optional locking.
+- Use Redis when available, falling back to Cachex on connection failure.
+- Manage cache TTL and key normalization.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.
@@ -12,7 +13,7 @@ This context owns business logic and data related to key value store.
 - Schema changes and migrations live in `server/priv`.
 
 ## Guardrails
-- If changes add or modify stored customer data, update `server/data-export.md`.
+- Cache is ephemeral; do not rely on it for durable state.
 
 ## Related Context
 - Parent business logic: `server/lib/tuist/AGENTS.md`

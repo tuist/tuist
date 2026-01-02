@@ -1,10 +1,11 @@
 # App Builds (Context)
 
-This context owns business logic and data related to app builds.
+This context owns business logic and data related to app builds and previews.
 
 ## Responsibilities
-- Implement domain logic for app builds.
-- Own persistence and queries related to app builds when applicable.
+- Create previews and app builds, and link builds to previews.
+- Find latest previews by bundle identifier/branch/track and supported platforms.
+- List previews with pagination and distinct bundle identifiers.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.

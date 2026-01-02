@@ -1,10 +1,10 @@
 # Authorization (Context)
 
-This context owns business logic and data related to authorization.
+This context owns authorization policies for server resources.
 
 ## Responsibilities
-- Implement domain logic for authorization.
-- Own persistence and queries related to authorization when applicable.
+- Define LetMe policies for resources (runs, bundles, cache, registry, account, project, etc.).
+- Gate access based on subject type (user, project, account token) and scopes.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.

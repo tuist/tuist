@@ -1,10 +1,11 @@
 # Cache (Context)
 
-This context owns business logic and data related to cache.
+This context owns cache entries and CAS analytics ingestion.
 
 ## Responsibilities
-- Implement domain logic for cache.
-- Own persistence and queries related to cache when applicable.
+- Create cache entries in ClickHouse via `IngestRepo`.
+- Query cache entries by CAS ID and project ID.
+- Batch insert CAS analytics events (upload/download sizes).
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.
@@ -12,7 +13,7 @@ This context owns business logic and data related to cache.
 - Schema changes and migrations live in `server/priv`.
 
 ## Guardrails
-- If changes add or modify stored customer data, update `server/data-export.md`.
+- Cache entries and CAS analytics are stored in ClickHouse; update `server/data-export.md` on schema changes.
 
 ## Related Context
 - Parent business logic: `server/lib/tuist/AGENTS.md`

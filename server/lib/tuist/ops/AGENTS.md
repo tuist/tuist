@@ -1,10 +1,10 @@
 # Ops (Context)
 
-This context owns business logic and data related to ops.
+This context owns ops reporting workers.
 
 ## Responsibilities
-- Implement domain logic for ops.
-- Own persistence and queries related to ops when applicable.
+- Schedule Slack reports for daily/hourly business metrics.
+- Query growth stats for users, orgs, projects, and command events.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.

@@ -1,10 +1,11 @@
 # Github (Context)
 
-This context owns business logic and data related to github.
+This context integrates with the GitHub API and GitHub App.
 
 ## Responsibilities
-- Implement domain logic for github.
-- Own persistence and queries related to github when applicable.
+- Fetch installation repositories, users, comments, and repository content.
+- Download source archives for tags and handle pagination/link headers.
+- Provide retry logic and request headers for GitHub API calls.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.

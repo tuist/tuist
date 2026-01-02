@@ -1,10 +1,10 @@
 # Oauth (Context)
 
-This context owns business logic and data related to oauth.
+This context owns OAuth2 token/client handling (Boruta).
 
 ## Responsibilities
-- Implement domain logic for oauth.
-- Own persistence and queries related to oauth when applicable.
+- Implement Boruta access token behavior with cache-backed lookups.
+- Issue and revoke access/refresh tokens with custom client fetching.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.
