@@ -5,64 +5,65 @@
   "description": "Learn how to integrate Tuist with Slack."
 }
 ---
-# Slack integration {#slack}
+# Интеграция со Slack {#slack}
 
-If your organization uses Slack, you can integrate Tuist to surface insights
-directly in your channels. This turns monitoring from something your team has to
-remember to do into something that just happens. For example, your team can
-receive daily summaries of build performance, cache hit rates, or bundle size
-trends.
+Если ваша организация использует Slack, вы можете интегрировать Tuist для
+получения информации непосредственно в ваших каналах. Таким образом, мониторинг
+превращается из того, что ваша команда должна помнить о необходимости делать, в
+то, что просто происходит. Например, ваша команда может ежедневно получать
+сводки о производительности сборки, частоте попаданий в кэш или тенденциях
+изменения размера пакетов.
 
-## Setup {#setup}
+## Настройка {#setup}
 
-### Connect your Slack workspace {#connect-workspace}
+### Подключите рабочее пространство Slack {#connect-workspace}
 
-First, connect your Slack workspace to your Tuist account in the `Integrations`
-tab:
+Сначала подключите рабочее пространство Slack к учетной записи Tuist на вкладке
+`Integrations`:
 
-![An image that shows the integrations tab with Slack
-connection](/images/guides/integrations/slack/integrations.png)
+![Изображение, показывающее вкладку "Интеграции" с подключением
+Slack](/images/guides/integrations/slack/integrations.png)
 
-Click **Connect Slack** to authorize Tuist to post messages to your workspace.
-This will redirect you to Slack's authorization page where you can approve the
-connection.
+Нажмите **Подключить Slack**, чтобы разрешить Tuist публиковать сообщения в
+вашем рабочем пространстве. Это перенаправит вас на страницу авторизации Slack,
+где вы сможете одобрить подключение.
 
-> [!NOTE] SLACK ADMIN APPROVAL If your Slack workspace restricts app
-> installations, you may need to request approval from a Slack administrator.
-> Slack will guide you through the approval request process during
-> authorization.
+> [!ПРИМЕЧАНИЕ] УТВЕРЖДЕНИЕ АДМИНИСТРАТОРА SLACK Если рабочее пространство Slack
+> ограничивает установку приложений, вам может потребоваться запросить
+> разрешение у администратора Slack. Slack проведет вас через процесс запроса
+> одобрения во время авторизации.
 
-### Project reports {#project-reports}
+### Отчеты по проектам {#project-reports}
 
-After connecting Slack, configure reports for each project in the project
-settings:
+После подключения Slack настройте отчеты для каждого проекта в настройках
+проекта:
 
-![An image that shows the project settings with Slack report
-configuration](/images/guides/integrations/slack/project-settings.png)
+![Изображение, показывающее настройки проекта с конфигурацией отчетов
+Slack](/images/guides/integrations/slack/project-settings.png)
 
-You can configure:
-- **Channel**: Select which Slack channel receives the reports
-- **Schedule**: Choose which days of the week to receive reports
-- **Time**: Set the time of day
+Вы можете настроить:
+- **Канал**: Выберите, какой канал Slack получает отчеты
+- **Расписание**: Выберите дни недели для получения отчетов
+- **Время**: установка времени суток
 
-Once configured, Tuist sends automated daily reports to your selected Slack
-channel:
+После настройки Tuist отправляет автоматические ежедневные отчеты в выбранный
+вами канал Slack:
 
 <img src="/images/guides/integrations/slack/report.png" alt="An image that shows a Slack report message" style="max-width: 500px;" />
 
-## On-premise installations {#on-premise}
+## Местные установки {#on-premise}
 
-For on-premise Tuist installations, you'll need to create your own Slack app and
-configure the necessary environment variables.
+Для локальных установок Tuist вам нужно будет создать собственное приложение
+Slack и настроить необходимые переменные окружения.
 
-### Create a Slack app {#create-slack-app}
+### Создайте приложение Slack {#create-slack-app}
 
-1. Go to the [Slack API Apps page](https://api.slack.com/apps) and click
-   **Create New App**
-2. Choose **From an app manifest** and select the workspace where you want to
-   install the app
-3. Paste the following manifest, replacing the redirect URL with your Tuist
-   server URL:
+1. Перейдите на страницу [Slack API Apps](https://api.slack.com/apps) и нажмите
+   **Создать новое приложение.**
+2. Выберите **Из манифеста приложений** и выберите рабочую область, в которую вы
+   хотите установить приложение.
+3. Вставьте следующий манифест, заменив URL-адрес перенаправления на URL-адрес
+   вашего сервера Tuist:
 
 ```json
 {
@@ -97,12 +98,13 @@ configure the necessary environment variables.
 }
 ```
 
-4. Review and create the app
+4. Обзор и создание приложения
 
-### Configure environment variables {#configure-environment}
+### Настройка переменных окружения {#configure-environment}
 
-Set the following environment variables on your Tuist server:
+Установите следующие переменные окружения на сервере Tuist:
 
-- `SLACK_CLIENT_ID` - The Client ID from your Slack app's Basic Information page
-- `SLACK_CLIENT_SECRET` - The Client Secret from your Slack app's Basic
-  Information page
+- `SLACK_CLIENT_ID` - идентификатор клиента со страницы основной информации
+  вашего приложения Slack.
+- `SLACK_CLIENT_SECRET` - Секрет клиента со страницы основной информации вашего
+  приложения Slack.
