@@ -393,6 +393,9 @@
                                 }
                             },
                             "text": "Forjas Git"
+                        },
+                        "slack": {
+                            "text": "Slack"
                         }
                     }
                 },
