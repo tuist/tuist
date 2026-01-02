@@ -5,64 +5,58 @@
   "description": "Learn how to integrate Tuist with Slack."
 }
 ---
-# Slack integration {#slack}
+# تكامل Slack {#slack}
 
-If your organization uses Slack, you can integrate Tuist to surface insights
-directly in your channels. This turns monitoring from something your team has to
-remember to do into something that just happens. For example, your team can
-receive daily summaries of build performance, cache hit rates, or bundle size
-trends.
+إذا كانت مؤسستك تستخدم Slack، يمكنك دمج Tuist لإظهار الرؤى مباشرةً في قنواتك.
+هذا يحول المراقبة من شيء يجب على فريقك أن يتذكر القيام به إلى شيء يحدث فقط. على
+سبيل المثال، يمكن أن يتلقى فريقك ملخصات يومية عن أداء الإنشاء أو معدلات الوصول
+إلى ذاكرة التخزين المؤقت أو اتجاهات حجم الحزمة.
 
-## Setup {#setup}
+## الإعداد {#setup}
 
-### Connect your Slack workspace {#connect-workspace}
+### ربط مساحة عمل Slack الخاصة بك {#connect-workspace}
 
-First, connect your Slack workspace to your Tuist account in the `Integrations`
-tab:
+أولاً، قم بتوصيل مساحة عمل Slack بحسابك على Tuist في علامة التبويب
+`Integrations`:
 
-![An image that shows the integrations tab with Slack
-connection](/images/guides/integrations/slack/integrations.png)
+![صورة تُظهر علامة تبويب عمليات التكامل مع اتصال Slack]
+(/images/guides/integrations/slack/integrations.png)
 
-Click **Connect Slack** to authorize Tuist to post messages to your workspace.
-This will redirect you to Slack's authorization page where you can approve the
-connection.
+انقر **قم بتوصيل سلاك** لتفويض تويست بنشر الرسائل إلى مساحة العمل الخاصة بك.
+سيؤدي ذلك إلى إعادة توجيهك إلى صفحة تفويض Slack حيث يمكنك الموافقة على الاتصال.
 
-> [!NOTE] SLACK ADMIN APPROVAL If your Slack workspace restricts app
-> installations, you may need to request approval from a Slack administrator.
-> Slack will guide you through the approval request process during
-> authorization.
+> [!ملاحظة] موافقة مسؤول سلاك إذا كانت مساحة عمل سلاك الخاصة بك تقيد عمليات
+> تثبيت التطبيقات، فقد تحتاج إلى طلب الموافقة من مسؤول سلاك. سيرشدك Slack خلال
+> عملية طلب الموافقة أثناء التفويض.
 
-### Project reports {#project-reports}
+### تقارير المشروع {#project-reports}
 
-After connecting Slack, configure reports for each project in the project
-settings:
+بعد ربط Slack، قم بتهيئة التقارير لكل مشروع في إعدادات المشروع:
 
-![An image that shows the project settings with Slack report
-configuration](/images/guides/integrations/slack/project-settings.png)
+![صورة تُظهر إعدادات المشروع مع تكوين تقرير سلاك]
+(/images/guides/integrations/slack/project-settings.png)
 
-You can configure:
-- **Channel**: Select which Slack channel receives the reports
-- **Schedule**: Choose which days of the week to receive reports
-- **Time**: Set the time of day
+يمكنك التهيئة:
+- **القناة**: حدد قناة Slack التي تتلقى التقارير
+- **الجدول**: اختر أيام الأسبوع لتلقي التقارير
+- **الوقت**: ضبط الوقت من اليوم
 
-Once configured, Tuist sends automated daily reports to your selected Slack
-channel:
+بمجرد التهيئة، يرسل تويست تقارير يومية تلقائية إلى قناة Slack التي اخترتها:
 
 <img src="/images/guides/integrations/slack/report.png" alt="An image that shows a Slack report message" style="max-width: 500px;" />
 
-## On-premise installations {#on-premise}
+## التركيبات داخل المنشأة {#on-premise}
 
-For on-premise Tuist installations, you'll need to create your own Slack app and
-configure the necessary environment variables.
+بالنسبة لتثبيتات تويست داخل الشركة، ستحتاج إلى إنشاء تطبيق Slack الخاص بك وتهيئة
+متغيرات البيئة اللازمة.
 
-### Create a Slack app {#create-slack-app}
+### إنشاء تطبيق Slack {#create-slack-app}
 
-1. Go to the [Slack API Apps page](https://api.slack.com/apps) and click
-   **Create New App**
-2. Choose **From an app manifest** and select the workspace where you want to
-   install the app
-3. Paste the following manifest, replacing the redirect URL with your Tuist
-   server URL:
+1. انتقل إلى صفحة [تطبيقات Slack API Apps] (https://api.slack.com/apps) وانقر
+   **إنشاء تطبيق جديد**
+2. اختر **من بيان التطبيق** وحدد مساحة العمل التي تريد تثبيت التطبيق فيها
+3. الصق البيان التالي، مستبدلاً عنوان URL الخاص بإعادة التوجيه بعنوان URL الخاص
+   بخادم تويست:
 
 ```json
 {
@@ -97,12 +91,13 @@ configure the necessary environment variables.
 }
 ```
 
-4. Review and create the app
+4. مراجعة التطبيق وإنشاء التطبيق
 
-### Configure environment variables {#configure-environment}
+### تكوين متغيرات البيئة {#configure-environment}
 
-Set the following environment variables on your Tuist server:
+قم بتعيين متغيرات البيئة التالية على خادم تويست الخاص بك:
 
-- `SLACK_CLIENT_ID` - The Client ID from your Slack app's Basic Information page
-- `SLACK_CLIENT_SECRET` - The Client Secret from your Slack app's Basic
-  Information page
+- `SLACK_CLIENT_ID` - معرف العميل من صفحة المعلومات الأساسية لتطبيق Slack الخاص
+  بك
+- `SLACK_CLIENT_SECRET` - سر العميل من صفحة المعلومات الأساسية لتطبيق Slack
+  الخاص بك
