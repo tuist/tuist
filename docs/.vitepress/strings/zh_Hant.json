@@ -390,6 +390,9 @@
                                     "text": "GitHub"
                                 }
                             }
+                        },
+                        "slack": {
+                            "text": "Slack"
                         }
                     }
                 },
