@@ -74,7 +74,7 @@ struct RunCommandService {
             buildGraphInspector: BuildGraphInspector(),
             targetBuilder: TargetBuilder(),
             targetRunner: TargetRunner(),
-            configLoader: ConfigLoader(manifestLoader: ManifestLoader()),
+            configLoader: ConfigLoader(),
             getPreviewService: GetPreviewService(),
             listPreviewsService: ListPreviewsService(),
             fileSystem: FileSystem(),

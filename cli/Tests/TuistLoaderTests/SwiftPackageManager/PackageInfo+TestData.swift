@@ -658,6 +658,7 @@ extension PackageInfo {
                 ),
             ],
             traits: nil,
+            dependencies: [],
             platforms: [
                 .init(platformName: "ios", version: "11.0", options: []),
                 .init(platformName: "macos", version: "10.15", options: []),
@@ -707,6 +708,7 @@ extension PackageInfo {
                 ),
             ],
             traits: nil,
+            dependencies: [],
             platforms: [
                 .init(platformName: "ios", version: ProjectDescription.Platform.iOS.testVersion(), options: []),
                 .init(platformName: "macos", version: ProjectDescription.Platform.macOS.testVersion(), options: []),
@@ -741,6 +743,7 @@ extension PackageInfo {
                 ),
             ],
             traits: nil,
+            dependencies: [],
             platforms: [
                 .init(platformName: "ios", version: ProjectDescription.Platform.iOS.testVersion(), options: []),
                 .init(platformName: "macos", version: ProjectDescription.Platform.macOS.testVersion(), options: []),
@@ -925,6 +928,7 @@ extension PackageInfo {
                 ),
             ],
             traits: nil,
+            dependencies: [],
             platforms: [
                 .init(platformName: "macos", version: ProjectDescription.Platform.macOS.testVersion(), options: []),
                 .init(platformName: "ios", version: ProjectDescription.Platform.iOS.testVersion(), options: []),
@@ -1383,6 +1387,7 @@ extension PackageInfo {
                 ),
             ],
             traits: nil,
+            dependencies: [],
             platforms: [
                 .init(platformName: "ios", version: "10.0", options: []),
             ],
@@ -1457,6 +1462,7 @@ extension PackageInfo {
                 ),
             ],
             traits: nil,
+            dependencies: [],
             platforms: [
                 .init(platformName: "ios", version: "10.0", options: []),
             ],
@@ -1489,6 +1495,7 @@ extension PackageInfo {
                 ),
             ],
             traits: nil,
+            dependencies: [],
             platforms: [
                 .init(platformName: "ios", version: "10.0", options: []),
             ],
