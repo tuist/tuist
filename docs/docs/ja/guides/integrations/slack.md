@@ -5,64 +5,49 @@
   "description": "Learn how to integrate Tuist with Slack."
 }
 ---
-# Slack integration {#slack}
+# Slackとの統合{#slack}
 
-If your organization uses Slack, you can integrate Tuist to surface insights
-directly in your channels. This turns monitoring from something your team has to
-remember to do into something that just happens. For example, your team can
-receive daily summaries of build performance, cache hit rates, or bundle size
-trends.
+もしあなたの組織がSlackを使っているなら、Tuistを統合して、チャンネルに直接インサイトを表示することができる。これにより、モニタリングは、チームが忘れずに行わなければならないものから、ただ行われるものに変わります。例えば、ビルド・パフォーマンス、キャッシュ・ヒット率、バンドル・サイズの傾向などのサマリーを毎日受け取ることができます。
 
-## Setup {#setup}
+## セットアップ{#setup}
 
-### Connect your Slack workspace {#connect-workspace}
+### Slackワークスペースに接続する{#connect-workspace}
 
-First, connect your Slack workspace to your Tuist account in the `Integrations`
-tab:
+まず、`Integrations` タブで、SlackワークスペースをTuistアカウントに接続する：
 
-![An image that shows the integrations tab with Slack
-connection](/images/guides/integrations/slack/integrations.png)
+![Slack接続と統合タブを示す画像](/images/guides/integrations/slack/integrations.png)。
 
-Click **Connect Slack** to authorize Tuist to post messages to your workspace.
-This will redirect you to Slack's authorization page where you can approve the
-connection.
+**Connect Slack**
+をクリックして、Tuistがあなたのワークスペースにメッセージを投稿することを承認する。Slackの認証ページにリダイレクトされ、接続を承認することができます。
 
-> [!NOTE] SLACK ADMIN APPROVAL If your Slack workspace restricts app
-> installations, you may need to request approval from a Slack administrator.
-> Slack will guide you through the approval request process during
-> authorization.
+> [注意] SLACK ADMIN APPROVAL
+> Slackワークスペースがアプリのインストールを制限している場合、Slack管理者に承認をリクエストする必要がある場合があります。Slackは承認時に承認リクエストプロセスを案内します。
 
-### Project reports {#project-reports}
+### プロジェクト報告{#project-reports}
 
-After connecting Slack, configure reports for each project in the project
-settings:
+Slackに接続したら、プロジェクト設定でプロジェクトごとにレポートを設定する：
 
-![An image that shows the project settings with Slack report
-configuration](/images/guides/integrations/slack/project-settings.png)
+プロジェクトの設定とSlackレポートの設定を示す画像](/images/guides/integrations/slack/project-settings.png)。
 
-You can configure:
-- **Channel**: Select which Slack channel receives the reports
-- **Schedule**: Choose which days of the week to receive reports
-- **Time**: Set the time of day
+設定できる：
+- **チャンネル** ：レポートを受信するSlackチャンネルを選択する
+- **スケジュール** ：レポートを受信する曜日を選択
+- **Time**: 一日の時間を設定する
 
-Once configured, Tuist sends automated daily reports to your selected Slack
-channel:
+一度設定すると、Tuistは選択したSlackチャンネルに自動デイリーレポートを送信する：
 
 <img src="/images/guides/integrations/slack/report.png" alt="An image that shows a Slack report message" style="max-width: 500px;" />
 
-## On-premise installations {#on-premise}
+## オンプレミス・インストール{#on-premise}
 
-For on-premise Tuist installations, you'll need to create your own Slack app and
-configure the necessary environment variables.
+オンプレミスのTuistをインストールする場合は、独自のSlackアプリを作成し、必要な環境変数を設定する必要があります。
 
-### Create a Slack app {#create-slack-app}
+### Slackアプリの作成{#create-slack-app}
 
-1. Go to the [Slack API Apps page](https://api.slack.com/apps) and click
-   **Create New App**
-2. Choose **From an app manifest** and select the workspace where you want to
-   install the app
-3. Paste the following manifest, replacing the redirect URL with your Tuist
-   server URL:
+1. Slack API Appsページ](https://api.slack.com/apps)にアクセスし、**Create New
+   Appsをクリックします。**
+2. **アプリマニフェストから** を選択し、アプリをインストールするワークスペースを選択します。
+3. リダイレクト URL をあなたの Tuist サーバー URL に置き換えて、以下のマニフェストを貼り付けます：
 
 ```json
 {
@@ -97,12 +82,11 @@ configure the necessary environment variables.
 }
 ```
 
-4. Review and create the app
+4. アプリのレビューと作成
 
-### Configure environment variables {#configure-environment}
+### 環境変数の設定{#configure-environment}
 
-Set the following environment variables on your Tuist server:
+Tuistサーバーで以下の環境変数を設定する：
 
-- `SLACK_CLIENT_ID` - The Client ID from your Slack app's Basic Information page
-- `SLACK_CLIENT_SECRET` - The Client Secret from your Slack app's Basic
-  Information page
+- `SLACK_CLIENT_ID` - Slackアプリの基本情報ページにあるクライアントID。
+- `SLACK_CLIENT_SECRET` - Slackアプリの基本情報ページにあるクライアントシークレット。
