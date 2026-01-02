@@ -15,7 +15,8 @@ destek sağlar.
 
 ::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve projesi</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve
+  projesi</LocalizedLink>
 - Xcode 26.0 veya üstü
 <!-- -->
 :::
@@ -28,7 +29,7 @@ tuist init
 ```
 
 Bir `Tuist.swift` dosyanız olduğunda, `fullHandle` dosyanızı referans alarak,
-projeniz için önbelleğe almayı çalıştırarak ayarlayabilirsiniz:
+projeniz için önbelleğe alma işlemini çalıştırarak ayarlayabilirsiniz:
 
 ```bash
 tuist setup cache
@@ -107,23 +108,33 @@ let tuist = Tuist(
 CI ortamınızda önbelleğe almayı etkinleştirmek için yerel ortamlarda olduğu gibi
 aynı komutu çalıştırmanız gerekir: `tuist setup cache`.
 
-Ayrıca, `TUIST_TOKEN` ortam değişkeninin ayarlandığından emin olmanız gerekir.
-Buradaki <LocalizedLink href="/guides/server/authentication#as-a-project"> belgeleri takip ederek bir tane oluşturabilirsiniz</LocalizedLink>. `
-TUIST_TOKEN` ortam değişkeni _derleme adımınız için_ mevcut olmalıdır, ancak
-bunu tüm CI iş akışı için ayarlamanızı öneririz.
+Kimlik doğrulama için ya
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC kimlik
+doğrulamasını</LocalizedLink> (desteklenen CI sağlayıcıları için önerilir) ya da
+`TUIST_TOKEN` ortam değişkeni aracılığıyla bir
+<LocalizedLink href="/guides/server/authentication#account-tokens">hesap
+belirtecini</LocalizedLink> kullanabilirsiniz.
 
-GitHub Eylemleri için örnek bir iş akışı şu şekilde olabilir:
+OIDC kimlik doğrulamasını kullanan GitHub Eylemleri için örnek bir iş akışı:
 ```yaml
 name: Build
 
-env:
-  TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   build:
+    runs-on: macos-latest
     steps:
-      - # Your set up steps...
-      - name: Set up Tuist Cache
-        run: tuist setup cache
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: tuist auth login
+      - run: tuist setup cache
       - # Your build steps
 ```
+
+Token tabanlı kimlik doğrulama ve Xcode Cloud, CircleCI, Bitrise ve Codemagic
+gibi diğer CI platformları da dahil olmak üzere daha fazla örnek için
+<LocalizedLink href="/guides/integrations/continuous-integration">Sürekli
+Entegrasyon kılavuzuna</LocalizedLink> bakın.

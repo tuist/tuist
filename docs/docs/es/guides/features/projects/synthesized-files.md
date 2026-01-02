@@ -167,8 +167,8 @@ let project = Project(resourceSynthesizers: [.string(), .fonts()])
 
 ::: info REFERENCE
 <!-- -->
-Puedes consultar [this
-fixture](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates)
+Puedes consultar [este
+ejemplo](https://github.com/tuist/tuist/tree/main/examples/xcode/generated_ios_app_with_templates)
 para ver un ejemplo de cómo utilizar plantillas personalizadas para sintetizar
 accesores a recursos.
 <!-- -->

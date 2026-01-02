@@ -91,9 +91,11 @@ Modules](https://swiftrocks.com/reducing-ios-build-times-by-using-interface-targ
 Tuist，做出這個決定會比較複雜，因為您需要手動設定相依圖。不過，有了 Tuist Projects，這不再是問題。
 
 我們建議在開發過程中使用動態函式庫或框架，使用
-<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle accessors</LocalizedLink> 來將 bundle 存取邏輯與目標函式庫或框架的性質分離。這是快速編譯和確保 [SwiftUI
+<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle
+accessors</LocalizedLink> 來將 bundle 存取邏輯與目標函式庫或框架的性質分離。這是快速編譯和確保 [SwiftUI
 預覽](https://developer.apple.com/documentation/swiftui/previews-in-xcode)可靠運作的關鍵。而釋出版本建置的靜態函式庫或框架，則可確保應用程式快速啟動。您可以利用
-<LocalizedLink href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables"> 動態配置</LocalizedLink>，在產生時變更產品類型：
+<LocalizedLink href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables">
+動態配置</LocalizedLink>，在產生時變更產品類型：
 
 ```bash
 # You'll have to read the value of the variable from the manifest {#youll-have-to-read-the-value-of-the-variable-from-the-manifest}

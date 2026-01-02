@@ -114,7 +114,7 @@ SwiftGen](https://github.com/SwiftGen/SwiftGen)에서 지원해야 하는 다른
 합성하기 위해 자체 템플릿을 제공하려는 경우 `Tuist/ResourceSynthesizers/{name}.stencil` 에서 만들 수
 있으며, 여기서 이름은 리소스의 대소문자 버전입니다.
 
-| 리소스      | 템플릿 이름             |
+| 참고자료     | 템플릿 이름             |
 | -------- | ------------------ |
 | 문자열      | `문자열.스텐실`          |
 | 자산       | `Assets.stencil`   |
@@ -135,8 +135,8 @@ let project = Project(resourceSynthesizers: [.string(), .fonts()])
 
 ::: info REFERENCE
 <!-- -->
-사용자 지정 템플릿을 사용하여 리소스에 대한 액세스자를 합성하는 방법의 예는 [이 수정
-사항](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates)에서
+사용자 지정 템플릿을 사용하여 리소스에 대한 액세스 권한을 합성하는 방법에 대한 예는 [이
+예](https://github.com/tuist/tuist/tree/main/examples/xcode/generated_ios_app_with_templates)에서
 확인할 수 있습니다.
 <!-- -->
 :::

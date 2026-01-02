@@ -13,7 +13,7 @@ Tuist CLI는 실행 파일, 동적 프레임워크, 리소스 집합(예: 템플
 
 ### <a href="https://github.com/jdx/mise">Mise</a> {#recommended-mise}
 
-::: info Mise란?
+::: info
 <!-- -->
 Mise는 서로 다른 환경에서 도구의 버전을 동일하게 유지해야 하는 팀이나 조직에서 사용할 수 있는
 [Homebrew](https://brew.sh)의 대안입니다.

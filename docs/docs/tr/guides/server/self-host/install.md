@@ -280,7 +280,8 @@ işaretlediğinizden emin olun.
 
 Okta ile kimlik doğrulamayı [OAuth 2.0](https://oauth.net/2/) protokolü
 aracılığıyla etkinleştirebilirsiniz. Okta'da
-<LocalizedLink href="/guides/integrations/sso#okta"> bu talimatları</LocalizedLink> izleyerek [bir uygulama
+<LocalizedLink href="/guides/integrations/sso#okta"> bu
+talimatları</LocalizedLink> izleyerek [bir uygulama
 oluşturmanız](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta)
 gerekir.
 
@@ -315,7 +316,7 @@ yapılandırmak için aşağıdaki ortam değişkenleri gereklidir:
 | `TUIST_S3_ENDPOINT` veya `AWS_ENDPOINT`                   | Depolama sağlayıcısının uç noktası                                                                                                                                                    | Evet    |                                  | `https://s3.us-west-2.amazonaws.com`                          |
 | `TUIST_S3_BUCKET_NAME`                                    | Eserlerin depolanacağı kovanın adı                                                                                                                                                    | Evet    |                                  | `tuist-artifacts`                                             |
 | `TUIST_S3_CA_CERT_PEM`                                    | S3 HTTPS bağlantılarını doğrulamak için PEM kodlu CA sertifikası. Kendinden imzalı sertifikalara veya dahili Sertifika Yetkililerine sahip hava boşluklu ortamlar için kullanışlıdır. | Hayır   | Sistem CA paketi                 | `-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----` |
-| `TUIST_S3_CONNECT_TIMEOUT`                                | Depolama sağlayıcısıyla bağlantı kurmak için zaman aşımı (milisaniye cinsinden)                                                                                                       | Hayır   | `3000`                           | `3000`                                                        |
+| `TUIST_S3_CONNECT_TIMEOUT`                                | Depolama sağlayıcısına bağlantı kurmak için zaman aşımı (milisaniye cinsinden)                                                                                                        | Hayır   | `3000`                           | `3000`                                                        |
 | `TUIST_S3_RECEIVE_TIMEOUT`                                | Depolama sağlayıcısından veri almak için zaman aşımı (milisaniye cinsinden)                                                                                                           | Hayır   | `5000`                           | `5000`                                                        |
 | `TUIST_S3_POOL_TIMEOUT`                                   | Depolama sağlayıcısına bağlantı havuzu için zaman aşımı (milisaniye cinsinden). Zaman aşımı olmaması için `infinity` adresini kullanın                                                | Hayır   | `5000`                           | `5000`                                                        |
 | `TUIST_S3_POOL_MAX_IDLE_TIME`                             | Havuzdaki bağlantılar için maksimum boşta kalma süresi (milisaniye cinsinden). Bağlantıları süresiz olarak canlı tutmak için `infinity` adresini kullanın                             | Hayır   | `sonsuzluk`                      | `60000`                                                       |
@@ -379,7 +380,8 @@ ayarını yapın. E-posta yapılandırıldığında e-posta onayı gerektirmek i
 
 ### Git platform yapılandırması {#git-platform-configuration}
 
-Tuist, <LocalizedLink href="/guides/server/authentication"> Git platformları</LocalizedLink> ile entegre olarak çekme isteklerinize otomatik
+Tuist, <LocalizedLink href="/guides/server/authentication"> Git
+platformları</LocalizedLink> ile entegre olarak çekme isteklerinize otomatik
 olarak yorum gönderme gibi ekstra özellikler sağlayabilir.
 
 #### GitHub {#platform-github}

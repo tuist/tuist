@@ -7,7 +7,8 @@
 ---
 # Migracja projektu Xcode {#migrate-an-xcode-project}
 
-O ile <LocalizedLink href="/guides/features/projects/adoption/new-project"> nie utworzysz nowego projektu przy użyciu Tuist</LocalizedLink>, w którym to
+O ile <LocalizedLink href="/guides/features/projects/adoption/new-project"> nie
+utworzysz nowego projektu przy użyciu Tuist</LocalizedLink>, w którym to
 przypadku wszystko zostanie skonfigurowane automatycznie, będziesz musiał
 zdefiniować swoje projekty Xcode przy użyciu prymitywów Tuist. Żmudność tego
 procesu zależy od stopnia złożoności projektu.

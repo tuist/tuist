@@ -5,11 +5,12 @@
   "description": "Get insights into your projects to maintain a product developer environment."
 }
 ---
-# 인사이트 {#insights}
+# 분석 {#insights}
 
-::: warning REQUIREMENTS
+::: warning 요구 사항
 <!-- -->
-- <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 계정 및 프로젝트</LocalizedLink>
+- <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 계정 및
+  프로젝트</LocalizedLink>
 <!-- -->
 :::
 
@@ -46,7 +47,7 @@ CI 워크플로우의 성능에 대한 몇 가지 지표가 있을 수 있지만
 
 ::: info
 <!-- -->
-<LocalizedLink href="/guides/features/projects">생성된 프로젝트</LocalizedLink>를 사용하지 않는 경우 빌드 실패 시 사후 체계 작업이 실행되지 않습니다.
+1} 생성된 프로젝트</LocalizedLink>를 사용하지 않는 경우 빌드 실패 시 사후 체계 작업이 실행되지 않습니다.
 <!-- -->
 :::
 > 
@@ -67,7 +68,7 @@ Mise](https://mise.jdx.dev/)를 사용하는 경우, 스크립트는 액션 후 
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 ```
 
-::: 팁 실수 및 프로젝트 경로
+::: tip Mise 와 프로젝트 경로
 <!-- -->
 환경의 `PATH` 환경 변수는 스키마 포스트 액션에 의해 상속되지 않으므로 Mise의 절대 경로를 사용해야 하며, 이는 Mise 설치 방법에
 따라 달라집니다. 또한 프로젝트의 대상에서 빌드 설정을 상속하여 $SRCROOT가 가리키는 디렉토리에서 Mise를 실행할 수 있도록 하는 것을
@@ -105,7 +106,7 @@ Mise](https://mise.jdx.dev/)를 사용하는 경우, 스크립트는 액션 후 
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 ```
 
-::: 팁 실수 및 프로젝트 경로
+::: tip Mise 와 프로젝트 경로
 <!-- -->
 환경의 `PATH` 환경 변수는 스키마 포스트 액션에 의해 상속되지 않으므로 Mise의 절대 경로를 사용해야 하며, 이는 Mise 설치 방법에
 따라 달라집니다. 또한 프로젝트의 대상에서 빌드 설정을 상속하여 $SRCROOT가 가리키는 디렉토리에서 Mise를 실행할 수 있도록 하는 것을
@@ -207,7 +208,7 @@ testAction: .testAction(
 )
 ```
 
-## 지속적 통합 {#continuous-integration}
+## 지속 통합 {#continuous-integration}
 
 CI에 대한 빌드 및 테스트 인사이트를 추적하려면 CI가
 <LocalizedLink href="/guides/integrations/continuous-integration#authentication">인증</LocalizedLink>되었는지
@@ -215,7 +216,8 @@ CI에 대한 빌드 및 테스트 인사이트를 추적하려면 CI가
 
 또한 다음 중 하나를 수행해야 합니다:
 - `xcodebuild` 동작을 호출할 때
-  <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</LocalizedLink> 명령을 사용합니다.
+  <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
+  xcodebuild`</LocalizedLink> 명령을 사용합니다.
 - `xcodebuild` 호출에 `-resultBundlePath` 을 추가합니다.
 
 `xcodebuild` 가 `-resultBundlePath` 없이 프로젝트를 빌드하거나 테스트하면 필요한 활동 로그 및 결과 번들 파일이

@@ -21,10 +21,10 @@ gelir. Bu Homebrew için varsayılan kurulum yöntemidir.
 
 #### Zsh {#zsh}
 
-Eğer [oh-my-zsh](https://ohmyz.sh/) yüklüyse, otomatik olarak yüklenen tamamlama
-betiklerinden oluşan bir dizine zaten sahipsinizdir - `.oh-my-zsh/completions`.
-Yeni tamamlama betiğinizi bu dizindeki `_tuist` adlı yeni bir dosyaya
-kopyalayın:
+Eğer [oh-my-zsh](https://ohmyz.sh/) yüklediyseniz, otomatik olarak yüklenen
+tamamlama betiklerinden oluşan bir dizine zaten sahipsinizdir -
+`.oh-my-zsh/completions`. Yeni tamamlama betiğinizi bu dizindeki `_tuist` adlı
+yeni bir dosyaya kopyalayın:
 
 ```bash
 tuist --generate-completion-script > ~/.oh-my-zsh/completions/_tuist
@@ -67,8 +67,8 @@ source ~/.bash_completions/example.bash
 
 #### Balık {#fish}
 
-fish shell](https://fishshell.com) kullanıyorsanız, yeni tamamlama kodunuzu
-`~/.config/fish/completions/tuist.fish` adresine kopyalayabilirsiniz:
+fish shell](https://fishshell.com) kullanıyorsanız, yeni tamamlama komut
+dosyanızı `~/.config/fish/completions/tuist.fish` adresine kopyalayabilirsiniz:
 
 ```bash
 mkdir -p ~/.config/fish/completions

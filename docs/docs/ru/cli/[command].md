@@ -1,7 +1,7 @@
 ---
 {
   "editLink": false,
-  "titleTemplate": ":title · Интерфейс командной строки (CLI) · Tuist"
+  "titleTemplate": ":title · CLI · Tuist"
 }
 ---
 <!-- @content -->

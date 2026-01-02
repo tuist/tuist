@@ -49,7 +49,8 @@ kullanılacağına ilişkin belgelere göz atmanızı öneririz.
 Tuist'i macOS için popüler bir paket yöneticisi olan Homebrew kullanarak da
 yükleyebileceğinizi unutmayın. Tuist'in Homebrew kullanılarak nasıl kurulacağına
 ilişkin talimatları
-<LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">kurulum kılavuzunda</LocalizedLink> bulabilirsiniz.
+<LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">kurulum
+kılavuzunda</LocalizedLink> bulabilirsiniz.
 <!-- -->
 :::
 
@@ -98,7 +99,8 @@ karar verdik. Eğer `Dependencies.swift` dosyasını kullanıyorsanız, içeriğ
 taşımanız ve entegrasyonu yapılandırmak için `#if TUIST` yönergesini kullanmanız
 gerekir. Swift paketi bağımlılıklarının nasıl entegre edileceği hakkında daha
 fazla bilgiyi
-<LocalizedLink href="/guides/features/projects/dependencies#swift-packages">buradan okuyabilirsiniz</LocalizedLink>
+<LocalizedLink href="/guides/features/projects/dependencies#swift-packages">buradan
+okuyabilirsiniz</LocalizedLink>
 
 ### `tuist önbelleği sıcak` olarak `tuist önbelleği olarak yeniden adlandırıldı` {#renamed-tuist-cache-warm-to-tuist-cache}
 
@@ -131,8 +133,8 @@ seçeneğini kullanmak için projenizi güncellemeniz gerekecektir.
 
 ### `--skip-cache` argümanları lehine kaldırıldı {#removed-skipcache-in-favor-of-arguments}
 
-`--skip-cache` bayrağını, argümanları kullanarak ikili önbelleğin hangi hedefler
-için atlanacağını kontrol etmek için `generate` komutundan kaldırdık. Eğer
+`--skip-cache` bayrağını `generate` komutundan, ikili önbelleğin hangi hedefler
+için atlanacağını argümanları kullanarak kontrol etmek lehine kaldırdık. Eğer
 `--skip-cache` bayrağını kullanıyorsanız, bunun yerine argümanları kullanmak
 için projenizi güncellemeniz gerekecektir.
 
@@ -158,11 +160,10 @@ sertifikaları ve profilleri şifrelemek ve bunları oluşturma sırasında doğ
 yerlere yüklemekten oluşan Tuist imzalama yeteneklerini kullanıyorsanız, bu
 mantığı proje oluşturmadan önce çalışan kendi komut dosyalarınızda çoğaltmak
 isteyebilirsiniz. Özellikle:
-  - Dosya sisteminde veya bir ortam değişkeninde depolanan bir anahtarı
-    kullanarak sertifikaların ve profillerin şifresini çözen ve sertifikaları
-    anahtar zincirine ve provizyon profillerini
-    `~/Library/MobileDevice/Provisioning\ Profiles` dizinine yükleyen bir komut
-    dosyası.
+  - Dosya sisteminde veya ortam değişkeninde depolanan bir anahtarı kullanarak
+    sertifikaların ve profillerin şifresini çözen ve anahtar zincirine
+    sertifikaları ve `~/Library/MobileDevice/Provisioning\ Profiles` dizinine
+    provizyon profillerini yükleyen bir komut dosyası.
   - Mevcut profilleri ve sertifikaları alıp şifreleyebilen bir betik.
 
 ::: tip SIGNING REQUIREMENTS

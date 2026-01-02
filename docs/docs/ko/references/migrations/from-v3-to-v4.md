@@ -37,11 +37,12 @@ Mise가 제공하는 결정론을 전반적으로 수용하기로 결정했다�
 <!-- -->
 :::
 
-::: info HOMEBREW SUPPORTED
+::: 정보 홈브루 지원됨
 <!-- -->
 macOS에서 널리 사용되는 패키지 관리자인 Homebrew를 사용하여 Tuist를 설치할 수 있습니다. 홈브루를 사용하여 Tuist를 설치하는
 방법은
-<LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">설치 가이드</LocalizedLink>에서 확인할 수 있습니다.
+<LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">설치
+가이드</LocalizedLink>에서 확인할 수 있습니다.
 <!-- -->
 :::
 
@@ -77,7 +78,8 @@ Tuist 4 이전에는 `Dependencies.swift` 파일에서 종속성을 정의할 �
 사용자에게 불필요한 간접 경로를 도입했습니다. 따라서 저희는 `Package.swift` 를 Tuist에서 종속성을 정의하는 유일한 방법으로
 채택하기로 결정했습니다. ` Dependencies.swift` 파일을 사용 중이었다면, `Tuist/Dependencies.swift` 의
 내용을 루트의 `Package.swift` 로 옮기고 `#if TUIST` 지시문을 사용하여 통합을 구성해야 합니다. Swift 패키지 종속성
-<LocalizedLink href="/guides/features/projects/dependencies#swift-packages">을 통합하는 방법에 대한 자세한 내용은 여기에서 확인할 수 있습니다.</LocalizedLink>
+<LocalizedLink href="/guides/features/projects/dependencies#swift-packages">을
+통합하는 방법에 대한 자세한 내용은 여기에서 확인할 수 있습니다.</LocalizedLink>
 
 ### `tuist-cache warm` 을 `tuist-cache` {#renamed-tuist-cache-warm-to-tuist-cache}로 이름 변경
 
@@ -142,7 +144,7 @@ Tuist의 장기적인 목표라고 생각했습니다. Carthage 종속성을 사
 프레임워크와 XCFramework를 Carthage의 표준 디렉토리로 가져온 다음 `TargetDependency.xcframework` 및
 `TargetDependency.framework` 사례를 사용하여 태그셋에서 해당 바이너리를 참조해야 합니다.
 
-::: info CARTHAGE IS STILL SUPPORTED
+::: 정보 카르타고는 여전히 지원됩니다.
 <!-- -->
 일부 사용자는 카르타고 지원을 중단한 것으로 이해했습니다. 그렇지 않습니다. Tuist와 Carthage의 결과물 간의 계약은 시스템에 저장된
 프레임워크와 XCFrameworks에 대한 것입니다. 변경된 유일한 사항은 종속성을 가져오는 책임이 있는 사람입니다. 이전에는 튜이스트가

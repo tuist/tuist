@@ -160,8 +160,8 @@ let project = Project(resourceSynthesizers: [.string(), .fonts()])
 
 ::: info REFERENCE
 <!-- -->
-Możesz sprawdzić [this
-fixture](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates),
+Możesz sprawdzić [ten
+przykład](https://github.com/tuist/tuist/tree/main/examples/xcode/generated_ios_app_with_templates),
 aby zobaczyć przykład użycia niestandardowych szablonów do syntezy akcesorów do
 zasobów.
 <!-- -->

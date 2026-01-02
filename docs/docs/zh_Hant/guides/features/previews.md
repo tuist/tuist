@@ -48,8 +48,8 @@ tuist run {url}
 tuist run --device "My iPhone" {url} # Run the app on a specific device
 ```
 
-分享`.ipa` 檔案時，您可以使用預覽連結直接從行動裝置下載應用程式。`.ipa` 預覽的連結預設為_公開_
-。將來，您將可選擇將其設定為隱私，因此連結的接收者需要使用其 Tuist 帳戶進行驗證才能下載應用程式。
+分享`.ipa` 檔案時，您可以使用預覽連結直接從行動裝置下載應用程式。`.ipa` 預覽的連結預設為_private_ ，意即接收者需要用他們的 Tuist
+帳戶驗證才能下載應用程式。如果您想與任何人分享應用程式，可以在專案設定中將其變更為公開。
 
 `tuist run` 也可讓您根據指定符號執行最新預覽，例如`latest` 、分支名稱或特定的提交雜湊：
 
@@ -100,7 +100,9 @@ tuist share App --track nightly
     <img src="/images/guides/features/menu-bar-app.png" style="width: 300px;" />
 </div>
 
-為了讓執行 Tuist 預覽更加容易，我們開發了一個 Tuist macOS 功能表應用程式。與其透過 Tuist CLI 執行預覽，您可以[下載](https://tuist.dev/download) macOS 應用程式。您也可以執行 `brew install --cask tuist/tuist/tuist` 來安裝應用程式。
+為了讓執行 Tuist 預覽更加容易，我們開發了一個 Tuist macOS 功能表應用程式。與其透過 Tuist CLI 執行預覽，您可以
+[下載](https://tuist.dev/download) macOS 應用程式。您也可以執行`brew install --cask
+tuist/tuist/tuist` 來安裝應用程式。
 
 當您現在點選預覽頁面中的「執行」時，macOS 應用程式會自動在您目前選取的裝置上啟動。
 
@@ -127,20 +129,26 @@ tuist share App --track nightly
 
 ::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
-若要取得自動的 pull/merge 請求註解，請將您的 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 專案</LocalizedLink>與 <LocalizedLink href="/guides/server/authentication">Git 平台</LocalizedLink>整合。
+若要取得自動的 pull/merge 請求註解，請將您的
+<LocalizedLink href="/guides/server/accounts-and-projects">Tuist
+專案</LocalizedLink>與 <LocalizedLink href="/guides/server/authentication">Git
+平台</LocalizedLink>整合。
 <!-- -->
 :::
 
-測試新功能應該是任何程式碼檢閱的一部分。但必須在本機建立應用程式會增加不必要的摩擦，通常會導致開發人員完全跳過在裝置上測試功能。但是*如果每個拉取請求都包含一個連結，可以讓您在 Tuist macOS 應用程式中選擇的裝置上自動執行應用程式的建立呢？*
+測試新功能應該是任何程式碼檢閱的一部分。但必須在本機建立應用程式會增加不必要的摩擦，通常會導致開發人員完全跳過在裝置上測試功能。但是*如果每個拉取請求都包含一個連結，可以讓您在
+Tuist macOS 應用程式中選擇的裝置上自動執行應用程式的建立呢？*
 
-一旦您的 Tuist 專案與 [GitHub](https://github.com) 等 Git 平台連線，請在 CI 工作流程中加入 <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink>。之後，Tuist 會直接在您的拉取請求中發佈預覽連結：
-
-![帶有 Tuist 預覽連結的 GitHub 應用程式註解](/images/guides/features/github-app-with-preview.png)
+一旦您的 Tuist 專案與 [GitHub](https://github.com) 等 Git 平台連線，請在 CI 工作流程中加入
+<LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink>。之後，Tuist
+會直接在您的拉取請求中發佈預覽連結： ![帶有 Tuist 預覽連結的 GitHub
+應用程式註解](/images/guides/features/github-app-with-preview.png)。
 
 
 ## 應用程式內更新通知{#in-app-update-notifications}
 
-[Tuist SDK](https://github.com/tuist/sdk) 可讓您的應用程式偵測更新的預覽版本，並通知使用者。這對於讓測試人員使用最新版本非常有用。
+Tuist SDK](https://github.com/tuist/sdk)
+可讓您的應用程式偵測更新的預覽版本，並通知使用者。這對於讓測試人員使用最新版本非常有用。
 
 SDK 會檢查同一**預覽軌** 內的更新。當您使用`--track` 與明確的軌道分享預覽時，SDK 會在該軌道上尋找更新。如果沒有指定軌道，則會使用 git
 分支作為軌道 - 因此從`main` 分支建立的預覽，只會通知同樣從`main` 建立的更新預覽。
@@ -214,7 +222,8 @@ task.cancel()
 
 為了讓 Tuist 預覽在您的儲存庫中更顯眼，您可以在`README` 檔案中加入徽章，指向最新的 Tuist 預覽：
 
-[![Tuist 預覽](https://tuist.dev/Dimillian/IcySky/previews/latest/badge.svg)](https://tuist.dev/Dimillian/IcySky/previews/latest)
+[！[Tuist
+預覽](https://tuist.dev/Dimillian/IcySky/previews/latest/badge.svg)](https://tuist.dev/Dimillian/IcySky/previews/latest)
 
 若要在`README` 中加入徽章，請使用下列 markdown，並將帳號和專案句柄換成您自己的：
 ```

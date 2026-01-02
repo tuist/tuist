@@ -18,7 +18,7 @@ Git 仓库是绝大多数软件项目的核心。我们与 GitHub 集成，可�
 
 显示添加项目连接的图像](/images/guides/integrations/gitforge/github/add-project-connection.png)。
 
-## 拉取/合并请求注释{#pull-merge-request-comments}
+## 拉取/合并请求注释{#pullmerge-request-comments}
 
 GitHub 应用程序会发布 Tuist 运行报告，其中包括 PR 的摘要，包括最新
 <LocalizedLink href="/guides/features/previews#pullmerge-request-comments">previews</LocalizedLink>
@@ -31,7 +31,8 @@ GitHub 应用程序会发布 Tuist 运行报告，其中包括 PR 的摘要，�
 ::: info REQUIREMENTS
 <!-- -->
 只有当您的 CI 运行通过
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication"> 验证</LocalizedLink>时，才会发布注释。
+<LocalizedLink href="/guides/integrations/continuous-integration#authentication">
+验证</LocalizedLink>时，才会发布注释。
 <!-- -->
 :::
 

@@ -9,7 +9,8 @@
 
 ::: advertencia REQUISITOS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y proyecto</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y
+  proyecto</LocalizedLink>
 <!-- -->
 :::
 
@@ -58,7 +59,8 @@ rastree la configuración de compilación.
 
 ::: info
 <!-- -->
-Si no está utilizando <LocalizedLink href="/guides/features/projects">proyectos generados</LocalizedLink>, la acción post-scheme no se ejecuta en caso de que
+Si no está utilizando <LocalizedLink href="/guides/features/projects">proyectos
+generados</LocalizedLink>, la acción post-scheme no se ejecuta en caso de que
 falle la compilación.
 <!-- -->
 :::
@@ -246,7 +248,8 @@ asegurarse de que su CI está
 
 Además, tendrá que:
 - Utilice el comando
-  <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</LocalizedLink> cuando invoque las acciones `xcodebuild`.
+  <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
+  xcodebuild`</LocalizedLink> cuando invoque las acciones `xcodebuild`.
 - Añada `-resultBundlePath` a su invocación `xcodebuild`.
 
 Cuando `xcodebuild` construye o prueba su proyecto sin `-resultBundlePath`, no

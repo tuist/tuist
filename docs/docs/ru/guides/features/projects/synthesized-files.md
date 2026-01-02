@@ -162,7 +162,7 @@ let project = Project(resourceSynthesizers: [.string(), .fonts()])
 ::: info REFERENCE
 <!-- -->
 Вы можете посмотреть на [this
-fixture](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates),
+fixture](https://github.com/tuist/tuist/tree/main/examples/xcode/generated_ios_app_with_templates),
 чтобы увидеть пример использования пользовательских шаблонов для синтеза
 аксессоров к ресурсам.
 <!-- -->

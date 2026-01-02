@@ -8,7 +8,8 @@
 # Proyecto generado con la integración del paquete Xcode {#generated-project-with-xcode-based-integration}
 
 Si utiliza la
-integración<LocalizedLink href="/guides/features/projects/dependencies#xcodes-default-integration">por defecto</LocalizedLink> de paquetes de Xcode con Tuist Projects, deberá utilizar
+integración<LocalizedLink href="/guides/features/projects/dependencies#xcodes-default-integration">por
+defecto</LocalizedLink> de paquetes de Xcode con Tuist Projects, deberá utilizar
 el identificador del registro en lugar de una URL cuando añada un paquete:
 ```swift
 import ProjectDescription

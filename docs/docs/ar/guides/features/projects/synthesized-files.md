@@ -151,8 +151,8 @@ let project = Project(resourceSynthesizers: [.string(), .fonts()])
 
 ::: info REFERENCE
 <!-- -->
-يمكنك الاطلاع على [هذا التركيب]
-(https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates)
+يمكنكم الاطلاع على [هذا المثال]
+(https://github.com/tuist/tuist/tree/main/examples/xcode/generated_ios_app_with_templates)
 للاطلاع على مثال لكيفية استخدام القوالب المخصصة لتجميع الوصولات إلى الموارد.
 <!-- -->
 :::

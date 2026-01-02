@@ -9,9 +9,8 @@ import { useData } from 'vitepress'
 
 // params is a Vue ref
 const { params } = useData()
+
 </script>
-
-
 
 <!-- @content -->
 

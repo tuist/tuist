@@ -13,7 +13,7 @@
 
 以下のセクションでは、異なるCIプラットフォームでこれを行う方法の例を示す。
 
-## 例{#examples}
+## 例{#example}
 
 ### GitHub アクション{#github-actions}
 
@@ -116,7 +116,8 @@ jobs:
 <!-- -->
 OIDC認証を使用する前に、<LocalizedLink href="/guides/integrations/gitforge/github">GitHubリポジトリ</LocalizedLink>をTuistプロジェクトに接続する必要があります。OIDC
 を動作させるには`permissions: id-token: write` が必要です。あるいは、`TUIST_TOKEN` secret を持つ
-<LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> を使うこともできます。
+<LocalizedLink href="/guides/server/authentication#account-tokens">account
+token</LocalizedLink> を使うこともできます。
 <!-- -->
 :::
 
@@ -160,7 +161,7 @@ tuist generate
 ::: info AUTHENTICATION
 <!-- -->
 Xcode Cloud のワークフロー設定で`TUIST_TOKEN`
-環境変数を設定し、<LocalizedLink href="/guides/server/authentication#project-tokens">プロジェクト・トークン</LocalizedLink>
+環境変数を設定し、<LocalizedLink href="/guides/server/authentication#account-tokens">アカウントトークン</LocalizedLink>
 を使用します。
 <!-- -->
 :::
@@ -222,7 +223,8 @@ jobs:
 <!-- -->
 OIDC認証を使用する前に、<LocalizedLink href="/guides/integrations/gitforge/github">GitHubリポジトリ</LocalizedLink>をTuistプロジェクトに接続する必要があります。CircleCI
 OIDCトークンには接続したGitHubリポジトリが含まれており、Tuistはこれを使用してプロジェクトへのアクセスを認証します。あるいは、`TUIST_TOKEN`
-環境変数で <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> を使用することもできます。
+環境変数で <LocalizedLink href="/guides/server/authentication#account-tokens">account
+token</LocalizedLink> を使用することもできます。
 <!-- -->
 :::
 
@@ -285,7 +287,8 @@ workflows:
 <!-- -->
 OIDC認証を使用する前に、<LocalizedLink href="/guides/integrations/gitforge/github">GitHubリポジトリ</LocalizedLink>をTuistプロジェクトに接続する必要があります。Bitrise
 OIDCトークンには接続したGitHubリポジトリが含まれており、Tuistはこれを使用してプロジェクトへのアクセスを認証します。あるいは、`TUIST_TOKEN`
-環境変数で <LocalizedLink href="/guides/server/authentication#project-tokens">project token</LocalizedLink> を使用することもできます。
+環境変数で <LocalizedLink href="/guides/server/authentication#account-tokens">account
+token</LocalizedLink> を使用することもできます。
 <!-- -->
 :::
 
@@ -332,6 +335,6 @@ workflows:
 
 ::: info AUTHENTICATION
 <!-- -->
-<LocalizedLink href="/guides/server/authentication#project-tokens">プロジェクト・トークン</LocalizedLink>を作成し、`TUIST_TOKEN` という秘密の環境変数として追加する。
+1}アカウントトークン</LocalizedLink>を作成し、`TUIST_TOKEN` という秘密の環境変数として追加する。
 <!-- -->
 :::

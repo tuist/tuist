@@ -77,7 +77,8 @@ Tuist 會解析相依性圖形，並將相依性的專案包含在工作區中�
 衝突不是問題。因此，在工作區中使用單一專案或多個專案的決定權在您。
 
 在 Tuist 專案中，我們傾向使用單一專案，因為冷生成時間較快（需要編譯的manifest檔案較少），而且我們利用
-<LocalizedLink href="/guides/features/projects/code-sharing">Project description helpers</LocalizedLink> 作為封裝單位。然而，您可能希望使用 Xcode 專案作為封裝單位，以代表應用程式的不同領域，這與 Xcode
+<LocalizedLink href="/guides/features/projects/code-sharing">Project description
+helpers</LocalizedLink> 作為封裝單位。然而，您可能希望使用 Xcode 專案作為封裝單位，以代表應用程式的不同領域，這與 Xcode
 所推薦的專案結構更為接近。
 
 ## Tuist.swift{#tuistswift}

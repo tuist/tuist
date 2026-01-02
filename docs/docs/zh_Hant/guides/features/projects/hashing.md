@@ -44,7 +44,8 @@ stability](https://www.swift.org/blog/library-evolution#enabling-library-evoluti
 
 1. 執行`tuist hash cache` 或`tuist hash selective-testing` (哈希值為
    <LocalizedLink href="/guides/features/cache"> 二进制快取</LocalizedLink>或
-   <LocalizedLink href="/guides/features/selective-testing"> 選擇性測試</LocalizedLink>)，複製哈希值，重新命名專案目錄，再執行一次指令。哈希值應該相符。
+   <LocalizedLink href="/guides/features/selective-testing">
+   選擇性測試</LocalizedLink>)，複製哈希值，重新命名專案目錄，再執行一次指令。哈希值應該相符。
 2. 如果哈希值不匹配，很可能是生成的專案取決於環境。在兩種情況下執行`tuist graph --format json` 並比較圖形。或者，生成專案，並使用
    [Diffchecker](https://www.diffchecker.com) 等差異工具比較它們的`project.pbxproj` 檔案。
 3. 如果哈希值相同，但在不同的環境（例如 CI 與本機）下有所不同，請確定各處都使用相同的 [configuration](#configuration) 與

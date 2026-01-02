@@ -32,7 +32,8 @@ security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 並解除鎖定_。
 
 此外，您需要確保`TUIST_TOKEN` 環境變數已設定。您可以按照說明文件
-<LocalizedLink href="/guides/server/authentication#as-a-project"> 這裡 </LocalizedLink> 建立一個。
+<LocalizedLink href="/guides/server/authentication#as-a-project"> 這裡
+</LocalizedLink> 建立一個。
 
 GitHub Actions 的示例工作流程如下：
 ```yaml

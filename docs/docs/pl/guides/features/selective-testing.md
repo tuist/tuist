@@ -22,11 +22,13 @@ o nasz algorytm
 Testowanie selektywne działa z `xcodebuild`, który obsługuje dowolny projekt
 Xcode, lub jeśli generujesz swoje projekty za pomocą Tuist, możesz zamiast tego
 użyć polecenia `tuist test`, które zapewnia dodatkowe udogodnienia, takie jak
-integracja z <LocalizedLink href="/guides/features/cache">binary cache</LocalizedLink>. Aby rozpocząć testowanie selektywne, postępuj zgodnie z
+integracja z <LocalizedLink href="/guides/features/cache">binary
+cache</LocalizedLink>. Aby rozpocząć testowanie selektywne, postępuj zgodnie z
 instrukcjami opartymi na konfiguracji projektu:
 
 - <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
-- <LocalizedLink href="/guides/features/selective-testing/generated-project">Wygenerowany projekt</LocalizedLink>
+- <LocalizedLink href="/guides/features/selective-testing/generated-project">Wygenerowany
+  projekt</LocalizedLink>
 
 ::: warning MODULE VS FILE-LEVEL GRANULARITY
 <!-- -->

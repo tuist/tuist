@@ -24,7 +24,8 @@ Aşağıdaki bölümlerde bunun farklı CI platformlarında nasıl yapılacağı
 
 GitHub Actions](https://docs.github.com/en/actions) üzerinde güvenli, gizlilik
 içermeyen kimlik doğrulaması için
-<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC kimlik doğrulamasını</LocalizedLink> kullanabilirsiniz:
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC kimlik
+doğrulamasını</LocalizedLink> kullanabilirsiniz:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -121,10 +122,12 @@ jobs:
 ::: info OIDC SETUP
 <!-- -->
 OIDC kimlik doğrulamasını kullanmadan önce,
-<LocalizedLink href="/guides/integrations/gitforge/github"> GitHub deponuzu</LocalizedLink> Tuist projenize bağlamanız gerekir. OIDC'nin çalışması
+<LocalizedLink href="/guides/integrations/gitforge/github"> GitHub
+deponuzu</LocalizedLink> Tuist projenize bağlamanız gerekir. OIDC'nin çalışması
 için `permissions: id-token: write` gereklidir. Alternatif olarak, `TUIST_TOKEN`
 secret ile bir
-<LocalizedLink href="/guides/server/authentication#project-tokens">proje belirteci</LocalizedLink> kullanabilirsiniz.
+<LocalizedLink href="/guides/server/authentication#account-tokens">account
+token</LocalizedLink> kullanabilirsiniz.
 <!-- -->
 :::
 
@@ -171,7 +174,8 @@ tuist generate
 ::: info AUTHENTICATION
 <!-- -->
 Xcode Cloud iş akışı ayarlarınızda `TUIST_TOKEN` ortam değişkenini ayarlayarak
-bir <LocalizedLink href="/guides/server/authentication#project-tokens">proje belirteci</LocalizedLink> kullanın.
+bir <LocalizedLink href="/guides/server/authentication#account-tokens">hesap
+belirteci</LocalizedLink> kullanın.
 <!-- -->
 :::
 
@@ -179,7 +183,8 @@ bir <LocalizedLink href="/guides/server/authentication#project-tokens">proje bel
 
 CircleCI](https://circleci.com) üzerinde güvenli, gizlilik içermeyen kimlik
 doğrulaması için
-<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC kimlik doğrulamasını</LocalizedLink> kullanabilirsiniz:
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC kimlik
+doğrulamasını</LocalizedLink> kullanabilirsiniz:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -233,10 +238,12 @@ jobs:
 ::: info AUTHENTICATION
 <!-- -->
 OIDC kimlik doğrulamasını kullanmadan önce
-<LocalizedLink href="/guides/integrations/gitforge/github"> GitHub deponuzu</LocalizedLink> Tuist projenize bağlamanız gerekir. CircleCI OIDC
+<LocalizedLink href="/guides/integrations/gitforge/github"> GitHub
+deponuzu</LocalizedLink> Tuist projenize bağlamanız gerekir. CircleCI OIDC
 belirteçleri, Tuist'in projelerinize erişimi yetkilendirmek için kullandığı
 bağlı GitHub deponuzu içerir. Alternatif olarak, `TUIST_TOKEN` ortam değişkeni
-ile bir <LocalizedLink href="/guides/server/authentication#project-tokens">proje belirteci</LocalizedLink> kullanabilirsiniz.
+ile bir <LocalizedLink href="/guides/server/authentication#account-tokens">hesap
+belirteci</LocalizedLink> kullanabilirsiniz.
 <!-- -->
 :::
 
@@ -244,7 +251,8 @@ ile bir <LocalizedLink href="/guides/server/authentication#project-tokens">proje
 
 Bitrise](https://bitrise.io) üzerinde güvenli, gizlilik içermeyen kimlik
 doğrulaması için
-<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC kimlik doğrulamasını</LocalizedLink> kullanabilirsiniz:
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC kimlik
+doğrulamasını</LocalizedLink> kullanabilirsiniz:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -300,10 +308,12 @@ workflows:
 ::: info AUTHENTICATION
 <!-- -->
 OIDC kimlik doğrulamasını kullanmadan önce,
-<LocalizedLink href="/guides/integrations/gitforge/github"> GitHub deponuzu</LocalizedLink> Tuist projenize bağlamanız gerekir. Bitrise OIDC
+<LocalizedLink href="/guides/integrations/gitforge/github"> GitHub
+deponuzu</LocalizedLink> Tuist projenize bağlamanız gerekir. Bitrise OIDC
 belirteçleri, Tuist'in projelerinize erişimi yetkilendirmek için kullandığı
 bağlı GitHub deponuzu içerir. Alternatif olarak, `TUIST_TOKEN` ortam değişkeni
-ile bir <LocalizedLink href="/guides/server/authentication#project-tokens">proje belirteci</LocalizedLink> kullanabilirsiniz.
+ile bir <LocalizedLink href="/guides/server/authentication#account-tokens">hesap
+belirteci</LocalizedLink> kullanabilirsiniz.
 <!-- -->
 :::
 
@@ -351,7 +361,8 @@ workflows:
 
 ::: info AUTHENTICATION
 <!-- -->
-Bir <LocalizedLink href="/guides/server/authentication#project-tokens">proje belirteci</LocalizedLink> oluşturun ve bunu `TUIST_TOKEN` adlı gizli bir ortam
+Bir <LocalizedLink href="/guides/server/authentication#account-tokens">hesap
+belirteci</LocalizedLink> oluşturun ve bunu `TUIST_TOKEN` adında gizli bir ortam
 değişkeni olarak ekleyin.
 <!-- -->
 :::

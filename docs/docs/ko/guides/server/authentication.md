@@ -28,7 +28,7 @@ CLI는 서버에 요청할 때 자동으로 자격 증명을 조회합니다. �
 
 ## OIDC 토큰 {#oidc-tokens}
 
-OIDC(OpenID Connect)를 지원하는 CI 환경의 경우, 사용자가 장기 비밀 번호를 관리할 필요 없이 자동으로 인증할 수 있습니다.
+OIDC(OpenID Connect)를 지원하는 CI 환경의 경우, 사용자가 장기 비밀번호를 관리할 필요 없이 자동으로 인증할 수 있습니다.
 지원되는 CI 환경에서 실행할 때 CLI는 자동으로 OIDC 토큰 공급자를 감지하고 CI가 제공한 토큰을 Tuist 액세스 토큰으로 교환합니다.
 
 ### 지원되는 CI 제공업체 {#supported-ci-providers}
@@ -40,12 +40,14 @@ OIDC(OpenID Connect)를 지원하는 CI 환경의 경우, 사용자가 장기 �
 ### OIDC 인증 설정 {#setting-up-oidc-authentication}
 
 1. **저장소를 Tuist에 연결**:
-   <LocalizedLink href="/guides/integrations/gitforge/github">GitHub 통합 가이드</LocalizedLink>에 따라 GitHub 저장소를 Tuist 프로젝트에 연결합니다.
+   <LocalizedLink href="/guides/integrations/gitforge/github">GitHub 통합
+   가이드</LocalizedLink>에 따라 GitHub 저장소를 Tuist 프로젝트에 연결합니다.
 
 2. **튜이스트 인증 로그인`** 을 실행합니다: CI 워크플로우에서 인증이 필요한 명령 전에 `tuist auth login` 을
    실행하세요. CLI는 자동으로 CI 환경을 감지하고 OIDC를 사용하여 인증합니다.
 
-공급자별 구성 예시는 <LocalizedLink href="/guides/integrations/continuous-integration">연속 연동 가이드</LocalizedLink>를 참조하세요.
+공급자별 구성 예시는 <LocalizedLink href="/guides/integrations/continuous-integration">연속
+연동 가이드</LocalizedLink>를 참조하세요.
 
 ### OIDC 토큰 범위 {#oidc-token-scopes}
 
@@ -109,14 +111,14 @@ tuist account tokens create my-account \
 
 ### 범위 그룹 {#scope-groups}
 
-범위 그룹은 하나의 식별자로 여러 개의 관련 범위를 편리하게 부여할 수 있는 방법을 제공합니다. 범위 그룹을 사용하면 해당 그룹에 포함된 모든
+범위 그룹은 하나의 식별자로 여러 개의 관련 범위를 부여할 수 있는 편리한 방법을 제공합니다. 범위 그룹을 사용하면 해당 그룹에 포함된 모든
 개별 범위를 포함하도록 자동으로 확장됩니다.
 
 | 범위 그룹 | 포함된 범위                                                                                |
 | ----- | ------------------------------------------------------------------------------------- |
 | `ci`  | `프로젝트:캐시:쓰기`, `프로젝트:미리보기:쓰기`, `프로젝트:번들:쓰기`, `프로젝트:테스트:쓰기`, `프로젝트:빌드:쓰기`, `프로젝트:실행:쓰기` |
 
-### 지속적 통합 {#continuous-integration}
+### 지속 통합 {#continuous-integration}
 
 OIDC를 지원하지 않는 CI 환경의 경우 `ci` 범위 그룹으로 계정 토큰을 만들어 CI 워크플로우를 인증할 수 있습니다:
 

@@ -163,7 +163,7 @@ let project = Project(resourceSynthesizers: [.string(), .fonts()])
 ::: info REFERENCE
 <!-- -->
 You can check out [this
-fixture](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates)
+example](https://github.com/tuist/tuist/tree/main/examples/xcode/generated_ios_app_with_templates)
 to see an example of how to use custom templates to synthesize accessors to
 resources.
 <!-- -->

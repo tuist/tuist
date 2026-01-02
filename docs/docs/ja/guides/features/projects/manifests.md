@@ -23,7 +23,7 @@ Manager](https://www.swift.org/documentation/package-manager/)に触発されま
 
 ## プロジェクト.swift{#projectswift}
 
-`Project.swift` マニフェストは Xcode プロジェクトを宣言します。プロジェクトは、`name`
+1}`Project.swift`</LocalizedLink> マニフェストは Xcode プロジェクトを宣言します。プロジェクトは、`name`
 プロパティに示された名前で、マニフェストファイルがあるのと同じディレクトリに生成されます。
 
 ```swift

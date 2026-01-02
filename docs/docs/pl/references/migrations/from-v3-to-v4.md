@@ -50,7 +50,8 @@ Xcode](https://mise.jdx.dev/ide-integration.html#xcode).
 Pamiętaj, że nadal możesz zainstalować Tuist za pomocą Homebrew, który jest
 popularnym menedżerem narzędzi dla macOS. Instrukcje dotyczące instalacji Tuist
 przy użyciu Homebrew można znaleźć w
-<LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">przewodniku instalacji</LocalizedLink>.
+<LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">przewodniku
+instalacji</LocalizedLink>.
 <!-- -->
 :::
 

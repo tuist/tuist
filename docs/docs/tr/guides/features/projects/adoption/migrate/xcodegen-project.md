@@ -95,7 +95,8 @@ desteklememesidir. Bu, XcodeGen'in *"templates"* adlı kendi özel çözümü il
 çözmek zorunda kaldığı projeleri tanımlarken yaygın bir ihtiyaçtır. Tuist'in
 yeniden kullanılabilirliği, dilin kendisine, Swift'e ve tüm manifesto
 dosyalarınızda kodun yeniden kullanılmasına olanak tanıyan
-<LocalizedLink href="/guides/features/projects/code-sharing">proje açıklama yardımcıları</LocalizedLink> adlı bir Swift modülüne yerleştirilmiştir.
+<LocalizedLink href="/guides/features/projects/code-sharing">proje açıklama
+yardımcıları</LocalizedLink> adlı bir Swift modülüne yerleştirilmiştir.
 
 ::: code-group
 ```swift [Tuist/ProjectDescriptionHelpers/Target+Features.swift]

@@ -21,7 +21,8 @@ Tuist 對於您的範本內容以及您使用範本的目的不持任何意見�
 
 ## 定義範本{#defining-a-template}
 
-若要定義模板，您可以執行 <LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink> ，然後在`Tuist/Templates` 下建立一個名為`name_of_template`
+若要定義模板，您可以執行 <LocalizedLink href="/guides/features/projects/editing">`tuist
+edit`</LocalizedLink> ，然後在`Tuist/Templates` 下建立一個名為`name_of_template`
 的目錄，代表您的模板。模板需要一個描述模板的清單檔案`name_of_template.swift` 。因此，如果您要建立一個名為`framework`
 的範本，您應該在`Tuist/Templates` 下建立一個新目錄`framework` ，並建立一個名為`framework.swift`
 的manifest 檔案，其內容可以如下所示：
@@ -80,6 +81,7 @@ name 屬性的小寫值。
 
 ::: tip PROJECT DESCRIPTION HELPERS
 <!-- -->
-模板支援使用 <LocalizedLink href="/guides/features/projects/code-sharing">專案描述輔助程式</LocalizedLink> 來跨模板重複使用程式碼。
+模板支援使用 <LocalizedLink href="/guides/features/projects/code-sharing"> 專案描述輔助程式
+</LocalizedLink> 來跨模板重複使用程式碼。
 <!-- -->
 :::

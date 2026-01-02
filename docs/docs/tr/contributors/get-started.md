@@ -14,7 +14,7 @@ bahsetmeye değer iki fark vardır:
 - **CLI'lar ile etkileşimler terminal üzerinden gerçekleşir.** Kullanıcı,
   istenen görevi yerine getiren Tuist'i çalıştırır ve ardından başarılı bir
   şekilde veya bir durum koduyla geri döner. Yürütme sırasında, standart çıktı
-  ve standart hataya çıktı bilgileri gönderilerek kullanıcı bilgilendirilebilir.
+  ve standart hataya çıktı bilgisi gönderilerek kullanıcı bilgilendirilebilir.
   Herhangi bir hareket ya da grafiksel etkileşim yoktur, sadece kullanıcının
   niyeti vardır.
 
@@ -52,7 +52,8 @@ Proje üzerinde çalışmaya başlamak için aşağıdaki adımları takip edebi
   install` adresini çalıştırın
 - Tuist tarafından ihtiyaç duyulan harici bağımlılıkları yüklemek için `tuist
   install` adresini çalıştırın
-- (İsteğe bağlı) <LocalizedLink href="/guides/features/cache">Tuist Önbelleğine erişmek için `tuist auth login` adresini çalıştırın</LocalizedLink>
+- (İsteğe bağlı) <LocalizedLink href="/guides/features/cache">Tuist Önbelleğine
+  erişmek için `tuist auth login` adresini çalıştırın</LocalizedLink>
 - Tuist'in kendisini kullanarak Tuist Xcode projesini oluşturmak için `tuist
   generate` adresini çalıştırın
 
@@ -70,7 +71,8 @@ tarafından oluşturulan projeyi kullanmanızı öneririz.
 ## Projeyi düzenleyin {#edit-the-project}
 
 Projeyi düzenlemeniz gerekirse, örneğin bağımlılıklar eklemek veya hedefleri
-ayarlamak için <LocalizedLink href="/guides/features/projects/editing">`tuist edit` komutunu</LocalizedLink> kullanabilirsiniz. Bu çok az kullanılır, ancak
+ayarlamak için <LocalizedLink href="/guides/features/projects/editing">`tuist
+edit` komutunu</LocalizedLink> kullanabilirsiniz. Bu çok az kullanılır, ancak
 var olduğunu bilmek iyidir.
 
 ## Run Tuist {#run-tuist}

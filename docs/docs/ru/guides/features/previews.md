@@ -9,7 +9,8 @@
 
 ::: предупреждение РЕКВИЗИТЫ
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и проект</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и
+  проект</LocalizedLink>
 <!-- -->
 :::
 
@@ -56,11 +57,12 @@ tuist run {url}
 tuist run --device "My iPhone" {url} # Run the app on a specific device
 ```
 
-При совместном использовании файла `.ipa` можно загрузить приложение
-непосредственно с мобильного устройства, используя ссылку Preview. Ссылки на
-предварительный просмотр `.ipa` по умолчанию _общедоступны_. В будущем у вас
-будет возможность сделать их приватными, чтобы получателю ссылки нужно было
-авторизоваться в своей учетной записи Tuist для загрузки приложения.
+При передаче файла `.ipa` можно загрузить приложение непосредственно с
+мобильного устройства, используя ссылку Preview. Ссылки на предварительный
+просмотр `.ipa` по умолчанию являются _частными_, то есть получателю необходимо
+авторизоваться в своей учетной записи Tuist, чтобы загрузить приложение. Вы
+можете изменить этот параметр на общедоступный в настройках проекта, если хотите
+поделиться приложением с кем-либо.
 
 `tuist run` также позволяет запустить последнюю версию превью на основе такого
 спецификатора, как `latest`, имени ветки или определенного хэша коммита:
@@ -157,7 +159,8 @@ tuist share App --track nightly
 ::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
 Чтобы получить автоматические комментарии к запросам pull/merge, интегрируйте
-ваш <LocalizedLink href="/guides/server/accounts-and-projects">удаленный проект</LocalizedLink> с
+ваш <LocalizedLink href="/guides/server/accounts-and-projects">удаленный
+проект</LocalizedLink> с
 <LocalizedLink href="/guides/server/authentication">Git-платформой</LocalizedLink>.
 <!-- -->
 :::
@@ -170,7 +173,8 @@ tuist share App --track nightly
 устройстве, выбранном в приложении Tuist macOS?*
 
 Как только ваш проект Tuist будет связан с вашей Git-платформой, например
-[GitHub](https://github.com), добавьте <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink> в ваш рабочий процесс CI. После этого Tuist будет
+[GitHub](https://github.com), добавьте <LocalizedLink href="/cli/share">`tuist
+share MyApp`</LocalizedLink> в ваш рабочий процесс CI. После этого Tuist будет
 публиковать ссылку на предварительный просмотр непосредственно в ваших запросах
 на вытягивание: ![Комментарий приложения на GitHub со ссылкой на предварительный
 просмотр Tuist](/images/guides/features/github-app-with-preview.png)

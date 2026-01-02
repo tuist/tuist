@@ -27,7 +27,8 @@ Sólo se requiere que estén en un directorio específico.
 ## Definir una plantilla {#defining-a-template}
 
 Para definir plantillas, puede ejecutar
-<LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink> y luego crear un directorio llamado `name_of_template`
+<LocalizedLink href="/guides/features/projects/editing">`tuist
+edit`</LocalizedLink> y luego crear un directorio llamado `name_of_template`
 bajo `Tuist/Templates` que representa su plantilla. Las plantillas necesitan un
 archivo de manifiesto, `name_of_template.swift` que describe la plantilla. Así
 que si estás creando una plantilla llamada `framework`, deberías crear un nuevo
@@ -96,7 +97,8 @@ carpetas enteras en una ruta determinada.
 ::: tip PROJECT DESCRIPTION HELPERS
 <!-- -->
 Las plantillas admiten el uso de
-<LocalizedLink href="/guides/features/projects/code-sharing">ayudantes de descripción de proyectos</LocalizedLink> para reutilizar código entre
+<LocalizedLink href="/guides/features/projects/code-sharing">ayudantes de
+descripción de proyectos</LocalizedLink> para reutilizar código entre
 plantillas.
 <!-- -->
 :::
