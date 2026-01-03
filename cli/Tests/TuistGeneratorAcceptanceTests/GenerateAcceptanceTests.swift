@@ -154,6 +154,8 @@ final class GenerateAcceptanceTestiOSAppWithFrameworkAndResources: TuistAcceptan
             "resource.txt",
             "en.lproj/Greetings.strings",
             "fr.lproj/Greetings.strings",
+            "AppCatalog.xcstrings",
+            "GreetingsCatalog.xcstrings",
             "resource_without_extension",
             "StaticFrameworkResources.bundle",
             "StaticFramework2Resources.bundle",
