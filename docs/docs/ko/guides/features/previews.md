@@ -161,7 +161,7 @@ SDK는 동일한 **미리 보기 트랙** 내에서 업데이트를 확인합니
 
 ### 설치 {#sdk-installation}
 
-스위프트 패키지 종속성으로 Tuist SDK를 추가합니다:
+Tuist SDK를 Swift Package 의존성으로 추가하세요:
 
 ```swift
 .package(url: "https://github.com/tuist/sdk", .upToNextMajor(from: "0.1.0"))
@@ -169,7 +169,7 @@ SDK는 동일한 **미리 보기 트랙** 내에서 업데이트를 확인합니
 
 ### 업데이트 모니터링 {#sdk-monitor-updates}
 
-`모니터 프리뷰 업데이트` 를 사용하여 주기적으로 새 미리 보기 버전을 확인합니다:
+주기적으로 새 미리 보기 버전을 확인하기 위해 `monitorPreviewUpdates`를 사용하세요:
 
 ```swift
 import TuistSDK
@@ -192,7 +192,7 @@ struct MyApp: App {
 
 ### 단일 업데이트 확인 {#sdk-single-check}
 
-수동 업데이트 확인을 위해:
+수동 업데이트 확인:
 
 ```swift
 let sdk = TuistSDK(
@@ -207,7 +207,7 @@ if let preview = try await sdk.checkForUpdate() {
 
 ### 업데이트 모니터링 중지 {#sdk-stop-monitoring}
 
-`monitorPreviewUpdates` 는 취소할 수 있는 `작업` 을 반환합니다:
+`monitorPreviewUpdates` 는 취소할 수 있는 `Task`를 반환합니다:
 
 ```swift
 let task = sdk.monitorPreviewUpdates { preview in
@@ -220,7 +220,7 @@ task.cancel()
 
 ::: info
 <!-- -->
-시뮬레이터 및 App Store 빌드에서는 업데이트 확인이 자동으로 비활성화됩니다.
+시뮬레이터 및 App Store 빌드에서는 업데이트 확인이 자동으로 비활성화 됩니다.
 <!-- -->
 :::
 
