@@ -150,7 +150,7 @@
                 <label data-part="schedule-label">
                   {dgettext("dashboard_projects", "Days")}
                 </label>
-                <.dropdown id="schedule-days-dropdown" label={format_selected_days(@schedule_form_days)} close_on_select={false}>
+                <.dropdown id="schedule-days-dropdown" label={format_selected_days(@schedule_form_days)}>
                   <.dropdown_item
                     :for={day <- 1..7}
                     value={Integer.to_string(day)}
@@ -184,7 +184,6 @@
                   </.dropdown_item>
                 </.dropdown>
               </div>
-              <!--
               <div :if={@schedule_form_frequency != :never} data-part="schedule-row">
                 <label data-part="schedule-label">
                   {dgettext("dashboard_projects", "Channel")}
@@ -225,7 +224,6 @@
                   </.dropdown_item>
                 </.dropdown>
               </div>
-              -->
             </div>
             <.line_divider />
             <:footer>
