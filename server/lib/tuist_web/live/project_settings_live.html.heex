@@ -155,7 +155,6 @@
                     :for={day <- 1..7}
                     value={Integer.to_string(day)}
                     label={Timex.day_name(day)}
-                    checkbox={true}
                     checked={Enum.member?(@schedule_form_days, day)}
                     phx-click="toggle_schedule_form_day"
                     phx-value-day={day}
