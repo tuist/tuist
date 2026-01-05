@@ -613,7 +613,7 @@ msgstr ""
 msgid "Configure your Slack reports"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:316
+#: lib/tuist_web/live/project_settings_live.ex:315
 #, elixir-autogen, elixir-format
 msgid "All days"
 msgstr ""
