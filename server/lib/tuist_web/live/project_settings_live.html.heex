@@ -146,19 +146,24 @@
                   </.dropdown_item>
                 </.dropdown>
               </div>
-              <div :if={@schedule_form_frequency != :never} data-part="schedule-row">
+              <div data-part="schedule-row">
                 <label data-part="schedule-label">
                   {dgettext("dashboard_projects", "Days")}
                 </label>
-                <.button_group size="small">
-                  <.button_group_item
+                <.dropdown
+                  id="schedule-days-dropdown"
+                  label={format_selected_days(@schedule_form_days)}
+                  close_on_select={false}
+                >
+                  <.dropdown_item
                     :for={day <- 1..7}
-                    label={Timex.day_shortname(day)}
-                    data-selected={Enum.member?(@schedule_form_days, day)}
+                    value={Integer.to_string(day)}
+                    label={Timex.day_name(day)}
+                    checked={Enum.member?(@schedule_form_days, day)}
                     phx-click="toggle_schedule_form_day"
                     phx-value-day={day}
                   />
-                </.button_group>
+                </.dropdown>
               </div>
               <div :if={@schedule_form_frequency != :never} data-part="schedule-row">
                 <label data-part="schedule-label">
@@ -186,7 +191,27 @@
                 <label data-part="schedule-label">
                   {dgettext("dashboard_projects", "Channel")}
                 </label>
-                <.portal id="channel-list-portal" target="#channel-list-target">
+                <.dropdown
+                  id="slack-channel-dropdown"
+                  label={
+                    if @schedule_form_channel_id do
+                      "##{@schedule_form_channel_name}"
+                    else
+                      dgettext("dashboard_projects", "Select channel")
+                    end
+                  }
+                >
+                  <:search>
+                    <.text_input
+                      type="search"
+                      id="channel-search-input"
+                      name="channel_search"
+                      placeholder={dgettext("dashboard_projects", "Search...")}
+                      phx-keyup="update_channel_search"
+                      phx-debounce="300"
+                      show_suffix={false}
+                    />
+                  </:search>
                   <.dropdown_item
                     :for={channel <- get_slack_channels(assigns)}
                     value={channel.id}
@@ -200,31 +225,6 @@
                       <.icon name="check" />
                     </:right_icon>
                   </.dropdown_item>
-                </.portal>
-                <.dropdown
-                  id="slack-channel-dropdown"
-                  label={
-                    if @schedule_form_channel_id do
-                      "##{@schedule_form_channel_name}"
-                    else
-                      dgettext("dashboard_projects", "Select channel")
-                    end
-                  }
-                >
-                  <div id="slack-channel-dropdown-content" phx-update="ignore">
-                    <div data-part="channel-search">
-                      <.text_input
-                        type="search"
-                        id="channel-search-input"
-                        name="channel_search"
-                        placeholder={dgettext("dashboard_projects", "Search...")}
-                        phx-keyup="update_channel_search"
-                        phx-debounce="300"
-                        show_suffix={false}
-                      />
-                    </div>
-                    <div data-part="channel-list" id="channel-list-target"></div>
-                  </div>
                 </.dropdown>
               </div>
             </div>

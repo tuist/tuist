@@ -286,7 +286,7 @@ defmodule TuistWeb.ProjectSettingsLive do
   defp format_hour(hour) do
     hour
     |> Time.new!(0, 0)
-    |> Timex.format!("{h12}{AM}")
+    |> Timex.format!("{h12} {AM}")
   end
 
   defp format_days_range(days) do
@@ -309,6 +309,16 @@ defmodule TuistWeb.ProjectSettingsLive do
   defp format_day_group([single]), do: Timex.day_shortname(single)
   defp format_day_group([first, last]), do: "#{Timex.day_shortname(first)}, #{Timex.day_shortname(last)}"
   defp format_day_group([first | rest]), do: "#{Timex.day_shortname(first)}-#{Timex.day_shortname(List.last(rest))}"
+
+  defp format_selected_days([]), do: dgettext("dashboard_projects", "Select days")
+
+  defp format_selected_days(days) when length(days) == 7, do: dgettext("dashboard_projects", "All days")
+
+  defp format_selected_days(days) do
+    days
+    |> Enum.sort()
+    |> Enum.map_join(", ", &Timex.day_shortname/1)
+  end
 
   defp format_slack_reports_tag(%{selected_project: project, user_timezone: user_timezone}) do
     channel_str = "##{project.slack_channel_name}"
