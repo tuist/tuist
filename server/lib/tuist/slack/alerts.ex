@@ -5,13 +5,8 @@ defmodule Tuist.Slack.Alerts do
   Alerts are triggered when a metric regresses beyond a configured threshold.
   """
 
-  import Ecto.Query
-
-  alias Tuist.ClickHouseRepo
   alias Tuist.Environment
-  alias Tuist.Repo
-  alias Tuist.Runs.Build
-  alias Tuist.Runs.Test
+  alias Tuist.Runs.Analytics
   alias Tuist.Slack.Alert
   alias Tuist.Utilities.DateFormatter
 
@@ -27,8 +22,8 @@ defmodule Tuist.Slack.Alerts do
     sample_size = alert.sample_size
     metric = alert.metric
 
-    current = get_build_metric(project.id, metric, limit: sample_size, offset: 0)
-    previous = get_build_metric(project.id, metric, limit: sample_size, offset: sample_size)
+    current = Analytics.build_duration_metric_by_count(project.id, metric, limit: sample_size, offset: 0)
+    previous = Analytics.build_duration_metric_by_count(project.id, metric, limit: sample_size, offset: sample_size)
 
     check_increase_regression(current, previous, alert.threshold_percentage)
   end
@@ -38,8 +33,8 @@ defmodule Tuist.Slack.Alerts do
     sample_size = alert.sample_size
     metric = alert.metric
 
-    current = get_test_metric(project.id, metric, limit: sample_size, offset: 0)
-    previous = get_test_metric(project.id, metric, limit: sample_size, offset: sample_size)
+    current = Analytics.test_duration_metric_by_count(project.id, metric, limit: sample_size, offset: 0)
+    previous = Analytics.test_duration_metric_by_count(project.id, metric, limit: sample_size, offset: sample_size)
 
     check_increase_regression(current, previous, alert.threshold_percentage)
   end
@@ -49,8 +44,8 @@ defmodule Tuist.Slack.Alerts do
     sample_size = alert.sample_size
     metric = alert.metric
 
-    current = get_cache_hit_rate_metric(project.id, metric, limit: sample_size, offset: 0)
-    previous = get_cache_hit_rate_metric(project.id, metric, limit: sample_size, offset: sample_size)
+    current = Analytics.build_cache_hit_rate_metric_by_count(project.id, metric, limit: sample_size, offset: 0)
+    previous = Analytics.build_cache_hit_rate_metric_by_count(project.id, metric, limit: sample_size, offset: sample_size)
 
     check_decrease_regression(current, previous, alert.threshold_percentage)
   end
@@ -91,87 +86,6 @@ defmodule Tuist.Slack.Alerts do
     else
       :ok
     end
-  end
-
-  defp get_build_metric(project_id, metric, opts) do
-    limit = Keyword.get(opts, :limit, 100)
-    offset = Keyword.get(opts, :offset, 0)
-
-    durations =
-      Repo.all(
-        from(b in Build,
-          where: b.project_id == ^project_id,
-          order_by: [desc: b.inserted_at],
-          limit: ^limit,
-          offset: ^offset,
-          select: b.duration
-        )
-      )
-
-    calculate_metric(durations, metric)
-  end
-
-  defp get_test_metric(project_id, metric, opts) do
-    limit = Keyword.get(opts, :limit, 100)
-    offset = Keyword.get(opts, :offset, 0)
-
-    durations =
-      ClickHouseRepo.all(
-        from(t in Test,
-          where: t.project_id == ^project_id,
-          order_by: [desc: t.ran_at],
-          limit: ^limit,
-          offset: ^offset,
-          select: t.duration
-        )
-      )
-
-    calculate_metric(durations, metric)
-  end
-
-  defp get_cache_hit_rate_metric(project_id, metric, opts) do
-    limit = Keyword.get(opts, :limit, 100)
-    offset = Keyword.get(opts, :offset, 0)
-
-    hit_rates =
-      Repo.all(
-        from(b in Build,
-          where: b.project_id == ^project_id and not is_nil(b.cacheable_tasks_count) and b.cacheable_tasks_count > 0,
-          order_by: [desc: b.inserted_at],
-          limit: ^limit,
-          offset: ^offset,
-          select:
-            fragment(
-              "(COALESCE(?, 0) + COALESCE(?, 0))::float / ?",
-              b.cacheable_task_local_hits_count,
-              b.cacheable_task_remote_hits_count,
-              b.cacheable_tasks_count
-            )
-        )
-      )
-
-    calculate_metric(hit_rates, metric)
-  end
-
-  defp calculate_metric([], _metric), do: nil
-
-  defp calculate_metric(values, :average) do
-    Enum.sum(values) / length(values)
-  end
-
-  defp calculate_metric(values, percentile) do
-    sorted = Enum.sort(values)
-    count = length(sorted)
-
-    index =
-      case percentile do
-        :p50 -> trunc(count * 0.5)
-        :p90 -> trunc(count * 0.9)
-        :p99 -> trunc(count * 0.99)
-      end
-
-    index = min(index, count - 1)
-    Enum.at(sorted, index)
   end
 
   @doc """

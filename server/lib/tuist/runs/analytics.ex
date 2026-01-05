@@ -2894,4 +2894,136 @@ defmodule Tuist.Runs.Analytics do
   defp normalize_duration(value) when is_float(value), do: round(value)
   defp normalize_duration(value) when is_integer(value), do: value
   defp normalize_duration(value), do: round(value * 1.0)
+
+  @doc """
+  Gets a single build duration metric for the last N builds.
+
+  This function is designed for alerts that compare recent builds against
+  previous builds using count-based windows rather than time-based windows.
+
+  ## Parameters
+    * `project_id` - The project ID
+    * `metric` - The metric to calculate: `:p50`, `:p90`, `:p99`, or `:average`
+    * `opts` - Options:
+      * `:limit` - Number of builds to consider (default: 100)
+      * `:offset` - Number of builds to skip (default: 0)
+
+  ## Returns
+    The calculated metric value, or `nil` if no data available.
+  """
+  def build_duration_metric_by_count(project_id, metric, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 100)
+    offset = Keyword.get(opts, :offset, 0)
+
+    durations =
+      Repo.all(
+        from(b in Build,
+          where: b.project_id == ^project_id,
+          order_by: [desc: b.inserted_at],
+          limit: ^limit,
+          offset: ^offset,
+          select: b.duration
+        )
+      )
+
+    calculate_metric_from_values(durations, metric)
+  end
+
+  @doc """
+  Gets a single test duration metric for the last N tests.
+
+  This function is designed for alerts that compare recent tests against
+  previous tests using count-based windows rather than time-based windows.
+
+  ## Parameters
+    * `project_id` - The project ID
+    * `metric` - The metric to calculate: `:p50`, `:p90`, `:p99`, or `:average`
+    * `opts` - Options:
+      * `:limit` - Number of tests to consider (default: 100)
+      * `:offset` - Number of tests to skip (default: 0)
+
+  ## Returns
+    The calculated metric value, or `nil` if no data available.
+  """
+  def test_duration_metric_by_count(project_id, metric, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 100)
+    offset = Keyword.get(opts, :offset, 0)
+
+    durations =
+      ClickHouseRepo.all(
+        from(t in Test,
+          where: t.project_id == ^project_id,
+          order_by: [desc: t.ran_at],
+          limit: ^limit,
+          offset: ^offset,
+          select: t.duration
+        )
+      )
+
+    calculate_metric_from_values(durations, metric)
+  end
+
+  @doc """
+  Gets a single cache hit rate metric for the last N builds.
+
+  This function is designed for alerts that compare recent cache hit rates against
+  previous builds using count-based windows rather than time-based windows.
+
+  ## Parameters
+    * `project_id` - The project ID
+    * `metric` - The metric to calculate: `:p50`, `:p90`, `:p99`, or `:average`
+    * `opts` - Options:
+      * `:limit` - Number of builds to consider (default: 100)
+      * `:offset` - Number of builds to skip (default: 0)
+
+  ## Returns
+    The calculated metric value (as a ratio 0.0-1.0), or `nil` if no data available.
+  """
+  def build_cache_hit_rate_metric_by_count(project_id, metric, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 100)
+    offset = Keyword.get(opts, :offset, 0)
+
+    hit_rates =
+      Repo.all(
+        from(b in Build,
+          where:
+            b.project_id == ^project_id and
+              not is_nil(b.cacheable_tasks_count) and
+              b.cacheable_tasks_count > 0,
+          order_by: [desc: b.inserted_at],
+          limit: ^limit,
+          offset: ^offset,
+          select:
+            fragment(
+              "(COALESCE(?, 0) + COALESCE(?, 0))::float / ?",
+              b.cacheable_task_local_hits_count,
+              b.cacheable_task_remote_hits_count,
+              b.cacheable_tasks_count
+            )
+        )
+      )
+
+    calculate_metric_from_values(hit_rates, metric)
+  end
+
+  defp calculate_metric_from_values([], _metric), do: nil
+
+  defp calculate_metric_from_values(values, :average) do
+    Enum.sum(values) / length(values)
+  end
+
+  defp calculate_metric_from_values(values, percentile) do
+    sorted = Enum.sort(values)
+    count = length(sorted)
+
+    index =
+      case percentile do
+        :p50 -> trunc(count * 0.5)
+        :p90 -> trunc(count * 0.9)
+        :p99 -> trunc(count * 0.99)
+      end
+
+    index = min(index, count - 1)
+    Enum.at(sorted, index)
+  end
 end

@@ -63,10 +63,15 @@ defmodule Tuist.Runs do
     cacheable_tasks = Map.get(attrs, :cacheable_tasks, [])
     cas_outputs = Map.get(attrs, :cas_outputs, [])
 
+    # Only calculate cache counts from cacheable_tasks if not explicitly provided
     cacheable_task_counts = %{
-      cacheable_tasks_count: length(cacheable_tasks),
-      cacheable_task_local_hits_count: Enum.count(cacheable_tasks, &(&1.status == :hit_local)),
-      cacheable_task_remote_hits_count: Enum.count(cacheable_tasks, &(&1.status == :hit_remote))
+      cacheable_tasks_count: Map.get(attrs, :cacheable_tasks_count) || length(cacheable_tasks),
+      cacheable_task_local_hits_count:
+        Map.get(attrs, :cacheable_task_local_hits_count) ||
+          Enum.count(cacheable_tasks, &(&1.status == :hit_local)),
+      cacheable_task_remote_hits_count:
+        Map.get(attrs, :cacheable_task_remote_hits_count) ||
+          Enum.count(cacheable_tasks, &(&1.status == :hit_remote))
     }
 
     attrs = Map.merge(attrs, cacheable_task_counts)

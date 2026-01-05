@@ -3435,4 +3435,284 @@ defmodule Tuist.Runs.AnalyticsTest do
       assert got == 0.0
     end
   end
+
+  describe "build_duration_metric_by_count/3" do
+    test "returns average duration for last N builds" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # Create builds with different durations (newest first)
+      for {duration, i} <- [{1200, 1}, {1000, 2}, {800, 3}, {600, 4}, {400, 5}] do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            duration: duration,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # When - get average of last 3 builds (1200, 1000, 800)
+      result = Analytics.build_duration_metric_by_count(project.id, :average, limit: 3)
+
+      # Then
+      assert result == 1000.0
+    end
+
+    test "returns p90 duration for last N builds" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # Create 10 builds with durations 100, 200, ..., 1000
+      for i <- 1..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            duration: (11 - i) * 100,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # When - get p90 of all 10 builds
+      result = Analytics.build_duration_metric_by_count(project.id, :p90, limit: 10)
+
+      # Then - p90 of sorted [100, 200, ..., 1000] at index trunc(10*0.9)=9 is 1000
+      assert result == 1000
+    end
+
+    test "returns nil when no builds exist" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      result = Analytics.build_duration_metric_by_count(project.id, :average, limit: 5)
+
+      # Then
+      assert result == nil
+    end
+
+    test "respects offset parameter" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # Create 6 builds: current (1200, 1200, 1200) and previous (1000, 1000, 1000)
+      for {duration, i} <- [{1200, 1}, {1200, 2}, {1200, 3}, {1000, 4}, {1000, 5}, {1000, 6}] do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            duration: duration,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # When - get average of builds 4-6 (offset: 3)
+      result = Analytics.build_duration_metric_by_count(project.id, :average, limit: 3, offset: 3)
+
+      # Then - average of [1000, 1000, 1000]
+      assert result == 1000.0
+    end
+  end
+
+  describe "test_duration_metric_by_count/3" do
+    test "returns average duration for last N tests" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # Create tests with different durations (newest first)
+      for {duration, i} <- [{3000, 1}, {2000, 2}, {1000, 3}] do
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            duration: duration,
+            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -i * 60, :second)
+          )
+      end
+
+      # When - get average of all 3 tests
+      result = Analytics.test_duration_metric_by_count(project.id, :average, limit: 3)
+
+      # Then
+      assert result == 2000.0
+    end
+
+    test "returns p50 duration for last N tests" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # Create 5 tests with durations
+      for {duration, i} <- [{5000, 1}, {4000, 2}, {3000, 3}, {2000, 4}, {1000, 5}] do
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            duration: duration,
+            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -i * 60, :second)
+          )
+      end
+
+      # When - get p50 of all 5 tests
+      result = Analytics.test_duration_metric_by_count(project.id, :p50, limit: 5)
+
+      # Then - p50 of sorted [1000, 2000, 3000, 4000, 5000] is 3000
+      assert result == 3000
+    end
+
+    test "returns nil when no tests exist" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      result = Analytics.test_duration_metric_by_count(project.id, :average, limit: 5)
+
+      # Then
+      assert result == nil
+    end
+  end
+
+  describe "build_cache_hit_rate_metric_by_count/3" do
+    test "returns average cache hit rate for last N builds" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # Create builds with different cache hit rates
+      # Build 1: 80% hit rate (80/100)
+      {:ok, _} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          duration: 1000,
+          cacheable_tasks_count: 100,
+          cacheable_task_local_hits_count: 50,
+          cacheable_task_remote_hits_count: 30,
+          inserted_at: DateTime.add(DateTime.utc_now(), -1, :minute)
+        )
+
+      # Build 2: 60% hit rate (60/100)
+      {:ok, _} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          duration: 1000,
+          cacheable_tasks_count: 100,
+          cacheable_task_local_hits_count: 40,
+          cacheable_task_remote_hits_count: 20,
+          inserted_at: DateTime.add(DateTime.utc_now(), -2, :minute)
+        )
+
+      # When - get average of both builds
+      result = Analytics.build_cache_hit_rate_metric_by_count(project.id, :average, limit: 2)
+
+      # Then - average of [0.8, 0.6] = 0.7
+      assert result == 0.7
+    end
+
+    test "excludes builds without cacheable tasks" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # Build with cache data
+      {:ok, _} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          duration: 1000,
+          cacheable_tasks_count: 100,
+          cacheable_task_local_hits_count: 70,
+          cacheable_task_remote_hits_count: 0,
+          inserted_at: DateTime.add(DateTime.utc_now(), -1, :minute)
+        )
+
+      # Build without cache data (cacheable_tasks_count = 0)
+      {:ok, _} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          duration: 1000,
+          cacheable_tasks_count: 0,
+          inserted_at: DateTime.add(DateTime.utc_now(), -2, :minute)
+        )
+
+      # When - get average (should only include build with cache data)
+      result = Analytics.build_cache_hit_rate_metric_by_count(project.id, :average, limit: 10)
+
+      # Then - only the 70% hit rate build is included
+      assert result == 0.7
+    end
+
+    test "returns nil when no builds with cache data exist" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # Build without cache data
+      {:ok, _} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          duration: 1000,
+          cacheable_tasks_count: 0
+        )
+
+      # When
+      result = Analytics.build_cache_hit_rate_metric_by_count(project.id, :average, limit: 5)
+
+      # Then
+      assert result == nil
+    end
+
+    test "returns p90 cache hit rate" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # Create 10 builds with hit rates: 10%, 20%, ..., 100%
+      for i <- 1..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            duration: 1000,
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: (11 - i) * 10,
+            cacheable_task_remote_hits_count: 0,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # When - get p90 of all 10 builds
+      result = Analytics.build_cache_hit_rate_metric_by_count(project.id, :p90, limit: 10)
+
+      # Then - p90 of sorted [0.1, 0.2, ..., 1.0] at index trunc(10*0.9)=9 is 1.0
+      assert result == 1.0
+    end
+
+    test "respects offset parameter for comparing current vs previous" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # Current builds: 90% hit rate
+      for i <- 1..3 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            duration: 1000,
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 90,
+            cacheable_task_remote_hits_count: 0,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Previous builds: 70% hit rate
+      for i <- 4..6 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            duration: 1000,
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 70,
+            cacheable_task_remote_hits_count: 0,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # When - get current (offset: 0) and previous (offset: 3)
+      current = Analytics.build_cache_hit_rate_metric_by_count(project.id, :average, limit: 3, offset: 0)
+      previous = Analytics.build_cache_hit_rate_metric_by_count(project.id, :average, limit: 3, offset: 3)
+
+      # Then (use assert_in_delta for floating point comparison)
+      assert_in_delta current, 0.9, 0.001
+      assert_in_delta previous, 0.7, 0.001
+    end
+  end
 end
