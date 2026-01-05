@@ -20,10 +20,10 @@ defmodule TuistWeb.Plugs.RequestContextPlug do
       span = Appsignal.Tracer.root_span()
 
       if span do
-        Appsignal.Span.set_sample_data(span, "request_context", %{
-          path: conn.request_path,
-          method: conn.method,
-          query_string: conn.query_string
+        Appsignal.Span.set_sample_data(span, "custom_data", %{
+          request_path: conn.request_path,
+          request_method: conn.method,
+          request_query_string: conn.query_string
         })
       end
     end

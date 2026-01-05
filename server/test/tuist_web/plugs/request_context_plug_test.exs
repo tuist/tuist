@@ -13,10 +13,10 @@ defmodule TuistWeb.Plugs.RequestContextPlugTest do
       span = %{}
       expect(Appsignal.Tracer, :root_span, fn -> span end)
 
-      expect(Appsignal.Span, :set_sample_data, fn ^span, "request_context", data ->
-        assert data.path == "/api/projects"
-        assert data.method == "GET"
-        assert data.query_string == "foo=bar"
+      expect(Appsignal.Span, :set_sample_data, fn ^span, "custom_data", data ->
+        assert data.request_path == "/api/projects"
+        assert data.request_method == "GET"
+        assert data.request_query_string == "foo=bar"
         :ok
       end)
 
