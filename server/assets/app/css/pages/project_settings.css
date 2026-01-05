@@ -168,7 +168,6 @@
           flex-direction: column;
           width: 250px;
           max-height: 300px;
-          padding: 0;
         }
 
         & [data-part="search"] {
