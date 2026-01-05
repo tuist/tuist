@@ -137,7 +137,7 @@ defmodule Tuist.Slack do
 
   def update_alert_triggered_at(alert) do
     alert
-    |> Ecto.Changeset.change(last_triggered_at: DateTime.utc_now())
+    |> Ecto.Changeset.change(last_triggered_at: DateTime.truncate(DateTime.utc_now(), :second))
     |> Repo.update()
   end
 
