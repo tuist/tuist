@@ -56,7 +56,8 @@ defmodule Cache.MixProject do
       {:styler, "~> 1.0", only: [:dev, :test], runtime: false},
       {:sweet_xml, "~> 0.7"},
       {:uuid_v7, "~> 0.6"},
-      {:ymlr, "~> 5.0"}
+      {:ymlr, "~> 5.0"},
+      {:tuist_common, path: "../tuist_common"}
     ]
   end
 

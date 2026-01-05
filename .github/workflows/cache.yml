@@ -6,11 +6,13 @@ on:
       - main
     paths:
       - cache/**
+      - tuist_common/**
       - .github/workflows/cache.yml
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - cache/**
+      - tuist_common/**
       - .github/workflows/cache.yml
   merge_group: {}
 

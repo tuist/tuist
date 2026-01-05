@@ -116,7 +116,6 @@ defmodule Tuist do
       VCS,
       UUIDv7,
       OAuth.Apple,
-      OAuth.Okta,
-      Appsignal.ErrorFilter
+      OAuth.Okta
     ]
 end

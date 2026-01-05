@@ -1,4 +1,4 @@
-defmodule Cache.Appsignal.ErrorFilter do
+defmodule TuistCommon.Appsignal.ErrorFilter do
   @moduledoc """
   A Logger filter that prevents specific expected errors from being reported to AppSignal.
 
