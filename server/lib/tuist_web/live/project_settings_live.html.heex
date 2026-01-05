@@ -150,7 +150,7 @@
                 <label data-part="schedule-label">
                   {dgettext("dashboard_projects", "Days")}
                 </label>
-                <.dropdown id="schedule-days-dropdown" label={format_selected_days(@schedule_form_days)}>
+                <.dropdown id="schedule-days-dropdown" label={format_selected_days(@schedule_form_days)} close_on_select={false}>
                   <.dropdown_item
                     :for={day <- 1..7}
                     value={Integer.to_string(day)}
