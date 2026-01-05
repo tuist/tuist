@@ -5,9 +5,9 @@ defmodule TuistWeb.Marketing.MarketingController do
   import TuistWeb.Marketing.StructuredMarkup
 
   alias Tuist.Marketing.Blog
-  alias Tuist.Marketing.Customers
   alias Tuist.Marketing.Changelog
   alias Tuist.Marketing.Content
+  alias Tuist.Marketing.Customers
   alias Tuist.Marketing.Newsletter
   alias Tuist.Marketing.Pages
   alias TuistWeb.Errors.NotFoundError
