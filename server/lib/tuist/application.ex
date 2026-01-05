@@ -57,6 +57,11 @@ defmodule Tuist.Application do
   defp start_error_tracking do
     run_if_error_tracking_enabled do
       Appsignal.Phoenix.LiveView.attach()
+
+      :logger.add_primary_filter(
+        :appsignal_error_filter,
+        {&Tuist.Appsignal.ErrorFilter.filter/2, []}
+      )
     end
   end
 
@@ -172,21 +177,6 @@ defmodule Tuist.Application do
             start_pool_metrics?: true
           ],
           Environment.s3_endpoint() => [
-            conn_opts: [
-              log: true,
-              protocols: Environment.s3_protocols(),
-              transport_opts:
-                [
-                  inet6: Environment.use_ipv6?() in ~w(true 1),
-                  verify: :verify_peer
-                ] ++ s3_ca_cert_opts()
-            ],
-            size: Environment.s3_pool_size(),
-            count: Environment.s3_pool_count(),
-            protocols: Environment.s3_protocols(),
-            start_pool_metrics?: true
-          ],
-          Environment.s3_endpoint(:tigris, Environment.decrypt_secrets()) => [
             conn_opts: [
               log: true,
               protocols: Environment.s3_protocols(),

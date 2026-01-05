@@ -285,30 +285,6 @@ if Tuist.Environment.env() not in [:test] do
 
     _ ->
       nil
-      # Noop
-  end
-
-  tigris_endpoint = Tuist.Environment.s3_endpoint(:tigris, secrets)
-
-  if tigris_endpoint && tigris_endpoint != "" do
-    %{host: tigris_endpoint_host, scheme: tigris_scheme, port: tigris_port} =
-      URI.parse(tigris_endpoint)
-
-    tigris_config =
-      then(
-        [
-          scheme: "#{tigris_scheme}://",
-          host: tigris_endpoint_host,
-          region: Tuist.Environment.s3_region(:tigris, secrets),
-          virtual_host: Tuist.Environment.s3_virtual_host(:tigris, secrets),
-          bucket_as_host: Tuist.Environment.s3_bucket_as_host(:tigris, secrets),
-          secret_access_key: Tuist.Environment.s3_secret_access_key(:tigris, secrets),
-          access_key_id: Tuist.Environment.s3_access_key_id(:tigris, secrets)
-        ],
-        &if(is_nil(tigris_port), do: &1, else: Keyword.put(&1, :port, tigris_port))
-      )
-
-    config :ex_aws, :s3_tigris, tigris_config
   end
 end
 
