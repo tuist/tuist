@@ -2,6 +2,7 @@ defmodule Tuist.Slack.ReportsTest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
+  alias Tuist.Cache.Analytics
   alias Tuist.Slack.Reports
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
@@ -106,7 +107,7 @@ defmodule Tuist.Slack.ReportsTest do
       current_bundle = %{id: "current-bundle-id", install_size: 50_000_000, inserted_at: ~U[2025-01-15 08:00:00Z]}
       previous_bundle = %{id: "previous-bundle-id", install_size: 48_000_000, inserted_at: ~U[2025-01-13 12:00:00Z]}
 
-      stub(Tuist.Cache.Analytics, :cache_hit_rate_analytics, fn _opts ->
+      stub(Analytics, :cache_hit_rate_analytics, fn _opts ->
         %{cache_hit_rate: 0, trend: nil}
       end)
 
@@ -130,8 +131,6 @@ defmodule Tuist.Slack.ReportsTest do
         else
           if DateTime.compare(inserted_before, period_start) == :eq do
             previous_bundle
-          else
-            nil
           end
         end
       end)
@@ -140,11 +139,12 @@ defmodule Tuist.Slack.ReportsTest do
 
       report = Reports.report(project)
 
-      bundle_section = Enum.find(report, fn block ->
-        match?(%{type: "section", text: %{text: ":package: *Bundle Size*" <> _}}, block)
-      end)
+      bundle_section =
+        Enum.find(report, fn block ->
+          match?(%{type: "section", text: %{text: ":package: *Bundle Size*" <> _}}, block)
+        end)
 
-      assert bundle_section != nil
+      assert bundle_section
       %{text: %{text: bundle_text}} = bundle_section
 
       assert String.contains?(bundle_text, "50.0 MB")
@@ -173,7 +173,7 @@ defmodule Tuist.Slack.ReportsTest do
       now = ~U[2025-01-15 10:00:00Z]
       stub(DateTime, :utc_now, fn -> now end)
 
-      stub(Tuist.Cache.Analytics, :cache_hit_rate_analytics, fn _opts ->
+      stub(Analytics, :cache_hit_rate_analytics, fn _opts ->
         %{cache_hit_rate: 0, trend: nil}
       end)
 
@@ -201,16 +201,18 @@ defmodule Tuist.Slack.ReportsTest do
 
       report = Reports.report(project)
 
-      build_section = Enum.find(report, fn block ->
-        match?(%{type: "section", text: %{text: ":hammer_and_wrench: *Build Duration*" <> _}}, block)
-      end)
+      build_section =
+        Enum.find(report, fn block ->
+          match?(%{type: "section", text: %{text: ":hammer_and_wrench: *Build Duration*" <> _}}, block)
+        end)
 
-      test_section = Enum.find(report, fn block ->
-        match?(%{type: "section", text: %{text: ":test_tube: *Test Duration*" <> _}}, block)
-      end)
+      test_section =
+        Enum.find(report, fn block ->
+          match?(%{type: "section", text: %{text: ":test_tube: *Test Duration*" <> _}}, block)
+        end)
 
-      assert build_section != nil
-      assert test_section != nil
+      assert build_section
+      assert test_section
 
       %{text: %{text: build_text}} = build_section
       %{text: %{text: test_text}} = test_section
@@ -226,7 +228,7 @@ defmodule Tuist.Slack.ReportsTest do
       now = ~U[2025-01-15 10:00:00Z]
       stub(DateTime, :utc_now, fn -> now end)
 
-      stub(Tuist.Cache.Analytics, :cache_hit_rate_analytics, fn _opts ->
+      stub(Analytics, :cache_hit_rate_analytics, fn _opts ->
         %{cache_hit_rate: 0.996, trend: -0.4000000000000057}
       end)
 
@@ -246,11 +248,12 @@ defmodule Tuist.Slack.ReportsTest do
 
       report = Reports.report(project)
 
-      cache_section = Enum.find(report, fn block ->
-        match?(%{type: "section", text: %{text: ":zap: *Cache Hit Rate*" <> _}}, block)
-      end)
+      cache_section =
+        Enum.find(report, fn block ->
+          match?(%{type: "section", text: %{text: ":zap: *Cache Hit Rate*" <> _}}, block)
+        end)
 
-      assert cache_section != nil
+      assert cache_section
       %{text: %{text: cache_text}} = cache_section
       assert cache_text == ":zap: *Cache Hit Rate*\n99.6% (-0.4% :chart_with_downwards_trend:)"
     end
