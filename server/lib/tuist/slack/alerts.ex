@@ -7,9 +7,11 @@ defmodule Tuist.Slack.Alerts do
 
   import Ecto.Query
 
+  alias Tuist.ClickHouseRepo
   alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Runs.Build
+  alias Tuist.Runs.Test
   alias Tuist.Slack.Alert
   alias Tuist.Utilities.DateFormatter
 
@@ -113,27 +115,18 @@ defmodule Tuist.Slack.Alerts do
     limit = Keyword.get(opts, :limit, 100)
     offset = Keyword.get(opts, :offset, 0)
 
-    query = """
-    SELECT duration
-    FROM test_runs
-    WHERE project_id = {project_id:Int64}
-    ORDER BY ran_at DESC
-    LIMIT {limit:Int32}
-    OFFSET {offset:Int32}
-    """
+    durations =
+      ClickHouseRepo.all(
+        from(t in Test,
+          where: t.project_id == ^project_id,
+          order_by: [desc: t.ran_at],
+          limit: ^limit,
+          offset: ^offset,
+          select: t.duration
+        )
+      )
 
-    case Tuist.ClickHouseRepo.query(query, %{
-           "project_id" => project_id,
-           "limit" => limit,
-           "offset" => offset
-         }) do
-      {:ok, %{rows: rows}} ->
-        durations = Enum.map(rows, fn [duration] -> duration end)
-        calculate_metric(durations, metric)
-
-      {:error, _} ->
-        nil
-    end
+    calculate_metric(durations, metric)
   end
 
   defp get_cache_hit_rate_metric(project_id, metric, opts) do
