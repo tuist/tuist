@@ -155,6 +155,7 @@ defmodule TuistWeb.Router do
     pipe_through [:browser_marketing_feed]
 
     redirect("/rss.xml", "/blog/rss.xml", :permanent, preserve_query_string: true)
+    redirect("/case-studies", "/customers", :permanent, preserve_query_string: true)
 
     get "/blog/rss.xml", MarketingController, :blog_rss, metadata: %{type: :marketing}
 
