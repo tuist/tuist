@@ -198,7 +198,7 @@
                     end
                   }
                 >
-                  <div data-part="channel-search">
+                  <:search>
                     <.text_input
                       type="search"
                       id="channel-search-input"
@@ -208,7 +208,7 @@
                       phx-debounce="300"
                       show_suffix={false}
                     />
-                  </div>
+                  </:search>
                   <.dropdown_item
                     :for={channel <- get_slack_channels(assigns)}
                     value={channel.id}

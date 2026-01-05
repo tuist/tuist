@@ -152,25 +152,27 @@
         }
       }
 
+      & #schedule-time-dropdown {
+        width: 100px;
+
+        & .noora-dropdown-content {
+          width: 100px;
+        }
+      }
+
       & #slack-channel-dropdown {
-        width: 220px;
+        width: 250px;
 
         & .noora-dropdown-content {
           display: flex;
           flex-direction: column;
-          width: 220px;
+          width: 250px;
           max-height: 300px;
-
-          & > #slack-channel-dropdown-content {
-            display: contents;
-          }
+          padding: 0;
         }
 
-        & [data-part="channel-search"] {
+        & [data-part="search"] {
           flex-shrink: 0;
-          border-bottom: 1px solid var(--noora-border-light-default);
-          padding: var(--noora-spacing-2);
-          overflow: hidden;
 
           & .noora-text-input {
             min-width: 0;
@@ -186,14 +188,10 @@
           }
         }
 
-        & [data-part="channel-list"] {
+        & #slack-channel-dropdown-content-target {
           flex: 1;
-          width: 100%;
           overflow-y: auto;
-
-          & > div {
-            display: contents;
-          }
+          overscroll-behavior: none;
         }
       }
     }
