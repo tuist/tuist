@@ -4,14 +4,26 @@ let project = Project(
     name: "Project",
     targets: [
         .target(
+            name: "MyMacro",
+            destinations: .macOS,
+            product: .macro,
+            bundleId: "dev.tuist.MyMacro",
+            sources: "MyMacro/**",
+            dependencies: [
+                .external(name: "SwiftSyntaxMacros"),
+                .external(name: "SwiftCompilerPlugin"),
+            ]
+        ),
+        .target(
             name: "MyTestFramework",
-            destinations: .iOS,
+            destinations: [.iPhone, .iPad, .appleWatch],
             product: .framework,
             bundleId: "dev.tuist.MyTestFramework",
             infoPlist: .default,
             sources: "MyTestFramework/**",
             dependencies: [
                 .xctest,
+                .external(name: "FirebaseAnalytics"),
             ]
         ),
         .target(
@@ -34,13 +46,16 @@ let project = Project(
             infoPlist: "Support/App-Info.plist",
             sources: "App/**",
             dependencies: [
+                .target(name: "MyMacro"),
                 .sdk(name: "CloudKit", type: .framework, status: .required),
                 .sdk(name: "ARKit", type: .framework, status: .required, condition: .when([.ios])),
                 .external(name: "FirebaseAnalytics"),
                 .external(name: "FirebasePerformance", condition: .when([.ios])),
                 .external(name: "FirebaseRemoteConfig"),
                 .external(name: "FirebaseInAppMessaging-Beta"),
-                .sdk(name: "MobileCoreServices", type: .framework, status: .required, condition: .when([.ios])),
+                .sdk(
+                    name: "MobileCoreServices", type: .framework, status: .required,
+                    condition: .when([.ios])),
             ]
         ),
         .target(
