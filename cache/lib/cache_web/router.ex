@@ -31,10 +31,12 @@ defmodule CacheWeb.Router do
     forward "/metrics", PromEx.Plug, prom_ex_module: Cache.PromEx
   end
 
-  scope "/" do
-    pipe_through [:browser, :oban_auth]
+  if Cache.Config.oban_dashboard_enabled?() do
+    scope "/" do
+      pipe_through [:browser, :oban_auth]
 
-    oban_dashboard("/oban")
+      oban_dashboard("/oban")
+    end
   end
 
   scope "/", CacheWeb do
