@@ -39,7 +39,12 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
     all_entries = Content.get_entries()
     search_query = Map.get(params, "search", "")
     category = Map.get(params, "category")
-    page = params |> Map.get("page", "1") |> String.to_integer()
+
+    page =
+      case Integer.parse(Map.get(params, "page", "1")) do
+        {num, ""} when num > 0 -> num
+        _ -> 1
+      end
 
     # Check if page changed (for scroll behavior)
     previous_page = Map.get(socket.assigns, :current_page, 1)
