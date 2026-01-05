@@ -2,9 +2,12 @@ defmodule Tuist.Slack do
   @moduledoc ~S"""
   This module provides an API to interact with the Slack API
   """
+  import Ecto.Query
+
   alias Tuist.Environment
   alias Tuist.KeyValueStore
   alias Tuist.Repo
+  alias Tuist.Slack.Alert
   alias Tuist.Slack.Client
   alias Tuist.Slack.Installation
 
@@ -91,5 +94,61 @@ defmodule Tuist.Slack do
 
   defp handle_response({:error, reason}) do
     {:error, "Request failed: #{inspect(reason)}"}
+  end
+
+  # Alert CRUD functions
+
+  def list_project_alerts(project_id) do
+    Alert
+    |> where([a], a.project_id == ^project_id)
+    |> order_by([a], asc: a.inserted_at)
+    |> Repo.all()
+  end
+
+  def get_alert(id) do
+    case Repo.get(Alert, id) do
+      nil -> {:error, :not_found}
+      alert -> {:ok, alert}
+    end
+  end
+
+  def create_alert(attrs) do
+    %Alert{}
+    |> Alert.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  def update_alert(alert, attrs) do
+    alert
+    |> Alert.changeset(attrs)
+    |> Repo.update()
+  end
+
+  def delete_alert(alert) do
+    Repo.delete(alert)
+  end
+
+  def list_enabled_alerts do
+    Alert
+    |> where([a], a.enabled == true)
+    |> Repo.all()
+    |> Repo.preload(project: [account: :slack_installation])
+  end
+
+  def update_alert_triggered_at(alert) do
+    alert
+    |> Ecto.Changeset.change(last_triggered_at: DateTime.utc_now())
+    |> Repo.update()
+  end
+
+  def cooldown_elapsed?(alert) do
+    case alert.last_triggered_at do
+      nil ->
+        true
+
+      last_triggered ->
+        hours_since = DateTime.diff(DateTime.utc_now(), last_triggered, :hour)
+        hours_since >= 24
+    end
   end
 end

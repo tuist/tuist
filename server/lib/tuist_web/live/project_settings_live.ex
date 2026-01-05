@@ -38,8 +38,21 @@ defmodule TuistWeb.ProjectSettingsLive do
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Settings")} · #{selected_project.name} · Tuist")
       |> assign_slack_channels(slack_installation)
       |> assign_schedule_form_defaults(selected_project)
+      |> assign_alert_defaults(selected_project)
 
     {:ok, socket}
+  end
+
+  defp assign_alert_defaults(socket, project) do
+    socket
+    |> assign(alerts: Slack.list_project_alerts(project.id))
+    |> assign(editing_alert: nil)
+    |> assign(alert_form_category: :build_run_duration)
+    |> assign(alert_form_metric: :p99)
+    |> assign(alert_form_threshold: 20.0)
+    |> assign(alert_form_sample_size: 100)
+    |> assign(alert_form_channel_id: nil)
+    |> assign(alert_form_channel_name: nil)
   end
 
   defp assign_schedule_form_defaults(socket, project) do
@@ -262,6 +275,137 @@ defmodule TuistWeb.ProjectSettingsLive do
     {:noreply, socket}
   end
 
+  # Alert event handlers
+
+  def handle_event("open_create_alert_modal", _params, socket) do
+    socket =
+      socket
+      |> assign(editing_alert: nil)
+      |> assign(alert_form_category: :build_run_duration)
+      |> assign(alert_form_metric: :p99)
+      |> assign(alert_form_threshold: 20.0)
+      |> assign(alert_form_sample_size: 100)
+      |> assign(alert_form_channel_id: nil)
+      |> assign(alert_form_channel_name: nil)
+
+    {:noreply, socket}
+  end
+
+  def handle_event("open_edit_alert_modal", %{"alert_id" => alert_id}, socket) do
+    case Slack.get_alert(alert_id) do
+      {:ok, alert} ->
+        socket =
+          socket
+          |> assign(editing_alert: alert)
+          |> assign(alert_form_category: alert.category)
+          |> assign(alert_form_metric: alert.metric)
+          |> assign(alert_form_threshold: alert.threshold_percentage)
+          |> assign(alert_form_sample_size: alert.sample_size)
+          |> assign(alert_form_channel_id: alert.slack_channel_id)
+          |> assign(alert_form_channel_name: alert.slack_channel_name)
+
+        {:noreply, socket}
+
+      {:error, :not_found} ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("update_alert_form_category", %{"category" => category}, socket) do
+    {:noreply, assign(socket, alert_form_category: String.to_existing_atom(category))}
+  end
+
+  def handle_event("update_alert_form_metric", %{"metric" => metric}, socket) do
+    {:noreply, assign(socket, alert_form_metric: String.to_existing_atom(metric))}
+  end
+
+  def handle_event("update_alert_form_threshold", %{"value" => threshold_str}, socket) do
+    case Float.parse(threshold_str) do
+      {threshold, _} -> {:noreply, assign(socket, alert_form_threshold: threshold)}
+      :error -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("update_alert_form_sample_size", %{"value" => size_str}, socket) do
+    case Integer.parse(size_str) do
+      {size, _} -> {:noreply, assign(socket, alert_form_sample_size: size)}
+      :error -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("update_alert_form_channel", %{"channel_id" => channel_id, "channel_name" => channel_name}, socket) do
+    socket =
+      socket
+      |> assign(alert_form_channel_id: channel_id)
+      |> assign(alert_form_channel_name: channel_name)
+      |> push_event("close-dropdown", %{id: "alert-channel-dropdown"})
+
+    {:noreply, socket}
+  end
+
+  def handle_event("save_alert", _params, %{assigns: assigns} = socket) do
+    attrs = %{
+      project_id: assigns.selected_project.id,
+      category: assigns.alert_form_category,
+      metric: assigns.alert_form_metric,
+      threshold_percentage: assigns.alert_form_threshold,
+      sample_size: assigns.alert_form_sample_size,
+      slack_channel_id: assigns.alert_form_channel_id,
+      slack_channel_name: assigns.alert_form_channel_name
+    }
+
+    result =
+      case assigns.editing_alert do
+        nil -> Slack.create_alert(attrs)
+        alert -> Slack.update_alert(alert, attrs)
+      end
+
+    case result do
+      {:ok, _alert} ->
+        socket =
+          socket
+          |> assign(alerts: Slack.list_project_alerts(assigns.selected_project.id))
+          |> assign(editing_alert: nil)
+          |> push_event("close-modal", %{id: "alert-modal"})
+
+        {:noreply, socket}
+
+      {:error, _changeset} ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("toggle_alert_enabled", %{"alert_id" => alert_id}, socket) do
+    case Slack.get_alert(alert_id) do
+      {:ok, alert} ->
+        {:ok, _} = Slack.update_alert(alert, %{enabled: !alert.enabled})
+        {:noreply, assign(socket, alerts: Slack.list_project_alerts(socket.assigns.selected_project.id))}
+
+      {:error, :not_found} ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("delete_alert", %{"alert_id" => alert_id}, socket) do
+    case Slack.get_alert(alert_id) do
+      {:ok, alert} ->
+        {:ok, _} = Slack.delete_alert(alert)
+        {:noreply, assign(socket, alerts: Slack.list_project_alerts(socket.assigns.selected_project.id))}
+
+      {:error, :not_found} ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("close_alert_modal", _params, %{assigns: %{selected_project: selected_project}} = socket) do
+    socket =
+      socket
+      |> push_event("close-modal", %{id: "alert-modal"})
+      |> assign_alert_defaults(selected_project)
+
+    {:noreply, socket}
+  end
+
   defp get_slack_channels(%{slack_channels: slack_channels_async, channel_search_query: query}) do
     channels =
       if slack_channels_async.ok? do
@@ -344,4 +488,60 @@ defmodule TuistWeb.ProjectSettingsLive do
   end
 
   defp get_local_hour(utc_datetime, _timezone), do: utc_datetime.hour
+
+  # Alert helper functions
+
+  defp category_label(:build_run_duration), do: dgettext("dashboard_projects", "Build duration")
+  defp category_label(:test_run_duration), do: dgettext("dashboard_projects", "Test duration")
+  defp category_label(:cache_hit_rate), do: dgettext("dashboard_projects", "Cache hit rate")
+
+  defp metric_label(:p50), do: "P50"
+  defp metric_label(:p90), do: "P90"
+  defp metric_label(:p99), do: "P99"
+  defp metric_label(:average), do: dgettext("dashboard_projects", "Average")
+  defp metric_label(nil), do: ""
+
+  defp format_alert_summary(alert) do
+    category = category_label(alert.category)
+    metric = " #{metric_label(alert.metric)}"
+    threshold = "#{alert.threshold_percentage}%"
+
+    "#{category}#{metric} +#{threshold} / #{alert.sample_size} runs"
+  end
+
+  defp format_alert_explanation(assigns) do
+    category = assigns.alert_form_category
+    metric = String.downcase(metric_label(assigns.alert_form_metric))
+    threshold = "#{assigns.alert_form_threshold}%"
+    window = assigns.alert_form_sample_size
+
+    case category do
+      :build_run_duration ->
+        dgettext(
+          "dashboard_projects",
+          "Alert when the %{metric} build time of the last %{window} builds has increased by %{threshold} compared to the previous %{window} builds.",
+          metric: metric,
+          window: window,
+          threshold: threshold
+        )
+
+      :test_run_duration ->
+        dgettext(
+          "dashboard_projects",
+          "Alert when the %{metric} test time of the last %{window} test runs has increased by %{threshold} compared to the previous %{window} test runs.",
+          metric: metric,
+          window: window,
+          threshold: threshold
+        )
+
+      :cache_hit_rate ->
+        dgettext(
+          "dashboard_projects",
+          "Alert when the %{metric} cache hit rate of the last %{window} builds has decreased by %{threshold} compared to the previous %{window} builds.",
+          metric: metric,
+          window: window,
+          threshold: threshold
+        )
+    end
+  end
 end
