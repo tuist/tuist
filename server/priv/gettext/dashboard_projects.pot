@@ -541,7 +541,7 @@ msgstr ""
 msgid "since yesterday"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:187
+#: lib/tuist_web/live/project_settings_live.html.heex:192
 #, elixir-autogen, elixir-format
 msgid "Channel"
 msgstr ""
@@ -583,12 +583,12 @@ msgstr ""
 msgid "Save"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:220
+#: lib/tuist_web/live/project_settings_live.html.heex:209
 #, elixir-autogen, elixir-format
 msgid "Search..."
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:210
+#: lib/tuist_web/live/project_settings_live.html.heex:200
 #, elixir-autogen, elixir-format
 msgid "Select channel"
 msgstr ""
@@ -603,7 +603,7 @@ msgstr ""
 msgid "Slack reports"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:165
+#: lib/tuist_web/live/project_settings_live.html.heex:170
 #, elixir-autogen, elixir-format
 msgid "Time"
 msgstr ""
@@ -611,4 +611,14 @@ msgstr ""
 #: lib/tuist_web/live/project_settings_live.html.heex:83
 #, elixir-autogen, elixir-format
 msgid "Configure your Slack reports"
+msgstr ""
+
+#: lib/tuist_web/live/project_settings_live.ex:316
+#, elixir-autogen, elixir-format
+msgid "All days"
+msgstr ""
+
+#: lib/tuist_web/live/project_settings_live.ex:313
+#, elixir-autogen, elixir-format
+msgid "Select days"
 msgstr ""

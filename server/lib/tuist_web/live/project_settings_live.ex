@@ -312,6 +312,9 @@ defmodule TuistWeb.ProjectSettingsLive do
 
   defp format_selected_days([]), do: dgettext("dashboard_projects", "Select days")
 
+  defp format_selected_days(days) when length(days) == 7,
+    do: dgettext("dashboard_projects", "All days")
+
   defp format_selected_days(days) do
     days
     |> Enum.sort()
