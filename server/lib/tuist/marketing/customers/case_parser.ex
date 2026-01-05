@@ -1,4 +1,4 @@
-defmodule Tuist.Marketing.CaseStudies.CaseParser do
+defmodule Tuist.Marketing.Customers.CaseParser do
   @moduledoc false
   def parse(_path, contents) do
     [frontmatter_string, body] =

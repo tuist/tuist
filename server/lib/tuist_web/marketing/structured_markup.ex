@@ -276,7 +276,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
             case_study |> get_case_study_article_structured_data() |> Map.put("position", index + 1)
           end)
       },
-      "name" => dgettext("marketing", "Tuist Case Studies"),
+      "name" => dgettext("marketing", "Tuist Customers"),
       "description" => dgettext("marketing", "Learn how teams use Tuist to scale their iOS development."),
       "publisher" => StructuredMarkup.get_organization_structured_data()
     }

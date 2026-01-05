@@ -5,7 +5,7 @@ defmodule TuistWeb.Marketing.MarketingController do
   import TuistWeb.Marketing.StructuredMarkup
 
   alias Tuist.Marketing.Blog
-  alias Tuist.Marketing.CaseStudies
+  alias Tuist.Marketing.Customers
   alias Tuist.Marketing.Changelog
   alias Tuist.Marketing.Content
   alias Tuist.Marketing.Newsletter
@@ -481,7 +481,7 @@ defmodule TuistWeb.Marketing.MarketingController do
         &Tuist.Environment.app_url(path: ~p"/newsletter/issues/#{&1.number}")
       )
 
-    base_paths = [~p"/", ~p"/pricing", ~p"/blog", ~p"/changelog", ~p"/case-studies"]
+    base_paths = [~p"/", ~p"/pricing", ~p"/blog", ~p"/changelog", ~p"/customers"]
 
     # Generate URLs for all locales
     localized_entries =
@@ -555,13 +555,13 @@ defmodule TuistWeb.Marketing.MarketingController do
     request_path = Localization.path_without_locale(request_path)
 
     case_study =
-      Enum.find(CaseStudies.get_case_studies(), &(&1.slug == String.trim_trailing(request_path, "/")))
+      Enum.find(Customers.get_case_studies(), &(&1.slug == String.trim_trailing(request_path, "/")))
 
     if is_nil(case_study) do
       raise NotFoundError
     else
       related_case_studies =
-        CaseStudies.get_case_studies()
+        Customers.get_case_studies()
         |> Enum.reject(&(&1.slug == case_study.slug))
         |> Enum.take_random(3)
 
@@ -576,7 +576,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       |> assign_structured_data(
         get_breadcrumbs_structured_data([
           {dgettext("marketing", "Tuist"), Tuist.Environment.app_url(path: ~p"/")},
-          {dgettext("marketing", "Case Studies"), Tuist.Environment.app_url(path: ~p"/case-studies")},
+          {dgettext("marketing", "Customers"), Tuist.Environment.app_url(path: ~p"/customers")},
           {case_study.title, Tuist.Environment.app_url(path: case_study.slug)}
         ])
       )

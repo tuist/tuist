@@ -158,7 +158,7 @@ export default defineConfig({
         collapsed: true,
         items: [
           { text: "Guidelines", link: "/marketing/guidelines" },
-          { text: "Case studies", link: "/marketing/case-studies" },
+          { text: "Customers", link: "/marketing/customers" },
         ],
       },
       {
