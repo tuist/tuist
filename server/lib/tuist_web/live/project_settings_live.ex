@@ -10,7 +10,6 @@ defmodule TuistWeb.ProjectSettingsLive do
   alias Tuist.Slack.Client, as: SlackClient
   alias Tuist.Slack.Reports
 
-
   @impl true
   def mount(
         _params,
