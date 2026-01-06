@@ -137,18 +137,14 @@ function getSearchOptionsForLocale(locale) {
   };
 }
 
-const searchOptionsLocales = {
-  en: getSearchOptionsForLocale("en"),
-  ko: getSearchOptionsForLocale("ko"),
-  ja: getSearchOptionsForLocale("ja"),
-  ru: getSearchOptionsForLocale("ru"),
-  es: getSearchOptionsForLocale("es"),
-  pt: getSearchOptionsForLocale("pt"),
-  ar: getSearchOptionsForLocale("ar"),
-  zh_Hans: getSearchOptionsForLocale("zh_Hans"),
-  pl: getSearchOptionsForLocale("pl"),
-  yue_Hant: getSearchOptionsForLocale("yue_Hant"),
-};
+const allLocales = ["en", "ko", "ja", "ru", "es", "pt", "ar", "zh_Hans", "pl", "yue_Hant"];
+const enabledLocales = process.env.DOCS_LOCALES
+  ? process.env.DOCS_LOCALES.split(",")
+  : allLocales;
+
+const searchOptionsLocales = Object.fromEntries(
+  enabledLocales.map((locale) => [locale, getSearchOptionsForLocale(locale)])
+);
 
 export default defineConfig({
   title: "Tuist",
@@ -179,59 +175,31 @@ export default defineConfig({
     },
   },
   mpa: false,
-  locales: {
-    en: {
-      label: "English",
-      lang: "en",
-      themeConfig: await themeConfig("en"),
-    },
-    ko: {
-      label: "한국어 (Korean)",
-      lang: "ko",
-      themeConfig: await themeConfig("ko"),
-    },
-    ja: {
-      label: "日本語 (Japanese)",
-      lang: "ja",
-      themeConfig: await themeConfig("ja"),
-    },
-    ru: {
-      label: "Русский (Russian)",
-      lang: "ru",
-      themeConfig: await themeConfig("ru"),
-    },
-    es: {
-      label: "Castellano (Spanish)",
-      lang: "es",
-      themeConfig: await themeConfig("es"),
-    },
-    pt: {
-      label: "Português (Portuguese)",
-      lang: "pt",
-      themeConfig: await themeConfig("pt"),
-    },
-    ar: {
-      label: "العربية (Arabic)",
-      lang: "ar",
-      dir: "rtl",
-      themeConfig: await themeConfig("ar"),
-    },
-    zh_Hans: {
-      label: "中文 (Chinese)",
-      lang: "zh_Hans",
-      themeConfig: await themeConfig("zh_Hans"),
-    },
-    pl: {
-      label: "Polski (Polish)",
-      lang: "pl",
-      themeConfig: await themeConfig("pl"),
-    },
-    yue_Hant: {
-      label: "廣東話 (Cantonese)",
-      lang: "yue_Hant",
-      themeConfig: await themeConfig("yue_Hant"),
-    },
-  },
+  locales: Object.fromEntries(
+    await Promise.all(
+      enabledLocales.map(async (locale) => {
+        const localeConfig = {
+          en: { label: "English", lang: "en" },
+          ko: { label: "한국어 (Korean)", lang: "ko" },
+          ja: { label: "日本語 (Japanese)", lang: "ja" },
+          ru: { label: "Русский (Russian)", lang: "ru" },
+          es: { label: "Castellano (Spanish)", lang: "es" },
+          pt: { label: "Português (Portuguese)", lang: "pt" },
+          ar: { label: "العربية (Arabic)", lang: "ar", dir: "rtl" },
+          zh_Hans: { label: "中文 (Chinese)", lang: "zh_Hans" },
+          pl: { label: "Polski (Polish)", lang: "pl" },
+          yue_Hant: { label: "廣東話 (Cantonese)", lang: "yue_Hant" },
+        }[locale];
+        return [
+          locale,
+          {
+            ...localeConfig,
+            themeConfig: await themeConfig(locale),
+          },
+        ];
+      })
+    )
+  ),
   cleanUrls: true,
   head: [
     [
