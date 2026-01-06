@@ -8,13 +8,7 @@ import * as fs from "node:fs/promises";
 const rootDirectory = path.join(import.meta.dirname, "../..");
 const docsDirectory = path.join(import.meta.dirname, "..");
 const schemaPath = path.join(docsDirectory, "docs/generated/cli/schema.json");
-const buildOutputPath = path.join(rootDirectory, ".build/docs-gen");
-
-console.log("Installing dependencies...");
-await execa("tuist", ["install"], {
-  cwd: rootDirectory,
-  stdio: "inherit",
-});
+const derivedDataPath = path.join(rootDirectory, ".build/docs-gen");
 
 console.log("Generating Xcode project...");
 await execa("tuist", ["generate", "ProjectDescription", "tuist", "--no-open"], {
@@ -22,24 +16,21 @@ await execa("tuist", ["generate", "ProjectDescription", "tuist", "--no-open"], {
   stdio: "inherit",
 });
 
-console.log("Building ProjectDescription and tuist...");
+console.log("Building tuist with xcodebuild...");
 await execa(
-  "tuist",
+  "xcodebuild",
   [
     "build",
-    "--no-generate",
-    "--build-output-path",
-    buildOutputPath,
-    "ProjectDescription",
+    "-workspace",
+    "Tuist.xcworkspace",
+    "-scheme",
+    "tuist",
+    "-configuration",
+    "Debug",
+    "-derivedDataPath",
+    derivedDataPath,
+    "ONLY_ACTIVE_ARCH=YES",
   ],
-  {
-    cwd: rootDirectory,
-    stdio: "inherit",
-  },
-);
-await execa(
-  "tuist",
-  ["build", "--no-generate", "--build-output-path", buildOutputPath, "tuist"],
   {
     cwd: rootDirectory,
     stdio: "inherit",
@@ -50,8 +41,8 @@ console.log("Generating CLI schema...");
 let dumpedCLISchema;
 await temporaryDirectoryTask(async (tmpDir) => {
   dumpedCLISchema = await $`${path.join(
-    buildOutputPath,
-    "Debug",
+    derivedDataPath,
+    "Build/Products/Debug",
     "tuist",
   )} --experimental-dump-help --path ${tmpDir}`;
 });
