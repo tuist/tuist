@@ -182,6 +182,13 @@
             :if={@selected_project.slack_channel_id}
             label={"##{@selected_project.slack_channel_name}"}
           />
+          <.toggle
+            id="slack-reports-toggle"
+            label=""
+            checked={@slack_reports_enabled}
+            disabled={is_nil(@selected_project.slack_channel_id)}
+            phx-click="toggle_slack_reports"
+          />
           <.modal
             id="slack-channel-modal"
             title={dgettext("dashboard_projects", "Configure Slack")}
