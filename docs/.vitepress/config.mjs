@@ -173,6 +173,14 @@ export default defineConfig({
         ],
       },
     },
+    build: {
+      // Disable sourcemaps to speed up builds
+      sourcemap: false,
+      // Use esbuild for minification (default, but explicit)
+      minify: 'esbuild',
+      // Target modern browsers for faster builds
+      target: 'esnext',
+    },
   },
   mpa: false,
   locales: Object.fromEntries(
