@@ -18,7 +18,7 @@ defmodule Cache.BodyReadTimeout do
   end
 
   defp log_timeout(conn, message) do
-    Logger.info(
+    Logger.warning(
       "Request body read timeout",
       request_id: request_id(conn),
       method: conn.method,
