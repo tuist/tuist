@@ -10,7 +10,7 @@ on:
       - Package.swift
       - Package.resolved
       - mise/tasks/docs/**
-      - docs/pnpm-lock.yaml
+      - docs/package.json
       - handbook/package.json
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -21,7 +21,7 @@ on:
       - Package.swift
       - Package.resolved
       - mise/tasks/docs/**
-      - docs/pnpm-lock.yaml
+      - docs/package.json
       - handbook/package.json
 
 permissions:
@@ -62,6 +62,19 @@ jobs:
           path: |
             ~/.pnpm/store
           key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Restore docs node_modules cache
+        uses: actions/cache@v4
+        id: docs-node-modules-cache
+        with:
+          path: docs/node_modules
+          key: docs-node-modules-${{ hashFiles('docs/package.json') }}
+      - name: Restore VitePress cache
+        uses: actions/cache@v4
+        id: vitepress-cache
+        with:
+          path: docs/.vitepress/cache
+          key: vitepress-cache-${{ hashFiles('docs/package.json') }}
+          restore-keys: vitepress-cache-
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Restore cache
