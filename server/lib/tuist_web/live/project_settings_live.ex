@@ -3,6 +3,7 @@ defmodule TuistWeb.ProjectSettingsLive do
   use TuistWeb, :live_view
   use Noora
 
+  alias Tuist.Alerts
   alias Tuist.Authorization
   alias Tuist.Projects
   alias Tuist.Projects.Project
@@ -45,8 +46,8 @@ defmodule TuistWeb.ProjectSettingsLive do
 
   defp assign_alert_defaults(socket, project) do
     socket
-    |> assign(alerts: Slack.list_project_alerts(project.id))
-    |> assign(editing_alert: nil)
+    |> assign(alert_rules: Alerts.list_project_alert_rules(project.id))
+    |> assign(editing_alert_rule: nil)
     |> assign(alert_form_category: :build_run_duration)
     |> assign(alert_form_metric: :p99)
     |> assign(alert_form_threshold: 20.0)
@@ -280,7 +281,7 @@ defmodule TuistWeb.ProjectSettingsLive do
   def handle_event("open_create_alert_modal", _params, socket) do
     socket =
       socket
-      |> assign(editing_alert: nil)
+      |> assign(editing_alert_rule: nil)
       |> assign(alert_form_category: :build_run_duration)
       |> assign(alert_form_metric: :p99)
       |> assign(alert_form_threshold: 20.0)
@@ -291,18 +292,18 @@ defmodule TuistWeb.ProjectSettingsLive do
     {:noreply, socket}
   end
 
-  def handle_event("open_edit_alert_modal", %{"alert_id" => alert_id}, socket) do
-    case Slack.get_alert(alert_id) do
-      {:ok, alert} ->
+  def handle_event("open_edit_alert_modal", %{"alert_rule_id" => alert_rule_id}, socket) do
+    case Alerts.get_alert_rule(alert_rule_id) do
+      {:ok, alert_rule} ->
         socket =
           socket
-          |> assign(editing_alert: alert)
-          |> assign(alert_form_category: alert.category)
-          |> assign(alert_form_metric: alert.metric)
-          |> assign(alert_form_threshold: alert.threshold_percentage)
-          |> assign(alert_form_sample_size: alert.sample_size)
-          |> assign(alert_form_channel_id: alert.slack_channel_id)
-          |> assign(alert_form_channel_name: alert.slack_channel_name)
+          |> assign(editing_alert_rule: alert_rule)
+          |> assign(alert_form_category: alert_rule.category)
+          |> assign(alert_form_metric: alert_rule.metric)
+          |> assign(alert_form_threshold: alert_rule.threshold_percentage)
+          |> assign(alert_form_sample_size: alert_rule.sample_size)
+          |> assign(alert_form_channel_id: alert_rule.slack_channel_id)
+          |> assign(alert_form_channel_name: alert_rule.slack_channel_name)
 
         {:noreply, socket}
 
@@ -343,7 +344,7 @@ defmodule TuistWeb.ProjectSettingsLive do
     {:noreply, socket}
   end
 
-  def handle_event("save_alert", _params, %{assigns: assigns} = socket) do
+  def handle_event("save_alert_rule", _params, %{assigns: assigns} = socket) do
     attrs = %{
       project_id: assigns.selected_project.id,
       category: assigns.alert_form_category,
@@ -355,17 +356,17 @@ defmodule TuistWeb.ProjectSettingsLive do
     }
 
     result =
-      case assigns.editing_alert do
-        nil -> Slack.create_alert(attrs)
-        alert -> Slack.update_alert(alert, attrs)
+      case assigns.editing_alert_rule do
+        nil -> Alerts.create_alert_rule(attrs)
+        alert_rule -> Alerts.update_alert_rule(alert_rule, attrs)
       end
 
     case result do
-      {:ok, _alert} ->
+      {:ok, _alert_rule} ->
         socket =
           socket
-          |> assign(alerts: Slack.list_project_alerts(assigns.selected_project.id))
-          |> assign(editing_alert: nil)
+          |> assign(alert_rules: Alerts.list_project_alert_rules(assigns.selected_project.id))
+          |> assign(editing_alert_rule: nil)
           |> push_event("close-modal", %{id: "alert-modal"})
 
         {:noreply, socket}
@@ -375,22 +376,22 @@ defmodule TuistWeb.ProjectSettingsLive do
     end
   end
 
-  def handle_event("toggle_alert_enabled", %{"alert_id" => alert_id}, socket) do
-    case Slack.get_alert(alert_id) do
-      {:ok, alert} ->
-        {:ok, _} = Slack.update_alert(alert, %{enabled: !alert.enabled})
-        {:noreply, assign(socket, alerts: Slack.list_project_alerts(socket.assigns.selected_project.id))}
+  def handle_event("toggle_alert_rule_enabled", %{"alert_rule_id" => alert_rule_id}, socket) do
+    case Alerts.get_alert_rule(alert_rule_id) do
+      {:ok, alert_rule} ->
+        {:ok, _} = Alerts.update_alert_rule(alert_rule, %{enabled: !alert_rule.enabled})
+        {:noreply, assign(socket, alert_rules: Alerts.list_project_alert_rules(socket.assigns.selected_project.id))}
 
       {:error, :not_found} ->
         {:noreply, socket}
     end
   end
 
-  def handle_event("delete_alert", %{"alert_id" => alert_id}, socket) do
-    case Slack.get_alert(alert_id) do
-      {:ok, alert} ->
-        {:ok, _} = Slack.delete_alert(alert)
-        {:noreply, assign(socket, alerts: Slack.list_project_alerts(socket.assigns.selected_project.id))}
+  def handle_event("delete_alert_rule", %{"alert_rule_id" => alert_rule_id}, socket) do
+    case Alerts.get_alert_rule(alert_rule_id) do
+      {:ok, alert_rule} ->
+        {:ok, _} = Alerts.delete_alert_rule(alert_rule)
+        {:noreply, assign(socket, alert_rules: Alerts.list_project_alert_rules(socket.assigns.selected_project.id))}
 
       {:error, :not_found} ->
         {:noreply, socket}

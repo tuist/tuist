@@ -1,9 +1,9 @@
-defmodule Tuist.Slack.Alert do
+defmodule Tuist.Alerts.AlertRule do
   @moduledoc """
-  Represents a Slack alert rule for a project.
+  Represents an alert rule configuration for a project.
 
-  Alerts are triggered when a metric regresses beyond a configured threshold.
-  Each alert has a 24-hour cooldown to prevent notification spam.
+  Alert rules define when alerts should be triggered based on metric regressions.
+  Each rule has a 24-hour cooldown to prevent notification spam.
   """
   use Ecto.Schema
 
@@ -17,7 +17,7 @@ defmodule Tuist.Slack.Alert do
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
 
-  schema "slack_alerts" do
+  schema "alert_rules" do
     field :category, Ecto.Enum, values: @categories
     field :metric, Ecto.Enum, values: @metrics
     field :threshold_percentage, :float
@@ -32,8 +32,8 @@ defmodule Tuist.Slack.Alert do
     timestamps(type: :utc_datetime)
   end
 
-  def changeset(alert \\ %__MODULE__{}, attrs) do
-    alert
+  def changeset(alert_rule \\ %__MODULE__{}, attrs) do
+    alert_rule
     |> cast(attrs, [
       :project_id,
       :category,

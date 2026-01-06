@@ -1,8 +1,8 @@
-defmodule Tuist.Repo.Migrations.AddSlackAlertsTable do
+defmodule Tuist.Repo.Migrations.AddAlertRulesTable do
   use Ecto.Migration
 
   def change do
-    create table(:slack_alerts, primary_key: false) do
+    create table(:alert_rules, primary_key: false) do
       add :id, :uuid, primary_key: true
       add :project_id, references(:projects, on_delete: :delete_all), null: false
       add :category, :integer, null: false
@@ -17,7 +17,7 @@ defmodule Tuist.Repo.Migrations.AddSlackAlertsTable do
       timestamps(type: :timestamptz)
     end
 
-    create index(:slack_alerts, [:project_id])
-    create index(:slack_alerts, [:enabled])
+    create index(:alert_rules, [:project_id])
+    create index(:alert_rules, [:enabled])
   end
 end

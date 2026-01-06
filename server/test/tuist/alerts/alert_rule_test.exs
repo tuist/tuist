@@ -1,7 +1,7 @@
-defmodule Tuist.Slack.AlertTest do
+defmodule Tuist.Alerts.AlertRuleTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
-  alias Tuist.Slack.Alert
+  alias Tuist.Alerts.AlertRule
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   describe "changeset/2" do
@@ -11,7 +11,7 @@ defmodule Tuist.Slack.AlertTest do
 
       # When
       changeset =
-        Alert.changeset(%Alert{}, %{
+        AlertRule.changeset(%AlertRule{}, %{
           project_id: project.id,
           category: :build_run_duration,
           metric: :p90,
@@ -28,7 +28,7 @@ defmodule Tuist.Slack.AlertTest do
     test "is invalid without project_id" do
       # When
       changeset =
-        Alert.changeset(%Alert{}, %{
+        AlertRule.changeset(%AlertRule{}, %{
           category: :build_run_duration,
           metric: :p90,
           threshold_percentage: 20.0,
@@ -48,7 +48,7 @@ defmodule Tuist.Slack.AlertTest do
 
       # When
       changeset =
-        Alert.changeset(%Alert{}, %{
+        AlertRule.changeset(%AlertRule{}, %{
           project_id: project.id,
           metric: :p90,
           threshold_percentage: 20.0,
@@ -68,7 +68,7 @@ defmodule Tuist.Slack.AlertTest do
 
       # When
       changeset =
-        Alert.changeset(%Alert{}, %{
+        AlertRule.changeset(%AlertRule{}, %{
           project_id: project.id,
           category: :build_run_duration,
           threshold_percentage: 20.0,
@@ -88,7 +88,7 @@ defmodule Tuist.Slack.AlertTest do
 
       # When
       changeset =
-        Alert.changeset(%Alert{}, %{
+        AlertRule.changeset(%AlertRule{}, %{
           project_id: project.id,
           category: :build_run_duration,
           metric: :p90,
@@ -108,7 +108,7 @@ defmodule Tuist.Slack.AlertTest do
 
       # When
       changeset =
-        Alert.changeset(%Alert{}, %{
+        AlertRule.changeset(%AlertRule{}, %{
           project_id: project.id,
           category: :build_run_duration,
           metric: :p90,
@@ -128,7 +128,7 @@ defmodule Tuist.Slack.AlertTest do
 
       # When
       changeset =
-        Alert.changeset(%Alert{}, %{
+        AlertRule.changeset(%AlertRule{}, %{
           project_id: project.id,
           category: :build_run_duration,
           metric: :p90,
@@ -148,7 +148,7 @@ defmodule Tuist.Slack.AlertTest do
 
       # When
       changeset =
-        Alert.changeset(%Alert{}, %{
+        AlertRule.changeset(%AlertRule{}, %{
           project_id: project.id,
           category: :build_run_duration,
           metric: :p90,
@@ -168,7 +168,7 @@ defmodule Tuist.Slack.AlertTest do
 
       # When
       changeset =
-        Alert.changeset(%Alert{}, %{
+        AlertRule.changeset(%AlertRule{}, %{
           project_id: project.id,
           category: :build_run_duration,
           metric: :p90,
@@ -189,7 +189,7 @@ defmodule Tuist.Slack.AlertTest do
 
       # When
       changeset =
-        Alert.changeset(%Alert{}, %{
+        AlertRule.changeset(%AlertRule{}, %{
           project_id: project.id,
           category: :build_run_duration,
           metric: :p90,
@@ -210,7 +210,7 @@ defmodule Tuist.Slack.AlertTest do
 
       # When
       changeset =
-        Alert.changeset(%Alert{}, %{
+        AlertRule.changeset(%AlertRule{}, %{
           project_id: project.id,
           category: :build_run_duration,
           metric: :p90,
@@ -232,7 +232,7 @@ defmodule Tuist.Slack.AlertTest do
       for category <- [:build_run_duration, :test_run_duration, :cache_hit_rate] do
         # When
         changeset =
-          Alert.changeset(%Alert{}, %{
+          AlertRule.changeset(%AlertRule{}, %{
             project_id: project.id,
             category: category,
             metric: :p90,
@@ -254,7 +254,7 @@ defmodule Tuist.Slack.AlertTest do
       for metric <- [:p50, :p90, :p99, :average] do
         # When
         changeset =
-          Alert.changeset(%Alert{}, %{
+          AlertRule.changeset(%AlertRule{}, %{
             project_id: project.id,
             category: :build_run_duration,
             metric: metric,
@@ -275,7 +275,7 @@ defmodule Tuist.Slack.AlertTest do
 
       # When
       changeset =
-        Alert.changeset(%Alert{}, %{
+        AlertRule.changeset(%AlertRule{}, %{
           project_id: non_existent_project_id,
           category: :build_run_duration,
           metric: :p90,
@@ -297,7 +297,7 @@ defmodule Tuist.Slack.AlertTest do
 
       # When
       changeset =
-        Alert.changeset(%Alert{}, %{
+        AlertRule.changeset(%AlertRule{}, %{
           project_id: project.id,
           category: :build_run_duration,
           metric: :p90,
@@ -309,8 +309,8 @@ defmodule Tuist.Slack.AlertTest do
 
       # Then
       assert changeset.valid?
-      {:ok, alert} = Repo.insert(changeset)
-      assert alert.enabled == true
+      {:ok, alert_rule} = Repo.insert(changeset)
+      assert alert_rule.enabled == true
     end
   end
 end

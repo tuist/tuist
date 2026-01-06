@@ -278,24 +278,24 @@
     </div>
     <div data-part="content">
       <div data-part="content-column">
-        <div :if={@alerts != []} data-part="alerts-list">
-          <div :for={alert <- @alerts} data-part="alert-item">
+        <div :if={@alert_rules != []} data-part="alerts-list">
+          <div :for={alert_rule <- @alert_rules} data-part="alert-item">
             <div data-part="alert-info">
               <span data-part="alert-summary">
-                {format_alert_summary(alert)}
+                {format_alert_summary(alert_rule)}
               </span>
               <span data-part="alert-channel">
-                #{alert.slack_channel_name}
+                #{alert_rule.slack_channel_name}
               </span>
             </div>
             <div data-part="alert-actions">
               <.button
                 variant="secondary"
                 size="small"
-                phx-click="toggle_alert_enabled"
-                phx-value-alert_id={alert.id}
+                phx-click="toggle_alert_rule_enabled"
+                phx-value-alert_rule_id={alert_rule.id}
                 label={
-                  if alert.enabled,
+                  if alert_rule.enabled,
                     do: dgettext("dashboard_projects", "Disable"),
                     else: dgettext("dashboard_projects", "Enable")
                 }
@@ -304,14 +304,14 @@
                 variant="secondary"
                 size="small"
                 phx-click="open_edit_alert_modal"
-                phx-value-alert_id={alert.id}
+                phx-value-alert_rule_id={alert_rule.id}
                 label={dgettext("dashboard_projects", "Edit")}
               />
               <.button
                 variant="destructive"
                 size="small"
-                phx-click="delete_alert"
-                phx-value-alert_id={alert.id}
+                phx-click="delete_alert_rule"
+                phx-value-alert_rule_id={alert_rule.id}
                 label={dgettext("dashboard_projects", "Delete")}
               />
             </div>
@@ -321,7 +321,7 @@
           <.modal
             id="alert-modal"
             title={
-              if @editing_alert do
+              if @editing_alert_rule do
                 dgettext("dashboard_projects", "Edit alert")
               else
                 dgettext("dashboard_projects", "Create alert")
@@ -465,7 +465,7 @@
                     label={dgettext("dashboard_projects", "Save")}
                     variant="primary"
                     disabled={is_nil(@alert_form_channel_id)}
-                    phx-click="save_alert"
+                    phx-click="save_alert_rule"
                   />
                 </:action>
               </.modal_footer>
