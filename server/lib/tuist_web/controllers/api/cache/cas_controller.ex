@@ -114,16 +114,23 @@ defmodule TuistWeb.API.CASController do
 
   def save(%{assigns: %{selected_project: project, selected_account: account}} = conn, %{id: id} = _params) do
     current_subject = Authentication.authenticated_subject(conn)
-    {:ok, body, conn} = Plug.Conn.read_body(conn, length: 100_000_000)
     key = cas_key(account, project, id)
 
-    if Storage.object_exists?(key, current_subject) do
-      send_resp(conn, :no_content, "")
-    else
-      # Stream the upload from the request body to S3
-      Storage.put_object(key, body, current_subject)
+    case TuistWeb.BodyReader.read_body(conn, length: 100_000_000) do
+      {:ok, body, conn} ->
+        if Storage.object_exists?(key, current_subject) do
+          send_resp(conn, :no_content, "")
+        else
+          # Stream the upload from the request body to S3
+          Storage.put_object(key, body, current_subject)
 
-      send_resp(conn, :no_content, "")
+          send_resp(conn, :no_content, "")
+        end
+
+      {:error, :timeout, conn} ->
+        conn
+        |> send_resp(:request_timeout, "Request body read timeout")
+        |> halt()
     end
   end
 end

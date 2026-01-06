@@ -15,9 +15,18 @@ defmodule TuistWeb.Plugs.WebhookPlug do
     @moduledoc false
 
     def read_body(conn, opts) do
-      {:ok, body, conn} = Plug.Conn.read_body(conn, opts)
-      conn = update_in(conn.assigns[:raw_body], &[body | &1 || []])
-      {:ok, body, conn}
+      case TuistWeb.BodyReader.read_body(conn, opts) do
+        {:ok, body, conn} ->
+          conn = update_in(conn.assigns[:raw_body], &[body | &1 || []])
+          {:ok, body, conn}
+
+        {:more, body, conn} ->
+          conn = update_in(conn.assigns[:raw_body], &[body | &1 || []])
+          {:more, body, conn}
+
+        {:error, _reason, _conn} = error ->
+          error
+      end
     end
   end
 
