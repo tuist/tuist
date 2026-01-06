@@ -77,7 +77,7 @@ defmodule TuistWeb.Endpoint do
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
     json_decoder: Phoenix.json_library(),
-    body_reader: {TuistWeb.BodyReader, :read_body, []}
+    body_reader: {TuistWeb.BodyReader, :read_body_for_parser, []}
 
   plug Plug.MethodOverride
   plug Plug.Head

@@ -1,5 +1,6 @@
 defmodule TuistWeb.Plugs.WebhookPlugTest do
   use ExUnit.Case, async: true
+  use Mimic
 
   import Plug.Conn
   import Plug.Test
@@ -260,6 +261,35 @@ defmodule TuistWeb.Plugs.WebhookPlugTest do
       refute result.halted
       refute result.status
       refute_receive {:handled, _, _}
+    end
+  end
+
+  describe "call/2 with body read timeout" do
+    test "returns 408 when request body times out" do
+      secret = "my-secret"
+      payload = ~s({"action": "opened"})
+
+      options = [
+        at: "/webhook/github",
+        secret: secret,
+        handler: TestHandler,
+        signature_header: "x-hub-signature-256",
+        signature_prefix: "sha256="
+      ]
+
+      conn =
+        :post
+        |> conn("/webhook/github", payload)
+        |> put_req_header("content-type", "application/json")
+
+      expect(Plug.Conn, :read_body, fn _conn, _opts ->
+        raise Bandit.HTTPError, message: "Body read timeout", plug_status: 408
+      end)
+
+      result = WebhookPlug.call(conn, options)
+
+      assert result.status == 408
+      assert result.halted == true
     end
   end
 end

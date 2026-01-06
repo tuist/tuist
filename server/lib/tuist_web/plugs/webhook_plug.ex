@@ -15,7 +15,7 @@ defmodule TuistWeb.Plugs.WebhookPlug do
     @moduledoc false
 
     def read_body(conn, opts) do
-      case TuistWeb.BodyReader.read_body(conn, opts) do
+      case TuistWeb.BodyReader.read_body_for_parser(conn, opts) do
         {:ok, body, conn} ->
           conn = update_in(conn.assigns[:raw_body], &[body | &1 || []])
           {:ok, body, conn}
@@ -24,7 +24,7 @@ defmodule TuistWeb.Plugs.WebhookPlug do
           conn = update_in(conn.assigns[:raw_body], &[body | &1 || []])
           {:more, body, conn}
 
-        {:error, _reason, _conn} = error ->
+        {:error, _reason} = error ->
           error
       end
     end
@@ -63,29 +63,42 @@ defmodule TuistWeb.Plugs.WebhookPlug do
     signature_header = get_config(options, :signature_header) || "x-hub-signature-256"
     signature_prefix = get_config(options, :signature_prefix)
 
-    conn = Plug.Parsers.call(conn, @plug_parser)
-    signature = conn |> get_req_header(signature_header) |> List.first()
+    conn =
+      try do
+        Plug.Parsers.call(conn, @plug_parser)
+      rescue
+        Plug.TimeoutError ->
+          conn
+          |> send_resp(:request_timeout, "Request body read timeout")
+          |> halt()
+      end
 
-    cond do
-      is_nil(signature) ->
-        conn
-        |> send_resp(401, "Missing #{signature_header} header")
-        |> halt()
+    if conn.halted do
+      conn
+    else
+      signature = conn |> get_req_header(signature_header) |> List.first()
 
-      conn.assigns.raw_body
-      |> List.flatten()
-      |> IO.iodata_to_binary()
-      |> verify_signature(
-        secret,
-        signature,
-        signature_prefix
-      ) ->
-        handle_verified_webhook(conn, module)
+      cond do
+        is_nil(signature) ->
+          conn
+          |> send_resp(401, "Missing #{signature_header} header")
+          |> halt()
 
-      true ->
-        conn
-        |> send_resp(403, "Invalid signature")
-        |> halt()
+        conn.assigns.raw_body
+        |> List.flatten()
+        |> IO.iodata_to_binary()
+        |> verify_signature(
+          secret,
+          signature,
+          signature_prefix
+        ) ->
+          handle_verified_webhook(conn, module)
+
+        true ->
+          conn
+          |> send_resp(403, "Invalid signature")
+          |> halt()
+      end
     end
   end
 

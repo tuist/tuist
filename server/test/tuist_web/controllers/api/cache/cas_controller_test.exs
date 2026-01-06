@@ -8,7 +8,13 @@ defmodule TuistWeb.API.CASControllerTest do
   alias TuistWeb.Authentication
 
   setup do
-    user = AccountsFixtures.user_fixture(email: "tuist@tuist.dev", preload: [:account])
+    user =
+      AccountsFixtures.user_fixture(
+        email: "tuist@tuist.dev",
+        customer_id: "cus_#{System.unique_integer([:positive, :monotonic])}",
+        preload: [:account]
+      )
+
     project = ProjectsFixtures.project_fixture(account_id: user.account.id)
 
     %{
@@ -292,6 +298,33 @@ defmodule TuistWeb.API.CASControllerTest do
       # Then
       response = json_response(conn, :forbidden)
       assert String.contains?(response["message"], "not authorized")
+    end
+
+    test "returns request timeout when body read times out", %{
+      conn: conn,
+      project: project,
+      account_handle: account_handle,
+      project_handle: project_handle
+    } do
+      conn =
+        Authentication.put_current_project(conn, project)
+
+      cas_id = "0~YWoYNXX123"
+
+      expect(TuistWeb.BodyReader, :read_body, fn conn, _opts ->
+        {:error, :timeout, conn}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/octet-stream")
+        |> post(
+          ~p"/api/cache/cas/#{cas_id}?account_handle=#{account_handle}&project_handle=#{project_handle}",
+          "artifact content"
+        )
+
+      assert conn.status == 408
+      assert conn.resp_body == "Request body read timeout"
     end
   end
 end

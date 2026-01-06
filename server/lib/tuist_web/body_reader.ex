@@ -17,6 +17,13 @@ defmodule TuistWeb.BodyReader do
       end
   end
 
+  def read_body_for_parser(conn, opts) do
+    case read_body(conn, opts) do
+      {:error, reason, _conn} -> {:error, reason}
+      other -> other
+    end
+  end
+
   defp log_timeout(conn, message) do
     Logger.info(
       "Request body read timeout",
