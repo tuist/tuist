@@ -96,15 +96,10 @@ defmodule Tuist.AlertsTest do
       result = Alerts.evaluate(alert_rule)
 
       # Then
-      assert {:triggered, %Alert{} = alert} = result
-      assert alert.current_value == 1200.0
-      assert alert.previous_value == 1000.0
-      assert alert.change_percentage == 20.0
-      assert alert.category == :build_run_duration
-      assert alert.metric == :average
-      assert alert.project_id == project.id
-      assert alert.account_name == project.account.name
-      assert alert.project_name == project.name
+      assert {:triggered, result} = result
+      assert result.current == 1200.0
+      assert result.previous == 1000.0
+      assert result.change_pct == 20.0
     end
 
     test "returns :ok when no current data" do
@@ -171,11 +166,10 @@ defmodule Tuist.AlertsTest do
       result = Alerts.evaluate(alert_rule)
 
       # Then
-      assert {:triggered, %Alert{} = alert} = result
-      assert alert.current_value == 2300.0
-      assert alert.previous_value == 2000.0
-      assert alert.change_percentage == 15.0
-      assert alert.category == :test_run_duration
+      assert {:triggered, result} = result
+      assert result.current == 2300.0
+      assert result.previous == 2000.0
+      assert result.change_pct == 15.0
     end
 
     test "returns :ok when no regression" do
@@ -263,11 +257,10 @@ defmodule Tuist.AlertsTest do
 
       # Then
       # Decrease of 12.5% ((0.8 - 0.7) / 0.8 * 100)
-      assert {:triggered, %Alert{} = alert} = result
-      assert alert.current_value == 0.7
-      assert alert.previous_value == 0.8
-      assert alert.change_percentage == 12.5
-      assert alert.category == :cache_hit_rate
+      assert {:triggered, result} = result
+      assert result.current == 0.7
+      assert result.previous == 0.8
+      assert result.change_pct == 12.5
     end
 
     test "returns :ok when cache hit rate improved" do
@@ -488,44 +481,126 @@ defmodule Tuist.AlertsTest do
   end
 
   describe "cooldown_elapsed?/1" do
-    test "returns true when last_triggered_at is nil" do
+    test "returns true when no alerts exist for the rule" do
       # Given
-      alert_rule = AlertsFixtures.alert_rule_fixture(last_triggered_at: nil)
+      alert_rule = AlertsFixtures.alert_rule_fixture()
 
       # When/Then
       assert Alerts.cooldown_elapsed?(alert_rule) == true
     end
 
-    test "returns true when more than 24 hours have passed" do
+    test "returns true when more than 24 hours have passed since last alert" do
       # Given
-      twenty_five_hours_ago = DateTime.add(DateTime.utc_now(), -25, :hour)
-      alert_rule = AlertsFixtures.alert_rule_fixture(last_triggered_at: twenty_five_hours_ago)
+      alert_rule = AlertsFixtures.alert_rule_fixture()
+
+      # Create an alert that was inserted 25 hours ago
+      twenty_five_hours_ago =
+        DateTime.utc_now()
+        |> DateTime.add(-25, :hour)
+        |> DateTime.truncate(:second)
+
+      Repo.insert!(%Alert{
+        alert_rule_id: alert_rule.id,
+        current_value: 1200.0,
+        previous_value: 1000.0,
+        inserted_at: twenty_five_hours_ago,
+        updated_at: twenty_five_hours_ago
+      })
 
       # When/Then
       assert Alerts.cooldown_elapsed?(alert_rule) == true
     end
 
-    test "returns false when less than 24 hours have passed" do
+    test "returns false when less than 24 hours have passed since last alert" do
       # Given
-      one_hour_ago = DateTime.add(DateTime.utc_now(), -1, :hour)
-      alert_rule = AlertsFixtures.alert_rule_fixture(last_triggered_at: one_hour_ago)
+      alert_rule = AlertsFixtures.alert_rule_fixture()
+
+      # Create an alert that was inserted 1 hour ago
+      one_hour_ago =
+        DateTime.utc_now()
+        |> DateTime.add(-1, :hour)
+        |> DateTime.truncate(:second)
+
+      Repo.insert!(%Alert{
+        alert_rule_id: alert_rule.id,
+        current_value: 1200.0,
+        previous_value: 1000.0,
+        inserted_at: one_hour_ago,
+        updated_at: one_hour_ago
+      })
 
       # When/Then
       assert Alerts.cooldown_elapsed?(alert_rule) == false
     end
   end
 
-  describe "update_alert_rule_triggered_at/1" do
-    test "updates last_triggered_at to current time" do
+  describe "create_alert/1" do
+    test "creates an alert with valid attributes" do
       # Given
-      alert_rule = AlertsFixtures.alert_rule_fixture(last_triggered_at: nil)
+      alert_rule = AlertsFixtures.alert_rule_fixture()
+
+      attrs = %{
+        alert_rule_id: alert_rule.id,
+        current_value: 1200.0,
+        previous_value: 1000.0
+      }
 
       # When
-      {:ok, updated} = Alerts.update_alert_rule_triggered_at(alert_rule)
+      result = Alerts.create_alert(attrs)
 
       # Then
-      assert updated.last_triggered_at
-      assert DateTime.diff(DateTime.utc_now(), updated.last_triggered_at, :second) < 5
+      assert {:ok, alert} = result
+      assert alert.alert_rule_id == alert_rule.id
+      assert alert.current_value == 1200.0
+      assert alert.previous_value == 1000.0
+    end
+  end
+
+  describe "get_latest_alert/1" do
+    test "returns the most recent alert for a rule" do
+      # Given
+      alert_rule = AlertsFixtures.alert_rule_fixture()
+
+      now = DateTime.truncate(DateTime.utc_now(), :second)
+      one_hour_ago = DateTime.add(now, -1, :hour)
+
+      # Create older alert with explicit timestamp
+      _older_alert =
+        Repo.insert!(%Alert{
+          alert_rule_id: alert_rule.id,
+          current_value: 1100.0,
+          previous_value: 1000.0,
+          inserted_at: one_hour_ago,
+          updated_at: one_hour_ago
+        })
+
+      # Create newer alert with explicit timestamp
+      newer_alert =
+        Repo.insert!(%Alert{
+          alert_rule_id: alert_rule.id,
+          current_value: 1200.0,
+          previous_value: 1000.0,
+          inserted_at: now,
+          updated_at: now
+        })
+
+      # When
+      result = Alerts.get_latest_alert(alert_rule.id)
+
+      # Then
+      assert result.id == newer_alert.id
+      assert result.current_value == 1200.0
+    end
+
+    test "returns nil when no alerts exist" do
+      # Given
+      alert_rule = AlertsFixtures.alert_rule_fixture()
+
+      # When
+      result = Alerts.get_latest_alert(alert_rule.id)
+
+      # Then
+      assert result == nil
     end
   end
 end

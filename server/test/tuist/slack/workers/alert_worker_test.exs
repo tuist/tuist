@@ -3,7 +3,6 @@ defmodule Tuist.Slack.Workers.AlertWorkerTest do
   use Mimic
 
   alias Tuist.Alerts
-  alias Tuist.Alerts.Alert
   alias Tuist.Slack
   alias Tuist.Slack.Client
   alias Tuist.Slack.Workers.AlertWorker
@@ -53,35 +52,18 @@ defmodule Tuist.Slack.Workers.AlertWorkerTest do
   describe "perform/1 with alert_rule_id (job mode)" do
     test "sends alert when threshold is exceeded", %{project: project, slack_installation: slack_installation} do
       # Given
-      alert_rule = AlertsFixtures.alert_rule_fixture(project: project, enabled: true, last_triggered_at: nil)
+      alert_rule = AlertsFixtures.alert_rule_fixture(project: project, enabled: true)
 
-      triggered_alert = %Alert{
-        alert_rule_id: alert_rule.id,
-        project_id: project.id,
-        account_id: project.account_id,
-        account_name: "test-account",
-        project_name: project.name,
-        category: :build_run_duration,
-        metric: :p90,
-        threshold_percentage: 20.0,
-        current_value: 1200,
-        previous_value: 1000,
-        change_percentage: 20.0,
-        slack_channel_id: alert_rule.slack_channel_id,
-        slack_channel_name: alert_rule.slack_channel_name,
-        triggered_at: DateTime.utc_now()
-      }
+      triggered_result = %{current: 1200.0, previous: 1000.0, change_pct: 20.0}
 
       stub(Alerts, :cooldown_elapsed?, fn _alert_rule -> true end)
-      expect(Alerts, :evaluate, fn _alert_rule -> {:triggered, triggered_alert} end)
+      expect(Alerts, :evaluate, fn _alert_rule -> {:triggered, triggered_result} end)
 
-      expect(Slack, :send_alert, fn alert, installation ->
-        assert alert.current_value == 1200
-        assert installation.access_token == slack_installation.access_token
+      expect(Slack, :send_alert, fn alert ->
+        assert alert.current_value == 1200.0
+        assert alert.alert_rule.project.account.slack_installation.access_token == slack_installation.access_token
         :ok
       end)
-
-      stub(Alerts, :update_alert_rule_triggered_at, fn _alert_rule -> {:ok, alert_rule} end)
 
       # When
       result = AlertWorker.perform(%Oban.Job{args: %{"alert_rule_id" => alert_rule.id}})
@@ -108,8 +90,7 @@ defmodule Tuist.Slack.Workers.AlertWorkerTest do
 
     test "does not send alert when cooldown has not elapsed", %{project: project} do
       # Given
-      one_hour_ago = DateTime.add(DateTime.utc_now(), -1, :hour)
-      alert_rule = AlertsFixtures.alert_rule_fixture(project: project, enabled: true, last_triggered_at: one_hour_ago)
+      alert_rule = AlertsFixtures.alert_rule_fixture(project: project, enabled: true)
 
       stub(Alerts, :cooldown_elapsed?, fn _alert_rule -> false end)
 

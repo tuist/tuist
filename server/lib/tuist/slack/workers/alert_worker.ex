@@ -49,10 +49,16 @@ defmodule Tuist.Slack.Workers.AlertWorker do
 
       true ->
         case Alerts.evaluate(alert_rule) do
-          {:triggered, alert} ->
-            slack_installation = alert_rule.project.account.slack_installation
-            Slack.send_alert(alert, slack_installation)
-            Alerts.update_alert_rule_triggered_at(alert_rule)
+          {:triggered, result} ->
+            {:ok, alert} =
+              Alerts.create_alert(%{
+                alert_rule_id: alert_rule.id,
+                current_value: result.current,
+                previous_value: result.previous
+              })
+
+            alert = Repo.preload(alert, alert_rule: [project: [account: :slack_installation]])
+            Slack.send_alert(alert)
             :ok
 
           :ok ->

@@ -9,6 +9,7 @@ defmodule Tuist.Alerts.AlertRule do
 
   import Ecto.Changeset
 
+  alias Tuist.Alerts.Alert
   alias Tuist.Projects.Project
 
   @categories [build_run_duration: 0, test_run_duration: 1, cache_hit_rate: 2]
@@ -25,9 +26,9 @@ defmodule Tuist.Alerts.AlertRule do
     field :enabled, :boolean, default: true
     field :slack_channel_id, :string
     field :slack_channel_name, :string
-    field :last_triggered_at, :utc_datetime
 
     belongs_to :project, Project, type: :integer
+    has_many :alerts, Alert
 
     timestamps(type: :utc_datetime)
   end
@@ -42,8 +43,7 @@ defmodule Tuist.Alerts.AlertRule do
       :sample_size,
       :enabled,
       :slack_channel_id,
-      :slack_channel_name,
-      :last_triggered_at
+      :slack_channel_name
     ])
     |> validate_required([
       :project_id,

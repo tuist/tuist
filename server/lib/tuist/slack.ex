@@ -101,11 +101,18 @@ defmodule Tuist.Slack do
   @doc """
   Sends an alert notification to Slack.
 
-  Requires a slack_installation to be available for the account.
+  Requires the alert to have alert_rule -> project -> account -> slack_installation preloaded.
   """
   def send_alert(
-        %Alert{account_name: account_name, project_name: project_name, slack_channel_id: slack_channel_id} = alert,
-        %Installation{access_token: access_token}
+        %Alert{
+          alert_rule: %{
+            slack_channel_id: slack_channel_id,
+            project: %{
+              name: project_name,
+              account: %{name: account_name, slack_installation: %Installation{access_token: access_token}}
+            }
+          }
+        } = alert
       ) do
     blocks = build_alert_blocks(alert, account_name, project_name)
     Client.post_message(access_token, slack_channel_id, blocks)
@@ -121,7 +128,7 @@ defmodule Tuist.Slack do
     ]
   end
 
-  defp alert_header_block(%Alert{category: category, metric: metric}) do
+  defp alert_header_block(%Alert{alert_rule: %{category: category, metric: metric}}) do
     emoji = alert_category_emoji(category)
     title = alert_title(category, metric)
 
@@ -134,7 +141,7 @@ defmodule Tuist.Slack do
     }
   end
 
-  defp alert_context_block(%Alert{triggered_at: triggered_at}) do
+  defp alert_context_block(%Alert{inserted_at: triggered_at}) do
     ts = DateTime.to_unix(triggered_at)
     fallback = Calendar.strftime(triggered_at, "%b %d, %H:%M")
 
@@ -188,40 +195,28 @@ defmodule Tuist.Slack do
   defp alert_metric_label(:average), do: "Average"
   defp alert_metric_label(nil), do: ""
 
-  defp format_alert_message(%Alert{
-         category: :build_run_duration,
-         metric: metric,
-         change_percentage: change_pct,
-         previous_value: previous,
-         current_value: current
-       }) do
+  defp format_alert_message(%Alert{alert_rule: %{category: :build_run_duration, metric: metric}} = alert) do
+    change_pct = Alert.change_percentage(alert)
+
     "*Build time #{alert_metric_label(metric)} increased by #{change_pct}%*\n" <>
-      "Previous: #{format_alert_duration(previous)}\n" <>
-      "Current: #{format_alert_duration(current)}"
+      "Previous: #{format_alert_duration(alert.previous_value)}\n" <>
+      "Current: #{format_alert_duration(alert.current_value)}"
   end
 
-  defp format_alert_message(%Alert{
-         category: :test_run_duration,
-         metric: metric,
-         change_percentage: change_pct,
-         previous_value: previous,
-         current_value: current
-       }) do
+  defp format_alert_message(%Alert{alert_rule: %{category: :test_run_duration, metric: metric}} = alert) do
+    change_pct = Alert.change_percentage(alert)
+
     "*Test time #{alert_metric_label(metric)} increased by #{change_pct}%*\n" <>
-      "Previous: #{format_alert_duration(previous)}\n" <>
-      "Current: #{format_alert_duration(current)}"
+      "Previous: #{format_alert_duration(alert.previous_value)}\n" <>
+      "Current: #{format_alert_duration(alert.current_value)}"
   end
 
-  defp format_alert_message(%Alert{
-         category: :cache_hit_rate,
-         metric: metric,
-         change_percentage: change_pct,
-         previous_value: previous,
-         current_value: current
-       }) do
+  defp format_alert_message(%Alert{alert_rule: %{category: :cache_hit_rate, metric: metric}} = alert) do
+    change_pct = Alert.change_percentage(alert)
+
     "*Cache hit rate #{alert_metric_label(metric)} decreased by #{change_pct}%*\n" <>
-      "Previous: #{format_alert_percentage(previous)}\n" <>
-      "Current: #{format_alert_percentage(current)}"
+      "Previous: #{format_alert_percentage(alert.previous_value)}\n" <>
+      "Current: #{format_alert_percentage(alert.current_value)}"
   end
 
   defp format_alert_duration(ms) when is_number(ms) do

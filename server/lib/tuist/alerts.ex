@@ -48,28 +48,40 @@ defmodule Tuist.Alerts do
     |> Repo.preload(project: [account: :slack_installation])
   end
 
-  def update_alert_rule_triggered_at(%AlertRule{} = alert_rule) do
-    alert_rule
-    |> Ecto.Changeset.change(last_triggered_at: DateTime.truncate(DateTime.utc_now(), :second))
-    |> Repo.update()
+  # Alert CRUD functions
+
+  def create_alert(attrs) do
+    %Alert{}
+    |> Alert.changeset(attrs)
+    |> Repo.insert()
   end
 
-  def cooldown_elapsed?(%AlertRule{last_triggered_at: nil}), do: true
+  def get_latest_alert(alert_rule_id) do
+    Alert
+    |> where([a], a.alert_rule_id == ^alert_rule_id)
+    |> order_by([a], desc: a.inserted_at)
+    |> limit(1)
+    |> Repo.one()
+  end
 
-  def cooldown_elapsed?(%AlertRule{last_triggered_at: last_triggered}) do
-    hours_since = DateTime.diff(DateTime.utc_now(), last_triggered, :hour)
-    hours_since >= 24
+  # Cooldown check
+
+  def cooldown_elapsed?(%AlertRule{id: alert_rule_id}) do
+    case get_latest_alert(alert_rule_id) do
+      nil -> true
+      alert -> DateTime.diff(DateTime.utc_now(), alert.inserted_at, :hour) >= 24
+    end
   end
 
   # Alert evaluation
 
   @doc """
-  Evaluates an alert rule and returns a triggered Alert if threshold exceeded.
+  Evaluates an alert rule and returns triggered data if threshold exceeded.
 
   The alert_rule must have project and account preloaded.
 
   Returns:
-  - `{:triggered, alert}` if threshold exceeded
+  - `{:triggered, %{current: number, previous: number, change_pct: float}}` if threshold exceeded
   - `:ok` if no alert needed
   """
   def evaluate(%AlertRule{category: :build_run_duration, project: project} = alert_rule) do
@@ -110,8 +122,7 @@ defmodule Tuist.Alerts do
     change_pct = (current - previous) / previous * 100
 
     if change_pct >= alert_rule.threshold_percentage do
-      result = %{current: current, previous: previous, change_pct: Float.round(change_pct, 1)}
-      {:triggered, Alert.from_rule(alert_rule, result)}
+      {:triggered, %{current: current, previous: previous, change_pct: Float.round(change_pct, 1)}}
     else
       :ok
     end
@@ -125,8 +136,7 @@ defmodule Tuist.Alerts do
     change_pct = (previous - current) / previous * 100
 
     if change_pct >= alert_rule.threshold_percentage do
-      result = %{current: current, previous: previous, change_pct: Float.round(change_pct, 1)}
-      {:triggered, Alert.from_rule(alert_rule, result)}
+      {:triggered, %{current: current, previous: previous, change_pct: Float.round(change_pct, 1)}}
     else
       :ok
     end
