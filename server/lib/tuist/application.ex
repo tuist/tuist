@@ -60,7 +60,7 @@ defmodule Tuist.Application do
 
       :logger.add_primary_filter(
         :appsignal_error_filter,
-        {&Tuist.Appsignal.ErrorFilter.filter/2, []}
+        {&TuistCommon.Appsignal.ErrorFilter.filter/2, []}
       )
     end
   end

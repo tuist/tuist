@@ -16,7 +16,7 @@ defmodule CacheWeb.Endpoint do
 
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
-  plug CacheWeb.Plugs.RequestContextPlug
+  plug TuistCommon.Plugs.RequestContextPlug
   plug Cache.Appsignal.SamplingPlug
 
   plug Plug.Parsers,

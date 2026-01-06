@@ -1,22 +1,31 @@
-defmodule CacheWeb.Plugs.RequestContextPlug do
+defmodule TuistCommon.Plugs.RequestContextPlug do
   @moduledoc """
   Captures request context (path, method) early in the plug pipeline for debugging.
 
   This plug runs before Plug.Parsers so that even if body reading fails with a timeout,
   we still have context about which endpoint was being called.
+
+  ## Options
+
+  - `:enabled_fn` - A zero-arity function that returns a boolean. When `true`,
+    request context is captured to AppSignal. Defaults to checking AppSignal config.
   """
 
   @behaviour Plug
 
   def init(opts) do
-    appsignal_active_fn =
-      Keyword.get(opts, :appsignal_active_fn, &__MODULE__.appsignal_active?/0)
-
-    %{appsignal_active_fn: appsignal_active_fn}
+    enabled_fn = Keyword.get(opts, :enabled_fn, {__MODULE__, :appsignal_active?, []})
+    %{enabled_fn: enabled_fn}
   end
 
-  def call(conn, %{appsignal_active_fn: appsignal_active_fn}) do
-    if appsignal_active_fn.() do
+  def call(conn, %{enabled_fn: enabled_fn}) do
+    enabled? =
+      case enabled_fn do
+        {mod, fun, args} -> apply(mod, fun, args)
+        fun when is_function(fun, 0) -> fun.()
+      end
+
+    if enabled? do
       span = Appsignal.Tracer.root_span()
 
       if span do

@@ -1,7 +1,7 @@
-defmodule Tuist.Appsignal.ErrorFilterTest do
+defmodule TuistCommon.Appsignal.ErrorFilterTest do
   use ExUnit.Case, async: true
 
-  alias Tuist.Appsignal.ErrorFilter
+  alias TuistCommon.Appsignal.ErrorFilter
 
   describe "filter/2" do
     test "stops Bandit.HTTPError with 'Body read timeout' message" do

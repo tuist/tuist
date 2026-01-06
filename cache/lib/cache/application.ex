@@ -51,7 +51,7 @@ defmodule Cache.Application do
   defp attach_appsignal_error_filter do
     :logger.add_primary_filter(
       :appsignal_error_filter,
-      {&Cache.Appsignal.ErrorFilter.filter/2, []}
+      {&TuistCommon.Appsignal.ErrorFilter.filter/2, []}
     )
   end
 
