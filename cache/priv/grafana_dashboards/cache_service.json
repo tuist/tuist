@@ -369,6 +369,36 @@
                 }
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/S3 Hit.*/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/S3 Miss.*/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "purple",
+                  "mode": "fixed"
+                }
+              }
+            ]
           }
         ]
       },
@@ -426,6 +456,22 @@
           "legendFormat": "Errors - {{instance}}",
           "range": true,
           "refId": "D"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "sum by (instance) (rate(tuist_cache_cas_download_s3_hits_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "S3 Hit - {{instance}}",
+          "range": true,
+          "refId": "E"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "sum by (instance) (rate(tuist_cache_cas_download_s3_misses_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "S3 Miss - {{instance}}",
+          "range": true,
+          "refId": "F"
         }
       ],
       "title": "CAS Download Rate",
@@ -560,12 +606,245 @@
       "type": "gauge"
     },
     {
+      "datasource": "$datasource",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 18
+      },
+      "id": 50,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "sum by (instance) (rate(tuist_cache_cas_download_bytes{instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "Disk - {{instance}}",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "sum by (instance) (rate(tuist_cache_cas_download_s3_bytes{instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "S3 - {{instance}}",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "CAS Download Throughput",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "$datasource",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "decbytes"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Instance"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 200
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 18
+      },
+      "id": 51,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50, sum by (instance, le) (rate(tuist_cache_cas_download_artifact_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "{{instance}}",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.90, sum by (instance, le) (rate(tuist_cache_cas_download_artifact_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "{{instance}}",
+          "range": false,
+          "refId": "B"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (instance, le) (rate(tuist_cache_cas_download_artifact_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "{{instance}}",
+          "range": false,
+          "refId": "C"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.99, sum by (instance, le) (rate(tuist_cache_cas_download_artifact_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "{{instance}}",
+          "range": false,
+          "refId": "D"
+        }
+      ],
+      "title": "CAS Download Artifact Size Distribution",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true,
+              "le": true
+            },
+            "includeByName": {},
+            "indexByName": {
+              "Time": 0,
+              "Value #A": 2,
+              "Value #B": 3,
+              "Value #C": 4,
+              "Value #D": 5,
+              "instance": 1
+            },
+            "renameByName": {
+              "Value #A": "p50",
+              "Value #B": "p90",
+              "Value #C": "p95",
+              "Value #D": "p99",
+              "instance": "Instance"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 18
+        "y": 34
       },
       "id": 8,
       "panels": [],
@@ -669,6 +948,21 @@
                 }
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/Cancelled.*/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
           }
         ]
       },
@@ -676,7 +970,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 19
+        "y": 27
       },
       "id": 9,
       "options": {
@@ -726,6 +1020,14 @@
           "legendFormat": "Errors - {{instance}}",
           "range": true,
           "refId": "D"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "sum by (instance) (rate(tuist_cache_cas_upload_cancelled_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "Cancelled - {{instance}}",
+          "range": true,
+          "refId": "E"
         }
       ],
       "title": "CAS Upload Rate",
@@ -789,7 +1091,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 19
+        "y": 27
       },
       "id": 10,
       "options": {
@@ -862,7 +1164,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 27
+        "y": 35
       },
       "id": 11,
       "options": {
@@ -962,7 +1264,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 35
+        "y": 43
       },
       "id": 12,
       "panels": [],
@@ -1058,7 +1360,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 36
+        "y": 44
       },
       "id": 13,
       "options": {
@@ -1194,7 +1496,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 36
+        "y": 44
       },
       "id": 14,
       "options": {
@@ -1274,7 +1576,7 @@
         "h": 8,
         "w": 6,
         "x": 0,
-        "y": 44
+        "y": 52
       },
       "id": 15,
       "options": {
@@ -1363,7 +1665,7 @@
         "h": 8,
         "w": 6,
         "x": 6,
-        "y": 44
+        "y": 52
       },
       "id": 16,
       "options": {
@@ -1452,7 +1754,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 44
+        "y": 52
       },
       "id": 17,
       "options": {
@@ -1489,7 +1791,1278 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 52
+        "y": 60
+      },
+      "id": 31,
+      "panels": [],
+      "title": "Module Cache Downloads",
+      "type": "row"
+    },
+    {
+      "datasource": "$datasource",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "reqps"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/Disk Hit.*/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/Disk Miss.*/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/S3 Hit.*/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/S3 Miss.*/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 61
+      },
+      "id": 32,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "sum by (instance) (rate(tuist_cache_module_download_hits_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "Total Hits - {{instance}}",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "sum by (instance) (rate(tuist_cache_module_download_disk_hits_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "Disk Hit - {{instance}}",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "sum by (instance) (rate(tuist_cache_module_download_disk_misses_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "Disk Miss - {{instance}}",
+          "range": true,
+          "refId": "C"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "sum by (instance) (rate(tuist_cache_module_download_s3_hits_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "S3 Hit - {{instance}}",
+          "range": true,
+          "refId": "D"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "sum by (instance) (rate(tuist_cache_module_download_s3_misses_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "S3 Miss - {{instance}}",
+          "range": true,
+          "refId": "E"
+        }
+      ],
+      "title": "Module Download Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "$datasource",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 61
+      },
+      "id": 33,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "sum by (instance) (rate(tuist_cache_module_download_disk_bytes{instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "Disk - {{instance}}",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "sum by (instance) (rate(tuist_cache_module_download_s3_bytes{instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "S3 - {{instance}}",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "Module Download Throughput",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "$datasource",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 70
+              },
+              {
+                "color": "green",
+                "value": 90
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 69
+      },
+      "id": 34,
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "sizing": "auto"
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "100 * sum(rate(tuist_cache_module_download_disk_hits_total{instance=~\"$instance\"}[$__rate_interval])) / sum(rate(tuist_cache_module_download_hits_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Module Disk Cache Hit Rate",
+      "type": "gauge"
+    },
+    {
+      "datasource": "$datasource",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 69
+      },
+      "id": 35,
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "sizing": "auto"
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "sum(rate(tuist_cache_module_download_errors_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Module Download Error Rate",
+      "type": "gauge"
+    },
+    {
+      "datasource": "$datasource",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "decbytes"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Instance"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 200
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 69
+      },
+      "id": 36,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50, sum by (instance, le) (rate(tuist_cache_module_download_artifact_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "{{instance}}",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.90, sum by (instance, le) (rate(tuist_cache_module_download_artifact_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "{{instance}}",
+          "range": false,
+          "refId": "B"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (instance, le) (rate(tuist_cache_module_download_artifact_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "{{instance}}",
+          "range": false,
+          "refId": "C"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.99, sum by (instance, le) (rate(tuist_cache_module_download_artifact_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "{{instance}}",
+          "range": false,
+          "refId": "D"
+        }
+      ],
+      "title": "Module Download Artifact Size Distribution",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true,
+              "le": true
+            },
+            "includeByName": {},
+            "indexByName": {
+              "Time": 0,
+              "Value #A": 2,
+              "Value #B": 3,
+              "Value #C": 4,
+              "Value #D": 5,
+              "instance": 1
+            },
+            "renameByName": {
+              "Value #A": "p50",
+              "Value #B": "p90",
+              "Value #C": "p95",
+              "Value #D": "p99",
+              "instance": "Instance"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 77
+      },
+      "id": 37,
+      "panels": [],
+      "title": "Module Cache Uploads",
+      "type": "row"
+    },
+    {
+      "datasource": "$datasource",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "reqps"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/Starts.*/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/Completions.*/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 78
+      },
+      "id": 38,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "sum by (instance) (rate(tuist_cache_module_multipart_starts_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "Starts - {{instance}}",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "sum by (instance) (rate(tuist_cache_module_multipart_parts_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "Parts - {{instance}}",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "sum by (instance) (rate(tuist_cache_module_multipart_completions_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "Completions - {{instance}}",
+          "range": true,
+          "refId": "C"
+        }
+      ],
+      "title": "Module Multipart Upload Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "$datasource",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 78
+      },
+      "id": 39,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "sum by (instance) (rate(tuist_cache_module_multipart_parts_bytes{instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "Parts - {{instance}}",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "sum by (instance) (rate(tuist_cache_module_multipart_completed_bytes{instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "Completed - {{instance}}",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "Module Upload Throughput",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "$datasource",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "decbytes"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Instance"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 200
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 86
+      },
+      "id": 40,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50, sum by (instance, le) (rate(tuist_cache_module_multipart_artifact_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "{{instance}}",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.90, sum by (instance, le) (rate(tuist_cache_module_multipart_artifact_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "{{instance}}",
+          "range": false,
+          "refId": "B"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (instance, le) (rate(tuist_cache_module_multipart_artifact_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "{{instance}}",
+          "range": false,
+          "refId": "C"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.99, sum by (instance, le) (rate(tuist_cache_module_multipart_artifact_size_bytes_bucket{instance=~\"$instance\"}[$__rate_interval])))",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "{{instance}}",
+          "range": false,
+          "refId": "D"
+        }
+      ],
+      "title": "Module Upload Artifact Size Distribution",
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true,
+              "le": true
+            },
+            "includeByName": {},
+            "indexByName": {
+              "Time": 0,
+              "Value #A": 2,
+              "Value #B": 3,
+              "Value #C": 4,
+              "Value #D": 5,
+              "instance": 1
+            },
+            "renameByName": {
+              "Value #A": "p50",
+              "Value #B": "p90",
+              "Value #C": "p95",
+              "Value #D": "p99",
+              "instance": "Instance"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 94
+      },
+      "id": 41,
+      "panels": [],
+      "title": "S3 Transfer Queue",
+      "type": "row"
+    },
+    {
+      "datasource": "$datasource",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/Uploads.*/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/Downloads.*/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 95
+      },
+      "id": 42,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "tuist_cache_s3_transfers_pending_uploads{instance=~\"$instance\"}",
+          "legendFormat": "Uploads - {{instance}}",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "tuist_cache_s3_transfers_pending_downloads{instance=~\"$instance\"}",
+          "legendFormat": "Downloads - {{instance}}",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "S3 Transfer Queue Depth",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "$datasource",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 100
+              },
+              {
+                "color": "red",
+                "value": 500
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 95
+      },
+      "id": 43,
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "sizing": "auto"
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "sum(tuist_cache_s3_transfers_pending_total{instance=~\"$instance\"})",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Total Pending Transfers",
+      "type": "gauge"
+    },
+    {
+      "datasource": "$datasource",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "reqps"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/CAS S3.*/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "blue",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/Module S3.*/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 95
+      },
+      "id": 44,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "sum"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "sum by (instance) (rate(tuist_cache_cas_download_s3_hits_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "CAS S3 Hits - {{instance}}",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "sum by (instance) (rate(tuist_cache_module_download_s3_hits_total{instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "Module S3 Hits - {{instance}}",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "S3 Download Rate",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 103
       },
       "id": 19,
       "panels": [],
@@ -1550,7 +3123,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 53
+        "y": 104
       },
       "id": 20,
       "options": {
@@ -1706,7 +3279,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 53
+        "y": 104
       },
       "id": 21,
       "options": {
@@ -1743,7 +3316,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 61
+        "y": 112
       },
       "id": 22,
       "panels": [],
@@ -1808,7 +3381,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 62
+        "y": 113
       },
       "id": 23,
       "options": {
@@ -1921,7 +3494,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 62
+        "y": 113
       },
       "id": 24,
       "options": {
@@ -2010,7 +3583,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 62
+        "y": 113
       },
       "id": 25,
       "options": {
@@ -2055,7 +3628,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 70
+        "y": 121
       },
       "id": 26,
       "panels": [],
@@ -2130,7 +3703,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 71
+        "y": 122
       },
       "id": 27,
       "options": {
@@ -2232,7 +3805,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 71
+        "y": 122
       },
       "id": 28,
       "options": {
@@ -2339,7 +3912,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 79
+        "y": 130
       },
       "id": 29,
       "options": {
@@ -2449,7 +4022,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 79
+        "y": 130
       },
       "id": 30,
       "options": {

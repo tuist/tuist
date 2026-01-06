@@ -56,6 +56,64 @@ defmodule Cache.CAS.PromExPlugin do
         event_name: [:cache, :cas, :download, :error],
         description: "CAS download errors (e.g., S3 presign failures)."
       ),
+      counter(
+        [
+          :tuist_cache,
+          :cas,
+          :download,
+          :s3_hits,
+          :total
+        ],
+        event_name: [:cache, :cas, :download, :s3_hit],
+        description: "CAS downloads pulled from S3 to local disk."
+      ),
+      sum(
+        [
+          :tuist_cache,
+          :cas,
+          :download,
+          :s3_bytes
+        ],
+        event_name: [:cache, :cas, :download, :s3_hit],
+        measurement: :size,
+        description: "Total bytes downloaded from S3 for CAS."
+      ),
+      counter(
+        [
+          :tuist_cache,
+          :cas,
+          :download,
+          :s3_misses,
+          :total
+        ],
+        event_name: [:cache, :cas, :download, :s3_miss],
+        description: "CAS downloads not found in S3 (404)."
+      ),
+      distribution(
+        [
+          :tuist_cache,
+          :cas,
+          :download,
+          :artifact_size,
+          :bytes
+        ],
+        event_name: [:cache, :cas, :download, :disk_hit],
+        measurement: :size,
+        unit: :byte,
+        description: "Distribution of artifact sizes downloaded from CAS.",
+        reporter_options: [buckets: exponential!(1024, 2, 20)]
+      ),
+      sum(
+        [
+          :tuist_cache,
+          :cas,
+          :download,
+          :bytes
+        ],
+        event_name: [:cache, :cas, :download, :disk_hit],
+        measurement: :size,
+        description: "Total bytes downloaded from CAS disk."
+      ),
 
       # Uploads
       counter(
@@ -103,6 +161,17 @@ defmodule Cache.CAS.PromExPlugin do
         description: "CAS upload errors.",
         tags: [:reason],
         tag_values: fn metadata -> %{reason: to_string(Map.get(metadata, :reason, :unknown))} end
+      ),
+      counter(
+        [
+          :tuist_cache,
+          :cas,
+          :upload,
+          :cancelled,
+          :total
+        ],
+        event_name: [:cache, :cas, :upload, :cancelled],
+        description: "CAS uploads cancelled by client."
       ),
       sum(
         [
