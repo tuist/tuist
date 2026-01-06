@@ -122,9 +122,9 @@ jobs:
         working-directory: docs
         run: mise run build
       - uses: 1password/install-cli-action@v2
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/fix/docs-workflow-caching' # TEMP: Remove after testing
       - name: Deploy to Cloudflare Pages
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/fix/docs-workflow-caching' # TEMP: Remove after testing
         working-directory: docs
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
