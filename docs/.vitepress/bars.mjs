@@ -676,5 +676,18 @@ export async function guidesSidebar(locale) {
         },
       ],
     },
+    {
+      text: "Cache Service",
+      items: [
+        {
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${cacheIcon()} Architecture</span>`,
+          link: `/${locale}/guides/cache/architecture`,
+        },
+        {
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${selfHostingIcon()} Self-hosting</span>`,
+          link: `/${locale}/guides/cache/self-host`,
+        },
+      ],
+    },
   ];
 }
