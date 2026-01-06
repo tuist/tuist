@@ -19,6 +19,7 @@ defmodule Tuist.Alerts.AlertRule do
   @foreign_key_type UUIDv7
 
   schema "alert_rules" do
+    field :name, :string, default: "Untitled"
     field :category, Ecto.Enum, values: @categories
     field :metric, Ecto.Enum, values: @metrics
     field :threshold_percentage, :float
@@ -37,6 +38,7 @@ defmodule Tuist.Alerts.AlertRule do
     alert_rule
     |> cast(attrs, [
       :project_id,
+      :name,
       :category,
       :metric,
       :threshold_percentage,
@@ -47,6 +49,7 @@ defmodule Tuist.Alerts.AlertRule do
     ])
     |> validate_required([
       :project_id,
+      :name,
       :category,
       :metric,
       :threshold_percentage,

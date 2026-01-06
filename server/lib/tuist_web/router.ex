@@ -775,6 +775,7 @@ defmodule TuistWeb.Router do
       live "/runs/:run_id", RunDetailLive
       get "/runs/:run_id/download", RunsController, :download
       live "/settings", ProjectSettingsLive
+      live "/settings/notifications", ProjectNotificationsLive
       live "/settings/qa", QASettingsLive
     end
 

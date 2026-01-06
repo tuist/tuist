@@ -33,6 +33,7 @@ defmodule TuistTestSupport.Fixtures.AlertsFixtures do
     %AlertRule{}
     |> AlertRule.changeset(%{
       project_id: Keyword.get(opts, :project_id, project.id),
+      name: Keyword.get(opts, :name, "Test Alert #{unique_id}"),
       category: Keyword.get(opts, :category, :build_run_duration),
       metric: Keyword.get(opts, :metric, :p90),
       threshold_percentage: Keyword.get(opts, :threshold_percentage, 20.0),

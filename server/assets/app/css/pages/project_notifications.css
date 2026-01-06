@@ -1,0 +1,203 @@
+#project-notifications {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-9);
+
+  .noora-tab-menu-horizontal {
+    padding: var(--noora-spacing-0);
+  }
+
+  & > [data-part="title"] {
+    margin: 0;
+    padding-top: var(--noora-spacing-7);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-xlarge);
+  }
+
+  & > [data-part="subtitle"] {
+    margin: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  & > [data-part="reports-card-section"],
+  & > [data-part="alert-rules-card-section"],
+  & > [data-part="no-slack-card-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+
+    & > [data-part="header"] {
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: flex-start;
+
+      & > [data-part="title-group"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-2);
+
+        & > [data-part="title"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+        }
+
+        & > [data-part="subtitle"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+        }
+      }
+    }
+
+    & > [data-part="content"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-5);
+    }
+  }
+
+  & [data-part="notification-row"] {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--noora-spacing-4) 0;
+    border-bottom: 1px solid var(--noora-surface-border-secondary);
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    &[data-disabled="true"] {
+      opacity: 0.5;
+    }
+
+    & > [data-part="row-label"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+
+      & .noora-icon {
+        width: 20px;
+        height: 20px;
+        color: var(--noora-surface-label-secondary);
+      }
+    }
+
+    & > [data-part="row-content"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+    }
+  }
+
+  & [data-part="schedule-form"],
+  & [data-part="alert-form"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+    padding-block: var(--noora-spacing-6);
+
+    & [data-part="schedule-row"] {
+      display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+
+      & [data-part="schedule-label"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+
+      & .noora-dropdown {
+        width: 250px;
+
+        & .noora-dropdown-content {
+          width: 250px;
+        }
+      }
+
+      & .noora-text-input {
+        width: 250px;
+
+        & [data-part="wrapper"] {
+          width: 250px;
+        }
+      }
+
+      & #schedule-time-dropdown {
+        width: 100px;
+
+        & .noora-dropdown-content {
+          width: 100px;
+        }
+      }
+
+      & #slack-channel-dropdown,
+      & #alert-channel-dropdown {
+        width: 250px;
+
+        & .noora-dropdown-content {
+          display: flex;
+          flex-direction: column;
+          width: 250px;
+          max-height: 300px;
+        }
+
+        & [data-part="search"] {
+          flex-shrink: 0;
+
+          & .noora-text-input {
+            min-width: 0;
+
+            & [data-part="wrapper"] {
+              min-width: 0;
+            }
+
+            & input {
+              width: 100%;
+              min-width: 0;
+            }
+          }
+        }
+
+        & #slack-channel-dropdown-content-target,
+        & #alert-channel-dropdown-content-target {
+          flex: 1;
+          overflow-y: auto;
+          overscroll-behavior: none;
+        }
+      }
+    }
+  }
+
+  & .noora-modal {
+    & [data-part="content"] {
+      max-width: 500px;
+    }
+
+    & [data-part="content"] > [data-part="body"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-8);
+      min-width: 420px;
+    }
+  }
+
+  & .noora-table {
+    margin-top: var(--noora-spacing-4);
+
+    & [data-part="cell"][data-type="button"] {
+      display: flex;
+      flex-direction: row;
+      gap: var(--noora-spacing-2);
+      justify-content: flex-end;
+    }
+  }
+}
