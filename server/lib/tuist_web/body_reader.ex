@@ -2,6 +2,7 @@ defmodule TuistWeb.BodyReader do
   @moduledoc false
 
   import Plug.Conn, only: [get_req_header: 2]
+
   require Logger
 
   def read_body(conn, opts) do
