@@ -454,15 +454,14 @@ public class GeneratorFactory: GeneratorFactorying {
 
             var graphMappers: [GraphMapping] = graphMapperFactory.binaryCacheWarming(
                 config: config,
+                targets: targetsToBinaryCache,
                 cacheSources: Set(targetsToBinaryCache.flatMap(\.value)),
                 configuration: configuration,
                 cacheStorage: cacheStorage
             )
             graphMappers = graphMappers.filter { !($0 is ExplicitDependencyGraphMapper) }
 
-            let workspaceMappers = workspaceMapperFactory.binaryCacheWarming(
-                tuist: config, targets: targetsToBinaryCache
-            )
+            let workspaceMappers = workspaceMapperFactory.binaryCacheWarming(tuist: config)
             let manifestLoader = ManifestLoaderFactory().createManifestLoader()
             return Generator(
                 manifestLoader: manifestLoader,
