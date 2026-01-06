@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - main
-      - fix/docs-workflow-caching # TEMP: Remove after testing
     paths:
       - docs/**
       - .github/workflows/docs.yml
@@ -52,7 +51,7 @@ jobs:
   build-deploy:
     name: Build & Deploy
     runs-on: macos-26
-    timeout-minutes: 60
+    timeout-minutes: 80
     if: github.event.pull_request.head.repo.fork != true && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
@@ -124,9 +123,9 @@ jobs:
         working-directory: docs
         run: mise run build
       - uses: 1password/install-cli-action@v2
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/fix/docs-workflow-caching' # TEMP: Remove after testing
+        if: github.ref == 'refs/heads/main'
       - name: Deploy to Cloudflare Pages
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/fix/docs-workflow-caching' # TEMP: Remove after testing
+        if: github.ref == 'refs/heads/main'
         working-directory: docs
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
