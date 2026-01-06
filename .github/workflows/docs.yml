@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+      - fix/docs-workflow-caching # TEMP: Remove after testing
     paths:
       - docs/**
       - .github/workflows/docs.yml
