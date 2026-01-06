@@ -264,15 +264,6 @@
           </.modal>
         </div>
       </div>
-      <div data-part="notification-row" data-disabled="true">
-        <label data-part="row-label">
-          <.icon name="mail" />
-          {dgettext("dashboard_projects", "Email")}
-        </label>
-        <div data-part="row-content">
-          <.tag label={dgettext("dashboard_projects", "Coming soon")} />
-        </div>
-      </div>
     </div>
   </.card_section>
 
@@ -454,15 +445,6 @@
       </.modal>
     </div>
     <div data-part="content">
-      <div data-part="notification-row" data-disabled="true">
-        <label data-part="row-label">
-          <.icon name="mail" />
-          {dgettext("dashboard_projects", "Email")}
-        </label>
-        <div data-part="row-content">
-          <.tag label={dgettext("dashboard_projects", "Coming soon")} />
-        </div>
-      </div>
       <.table
         :if={@alert_rules != []}
         id="alert-rules-table"
