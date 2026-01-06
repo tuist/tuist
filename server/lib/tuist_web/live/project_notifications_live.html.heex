@@ -173,22 +173,24 @@
         </div>
       </div>
       <div data-part="notification-row">
-        <label data-part="row-label">
-          <.icon name="brand_slack" />
-          {dgettext("dashboard_projects", "Slack")}
-        </label>
-        <div data-part="row-content">
-          <.tag
-            :if={@selected_project.slack_channel_id}
-            label={"##{@selected_project.slack_channel_name}"}
-          />
+        <div data-part="row-left">
           <.toggle
             id="slack-reports-toggle"
-            label=""
             checked={@slack_reports_enabled}
             disabled={is_nil(@selected_project.slack_channel_id)}
             phx-click="toggle_slack_reports"
           />
+          <div data-part="row-label-group">
+            <label data-part="row-label">
+              {dgettext("dashboard_projects", "Slack")}
+            </label>
+            <.tag
+              :if={@selected_project.slack_channel_id}
+              label={"##{@selected_project.slack_channel_name}"}
+            />
+          </div>
+        </div>
+        <div data-part="row-content">
           <.modal
             id="slack-channel-modal"
             title={dgettext("dashboard_projects", "Configure Slack")}
