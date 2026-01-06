@@ -109,11 +109,24 @@ public struct XCResultService: XCResultServicing {
                     ]
                 ).concatenatedString()
 
-                let outputData = try await fileSystem.readFile(at: tempFile)
-                return try JSONDecoder().decode(XCResultTestOutput.self, from: outputData)
+                let outputString = try await fileSystem.readTextFile(at: tempFile)
+                let jsonString = extractJSON(from: outputString)
+                guard let jsonData = jsonString.data(using: .utf8) else {
+                    throw XCResultServiceError.failedToParseOutput(path)
+                }
+                return try JSONDecoder().decode(XCResultTestOutput.self, from: jsonData)
             }
 
         return try await parseTestOutput(testOutput, rootDirectory: rootDirectory, xcresultPath: path)
+    }
+
+    private func extractJSON(from output: String) -> String {
+        guard let jsonStartIndex = output.firstIndex(of: "{"),
+              let jsonEndIndex = output.lastIndex(of: "}")
+        else {
+            return output
+        }
+        return String(output[jsonStartIndex ... jsonEndIndex])
     }
 
     private func parseTestOutput(
