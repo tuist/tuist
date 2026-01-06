@@ -10,12 +10,6 @@ const docsDirectory = path.join(import.meta.dirname, "..");
 const schemaPath = path.join(docsDirectory, "docs/generated/cli/schema.json");
 const derivedDataPath = path.join(rootDirectory, ".build/docs-gen");
 
-console.log("Installing dependencies...");
-await execa("tuist", ["install"], {
-  cwd: rootDirectory,
-  stdio: "inherit",
-});
-
 console.log("Generating Xcode project...");
 await execa("tuist", ["generate", "ProjectDescription", "tuist", "--no-open"], {
   cwd: rootDirectory,
