@@ -7,9 +7,9 @@ defmodule TuistWeb.BodyReader do
   def read_body(conn, opts) do
     Plug.Conn.read_body(conn, opts)
   rescue
-    %Bandit.HTTPError{message: message} = error ->
-      if String.contains?(message, "Body read timeout") do
-        log_timeout(conn, message)
+    error in [Bandit.HTTPError] ->
+      if String.contains?(error.message, "Body read timeout") do
+        log_timeout(conn, error.message)
         {:error, :timeout, conn}
       else
         reraise(error, __STACKTRACE__)
