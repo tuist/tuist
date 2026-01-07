@@ -98,21 +98,24 @@ public struct XCResultService: XCResultServicing {
     }
 
     public func parse(path: AbsolutePath, rootDirectory: AbsolutePath?) async throws -> TestSummary? {
-        let outputString = try await commandRunner.run(
-            arguments: [
-                "/usr/bin/xcrun", "xcresulttool",
-                "get", "test-results", "tests",
-                "--path", path.pathString,
-            ]
-        ).concatenatedString()
+        let testOutput: XCResultTestOutput = try await fileSystem
+            .runInTemporaryDirectory(prefix: "xcresult-test-results") { temporaryDirectory in
+                let tempFile = temporaryDirectory.appending(component: "test-results.json")
 
-        let jsonString = extractJSON(from: outputString)
+                _ = try await commandRunner.run(
+                    arguments: [
+                        "/bin/sh", "-c",
+                        "/usr/bin/xcrun xcresulttool get test-results tests --path '\(path.pathString)' > '\(tempFile.pathString)'",
+                    ]
+                ).concatenatedString()
 
-        guard let outputData = jsonString.data(using: .utf8) else {
-            throw XCResultServiceError.failedToParseOutput(path)
-        }
-
-        let testOutput = try JSONDecoder().decode(XCResultTestOutput.self, from: outputData)
+                let outputString = try await fileSystem.readTextFile(at: tempFile)
+                let jsonString = extractJSON(from: outputString)
+                guard let jsonData = jsonString.data(using: .utf8) else {
+                    throw XCResultServiceError.failedToParseOutput(path)
+                }
+                return try JSONDecoder().decode(XCResultTestOutput.self, from: jsonData)
+            }
 
         return try await parseTestOutput(testOutput, rootDirectory: rootDirectory, xcresultPath: path)
     }

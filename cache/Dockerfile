@@ -17,21 +17,25 @@ RUN mix local.hex --force && \
 
 ENV MIX_ENV="prod"
 
-COPY mix.exs mix.lock ./
+COPY cache/mix.exs cache/mix.lock ./
+
+# Copy tuist_common for path dependency
+COPY tuist_common /tuist_common
+
 RUN mix deps.get --only $MIX_ENV
 RUN mkdir config
 
-COPY config/config.exs config/${MIX_ENV}.exs config/
+COPY cache/config/config.exs cache/config/${MIX_ENV}.exs config/
 RUN mix deps.compile
 
-COPY lib lib
+COPY cache/lib lib
 
 RUN mix compile
 
-COPY config/runtime.exs config/
+COPY cache/config/runtime.exs config/
 
-COPY rel rel
-COPY priv priv
+COPY cache/rel rel
+COPY cache/priv priv
 RUN mix release
 
 FROM ${RUNNER_IMAGE}

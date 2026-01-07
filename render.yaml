@@ -7,7 +7,7 @@ services:
     region: frankfurt
     runtime: docker
     repo: https://github.com/tuist/tuist
-    rootDir: server/
+    dockerfilePath: server/Dockerfile
     dockerCommand: /app/bin/start
     autoDeployTrigger: "off"
     plan: pro plus

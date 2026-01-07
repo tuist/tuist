@@ -33,7 +33,7 @@ defmodule Tuist.Slack.Reports do
 
     cache_hit_rate = %{current: cache_analytics.cache_hit_rate, trend: cache_analytics.trend}
     selective_test_effectiveness = %{current: selective_analytics.hit_rate, trend: selective_analytics.trend}
-    bundle_size = get_bundle_size_metrics(project)
+    bundle_size = get_bundle_size_metrics(project, current_start)
 
     metric_blocks =
       duration_blocks(build_duration, ":hammer_and_wrench:", "Build Duration") ++
@@ -44,12 +44,18 @@ defmodule Tuist.Slack.Reports do
 
     account_name = project.account.name
     project_name = project.name
-    period = format_period(current_start, current_end)
+
+    period_duration = DateTime.diff(current_end, current_start, :second)
+    previous_end = current_start
+    previous_start = DateTime.add(current_start, -period_duration, :second)
+
+    current_period = format_period(current_start, current_end)
+    previous_period = format_period(previous_start, previous_end)
 
     if Enum.empty?(metric_blocks) do
       [
         header_block(project_name),
-        context_block(period),
+        context_block(current_period, previous_period),
         divider_block(),
         no_data_block(),
         footer_block(account_name, project_name)
@@ -57,7 +63,7 @@ defmodule Tuist.Slack.Reports do
     else
       [
         header_block(project_name),
-        context_block(period),
+        context_block(current_period, previous_period),
         divider_block()
       ] ++ metric_blocks ++ [footer_block(account_name, project_name)]
     end
@@ -72,30 +78,34 @@ defmodule Tuist.Slack.Reports do
     {DateTime.add(now, -1, :day), now}
   end
 
-  defp get_bundle_size_metrics(project) do
-    latest_bundle = Bundles.last_project_bundle(project, git_branch: project.default_branch)
+  defp get_bundle_size_metrics(project, period_start) do
+    latest_bundle = Bundles.last_project_bundle(project, [])
 
     if latest_bundle do
       deviation = Bundles.install_size_deviation(latest_bundle)
-      previous_bundle = Bundles.last_project_bundle(project, git_branch: project.default_branch, bundle: latest_bundle)
+      previous_bundle = Bundles.last_project_bundle(project, inserted_before: period_start)
       previous_size = if previous_bundle, do: previous_bundle.install_size, else: latest_bundle.install_size
 
       %{
+        current_bundle: latest_bundle,
+        previous_bundle: previous_bundle,
         current_size: latest_bundle.install_size,
         difference: latest_bundle.install_size - previous_size,
-        comparison_branch: project.default_branch,
-        deviation_pct: deviation * 100
+        deviation_pct: deviation * 100,
+        account_name: project.account.name,
+        project_name: project.name
       }
     end
   end
 
   defp format_period(start_dt, end_dt) do
-    start_ts = DateTime.to_unix(start_dt)
-    end_ts = DateTime.to_unix(end_dt)
-    start_fallback = Calendar.strftime(start_dt, "%b %d, %H:%M")
-    end_fallback = Calendar.strftime(end_dt, "%b %d, %H:%M")
+    "#{format_datetime(start_dt)} - #{format_datetime(end_dt)}"
+  end
 
-    "<!date^#{start_ts}^{date_short} {time}|#{start_fallback}> - <!date^#{end_ts}^{date_short} {time}|#{end_fallback}>"
+  defp format_datetime(dt) do
+    ts = DateTime.to_unix(dt)
+    fallback = Calendar.strftime(dt, "%b %d, %H:%M")
+    "<!date^#{ts}^{date_short} {time}|#{fallback}>"
   end
 
   defp header_block(project_name) do
@@ -108,11 +118,11 @@ defmodule Tuist.Slack.Reports do
     }
   end
 
-  defp context_block(period) do
+  defp context_block(current_period, previous_period) do
     %{
       type: "context",
       elements: [
-        %{type: "mrkdwn", text: period}
+        %{type: "mrkdwn", text: "Report period: #{current_period}\nPrevious period: #{previous_period}"}
       ]
     }
   end
@@ -122,11 +132,15 @@ defmodule Tuist.Slack.Reports do
   end
 
   defp duration_blocks(%{ci: ci, local: local, overall: overall}, emoji, title) do
-    lines =
-      Enum.reject(
-        [maybe_duration_line("Overall", overall), maybe_duration_line("CI", ci), maybe_duration_line("Local", local)],
-        &is_nil/1
-      )
+    ci_line = maybe_duration_line("CI", ci)
+    local_line = maybe_duration_line("Local", local)
+
+    overall_line =
+      if not is_nil(ci_line) and not is_nil(local_line) do
+        maybe_duration_line("Overall", overall)
+      end
+
+    lines = Enum.reject([overall_line, ci_line, local_line], &is_nil/1)
 
     if Enum.empty?(lines) do
       []
@@ -179,16 +193,29 @@ defmodule Tuist.Slack.Reports do
 
   defp bundle_size_blocks(nil), do: []
 
-  defp bundle_size_blocks(deviation) do
-    size_mb = Float.round(deviation.current_size / 1_000_000, 2)
-    diff_mb = Float.round(deviation.difference / 1_000_000, 2)
-    direction = if deviation.difference >= 0, do: "+", else: ""
+  defp bundle_size_blocks(metrics) do
+    base_url = Tuist.Environment.app_url()
+    bundle_path = "#{base_url}/#{metrics.account_name}/#{metrics.project_name}/bundles"
+
+    size_mb = Float.round(metrics.current_size / 1_000_000, 1)
+    diff_mb = Float.round(metrics.difference / 1_000_000, 1)
+    direction = if metrics.difference >= 0, do: "+", else: ""
 
     trend_icon =
       cond do
-        deviation.difference > 0 -> " :chart_with_upwards_trend:"
-        deviation.difference < 0 -> " :chart_with_downwards_trend:"
+        metrics.difference > 0 -> " :chart_with_upwards_trend:"
+        metrics.difference < 0 -> " :chart_with_downwards_trend:"
         true -> ""
+      end
+
+    current_link = "<#{bundle_path}/#{metrics.current_bundle.id}|#{size_mb} MB>"
+
+    comparison_text =
+      if is_nil(metrics.previous_bundle) do
+        ""
+      else
+        previous_link = "<#{bundle_path}/#{metrics.previous_bundle.id}|previous period>"
+        " (#{direction}#{diff_mb} MB vs #{previous_link})#{trend_icon}"
       end
 
     [
@@ -196,8 +223,7 @@ defmodule Tuist.Slack.Reports do
         type: "section",
         text: %{
           type: "mrkdwn",
-          text:
-            ":package: *Bundle Size*\n#{size_mb} MB (#{direction}#{diff_mb} MB vs #{deviation.comparison_branch})#{trend_icon}"
+          text: ":package: *Bundle Size*\n#{current_link}#{comparison_text}"
         }
       }
     ]
@@ -238,9 +264,11 @@ defmodule Tuist.Slack.Reports do
   defp format_change(nil), do: ""
 
   defp format_change(change_pct) do
+    rounded = Float.round(change_pct, 1)
+
     cond do
-      change_pct > 0 -> "(+#{change_pct}% :chart_with_upwards_trend:)"
-      change_pct < 0 -> "(#{change_pct}% :chart_with_downwards_trend:)"
+      rounded > 0 -> "(+#{rounded}% :chart_with_upwards_trend:)"
+      rounded < 0 -> "(#{rounded}% :chart_with_downwards_trend:)"
       true -> ""
     end
   end

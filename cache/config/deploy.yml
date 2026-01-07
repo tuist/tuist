@@ -18,6 +18,8 @@ registry:
 
 builder:
   arch: amd64
+  context: ..
+  dockerfile: cache/Dockerfile
 
 env:
   clear:

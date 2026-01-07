@@ -5,9 +5,7 @@ defmodule Tuist.Slack do
 
   alias Tuist.Alerts.Alert
   alias Tuist.Environment
-  alias Tuist.KeyValueStore
   alias Tuist.Repo
-  alias Tuist.Slack.Client
   alias Tuist.Slack.Installation
   alias Tuist.Utilities.DateFormatter
 
@@ -29,22 +27,19 @@ defmodule Tuist.Slack do
     Repo.delete(installation)
   end
 
-  @doc """
-  Gets all channels available to a Slack installation.
-  Results are cached for 15 minutes.
-  """
-  def get_installation_channels(%Installation{team_id: team_id, access_token: access_token}) do
-    KeyValueStore.get_or_update(
-      [__MODULE__, "channels", team_id],
-      [ttl: to_timeout(minute: 15)],
-      fn ->
-        Client.list_all_channels(access_token)
-      end
-    )
+  def generate_state_token(account_id) do
+    Phoenix.Token.sign(TuistWeb.Endpoint, "slack_state", %{
+      type: :account_installation,
+      account_id: account_id
+    })
   end
 
-  def generate_state_token(account_id) do
-    Phoenix.Token.sign(TuistWeb.Endpoint, "slack_state", account_id)
+  def generate_channel_selection_token(project_id, account_id) do
+    Phoenix.Token.sign(TuistWeb.Endpoint, "slack_state", %{
+      type: :channel_selection,
+      project_id: project_id,
+      account_id: account_id
+    })
   end
 
   def verify_state_token(token) do

@@ -108,9 +108,17 @@
         align-items: flex-end;
         gap: var(--noora-spacing-5);
 
+        & > [data-part="channel-action"] {
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          gap: var(--noora-spacing-3);
+        }
+
         & > [data-part="actions"] {
           display: flex;
           flex-direction: row;
+          align-items: center;
           gap: var(--noora-spacing-4);
         }
       }

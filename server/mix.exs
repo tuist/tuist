@@ -139,6 +139,7 @@ defmodule Tuist.MixProject do
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
       {:minio_server, github: "LostKobrakai/minio_server", only: :dev},
       {:runner, path: "runner", runtime: false},
+      {:tuist_common, path: "../tuist_common"},
       {:slipstream, "~> 1.2.0"},
       {:lazy_html, ">= 0.1.0", only: :test},
       # peep assumes all telemetry events' data conforms to the String.Chars,

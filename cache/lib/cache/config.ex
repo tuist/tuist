@@ -42,13 +42,17 @@ defmodule Cache.Config do
   end
 
   def oban_dashboard_enabled? do
-    case Application.get_env(:cache, :oban_web_basic_auth) do
+    case oban_web_credentials() do
       [username: u, password: p] when is_binary(u) and u != "" and is_binary(p) and p != "" ->
         true
 
       _ ->
         false
     end
+  end
+
+  def oban_web_credentials do
+    Application.get_env(:cache, :oban_web_basic_auth, [])
   end
 
   defp parse_float(nil, default), do: default
