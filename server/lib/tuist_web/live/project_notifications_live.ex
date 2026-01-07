@@ -48,6 +48,8 @@ defmodule TuistWeb.ProjectNotificationsLive do
     |> assign(alert_form_metric: :p99)
     |> assign(alert_form_threshold: 20.0)
     |> assign(alert_form_sample_size: 100)
+    |> assign(alert_form_channel_id: nil)
+    |> assign(alert_form_channel_name: nil)
   end
 
   defp assign_schedule_form_defaults(socket, project) do
@@ -191,6 +193,8 @@ defmodule TuistWeb.ProjectNotificationsLive do
       |> assign(alert_form_metric: :p99)
       |> assign(alert_form_threshold: 20.0)
       |> assign(alert_form_sample_size: 100)
+      |> assign(alert_form_channel_id: nil)
+      |> assign(alert_form_channel_name: nil)
 
     {:noreply, socket}
   end
@@ -206,6 +210,8 @@ defmodule TuistWeb.ProjectNotificationsLive do
           |> assign(alert_form_metric: alert_rule.metric)
           |> assign(alert_form_threshold: alert_rule.threshold_percentage)
           |> assign(alert_form_sample_size: alert_rule.sample_size)
+          |> assign(alert_form_channel_id: alert_rule.slack_channel_id)
+          |> assign(alert_form_channel_name: alert_rule.slack_channel_name)
 
         {:noreply, socket}
 
@@ -247,7 +253,9 @@ defmodule TuistWeb.ProjectNotificationsLive do
       category: assigns.alert_form_category,
       metric: assigns.alert_form_metric,
       threshold_percentage: assigns.alert_form_threshold,
-      sample_size: assigns.alert_form_sample_size
+      sample_size: assigns.alert_form_sample_size,
+      slack_channel_id: assigns.alert_form_channel_id,
+      slack_channel_name: assigns.alert_form_channel_name
     }
 
     result =
@@ -314,8 +322,21 @@ defmodule TuistWeb.ProjectNotificationsLive do
     {:noreply, socket}
   end
 
+  def handle_event("alert_form_channel_selected", %{"channel_id" => channel_id, "channel_name" => channel_name}, socket) do
+    socket =
+      socket
+      |> assign(alert_form_channel_id: channel_id)
+      |> assign(alert_form_channel_name: channel_name)
+
+    {:noreply, socket}
+  end
+
   defp alert_channel_selection_url(alert_rule, account_id) do
     SlackOAuthController.alert_channel_selection_url(alert_rule.id, account_id)
+  end
+
+  defp alert_form_channel_selection_url(project_id, account_id) do
+    SlackOAuthController.alert_form_channel_selection_url(project_id, account_id)
   end
 
   defp format_hour(hour) do

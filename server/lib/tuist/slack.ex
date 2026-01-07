@@ -72,6 +72,14 @@ defmodule Tuist.Slack do
     })
   end
 
+  def generate_alert_form_channel_selection_token(project_id, account_id) do
+    Phoenix.Token.sign(TuistWeb.Endpoint, "slack_state", %{
+      type: :alert_form_channel_selection,
+      project_id: project_id,
+      account_id: account_id
+    })
+  end
+
   def verify_state_token(token) do
     token_max_age_seconds = 600
     Phoenix.Token.verify(TuistWeb.Endpoint, "slack_state", token, max_age: token_max_age_seconds)
@@ -140,7 +148,7 @@ defmodule Tuist.Slack do
         } = alert
       ) do
     blocks = build_alert_blocks(alert, account_name, project_name)
-    Client.post_message(access_token, slack_channel_id, blocks)
+    Tuist.Slack.Client.post_message(access_token, slack_channel_id, blocks)
   end
 
   defp build_alert_blocks(alert, account_name, project_name) do

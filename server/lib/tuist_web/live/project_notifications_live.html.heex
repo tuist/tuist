@@ -342,6 +342,50 @@
               phx-change="update_alert_form_sample_size"
             />
           </div>
+          <div data-part="schedule-row">
+            <label data-part="schedule-label">
+              {dgettext("dashboard_projects", "Slack channel")}
+            </label>
+            <div data-part="channel-selection">
+              <.alert
+                :if={is_nil(@slack_installation)}
+                status="information"
+                title={
+                  dgettext(
+                    "dashboard_projects",
+                    "Connect your Slack account before selecting a channel."
+                  )
+                }
+              />
+              <.tag :if={@alert_form_channel_id} label={"##{@alert_form_channel_name}"} />
+              <.link
+                :if={@slack_installation}
+                id="alert-form-channel-selection-link"
+                href={
+                  alert_form_channel_selection_url(@selected_project.id, @selected_account.id)
+                }
+                phx-hook="OAuthPopup"
+                data-event="alert_form_channel_selected"
+              >
+                <.button
+                  label={
+                    if @alert_form_channel_id,
+                      do: dgettext("dashboard_projects", "Update channel"),
+                      else: dgettext("dashboard_projects", "Select channel")
+                  }
+                  variant="secondary"
+                  size="small"
+                />
+              </.link>
+              <.button
+                :if={is_nil(@slack_installation)}
+                label={dgettext("dashboard_projects", "Select channel")}
+                variant="secondary"
+                size="small"
+                disabled
+              />
+            </div>
+          </div>
         </div>
         <.line_divider />
         <:footer>

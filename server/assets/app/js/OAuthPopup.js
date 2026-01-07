@@ -8,7 +8,15 @@ const OAuthPopup = {
         if (this.popup && !this.popup.closed) {
           this.popup.close();
         }
-        this.pushEvent("oauth_channel_selected", {});
+        const eventName = this.el.dataset.event || "oauth_channel_selected";
+        const payload = {};
+        if (event.data.channel_id) {
+          payload.channel_id = event.data.channel_id;
+        }
+        if (event.data.channel_name) {
+          payload.channel_name = event.data.channel_name;
+        }
+        this.pushEvent(eventName, payload);
       }
     };
 

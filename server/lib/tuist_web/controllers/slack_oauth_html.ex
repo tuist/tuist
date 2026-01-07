@@ -29,9 +29,24 @@ defmodule TuistWeb.SlackOAuthHTML do
         <div class="message">
           <p>Channel connected successfully. This window will close automatically.</p>
         </div>
+        <div
+          id="channel-data"
+          data-channel-id={@channel_id}
+          data-channel-name={@channel_name}
+          style="display: none;"
+        >
+        </div>
         <script nonce={get_csp_nonce()}>
+          const dataEl = document.getElementById("channel-data");
+          const channelId = dataEl.dataset.channelId || null;
+          const channelName = dataEl.dataset.channelName || null;
           const channel = new BroadcastChannel("oauth_popup");
-          channel.postMessage({ type: "oauth_complete", success: true });
+          channel.postMessage({
+            type: "oauth_complete",
+            success: true,
+            channel_id: channelId,
+            channel_name: channelName
+          });
           channel.close();
           window.close();
         </script>
