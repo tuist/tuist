@@ -140,7 +140,30 @@ defmodule TuistWeb.SlackOAuthControllerTest do
       # Then
       assert url =~ "https://slack.com/oauth/v2/authorize?"
       assert url =~ "client_id=test_client_id"
-      assert url =~ "scope=chat%3Awrite%2Cchat%3Awrite.public%2Cchannels%3Aread%2Cgroups%3Aread"
+      assert url =~ "scope=chat%3Awrite%2Cchat%3Awrite.public"
+      refute url =~ "channels%3Aread"
+      refute url =~ "groups%3Aread"
+      assert url =~ "redirect_uri=https%3A%2F%2Fapp.tuist.dev%2Fintegrations%2Fslack%2Fcallback"
+      assert url =~ "state="
+    end
+  end
+
+  describe "channel_selection_url/2" do
+    test "generates correct Slack OAuth URL with incoming-webhook scope" do
+      # Given
+      project_id = 123
+      account_id = 456
+
+      stub(Environment, :slack_client_id, fn -> "test_client_id" end)
+      stub(Environment, :app_url, fn opts -> "https://app.tuist.dev" <> Keyword.get(opts, :path, "") end)
+
+      # When
+      url = TuistWeb.SlackOAuthController.channel_selection_url(project_id, account_id)
+
+      # Then
+      assert url =~ "https://slack.com/oauth/v2/authorize?"
+      assert url =~ "client_id=test_client_id"
+      assert url =~ "scope=incoming-webhook"
       assert url =~ "redirect_uri=https%3A%2F%2Fapp.tuist.dev%2Fintegrations%2Fslack%2Fcallback"
       assert url =~ "state="
     end

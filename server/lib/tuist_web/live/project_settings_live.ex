@@ -6,7 +6,6 @@ defmodule TuistWeb.ProjectSettingsLive do
   alias Tuist.Authorization
   alias Tuist.Projects
   alias Tuist.Projects.Project
-  alias Tuist.Slack
   alias Tuist.Slack.Client, as: SlackClient
   alias Tuist.Slack.Reports
 
@@ -36,7 +35,6 @@ defmodule TuistWeb.ProjectSettingsLive do
       |> assign(slack_form: slack_form)
       |> assign(slack_installation: slack_installation)
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Settings")} · #{selected_project.name} · Tuist")
-      |> assign_slack_channels(slack_installation)
       |> assign_schedule_form_defaults(selected_project)
 
     {:ok, socket}
@@ -53,28 +51,9 @@ defmodule TuistWeb.ProjectSettingsLive do
     hour = get_local_hour(project.slack_report_schedule_time, user_timezone) || 9
 
     socket
-    |> assign(schedule_form_channel_id: project.slack_channel_id)
-    |> assign(schedule_form_channel_name: project.slack_channel_name)
     |> assign(schedule_form_frequency: frequency)
     |> assign(schedule_form_days: days)
     |> assign(schedule_form_hour: hour)
-  end
-
-  defp assign_slack_channels(socket, nil) do
-    socket
-    |> assign(slack_channels: %{ok?: true, result: [], loading: false})
-    |> assign(channel_search_query: "")
-  end
-
-  defp assign_slack_channels(socket, slack_installation) do
-    socket
-    |> assign_async(:slack_channels, fn ->
-      case Slack.get_installation_channels(slack_installation) do
-        {:ok, channels} -> {:ok, %{slack_channels: channels}}
-        {:error, _} -> {:ok, %{slack_channels: []}}
-      end
-    end)
-    |> assign(channel_search_query: "")
   end
 
   @impl true
@@ -195,26 +174,11 @@ defmodule TuistWeb.ProjectSettingsLive do
     {:noreply, assign(socket, schedule_form_hour: String.to_integer(hour_str))}
   end
 
-  def handle_event("update_schedule_form_channel", %{"channel_id" => channel_id, "channel_name" => channel_name}, socket) do
-    socket =
-      socket
-      |> assign(schedule_form_channel_id: channel_id)
-      |> assign(schedule_form_channel_name: channel_name)
-      |> push_event("close-dropdown", %{id: "slack-channel-dropdown"})
-
-    {:noreply, socket}
-  end
-
-  def handle_event("update_channel_search", %{"value" => query}, socket) do
-    {:noreply, assign(socket, channel_search_query: query)}
-  end
-
   def handle_event("close_slack_schedule_modal", _params, %{assigns: %{selected_project: selected_project}} = socket) do
     socket =
       socket
       |> push_event("close-modal", %{id: "slack-schedule-modal"})
       |> assign_schedule_form_defaults(selected_project)
-      |> assign(channel_search_query: "")
 
     {:noreply, socket}
   end
@@ -227,17 +191,11 @@ defmodule TuistWeb.ProjectSettingsLive do
     frequency = assigns.schedule_form_frequency
     days = assigns.schedule_form_days
     hour = assigns.schedule_form_hour
-    channel_id = assigns.schedule_form_channel_id
-    channel_name = assigns.schedule_form_channel_name
     timezone = user_timezone || "Etc/UTC"
 
     updates =
       if frequency == :never do
-        %{
-          slack_report_frequency: :never,
-          slack_channel_id: channel_id,
-          slack_channel_name: channel_name
-        }
+        %{slack_report_frequency: :never}
       else
         utc_time = local_hour_to_utc(hour, timezone)
 
@@ -245,9 +203,7 @@ defmodule TuistWeb.ProjectSettingsLive do
           slack_report_frequency: frequency,
           slack_report_days_of_week: days,
           slack_report_schedule_time: utc_time,
-          slack_report_timezone: timezone,
-          slack_channel_id: channel_id,
-          slack_channel_name: channel_name
+          slack_report_timezone: timezone
         }
       end
 
@@ -256,31 +212,9 @@ defmodule TuistWeb.ProjectSettingsLive do
     socket =
       socket
       |> assign(selected_project: updated_project)
-      |> assign(channel_search_query: "")
       |> push_event("close-modal", %{id: "slack-schedule-modal"})
 
     {:noreply, socket}
-  end
-
-  defp get_slack_channels(%{slack_channels: slack_channels_async, channel_search_query: query}) do
-    channels =
-      if slack_channels_async.ok? do
-        slack_channels_async.result
-      else
-        []
-      end
-
-    channels
-    |> filter_channels_by_query(query)
-    |> Enum.sort_by(& &1.name)
-  end
-
-  defp filter_channels_by_query(channels, nil), do: channels
-  defp filter_channels_by_query(channels, ""), do: channels
-
-  defp filter_channels_by_query(channels, query) do
-    query_downcase = String.downcase(query)
-    Enum.filter(channels, fn channel -> String.contains?(String.downcase(channel.name), query_downcase) end)
   end
 
   defp format_hour(hour) do
@@ -321,13 +255,12 @@ defmodule TuistWeb.ProjectSettingsLive do
   end
 
   defp format_slack_reports_tag(%{selected_project: project, user_timezone: user_timezone}) do
-    channel_str = "##{project.slack_channel_name}"
     days = project.slack_report_days_of_week
     hour = get_local_hour(project.slack_report_schedule_time, user_timezone)
     time_str = if hour, do: format_hour(hour), else: ""
     day_str = format_days_range(days)
 
-    "#{channel_str} • #{day_str} • #{time_str}"
+    "#{day_str} • #{time_str}"
   end
 
   defp local_hour_to_utc(local_hour, timezone) do

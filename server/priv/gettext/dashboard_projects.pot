@@ -71,7 +71,7 @@ msgstr ""
 msgid "App:"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:354
+#: lib/tuist_web/live/project_settings_live.html.heex:330
 #, elixir-autogen, elixir-format
 msgid "Are you sure you want to delete this?"
 msgstr ""
@@ -150,9 +150,9 @@ msgstr ""
 #: lib/tuist_web/live/overview_live.html.heex:79
 #: lib/tuist_web/live/overview_live.html.heex:552
 #: lib/tuist_web/live/overview_live.html.heex:710
-#: lib/tuist_web/live/project_settings_live.html.heex:237
-#: lib/tuist_web/live/project_settings_live.html.heex:318
-#: lib/tuist_web/live/project_settings_live.html.heex:390
+#: lib/tuist_web/live/project_settings_live.html.heex:219
+#: lib/tuist_web/live/project_settings_live.html.heex:294
+#: lib/tuist_web/live/project_settings_live.html.heex:366
 #, elixir-autogen, elixir-format
 msgid "Cancel"
 msgstr ""
@@ -199,23 +199,23 @@ msgstr ""
 msgid "Created %{time}"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:398
+#: lib/tuist_web/live/project_settings_live.html.heex:374
 #, elixir-autogen, elixir-format
 msgid "Delete"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:339
-#: lib/tuist_web/live/project_settings_live.html.heex:360
+#: lib/tuist_web/live/project_settings_live.html.heex:315
+#: lib/tuist_web/live/project_settings_live.html.heex:336
 #, elixir-autogen, elixir-format
 msgid "Delete project"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:372
+#: lib/tuist_web/live/project_settings_live.html.heex:348
 #, elixir-autogen, elixir-format
 msgid "Deleting the project will permanently remove all of its data"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:379
+#: lib/tuist_web/live/project_settings_live.html.heex:355
 #, elixir-autogen, elixir-format
 msgid "Enter this project's name to confirm"
 msgstr ""
@@ -348,8 +348,8 @@ msgstr ""
 msgid "Previews"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:310
-#: lib/tuist_web/live/project_settings_live.html.heex:382
+#: lib/tuist_web/live/project_settings_live.html.heex:286
+#: lib/tuist_web/live/project_settings_live.html.heex:358
 #, elixir-autogen, elixir-format
 msgid "Project name"
 msgstr ""
@@ -370,28 +370,28 @@ msgstr ""
 msgid "Recent projects"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:326
+#: lib/tuist_web/live/project_settings_live.html.heex:302
 #, elixir-autogen, elixir-format
 msgid "Rename"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:273
-#: lib/tuist_web/live/project_settings_live.html.heex:294
+#: lib/tuist_web/live/project_settings_live.html.heex:249
+#: lib/tuist_web/live/project_settings_live.html.heex:270
 #, elixir-autogen, elixir-format
 msgid "Rename project"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:288
+#: lib/tuist_web/live/project_settings_live.html.heex:264
 #, elixir-autogen, elixir-format
 msgid "Rename your project?"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:305
+#: lib/tuist_web/live/project_settings_live.html.heex:281
 #, elixir-autogen, elixir-format
 msgid "Renaming can have unexpected consequences"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:276
+#: lib/tuist_web/live/project_settings_live.html.heex:252
 #, elixir-autogen, elixir-format
 msgid "Renaming your project can have unintended side effects."
 msgstr ""
@@ -433,7 +433,7 @@ msgstr ""
 msgid "Set your previews to be public or private by default."
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:38
+#: lib/tuist_web/live/project_settings_live.ex:37
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr ""
@@ -453,7 +453,7 @@ msgstr ""
 msgid "The page you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:342
+#: lib/tuist_web/live/project_settings_live.html.heex:318
 #, elixir-autogen, elixir-format
 msgid "This action cannot be undone."
 msgstr ""
@@ -470,7 +470,7 @@ msgstr ""
 msgid "View more"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:22
+#: lib/tuist_web/live/project_settings_live.ex:21
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to perform this action."
 msgstr ""
@@ -541,59 +541,49 @@ msgstr ""
 msgid "since yesterday"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:192
-#, elixir-autogen, elixir-format
-msgid "Channel"
-msgstr ""
-
-#: lib/tuist_web/live/project_settings_live.html.heex:104
+#: lib/tuist_web/live/project_settings_live.html.heex:126
 #, elixir-autogen, elixir-format
 msgid "Configure"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:98
+#: lib/tuist_web/live/project_settings_live.html.heex:120
 #, elixir-autogen, elixir-format
 msgid "Configure Slack reports"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:121
-#: lib/tuist_web/live/project_settings_live.html.heex:138
+#: lib/tuist_web/live/project_settings_live.html.heex:143
+#: lib/tuist_web/live/project_settings_live.html.heex:160
 #, elixir-autogen, elixir-format
 msgid "Daily"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:151
+#: lib/tuist_web/live/project_settings_live.html.heex:173
 #, elixir-autogen, elixir-format
 msgid "Days"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:114
+#: lib/tuist_web/live/project_settings_live.html.heex:136
 #, elixir-autogen, elixir-format
 msgid "Frequency"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:120
-#: lib/tuist_web/live/project_settings_live.html.heex:127
+#: lib/tuist_web/live/project_settings_live.html.heex:142
+#: lib/tuist_web/live/project_settings_live.html.heex:149
 #, elixir-autogen, elixir-format
 msgid "Never"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:245
+#: lib/tuist_web/live/project_settings_live.html.heex:227
 #, elixir-autogen, elixir-format
 msgid "Save"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:209
-#, elixir-autogen, elixir-format
-msgid "Search..."
-msgstr ""
-
-#: lib/tuist_web/live/project_settings_live.html.heex:200
+#: lib/tuist_web/live/project_settings_live.html.heex:102
 #, elixir-autogen, elixir-format
 msgid "Select channel"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:261
+#: lib/tuist_web/live/project_settings_live.html.heex:237
 #, elixir-autogen, elixir-format
 msgid "Send test report"
 msgstr ""
@@ -603,7 +593,7 @@ msgstr ""
 msgid "Slack reports"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.html.heex:170
+#: lib/tuist_web/live/project_settings_live.html.heex:192
 #, elixir-autogen, elixir-format
 msgid "Time"
 msgstr ""
@@ -613,12 +603,17 @@ msgstr ""
 msgid "Configure your Slack reports"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:315
+#: lib/tuist_web/live/project_settings_live.ex:249
 #, elixir-autogen, elixir-format
 msgid "All days"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:313
+#: lib/tuist_web/live/project_settings_live.ex:247
 #, elixir-autogen, elixir-format
 msgid "Select days"
+msgstr ""
+
+#: lib/tuist_web/live/project_settings_live.html.heex:91
+#, elixir-autogen, elixir-format
+msgid "Change channel"
 msgstr ""
