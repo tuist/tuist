@@ -894,9 +894,6 @@ msgstr ""
 msgid "per additional unit"
 msgstr ""
 
-msgid "AI writes faster. So should your builds."
-msgstr ""
-
 msgid "A Tuist command execution that interacts with the server pull test result information. As an estimate, this is roughly equivalent to the number of test runs on CI."
 msgstr ""
 
@@ -967,4 +964,7 @@ msgid "See how leading teams scale with Tuist"
 msgstr ""
 
 msgid "See how leading tech companies are scaling their development with Tuist."
+msgstr ""
+
+msgid "AI moves fast. So should your builds."
 msgstr ""

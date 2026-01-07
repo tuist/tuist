@@ -1187,10 +1187,6 @@ msgid "per additional unit"
 msgstr "za dodatkową jednostkę"
 
 #, fuzzy
-msgid "AI writes faster. So should your builds."
-msgstr "Sztuczna inteligencja pisze szybciej. Tak samo powinno być z kompilacjami."
-
-#, fuzzy
 msgid "A Tuist command execution that interacts with the server pull test result information. As an estimate, this is roughly equivalent to the number of test runs on CI."
 msgstr "Wykonanie polecenia Tuist, które wchodzi w interakcję z serwerem pobierającym informacje o wynikach testów. Szacunkowo jest to w przybliżeniu równoważne liczbie uruchomień testów w CI."
 
@@ -1285,3 +1281,10 @@ msgstr "Zobacz, jak wiodące zespoły skalują się z Tuist"
 #, fuzzy
 msgid "See how leading tech companies are scaling their development with Tuist."
 msgstr "Zobacz, jak wiodące firmy technologiczne skalują swój rozwój dzięki Tuist."
+
+msgid "AI moves fast. So should your builds."
+msgstr ""
+
+#, fuzzy
+#~ msgid "AI writes faster. So should your builds."
+#~ msgstr "Sztuczna inteligencja pisze szybciej. Tak samo powinno być z kompilacjami."

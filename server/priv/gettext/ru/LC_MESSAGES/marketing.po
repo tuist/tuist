@@ -897,9 +897,6 @@ msgstr "и выше"
 msgid "per additional unit"
 msgstr "per additional unit"
 
-msgid "AI writes faster. So should your builds."
-msgstr "AI writes faster. So should your builds."
-
 msgid "A Tuist command execution that interacts with the server pull test result information. As an estimate, this is roughly equivalent to the number of test runs on CI."
 msgstr "Выполнение команды Tuist, которая взаимодействует с сервером и извлекает информацию о результатах тестирования. По приблизительным оценкам, это примерно равно количеству прогонов тестов на CI."
 
@@ -986,6 +983,12 @@ msgstr "Узнайте, как ведущие команды масштабир�
 #, fuzzy
 msgid "See how leading tech companies are scaling their development with Tuist."
 msgstr "Узнайте, как ведущие технологические компании масштабируют свои разработки с помощью Tuist."
+
+msgid "AI moves fast. So should your builds."
+msgstr ""
+
+#~ msgid "AI writes faster. So should your builds."
+#~ msgstr "AI writes faster. So should your builds."
 
 #~ msgid "%{count} minute"
 #~ msgid_plural "%{count} minutes"
