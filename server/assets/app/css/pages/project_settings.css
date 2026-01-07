@@ -254,9 +254,9 @@
             flex-direction: row;
             align-items: center;
             gap: var(--noora-spacing-6);
-            padding: var(--noora-spacing-4);
-            background: var(--noora-surface-bg-secondary);
             border-radius: var(--noora-radius-medium);
+            background: var(--noora-surface-bg-secondary);
+            padding: var(--noora-spacing-4);
 
             & > [data-part="alert-info"] {
               display: flex;

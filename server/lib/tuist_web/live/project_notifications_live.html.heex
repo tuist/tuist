@@ -45,135 +45,135 @@
     </div>
     <div data-part="content">
       <div data-part="schedule-section">
-        <h2 data-part="title">
-          {dgettext("dashboard_projects", "Schedule")}
-        </h2>
-        <div data-part="row-content">
+        <div data-part="content">
+          <h2 data-part="title">
+            {dgettext("dashboard_projects", "Schedule")}
+          </h2>
           <.tag
             :if={@slack_reports_enabled}
             label={format_schedule_summary(assigns)}
           />
-          <.modal
-            id="schedule-modal"
-            title={dgettext("dashboard_projects", "Configure schedule")}
-            header_size="large"
-            on_dismiss="close_schedule_modal"
-          >
-            <:trigger :let={attrs}>
-              <.button
-                label={dgettext("dashboard_projects", "Configure")}
-                variant="secondary"
-                size="medium"
-                {attrs}
-              />
-            </:trigger>
-            <.line_divider />
-            <div data-part="schedule-form">
-              <div data-part="schedule-row">
-                <label data-part="schedule-label">
-                  {dgettext("dashboard_projects", "Frequency")}
-                </label>
-                <.dropdown
-                  id="schedule-frequency-dropdown"
-                  label={
-                    case @schedule_form_frequency do
-                      :never -> dgettext("dashboard_projects", "Never")
-                      _ -> dgettext("dashboard_projects", "Daily")
-                    end
-                  }
-                >
-                  <.dropdown_item
-                    value="never"
-                    label={dgettext("dashboard_projects", "Never")}
-                    phx-click="update_schedule_form_frequency"
-                    phx-value-frequency="never"
-                    data-selected={@schedule_form_frequency == :never}
-                  >
-                    <:right_icon :if={@schedule_form_frequency == :never}>
-                      <.icon name="check" />
-                    </:right_icon>
-                  </.dropdown_item>
-                  <.dropdown_item
-                    value="daily"
-                    label={dgettext("dashboard_projects", "Daily")}
-                    phx-click="update_schedule_form_frequency"
-                    phx-value-frequency="daily"
-                    data-selected={@schedule_form_frequency != :never}
-                  >
-                    <:right_icon :if={@schedule_form_frequency != :never}>
-                      <.icon name="check" />
-                    </:right_icon>
-                  </.dropdown_item>
-                </.dropdown>
-              </div>
-              <div data-part="schedule-row">
-                <label data-part="schedule-label">
-                  {dgettext("dashboard_projects", "Repeat")}
-                </label>
-                <.dropdown
-                  id="schedule-days-dropdown"
-                  label={format_selected_days(@schedule_form_days)}
-                  close_on_select={false}
-                >
-                  <.dropdown_item
-                    :for={day <- 1..7}
-                    value={Integer.to_string(day)}
-                    label={Timex.day_name(day)}
-                    checked={Enum.member?(@schedule_form_days, day)}
-                    phx-click="toggle_schedule_form_day"
-                    phx-value-day={day}
-                  />
-                </.dropdown>
-              </div>
-              <div :if={@schedule_form_frequency != :never} data-part="schedule-row">
-                <label data-part="schedule-label">
-                  {dgettext("dashboard_projects", "Time")}
-                </label>
-                <.dropdown
-                  id="schedule-time-dropdown"
-                  label={format_hour(@schedule_form_hour)}
-                >
-                  <.dropdown_item
-                    :for={hour <- 0..23}
-                    value={Integer.to_string(hour)}
-                    label={format_hour(hour)}
-                    phx-click="update_schedule_form_hour"
-                    phx-value-hour={hour}
-                    data-selected={@schedule_form_hour == hour}
-                  >
-                    <:right_icon :if={@schedule_form_hour == hour}>
-                      <.icon name="check" />
-                    </:right_icon>
-                  </.dropdown_item>
-                </.dropdown>
-              </div>
-            </div>
-            <.line_divider />
-            <:footer>
-              <.modal_footer>
-                <:action>
-                  <.button
-                    type="button"
-                    label={dgettext("dashboard_projects", "Cancel")}
-                    variant="secondary"
-                    phx-click="close_schedule_modal"
-                  />
-                </:action>
-                <:action>
-                  <.button
-                    type="button"
-                    label={dgettext("dashboard_projects", "Save")}
-                    variant="primary"
-                    phx-click="save_schedule"
-                  />
-                </:action>
-              </.modal_footer>
-            </:footer>
-          </.modal>
         </div>
+        <.modal
+          id="schedule-modal"
+          title={dgettext("dashboard_projects", "Configure schedule")}
+          header_size="large"
+          on_dismiss="close_schedule_modal"
+        >
+          <:trigger :let={attrs}>
+            <.button
+              label={dgettext("dashboard_projects", "Configure")}
+              variant="secondary"
+              size="medium"
+              {attrs}
+            />
+          </:trigger>
+          <.line_divider />
+          <div data-part="schedule-form">
+            <div data-part="schedule-row">
+              <label data-part="schedule-label">
+                {dgettext("dashboard_projects", "Frequency")}
+              </label>
+              <.dropdown
+                id="schedule-frequency-dropdown"
+                label={
+                  case @schedule_form_frequency do
+                    :never -> dgettext("dashboard_projects", "Never")
+                    _ -> dgettext("dashboard_projects", "Daily")
+                  end
+                }
+              >
+                <.dropdown_item
+                  value="never"
+                  label={dgettext("dashboard_projects", "Never")}
+                  phx-click="update_schedule_form_frequency"
+                  phx-value-frequency="never"
+                  data-selected={@schedule_form_frequency == :never}
+                >
+                  <:right_icon :if={@schedule_form_frequency == :never}>
+                    <.icon name="check" />
+                  </:right_icon>
+                </.dropdown_item>
+                <.dropdown_item
+                  value="daily"
+                  label={dgettext("dashboard_projects", "Daily")}
+                  phx-click="update_schedule_form_frequency"
+                  phx-value-frequency="daily"
+                  data-selected={@schedule_form_frequency != :never}
+                >
+                  <:right_icon :if={@schedule_form_frequency != :never}>
+                    <.icon name="check" />
+                  </:right_icon>
+                </.dropdown_item>
+              </.dropdown>
+            </div>
+            <div data-part="schedule-row">
+              <label data-part="schedule-label">
+                {dgettext("dashboard_projects", "Repeat")}
+              </label>
+              <.dropdown
+                id="schedule-days-dropdown"
+                label={format_selected_days(@schedule_form_days)}
+                close_on_select={false}
+              >
+                <.dropdown_item
+                  :for={day <- 1..7}
+                  value={Integer.to_string(day)}
+                  label={Timex.day_name(day)}
+                  checked={Enum.member?(@schedule_form_days, day)}
+                  phx-click="toggle_schedule_form_day"
+                  phx-value-day={day}
+                />
+              </.dropdown>
+            </div>
+            <div :if={@schedule_form_frequency != :never} data-part="schedule-row">
+              <label data-part="schedule-label">
+                {dgettext("dashboard_projects", "Time")}
+              </label>
+              <.dropdown
+                id="schedule-time-dropdown"
+                label={format_hour(@schedule_form_hour)}
+              >
+                <.dropdown_item
+                  :for={hour <- 0..23}
+                  value={Integer.to_string(hour)}
+                  label={format_hour(hour)}
+                  phx-click="update_schedule_form_hour"
+                  phx-value-hour={hour}
+                  data-selected={@schedule_form_hour == hour}
+                >
+                  <:right_icon :if={@schedule_form_hour == hour}>
+                    <.icon name="check" />
+                  </:right_icon>
+                </.dropdown_item>
+              </.dropdown>
+            </div>
+          </div>
+          <.line_divider />
+          <:footer>
+            <.modal_footer>
+              <:action>
+                <.button
+                  type="button"
+                  label={dgettext("dashboard_projects", "Cancel")}
+                  variant="secondary"
+                  phx-click="close_schedule_modal"
+                />
+              </:action>
+              <:action>
+                <.button
+                  type="button"
+                  label={dgettext("dashboard_projects", "Save")}
+                  variant="primary"
+                  phx-click="save_schedule"
+                />
+              </:action>
+            </.modal_footer>
+          </:footer>
+        </.modal>
       </div>
       <div data-part="slack-section">
-          <div data-part="content">
+        <div data-part="content">
           <div data-part="toggle">
             <.toggle
               id="slack-reports-toggle"
@@ -184,14 +184,14 @@
             <label data-part="label">
               {dgettext("dashboard_projects", "Slack")}
             </label>
-            </div>
-            <.tag
-              :if={@selected_project.slack_channel_id}
-              label={"##{@selected_project.slack_channel_name}"}
-            />
           </div>
-          <div data-part="row-content">
-            <.modal
+          <.tag
+            :if={@selected_project.slack_channel_id}
+            label={"##{@selected_project.slack_channel_name}"}
+          />
+        </div>
+        <div data-part="row-content">
+          <.modal
             id="slack-channel-modal"
             title={dgettext("dashboard_projects", "Configure Slack")}
             header_size="large"
@@ -271,7 +271,7 @@
               </.modal_footer>
             </:footer>
           </.modal>
-          </div>
+        </div>
       </div>
     </div>
   </.card_section>
