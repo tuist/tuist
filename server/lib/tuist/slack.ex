@@ -3,8 +3,11 @@ defmodule Tuist.Slack do
   This module provides an API to interact with the Slack API
   """
 
+  import Ecto.Query
+
   alias Tuist.Alerts.Alert
   alias Tuist.Environment
+  alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Slack.Installation
   alias Tuist.Utilities.DateFormatter
@@ -23,8 +26,31 @@ defmodule Tuist.Slack do
     |> Repo.update()
   end
 
-  def delete_installation(installation) do
-    Repo.delete(installation)
+  def delete_installation(%Installation{account_id: account_id} = installation) do
+    Ecto.Multi.new()
+    |> Ecto.Multi.update_all(:clear_slack_fields, clear_project_slack_fields_query(account_id), [])
+    |> Ecto.Multi.delete(:delete_installation, installation)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{delete_installation: installation}} -> {:ok, installation}
+      {:error, _operation, changeset, _changes} -> {:error, changeset}
+    end
+  end
+
+  defp clear_project_slack_fields_query(account_id) do
+    from(p in Project,
+      where: p.account_id == ^account_id,
+      update: [
+        set: [
+          slack_channel_id: nil,
+          slack_channel_name: nil,
+          slack_report_frequency: :never,
+          slack_report_days_of_week: [],
+          slack_report_schedule_time: nil,
+          slack_report_timezone: nil
+        ]
+      ]
+    )
   end
 
   def generate_state_token(account_id) do
