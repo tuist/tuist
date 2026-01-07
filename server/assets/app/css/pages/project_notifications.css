@@ -224,4 +224,11 @@
       gap: var(--noora-spacing-2);
     }
   }
+
+  & #alert-rules-table {
+    & th:first-child,
+    & td:first-child {
+      width: 30%;
+    }
+  }
 }
