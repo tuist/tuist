@@ -212,6 +212,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
           |> assign(alert_form_sample_size: alert_rule.sample_size)
           |> assign(alert_form_channel_id: alert_rule.slack_channel_id)
           |> assign(alert_form_channel_name: alert_rule.slack_channel_name)
+          |> push_event("open-modal", %{id: "alert-modal"})
 
         {:noreply, socket}
 
