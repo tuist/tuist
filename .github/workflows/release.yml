@@ -564,7 +564,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: ./server
+          context: .
           file: ./server/Dockerfile
           push: true
           cache-from: type=gha
@@ -651,7 +651,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: ./cache
+          context: .
           file: ./cache/Dockerfile
           push: true
           cache-from: type=gha
