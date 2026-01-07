@@ -40,16 +40,37 @@ defmodule TuistWeb.ProjectNotificationsLive do
   end
 
   defp assign_alert_defaults(socket, project) do
+    alert_rules = Alerts.list_project_alert_rules(project.id)
+
+    edit_alert_forms =
+      Map.new(alert_rules, fn rule ->
+        {rule.id, alert_rule_to_form(rule)}
+      end)
+
     socket
-    |> assign(alert_rules: Alerts.list_project_alert_rules(project.id))
-    |> assign(editing_alert_rule: nil)
-    |> assign(alert_form_name: "")
-    |> assign(alert_form_category: :build_run_duration)
-    |> assign(alert_form_metric: :p99)
-    |> assign(alert_form_threshold: 20.0)
-    |> assign(alert_form_sample_size: 100)
-    |> assign(alert_form_channel_id: nil)
-    |> assign(alert_form_channel_name: nil)
+    |> assign(alert_rules: alert_rules)
+    # Create form defaults
+    |> assign(create_alert_form_name: "")
+    |> assign(create_alert_form_category: :build_run_duration)
+    |> assign(create_alert_form_metric: :p99)
+    |> assign(create_alert_form_threshold: 20.0)
+    |> assign(create_alert_form_sample_size: 100)
+    |> assign(create_alert_form_channel_id: nil)
+    |> assign(create_alert_form_channel_name: nil)
+    # Edit forms - one per alert rule
+    |> assign(edit_alert_forms: edit_alert_forms)
+  end
+
+  defp alert_rule_to_form(rule) do
+    %{
+      name: rule.name,
+      category: rule.category,
+      metric: rule.metric,
+      threshold: rule.threshold_percentage,
+      sample_size: rule.sample_size,
+      channel_id: rule.slack_channel_id,
+      channel_name: rule.slack_channel_name
+    }
   end
 
   defp assign_schedule_form_defaults(socket, project) do
@@ -187,97 +208,133 @@ defmodule TuistWeb.ProjectNotificationsLive do
   def handle_event("open_create_alert_modal", _params, socket) do
     socket =
       socket
-      |> assign(editing_alert_rule: nil)
-      |> assign(alert_form_name: "")
-      |> assign(alert_form_category: :build_run_duration)
-      |> assign(alert_form_metric: :p99)
-      |> assign(alert_form_threshold: 20.0)
-      |> assign(alert_form_sample_size: 100)
-      |> assign(alert_form_channel_id: nil)
-      |> assign(alert_form_channel_name: nil)
+      |> assign(create_alert_form_name: "")
+      |> assign(create_alert_form_category: :build_run_duration)
+      |> assign(create_alert_form_metric: :p99)
+      |> assign(create_alert_form_threshold: 20.0)
+      |> assign(create_alert_form_sample_size: 100)
+      |> assign(create_alert_form_channel_id: nil)
+      |> assign(create_alert_form_channel_name: nil)
 
     {:noreply, socket}
   end
 
-  def handle_event("open_edit_alert_modal", %{"alert_rule_id" => alert_rule_id}, socket) do
-    case Alerts.get_alert_rule(alert_rule_id) do
-      {:ok, alert_rule} ->
-        socket =
-          socket
-          |> assign(editing_alert_rule: alert_rule)
-          |> assign(alert_form_name: alert_rule.name)
-          |> assign(alert_form_category: alert_rule.category)
-          |> assign(alert_form_metric: alert_rule.metric)
-          |> assign(alert_form_threshold: alert_rule.threshold_percentage)
-          |> assign(alert_form_sample_size: alert_rule.sample_size)
-          |> assign(alert_form_channel_id: alert_rule.slack_channel_id)
-          |> assign(alert_form_channel_name: alert_rule.slack_channel_name)
-          |> push_event("open-modal", %{id: "edit-alert-modal"})
-
-        {:noreply, socket}
-
-      {:error, :not_found} ->
-        {:noreply, socket}
-    end
+  # Create form handlers
+  def handle_event("update_create_alert_form_name", %{"value" => name}, socket) do
+    {:noreply, assign(socket, create_alert_form_name: name)}
   end
 
-  def handle_event("update_alert_form_name", %{"value" => name}, socket) do
-    {:noreply, assign(socket, alert_form_name: name)}
+  def handle_event("update_create_alert_form_category", %{"category" => category}, socket) do
+    {:noreply, assign(socket, create_alert_form_category: String.to_existing_atom(category))}
   end
 
-  def handle_event("update_alert_form_category", %{"category" => category}, socket) do
-    {:noreply, assign(socket, alert_form_category: String.to_existing_atom(category))}
+  def handle_event("update_create_alert_form_metric", %{"metric" => metric}, socket) do
+    {:noreply, assign(socket, create_alert_form_metric: String.to_existing_atom(metric))}
   end
 
-  def handle_event("update_alert_form_metric", %{"metric" => metric}, socket) do
-    {:noreply, assign(socket, alert_form_metric: String.to_existing_atom(metric))}
-  end
-
-  def handle_event("update_alert_form_threshold", %{"value" => threshold_str}, socket) do
+  def handle_event("update_create_alert_form_threshold", %{"value" => threshold_str}, socket) do
     case Float.parse(threshold_str) do
-      {threshold, _} -> {:noreply, assign(socket, alert_form_threshold: threshold)}
+      {threshold, _} -> {:noreply, assign(socket, create_alert_form_threshold: threshold)}
       :error -> {:noreply, socket}
     end
   end
 
-  def handle_event("update_alert_form_sample_size", %{"value" => size_str}, socket) do
+  def handle_event("update_create_alert_form_sample_size", %{"value" => size_str}, socket) do
     case Integer.parse(size_str) do
-      {size, _} -> {:noreply, assign(socket, alert_form_sample_size: size)}
+      {size, _} -> {:noreply, assign(socket, create_alert_form_sample_size: size)}
       :error -> {:noreply, socket}
     end
   end
 
-  def handle_event("save_alert_rule", _params, %{assigns: assigns} = socket) do
+  # Edit form handlers
+  def handle_event("update_edit_alert_form_name", %{"id" => id, "value" => name}, socket) do
+    {:noreply, update_edit_alert_form(socket, id, :name, name)}
+  end
+
+  def handle_event("update_edit_alert_form_category", %{"id" => id, "category" => category}, socket) do
+    {:noreply, update_edit_alert_form(socket, id, :category, String.to_existing_atom(category))}
+  end
+
+  def handle_event("update_edit_alert_form_metric", %{"id" => id, "metric" => metric}, socket) do
+    {:noreply, update_edit_alert_form(socket, id, :metric, String.to_existing_atom(metric))}
+  end
+
+  def handle_event("update_edit_alert_form_threshold", %{"id" => id, "value" => threshold_str}, socket) do
+    case Float.parse(threshold_str) do
+      {threshold, _} -> {:noreply, update_edit_alert_form(socket, id, :threshold, threshold)}
+      :error -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("update_edit_alert_form_sample_size", %{"id" => id, "value" => size_str}, socket) do
+    case Integer.parse(size_str) do
+      {size, _} -> {:noreply, update_edit_alert_form(socket, id, :sample_size, size)}
+      :error -> {:noreply, socket}
+    end
+  end
+
+  defp update_edit_alert_form(socket, id, key, value) do
+    edit_alert_forms = socket.assigns.edit_alert_forms
+    form = Map.get(edit_alert_forms, id, %{})
+    updated_form = Map.put(form, key, value)
+    assign(socket, edit_alert_forms: Map.put(edit_alert_forms, id, updated_form))
+  end
+
+  def handle_event("create_alert_rule", _params, %{assigns: assigns} = socket) do
     attrs = %{
       project_id: assigns.selected_project.id,
-      name: assigns.alert_form_name,
-      category: assigns.alert_form_category,
-      metric: assigns.alert_form_metric,
-      threshold_percentage: assigns.alert_form_threshold,
-      sample_size: assigns.alert_form_sample_size,
-      slack_channel_id: assigns.alert_form_channel_id,
-      slack_channel_name: assigns.alert_form_channel_name
+      name: assigns.create_alert_form_name,
+      category: assigns.create_alert_form_category,
+      metric: assigns.create_alert_form_metric,
+      threshold_percentage: assigns.create_alert_form_threshold,
+      sample_size: assigns.create_alert_form_sample_size,
+      slack_channel_id: assigns.create_alert_form_channel_id,
+      slack_channel_name: assigns.create_alert_form_channel_name
     }
 
-    result =
-      case assigns.editing_alert_rule do
-        nil -> Alerts.create_alert_rule(attrs)
-        alert_rule -> Alerts.update_alert_rule(alert_rule, attrs)
-      end
-
-    case result do
+    case Alerts.create_alert_rule(attrs) do
       {:ok, _alert_rule} ->
-        modal_id = if assigns.editing_alert_rule, do: "edit-alert-modal", else: "create-alert-modal"
-
         socket =
           socket
-          |> assign(alert_rules: Alerts.list_project_alert_rules(assigns.selected_project.id))
-          |> assign(editing_alert_rule: nil)
-          |> push_event("close-modal", %{id: modal_id})
+          |> assign_alert_defaults(assigns.selected_project)
+          |> push_event("close-modal", %{id: "create-alert-modal"})
 
         {:noreply, socket}
 
       {:error, _changeset} ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("update_alert_rule", %{"id" => id}, %{assigns: assigns} = socket) do
+    form = Map.get(assigns.edit_alert_forms, id)
+
+    case Alerts.get_alert_rule(id) do
+      {:ok, alert_rule} ->
+        attrs = %{
+          name: form.name,
+          category: form.category,
+          metric: form.metric,
+          threshold_percentage: form.threshold,
+          sample_size: form.sample_size,
+          slack_channel_id: form.channel_id,
+          slack_channel_name: form.channel_name
+        }
+
+        case Alerts.update_alert_rule(alert_rule, attrs) do
+          {:ok, _alert_rule} ->
+            socket =
+              socket
+              |> assign_alert_defaults(assigns.selected_project)
+              |> push_event("close-modal", %{id: "edit-alert-modal-#{id}"})
+
+            {:noreply, socket}
+
+          {:error, _changeset} ->
+            {:noreply, socket}
+        end
+
+      {:error, :not_found} ->
         {:noreply, socket}
     end
   end
@@ -313,10 +370,10 @@ defmodule TuistWeb.ProjectNotificationsLive do
     {:noreply, socket}
   end
 
-  def handle_event("close_edit_alert_modal", _params, %{assigns: %{selected_project: selected_project}} = socket) do
+  def handle_event("close_edit_alert_modal", %{"id" => id}, %{assigns: %{selected_project: selected_project}} = socket) do
     socket =
       socket
-      |> push_event("close-modal", %{id: "edit-alert-modal"})
+      |> push_event("close-modal", %{id: "edit-alert-modal-#{id}"})
       |> assign_alert_defaults(selected_project)
 
     {:noreply, socket}
@@ -334,11 +391,28 @@ defmodule TuistWeb.ProjectNotificationsLive do
     {:noreply, socket}
   end
 
-  def handle_event("alert_form_channel_selected", %{"channel_id" => channel_id, "channel_name" => channel_name}, socket) do
+  def handle_event(
+        "create_alert_form_channel_selected",
+        %{"channel_id" => channel_id, "channel_name" => channel_name},
+        socket
+      ) do
     socket =
       socket
-      |> assign(alert_form_channel_id: channel_id)
-      |> assign(alert_form_channel_name: channel_name)
+      |> assign(create_alert_form_channel_id: channel_id)
+      |> assign(create_alert_form_channel_name: channel_name)
+
+    {:noreply, socket}
+  end
+
+  def handle_event(
+        "edit_alert_form_channel_selected",
+        %{"id" => id, "channel_id" => channel_id, "channel_name" => channel_name},
+        socket
+      ) do
+    socket =
+      socket
+      |> update_edit_alert_form(id, :channel_id, channel_id)
+      |> update_edit_alert_form(id, :channel_name, channel_name)
 
     {:noreply, socket}
   end

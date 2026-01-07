@@ -10,6 +10,9 @@ const OAuthPopup = {
         }
         const eventName = this.el.dataset.event || "oauth_channel_selected";
         const payload = {};
+        if (this.el.dataset.id) {
+          payload.id = this.el.dataset.id;
+        }
         if (event.data.channel_id) {
           payload.channel_id = event.data.channel_id;
         }
