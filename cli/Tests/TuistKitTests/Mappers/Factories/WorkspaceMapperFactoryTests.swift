@@ -131,9 +131,8 @@ final class WorkspaceMapperFactoryTests: TuistUnitTestCase {
             super.tearDown()
         }
 
-        func test_cache_contains_the_generate_cacheable_schemes_workspace_mapper() throws {
+        func test_binaryCacheWarming_returns_default_mappers() throws {
             // Given
-            let targets: Set<TargetQuery> = Set([.named("MyTarget")])
             subject =
                 CacheWorkspaceMapperFactory(
                     projectMapper: SequentialProjectMapper(
@@ -142,13 +141,10 @@ final class WorkspaceMapperFactoryTests: TuistUnitTestCase {
                 )
 
             // When
-            let got = subject.binaryCacheWarming(tuist: .test(), targets: [.iOS: targets])
+            let got = subject.binaryCacheWarming(tuist: .test())
 
             // Then
-            let mapper = XCTAssertContainsElementOfType(
-                got, GenerateCacheableSchemesWorkspaceMapper.self
-            )
-            XCTAssertEqual(mapper?.targets, [.iOS: targets])
+            XCTAssertContainsElementOfType(got, ProjectWorkspaceMapper.self)
         }
     }
 

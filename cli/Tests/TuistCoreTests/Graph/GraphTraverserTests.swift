@@ -5075,6 +5075,196 @@ final class GraphTraverserTests: TuistUnitTestCase {
         )
     }
 
+    // MARK: - externalTargetSupportedDestinations
+
+    func test_externalTargetSupportedDestinations_filters_catalyst_when_app_does_not_support_it() async throws {
+        // Given
+        let directory = try temporaryPath()
+        let packagesDirectory = directory.appending(component: "Dependencies")
+
+        let appTarget = Target.test(name: "App", destinations: [.iPad, .iPhone])
+        let externalPackage = Target.test(
+            name: "Package",
+            destinations: [.iPad, .iPhone, .macCatalyst],
+            product: .framework
+        )
+
+        let project = Project.test(path: directory, targets: [appTarget])
+        let externalProject = Project.test(
+            path: packagesDirectory,
+            targets: [externalPackage],
+            type: .external(hash: nil)
+        )
+
+        let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
+        let externalPackageDependency = GraphDependency.target(name: externalPackage.name, path: externalProject.path)
+
+        let graph = Graph.test(
+            projects: [
+                directory: project,
+                packagesDirectory: externalProject,
+            ],
+            dependencies: [
+                appTargetDependency: Set([externalPackageDependency]),
+            ]
+        )
+
+        // When
+        let got = GraphTraverser(graph: graph).externalTargetSupportedDestinations()
+
+        // Then
+        XCTAssertEqual(
+            got[GraphTarget(path: externalProject.path, target: externalPackage, project: externalProject)],
+            Set([.iPad, .iPhone])
+        )
+    }
+
+    func test_externalTargetSupportedDestinations_includes_catalyst_when_app_supports_it() async throws {
+        // Given
+        let directory = try temporaryPath()
+        let packagesDirectory = directory.appending(component: "Dependencies")
+
+        let appTarget = Target.test(name: "App", destinations: [.iPad, .iPhone, .macCatalyst])
+        let externalPackage = Target.test(
+            name: "Package",
+            destinations: [.iPad, .iPhone, .macCatalyst, .mac],
+            product: .framework
+        )
+
+        let project = Project.test(path: directory, targets: [appTarget])
+        let externalProject = Project.test(
+            path: packagesDirectory,
+            targets: [externalPackage],
+            type: .external(hash: nil)
+        )
+
+        let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
+        let externalPackageDependency = GraphDependency.target(name: externalPackage.name, path: externalProject.path)
+
+        let graph = Graph.test(
+            projects: [
+                directory: project,
+                packagesDirectory: externalProject,
+            ],
+            dependencies: [
+                appTargetDependency: Set([externalPackageDependency]),
+            ]
+        )
+
+        // When
+        let got = GraphTraverser(graph: graph).externalTargetSupportedDestinations()
+
+        // Then
+        XCTAssertEqual(
+            got[GraphTarget(path: externalProject.path, target: externalPackage, project: externalProject)],
+            Set([.iPad, .iPhone, .macCatalyst])
+        )
+    }
+
+    func test_externalTargetSupportedDestinations_with_platform_condition() async throws {
+        // Given
+        let directory = try temporaryPath()
+        let packagesDirectory = directory.appending(component: "Dependencies")
+
+        let appTarget = Target.test(name: "App", destinations: [.iPad, .iPhone, .appleWatch, .appleTv, .mac])
+        let externalPackage = Target.test(
+            name: "Package",
+            destinations: [.iPhone, .iPad, .appleWatch, .macCatalyst],
+            product: .framework
+        )
+
+        let project = Project.test(path: directory, targets: [appTarget])
+        let externalProject = Project.test(
+            path: packagesDirectory,
+            targets: [externalPackage],
+            type: .external(hash: nil)
+        )
+
+        let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
+        let externalPackageDependency = GraphDependency.target(name: externalPackage.name, path: externalProject.path)
+
+        // Only use the external target on iOS
+        let dependencyCondition = try XCTUnwrap(PlatformCondition.when([.ios]))
+
+        let graph = Graph.test(
+            projects: [
+                directory: project,
+                packagesDirectory: externalProject,
+            ],
+            dependencies: [
+                appTargetDependency: Set([externalPackageDependency]),
+            ],
+            dependencyConditions: [
+                GraphEdge(from: appTargetDependency, to: externalPackageDependency): dependencyCondition,
+            ]
+        )
+
+        // When
+        let got = GraphTraverser(graph: graph).externalTargetSupportedDestinations()
+
+        // Then
+        // Platform condition is .ios, which maps to iPhone and iPad destinations (not macCatalyst which is .catalyst)
+        XCTAssertEqual(
+            got[GraphTarget(path: externalProject.path, target: externalPackage, project: externalProject)],
+            Set([.iPad, .iPhone])
+        )
+    }
+
+    func test_externalTargetSupportedDestinations_macro_gets_mac_destination() async throws {
+        // Given
+        let directory = try temporaryPath()
+        let packagesDirectory = directory.appending(component: "Dependencies")
+
+        let appTarget = Target.test(name: "App", destinations: [.iPad, .iPhone])
+        let externalMacroFramework = Target.test(
+            name: "MacroFramework",
+            destinations: [.iPad, .iPhone],
+            product: .staticFramework
+        )
+        let externalMacroExecutable = Target.test(name: "MacroExecutable", destinations: [.mac], product: .macro)
+
+        let project = Project.test(path: directory, targets: [appTarget])
+        let externalProject = Project.test(
+            path: packagesDirectory,
+            targets: [externalMacroFramework, externalMacroExecutable],
+            type: .external(hash: nil)
+        )
+
+        let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
+        let externalMacroFrameworkDependency = GraphDependency.target(
+            name: externalMacroFramework.name,
+            path: externalProject.path
+        )
+        let externalMacroExecutableDependency = GraphDependency.target(
+            name: externalMacroExecutable.name,
+            path: externalProject.path
+        )
+
+        let graph = Graph.test(
+            projects: [
+                directory: project,
+                packagesDirectory: externalProject,
+            ],
+            dependencies: [
+                appTargetDependency: Set([externalMacroFrameworkDependency]),
+                externalMacroFrameworkDependency: Set([externalMacroExecutableDependency]),
+            ]
+        )
+
+        // When
+        let got = GraphTraverser(graph: graph).externalTargetSupportedDestinations()
+
+        // Then
+        XCTAssertEqual(
+            got[GraphTarget(path: externalProject.path, target: externalMacroFramework, project: externalProject)],
+            Set([.iPad, .iPhone])
+        )
+        XCTAssertEqual(
+            got[GraphTarget(path: externalProject.path, target: externalMacroExecutable, project: externalProject)],
+            Set([.mac])
+        )
+    }
+
     func test_directTargetExternalDependencies() throws {
         // Given
         let directory = try temporaryPath()

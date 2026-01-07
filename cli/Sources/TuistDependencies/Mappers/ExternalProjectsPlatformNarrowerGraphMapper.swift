@@ -32,7 +32,8 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
         }
 
         var graph = graph
-        let externalTargetSupportedPlatforms = GraphTraverser(graph: graph).externalTargetSupportedPlatforms()
+        let graphTraverser = GraphTraverser(graph: graph)
+        let externalTargetSupportedDestinations = graphTraverser.externalTargetSupportedDestinations()
 
         graph.projects = Dictionary(uniqueKeysWithValues: graph.projects.map { projectPath, project in
             var project = project
@@ -40,7 +41,7 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
                 let mappedTarget = mapTarget(
                     target: target,
                     project: project,
-                    externalTargetSupportedPlatforms: externalTargetSupportedPlatforms
+                    externalTargetSupportedDestinations: externalTargetSupportedDestinations
                 )
                 return (mappedTarget.name, mappedTarget)
             })
@@ -53,27 +54,25 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
     private func mapTarget(
         target: Target,
         project: Project,
-        externalTargetSupportedPlatforms: [GraphTarget: Set<Platform>]
+        externalTargetSupportedDestinations: [GraphTarget: Set<Destination>]
     ) -> Target {
-        // We only include the destinations whose platform is included in the list of the target supported platforms.
         var target = target
         let graphTarget = GraphTarget(path: project.path, target: target, project: project)
-        if case .external = project.type, let targetFilteredPlatforms = externalTargetSupportedPlatforms[graphTarget] {
-            target.destinations = target.destinations.filter { destination in
-                targetFilteredPlatforms.contains(destination.platform)
-            }
+        if case .external = project.type,
+           let targetFilteredDestinations = externalTargetSupportedDestinations[graphTarget]
+        {
+            target.destinations = targetFilteredDestinations
             if target.destinations.isEmpty {
                 target.metadata.tags = Set(Array(target.metadata.tags) + ["tuist:prunable"])
             }
 
-            // By changing the destinations we also need to adapt the deployment targets accordingly to account for possibly
-            // removed destinations
+            let supportedPlatforms = targetFilteredDestinations.platforms
             target.deploymentTargets = .init(
-                iOS: targetFilteredPlatforms.contains(.iOS) ? target.deploymentTargets.iOS : nil,
-                macOS: targetFilteredPlatforms.contains(.macOS) ? target.deploymentTargets.macOS : nil,
-                watchOS: targetFilteredPlatforms.contains(.watchOS) ? target.deploymentTargets.watchOS : nil,
-                tvOS: targetFilteredPlatforms.contains(.tvOS) ? target.deploymentTargets.tvOS : nil,
-                visionOS: targetFilteredPlatforms.contains(.visionOS) ? target.deploymentTargets.visionOS : nil
+                iOS: supportedPlatforms.contains(.iOS) ? target.deploymentTargets.iOS : nil,
+                macOS: supportedPlatforms.contains(.macOS) ? target.deploymentTargets.macOS : nil,
+                watchOS: supportedPlatforms.contains(.watchOS) ? target.deploymentTargets.watchOS : nil,
+                tvOS: supportedPlatforms.contains(.tvOS) ? target.deploymentTargets.tvOS : nil,
+                visionOS: supportedPlatforms.contains(.visionOS) ? target.deploymentTargets.visionOS : nil
             )
         }
         return target
