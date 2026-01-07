@@ -212,7 +212,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
           |> assign(alert_form_sample_size: alert_rule.sample_size)
           |> assign(alert_form_channel_id: alert_rule.slack_channel_id)
           |> assign(alert_form_channel_name: alert_rule.slack_channel_name)
-          |> push_event("open-modal", %{id: "alert-modal"})
+          |> push_event("open-modal", %{id: "edit-alert-modal"})
 
         {:noreply, socket}
 
@@ -267,11 +267,13 @@ defmodule TuistWeb.ProjectNotificationsLive do
 
     case result do
       {:ok, _alert_rule} ->
+        modal_id = if assigns.editing_alert_rule, do: "edit-alert-modal", else: "create-alert-modal"
+
         socket =
           socket
           |> assign(alert_rules: Alerts.list_project_alert_rules(assigns.selected_project.id))
           |> assign(editing_alert_rule: nil)
-          |> push_event("close-modal", %{id: "alert-modal"})
+          |> push_event("close-modal", %{id: modal_id})
 
         {:noreply, socket}
 
@@ -302,10 +304,19 @@ defmodule TuistWeb.ProjectNotificationsLive do
     end
   end
 
-  def handle_event("close_alert_modal", _params, %{assigns: %{selected_project: selected_project}} = socket) do
+  def handle_event("close_create_alert_modal", _params, %{assigns: %{selected_project: selected_project}} = socket) do
     socket =
       socket
-      |> push_event("close-modal", %{id: "alert-modal"})
+      |> push_event("close-modal", %{id: "create-alert-modal"})
+      |> assign_alert_defaults(selected_project)
+
+    {:noreply, socket}
+  end
+
+  def handle_event("close_edit_alert_modal", _params, %{assigns: %{selected_project: selected_project}} = socket) do
+    socket =
+      socket
+      |> push_event("close-modal", %{id: "edit-alert-modal"})
       |> assign_alert_defaults(selected_project)
 
     {:noreply, socket}

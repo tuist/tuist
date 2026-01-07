@@ -241,16 +241,10 @@
         </span>
       </div>
       <.modal
-        id="alert-modal"
-        title={
-          if @editing_alert_rule do
-            dgettext("dashboard_projects", "Edit alert rule")
-          else
-            dgettext("dashboard_projects", "Add alert rule")
-          end
-        }
+        id="create-alert-modal"
+        title={dgettext("dashboard_projects", "Create alert rule")}
         header_size="large"
-        on_dismiss="close_alert_modal"
+        on_dismiss="close_create_alert_modal"
       >
         <:trigger :let={attrs}>
           <.button
@@ -277,7 +271,7 @@
             </label>
             <.text_input
               type="basic"
-              id="alert-name"
+              id="create-alert-name"
               name="name"
               value={@alert_form_name}
               placeholder={dgettext("dashboard_projects", "Alert name")}
@@ -290,7 +284,7 @@
               {dgettext("dashboard_projects", "Category")}
             </label>
             <.dropdown
-              id="alert-category-dropdown"
+              id="create-alert-category-dropdown"
               label={category_label(@alert_form_category)}
             >
               <.dropdown_item
@@ -311,7 +305,7 @@
             <label data-part="schedule-label">
               {dgettext("dashboard_projects", "Metric")}
             </label>
-            <.dropdown id="alert-metric-dropdown" label={metric_label(@alert_form_metric)}>
+            <.dropdown id="create-alert-metric-dropdown" label={metric_label(@alert_form_metric)}>
               <.dropdown_item
                 :for={metric <- [:p50, :p90, :p99, :average]}
                 value={Atom.to_string(metric)}
@@ -332,7 +326,7 @@
             </label>
             <.text_input
               type="basic"
-              id="alert-threshold"
+              id="create-alert-threshold"
               name="threshold"
               value={@alert_form_threshold}
               phx-keyup="update_alert_form_threshold"
@@ -345,7 +339,7 @@
             </label>
             <.text_input
               type="basic"
-              id="alert-sample-size"
+              id="create-alert-sample-size"
               name="sample_size"
               value={@alert_form_sample_size}
               phx-keyup="update_alert_form_sample_size"
@@ -357,20 +351,10 @@
               {dgettext("dashboard_projects", "Slack channel")}
             </label>
             <div data-part="channel-selection-column">
-              <.alert
-                :if={is_nil(@slack_installation)}
-                status="information"
-                title={
-                  dgettext(
-                    "dashboard_projects",
-                    "Connect your Slack account before selecting a channel."
-                  )
-                }
-              />
               <.tag :if={@alert_form_channel_id} label={"##{@alert_form_channel_name}"} />
               <.link
                 :if={@slack_installation}
-                id="alert-form-channel-selection-link"
+                id="create-alert-form-channel-selection-link"
                 href={
                   alert_form_channel_selection_url(@selected_project.id, @selected_account.id)
                 }
@@ -387,13 +371,6 @@
                   size="small"
                 />
               </.link>
-              <.button
-                :if={is_nil(@slack_installation)}
-                label={dgettext("dashboard_projects", "Select channel")}
-                variant="secondary"
-                size="small"
-                disabled
-              />
             </div>
           </div>
         </div>
@@ -405,7 +382,156 @@
                 type="button"
                 label={dgettext("dashboard_projects", "Cancel")}
                 variant="secondary"
-                phx-click="close_alert_modal"
+                phx-click="close_create_alert_modal"
+              />
+            </:action>
+            <:action>
+              <.button
+                type="button"
+                label={dgettext("dashboard_projects", "Create")}
+                variant="primary"
+                disabled={@alert_form_name == "" || is_nil(@alert_form_channel_id)}
+                phx-click="save_alert_rule"
+              />
+            </:action>
+          </.modal_footer>
+        </:footer>
+      </.modal>
+      <.modal
+        id="edit-alert-modal"
+        title={dgettext("dashboard_projects", "Edit alert rule")}
+        header_size="large"
+        on_dismiss="close_edit_alert_modal"
+      >
+        <:trigger :let={_attrs}></:trigger>
+        <.line_divider />
+        <p data-part="alert-description">
+          {alert_rule_description(
+            @alert_form_category,
+            @alert_form_metric,
+            @alert_form_threshold,
+            @alert_form_sample_size
+          )}
+        </p>
+        <div data-part="alert-form">
+          <div data-part="schedule-row">
+            <label data-part="schedule-label">
+              {dgettext("dashboard_projects", "Name")}
+            </label>
+            <.text_input
+              type="basic"
+              id="edit-alert-name"
+              name="name"
+              value={@alert_form_name}
+              placeholder={dgettext("dashboard_projects", "Alert name")}
+              phx-keyup="update_alert_form_name"
+              phx-debounce="300"
+            />
+          </div>
+          <div data-part="schedule-row">
+            <label data-part="schedule-label">
+              {dgettext("dashboard_projects", "Category")}
+            </label>
+            <.dropdown
+              id="edit-alert-category-dropdown"
+              label={category_label(@alert_form_category)}
+            >
+              <.dropdown_item
+                :for={category <- [:build_run_duration, :test_run_duration, :cache_hit_rate]}
+                value={Atom.to_string(category)}
+                label={category_label(category)}
+                phx-click="update_alert_form_category"
+                phx-value-category={category}
+                data-selected={@alert_form_category == category}
+              >
+                <:right_icon :if={@alert_form_category == category}>
+                  <.icon name="check" />
+                </:right_icon>
+              </.dropdown_item>
+            </.dropdown>
+          </div>
+          <div data-part="schedule-row">
+            <label data-part="schedule-label">
+              {dgettext("dashboard_projects", "Metric")}
+            </label>
+            <.dropdown id="edit-alert-metric-dropdown" label={metric_label(@alert_form_metric)}>
+              <.dropdown_item
+                :for={metric <- [:p50, :p90, :p99, :average]}
+                value={Atom.to_string(metric)}
+                label={metric_label(metric)}
+                phx-click="update_alert_form_metric"
+                phx-value-metric={metric}
+                data-selected={@alert_form_metric == metric}
+              >
+                <:right_icon :if={@alert_form_metric == metric}>
+                  <.icon name="check" />
+                </:right_icon>
+              </.dropdown_item>
+            </.dropdown>
+          </div>
+          <div data-part="schedule-row">
+            <label data-part="schedule-label">
+              {dgettext("dashboard_projects", "Deviation (%)")}
+            </label>
+            <.text_input
+              type="basic"
+              id="edit-alert-threshold"
+              name="threshold"
+              value={@alert_form_threshold}
+              phx-keyup="update_alert_form_threshold"
+              phx-debounce="300"
+            />
+          </div>
+          <div data-part="schedule-row">
+            <label data-part="schedule-label">
+              {dgettext("dashboard_projects", "Rolling window")}
+            </label>
+            <.text_input
+              type="basic"
+              id="edit-alert-sample-size"
+              name="sample_size"
+              value={@alert_form_sample_size}
+              phx-keyup="update_alert_form_sample_size"
+              phx-debounce="300"
+            />
+          </div>
+          <div data-part="schedule-row">
+            <label data-part="schedule-label">
+              {dgettext("dashboard_projects", "Slack channel")}
+            </label>
+            <div data-part="channel-selection-column">
+              <.tag :if={@alert_form_channel_id} label={"##{@alert_form_channel_name}"} />
+              <.link
+                :if={@slack_installation}
+                id="edit-alert-form-channel-selection-link"
+                href={
+                  alert_form_channel_selection_url(@selected_project.id, @selected_account.id)
+                }
+                phx-hook="OAuthPopup"
+                data-event="alert_form_channel_selected"
+              >
+                <.button
+                  label={
+                    if @alert_form_channel_id,
+                      do: dgettext("dashboard_projects", "Update channel"),
+                      else: dgettext("dashboard_projects", "Select channel")
+                  }
+                  variant="secondary"
+                  size="small"
+                />
+              </.link>
+            </div>
+          </div>
+        </div>
+        <.line_divider />
+        <:footer>
+          <.modal_footer>
+            <:action>
+              <.button
+                type="button"
+                label={dgettext("dashboard_projects", "Cancel")}
+                variant="secondary"
+                phx-click="close_edit_alert_modal"
               />
             </:action>
             <:action>
