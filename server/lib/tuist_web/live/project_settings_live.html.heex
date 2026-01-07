@@ -98,10 +98,12 @@
             label={dgettext("dashboard_projects", "Change")}
             variant="secondary"
             size="medium"
-            href={TuistWeb.SlackOAuthController.channel_selection_url(
-              @selected_project.id,
-              @selected_account.id
-            )}
+            href={
+              TuistWeb.SlackOAuthController.channel_selection_url(
+                @selected_project.id,
+                @selected_account.id
+              )
+            }
           />
         </div>
         <.button
@@ -109,10 +111,12 @@
           label={dgettext("dashboard_projects", "Select channel")}
           variant="secondary"
           size="medium"
-          href={TuistWeb.SlackOAuthController.channel_selection_url(
-            @selected_project.id,
-            @selected_account.id
-          )}
+          href={
+            TuistWeb.SlackOAuthController.channel_selection_url(
+              @selected_project.id,
+              @selected_account.id
+            )
+          }
         />
         <div data-part="actions">
           <.modal
@@ -226,10 +230,6 @@
                     type="button"
                     label={dgettext("dashboard_projects", "Save")}
                     variant="primary"
-                    disabled={
-                      @schedule_form_frequency != :never &&
-                        is_nil(@selected_project.slack_channel_id)
-                    }
                     phx-click="save_slack_schedule"
                   />
                 </:action>
