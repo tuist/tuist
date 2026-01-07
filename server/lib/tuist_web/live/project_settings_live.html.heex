@@ -92,6 +92,32 @@
           }
           label={format_slack_reports_tag(assigns)}
         />
+        <div :if={@selected_project.slack_channel_id} data-part="channel-action">
+          <.tag label={@selected_project.slack_channel_name} />
+          <.button
+            label={dgettext("dashboard_projects", "Change")}
+            variant="secondary"
+            size="medium"
+            href={
+              TuistWeb.SlackOAuthController.channel_selection_url(
+                @selected_project.id,
+                @selected_account.id
+              )
+            }
+          />
+        </div>
+        <.button
+          :if={is_nil(@selected_project.slack_channel_id)}
+          label={dgettext("dashboard_projects", "Select channel")}
+          variant="secondary"
+          size="medium"
+          href={
+            TuistWeb.SlackOAuthController.channel_selection_url(
+              @selected_project.id,
+              @selected_account.id
+            )
+          }
+        />
         <div data-part="actions">
           <.modal
             id="slack-schedule-modal"
@@ -146,7 +172,7 @@
                   </.dropdown_item>
                 </.dropdown>
               </div>
-              <div data-part="schedule-row">
+              <div :if={@schedule_form_frequency != :never} data-part="schedule-row">
                 <label data-part="schedule-label">
                   {dgettext("dashboard_projects", "Days")}
                 </label>
@@ -187,46 +213,6 @@
                   </.dropdown_item>
                 </.dropdown>
               </div>
-              <div :if={@schedule_form_frequency != :never} data-part="schedule-row">
-                <label data-part="schedule-label">
-                  {dgettext("dashboard_projects", "Channel")}
-                </label>
-                <.dropdown
-                  id="slack-channel-dropdown"
-                  label={
-                    if @schedule_form_channel_id do
-                      "##{@schedule_form_channel_name}"
-                    else
-                      dgettext("dashboard_projects", "Select channel")
-                    end
-                  }
-                >
-                  <:search>
-                    <.text_input
-                      type="search"
-                      id="channel-search-input"
-                      name="channel_search"
-                      placeholder={dgettext("dashboard_projects", "Search...")}
-                      phx-keyup="update_channel_search"
-                      phx-debounce="300"
-                      show_suffix={false}
-                    />
-                  </:search>
-                  <.dropdown_item
-                    :for={channel <- get_slack_channels(assigns)}
-                    value={channel.id}
-                    label={"##{channel.name}"}
-                    phx-click="update_schedule_form_channel"
-                    phx-value-channel_id={channel.id}
-                    phx-value-channel_name={channel.name}
-                    data-selected={@schedule_form_channel_id == channel.id}
-                  >
-                    <:right_icon :if={@schedule_form_channel_id == channel.id}>
-                      <.icon name="check" />
-                    </:right_icon>
-                  </.dropdown_item>
-                </.dropdown>
-              </div>
             </div>
             <.line_divider />
             <:footer>
@@ -244,9 +230,6 @@
                     type="button"
                     label={dgettext("dashboard_projects", "Save")}
                     variant="primary"
-                    disabled={
-                      @schedule_form_frequency != :never && is_nil(@schedule_form_channel_id)
-                    }
                     phx-click="save_slack_schedule"
                   />
                 </:action>

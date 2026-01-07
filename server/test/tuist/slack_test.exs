@@ -4,7 +4,6 @@ defmodule Tuist.SlackTest do
 
   alias Tuist.Environment
   alias Tuist.Slack
-  alias Tuist.Slack.Client
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.SlackFixtures
 
@@ -127,55 +126,6 @@ defmodule Tuist.SlackTest do
     end
   end
 
-  describe "get_installation_channels/1" do
-    test "returns channels from the Slack API" do
-      # Given
-      user = AccountsFixtures.user_fixture()
-      installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id, team_id: "T-test-channels")
-
-      channels = [
-        %{id: "C123", name: "general", is_private: false},
-        %{id: "C456", name: "random", is_private: false}
-      ]
-
-      # Stub KeyValueStore to bypass cache and call the function directly
-      stub(Tuist.KeyValueStore, :get_or_update, fn _key, _opts, func ->
-        func.()
-      end)
-
-      expect(Client, :list_all_channels, fn _access_token ->
-        {:ok, channels}
-      end)
-
-      # When
-      result = Slack.get_installation_channels(installation)
-
-      # Then
-      assert {:ok, ^channels} = result
-    end
-
-    test "returns error when Slack API fails" do
-      # Given
-      user = AccountsFixtures.user_fixture()
-      installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id, team_id: "T-error-team")
-
-      # Stub KeyValueStore to bypass cache and call the function directly
-      stub(Tuist.KeyValueStore, :get_or_update, fn _key, _opts, func ->
-        func.()
-      end)
-
-      expect(Client, :list_all_channels, fn _access_token ->
-        {:error, "API error"}
-      end)
-
-      # When
-      result = Slack.get_installation_channels(installation)
-
-      # Then
-      assert {:error, "API error"} = result
-    end
-  end
-
   describe "generate_state_token/1" do
     test "generates a signed token for the account ID" do
       # Given
@@ -190,8 +140,23 @@ defmodule Tuist.SlackTest do
     end
   end
 
+  describe "generate_channel_selection_token/2" do
+    test "generates a signed token for the project and account ID" do
+      # Given
+      project_id = 123
+      account_id = 456
+
+      # When
+      token = Slack.generate_channel_selection_token(project_id, account_id)
+
+      # Then
+      assert is_binary(token)
+      assert String.length(token) > 0
+    end
+  end
+
   describe "verify_state_token/1" do
-    test "verifies a valid token and returns the account ID" do
+    test "verifies an account installation token and returns the payload" do
       # Given
       account_id = "test-account-id"
       token = Slack.generate_state_token(account_id)
@@ -200,7 +165,20 @@ defmodule Tuist.SlackTest do
       result = Slack.verify_state_token(token)
 
       # Then
-      assert {:ok, ^account_id} = result
+      assert {:ok, %{type: :account_installation, account_id: ^account_id}} = result
+    end
+
+    test "verifies a channel selection token and returns the payload" do
+      # Given
+      project_id = 123
+      account_id = 456
+      token = Slack.generate_channel_selection_token(project_id, account_id)
+
+      # When
+      result = Slack.verify_state_token(token)
+
+      # Then
+      assert {:ok, %{type: :channel_selection, project_id: ^project_id, account_id: ^account_id}} = result
     end
 
     test "returns error for invalid token" do
