@@ -434,26 +434,7 @@
           <.text_cell label={Integer.to_string(rule.sample_size)} />
         </:col>
         <:col :let={rule} label={dgettext("dashboard_projects", "Channel")}>
-          <.link
-            :if={rule.slack_channel_id}
-            id={"alert-channel-link-#{rule.id}"}
-            href={alert_channel_selection_url(rule, @selected_account.id)}
-            phx-hook="OAuthPopup"
-          >
-            <.tag label={"##{rule.slack_channel_name}"} />
-          </.link>
-          <.link
-            :if={is_nil(rule.slack_channel_id)}
-            id={"alert-channel-configure-#{rule.id}"}
-            href={alert_channel_selection_url(rule, @selected_account.id)}
-            phx-hook="OAuthPopup"
-          >
-            <.button
-              label={dgettext("dashboard_projects", "Select channel")}
-              variant="secondary"
-              size="small"
-            />
-          </.link>
+          <.badge_cell label={"##{rule.slack_channel_name}"} color="information" style="light-fill" />
         </:col>
         <:col :let={rule} label="">
           <.button_cell>

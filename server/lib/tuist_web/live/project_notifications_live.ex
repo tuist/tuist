@@ -331,10 +331,6 @@ defmodule TuistWeb.ProjectNotificationsLive do
     {:noreply, socket}
   end
 
-  defp alert_channel_selection_url(alert_rule, account_id) do
-    SlackOAuthController.alert_channel_selection_url(alert_rule.id, account_id)
-  end
-
   defp alert_form_channel_selection_url(project_id, account_id) do
     SlackOAuthController.alert_form_channel_selection_url(project_id, account_id)
   end
