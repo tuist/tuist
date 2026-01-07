@@ -57,57 +57,46 @@
     }
   }
 
-  & [data-part="notification-row"] {
+  & [data-part="schedule-section"] {
+    & > [data-part="title"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+    }
+  }
+
+  & [data-part="schedule-section"], & [data-part="slack-section"] {
     display: flex;
     flex-direction: row;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: center;
     padding: var(--noora-spacing-4) 0;
     border-bottom: 1px solid var(--noora-surface-border-secondary);
+
+    & > [data-part="content"] {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--noora-spacing-5);
+
+      & > [data-part="toggle"] {
+        display: flex;
+        flex-direction: row;
+        gap: var(--noora-spacing-3);
+        align-items: center;
+
+        & > [data-part="label"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+        }
+      }
+    }
 
     &:last-child {
       border-bottom: none;
     }
 
-    &[data-disabled="true"] {
-      opacity: 0.5;
-    }
-
-    & > [data-part="row-left"] {
-      display: flex;
-      flex-direction: row;
-      align-items: flex-start;
-      gap: var(--noora-spacing-3);
-    }
-
-    & > [data-part="row-label"] {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      gap: var(--noora-spacing-3);
-      color: var(--noora-surface-label-primary);
-      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
-
-      & .noora-icon {
-        width: 20px;
-        height: 20px;
-        color: var(--noora-surface-label-secondary);
-      }
-    }
-
-    & [data-part="row-label-group"] {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      gap: var(--noora-spacing-2);
-
-      & > [data-part="row-label"] {
-        color: var(--noora-surface-label-primary);
-        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
-      }
-    }
-
-    & > [data-part="row-content"] {
+    & > [data-part="row-content"],
+    & [data-part="row-top"] > [data-part="row-content"] {
       display: flex;
       flex-direction: row;
       align-items: center;
