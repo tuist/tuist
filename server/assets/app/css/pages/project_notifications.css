@@ -142,6 +142,13 @@
         }
       }
 
+      & [data-part="channel-selection-column"] {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: var(--noora-spacing-2);
+      }
+
       & #schedule-time-dropdown {
         width: 100px;
 

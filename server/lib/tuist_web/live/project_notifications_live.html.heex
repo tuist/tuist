@@ -346,7 +346,7 @@
             <label data-part="schedule-label">
               {dgettext("dashboard_projects", "Slack channel")}
             </label>
-            <div data-part="channel-selection">
+            <div data-part="channel-selection-column">
               <.alert
                 :if={is_nil(@slack_installation)}
                 status="information"
@@ -403,7 +403,7 @@
                 type="button"
                 label={dgettext("dashboard_projects", "Save")}
                 variant="primary"
-                disabled={@alert_form_name == ""}
+                disabled={@alert_form_name == "" || is_nil(@alert_form_channel_id)}
                 phx-click="save_alert_rule"
               />
             </:action>
