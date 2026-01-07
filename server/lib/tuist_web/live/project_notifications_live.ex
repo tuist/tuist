@@ -6,6 +6,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
   alias Tuist.Alerts
   alias Tuist.Authorization
   alias Tuist.Projects
+  alias Tuist.Slack
   alias Tuist.Slack.Client, as: SlackClient
   alias Tuist.Slack.Reports
   alias TuistWeb.SlackOAuthController
@@ -25,6 +26,10 @@ defmodule TuistWeb.ProjectNotificationsLive do
     selected_account = Tuist.Repo.preload(selected_account, [:slack_installation])
     slack_installation = selected_account.slack_installation
 
+    if connected?(socket) do
+      Tuist.PubSub.subscribe(Slack.slack_installation_topic(selected_account.id))
+    end
+
     socket =
       socket
       |> assign(slack_installation: slack_installation)
@@ -37,6 +42,23 @@ defmodule TuistWeb.ProjectNotificationsLive do
       |> assign_alert_defaults(selected_project)
 
     {:ok, socket}
+  end
+
+  @impl true
+  def handle_info({:slack_installation_changed, %{status: status}}, socket) do
+    selected_account = socket.assigns.selected_account
+
+    slack_installation =
+      case status do
+        :connected ->
+          selected_account = Tuist.Repo.preload(selected_account, [:slack_installation], force: true)
+          selected_account.slack_installation
+
+        :disconnected ->
+          nil
+      end
+
+    {:noreply, assign(socket, slack_installation: slack_installation)}
   end
 
   defp assign_alert_defaults(socket, project) do

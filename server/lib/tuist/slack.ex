@@ -15,9 +15,19 @@ defmodule Tuist.Slack do
   @api_url "https://slack.com/api/chat.postMessage"
 
   def create_installation(attrs) do
-    %Installation{}
-    |> Installation.changeset(attrs)
-    |> Repo.insert()
+    result =
+      %Installation{}
+      |> Installation.changeset(attrs)
+      |> Repo.insert()
+
+    case result do
+      {:ok, installation} ->
+        broadcast_slack_installation_change(installation.account_id, :connected)
+        {:ok, installation}
+
+      error ->
+        error
+    end
   end
 
   def update_installation(installation, attrs) do
@@ -27,15 +37,31 @@ defmodule Tuist.Slack do
   end
 
   def delete_installation(%Installation{account_id: account_id} = installation) do
-    Ecto.Multi.new()
-    |> Ecto.Multi.update_all(:clear_slack_fields, clear_project_slack_fields_query(account_id), [])
-    |> Ecto.Multi.delete(:delete_installation, installation)
-    |> Repo.transaction()
-    |> case do
-      {:ok, %{delete_installation: installation}} -> {:ok, installation}
-      {:error, _operation, changeset, _changes} -> {:error, changeset}
+    result =
+      Ecto.Multi.new()
+      |> Ecto.Multi.update_all(:clear_slack_fields, clear_project_slack_fields_query(account_id), [])
+      |> Ecto.Multi.delete(:delete_installation, installation)
+      |> Repo.transaction()
+
+    case result do
+      {:ok, %{delete_installation: deleted_installation}} ->
+        broadcast_slack_installation_change(account_id, :disconnected)
+        {:ok, deleted_installation}
+
+      {:error, _operation, changeset, _changes} ->
+        {:error, changeset}
     end
   end
+
+  defp broadcast_slack_installation_change(account_id, status) do
+    Tuist.PubSub.broadcast(
+      %{status: status},
+      slack_installation_topic(account_id),
+      :slack_installation_changed
+    )
+  end
+
+  def slack_installation_topic(account_id), do: "slack_installation:#{account_id}"
 
   defp clear_project_slack_fields_query(account_id) do
     from(p in Project,
