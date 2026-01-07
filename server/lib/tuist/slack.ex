@@ -222,9 +222,9 @@ defmodule Tuist.Slack do
   defp alert_title(:test_run_duration, metric), do: "Test Time #{alert_metric_label(metric)} Increased"
   defp alert_title(:cache_hit_rate, metric), do: "Cache Hit Rate #{alert_metric_label(metric)} Decreased"
 
-  defp alert_metric_label(:p50), do: "P50"
-  defp alert_metric_label(:p90), do: "P90"
-  defp alert_metric_label(:p99), do: "P99"
+  defp alert_metric_label(:p50), do: "p50"
+  defp alert_metric_label(:p90), do: "p90"
+  defp alert_metric_label(:p99), do: "p99"
   defp alert_metric_label(:average), do: "Average"
   defp alert_metric_label(nil), do: ""
 

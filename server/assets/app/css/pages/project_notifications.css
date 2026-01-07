@@ -114,6 +114,10 @@
     gap: var(--noora-spacing-6);
     padding-block: var(--noora-spacing-6);
 
+    & > [data-part="update-channel-button"] {
+      align-self: flex-end;
+    }
+
     & [data-part="schedule-row"] {
       display: flex;
       flex-direction: row;
@@ -146,7 +150,7 @@
         display: flex;
         flex-direction: column;
         align-items: flex-end;
-        gap: var(--noora-spacing-2);
+        gap: var(--noora-spacing-6);
       }
 
       & #schedule-time-dropdown {
@@ -226,9 +230,12 @@
   }
 
   & #alert-rules-table {
-    & th:first-child,
-    & td:first-child {
-      width: 30%;
+    & th:first-child {
+      width: 20%;
+    }
+
+    & th:nth-child(2) {
+      width: 20%;
     }
   }
 }

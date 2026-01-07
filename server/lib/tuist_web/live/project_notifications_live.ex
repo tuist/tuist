@@ -491,9 +491,9 @@ defmodule TuistWeb.ProjectNotificationsLive do
   defp category_label(:test_run_duration), do: dgettext("dashboard_projects", "Test duration")
   defp category_label(:cache_hit_rate), do: dgettext("dashboard_projects", "Cache hit rate")
 
-  defp metric_label(:p50), do: "P50"
-  defp metric_label(:p90), do: "P90"
-  defp metric_label(:p99), do: "P99"
+  defp metric_label(:p50), do: "p50"
+  defp metric_label(:p90), do: "p90"
+  defp metric_label(:p99), do: "p99"
   defp metric_label(:average), do: dgettext("dashboard_projects", "Average")
   defp metric_label(nil), do: ""
 

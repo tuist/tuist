@@ -420,7 +420,7 @@
         <:col :let={rule} label={dgettext("dashboard_projects", "Metric")}>
           <.text_cell label={metric_label(rule.metric)} />
         </:col>
-        <:col :let={rule} label={dgettext("dashboard_projects", "Deviation (%)")}>
+        <:col :let={rule} label={dgettext("dashboard_projects", "Deviation")}>
           <.text_cell label={"#{rule.threshold_percentage}%"} />
         </:col>
         <:col :let={rule} label={dgettext("dashboard_projects", "Rolling window")}>
@@ -557,27 +557,28 @@
                         :if={form[:channel_id] || rule.slack_channel_id}
                         label={"##{form[:channel_name] || rule.slack_channel_name}"}
                       />
-                      <.link
-                        :if={@slack_installation}
-                        id={"edit-alert-form-channel-selection-link-#{rule.id}"}
-                        href={
-                          alert_form_channel_selection_url(
-                            @selected_project.id,
-                            @selected_account.id
-                          )
-                        }
-                        phx-hook="OAuthPopup"
-                        data-event="edit_alert_form_channel_selected"
-                        data-id={rule.id}
-                      >
-                        <.button
-                          label={dgettext("dashboard_projects", "Update channel")}
-                          variant="secondary"
-                          size="small"
-                        />
-                      </.link>
                     </div>
                   </div>
+                  <.link
+                    :if={@slack_installation}
+                    id={"edit-alert-form-channel-selection-link-#{rule.id}"}
+                    href={
+                      alert_form_channel_selection_url(
+                        @selected_project.id,
+                        @selected_account.id
+                      )
+                    }
+                    phx-hook="OAuthPopup"
+                    data-part="update-channel-button"
+                    data-event="edit_alert_form_channel_selected"
+                    data-id={rule.id}
+                  >
+                    <.button
+                      label={dgettext("dashboard_projects", "Update channel")}
+                      variant="secondary"
+                      size="medium"
+                    />
+                  </.link>
                 </div>
                 <.line_divider />
                 <:footer>
