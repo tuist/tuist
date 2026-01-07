@@ -36,10 +36,10 @@
         </span>
       </div>
       <.button
-        :if={@slack_reports_enabled}
         label={dgettext("dashboard_projects", "Send test report")}
         variant="secondary"
         size="medium"
+        disabled={!@slack_reports_enabled}
         phx-click="send_test_slack_report"
       />
     </div>
@@ -51,7 +51,7 @@
           </h2>
           <.tag
             :if={
-              @slack_reports_enabled && @selected_project.report_days_of_week != [] &&
+              @selected_project.report_days_of_week != [] &&
                 @selected_project.report_schedule_time
             }
             label={format_schedule_summary(assigns)}
@@ -204,7 +204,7 @@
         <div data-part="row-content">
           <.button
             :if={is_nil(@slack_installation)}
-            label={dgettext("dashboard_projects", "Configure")}
+            label={dgettext("dashboard_projects", "Select channel")}
             variant="secondary"
             size="medium"
             disabled
@@ -216,7 +216,11 @@
             phx-hook="OAuthPopup"
           >
             <.button
-              label={dgettext("dashboard_projects", "Configure")}
+              label={
+                if @selected_project.slack_channel_id,
+                  do: dgettext("dashboard_projects", "Update channel"),
+                  else: dgettext("dashboard_projects", "Select channel")
+              }
               variant="secondary"
               size="medium"
             />
@@ -401,7 +405,7 @@
             phx-hook="OAuthPopup"
           >
             <.button
-              label={dgettext("dashboard_projects", "Configure")}
+              label={dgettext("dashboard_projects", "Select channel")}
               variant="secondary"
               size="small"
             />
