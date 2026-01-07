@@ -209,7 +209,12 @@
             size="medium"
             disabled
           />
-          <.link :if={@slack_installation} href={@slack_channel_selection_url} target="_blank">
+          <.link
+            :if={@slack_installation}
+            id="slack-channel-selection-link"
+            href={@slack_channel_selection_url}
+            phx-hook="OAuthPopup"
+          >
             <.button
               label={dgettext("dashboard_projects", "Configure")}
               variant="secondary"
@@ -383,15 +388,17 @@
         <:col :let={rule} label={dgettext("dashboard_projects", "Channel")}>
           <.link
             :if={rule.slack_channel_id}
+            id={"alert-channel-link-#{rule.id}"}
             href={alert_channel_selection_url(rule, @selected_account.id)}
-            target="_blank"
+            phx-hook="OAuthPopup"
           >
             <.tag label={"##{rule.slack_channel_name}"} />
           </.link>
           <.link
             :if={is_nil(rule.slack_channel_id)}
+            id={"alert-channel-configure-#{rule.id}"}
             href={alert_channel_selection_url(rule, @selected_account.id)}
-            target="_blank"
+            phx-hook="OAuthPopup"
           >
             <.button
               label={dgettext("dashboard_projects", "Configure")}
