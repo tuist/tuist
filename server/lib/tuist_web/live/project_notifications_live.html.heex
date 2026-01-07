@@ -422,7 +422,7 @@
           <.text_cell label={rule.name} />
         </:col>
         <:col :let={rule} label={dgettext("dashboard_projects", "Category")}>
-          <.badge_cell label={category_label(rule.category)} color="neutral" style="light-fill" />
+          <.tag_cell label={category_label(rule.category)} />
         </:col>
         <:col :let={rule} label={dgettext("dashboard_projects", "Metric")}>
           <.text_cell label={metric_label(rule.metric)} />
