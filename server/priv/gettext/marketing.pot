@@ -1606,12 +1606,6 @@ msgstr ""
 msgid "per additional unit"
 msgstr ""
 
-#: lib/tuist_web/marketing/controllers/marketing_html/blog_post.html.heex:44
-#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:83
-#, elixir-autogen, elixir-format
-msgid "AI writes faster. So should your builds."
-msgstr ""
-
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:117
 #, elixir-autogen, elixir-format
 msgid "A Tuist command execution that interacts with the server pull test result information. As an estimate, this is roughly equivalent to the number of test runs on CI."
@@ -1739,4 +1733,10 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_html/pricing.html.heex:254
 #, elixir-autogen, elixir-format
 msgid "See how leading tech companies are scaling their development with Tuist."
+msgstr ""
+
+#: lib/tuist_web/marketing/controllers/marketing_html/blog_post.html.heex:44
+#: lib/tuist_web/marketing/controllers/marketing_html/case_study.html.heex:83
+#, elixir-autogen, elixir-format
+msgid "AI moves fast. So should your builds."
 msgstr ""
