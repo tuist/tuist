@@ -411,4 +411,53 @@ defmodule TuistWeb.ProjectNotificationsLive do
   defp metric_label(:p99), do: "P99"
   defp metric_label(:average), do: dgettext("dashboard_projects", "Average")
   defp metric_label(nil), do: ""
+
+  defp alert_rule_description(category, metric, threshold, sample_size) do
+    metric_category = alert_metric_category_label(category, metric)
+    unit = alert_unit_label(category)
+
+    text =
+      case category do
+        :cache_hit_rate ->
+          dgettext(
+            "dashboard_projects",
+            "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{sample_size} %{unit}</strong> has decreased by <strong>%{threshold}%</strong> compared to the previous <strong>%{sample_size} %{unit}</strong>.",
+            metric_category: metric_category,
+            sample_size: sample_size,
+            unit: unit,
+            threshold: threshold
+          )
+
+        _ ->
+          dgettext(
+            "dashboard_projects",
+            "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{sample_size} %{unit}</strong> has increased by <strong>%{threshold}%</strong> compared to the previous <strong>%{sample_size} %{unit}</strong>.",
+            metric_category: metric_category,
+            sample_size: sample_size,
+            unit: unit,
+            threshold: threshold
+          )
+      end
+
+    raw(text)
+  end
+
+  defp alert_metric_category_label(:build_run_duration, metric),
+    do: "#{metric_label_lowercase(metric)} #{dgettext("dashboard_projects", "build time")}"
+
+  defp alert_metric_category_label(:test_run_duration, metric),
+    do: "#{metric_label_lowercase(metric)} #{dgettext("dashboard_projects", "test time")}"
+
+  defp alert_metric_category_label(:cache_hit_rate, metric),
+    do: "#{metric_label_lowercase(metric)} #{dgettext("dashboard_projects", "cache hit rate")}"
+
+  defp alert_unit_label(:build_run_duration), do: dgettext("dashboard_projects", "builds")
+  defp alert_unit_label(:test_run_duration), do: dgettext("dashboard_projects", "tests")
+  defp alert_unit_label(:cache_hit_rate), do: dgettext("dashboard_projects", "builds")
+
+  defp metric_label_lowercase(:p50), do: "p50"
+  defp metric_label_lowercase(:p90), do: "p90"
+  defp metric_label_lowercase(:p99), do: "p99"
+  defp metric_label_lowercase(:average), do: dgettext("dashboard_projects", "average")
+  defp metric_label_lowercase(nil), do: ""
 end

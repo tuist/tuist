@@ -262,6 +262,14 @@
           />
         </:trigger>
         <.line_divider />
+        <p data-part="alert-description">
+          {alert_rule_description(
+            @alert_form_category,
+            @alert_form_metric,
+            @alert_form_threshold,
+            @alert_form_sample_size
+          )}
+        </p>
         <div data-part="alert-form">
           <div data-part="schedule-row">
             <label data-part="schedule-label">
@@ -327,7 +335,8 @@
               id="alert-threshold"
               name="threshold"
               value={@alert_form_threshold}
-              phx-change="update_alert_form_threshold"
+              phx-keyup="update_alert_form_threshold"
+              phx-debounce="300"
             />
           </div>
           <div data-part="schedule-row">
@@ -339,7 +348,8 @@
               id="alert-sample-size"
               name="sample_size"
               value={@alert_form_sample_size}
-              phx-change="update_alert_form_sample_size"
+              phx-keyup="update_alert_form_sample_size"
+              phx-debounce="300"
             />
           </div>
           <div data-part="schedule-row">
@@ -434,7 +444,11 @@
           <.text_cell label={Integer.to_string(rule.sample_size)} />
         </:col>
         <:col :let={rule} label={dgettext("dashboard_projects", "Channel")}>
-          <.badge_cell label={"##{rule.slack_channel_name}"} color="information" style="light-fill" />
+          <.badge_cell
+            label={"##{rule.slack_channel_name}"}
+            color="information"
+            style="light-fill"
+          />
         </:col>
         <:col :let={rule} label="">
           <.button_cell>

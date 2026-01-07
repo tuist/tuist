@@ -206,6 +206,12 @@
       gap: var(--noora-spacing-8);
       min-width: 420px;
     }
+
+    & [data-part="alert-description"] {
+      margin: 0;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    }
   }
 
   & .noora-table {
