@@ -66,7 +66,6 @@ For on-premise Tuist installations, you'll need to create your own Slack app and
         ],
         "scopes": {
             "bot": [
-                "channels:read",
                 "chat:write",
                 "chat:write.public"
             ]

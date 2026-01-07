@@ -6,9 +6,9 @@ defmodule TuistWeb.ProjectNotificationsLive do
   alias Tuist.Alerts
   alias Tuist.Authorization
   alias Tuist.Projects
-  alias Tuist.Slack
   alias Tuist.Slack.Client, as: SlackClient
   alias Tuist.Slack.Reports
+  alias TuistWeb.SlackOAuthController
 
   @impl true
   def mount(
@@ -29,7 +29,10 @@ defmodule TuistWeb.ProjectNotificationsLive do
       socket
       |> assign(slack_installation: slack_installation)
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Notifications")} · #{selected_project.name} · Tuist")
-      |> assign_slack_channels(slack_installation)
+      |> assign(
+        :slack_channel_selection_url,
+        SlackOAuthController.channel_selection_url(selected_project.id, selected_account.id)
+      )
       |> assign_schedule_form_defaults(selected_project)
       |> assign_alert_defaults(selected_project)
 
@@ -45,43 +48,22 @@ defmodule TuistWeb.ProjectNotificationsLive do
     |> assign(alert_form_metric: :p99)
     |> assign(alert_form_threshold: 20.0)
     |> assign(alert_form_sample_size: 100)
-    |> assign(alert_form_channel_id: nil)
-    |> assign(alert_form_channel_name: nil)
   end
 
   defp assign_schedule_form_defaults(socket, project) do
     user_timezone = socket.assigns[:user_timezone] || "Etc/UTC"
 
-    frequency = project.slack_report_frequency
+    frequency = project.report_frequency
 
-    days = if project.slack_report_days_of_week == [], do: [1, 2, 3, 4, 5], else: project.slack_report_days_of_week
+    days = if project.report_days_of_week == [], do: [1, 2, 3, 4, 5], else: project.report_days_of_week
 
-    hour = get_local_hour(project.slack_report_schedule_time, user_timezone) || 9
+    hour = get_local_hour(project.report_schedule_time, user_timezone) || 9
 
     socket
-    |> assign(schedule_form_channel_id: project.slack_channel_id)
-    |> assign(schedule_form_channel_name: project.slack_channel_name)
     |> assign(schedule_form_frequency: frequency)
     |> assign(schedule_form_days: days)
     |> assign(schedule_form_hour: hour)
-    |> assign(slack_reports_enabled: project.slack_report_frequency == :daily && project.slack_channel_id != nil)
-  end
-
-  defp assign_slack_channels(socket, nil) do
-    socket
-    |> assign(slack_channels: %{ok?: true, result: [], loading: false})
-    |> assign(channel_search_query: "")
-  end
-
-  defp assign_slack_channels(socket, slack_installation) do
-    socket
-    |> assign_async(:slack_channels, fn ->
-      case Slack.get_installation_channels(slack_installation) do
-        {:ok, channels} -> {:ok, %{slack_channels: channels}}
-        {:error, _} -> {:ok, %{slack_channels: []}}
-      end
-    end)
-    |> assign(channel_search_query: "")
+    |> assign(slack_reports_enabled: project.report_frequency == :daily && project.slack_channel_id != nil)
   end
 
   @impl true
@@ -134,26 +116,11 @@ defmodule TuistWeb.ProjectNotificationsLive do
     {:noreply, assign(socket, schedule_form_hour: String.to_integer(hour_str))}
   end
 
-  def handle_event("update_schedule_form_channel", %{"channel_id" => channel_id, "channel_name" => channel_name}, socket) do
-    socket =
-      socket
-      |> assign(schedule_form_channel_id: channel_id)
-      |> assign(schedule_form_channel_name: channel_name)
-      |> push_event("close-dropdown", %{id: "slack-channel-dropdown"})
-
-    {:noreply, socket}
-  end
-
-  def handle_event("update_channel_search", %{"value" => query}, socket) do
-    {:noreply, assign(socket, channel_search_query: query)}
-  end
-
   def handle_event("close_schedule_modal", _params, %{assigns: %{selected_project: selected_project}} = socket) do
     socket =
       socket
       |> push_event("close-modal", %{id: "schedule-modal"})
       |> assign_schedule_form_defaults(selected_project)
-      |> assign(channel_search_query: "")
 
     {:noreply, socket}
   end
@@ -166,27 +133,19 @@ defmodule TuistWeb.ProjectNotificationsLive do
     frequency = assigns.schedule_form_frequency
     days = assigns.schedule_form_days
     hour = assigns.schedule_form_hour
-    channel_id = assigns.schedule_form_channel_id
-    channel_name = assigns.schedule_form_channel_name
     timezone = user_timezone || "Etc/UTC"
 
     updates =
       if frequency == :never do
-        %{
-          slack_report_frequency: :never,
-          slack_channel_id: channel_id,
-          slack_channel_name: channel_name
-        }
+        %{report_frequency: :never}
       else
         utc_time = local_hour_to_utc(hour, timezone)
 
         %{
-          slack_report_frequency: frequency,
-          slack_report_days_of_week: days,
-          slack_report_schedule_time: utc_time,
-          slack_report_timezone: timezone,
-          slack_channel_id: channel_id,
-          slack_channel_name: channel_name
+          report_frequency: frequency,
+          report_days_of_week: days,
+          report_schedule_time: utc_time,
+          report_timezone: timezone
         }
       end
 
@@ -195,51 +154,20 @@ defmodule TuistWeb.ProjectNotificationsLive do
     socket =
       socket
       |> assign(selected_project: updated_project)
-      |> assign(channel_search_query: "")
       |> assign_schedule_form_defaults(updated_project)
       |> push_event("close-modal", %{id: "schedule-modal"})
 
     {:noreply, socket}
   end
 
-  def handle_event("close_slack_channel_modal", _params, %{assigns: %{selected_project: selected_project}} = socket) do
-    socket =
-      socket
-      |> push_event("close-modal", %{id: "slack-channel-modal"})
-      |> assign_schedule_form_defaults(selected_project)
-      |> assign(channel_search_query: "")
-
-    {:noreply, socket}
-  end
-
-  def handle_event("save_slack_channel", _params, %{assigns: %{selected_project: selected_project} = assigns} = socket) do
-    channel_id = assigns.schedule_form_channel_id
-    channel_name = assigns.schedule_form_channel_name
-
-    {:ok, updated_project} =
-      Projects.update_project(selected_project, %{
-        slack_channel_id: channel_id,
-        slack_channel_name: channel_name
-      })
-
-    socket =
-      socket
-      |> assign(selected_project: updated_project)
-      |> assign(channel_search_query: "")
-      |> assign_schedule_form_defaults(updated_project)
-      |> push_event("close-modal", %{id: "slack-channel-modal"})
-
-    {:noreply, socket}
-  end
-
   def handle_event("toggle_slack_reports", _params, %{assigns: %{selected_project: selected_project}} = socket) do
-    current_enabled = selected_project.slack_report_frequency == :daily && selected_project.slack_channel_id != nil
+    current_enabled = selected_project.report_frequency == :daily && selected_project.slack_channel_id != nil
 
     updates =
       if current_enabled do
-        %{slack_report_frequency: :never}
+        %{report_frequency: :never}
       else
-        %{slack_report_frequency: :daily}
+        %{report_frequency: :daily}
       end
 
     {:ok, updated_project} = Projects.update_project(selected_project, updates)
@@ -263,8 +191,6 @@ defmodule TuistWeb.ProjectNotificationsLive do
       |> assign(alert_form_metric: :p99)
       |> assign(alert_form_threshold: 20.0)
       |> assign(alert_form_sample_size: 100)
-      |> assign(alert_form_channel_id: nil)
-      |> assign(alert_form_channel_name: nil)
 
     {:noreply, socket}
   end
@@ -280,8 +206,6 @@ defmodule TuistWeb.ProjectNotificationsLive do
           |> assign(alert_form_metric: alert_rule.metric)
           |> assign(alert_form_threshold: alert_rule.threshold_percentage)
           |> assign(alert_form_sample_size: alert_rule.sample_size)
-          |> assign(alert_form_channel_id: alert_rule.slack_channel_id)
-          |> assign(alert_form_channel_name: alert_rule.slack_channel_name)
 
         {:noreply, socket}
 
@@ -316,16 +240,6 @@ defmodule TuistWeb.ProjectNotificationsLive do
     end
   end
 
-  def handle_event("update_alert_form_channel", %{"channel_id" => channel_id, "channel_name" => channel_name}, socket) do
-    socket =
-      socket
-      |> assign(alert_form_channel_id: channel_id)
-      |> assign(alert_form_channel_name: channel_name)
-      |> push_event("close-dropdown", %{id: "alert-channel-dropdown"})
-
-    {:noreply, socket}
-  end
-
   def handle_event("save_alert_rule", _params, %{assigns: assigns} = socket) do
     attrs = %{
       project_id: assigns.selected_project.id,
@@ -333,9 +247,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
       category: assigns.alert_form_category,
       metric: assigns.alert_form_metric,
       threshold_percentage: assigns.alert_form_threshold,
-      sample_size: assigns.alert_form_sample_size,
-      slack_channel_id: assigns.alert_form_channel_id,
-      slack_channel_name: assigns.alert_form_channel_name
+      sample_size: assigns.alert_form_sample_size
     }
 
     result =
@@ -390,25 +302,8 @@ defmodule TuistWeb.ProjectNotificationsLive do
     {:noreply, socket}
   end
 
-  defp get_slack_channels(%{slack_channels: slack_channels_async, channel_search_query: query}) do
-    channels =
-      if slack_channels_async.ok? do
-        slack_channels_async.result
-      else
-        []
-      end
-
-    channels
-    |> filter_channels_by_query(query)
-    |> Enum.sort_by(& &1.name)
-  end
-
-  defp filter_channels_by_query(channels, nil), do: channels
-  defp filter_channels_by_query(channels, ""), do: channels
-
-  defp filter_channels_by_query(channels, query) do
-    query_downcase = String.downcase(query)
-    Enum.filter(channels, fn channel -> String.contains?(String.downcase(channel.name), query_downcase) end)
+  defp alert_channel_selection_url(alert_rule, account_id) do
+    SlackOAuthController.alert_channel_selection_url(alert_rule.id, account_id)
   end
 
   defp format_hour(hour) do
@@ -416,6 +311,8 @@ defmodule TuistWeb.ProjectNotificationsLive do
     |> Time.new!(0, 0)
     |> Timex.format!("{h12} {AM}")
   end
+
+  defp format_days_range([]), do: ""
 
   defp format_days_range(days) do
     days
@@ -434,6 +331,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
     |> Enum.map_join(", ", &format_day_group/1)
   end
 
+  defp format_day_group([]), do: ""
   defp format_day_group([single]), do: Timex.day_shortname(single)
   defp format_day_group([first, last]), do: "#{Timex.day_shortname(first)}, #{Timex.day_shortname(last)}"
   defp format_day_group([first | rest]), do: "#{Timex.day_shortname(first)}-#{Timex.day_shortname(List.last(rest))}"
@@ -449,8 +347,8 @@ defmodule TuistWeb.ProjectNotificationsLive do
   end
 
   defp format_schedule_summary(%{selected_project: project, user_timezone: user_timezone}) do
-    days = project.slack_report_days_of_week
-    hour = get_local_hour(project.slack_report_schedule_time, user_timezone)
+    days = project.report_days_of_week
+    hour = get_local_hour(project.report_schedule_time, user_timezone)
     time_str = if hour, do: format_hour(hour), else: ""
     day_str = format_days_range(days)
 

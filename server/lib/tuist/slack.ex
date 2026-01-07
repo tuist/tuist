@@ -43,11 +43,7 @@ defmodule Tuist.Slack do
       update: [
         set: [
           slack_channel_id: nil,
-          slack_channel_name: nil,
-          slack_report_frequency: :never,
-          slack_report_days_of_week: [],
-          slack_report_schedule_time: nil,
-          slack_report_timezone: nil
+          slack_channel_name: nil
         ]
       ]
     )
@@ -64,6 +60,14 @@ defmodule Tuist.Slack do
     Phoenix.Token.sign(TuistWeb.Endpoint, "slack_state", %{
       type: :channel_selection,
       project_id: project_id,
+      account_id: account_id
+    })
+  end
+
+  def generate_alert_channel_selection_token(alert_rule_id, account_id) do
+    Phoenix.Token.sign(TuistWeb.Endpoint, "slack_state", %{
+      type: :alert_rule_channel_selection,
+      alert_rule_id: alert_rule_id,
       account_id: account_id
     })
   end
