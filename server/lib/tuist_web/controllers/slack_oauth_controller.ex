@@ -115,11 +115,11 @@ defmodule TuistWeb.SlackOAuthController do
   end
 
   defp handle_channel_selection(conn, code, account_id, project_id) do
-    with {:ok, account} <- Accounts.get_account_by_id(account_id),
+    with {:ok, _account} <- Accounts.get_account_by_id(account_id),
          %Project{} = project <- Projects.get_project_by_id(project_id),
          {:ok, token_data} <- SlackClient.exchange_code_for_token(code, slack_redirect_uri()),
          {:ok, _project} <- update_project_channel(project, token_data) do
-      redirect(conn, to: ~p"/#{account.name}/#{project.name}/settings/notifications")
+      render_popup_close(conn)
     else
       nil ->
         raise BadRequestError, dgettext("dashboard_slack", "Project not found. Please try again.")
@@ -138,12 +138,12 @@ defmodule TuistWeb.SlackOAuthController do
   end
 
   defp handle_alert_channel_selection(conn, code, account_id, alert_rule_id) do
-    with {:ok, account} <- Accounts.get_account_by_id(account_id),
+    with {:ok, _account} <- Accounts.get_account_by_id(account_id),
          {:ok, alert_rule} <- Alerts.get_alert_rule(alert_rule_id),
          alert_rule = Tuist.Repo.preload(alert_rule, :project),
          {:ok, token_data} <- SlackClient.exchange_code_for_token(code, slack_redirect_uri()),
          {:ok, _alert_rule} <- update_alert_rule_channel(alert_rule, token_data) do
-      redirect(conn, to: ~p"/#{account.name}/#{alert_rule.project.name}/settings/notifications")
+      render_popup_close(conn)
     else
       {:error, :not_found} ->
         raise BadRequestError, dgettext("dashboard_slack", "Alert rule not found. Please try again.")
@@ -236,5 +236,12 @@ defmodule TuistWeb.SlackOAuthController do
 
   defp slack_redirect_uri do
     Environment.app_url(path: ~p"/integrations/slack/callback")
+  end
+
+  defp render_popup_close(conn) do
+    conn
+    |> put_view(TuistWeb.SlackOAuthHTML)
+    |> put_layout(false)
+    |> render("popup_close.html")
   end
 end

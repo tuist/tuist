@@ -302,6 +302,18 @@ defmodule TuistWeb.ProjectNotificationsLive do
     {:noreply, socket}
   end
 
+  def handle_event("oauth_channel_selected", _params, socket) do
+    selected_project = Projects.get_project_by_id(socket.assigns.selected_project.id)
+
+    socket =
+      socket
+      |> assign(selected_project: selected_project)
+      |> assign(alert_rules: Alerts.list_project_alert_rules(selected_project.id))
+      |> assign_schedule_form_defaults(selected_project)
+
+    {:noreply, socket}
+  end
+
   defp alert_channel_selection_url(alert_rule, account_id) do
     SlackOAuthController.alert_channel_selection_url(alert_rule.id, account_id)
   end

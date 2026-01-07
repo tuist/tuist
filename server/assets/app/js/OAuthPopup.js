@@ -1,5 +1,17 @@
 const OAuthPopup = {
   mounted() {
+    this.popup = null;
+    this.channel = new BroadcastChannel("oauth_popup");
+
+    this.channel.onmessage = (event) => {
+      if (event.data && event.data.type === "oauth_complete" && event.data.success) {
+        if (this.popup && !this.popup.closed) {
+          this.popup.close();
+        }
+        this.pushEvent("oauth_channel_selected", {});
+      }
+    };
+
     this.el.addEventListener("click", (e) => {
       e.preventDefault();
       const url = this.el.getAttribute("href") || this.el.dataset.url;
@@ -7,12 +19,19 @@ const OAuthPopup = {
       const height = 700;
       const left = window.screenX + (window.outerWidth - width) / 2;
       const top = window.screenY + (window.outerHeight - height) / 2;
-      window.open(
+      this.popup = window.open(
         url,
         "oauth_popup",
         `width=${width},height=${height},left=${left},top=${top},popup=1`
       );
     });
+  },
+
+  destroyed() {
+    this.channel.close();
+    if (this.popup && !this.popup.closed) {
+      this.popup.close();
+    }
   },
 };
 
