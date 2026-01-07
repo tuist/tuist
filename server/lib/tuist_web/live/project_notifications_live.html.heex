@@ -441,6 +441,7 @@
                 id={"edit-alert-modal-#{rule.id}"}
                 title={dgettext("dashboard_projects", "Edit alert rule")}
                 header_size="large"
+                on_dismiss={JS.push("close_edit_alert_modal", value: %{id: rule.id})}
               >
                 <:trigger :let={attrs}>
                   <.button icon_only size="small" variant="secondary" {attrs}>
