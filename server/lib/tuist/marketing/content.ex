@@ -3,11 +3,11 @@ defmodule Tuist.Marketing.Content do
   Aggregates marketing content across sources (blog posts, case studies).
   """
   alias Tuist.Marketing.Blog
-  alias Tuist.Marketing.CaseStudies
+  alias Tuist.Marketing.Customers
 
   def get_entries do
     posts = Enum.map(Blog.get_posts(), &{:post, &1})
-    case_studies = Enum.map(CaseStudies.get_case_studies(), &{:case_study, &1})
+    case_studies = Enum.map(Customers.get_case_studies(), &{:case_study, &1})
 
     Enum.sort_by(posts ++ case_studies, &get_entry_date/1, {:desc, DateTime})
   end

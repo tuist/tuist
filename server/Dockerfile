@@ -11,8 +11,8 @@ FROM node:22-slim AS npm-deps
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
-COPY package.json /app/package.json
-COPY pnpm-lock.yaml /app/pnpm-lock.yaml
+COPY server/package.json /app/package.json
+COPY server/pnpm-lock.yaml /app/pnpm-lock.yaml
 WORKDIR /app
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 
@@ -35,19 +35,22 @@ ENV MIX_ENV=$MIX_ENV
 ARG TUIST_HOSTED=1
 ENV TUIST_HOSTED=$TUIST_HOSTED
 
-COPY mix.exs mix.lock ./
+COPY server/mix.exs server/mix.lock ./
 RUN mkdir config
 
 # Only runner's mix.exs needed for deps.get to work
-COPY runner/mix.exs runner/mix.exs
+COPY server/runner/mix.exs runner/mix.exs
+
+# Copy tuist_common for path dependency
+COPY tuist_common /tuist_common
 
 RUN mix deps.get --only $MIX_ENV
 
 # Config files must be present before compiling dependencies
-COPY config/config.exs config/${MIX_ENV}.exs config/
+COPY server/config/config.exs server/config/${MIX_ENV}.exs config/
 
 # Minimal runner source needed for compilation
-COPY runner/lib runner/lib
+COPY server/runner/lib runner/lib
 
 RUN mix deps.compile
 
@@ -82,8 +85,9 @@ COPY --from=deps-builder /app/mix.* ./
 COPY --from=deps-builder /app/deps deps
 COPY --from=deps-builder /app/_build _build
 COPY --from=deps-builder /app/config config
+COPY --from=deps-builder /tuist_common /tuist_common
 
-COPY runner runner
+COPY server/runner runner
 
 WORKDIR /app/runner
 RUN mix deps.get --only $MIX_ENV
@@ -95,15 +99,15 @@ RUN mkdir -p /app/build && cp burrito_out/runner_macos /app/build/runner
 # ========================================
 FROM deps-builder AS builder
 
-COPY priv priv
-COPY assets assets
+COPY server/priv priv
+COPY server/assets assets
 
-COPY lib lib
+COPY server/lib lib
 
 RUN mix compile --warnings-as-errors
 
-COPY config/runtime.exs config/
-COPY rel rel
+COPY server/config/runtime.exs config/
+COPY server/rel rel
 
 COPY --from=npm-deps /app/node_modules /app/node_modules
 RUN mix assets.deploy
@@ -136,9 +140,9 @@ ENV TUIST_HOSTED=$TUIST_HOSTED
 
 COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/tuist ./
 
-COPY priv/secrets/can.yml.enc /app/priv/secrets/can.yml.enc
-COPY priv/secrets/stag.yml.enc /app/priv/secrets/stag.yml.enc
-COPY priv/secrets/prod.yml.enc /app/priv/secrets/prod.yml.enc
+COPY server/priv/secrets/can.yml.enc /app/priv/secrets/can.yml.enc
+COPY server/priv/secrets/stag.yml.enc /app/priv/secrets/stag.yml.enc
+COPY server/priv/secrets/prod.yml.enc /app/priv/secrets/prod.yml.enc
 
 # Remove hosted-only secrets for on-premise builds
 RUN if [ "$TUIST_HOSTED" = "0" ]; then \
@@ -149,7 +153,7 @@ RUN if [ "$TUIST_HOSTED" = "0" ]; then \
   fi
 
 ENV SECRETS_DIRECTORY=/app/priv/secrets/
-COPY priv/repo/structure.sql /app/priv/repo/structure.sql
+COPY server/priv/repo/structure.sql /app/priv/repo/structure.sql
 
 COPY --from=runner-binary-builder /app/build/runner /app/bin/runner
 

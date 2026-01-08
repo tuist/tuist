@@ -293,6 +293,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
 
         func binaryCacheWarming(
             config: Tuist,
+            targets: [XcodeGraph.Platform: Set<TargetQuery>],
             cacheSources: Set<TargetQuery>,
             configuration: String,
             cacheStorage: CacheStoring
@@ -300,6 +301,7 @@ public final class GraphMapperFactory: GraphMapperFactorying {
             var mappers: [GraphMapping] = []
             mappers.append(ModuleMapMapper())
             mappers.append(ExternalProjectsPlatformNarrowerGraphMapper())
+            mappers.append(GenerateCacheableSchemesGraphMapper(targets: targets))
             mappers.append(FocusTargetsGraphMappers(includedTargets: cacheSources))
             mappers.append(TreeShakePrunedTargetsGraphMapper())
 

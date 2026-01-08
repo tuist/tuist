@@ -82,11 +82,10 @@ public final class WorkspaceMapperFactory: WorkspaceMapperFactorying {
         /// - Returns: An array with all the workspace mappers.
         func binaryCacheWarmingPreload(tuist: Tuist) -> [WorkspaceMapping]
 
-        /// Returns a mapper to generate cacheable prorjects.
+        /// Returns a mapper to generate cacheable projects.
         /// - Parameter config: The project configuration.
-        /// - Parameter targets: A dictionary containing the targets to warm the cache with organized by platform.
         /// - Returns: A workspace mapping instance.
-        func binaryCacheWarming(tuist: Tuist, targets: [XcodeGraph.Platform: Set<TargetQuery>]) -> [WorkspaceMapping]
+        func binaryCacheWarming(tuist: Tuist) -> [WorkspaceMapping]
 
         /// Returns a mapper for automation commands like build and test.
         /// - Parameter config: The project configuration.
@@ -108,12 +107,10 @@ public final class WorkspaceMapperFactory: WorkspaceMapperFactorying {
             return mappers
         }
 
-        func binaryCacheWarming(tuist: Tuist, targets: [XcodeGraph.Platform: Set<TargetQuery>]) -> [WorkspaceMapping] {
-            var mappers = TuistKit.WorkspaceMapperFactory(projectMapper: projectMapper).default(
+        func binaryCacheWarming(tuist: Tuist) -> [WorkspaceMapping] {
+            TuistKit.WorkspaceMapperFactory(projectMapper: projectMapper).default(
                 tuist: tuist
             )
-            mappers += [GenerateCacheableSchemesWorkspaceMapper(targets: targets)]
-            return mappers
         }
 
         func automation(tuist: Tuist) -> [WorkspaceMapping] {

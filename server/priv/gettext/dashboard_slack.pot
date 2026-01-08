@@ -1,0 +1,53 @@
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new messages manually only if they're dynamic
+## messages that can't be statically extracted.
+##
+## Run "mix gettext.extract" to bring this file up to
+## date. Leave "msgstr"s empty as changing them here has no
+## effect: edit them in PO (.po) files instead.
+#
+msgid ""
+msgstr ""
+
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:93
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:116
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:144
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:159
+#, elixir-autogen, elixir-format
+msgid "Account not found. Please try again."
+msgstr ""
+
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:101
+#, elixir-autogen, elixir-format
+msgid "Failed to save Slack installation. Please try again."
+msgstr ""
+
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:60
+#, elixir-autogen, elixir-format
+msgid "Invalid Slack authorization. Please try again."
+msgstr ""
+
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:36
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:54
+#, elixir-autogen, elixir-format
+msgid "Invalid authorization request. Please try again."
+msgstr ""
+
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:97
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:120
+#, elixir-autogen, elixir-format
+msgid "Slack authorization failed: %{reason}"
+msgstr ""
+
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:124
+#, elixir-autogen, elixir-format
+msgid "Failed to save channel selection. Please try again."
+msgstr ""
+
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:113
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:155
+#, elixir-autogen, elixir-format
+msgid "Project not found. Please try again."
+msgstr ""

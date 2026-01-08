@@ -276,6 +276,15 @@ public protocol GraphTraversing {
     /// as values
     func externalTargetSupportedPlatforms() -> [GraphTarget: Set<Platform>]
 
+    /// External targets (e.g. from packages) might indicate that they support destinations that
+    /// they don't really support. To prevent this from causing compilation issues, Tuist cascades
+    /// the supported destinations down to the external dependencies.
+    /// This function narrows down the destinations of the external dependencies and returns a
+    /// dictionary containing the graph target as a key, and the supported destinations as the value.
+    /// - Returns: A dictionary with the graph targets as keys, and the destinations that they support
+    /// as values
+    func externalTargetSupportedDestinations() -> [GraphTarget: Set<Destination>]
+
     /// Given a target's project path and name, it returns its target dependencies that are external.
     /// - Parameters:
     ///   - path: Project path.

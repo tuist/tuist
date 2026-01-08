@@ -8,16 +8,13 @@ defmodule Tuist.StorageTest do
   alias Tuist.Storage
 
   setup do
-    # Mock FunWithFlags to always return false for tigris (use default S3)
-    stub(FunWithFlags, :enabled?, fn :tigris, [for: _] -> false end)
-
     # Mock ExAws.Config.new to return a proper config that won't try to access instance metadata
     stub(ExAws.Config, :new, fn :s3 ->
       %{
         access_key_id: "test-access-key",
         secret_access_key: "test-secret-key",
-        region: "us-east-1",
-        host: "s3.amazonaws.com",
+        region: "auto",
+        host: "fly.storage.tigris.dev",
         scheme: "https://",
         port: 443
       }
@@ -983,15 +980,13 @@ defmodule Tuist.StorageTest do
       assert result == :ok
     end
 
-    test "custom S3 storage takes precedence over Tigris feature flag" do
+    test "custom S3 storage takes precedence over default Tigris storage" do
       # Given
       account = %Account{
         s3_bucket_name: "custom-bucket",
         s3_access_key_id: "CUSTOM_ACCESS_KEY",
         s3_secret_access_key: "CUSTOM_SECRET_KEY"
       }
-
-      stub(FunWithFlags, :enabled?, fn :tigris, [for: ^account] -> true end)
 
       url = "https://custom-bucket.s3.amazonaws.com/test-key"
       object_key = UUIDv7.generate()

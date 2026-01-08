@@ -75,20 +75,31 @@ defmodule Cache.Authentication do
   defp extract_token(token), do: token
 
   defp verify_jwt(token, requested_handle) do
+    if Cache.Config.guardian_configured?() do
+      do_verify_jwt(token, requested_handle)
+    else
+      {:error, :not_jwt}
+    end
+  end
+
+  defp do_verify_jwt(token, requested_handle) do
     case Cache.Guardian.decode_and_verify(token) do
       {:ok, claims} ->
-        projects = Map.get(claims, "projects", [])
-        exp = Map.get(claims, "exp")
-
-        if requested_handle in projects do
-          ttl = calculate_ttl(exp)
-          {:ok, ttl}
-        else
-          {:error, :project_not_in_jwt}
-        end
+        verify_project_access(claims, requested_handle)
 
       {:error, _reason} ->
         {:error, :not_jwt}
+    end
+  end
+
+  defp verify_project_access(claims, requested_handle) do
+    projects = Map.get(claims, "projects", [])
+    exp = Map.get(claims, "exp")
+
+    if requested_handle in projects do
+      {:ok, calculate_ttl(exp)}
+    else
+      {:error, :project_not_in_jwt}
     end
   end
 

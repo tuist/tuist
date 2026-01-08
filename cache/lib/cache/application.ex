@@ -9,10 +9,14 @@ defmodule Cache.Application do
       migrate()
     end
 
-    Cache.Telemetry.attach()
-    Oban.Telemetry.attach_default_logger()
+    if Cache.Config.analytics_enabled?() do
+      Cache.Telemetry.attach()
+    end
 
-    children = [
+    Oban.Telemetry.attach_default_logger()
+    attach_appsignal_error_filter()
+
+    base_children = [
       Cache.PromEx,
       Cache.Repo,
       {Phoenix.PubSub, name: Cache.PubSub},
@@ -22,9 +26,15 @@ defmodule Cache.Application do
       CacheWeb.Endpoint,
       Cache.SocketLinker,
       {Finch, name: Cache.Finch},
-      {Oban, Application.get_env(:cache, Oban)},
-      Cache.CASEventsPipeline
+      {Oban, Application.get_env(:cache, Oban)}
     ]
+
+    children =
+      if Cache.Config.analytics_enabled?() do
+        base_children ++ [Cache.CASEventsPipeline]
+      else
+        base_children
+      end
 
     opts = [strategy: :one_for_one, name: Cache.Supervisor]
     Supervisor.start_link(children, opts)
@@ -36,6 +46,13 @@ defmodule Cache.Application do
     for repo <- repos do
       {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :up, all: true))
     end
+  end
+
+  defp attach_appsignal_error_filter do
+    :logger.add_primary_filter(
+      :appsignal_error_filter,
+      {&TuistCommon.Appsignal.ErrorFilter.filter/2, []}
+    )
   end
 
   @impl true

@@ -22,6 +22,7 @@ import {
   getStartedIcon,
   agenticBuildingIcon,
   qaIcon,
+  slackIcon,
 } from "./icons.mjs";
 import { loadData as loadExamplesData } from "./data/examples";
 import { loadData as loadProjectDescriptionData } from "./data/project-description";
@@ -607,6 +608,13 @@ export async function guidesSidebar(locale) {
             "sidebars.guides.items.integrations.items.sso.text",
           )}</span>`,
           link: `/${locale}/guides/integrations/sso`,
+        },
+        {
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${slackIcon()} ${localizedString(
+            locale,
+            "sidebars.guides.items.integrations.items.slack.text",
+          )}</span>`,
+          link: `/${locale}/guides/integrations/slack`,
         },
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${gitForgesIcon()} ${localizedString(

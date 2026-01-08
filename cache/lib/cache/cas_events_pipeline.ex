@@ -56,12 +56,16 @@ defmodule Cache.CASEventsPipeline do
   end
 
   defp send_batch(events) do
+    case Cache.Config.api_key() do
+      nil -> :ok
+      secret -> do_send_batch(secret, events)
+    end
+  end
+
+  defp do_send_batch(secret, events) do
     server_url = Cache.Authentication.server_url()
-    cas_config = Application.get_env(:cache, :cas, [])
-    secret = Keyword.fetch!(cas_config, :api_key)
     url = "#{server_url}/webhooks/cache"
 
-    # Transform events to the format expected by the webhook API
     api_events =
       Enum.map(events, fn event ->
         %{

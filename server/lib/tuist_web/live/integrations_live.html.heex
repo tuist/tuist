@@ -171,4 +171,37 @@
       </.card_section>
     </div>
   </.card_section>
+  <.card_section :if={Tuist.Environment.slack_configured?()} data-part="slack-card-section">
+    <div data-part="header">
+      <span data-part="title">
+        {dgettext("dashboard_integrations", "Slack")}
+      </span>
+      <span data-part="subtitle">
+        {dgettext(
+          "dashboard_integrations",
+          "Connect Slack to receive project analytics reports"
+        )}
+      </span>
+    </div>
+    <div data-part="content">
+      <div data-part="actions">
+        <.button
+          :if={is_nil(@slack_installation)}
+          label={dgettext("dashboard_integrations", "Connect Slack")}
+          variant="primary"
+          href={TuistWeb.SlackOAuthController.install_url(@selected_account.id)}
+        />
+        <.button
+          :if={not is_nil(@slack_installation)}
+          label={
+            dgettext("dashboard_integrations", "Disconnect from %{team_name}",
+              team_name: @slack_installation.team_name
+            )
+          }
+          variant="secondary"
+          phx-click="disconnect-slack"
+        />
+      </div>
+    </div>
+  </.card_section>
 </div>

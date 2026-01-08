@@ -6,12 +6,14 @@ on:
       - main
     paths:
       - server/**
+      - tuist_common/**
       - .github/workflows/server.yml
       - server/pnpm-lock.yaml
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - server/**
+      - tuist_common/**
       - .github/workflows/server.yml
       - server/pnpm-lock.yaml
       - pnpm-lock.yaml
@@ -459,7 +461,7 @@ jobs:
       - name: Docker build
         uses: docker/build-push-action@v6
         with:
-          context: ./server
+          context: .
           file: ./server/Dockerfile
           push: false
           tags: tuist/tuist

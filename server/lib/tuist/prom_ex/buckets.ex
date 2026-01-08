@@ -55,14 +55,14 @@ defmodule Tuist.PromEx.Buckets do
 
   @impl true
   def bucket_for(number, config) when is_integer(number) do
-    case :gb_trees.larger(number, config.int_tree) do
+    case lower(number, config.int_tree) do
       {_, bucket_idx} -> bucket_idx
       :none -> config.number_of_buckets
     end
   end
 
   def bucket_for(number, config) when is_float(number) do
-    case :gb_trees.larger(number, config.float_tree) do
+    case lower(number, config.float_tree) do
       {_, bucket_idx} -> bucket_idx
       :none -> config.number_of_buckets
     end
@@ -71,6 +71,16 @@ defmodule Tuist.PromEx.Buckets do
   @impl true
   def upper_bound(bucket_idx, config) do
     Map.get(config.upper_bound, bucket_idx, "+Inf")
+  end
+
+  # Returns the smallest key in the tree that is greater than or equal to the given key.
+  # This differs from :gb_trees.larger/2 which returns keys strictly greater than the given key.
+  # Prometheus histograms require inclusive upper bounds (le label), so we need >= not >.
+  defp lower(key, tree) do
+    case key |> :gb_trees.iterator_from(tree) |> :gb_trees.next() do
+      {k, v, _iter} -> {k, v}
+      :none -> :none
+    end
   end
 
   defp int_buckets([], _prev, _counter) do

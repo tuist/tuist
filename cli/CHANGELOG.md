@@ -1,6 +1,15 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.119.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* filter Catalyst destinations for external dependencies by [@pepicrft](https://github.com/pepicrft) in [#9067](https://github.com/tuist/tuist/pull/9067)
+* handle multi-byte UTF-8 characters in xcresult parsing by [@fortmarek](https://github.com/fortmarek) in [#9061](https://github.com/tuist/tuist/pull/9061)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.119.1...4.119.2
+
 ## What's Changed in 4.119.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
