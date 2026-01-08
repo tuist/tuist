@@ -174,8 +174,6 @@ defmodule Tuist.Slack do
     {:error, "Request failed: #{inspect(reason)}"}
   end
 
-  # Alert notification
-
   @doc """
   Sends an alert notification to Slack.
   """
