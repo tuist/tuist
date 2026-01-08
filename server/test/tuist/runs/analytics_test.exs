@@ -3672,8 +3672,9 @@ defmodule Tuist.Runs.AnalyticsTest do
       # When - get p90 of all 10 builds
       result = Analytics.build_cache_hit_rate_metric_by_count(project.id, :p90, limit: 10)
 
-      # Then - p90 of sorted [0.1, 0.2, ..., 1.0] at index trunc(10*0.9)=9 is 1.0
-      assert result == 1.0
+      # Then - p90 of sorted [0.1, 0.2, ..., 1.0] at index trunc(10*0.1)=1 is 0.2
+      # (for cache hit rate, higher is better, so p90 gives the lower 10th percentile)
+      assert result == 0.2
     end
 
     test "respects offset parameter for comparing current vs previous" do

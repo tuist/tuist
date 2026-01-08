@@ -1580,8 +1580,9 @@ defmodule Tuist.CommandEventsTest do
       # When
       got = CommandEvents.cache_hit_rate_metric_by_count(project.id, :p90, limit: 20)
 
-      # Then - p90 of sorted values [0.1, 0.2, ..., 1.0] at index trunc(10*0.9)=9 = 1.0
-      assert got == 1.0
+      # Then - p90 of sorted values [0.1, 0.2, ..., 1.0] at index trunc(10*0.1)=1 = 0.2
+      # (for cache hit rate, higher is better, so p90 gives the lower 10th percentile)
+      assert got == 0.2
     end
 
     test "respects limit parameter" do
