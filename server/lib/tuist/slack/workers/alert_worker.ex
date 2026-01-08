@@ -13,13 +13,8 @@ defmodule Tuist.Slack.Workers.AlertWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"alert_rule_id" => alert_rule_id}}) do
-    case Alerts.get_alert_rule(alert_rule_id) do
-      {:error, :not_found} ->
-        :ok
-
-      {:ok, alert_rule} ->
-        check_and_notify(alert_rule)
-    end
+    {:ok, alert_rule} = Alerts.get_alert_rule(alert_rule_id)
+    :ok = check_and_notify(alert_rule)
   end
 
   def perform(_job) do
@@ -56,7 +51,6 @@ defmodule Tuist.Slack.Workers.AlertWorker do
 
             alert = Repo.preload(alert, alert_rule: [project: [account: :slack_installation]])
             Slack.send_alert(alert)
-            :ok
 
           :ok ->
             :ok
