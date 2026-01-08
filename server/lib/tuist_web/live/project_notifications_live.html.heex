@@ -391,9 +391,7 @@
                 variant="secondary"
                 size="medium"
                 id="create-alert-form-channel-selection-link"
-                href={
-                  alert_form_channel_selection_url(@selected_project.id, @selected_account.id)
-                }
+                href={alert_channel_selection_url(@selected_account.id)}
                 phx-hook="SelectSlackChannelPopup"
                 data-event="create_alert_form_channel_selected"
                 disabled={is_nil(@slack_installation)}
@@ -619,12 +617,7 @@
                         variant="secondary"
                         size="medium"
                         id={"edit-alert-form-channel-selection-link-#{rule.id}"}
-                        href={
-                          alert_form_channel_selection_url(
-                            @selected_project.id,
-                            @selected_account.id
-                          )
-                        }
+                        href={alert_channel_selection_url(@selected_account.id)}
                         phx-hook="SelectSlackChannelPopup"
                         data-event="edit_alert_form_channel_selected"
                         data-id={rule.id}

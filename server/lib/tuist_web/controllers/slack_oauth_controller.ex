@@ -23,11 +23,8 @@ defmodule TuistWeb.SlackOAuthController do
 
   def callback(conn, %{"error" => "access_denied", "state" => state_token}) do
     case verify_state_token(state_token) do
-      {:ok, %{type: :alert_form_channel_selection}} ->
+      {:ok, %{type: :alert_channel_selection}} ->
         render_popup_close(conn, nil, nil)
-
-      {:ok, %{type: :alert_rule_channel_selection, account_id: account_id, alert_rule_id: alert_rule_id}} ->
-        redirect_after_alert_channel_cancel(conn, account_id, alert_rule_id)
 
       {:ok, %{type: :channel_selection, account_id: account_id, project_id: project_id}} ->
         redirect_after_channel_cancel(conn, account_id, project_id)
@@ -47,11 +44,8 @@ defmodule TuistWeb.SlackOAuthController do
   def callback(conn, %{"code" => code, "state" => state_token})
       when is_binary(code) and code != "" and is_binary(state_token) do
     case verify_state_token(state_token) do
-      {:ok, %{type: :alert_form_channel_selection}} ->
-        handle_alert_form_channel_selection(conn, code)
-
-      {:ok, %{type: :alert_rule_channel_selection, account_id: account_id, alert_rule_id: alert_rule_id}} ->
-        handle_alert_channel_selection(conn, code, account_id, alert_rule_id)
+      {:ok, %{type: :alert_channel_selection} = payload} ->
+        handle_alert_channel_selection(conn, code, payload)
 
       {:ok, %{type: :channel_selection, account_id: account_id, project_id: project_id}} ->
         handle_channel_selection(conn, code, account_id, project_id)
@@ -83,13 +77,8 @@ defmodule TuistWeb.SlackOAuthController do
     build_oauth_url(state_token, @channel_selection_scopes)
   end
 
-  def alert_channel_selection_url(alert_rule_id, account_id) do
-    state_token = Slack.generate_alert_channel_selection_token(alert_rule_id, account_id)
-    build_oauth_url(state_token, @channel_selection_scopes)
-  end
-
-  def alert_form_channel_selection_url(project_id, account_id) do
-    state_token = Slack.generate_alert_form_channel_selection_token(project_id, account_id)
+  def alert_channel_selection_url(account_id, opts \\ []) do
+    state_token = Slack.generate_alert_channel_selection_token(account_id, opts)
     build_oauth_url(state_token, @channel_selection_scopes)
   end
 
@@ -148,10 +137,9 @@ defmodule TuistWeb.SlackOAuthController do
     end
   end
 
-  defp handle_alert_channel_selection(conn, code, account_id, alert_rule_id) do
-    with {:ok, _account} <- Accounts.get_account_by_id(account_id),
+  defp handle_alert_channel_selection(conn, code, %{alert_rule_id: alert_rule_id} = payload) do
+    with {:ok, _account} <- Accounts.get_account_by_id(payload.account_id),
          {:ok, alert_rule} <- Alerts.get_alert_rule(alert_rule_id),
-         alert_rule = Tuist.Repo.preload(alert_rule, :project),
          {:ok, token_data} <- SlackClient.exchange_code_for_token(code, slack_redirect_uri()),
          {:ok, _alert_rule} <- update_alert_rule_channel(alert_rule, token_data) do
       render_popup_close(conn, nil, nil)
@@ -169,7 +157,7 @@ defmodule TuistWeb.SlackOAuthController do
     end
   end
 
-  defp handle_alert_form_channel_selection(conn, code) do
+  defp handle_alert_channel_selection(conn, code, _payload) do
     case SlackClient.exchange_code_for_token(code, slack_redirect_uri()) do
       {:ok, token_data} ->
         incoming_webhook = token_data.incoming_webhook
@@ -227,18 +215,6 @@ defmodule TuistWeb.SlackOAuthController do
       {:error, :not_found} ->
         raise BadRequestError,
               dgettext("dashboard_slack", "Account not found. Please try again.")
-    end
-  end
-
-  defp redirect_after_alert_channel_cancel(conn, account_id, alert_rule_id) do
-    with {:ok, account} <- Accounts.get_account_by_id(account_id),
-         {:ok, alert_rule} <- Alerts.get_alert_rule(alert_rule_id) do
-      alert_rule = Tuist.Repo.preload(alert_rule, :project)
-      redirect(conn, to: ~p"/#{account.name}/#{alert_rule.project.name}/settings/notifications")
-    else
-      {:error, :not_found} ->
-        raise BadRequestError,
-              dgettext("dashboard_slack", "Alert rule not found. Please try again.")
     end
   end
 

@@ -110,20 +110,19 @@ defmodule Tuist.Slack do
     })
   end
 
-  def generate_alert_channel_selection_token(alert_rule_id, account_id) do
-    Phoenix.Token.sign(TuistWeb.Endpoint, "slack_state", %{
-      type: :alert_rule_channel_selection,
-      alert_rule_id: alert_rule_id,
+  def generate_alert_channel_selection_token(account_id, opts \\ []) do
+    payload = %{
+      type: :alert_channel_selection,
       account_id: account_id
-    })
-  end
+    }
 
-  def generate_alert_form_channel_selection_token(project_id, account_id) do
-    Phoenix.Token.sign(TuistWeb.Endpoint, "slack_state", %{
-      type: :alert_form_channel_selection,
-      project_id: project_id,
-      account_id: account_id
-    })
+    payload =
+      case Keyword.get(opts, :alert_rule_id) do
+        nil -> payload
+        alert_rule_id -> Map.put(payload, :alert_rule_id, alert_rule_id)
+      end
+
+    Phoenix.Token.sign(TuistWeb.Endpoint, "slack_state", payload)
   end
 
   def verify_state_token(token) do
