@@ -6,6 +6,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
   alias Tuist.Alerts
   alias Tuist.Authorization
   alias Tuist.Projects
+  alias Tuist.Repo
   alias Tuist.Slack
   alias Tuist.Slack.Client, as: SlackClient
   alias Tuist.Slack.Reports
@@ -395,14 +396,27 @@ defmodule TuistWeb.ProjectNotificationsLive do
   def handle_event("close_edit_alert_modal", %{"id" => id}, %{assigns: %{selected_project: selected_project}} = socket) do
     socket =
       socket
-      |> push_event("close-modal", %{id: "edit-alert-modal-#{id}"})
+      |> push_event("close-modal", %{id: "update-alert-modal-#{id}"})
       |> assign_alert_defaults(selected_project)
 
     {:noreply, socket}
   end
 
   def handle_event("oauth_channel_selected", _params, socket) do
-    selected_project = Projects.get_project_by_id(socket.assigns.selected_project.id)
+    # Force reload from database to get the updated channel data
+    selected_project =
+      socket.assigns.selected_project
+      |> Repo.reload!()
+      |> Repo.preload(:account)
+
+    # Enable Slack reports when a channel is selected
+    selected_project =
+      if selected_project.slack_channel_id != nil && selected_project.report_frequency != :daily do
+        {:ok, updated_project} = Projects.update_project(selected_project, %{report_frequency: :daily})
+        updated_project
+      else
+        selected_project
+      end
 
     socket =
       socket
@@ -426,6 +440,10 @@ defmodule TuistWeb.ProjectNotificationsLive do
     {:noreply, socket}
   end
 
+  def handle_event("create_alert_form_channel_selected", _params, socket) do
+    {:noreply, socket}
+  end
+
   def handle_event(
         "edit_alert_form_channel_selected",
         %{"id" => id, "channel_id" => channel_id, "channel_name" => channel_name},
@@ -436,6 +454,10 @@ defmodule TuistWeb.ProjectNotificationsLive do
       |> update_edit_alert_form(id, :channel_id, channel_id)
       |> update_edit_alert_form(id, :channel_name, channel_name)
 
+    {:noreply, socket}
+  end
+
+  def handle_event("edit_alert_form_channel_selected", _params, socket) do
     {:noreply, socket}
   end
 

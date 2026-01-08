@@ -210,22 +210,20 @@
             size="medium"
             disabled
           />
-          <.link
+          <.button
             :if={@slack_installation}
+            label={
+              if @selected_project.slack_channel_id,
+                do: dgettext("dashboard_projects", "Update channel"),
+                else: dgettext("dashboard_projects", "Select channel")
+            }
+            variant="secondary"
+            size="medium"
             id="slack-channel-selection-link"
             href={@slack_channel_selection_url}
             phx-hook="OAuthPopup"
-          >
-            <.button
-              label={
-                if @selected_project.slack_channel_id,
-                  do: dgettext("dashboard_projects", "Update channel"),
-                  else: dgettext("dashboard_projects", "Select channel")
-              }
-              variant="secondary"
-              size="medium"
-            />
-          </.link>
+            data-event="oauth_channel_selected"
+          />
         </div>
       </div>
     </div>
@@ -279,15 +277,15 @@
           }
         >
           <:action>
-          <.link_button
-            :if={is_nil(@slack_installation)}
-            href={~p"/#{@selected_account.name}/integrations"}
-            target="_blank"
-            label={dgettext("dashboard_projects", "Connect Slack")}
-            variant="secondary"
-          >
-            <:icon_right><.external_link /></:icon_right>
-          </.link_button>
+            <.link_button
+              :if={is_nil(@slack_installation)}
+              href={~p"/#{@selected_account.name}/integrations"}
+              target="_blank"
+              label={dgettext("dashboard_projects", "Connect Slack")}
+              variant="secondary"
+            >
+              <:icon_right><.external_link /></:icon_right>
+            </.link_button>
           </:action>
         </.alert>
         <div data-part="alert-form">
@@ -398,7 +396,7 @@
                 }
                 phx-hook="OAuthPopup"
                 data-event="create_alert_form_channel_selected"
-                disabled={is_nil(@slack_installation)}}
+                disabled={is_nil(@slack_installation)}
               />
             </div>
           </div>
@@ -450,9 +448,12 @@
           <.text_cell label={Integer.to_string(rule.sample_size)} />
         </:col>
         <:col :let={rule} label={dgettext("dashboard_projects", "Channel")}>
-        <.text_cell :if={is_nil(rule.slack_channel_id)} label={dgettext("dashboard_projects", "None")} />
+          <.text_cell
+            :if={is_nil(rule.slack_channel_id)}
+            label={dgettext("dashboard_projects", "None")}
+          />
           <.badge_cell
-          :if={not is_nil(rule.slack_channel_id)}
+            :if={not is_nil(rule.slack_channel_id)}
             label={"##{rule.slack_channel_name}"}
             color="information"
             style="light-fill"
@@ -463,11 +464,11 @@
             <:button>
               <% form = Map.get(@edit_alert_forms, rule.id, %{}) %>
               <.modal
-                id={"edit-alert-modal-#{rule.id}"}
-                title={dgettext("dashboard_projects", "Edit alert rule")}
+                id={"update-alert-modal-#{rule.id}"}
+                title={dgettext("dashboard_projects", "Update alert rule")}
                 header_size="large"
                 on_dismiss={JS.push("close_edit_alert_modal", value: %{id: rule.id})}
-                data-part="edit-alert-modal"
+                data-part="update-alert-modal"
               >
                 <:trigger :let={attrs}>
                   <.button icon_only size="small" variant="secondary" {attrs}>
@@ -488,7 +489,7 @@
                   data-part="slack-connect-alert"
                   status="information"
                   type="secondary"
-                  size="small"
+                  size="medium"
                   title={
                     dgettext(
                       "dashboard_projects",
@@ -497,15 +498,14 @@
                   }
                 >
                   <:action>
-                    <.link navigate={~p"/#{@selected_account.name}/integrations"} target="_blank">
-                      <.button
-                        label={dgettext("dashboard_projects", "Connect Slack")}
-                        variant="secondary"
-                        size="small"
-                      >
-                        <.icon name="external-link" />
-                      </.button>
-                    </.link>
+                    <.link_button
+                      href={~p"/#{@selected_account.name}/integrations"}
+                      target="_blank"
+                      label={dgettext("dashboard_projects", "Connect Slack")}
+                      variant="secondary"
+                    >
+                      <:icon_right><.external_link /></:icon_right>
+                    </.link_button>
                   </:action>
                 </.alert>
                 <div data-part="alert-form">
@@ -609,8 +609,15 @@
                         :if={form[:channel_id] || rule.slack_channel_id}
                         label={"##{form[:channel_name] || rule.slack_channel_name}"}
                       />
-                      <.link
+                      <.button
                         :if={@slack_installation}
+                        label={
+                          if form[:channel_id] || rule.slack_channel_id,
+                            do: dgettext("dashboard_projects", "Update channel"),
+                            else: dgettext("dashboard_projects", "Select channel")
+                        }
+                        variant="secondary"
+                        size="medium"
                         id={"edit-alert-form-channel-selection-link-#{rule.id}"}
                         href={
                           alert_form_channel_selection_url(
@@ -621,22 +628,12 @@
                         phx-hook="OAuthPopup"
                         data-event="edit_alert_form_channel_selected"
                         data-id={rule.id}
-                      >
-                        <.button
-                          label={
-                            if form[:channel_id] || rule.slack_channel_id,
-                              do: dgettext("dashboard_projects", "Update channel"),
-                              else: dgettext("dashboard_projects", "Select channel")
-                          }
-                          variant="secondary"
-                          size="small"
-                        />
-                      </.link>
+                      />
                       <.button
                         :if={!@slack_installation}
                         label={dgettext("dashboard_projects", "Select channel")}
                         variant="secondary"
-                        size="small"
+                        size="medium"
                         disabled
                       />
                     </div>
@@ -657,7 +654,7 @@
                     <:action>
                       <.button
                         type="button"
-                        label={dgettext("dashboard_projects", "Save")}
+                        label={dgettext("dashboard_projects", "Update")}
                         variant="primary"
                         phx-click="update_alert_rule"
                         phx-value-id={rule.id}
