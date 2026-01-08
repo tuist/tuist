@@ -137,10 +137,6 @@
     flex-direction: column;
     gap: var(--noora-spacing-7);
 
-    & > [data-part="update-channel-button"] {
-      align-self: flex-end;
-    }
-
     & [data-part="schedule-row"] {
       display: flex;
       flex-direction: row;
@@ -183,42 +179,6 @@
           width: 100px;
         }
       }
-
-      & #slack-channel-dropdown,
-      & #alert-channel-dropdown {
-        width: 250px;
-
-        & .noora-dropdown-content {
-          display: flex;
-          flex-direction: column;
-          width: 250px;
-          max-height: 300px;
-        }
-
-        & [data-part="search"] {
-          flex-shrink: 0;
-
-          & .noora-text-input {
-            min-width: 0;
-
-            & [data-part="wrapper"] {
-              min-width: 0;
-            }
-
-            & input {
-              width: 100%;
-              min-width: 0;
-            }
-          }
-        }
-
-        & #slack-channel-dropdown-content-target,
-        & #alert-channel-dropdown-content-target {
-          flex: 1;
-          overflow-y: auto;
-          overscroll-behavior: none;
-        }
-      }
     }
   }
 
@@ -235,7 +195,7 @@
     }
   }
 
-  & .noora-table {
+  & #alert-rules-table {
     margin-top: var(--noora-spacing-4);
 
     & [data-part="cell"][data-type="button"] {
@@ -244,9 +204,7 @@
       justify-content: flex-end;
       gap: var(--noora-spacing-2);
     }
-  }
 
-  & #alert-rules-table {
     & th:first-child {
       width: 20%;
     }
