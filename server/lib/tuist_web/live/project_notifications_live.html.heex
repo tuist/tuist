@@ -194,7 +194,7 @@
           />
           <.link_button
             :if={is_nil(@slack_installation)}
-            href={~p"/#{@selected_account.name}/settings/notifications"}
+            href={~p"/#{@selected_account.name}/integrations"}
             target="_blank"
             label={dgettext("dashboard_projects", "Connect Slack")}
             variant="primary"

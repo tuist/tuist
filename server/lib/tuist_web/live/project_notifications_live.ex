@@ -296,13 +296,6 @@ defmodule TuistWeb.ProjectNotificationsLive do
     end
   end
 
-  defp update_edit_alert_form(socket, id, key, value) do
-    edit_alert_forms = socket.assigns.edit_alert_forms
-    form = Map.get(edit_alert_forms, id, %{})
-    updated_form = Map.put(form, key, value)
-    assign(socket, edit_alert_forms: Map.put(edit_alert_forms, id, updated_form))
-  end
-
   def handle_event("create_alert_rule", _params, %{assigns: assigns} = socket) do
     attrs = %{
       project_id: assigns.selected_project.id,
@@ -425,6 +418,13 @@ defmodule TuistWeb.ProjectNotificationsLive do
 
   def handle_event("edit_alert_form_channel_selected", _params, socket) do
     {:noreply, socket}
+  end
+
+  defp update_edit_alert_form(socket, id, key, value) do
+    edit_alert_forms = socket.assigns.edit_alert_forms
+    form = Map.get(edit_alert_forms, id, %{})
+    updated_form = Map.put(form, key, value)
+    assign(socket, edit_alert_forms: Map.put(edit_alert_forms, id, updated_form))
   end
 
   defp alert_channel_selection_url(account_id) do

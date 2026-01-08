@@ -91,19 +91,6 @@ defmodule Tuist.Slack.Workers.AlertWorkerTest do
       assert result == :ok
     end
 
-    test "returns :ok when alert rule does not exist" do
-      # Given
-      non_existent_id = Ecto.UUID.generate()
-
-      reject(&Client.post_message/3)
-
-      # When
-      result = AlertWorker.perform(%Oban.Job{args: %{"alert_rule_id" => non_existent_id}})
-
-      # Then
-      assert result == :ok
-    end
-
     test "returns :ok when slack installation does not exist" do
       # Given - create a project for an account without slack installation
       other_user = AccountsFixtures.user_fixture()

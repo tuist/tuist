@@ -2994,7 +2994,7 @@ defmodule Tuist.Runs.Analytics do
         )
       )
 
-    calculate_metric_from_values(hit_rates, metric)
+    calculate_hit_rate_metric_from_values(hit_rates, metric)
   end
 
   defp calculate_metric_from_values([], _metric), do: nil
@@ -3004,6 +3004,27 @@ defmodule Tuist.Runs.Analytics do
   end
 
   defp calculate_metric_from_values(values, percentile) do
+    sorted = Enum.sort(values)
+    count = length(sorted)
+
+    index =
+      case percentile do
+        :p50 -> trunc(count * 0.5)
+        :p90 -> trunc(count * 0.9)
+        :p99 -> trunc(count * 0.99)
+      end
+
+    index = min(index, count - 1)
+    Enum.at(sorted, index)
+  end
+
+  defp calculate_hit_rate_metric_from_values([], _metric), do: nil
+
+  defp calculate_hit_rate_metric_from_values(values, :average) do
+    Enum.sum(values) / length(values)
+  end
+
+  defp calculate_hit_rate_metric_from_values(values, percentile) do
     # For cache hit rate, higher is better, so we reverse the percentile
     # p90 means 90% of values are >= this, so we take the 10th percentile
     sorted = Enum.sort(values)
