@@ -12,24 +12,14 @@ defmodule TuistTestSupport.Fixtures.AlertsFixtures do
         alert_rule_fixture()
       end)
 
-    alert =
-      %Alert{}
-      |> Alert.changeset(%{
-        alert_rule_id: Keyword.get(opts, :alert_rule_id, alert_rule.id),
-        current_value: Keyword.get(opts, :current_value, 1200.0),
-        previous_value: Keyword.get(opts, :previous_value, 1000.0)
-      })
-      |> Repo.insert!()
-
-    case Keyword.get(opts, :inserted_at) do
-      nil ->
-        alert
-
-      inserted_at ->
-        alert
-        |> Ecto.Changeset.change(%{inserted_at: inserted_at, updated_at: inserted_at})
-        |> Repo.update!()
-    end
+    %Alert{}
+    |> Alert.changeset(%{
+      alert_rule_id: Keyword.get(opts, :alert_rule_id, alert_rule.id),
+      current_value: Keyword.get(opts, :current_value, 1200.0),
+      previous_value: Keyword.get(opts, :previous_value, 1000.0),
+      inserted_at: Keyword.get(opts, :inserted_at)
+    })
+    |> Repo.insert!()
     |> Repo.preload(Keyword.get(opts, :preload, []))
   end
 

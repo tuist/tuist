@@ -26,7 +26,7 @@ defmodule Tuist.Alerts.Alert do
 
   def changeset(alert \\ %__MODULE__{}, attrs) do
     alert
-    |> cast(attrs, [:alert_rule_id, :current_value, :previous_value])
+    |> cast(attrs, [:alert_rule_id, :current_value, :previous_value, :inserted_at])
     |> validate_required([:alert_rule_id, :current_value, :previous_value])
     |> foreign_key_constraint(:alert_rule_id)
   end
