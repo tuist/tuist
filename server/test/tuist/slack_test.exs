@@ -3,8 +3,12 @@ defmodule Tuist.SlackTest do
   use Mimic
 
   alias Tuist.Environment
+  alias Tuist.Projects
   alias Tuist.Slack
+  alias Tuist.Slack.Client
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AlertsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.SlackFixtures
 
   describe "send_message/2" do
@@ -124,6 +128,49 @@ defmodule Tuist.SlackTest do
       assert {:ok, _deleted} = result
       assert Repo.get(Tuist.Slack.Installation, installation.id) == nil
     end
+
+    test "clears slack fields from projects when deleting installation" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+
+      project =
+        ProjectsFixtures.project_fixture(
+          account_id: user.account.id,
+          slack_channel_id: "C12345",
+          slack_channel_name: "test-channel"
+        )
+
+      # When
+      {:ok, _} = Slack.delete_installation(installation)
+
+      # Then
+      updated_project = Projects.get_project_by_id(project.id)
+      assert updated_project.slack_channel_id == nil
+      assert updated_project.slack_channel_name == nil
+    end
+
+    test "clears slack fields from alert rules when deleting installation" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts-channel"
+        )
+
+      # When
+      {:ok, _} = Slack.delete_installation(installation)
+
+      # Then
+      {:ok, updated_alert_rule} = Tuist.Alerts.get_alert_rule(alert_rule.id)
+      assert updated_alert_rule.slack_channel_id == nil
+      assert updated_alert_rule.slack_channel_name == nil
+    end
   end
 
   describe "generate_state_token/1" do
@@ -187,6 +234,76 @@ defmodule Tuist.SlackTest do
 
       # Then
       assert {:error, _reason} = result
+    end
+  end
+
+  describe "generate_alert_channel_selection_token/2" do
+    test "generates token without alert_rule_id" do
+      # Given
+      account_id = 123
+
+      # When
+      token = Slack.generate_alert_channel_selection_token(account_id)
+
+      # Then
+      assert {:ok, payload} = Slack.verify_state_token(token)
+      assert payload.type == :alert_channel_selection
+      assert payload.account_id == account_id
+      refute Map.has_key?(payload, :alert_rule_id)
+    end
+
+    test "generates token with alert_rule_id" do
+      # Given
+      account_id = 123
+      alert_rule_id = "rule-456"
+
+      # When
+      token = Slack.generate_alert_channel_selection_token(account_id, alert_rule_id: alert_rule_id)
+
+      # Then
+      assert {:ok, payload} = Slack.verify_state_token(token)
+      assert payload.type == :alert_channel_selection
+      assert payload.account_id == account_id
+      assert payload.alert_rule_id == alert_rule_id
+    end
+  end
+
+  describe "send_alert/1" do
+    test "sends alert notification to Slack" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :build_run_duration,
+          metric: :p90,
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts"
+        )
+
+      alert =
+        AlertsFixtures.alert_fixture(
+          alert_rule: alert_rule,
+          current_value: 1200.0,
+          previous_value: 1000.0
+        )
+
+      expect(Client, :post_message, fn token, channel_id, blocks ->
+        assert token == installation.access_token
+        assert channel_id == "C12345"
+        assert is_list(blocks)
+        assert length(blocks) == 5
+        :ok
+      end)
+
+      # When
+      result = Slack.send_alert(alert)
+
+      # Then
+      assert result == :ok
     end
   end
 end

@@ -186,7 +186,7 @@ defmodule Tuist.Slack do
           account: %{name: account_name, slack_installation: %Installation{access_token: access_token}}
         }
       }
-    } = Repo.preload(alert, alert_rule: [project: [account: :slack_installation]])
+    } = alert = Repo.preload(alert, alert_rule: [project: [account: :slack_installation]])
 
     blocks = build_alert_blocks(alert, account_name, project_name)
     Tuist.Slack.Client.post_message(access_token, slack_channel_id, blocks)
