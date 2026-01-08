@@ -2,7 +2,6 @@ defmodule Tuist.AlertsTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.Alerts
-  alias Tuist.Alerts.Alert
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AlertsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -467,19 +466,15 @@ defmodule Tuist.AlertsTest do
       # Given
       alert_rule = AlertsFixtures.alert_rule_fixture()
 
-      # Create an alert that was inserted 25 hours ago
       twenty_five_hours_ago =
         DateTime.utc_now()
         |> DateTime.add(-25, :hour)
         |> DateTime.truncate(:second)
 
-      Repo.insert!(%Alert{
-        alert_rule_id: alert_rule.id,
-        current_value: 1200.0,
-        previous_value: 1000.0,
-        inserted_at: twenty_five_hours_ago,
-        updated_at: twenty_five_hours_ago
-      })
+      AlertsFixtures.alert_fixture(
+        alert_rule: alert_rule,
+        inserted_at: twenty_five_hours_ago
+      )
 
       # When/Then
       assert Alerts.cooldown_elapsed?(alert_rule) == true
@@ -489,19 +484,15 @@ defmodule Tuist.AlertsTest do
       # Given
       alert_rule = AlertsFixtures.alert_rule_fixture()
 
-      # Create an alert that was inserted 1 hour ago
       one_hour_ago =
         DateTime.utc_now()
         |> DateTime.add(-1, :hour)
         |> DateTime.truncate(:second)
 
-      Repo.insert!(%Alert{
-        alert_rule_id: alert_rule.id,
-        current_value: 1200.0,
-        previous_value: 1000.0,
-        inserted_at: one_hour_ago,
-        updated_at: one_hour_ago
-      })
+      AlertsFixtures.alert_fixture(
+        alert_rule: alert_rule,
+        inserted_at: one_hour_ago
+      )
 
       # When/Then
       assert Alerts.cooldown_elapsed?(alert_rule) == false
