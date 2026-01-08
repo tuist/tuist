@@ -550,6 +550,65 @@ defmodule Tuist.CommandEvents do
     |> ClickHouseRepo.one()
   end
 
+  @doc """
+  Gets a single module cache hit rate metric for the last N events.
+
+  ## Parameters
+    * `project_id` - The project ID
+    * `metric` - The metric to calculate: `:p50`, `:p90`, `:p99`, or `:average`
+    * `opts` - Options:
+      * `:limit` - Number of events to consider (default: 100)
+      * `:offset` - Number of events to skip (default: 0)
+
+  ## Returns
+    The calculated metric value (0.0-1.0), or `nil` if no data available.
+  """
+  def cache_hit_rate_metric_by_count(project_id, metric, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 100)
+    offset = Keyword.get(opts, :offset, 0)
+
+    hit_rates =
+      ClickHouseRepo.all(
+        from(e in Event,
+          where:
+            e.project_id == ^project_id and
+              e.cacheable_targets_count > 0,
+          order_by: [desc: e.ran_at],
+          limit: ^limit,
+          offset: ^offset,
+          select:
+            fragment(
+              "(? + ?) / ?",
+              e.local_cache_hits_count,
+              e.remote_cache_hits_count,
+              e.cacheable_targets_count
+            )
+        )
+      )
+
+    calculate_metric_from_values(hit_rates, metric)
+  end
+
+  defp calculate_metric_from_values([], _metric), do: nil
+
+  defp calculate_metric_from_values(values, :average) do
+    Enum.sum(values) / length(values)
+  end
+
+  defp calculate_metric_from_values(values, percentile) do
+    sorted = Enum.sort(values)
+    count = length(sorted)
+
+    index =
+      case percentile do
+        :p50 -> trunc(count * 0.5)
+        :p90 -> trunc(count * 0.9)
+        :p99 -> trunc(count * 0.99)
+      end
+
+    Enum.at(sorted, min(index, count - 1))
+  end
+
   def selective_testing_hit_rate(project_id, start_datetime, end_datetime, opts) do
     query =
       from(e in Event,

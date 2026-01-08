@@ -158,6 +158,34 @@ defmodule Tuist.Cache.Analytics do
   defp average_hit_rates(nil, rate2), do: rate2
   defp average_hit_rates(rate1, rate2), do: (rate1 + rate2) / 2
 
+  @doc """
+  Gets combined cache hit rate metric for the last N runs by averaging
+  module cache (Events) and Xcode cache (Builds) hit rates.
+
+  ## Parameters
+    * `project_id` - The project ID
+    * `metric` - The metric to calculate: `:p50`, `:p90`, `:p99`, or `:average`
+    * `opts` - Options:
+      * `:limit` - Number of runs to consider (default: 100)
+      * `:offset` - Number of runs to skip (default: 0)
+
+  ## Returns
+    The averaged metric value (0.0-1.0), or `nil` if no data available.
+  """
+  def cache_hit_rate_metric_by_count(project_id, metric, opts \\ []) do
+    module_hit_rate = CommandEvents.cache_hit_rate_metric_by_count(project_id, metric, opts)
+
+    xcode_hit_rate =
+      Tuist.Runs.Analytics.build_cache_hit_rate_metric_by_count(project_id, metric, opts)
+
+    average_or_nil(module_hit_rate, xcode_hit_rate)
+  end
+
+  defp average_or_nil(nil, nil), do: nil
+  defp average_or_nil(rate1, nil), do: rate1
+  defp average_or_nil(nil, rate2), do: rate2
+  defp average_or_nil(rate1, rate2), do: (rate1 + rate2) / 2
+
   defp date_period(opts) do
     start_datetime = Keyword.get(opts, :start_datetime)
     end_datetime = Keyword.get(opts, :end_datetime)

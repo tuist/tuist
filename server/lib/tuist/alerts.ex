@@ -6,6 +6,7 @@ defmodule Tuist.Alerts do
 
   alias Tuist.Alerts.Alert
   alias Tuist.Alerts.AlertRule
+  alias Tuist.Cache.Analytics, as: CacheAnalytics
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Runs.Analytics
@@ -100,13 +101,13 @@ defmodule Tuist.Alerts do
 
   def evaluate(%AlertRule{category: :cache_hit_rate} = alert_rule) do
     current =
-      Analytics.build_cache_hit_rate_metric_by_count(alert_rule.project_id, alert_rule.metric,
+      CacheAnalytics.cache_hit_rate_metric_by_count(alert_rule.project_id, alert_rule.metric,
         limit: alert_rule.rolling_window_size,
         offset: 0
       )
 
     previous =
-      Analytics.build_cache_hit_rate_metric_by_count(alert_rule.project_id, alert_rule.metric,
+      CacheAnalytics.cache_hit_rate_metric_by_count(alert_rule.project_id, alert_rule.metric,
         limit: alert_rule.rolling_window_size,
         offset: alert_rule.rolling_window_size
       )
