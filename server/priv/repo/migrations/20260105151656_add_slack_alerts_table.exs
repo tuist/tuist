@@ -10,8 +10,8 @@ defmodule Tuist.Repo.Migrations.AddAlertRulesTable do
       add :threshold_percentage, :float, null: false
       add :sample_size, :integer, null: false
       add :enabled, :boolean, default: true, null: false
-      add :slack_channel_id, :string, null: false
-      add :slack_channel_name, :string, null: false
+      add :slack_channel_id, :string
+      add :slack_channel_name, :string
       add :last_triggered_at, :timestamptz
 
       timestamps(type: :timestamptz)

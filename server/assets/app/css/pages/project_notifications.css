@@ -110,8 +110,7 @@
     padding: var(--noora-spacing-9) var(--noora-spacing-0);
   }
 
-  & [data-part="edit-alert-modal"] {
-
+  & [data-part="edit-alert-modal"], & #create-alert-modal {
     & [data-part="alert-form"] {
       padding-bottom: var(--noora-spacing-9);
     }
@@ -119,11 +118,16 @@
     & [data-part="alert-description"] {
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-      padding-bottom: var(--noora-spacing-9);
+      padding: var(--noora-spacing-9) var(--noora-spacing-0);
     }
 
     & [data-part="slack-connect-alert"] {
       margin-bottom: var(--noora-spacing-7);
+    }
+
+    & [data-part="actions"] {
+      flex-shrink: 0;
+      align-self: center;
     }
   }
 
@@ -131,7 +135,7 @@
   & [data-part="alert-form"] {
     display: flex;
     flex-direction: column;
-    gap: var(--noora-spacing-6);
+    gap: var(--noora-spacing-7);
 
     & > [data-part="update-channel-button"] {
       align-self: flex-end;
@@ -159,10 +163,10 @@
 
       & .noora-text-input {
         width: 250px;
+      }
 
-        & [data-part="wrapper"] {
-          width: 250px;
-        }
+      &:has([data-part="channel-selection-column"]) {
+       align-items: flex-start;
       }
 
       & [data-part="channel-selection-column"] {
