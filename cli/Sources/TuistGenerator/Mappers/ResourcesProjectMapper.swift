@@ -259,6 +259,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
     static func objcHeaderFileContent(
         targetName: String
     ) -> String {
+        let sanitizedTargetName = sanitizeObjcIdentifier(targetName)
         return """
         #import <Foundation/Foundation.h>
 
@@ -266,9 +267,9 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         extern "C" {
         #endif
 
-        NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE(void);
+        NSBundle* \(sanitizedTargetName)_SWIFTPM_MODULE_BUNDLE(void);
 
-        #define SWIFTPM_MODULE_BUNDLE \(targetName)_SWIFTPM_MODULE_BUNDLE()
+        #define SWIFTPM_MODULE_BUNDLE \(sanitizedTargetName)_SWIFTPM_MODULE_BUNDLE()
 
         #if __cplusplus
         }
@@ -280,20 +281,21 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         targetName: String,
         bundleName: String
     ) -> String {
+        let sanitizedTargetName = sanitizeObjcIdentifier(targetName)
         return """
         #import <Foundation/Foundation.h>
         #import "TuistBundle+\(targetName).h"
 
-        @interface \(targetName)BundleFinder : NSObject
+        @interface \(sanitizedTargetName)BundleFinder : NSObject
         @end
 
-        @implementation \(targetName)BundleFinder
+        @implementation \(sanitizedTargetName)BundleFinder
         @end
 
-        NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE(void) {
+        NSBundle* \(sanitizedTargetName)_SWIFTPM_MODULE_BUNDLE(void) {
             NSString *bundleName = @"\(bundleName)";
 
-            NSURL *bundleURL = [[NSBundle bundleForClass:\(targetName)BundleFinder.self] resourceURL];
+            NSURL *bundleURL = [[NSBundle bundleForClass:\(sanitizedTargetName)BundleFinder.self] resourceURL];
             NSMutableArray *candidates = [NSMutableArray arrayWithObjects:
                                           [[NSBundle mainBundle] resourceURL],
                                           bundleURL,
@@ -409,6 +411,12 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             static let module = Bundle(for: BundleFinder.self)
         }
         """
+    }
+
+    /// Sanitizes a target name to be used as a valid Objective-C identifier
+    /// by removing invalid characters like hyphens
+    private static func sanitizeObjcIdentifier(_ identifier: String) -> String {
+        return identifier.replacingOccurrences(of: "-", with: "")
     }
 }
 
