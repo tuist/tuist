@@ -230,7 +230,7 @@
     </div>
   </.card_section>
 
-  <.card_section :if={@slack_installation} data-part="alert-rules-card-section">
+  <.card_section data-part="alert-rules-card-section">
     <div data-part="header">
       <div data-part="title-group">
         <span data-part="title">
@@ -264,6 +264,30 @@
             @create_alert_form_sample_size
           )}
         </p>
+        <.alert
+          :if={!@slack_installation}
+          status="information"
+          type="secondary"
+          size="small"
+          title={
+            dgettext(
+              "dashboard_projects",
+              "Connect your Slack account before selecting channels."
+            )
+          }
+        >
+          <:action>
+            <.link navigate={~p"/#{@selected_account.name}/integrations"} target="_blank">
+              <.button
+                label={dgettext("dashboard_projects", "Connect Slack")}
+                variant="secondary"
+                size="small"
+              >
+                <.icon name="external-link" />
+              </.button>
+            </.link>
+          </:action>
+        </.alert>
         <div data-part="alert-form">
           <div data-part="schedule-row">
             <label data-part="schedule-label">
@@ -377,6 +401,13 @@
                   size="small"
                 />
               </.link>
+              <.button
+                :if={!@slack_installation}
+                label={dgettext("dashboard_projects", "Select channel")}
+                variant="secondary"
+                size="small"
+                disabled
+              />
             </div>
           </div>
         </div>
@@ -442,6 +473,7 @@
                 title={dgettext("dashboard_projects", "Edit alert rule")}
                 header_size="large"
                 on_dismiss={JS.push("close_edit_alert_modal", value: %{id: rule.id})}
+                data-part="edit-alert-modal"
               >
                 <:trigger :let={attrs}>
                   <.button icon_only size="small" variant="secondary" {attrs}>
@@ -457,6 +489,31 @@
                     form[:sample_size] || rule.sample_size
                   )}
                 </p>
+                <.alert
+                  :if={!@slack_installation}
+                  data-part="slack-connect-alert"
+                  status="information"
+                  type="secondary"
+                  size="small"
+                  title={
+                    dgettext(
+                      "dashboard_projects",
+                      "Connect your Slack account before selecting channels."
+                    )
+                  }
+                >
+                  <:action>
+                    <.link navigate={~p"/#{@selected_account.name}/integrations"} target="_blank">
+                      <.button
+                        label={dgettext("dashboard_projects", "Connect Slack")}
+                        variant="secondary"
+                        size="small"
+                      >
+                        <.icon name="external-link" />
+                      </.button>
+                    </.link>
+                  </:action>
+                </.alert>
                 <div data-part="alert-form">
                   <div data-part="schedule-row">
                     <label data-part="schedule-label">
@@ -558,28 +615,38 @@
                         :if={form[:channel_id] || rule.slack_channel_id}
                         label={"##{form[:channel_name] || rule.slack_channel_name}"}
                       />
+                      <.link
+                        :if={@slack_installation}
+                        id={"edit-alert-form-channel-selection-link-#{rule.id}"}
+                        href={
+                          alert_form_channel_selection_url(
+                            @selected_project.id,
+                            @selected_account.id
+                          )
+                        }
+                        phx-hook="OAuthPopup"
+                        data-event="edit_alert_form_channel_selected"
+                        data-id={rule.id}
+                      >
+                        <.button
+                          label={
+                            if form[:channel_id] || rule.slack_channel_id,
+                              do: dgettext("dashboard_projects", "Update channel"),
+                              else: dgettext("dashboard_projects", "Select channel")
+                          }
+                          variant="secondary"
+                          size="small"
+                        />
+                      </.link>
+                      <.button
+                        :if={!@slack_installation}
+                        label={dgettext("dashboard_projects", "Select channel")}
+                        variant="secondary"
+                        size="small"
+                        disabled
+                      />
                     </div>
                   </div>
-                  <.link
-                    :if={@slack_installation}
-                    id={"edit-alert-form-channel-selection-link-#{rule.id}"}
-                    href={
-                      alert_form_channel_selection_url(
-                        @selected_project.id,
-                        @selected_account.id
-                      )
-                    }
-                    phx-hook="OAuthPopup"
-                    data-part="update-channel-button"
-                    data-event="edit_alert_form_channel_selected"
-                    data-id={rule.id}
-                  >
-                    <.button
-                      label={dgettext("dashboard_projects", "Update channel")}
-                      variant="secondary"
-                      size="medium"
-                    />
-                  </.link>
                 </div>
                 <.line_divider />
                 <:footer>
@@ -620,26 +687,6 @@
           </.button_cell>
         </:col>
       </.table>
-    </div>
-  </.card_section>
-
-  <.card_section :if={!@slack_installation} data-part="no-slack-card-section">
-    <div data-part="header">
-      <div data-part="title-group">
-        <span data-part="title">
-          {dgettext("dashboard_projects", "Slack not connected")}
-        </span>
-        <span data-part="subtitle">
-          {dgettext("dashboard_projects", "Connect Slack to enable notifications")}
-        </span>
-      </div>
-      <.link navigate={~p"/#{@selected_account.name}/settings"}>
-        <.button
-          label={dgettext("dashboard_projects", "Connect Slack")}
-          variant="primary"
-          size="medium"
-        />
-      </.link>
     </div>
   </.card_section>
 </div>

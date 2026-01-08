@@ -21,8 +21,7 @@
   }
 
   & > [data-part="reports-card-section"],
-  & > [data-part="alert-rules-card-section"],
-  & > [data-part="no-slack-card-section"] {
+  & > [data-part="alert-rules-card-section"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-6);
@@ -107,12 +106,32 @@
     }
   }
 
+  & [data-part="schedule-form"] {
+    padding: var(--noora-spacing-9) var(--noora-spacing-0);
+  }
+
+  & [data-part="edit-alert-modal"] {
+
+    & [data-part="alert-form"] {
+      padding-bottom: var(--noora-spacing-9);
+    }
+
+    & [data-part="alert-description"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      padding-bottom: var(--noora-spacing-9);
+    }
+
+    & [data-part="slack-connect-alert"] {
+      margin-bottom: var(--noora-spacing-7);
+    }
+  }
+
   & [data-part="schedule-form"],
   & [data-part="alert-form"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-6);
-    padding-block: var(--noora-spacing-6);
 
     & > [data-part="update-channel-button"] {
       align-self: flex-end;
@@ -209,12 +228,6 @@
       flex-direction: column;
       gap: var(--noora-spacing-8);
       min-width: 420px;
-    }
-
-    & [data-part="alert-description"] {
-      margin: 0;
-      color: var(--noora-surface-label-primary);
-      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
     }
   }
 

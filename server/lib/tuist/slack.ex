@@ -6,6 +6,7 @@ defmodule Tuist.Slack do
   import Ecto.Query
 
   alias Tuist.Alerts.Alert
+  alias Tuist.Alerts.AlertRule
   alias Tuist.Environment
   alias Tuist.Projects.Project
   alias Tuist.Repo
@@ -40,6 +41,11 @@ defmodule Tuist.Slack do
     result =
       Ecto.Multi.new()
       |> Ecto.Multi.update_all(:clear_slack_fields, clear_project_slack_fields_query(account_id), [])
+      |> Ecto.Multi.update_all(
+        :clear_alert_rule_slack_fields,
+        clear_alert_rule_slack_fields_query(account_id),
+        []
+      )
       |> Ecto.Multi.delete(:delete_installation, installation)
       |> Repo.transaction()
 
@@ -65,6 +71,20 @@ defmodule Tuist.Slack do
 
   defp clear_project_slack_fields_query(account_id) do
     from(p in Project,
+      where: p.account_id == ^account_id,
+      update: [
+        set: [
+          slack_channel_id: nil,
+          slack_channel_name: nil
+        ]
+      ]
+    )
+  end
+
+  defp clear_alert_rule_slack_fields_query(account_id) do
+    from(ar in AlertRule,
+      join: p in Project,
+      on: ar.project_id == p.id,
       where: p.account_id == ^account_id,
       update: [
         set: [
