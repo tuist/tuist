@@ -13,10 +13,11 @@ defmodule Tuist.Alerts.AlertRuleTest do
       changeset =
         AlertRule.changeset(%AlertRule{}, %{
           project_id: project.id,
+          name: "Test Alert",
           category: :build_run_duration,
           metric: :p90,
-          threshold_percentage: 20.0,
-          sample_size: 100,
+          deviation_percentage: 20.0,
+          rolling_window_size: 100,
           slack_channel_id: "C123456",
           slack_channel_name: "test-channel"
         })
@@ -29,10 +30,11 @@ defmodule Tuist.Alerts.AlertRuleTest do
       # When
       changeset =
         AlertRule.changeset(%AlertRule{}, %{
+          name: "Test Alert",
           category: :build_run_duration,
           metric: :p90,
-          threshold_percentage: 20.0,
-          sample_size: 100,
+          deviation_percentage: 20.0,
+          rolling_window_size: 100,
           slack_channel_id: "C123456",
           slack_channel_name: "test-channel"
         })
@@ -50,9 +52,10 @@ defmodule Tuist.Alerts.AlertRuleTest do
       changeset =
         AlertRule.changeset(%AlertRule{}, %{
           project_id: project.id,
+          name: "Test Alert",
           metric: :p90,
-          threshold_percentage: 20.0,
-          sample_size: 100,
+          deviation_percentage: 20.0,
+          rolling_window_size: 100,
           slack_channel_id: "C123456",
           slack_channel_name: "test-channel"
         })
@@ -70,9 +73,10 @@ defmodule Tuist.Alerts.AlertRuleTest do
       changeset =
         AlertRule.changeset(%AlertRule{}, %{
           project_id: project.id,
+          name: "Test Alert",
           category: :build_run_duration,
-          threshold_percentage: 20.0,
-          sample_size: 100,
+          deviation_percentage: 20.0,
+          rolling_window_size: 100,
           slack_channel_id: "C123456",
           slack_channel_name: "test-channel"
         })
@@ -82,7 +86,7 @@ defmodule Tuist.Alerts.AlertRuleTest do
       assert "can't be blank" in errors_on(changeset).metric
     end
 
-    test "is invalid without threshold_percentage" do
+    test "is invalid without deviation_percentage" do
       # Given
       project = ProjectsFixtures.project_fixture()
 
@@ -90,19 +94,20 @@ defmodule Tuist.Alerts.AlertRuleTest do
       changeset =
         AlertRule.changeset(%AlertRule{}, %{
           project_id: project.id,
+          name: "Test Alert",
           category: :build_run_duration,
           metric: :p90,
-          sample_size: 100,
+          rolling_window_size: 100,
           slack_channel_id: "C123456",
           slack_channel_name: "test-channel"
         })
 
       # Then
       assert changeset.valid? == false
-      assert "can't be blank" in errors_on(changeset).threshold_percentage
+      assert "can't be blank" in errors_on(changeset).deviation_percentage
     end
 
-    test "is invalid without sample_size" do
+    test "is invalid without rolling_window_size" do
       # Given
       project = ProjectsFixtures.project_fixture()
 
@@ -110,16 +115,17 @@ defmodule Tuist.Alerts.AlertRuleTest do
       changeset =
         AlertRule.changeset(%AlertRule{}, %{
           project_id: project.id,
+          name: "Test Alert",
           category: :build_run_duration,
           metric: :p90,
-          threshold_percentage: 20.0,
+          deviation_percentage: 20.0,
           slack_channel_id: "C123456",
           slack_channel_name: "test-channel"
         })
 
       # Then
       assert changeset.valid? == false
-      assert "can't be blank" in errors_on(changeset).sample_size
+      assert "can't be blank" in errors_on(changeset).rolling_window_size
     end
 
     test "is invalid without slack_channel_id" do
@@ -130,10 +136,11 @@ defmodule Tuist.Alerts.AlertRuleTest do
       changeset =
         AlertRule.changeset(%AlertRule{}, %{
           project_id: project.id,
+          name: "Test Alert",
           category: :build_run_duration,
           metric: :p90,
-          threshold_percentage: 20.0,
-          sample_size: 100,
+          deviation_percentage: 20.0,
+          rolling_window_size: 100,
           slack_channel_name: "test-channel"
         })
 
@@ -150,10 +157,11 @@ defmodule Tuist.Alerts.AlertRuleTest do
       changeset =
         AlertRule.changeset(%AlertRule{}, %{
           project_id: project.id,
+          name: "Test Alert",
           category: :build_run_duration,
           metric: :p90,
-          threshold_percentage: 20.0,
-          sample_size: 100,
+          deviation_percentage: 20.0,
+          rolling_window_size: 100,
           slack_channel_id: "C123456"
         })
 
@@ -162,7 +170,7 @@ defmodule Tuist.Alerts.AlertRuleTest do
       assert "can't be blank" in errors_on(changeset).slack_channel_name
     end
 
-    test "is invalid with threshold_percentage <= 0" do
+    test "is invalid with deviation_percentage <= 0" do
       # Given
       project = ProjectsFixtures.project_fixture()
 
@@ -170,20 +178,21 @@ defmodule Tuist.Alerts.AlertRuleTest do
       changeset =
         AlertRule.changeset(%AlertRule{}, %{
           project_id: project.id,
+          name: "Test Alert",
           category: :build_run_duration,
           metric: :p90,
-          threshold_percentage: 0,
-          sample_size: 100,
+          deviation_percentage: 0,
+          rolling_window_size: 100,
           slack_channel_id: "C123456",
           slack_channel_name: "test-channel"
         })
 
       # Then
       assert changeset.valid? == false
-      assert "must be greater than 0" in errors_on(changeset).threshold_percentage
+      assert "must be greater than 0" in errors_on(changeset).deviation_percentage
     end
 
-    test "is invalid with sample_size <= 0" do
+    test "is invalid with rolling_window_size <= 0" do
       # Given
       project = ProjectsFixtures.project_fixture()
 
@@ -191,38 +200,18 @@ defmodule Tuist.Alerts.AlertRuleTest do
       changeset =
         AlertRule.changeset(%AlertRule{}, %{
           project_id: project.id,
+          name: "Test Alert",
           category: :build_run_duration,
           metric: :p90,
-          threshold_percentage: 20.0,
-          sample_size: 0,
+          deviation_percentage: 20.0,
+          rolling_window_size: 0,
           slack_channel_id: "C123456",
           slack_channel_name: "test-channel"
         })
 
       # Then
       assert changeset.valid? == false
-      assert "must be greater than 0" in errors_on(changeset).sample_size
-    end
-
-    test "is invalid with sample_size > 1000" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      # When
-      changeset =
-        AlertRule.changeset(%AlertRule{}, %{
-          project_id: project.id,
-          category: :build_run_duration,
-          metric: :p90,
-          threshold_percentage: 20.0,
-          sample_size: 1001,
-          slack_channel_id: "C123456",
-          slack_channel_name: "test-channel"
-        })
-
-      # Then
-      assert changeset.valid? == false
-      assert "must be less than or equal to 1000" in errors_on(changeset).sample_size
+      assert "must be greater than 0" in errors_on(changeset).rolling_window_size
     end
 
     test "accepts all valid categories" do
@@ -234,10 +223,11 @@ defmodule Tuist.Alerts.AlertRuleTest do
         changeset =
           AlertRule.changeset(%AlertRule{}, %{
             project_id: project.id,
+            name: "Test Alert",
             category: category,
             metric: :p90,
-            threshold_percentage: 20.0,
-            sample_size: 100,
+            deviation_percentage: 20.0,
+            rolling_window_size: 100,
             slack_channel_id: "C123456",
             slack_channel_name: "test-channel"
           })
@@ -256,10 +246,11 @@ defmodule Tuist.Alerts.AlertRuleTest do
         changeset =
           AlertRule.changeset(%AlertRule{}, %{
             project_id: project.id,
+            name: "Test Alert",
             category: :build_run_duration,
             metric: metric,
-            threshold_percentage: 20.0,
-            sample_size: 100,
+            deviation_percentage: 20.0,
+            rolling_window_size: 100,
             slack_channel_id: "C123456",
             slack_channel_name: "test-channel"
           })
@@ -277,10 +268,11 @@ defmodule Tuist.Alerts.AlertRuleTest do
       changeset =
         AlertRule.changeset(%AlertRule{}, %{
           project_id: non_existent_project_id,
+          name: "Test Alert",
           category: :build_run_duration,
           metric: :p90,
-          threshold_percentage: 20.0,
-          sample_size: 100,
+          deviation_percentage: 20.0,
+          rolling_window_size: 100,
           slack_channel_id: "C123456",
           slack_channel_name: "test-channel"
         })
@@ -291,7 +283,7 @@ defmodule Tuist.Alerts.AlertRuleTest do
       assert "does not exist" in errors_on(changeset_with_error).project_id
     end
 
-    test "defaults enabled to true" do
+    test "defaults name to Untitled" do
       # Given
       project = ProjectsFixtures.project_fixture()
 
@@ -301,8 +293,8 @@ defmodule Tuist.Alerts.AlertRuleTest do
           project_id: project.id,
           category: :build_run_duration,
           metric: :p90,
-          threshold_percentage: 20.0,
-          sample_size: 100,
+          deviation_percentage: 20.0,
+          rolling_window_size: 100,
           slack_channel_id: "C123456",
           slack_channel_name: "test-channel"
         })
@@ -310,7 +302,7 @@ defmodule Tuist.Alerts.AlertRuleTest do
       # Then
       assert changeset.valid?
       {:ok, alert_rule} = Repo.insert(changeset)
-      assert alert_rule.enabled == true
+      assert alert_rule.name == "Untitled"
     end
   end
 end

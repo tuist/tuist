@@ -2898,9 +2898,6 @@ defmodule Tuist.Runs.Analytics do
   @doc """
   Gets a single build duration metric for the last N builds.
 
-  This function is designed for alerts that compare recent builds against
-  previous builds using count-based windows rather than time-based windows.
-
   ## Parameters
     * `project_id` - The project ID
     * `metric` - The metric to calculate: `:p50`, `:p90`, `:p99`, or `:average`
@@ -2932,9 +2929,6 @@ defmodule Tuist.Runs.Analytics do
   @doc """
   Gets a single test duration metric for the last N tests.
 
-  This function is designed for alerts that compare recent tests against
-  previous tests using count-based windows rather than time-based windows.
-
   ## Parameters
     * `project_id` - The project ID
     * `metric` - The metric to calculate: `:p50`, `:p90`, `:p99`, or `:average`
@@ -2965,9 +2959,6 @@ defmodule Tuist.Runs.Analytics do
 
   @doc """
   Gets a single cache hit rate metric for the last N builds.
-
-  This function is designed for alerts that compare recent cache hit rates against
-  previous builds using count-based windows rather than time-based windows.
 
   ## Parameters
     * `project_id` - The project ID
