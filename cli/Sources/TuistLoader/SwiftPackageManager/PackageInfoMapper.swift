@@ -125,44 +125,6 @@ public final class PackageInfoMapper: PackageInfoMapping {
         self.rootDirectoryLocator = rootDirectoryLocator
     }
 
-    /// Extracts the enabled traits for each package dependency from the root package and all packages in the dependency graph.
-    /// - Parameters:
-    ///   - rootPackageInfo: The `PackageInfo` of the root package (the Tuist `Package.swift`)
-    ///   - packageInfos: All `PackageInfo`s in the dependency graph, keyed by package identity
-    /// - Returns: A dictionary where keys are package identities and values are the set of enabled trait names
-    public static func enabledTraits(
-        rootPackageInfo: PackageInfo,
-        packageInfos: [String: PackageInfo]
-    ) -> [String: Set<String>] {
-        var result: [String: Set<String>] = [:]
-
-        func processTraits(
-            from dependencies: [PackageDependency],
-            enabledTraitsForCurrentPackage: Set<String>
-        ) {
-            for dependency in dependencies {
-                for trait in dependency.traits {
-                    if let condition = trait.condition {
-                        if !condition.isDisjoint(with: enabledTraitsForCurrentPackage) {
-                            result[dependency.identity, default: []].insert(trait.name)
-                        }
-                    } else {
-                        result[dependency.identity, default: []].insert(trait.name)
-                    }
-                }
-            }
-        }
-
-        processTraits(from: rootPackageInfo.dependencies, enabledTraitsForCurrentPackage: [])
-
-        for (packageId, packageInfo) in packageInfos {
-            let enabledForThisPackage = result[packageId] ?? []
-            processTraits(from: packageInfo.dependencies, enabledTraitsForCurrentPackage: enabledForThisPackage)
-        }
-
-        return result
-    }
-
     /// Resolves all SwiftPackageManager dependencies.
     /// - Parameters:
     ///   - packageInfos: All available `PackageInfo`s
@@ -1111,19 +1073,7 @@ extension ProjectDescription.Settings {
         if !enabledTraits.isEmpty {
             var traitConditions: Set<String> = []
 
-            func resolveTraits(_ traitNames: some Collection<String>) {
-                for traitName in traitNames {
-                    guard let trait = packageTraits.first(where: { $0.name == traitName }) else {
-                        continue
-                    }
-                    if traitName != "default" {
-                        traitConditions.insert(traitName)
-                    }
-                    resolveTraits(trait.enabledTraits)
-                }
-            }
-
-            resolveTraits(enabledTraits)
+            resolveTraits(enabledTraits, packageTraits: packageTraits, into: &traitConditions)
 
             if !traitConditions.isEmpty {
                 settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] =
@@ -1631,5 +1581,23 @@ extension PackageInfo.Platform {
     var tuistPlatformName: String {
         // catalyst is mapped to iOS platform in tuist
         platformName == "maccatalyst" ? "ios" : platformName
+    }
+}
+
+// MARK: - Trait Resolution
+
+private func resolveTraits(
+    _ traitNames: some Collection<String>,
+    packageTraits: Set<Trait>,
+    into traitConditions: inout Set<String>
+) {
+    for traitName in traitNames {
+        guard let trait = packageTraits.first(where: { $0.name == traitName }) else {
+            continue
+        }
+        if traitName != "default" {
+            traitConditions.insert(traitName)
+        }
+        resolveTraits(trait.enabledTraits, packageTraits: packageTraits, into: &traitConditions)
     }
 }

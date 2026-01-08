@@ -14,7 +14,7 @@ let swiftGenKitDependency: Target.Dependency = .product(
     name: "SwiftGenKit", package: "swiftGen.SwiftGen")
 let fileSystemDependency: Target.Dependency = .product(name: "FileSystem", package: "tuist.FileSystem")
 let commandDependency: Target.Dependency = .product(name: "Command", package: "tuist.Command")
-let xcodeGraphDependency: Target.Dependency = .product(name: "XcodeGraph", package: "XcodeGraph")
+let xcodeGraphDependency: Target.Dependency = .product(name: "XcodeGraph", package: "tuist.XcodeGraph")
 let xcodeProjDependency: Target.Dependency = .product(name: "XcodeProj", package: "tuist.XcodeProj")
 let mockableDependency: Target.Dependency = .product(name: "Mockable", package: "kolos65.Mockable")
 let zipFoundationDependency: Target.Dependency = .product(name: "ZIPFoundation", package: "tuist.ZIPFoundation")
@@ -58,7 +58,7 @@ let targets: [Target] = [
             mockableDependency,
             fileSystemDependency,
             "TuistSimulator",
-            .product(name: "XcodeMetadata", package: "XcodeGraph"),
+            .product(name: "XcodeMetadata", package: "tuist.XcodeGraph"),
             anyCodableDependency,
         ],
         path: "cli/Sources/TuistCore",
@@ -102,7 +102,7 @@ let targets: [Target] = [
             .product(name: "Noora", package: "tuist.Noora"),
             .product(name: "Command", package: "tuist.Command"),
             .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
-            .product(name: "XcodeGraphMapper", package: "XcodeGraph"),
+            .product(name: "XcodeGraphMapper", package: "tuist.XcodeGraph"),
             anyCodableDependency,
             .product(name: "MCP", package: "modelcontextprotocol.swift-sdk"),
             .product(name: "SwiftyJSON", package: "swiftyJSON.SwiftyJSON"),
@@ -692,7 +692,7 @@ let package = Package(
             id: "apple.swift-openapi-urlsession", .upToNextMajor(from: "1.0.2")
         ),
         .package(id: "tuist.Path", .upToNextMajor(from: "0.3.0")),
-        .package(url: "https://github.com/tuist/XcodeGraph", branch: "add-package-dependencies-with-traits"),
+        .package(id: "tuist.XcodeGraph", .upToNextMajor(from: "1.30.2")),
         .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.11.0")),
         .package(id: "tuist.Command", .upToNextMajor(from: "0.8.0")),
         .package(id: "sparkle-project.Sparkle", from: "2.6.4"),

@@ -202,7 +202,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         )
 
         let packageInfoDictionaryById = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.id, $0.info) })
-        let enabledTraitsPerPackage = PackageInfoMapper.enabledTraits(
+        let enabledTraitsPerPackage = enabledTraits(
             rootPackageInfo: rootPackage,
             packageInfos: packageInfoDictionaryById
         )
@@ -285,6 +285,55 @@ extension ProjectDescription.Platform {
             return .watchOS
         case .visionOS:
             return .visionOS
+        }
+    }
+}
+
+// MARK: - Trait Processing
+
+/// Extracts the enabled traits for each package dependency from the root package and all packages in the dependency graph.
+/// - Parameters:
+///   - rootPackageInfo: The `PackageInfo` of the root package (the Tuist `Package.swift`)
+///   - packageInfos: All `PackageInfo`s in the dependency graph, keyed by package identity
+/// - Returns: A dictionary where keys are package identities and values are the set of enabled trait names
+func enabledTraits(
+    rootPackageInfo: PackageInfo,
+    packageInfos: [String: PackageInfo]
+) -> [String: Set<String>] {
+    var result: [String: Set<String>] = [:]
+
+    processTraits(
+        from: rootPackageInfo.dependencies,
+        enabledTraitsForCurrentPackage: [],
+        result: &result
+    )
+
+    for (packageId, packageInfo) in packageInfos {
+        let enabledForThisPackage = result[packageId] ?? []
+        processTraits(
+            from: packageInfo.dependencies,
+            enabledTraitsForCurrentPackage: enabledForThisPackage,
+            result: &result
+        )
+    }
+
+    return result
+}
+
+private func processTraits(
+    from dependencies: [PackageDependency],
+    enabledTraitsForCurrentPackage: Set<String>,
+    result: inout [String: Set<String>]
+) {
+    for dependency in dependencies {
+        for trait in dependency.traits {
+            if let condition = trait.condition {
+                if !condition.isDisjoint(with: enabledTraitsForCurrentPackage) {
+                    result[dependency.identity, default: []].insert(trait.name)
+                }
+            } else {
+                result[dependency.identity, default: []].insert(trait.name)
+            }
         }
     }
 }
