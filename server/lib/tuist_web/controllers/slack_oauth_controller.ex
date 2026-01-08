@@ -114,26 +114,17 @@ defmodule TuistWeb.SlackOAuthController do
     end
   end
 
-  defp handle_channel_selection(conn, code, account_id, project_id) do
-    with {:ok, _account} <- Accounts.get_account_by_id(account_id),
-         %Project{} = project <- Projects.get_project_by_id(project_id),
-         {:ok, token_data} <- SlackClient.exchange_code_for_token(code, slack_redirect_uri()),
-         {:ok, _project} <- update_project_channel(project, token_data) do
-      render_popup_close(conn, nil, nil)
-    else
-      nil ->
-        raise BadRequestError, dgettext("dashboard_slack", "Project not found. Please try again.")
-
-      {:error, :not_found} ->
-        raise BadRequestError, dgettext("dashboard_slack", "Account not found. Please try again.")
+  defp handle_channel_selection(conn, code, _account_id, _project_id) do
+    case SlackClient.exchange_code_for_token(code, slack_redirect_uri()) do
+      {:ok, token_data} ->
+        incoming_webhook = token_data.incoming_webhook
+        channel_id = incoming_webhook.channel_id
+        channel_name = String.trim_leading(incoming_webhook.channel, "#")
+        render_popup_close(conn, channel_id, channel_name)
 
       {:error, reason} when is_binary(reason) ->
         raise BadRequestError,
               dgettext("dashboard_slack", "Slack authorization failed: %{reason}", reason: reason)
-
-      {:error, %Ecto.Changeset{}} ->
-        raise BadRequestError,
-              dgettext("dashboard_slack", "Failed to save channel selection. Please try again.")
     end
   end
 
@@ -169,17 +160,6 @@ defmodule TuistWeb.SlackOAuthController do
         raise BadRequestError,
               dgettext("dashboard_slack", "Slack authorization failed: %{reason}", reason: reason)
     end
-  end
-
-  defp update_project_channel(project, token_data) do
-    incoming_webhook = token_data.incoming_webhook
-    channel_name = String.trim_leading(incoming_webhook.channel, "#")
-
-    Projects.update_project(project, %{
-      slack_channel_id: incoming_webhook.channel_id,
-      slack_channel_name: channel_name,
-      report_frequency: :daily
-    })
   end
 
   defp update_alert_rule_channel(alert_rule, token_data) do

@@ -315,62 +315,44 @@ defmodule TuistWeb.ProjectNotificationsLive do
       slack_channel_name: assigns.create_alert_form_channel_name
     }
 
-    case Alerts.create_alert_rule(attrs) do
-      {:ok, _alert_rule} ->
-        socket =
-          socket
-          |> assign_alert_defaults(assigns.selected_project)
-          |> push_event("close-modal", %{id: "create-alert-modal"})
+    {:ok, _alert_rule} = Alerts.create_alert_rule(attrs)
 
-        {:noreply, socket}
+    socket =
+      socket
+      |> assign_alert_defaults(assigns.selected_project)
+      |> push_event("close-modal", %{id: "create-alert-modal"})
 
-      {:error, _changeset} ->
-        {:noreply, socket}
-    end
+    {:noreply, socket}
   end
 
   def handle_event("update_alert_rule", %{"id" => id}, %{assigns: assigns} = socket) do
     form = Map.get(assigns.edit_alert_forms, id)
+    {:ok, alert_rule} = Alerts.get_alert_rule(id)
 
-    case Alerts.get_alert_rule(id) do
-      {:ok, alert_rule} ->
-        attrs = %{
-          name: form.name,
-          category: form.category,
-          metric: form.metric,
-          deviation_percentage: form.deviation,
-          rolling_window_size: form.rolling_window_size,
-          slack_channel_id: form.channel_id,
-          slack_channel_name: form.channel_name
-        }
+    attrs = %{
+      name: form.name,
+      category: form.category,
+      metric: form.metric,
+      deviation_percentage: form.deviation,
+      rolling_window_size: form.rolling_window_size,
+      slack_channel_id: form.channel_id,
+      slack_channel_name: form.channel_name
+    }
 
-        case Alerts.update_alert_rule(alert_rule, attrs) do
-          {:ok, _alert_rule} ->
-            socket =
-              socket
-              |> assign_alert_defaults(assigns.selected_project)
-              |> push_event("close-modal", %{id: "edit-alert-modal-#{id}"})
+    {:ok, _alert_rule} = Alerts.update_alert_rule(alert_rule, attrs)
 
-            {:noreply, socket}
+    socket =
+      socket
+      |> assign_alert_defaults(assigns.selected_project)
+      |> push_event("close-modal", %{id: "edit-alert-modal-#{id}"})
 
-          {:error, _changeset} ->
-            {:noreply, socket}
-        end
-
-      {:error, :not_found} ->
-        {:noreply, socket}
-    end
+    {:noreply, socket}
   end
 
   def handle_event("delete_alert_rule", %{"alert_rule_id" => alert_rule_id}, socket) do
-    case Alerts.get_alert_rule(alert_rule_id) do
-      {:ok, alert_rule} ->
-        {:ok, _} = Alerts.delete_alert_rule(alert_rule)
-        {:noreply, assign(socket, alert_rules: Alerts.get_project_alert_rules(socket.assigns.selected_project))}
-
-      {:error, :not_found} ->
-        {:noreply, socket}
-    end
+    {:ok, alert_rule} = Alerts.get_alert_rule(alert_rule_id)
+    {:ok, _} = Alerts.delete_alert_rule(alert_rule)
+    {:noreply, assign(socket, alert_rules: Alerts.get_project_alert_rules(socket.assigns.selected_project))}
   end
 
   def handle_event("close_create_alert_modal", _params, %{assigns: %{selected_project: selected_project}} = socket) do
@@ -391,26 +373,21 @@ defmodule TuistWeb.ProjectNotificationsLive do
     {:noreply, socket}
   end
 
-  def handle_event("oauth_channel_selected", _params, socket) do
-    # Force reload from database to get the updated channel data
-    selected_project =
-      socket.assigns.selected_project
-      |> Repo.reload!()
-      |> Repo.preload(:account)
-
-    # Enable Slack reports when a channel is selected
-    selected_project =
-      if selected_project.slack_channel_id != nil && selected_project.report_frequency != :daily do
-        {:ok, updated_project} = Projects.update_project(selected_project, %{report_frequency: :daily})
-        updated_project
-      else
-        selected_project
-      end
+  def handle_event(
+        "oauth_channel_selected",
+        %{"channel_id" => channel_id, "channel_name" => channel_name},
+        %{assigns: %{selected_project: selected_project}} = socket
+      ) do
+    {:ok, selected_project} =
+      Projects.update_project(selected_project, %{
+        slack_channel_id: channel_id,
+        slack_channel_name: channel_name,
+        report_frequency: :daily
+      })
 
     socket =
       socket
       |> assign(selected_project: selected_project)
-      |> assign(alert_rules: Alerts.get_project_alert_rules(selected_project))
       |> assign_schedule_form_defaults(selected_project)
 
     {:noreply, socket}
