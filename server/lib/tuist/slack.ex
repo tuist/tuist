@@ -179,20 +179,21 @@ defmodule Tuist.Slack do
 
   @doc """
   Sends an alert notification to Slack.
-
-  Requires the alert to have alert_rule -> project -> account -> slack_installation preloaded.
   """
-  def send_alert(
-        %Alert{
-          alert_rule: %{
-            slack_channel_id: slack_channel_id,
-            project: %{
-              name: project_name,
-              account: %{name: account_name, slack_installation: %Installation{access_token: access_token}}
-            }
-          }
-        } = alert
-      ) do
+  def send_alert(%Alert{} = alert) do
+    alert =
+      Repo.preload(alert, alert_rule: [project: [account: :slack_installation]])
+
+    %Alert{
+      alert_rule: %{
+        slack_channel_id: slack_channel_id,
+        project: %{
+          name: project_name,
+          account: %{name: account_name, slack_installation: %Installation{access_token: access_token}}
+        }
+      }
+    } = alert
+
     blocks = build_alert_blocks(alert, account_name, project_name)
     Tuist.Slack.Client.post_message(access_token, slack_channel_id, blocks)
   end
