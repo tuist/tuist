@@ -596,14 +596,16 @@ defmodule Tuist.CommandEvents do
   end
 
   defp calculate_metric_from_values(values, percentile) do
+    # For cache hit rate, higher is better, so we reverse the percentile
+    # p90 means 90% of values are >= this, so we take the 10th percentile
     sorted = Enum.sort(values)
     count = length(sorted)
 
     index =
       case percentile do
         :p50 -> trunc(count * 0.5)
-        :p90 -> trunc(count * 0.9)
-        :p99 -> trunc(count * 0.99)
+        :p90 -> trunc(count * 0.1)
+        :p99 -> trunc(count * 0.01)
       end
 
     Enum.at(sorted, min(index, count - 1))
