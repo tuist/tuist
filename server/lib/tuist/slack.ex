@@ -275,27 +275,35 @@ defmodule Tuist.Slack do
   defp alert_metric_label(nil), do: ""
 
   defp format_alert_message(%Alert{alert_rule: %{category: :build_run_duration, metric: metric}} = alert) do
-    change_pct = Alert.change_percentage(alert)
+    deviation = calculate_increase_deviation(alert)
 
-    "*Build time #{alert_metric_label(metric)} increased by #{change_pct}%*\n" <>
+    "*Build time #{alert_metric_label(metric)} increased by #{deviation}%*\n" <>
       "Previous: #{format_alert_duration(alert.previous_value)}\n" <>
       "Current: #{format_alert_duration(alert.current_value)}"
   end
 
   defp format_alert_message(%Alert{alert_rule: %{category: :test_run_duration, metric: metric}} = alert) do
-    change_pct = Alert.change_percentage(alert)
+    deviation = calculate_increase_deviation(alert)
 
-    "*Test time #{alert_metric_label(metric)} increased by #{change_pct}%*\n" <>
+    "*Test time #{alert_metric_label(metric)} increased by #{deviation}%*\n" <>
       "Previous: #{format_alert_duration(alert.previous_value)}\n" <>
       "Current: #{format_alert_duration(alert.current_value)}"
   end
 
   defp format_alert_message(%Alert{alert_rule: %{category: :cache_hit_rate, metric: metric}} = alert) do
-    change_pct = Alert.change_percentage(alert)
+    deviation = calculate_decrease_deviation(alert)
 
-    "*Cache hit rate #{alert_metric_label(metric)} decreased by #{change_pct}%*\n" <>
+    "*Cache hit rate #{alert_metric_label(metric)} decreased by #{deviation}%*\n" <>
       "Previous: #{format_alert_percentage(alert.previous_value)}\n" <>
       "Current: #{format_alert_percentage(alert.current_value)}"
+  end
+
+  defp calculate_increase_deviation(%Alert{current_value: current, previous_value: previous}) do
+    Float.round((current - previous) / previous * 100, 1)
+  end
+
+  defp calculate_decrease_deviation(%Alert{current_value: current, previous_value: previous}) do
+    Float.round((previous - current) / previous * 100, 1)
   end
 
   defp format_alert_duration(ms) when is_number(ms) do

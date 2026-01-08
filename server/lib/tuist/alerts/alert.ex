@@ -30,22 +30,4 @@ defmodule Tuist.Alerts.Alert do
     |> validate_required([:alert_rule_id, :current_value, :previous_value])
     |> foreign_key_constraint(:alert_rule_id)
   end
-
-  @doc """
-  Computes the change percentage based on current/previous values and category.
-
-  For increase regressions (build_run_duration, test_run_duration):
-    change = (current - previous) / previous * 100
-
-  For decrease regressions (cache_hit_rate):
-    change = (previous - current) / previous * 100
-  """
-  def change_percentage(%__MODULE__{alert_rule: %{category: category}} = alert)
-      when category in [:build_run_duration, :test_run_duration] do
-    Float.round((alert.current_value - alert.previous_value) / alert.previous_value * 100, 1)
-  end
-
-  def change_percentage(%__MODULE__{alert_rule: %{category: :cache_hit_rate}} = alert) do
-    Float.round((alert.previous_value - alert.current_value) / alert.previous_value * 100, 1)
-  end
 end
