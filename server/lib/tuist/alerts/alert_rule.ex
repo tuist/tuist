@@ -56,7 +56,7 @@ defmodule Tuist.Alerts.AlertRule do
       :slack_channel_name
     ])
     |> validate_number(:deviation_percentage, greater_than: 0)
-    |> validate_number(:rolling_window_size, greater_than: 0, less_than_or_equal_to: 1000)
+    |> validate_number(:rolling_window_size, greater_than: 0)
     |> foreign_key_constraint(:project_id)
   end
 
