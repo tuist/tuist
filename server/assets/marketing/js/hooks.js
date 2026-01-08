@@ -6,6 +6,7 @@ import { ScrollToTop } from "./hooks/scroll-to-top.js";
 import { CodeCopy } from "./hooks/code-copy.js";
 import { ShikiHighlight } from "./hooks/shiki-highlight.js";
 import InfiniteScrollLogos from "./hooks/infinite-scroll-logos.js";
+import LogoTransition from "./hooks/logo-transition.js";
 
 const Hooks = {
   NavbarDropdown,
@@ -16,6 +17,7 @@ const Hooks = {
   CodeCopy,
   ShikiHighlight,
   InfiniteScrollLogos,
+  LogoTransition,
 };
 
 export { Hooks };

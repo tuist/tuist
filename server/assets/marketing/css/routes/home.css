@@ -395,9 +395,11 @@
     overflow: hidden;
 
     @media (min-width: 1024px) {
+      position: relative;
       flex-direction: column;
       justify-content: center;
       gap: var(--noora-spacing-9);
+      min-height: 160px;
       overflow: visible;
     }
 
@@ -429,7 +431,23 @@
       }
     }
 
-    & > [data-part="rows"] {
+    & > [data-part="logo-group"] {
+      display: none;
+
+      @media (min-width: 1024px) {
+        display: flex;
+        position: absolute;
+        top: 0;
+        left: 0;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: var(--noora-spacing-9);
+        width: 100%;
+      }
+    }
+
+    & [data-part="rows"] {
       display: flex;
       flex-shrink: 0;
       justify-content: center;
