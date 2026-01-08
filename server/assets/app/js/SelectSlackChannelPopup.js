@@ -1,4 +1,4 @@
-const OAuthPopup = {
+const SelectSlackChannelPopup = {
   mounted() {
     this.popup = null;
     this.channel = new BroadcastChannel("oauth_popup");
@@ -46,4 +46,4 @@ const OAuthPopup = {
   },
 };
 
-export default OAuthPopup;
+export default SelectSlackChannelPopup;
