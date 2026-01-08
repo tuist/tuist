@@ -5100,7 +5100,7 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        let result = PackageInfoMapper.enabledTraits(
+        let result = enabledTraits(
             rootPackageInfo: rootPackageInfo,
             packageInfos: [:]
         )
@@ -5118,7 +5118,7 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        let result = PackageInfoMapper.enabledTraits(
+        let result = enabledTraits(
             rootPackageInfo: rootPackageInfo,
             packageInfos: [:]
         )
@@ -5154,7 +5154,7 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        let result = PackageInfoMapper.enabledTraits(
+        let result = enabledTraits(
             rootPackageInfo: rootPackageInfo,
             packageInfos: ["dependency-a": dependencyAInfo]
         )
@@ -5192,7 +5192,7 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        let result = PackageInfoMapper.enabledTraits(
+        let result = enabledTraits(
             rootPackageInfo: rootPackageInfo,
             packageInfos: ["dependency-a": dependencyAInfo]
         )
@@ -5221,7 +5221,7 @@ struct PackageInfoMapperTests {
             ]
         )
 
-        let result = PackageInfoMapper.enabledTraits(
+        let result = enabledTraits(
             rootPackageInfo: rootPackageInfo,
             packageInfos: [:]
         )
