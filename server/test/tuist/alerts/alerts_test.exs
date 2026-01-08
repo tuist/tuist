@@ -41,11 +41,9 @@ defmodule Tuist.AlertsTest do
           project: project,
           category: :build_run_duration,
           metric: :average,
-          threshold_percentage: 20.0,
-          sample_size: 10
+          deviation_percentage: 20.0,
+          rolling_window_size: 10
         )
-
-      alert_rule = Repo.preload(alert_rule, project: :account)
 
       # When
       result = Alerts.evaluate(alert_rule)
@@ -86,11 +84,9 @@ defmodule Tuist.AlertsTest do
           project: project,
           category: :build_run_duration,
           metric: :average,
-          threshold_percentage: 20.0,
-          sample_size: 5
+          deviation_percentage: 20.0,
+          rolling_window_size: 5
         )
-
-      alert_rule = Repo.preload(alert_rule, project: :account)
 
       # When
       result = Alerts.evaluate(alert_rule)
@@ -99,7 +95,7 @@ defmodule Tuist.AlertsTest do
       assert {:triggered, result} = result
       assert result.current == 1200.0
       assert result.previous == 1000.0
-      assert result.change_pct == 20.0
+      assert result.deviation == 20.0
     end
 
     test "returns :ok when no current data" do
@@ -110,10 +106,8 @@ defmodule Tuist.AlertsTest do
         AlertsFixtures.alert_rule_fixture(
           project: project,
           category: :build_run_duration,
-          sample_size: 5
+          rolling_window_size: 5
         )
-
-      alert_rule = Repo.preload(alert_rule, project: :account)
 
       # When
       result = Alerts.evaluate(alert_rule)
@@ -156,11 +150,9 @@ defmodule Tuist.AlertsTest do
           project: project,
           category: :test_run_duration,
           metric: :average,
-          threshold_percentage: 15.0,
-          sample_size: 5
+          deviation_percentage: 15.0,
+          rolling_window_size: 5
         )
-
-      alert_rule = Repo.preload(alert_rule, project: :account)
 
       # When
       result = Alerts.evaluate(alert_rule)
@@ -169,7 +161,7 @@ defmodule Tuist.AlertsTest do
       assert {:triggered, result} = result
       assert result.current == 2300.0
       assert result.previous == 2000.0
-      assert result.change_pct == 15.0
+      assert result.deviation == 15.0
     end
 
     test "returns :ok when no regression" do
@@ -193,11 +185,9 @@ defmodule Tuist.AlertsTest do
           project: project,
           category: :test_run_duration,
           metric: :average,
-          threshold_percentage: 20.0,
-          sample_size: 5
+          deviation_percentage: 20.0,
+          rolling_window_size: 5
         )
-
-      alert_rule = Repo.preload(alert_rule, project: :account)
 
       # When
       result = Alerts.evaluate(alert_rule)
@@ -246,11 +236,9 @@ defmodule Tuist.AlertsTest do
           project: project,
           category: :cache_hit_rate,
           metric: :average,
-          threshold_percentage: 10.0,
-          sample_size: 5
+          deviation_percentage: 10.0,
+          rolling_window_size: 5
         )
-
-      alert_rule = Repo.preload(alert_rule, project: :account)
 
       # When
       result = Alerts.evaluate(alert_rule)
@@ -260,7 +248,7 @@ defmodule Tuist.AlertsTest do
       assert {:triggered, result} = result
       assert result.current == 0.7
       assert result.previous == 0.8
-      assert result.change_pct == 12.5
+      assert result.deviation == 12.5
     end
 
     test "returns :ok when cache hit rate improved" do
@@ -301,11 +289,9 @@ defmodule Tuist.AlertsTest do
           project: project,
           category: :cache_hit_rate,
           metric: :average,
-          threshold_percentage: 10.0,
-          sample_size: 5
+          deviation_percentage: 10.0,
+          rolling_window_size: 5
         )
-
-      alert_rule = Repo.preload(alert_rule, project: :account)
 
       # When
       result = Alerts.evaluate(alert_rule)
@@ -315,7 +301,7 @@ defmodule Tuist.AlertsTest do
     end
   end
 
-  describe "list_project_alert_rules/1" do
+  describe "get_project_alert_rules/1" do
     test "returns alert rules for a project" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -323,7 +309,7 @@ defmodule Tuist.AlertsTest do
       alert_rule2 = AlertsFixtures.alert_rule_fixture(project: project, category: :test_run_duration)
 
       # When
-      alert_rules = Alerts.list_project_alert_rules(project.id)
+      alert_rules = Alerts.get_project_alert_rules(project)
 
       # Then
       assert length(alert_rules) == 2
@@ -337,7 +323,7 @@ defmodule Tuist.AlertsTest do
       project = ProjectsFixtures.project_fixture()
 
       # When
-      alert_rules = Alerts.list_project_alert_rules(project.id)
+      alert_rules = Alerts.get_project_alert_rules(project)
 
       # Then
       assert alert_rules == []
@@ -378,8 +364,8 @@ defmodule Tuist.AlertsTest do
         project_id: project.id,
         category: :build_run_duration,
         metric: :p90,
-        threshold_percentage: 20.0,
-        sample_size: 100,
+        deviation_percentage: 20.0,
+        rolling_window_size: 100,
         slack_channel_id: "C123456",
         slack_channel_name: "test-channel"
       }
@@ -392,11 +378,10 @@ defmodule Tuist.AlertsTest do
       assert alert_rule.project_id == project.id
       assert alert_rule.category == :build_run_duration
       assert alert_rule.metric == :p90
-      assert alert_rule.threshold_percentage == 20.0
-      assert alert_rule.sample_size == 100
+      assert alert_rule.deviation_percentage == 20.0
+      assert alert_rule.rolling_window_size == 100
       assert alert_rule.slack_channel_id == "C123456"
       assert alert_rule.slack_channel_name == "test-channel"
-      assert alert_rule.enabled == true
     end
 
     test "returns error with invalid attributes" do
@@ -415,25 +400,13 @@ defmodule Tuist.AlertsTest do
       alert_rule = AlertsFixtures.alert_rule_fixture()
 
       # When
-      result = Alerts.update_alert_rule(alert_rule, %{threshold_percentage: 30.0, metric: :p99})
+      result = Alerts.update_alert_rule(alert_rule, %{deviation_percentage: 30.0, metric: :p99})
 
       # Then
       assert {:ok, updated} = result
-      assert updated.threshold_percentage == 30.0
+      assert updated.deviation_percentage == 30.0
       assert updated.metric == :p99
       assert updated.category == alert_rule.category
-    end
-
-    test "can disable an alert rule" do
-      # Given
-      alert_rule = AlertsFixtures.alert_rule_fixture(enabled: true)
-
-      # When
-      result = Alerts.update_alert_rule(alert_rule, %{enabled: false})
-
-      # Then
-      assert {:ok, updated} = result
-      assert updated.enabled == false
     end
   end
 
@@ -451,28 +424,29 @@ defmodule Tuist.AlertsTest do
     end
   end
 
-  describe "list_enabled_alert_rules/0" do
-    test "returns only enabled alert rules with preloaded associations" do
+  describe "get_all_alert_rules/0" do
+    test "returns all alert rules with preloaded associations" do
       # Given
       project = ProjectsFixtures.project_fixture()
-      enabled_rule = AlertsFixtures.alert_rule_fixture(project: project, enabled: true)
-      _disabled_rule = AlertsFixtures.alert_rule_fixture(project: project, enabled: false)
+      rule1 = AlertsFixtures.alert_rule_fixture(project: project)
+      rule2 = AlertsFixtures.alert_rule_fixture(project: project)
 
       # When
-      alert_rules = Alerts.list_enabled_alert_rules()
+      alert_rules = Alerts.get_all_alert_rules()
 
       # Then
       alert_rule_ids = Enum.map(alert_rules, & &1.id)
-      assert enabled_rule.id in alert_rule_ids
+      assert rule1.id in alert_rule_ids
+      assert rule2.id in alert_rule_ids
     end
 
     test "preloads project and account" do
       # Given
       project = ProjectsFixtures.project_fixture()
-      _alert_rule = AlertsFixtures.alert_rule_fixture(project: project, enabled: true)
+      _alert_rule = AlertsFixtures.alert_rule_fixture(project: project)
 
       # When
-      [fetched_rule] = Alerts.list_enabled_alert_rules()
+      [fetched_rule] = Alerts.get_all_alert_rules()
 
       # Then
       assert fetched_rule.project
@@ -553,54 +527,6 @@ defmodule Tuist.AlertsTest do
       assert alert.alert_rule_id == alert_rule.id
       assert alert.current_value == 1200.0
       assert alert.previous_value == 1000.0
-    end
-  end
-
-  describe "get_latest_alert/1" do
-    test "returns the most recent alert for a rule" do
-      # Given
-      alert_rule = AlertsFixtures.alert_rule_fixture()
-
-      now = DateTime.truncate(DateTime.utc_now(), :second)
-      one_hour_ago = DateTime.add(now, -1, :hour)
-
-      # Create older alert with explicit timestamp
-      _older_alert =
-        Repo.insert!(%Alert{
-          alert_rule_id: alert_rule.id,
-          current_value: 1100.0,
-          previous_value: 1000.0,
-          inserted_at: one_hour_ago,
-          updated_at: one_hour_ago
-        })
-
-      # Create newer alert with explicit timestamp
-      newer_alert =
-        Repo.insert!(%Alert{
-          alert_rule_id: alert_rule.id,
-          current_value: 1200.0,
-          previous_value: 1000.0,
-          inserted_at: now,
-          updated_at: now
-        })
-
-      # When
-      result = Alerts.get_latest_alert(alert_rule.id)
-
-      # Then
-      assert result.id == newer_alert.id
-      assert result.current_value == 1200.0
-    end
-
-    test "returns nil when no alerts exist" do
-      # Given
-      alert_rule = AlertsFixtures.alert_rule_fixture()
-
-      # When
-      result = Alerts.get_latest_alert(alert_rule.id)
-
-      # Then
-      assert result == nil
     end
   end
 end

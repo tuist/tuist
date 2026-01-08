@@ -19,9 +19,9 @@ defmodule Tuist.Slack.Workers.AlertWorkerTest do
   end
 
   describe "perform/1 with no args (cron mode)" do
-    test "enqueues jobs for enabled alert rules", %{project: project} do
+    test "enqueues jobs for all alert rules", %{project: project} do
       # Given
-      alert_rule = AlertsFixtures.alert_rule_fixture(project: project, enabled: true)
+      alert_rule = AlertsFixtures.alert_rule_fixture(project: project)
 
       expect(Oban, :insert, fn changeset ->
         assert changeset.changes.args == %{alert_rule_id: alert_rule.id}
@@ -34,27 +34,14 @@ defmodule Tuist.Slack.Workers.AlertWorkerTest do
       # Then
       assert result == :ok
     end
-
-    test "does not enqueue jobs for disabled alert rules", %{project: project} do
-      # Given
-      _disabled_alert_rule = AlertsFixtures.alert_rule_fixture(project: project, enabled: false)
-
-      reject(&Oban.insert/1)
-
-      # When
-      result = AlertWorker.perform(%Oban.Job{args: %{}})
-
-      # Then
-      assert result == :ok
-    end
   end
 
   describe "perform/1 with alert_rule_id (job mode)" do
     test "sends alert when threshold is exceeded", %{project: project, slack_installation: slack_installation} do
       # Given
-      alert_rule = AlertsFixtures.alert_rule_fixture(project: project, enabled: true)
+      alert_rule = AlertsFixtures.alert_rule_fixture(project: project)
 
-      triggered_result = %{current: 1200.0, previous: 1000.0, change_pct: 20.0}
+      triggered_result = %{current: 1200.0, previous: 1000.0, deviation: 20.0}
 
       stub(Alerts, :cooldown_elapsed?, fn _alert_rule -> true end)
       expect(Alerts, :evaluate, fn _alert_rule -> {:triggered, triggered_result} end)
@@ -74,7 +61,7 @@ defmodule Tuist.Slack.Workers.AlertWorkerTest do
 
     test "does not send alert when threshold is not exceeded", %{project: project} do
       # Given
-      alert_rule = AlertsFixtures.alert_rule_fixture(project: project, enabled: true)
+      alert_rule = AlertsFixtures.alert_rule_fixture(project: project)
 
       stub(Alerts, :cooldown_elapsed?, fn _alert_rule -> true end)
       expect(Alerts, :evaluate, fn _alert_rule -> :ok end)
@@ -90,25 +77,10 @@ defmodule Tuist.Slack.Workers.AlertWorkerTest do
 
     test "does not send alert when cooldown has not elapsed", %{project: project} do
       # Given
-      alert_rule = AlertsFixtures.alert_rule_fixture(project: project, enabled: true)
+      alert_rule = AlertsFixtures.alert_rule_fixture(project: project)
 
       stub(Alerts, :cooldown_elapsed?, fn _alert_rule -> false end)
 
-      reject(&Alerts.evaluate/1)
-      reject(&Client.post_message/3)
-
-      # When
-      result = AlertWorker.perform(%Oban.Job{args: %{"alert_rule_id" => alert_rule.id}})
-
-      # Then
-      assert result == :ok
-    end
-
-    test "does not send alert when alert rule is disabled", %{project: project} do
-      # Given
-      alert_rule = AlertsFixtures.alert_rule_fixture(project: project, enabled: false)
-
-      reject(&Alerts.cooldown_elapsed?/1)
       reject(&Alerts.evaluate/1)
       reject(&Client.post_message/3)
 
@@ -136,7 +108,7 @@ defmodule Tuist.Slack.Workers.AlertWorkerTest do
       # Given - create a project for an account without slack installation
       other_user = AccountsFixtures.user_fixture()
       project = ProjectsFixtures.project_fixture(account_id: other_user.account.id)
-      alert_rule = AlertsFixtures.alert_rule_fixture(project: project, enabled: true)
+      alert_rule = AlertsFixtures.alert_rule_fixture(project: project)
 
       # No slack installation for this account, so early return before evaluate is called
       reject(&Alerts.evaluate/1)

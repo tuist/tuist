@@ -22,9 +22,8 @@ defmodule Tuist.Alerts.AlertRule do
     field :name, :string, default: "Untitled"
     field :category, Ecto.Enum, values: @categories
     field :metric, Ecto.Enum, values: @metrics
-    field :threshold_percentage, :float
-    field :sample_size, :integer
-    field :enabled, :boolean, default: true
+    field :deviation_percentage, :float
+    field :rolling_window_size, :integer
     field :slack_channel_id, :string
     field :slack_channel_name, :string
 
@@ -41,9 +40,8 @@ defmodule Tuist.Alerts.AlertRule do
       :name,
       :category,
       :metric,
-      :threshold_percentage,
-      :sample_size,
-      :enabled,
+      :deviation_percentage,
+      :rolling_window_size,
       :slack_channel_id,
       :slack_channel_name
     ])
@@ -52,13 +50,13 @@ defmodule Tuist.Alerts.AlertRule do
       :name,
       :category,
       :metric,
-      :threshold_percentage,
-      :sample_size,
+      :deviation_percentage,
+      :rolling_window_size,
       :slack_channel_id,
       :slack_channel_name
     ])
-    |> validate_number(:threshold_percentage, greater_than: 0)
-    |> validate_number(:sample_size, greater_than: 0, less_than_or_equal_to: 1000)
+    |> validate_number(:deviation_percentage, greater_than: 0)
+    |> validate_number(:rolling_window_size, greater_than: 0, less_than_or_equal_to: 1000)
     |> foreign_key_constraint(:project_id)
   end
 

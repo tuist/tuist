@@ -259,8 +259,8 @@
           {alert_rule_description(
             @create_alert_form_category,
             @create_alert_form_metric,
-            @create_alert_form_threshold,
-            @create_alert_form_sample_size
+            @create_alert_form_deviation,
+            @create_alert_form_rolling_window_size
           )}
         </p>
         <.alert
@@ -353,10 +353,10 @@
             </label>
             <.text_input
               type="basic"
-              id="create-alert-threshold"
-              name="threshold"
-              value={@create_alert_form_threshold}
-              phx-keyup="update_create_alert_form_threshold"
+              id="create-alert-deviation"
+              name="deviation"
+              value={@create_alert_form_deviation}
+              phx-keyup="update_create_alert_form_deviation"
               phx-debounce="300"
             />
           </div>
@@ -366,10 +366,10 @@
             </label>
             <.text_input
               type="basic"
-              id="create-alert-sample-size"
-              name="sample_size"
-              value={@create_alert_form_sample_size}
-              phx-keyup="update_create_alert_form_sample_size"
+              id="create-alert-rolling-window-size"
+              name="rolling_window_size"
+              value={@create_alert_form_rolling_window_size}
+              phx-keyup="update_create_alert_form_rolling_window_size"
               phx-debounce="300"
             />
           </div>
@@ -442,10 +442,10 @@
           <.text_cell label={metric_label(rule.metric)} />
         </:col>
         <:col :let={rule} label={dgettext("dashboard_projects", "Deviation")}>
-          <.text_cell label={"#{rule.threshold_percentage}%"} />
+          <.text_cell label={"#{rule.deviation_percentage}%"} />
         </:col>
         <:col :let={rule} label={dgettext("dashboard_projects", "Rolling window")}>
-          <.text_cell label={Integer.to_string(rule.sample_size)} />
+          <.text_cell label={Integer.to_string(rule.rolling_window_size)} />
         </:col>
         <:col :let={rule} label={dgettext("dashboard_projects", "Channel")}>
           <.text_cell
@@ -480,8 +480,8 @@
                   {alert_rule_description(
                     form[:category] || rule.category,
                     form[:metric] || rule.metric,
-                    form[:threshold] || rule.threshold_percentage,
-                    form[:sample_size] || rule.sample_size
+                    form[:deviation] || rule.deviation_percentage,
+                    form[:rolling_window_size] || rule.rolling_window_size
                   )}
                 </p>
                 <.alert
@@ -578,10 +578,10 @@
                     </label>
                     <.text_input
                       type="basic"
-                      id={"edit-alert-threshold-#{rule.id}"}
-                      name="threshold"
-                      value={form[:threshold] || rule.threshold_percentage}
-                      phx-keyup="update_edit_alert_form_threshold"
+                      id={"edit-alert-deviation-#{rule.id}"}
+                      name="deviation"
+                      value={form[:deviation] || rule.deviation_percentage}
+                      phx-keyup="update_edit_alert_form_deviation"
                       phx-value-id={rule.id}
                       phx-debounce="300"
                     />
@@ -592,10 +592,10 @@
                     </label>
                     <.text_input
                       type="basic"
-                      id={"edit-alert-sample-size-#{rule.id}"}
-                      name="sample_size"
-                      value={form[:sample_size] || rule.sample_size}
-                      phx-keyup="update_edit_alert_form_sample_size"
+                      id={"edit-alert-rolling-window-size-#{rule.id}"}
+                      name="rolling_window_size"
+                      value={form[:rolling_window_size] || rule.rolling_window_size}
+                      phx-keyup="update_edit_alert_form_rolling_window_size"
                       phx-value-id={rule.id}
                       phx-debounce="300"
                     />

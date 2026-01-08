@@ -24,7 +24,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
             dgettext("dashboard_projects", "You are not authorized to perform this action.")
     end
 
-    selected_account = Tuist.Repo.preload(selected_account, [:slack_installation])
+    selected_account = Repo.preload(selected_account, [:slack_installation])
     slack_installation = selected_account.slack_installation
 
     if connected?(socket) do
@@ -52,7 +52,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
     slack_installation =
       case status do
         :connected ->
-          selected_account = Tuist.Repo.preload(selected_account, [:slack_installation], force: true)
+          selected_account = Repo.preload(selected_account, [:slack_installation], force: true)
           selected_account.slack_installation
 
         :disconnected ->
@@ -63,7 +63,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
   end
 
   defp assign_alert_defaults(socket, project) do
-    alert_rules = Alerts.list_project_alert_rules(project.id)
+    alert_rules = Alerts.get_project_alert_rules(project)
 
     edit_alert_forms =
       Map.new(alert_rules, fn rule ->
@@ -76,8 +76,8 @@ defmodule TuistWeb.ProjectNotificationsLive do
     |> assign(create_alert_form_name: "")
     |> assign(create_alert_form_category: :build_run_duration)
     |> assign(create_alert_form_metric: :p99)
-    |> assign(create_alert_form_threshold: 20.0)
-    |> assign(create_alert_form_sample_size: 100)
+    |> assign(create_alert_form_deviation: 20.0)
+    |> assign(create_alert_form_rolling_window_size: 100)
     |> assign(create_alert_form_channel_id: nil)
     |> assign(create_alert_form_channel_name: nil)
     # Edit forms - one per alert rule
@@ -89,8 +89,8 @@ defmodule TuistWeb.ProjectNotificationsLive do
       name: rule.name,
       category: rule.category,
       metric: rule.metric,
-      threshold: rule.threshold_percentage,
-      sample_size: rule.sample_size,
+      deviation: rule.deviation_percentage,
+      rolling_window_size: rule.rolling_window_size,
       channel_id: rule.slack_channel_id,
       channel_name: rule.slack_channel_name
     }
@@ -234,8 +234,8 @@ defmodule TuistWeb.ProjectNotificationsLive do
       |> assign(create_alert_form_name: "")
       |> assign(create_alert_form_category: :build_run_duration)
       |> assign(create_alert_form_metric: :p99)
-      |> assign(create_alert_form_threshold: 20.0)
-      |> assign(create_alert_form_sample_size: 100)
+      |> assign(create_alert_form_deviation: 20.0)
+      |> assign(create_alert_form_rolling_window_size: 100)
       |> assign(create_alert_form_channel_id: nil)
       |> assign(create_alert_form_channel_name: nil)
 
@@ -255,16 +255,16 @@ defmodule TuistWeb.ProjectNotificationsLive do
     {:noreply, assign(socket, create_alert_form_metric: String.to_existing_atom(metric))}
   end
 
-  def handle_event("update_create_alert_form_threshold", %{"value" => threshold_str}, socket) do
-    case Float.parse(threshold_str) do
-      {threshold, _} -> {:noreply, assign(socket, create_alert_form_threshold: threshold)}
+  def handle_event("update_create_alert_form_deviation", %{"value" => deviation_str}, socket) do
+    case Float.parse(deviation_str) do
+      {deviation, _} -> {:noreply, assign(socket, create_alert_form_deviation: deviation)}
       :error -> {:noreply, socket}
     end
   end
 
-  def handle_event("update_create_alert_form_sample_size", %{"value" => size_str}, socket) do
+  def handle_event("update_create_alert_form_rolling_window_size", %{"value" => size_str}, socket) do
     case Integer.parse(size_str) do
-      {size, _} -> {:noreply, assign(socket, create_alert_form_sample_size: size)}
+      {size, _} -> {:noreply, assign(socket, create_alert_form_rolling_window_size: size)}
       :error -> {:noreply, socket}
     end
   end
@@ -282,16 +282,16 @@ defmodule TuistWeb.ProjectNotificationsLive do
     {:noreply, update_edit_alert_form(socket, id, :metric, String.to_existing_atom(metric))}
   end
 
-  def handle_event("update_edit_alert_form_threshold", %{"id" => id, "value" => threshold_str}, socket) do
-    case Float.parse(threshold_str) do
-      {threshold, _} -> {:noreply, update_edit_alert_form(socket, id, :threshold, threshold)}
+  def handle_event("update_edit_alert_form_deviation", %{"id" => id, "value" => deviation_str}, socket) do
+    case Float.parse(deviation_str) do
+      {deviation, _} -> {:noreply, update_edit_alert_form(socket, id, :deviation, deviation)}
       :error -> {:noreply, socket}
     end
   end
 
-  def handle_event("update_edit_alert_form_sample_size", %{"id" => id, "value" => size_str}, socket) do
+  def handle_event("update_edit_alert_form_rolling_window_size", %{"id" => id, "value" => size_str}, socket) do
     case Integer.parse(size_str) do
-      {size, _} -> {:noreply, update_edit_alert_form(socket, id, :sample_size, size)}
+      {size, _} -> {:noreply, update_edit_alert_form(socket, id, :rolling_window_size, size)}
       :error -> {:noreply, socket}
     end
   end
@@ -309,8 +309,8 @@ defmodule TuistWeb.ProjectNotificationsLive do
       name: assigns.create_alert_form_name,
       category: assigns.create_alert_form_category,
       metric: assigns.create_alert_form_metric,
-      threshold_percentage: assigns.create_alert_form_threshold,
-      sample_size: assigns.create_alert_form_sample_size,
+      deviation_percentage: assigns.create_alert_form_deviation,
+      rolling_window_size: assigns.create_alert_form_rolling_window_size,
       slack_channel_id: assigns.create_alert_form_channel_id,
       slack_channel_name: assigns.create_alert_form_channel_name
     }
@@ -338,8 +338,8 @@ defmodule TuistWeb.ProjectNotificationsLive do
           name: form.name,
           category: form.category,
           metric: form.metric,
-          threshold_percentage: form.threshold,
-          sample_size: form.sample_size,
+          deviation_percentage: form.deviation,
+          rolling_window_size: form.rolling_window_size,
           slack_channel_id: form.channel_id,
           slack_channel_name: form.channel_name
         }
@@ -362,22 +362,11 @@ defmodule TuistWeb.ProjectNotificationsLive do
     end
   end
 
-  def handle_event("toggle_alert_rule_enabled", %{"alert_rule_id" => alert_rule_id}, socket) do
-    case Alerts.get_alert_rule(alert_rule_id) do
-      {:ok, alert_rule} ->
-        {:ok, _} = Alerts.update_alert_rule(alert_rule, %{enabled: !alert_rule.enabled})
-        {:noreply, assign(socket, alert_rules: Alerts.list_project_alert_rules(socket.assigns.selected_project.id))}
-
-      {:error, :not_found} ->
-        {:noreply, socket}
-    end
-  end
-
   def handle_event("delete_alert_rule", %{"alert_rule_id" => alert_rule_id}, socket) do
     case Alerts.get_alert_rule(alert_rule_id) do
       {:ok, alert_rule} ->
         {:ok, _} = Alerts.delete_alert_rule(alert_rule)
-        {:noreply, assign(socket, alert_rules: Alerts.list_project_alert_rules(socket.assigns.selected_project.id))}
+        {:noreply, assign(socket, alert_rules: Alerts.get_project_alert_rules(socket.assigns.selected_project))}
 
       {:error, :not_found} ->
         {:noreply, socket}
@@ -421,7 +410,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
     socket =
       socket
       |> assign(selected_project: selected_project)
-      |> assign(alert_rules: Alerts.list_project_alert_rules(selected_project.id))
+      |> assign(alert_rules: Alerts.get_project_alert_rules(selected_project))
       |> assign_schedule_form_defaults(selected_project)
 
     {:noreply, socket}
@@ -541,7 +530,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
   defp metric_label(:average), do: dgettext("dashboard_projects", "Average")
   defp metric_label(nil), do: ""
 
-  defp alert_rule_description(category, metric, threshold, sample_size) do
+  defp alert_rule_description(category, metric, deviation, rolling_window_size) do
     metric_category = alert_metric_category_label(category, metric)
     unit = alert_unit_label(category)
 
@@ -550,21 +539,21 @@ defmodule TuistWeb.ProjectNotificationsLive do
         :cache_hit_rate ->
           dgettext(
             "dashboard_projects",
-            "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{sample_size} %{unit}</strong> has decreased by <strong>%{threshold}%</strong> compared to the previous <strong>%{sample_size} %{unit}</strong>.",
+            "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{unit}</strong> has decreased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>.",
             metric_category: metric_category,
-            sample_size: sample_size,
+            rolling_window_size: rolling_window_size,
             unit: unit,
-            threshold: threshold
+            deviation: deviation
           )
 
         _ ->
           dgettext(
             "dashboard_projects",
-            "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{sample_size} %{unit}</strong> has increased by <strong>%{threshold}%</strong> compared to the previous <strong>%{sample_size} %{unit}</strong>.",
+            "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{unit}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>.",
             metric_category: metric_category,
-            sample_size: sample_size,
+            rolling_window_size: rolling_window_size,
             unit: unit,
-            threshold: threshold
+            deviation: deviation
           )
       end
 

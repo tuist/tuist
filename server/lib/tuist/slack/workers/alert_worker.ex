@@ -2,7 +2,7 @@ defmodule Tuist.Slack.Workers.AlertWorker do
   @moduledoc """
   A periodic job that checks alert rule conditions and sends Slack notifications.
 
-  Runs every 10 minutes. The cron job finds all enabled alert rules and enqueues
+  Runs every 10 minutes. The cron job finds all alert rules and enqueues
   individual alert check jobs. This allows tracking cooldowns per alert rule.
   """
   use Oban.Worker, max_attempts: 3
@@ -23,7 +23,7 @@ defmodule Tuist.Slack.Workers.AlertWorker do
   end
 
   def perform(_job) do
-    alert_rules = Alerts.list_enabled_alert_rules()
+    alert_rules = Alerts.get_all_alert_rules()
 
     for alert_rule <- alert_rules do
       %{alert_rule_id: alert_rule.id}
@@ -38,9 +38,6 @@ defmodule Tuist.Slack.Workers.AlertWorker do
     alert_rule = Repo.preload(alert_rule, project: [account: :slack_installation])
 
     cond do
-      not alert_rule.enabled ->
-        :ok
-
       not Alerts.cooldown_elapsed?(alert_rule) ->
         :ok
 

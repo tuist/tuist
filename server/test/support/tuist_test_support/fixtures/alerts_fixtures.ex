@@ -36,9 +36,8 @@ defmodule TuistTestSupport.Fixtures.AlertsFixtures do
       name: Keyword.get(opts, :name, "Test Alert #{unique_id}"),
       category: Keyword.get(opts, :category, :build_run_duration),
       metric: Keyword.get(opts, :metric, :p90),
-      threshold_percentage: Keyword.get(opts, :threshold_percentage, 20.0),
-      sample_size: Keyword.get(opts, :sample_size, 100),
-      enabled: Keyword.get(opts, :enabled, true),
+      deviation_percentage: Keyword.get(opts, :deviation_percentage, 20.0),
+      rolling_window_size: Keyword.get(opts, :rolling_window_size, 100),
       slack_channel_id: Keyword.get(opts, :slack_channel_id, "C#{unique_id}"),
       slack_channel_name: Keyword.get(opts, :slack_channel_name, "test-channel-#{unique_id}")
     })
