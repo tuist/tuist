@@ -383,6 +383,9 @@
             "sso": {
               "text": "SSO"
             },
+            "slack": {
+              "text": "Slack"
+            },
             "git-forges": {
               "text": "Git forges",
               "items": {

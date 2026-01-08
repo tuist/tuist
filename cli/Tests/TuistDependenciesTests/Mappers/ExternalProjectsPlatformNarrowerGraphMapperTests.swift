@@ -235,6 +235,92 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
             ),
             Set([.iOS])
         )
+        XCTAssertEqual(
+            try XCTUnwrap(
+                mappedGraph.projects[externalProject.path]?.targets[transitiveExternalPackage.name]?
+                    .destinations
+            ),
+            Set([.iPad, .iPhone])
+        )
+    }
+
+    func test_map_excludes_catalyst_when_app_does_not_support_it() async throws {
+        // Given
+        let directory = try temporaryPath()
+        let packagesDirectory = directory.appending(component: "Dependencies")
+
+        let appTarget = Target.test(name: "App", destinations: [.iPad, .iPhone])
+        let externalPackage = Target.test(
+            name: "Package",
+            destinations: [.iPad, .iPhone, .macCatalyst],
+            product: .framework
+        )
+
+        let project = Project.test(path: directory, targets: [appTarget])
+        let externalProject = Project.test(path: packagesDirectory, targets: [externalPackage], type: .external(hash: nil))
+
+        let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
+        let externalPackageDependency = GraphDependency.target(name: externalPackage.name, path: externalProject.path)
+
+        let graph = Graph.test(
+            projects: [
+                directory: project,
+                packagesDirectory: externalProject,
+            ],
+            dependencies: [
+                appTargetDependency: Set([externalPackageDependency]),
+            ]
+        )
+
+        // When
+        let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let mappedExternalPackage = try XCTUnwrap(
+            mappedGraph.projects[externalProject.path]?.targets[externalPackage.name]
+        )
+        XCTAssertEqual(mappedExternalPackage.destinations, Set([.iPad, .iPhone]))
+        XCTAssertFalse(mappedExternalPackage.destinations.contains(.macCatalyst))
+    }
+
+    func test_map_includes_catalyst_when_app_supports_it() async throws {
+        // Given
+        let directory = try temporaryPath()
+        let packagesDirectory = directory.appending(component: "Dependencies")
+
+        let appTarget = Target.test(name: "App", destinations: [.iPad, .iPhone, .macCatalyst])
+        let externalPackage = Target.test(
+            name: "Package",
+            destinations: [.iPad, .iPhone, .macCatalyst, .mac],
+            product: .framework
+        )
+
+        let project = Project.test(path: directory, targets: [appTarget])
+        let externalProject = Project.test(path: packagesDirectory, targets: [externalPackage], type: .external(hash: nil))
+
+        let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
+        let externalPackageDependency = GraphDependency.target(name: externalPackage.name, path: externalProject.path)
+
+        let graph = Graph.test(
+            projects: [
+                directory: project,
+                packagesDirectory: externalProject,
+            ],
+            dependencies: [
+                appTargetDependency: Set([externalPackageDependency]),
+            ]
+        )
+
+        // When
+        let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let mappedExternalPackage = try XCTUnwrap(
+            mappedGraph.projects[externalProject.path]?.targets[externalPackage.name]
+        )
+        XCTAssertEqual(mappedExternalPackage.destinations, Set([.iPad, .iPhone, .macCatalyst]))
+        XCTAssertTrue(mappedExternalPackage.destinations.contains(.macCatalyst))
+        XCTAssertFalse(mappedExternalPackage.destinations.contains(.mac))
     }
 
     func test_map_when_external_macro_dependency() async throws {

@@ -19,7 +19,9 @@ defmodule Cache.PromEx do
       PromEx.Plugins.Ecto,
       PromEx.Plugins.Oban,
       Cache.CAS.PromExPlugin,
-      Cache.KeyValue.PromExPlugin
+      Cache.KeyValue.PromExPlugin,
+      Cache.Module.PromExPlugin,
+      Cache.S3Transfers.PromExPlugin
     ]
   end
 end

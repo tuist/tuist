@@ -33,6 +33,40 @@ defmodule Cache.CASEventsPipelineTest do
   end
 
   describe "handle_batch/4" do
+    test "skips sending events when API key is not configured" do
+      stub(Cache.Config, :api_key, fn -> nil end)
+
+      events = [
+        %{
+          action: "upload",
+          size: 1024,
+          cas_id: "abc123",
+          account_handle: "test-account",
+          project_handle: "test-project"
+        }
+      ]
+
+      messages =
+        Enum.map(events, fn event ->
+          %Broadway.Message{
+            data: event,
+            acknowledger: {Broadway.CallerAcknowledger, {self(), make_ref()}, :ok}
+          }
+        end)
+
+      reject(&Req.request/1)
+
+      result =
+        CASEventsPipeline.handle_batch(
+          :http,
+          messages,
+          %{batch_key: :default},
+          %{}
+        )
+
+      assert result == messages
+    end
+
     test "sends batch of events to the cache webhook successfully" do
       account_handle = "test-account"
       project_handle = "test-project"

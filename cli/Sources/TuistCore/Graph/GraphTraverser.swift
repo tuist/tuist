@@ -1284,6 +1284,70 @@ public class GraphTraverser: GraphTraversing {
         return platforms
     }
 
+    public func externalTargetSupportedDestinations() -> [GraphTarget: Set<Destination>] {
+        let targetsWithExternalDependencies = targetsWithExternalDependencies()
+        var destinations: [GraphTarget: Set<Destination>] = [:]
+
+        func traverse(target: GraphTarget, parentDestinations: Set<Destination>) {
+            let dependencies = directTargetDependencies(path: target.path, name: target.target.name)
+
+            for dependencyTargetReference in dependencies {
+                var destinationsToInsert: Set<Destination>?
+                let dependencyTarget = dependencyTargetReference.graphTarget
+                let inheritedDestinations: Set<Destination> =
+                    dependencyTarget.target.product == .macro
+                        ? Set<Destination>([.mac]) : parentDestinations
+                if let dependencyCondition = dependencyTargetReference.condition,
+                   let platformIntersection = PlatformCondition.when(
+                       target.target.dependencyPlatformFilters
+                   )?
+                   .intersection(dependencyCondition)
+                {
+                    switch platformIntersection {
+                    case .incompatible:
+                        break
+                    case let .condition(condition):
+                        if let condition {
+                            let allowedPlatformFilters = condition.platformFilters
+                            let dependencyDestinations = inheritedDestinations.filter { destination in
+                                allowedPlatformFilters.contains(destination.platformFilter)
+                            }
+                            destinationsToInsert = dependencyDestinations.intersection(
+                                dependencyTarget.target.destinations
+                            )
+                        }
+                    }
+                } else {
+                    destinationsToInsert = inheritedDestinations.intersection(
+                        dependencyTarget.target.destinations
+                    )
+                }
+
+                if let destinationsToInsert {
+                    var existingDestinations = destinations[dependencyTarget, default: Set()]
+                    let continueTraversing = !destinationsToInsert.isSubset(of: existingDestinations)
+                    existingDestinations.formUnion(destinationsToInsert)
+                    destinations[dependencyTarget] = existingDestinations
+
+                    if continueTraversing {
+                        traverse(
+                            target: dependencyTarget,
+                            parentDestinations: destinations[dependencyTarget, default: Set()]
+                        )
+                    }
+                }
+            }
+        }
+
+        for targetsWithExternalDependency in targetsWithExternalDependencies {
+            traverse(
+                target: targetsWithExternalDependency,
+                parentDestinations: targetsWithExternalDependency.target.destinations
+            )
+        }
+        return destinations
+    }
+
     func allDependenciesSatisfy(
         from rootDependency: GraphDependency, meets: (GraphDependency) -> Bool
     ) -> Bool {

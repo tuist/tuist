@@ -133,12 +133,13 @@ defmodule Tuist.MixProject do
       {:ecto_ch, "~> 0.8.3"},
       (System.get_env("NOORA_LOCAL") &&
          {:noora, path: "../../Noora/web"}) ||
-        {:noora, "== 0.48.0"},
+        {:noora, "== 0.50.1"},
       {:zstream, "~> 0.6"},
       {:cloak_ecto, "~> 1.3.0"},
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
       {:minio_server, github: "LostKobrakai/minio_server", only: :dev},
       {:runner, path: "runner", runtime: false},
+      {:tuist_common, path: "../tuist_common"},
       {:slipstream, "~> 1.2.0"},
       {:lazy_html, ">= 0.1.0", only: :test},
       # peep assumes all telemetry events' data conforms to the String.Chars,

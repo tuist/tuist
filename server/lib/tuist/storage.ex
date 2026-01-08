@@ -268,15 +268,10 @@ defmodule Tuist.Storage do
   end
 
   defp s3_config_and_bucket(actor) do
-    cond do
-      has_custom_storage?(actor) ->
-        {custom_s3_config(actor), actor.s3_bucket_name}
-
-      use_tigris?(actor) ->
-        {ExAws.Config.new(:s3_tigris), Environment.s3_bucket_name(:tigris, Environment.decrypt_secrets())}
-
-      true ->
-        {ExAws.Config.new(:s3), Environment.s3_bucket_name()}
+    if has_custom_storage?(actor) do
+      {custom_s3_config(actor), actor.s3_bucket_name}
+    else
+      {ExAws.Config.new(:s3), Environment.s3_bucket_name()}
     end
   end
 
@@ -305,14 +300,6 @@ defmodule Tuist.Storage do
       |> Map.put(:port, uri.port)
     else
       base_config
-    end
-  end
-
-  defp use_tigris?(actor) do
-    case actor do
-      :registry -> FunWithFlags.enabled?(:tigris)
-      %Account{} = account -> FunWithFlags.enabled?(:tigris, for: account)
-      _ -> false
     end
   end
 

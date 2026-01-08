@@ -105,6 +105,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.binaryCacheWarming(
                 config: .test(),
+                targets: [.iOS: includedTargets],
                 cacheSources: includedTargets,
                 configuration: "Debug",
                 cacheStorage: cacheStorage
@@ -122,6 +123,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.binaryCacheWarming(
                 config: .test(),
+                targets: [.iOS: includedTargets],
                 cacheSources: includedTargets,
                 configuration: "Debug",
                 cacheStorage: cacheStorage
@@ -131,6 +133,24 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             XCTAssertContainsElementOfType(
                 got, TreeShakePrunedTargetsGraphMapper.self, after: FocusTargetsGraphMappers.self
             )
+        }
+
+        func test_cache_contains_the_generate_cacheable_schemes_graph_mapper() {
+            // Given
+            let includedTargets: Set<TargetQuery> = Set([.named("MyTarget")])
+
+            // When
+            let got = subject.binaryCacheWarming(
+                config: .test(),
+                targets: [.iOS: includedTargets],
+                cacheSources: includedTargets,
+                configuration: "Debug",
+                cacheStorage: cacheStorage
+            )
+
+            // Then
+            let mapper = XCTAssertContainsElementOfType(got, GenerateCacheableSchemesGraphMapper.self)
+            XCTAssertEqual(mapper?.targets, [.iOS: includedTargets])
         }
 
         func test_focus_contains_the_filter_target_dependenies_tree_graph_mapper() {

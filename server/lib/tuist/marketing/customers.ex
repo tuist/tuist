@@ -1,13 +1,13 @@
-defmodule Tuist.Marketing.CaseStudies do
+defmodule Tuist.Marketing.Customers do
   @moduledoc ~S"""
   This module loads the case studies to be used in the case studies section of the marketing website.
   The content is included in the compiled Erlang binary.
   """
   use NimblePublisher,
-    build: Tuist.Marketing.CaseStudies.CaseStudy,
+    build: Tuist.Marketing.Customers.CaseStudy,
     from: Application.app_dir(:tuist, "priv/marketing/case_studies/*.md"),
     as: :case_studies,
-    parser: Tuist.Marketing.CaseStudies.CaseParser,
+    parser: Tuist.Marketing.Customers.CaseParser,
     highlighters: [],
     earmark_options: [
       smartypants: false,

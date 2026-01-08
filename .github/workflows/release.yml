@@ -564,7 +564,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: ./server
+          context: .
           file: ./server/Dockerfile
           push: true
           cache-from: type=gha
@@ -588,8 +588,7 @@ jobs:
   release-cache:
     name: Release Cache
     needs: check-releases
-    # Temporarily disabled: https://github.com/mise-plugins/mise-tuist/pull/3
-    if: false && needs.check-releases.outputs.cache-should-release == 'true'
+    if: needs.check-releases.outputs.cache-should-release == 'true'
     runs-on: namespace-profile-default
     timeout-minutes: 30
     env:
@@ -652,7 +651,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: ./cache
+          context: .
           file: ./cache/Dockerfile
           push: true
           cache-from: type=gha

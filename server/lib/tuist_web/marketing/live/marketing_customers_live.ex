@@ -1,11 +1,11 @@
-defmodule TuistWeb.Marketing.MarketingCaseStudiesLive do
+defmodule TuistWeb.Marketing.MarketingCustomersLive do
   @moduledoc false
   use TuistWeb, :live_view
   use Noora
 
   import TuistWeb.Marketing.StructuredMarkup
 
-  alias Tuist.Marketing.CaseStudies
+  alias Tuist.Marketing.Customers
 
   on_mount {TuistWeb.Authentication, :mount_current_user}
 
@@ -28,7 +28,7 @@ defmodule TuistWeb.Marketing.MarketingCaseStudiesLive do
   end
 
   def handle_params(params, _url, socket) do
-    all_cases = CaseStudies.get_case_studies()
+    all_cases = Customers.get_case_studies()
     search_query = Map.get(params, "search", "")
     page = params |> Map.get("page", "1") |> String.to_integer()
 
@@ -62,9 +62,9 @@ defmodule TuistWeb.Marketing.MarketingCaseStudiesLive do
       |> assign(:total_pages, total_pages)
       |> assign(
         :head_image,
-        Tuist.Environment.app_url(path: "/marketing/images/og/case-studies.jpg")
+        Tuist.Environment.app_url(path: "/marketing/images/og/customers.jpg")
       )
-      |> assign(:head_title, dgettext("marketing", "Case Studies"))
+      |> assign(:head_title, dgettext("marketing", "Customers"))
       |> assign(:head_include_case_studies_rss_and_atom, true)
       |> assign(:head_twitter_card, "summary_large_image")
       |> assign_structured_data(get_case_studies_structured_data(all_cases))
@@ -84,7 +84,7 @@ defmodule TuistWeb.Marketing.MarketingCaseStudiesLive do
   end
 
   def handle_event("search", %{"search" => search_query}, socket) do
-    {:noreply, push_patch(socket, to: ~p"/case-studies?search=#{search_query}")}
+    {:noreply, push_patch(socket, to: ~p"/customers?search=#{search_query}")}
   end
 
   def handle_event("page_change", %{"page" => page}, socket) do
@@ -98,6 +98,6 @@ defmodule TuistWeb.Marketing.MarketingCaseStudiesLive do
     params = ["page=#{page}" | params]
     query_string = "?#{Enum.join(params, "&")}"
 
-    {:noreply, push_patch(socket, to: "/case-studies#{query_string}")}
+    {:noreply, push_patch(socket, to: "/customers#{query_string}")}
   end
 end

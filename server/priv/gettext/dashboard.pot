@@ -145,13 +145,13 @@ msgstr ""
 msgid "Integrations"
 msgstr ""
 
-#: lib/tuist_web/controllers/github_app_setup_controller.ex:26
-#: lib/tuist_web/controllers/github_app_setup_controller.ex:29
+#: lib/tuist_web/controllers/github_app_setup_controller.ex:25
+#: lib/tuist_web/controllers/github_app_setup_controller.ex:28
 #, elixir-autogen, elixir-format
 msgid "Invalid GitHub app installation. Please try again."
 msgstr ""
 
-#: lib/tuist_web/controllers/github_app_setup_controller.ex:32
+#: lib/tuist_web/controllers/github_app_setup_controller.ex:31
 #, elixir-autogen, elixir-format
 msgid "Invalid installation request. Please try again."
 msgstr ""

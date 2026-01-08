@@ -7,9 +7,11 @@ import XCTest
 @testable import TuistCacheEE
 @testable import TuistTesting
 
-final class GenerateCacheableSchemesWorkspaceMapperTests: TuistUnitTestCase {
-    func test_generate_binary_and_bundles_schemes() throws {
+final class GenerateCacheableSchemesGraphMapperTests: TuistUnitTestCase {
+    func test_generate_binary_and_bundles_schemes() async throws {
         // Given
+        let directory = try temporaryPath()
+
         let targetA = Target.test(name: "A", destinations: [.iPhone], product: .framework)
         let targetB = Target.test(name: "B", destinations: [.iPhone], product: .app)
         let targetC = Target.test(name: "C", destinations: [.mac], product: .framework)
@@ -17,24 +19,30 @@ final class GenerateCacheableSchemesWorkspaceMapperTests: TuistUnitTestCase {
         let macro = Target.test(name: "Macro", destinations: [.appleTv], product: .macro)
 
         let includedTargets = [targetA, targetC, bundle, macro].map(\.name)
-        let subject = GenerateCacheableSchemesWorkspaceMapper(targets: [
+        let subject = GenerateCacheableSchemesGraphMapper(targets: [
             .iOS: Set([.named(targetA.name)]),
             .macOS: Set([.named(targetC.name)]),
             .tvOS: Set([.named(bundle.name), .named(macro.name)]),
         ])
-        let projectA = Project.test(name: "A", targets: [targetA, bundle, macro])
-        let projectB = Project.test(name: "B", targets: [targetB, targetC])
-        let workspace = Workspace.test()
-        let workspaceWithProjects = WorkspaceWithProjects(
-            workspace: workspace, projects: [projectA, projectB]
+        let projectAPath = directory.appending(component: "ProjectA")
+        let projectBPath = directory.appending(component: "ProjectB")
+        let projectA = Project.test(path: projectAPath, name: "A", targets: [targetA, bundle, macro])
+        let projectB = Project.test(path: projectBPath, name: "B", targets: [targetB, targetC])
+
+        let graph = Graph.test(
+            workspace: Workspace.test(projects: [projectAPath, projectBPath]),
+            projects: [
+                projectAPath: projectA,
+                projectBPath: projectB,
+            ]
         )
 
         // When
-        let (updatedWorkspace, sideEffects) = try subject.map(workspace: workspaceWithProjects)
+        let (updatedGraph, sideEffects, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
         XCTAssertEqual(
-            updatedWorkspace.workspace.schemes.map(\.name),
+            updatedGraph.workspace.schemes.map(\.name),
             [
                 "Binaries-Cache-iOS",
                 "Bundles-Cache-iOS",
@@ -55,7 +63,7 @@ final class GenerateCacheableSchemesWorkspaceMapperTests: TuistUnitTestCase {
         )
 
         XCTAssertEqual(
-            updatedWorkspace.workspace.schemes.first(where: { $0.name == "Binaries-Cache-iOS" })?
+            updatedGraph.workspace.schemes.first(where: { $0.name == "Binaries-Cache-iOS" })?
                 .buildAction?.targets
                 .map(\.name),
             [
@@ -63,7 +71,7 @@ final class GenerateCacheableSchemesWorkspaceMapperTests: TuistUnitTestCase {
             ]
         )
         XCTAssertEqual(
-            updatedWorkspace.workspace.schemes.first(where: { $0.name == "Binaries-Cache-macOS" })?
+            updatedGraph.workspace.schemes.first(where: { $0.name == "Binaries-Cache-macOS" })?
                 .buildAction?.targets
                 .map(\.name),
             [
@@ -71,7 +79,7 @@ final class GenerateCacheableSchemesWorkspaceMapperTests: TuistUnitTestCase {
             ]
         )
         XCTAssertEqual(
-            updatedWorkspace.workspace.schemes.first(where: { $0.name == "Bundles-Cache-tvOS" })?
+            updatedGraph.workspace.schemes.first(where: { $0.name == "Bundles-Cache-tvOS" })?
                 .buildAction?.targets
                 .map(\.name),
             [
@@ -80,7 +88,7 @@ final class GenerateCacheableSchemesWorkspaceMapperTests: TuistUnitTestCase {
         )
 
         XCTAssertEqual(
-            updatedWorkspace.workspace.schemes.first(where: { $0.name == "Macros-Cache-tvOS" })?
+            updatedGraph.workspace.schemes.first(where: { $0.name == "Macros-Cache-tvOS" })?
                 .buildAction?.targets.map(\.name),
             [
                 "Macro",
@@ -88,35 +96,39 @@ final class GenerateCacheableSchemesWorkspaceMapperTests: TuistUnitTestCase {
         )
 
         XCTAssertEqual(
-            updatedWorkspace.workspace.schemes.flatMap { $0.buildAction?.targets ?? [] }.map(
+            updatedGraph.workspace.schemes.flatMap { $0.buildAction?.targets ?? [] }.map(
                 \.name
             ), includedTargets
         )
         XCTAssertTrue(sideEffects.isEmpty)
     }
 
-    func test_generate_catalyst_scheme_for_targets_that_support_catalyst() throws {
+    func test_generate_catalyst_scheme_for_targets_that_support_catalyst() async throws {
         // Given
+        let directory = try temporaryPath()
+
         let targetWithCatalyst = Target.test(name: "WithCatalyst", destinations: [.iPhone, .macCatalyst], product: .framework)
         let targetWithoutCatalyst = Target.test(name: "WithoutCatalyst", destinations: [.iPhone], product: .framework)
 
-        let subject = GenerateCacheableSchemesWorkspaceMapper(targets: [
+        let subject = GenerateCacheableSchemesGraphMapper(targets: [
             .iOS: Set([.named(targetWithCatalyst.name), .named(targetWithoutCatalyst.name)]),
         ])
-        let project = Project.test(name: "App", targets: [targetWithCatalyst, targetWithoutCatalyst])
-        let workspace = Workspace.test()
-        let workspaceWithProjects = WorkspaceWithProjects(
-            workspace: workspace, projects: [project]
+        let projectPath = directory.appending(component: "App")
+        let project = Project.test(path: projectPath, name: "App", targets: [targetWithCatalyst, targetWithoutCatalyst])
+
+        let graph = Graph.test(
+            workspace: Workspace.test(projects: [projectPath]),
+            projects: [projectPath: project]
         )
 
         // When
-        let (updatedWorkspace, _) = try subject.map(workspace: workspaceWithProjects)
+        let (updatedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        XCTAssertTrue(updatedWorkspace.workspace.schemes.map(\.name).contains("Binaries-Cache-Catalyst"))
+        XCTAssertTrue(updatedGraph.workspace.schemes.map(\.name).contains("Binaries-Cache-Catalyst"))
 
         XCTAssertEqual(
-            updatedWorkspace.workspace.schemes.first(where: { $0.name == "Binaries-Cache-Catalyst" })?
+            updatedGraph.workspace.schemes.first(where: { $0.name == "Binaries-Cache-Catalyst" })?
                 .buildAction?.targets
                 .map(\.name),
             [
@@ -125,7 +137,7 @@ final class GenerateCacheableSchemesWorkspaceMapperTests: TuistUnitTestCase {
         )
 
         XCTAssertEqual(
-            updatedWorkspace.workspace.schemes.first(where: { $0.name == "Binaries-Cache-iOS" })?
+            updatedGraph.workspace.schemes.first(where: { $0.name == "Binaries-Cache-iOS" })?
                 .buildAction?.targets
                 .map(\.name),
             [
@@ -135,24 +147,28 @@ final class GenerateCacheableSchemesWorkspaceMapperTests: TuistUnitTestCase {
         )
     }
 
-    func test_does_not_generate_catalyst_scheme_when_no_targets_support_catalyst() throws {
+    func test_does_not_generate_catalyst_scheme_when_no_targets_support_catalyst() async throws {
         // Given
+        let directory = try temporaryPath()
+
         let targetA = Target.test(name: "A", destinations: [.iPhone], product: .framework)
         let targetB = Target.test(name: "B", destinations: [.iPhone], product: .framework)
 
-        let subject = GenerateCacheableSchemesWorkspaceMapper(targets: [
+        let subject = GenerateCacheableSchemesGraphMapper(targets: [
             .iOS: Set([.named(targetA.name), .named(targetB.name)]),
         ])
-        let project = Project.test(name: "App", targets: [targetA, targetB])
-        let workspace = Workspace.test()
-        let workspaceWithProjects = WorkspaceWithProjects(
-            workspace: workspace, projects: [project]
+        let projectPath = directory.appending(component: "App")
+        let project = Project.test(path: projectPath, name: "App", targets: [targetA, targetB])
+
+        let graph = Graph.test(
+            workspace: Workspace.test(projects: [projectPath]),
+            projects: [projectPath: project]
         )
 
         // When
-        let (updatedWorkspace, _) = try subject.map(workspace: workspaceWithProjects)
+        let (updatedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
 
         // Then
-        XCTAssertFalse(updatedWorkspace.workspace.schemes.map(\.name).contains("Binaries-Cache-Catalyst"))
+        XCTAssertFalse(updatedGraph.workspace.schemes.map(\.name).contains("Binaries-Cache-Catalyst"))
     }
 }

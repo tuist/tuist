@@ -173,9 +173,11 @@ if Enum.member?([:prod, :stag, :can, :dev], env) do
       {_env, _host} -> {0, 0, 0, 0, 0, 0, 0, 0}
     end
 
+  check_origin = if env == :dev, do: false, else: [app_url]
+
   config :tuist, TuistWeb.Endpoint,
     url: [host: app_url_host, port: app_url_port, scheme: app_url_scheme],
-    check_origin: [app_url],
+    check_origin: check_origin,
     http: [
       ip: http_ip,
       port: port
@@ -283,30 +285,6 @@ if Tuist.Environment.env() not in [:test] do
 
     _ ->
       nil
-      # Noop
-  end
-
-  tigris_endpoint = Tuist.Environment.s3_endpoint(:tigris, secrets)
-
-  if tigris_endpoint && tigris_endpoint != "" do
-    %{host: tigris_endpoint_host, scheme: tigris_scheme, port: tigris_port} =
-      URI.parse(tigris_endpoint)
-
-    tigris_config =
-      then(
-        [
-          scheme: "#{tigris_scheme}://",
-          host: tigris_endpoint_host,
-          region: Tuist.Environment.s3_region(:tigris, secrets),
-          virtual_host: Tuist.Environment.s3_virtual_host(:tigris, secrets),
-          bucket_as_host: Tuist.Environment.s3_bucket_as_host(:tigris, secrets),
-          secret_access_key: Tuist.Environment.s3_secret_access_key(:tigris, secrets),
-          access_key_id: Tuist.Environment.s3_access_key_id(:tigris, secrets)
-        ],
-        &if(is_nil(tigris_port), do: &1, else: Keyword.put(&1, :port, tigris_port))
-      )
-
-    config :ex_aws, :s3_tigris, tigris_config
   end
 end
 
@@ -358,6 +336,7 @@ config :tuist, Oban,
            {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
            {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
            {"@hourly", Tuist.Registry.Swift.Workers.SyncPackagesWorker},
+           {"@hourly", Tuist.Slack.Workers.ReportWorker},
            {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
            {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker}
          ],

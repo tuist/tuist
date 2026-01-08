@@ -251,6 +251,36 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       assert Enum.map(got, & &1.version) == ["5.10.2"]
     end
 
+    test "filters out non-semantic versions with more than three parts" do
+      # Given
+      package =
+        PackagesFixtures.package_fixture(
+          scope: "hackiftekhar",
+          name: "IQKeyboardManager"
+        )
+
+      stub(VCS, :get_tags, fn _ ->
+        [
+          %Tag{name: "3.2.0.1"},
+          %Tag{name: "3.2.0.2"},
+          %Tag{name: "7.2.1"},
+          %Tag{name: "v7.2.0"},
+          %Tag{name: "6.5.0.0"},
+          %Tag{name: "1.2.3.4.5"}
+        ]
+      end)
+
+      # When
+      got =
+        Packages.get_missing_package_versions(%{
+          package: Repo.preload(package, :package_releases),
+          token: "github_token"
+        })
+
+      # Then
+      assert Enum.map(got, & &1.version) == ["7.2.1", "v7.2.0"]
+    end
+
     test "returns empty list when repository returns 404" do
       # Given
       package =

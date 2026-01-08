@@ -20,7 +20,7 @@ defmodule Tuist do
       Marketing.OpenGraph,
       Marketing.Newsletter,
       Marketing.BlogContentProcessor,
-      Marketing.CaseStudies,
+      Marketing.Customers,
       # App
       # -----
       # This module contains Tuist features that are not expected to have inter-dependencies
@@ -83,6 +83,11 @@ defmodule Tuist do
       QA,
       QA.LaunchArgumentGroup,
       VCS.GitHubAppInstallation,
+      Slack,
+      Slack.Client,
+      Slack.Installation,
+      Slack.Reports,
+      Slack.Workers.ReportWorker,
       # Support
       # -----
       # These modules represent Tuist-agnostic utilities that are used by other features.
