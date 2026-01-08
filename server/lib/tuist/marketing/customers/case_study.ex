@@ -1,4 +1,4 @@
-defmodule Tuist.Marketing.CaseStudies.CaseStudy do
+defmodule Tuist.Marketing.Customers.CaseStudy do
   @moduledoc false
   @enforce_keys [
     :title,
@@ -28,8 +28,8 @@ defmodule Tuist.Marketing.CaseStudies.CaseStudy do
   def build(filename, attrs, body) do
     title = String.trim_trailing(attrs["title"], ".")
     basename = Path.basename(filename, ".md")
-    slug = "/case-studies/#{basename}"
-    og_image_path = "/marketing/images/og/case-studies/#{basename}.jpg"
+    slug = "/customers/#{basename}"
+    og_image_path = "/marketing/images/og/customers/#{basename}.jpg"
 
     struct!(__MODULE__,
       title: title,

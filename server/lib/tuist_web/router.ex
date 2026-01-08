@@ -155,6 +155,8 @@ defmodule TuistWeb.Router do
     pipe_through [:browser_marketing_feed]
 
     redirect("/rss.xml", "/blog/rss.xml", :permanent, preserve_query_string: true)
+    redirect("/case-studies", "/customers", :permanent, preserve_query_string: true)
+    redirect("/case-studies/:slug", "/customers/:slug", :permanent, preserve_query_string: true)
 
     get "/blog/rss.xml", MarketingController, :blog_rss, metadata: %{type: :marketing}
 
@@ -190,8 +192,8 @@ defmodule TuistWeb.Router do
              metadata: %{type: :marketing},
              private: private
 
-        live Path.join(locale_path_prefix, "/case-studies"),
-             TuistWeb.Marketing.MarketingCaseStudiesLive,
+        live Path.join(locale_path_prefix, "/customers"),
+             TuistWeb.Marketing.MarketingCustomersLive,
              metadata: %{type: :marketing},
              private: private
 
@@ -228,7 +230,7 @@ defmodule TuistWeb.Router do
             private: private
       end
 
-      for %{slug: case_study_slug} <- Tuist.Marketing.CaseStudies.get_case_studies() do
+      for %{slug: case_study_slug} <- Tuist.Marketing.Customers.get_case_studies() do
         get Path.join(locale_path_prefix, case_study_slug),
             MarketingController,
             :case_study,

@@ -1,6 +1,6 @@
 <TuistWeb.Marketing.Layouts.marketing {assigns}>
   <main
-    id="marketing-case-studies"
+    id="marketing-customers"
     phx-hook="ScrollToTop"
     data-scroll-target='[data-part="filters-bar"]'
   >
@@ -9,9 +9,9 @@
     <TuistWeb.Marketing.MarketingComponents.header_background />
 
     <header data-part="header">
-      <img data-part="logo" src={~p"/marketing/images/case-studies/logo.webp"} alt="" />
+      <img data-part="logo" src={~p"/marketing/images/customers/logo.webp"} alt="" />
       <h1 data-part="title">
-        {dgettext("marketing", "Case Studies")}
+        {dgettext("marketing", "Customers")}
       </h1>
       <p data-part="description">
         {dgettext(
@@ -29,7 +29,7 @@
       </.button>
     </header>
 
-    <section data-part="filters-bar">
+    <!--<section data-part="filters-bar">
       <div data-part="actions">
         <form phx-submit="search" phx-change="search">
           <.text_input
@@ -42,7 +42,7 @@
           />
         </form>
       </div>
-    </section>
+    </section>-->
 
     <section data-part="cases">
       <.link

@@ -20,7 +20,7 @@ defmodule Tuist do
       Marketing.OpenGraph,
       Marketing.Newsletter,
       Marketing.BlogContentProcessor,
-      Marketing.CaseStudies,
+      Marketing.Customers,
       # App
       # -----
       # This module contains Tuist features that are not expected to have inter-dependencies
