@@ -1485,6 +1485,220 @@ defmodule Tuist.CommandEventsTest do
     end
   end
 
+  describe "cache_hit_rate_metric_by_count/3" do
+    test "returns average hit rate for last N events" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # Event 1: 50% hit rate (1 hit out of 2 cacheable)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-30 10:00:00Z]
+      )
+
+      # Event 2: 100% hit rate (2 hits out of 2 cacheable)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["C", "D"],
+        local_cache_target_hits: ["C"],
+        remote_cache_target_hits: ["D"],
+        ran_at: ~U[2024-04-30 11:00:00Z]
+      )
+
+      # When
+      got = CommandEvents.cache_hit_rate_metric_by_count(project.id, :average, limit: 10)
+
+      # Then - Average of [0.5, 1.0] = 0.75
+      assert got == 0.75
+    end
+
+    test "returns p50 (median) hit rate" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # Create 3 events with hit rates: 25%, 50%, 100%
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["A", "B", "C", "D"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-30 09:00:00Z]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-30 10:00:00Z]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: ["B"],
+        ran_at: ~U[2024-04-30 11:00:00Z]
+      )
+
+      # When
+      got = CommandEvents.cache_hit_rate_metric_by_count(project.id, :p50, limit: 10)
+
+      # Then - p50 of [0.25, 0.5, 1.0] = 0.5
+      assert got == 0.5
+    end
+
+    test "returns p90 hit rate" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # Create 10 events with hit rates: 10%, 20%, 30%, 40%, 50%, 60%, 70%, 80%, 90%, 100%
+      for i <- 1..10 do
+        hit_count = i
+        total_count = 10
+        targets = Enum.map(1..total_count, &"T#{&1}")
+        hits = Enum.take(targets, hit_count)
+
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "build",
+          cacheable_targets: targets,
+          local_cache_target_hits: hits,
+          remote_cache_target_hits: [],
+          ran_at: DateTime.add(~U[2024-04-30 10:00:00Z], i, :minute)
+        )
+      end
+
+      # When
+      got = CommandEvents.cache_hit_rate_metric_by_count(project.id, :p90, limit: 20)
+
+      # Then - p90 of sorted values [0.1, 0.2, ..., 1.0] at index trunc(10*0.9)=9 = 1.0
+      assert got == 1.0
+    end
+
+    test "respects limit parameter" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # Old event: 0% hit rate
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: [],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      # Newer event: 100% hit rate
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["C", "D"],
+        local_cache_target_hits: ["C", "D"],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-30 10:00:00Z]
+      )
+
+      # When - only get the most recent 1 event
+      got = CommandEvents.cache_hit_rate_metric_by_count(project.id, :average, limit: 1)
+
+      # Then - Should only include the 100% hit rate event
+      assert got == 1.0
+    end
+
+    test "respects offset parameter" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # Newest event: 100% hit rate
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: ["A", "B"],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-30 12:00:00Z]
+      )
+
+      # Second newest: 50% hit rate
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["C", "D"],
+        local_cache_target_hits: ["C"],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-30 10:00:00Z]
+      )
+
+      # Oldest: 0% hit rate
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["E", "F"],
+        local_cache_target_hits: [],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      # When - skip the newest, get the next one
+      got = CommandEvents.cache_hit_rate_metric_by_count(project.id, :average, limit: 1, offset: 1)
+
+      # Then - Should only include the 50% hit rate event
+      assert got == 0.5
+    end
+
+    test "returns nil when no events exist" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      got = CommandEvents.cache_hit_rate_metric_by_count(project.id, :average, limit: 10)
+
+      # Then
+      assert got == nil
+    end
+
+    test "excludes events with zero cacheable targets" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # Event with zero cacheable targets (should be excluded)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: [],
+        local_cache_target_hits: [],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-30 10:00:00Z]
+      )
+
+      # Event with cacheable targets
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-30 11:00:00Z]
+      )
+
+      # When
+      got = CommandEvents.cache_hit_rate_metric_by_count(project.id, :average, limit: 10)
+
+      # Then - Should only include the 50% hit rate event
+      assert got == 0.5
+    end
+  end
+
   describe "get_project_last_interaction_data/1" do
     test "returns last interaction time for specified projects only" do
       project1 = ProjectsFixtures.project_fixture()

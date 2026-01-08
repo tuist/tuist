@@ -176,7 +176,7 @@ defmodule Tuist.Cache.Analytics do
     module_hit_rate = CommandEvents.cache_hit_rate_metric_by_count(project_id, metric, opts)
 
     xcode_hit_rate =
-      Tuist.Runs.Analytics.build_cache_hit_rate_metric_by_count(project_id, metric, opts)
+      Analytics.build_cache_hit_rate_metric_by_count(project_id, metric, opts)
 
     average_or_nil(module_hit_rate, xcode_hit_rate)
   end
