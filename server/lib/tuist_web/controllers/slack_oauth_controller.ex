@@ -47,8 +47,8 @@ defmodule TuistWeb.SlackOAuthController do
       {:ok, %{type: :alert_channel_selection} = payload} ->
         handle_alert_channel_selection(conn, code, payload)
 
-      {:ok, %{type: :channel_selection, account_id: account_id, project_id: project_id}} ->
-        handle_channel_selection(conn, code, account_id, project_id)
+      {:ok, %{type: :channel_selection}} ->
+        handle_channel_selection(conn, code)
 
       {:ok, %{type: :account_installation, account_id: account_id}} ->
         handle_account_installation(conn, code, account_id)
@@ -114,7 +114,7 @@ defmodule TuistWeb.SlackOAuthController do
     end
   end
 
-  defp handle_channel_selection(conn, code, _account_id, _project_id) do
+  defp handle_channel_selection(conn, code) do
     case SlackClient.exchange_code_for_token(code, slack_redirect_uri()) do
       {:ok, token_data} ->
         incoming_webhook = token_data.incoming_webhook
