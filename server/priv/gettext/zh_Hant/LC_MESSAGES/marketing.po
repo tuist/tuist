@@ -1,5 +1,17 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-29 08:29+0000\nPO-Revision-Date: 2026-01-07 17:02+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/projects/tuist/marketing/zh_Hant/>\nLanguage: zh_Hant\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15.1\n"
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-11-29 08:29+0000\n"
+"PO-Revision-Date: 2026-01-07 17:02+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Language-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/projects/tuist/marketing/zh_Hant/>\n"
+"Language: zh_Hant\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Weblate 5.15.1\n"
 
 # # This file is a PO Template file.
 # #
@@ -924,10 +936,6 @@ msgid "(opens in new tab)"
 msgstr "(在新標籤中開啟)"
 
 #, fuzzy
-msgid "Case Studies"
-msgstr "個案研究"
-
-#, fuzzy
 msgid "Discover how teams around the world use Tuist to build high-quality apps faster, streamline workflows, and save countless hours of engineering time."
 msgstr "探索世界各地的團隊如何使用 Tuist 更快速地建立高品質的應用程式、簡化工作流程，以及節省無數的工程時間。"
 
@@ -948,14 +956,6 @@ msgid "Read next"
 msgstr "閱讀下一頁"
 
 #, fuzzy
-msgid "Tuist Case Studies"
-msgstr "Tuist 個案研究"
-
-#, fuzzy
-msgid "Case studies"
-msgstr "個案研究"
-
-#, fuzzy
 msgid "Explore Tuist's features on the public dashboard"
 msgstr "在公共儀表板上探索 Tuist 的功能"
 
@@ -974,6 +974,24 @@ msgstr "看看領先的科技公司如何利用 Tuist 擴展開發規模。"
 #, fuzzy
 msgid "AI moves fast. So should your builds."
 msgstr "AI 移動很快。您的建置也應該如此。"
+
+msgid "Customers"
+msgstr ""
+
+msgid "Tuist Customers"
+msgstr ""
+
+#, fuzzy
+#~ msgid "Case Studies"
+#~ msgstr "個案研究"
+
+#, fuzzy
+#~ msgid "Tuist Case Studies"
+#~ msgstr "Tuist 個案研究"
+
+#, fuzzy
+#~ msgid "Case studies"
+#~ msgstr "個案研究"
 
 #~ msgid "AI writes faster. So should your builds."
 #~ msgstr "AI 寫得更快，您的建置也應該更快。"

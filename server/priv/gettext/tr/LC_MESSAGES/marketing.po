@@ -1,5 +1,17 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-12-05 15:32+0000\nPO-Revision-Date: 2026-01-07 17:02+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Turkish <https://translate.tuist.dev/projects/tuist/marketing/tr/>\nLanguage: tr\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n != 1;\nX-Generator: Weblate 5.15.1\n"
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-12-05 15:32+0000\n"
+"PO-Revision-Date: 2026-01-07 17:02+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/marketing/tr/>\n"
+"Language: tr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"X-Generator: Weblate 5.15.1\n"
 
 # # This file is a PO Template file.
 # #
@@ -924,10 +936,6 @@ msgid "(opens in new tab)"
 msgstr "(yeni sekmede açılır)"
 
 #, fuzzy
-msgid "Case Studies"
-msgstr "Vaka Çalışmaları"
-
-#, fuzzy
 msgid "Discover how teams around the world use Tuist to build high-quality apps faster, streamline workflows, and save countless hours of engineering time."
 msgstr "Dünyanın dört bir yanındaki ekiplerin yüksek kaliteli uygulamaları daha hızlı oluşturmak, iş akışlarını kolaylaştırmak ve mühendislik zamanından sayısız saat tasarruf etmek için Tuist'i nasıl kullandığını keşfedin."
 
@@ -948,14 +956,6 @@ msgid "Read next"
 msgstr "Sonraki oku"
 
 #, fuzzy
-msgid "Tuist Case Studies"
-msgstr "Tuist Vaka Çalışmaları"
-
-#, fuzzy
-msgid "Case studies"
-msgstr "Vaka çalışmaları"
-
-#, fuzzy
 msgid "Explore Tuist's features on the public dashboard"
 msgstr "Genel kontrol panelinde Tuist'in özelliklerini keşfedin"
 
@@ -974,6 +974,24 @@ msgstr "Önde gelen teknoloji şirketlerinin Tuist ile gelişimlerini nasıl öl
 #, fuzzy
 msgid "AI moves fast. So should your builds."
 msgstr "Yapay zeka hızlı hareket eder. Yapılarınız da öyle olmalı."
+
+msgid "Customers"
+msgstr ""
+
+msgid "Tuist Customers"
+msgstr ""
+
+#, fuzzy
+#~ msgid "Case Studies"
+#~ msgstr "Vaka Çalışmaları"
+
+#, fuzzy
+#~ msgid "Tuist Case Studies"
+#~ msgstr "Tuist Vaka Çalışmaları"
+
+#, fuzzy
+#~ msgid "Case studies"
+#~ msgstr "Vaka çalışmaları"
 
 #~ msgid "AI writes faster. So should your builds."
 #~ msgstr "Yapay zeka daha hızlı yazıyor. Yapılarınız da öyle olmalı."

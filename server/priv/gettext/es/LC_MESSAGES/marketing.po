@@ -1,5 +1,17 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2026-01-07 17:02+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Spanish <https://translate.tuist.dev/projects/tuist/marketing/es/>\nLanguage: es\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n != 1;\nX-Generator: Weblate 5.15.1\n"
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-11-05 17:58+0000\n"
+"PO-Revision-Date: 2026-01-07 17:02+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Language-Team: Spanish <https://translate.tuist.dev/projects/tuist/marketing/es/>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"X-Generator: Weblate 5.15.1\n"
 
 # # This file is a PO Template file.
 # #
@@ -925,10 +937,6 @@ msgid "(opens in new tab)"
 msgstr "(se abre en una nueva pestaña)"
 
 #, fuzzy
-msgid "Case Studies"
-msgstr "Casos prácticos"
-
-#, fuzzy
 msgid "Discover how teams around the world use Tuist to build high-quality apps faster, streamline workflows, and save countless hours of engineering time."
 msgstr "Descubre cómo equipos de todo el mundo utilizan Tuist para crear aplicaciones de alta calidad más rápidamente, agilizar los flujos de trabajo y ahorrar incontables horas de tiempo de ingeniería."
 
@@ -949,14 +957,6 @@ msgid "Read next"
 msgstr "Leer más"
 
 #, fuzzy
-msgid "Tuist Case Studies"
-msgstr "Casos prácticos Tuist"
-
-#, fuzzy
-msgid "Case studies"
-msgstr "Casos prácticos"
-
-#, fuzzy
 msgid "Explore Tuist's features on the public dashboard"
 msgstr "Explora las funciones de Tuist en el panel de control público"
 
@@ -975,6 +975,24 @@ msgstr "Descubre cómo las principales empresas tecnológicas están escalando s
 #, fuzzy
 msgid "AI moves fast. So should your builds."
 msgstr "La IA se mueve rápido. Tus construcciones también deberían hacerlo."
+
+msgid "Customers"
+msgstr ""
+
+msgid "Tuist Customers"
+msgstr ""
+
+#, fuzzy
+#~ msgid "Case Studies"
+#~ msgstr "Casos prácticos"
+
+#, fuzzy
+#~ msgid "Tuist Case Studies"
+#~ msgstr "Casos prácticos Tuist"
+
+#, fuzzy
+#~ msgid "Case studies"
+#~ msgstr "Casos prácticos"
 
 #~ msgid "AI writes faster. So should your builds."
 #~ msgstr "La IA escribe más rápido. Tus builds también deberían."

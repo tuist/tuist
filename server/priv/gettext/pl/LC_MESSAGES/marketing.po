@@ -1,5 +1,17 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-12-24 14:48+0000\nPO-Revision-Date: 2026-01-07 17:02+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Polish <https://translate.tuist.dev/projects/tuist/marketing/pl/>\nLanguage: pl\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=3; plural=n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\nX-Generator: Weblate 5.15.1\n"
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-12-24 14:48+0000\n"
+"PO-Revision-Date: 2026-01-07 17:02+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Language-Team: Polish <https://translate.tuist.dev/projects/tuist/marketing/pl/>\n"
+"Language: pl\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\n"
+"X-Generator: Weblate 5.15.1\n"
 
 # # This file is a PO Template file.
 # #
@@ -1223,10 +1235,6 @@ msgid "(opens in new tab)"
 msgstr "(otwiera się w nowej karcie)"
 
 #, fuzzy
-msgid "Case Studies"
-msgstr "Studia przypadków"
-
-#, fuzzy
 msgid "Discover how teams around the world use Tuist to build high-quality apps faster, streamline workflows, and save countless hours of engineering time."
 msgstr "Odkryj, jak zespoły na całym świecie wykorzystują Tuist do szybszego tworzenia wysokiej jakości aplikacji, usprawniania przepływu pracy i oszczędzania niezliczonych godzin czasu inżynierów."
 
@@ -1247,14 +1255,6 @@ msgid "Read next"
 msgstr "Czytaj dalej"
 
 #, fuzzy
-msgid "Tuist Case Studies"
-msgstr "Studia przypadków Tuist"
-
-#, fuzzy
-msgid "Case studies"
-msgstr "Studia przypadków"
-
-#, fuzzy
 msgid "Explore Tuist's features on the public dashboard"
 msgstr "Poznaj funkcje Tuist na publicznym pulpicie nawigacyjnym"
 
@@ -1273,6 +1273,24 @@ msgstr "Zobacz, jak wiodące firmy technologiczne skalują swój rozwój dzięki
 #, fuzzy
 msgid "AI moves fast. So should your builds."
 msgstr "Sztuczna inteligencja porusza się szybko. Tak samo powinno być z twoimi kompilacjami."
+
+msgid "Customers"
+msgstr ""
+
+msgid "Tuist Customers"
+msgstr ""
+
+#, fuzzy
+#~ msgid "Case Studies"
+#~ msgstr "Studia przypadków"
+
+#, fuzzy
+#~ msgid "Tuist Case Studies"
+#~ msgstr "Studia przypadków Tuist"
+
+#, fuzzy
+#~ msgid "Case studies"
+#~ msgstr "Studia przypadków"
 
 #, fuzzy
 #~ msgid "AI writes faster. So should your builds."

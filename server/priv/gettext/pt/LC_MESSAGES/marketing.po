@@ -947,9 +947,6 @@ msgstr ""
 msgid "(opens in new tab)"
 msgstr ""
 
-msgid "Case Studies"
-msgstr ""
-
 msgid "Discover how teams around the world use Tuist to build high-quality apps faster, streamline workflows, and save countless hours of engineering time."
 msgstr ""
 
@@ -965,12 +962,6 @@ msgstr ""
 msgid "Read next"
 msgstr ""
 
-msgid "Tuist Case Studies"
-msgstr ""
-
-msgid "Case studies"
-msgstr ""
-
 msgid "Explore Tuist's features on the public dashboard"
 msgstr ""
 
@@ -984,4 +975,10 @@ msgid "See how leading tech companies are scaling their development with Tuist."
 msgstr ""
 
 msgid "AI moves fast. So should your builds."
+msgstr ""
+
+msgid "Customers"
+msgstr ""
+
+msgid "Tuist Customers"
 msgstr ""
