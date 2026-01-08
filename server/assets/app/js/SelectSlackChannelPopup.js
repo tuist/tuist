@@ -30,11 +30,7 @@ const SelectSlackChannelPopup = {
       const height = 700;
       const left = window.screenX + (window.outerWidth - width) / 2;
       const top = window.screenY + (window.outerHeight - height) / 2;
-      this.popup = window.open(
-        url,
-        "oauth_popup",
-        `width=${width},height=${height},left=${left},top=${top},popup=1`
-      );
+      this.popup = window.open(url, "oauth_popup", `width=${width},height=${height},left=${left},top=${top},popup=1`);
     });
   },
 
