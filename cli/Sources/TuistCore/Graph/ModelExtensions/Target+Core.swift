@@ -143,7 +143,29 @@ extension Target {
     }
 
     public var containsResources: Bool {
-        !resources.resources.isEmpty || !coreDataModels.isEmpty
+        if !resources.resources.isEmpty || !coreDataModels.isEmpty { return true }
+        return buildableFolders.contains { folder in
+            folder.resolvedFiles.contains { file in
+                !isSourceLike(path: file.path)
+            }
+        }
+    }
+
+    private func isSourceLike(path: AbsolutePath) -> Bool {
+        guard let `extension` = path.extension else { return false }
+
+        let validExtensions = Target.validSourceExtensions
+            + Target.validSourceCompatibleFolderExtensions
+            + ["h", "hpp", "hh", "hxx"]
+
+        if validExtensions.contains(where: { $0.caseInsensitiveCompare(`extension`) == .orderedSame }) {
+            if Target.validSourceExtensions.contains(where: { $0.caseInsensitiveCompare(`extension`) == .orderedSame }) {
+                return !FileHandler.shared.isFolder(path)
+            }
+            return true
+        }
+
+        return false
     }
 
     /// Returns if target is a generated resources bundle.
