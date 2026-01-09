@@ -24,7 +24,7 @@ let project = Project(
             ],
             dependencies: [],
             additionalFiles: [
-                "**/.*.yml",
+                .glob(pattern: "**/.*.yml", excluding: ["App/Internal/**"]),
                 "App/*.{entitlements,xcconfig}",
             ]
         ),
