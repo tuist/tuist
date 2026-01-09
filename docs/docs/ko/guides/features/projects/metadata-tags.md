@@ -122,22 +122,20 @@ metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 `feature:`, `team:`, `layer:` 와 같은 접두사를 사용하면 각 태그의 목적을 더 쉽게 이해하고 이름 충돌을 피할 수
 있습니다.
 
-## System tags {#system-tags}
+## 시스템 태그 {#system-tags}
 
-Tuist uses the `tuist:` prefix for system-managed tags. These tags are
-automatically applied by Tuist and can be used in cache profiles to target
-specific types of generated content.
+시스템 관리 태그에는 `tuist:` 접두사를 사용합니다. 이러한 태그는 Tuist에서 자동으로 적용되며 캐시 프로필에서 특정 유형의 생성된
+콘텐츠를 타겟팅하는 데 사용할 수 있습니다.
 
-### Available system tags
+### 사용 가능한 시스템 태그
 
-| Tag                 | Description                                                                                                                                                                                             |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tuist:synthesized` | Applied to synthesized bundle targets that Tuist creates for resource handling in static libraries and static frameworks. These bundles exist for historical reasons to provide resource accessor APIs. |
+| 태그        | 설명                                                                                                          |
+| --------- | ----------------------------------------------------------------------------------------------------------- |
+| `튜이스트:합성` | 정적 라이브러리 및 정적 프레임워크에서 리소스 처리를 위해 Tuist가 생성하는 합성된 번들 타깃에 적용됩니다. 이러한 번들은 리소스 접근자 API를 제공하기 위한 역사적인 이유로 존재합니다. |
 
-### Using system tags with cache profiles
+### 캐시 프로필과 함께 시스템 태그 사용
 
-You can use system tags in cache profiles to include or exclude synthesized
-targets:
+캐시 프로필에서 시스템 태그를 사용하여 합성된 대상을 포함하거나 제외할 수 있습니다:
 
 ```swift
 import ProjectDescription
@@ -161,10 +159,9 @@ let tuist = Tuist(
 
 ::: tip SYNTHESIZED BUNDLES INHERIT PARENT TAGS
 <!-- -->
-Synthesized bundle targets inherit all tags from their parent target in addition
-to receiving the `tuist:synthesized` tag. This means if you tag a static library
-with `feature:auth`, its synthesized resource bundle will have both
-`feature:auth` and `tuist:synthesized` tags.
+합성된 번들 대상은 `tuist:synthesized` 태그를 받는 것 외에도 부모 대상의 모든 태그를 상속받습니다. 즉, 정적 라이브러리에
+`feature:auth` 태그를 지정하면 해당 합성된 리소스 번들에는 `feature:auth` 및 `tuist:synthesized` 태그가
+모두 포함됩니다.
 <!-- -->
 :::
 
