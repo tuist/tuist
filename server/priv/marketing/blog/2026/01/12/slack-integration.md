@@ -57,7 +57,7 @@ To connect Slack to your Tuist project:
 1. Connect your Slack workspace in the Integrations tab
 2. Configure reports and alert rules in your project's notification settings
 
-![The project settings page showing Slack configuration options](/marketing/images/blog/2026/01/12/slack-integration/project-settings.png)
+![The notifications settings page showing Slack configuration options](/marketing/images/blog/2026/01/12/slack-integration/notifications-settings.png)
 
 For detailed setup instructions, including configuration options and on-premise installation, see the [Slack integration documentation](https://docs.tuist.dev/en/guides/integrations/slack).
 
