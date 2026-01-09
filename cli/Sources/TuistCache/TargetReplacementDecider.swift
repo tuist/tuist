@@ -37,7 +37,7 @@ public struct CacheProfileTargetReplacementDecider: TargetReplacementDeciding {
 
         names.removeAll()
         tags.removeAll()
-        for exception in exceptions {
+        for exception in exceptions.union(profile.exceptTargetQueries) {
             switch exception {
             case let .named(name):
                 names.insert(name)
