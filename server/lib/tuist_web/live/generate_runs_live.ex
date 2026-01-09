@@ -10,25 +10,16 @@ defmodule TuistWeb.GenerateRunsLive do
   alias Noora.Filter
   alias Tuist.Accounts
   alias Tuist.CommandEvents
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     slug = "#{account.name}/#{project.name}"
 
-    og_image_assigns =
-      if project.visibility == :public do
-        [
-          head_image: Tuist.Environment.app_url(path: "/images/open-graph/dashboard/generate-runs.webp"),
-          head_twitter_card: "summary_large_image"
-        ]
-      else
-        []
-      end
-
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_builds", "Generate Runs")} · #{slug} · Tuist")
-      |> assign(og_image_assigns)
+      |> assign(OpenGraph.og_image_assigns(project, "generate-runs"))
       |> assign(:available_filters, define_filters(project))
 
     if connected?(socket) do

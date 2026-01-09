@@ -11,25 +11,16 @@ defmodule TuistWeb.ModuleCacheLive do
   alias Tuist.CommandEvents.Event
   alias Tuist.Runs.Analytics
   alias TuistWeb.Helpers.DatePicker
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     slug = "#{account.name}/#{project.name}"
 
-    og_image_assigns =
-      if project.visibility == :public do
-        [
-          head_image: Tuist.Environment.app_url(path: "/images/open-graph/dashboard/module-cache.webp"),
-          head_twitter_card: "summary_large_image"
-        ]
-      else
-        []
-      end
-
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_cache", "Module Cache")} · #{slug} · Tuist")
-      |> assign(og_image_assigns)
+      |> assign(OpenGraph.og_image_assigns(project, "module-cache"))
 
     if connected?(socket) do
       Tuist.PubSub.subscribe("#{account.name}/#{project.name}")

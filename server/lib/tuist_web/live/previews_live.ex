@@ -13,27 +13,18 @@ defmodule TuistWeb.PreviewsLive do
   alias Noora.Filter
   alias Tuist.AppBuilds
   alias Tuist.Projects
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
   alias TuistWeb.Utilities.SHA
 
   def mount(_params, _session, %{assigns: %{selected_project: project}} = socket) do
-    og_image_assigns =
-      if project.visibility == :public do
-        [
-          head_image: Tuist.Environment.app_url(path: "/images/open-graph/dashboard/previews.webp"),
-          head_twitter_card: "summary_large_image"
-        ]
-      else
-        []
-      end
-
     {:ok,
      socket
      |> assign(
        :head_title,
        "#{dgettext("dashboard_previews", "Previews")} · #{Projects.get_project_slug_from_id(project.id)} · Tuist"
      )
-     |> assign(og_image_assigns)
+     |> assign(OpenGraph.og_image_assigns(project, "previews"))
      |> assign(
        :latest_app_previews,
        AppBuilds.latest_previews_with_distinct_bundle_ids(project)

@@ -11,26 +11,17 @@ defmodule TuistWeb.QALive do
   alias Tuist.QA
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Helpers.DatePicker
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
   alias TuistWeb.Utilities.SHA
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     slug = "#{account.name}/#{project.name}"
 
-    og_image_assigns =
-      if project.visibility == :public do
-        [
-          head_image: Tuist.Environment.app_url(path: "/images/open-graph/dashboard/qa.webp"),
-          head_twitter_card: "summary_large_image"
-        ]
-      else
-        []
-      end
-
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_qa", "QA")} · #{slug} · Tuist")
-      |> assign(og_image_assigns)
+      |> assign(OpenGraph.og_image_assigns(project, "qa"))
       |> assign(:qa_runs, [])
       |> assign(:qa_runs_meta, %{})
       |> assign(:available_apps, QA.available_apps_for_project(project.id))

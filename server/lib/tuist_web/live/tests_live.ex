@@ -10,26 +10,17 @@ defmodule TuistWeb.TestsLive do
   alias Tuist.Runs
   alias Tuist.Runs.Analytics
   alias TuistWeb.Helpers.DatePicker
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
-    og_image_assigns =
-      if project.visibility == :public do
-        [
-          head_image: Tuist.Environment.app_url(path: "/images/open-graph/dashboard/tests.webp"),
-          head_twitter_card: "summary_large_image"
-        ]
-      else
-        []
-      end
-
     socket =
       socket
       |> assign(
         :head_title,
         "#{dgettext("dashboard_tests", "Tests")} · #{account.name}/#{project.name} · Tuist"
       )
-      |> assign(og_image_assigns)
+      |> assign(OpenGraph.og_image_assigns(project, "tests"))
       |> assign_recent_test_runs()
       |> assign_slowest_test_cases()
 

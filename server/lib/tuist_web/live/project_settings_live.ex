@@ -8,6 +8,7 @@ defmodule TuistWeb.ProjectSettingsLive do
   alias Tuist.Projects.Project
   alias Tuist.Slack.Client, as: SlackClient
   alias Tuist.Slack.Reports
+  alias TuistWeb.Helpers.OpenGraph
 
   @impl true
   def mount(
@@ -28,16 +29,6 @@ defmodule TuistWeb.ProjectSettingsLive do
     delete_project_form = to_form(%{"name" => ""})
     slack_form = to_form(Project.update_changeset(selected_project, %{}), as: :slack)
 
-    og_image_assigns =
-      if selected_project.visibility == :public do
-        [
-          head_image: Tuist.Environment.app_url(path: "/images/open-graph/dashboard/settings.webp"),
-          head_twitter_card: "summary_large_image"
-        ]
-      else
-        []
-      end
-
     socket =
       socket
       |> assign(rename_project_form: rename_project_form)
@@ -46,7 +37,7 @@ defmodule TuistWeb.ProjectSettingsLive do
       |> assign(slack_installation: slack_installation)
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Settings")} · #{selected_project.name} · Tuist")
       |> assign_schedule_form_defaults(selected_project)
-      |> assign(og_image_assigns)
+      |> assign(OpenGraph.og_image_assigns(selected_project, "settings"))
 
     {:ok, socket}
   end
