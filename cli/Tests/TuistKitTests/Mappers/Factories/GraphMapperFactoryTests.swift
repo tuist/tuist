@@ -283,5 +283,63 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
                 got, TreeShakePrunedTargetsGraphMapper.self, after: FocusTargetsGraphMappers.self
             )
         }
+
+        func test_default_contains_focus_mappers_when_targets_specified() {
+            // Given
+            let includedTargets: Set<TargetQuery> = [.named("MyTarget")]
+
+            // When
+            let got = subject.default(config: .test(), includedTargets: includedTargets)
+
+            // Then
+            let mapper = XCTAssertContainsElementOfType(got, FocusTargetsGraphMappers.self)
+            XCTAssertEqual(mapper?.includedTargets, includedTargets)
+        }
+
+        func test_default_does_not_contain_focus_mappers_when_no_targets_specified() {
+            // When
+            let got = subject.default(config: .test(), includedTargets: [])
+
+            // Then
+            XCTAssertDoesntContainElementOfType(got, FocusTargetsGraphMappers.self)
+        }
+
+        func test_default_contains_explicit_dependency_mapper_when_enforced() {
+            // Given
+            let config = Tuist.test(
+                project: .generated(.test(generationOptions: .test(enforceExplicitDependencies: true)))
+            )
+
+            // When
+            let got = subject.default(config: config, includedTargets: [])
+
+            // Then
+            XCTAssertContainsElementOfType(got, ExplicitDependencyGraphMapper.self)
+        }
+
+        func test_binaryCacheWarmingPreload_and_generation_use_same_base_mappers() {
+            // Given
+            let config = Tuist.test()
+            let targets: Set<TargetQuery> = [.named("MyTarget")]
+
+            // When
+            let preloadMappers = subject.binaryCacheWarmingPreload(
+                targetsToBinaryCache: targets,
+                config: config
+            )
+            let generationMappers = subject.generation(
+                config: config,
+                cacheProfile: .none,
+                cacheSources: targets,
+                configuration: "Debug",
+                cacheStorage: cacheStorage
+            )
+
+            // Then - Both should contain the same hash-affecting mappers in the same order
+            let preloadMapperTypes = preloadMappers.prefix(8).map { String(describing: type(of: $0)) }
+            let generationMapperTypes = generationMappers.prefix(8).map { String(describing: type(of: $0)) }
+
+            XCTAssertEqual(preloadMapperTypes, generationMapperTypes)
+        }
     }
 #endif
