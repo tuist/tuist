@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.120.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* export hashed graph to file via env variable by [@fortmarek](https://github.com/fortmarek) in [#9078](https://github.com/tuist/tuist/pull/9078)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.119.4...4.120.0
+
 ## What's Changed in 4.119.4<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
