@@ -333,6 +333,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(gotProject.targets.count, 1)
+        XCTAssertNil(gotProject.targets.values.first(where: { $0.product == .bundle }))
         let gotTarget = try XCTUnwrap(gotProject.targets.values.first)
         XCTAssertEqual(gotTarget.buildableFolders, [buildableFolder])
     }
@@ -386,6 +387,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(gotProject.targets.count, 1)
+        XCTAssertNil(gotProject.targets.values.first(where: { $0.product == .bundle }))
         let gotTarget = try XCTUnwrap(gotProject.targets.values.first)
         XCTAssertEqual(gotTarget.buildableFolders, buildableFolders)
     }

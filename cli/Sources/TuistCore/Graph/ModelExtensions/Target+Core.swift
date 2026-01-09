@@ -144,29 +144,21 @@ extension Target {
 
     public var containsResources: Bool {
         if !resources.resources.isEmpty || !coreDataModels.isEmpty { return true }
-        return buildableFolders.contains { folder in
-            folder.resolvedFiles.contains { file in
-                !isSourceLike(path: file.path)
-            }
-        }
+        return buildableFolders.contains { folder in folder.resolvedFiles.contains { !isSourceLike(path: $0.path) } }
     }
 
     private func isSourceLike(path: AbsolutePath) -> Bool {
-        guard let `extension` = path.extension else { return false }
+        guard let fileExtension = path.extension?.lowercased() else { return false }
 
-        let validExtensions = Target.validSourceExtensions
-            + Target.validSourceCompatibleFolderExtensions
-            + ["h", "hpp", "hh", "hxx"]
-
-        if validExtensions.contains(where: { $0.caseInsensitiveCompare(`extension`) == .orderedSame }) {
-            if Target.validSourceExtensions.contains(where: { $0.caseInsensitiveCompare(`extension`) == .orderedSame }) {
-                return !FileHandler.shared.isFolder(path)
-            }
-            return true
+        if Target.validSourceExtensions.map(\.lowercased()).contains(fileExtension) {
+            return !FileHandler.shared.isFolder(path)
         }
 
-        return false
+        let compatibleExtensions = Target.validSourceCompatibleFolderExtensions.map(\.lowercased())
+        return compatibleExtensions.contains(fileExtension) || Self.headerExtensions.contains(fileExtension)
     }
+
+    private static let headerExtensions: Set<String> = ["h", "hpp", "hh", "hxx"]
 
     /// Returns if target is a generated resources bundle.
     public var isGeneratedResourcesBundle: Bool {
