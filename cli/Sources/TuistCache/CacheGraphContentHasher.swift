@@ -1,3 +1,4 @@
+import Foundation
 import Mockable
 import TuistCore
 import TuistHasher
@@ -52,6 +53,18 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
         excludedTargets: Set<String>,
         destination: SimulatorDeviceAndRuntime?
     ) async throws -> [GraphTarget: TargetContentHash] {
+        if Environment.current.isVerbose {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            if let graphJSON = try? encoder.encode(graph),
+               let graphString = String(data: graphJSON, encoding: .utf8)
+            {
+                Logger.current.debug("--- Graph ---")
+                Logger.current.debug("\(graphString)")
+                Logger.current.debug("--- End of Graph ---")
+            }
+        }
+
         let graphTraverser = GraphTraverser(graph: graph)
         let version = versionFetcher.version()
         let configuration = try defaultConfigurationFetcher.fetch(
