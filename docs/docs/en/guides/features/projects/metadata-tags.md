@@ -155,7 +155,9 @@ let tuist = Tuist(
 ```
 
 ::: tip SYNTHESIZED BUNDLES INHERIT PARENT TAGS
+<!-- -->
 Synthesized bundle targets inherit all tags from their parent target in addition to receiving the `tuist:synthesized` tag. This means if you tag a static library with `feature:auth`, its synthesized resource bundle will have both `feature:auth` and `tuist:synthesized` tags.
+<!-- -->
 :::
 
 ## Using tags with project description helpers {#using-tags-with-helpers}
