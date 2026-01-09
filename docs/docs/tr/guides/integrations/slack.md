@@ -33,11 +33,11 @@ yetkilendirme sayfasına yönlendirecektir.
 
 ### Proje raporları {#project-reports}
 
-After connecting Slack, configure reports for each project in the project
-settings' notifications tab:
+Slack'e bağlandıktan sonra, proje ayarlarının bildirimler sekmesinde her proje
+için raporları yapılandırın:
 
-![An image that shows the notifications settings with Slack report
-configuration](/images/guides/integrations/slack/notifications-settings.png)
+![Slack rapor yapılandırması ile bildirim ayarlarını gösteren bir
+görüntü](/images/guides/integrations/slack/notifications-settings.png)
 
 Yapılandırabilirsiniz:
 - **Kanal**: Raporları hangi Slack kanalının alacağını seçin
@@ -49,35 +49,35 @@ raporlar gönderir:
 
 <img src="/images/guides/integrations/slack/report.png" alt="An image that shows a Slack report message" style="max-width: 500px;" />
 
-### Alert rules {#alert-rules}
+### Uyarı kuralları {#alert-rules}
 
-Get notified in Slack with alert rules when key metrics significantly regress to
-help you catch slower builds, cache degradation, or test slowdowns as soon as
-possible, minimizing the impact on your team's productivity.
+Yavaş derlemeleri, önbellek bozulmasını veya test yavaşlamalarını mümkün olan en
+kısa sürede yakalamanıza yardımcı olmak ve ekibinizin üretkenliği üzerindeki
+etkiyi en aza indirmek için önemli metrikler önemli ölçüde gerilediğinde uyarı
+kurallarıyla Slack'te bildirim alın.
 
-To create an alert rule, go to your project's notification settings and click
-**Add alert rule**:
+Bir uyarı kuralı oluşturmak için projenizin bildirim ayarlarına gidin ve **Uyarı
+kuralı ekle** öğesine tıklayın:
 
 Yapılandırabilirsiniz:
-- **Name**: A descriptive name for the alert
-- **Category**: What to measure (build duration, test duration, or cache hit
-  rate)
-- **Metric**: How to aggregate the data (p50, p90, p99, or average)
-- **Deviation**: The percentage change that triggers an alert
-- **Rolling window**: How many recent runs to compare against
-- **Slack channel**: Where to send the alert
+- **İsim**: Uyarı için açıklayıcı bir ad
+- **Kategori**: Ne ölçülmeli (derleme süresi, test süresi veya önbellek isabet
+  oranı)
+- **Metrik**: Veriler nasıl toplanır (p50, p90, p99 veya ortalama)
+- **Sapma**: Bir uyarıyı tetikleyen yüzde değişimi
+- **Rolling window**: Kaç yeni çalıştırma ile karşılaştırılacağı
+- **Slack kanalı**: Uyarının gönderileceği yer
 
-For example, you might create an alert that triggers when the p90 build duration
-increases by more than 20% compared to the previous 100 builds.
+Örneğin, p90 derleme süresi önceki 100 derlemeye kıyasla %20'den fazla
+arttığında tetiklenen bir uyarı oluşturabilirsiniz.
 
-When an alert triggers, you'll receive a message like this in your Slack
-channel:
+Bir uyarı tetiklendiğinde, Slack kanalınızda buna benzer bir mesaj alırsınız:
 
 <img src="/images/guides/integrations/slack/alert.png" alt="An image that shows a Slack alert message" style="max-width: 500px;" />
 
-> [!NOTE] COOLDOWN PERIOD After an alert triggers, it won't fire again for the
-> same rule for 24 hours. This prevents notification fatigue when a metric stays
-> elevated.
+> [!NOT] SAKLAMA SÜRESİ Bir uyarı tetiklendikten sonra, 24 saat boyunca aynı
+> kural için tekrar tetiklenmez. Bu, bir metrik yüksek kaldığında bildirim
+> yorgunluğunu önler.
 
 ## Şirket içi kurulumlar {#on-premise}
 
