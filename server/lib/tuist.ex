@@ -86,12 +86,12 @@ defmodule Tuist do
       Alerts,
       Alerts.Alert,
       Alerts.AlertRule,
+      Alerts.Workers.AlertWorker,
       Slack,
       Slack.Client,
       Slack.Installation,
       Slack.Reports,
       Slack.Workers.ReportWorker,
-      Slack.Workers.AlertWorker,
       # Support
       # -----
       # These modules represent Tuist-agnostic utilities that are used by other features.

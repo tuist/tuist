@@ -1,4 +1,4 @@
-defmodule Tuist.Slack.Workers.AlertWorker do
+defmodule Tuist.Alerts.Workers.AlertWorker do
   @moduledoc """
   A periodic job that checks alert rule conditions and sends Slack notifications.
 

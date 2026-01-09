@@ -1,11 +1,11 @@
-defmodule Tuist.Slack.Workers.AlertWorkerTest do
+defmodule Tuist.Alerts.Workers.AlertWorkerTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   alias Tuist.Alerts
+  alias Tuist.Alerts.Workers.AlertWorker
   alias Tuist.Slack
   alias Tuist.Slack.Client
-  alias Tuist.Slack.Workers.AlertWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AlertsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
