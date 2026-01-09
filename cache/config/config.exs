@@ -37,14 +37,16 @@ config :cache, Oban,
   queues: [
     clean: 10,
     maintenance: 1,
-    s3_transfers: 1
+    s3_transfers: 1,
+    registry_sync: 1
   ],
   plugins: [
     {Oban.Plugins.Pruner, interval: to_timeout(minute: 5), max_age: to_timeout(day: 1)},
     {Oban.Plugins.Cron,
      crontab: [
        {"*/10 * * * *", Cache.DiskEvictionWorker},
-       {"* * * * *", Cache.S3TransferWorker}
+       {"* * * * *", Cache.S3TransferWorker},
+       {"0 * * * *", Cache.Registry.SyncWorker}
      ]}
   ]
 

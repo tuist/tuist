@@ -206,6 +206,157 @@ defmodule Cache.DiskTest do
   end
 end
 
+defmodule Cache.DiskRegistryTest do
+  use ExUnit.Case, async: true
+  use Mimic
+
+  alias Cache.Disk
+
+  @test_scope "apple"
+  @test_name "parser"
+  @test_version "1.0.0"
+  @test_filename "source_archive.zip"
+
+  setup do
+    {:ok, test_storage_dir} = Briefly.create(directory: true)
+
+    Disk
+    |> stub(:storage_dir, fn -> test_storage_dir end)
+    |> stub(:artifact_path, fn key -> Path.join(test_storage_dir, key) end)
+    |> stub(:registry_put, fn scope, name, version, filename, data ->
+      key = Disk.registry_key(scope, name, version, filename)
+      path = Path.join(test_storage_dir, key)
+
+      case data do
+        {:file, tmp_path} ->
+          File.mkdir_p!(Path.dirname(path))
+          File.rename(tmp_path, path)
+          :ok
+
+        binary when is_binary(binary) ->
+          File.mkdir_p!(Path.dirname(path))
+          File.write!(path, binary)
+          :ok
+      end
+    end)
+    |> stub(:registry_exists?, fn scope, name, version, filename ->
+      key = Disk.registry_key(scope, name, version, filename)
+      test_storage_dir |> Path.join(key) |> File.exists?()
+    end)
+    |> stub(:registry_stat, fn scope, name, version, filename ->
+      key = Disk.registry_key(scope, name, version, filename)
+      path = Path.join(test_storage_dir, key)
+      File.stat(path)
+    end)
+
+    {:ok, test_storage_dir: test_storage_dir}
+  end
+
+  describe "registry_key/4" do
+    test "constructs normalized key" do
+      key = Disk.registry_key("Apple", "Parser", "v1.2", "source_archive.zip")
+      assert key == "registry/swift/apple/parser/1.2.0/source_archive.zip"
+    end
+
+    test "normalizes version with leading v" do
+      key = Disk.registry_key("apple", "parser", "v1.2.3", "Package.swift")
+      assert key == "registry/swift/apple/parser/1.2.3/Package.swift"
+    end
+
+    test "adds trailing zeros to incomplete version" do
+      key = Disk.registry_key("apple", "parser", "1", "source_archive.zip")
+      assert key == "registry/swift/apple/parser/1.0.0/source_archive.zip"
+    end
+
+    test "handles pre-release version" do
+      key = Disk.registry_key("apple", "parser", "1.0.0-alpha.1", "source_archive.zip")
+      assert key == "registry/swift/apple/parser/1.0.0-alpha+1/source_archive.zip"
+    end
+  end
+
+  describe "registry_exists?/4" do
+    test "returns true when file exists", %{test_storage_dir: test_storage_dir} do
+      key = Disk.registry_key(@test_scope, @test_name, @test_version, @test_filename)
+      path = Path.join(test_storage_dir, key)
+      File.mkdir_p!(Path.dirname(path))
+      File.write!(path, "test content")
+
+      assert Disk.registry_exists?(@test_scope, @test_name, @test_version, @test_filename) == true
+    end
+
+    test "returns false when file doesn't exist" do
+      assert Disk.registry_exists?("nonexistent", "package", "1.0.0", "file.zip") == false
+    end
+  end
+
+  describe "registry_put/5" do
+    test "writes binary data to disk", %{test_storage_dir: test_storage_dir} do
+      data = "test artifact data"
+
+      assert Disk.registry_put(@test_scope, @test_name, @test_version, @test_filename, data) == :ok
+
+      key = Disk.registry_key(@test_scope, @test_name, @test_version, @test_filename)
+      path = Path.join(test_storage_dir, key)
+      assert File.exists?(path)
+      assert File.read!(path) == data
+    end
+
+    test "creates parent directories if they don't exist", %{test_storage_dir: test_storage_dir} do
+      data = "nested artifact"
+
+      assert Disk.registry_put("new_scope", "new_package", "2.0.0", "file.zip", data) == :ok
+
+      key = Disk.registry_key("new_scope", "new_package", "2.0.0", "file.zip")
+      path = Path.join(test_storage_dir, key)
+      assert File.exists?(path)
+      assert File.read!(path) == data
+    end
+
+    test "handles file tuple input", %{test_storage_dir: test_storage_dir} do
+      {:ok, tmp_path} = Briefly.create()
+      File.write!(tmp_path, "file content")
+
+      assert Disk.registry_put(@test_scope, @test_name, @test_version, @test_filename, {:file, tmp_path}) == :ok
+
+      key = Disk.registry_key(@test_scope, @test_name, @test_version, @test_filename)
+      path = Path.join(test_storage_dir, key)
+      assert File.exists?(path)
+      assert File.read!(path) == "file content"
+    end
+  end
+
+  describe "registry_stat/4" do
+    test "returns file stat for existing artifact", %{test_storage_dir: test_storage_dir} do
+      data = "test content for stat"
+      key = Disk.registry_key(@test_scope, @test_name, @test_version, @test_filename)
+      path = Path.join(test_storage_dir, key)
+      File.mkdir_p!(Path.dirname(path))
+      File.write!(path, data)
+
+      assert {:ok, stat} = Disk.registry_stat(@test_scope, @test_name, @test_version, @test_filename)
+      assert %File.Stat{} = stat
+      assert stat.size == byte_size(data)
+      assert stat.type == :regular
+    end
+
+    test "returns error for non-existent artifact" do
+      assert {:error, :enoent} = Disk.registry_stat("nonexistent", "package", "1.0.0", "file.zip")
+    end
+  end
+
+  describe "registry_local_accel_path/4" do
+    test "builds internal X-Accel-Redirect path" do
+      path = Disk.registry_local_accel_path(@test_scope, @test_name, @test_version, @test_filename)
+      assert path == "/internal/local/registry/swift/apple/parser/1.0.0/source_archive.zip"
+    end
+
+    test "normalizes components in path" do
+      path = Disk.registry_local_accel_path("Apple", "Parser", "v1.2", "Package.swift")
+      assert path == "/internal/local/registry/swift/apple/parser/1.2.0/Package.swift"
+    end
+  end
+end
+
 defmodule Cache.DiskIntegrationTest do
   use ExUnit.Case, async: true
 

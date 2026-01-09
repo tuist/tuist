@@ -12,5 +12,8 @@ Mimic.copy(Cache.S3)
 Mimic.copy(Cache.S3Transfers)
 Mimic.copy(Plug.Conn)
 Mimic.copy(Req)
+Mimic.copy(Cache.Registry.LeaderElection)
+Mimic.copy(Cache.Registry.Metadata)
+Mimic.copy(Oban)
 
 ExUnit.start()
