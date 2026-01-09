@@ -133,22 +133,22 @@ metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 استخدام البادئات مثل `ميزة:` أو `فريق:` أو `طبقة:` يجعل من السهل فهم الغرض من كل
 علامة وتجنب تعارض التسمية.
 
-## System tags {#system-tags}
+## علامات النظام {#system-tags}
 
-Tuist uses the `tuist:` prefix for system-managed tags. These tags are
-automatically applied by Tuist and can be used in cache profiles to target
-specific types of generated content.
+يستخدم تويست البادئة `tuist:` للعلامات التي يديرها النظام. يتم تطبيق هذه
+العلامات تلقائيًا بواسطة Tuist ويمكن استخدامها في ملفات تعريف ذاكرة التخزين
+المؤقت لاستهداف أنواع محددة من المحتوى الذي تم إنشاؤه.
 
-### Available system tags
+### علامات النظام المتوفرة
 
-| Tag                 | Description                                                                                                                                                                                             |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tuist:synthesized` | Applied to synthesized bundle targets that Tuist creates for resource handling in static libraries and static frameworks. These bundles exist for historical reasons to provide resource accessor APIs. |
+| الوسم         | الوصف                                                                                                                                                                                |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `تويست: مركب` | تطبق على أهداف الحزمة المركبة التي ينشئها Tuist لمعالجة الموارد في المكتبات الثابتة والأطر الثابتة. هذه الحُزم موجودة لأسباب تاريخية لتوفير واجهات برمجة تطبيقات الوصول إلى الموارد. |
 
-### Using system tags with cache profiles
+### استخدام علامات النظام مع ملفات تعريف ذاكرة التخزين المؤقت
 
-You can use system tags in cache profiles to include or exclude synthesized
-targets:
+يمكنك استخدام علامات النظام في ملفات تعريف ذاكرة التخزين المؤقت لتضمين أو
+استبعاد الأهداف المركبة:
 
 ```swift
 import ProjectDescription
@@ -172,10 +172,10 @@ let tuist = Tuist(
 
 ::: tip SYNTHESIZED BUNDLES INHERIT PARENT TAGS
 <!-- -->
-Synthesized bundle targets inherit all tags from their parent target in addition
-to receiving the `tuist:synthesized` tag. This means if you tag a static library
-with `feature:auth`, its synthesized resource bundle will have both
-`feature:auth` and `tuist:synthesized` tags.
+ترث أهداف الحزمة المركبة جميع العلامات من هدفها الأم بالإضافة إلى تلقي علامة
+`tuist:synthesized`. هذا يعني أنه إذا قمت بتمييز مكتبة ثابتة بعلامة `ميزة:auth`
+، فإن حزمة الموارد المركبة الخاصة بها ستحتوي على كل من علامتي `ميزة:auth` و
+`tuist:synthesized`.
 <!-- -->
 :::
 
