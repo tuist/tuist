@@ -11,6 +11,7 @@ import XcodeGraph
 
 private let irrelevantBundleName = ""
 
+// swiftlint:disable:next type_body_length
 struct ResourcesProjectMapperTests {
     private let contentHasher: MockContentHashing
     private let buildableFolderChecker: MockBuildableFolderChecking
@@ -392,6 +393,7 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
+    // swiftlint:disable:next function_body_length
     func mapWhenNestedBuildableFoldersShareSourcesAndResources() async throws {
         // Given
         let rootPath = try AbsolutePath(validating: "/MyTarget")
