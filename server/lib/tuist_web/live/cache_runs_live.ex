@@ -20,7 +20,7 @@ defmodule TuistWeb.CacheRunsLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_cache", "Cache Runs")} · #{slug} · Tuist")
-      |> assign(OpenGraph.og_image_assigns(project, "cache-runs"))
+      |> assign(OpenGraph.og_image_assigns("cache-runs"))
       |> assign(:available_filters, define_filters(project))
 
     if connected?(socket) do

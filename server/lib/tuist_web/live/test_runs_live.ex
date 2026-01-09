@@ -22,7 +22,7 @@ defmodule TuistWeb.TestRunsLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Runs")} · #{slug} · Tuist")
-      |> assign(OpenGraph.og_image_assigns(project, "test-runs"))
+      |> assign(OpenGraph.og_image_assigns("test-runs"))
       |> assign(:available_filters, define_filters(project))
 
     if connected?(socket) do

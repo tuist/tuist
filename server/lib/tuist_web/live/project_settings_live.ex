@@ -37,7 +37,7 @@ defmodule TuistWeb.ProjectSettingsLive do
       |> assign(slack_installation: slack_installation)
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Settings")} · #{selected_project.name} · Tuist")
       |> assign_schedule_form_defaults(selected_project)
-      |> assign(OpenGraph.og_image_assigns(selected_project, "settings"))
+      |> assign(OpenGraph.og_image_assigns("settings"))
 
     {:ok, socket}
   end

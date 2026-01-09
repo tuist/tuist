@@ -20,7 +20,7 @@ defmodule TuistWeb.BuildsLive do
         :head_title,
         "#{dgettext("dashboard_builds", "Builds")} · #{account.name}/#{project.name} · Tuist"
       )
-      |> assign(OpenGraph.og_image_assigns(project, "builds"))
+      |> assign(OpenGraph.og_image_assigns("builds"))
       |> assign_configuration_insights_options(params)
       |> assign_initial_configuration_insights()
       |> assign_recent_builds()

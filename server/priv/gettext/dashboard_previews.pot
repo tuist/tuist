@@ -22,7 +22,7 @@ msgid "%{display_name} · Tuist"
 msgstr ""
 
 #: lib/tuist_web/live/preview_live.html.heex:141
-#: lib/tuist_web/live/previews_live.ex:171
+#: lib/tuist_web/live/previews_live.ex:173
 #: lib/tuist_web/live/previews_live.html.heex:84
 #, elixir-autogen, elixir-format
 msgid "Branch"
@@ -86,7 +86,7 @@ msgid "Name"
 msgstr ""
 
 #: lib/tuist_web/live/preview_live.html.heex:144
-#: lib/tuist_web/live/previews_live.ex:179
+#: lib/tuist_web/live/previews_live.ex:181
 #, elixir-autogen, elixir-format
 msgid "None"
 msgstr ""
@@ -102,7 +102,7 @@ msgid "Platforms"
 msgstr ""
 
 #: lib/tuist_web/live/preview_live.html.heex:29
-#: lib/tuist_web/live/previews_live.ex:24
+#: lib/tuist_web/live/previews_live.ex:25
 #: lib/tuist_web/live/previews_live.html.heex:19
 #: lib/tuist_web/live/previews_live.html.heex:33
 #, elixir-autogen, elixir-format
@@ -185,7 +185,7 @@ msgid "Search..."
 msgstr ""
 
 #: lib/tuist_web/live/preview_live.html.heex:156
-#: lib/tuist_web/live/previews_live.ex:163
+#: lib/tuist_web/live/previews_live.ex:165
 #: lib/tuist_web/live/previews_live.html.heex:81
 #, elixir-autogen, elixir-format
 msgid "Track"

@@ -25,7 +25,7 @@ defmodule TuistWeb.OverviewLive do
        :head_title,
        "#{dgettext("dashboard_projects", "Overview")} · #{account.name}/#{project.name} · Tuist"
      )
-     |> assign(OpenGraph.og_image_assigns(project, "overview"))}
+     |> assign(OpenGraph.og_image_assigns("overview"))}
   end
 
   def handle_event(

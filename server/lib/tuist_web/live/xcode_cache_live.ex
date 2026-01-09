@@ -21,7 +21,7 @@ defmodule TuistWeb.XcodeCacheLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_cache", "Xcode Cache")} · #{slug} · Tuist")
-      |> assign(OpenGraph.og_image_assigns(project, "xcode-cache"))
+      |> assign(OpenGraph.og_image_assigns("xcode-cache"))
 
     if connected?(socket) do
       Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
