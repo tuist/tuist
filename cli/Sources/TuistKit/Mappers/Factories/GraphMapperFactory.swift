@@ -103,8 +103,6 @@ public final class GraphMapperFactory: GraphMapperFactorying {
             self.contentHasher = contentHasher
         }
 
-        // MARK: - Public Factory Methods
-
         func automation(
             config: Tuist,
             ignoreBinaryCache: Bool,
@@ -276,7 +274,6 @@ public final class GraphMapperFactory: GraphMapperFactorying {
             // This is inserted early (index 2) after ModuleMapMapper and ExternalProjectsPlatformNarrowerGraphMapper
             mappers.insert(GenerateCacheableSchemesGraphMapper(targets: targets), at: 2)
 
-            // Add cache binary replacement after hash-affecting mappers
             let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
                 config: config,
                 decider: CacheProfileTargetReplacementDecider(
@@ -343,8 +340,6 @@ public final class GraphMapperFactory: GraphMapperFactorying {
             return mappers
         }
 
-        /// Returns the default graph mappers that affect the graph structure and content hashes.
-        /// This chain MUST be consistent across all commands that compute or use hashes.
         func `default`(
             config: Tuist,
             includedTargets: Set<TargetQuery>,

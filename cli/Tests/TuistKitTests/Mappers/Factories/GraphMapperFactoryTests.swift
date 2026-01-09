@@ -284,8 +284,6 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             )
         }
 
-        // MARK: - Default mapper chain tests
-
         func test_default_contains_focus_mappers_when_targets_specified() {
             // Given
             let includedTargets: Set<TargetQuery> = [.named("MyTarget")]
@@ -318,8 +316,6 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // Then
             XCTAssertContainsElementOfType(got, ExplicitDependencyGraphMapper.self)
         }
-
-        // MARK: - Hash consistency tests
 
         func test_binaryCacheWarmingPreload_and_generation_use_same_base_mappers() {
             // Given
