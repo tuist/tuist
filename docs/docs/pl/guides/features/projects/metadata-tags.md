@@ -137,22 +137,22 @@ metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 Używanie prefiksów takich jak `feature:`, `team:`, lub `layer:` ułatwia
 zrozumienie celu każdego tagu i uniknięcie konfliktów nazewnictwa.
 
-## System tags {#system-tags}
+## Znaczniki systemowe {#system-tags}
 
-Tuist uses the `tuist:` prefix for system-managed tags. These tags are
-automatically applied by Tuist and can be used in cache profiles to target
-specific types of generated content.
+Tuist używa prefiksu `tuist:` dla tagów zarządzanych przez system. Tagi te są
+automatycznie stosowane przez Tuist i mogą być używane w profilach pamięci
+podręcznej do kierowania określonych typów generowanej zawartości.
 
-### Available system tags
+### Dostępne znaczniki systemowe
 
-| Tag                 | Description                                                                                                                                                                                             |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tuist:synthesized` | Applied to synthesized bundle targets that Tuist creates for resource handling in static libraries and static frameworks. These bundles exist for historical reasons to provide resource accessor APIs. |
+| Tag                    | Opis                                                                                                                                                                                                                                         |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tuist:zsyntetyzowany` | Stosowany do zsyntetyzowanych pakietów docelowych, które Tuist tworzy do obsługi zasobów w statycznych bibliotekach i statycznych frameworkach. Te pakiety istnieją z powodów historycznych, aby zapewnić interfejsy API dostępu do zasobów. |
 
-### Using system tags with cache profiles
+### Używanie tagów systemowych z profilami pamięci podręcznej
 
-You can use system tags in cache profiles to include or exclude synthesized
-targets:
+W profilach pamięci podręcznej można używać znaczników systemowych w celu
+uwzględnienia lub wykluczenia zsyntetyzowanych obiektów docelowych:
 
 ```swift
 import ProjectDescription
@@ -176,10 +176,11 @@ let tuist = Tuist(
 
 ::: tip SYNTHESIZED BUNDLES INHERIT PARENT TAGS
 <!-- -->
-Synthesized bundle targets inherit all tags from their parent target in addition
-to receiving the `tuist:synthesized` tag. This means if you tag a static library
-with `feature:auth`, its synthesized resource bundle will have both
-`feature:auth` and `tuist:synthesized` tags.
+Zsyntetyzowane obiekty docelowe pakietu dziedziczą wszystkie znaczniki ze
+swojego obiektu nadrzędnego, a ponadto otrzymują znacznik `tuist:synthesized`.
+Oznacza to, że jeśli biblioteka statyczna zostanie oznaczona tagiem
+`feature:auth`, jej zsyntetyzowany pakiet zasobów będzie posiadał tagi
+`feature:auth` i `tuist:synthesized`.
 <!-- -->
 :::
 
