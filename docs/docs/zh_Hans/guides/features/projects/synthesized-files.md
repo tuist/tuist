@@ -71,13 +71,10 @@ NSBundle *bundle = [MyFeatureResources bundle];
 
 小贴士 通过工具包为图书馆资源提供支持
 <!-- -->
-If a target product, for example a library, doesn't support resources, Tuist
-will include the resources in a target of product type `bundle` ensuring that it
-ends up in the final product and that the interface points to the right bundle.
-These synthesized bundles are automatically tagged with `tuist:synthesized` and
-inherit all tags from their parent target, allowing you to target them in
+如果目标产品（例如库）不支持资源，Tuist 会将资源包含在产品类型为`bundle` 的目标中，确保资源最终出现在最终产品中，并确保接口指向正确的
+bundle。这些合成捆绑包会自动标记为`tuist:synthesized` ，并继承其父目标的所有标记，因此您可以在
 <LocalizedLink href="/guides/features/projects/metadata-tags#system-tags">cache
-profiles</LocalizedLink>.
+profiles</LocalizedLink> 中将其作为目标。
 <!-- -->
 :::
 
