@@ -206,6 +206,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
         ])
         let remoteXcframeworks = try await fileSystem.glob(directory: remoteXcframeworksPath, include: ["**/*.xcframework"])
             .collect()
+            // Filter out __MACOSX folder
+            .filter { $0.parentDirectory.basenameWithoutExt != "__MACOSX" }
         for xcframework in remoteXcframeworks {
             let dependencyName = xcframework.relative(to: remoteXcframeworksPath).basenameWithoutExt
             let xcframeworkPath = Path
