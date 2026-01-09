@@ -144,7 +144,7 @@ specific types of generated content.
 
 ### Available system tags
 
-| Tag                 | Description                                                                                                                                                                                             |
+| Etiqueta            | Descrição                                                                                                                                                                                               |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `tuist:synthesized` | Applied to synthesized bundle targets that Tuist creates for resource handling in static libraries and static frameworks. These bundles exist for historical reasons to provide resource accessor APIs. |
 
