@@ -138,22 +138,22 @@ metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 `feature:`, `team:`, veya `layer:` gibi ön ekler kullanmak her bir etiketin
 amacını anlamayı kolaylaştırır ve adlandırma çakışmalarını önler.
 
-## System tags {#system-tags}
+## Sistem etiketleri {#system-tags}
 
-Tuist uses the `tuist:` prefix for system-managed tags. These tags are
-automatically applied by Tuist and can be used in cache profiles to target
-specific types of generated content.
+Tuist, sistem tarafından yönetilen etiketler için `tuist:` önekini kullanır. Bu
+etiketler Tuist tarafından otomatik olarak uygulanır ve oluşturulan belirli
+içerik türlerini hedeflemek için önbellek profillerinde kullanılabilir.
 
-### Available system tags
+### Mevcut sistem etiketleri
 
-| Tag                 | Description                                                                                                                                                                                             |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tuist:synthesized` | Applied to synthesized bundle targets that Tuist creates for resource handling in static libraries and static frameworks. These bundles exist for historical reasons to provide resource accessor APIs. |
+| Etiket               | Açıklama                                                                                                                                                                                                           |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `tuist:sentezlenmiş` | Tuist'in statik kütüphanelerde ve statik çerçevelerde kaynak kullanımı için oluşturduğu sentezlenmiş paket hedeflerine uygulanır. Bu paketler, kaynak erişim API'leri sağlamak için tarihsel nedenlerle mevcuttur. |
 
-### Using system tags with cache profiles
+### Sistem etiketlerini önbellek profilleri ile kullanma
 
-You can use system tags in cache profiles to include or exclude synthesized
-targets:
+Sentezlenmiş hedefleri dahil etmek veya hariç tutmak için önbellek profillerinde
+sistem etiketlerini kullanabilirsiniz:
 
 ```swift
 import ProjectDescription
@@ -177,10 +177,11 @@ let tuist = Tuist(
 
 ::: tip SYNTHESIZED BUNDLES INHERIT PARENT TAGS
 <!-- -->
-Synthesized bundle targets inherit all tags from their parent target in addition
-to receiving the `tuist:synthesized` tag. This means if you tag a static library
-with `feature:auth`, its synthesized resource bundle will have both
-`feature:auth` and `tuist:synthesized` tags.
+Sentezlenmiş paket hedefleri, `tuist:synthesized` etiketini almanın yanı sıra
+tüm etiketleri ana hedeflerinden devralır. Bu, statik bir kütüphaneyi
+`feature:auth` ile etiketlerseniz, sentezlenmiş kaynak paketinin hem
+`feature:auth` hem de `tuist:synthesized` etiketlerine sahip olacağı anlamına
+gelir.
 <!-- -->
 :::
 
