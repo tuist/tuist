@@ -49,7 +49,7 @@ public struct RecursiveManifestLoader: RecursiveManifestLoading {
     private let rootDirectoryLocator: RootDirectoryLocating
 
     public init(
-        manifestLoader: ManifestLoading = ManifestLoader(),
+        manifestLoader: ManifestLoading = ManifestLoader.current,
         fileHandler: FileHandling = FileHandler.shared,
         fileSystem: FileSysteming = FileSystem(),
         packageInfoMapper: PackageInfoMapping = PackageInfoMapper(),
@@ -169,7 +169,8 @@ public struct RecursiveManifestLoader: RecursiveManifestLoading {
                     path: $0,
                     packageType: .local,
                     packageSettings: packageSettings,
-                    packageModuleAliases: [:]
+                    packageModuleAliases: [:],
+                    enabledTraits: []
                 )
             }
             var newDependenciesPaths = Set<AbsolutePath>()

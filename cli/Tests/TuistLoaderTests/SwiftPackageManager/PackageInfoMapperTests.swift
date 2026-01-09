@@ -4838,7 +4838,8 @@ struct PackageInfoMapperTests {
             path: packagePath,
             packageType: .local,
             packageSettings: .test(),
-            packageModuleAliases: [:]
+            packageModuleAliases: [:],
+            enabledTraits: []
         )
 
         #expect(project != nil)
@@ -4882,7 +4883,8 @@ struct PackageInfoMapperTests {
                 path: packagePath,
                 packageType: .local,
                 packageSettings: .test(),
-                packageModuleAliases: [:]
+                packageModuleAliases: [:],
+                enabledTraits: []
             )
         }
     }
@@ -4921,7 +4923,8 @@ struct PackageInfoMapperTests {
             path: packagePath,
             packageType: .local,
             packageSettings: .test(),
-            packageModuleAliases: [:]
+            packageModuleAliases: [:],
+            enabledTraits: []
         )
 
         #expect(project != nil)
@@ -4965,7 +4968,8 @@ struct PackageInfoMapperTests {
             path: packagePath,
             packageType: .local,
             packageSettings: .test(),
-            packageModuleAliases: [:]
+            packageModuleAliases: [:],
+            enabledTraits: []
         )
 
         #expect(project != nil)
@@ -5014,7 +5018,8 @@ struct PackageInfoMapperTests {
             path: packagePath,
             packageType: .local,
             packageSettings: .test(),
-            packageModuleAliases: [:]
+            packageModuleAliases: [:],
+            enabledTraits: []
         )
 
         #expect(project != nil)
@@ -5062,7 +5067,8 @@ struct PackageInfoMapperTests {
             path: packagePath,
             packageType: .local,
             packageSettings: .test(),
-            packageModuleAliases: [:]
+            packageModuleAliases: [:],
+            enabledTraits: []
         )
 
         #expect(project != nil)
@@ -5074,6 +5080,287 @@ struct PackageInfoMapperTests {
         let firstGlob = sources?.globs.first
         // Should use standard layout, not SE-0162 layout
         #expect(firstGlob?.glob.pathString.contains("Package/Sources/Target1/**") == true)
+    }
+
+    // MARK: - Enabled Traits Tests
+
+    @Test(.withMockedSwiftVersionProvider)
+    func enabledTraits_whenRootPackageHasUnconditionalTraits_returnsTraitsForDependency() {
+        let rootPackageInfo = PackageInfo.test(
+            name: "RootPackage",
+            products: [],
+            targets: [],
+            dependencies: [
+                PackageDependency(
+                    identity: "dependency-a",
+                    traits: [
+                        PackageDependencyTrait(name: "FeatureX", condition: nil),
+                        PackageDependencyTrait(name: "FeatureY", condition: nil),
+                    ]
+                ),
+            ]
+        )
+
+        let result = enabledTraits(
+            rootPackageInfo: rootPackageInfo,
+            packageInfos: [:]
+        )
+
+        #expect(result["dependency-a"] == Set(["FeatureX", "FeatureY"]))
+    }
+
+    @Test(.withMockedSwiftVersionProvider)
+    func enabledTraits_whenNoTraitsSpecified_returnsEmptyDictionary() {
+        let rootPackageInfo = PackageInfo.test(
+            name: "RootPackage",
+            products: [],
+            targets: [],
+            dependencies: [
+                PackageDependency(identity: "dependency-a", traits: []),
+            ]
+        )
+
+        let result = enabledTraits(
+            rootPackageInfo: rootPackageInfo,
+            packageInfos: [:]
+        )
+
+        #expect(result.isEmpty)
+    }
+
+    @Test(.withMockedSwiftVersionProvider)
+    func enabledTraits_whenConditionalTraitWithMatchingCondition_enablesTrait() {
+        let rootPackageInfo = PackageInfo.test(
+            name: "RootPackage",
+            products: [],
+            targets: [],
+            dependencies: [
+                PackageDependency(
+                    identity: "dependency-a",
+                    traits: [PackageDependencyTrait(name: "FeatureX", condition: nil)]
+                ),
+            ]
+        )
+
+        let dependencyAInfo = PackageInfo.test(
+            name: "DependencyA",
+            products: [],
+            targets: [],
+            traits: [
+                PackageTrait(enabledTraits: [], name: "FeatureX", description: nil),
+            ],
+            dependencies: [
+                PackageDependency(
+                    identity: "dependency-b",
+                    traits: [PackageDependencyTrait(name: "ConditionalFeature", condition: Set(["FeatureX"]))]
+                ),
+            ]
+        )
+
+        let result = enabledTraits(
+            rootPackageInfo: rootPackageInfo,
+            packageInfos: ["dependency-a": dependencyAInfo]
+        )
+
+        #expect(result["dependency-a"] == Set(["FeatureX"]))
+        #expect(result["dependency-b"] == Set(["ConditionalFeature"]))
+    }
+
+    @Test(.withMockedSwiftVersionProvider)
+    func enabledTraits_whenConditionalTraitWithNonMatchingCondition_doesNotEnableTrait() {
+        let rootPackageInfo = PackageInfo.test(
+            name: "RootPackage",
+            products: [],
+            targets: [],
+            dependencies: [
+                PackageDependency(
+                    identity: "dependency-a",
+                    traits: [PackageDependencyTrait(name: "FeatureX", condition: nil)]
+                ),
+            ]
+        )
+
+        let dependencyAInfo = PackageInfo.test(
+            name: "DependencyA",
+            products: [],
+            targets: [],
+            traits: [
+                PackageTrait(enabledTraits: [], name: "FeatureX", description: nil),
+                PackageTrait(enabledTraits: [], name: "FeatureY", description: nil),
+            ],
+            dependencies: [
+                PackageDependency(
+                    identity: "dependency-b",
+                    traits: [PackageDependencyTrait(name: "ConditionalFeature", condition: Set(["FeatureY"]))]
+                ),
+            ]
+        )
+
+        let result = enabledTraits(
+            rootPackageInfo: rootPackageInfo,
+            packageInfos: ["dependency-a": dependencyAInfo]
+        )
+
+        #expect(result["dependency-a"] == Set(["FeatureX"]))
+        #expect(result["dependency-b"] == nil)
+    }
+
+    @Test(.withMockedSwiftVersionProvider)
+    func enabledTraits_whenMultipleDependenciesWithTraits_aggregatesCorrectly() {
+        let rootPackageInfo = PackageInfo.test(
+            name: "RootPackage",
+            products: [],
+            targets: [],
+            dependencies: [
+                PackageDependency(
+                    identity: "dependency-a",
+                    traits: [PackageDependencyTrait(name: "FeatureA", condition: nil)]
+                ),
+                PackageDependency(
+                    identity: "dependency-b",
+                    traits: [
+                        PackageDependencyTrait(name: "FeatureB1", condition: nil),
+                        PackageDependencyTrait(name: "FeatureB2", condition: nil),
+                    ]
+                ),
+            ]
+        )
+
+        let result = enabledTraits(
+            rootPackageInfo: rootPackageInfo,
+            packageInfos: [:]
+        )
+
+        #expect(result["dependency-a"] == Set(["FeatureA"]))
+        #expect(result["dependency-b"] == Set(["FeatureB1", "FeatureB2"]))
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenEnabledTraits_setsSwiftActiveCompilationConditions() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let packagePath = basePath.appending(component: "Package")
+        let targetPath = packagePath.appending(components: "Sources", "Target1")
+        try await fileSystem.makeDirectory(at: targetPath)
+        try await fileSystem.touch(targetPath.appending(component: "File.swift"))
+
+        let packageInfo = PackageInfo.test(
+            name: "Package",
+            products: [
+                .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+            ],
+            targets: [
+                .test(name: "Target1", type: .regular),
+            ],
+            traits: [
+                PackageTrait(enabledTraits: [], name: "FeatureX", description: "Feature X"),
+                PackageTrait(enabledTraits: [], name: "FeatureY", description: "Feature Y"),
+            ],
+            platforms: [.ios]
+        )
+
+        let project = try await subject.map(
+            packageInfo: packageInfo,
+            path: packagePath,
+            packageType: .local,
+            packageSettings: .test(),
+            packageModuleAliases: [:],
+            enabledTraits: Set(["FeatureX", "FeatureY"])
+        )
+
+        #expect(project != nil)
+        let target = try #require(project?.targets.first)
+        let settings = target.settings
+        let baseSettings = settings?.base
+        let swiftConditions = baseSettings?["SWIFT_ACTIVE_COMPILATION_CONDITIONS"]
+
+        #expect(swiftConditions == .array(["$(inherited)", "FeatureX", "FeatureY"]))
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenDefaultTraitEnabled_resolvesToEnabledTraits() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let packagePath = basePath.appending(component: "Package")
+        let targetPath = packagePath.appending(components: "Sources", "Target1")
+        try await fileSystem.makeDirectory(at: targetPath)
+        try await fileSystem.touch(targetPath.appending(component: "File.swift"))
+
+        let packageInfo = PackageInfo.test(
+            name: "Package",
+            products: [
+                .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+            ],
+            targets: [
+                .test(name: "Target1", type: .regular),
+            ],
+            traits: [
+                PackageTrait(enabledTraits: ["ActualFeature"], name: "default", description: "Default trait"),
+                PackageTrait(enabledTraits: [], name: "ActualFeature", description: "The actual feature"),
+            ],
+            platforms: [.ios]
+        )
+
+        let project = try await subject.map(
+            packageInfo: packageInfo,
+            path: packagePath,
+            packageType: .local,
+            packageSettings: .test(),
+            packageModuleAliases: [:],
+            enabledTraits: Set(["default"])
+        )
+
+        #expect(project != nil)
+        let target = try #require(project?.targets.first)
+        let settings = target.settings
+        let baseSettings = settings?.base
+        let swiftConditions = baseSettings?["SWIFT_ACTIVE_COMPILATION_CONDITIONS"]
+
+        #expect(swiftConditions == .array(["$(inherited)", "ActualFeature"]))
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenNoTraitsEnabled_doesNotSetSwiftActiveCompilationConditions() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let packagePath = basePath.appending(component: "Package")
+        let targetPath = packagePath.appending(components: "Sources", "Target1")
+        try await fileSystem.makeDirectory(at: targetPath)
+        try await fileSystem.touch(targetPath.appending(component: "File.swift"))
+
+        let packageInfo = PackageInfo.test(
+            name: "Package",
+            products: [
+                .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+            ],
+            targets: [
+                .test(name: "Target1", type: .regular),
+            ],
+            traits: [
+                PackageTrait(enabledTraits: [], name: "FeatureX", description: "Feature X"),
+            ],
+            platforms: [.ios]
+        )
+
+        let project = try await subject.map(
+            packageInfo: packageInfo,
+            path: packagePath,
+            packageType: .local,
+            packageSettings: .test(),
+            packageModuleAliases: [:],
+            enabledTraits: []
+        )
+
+        #expect(project != nil)
+        let target = try #require(project?.targets.first)
+        let settings = target.settings
+        let baseSettings = settings?.base
+        let swiftConditions = baseSettings?["SWIFT_ACTIVE_COMPILATION_CONDITIONS"]
+
+        #expect(swiftConditions == nil)
     }
 }
 
@@ -5103,7 +5390,8 @@ extension PackageInfoMapping {
         packageSettings: TuistCore.PackageSettings = .test(
             baseSettings: .default
         ),
-        packageModuleAliases: [String: [String: String]] = [:]
+        packageModuleAliases: [String: [String: String]] = [:],
+        enabledTraits: Set<String> = []
     ) async throws -> ProjectDescription.Project? {
         let packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]] = try packageInfos
             .reduce(into: [:]) { packagesResult, element in
@@ -5130,7 +5418,8 @@ extension PackageInfoMapping {
             path: basePath.appending(component: package),
             packageType: packageType ?? .external(artifactPaths: packageToTargetsToArtifactPaths[package]!),
             packageSettings: packageSettings,
-            packageModuleAliases: packageModuleAliases
+            packageModuleAliases: packageModuleAliases,
+            enabledTraits: enabledTraits
         )
     }
 }
