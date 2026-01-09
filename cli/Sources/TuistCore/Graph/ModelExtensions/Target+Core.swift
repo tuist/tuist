@@ -150,11 +150,11 @@ extension Target {
     private func isSourceLike(path: AbsolutePath) -> Bool {
         guard let fileExtension = path.extension?.lowercased() else { return false }
 
-        if Target.validSourceExtensions.map(\.lowercased()).contains(fileExtension) {
+        if Target.validSourceExtensions.map({ $0.lowercased() }).contains(fileExtension) {
             return !FileHandler.shared.isFolder(path)
         }
 
-        let compatibleExtensions = Target.validSourceCompatibleFolderExtensions.map(\.lowercased())
+        let compatibleExtensions = Target.validSourceCompatibleFolderExtensions.map { $0.lowercased() }
         return compatibleExtensions.contains(fileExtension) || Self.headerExtensions.contains(fileExtension)
     }
 

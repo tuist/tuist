@@ -37,11 +37,9 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
     // swiftlint:disable:next function_body_length
     public func mapTarget(_ target: Target, project: Project) async throws -> ([Target], [SideEffectDescriptor]) {
-        let containsResources = !target.resources.resources.isEmpty || !target.coreDataModels.isEmpty
+        let containsResources = target.containsResources
         let containsMetalSources = target.sources.contains(where: { $0.path.extension == "metal" })
-        let containsBuildableFolderResources = try await buildableFolderChecker.containsResources(target.buildableFolders)
-        let containsSynthesizedFiles = containsSynthesizedFilesInBuildableFolders(target: target, project: project)
-        let hasResourceContent = containsResources || containsMetalSources || containsBuildableFolderResources || containsSynthesizedFiles
+        let hasResourceContent = containsResources || containsMetalSources
 
         guard hasResourceContent else {
             return ([target], [])
@@ -148,13 +146,6 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         }
 
         return ([modifiedTarget] + additionalTargets, sideEffects)
-    }
-
-    private func containsSynthesizedFilesInBuildableFolders(target: Target, project: Project) -> Bool {
-        let extensions = Set(project.resourceSynthesizers.flatMap(\.extensions))
-        return target.buildableFolders.contains(where: { folder in
-            folder.resolvedFiles.contains(where: { extensions.contains($0.path.extension ?? "") })
-        })
     }
 
     private func synthesizedSwiftFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, Data?) {
