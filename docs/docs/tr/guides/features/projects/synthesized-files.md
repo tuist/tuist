@@ -99,9 +99,13 @@ sınırlamadır.
 
 ::: tip SUPPORTING RESOURCES IN LIBRARIES THROUGH BUNDLES
 <!-- -->
-Bir hedef ürün, örneğin bir kütüphane, kaynakları desteklemiyorsa, Tuist
-kaynakları `bundle` ürün türündeki bir hedefe dahil ederek nihai ürüne
-ulaşmasını ve arayüzün doğru pakete işaret etmesini sağlayacaktır.
+If a target product, for example a library, doesn't support resources, Tuist
+will include the resources in a target of product type `bundle` ensuring that it
+ends up in the final product and that the interface points to the right bundle.
+These synthesized bundles are automatically tagged with `tuist:synthesized` and
+inherit all tags from their parent target, allowing you to target them in
+<LocalizedLink href="/guides/features/projects/metadata-tags#system-tags">cache
+profiles</LocalizedLink>.
 <!-- -->
 :::
 
