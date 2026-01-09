@@ -25,11 +25,9 @@
 
 ### プロジェクト報告{#project-reports}
 
-After connecting Slack, configure reports for each project in the project
-settings' notifications tab:
+Slackに接続したら、プロジェクト設定の通知タブでプロジェクトごとにレポートを設定する：
 
-![An image that shows the notifications settings with Slack report
-configuration](/images/guides/integrations/slack/notifications-settings.png)
+Slackのレポート設定で通知設定を示す画像](/images/guides/integrations/slack/notifications-settings.png)。
 
 設定できる：
 - **チャンネル** ：レポートを受信するSlackチャンネルを選択する
@@ -40,35 +38,28 @@ configuration](/images/guides/integrations/slack/notifications-settings.png)
 
 <img src="/images/guides/integrations/slack/report.png" alt="An image that shows a Slack report message" style="max-width: 500px;" />
 
-### Alert rules {#alert-rules}
+### 警報規則{#alert-rules}
 
-Get notified in Slack with alert rules when key metrics significantly regress to
-help you catch slower builds, cache degradation, or test slowdowns as soon as
-possible, minimizing the impact on your team's productivity.
+主要なメトリクスが著しく低下した場合、アラートルールによってSlackに通知されるため、ビルドの遅延、キャッシュの劣化、テストのスローダウンをいち早くキャッチし、チームの生産性への影響を最小限に抑えることができます。
 
-To create an alert rule, go to your project's notification settings and click
-**Add alert rule**:
+アラートルールを作成するには、プロジェクトの通知設定に移動し、**アラートルールの追加** をクリックします：
 
 設定できる：
-- **Name**: A descriptive name for the alert
-- **Category**: What to measure (build duration, test duration, or cache hit
-  rate)
-- **Metric**: How to aggregate the data (p50, p90, p99, or average)
-- **Deviation**: The percentage change that triggers an alert
-- **Rolling window**: How many recent runs to compare against
-- **Slack channel**: Where to send the alert
+- **名前** ：アラートの説明的な名前
+- **カテゴリー** ：何を測定するか（ビルド期間、テスト期間、キャッシュヒット率）
+- **Metric**: データの集計方法（p50、p90、p99、または平均値）
+- **偏差** ：アラートのトリガーとなる変化率
+- **ローリングウィンドウ** ：比較する最近の実行回数
+- **Slackチャンネル** ：アラートの送信先
 
-For example, you might create an alert that triggers when the p90 build duration
-increases by more than 20% compared to the previous 100 builds.
+例えば、p90のビルド期間が以前の100ビルドと比較して20％以上増加したときにトリガーされるアラートを作成することができます。
 
-When an alert triggers, you'll receive a message like this in your Slack
-channel:
+アラートがトリガーされると、Slackチャンネルにこのようなメッセージが届きます：
 
 <img src="/images/guides/integrations/slack/alert.png" alt="An image that shows a Slack alert message" style="max-width: 500px;" />
 
-> [!NOTE] COOLDOWN PERIOD After an alert triggers, it won't fire again for the
-> same rule for 24 hours. This prevents notification fatigue when a metric stays
-> elevated.
+> [注意] クールダウン期間
+> アラートがトリガーされた後、24時間は同じルールで再度発火しません。これにより、指標が上昇し続けた場合の通知疲れを防ぐことができます。
 
 ## オンプレミス・インストール{#on-premise}
 
