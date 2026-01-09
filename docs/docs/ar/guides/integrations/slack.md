@@ -31,10 +31,11 @@
 
 ### تقارير المشروع {#project-reports}
 
-بعد ربط Slack، قم بتهيئة التقارير لكل مشروع في إعدادات المشروع:
+After connecting Slack, configure reports for each project in the project
+settings' notifications tab:
 
-![صورة تُظهر إعدادات المشروع مع تكوين تقرير سلاك]
-(/images/guides/integrations/slack/project-settings.png)
+![An image that shows the notifications settings with Slack report
+configuration](/images/guides/integrations/slack/notifications-settings.png)
 
 يمكنك التهيئة:
 - **القناة**: حدد قناة Slack التي تتلقى التقارير
@@ -44,6 +45,36 @@
 بمجرد التهيئة، يرسل تويست تقارير يومية تلقائية إلى قناة Slack التي اخترتها:
 
 <img src="/images/guides/integrations/slack/report.png" alt="An image that shows a Slack report message" style="max-width: 500px;" />
+
+### Alert rules {#alert-rules}
+
+Get notified in Slack with alert rules when key metrics significantly regress to
+help you catch slower builds, cache degradation, or test slowdowns as soon as
+possible, minimizing the impact on your team's productivity.
+
+To create an alert rule, go to your project's notification settings and click
+**Add alert rule**:
+
+يمكنك التهيئة:
+- **Name**: A descriptive name for the alert
+- **Category**: What to measure (build duration, test duration, or cache hit
+  rate)
+- **Metric**: How to aggregate the data (p50, p90, p99, or average)
+- **Deviation**: The percentage change that triggers an alert
+- **Rolling window**: How many recent runs to compare against
+- **Slack channel**: Where to send the alert
+
+For example, you might create an alert that triggers when the p90 build duration
+increases by more than 20% compared to the previous 100 builds.
+
+When an alert triggers, you'll receive a message like this in your Slack
+channel:
+
+<img src="/images/guides/integrations/slack/alert.png" alt="An image that shows a Slack alert message" style="max-width: 500px;" />
+
+> [!NOTE] COOLDOWN PERIOD After an alert triggers, it won't fire again for the
+> same rule for 24 hours. This prevents notification fatigue when a metric stays
+> elevated.
 
 ## التركيبات داخل المنشأة {#on-premise}
 
@@ -77,7 +108,6 @@
         ],
         "scopes": {
             "bot": [
-                "channels:read",
                 "chat:write",
                 "chat:write.public"
             ]
