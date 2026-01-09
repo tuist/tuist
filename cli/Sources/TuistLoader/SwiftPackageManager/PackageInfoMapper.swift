@@ -206,9 +206,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
         ])
         let remoteXcframeworks = try await fileSystem.glob(directory: remoteXcframeworksPath, include: ["**/*.xcframework"])
             .collect()
-            // Filter out __MACOSX folders that are created when compressing zip files on macOS.
-            // SPM can handle this properly, but tuist cannot.
-            .filter { !$0.pathString.contains("__MACOSX") }
+            // Only match the parent directory names
+            .filter { $0.basenameWithoutExt == $0.parentDirectory.basenameWithoutExt }
         for xcframework in remoteXcframeworks {
             let dependencyName = xcframework.relative(to: remoteXcframeworksPath).basenameWithoutExt
             let xcframeworkPath = Path
