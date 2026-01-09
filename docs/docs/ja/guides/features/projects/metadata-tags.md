@@ -121,22 +121,20 @@ metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 
 `feature:`,`team:`,`layer:` のような接頭辞を使うことで、各タグの目的を理解しやすくなり、名前の衝突を避けることができる。
 
-## System tags {#system-tags}
+## システムタグ{#system-tags}
 
-Tuist uses the `tuist:` prefix for system-managed tags. These tags are
-automatically applied by Tuist and can be used in cache profiles to target
-specific types of generated content.
+Tuistはシステム管理タグに`tuist:`
+プレフィックスを使用します。これらのタグはTuistによって自動的に適用され、生成されたコンテンツの特定のタイプをターゲットにするためにキャッシュプロファイルで使用することができます。
 
-### Available system tags
+### 利用可能なシステムタグ
 
-| Tag                 | Description                                                                                                                                                                                             |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tuist:synthesized` | Applied to synthesized bundle targets that Tuist creates for resource handling in static libraries and static frameworks. These bundles exist for historical reasons to provide resource accessor APIs. |
+| タグ         | 説明                                                                                                                |
+| ---------- | ----------------------------------------------------------------------------------------------------------------- |
+| `tuist:合成` | スタティック・ライブラリやスタティック・フレームワークでリソースを扱うためにTuistが作成する、合成されたバンドル・ターゲットに適用される。これらのバンドルは、リソースアクセッサAPIを提供するために歴史的な理由で存在する。 |
 
-### Using system tags with cache profiles
+### キャッシュ・プロファイルでシステム・タグを使用する
 
-You can use system tags in cache profiles to include or exclude synthesized
-targets:
+キャッシュ・プロファイルでシステム・タグを使用して、合成されたターゲットを含めたり除外したりできる：
 
 ```swift
 import ProjectDescription
@@ -160,10 +158,9 @@ let tuist = Tuist(
 
 ::: tip SYNTHESIZED BUNDLES INHERIT PARENT TAGS
 <!-- -->
-Synthesized bundle targets inherit all tags from their parent target in addition
-to receiving the `tuist:synthesized` tag. This means if you tag a static library
-with `feature:auth`, its synthesized resource bundle will have both
-`feature:auth` and `tuist:synthesized` tags.
+合成されたバンドルターゲットは、`tuist:synthesized`
+タグを受け取ることに加えて、親ターゲットからすべてのタグを継承します。つまり、静的ライブラリに`feature:auth`
+というタグをつけると、合成されたリソースバンドルは`feature:auth` と`tuist:synthesized` の両方のタグを持つことになります。
 <!-- -->
 :::
 
