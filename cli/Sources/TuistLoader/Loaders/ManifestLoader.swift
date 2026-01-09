@@ -332,7 +332,11 @@ public class ManifestLoader: ManifestLoading {
         ) + ["--tuist-dump"]
 
         do {
-            let string = try System.shared.capture(arguments, verbose: false, environment: environment.manifestLoadingVariables)
+            let string = try System.shared.capture(
+                arguments,
+                verbose: false,
+                environment: Environment.current.manifestLoadingVariables
+            )
 
             guard let startTokenRange = string.range(of: ManifestLoader.startManifestToken),
                   let endTokenRange = string.range(of: ManifestLoader.endManifestToken)
