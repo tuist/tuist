@@ -50,7 +50,7 @@ defmodule Tuist.Alerts.Workers.AlertWorker do
               })
 
             alert = Repo.preload(alert, alert_rule: [project: [account: :slack_installation]])
-            Slack.send_alert(alert)
+            :ok = Slack.send_alert(alert)
 
           :ok ->
             :ok

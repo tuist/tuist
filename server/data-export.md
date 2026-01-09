@@ -33,6 +33,10 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - App build information
 - QA test runs and screenshots
 
+### Alerts & Monitoring
+- Alert rules (name, category, metric, deviation thresholds, Slack channel configuration)
+- Alert history (triggered alerts with current/previous values, timestamps)
+
 ### Analytics Data
 - Build performance metrics
 - Build issues and compilation data

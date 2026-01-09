@@ -40,12 +40,15 @@ defmodule TuistWeb.SlackOAuthHTML do
           const dataEl = document.getElementById("channel-data");
           const channelId = dataEl.dataset.channelId || null;
           const channelName = dataEl.dataset.channelName || null;
+          const nonce = sessionStorage.getItem("slack_popup_nonce");
+          sessionStorage.removeItem("slack_popup_nonce");
           const channel = new BroadcastChannel("oauth_popup");
           channel.postMessage({
             type: "oauth_complete",
             success: true,
             channel_id: channelId,
-            channel_name: channelName
+            channel_name: channelName,
+            nonce: nonce
           });
           channel.close();
           window.close();

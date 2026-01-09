@@ -2,9 +2,13 @@ const SelectSlackChannelPopup = {
   mounted() {
     this.popup = null;
     this.channel = new BroadcastChannel("oauth_popup");
+    this.nonce = null;
 
     this.channel.onmessage = (event) => {
       if (event.data && event.data.type === "oauth_complete" && event.data.success) {
+        if (event.data.nonce && event.data.nonce !== this.nonce) {
+          return;
+        }
         if (this.popup && !this.popup.closed) {
           this.popup.close();
         }
@@ -30,6 +34,8 @@ const SelectSlackChannelPopup = {
       const height = 700;
       const left = window.screenX + (window.outerWidth - width) / 2;
       const top = window.screenY + (window.outerHeight - height) / 2;
+      this.nonce = crypto.randomUUID();
+      sessionStorage.setItem("slack_popup_nonce", this.nonce);
       this.popup = window.open(url, "oauth_popup", `width=${width},height=${height},left=${left},top=${top},popup=1`);
     });
   },
