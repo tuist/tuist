@@ -81,13 +81,11 @@ NSBundle *bundle = [MyFeatureResources bundle];
 
 ::: tip SUPPORTING RESOURCES IN LIBRARIES THROUGH BUNDLES
 <!-- -->
-If a target product, for example a library, doesn't support resources, Tuist
-will include the resources in a target of product type `bundle` ensuring that it
-ends up in the final product and that the interface points to the right bundle.
-These synthesized bundles are automatically tagged with `tuist:synthesized` and
-inherit all tags from their parent target, allowing you to target them in
+예를 들어 라이브러리와 같은 대상 제품이 리소스를 지원하지 않는 경우, 튜이스트는 리소스가 최종 제품에 포함되고 인터페이스가 올바른 번들을
+가리키도록 하기 위해 제품 유형 `번들` 의 대상에 해당 리소스를 포함시킵니다. 이렇게 합성된 번들은 자동으로
+`tuist:synthesized` 태그가 지정되고 상위 타깃의 모든 태그를 상속하므로
 <LocalizedLink href="/guides/features/projects/metadata-tags#system-tags">cache
-profiles</LocalizedLink>.
+프로필</LocalizedLink>에서 타깃팅할 수 있습니다.
 <!-- -->
 :::
 
@@ -119,7 +117,7 @@ SwiftGen](https://github.com/SwiftGen/SwiftGen)에서 지원해야 하는 다른
 합성하기 위해 자체 템플릿을 제공하려는 경우 `Tuist/ResourceSynthesizers/{name}.stencil` 에서 만들 수
 있으며, 여기서 이름은 리소스의 대소문자 버전입니다.
 
-| 참고자료     | 템플릿 이름             |
+| 리소스      | 템플릿 이름             |
 | -------- | ------------------ |
 | 문자열      | `문자열.스텐실`          |
 | 자산       | `Assets.stencil`   |
