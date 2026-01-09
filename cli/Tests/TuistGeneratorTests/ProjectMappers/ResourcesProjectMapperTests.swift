@@ -332,45 +332,10 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         let (gotProject, _) = try await subject.map(project: project)
 
         // Then
-        let gotTarget = try XCTUnwrap(gotProject.targets.values.sorted().last)
-        XCTAssertEqual(gotTarget.buildableFolders.count, 1)
-        let expectedSourcesFolder = BuildableFolder(
-            path: sharedFolderPath,
-            exceptions: BuildableFolderExceptions(
-                exceptions: [
-                    BuildableFolderException(
-                        excluded: [assetsPath],
-                        compilerFlags: [:],
-                        publicHeaders: [],
-                        privateHeaders: []
-                    ),
-                ]
-            ),
-            resolvedFiles: [
-                BuildableFolderFile(path: swiftFilePath, compilerFlags: nil),
-            ]
-        )
-        XCTAssertEqual(gotTarget.buildableFolders.first, expectedSourcesFolder)
-
-        let resourcesTarget = try XCTUnwrap(gotProject.targets.values.sorted().first)
-        XCTAssertEqual(resourcesTarget.buildableFolders.count, 1)
-        let expectedResourcesFolder = BuildableFolder(
-            path: sharedFolderPath,
-            exceptions: BuildableFolderExceptions(
-                exceptions: [
-                    BuildableFolderException(
-                        excluded: [swiftFilePath],
-                        compilerFlags: [:],
-                        publicHeaders: [],
-                        privateHeaders: []
-                    ),
-                ]
-            ),
-            resolvedFiles: [
-                BuildableFolderFile(path: assetsPath, compilerFlags: nil),
-            ]
-        )
-        XCTAssertEqual(resourcesTarget.buildableFolders.first, expectedResourcesFolder)
+        XCTAssertEqual(gotProject.targets.count, 1)
+        XCTAssertNil(gotProject.targets.values.first(where: { $0.product == .bundle }))
+        let gotTarget = try XCTUnwrap(gotProject.targets.values.first)
+        XCTAssertEqual(gotTarget.buildableFolders, [buildableFolder])
     }
 
     func test_map_when_nested_buildable_folders_share_sources_and_resources() async throws {
@@ -421,84 +386,10 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         let (gotProject, _) = try await subject.map(project: project)
 
         // Then
-        let gotTarget = try XCTUnwrap(gotProject.targets.values.sorted().last)
-        XCTAssertEqual(gotTarget.buildableFolders.count, 2)
-
-        let expectedRootSources = BuildableFolder(
-            path: rootPath,
-            exceptions: BuildableFolderExceptions(
-                exceptions: [
-                    BuildableFolderException(
-                        excluded: [assetFolder],
-                        compilerFlags: [:],
-                        publicHeaders: [],
-                        privateHeaders: []
-                    ),
-                ]
-            ),
-            resolvedFiles: [
-                BuildableFolderFile(path: swiftFile, compilerFlags: nil),
-            ]
-        )
-
-        XCTAssertTrue(gotTarget.buildableFolders.contains(expectedRootSources))
-        let expectedSourcesFolderSourcesView = BuildableFolder(
-            path: sourcesPath,
-            exceptions: BuildableFolderExceptions(
-                exceptions: [
-                    BuildableFolderException(
-                        excluded: [assetFolder],
-                        compilerFlags: [:],
-                        publicHeaders: [],
-                        privateHeaders: []
-                    ),
-                ]
-            ),
-            resolvedFiles: [
-                BuildableFolderFile(path: swiftFile, compilerFlags: nil),
-            ]
-        )
-        XCTAssertTrue(gotTarget.buildableFolders.contains(expectedSourcesFolderSourcesView))
-
-        let resourcesTarget = try XCTUnwrap(gotProject.targets.values.sorted().first)
-        XCTAssertEqual(resourcesTarget.buildableFolders.count, 3)
-
-        let expectedRootResources = BuildableFolder(
-            path: rootPath,
-            exceptions: BuildableFolderExceptions(
-                exceptions: [
-                    BuildableFolderException(
-                        excluded: [swiftFile],
-                        compilerFlags: [:],
-                        publicHeaders: [],
-                        privateHeaders: []
-                    ),
-                ]
-            ),
-            resolvedFiles: [
-                BuildableFolderFile(path: assetFolder, compilerFlags: nil),
-            ]
-        )
-
-        XCTAssertTrue(resourcesTarget.buildableFolders.contains(expectedRootResources))
-        let expectedSourcesFolderResourcesView = BuildableFolder(
-            path: sourcesPath,
-            exceptions: BuildableFolderExceptions(
-                exceptions: [
-                    BuildableFolderException(
-                        excluded: [swiftFile],
-                        compilerFlags: [:],
-                        publicHeaders: [],
-                        privateHeaders: []
-                    ),
-                ]
-            ),
-            resolvedFiles: [
-                BuildableFolderFile(path: assetFolder, compilerFlags: nil),
-            ]
-        )
-        XCTAssertTrue(resourcesTarget.buildableFolders.contains(expectedSourcesFolderResourcesView))
-        XCTAssertTrue(resourcesTarget.buildableFolders.contains(buildableFolders[2]))
+        XCTAssertEqual(gotProject.targets.count, 1)
+        XCTAssertNil(gotProject.targets.values.first(where: { $0.product == .bundle }))
+        let gotTarget = try XCTUnwrap(gotProject.targets.values.first)
+        XCTAssertEqual(gotTarget.buildableFolders, buildableFolders)
     }
 
     func test_map_when_a_target_that_has_core_data_models_and_doesnt_supports_them() async throws {
@@ -585,6 +476,45 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         // Then: Targets
         XCTAssertEqual(gotProject.targets.count, 1)
         let gotTarget = try XCTUnwrap(gotProject.targets.values.sorted().first)
+        XCTAssertEqual(gotTarget.name, target.name)
+        XCTAssertEqual(gotTarget.product, target.product)
+        XCTAssertEqual(gotTarget.resources.resources, resources)
+        XCTAssertEqual(gotTarget.sources.count, 2)
+        XCTAssertEqual(gotTarget.sources.last?.path, expectedPath)
+        XCTAssertNotNil(gotTarget.sources.last?.contentHash)
+        XCTAssertEqual(gotTarget.dependencies.count, 0)
+    }
+
+    func test_map_when_static_framework_has_resources_does_not_generate_bundle_target() async throws {
+        // Given
+        let resources: [ResourceFileElement] = [.file(path: "/image.png")]
+        let target = Target.test(product: .staticFramework, sources: ["/Absolute/File.swift"], resources: .init(resources))
+        project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
+
+        // Got
+        let (gotProject, gotSideEffects) = try await subject.map(project: project)
+
+        // Then: Side effects
+        XCTAssertEqual(gotSideEffects.count, 1)
+        let sideEffect = try XCTUnwrap(gotSideEffects.first)
+        guard case let SideEffectDescriptor.file(file) = sideEffect else {
+            XCTFail("Expected file descriptor")
+            return
+        }
+        let expectedPath = project.path
+            .appending(component: Constants.DerivedDirectory.name)
+            .appending(component: Constants.DerivedDirectory.sources)
+            .appending(component: "TuistBundle+\(target.name).swift")
+        let expectedContents = ResourcesProjectMapper
+            .fileContent(targetName: target.name, bundleName: irrelevantBundleName, target: target, in: project)
+        XCTAssertEqual(file.path, expectedPath)
+        XCTAssertEqual(file.contents, expectedContents.data(using: .utf8))
+
+        // Then: Targets
+        XCTAssertEqual(gotProject.targets.count, 1)
+        let gotTarget = try XCTUnwrap(gotProject.targets.values.first)
         XCTAssertEqual(gotTarget.name, target.name)
         XCTAssertEqual(gotTarget.product, target.product)
         XCTAssertEqual(gotTarget.resources.resources, resources)
@@ -1013,7 +943,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
                     path: expectedBasePath.appending(component: "TuistBundle+\(target.name).m"),
                     contents: ResourcesProjectMapper
                         .objcImplementationFileContent(
-                            targetName: target.name,
+                            target: target,
                             bundleName: "\(project.name)_\(target.name)"
                         )
                         .data(using: .utf8)

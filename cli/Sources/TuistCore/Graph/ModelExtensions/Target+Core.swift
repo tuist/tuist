@@ -143,8 +143,22 @@ extension Target {
     }
 
     public var containsResources: Bool {
-        !resources.resources.isEmpty || !coreDataModels.isEmpty
+        if !resources.resources.isEmpty || !coreDataModels.isEmpty { return true }
+        return buildableFolders.contains { folder in folder.resolvedFiles.contains { !isSourceLike(path: $0.path) } }
     }
+
+    private func isSourceLike(path: AbsolutePath) -> Bool {
+        guard let fileExtension = path.extension?.lowercased() else { return false }
+
+        if Target.validSourceExtensions.map({ $0.lowercased() }).contains(fileExtension) {
+            return !FileHandler.shared.isFolder(path)
+        }
+
+        let compatibleExtensions = Target.validSourceCompatibleFolderExtensions.map { $0.lowercased() }
+        return compatibleExtensions.contains(fileExtension) || Self.headerExtensions.contains(fileExtension)
+    }
+
+    private static let headerExtensions: Set<String> = ["h", "hpp", "hh", "hxx"]
 
     /// Returns if target is a generated resources bundle.
     public var isGeneratedResourcesBundle: Bool {
