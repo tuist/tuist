@@ -1588,7 +1588,7 @@ extension PackageInfo.Platform {
 
 private func resolveTraits(
     _ traitNames: some Collection<String>,
-    packageTraits: Set<Trait>,
+    packageTraits: [PackageTrait],
     into traitConditions: inout Set<String>
 ) {
     for traitName in traitNames {

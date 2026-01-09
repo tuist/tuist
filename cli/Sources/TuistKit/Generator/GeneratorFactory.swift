@@ -460,7 +460,7 @@ public class GeneratorFactory: GeneratorFactorying {
             graphMappers = graphMappers.filter { !($0 is ExplicitDependencyGraphMapper) }
 
             let workspaceMappers = workspaceMapperFactory.binaryCacheWarming(
-                tuist: config, targets: targetsToBinaryCache
+                tuist: config
             )
             let manifestLoader = ManifestLoader.current
             return Generator(
