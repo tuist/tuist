@@ -18,9 +18,20 @@ defmodule TuistWeb.TestRunsLive do
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     slug = "#{account.name}/#{project.name}"
 
+    og_image_assigns =
+      if project.visibility == :public do
+        [
+          head_image: Tuist.Environment.app_url(path: "/images/open-graph/dashboard/test-runs.webp"),
+          head_twitter_card: "summary_large_image"
+        ]
+      else
+        []
+      end
+
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Runs")} · #{slug} · Tuist")
+      |> assign(og_image_assigns)
       |> assign(:available_filters, define_filters(project))
 
     if connected?(socket) do

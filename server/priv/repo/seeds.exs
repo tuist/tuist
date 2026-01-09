@@ -123,6 +123,7 @@ tuist_project =
           name: "tuist",
           account: %{id: organization.account.id}
         },
+        visibility: :public,
         vcs_repository_full_handle: "tuist/tuist",
         vcs_provider: :github
       )

@@ -18,9 +18,20 @@ defmodule TuistWeb.BuildRunsLive do
     slug = Projects.get_project_slug_from_id(project.id)
     configurations = Runs.project_build_configurations(project)
 
+    og_image_assigns =
+      if project.visibility == :public do
+        [
+          head_image: Tuist.Environment.app_url(path: "/images/open-graph/dashboard/build-runs.webp"),
+          head_twitter_card: "summary_large_image"
+        ]
+      else
+        []
+      end
+
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_builds", "Build Runs")} · #{slug} · Tuist")
+      |> assign(og_image_assigns)
       |> assign(:available_filters, define_filters(project, configurations))
 
     if connected?(socket) do

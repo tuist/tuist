@@ -18,6 +18,16 @@ defmodule TuistWeb.BundlesLive do
   alias TuistWeb.Utilities.SHA
 
   def mount(_params, _session, %{assigns: %{selected_project: project}} = socket) do
+    og_image_assigns =
+      if project.visibility == :public do
+        [
+          head_image: Tuist.Environment.app_url(path: "/images/open-graph/dashboard/bundles.webp"),
+          head_twitter_card: "summary_large_image"
+        ]
+      else
+        []
+      end
+
     socket =
       socket
       |> assign(
@@ -25,6 +35,7 @@ defmodule TuistWeb.BundlesLive do
         "#{dgettext("dashboard_cache", "Bundles")} · #{Projects.get_project_slug_from_id(project.id)} · Tuist"
       )
       |> assign(:available_filters, define_filters(project))
+      |> assign(og_image_assigns)
 
     {:ok, socket}
   end

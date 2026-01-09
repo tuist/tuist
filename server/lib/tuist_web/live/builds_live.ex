@@ -13,12 +13,23 @@ defmodule TuistWeb.BuildsLive do
   alias TuistWeb.Utilities.Query
 
   def mount(params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
+    og_image_assigns =
+      if project.visibility == :public do
+        [
+          head_image: Tuist.Environment.app_url(path: "/images/open-graph/dashboard/builds.webp"),
+          head_twitter_card: "summary_large_image"
+        ]
+      else
+        []
+      end
+
     socket =
       socket
       |> assign(
         :head_title,
         "#{dgettext("dashboard_builds", "Builds")} · #{account.name}/#{project.name} · Tuist"
       )
+      |> assign(og_image_assigns)
       |> assign_configuration_insights_options(params)
       |> assign_initial_configuration_insights()
       |> assign_recent_builds()
