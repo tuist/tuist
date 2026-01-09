@@ -23,6 +23,7 @@ defmodule Cache.Application do
       Cache.Authentication,
       Cache.KeyValueStore,
       Cache.MultipartUploads,
+      Cache.Registry.Metadata,
       CacheWeb.Endpoint,
       Cache.SocketLinker,
       {Finch, name: Cache.Finch},
