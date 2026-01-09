@@ -1,10 +1,11 @@
 ---
-title: "From reactive to proactive: Get Slack alerts for your build health"
+title: "From reactive to proactive with the new Slack integration"
 category: "product"
 tags: ["product", "integrations"]
 excerpt: "Stop finding out about build regressions from frustrated teammates. Let Tuist notify you in Slack the moment something goes wrong."
 author: fortmarek
 og_image_path: /marketing/images/blog/2026/01/12/slack-integration/og.jpg
+highlighted: true
 ---
 
 How does your team typically discover that build times have regressed? If you're like most teams, it goes something like this: a few days after a problematic change lands, engineers start complaining in Slack that builds feel slower. Someone eventually investigates, sifts through dozens of merged PRs, and tries to pinpoint which change caused the regression. Meanwhile, the entire team has been less productive—without anyone realizing it.
@@ -15,11 +16,11 @@ This reactive approach to project health is the default for most iOS teams. Even
 
 ## Bringing insights to where your team already works
 
-With the new Slack integration, Tuist becomes proactive. Rather than requiring you to remember to check dashboards, it delivers the insights that matter directly to your Slack channels where your team already communicates.
+This is why we're introducing two new complementary features that integrate with Slack: **daily reports** and **alert rules**.
 
-This is why we're introducing two new complementary features: **daily reports** and **alert rules**.
+With these, Tuist becomes proactive. Rather than requiring you to remember to check dashboards, it delivers the insights that matter directly to your Slack channels where your team already communicates.
 
-### Daily reports
+## Daily reports
 
 Daily reports give your team a pulse check on your project's health. Each morning (or whenever you configure), Tuist sends a summary to your chosen Slack channel with key metrics:
 
@@ -33,7 +34,7 @@ Daily reports give your team a pulse check on your project's health. Each mornin
 
 Each metric includes a trend indicator showing how it compares to the previous period. Is your p90 build time creeping up? Or your cache hit rate dropping? Tuist reports keep you up-to-date.
 
-### Alert rules
+## Alert rules
 
 While reports are great for staying informed, some regressions need immediate attention. Alert rules let you define trigger notifications when something significant changes.
 
@@ -56,7 +57,7 @@ To connect Slack to your Tuist project:
 1. Connect your Slack workspace in the Integrations tab
 2. Configure reports and alert rules in your project's notification settings
 
-![The notifications settings page showing Slack configuration options](/marketing/images/blog/2026/01/12/slack-integration/notifications-settings.png)
+![The project settings page showing Slack configuration options](/marketing/images/blog/2026/01/12/slack-integration/project-settings.png)
 
 For detailed setup instructions, including configuration options and on-premise installation, see the [Slack integration documentation](https://docs.tuist.dev/en/guides/integrations/slack).
 
