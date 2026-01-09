@@ -24,11 +24,10 @@
 
 ### 專案報告{#project-reports}
 
-After connecting Slack, configure reports for each project in the project
-settings' notifications tab:
+連接 Slack 後，在專案設定的通知索引標籤中設定每個專案的報告：
 
-![An image that shows the notifications settings with Slack report
-configuration](/images/guides/integrations/slack/notifications-settings.png)
+![顯示具有 Slack
+報告設定的通知設定的影像](/images/guides/integrations/slack/notifications-settings.png)。
 
 您可以設定：
 - **頻道** ：選擇哪個 Slack 頻道會接收報告
@@ -39,35 +38,27 @@ configuration](/images/guides/integrations/slack/notifications-settings.png)
 
 <img src="/images/guides/integrations/slack/report.png" alt="An image that shows a Slack report message" style="max-width: 500px;" />
 
-### Alert rules {#alert-rules}
+### 警報規則{#alert-rules}
 
-Get notified in Slack with alert rules when key metrics significantly regress to
-help you catch slower builds, cache degradation, or test slowdowns as soon as
-possible, minimizing the impact on your team's productivity.
+當關鍵指標顯著倒退時，透過警示規則在 Slack 中取得通知，協助您儘快捕捉建立速度變慢、快取效能降低或測試速度變慢等問題，將對團隊生產力的影響降至最低。
 
-To create an alert rule, go to your project's notification settings and click
-**Add alert rule**:
+若要建立警示規則，請前往專案的通知設定，然後按一下**新增警示規則** ：
 
 您可以設定：
-- **Name**: A descriptive name for the alert
-- **Category**: What to measure (build duration, test duration, or cache hit
-  rate)
-- **Metric**: How to aggregate the data (p50, p90, p99, or average)
-- **Deviation**: The percentage change that triggers an alert
-- **Rolling window**: How many recent runs to compare against
-- **Slack channel**: Where to send the alert
+- **名稱** ：警報的描述性名稱
+- **分類** ：測量什麼（建立持續時間、測試持續時間或快取記憶體命中率）
+- **公制**: 如何彙總資料 (p50、p90、p99 或平均值)
+- **偏差** ：觸發警報的百分比變化
+- **滾動視窗** ：與多少最近的運行進行比較
+- **Slack 頻道** ：發送警報的位置
 
-For example, you might create an alert that triggers when the p90 build duration
-increases by more than 20% compared to the previous 100 builds.
+例如，您可以建立一個警示，當 p90 建置持續時間比前 100 次建置增加超過 20% 時就會觸發該警示。
 
-When an alert triggers, you'll receive a message like this in your Slack
-channel:
+當警報觸發時，您會在 Slack 頻道中收到類似的訊息：
 
 <img src="/images/guides/integrations/slack/alert.png" alt="An image that shows a Slack alert message" style="max-width: 500px;" />
 
-> [!NOTE] COOLDOWN PERIOD After an alert triggers, it won't fire again for the
-> same rule for 24 hours. This prevents notification fatigue when a metric stays
-> elevated.
+> [警告觸發後，24 小時內不會再次啟動相同的規則。這可以防止某項指標持續升高時的通知疲勞。
 
 ## 現場安裝{#on-premise}
 
