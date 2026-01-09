@@ -1,5 +1,5 @@
 {
-  "originHash" : "6acea3541734d2e6524cf8f612a168d77f4ea9f2ba5ab45490b9c5dfeb41b8c2",
+  "originHash" : "708108400e4f50536cebcf7d44073b9e9c51d03ecf73db9dc152751633f6d4d9",
   "pins" : [
     {
       "identity" : "aexml",
@@ -48,7 +48,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.6.4"
+        "version" : "1.8.0"
       }
     },
     {
@@ -324,7 +324,7 @@
     {
       "identity" : "mockable",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Kolos65/Mockable",
+      "location" : "https://github.com/Kolos65/Mockable.git",
       "state" : {
         "revision" : "1e0d218b41aef515627a0fa7c98ca2b9d2833213",
         "version" : "0.5.0"
@@ -491,7 +491,7 @@
     {
       "identity" : "swift-collections",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-collections.git",
+      "location" : "https://github.com/apple/swift-collections",
       "state" : {
         "revision" : "7b847a3b7008b2dc2f47ca3110d8c782fb2e5c7e",
         "version" : "1.3.0"
@@ -644,7 +644,7 @@
     {
       "identity" : "swift-syntax",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/swiftlang/swift-syntax",
+      "location" : "https://github.com/swiftlang/swift-syntax.git",
       "state" : {
         "revision" : "4799286537280063c85a32f09884cfbca301b1a1",
         "version" : "602.0.0"
@@ -704,7 +704,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.13.35"
+        "version" : "0.14.8"
       }
     },
     {
@@ -752,7 +752,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.29.15"
+        "version" : "1.30.4"
       }
     },
     {
@@ -760,7 +760,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "9.6.0"
+        "version" : "9.7.2"
       }
     },
     {
@@ -785,8 +785,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeProj",
       "state" : {
-        "revision" : "1cf10b32c53e003994f27bb3d37e20dcb941179d",
-        "version" : "9.7.1"
+        "revision" : "31712ec42e9cbc46e7fd25ea55c2730cb3476097",
+        "version" : "9.7.2"
       }
     },
     {
