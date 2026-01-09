@@ -121,22 +121,19 @@ metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 
 使用`feature:`,`team:`, 或`layer:` 这样的前缀更容易理解每个标签的目的，并避免命名冲突。
 
-## System tags {#system-tags}
+## 系统标签{#system-tags}
 
-Tuist uses the `tuist:` prefix for system-managed tags. These tags are
-automatically applied by Tuist and can be used in cache profiles to target
-specific types of generated content.
+Tuist 对系统管理的标签使用`tuist:` 前缀。这些标签由 Tuist 自动应用，可在缓存配置文件中用于针对特定类型的生成内容。
 
-### Available system tags
+### 可用的系统标记
 
-| Tag                 | Description                                                                                                                                                                                             |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tuist:synthesized` | Applied to synthesized bundle targets that Tuist creates for resource handling in static libraries and static frameworks. These bundles exist for historical reasons to provide resource accessor APIs. |
+| 标签      | 描述                                                           |
+| ------- | ------------------------------------------------------------ |
+| `图示：合成` | 适用于 Tuist 为静态库和静态框架中的资源处理而创建的合成捆绑目标。由于历史原因，这些捆绑包提供了资源访问 API。 |
 
-### Using system tags with cache profiles
+### 使用缓存配置文件的系统标记
 
-You can use system tags in cache profiles to include or exclude synthesized
-targets:
+您可以在缓存配置文件中使用系统标记来包含或排除合成目标：
 
 ```swift
 import ProjectDescription
@@ -160,10 +157,8 @@ let tuist = Tuist(
 
 ::: tip SYNTHESIZED BUNDLES INHERIT PARENT TAGS
 <!-- -->
-Synthesized bundle targets inherit all tags from their parent target in addition
-to receiving the `tuist:synthesized` tag. This means if you tag a static library
-with `feature:auth`, its synthesized resource bundle will have both
-`feature:auth` and `tuist:synthesized` tags.
+合成资源包目标除了接收`tuist:synthesized` 标记外，还继承其父目标的所有标记。这意味着，如果用`feature:auth`
+标记静态库，其合成资源包将同时具有`feature:auth` 和`tuist:synthesized` 标记。
 <!-- -->
 :::
 
