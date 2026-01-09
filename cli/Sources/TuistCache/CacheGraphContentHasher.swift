@@ -59,9 +59,9 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
             if let graphJSON = try? encoder.encode(graph),
                let graphString = String(data: graphJSON, encoding: .utf8)
             {
-                Logger.current.debug("--- Graph ---")
+                Logger.current.debug("--- Graph used for hashing ---")
                 Logger.current.debug("\(graphString)")
-                Logger.current.debug("--- End of Graph ---")
+                Logger.current.debug("--- End of graph used for hashing ---")
             }
         }
 
