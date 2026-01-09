@@ -35,11 +35,11 @@ Slack, gdzie można zatwierdzić połączenie.
 
 ### Raporty z projektów {#project-reports}
 
-After connecting Slack, configure reports for each project in the project
-settings' notifications tab:
+Po podłączeniu aplikacji Slack skonfiguruj raporty dla każdego projektu w
+zakładce powiadomień w ustawieniach projektu:
 
-![An image that shows the notifications settings with Slack report
-configuration](/images/guides/integrations/slack/notifications-settings.png)
+![Obraz przedstawiający ustawienia powiadomień z konfiguracją raportów
+Slack](/images/guides/integrations/slack/notifications-settings.png)
 
 Można skonfigurować:
 - **Kanał**: Wybierz, który kanał Slack ma otrzymywać raporty
@@ -51,35 +51,36 @@ Slack:
 
 <img src="/images/guides/integrations/slack/report.png" alt="An image that shows a Slack report message" style="max-width: 500px;" />
 
-### Alert rules {#alert-rules}
+### Zasady alertów {#alert-rules}
 
-Get notified in Slack with alert rules when key metrics significantly regress to
-help you catch slower builds, cache degradation, or test slowdowns as soon as
-possible, minimizing the impact on your team's productivity.
+Otrzymuj powiadomienia w Slack za pomocą reguł alertów, gdy kluczowe wskaźniki
+znacznie spadną, aby pomóc Ci jak najszybciej wykryć wolniejsze kompilacje,
+degradację pamięci podręcznej lub spowolnienia testów, minimalizując wpływ na
+produktywność zespołu.
 
-To create an alert rule, go to your project's notification settings and click
-**Add alert rule**:
+Aby utworzyć regułę alertu, przejdź do ustawień powiadomień projektu i kliknij
+**Dodaj regułę alertu**:
 
 Można skonfigurować:
-- **Name**: A descriptive name for the alert
-- **Category**: What to measure (build duration, test duration, or cache hit
-  rate)
-- **Metric**: How to aggregate the data (p50, p90, p99, or average)
-- **Deviation**: The percentage change that triggers an alert
-- **Rolling window**: How many recent runs to compare against
-- **Slack channel**: Where to send the alert
+- **Nazwa**: Opisowa nazwa wpisu
+- **Kategoria**: Co mierzyć (czas trwania kompilacji, czas trwania testu czy
+  współczynnik trafień pamięci podręcznej)?
+- **Metryka**: Jak agregować dane (p50, p90, p99 lub średnia)?
+- **Odchylenie**: Zmiana procentowa, która uruchamia alert
+- **Rolling window**: Ile ostatnich przebiegów należy porównać
+- **Kanał Slack**: Gdzie wysłać powiadomienie
 
-For example, you might create an alert that triggers when the p90 build duration
-increases by more than 20% compared to the previous 100 builds.
+Na przykład można utworzyć alert, który zostanie uruchomiony, gdy czas trwania
+kompilacji p90 wzrośnie o ponad 20% w porównaniu do poprzednich 100 kompilacji.
 
-When an alert triggers, you'll receive a message like this in your Slack
-channel:
+Gdy alert zostanie wyzwolony, otrzymasz wiadomość podobną do tej na swoim kanale
+Slack:
 
 <img src="/images/guides/integrations/slack/alert.png" alt="An image that shows a Slack alert message" style="max-width: 500px;" />
 
-> [!NOTE] COOLDOWN PERIOD After an alert triggers, it won't fire again for the
-> same rule for 24 hours. This prevents notification fatigue when a metric stays
-> elevated.
+> [Po wyzwoleniu alertu nie zostanie on uruchomiony ponownie dla tej samej
+> reguły przez 24 godziny. Zapobiega to zmęczeniu powiadomieniami, gdy wskaźnik
+> pozostaje podwyższony.
 
 ## Instalacje lokalne {#on-premise}
 
