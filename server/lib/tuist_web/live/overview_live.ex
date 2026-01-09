@@ -11,6 +11,7 @@ defmodule TuistWeb.OverviewLive do
   alias Tuist.Runs
   alias Tuist.Runs.Analytics
   alias TuistWeb.Helpers.DatePicker
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
@@ -23,7 +24,8 @@ defmodule TuistWeb.OverviewLive do
      |> assign(
        :head_title,
        "#{dgettext("dashboard_projects", "Overview")} · #{account.name}/#{project.name} · Tuist"
-     )}
+     )
+     |> assign(OpenGraph.og_image_assigns("overview"))}
   end
 
   def handle_event(

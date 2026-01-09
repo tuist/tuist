@@ -11,6 +11,7 @@ defmodule TuistWeb.QALive do
   alias Tuist.QA
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Helpers.DatePicker
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
   alias TuistWeb.Utilities.SHA
 
@@ -20,6 +21,7 @@ defmodule TuistWeb.QALive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_qa", "QA")} · #{slug} · Tuist")
+      |> assign(OpenGraph.og_image_assigns("qa"))
       |> assign(:qa_runs, [])
       |> assign(:qa_runs_meta, %{})
       |> assign(:available_apps, QA.available_apps_for_project(project.id))

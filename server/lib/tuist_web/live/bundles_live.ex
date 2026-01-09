@@ -14,6 +14,7 @@ defmodule TuistWeb.BundlesLive do
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Helpers.DatePicker
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
   alias TuistWeb.Utilities.SHA
 
@@ -25,6 +26,7 @@ defmodule TuistWeb.BundlesLive do
         "#{dgettext("dashboard_cache", "Bundles")} · #{Projects.get_project_slug_from_id(project.id)} · Tuist"
       )
       |> assign(:available_filters, define_filters(project))
+      |> assign(OpenGraph.og_image_assigns("bundles"))
 
     {:ok, socket}
   end
