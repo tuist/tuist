@@ -10,7 +10,7 @@ highlighted: true
 
 How does your team typically discover that build times have regressed? If you're like most teams, it goes something like this: a few days after a problematic change lands, engineers start complaining in Slack that builds feel slower. Someone eventually investigates, sifts through dozens of merged PRs, and tries to pinpoint which change caused the regression. Meanwhile, the entire team has been less productive—without anyone realizing it.
 
-This reactive approach to project health is the default for most iOS teams. Even if you collect data, such as by using [Tuist Insights](https://docs.tuist.dev/en/guides/features/insights), unless someone actively checks dashboards, regressions slip through unnoticed and impact your team for way longer than they should.
+This reactive approach to project health is the default across our industry. Even if you collect data, such as by using [Tuist Insights](https://docs.tuist.dev/en/guides/features/insights), unless someone actively checks dashboards, regressions slip through unnoticed and impact your team for way longer than they should.
 
 **We think there's a better way.** Instead of waiting for problems to become obvious, what if your tools could surface issues the moment they happen?
 
