@@ -63,4 +63,13 @@ defmodule CacheWeb.Router do
 
     delete "/clean", CleanController, :clean
   end
+
+  scope "/api/registry/swift", CacheWeb do
+    pipe_through [:api_json]
+
+    get "/", RegistryController, :availability
+    get "/:scope/:name", RegistryController, :list_releases
+    get "/:scope/:name/:version", RegistryController, :show_release
+    get "/:scope/:name/:version/Package.swift", RegistryController, :show_manifest
+  end
 end
