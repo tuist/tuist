@@ -281,6 +281,8 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         """
     }
 
+    // Mirrors SwiftPM's Objective-C resource bundle accessor shape.
+    // https://github.com/swiftlang/swift-package-manager/blob/main/Sources/Build/BuildDescription/ClangModuleBuildDescription.swift
     static func objcImplementationFileContent(
         target: Target,
         bundleName: String
@@ -414,6 +416,8 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         """
     }
 
+    // Mirrors SwiftPM's generated resource bundle accessor with Tuist-specific search paths.
+    // https://github.com/swiftlang/swift-package-manager/blob/main/Sources/Build/BuildDescription/SwiftModuleBuildDescription.swift
     private static func swiftSPMBundleAccessorString(for target: Target, and bundleName: String) -> String {
         """
         // MARK: - Swift Bundle Accessor - for SPM
@@ -481,6 +485,8 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         """
     }
 
+    // Adapted from SwiftPM's resource bundle accessor logic to handle static frameworks.
+    // https://github.com/swiftlang/swift-package-manager/blob/main/Sources/Build/BuildDescription/SwiftModuleBuildDescription.swift
     private static func swiftStaticFrameworkBundleAccessorString(for target: Target) -> String {
         """
         // MARK: - Swift Bundle Accessor for Static Frameworks
