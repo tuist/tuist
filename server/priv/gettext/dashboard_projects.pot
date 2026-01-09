@@ -440,7 +440,7 @@ msgstr ""
 msgid "Set your previews to be public or private by default."
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:38
+#: lib/tuist_web/live/project_settings_live.ex:25
 #, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr ""
@@ -477,7 +477,8 @@ msgstr ""
 msgid "View more"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:22
+#: lib/tuist_web/live/project_notifications_live.ex:24
+#: lib/tuist_web/live/project_settings_live.ex:15
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to perform this action."
 msgstr ""
@@ -746,12 +747,13 @@ msgstr ""
 msgid "build time"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:251
+#: lib/tuist_web/live/project_notifications_live.ex:549
+#: lib/tuist_web/live/project_notifications_live.ex:551
 #, elixir-autogen, elixir-format
 msgid "builds"
 msgstr ""
 
-#: lib/tuist_web/live/project_settings_live.ex:249
+#: lib/tuist_web/live/project_notifications_live.ex:547
 #, elixir-autogen, elixir-format
 msgid "cache hit rate"
 msgstr ""
