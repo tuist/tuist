@@ -6,8 +6,6 @@ defmodule TuistWeb.ProjectSettingsLive do
   alias Tuist.Authorization
   alias Tuist.Projects
   alias Tuist.Projects.Project
-  alias Tuist.Slack.Client, as: SlackClient
-  alias Tuist.Slack.Reports
   alias TuistWeb.Helpers.OpenGraph
 
   @impl true
@@ -25,7 +23,6 @@ defmodule TuistWeb.ProjectSettingsLive do
       |> assign(rename_project_form: rename_project_form)
       |> assign(delete_project_form: delete_project_form)
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Settings")} · #{selected_project.name} · Tuist")
-      |> assign_schedule_form_defaults(selected_project)
       |> assign(OpenGraph.og_image_assigns("settings"))
 
     {:ok, socket}
