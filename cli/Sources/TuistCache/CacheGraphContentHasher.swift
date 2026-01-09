@@ -56,9 +56,8 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
         if Environment.current.isVerbose {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            if let graphJSON = try? encoder.encode(graph),
-               let graphString = String(data: graphJSON, encoding: .utf8)
-            {
+            let graphJSON = try encoder.encode(graph)
+            if let graphString = String(data: graphJSON, encoding: .utf8) {
                 Logger.current.debug("--- Graph used for hashing ---")
                 Logger.current.debug("\(graphString)")
                 Logger.current.debug("--- End of graph used for hashing ---")
