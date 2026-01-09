@@ -42,7 +42,10 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       files: Keyword.get(attrs, :files, []),
       targets: Keyword.get(attrs, :targets, []),
       cacheable_tasks: Keyword.get(attrs, :cacheable_tasks, []),
-      cas_outputs: Keyword.get(attrs, :cas_outputs, [])
+      cas_outputs: Keyword.get(attrs, :cas_outputs, []),
+      cacheable_tasks_count: Keyword.get(attrs, :cacheable_tasks_count),
+      cacheable_task_local_hits_count: Keyword.get(attrs, :cacheable_task_local_hits_count),
+      cacheable_task_remote_hits_count: Keyword.get(attrs, :cacheable_task_remote_hits_count)
     })
   end
 
