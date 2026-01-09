@@ -28,11 +28,10 @@
 
 ### 프로젝트 보고서 {#project-reports}
 
-After connecting Slack, configure reports for each project in the project
-settings' notifications tab:
+Slack에 연결한 후 프로젝트 설정의 알림 탭에서 각 프로젝트에 대한 보고서를 구성합니다:
 
-![An image that shows the notifications settings with Slack report
-configuration](/images/guides/integrations/slack/notifications-settings.png)
+![Slack 보고서 구성의 알림 설정을 보여주는
+이미지](/images/guides/integrations/slack/notifications-settings.png)
 
 구성할 수 있습니다:
 - **채널**: 보고서를 수신할 Slack 채널을 선택합니다.
@@ -43,35 +42,29 @@ configuration](/images/guides/integrations/slack/notifications-settings.png)
 
 <img src="/images/guides/integrations/slack/report.png" alt="An image that shows a Slack report message" style="max-width: 500px;" />
 
-### Alert rules {#alert-rules}
+### 알림 규칙 {#alert-rules}
 
-Get notified in Slack with alert rules when key metrics significantly regress to
-help you catch slower builds, cache degradation, or test slowdowns as soon as
-possible, minimizing the impact on your team's productivity.
+주요 지표가 크게 후퇴할 때 Slack에서 알림 규칙을 통해 알림을 받으면 빌드 속도 저하, 캐시 성능 저하 또는 테스트 속도 저하를 최대한
+빨리 파악하여 팀의 생산성에 미치는 영향을 최소화할 수 있습니다.
 
-To create an alert rule, go to your project's notification settings and click
-**Add alert rule**:
+알림 규칙을 만들려면 프로젝트의 알림 설정으로 이동하여 **알림 규칙 추가** 를 클릭합니다:
 
 구성할 수 있습니다:
-- **Name**: A descriptive name for the alert
-- **Category**: What to measure (build duration, test duration, or cache hit
-  rate)
-- **Metric**: How to aggregate the data (p50, p90, p99, or average)
-- **Deviation**: The percentage change that triggers an alert
-- **Rolling window**: How many recent runs to compare against
-- **Slack channel**: Where to send the alert
+- **이름**: 알림에 대한 설명적인 이름
+- **카테고리**: 측정 대상(빌드 기간, 테스트 기간 또는 캐시 적중률)
+- **메트릭**: 데이터 집계 방법(p50, p90, p99 또는 평균)
+- **편차**: 경고를 트리거하는 변화 비율
+- **롤링 창**: 비교할 최근 실행 횟수
+- **Slack 채널**: 알림을 보낼 위치
 
-For example, you might create an alert that triggers when the p90 build duration
-increases by more than 20% compared to the previous 100 builds.
+예를 들어 p90 빌드 기간이 이전 100 빌드에 비해 20% 이상 증가하면 트리거되는 알림을 만들 수 있습니다.
 
-When an alert triggers, you'll receive a message like this in your Slack
-channel:
+알림이 트리거되면 Slack 채널에서 이와 같은 메시지를 받게 됩니다:
 
 <img src="/images/guides/integrations/slack/alert.png" alt="An image that shows a Slack alert message" style="max-width: 500px;" />
 
-> [!NOTE] COOLDOWN PERIOD After an alert triggers, it won't fire again for the
-> same rule for 24 hours. This prevents notification fatigue when a metric stays
-> elevated.
+> [참고] 쿨다운 기간 알림이 트리거된 후에는 24시간 동안 동일한 규칙에 대해 다시 알림이 트리거되지 않습니다. 이렇게 하면 지표가 계속
+> 높아져도 알림 피로를 방지할 수 있습니다.
 
 ## 온프레미스 설치 {#on-premise}
 
