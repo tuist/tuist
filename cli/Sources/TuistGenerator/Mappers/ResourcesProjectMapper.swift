@@ -57,6 +57,8 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             let (resourceBuildableFolders, remainingBuildableFolders) = partitionBuildableFoldersForResources(
                 target.buildableFolders
             )
+            var synthesizedMetadata = target.metadata
+            synthesizedMetadata.tags.insert("tuist:synthesized")
             let resourcesTarget = Target(
                 name: bundleName,
                 destinations: target.destinations,
@@ -79,7 +81,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                 copyFiles: target.copyFiles,
                 coreDataModels: target.coreDataModels,
                 filesGroup: target.filesGroup,
-                metadata: target.metadata,
+                metadata: synthesizedMetadata,
                 buildableFolders: resourceBuildableFolders
             )
             modifiedTarget.sources = target.sources.filter { $0.path.extension != "metal" }
