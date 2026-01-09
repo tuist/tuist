@@ -5084,7 +5084,8 @@ struct PackageInfoMapperTests {
 
     // MARK: - Enabled Traits Tests
 
-    @Test func enabledTraits_whenRootPackageHasUnconditionalTraits_returnsTraitsForDependency() {
+    @Test(.withMockedSwiftVersionProvider)
+    func enabledTraits_whenRootPackageHasUnconditionalTraits_returnsTraitsForDependency() {
         let rootPackageInfo = PackageInfo.test(
             name: "RootPackage",
             products: [],
@@ -5108,7 +5109,8 @@ struct PackageInfoMapperTests {
         #expect(result["dependency-a"] == Set(["FeatureX", "FeatureY"]))
     }
 
-    @Test func enabledTraits_whenNoTraitsSpecified_returnsEmptyDictionary() {
+    @Test(.withMockedSwiftVersionProvider)
+    func enabledTraits_whenNoTraitsSpecified_returnsEmptyDictionary() {
         let rootPackageInfo = PackageInfo.test(
             name: "RootPackage",
             products: [],
@@ -5126,7 +5128,8 @@ struct PackageInfoMapperTests {
         #expect(result.isEmpty)
     }
 
-    @Test func enabledTraits_whenConditionalTraitWithMatchingCondition_enablesTrait() {
+    @Test(.withMockedSwiftVersionProvider)
+    func enabledTraits_whenConditionalTraitWithMatchingCondition_enablesTrait() {
         let rootPackageInfo = PackageInfo.test(
             name: "RootPackage",
             products: [],
@@ -5163,7 +5166,8 @@ struct PackageInfoMapperTests {
         #expect(result["dependency-b"] == Set(["ConditionalFeature"]))
     }
 
-    @Test func enabledTraits_whenConditionalTraitWithNonMatchingCondition_doesNotEnableTrait() {
+    @Test(.withMockedSwiftVersionProvider)
+    func enabledTraits_whenConditionalTraitWithNonMatchingCondition_doesNotEnableTrait() {
         let rootPackageInfo = PackageInfo.test(
             name: "RootPackage",
             products: [],
@@ -5201,7 +5205,8 @@ struct PackageInfoMapperTests {
         #expect(result["dependency-b"] == nil)
     }
 
-    @Test func enabledTraits_whenMultipleDependenciesWithTraits_aggregatesCorrectly() {
+    @Test(.withMockedSwiftVersionProvider)
+    func enabledTraits_whenMultipleDependenciesWithTraits_aggregatesCorrectly() {
         let rootPackageInfo = PackageInfo.test(
             name: "RootPackage",
             products: [],
