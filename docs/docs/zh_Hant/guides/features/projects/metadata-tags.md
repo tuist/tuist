@@ -121,22 +121,19 @@ metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 
 使用前綴，例如`feature:`,`team:`, 或`layer:` ，可以讓您更容易了解每個標籤的目的，並避免命名衝突。
 
-## System tags {#system-tags}
+## 系統標籤{#system-tags}
 
-Tuist uses the `tuist:` prefix for system-managed tags. These tags are
-automatically applied by Tuist and can be used in cache profiles to target
-specific types of generated content.
+Tuist 對系統管理的標籤使用`tuist:` 前綴。這些標籤由 Tuist 自動套用，並可在快取設定檔中使用，以針對特定類型的已產生內容。
 
-### Available system tags
+### 可用的系統標記
 
-| Tag                 | Description                                                                                                                                                                                             |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tuist:synthesized` | Applied to synthesized bundle targets that Tuist creates for resource handling in static libraries and static frameworks. These bundles exist for historical reasons to provide resource accessor APIs. |
+| 標籤         | 說明                                                                          |
+| ---------- | --------------------------------------------------------------------------- |
+| `tuist:合成` | 應用於 Tuist 在靜態函式庫和靜態框架中為資源處理而建立的合成 bundle 目標。這些 bundle 存在的歷史原因是為了提供資源存取 API。 |
 
-### Using system tags with cache profiles
+### 使用快取設定檔的系統標記
 
-You can use system tags in cache profiles to include or exclude synthesized
-targets:
+您可以在快取設定檔中使用系統標籤來包含或排除合成的目標：
 
 ```swift
 import ProjectDescription
@@ -160,10 +157,8 @@ let tuist = Tuist(
 
 ::: tip SYNTHESIZED BUNDLES INHERIT PARENT TAGS
 <!-- -->
-Synthesized bundle targets inherit all tags from their parent target in addition
-to receiving the `tuist:synthesized` tag. This means if you tag a static library
-with `feature:auth`, its synthesized resource bundle will have both
-`feature:auth` and `tuist:synthesized` tags.
+合成資源包目標除了接收`tuist:synthesized` 標籤外，還會繼承其父目標的所有標籤。這表示如果您使用`feature:auth`
+標籤靜態函式庫，其合成的資源包將同時具有`feature:auth` 和`tuist:synthesized` 標籤。
 <!-- -->
 :::
 
