@@ -99,13 +99,13 @@ NSBundle *bundle = [MyFeatureResources bundle];
 
 ::: tip ПОДДЕРЖКА РЕСУРСОВ В БИБЛИОТЕКАХ С ПОМОЩЬЮ БУМАГИ
 <!-- -->
-If a target product, for example a library, doesn't support resources, Tuist
-will include the resources in a target of product type `bundle` ensuring that it
-ends up in the final product and that the interface points to the right bundle.
-These synthesized bundles are automatically tagged with `tuist:synthesized` and
-inherit all tags from their parent target, allowing you to target them in
-<LocalizedLink href="/guides/features/projects/metadata-tags#system-tags">cache
-profiles</LocalizedLink>.
+Если целевой продукт, например библиотека, не поддерживает ресурсы, Tuist
+включит их в целевой продукт типа `bundle`, гарантируя, что они окажутся в
+конечном продукте и что интерфейс будет указывать на нужный бандл. Эти
+синтезированные пакеты автоматически помечаются тегом `tuist:synthesized` и
+наследуют все теги от родительской цели, что позволяет нацеливать их в
+<LocalizedLink href="/guides/features/projects/metadata-tags#system-tags">профили
+кэширования</LocalizedLink>.
 <!-- -->
 :::
 
