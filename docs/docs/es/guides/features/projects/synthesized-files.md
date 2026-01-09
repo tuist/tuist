@@ -104,13 +104,14 @@ conocida de la que se hace un seguimiento en [issue
 
 ::: tip SUPPORTING RESOURCES IN LIBRARIES THROUGH BUNDLES
 <!-- -->
-If a target product, for example a library, doesn't support resources, Tuist
-will include the resources in a target of product type `bundle` ensuring that it
-ends up in the final product and that the interface points to the right bundle.
-These synthesized bundles are automatically tagged with `tuist:synthesized` and
-inherit all tags from their parent target, allowing you to target them in
-<LocalizedLink href="/guides/features/projects/metadata-tags#system-tags">cache
-profiles</LocalizedLink>.
+Si un producto de destino, por ejemplo una biblioteca, no admite recursos, Tuist
+incluirá los recursos en un destino de tipo de producto `bundle` asegurándose de
+que acaba en el producto final y de que la interfaz apunta al bundle correcto.
+Estos bundles sintetizados se etiquetan automáticamente con `tuist:synthesized`
+y heredan todas las etiquetas de su objetivo padre, lo que permite etiquetarlos
+en
+<LocalizedLink href="/guides/features/projects/metadata-tags#system-tags">perfiles
+de caché</LocalizedLink>.
 <!-- -->
 :::
 
