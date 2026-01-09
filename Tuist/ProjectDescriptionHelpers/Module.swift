@@ -636,6 +636,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.http.targetName),
                     .target(name: Module.server.targetName),
                     .external(name: "XcodeGraph"),
+                    .external(name: "FileSystem"),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "OpenAPIURLSession"),
                     .external(name: "HTTPTypes"),

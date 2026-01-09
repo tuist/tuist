@@ -34,7 +34,7 @@ defmodule Tuist.Slack.Workers.ReportWorker do
     projects =
       Repo.all(
         from(p in Project,
-          where: p.slack_report_frequency == :daily
+          where: p.report_frequency == :daily
         )
       )
 
@@ -48,13 +48,13 @@ defmodule Tuist.Slack.Workers.ReportWorker do
   end
 
   defp is_due?(project, now_utc) do
-    timezone = project.slack_report_timezone
+    timezone = project.report_timezone
     local_now = Timex.Timezone.convert(now_utc, timezone)
     local_hour = local_now.hour
     local_day = Date.day_of_week(DateTime.to_date(local_now))
 
-    scheduled_local_hour = get_scheduled_local_hour(project.slack_report_schedule_time, timezone)
-    days_of_week = project.slack_report_days_of_week || []
+    scheduled_local_hour = get_scheduled_local_hour(project.report_schedule_time, timezone)
+    days_of_week = project.report_days_of_week || []
 
     local_hour == scheduled_local_hour and local_day in days_of_week
   end

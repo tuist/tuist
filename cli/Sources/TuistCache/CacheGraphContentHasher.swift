@@ -1,4 +1,7 @@
+import FileSystem
+import Foundation
 import Mockable
+import Path
 import TuistCore
 import TuistHasher
 import TuistSupport
@@ -21,6 +24,7 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
     private let versionFetcher: CacheVersionFetching
     private static let cachableProducts: Set<Product> = [.framework, .staticFramework, .bundle, .macro]
     private let defaultConfigurationFetcher: DefaultConfigurationFetching
+    private let fileSystem: FileSysteming
 
     public convenience init(
         contentHasher: ContentHashing = ContentHasher()
@@ -29,7 +33,8 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
             graphContentHasher: GraphContentHasher(contentHasher: contentHasher),
             contentHasher: contentHasher,
             versionFetcher: CacheVersionFetcher(),
-            defaultConfigurationFetcher: DefaultConfigurationFetcher()
+            defaultConfigurationFetcher: DefaultConfigurationFetcher(),
+            fileSystem: FileSystem()
         )
     }
 
@@ -37,12 +42,14 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
         graphContentHasher: GraphContentHashing,
         contentHasher: ContentHashing,
         versionFetcher: CacheVersionFetching,
-        defaultConfigurationFetcher: DefaultConfigurationFetching
+        defaultConfigurationFetcher: DefaultConfigurationFetching,
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.graphContentHasher = graphContentHasher
         self.contentHasher = contentHasher
         self.versionFetcher = versionFetcher
         self.defaultConfigurationFetcher = defaultConfigurationFetcher
+        self.fileSystem = fileSystem
     }
 
     public func contentHashes(
@@ -52,6 +59,13 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
         excludedTargets: Set<String>,
         destination: SimulatorDeviceAndRuntime?
     ) async throws -> [GraphTarget: TargetContentHash] {
+        if let exportHashedGraphPath = Environment.current.variables["TUIST_EXPORT_HASHED_GRAPH_PATH"],
+           let exportPath = try? AbsolutePath(validating: exportHashedGraphPath)
+        {
+            try await fileSystem.writeAsJSON(graph, at: exportPath)
+            Logger.current.debug("Graph used for hashing exported to \(exportPath.pathString)")
+        }
+
         let graphTraverser = GraphTraverser(graph: graph)
         let version = versionFetcher.version()
         let configuration = try defaultConfigurationFetcher.fetch(

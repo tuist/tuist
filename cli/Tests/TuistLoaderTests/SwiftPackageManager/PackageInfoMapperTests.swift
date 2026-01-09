@@ -151,6 +151,57 @@ struct PackageInfoMapperTests {
     }
 
     @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func resolveDependencies_whenArtifactsContainMACOSXFolder_filtersThemOut() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let artifactsPath = basePath.appending(components: "Tuist", ".build", "artifacts", "tuist")
+
+        // Create a valid xcframework
+        let validXCFramework = artifactsPath.appending(components: "ValidFramework", "ValidFramework.xcframework")
+        try await fileSystem.makeDirectory(at: validXCFramework)
+
+        // Create a __MACOSX folder with a fake xcframework (simulating macOS zip extraction)
+        let macosxFolder = artifactsPath.appending(components: "ValidFramework", "__MACOSX", "ValidFramework.xcframework")
+        try await fileSystem.makeDirectory(at: macosxFolder)
+
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Sources/Target_1")))
+
+        let resolvedDependencies = try await subject.resolveExternalDependencies(
+            path: basePath.appending(components: "Tuist", ".build"),
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target_1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target_1"),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            packageToFolder: ["Package": basePath],
+            packageToTargetsToArtifactPaths: [:],
+            packageModuleAliases: [:]
+        )
+
+        // Verify that only ValidFramework is included (not the one in __MACOSX)
+        let validFrameworkDependency = try #require(resolvedDependencies["ValidFramework"])
+
+        #expect(validFrameworkDependency.count == 1)
+        let dep = try #require(validFrameworkDependency.first)
+        if case let .xcframework(path, _, _, _) = dep {
+            // Should not contain __MACOSX in the path
+            #expect(!path.pathString.contains("__MACOSX"))
+            #expect(path.pathString.contains("ValidFramework.xcframework"))
+        }
+    }
+
+    @Test(
         .inTemporaryDirectory, .withMockedSwiftVersionProvider
     ) func resolveDependencies_whenProductContainsBinaryTargetMissingFrom_packageToTargetsToArtifactPaths() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)

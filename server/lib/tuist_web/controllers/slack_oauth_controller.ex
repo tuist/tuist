@@ -10,6 +10,7 @@ defmodule TuistWeb.SlackOAuthController do
   use TuistWeb, :controller
 
   alias Tuist.Accounts
+  alias Tuist.Alerts
   alias Tuist.Environment
   alias Tuist.Projects
   alias Tuist.Projects.Project
@@ -22,6 +23,9 @@ defmodule TuistWeb.SlackOAuthController do
 
   def callback(conn, %{"error" => "access_denied", "state" => state_token}) do
     case verify_state_token(state_token) do
+      {:ok, %{type: :alert_channel_selection}} ->
+        render_popup_close(conn, nil, nil)
+
       {:ok, %{type: :channel_selection, account_id: account_id, project_id: project_id}} ->
         redirect_after_channel_cancel(conn, account_id, project_id)
 
@@ -40,8 +44,11 @@ defmodule TuistWeb.SlackOAuthController do
   def callback(conn, %{"code" => code, "state" => state_token})
       when is_binary(code) and code != "" and is_binary(state_token) do
     case verify_state_token(state_token) do
-      {:ok, %{type: :channel_selection, account_id: account_id, project_id: project_id}} ->
-        handle_channel_selection(conn, code, account_id, project_id)
+      {:ok, %{type: :alert_channel_selection} = payload} ->
+        handle_alert_channel_selection(conn, code, payload)
+
+      {:ok, %{type: :channel_selection}} ->
+        handle_channel_selection(conn, code)
 
       {:ok, %{type: :account_installation, account_id: account_id}} ->
         handle_account_installation(conn, code, account_id)
@@ -67,6 +74,11 @@ defmodule TuistWeb.SlackOAuthController do
 
   def channel_selection_url(project_id, account_id) do
     state_token = Slack.generate_channel_selection_token(project_id, account_id)
+    build_oauth_url(state_token, @channel_selection_scopes)
+  end
+
+  def alert_channel_selection_url(account_id, opts \\ []) do
+    state_token = Slack.generate_alert_channel_selection_token(account_id, opts)
     build_oauth_url(state_token, @channel_selection_scopes)
   end
 
@@ -102,18 +114,29 @@ defmodule TuistWeb.SlackOAuthController do
     end
   end
 
-  defp handle_channel_selection(conn, code, account_id, project_id) do
-    with {:ok, account} <- Accounts.get_account_by_id(account_id),
-         %Project{} = project <- Projects.get_project_by_id(project_id),
-         {:ok, token_data} <- SlackClient.exchange_code_for_token(code, slack_redirect_uri()),
-         {:ok, _project} <- update_project_channel(project, token_data) do
-      redirect(conn, to: ~p"/#{account.name}/#{project.name}/settings")
-    else
-      nil ->
-        raise BadRequestError, dgettext("dashboard_slack", "Project not found. Please try again.")
+  defp handle_channel_selection(conn, code) do
+    case SlackClient.exchange_code_for_token(code, slack_redirect_uri()) do
+      {:ok, token_data} ->
+        incoming_webhook = token_data.incoming_webhook
+        channel_id = incoming_webhook.channel_id
+        channel_name = String.trim_leading(incoming_webhook.channel, "#")
+        render_popup_close(conn, channel_id, channel_name)
 
+      {:error, reason} when is_binary(reason) ->
+        raise BadRequestError,
+              dgettext("dashboard_slack", "Slack authorization failed: %{reason}", reason: reason)
+    end
+  end
+
+  defp handle_alert_channel_selection(conn, code, %{alert_rule_id: alert_rule_id} = payload) do
+    with {:ok, _account} <- Accounts.get_account_by_id(payload.account_id),
+         {:ok, alert_rule} <- Alerts.get_alert_rule(alert_rule_id),
+         {:ok, token_data} <- SlackClient.exchange_code_for_token(code, slack_redirect_uri()),
+         {:ok, _alert_rule} <- update_alert_rule_channel(alert_rule, token_data) do
+      render_popup_close(conn, nil, nil)
+    else
       {:error, :not_found} ->
-        raise BadRequestError, dgettext("dashboard_slack", "Account not found. Please try again.")
+        raise BadRequestError, dgettext("dashboard_slack", "Alert rule not found. Please try again.")
 
       {:error, reason} when is_binary(reason) ->
         raise BadRequestError,
@@ -125,12 +148,27 @@ defmodule TuistWeb.SlackOAuthController do
     end
   end
 
-  defp update_project_channel(project, token_data) do
-    incoming_webhook = token_data.incoming_webhook
+  defp handle_alert_channel_selection(conn, code, _payload) do
+    case SlackClient.exchange_code_for_token(code, slack_redirect_uri()) do
+      {:ok, token_data} ->
+        incoming_webhook = token_data.incoming_webhook
+        channel_id = incoming_webhook.channel_id
+        channel_name = String.trim_leading(incoming_webhook.channel, "#")
+        render_popup_close(conn, channel_id, channel_name)
 
-    Projects.update_project(project, %{
+      {:error, reason} when is_binary(reason) ->
+        raise BadRequestError,
+              dgettext("dashboard_slack", "Slack authorization failed: %{reason}", reason: reason)
+    end
+  end
+
+  defp update_alert_rule_channel(alert_rule, token_data) do
+    incoming_webhook = token_data.incoming_webhook
+    channel_name = String.trim_leading(incoming_webhook.channel, "#")
+
+    Alerts.update_alert_rule(alert_rule, %{
       slack_channel_id: incoming_webhook.channel_id,
-      slack_channel_name: incoming_webhook.channel
+      slack_channel_name: channel_name
     })
   end
 
@@ -179,5 +217,12 @@ defmodule TuistWeb.SlackOAuthController do
 
   defp slack_redirect_uri do
     Environment.app_url(path: ~p"/integrations/slack/callback")
+  end
+
+  defp render_popup_close(conn, channel_id, channel_name) do
+    conn
+    |> put_view(TuistWeb.SlackOAuthHTML)
+    |> put_layout(false)
+    |> render("popup_close.html", channel_id: channel_id, channel_name: channel_name)
   end
 end
