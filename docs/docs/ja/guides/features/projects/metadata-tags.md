@@ -121,6 +121,52 @@ metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 
 `feature:`,`team:`,`layer:` のような接頭辞を使うことで、各タグの目的を理解しやすくなり、名前の衝突を避けることができる。
 
+## System tags {#system-tags}
+
+Tuist uses the `tuist:` prefix for system-managed tags. These tags are
+automatically applied by Tuist and can be used in cache profiles to target
+specific types of generated content.
+
+### Available system tags
+
+| Tag                 | Description                                                                                                                                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tuist:synthesized` | Applied to synthesized bundle targets that Tuist creates for resource handling in static libraries and static frameworks. These bundles exist for historical reasons to provide resource accessor APIs. |
+
+### Using system tags with cache profiles
+
+You can use system tags in cache profiles to include or exclude synthesized
+targets:
+
+```swift
+import ProjectDescription
+
+let tuist = Tuist(
+    project: .tuist(
+        cacheOptions: .options(
+            profiles: .profiles(
+                [
+                    "development": .profile(
+                        .onlyExternal,
+                        and: ["tag:tuist:synthesized"]  // Also cache synthesized bundles
+                    )
+                ],
+                default: .onlyExternal
+            )
+        )
+    )
+)
+```
+
+::: tip SYNTHESIZED BUNDLES INHERIT PARENT TAGS
+<!-- -->
+Synthesized bundle targets inherit all tags from their parent target in addition
+to receiving the `tuist:synthesized` tag. This means if you tag a static library
+with `feature:auth`, its synthesized resource bundle will have both
+`feature:auth` and `tuist:synthesized` tags.
+<!-- -->
+:::
+
 ## プロジェクト記述ヘルパーでタグを使う{#using-tags-with-helpers}
 
 1}プロジェクト記述ヘルパー</LocalizedLink>を活用することで、プロジェクト全体でタグの適用方法を標準化することができます：

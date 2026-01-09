@@ -121,6 +121,52 @@ metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 
 使用`feature:`,`team:`, 或`layer:` 这样的前缀更容易理解每个标签的目的，并避免命名冲突。
 
+## System tags {#system-tags}
+
+Tuist uses the `tuist:` prefix for system-managed tags. These tags are
+automatically applied by Tuist and can be used in cache profiles to target
+specific types of generated content.
+
+### Available system tags
+
+| Tag                 | Description                                                                                                                                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tuist:synthesized` | Applied to synthesized bundle targets that Tuist creates for resource handling in static libraries and static frameworks. These bundles exist for historical reasons to provide resource accessor APIs. |
+
+### Using system tags with cache profiles
+
+You can use system tags in cache profiles to include or exclude synthesized
+targets:
+
+```swift
+import ProjectDescription
+
+let tuist = Tuist(
+    project: .tuist(
+        cacheOptions: .options(
+            profiles: .profiles(
+                [
+                    "development": .profile(
+                        .onlyExternal,
+                        and: ["tag:tuist:synthesized"]  // Also cache synthesized bundles
+                    )
+                ],
+                default: .onlyExternal
+            )
+        )
+    )
+)
+```
+
+::: tip SYNTHESIZED BUNDLES INHERIT PARENT TAGS
+<!-- -->
+Synthesized bundle targets inherit all tags from their parent target in addition
+to receiving the `tuist:synthesized` tag. This means if you tag a static library
+with `feature:auth`, its synthesized resource bundle will have both
+`feature:auth` and `tuist:synthesized` tags.
+<!-- -->
+:::
+
 ## 使用项目描述助手的标记{#using-tags-with-helpers}
 
 您可以利用<LocalizedLink href="/guides/features/projects/code-sharing">项目描述助手</LocalizedLink>来规范在整个项目中应用标记的方式：

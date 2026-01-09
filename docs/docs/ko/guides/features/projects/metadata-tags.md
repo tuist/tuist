@@ -122,6 +122,52 @@ metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 `feature:`, `team:`, `layer:` 와 같은 접두사를 사용하면 각 태그의 목적을 더 쉽게 이해하고 이름 충돌을 피할 수
 있습니다.
 
+## System tags {#system-tags}
+
+Tuist uses the `tuist:` prefix for system-managed tags. These tags are
+automatically applied by Tuist and can be used in cache profiles to target
+specific types of generated content.
+
+### Available system tags
+
+| Tag                 | Description                                                                                                                                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tuist:synthesized` | Applied to synthesized bundle targets that Tuist creates for resource handling in static libraries and static frameworks. These bundles exist for historical reasons to provide resource accessor APIs. |
+
+### Using system tags with cache profiles
+
+You can use system tags in cache profiles to include or exclude synthesized
+targets:
+
+```swift
+import ProjectDescription
+
+let tuist = Tuist(
+    project: .tuist(
+        cacheOptions: .options(
+            profiles: .profiles(
+                [
+                    "development": .profile(
+                        .onlyExternal,
+                        and: ["tag:tuist:synthesized"]  // Also cache synthesized bundles
+                    )
+                ],
+                default: .onlyExternal
+            )
+        )
+    )
+)
+```
+
+::: tip SYNTHESIZED BUNDLES INHERIT PARENT TAGS
+<!-- -->
+Synthesized bundle targets inherit all tags from their parent target in addition
+to receiving the `tuist:synthesized` tag. This means if you tag a static library
+with `feature:auth`, its synthesized resource bundle will have both
+`feature:auth` and `tuist:synthesized` tags.
+<!-- -->
+:::
+
 ## 프로젝트 설명 도우미와 함께 태그 사용 {#using-tags-with-helpers}
 
 1}프로젝트 설명 도우미</LocalizedLink>를 활용하여 프로젝트 전체에 태그가 적용되는 방식을 표준화할 수 있습니다:
