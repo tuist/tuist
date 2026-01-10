@@ -11,7 +11,7 @@ let argumentParserDependency: Target.Dependency = .product(
     name: "ArgumentParser", package: "apple.swift-argument-parser"
 )
 let swiftGenKitDependency: Target.Dependency = .product(
-    name: "SwiftGenKit", package: "swiftGen.SwiftGen")
+    name: "SwiftGenKit", package: "tuist.SwiftGen")
 let fileSystemDependency: Target.Dependency = .product(name: "FileSystem", package: "tuist.FileSystem")
 let commandDependency: Target.Dependency = .product(name: "Command", package: "tuist.Command")
 let xcodeGraphDependency: Target.Dependency = .product(name: "XcodeGraph", package: "tuist.XcodeGraph")
@@ -677,7 +677,7 @@ let package = Package(
         .package(id: "stencilproject.Stencil", exact: "0.15.1"),
         .package(id: "tuist.GraphViz", exact: "0.4.2"),
         .package(id: "swiftGen.StencilSwiftKit", exact: "2.10.1"),
-        .package(id: "swiftGen.SwiftGen", exact: "6.6.2"),
+        .package(id: "tuist.SwiftGen", exact: "6.7.0"),
         .package(id: "tuist.XcodeProj", .upToNextMajor(from: "9.4.3")),
         .package(id: "cpisciotta.xcbeautify", from: "3.1.0"),
         .package(id: "krzysztofzablocki.Difference", from: "1.0.2"),
