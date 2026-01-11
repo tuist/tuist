@@ -113,8 +113,27 @@ defmodule TuistWeb.Authentication do
 
   def get_authorization_token_from_conn(conn) do
     case get_req_header(conn, "authorization") do
-      ["Bearer " <> token] -> token
-      _ -> nil
+      ["Bearer " <> token] ->
+        token
+
+      ["Basic " <> encoded] ->
+        parse_basic_auth_token(encoded)
+
+      _ ->
+        nil
+    end
+  end
+
+  defp parse_basic_auth_token(encoded) do
+    case Base.decode64(encoded) do
+      {:ok, decoded} ->
+        case String.split(decoded, ":", parts: 2) do
+          [_username, token] -> token
+          _ -> nil
+        end
+
+      :error ->
+        nil
     end
   end
 

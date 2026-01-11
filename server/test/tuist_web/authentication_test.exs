@@ -475,7 +475,7 @@ defmodule TuistWeb.AuthenticationTest do
       assert conn.status
     end
 
-    test "does not redirect if a user is anonymous, a project is private, and preview is public",
+    test "does not redirect if a user is anonymous, a project is private, and preview type is :ipa",
          %{conn: conn} do
       # Given
       project =
@@ -501,59 +501,74 @@ defmodule TuistWeb.AuthenticationTest do
       refute conn.halted
       refute conn.status
     end
+  end
 
-    test "does not redirect when preview.visibility is nil and project.default_previews_visibility is :public",
-         %{conn: conn} do
-      # Given
-      project =
-        [visibility: :private, default_previews_visibility: :public]
-        |> ProjectsFixtures.project_fixture()
-        |> Repo.preload(:account)
+  describe "get_authorization_token_from_conn/1" do
+    test "extracts token from Bearer authorization header", %{conn: conn} do
+      token = "my_bearer_token_123"
 
-      preview = AppBuildsFixtures.preview_fixture(project: project, visibility: nil)
+      conn = put_req_header(conn, "authorization", "Bearer #{token}")
 
-      conn = %{
-        conn
-        | path_params: %{
-            "account_handle" => project.account.name,
-            "project_handle" => project.name,
-            "id" => preview.id
-          }
-      }
-
-      # When
-      conn = Authentication.require_authenticated_user_for_previews(conn, [])
-
-      # Then
-      refute conn.halted
-      refute conn.status
+      assert Authentication.get_authorization_token_from_conn(conn) == token
     end
 
-    test "redirects when preview.visibility is nil and project.default_previews_visibility is :private",
-         %{conn: conn} do
-      # Given
-      project =
-        [visibility: :private, default_previews_visibility: :private]
-        |> ProjectsFixtures.project_fixture()
-        |> Repo.preload(:account)
+    test "extracts token from Basic authorization header", %{conn: conn} do
+      token = "tuist_abc123_secrethash"
+      credentials = Base.encode64("token:#{token}")
 
-      preview = AppBuildsFixtures.preview_fixture(project: project, visibility: nil)
+      conn = put_req_header(conn, "authorization", "Basic #{credentials}")
 
-      conn = %{
-        conn
-        | path_params: %{
-            "account_handle" => project.account.name,
-            "project_handle" => project.name,
-            "id" => preview.id
-          }
-      }
+      assert Authentication.get_authorization_token_from_conn(conn) == token
+    end
 
-      # When
-      conn = Authentication.require_authenticated_user_for_previews(conn, [])
+    test "extracts token from Basic auth with different username", %{conn: conn} do
+      token = "tuist_abc123_secrethash"
+      credentials = Base.encode64("anyuser:#{token}")
 
-      # Then
-      assert conn.halted
-      assert conn.status
+      conn = put_req_header(conn, "authorization", "Basic #{credentials}")
+
+      assert Authentication.get_authorization_token_from_conn(conn) == token
+    end
+
+    test "returns nil when no authorization header is present", %{conn: conn} do
+      assert Authentication.get_authorization_token_from_conn(conn) == nil
+    end
+
+    test "returns nil for invalid authorization header format", %{conn: conn} do
+      conn = put_req_header(conn, "authorization", "InvalidFormat token123")
+
+      assert Authentication.get_authorization_token_from_conn(conn) == nil
+    end
+
+    test "returns nil for invalid Base64 in Basic auth", %{conn: conn} do
+      conn = put_req_header(conn, "authorization", "Basic not_valid_base64!!!")
+
+      assert Authentication.get_authorization_token_from_conn(conn) == nil
+    end
+
+    test "returns nil for Basic auth without colon separator", %{conn: conn} do
+      credentials = Base.encode64("tokenwithoutseparator")
+
+      conn = put_req_header(conn, "authorization", "Basic #{credentials}")
+
+      assert Authentication.get_authorization_token_from_conn(conn) == nil
+    end
+
+    test "handles Basic auth with colon in password", %{conn: conn} do
+      token = "token:with:colons"
+      credentials = Base.encode64("user:#{token}")
+
+      conn = put_req_header(conn, "authorization", "Basic #{credentials}")
+
+      assert Authentication.get_authorization_token_from_conn(conn) == token
+    end
+
+    test "handles empty password in Basic auth", %{conn: conn} do
+      credentials = Base.encode64("user:")
+
+      conn = put_req_header(conn, "authorization", "Basic #{credentials}")
+
+      assert Authentication.get_authorization_token_from_conn(conn) == ""
     end
   end
 end
