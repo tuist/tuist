@@ -100,8 +100,12 @@ NSBundle *bundle = [MyFeatureResources bundle];
 ::: tip ПОДДЕРЖКА РЕСУРСОВ В БИБЛИОТЕКАХ С ПОМОЩЬЮ БУМАГИ
 <!-- -->
 Если целевой продукт, например библиотека, не поддерживает ресурсы, Tuist
-включит ресурсы в целевой продукт типа `bundle`, гарантируя, что они окажутся в
-конечном продукте и что интерфейс будет указывать на правильный бандл.
+включит их в целевой продукт типа `bundle`, гарантируя, что они окажутся в
+конечном продукте и что интерфейс будет указывать на нужный бандл. Эти
+синтезированные пакеты автоматически помечаются тегом `tuist:synthesized` и
+наследуют все теги от родительской цели, что позволяет нацеливать их в
+<LocalizedLink href="/guides/features/projects/metadata-tags#system-tags">профили
+кэширования</LocalizedLink>.
 <!-- -->
 :::
 
@@ -162,7 +166,7 @@ let project = Project(resourceSynthesizers: [.string(), .fonts()])
 ::: info REFERENCE
 <!-- -->
 Вы можете посмотреть на [this
-fixture](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates),
+fixture](https://github.com/tuist/tuist/tree/main/examples/xcode/generated_ios_app_with_templates),
 чтобы увидеть пример использования пользовательских шаблонов для синтеза
 аксессоров к ресурсам.
 <!-- -->

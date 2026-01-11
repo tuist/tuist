@@ -10,7 +10,8 @@
 使用 Tuist 開啟新專案的最直接方法是使用`tuist init` 指令。此指令會啟動互動式
 CLI，引導您設定專案。出現提示時，請務必選擇建立「已產生專案」的選項。
 
-然後，您可以 <LocalizedLink href="/guides/features/projects/editing"> 編輯專案</LocalizedLink>，執行`tuist edit` ，Xcode
+然後，您可以 <LocalizedLink href="/guides/features/projects/editing">
+編輯專案</LocalizedLink>，執行`tuist edit` ，Xcode
 就會開啟一個專案，您可以在其中編輯專案。其中一個產生的檔案是`Project.swift` ，其中包含專案的定義。如果您熟悉 Swift Package
 Manager，請將此視為`Package.swift` ，但使用 Xcode 專案的行話。
 

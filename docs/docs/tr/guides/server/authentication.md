@@ -50,7 +50,8 @@ token'ı ile değiştirir.
 ### OIDC kimlik doğrulamasını ayarlama {#setting-up-oidc-authentication}
 
 1. **Deponuzu Tuist'e bağlayın**: GitHub deponuzu Tuist projenize bağlamak için
-   <LocalizedLink href="/guides/integrations/gitforge/github">GitHub entegrasyon kılavuzunu</LocalizedLink> izleyin.
+   <LocalizedLink href="/guides/integrations/gitforge/github">GitHub entegrasyon
+   kılavuzunu</LocalizedLink> izleyin.
 
 2. **tuist auth login`** komutunu çalıştırın: CI iş akışınızda, kimlik doğrulama
    gerektiren tüm komutlardan önce `tuist auth login` komutunu çalıştırın. CLI,
@@ -58,7 +59,8 @@ token'ı ile değiştirir.
    yapacaktır.
 
 Sağlayıcıya özgü yapılandırma örnekleri için
-<LocalizedLink href="/guides/integrations/continuous-integration">Sürekli Entegrasyon kılavuzuna</LocalizedLink> bakın.
+<LocalizedLink href="/guides/integrations/continuous-integration">Sürekli
+Entegrasyon kılavuzuna</LocalizedLink> bakın.
 
 ### OIDC belirteç kapsamları {#oidc-token-scopes}
 
@@ -175,7 +177,7 @@ export TUIST_TOKEN=your-account-token
 İhtiyacınız olduğunda hesap jetonlarını kullanın:
 - OIDC'yi desteklemeyen CI ortamlarında kimlik doğrulama
 - Token'ın hangi işlemleri gerçekleştirebileceği üzerinde ince taneli kontrol
-- Bir hesap içinde birden fazla projeye erişebilen bir token
+- Bir hesap içindeki birden fazla projeye erişebilen bir belirteç
 - Otomatik olarak sona eren zaman sınırlı tokenlar
 <!-- -->
 :::

@@ -12,7 +12,7 @@ Xcode'u büyük projelerle kullandığımızda karşılaştığımız sorunlarda
 öğelerinin yeniden kullanılmasına izin vermemesidir. Proje tanımlarını yeniden
 kullanabilmek aşağıdaki nedenlerden dolayı yararlıdır:
 
-- Değişiklikler tek bir yerde uygulanabildiği ve tüm projeler değişiklikleri
+- Değişiklikler tek bir yerden uygulanabildiği ve tüm projeler değişiklikleri
   otomatik olarak aldığı için **bakımını** kolaylaştırır.
 - Yeni projelerin uyabileceği **sözleşmelerinin** tanımlanmasını mümkün kılar.
 - Projeler daha **tutarlı** ve bu nedenle tutarsızlıklar nedeniyle bozuk derleme

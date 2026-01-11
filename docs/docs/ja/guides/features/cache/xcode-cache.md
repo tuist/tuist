@@ -92,22 +92,28 @@ let tuist = Tuist(
 
 CI環境でキャッシュを有効にするには、ローカル環境と同じコマンドを実行する必要がある：`tuist setup cache`.
 
-さらに、`TUIST_TOKEN`
-環境変数が設定されていることを確認する必要があります。こちらのドキュメント<LocalizedLink href="/guides/server/authentication#as-a-project"></LocalizedLink>に従って作成できます。`TUIST_TOKEN`
-環境変数__ がビルドステップに存在する必要がありますが、CIワークフロー全体に設定することをお勧めします。
+認証には、<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC認証</LocalizedLink>（サポートされているCIプロバイダに推奨）か、`TUIST_TOKEN`
+環境変数による<LocalizedLink href="/guides/server/authentication#account-tokens">アカウントトークン</LocalizedLink>のどちらかを使用できます。
 
-GitHub Actions のワークフローの例は次のようになります：
+OIDC認証を使ったGitHub Actionsのワークフロー例：
 ```yaml
 name: Build
 
-env:
-  TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   build:
+    runs-on: macos-latest
     steps:
-      - # Your set up steps...
-      - name: Set up Tuist Cache
-        run: tuist setup cache
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: tuist auth login
+      - run: tuist setup cache
       - # Your build steps
 ```
+
+トークンベースの認証やXcode
+Cloud、CircleCI、Bitrise、Codemagicのような他のCIプラットフォームを含む、より多くの例については<LocalizedLink href="/guides/integrations/continuous-integration">Continuous
+Integrationガイド</LocalizedLink>を参照してください。

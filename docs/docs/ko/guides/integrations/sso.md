@@ -39,7 +39,7 @@ Okta를 사용한 SSO는 기업 고객만 사용할 수 있습니다. 설정에 
 7. 저장 후 애플리케이션의 일반 설정을 사용할 수 있습니다. "고객 ID"와 "고객 비밀"을 복사하여 담당자와 안전하게 공유해야 합니다.
 8. 제공된 클라이언트 ID와 비밀번호로 Tuist 서버를 다시 배포해야 합니다. 이 작업에는 영업일 기준 최대 하루가 소요될 수 있습니다.
 9. 서버가 배포되면 일반 설정 "편집" 버튼을 클릭합니다.
-10. 다음 리디렉션 URL 붙여넣기: `https://tuist.dev/users/auth/okta/callback`
+10. 다음 리디렉션 URL을 붙여넣기: `https://tuist.dev/users/auth/okta/callback`
 13. "로그인 시작 위치"를 "Okta 또는 앱"으로 변경합니다.
 14. "사용자에게 애플리케이션 아이콘 표시"를 선택합니다.
 15. `https://tuist.dev/users/auth/okta?organization_id=1` 으로 "로그인 URL 시작"을

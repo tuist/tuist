@@ -10,10 +10,13 @@
 Eklentiler, Tuist eserlerini birden fazla proje arasında paylaşmak ve yeniden
 kullanmak için bir araçtır. Aşağıdaki eserler desteklenmektedir:
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">Birden fazla projede proje açıklama yardımcıları</LocalizedLink>.
-- <LocalizedLink href="/guides/features/projects/templates">Birden fazla projedeki şablonlar</LocalizedLink>.
+- <LocalizedLink href="/guides/features/projects/code-sharing">Birden fazla
+  projede proje açıklama yardımcıları</LocalizedLink>.
+- <LocalizedLink href="/guides/features/projects/templates">Birden fazla
+  projedeki şablonlar</LocalizedLink>.
 - Birden fazla projedeki görevler.
-- <LocalizedLink href="/guides/features/projects/synthesized-files">Birden fazla projede kaynak erişimcisi</LocalizedLink> şablonu
+- <LocalizedLink href="/guides/features/projects/synthesized-files">Birden fazla
+  projede kaynak erişimcisi</LocalizedLink> şablonu
 
 Eklentilerin Tuist'in işlevselliğini genişletmek için basit bir yol olarak
 tasarlandığını unutmayın. Bu nedenle **dikkate alınması gereken bazı
@@ -54,7 +57,7 @@ let plugin = Plugin(name: "MyPlugin")
 
 ### Kaynak erişimci şablonları eklentisi {#resource-accessor-templates-plugin}
 
-sentezlenmiş kaynak erişimcilerini paylaşmanız gerekiyorsa bu
+1}sentezlenmiş kaynak erişimcilerini</LocalizedLink> paylaşmanız gerekiyorsa bu
 tür bir eklenti kullanabilirsiniz. Eklenti, eklentinin adını bildiren bir
 `Plugin.swift` manifest dosyası ve kaynak erişimcisi şablon dosyalarını içeren
 bir `ResourceSynthesizers` dizini içeren bir dizin ile temsil edilir.
@@ -124,13 +127,13 @@ Görevleri dağıtmak için Tuist kullanıyorsanız
   try Tuist.graph()`. Komut, `tuist` komutunu çalıştırmak ve proje grafiğinin
   bellek içi gösterimini döndürmek için sistem sürecini kullanır.
 - Görevleri dağıtmak için, GitHub sürümlerine `arm64` ve `x86_64` destekleyen
-  bir yağ ikilisi eklemenizi ve bir yükleme aracı olarak
+  bir fat binary eklemenizi ve bir yükleme aracı olarak
   [Mise](https://mise.jdx.dev) kullanmanızı öneririz. Mise'e aracınızı nasıl
   yükleyeceği konusunda talimat vermek için bir eklenti deposuna ihtiyacınız
   olacaktır. Referans olarak
   [Tuist's](https://github.com/asdf-community/asdf-tuist) kullanabilirsiniz.
-- Aracınızı `tuist-{xxx}` olarak adlandırırsanız ve kullanıcılar `mise install`
-  çalıştırarak yükleyebilirlerse, doğrudan çağırarak ya da `tuist xxx`
+- Aracınıza `tuist-{xxx}` adını verirseniz ve kullanıcılar `mise install`
+  çalıştırarak yükleyebilirlerse, doğrudan çağırarak veya `tuist xxx`
   aracılığıyla çalıştırabilirler.
 
 ::: info THE FUTURE OF PROJECTAUTOMATION

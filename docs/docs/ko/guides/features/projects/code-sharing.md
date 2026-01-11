@@ -95,7 +95,7 @@ let project = Project.featureFramework(name: "MyFeature")
 <!-- -->
 :::
 
-::: tip A 규칙 체결을 위한 도구
+::: tip 컨벤션 체결을 위한 도구
 <!-- -->
 우리가 함수를 통해서 Target 이름, Bundle Identifier, 폴더 구조에 대한 규칙을 정의하고 있는 방법에 대해 알아두세요.
 <!-- -->

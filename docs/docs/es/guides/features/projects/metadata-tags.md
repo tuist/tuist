@@ -138,9 +138,58 @@ metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 El uso de prefijos como `feature:`, `team:`, o `layer:` facilita la comprensión
 del propósito de cada etiqueta y evita conflictos de nomenclatura.
 
+## Etiquetas del sistema {#system-tags}
+
+Tuist utiliza el prefijo `tuist:` para las etiquetas gestionadas por el sistema.
+Estas etiquetas son aplicadas automáticamente por Tuist y pueden utilizarse en
+perfiles de caché para dirigirse a tipos específicos de contenido generado.
+
+### Etiquetas de sistema disponibles
+
+| Etiqueta            | Descripción                                                                                                                                                                                                                           |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tuist:sintetizado` | Se aplica a los objetivos de bundle sintetizados que Tuist crea para el manejo de recursos en bibliotecas estáticas y frameworks estáticos. Estos paquetes existen por razones históricas para proporcionar API de acceso a recursos. |
+
+### Uso de etiquetas del sistema con perfiles de caché
+
+Puede utilizar etiquetas de sistema en los perfiles de caché para incluir o
+excluir objetivos sintetizados:
+
+```swift
+import ProjectDescription
+
+let tuist = Tuist(
+    project: .tuist(
+        cacheOptions: .options(
+            profiles: .profiles(
+                [
+                    "development": .profile(
+                        .onlyExternal,
+                        and: ["tag:tuist:synthesized"]  // Also cache synthesized bundles
+                    )
+                ],
+                default: .onlyExternal
+            )
+        )
+    )
+)
+```
+
+::: tip SYNTHESIZED BUNDLES INHERIT PARENT TAGS
+<!-- -->
+Los objetivos de bundle sintetizados heredan todas las etiquetas de su objetivo
+padre, además de recibir la etiqueta `tuist:synthesized`. Esto significa que si
+etiquetas una biblioteca estática con `feature:auth`, su paquete de recursos
+sintetizado tendrá las etiquetas `feature:auth` y `tuist:synthesized`.
+<!-- -->
+:::
+
 ## Utilización de etiquetas con los asistentes de descripción de proyectos {#using-tags-with-helpers}
 
-Puede utilizar <LocalizedLink href="/guides/features/projects/code-sharing">ayudantes de descripción de proyectos</LocalizedLink> para estandarizar cómo se aplican las etiquetas en todo el proyecto:
+Puede utilizar
+<LocalizedLink href="/guides/features/projects/code-sharing">ayudantes de
+descripción de proyectos</LocalizedLink> para estandarizar cómo se aplican las
+etiquetas en todo el proyecto:
 
 ```swift
 // Tuist/ProjectDescriptionHelpers/Project+Templates.swift
@@ -210,7 +259,9 @@ Las etiquetas permiten organizar el código de forma flexible:
 
 ### Integración con la caché
 
-Las etiquetas de metadatos funcionan a la perfección con las funciones de <LocalizedLink href="/guides/features/cache">almacenamiento en caché de Tuist</LocalizedLink>:
+Las etiquetas de metadatos funcionan a la perfección con las funciones de
+almacenamiento en caché</LocalizedLink> de
+<LocalizedLink href="/guides/features/cache">Tuist:
 
 ```bash
 # Cache all targets
@@ -235,6 +286,12 @@ tuist generate tag:feature:payment
 
 ## Funciones relacionadas {#related-features}
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">Compartir código</LocalizedLink> - Utilizar ayudantes de descripción de proyectos para estandarizar el uso de etiquetas
-- <LocalizedLink href="/guides/features/cache">Caché</LocalizedLink> - Combine las etiquetas con la caché para obtener un rendimiento óptimo de la compilación
-- <LocalizedLink href="/guides/features/selective-testing">Pruebas selectivas</LocalizedLink> - Ejecutar pruebas sólo para los objetivos modificados
+- <LocalizedLink href="/guides/features/projects/code-sharing">Compartir
+  código</LocalizedLink> - Utilizar ayudantes de descripción de proyectos para
+  estandarizar el uso de etiquetas
+- <LocalizedLink href="/guides/features/cache">Caché</LocalizedLink> - Combine
+  las etiquetas con la caché para obtener un rendimiento óptimo de la
+  compilación
+- <LocalizedLink href="/guides/features/selective-testing">Pruebas
+  selectivas</LocalizedLink> - Ejecutar pruebas sólo para los objetivos
+  modificados

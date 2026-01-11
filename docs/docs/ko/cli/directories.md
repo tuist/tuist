@@ -67,7 +67,7 @@ export XDG_CACHE_HOME=/tmp/cache
 tuist cache
 ```
 
-### 상태 디렉토리 {#state-directory}
+### 상태 디렉터리 {#state-directory}
 
 **환경 변수:**
 - `TUIST_XDG_STATE_HOME` (우선 적용)
@@ -107,7 +107,7 @@ tuist generate
 
 ### 프로젝트별로 Tuist 격리하기 {#isolating-tuist-per-project}
 
-프로젝트별로 Tuist의 캐시와 상태를 분리하고 싶을 수도 있습니다:
+프로젝트별로 Tuist의 캐시와 상태를 분리하고 싶을 수 있습니다:
 
 ```bash
 # In your project's .envrc (using direnv)

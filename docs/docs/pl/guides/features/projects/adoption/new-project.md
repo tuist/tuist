@@ -12,7 +12,8 @@ polecenia `tuist init`. Polecenie to uruchamia interaktywny interfejs CLI, któr
 prowadzi użytkownika przez proces konfiguracji projektu. Po wyświetleniu monitu
 należy wybrać opcję utworzenia "wygenerowanego projektu".
 
-Następnie można <LocalizedLink href="/guides/features/projects/editing"> edytować projekt</LocalizedLink> uruchamiając `tuist edit`, a Xcode otworzy
+Następnie można <LocalizedLink href="/guides/features/projects/editing">
+edytować projekt</LocalizedLink> uruchamiając `tuist edit`, a Xcode otworzy
 projekt, w którym można go edytować. Jednym z generowanych plików jest
 `Project.swift`, który zawiera definicję projektu. Jeśli jesteś zaznajomiony z
 menedżerem pakietów Swift, pomyśl o nim jak o `Package.swift`, ale z językiem

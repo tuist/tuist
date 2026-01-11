@@ -93,9 +93,13 @@ NSBundle *bundle = [MyFeatureResources bundle];
 
 ::: tip SUPPORTING RESOURCES IN LIBRARIES THROUGH BUNDLES
 <!-- -->
-إذا كان المنتج المستهدف، على سبيل المثال مكتبة، لا يدعم الموارد، فإن تويست سيقوم
-بتضمين الموارد في هدف من نوع المنتج `حزمة` لضمان أن ينتهي بها المطاف في المنتج
-النهائي وأن الواجهة تشير إلى الحزمة الصحيحة.
+إذا كان المنتج المستهدف، على سبيل المثال مكتبة، لا يدعم الموارد، فإن تويست سوف
+يدرج الموارد في هدف من نوع المنتج `حزمة` لضمان أن ينتهي بها المطاف في المنتج
+النهائي وأن الواجهة تشير إلى الحزمة الصحيحة. يتم تمييز هذه الحزم المركبة
+تلقائيًا بـ `tuist:synthesized` وترث جميع العلامات من هدفها الأم، مما يسمح لك
+باستهدافها في
+<LocalizedLink href="/guides/features/projects/metadata-tags#system-tags">ملفات
+تعريف ذاكرة التخزين المؤقت</LocalizedLink>.
 <!-- -->
 :::
 
@@ -151,8 +155,8 @@ let project = Project(resourceSynthesizers: [.string(), .fonts()])
 
 ::: info REFERENCE
 <!-- -->
-يمكنك الاطلاع على [هذا التركيب]
-(https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates)
+يمكنكم الاطلاع على [هذا المثال]
+(https://github.com/tuist/tuist/tree/main/examples/xcode/generated_ios_app_with_templates)
 للاطلاع على مثال لكيفية استخدام القوالب المخصصة لتجميع الوصولات إلى الموارد.
 <!-- -->
 :::

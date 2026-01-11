@@ -9,18 +9,19 @@
 
 ::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve projesi</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve
+  projesi</LocalizedLink>
 <!-- -->
 :::
 
-Büyük projeler üzerinde çalışmak bir angarya gibi hissettirmemelidir. Aslında,
-sadece iki hafta önce başladığınız bir proje üzerinde çalışmak kadar keyifli
-olmalıdır. Bunun böyle olmamasının nedenlerinden biri, proje büyüdükçe
-geliştirici deneyiminin zarar görmesidir. Derleme süreleri artar ve testler
-yavaş ve aksak hale gelir. Dayanılmaz hale gelene kadar bu sorunları göz ardı
-etmek genellikle kolaydır - ancak bu noktada, bunları ele almak zordur. Tuist
-Insights, projenizin sağlığını izlemeniz ve projeniz ölçeklenirken verimli bir
-geliştirici ortamını korumanız için size araçlar sağlar.
+Büyük projeler üzerinde çalışmak angarya gibi gelmemelidir. Aslında, sadece iki
+hafta önce başladığınız bir proje üzerinde çalışmak kadar keyifli olmalıdır.
+Bunun böyle olmamasının nedenlerinden biri, proje büyüdükçe geliştirici
+deneyiminin zarar görmesidir. Derleme süreleri artar ve testler yavaş ve aksak
+hale gelir. Dayanılmaz hale gelene kadar bu sorunları göz ardı etmek genellikle
+kolaydır - ancak bu noktada, bunları ele almak zordur. Tuist Insights,
+projenizin sağlığını izlemeniz ve projeniz ölçeklenirken verimli bir geliştirici
+ortamını korumanız için size araçlar sağlar.
 
 Başka bir deyişle, Tuist Insights aşağıdaki gibi soruları yanıtlamanıza yardımcı
 olur:
@@ -35,7 +36,7 @@ Tuist Insights erken geliştirme aşamasındadır.
 
 ## Yapılar {#builds}
 
-Muhtemelen CI iş akışlarının performansı için bazı metriklere sahip olsanız da,
+Muhtemelen CI iş akışlarının performansı için bazı ölçümlere sahip olsanız da,
 yerel geliştirme ortamı için aynı görünürlüğe sahip olmayabilirsiniz. Ancak
 yerel derleme süreleri, geliştirici deneyimine katkıda bulunan en önemli
 faktörlerden biridir.
@@ -56,7 +57,8 @@ ayarlamanızı öneririz.
 
 ::: info
 <!-- -->
-<LocalizedLink href="/guides/features/projects">oluşturulmuş projele</LocalizedLink> kullanmıyorsanız, derleme başarısız olursa şema sonrası
+<LocalizedLink href="/guides/features/projects">oluşturulmuş
+projele</LocalizedLink> kullanmıyorsanız, derleme başarısız olursa şema sonrası
 eylem yürütülmez.
 <!-- -->
 :::
@@ -83,10 +85,10 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 ::: tip MISE & PROJECT PATHS
 <!-- -->
 Ortamınızın `PATH` ortam değişkeni scheme post eylemi tarafından miras alınmaz
-ve bu nedenle Mise'ı nasıl kurduğunuza bağlı olarak Mise'ın mutlak yolunu
-kullanmanız gerekir. Ayrıca, Mise'i $SRCROOT tarafından işaret edilen dizinden
-çalıştırabilmeniz için derleme ayarlarını projenizdeki bir hedeften devralmayı
-unutmayın.
+ve bu nedenle Mise'ın mutlak yolunu kullanmanız gerekir, bu da Mise'ı nasıl
+kurduğunuza bağlı olacaktır. Ayrıca, Mise'i $SRCROOT tarafından işaret edilen
+dizinden çalıştırabilmeniz için derleme ayarlarını projenizdeki bir hedeften
+devralmayı unutmayın.
 <!-- -->
 :::
 
@@ -129,10 +131,10 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 ::: tip MISE & PROJECT PATHS
 <!-- -->
 Ortamınızın `PATH` ortam değişkeni scheme post eylemi tarafından miras alınmaz
-ve bu nedenle Mise'ı nasıl kurduğunuza bağlı olarak Mise'ın mutlak yolunu
-kullanmanız gerekir. Ayrıca, Mise'i $SRCROOT tarafından işaret edilen dizinden
-çalıştırabilmeniz için derleme ayarlarını projenizdeki bir hedeften devralmayı
-unutmayın.
+ve bu nedenle Mise'ın mutlak yolunu kullanmanız gerekir, bu da Mise'ı nasıl
+kurduğunuza bağlı olacaktır. Ayrıca, Mise'i $SRCROOT tarafından işaret edilen
+dizinden çalıştırabilmeniz için derleme ayarlarını projenizdeki bir hedeften
+devralmayı unutmayın.
 <!-- -->
 :::
 
@@ -243,7 +245,8 @@ olduğundan emin olmanız gerekir.
 
 Ek olarak, aşağıdakilerden birini yapmanız gerekecektir:
 - `xcodebuild` eylemlerini çağırırken
-  <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</LocalizedLink> komutunu kullanın.
+  <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
+  xcodebuild`</LocalizedLink> komutunu kullanın.
 - `xcodebuild` çağrınıza `-resultBundlePath` ekleyin.
 
 `xcodebuild` projenizi `-resultBundlePath` olmadan derlediğinde veya test

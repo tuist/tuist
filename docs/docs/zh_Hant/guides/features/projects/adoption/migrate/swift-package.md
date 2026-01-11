@@ -69,11 +69,13 @@ let tuist = Tuist()
 ```
 
 `Tuist.swift` 包含專案的設定，其路徑可作為判定專案根目錄的參考。您可以查看
-<LocalizedLink href="/guides/features/projects/directory-structure"> 目錄結構</LocalizedLink>文件，瞭解更多關於 Tuist 專案結構的資訊。
+<LocalizedLink href="/guides/features/projects/directory-structure">
+目錄結構</LocalizedLink>文件，瞭解更多關於 Tuist 專案結構的資訊。
 
 ## 編輯專案{#editing-the-project}
 
-您可以使用 <LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink> 在 Xcode 中編輯專案。該指令會產生一個 Xcode 專案，您可以開啟並開始工作。
+您可以使用 <LocalizedLink href="/guides/features/projects/editing">`tuist
+edit`</LocalizedLink> 在 Xcode 中編輯專案。該指令會產生一個 Xcode 專案，您可以開啟並開始工作。
 
 ```bash
 tuist edit

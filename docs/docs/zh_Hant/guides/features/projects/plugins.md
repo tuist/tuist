@@ -49,7 +49,8 @@ let plugin = Plugin(name: "MyPlugin")
 ### 資源存取器模板外掛程式{#resource-accessor-templates-plugin}
 
 如果您需要共用
-<LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors"> 合成的資源存取器</LocalizedLink>，您可以使用此類型的外掛。該外掛由一個包含`Plugin.swift` manifest
+<LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">
+合成的資源存取器</LocalizedLink>，您可以使用此類型的外掛。該外掛由一個包含`Plugin.swift` manifest
 檔案（宣告外掛名稱）和`ResourceSynthesizers` 目錄（包含資源存取器模板檔案）的目錄來表示。
 
 
@@ -103,7 +104,7 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 任務是`$PATH`-exposed 的可執行檔，如果遵循命名慣例`tuist-<task-name>` ，則可透過`tuist`
 指令來啟用。在早期版本中，Tuist 在`tuist plugin` 下提供了一些弱化的慣例和工具，以`build`,`run`,`test`
 和`archive` 任務，這些任務由 Swift Packages
-中的可執行檔代表，但是我們已經棄用此功能，因為它增加了維護負擔和工具的複雜性。
+中的可執行檔代表，但是我們已經棄用此功能，因為它增加了維護負擔和工具的複雜性。</task-name>
 
 如果您使用 Tuist 來分發任務，我們建議您建立您的
 - 您可以繼續使用`ProjectAutomation.xcframework` 與每個 Tuist 發行版本一起發佈，從您的邏輯中存取專案圖形，`let

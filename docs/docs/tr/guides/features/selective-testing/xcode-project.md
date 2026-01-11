@@ -9,7 +9,8 @@
 
 ::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve projesi</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve
+  projesi</LocalizedLink>
 <!-- -->
 :::
 
@@ -40,7 +41,8 @@ filtrelemek için hash'leri şeffaf bir şekilde kullanır.
 | `tuist xcodebuild test` çağırma | `CoreTests`, `FeatureATests` ve `FeatureBTests içindeki testleri çalıştırır` | `FeatureATests` `FeatureBTests` ve `CoreTests` adreslerinin yeni hash'leri kalıcı hale getirilir |
 
 CI'nızda `tuist xcodebuild test` kullanmak için
-<LocalizedLink href="/guides/integrations/continuous-integration">Sürekli entegrasyon kılavuzundaki</LocalizedLink> talimatları izleyin.
+<LocalizedLink href="/guides/integrations/continuous-integration">Sürekli
+entegrasyon kılavuzundaki</LocalizedLink> talimatları izleyin.
 
 Seçmeli testi çalışırken görmek için aşağıdaki videoya göz atın:
 

@@ -36,7 +36,8 @@ tuist setup cache
 会使用该服务共享编译工件。此命令需要在本地和 CI 环境中运行一次。
 
 要在 CI 上设置缓存，请确保您已通过
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication"> 验证</LocalizedLink>。
+<LocalizedLink href="/guides/integrations/continuous-integration#authentication">
+验证</LocalizedLink>。
 
 ### 配置 Xcode 构建设置{#configure-xcode-build-settings}
 
@@ -92,22 +93,29 @@ let tuist = Tuist(
 
 要在 CI 环境中启用缓存，需要运行与本地环境相同的命令：`tuist setup cache` 。
 
-此外，您还需要确保`TUIST_TOKEN` 环境变量已设置。您可以根据此处的文档
-<LocalizedLink href="/guides/server/authentication#as-a-project"></LocalizedLink>
-创建一个环境变量。`_ TUIST_TOKEN` 环境变量_必须在构建步骤中存在，但我们建议在整个 CI 工作流程中都设置它。
+要进行身份验证，可以使用
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
+身份验证</LocalizedLink>（建议使用受支持的 CI 提供商），或通过`TUIST_TOKEN` 环境变量使用
+<LocalizedLink href="/guides/server/authentication#account-tokens">账户令牌</LocalizedLink>。
 
-GitHub 操作的工作流程示例如下：
+使用 OIDC 身份验证的 GitHub 操作工作流程示例：
 ```yaml
 name: Build
 
-env:
-  TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   build:
+    runs-on: macos-latest
     steps:
-      - # Your set up steps...
-      - name: Set up Tuist Cache
-        run: tuist setup cache
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: tuist auth login
+      - run: tuist setup cache
       - # Your build steps
 ```
+
+有关更多示例，包括基于令牌的身份验证和其他 CI 平台（如 Xcode Cloud、CircleCI、Bitrise 和
+Codemagic），请参阅<LocalizedLink href="/guides/integrations/continuous-integration">持续集成指南</LocalizedLink>。

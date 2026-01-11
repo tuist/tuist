@@ -73,8 +73,9 @@ NSBundle *bundle = [MyFeatureResources bundle];
 
 ::: tip SUPPORTING RESOURCES IN LIBRARIES THROUGH BUNDLES
 <!-- -->
-ターゲット製品、例えばライブラリがリソースをサポートしていない場合、Tuistはそのリソースを製品タイプ`バンドル`
-のターゲットに含めることで、最終的な製品が完成し、インターフェイスが正しいバンドルを指すようにする。
+ターゲット製品、例えばライブラリがリソースをサポートしていない場合、Tuistは最終製品に最終的に含まれ、インタフェースが正しいバンドルを指すことを保証する製品タイプ`バンドル`
+のターゲットにリソースを含めます。これらの合成されたバンドルは自動的に`tuist:synthesized`
+でタグ付けされ、親ターゲットからすべてのタグを継承するので、<LocalizedLink href="/guides/features/projects/metadata-tags#system-tags">キャッシュプロファイル</LocalizedLink>でターゲットにすることができます。
 <!-- -->
 :::
 
@@ -122,6 +123,6 @@ let project = Project(resourceSynthesizers: [.string(), .fonts()])
 
 ::: info REFERENCE
 <!-- -->
-このフィクスチャ](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates)で、カスタムテンプレートを使ってリソースへのアクセサーを合成する方法の例を見ることができます。
+この例](https://github.com/tuist/tuist/tree/main/examples/xcode/generated_ios_app_with_templates)で、カスタムテンプレートを使ってリソースへのアクセサーを合成する方法の例を見ることができる。
 <!-- -->
 :::

@@ -9,7 +9,8 @@
 
 ::: advertencia REQUISITOS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y proyecto</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y
+  proyecto</LocalizedLink>
 <!-- -->
 :::
 
@@ -40,7 +41,8 @@ Por ejemplo, suponiendo el siguiente gráfico de dependencias:
 | `tuist xcodebuild test` invocación | Ejecuta las pruebas en `CoreTests`, `FeatureATests`, y `FeatureBTests` | El nuevo hash de `FeatureATests` `FeatureBTests`, y `CoreTests` se persisten |
 
 Para utilizar `tuist xcodebuild test` en su CI, siga las instrucciones de la
-<LocalizedLink href="/guides/integrations/continuous-integration">Guía de integración continua</LocalizedLink>.
+<LocalizedLink href="/guides/integrations/continuous-integration">Guía de
+integración continua</LocalizedLink>.
 
 Eche un vistazo al siguiente vídeo para ver las pruebas selectivas en acción:
 

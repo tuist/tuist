@@ -121,6 +121,47 @@ metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 
 使用`feature:`,`team:`, 或`layer:` 这样的前缀更容易理解每个标签的目的，并避免命名冲突。
 
+## 系统标签{#system-tags}
+
+Tuist 对系统管理的标签使用`tuist:` 前缀。这些标签由 Tuist 自动应用，可在缓存配置文件中用于针对特定类型的生成内容。
+
+### 可用的系统标记
+
+| 标签      | 描述                                                           |
+| ------- | ------------------------------------------------------------ |
+| `图示：合成` | 适用于 Tuist 为静态库和静态框架中的资源处理而创建的合成捆绑目标。由于历史原因，这些捆绑包提供了资源访问 API。 |
+
+### 使用缓存配置文件的系统标记
+
+您可以在缓存配置文件中使用系统标记来包含或排除合成目标：
+
+```swift
+import ProjectDescription
+
+let tuist = Tuist(
+    project: .tuist(
+        cacheOptions: .options(
+            profiles: .profiles(
+                [
+                    "development": .profile(
+                        .onlyExternal,
+                        and: ["tag:tuist:synthesized"]  // Also cache synthesized bundles
+                    )
+                ],
+                default: .onlyExternal
+            )
+        )
+    )
+)
+```
+
+::: tip SYNTHESIZED BUNDLES INHERIT PARENT TAGS
+<!-- -->
+合成资源包目标除了接收`tuist:synthesized` 标记外，还继承其父目标的所有标记。这意味着，如果用`feature:auth`
+标记静态库，其合成资源包将同时具有`feature:auth` 和`tuist:synthesized` 标记。
+<!-- -->
+:::
+
 ## 使用项目描述助手的标记{#using-tags-with-helpers}
 
 您可以利用<LocalizedLink href="/guides/features/projects/code-sharing">项目描述助手</LocalizedLink>来规范在整个项目中应用标记的方式：
@@ -187,7 +228,8 @@ let project = Project(
 
 ### 与缓存集成
 
-元数据标签可与<LocalizedLink href="/guides/features/cache">Tuist 的缓存功能</LocalizedLink>完美配合：
+元数据标签可与<LocalizedLink href="/guides/features/cache">Tuist
+的缓存功能</LocalizedLink>完美配合：
 
 ```bash
 # Cache all targets
@@ -205,8 +247,10 @@ tuist generate tag:feature:payment
 4. **使用帮助程序** - 利用项目描述帮助程序使标签应用标准化
 5. **定期审查** - 随着项目的发展，审查并更新您的标记策略
 
-## 相关功能 {#related-features}
+## 相关功能{#related-features}
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">代码共享</LocalizedLink> - 使用项目描述助手标准化标签的使用
-- <LocalizedLink href="/guides/features/cache">缓存</LocalizedLink> - 结合标签与缓存实现最佳构建性能
-- <LocalizedLink href="/guides/features/selective-testing">选择性测试</LocalizedLink> - 仅为已更改的目标运行测试
+- <LocalizedLink href="/guides/features/projects/code-sharing">代码共享{1｝-
+  使用项目描述助手来规范标记的使用
+- <LocalizedLink href="/guides/features/cache">缓存{1｝- 将标记与缓存相结合，优化构建性能
+- <LocalizedLink href="/guides/features/selective-testing">选择性测试{1｝-
+  仅对已更改的目标运行测试

@@ -31,7 +31,8 @@ zindeksować. 15 sekund!
 projektów na dużą skalę.** Nie widzimy jednak żadnych oznak, że tak się stanie.
 W rzeczywistości widzimy coś wręcz przeciwnego. Podejmują decyzje inspirowane
 Xcode, takie jak osiągnięcie wygody poprzez niejawne konfiguracje, które
-<LocalizedLink href="/guides/features/projects/cost-of-convenience"> jak być może wiesz,</LocalizedLink> są źródłem komplikacji na dużą skalę. Uważamy, że
+<LocalizedLink href="/guides/features/projects/cost-of-convenience"> jak być
+może wiesz,</LocalizedLink> są źródłem komplikacji na dużą skalę. Uważamy, że
 Apple musiałoby przejść do pierwszych zasad i zrewidować niektóre decyzje, które
 miały sens jako menedżer zależności, ale nie jako menedżer projektów, na
 przykład użycie skompilowanego języka jako interfejsu do definiowania projektów.
@@ -92,11 +93,13 @@ let tuist = Tuist()
 Plik `Tuist.swift` zawiera konfigurację projektu, a jego ścieżka służy jako
 odniesienie do określenia katalogu głównego projektu. Więcej informacji na temat
 struktury projektów Tuist można znaleźć w dokumencie
-<LocalizedLink href="/guides/features/projects/directory-structure">directory structure</LocalizedLink>.
+<LocalizedLink href="/guides/features/projects/directory-structure">directory
+structure</LocalizedLink>.
 
 ## Edytowanie projektu {#editing-the-project}
 
-Możesz użyć <LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink>, aby edytować projekt w Xcode. Polecenie wygeneruje
+Możesz użyć <LocalizedLink href="/guides/features/projects/editing">`tuist
+edit`</LocalizedLink>, aby edytować projekt w Xcode. Polecenie wygeneruje
 projekt Xcode, który można otworzyć i rozpocząć pracę.
 
 ```bash

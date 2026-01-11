@@ -254,7 +254,7 @@ let project = Project(
 خطوط أنابيب CI و CD الخاصة بك لبناء واختبار المشروع باستخدام `tuist generate`
 متبوعًا بـ `xcodebuild build` و `tuist test`.
 
-## استكشاف الأخطاء وإصلاحها {#troubleshooting}
+## استكشاف الأخطاء وإصلاحها {#استكشاف الأخطاء وإصلاحها}
 
 ### أخطاء التجميع بسبب الملفات المفقودة. {#compilation-errors-due-to-missing-files}
 

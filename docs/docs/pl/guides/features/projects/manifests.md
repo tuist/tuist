@@ -95,14 +95,16 @@ wielu projektów w obszarze roboczym należy do użytkownika.
 
 W projekcie Tuist opieramy się na mono-projektach, ponieważ czas generowania na
 zimno jest szybszy (mniej plików manifestu do skompilowania) i wykorzystujemy
-<LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink> jako jednostkę enkapsulacji. Możesz jednak chcieć użyć
+<LocalizedLink href="/guides/features/projects/code-sharing">project description
+helpers</LocalizedLink> jako jednostkę enkapsulacji. Możesz jednak chcieć użyć
 projektów Xcode jako jednostki enkapsulacji do reprezentowania różnych domen
 aplikacji, co jest bardziej zgodne z zalecaną strukturą projektu Xcode.
 
 ## Tuist.swift {#tuistswift}
 
 Tuist zapewnia
-<LocalizedLink href="/contributors/principles.html#default-to-conventions">sensowne ustawienia domyślne</LocalizedLink> w celu uproszczenia konfiguracji projektu.
+<LocalizedLink href="/contributors/principles.html#default-to-conventions">sensowne
+ustawienia domyślne</LocalizedLink> w celu uproszczenia konfiguracji projektu.
 Można jednak dostosować konfigurację, definiując
 <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>
 w katalogu głównym projektu, który jest używany przez Tuist do określenia

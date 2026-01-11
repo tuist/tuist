@@ -35,7 +35,7 @@ registry login` 을 실행합니다.
 <LocalizedLink href="/guides/server/authentication#as-a-project">here</LocalizedLink>
 문서를 참조하여 만들 수 있습니다.
 
-그러면 GitHub 액션의 워크플로 예시는 다음과 같습니다:
+GitHub Action의 Workflow 예시는 다음과 같을 수 있습니다:
 ```yaml
 name: Build
 
@@ -62,8 +62,8 @@ jobs:
 ### 환경 전반에 걸친 점진적 해상도 향상 {#incremental-resolution-across-environments}
 
 레지스트리를 사용하면 클린/콜드 해결이 약간 더 빨라지며, 해결된 종속성을 CI 빌드 전체에 유지하면 훨씬 더 큰 개선을 경험할 수 있습니다.
-레지스트리 덕분에 저장 및 복원해야 하는 디렉터리의 크기가 레지스트리가 없을 때보다 훨씬 작아지므로 시간이 훨씬 적게 걸립니다. 기본 Xcode
-패키지 통합을 사용할 때 종속성을 캐시하려면 `xcodebuild` 를 통해 종속성을 해결할 때 사용자 지정
+레지스트리 덕분에 저장 및 복원해야 하는 디렉터리의 크기가 레지스트리가 없을 때보다 훨씬 작아져 시간이 훨씬 적게 소요된다는 점에 유의하세요.
+기본 Xcode 패키지 통합을 사용할 때 종속성을 캐시하려면 `xcodebuild` 를 통해 종속성을 해결할 때 사용자 지정
 `clonedSourcePackagesDirPath` 를 지정하는 것이 가장 좋은 방법입니다. 이는 `Config.swift` 파일에 다음을
 추가하여 수행할 수 있습니다:
 
