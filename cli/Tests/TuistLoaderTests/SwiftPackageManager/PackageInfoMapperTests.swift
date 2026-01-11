@@ -5075,6 +5075,57 @@ struct PackageInfoMapperTests {
         // Should use standard layout, not SE-0162 layout
         #expect(firstGlob?.glob.pathString.contains("Package/Sources/Target1/**") == true)
     }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenSourcesContainPackageManifests() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let packagePath = basePath.appending(try RelativePath(validating: "Package"))
+        let sourcesPath = packagePath.appending(try RelativePath(validating: "Sources"))
+        let targetPath = packagePath.appending(try RelativePath(validating: "Sources/Target1"))
+
+        try await fileSystem.makeDirectory(at: sourcesPath)
+        try await fileSystem.makeDirectory(at: targetPath)
+        try await fileSystem.touch(packagePath.appending(component: "Package.swift"))
+        try await fileSystem.touch(packagePath.appending(component: "Package@swift-6.0.swift"))
+        try await fileSystem.touch(targetPath.appending(component: "File.swift"))
+
+        let packageInfo = PackageInfo.test(
+            name: "Package",
+            products: [
+                .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+            ],
+            targets: [
+                .test(
+                    name: "Target1",
+                    path: "./",
+                    sources: nil,
+                    type: .regular
+                ),
+            ],
+            platforms: [.ios]
+        )
+
+        let project = try await subject.map(
+            packageInfo: packageInfo,
+            path: packagePath,
+            packageType: .local,
+            packageSettings: .test(),
+            packageModuleAliases: [:]
+        )
+
+        #expect(project != nil)
+        let target = project?.targets.first
+        #expect(target?.name == "Target1")
+        let firstGlob = try #require(target?.sources?.globs.first)
+        #expect(firstGlob.glob.pathString.contains("Package/**") == true)
+        #expect(firstGlob.excluding.count == 2)
+        let firstExclude = try #require(firstGlob.excluding.first?.pathString)
+        let secondExclude = try #require(firstGlob.excluding.last?.pathString)
+        #expect(firstExclude == packagePath.appending(component: "Package.swift").pathString)
+        #expect(secondExclude == packagePath.appending(component: "Package@swift*.swift").pathString)
+    }
 }
 
 private func defaultSpmResources(_ target: String, customPath: String? = nil) -> ProjectDescription.ResourceFileElements {
