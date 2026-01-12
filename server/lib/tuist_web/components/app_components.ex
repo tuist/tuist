@@ -27,7 +27,7 @@ defmodule TuistWeb.AppComponents do
   attr(:style, :string,
     required: false,
     default: "primary",
-    values: ~w(primary primary-translucent secondary destructive),
+    values: ~w(primary primary-translucent secondary destructive flaky),
     doc: "The style of the legend."
   )
 

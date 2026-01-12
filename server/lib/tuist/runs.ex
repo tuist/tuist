@@ -20,6 +20,7 @@ defmodule Tuist.Runs do
   alias Tuist.Runs.TestCaseFailure
   alias Tuist.Runs.TestCaseRun
   alias Tuist.Runs.TestCaseRunRepetition
+  alias Tuist.Runs.FlakyTestCase
   alias Tuist.Runs.TestModuleRun
   alias Tuist.Runs.TestSuiteRun
 
@@ -712,11 +713,28 @@ defmodule Tuist.Runs do
     test_case_data_list =
       test_cases
       |> Enum.map(fn case_attrs ->
+        # Compute flaky status: has repetitions with at least one failure but final success
+        repetitions = Map.get(case_attrs, :repetitions, [])
+        original_status = Map.get(case_attrs, :status)
+
+        status =
+          if Enum.any?(repetitions) do
+            has_any_failure = Enum.any?(repetitions, fn rep -> Map.get(rep, :status) == "failure" end)
+
+            if has_any_failure and original_status == "success" do
+              "flaky"
+            else
+              original_status
+            end
+          else
+            original_status
+          end
+
         %{
           name: Map.get(case_attrs, :name),
           module_name: module_name,
           suite_name: Map.get(case_attrs, :test_suite_name, "") || "",
-          status: Map.get(case_attrs, :status),
+          status: status,
           duration: Map.get(case_attrs, :duration, 0),
           ran_at: test.ran_at
         }
@@ -848,5 +866,115 @@ defmodule Tuist.Runs do
       )
 
     Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCase)
+  end
+
+  @doc """
+  Lists test cases that have had flaky runs for a project.
+  Groups test_case_runs by test_case_id and counts flaky occurrences.
+  """
+  def list_flaky_test_cases(project_id, attrs) do
+    two_weeks_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -14, :day)
+
+    page = Map.get(attrs, :page, 1)
+    page_size = Map.get(attrs, :page_size, 20)
+    order_by = attrs |> Map.get(:order_by, [:flaky_runs_count]) |> List.first()
+    order_direction = attrs |> Map.get(:order_directions, [:desc]) |> List.first()
+    filters = Map.get(attrs, :filters, [])
+
+    search_filter =
+      Enum.find(filters, fn f -> f[:field] == :name and f[:op] == :ilike_and end)
+
+    search_term = if search_filter, do: "%#{search_filter[:value]}%", else: nil
+
+    {order_clause, order_dir} =
+      case {order_by, order_direction} do
+        {:flaky_runs_count, :desc} -> {"flaky_runs_count", "DESC"}
+        {:flaky_runs_count, :asc} -> {"flaky_runs_count", "ASC"}
+        {:last_flaky_at, :desc} -> {"last_flaky_at", "DESC"}
+        {:last_flaky_at, :asc} -> {"last_flaky_at", "ASC"}
+        {:name, :desc} -> {"name", "DESC"}
+        {:name, :asc} -> {"name", "ASC"}
+        _ -> {"flaky_runs_count", "DESC"}
+      end
+
+    offset = (page - 1) * page_size
+
+    base_where = "project_id = {project_id:Int64} AND status = 'flaky' AND inserted_at >= {two_weeks_ago:DateTime64(6)}"
+
+    where_clause =
+      if search_term do
+        "#{base_where} AND name ILIKE {search_term:String}"
+      else
+        base_where
+      end
+
+    query = """
+    SELECT
+      test_case_id as id,
+      name,
+      module_name,
+      suite_name,
+      count(id) as flaky_runs_count,
+      max(inserted_at) as last_flaky_at
+    FROM test_case_runs
+    WHERE #{where_clause}
+    GROUP BY test_case_id, name, module_name, suite_name
+    ORDER BY #{order_clause} #{order_dir}
+    LIMIT {limit:Int64}
+    OFFSET {offset:Int64}
+    """
+
+    count_query = """
+    SELECT count(DISTINCT (test_case_id, name, module_name, suite_name)) as count
+    FROM test_case_runs
+    WHERE #{where_clause}
+    """
+
+    params =
+      if search_term do
+        %{project_id: project_id, two_weeks_ago: two_weeks_ago, limit: page_size, offset: offset, search_term: search_term}
+      else
+        %{project_id: project_id, two_weeks_ago: two_weeks_ago, limit: page_size, offset: offset}
+      end
+
+    count_params =
+      if search_term do
+        %{project_id: project_id, two_weeks_ago: two_weeks_ago, search_term: search_term}
+      else
+        %{project_id: project_id, two_weeks_ago: two_weeks_ago}
+      end
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
+
+    flaky_tests =
+      Enum.map(rows, fn [id, name, module_name, suite_name, flaky_runs_count, last_flaky_at] ->
+        uuid_string =
+          case id do
+            <<_::128>> = binary_uuid -> Ecto.UUID.load!(binary_uuid)
+            string when is_binary(string) -> string
+            nil -> nil
+          end
+
+        %FlakyTestCase{
+          id: uuid_string,
+          name: name,
+          module_name: module_name,
+          suite_name: suite_name,
+          flaky_runs_count: flaky_runs_count,
+          last_flaky_at: last_flaky_at
+        }
+      end)
+
+    {:ok, %{rows: [[total_count]]}} = ClickHouseRepo.query(count_query, count_params)
+    total_pages = ceil(total_count / page_size)
+
+    meta = %{
+      total_count: total_count,
+      total_pages: total_pages,
+      current_page: page,
+      page_size: page_size
+    }
+
+    {flaky_tests, meta}
   end
 end

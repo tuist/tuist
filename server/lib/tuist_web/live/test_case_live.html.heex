@@ -28,6 +28,11 @@
           <.alert_circle />
         </div>
       </div>
+      <div :if={@test_case_detail.last_status == "flaky"} data-part="badge-flaky">
+        <div data-part="icon">
+          <.progress_x />
+        </div>
+      </div>
       <h1 data-part="label">
         {@test_case_detail.name}
       </h1>
@@ -80,6 +85,13 @@
             <.badge
               :if={@test_case_detail.last_status == "skipped"}
               label={dgettext("dashboard_tests", "Skipped")}
+              color="warning"
+              style="fill"
+              size="large"
+            />
+            <.badge
+              :if={@test_case_detail.last_status == "flaky"}
+              label={dgettext("dashboard_tests", "Flaky")}
               color="warning"
               style="fill"
               size="large"
@@ -234,6 +246,8 @@
               <.status_badge_cell label={dgettext("dashboard_tests", "Passed")} status="success" />
             <% "failure" -> %>
               <.status_badge_cell label={dgettext("dashboard_tests", "Failed")} status="error" />
+            <% "flaky" -> %>
+              <.status_badge_cell label={dgettext("dashboard_tests", "Flaky")} status="warning" />
             <% "skipped" -> %>
               <.status_badge_cell label={dgettext("dashboard_tests", "Skipped")} status="warning" />
           <% end %>

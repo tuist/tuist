@@ -27,7 +27,7 @@ defmodule Tuist.Runs.TestCase do
     field :module_name, :string
     field :suite_name, :string
     field :project_id, Ch, type: "Int64"
-    field :last_status, Ch, type: "Enum8('success' = 0, 'failure' = 1, 'skipped' = 2)"
+    field :last_status, Ch, type: "LowCardinality(String)"
     field :last_duration, Ch, type: "Int32"
     field :last_ran_at, Ch, type: "DateTime64(6)"
     field :inserted_at, Ch, type: "DateTime64(6)"

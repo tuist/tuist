@@ -1,0 +1,158 @@
+<div id="flaky-tests">
+  <.card title={dgettext("dashboard_tests", "Flaky Tests")} icon="progress_x" data-part="flaky-tests">
+    <.card_section data-part="flaky-tests-section">
+      <div data-part="filters">
+        <.form for={%{}} phx-change="search-flaky-tests" phx-debounce="200">
+          <.text_input
+            type="search"
+            id="search-flaky-tests"
+            name="search"
+            placeholder={dgettext("dashboard_tests", "Search...")}
+            show_suffix={false}
+            data-part="search"
+            value={@flaky_tests_filter}
+          />
+        </.form>
+        <.dropdown
+          id="flaky-tests-sort-by"
+          label={
+            case @flaky_tests_sort_by do
+              "name" -> dgettext("dashboard_tests", "Test Case")
+              "last_flaky_at" -> dgettext("dashboard_tests", "Last run")
+              _ -> dgettext("dashboard_tests", "Flaky runs")
+            end
+          }
+          secondary_text={dgettext("dashboard_tests", "Sort by:")}
+        >
+          <.dropdown_item
+            value="flaky_runs_count"
+            label={dgettext("dashboard_tests", "Flaky runs")}
+            patch={sort_by_patch(@uri, "flaky_runs_count")}
+            data-selected={@flaky_tests_sort_by == "flaky_runs_count"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="name"
+            label={dgettext("dashboard_tests", "Test Case")}
+            patch={sort_by_patch(@uri, "name")}
+            data-selected={@flaky_tests_sort_by == "name"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="last_flaky_at"
+            label={dgettext("dashboard_tests", "Last run")}
+            patch={sort_by_patch(@uri, "last_flaky_at")}
+            data-selected={@flaky_tests_sort_by == "last_flaky_at"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+        <.filter_dropdown
+          id="filter-dropdown"
+          label={dgettext("dashboard_tests", "Filter")}
+          available_filters={@available_filters}
+          active_filters={@active_filters}
+        />
+      </div>
+      <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+        <.active_filter :for={filter <- @active_filters} filter={filter} />
+      </div>
+
+      <div :if={not Enum.empty?(@flaky_tests)} data-part="flaky-tests-table">
+        <.table
+          id="flaky-tests-table"
+          rows={@flaky_tests}
+          row_navigate={
+            fn test_case ->
+              url(
+                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/#{test_case.id}"
+              )
+            end
+          }
+        >
+          <:col
+            :let={test_case}
+            label={dgettext("dashboard_tests", "Test Case")}
+            patch={
+              @flaky_tests_sort_by == "name" &&
+                column_sort_patch(assigns, "name")
+            }
+            icon={
+              @flaky_tests_sort_by == "name" &&
+                sort_icon(@flaky_tests_sort_order)
+            }
+          >
+            <.text_and_description_cell
+              label={test_case.name}
+              description={
+                case {test_case.module_name, test_case.suite_name} do
+                  {module_name, suite_name} when module_name != "" and suite_name != "" ->
+                    "#{module_name} \u2022 #{suite_name}"
+
+                  {module_name, _} when module_name != "" ->
+                    module_name
+
+                  _ ->
+                    nil
+                end
+              }
+            />
+          </:col>
+          <:col
+            :let={test_case}
+            label={dgettext("dashboard_tests", "Flaky runs")}
+            patch={
+              @flaky_tests_sort_by == "flaky_runs_count" &&
+                column_sort_patch(assigns, "flaky_runs_count")
+            }
+            icon={
+              @flaky_tests_sort_by == "flaky_runs_count" &&
+                sort_icon(@flaky_tests_sort_order)
+            }
+          >
+            <.text_cell label={test_case.flaky_runs_count} />
+          </:col>
+          <:col
+            :let={test_case}
+            label={dgettext("dashboard_tests", "Last run")}
+            patch={
+              @flaky_tests_sort_by == "last_flaky_at" &&
+                column_sort_patch(assigns, "last_flaky_at")
+            }
+            icon={
+              @flaky_tests_sort_by == "last_flaky_at" &&
+                sort_icon(@flaky_tests_sort_order)
+            }
+          >
+            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(test_case.last_flaky_at)} />
+          </:col>
+        </.table>
+        <.pagination_group
+          :if={@flaky_tests_meta.total_pages > 1}
+          current_page={@flaky_tests_page}
+          number_of_pages={@flaky_tests_meta.total_pages}
+          page_patch={
+            fn page ->
+              "?#{Query.put(@uri.query, "page", page)}"
+            end
+          }
+        />
+      </div>
+
+      <div :if={Enum.empty?(@flaky_tests)} data-part="empty-flaky-tests">
+        <.empty_card_section
+          title={dgettext("dashboard_tests", "No flaky tests")}
+          get_started_href="https://docs.tuist.dev/en/guides/features/insights#tests"
+          data-part="empty-flaky-tests-table-card-section"
+        >
+          <:image>
+            <img src="/images/empty_table_light.png" data-theme="light" />
+            <img src="/images/empty_table_dark.png" data-theme="dark" />
+          </:image>
+        </.empty_card_section>
+      </div>
+    </.card_section>
+  </.card>
+</div>
