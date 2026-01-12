@@ -160,7 +160,7 @@ func schemes() -> [Scheme] {
             ),
             testAction: nil,
             runAction: nil
-        )
+        ),
     ]
     if Module.includeEE() {
         schemes.append(.scheme(
@@ -241,7 +241,9 @@ func schemes() -> [Scheme] {
     )
 
     schemes.append(
-        contentsOf: (Module.allCases.compactMap(\.acceptanceTestsTargetName) + (Module.includeEE() ? ["TuistCacheEEAcceptanceTests"]: [])).map {
+        contentsOf: (Module.allCases
+            .compactMap(\.acceptanceTestsTargetName) + (Module.includeEE() ? ["TuistCacheEEAcceptanceTests"] : [])
+        ).map {
             .scheme(
                 name: $0,
                 hidden: true,

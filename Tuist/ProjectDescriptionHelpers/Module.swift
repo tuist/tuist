@@ -858,7 +858,6 @@ public enum Module: String, CaseIterable {
                     .external(name: "XcodeGraph"),
                     .external(name: "SwiftToolsSupport"),
                 ]
-
             case .migration:
                 [
                     .target(name: Module.testing.targetName),
