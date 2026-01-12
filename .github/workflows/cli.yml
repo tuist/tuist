@@ -65,6 +65,7 @@ jobs:
       - uses: jdx/mise-action@v2
         with:
           reshim: true
+          cache_key_prefix: mise-v1
       - name: Authenticate with Tuist
         if: github.event.pull_request.head.repo.fork != true
         run: tuist auth login

@@ -4,18 +4,17 @@
 
 set -eo pipefail
 
-# Resolve the pinned SwiftFormat version from mise and force invocation through it
-SWIFTFORMAT_VERSION=$(mise ls --current | awk '/^swiftformat/ {print $2; exit}')
+# Resolve the pinned SwiftFormat version from mise.toml (fallback to explicit version if parsing fails)
+SWIFTFORMAT_VERSION=$(awk -F'"' '/swiftformat/ {print $2; exit}' "$(dirname "$0")/../mise.toml" 2>/dev/null || true)
+SWIFTFORMAT_VERSION=${SWIFTFORMAT_VERSION:-0.57.2}
 swiftformat() {
-    mise x "swiftformat@${SWIFTFORMAT_VERSION:-latest}" -- swiftformat "$@"
+    mise x "swiftformat@${SWIFTFORMAT_VERSION}" -- swiftformat "$@"
 }
 
 echo "SwiftFormat version (mise):"
 swiftformat --version
 echo "SwiftFormat path (mise):"
-swiftformat -h >/dev/null 2>&1 # warm-up to ensure binary is fetched
-swiftformat --version >/dev/null 2>&1 # ensure binary ready
-mise x "swiftformat@${SWIFTFORMAT_VERSION:-latest}" -- which swiftformat
+mise x "swiftformat@${SWIFTFORMAT_VERSION}" -- which swiftformat
 
 if [ "$usage_fix" = "true" ]; then    # Fix mode: apply automatic fixes
     swiftformat cli/ app/
