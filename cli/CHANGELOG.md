@@ -7,6 +7,9 @@ All notable changes to this project will be documented in this file.
 
 * add excluding parameter to FileElement glob by [@fortmarek](https://github.com/fortmarek) in [#9087](https://github.com/tuist/tuist/pull/9087)
 * Add tuist:synthesized tag to synthesized resource bundles by [@pepicrft](https://github.com/pepicrft) in [#8983](https://github.com/tuist/tuist/pull/8983)
+### 🐛 Bug Fixes
+
+* preserve -enable-upcoming-feature flags in OTHER_SWIFT_FLAGS deduplication by [@fortmarek](https://github.com/fortmarek) in [#9106](https://github.com/tuist/tuist/pull/9106)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.120.0...4.121.0
 

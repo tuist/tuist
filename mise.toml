@@ -1,5 +1,5 @@
 [tools]
-    tuist = "4.122.0"
+    tuist = "4.122.1"
     swiftlint = "0.59.1"
     "github:nicklockwood/SwiftFormat" = "0.58.7"
     git-cliff = "2.6.0"
