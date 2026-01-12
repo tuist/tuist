@@ -10,7 +10,7 @@ let tuist = Tuist(
         ),
         installOptions: .options(
             passthroughSwiftPackageManagerArguments: [
-                "--replace-scm-with-registry"
+                "--replace-scm-with-registry",
             ]
         )
     )
