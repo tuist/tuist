@@ -490,7 +490,7 @@ defmodule TuistWeb.API.AnalyticsController do
     conn
     |> put_status(:ok)
     |> json(%{
-      id: get_id_field(command_event),
+      id: command_event.id,
       project_id: command_event.project_id,
       name: command_event.name,
       url: url,
@@ -975,66 +975,22 @@ defmodule TuistWeb.API.AnalyticsController do
     # Use selected_project from URL if available (new routes), otherwise fall back to authenticated project (old routes)
     project = Map.get(conn.assigns, :selected_project) || Authentication.current_project(conn)
 
-    with {:ok, run_id} <- normalize_run_id(run_id) do
-      object_key =
-        case type do
-          "result_bundle" ->
-            CommandEvents.get_result_bundle_key(run_id, project)
+    object_key =
+      case type do
+        "result_bundle" ->
+          CommandEvents.get_result_bundle_key(run_id, project)
 
-          "invocation_record" ->
-            CommandEvents.get_result_bundle_invocation_record_key(
-              run_id,
-              project
-            )
+        "invocation_record" ->
+          CommandEvents.get_result_bundle_invocation_record_key(
+            run_id,
+            project
+          )
 
-          "result_bundle_object" ->
-            CommandEvents.get_result_bundle_object_key(run_id, project, name)
-        end
-
-      {:ok, object_key}
-    end
-  end
-
-  defp normalize_run_id(run_id) do
-    if Tuist.UUIDv7.valid?(run_id) do
-      # Newer CLI versions send UUIDs which can be converted to integer IDs,
-      # but older versions send integer IDs which cannot be converted back to UUIDs.
-      # Due to this one-way conversion, we must use the legacy_id for object keys.
-      {:ok, run_id}
-    else
-      case CommandEvents.get_command_event_by_id(run_id) do
-        {:ok, command_event} ->
-          # For Postgres, we _know_ both UUID and legacy ID, but to keep querying simpler, we use the legacy ID to match Clickhouse behavior.
-          {:ok, command_event.legacy_id}
-
-        _ ->
-          # For multipart upload operations, we can work with the run_id even if the run doesn't exist yet
-          # since these operations are used during async run insertion
-          if Tuist.UUIDv7.valid?(run_id) do
-            {:ok, Tuist.UUIDv7.to_int64(run_id)}
-          else
-            # If it's already an integer ID (string), use it as-is
-            {:ok, run_id}
-          end
+        "result_bundle_object" ->
+          CommandEvents.get_result_bundle_object_key(run_id, project, name)
       end
-    end
-  end
 
-  defp get_id_field(command_event) do
-    if version_less_than?(command_event.tuist_version, "4.56.0") do
-      command_event.legacy_id
-    else
-      command_event.id
-    end
-  end
-
-  defp version_less_than?(version, target_version) do
-    with {:ok, version} <- Version.parse(version),
-         :lt <- Version.compare(version, target_version) do
-      true
-    else
-      _ -> false
-    end
+    {:ok, object_key}
   end
 
   defp bad_request_when_project_authenticated_from_non_ci_environment(%{body_params: body_params} = conn, _opts) do

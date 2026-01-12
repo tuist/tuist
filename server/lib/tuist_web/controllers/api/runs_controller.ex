@@ -129,7 +129,6 @@ defmodule TuistWeb.API.RunsController do
 
           event
           |> Map.take([
-            :legacy_id,
             :id,
             :name,
             :duration,
@@ -150,9 +149,6 @@ defmodule TuistWeb.API.RunsController do
             :remote_test_target_hits,
             :preview_id
           ])
-          |> Map.put(:id, event.legacy_id)
-          |> Map.put(:uuid, event.id)
-          |> Map.delete(:legacy_id)
           |> Map.put(
             :url,
             ~p"/#{selected_project.account.name}/#{selected_project.name}/runs/#{event.id}"
