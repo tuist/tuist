@@ -37,7 +37,7 @@ defmodule Tuist.Runs.TestCaseRun do
     field :account_id, Ch, type: "Nullable(Int64)"
     field :ran_at, Ch, type: "Nullable(DateTime64(6))"
     field :git_branch, :string, default: ""
-    field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1, 'skipped' = 2)"
+    field :status, Ch, type: "LowCardinality(String)"
     field :duration, Ch, type: "Int32"
     field :inserted_at, Ch, type: "DateTime64(6)"
     field :module_name, Ch, type: "String"
@@ -77,6 +77,6 @@ defmodule Tuist.Runs.TestCaseRun do
       :module_name,
       :suite_name
     ])
-    |> validate_inclusion(:status, ["success", "failure", "skipped"])
+    |> validate_inclusion(:status, ["success", "failure", "skipped", "flaky"])
   end
 end

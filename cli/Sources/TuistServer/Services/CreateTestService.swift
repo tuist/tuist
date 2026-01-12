@@ -125,12 +125,29 @@ import TuistHTTP
                                 )
                         }
 
+                    let repetitions:
+                        [Operations.createRun.Input.Body.jsonPayload.Case2Payload
+                            .test_modulesPayloadPayload
+                            .test_casesPayloadPayload.repetitionsPayloadPayload
+                        ] = testCase.repetitions
+                        .map { repetition in
+                            Operations.createRun.Input.Body.jsonPayload.Case2Payload
+                                .test_modulesPayloadPayload
+                                .test_casesPayloadPayload.repetitionsPayloadPayload(
+                                    duration: repetition.duration,
+                                    name: repetition.name,
+                                    repetition_number: repetition.repetitionNumber,
+                                    status: repetitionStatusToServerStatus(repetition.status)
+                                )
+                        }
+
                     return Operations.createRun.Input.Body.jsonPayload.Case2Payload
                         .test_modulesPayloadPayload
                         .test_casesPayloadPayload(
                             duration: testCase.duration ?? 0,
                             failures: failures,
                             name: testCase.name,
+                            repetitions: repetitions,
                             status: testCaseStatusToServerStatus(testCase.status),
                             test_suite_name: testCase.testSuite
                         )
@@ -285,6 +302,19 @@ import TuistHTTP
                 return .assertion_failure
             case .issueRecorded:
                 return .issue_recorded
+            }
+        }
+
+        private func repetitionStatusToServerStatus(_ status: TestStatus)
+            -> Operations.createRun.Input.Body.jsonPayload
+            .Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload
+            .statusPayload
+        {
+            switch status {
+            case .passed, .skipped:
+                return .success
+            case .failed:
+                return .failure
             }
         }
     }

@@ -1988,6 +1988,7 @@ defmodule Tuist.Runs.Analytics do
   Returns a map with:
   - total_count: Total number of test cases
   - failed_count: Number of failed test cases
+  - flaky_count: Number of flaky test cases
   - avg_duration: Average test case duration in milliseconds
   """
   def get_test_run_metrics(test_run_id) do
@@ -1996,11 +1997,12 @@ defmodule Tuist.Runs.Analytics do
         where: t.test_run_id == ^test_run_id,
         select: %{
           total_count: fragment("coalesce(count(?), 0)", t.id),
-          failed_count: fragment("coalesce(countIf(? = 1), 0)", t.status),
+          failed_count: fragment("coalesce(countIf(? = 'failure'), 0)", t.status),
+          flaky_count: fragment("coalesce(countIf(? = 'flaky'), 0)", t.status),
           avg_duration: fragment("ifNotFinite(round(avg(?)), 0)", t.duration)
         }
 
-    ClickHouseRepo.one(query) || %{total_count: 0, failed_count: 0, avg_duration: 0}
+    ClickHouseRepo.one(query) || %{total_count: 0, failed_count: 0, flaky_count: 0, avg_duration: 0}
   end
 
   @doc """

@@ -19,6 +19,7 @@ defmodule Tuist.Runs do
   alias Tuist.Runs.TestCase
   alias Tuist.Runs.TestCaseFailure
   alias Tuist.Runs.TestCaseRun
+  alias Tuist.Runs.TestCaseRunRepetition
   alias Tuist.Runs.TestModuleRun
   alias Tuist.Runs.TestSuiteRun
 
@@ -696,8 +697,8 @@ defmodule Tuist.Runs do
     # Create test cases (duplicates handled by ReplacingMergeTree)
     test_case_id_map = create_test_cases(test.project_id, test_case_data_list)
 
-    {test_case_runs, all_failures} =
-      Enum.reduce(test_cases, {[], []}, fn case_attrs, {runs_acc, failures_acc} ->
+    {test_case_runs, all_failures, all_repetitions} =
+      Enum.reduce(test_cases, {[], [], []}, fn case_attrs, {runs_acc, failures_acc, reps_acc} ->
         suite_name = Map.get(case_attrs, :test_suite_name, "")
 
         test_suite_run_id = Map.get(suite_name_to_id, suite_name)
@@ -708,6 +709,25 @@ defmodule Tuist.Runs do
         case_name = Map.get(case_attrs, :name)
         identity_key = {case_name, module_name, suite_name || ""}
         test_case_id = Map.get(test_case_id_map, identity_key)
+
+        # Process repetitions if present
+        repetitions = Map.get(case_attrs, :repetitions, [])
+
+        # Determine if test is flaky: has repetitions with at least one failure but final success
+        original_status = Map.get(case_attrs, :status)
+
+        status =
+          if Enum.any?(repetitions) do
+            has_any_failure = Enum.any?(repetitions, fn rep -> Map.get(rep, :status) == "failure" end)
+
+            if has_any_failure and original_status == "success" do
+              "flaky"
+            else
+              original_status
+            end
+          else
+            original_status
+          end
 
         test_case_run = %{
           id: test_case_run_id,
@@ -722,7 +742,7 @@ defmodule Tuist.Runs do
           account_id: test.account_id,
           ran_at: test.ran_at,
           git_branch: test.git_branch,
-          status: Map.get(case_attrs, :status),
+          status: status,
           duration: Map.get(case_attrs, :duration, 0),
           inserted_at: NaiveDateTime.utc_now(),
           module_name: module_name,
@@ -744,11 +764,28 @@ defmodule Tuist.Runs do
             }
           end)
 
-        {[test_case_run | runs_acc], test_case_failures ++ failures_acc}
+        test_case_repetitions =
+          Enum.map(repetitions, fn rep_attrs ->
+            %{
+              id: UUIDv7.generate(),
+              test_case_run_id: test_case_run_id,
+              repetition_number: Map.get(rep_attrs, :repetition_number),
+              name: Map.get(rep_attrs, :name),
+              status: Map.get(rep_attrs, :status),
+              duration: Map.get(rep_attrs, :duration, 0),
+              inserted_at: NaiveDateTime.utc_now()
+            }
+          end)
+
+        {[test_case_run | runs_acc], test_case_failures ++ failures_acc, test_case_repetitions ++ reps_acc}
       end)
 
     IngestRepo.insert_all(TestCaseRun, test_case_runs)
     IngestRepo.insert_all(TestCaseFailure, all_failures)
+
+    if Enum.any?(all_repetitions) do
+      IngestRepo.insert_all(TestCaseRunRepetition, all_repetitions)
+    end
   end
 
   defp calculate_avg_test_case_duration(test_cases) do

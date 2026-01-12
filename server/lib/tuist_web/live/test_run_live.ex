@@ -709,11 +709,12 @@ defmodule TuistWeb.TestRunLive do
         field: :test_case_status,
         display_name: dgettext("dashboard_tests", "Status"),
         type: :option,
-        options: ["success", "failure", "skipped"],
+        options: ["success", "failure", "skipped", "flaky"],
         options_display_names: %{
           "success" => dgettext("dashboard_tests", "Passed"),
           "failure" => dgettext("dashboard_tests", "Failed"),
-          "skipped" => dgettext("dashboard_tests", "Skipped")
+          "skipped" => dgettext("dashboard_tests", "Skipped"),
+          "flaky" => dgettext("dashboard_tests", "Flaky")
         },
         operator: :==,
         value: nil

@@ -234,13 +234,40 @@ public struct XCResultService: XCResultServicing {
         guard node.nodeType == "Test Case", let name = node.name else { return nil }
 
         let suiteName = extractSuiteName(from: node.nodeIdentifier)
-        let failures = testCaseFailures(
-            testName: name,
-            suiteName: suiteName,
-            node: node,
-            rootDirectory: rootDirectory,
-            actionLogFailures: actionLogFailures
-        )
+
+        // Check for repetitions (retry scenario)
+        let repetitionNodes = (node.children ?? []).filter { $0.nodeType == "Repetition" }
+
+        let repetitions: [TestCaseRepetition] = repetitionNodes.enumerated().compactMap { index, repNode in
+            guard let repName = repNode.name, let repResult = repNode.result else { return nil }
+
+            let repStatus = testStatus(from: repResult)
+            let repDuration = repNode.durationInSeconds.map { secondsToMilliseconds($0) } ?? 0
+            let repFailures = extractFailures(from: repNode, rootDirectory: rootDirectory)
+
+            return TestCaseRepetition(
+                repetitionNumber: index + 1,
+                name: repName,
+                status: repStatus,
+                duration: repDuration,
+                failures: repFailures
+            )
+        }
+
+        // Collect failures - from failed repetitions if present, otherwise from node
+        let failures: [TestCaseFailure]
+        let failedRepetitions = repetitions.filter { $0.status == .failed }
+        if !failedRepetitions.isEmpty {
+            failures = failedRepetitions.flatMap(\.failures)
+        } else {
+            failures = testCaseFailures(
+                testName: name,
+                suiteName: suiteName,
+                node: node,
+                rootDirectory: rootDirectory,
+                actionLogFailures: actionLogFailures
+            )
+        }
 
         return TestCase(
             name: name,
@@ -248,7 +275,8 @@ public struct XCResultService: XCResultServicing {
             module: module,
             duration: node.durationInSeconds.map { secondsToMilliseconds($0) },
             status: testStatus(from: node.result),
-            failures: failures
+            failures: failures,
+            repetitions: repetitions
         )
     }
 

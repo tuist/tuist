@@ -212,6 +212,12 @@
             id="widget-failed-test-cases"
           />
           <.widget
+            title={dgettext("dashboard_tests", "Flaky test cases")}
+            description={dgettext("dashboard_tests", "Number of test cases that passed after retry.")}
+            value={@test_metrics.flaky_count}
+            id="widget-flaky-test-cases"
+          />
+          <.widget
             title={dgettext("dashboard_tests", "Avg. test case duration")}
             description={dgettext("dashboard_tests", "Average duration of all test cases.")}
             value={
@@ -515,6 +521,11 @@
                 <% "skipped" -> %>
                   <.status_badge_cell
                     label={dgettext("dashboard_tests", "Skipped")}
+                    status="warning"
+                  />
+                <% "flaky" -> %>
+                  <.status_badge_cell
+                    label={dgettext("dashboard_tests", "Flaky")}
                     status="warning"
                   />
               <% end %>
