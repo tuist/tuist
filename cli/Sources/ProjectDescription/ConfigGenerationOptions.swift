@@ -126,7 +126,7 @@ extension Tuist {
             testInsightsDisabled: Bool = false,
             disableSandbox: Bool = true,
             includeGenerateScheme: Bool = true,
-            enableCaching: Bool = false,
+            enableCaching: Bool = false
         ) -> Self {
             self.init(
                 resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,

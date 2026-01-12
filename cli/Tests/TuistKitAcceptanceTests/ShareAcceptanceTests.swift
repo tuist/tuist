@@ -58,7 +58,7 @@ struct ShareAcceptanceTests {
         .withMockedEnvironment(),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withFixtureConnectedToCanary("xcode_app"),
+        .withFixtureConnectedToCanary("xcode_app")
     )
     func share_tuist_ipa() async throws {
         // Given
@@ -199,7 +199,7 @@ struct ShareAcceptanceTests {
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
         .withFixtureConnectedToCanary("xcode_app"),
-        .withTestingSimulator("iPhone 16 Plus"),
+        .withTestingSimulator("iPhone 16 Plus")
     )
     func share_xcode_app_files() async throws {
         // Given

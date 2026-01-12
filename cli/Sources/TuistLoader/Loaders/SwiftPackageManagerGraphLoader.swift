@@ -76,7 +76,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
     public func load(
         packagePath: AbsolutePath,
         packageSettings: TuistCore.PackageSettings,
-        disableSandbox: Bool,
+        disableSandbox: Bool
     ) async throws -> TuistLoader.DependenciesGraph {
         let path = packagePath.parentDirectory.appending(
             component: Constants.SwiftPackageManager.packageBuildDirectoryName
