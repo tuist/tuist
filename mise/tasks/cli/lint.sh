@@ -4,13 +4,6 @@
 
 set -eo pipefail
 
-echo "SwiftFormat version (mise):"
-swiftformat --version
-echo "SwiftFormat path (mise):"
-which swiftformat
-echo "Swift version:"
-swift --version
-
 if [ "$usage_fix" = "true" ]; then    # Fix mode: apply automatic fixes
     swiftformat cli/ app/
     swiftlint lint --fix --quiet --config .swiftlint.yml cli/Sources

@@ -71,8 +71,11 @@ jobs:
       - name: Setup Tuist cache
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup cache
-      - name: Log Swift version
-        run: swift --version
+      - name: Log SwiftFormat version and location
+        run: |
+          swiftformat --version
+          which swiftformat
+          swift --version
       - name: Install Tuist dependencies
         if: steps.cache-restore.outputs.cache-matched-key == ''
         run: tuist install
