@@ -11,14 +11,36 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SWIFTFORMAT_VERSION=$(awk -F'"' '/swiftformat/ {print $2; exit}' "$REPO_ROOT/mise.toml" 2>/dev/null || true)
 SWIFTFORMAT_VERSION=${SWIFTFORMAT_VERSION:-0.57.2}
 
-# Compute the installed binary path directly to avoid PATH/shim surprises
-MISE_DATA_DIR="${MISE_DATA_DIR:-$HOME/.local/share/mise}"
-SWIFTFORMAT_BIN="$MISE_DATA_DIR/installs/swiftformat/${SWIFTFORMAT_VERSION}/bin/swiftformat"
+# Helper to resolve the installed SwiftFormat path from mise
+resolve_swiftformat_bin() {
+    local root bin
+    root=$(mise where "swiftformat@${SWIFTFORMAT_VERSION}" 2>/dev/null || true)
+    if [ -n "$root" ]; then
+        bin="$root/bin/swiftformat"
+        if [ -x "$bin" ]; then
+            echo "$bin"
+            return
+        fi
+        bin=$(find "$root" -name swiftformat -type f 2>/dev/null | head -n 1)
+        if [ -n "$bin" ]; then
+            echo "$bin"
+            return
+        fi
+    fi
+    echo ""
+}
 
-# Ensure the binary exists; if not, install it explicitly
-if [ ! -x "$SWIFTFORMAT_BIN" ]; then
+# Ensure the binary exists; if not, install it explicitly and resolve again
+SWIFTFORMAT_BIN="$(resolve_swiftformat_bin)"
+if [ -z "$SWIFTFORMAT_BIN" ]; then
     echo "SwiftFormat ${SWIFTFORMAT_VERSION} not found; installing via mise..."
     mise install "swiftformat@${SWIFTFORMAT_VERSION}"
+    SWIFTFORMAT_BIN="$(resolve_swiftformat_bin)"
+fi
+
+if [ -z "$SWIFTFORMAT_BIN" ]; then
+    echo "SwiftFormat ${SWIFTFORMAT_VERSION} could not be located after install."
+    exit 1
 fi
 
 swiftformat() {
