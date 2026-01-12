@@ -29,7 +29,7 @@ defmodule CacheWeb.CacheFallbackController do
   def call(conn, {:error, :total_size_exceeded}) do
     conn
     |> put_status(:unprocessable_entity)
-    |> json(%{message: "Total upload size exceeds 500MB limit"})
+    |> json(%{message: "Total upload size exceeds 2GB limit"})
   end
 
   def call(conn, {:error, :parts_mismatch}) do
