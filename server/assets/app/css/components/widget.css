@@ -93,6 +93,10 @@
       &[data-color="p50"] {
         background-color: var(--noora-chart-p50);
       }
+
+      &[data-color="flaky"] {
+        background-color: var(--noora-chart-flaky);
+      }
     }
 
     & > [data-part="title"] {

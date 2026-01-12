@@ -29,6 +29,11 @@
             <.alert_hexagon />
           </div>
         </div>
+        <div :if={@run.status == "flaky"} data-part="badge-warning">
+          <div data-part="icon">
+            <.alert_hexagon />
+          </div>
+        </div>
         <h1 data-part="label">
           {@run.scheme || dgettext("dashboard_tests", "Unknown")}
         </h1>
@@ -134,6 +139,13 @@
                 <% "skipped" -> %>
                   <.badge
                     label={dgettext("dashboard_tests", "Skipped")}
+                    color="warning"
+                    style="fill"
+                    size="large"
+                  />
+                <% "flaky" -> %>
+                  <.badge
+                    label={dgettext("dashboard_tests", "Flaky")}
                     color="warning"
                     style="fill"
                     size="large"

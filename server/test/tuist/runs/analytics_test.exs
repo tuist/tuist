@@ -2270,7 +2270,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testOne",
-          status: 0,
+          status: "success",
           duration: 100,
           inserted_at: ~N[2024-04-30 10:00:00.000000]
         },
@@ -2281,7 +2281,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testTwo",
-          status: 1,
+          status: "failure",
           duration: 200,
           inserted_at: ~N[2024-04-30 10:00:00.000000]
         },
@@ -2292,7 +2292,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testThree",
-          status: 0,
+          status: "success",
           duration: 300,
           inserted_at: ~N[2024-04-30 10:00:00.000000]
         }
@@ -2304,7 +2304,88 @@ defmodule Tuist.Runs.AnalyticsTest do
       # Then
       assert got.total_count == 3
       assert got.failed_count == 1
+      assert got.flaky_count == 0
       assert got.avg_duration == 200
+    end
+
+    test "returns correct flaky_count when test run has flaky test cases" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, test_run} =
+        Tuist.Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: "refs/heads/main",
+          git_commit_sha: "abc123",
+          status: "success",
+          scheme: "TestScheme",
+          duration: 1000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: true,
+          ran_at: ~N[2024-04-30 10:00:00.000000],
+          test_modules: []
+        })
+
+      module_run_id = UUIDv7.generate()
+
+      IngestRepo.insert_all(TestCaseRun, [
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run.id,
+          test_module_run_id: module_run_id,
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testSuccess",
+          status: "success",
+          duration: 100,
+          inserted_at: ~N[2024-04-30 10:00:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run.id,
+          test_module_run_id: module_run_id,
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testFlaky",
+          status: "flaky",
+          duration: 200,
+          inserted_at: ~N[2024-04-30 10:00:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run.id,
+          test_module_run_id: module_run_id,
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testFailure",
+          status: "failure",
+          duration: 300,
+          inserted_at: ~N[2024-04-30 10:00:00.000000]
+        },
+        %{
+          id: UUIDv7.generate(),
+          test_run_id: test_run.id,
+          test_module_run_id: module_run_id,
+          module_name: "MyTests",
+          suite_name: "TestSuite",
+          name: "testAnotherFlaky",
+          status: "flaky",
+          duration: 150,
+          inserted_at: ~N[2024-04-30 10:00:00.000000]
+        }
+      ])
+
+      # When
+      got = Analytics.get_test_run_metrics(test_run.id)
+
+      # Then
+      assert got.total_count == 4
+      assert got.failed_count == 1
+      assert got.flaky_count == 2
+      assert got.avg_duration == 188
     end
 
     test "returns zeros when test run has no test cases" do
@@ -2334,6 +2415,7 @@ defmodule Tuist.Runs.AnalyticsTest do
       # Then - should return zeros, not nil
       assert got.total_count == 0
       assert got.failed_count == 0
+      assert got.flaky_count == 0
       assert got.avg_duration == 0
     end
   end

@@ -1258,6 +1258,7 @@ defmodule Tuist.Runs.Analytics do
         nil -> query
         "failure" -> where(query, [t], t.status == "failure")
         "success" -> where(query, [t], t.status == "success")
+        "flaky" -> where(query, [t], t.status == "flaky")
       end
 
     ClickHouseRepo.all(query)
@@ -1287,6 +1288,7 @@ defmodule Tuist.Runs.Analytics do
         nil -> query
         "failure" -> where(query, [t], t.status == "failure")
         "success" -> where(query, [t], t.status == "success")
+        "flaky" -> where(query, [t], t.status == "flaky")
       end
 
     ClickHouseRepo.one(query) || 0
@@ -2555,6 +2557,7 @@ defmodule Tuist.Runs.Analytics do
         "failure" -> where(query, [tcr], tcr.status == "failure")
         "success" -> where(query, [tcr], tcr.status == "success")
         "skipped" -> where(query, [tcr], tcr.status == "skipped")
+        "flaky" -> where(query, [tcr], tcr.status == "flaky")
       end
 
     ClickHouseRepo.all(query)
@@ -2585,6 +2588,7 @@ defmodule Tuist.Runs.Analytics do
         "failure" -> where(query, [tcr], tcr.status == "failure")
         "success" -> where(query, [tcr], tcr.status == "success")
         "skipped" -> where(query, [tcr], tcr.status == "skipped")
+        "flaky" -> where(query, [tcr], tcr.status == "flaky")
       end
 
     ClickHouseRepo.one(query) || 0

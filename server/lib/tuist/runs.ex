@@ -468,11 +468,21 @@ defmodule Tuist.Runs do
   defp normalize_ci_provider(provider) when is_atom(provider), do: provider
 
   def create_test(attrs) do
+    test_modules = Map.get(attrs, :test_modules, [])
+    has_flaky_tests = has_any_flaky_test_case?(test_modules)
+
+    attrs =
+      if has_flaky_tests and Map.get(attrs, :status) != "failure" do
+        Map.put(attrs, :status, "flaky")
+      else
+        attrs
+      end
+
     case %Test{}
          |> Test.create_changeset(attrs)
          |> IngestRepo.insert() do
       {:ok, test} ->
-        create_test_modules(test, Map.get(attrs, :test_modules, []))
+        create_test_modules(test, test_modules)
 
         project = Tuist.Projects.get_project_by_id(test.project_id)
 
@@ -487,6 +497,21 @@ defmodule Tuist.Runs do
       {:error, changeset} ->
         {:error, changeset}
     end
+  end
+
+  defp has_any_flaky_test_case?(test_modules) do
+    Enum.any?(test_modules, fn module_attrs ->
+      test_cases = Map.get(module_attrs, :test_cases, [])
+
+      Enum.any?(test_cases, fn case_attrs ->
+        repetitions = Map.get(case_attrs, :repetitions, [])
+        original_status = Map.get(case_attrs, :status)
+
+        Enum.any?(repetitions) and
+          Enum.any?(repetitions, fn rep -> Map.get(rep, :status) == "failure" end) and
+          original_status == "success"
+      end)
+    end)
   end
 
   @doc """
@@ -632,17 +657,17 @@ defmodule Tuist.Runs do
       {:ok, _module_run} =
         %TestModuleRun{}
         |> TestModuleRun.create_changeset(module_run_attrs)
-        |> IngestRepo.insert do
-          suite_name_to_id = create_test_suites(test, module_id, test_suites, test_cases)
+        |> IngestRepo.insert()
 
-          create_test_cases_for_module(
-            test,
-            module_id,
-            test_cases,
-            suite_name_to_id,
-            Map.get(module_attrs, :name)
-          )
-        end
+      suite_name_to_id = create_test_suites(test, module_id, test_suites, test_cases)
+
+      create_test_cases_for_module(
+        test,
+        module_id,
+        test_cases,
+        suite_name_to_id,
+        Map.get(module_attrs, :name)
+      )
     end)
   end
 

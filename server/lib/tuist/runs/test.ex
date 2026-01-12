@@ -85,7 +85,7 @@ defmodule Tuist.Runs.Test do
       :status,
       :ran_at
     ])
-    |> validate_inclusion(:status, ["success", "failure", "skipped"])
+    |> validate_inclusion(:status, ["success", "failure", "skipped", "flaky"])
     |> validate_inclusion(:ci_provider, ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"])
   end
 end

@@ -2375,4 +2375,304 @@ defmodule Tuist.RunsTest do
       assert result == {:error, :not_found}
     end
   end
+
+  describe "create_test/1 with repetitions (flaky tests)" do
+    test "marks test case as flaky when repetitions have mixed results but final success" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 2000,
+        status: "success",
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "main",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [
+          %{
+            name: "FlakyTestModule",
+            status: "success",
+            duration: 2000,
+            test_cases: [
+              %{
+                name: "testFlakyExample",
+                status: "success",
+                duration: 1000,
+                repetitions: [
+                  %{
+                    repetition_number: 1,
+                    name: "First Run",
+                    status: "failure",
+                    duration: 400
+                  },
+                  %{
+                    repetition_number: 2,
+                    name: "Retry 1",
+                    status: "success",
+                    duration: 600
+                  }
+                ],
+                failures: [
+                  %{
+                    message: "Flaky assertion failed",
+                    path: "/path/to/test.swift",
+                    line_number: 10,
+                    issue_type: "assertion"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      # When
+      {:ok, test} = Runs.create_test(test_attrs)
+
+      # Then - test run status should be flaky
+      assert test.status == "flaky"
+
+      {test_cases, _meta} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: test.id}]
+        })
+
+      assert length(test_cases) == 1
+      flaky_case = hd(test_cases)
+      assert flaky_case.name == "testFlakyExample"
+      assert flaky_case.status == "flaky"
+    end
+
+    test "keeps test case as success when all repetitions pass" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 2000,
+        status: "success",
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "main",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [
+          %{
+            name: "StableTestModule",
+            status: "success",
+            duration: 2000,
+            test_cases: [
+              %{
+                name: "testStableExample",
+                status: "success",
+                duration: 1000,
+                repetitions: [
+                  %{
+                    repetition_number: 1,
+                    name: "First Run",
+                    status: "success",
+                    duration: 500
+                  },
+                  %{
+                    repetition_number: 2,
+                    name: "Retry 1",
+                    status: "success",
+                    duration: 500
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      # When
+      {:ok, test} = Runs.create_test(test_attrs)
+
+      # Then
+      {test_cases, _meta} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: test.id}]
+        })
+
+      assert length(test_cases) == 1
+      stable_case = hd(test_cases)
+      assert stable_case.name == "testStableExample"
+      assert stable_case.status == "success"
+    end
+
+    test "keeps test case as failure when final result is failure" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 2000,
+        status: "failure",
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "main",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [
+          %{
+            name: "FailingTestModule",
+            status: "failure",
+            duration: 2000,
+            test_cases: [
+              %{
+                name: "testAlwaysFails",
+                status: "failure",
+                duration: 1000,
+                repetitions: [
+                  %{
+                    repetition_number: 1,
+                    name: "First Run",
+                    status: "failure",
+                    duration: 500
+                  },
+                  %{
+                    repetition_number: 2,
+                    name: "Retry 1",
+                    status: "failure",
+                    duration: 500
+                  }
+                ],
+                failures: [
+                  %{
+                    message: "Always fails",
+                    path: "/path/to/test.swift",
+                    line_number: 20,
+                    issue_type: "assertion"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      # When
+      {:ok, test} = Runs.create_test(test_attrs)
+
+      # Then
+      {test_cases, _meta} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: test.id}]
+        })
+
+      assert length(test_cases) == 1
+      failed_case = hd(test_cases)
+      assert failed_case.name == "testAlwaysFails"
+      assert failed_case.status == "failure"
+    end
+
+    test "creates test without repetitions and keeps original status" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1000,
+        status: "success",
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "main",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [
+          %{
+            name: "NormalTestModule",
+            status: "success",
+            duration: 1000,
+            test_cases: [
+              %{
+                name: "testNormal",
+                status: "success",
+                duration: 500
+              }
+            ]
+          }
+        ]
+      }
+
+      # When
+      {:ok, test} = Runs.create_test(test_attrs)
+
+      # Then
+      {test_cases, _meta} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: test.id}]
+        })
+
+      assert length(test_cases) == 1
+      normal_case = hd(test_cases)
+      assert normal_case.name == "testNormal"
+      assert normal_case.status == "success"
+    end
+  end
+
+  describe "list_test_case_runs/1 with flaky filter" do
+    test "filters by flaky status" do
+      # Given
+      {:ok, test} =
+        RunsFixtures.test_fixture(
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "successTest", status: "success", duration: 100},
+                %{name: "failureTest", status: "failure", duration: 200},
+                %{
+                  name: "flakyTest",
+                  status: "success",
+                  duration: 300,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 150},
+                    %{repetition_number: 2, name: "Retry 1", status: "success", duration: 150}
+                  ]
+                }
+              ]
+            }
+          ]
+        )
+
+      # When
+      {test_cases, _meta} =
+        Runs.list_test_case_runs(%{
+          filters: [
+            %{field: :test_run_id, op: :==, value: test.id},
+            %{field: :status, op: :==, value: "flaky"}
+          ]
+        })
+
+      # Then
+      assert length(test_cases) == 1
+      assert hd(test_cases).name == "flakyTest"
+    end
+  end
 end

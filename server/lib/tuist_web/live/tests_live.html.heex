@@ -99,6 +99,20 @@
         empty={@test_runs_analytics.count == 0}
       />
       <.widget
+        title={dgettext("dashboard_tests", "Flaky test runs")}
+        legend_color="flaky"
+        description={dgettext("dashboard_tests", "The number of test runs with flaky tests.")}
+        value={@flaky_test_runs_analytics.count}
+        id="widget-flaky-test-runs"
+        phx_click="select_widget"
+        phx_value_widget="flaky_test_run_count"
+        selected={@analytics_selected_widget == "flaky_test_run_count"}
+        trend_value={@flaky_test_runs_analytics.trend}
+        trend_type={:inverse}
+        trend_label={@analytics_trend_label}
+        empty={@flaky_test_runs_analytics.count == 0}
+      />
+      <.widget
         title={dgettext("dashboard_tests", "Failed test runs")}
         legend_color="destructive"
         description={dgettext("dashboard_tests", "The number of test runs that failed.")}
@@ -355,6 +369,70 @@
               )
               |> Enum.map(&Tuple.to_list/1),
             name: dgettext("dashboard_tests", "Test runs"),
+            type: "line",
+            smooth: 0.1,
+            symbol: "none"
+          }
+        ]}
+        y_axis_min={0}
+      />
+      <.chart
+        :if={@analytics_selected_widget == "flaky_test_run_count"}
+        id="flaky-test-run-count-chart"
+        type="line"
+        extra_options={
+          %{
+            grid: %{
+              width: "97%",
+              left: "0.4%",
+              height: "88%",
+              top: "5%"
+            },
+            xAxis: %{
+              boundaryGap: false,
+              type: "category",
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary",
+                formatter: "fn:toLocaleDate",
+                customValues: [
+                  @flaky_test_runs_analytics.dates |> List.first(),
+                  @flaky_test_runs_analytics.dates |> List.last()
+                ],
+                padding: [10, 0, 0, 0]
+              }
+            },
+            yAxis: %{
+              splitNumber: 4,
+              splitLine: %{
+                lineStyle: %{
+                  color: "var:noora-chart-lines"
+                }
+              },
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary"
+              }
+            },
+            legend: %{
+              show: false
+            },
+            tooltip:
+              if @analytics_preset == "last-24-hours" do
+                %{dateFormat: "hour"}
+              else
+                %{}
+              end
+          }
+        }
+        series={[
+          %{
+            color: "var:noora-chart-flaky",
+            data:
+              Enum.zip(
+                @flaky_test_runs_analytics.dates,
+                @flaky_test_runs_analytics.values
+              )
+              |> Enum.map(&Tuple.to_list/1),
+            name: dgettext("dashboard_tests", "Flaky test runs"),
             type: "line",
             smooth: 0.1,
             symbol: "none"
@@ -706,6 +784,11 @@
             style="primary"
           />
           <.legend
+            title={dgettext("dashboard_tests", "Flaky runs")}
+            value={@flaky_test_runs_count}
+            style="flaky"
+          />
+          <.legend
             title={dgettext("dashboard_tests", "Failed runs")}
             value={@failed_test_runs_count}
             style="destructive"
@@ -781,6 +864,11 @@
             :if={test_run.status == "success"}
             label={dgettext("dashboard_tests", "Passed")}
             status="success"
+          />
+          <.status_badge_cell
+            :if={test_run.status == "flaky"}
+            label={dgettext("dashboard_tests", "Flaky")}
+            status="warning"
           />
           <.status_badge_cell
             :if={test_run.status == "failure"}

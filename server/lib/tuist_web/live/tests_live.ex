@@ -180,10 +180,11 @@ defmodule TuistWeb.TestsLive do
         _ -> opts
       end
 
-    [test_runs_analytics, failed_test_runs_analytics, test_runs_duration_analytics] =
+    [test_runs_analytics, flaky_test_runs_analytics, failed_test_runs_analytics, test_runs_duration_analytics] =
       Task.await_many(
         [
           Task.async(fn -> Analytics.test_run_analytics(project.id, opts) end),
+          Task.async(fn -> Analytics.test_run_analytics(project.id, Keyword.put(opts, :status, "flaky")) end),
           Task.async(fn -> Analytics.test_run_analytics(project.id, Keyword.put(opts, :status, "failure")) end),
           Task.async(fn -> Analytics.test_run_duration_analytics(project.id, opts) end)
         ],
@@ -192,6 +193,7 @@ defmodule TuistWeb.TestsLive do
 
     socket
     |> assign(:test_runs_analytics, test_runs_analytics)
+    |> assign(:flaky_test_runs_analytics, flaky_test_runs_analytics)
     |> assign(:failed_test_runs_analytics, failed_test_runs_analytics)
     |> assign(:test_runs_duration_analytics, test_runs_duration_analytics)
     |> assign(:analytics_environment, analytics_environment)
@@ -248,6 +250,7 @@ defmodule TuistWeb.TestsLive do
             "success" -> "var:noora-chart-primary"
             "failure" -> "var:noora-chart-destructive"
             "skipped" -> "var:noora-chart-warning"
+            "flaky" -> "var:noora-chart-flaky"
           end
 
         value = (run.duration / 1000) |> Decimal.from_float() |> Decimal.round(0)
@@ -256,12 +259,14 @@ defmodule TuistWeb.TestsLive do
       end)
 
     failed_test_runs_count = Enum.count(recent_test_runs, fn run -> run.status == "failure" end)
+    flaky_test_runs_count = Enum.count(recent_test_runs, fn run -> run.status == "flaky" end)
     passed_test_runs_count = Enum.count(recent_test_runs, fn run -> run.status == "success" end)
 
     socket
     |> assign(:recent_test_runs, recent_test_runs)
     |> assign(:recent_test_runs_chart_data, recent_test_runs_chart_data)
     |> assign(:failed_test_runs_count, failed_test_runs_count)
+    |> assign(:flaky_test_runs_count, flaky_test_runs_count)
     |> assign(:passed_test_runs_count, passed_test_runs_count)
   end
 

@@ -103,6 +103,10 @@ a {
   &[data-style="destructive"] {
     --indicator-color: var(--noora-chart-destructive);
   }
+
+  &[data-style="flaky"] {
+    --indicator-color: var(--noora-chart-flaky);
+  }
 }
 
 .tuist-pagination {
