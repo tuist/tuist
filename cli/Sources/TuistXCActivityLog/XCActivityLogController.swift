@@ -763,7 +763,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
     }
 
     private func determineCacheStatus(
-        for status: CacheKeyStatus,
+        for status: CacheKeyStatus
     ) async throws -> CacheableTask.CacheStatus {
         if status.isMiss {
             return .miss

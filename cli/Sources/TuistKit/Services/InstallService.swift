@@ -36,7 +36,7 @@ final class InstallService {
     func run(
         path: String?,
         update: Bool,
-        passthroughArguments: [String],
+        passthroughArguments: [String]
     ) async throws {
         let path = try self.path(path)
 
