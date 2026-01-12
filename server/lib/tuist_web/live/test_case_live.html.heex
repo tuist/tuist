@@ -30,7 +30,7 @@
       </div>
       <div :if={@test_case_detail.last_status == "flaky"} data-part="badge-flaky">
         <div data-part="icon">
-          <.progress_x />
+          <.alert_triangle />
         </div>
       </div>
       <h1 data-part="label">
@@ -259,7 +259,7 @@
             <% "failure" -> %>
               <.status_badge_cell label={dgettext("dashboard_tests", "Failed")} status="error" />
             <% "flaky" -> %>
-              <.status_badge_cell label={dgettext("dashboard_tests", "Flaky")} status="warning" />
+              <.status_badge_cell label={dgettext("dashboard_tests", "Flaky")} status="attention" />
             <% "skipped" -> %>
               <.status_badge_cell label={dgettext("dashboard_tests", "Skipped")} status="warning" />
           <% end %>

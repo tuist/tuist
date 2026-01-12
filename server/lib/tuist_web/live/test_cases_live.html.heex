@@ -516,6 +516,11 @@
                   label={dgettext("dashboard_tests", "Skipped")}
                   status="warning"
                 />
+              <% "flaky" -> %>
+                <.status_badge_cell
+                  label={dgettext("dashboard_tests", "Flaky")}
+                  status="attention"
+                />
             <% end %>
           </:col>
           <:col

@@ -46,10 +46,17 @@
             color: var(--noora-icon-warning-label);
           }
         }
+        & > [data-part="badge-flaky"] {
+          background: var(--noora-icon-warning-background);
+          & > [data-part="icon"] {
+            color: var(--noora-icon-warning-label);
+          }
+        }
 
         & > [data-part="badge-success"],
         & > [data-part="badge-failure"],
-        & > [data-part="badge-warning"] {
+        & > [data-part="badge-warning"],
+        & > [data-part="badge-flaky"] {
           border-radius: var(--noora-radius-large);
           & > [data-part="icon"] {
             padding: var(--noora-spacing-3);

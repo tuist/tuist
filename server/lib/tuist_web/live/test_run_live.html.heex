@@ -29,9 +29,9 @@
             <.alert_hexagon />
           </div>
         </div>
-        <div :if={@run.status == "flaky"} data-part="badge-warning">
+        <div :if={@run.status == "flaky"} data-part="badge-flaky">
           <div data-part="icon">
-            <.alert_hexagon />
+            <.alert_triangle />
           </div>
         </div>
         <h1 data-part="label">
@@ -538,7 +538,7 @@
                 <% "flaky" -> %>
                   <.status_badge_cell
                     label={dgettext("dashboard_tests", "Flaky")}
-                    status="warning"
+                    status="attention"
                   />
               <% end %>
             </:col>

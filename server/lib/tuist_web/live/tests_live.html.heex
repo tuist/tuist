@@ -868,7 +868,7 @@
           <.status_badge_cell
             :if={test_run.status == "flaky"}
             label={dgettext("dashboard_tests", "Flaky")}
-            status="warning"
+            status="attention"
           />
           <.status_badge_cell
             :if={test_run.status == "failure"}
