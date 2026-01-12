@@ -47,6 +47,8 @@ defmodule Tuist.Slack.Workers.ReportWorker do
     :ok
   end
 
+  defp is_due?(%{report_timezone: nil}, _now_utc), do: false
+
   defp is_due?(project, now_utc) do
     timezone = project.report_timezone
     local_now = Timex.Timezone.convert(now_utc, timezone)
