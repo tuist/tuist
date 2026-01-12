@@ -337,7 +337,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
     socket =
       socket
       |> assign_alert_defaults(assigns.selected_project)
-      |> push_event("close-modal", %{id: "edit-alert-modal-#{id}"})
+      |> push_event("close-modal", %{id: "update-alert-modal-#{id}"})
 
     {:noreply, socket}
   end
