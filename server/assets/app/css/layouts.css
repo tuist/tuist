@@ -18,8 +18,8 @@
   & .noora-sidebar {
     position: sticky;
     top: 0;
-    align-self: flex-start;
     flex-shrink: 0;
+    align-self: flex-start;
     margin-top: var(--noora-spacing-5);
     max-height: 100vh;
     overflow-y: auto;
