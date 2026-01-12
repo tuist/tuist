@@ -43,6 +43,11 @@ if [ -z "$SWIFTFORMAT_BIN" ]; then
     exit 1
 fi
 
+echo "MISE_DATA_DIR=${MISE_DATA_DIR:-unset}"
+echo "Resolved swiftformat version=${SWIFTFORMAT_VERSION}"
+echo "Resolved swiftformat path=${SWIFTFORMAT_BIN}"
+ls -l "$SWIFTFORMAT_BIN" 2>/dev/null || true
+
 swiftformat() {
     "$SWIFTFORMAT_BIN" "$@"
 }
