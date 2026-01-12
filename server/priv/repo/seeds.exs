@@ -1,4 +1,8 @@
+import Ecto.Query
+
 alias Tuist.Accounts
+alias Tuist.Alerts.Alert
+alias Tuist.Alerts.AlertRule
 alias Tuist.AppBuilds.AppBuild
 alias Tuist.AppBuilds.Preview
 alias Tuist.Billing
@@ -14,6 +18,7 @@ alias Tuist.QA.Run
 alias Tuist.Repo
 alias Tuist.Runs.Build
 alias Tuist.Runs.Test
+alias Tuist.Slack.Installation
 
 # Stubs
 email = "tuistrocks@tuist.dev"
@@ -1571,3 +1576,117 @@ Enum.map(1..20, fn index ->
 
   bundle
 end)
+
+# Create Slack installation for the organization
+alias Tuist.Environment
+
+slack_installation =
+  if slack_access_token = Environment.get([:slack, :access_token]) do
+    case Repo.get_by(Installation, account_id: organization.account.id) do
+      nil ->
+        %Installation{}
+        |> Installation.changeset(%{
+          account_id: organization.account.id,
+          team_id: "T061C1JGAHH",
+          team_name: "Tuist Company",
+          access_token: slack_access_token,
+          bot_user_id: "U0A5N3H2RJM"
+        })
+        |> Repo.insert!()
+
+      installation ->
+        installation
+    end
+  else
+    IO.puts("Skipping Slack installation (slack.access_token not set in secrets)")
+    nil
+  end
+
+# Update tuist_project with Slack report settings (only if Slack is configured)
+if slack_installation do
+  tuist_project
+  |> Project.update_changeset(%{
+    slack_channel_id: "C0A598PACRG",
+    slack_channel_name: "test",
+    report_frequency: :daily,
+    report_days_of_week: [1, 2, 3, 4, 5],
+    report_schedule_time: ~U[2024-01-01 09:00:00Z],
+    report_timezone: "Europe/Berlin"
+  })
+  |> Repo.update!()
+
+  IO.puts("Updated tuist project with Slack report settings")
+end
+
+# Create alert rules for the tuist project (only if Slack is configured)
+if slack_installation do
+  alert_rules_data = [
+    %{
+      name: "Build Duration P90 Alert",
+      category: :build_run_duration,
+      metric: :p90,
+      deviation_percentage: 20.0,
+      rolling_window_size: 7,
+      slack_channel_id: "C0A598PACRG",
+      slack_channel_name: "test"
+    },
+    %{
+      name: "Test Duration P50 Alert",
+      category: :test_run_duration,
+      metric: :p50,
+      deviation_percentage: 15.0,
+      rolling_window_size: 14,
+      slack_channel_id: "C0A598PACRG",
+      slack_channel_name: "test"
+    },
+    %{
+      name: "Cache Hit Rate Alert",
+      category: :cache_hit_rate,
+      metric: :average,
+      deviation_percentage: 10.0,
+      rolling_window_size: 7,
+      slack_channel_id: "C0A598PACRG",
+      slack_channel_name: "test"
+    }
+  ]
+
+  alert_rules =
+    Enum.map(alert_rules_data, fn rule_data ->
+      case Repo.get_by(AlertRule, project_id: tuist_project.id, name: rule_data.name) do
+        nil ->
+          %AlertRule{}
+          |> AlertRule.changeset(Map.put(rule_data, :project_id, tuist_project.id))
+          |> Repo.insert!()
+
+        existing_rule ->
+          existing_rule
+      end
+    end)
+
+  IO.puts("Created #{length(alert_rules)} alert rules")
+
+  # Create sample alerts for the first alert rule
+  first_alert_rule = List.first(alert_rules)
+
+  if Repo.aggregate(from(a in Alert, where: a.alert_rule_id == ^first_alert_rule.id), :count) == 0 do
+    sample_alerts =
+      Enum.map(1..5, fn i ->
+        inserted_at =
+          DateTime.utc_now()
+          |> DateTime.add(-i * 24 * 3600, :second)
+          |> DateTime.truncate(:second)
+
+        %{
+          id: UUIDv7.generate(),
+          alert_rule_id: first_alert_rule.id,
+          previous_value: 30_000.0 + Enum.random(0..5000),
+          current_value: 40_000.0 + Enum.random(0..10_000),
+          inserted_at: inserted_at,
+          updated_at: inserted_at
+        }
+      end)
+
+    Repo.insert_all(Alert, sample_alerts)
+    IO.puts("Created #{length(sample_alerts)} sample alerts")
+  end
+end
