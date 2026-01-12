@@ -14,7 +14,7 @@ defmodule Cache.MultipartUploads do
   @cleanup_interval_ms 60_000
   @upload_timeout_ms 5 * 60 * 1000
   @max_part_size 10 * 1024 * 1024
-  @max_total_size 500 * 1024 * 1024
+  @max_total_size 2 * 1024 * 1024 * 1024
 
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, [], name: __MODULE__)
