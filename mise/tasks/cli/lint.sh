@@ -4,6 +4,11 @@
 
 set -eo pipefail
 
+swiftformat() {
+    # Force using the Mise-pinned swiftformat to avoid picking up a system copy
+    mise x swiftformat -- swiftformat "$@"
+}
+
 if [ "$usage_fix" = "true" ]; then    # Fix mode: apply automatic fixes
     swiftformat cli/ app/
     swiftlint lint --fix --quiet --config .swiftlint.yml cli/Sources
