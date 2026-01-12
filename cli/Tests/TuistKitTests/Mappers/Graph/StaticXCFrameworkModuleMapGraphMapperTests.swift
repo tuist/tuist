@@ -599,4 +599,38 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
             ]
         )
     }
+
+    func test_removeOtherSwiftDuplicates_preservesEnableUpcomingFeatureFlags() {
+        // Given
+        let settings: SettingsDictionary = [
+            "OTHER_SWIFT_FLAGS": .array(
+                [
+                    "-enable-upcoming-feature", "DeprecateApplicationMain",
+                    "-enable-upcoming-feature", "NonfrozenEnumExhaustivity",
+                    "-enable-upcoming-feature", "DeprecateApplicationMain",
+                    "-enable-experimental-feature", "StrictConcurrency",
+                    "-enable-experimental-feature", "TypedThrows",
+                    "-enable-experimental-feature", "StrictConcurrency",
+                ]
+            ),
+        ]
+
+        // When
+        let got = settings.removeOtherSwiftFlagsDuplicates()
+
+        // Then
+        XCTAssertEqual(
+            got,
+            [
+                "OTHER_SWIFT_FLAGS": .array(
+                    [
+                        "-enable-upcoming-feature", "DeprecateApplicationMain",
+                        "-enable-upcoming-feature", "NonfrozenEnumExhaustivity",
+                        "-enable-experimental-feature", "StrictConcurrency",
+                        "-enable-experimental-feature", "TypedThrows",
+                    ]
+                ),
+            ]
+        )
+    }
 }
