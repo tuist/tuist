@@ -119,6 +119,18 @@
       </div>
       <div data-part="widgets">
         <.widget
+          :if={@flakiness_rate && @flakiness_rate > 0}
+          title={dgettext("dashboard_tests", "Flakiness rate")}
+          description={
+            dgettext(
+              "dashboard_tests",
+              "Percentage of test runs that were flaky in the last 30 days."
+            )
+          }
+          value={"#{@flakiness_rate}%"}
+          id="widget-flakiness-rate"
+        />
+        <.widget
           title={dgettext("dashboard_tests", "Test reliability")}
           description={
             dgettext(

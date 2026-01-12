@@ -2896,6 +2896,36 @@ defmodule Tuist.Runs.Analytics do
     end
   end
 
+  @doc """
+  Gets the flakiness rate for a specific test case by its UUID.
+  Calculates the ratio of flaky runs to total runs in the last 30 days.
+  Returns nil if there are no flaky runs or no data.
+  """
+  def test_case_flakiness_rate_by_id(test_case_id) do
+    thirty_days_ago = DateTime.utc_now() |> DateTime.add(-30, :day)
+
+    query =
+      from(tcr in TestCaseRun,
+        where: tcr.test_case_id == ^test_case_id,
+        where: tcr.inserted_at >= ^thirty_days_ago,
+        select: %{
+          flaky_count: fragment("countIf(? = 'flaky')", tcr.status),
+          total_count: count(tcr.id)
+        }
+      )
+
+    result = ClickHouseRepo.one(query)
+
+    case result do
+      %{flaky_count: flaky_count, total_count: total_count}
+      when total_count > 0 and flaky_count > 0 ->
+        Float.round(flaky_count / total_count * 100, 1)
+
+      _ ->
+        nil
+    end
+  end
+
   defp normalize_duration(nil), do: 0
   defp normalize_duration(value) when is_float(value), do: round(value)
   defp normalize_duration(value) when is_integer(value), do: value
