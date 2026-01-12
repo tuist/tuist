@@ -7,26 +7,39 @@ set -eo pipefail
 # Resolve repo root (lint.sh lives in mise/tasks/cli)
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-# Resolve the pinned SwiftFormat version from mise.toml (fallback to explicit version if parsing fails)
-SWIFTFORMAT_VERSION=$(awk -F'"' '/swiftformat/ {print $2; exit}' "$REPO_ROOT/mise.toml" 2>/dev/null || true)
+# Resolve the pinned SwiftFormat tool name/version from mise.toml (case-insensitive match on swiftformat)
+SWIFT_INFO=$(python3 - <<'PY'
+import tomllib, re, pathlib
+tools = tomllib.load(open(pathlib.Path(__file__).resolve().parents[2] / "mise.toml", "rb")).get("tools", {})
+for k, v in tools.items():
+    if re.search(r"swiftformat", k, re.IGNORECASE):
+        print(f"{k} {v}")
+        break
+PY
+)
+SWIFTFORMAT_TOOL=$(echo "$SWIFT_INFO" | awk '{print $1}')
+SWIFTFORMAT_VERSION=$(echo "$SWIFT_INFO" | awk '{print $2}')
+SWIFTFORMAT_TOOL=${SWIFTFORMAT_TOOL:-swiftformat}
 SWIFTFORMAT_VERSION=${SWIFTFORMAT_VERSION:-0.57.2}
 
 # Helper to resolve the installed SwiftFormat path from mise
 resolve_swiftformat_bin() {
-    local root bin
-    root=$(mise where "swiftformat@${SWIFTFORMAT_VERSION}" 2>/dev/null || true)
-    if [ -n "$root" ]; then
-        bin="$root/bin/swiftformat"
-        if [ -x "$bin" ]; then
-            echo "$bin"
-            return
+    local root bin tool
+    for tool in "$SWIFTFORMAT_TOOL" swiftformat; do
+        root=$(mise where "${tool}@${SWIFTFORMAT_VERSION}" 2>/dev/null || true)
+        if [ -n "$root" ]; then
+            bin="$root/bin/swiftformat"
+            if [ -x "$bin" ]; then
+                echo "$bin"
+                return
+            fi
+            bin=$(find "$root" -name swiftformat -type f 2>/dev/null | head -n 1)
+            if [ -n "$bin" ]; then
+                echo "$bin"
+                return
+            fi
         fi
-        bin=$(find "$root" -name swiftformat -type f 2>/dev/null | head -n 1)
-        if [ -n "$bin" ]; then
-            echo "$bin"
-            return
-        fi
-    fi
+    done
     echo ""
 }
 
@@ -34,7 +47,7 @@ resolve_swiftformat_bin() {
 SWIFTFORMAT_BIN="$(resolve_swiftformat_bin)"
 if [ -z "$SWIFTFORMAT_BIN" ]; then
     echo "SwiftFormat ${SWIFTFORMAT_VERSION} not found; installing via mise..."
-    mise install "swiftformat@${SWIFTFORMAT_VERSION}"
+    mise install "${SWIFTFORMAT_TOOL}@${SWIFTFORMAT_VERSION}" || mise install "swiftformat@${SWIFTFORMAT_VERSION}"
     SWIFTFORMAT_BIN="$(resolve_swiftformat_bin)"
 fi
 
@@ -44,6 +57,7 @@ if [ -z "$SWIFTFORMAT_BIN" ]; then
 fi
 
 echo "MISE_DATA_DIR=${MISE_DATA_DIR:-unset}"
+echo "Resolved swiftformat tool=${SWIFTFORMAT_TOOL}"
 echo "Resolved swiftformat version=${SWIFTFORMAT_VERSION}"
 echo "Resolved swiftformat path=${SWIFTFORMAT_BIN}"
 ls -l "$SWIFTFORMAT_BIN" 2>/dev/null || true
