@@ -81,8 +81,8 @@ msgstr ""
 msgid "Analytics"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.ex:191
-#: lib/tuist_web/live/qa_live.ex:200
+#: lib/tuist_web/live/qa_live.ex:193
+#: lib/tuist_web/live/qa_live.ex:202
 #, elixir-autogen, elixir-format
 msgid "Any"
 msgstr ""
@@ -98,7 +98,7 @@ msgstr ""
 msgid "App description"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.ex:154
+#: lib/tuist_web/live/qa_live.ex:156
 #: lib/tuist_web/live/qa_live.html.heex:100
 #, elixir-autogen, elixir-format
 msgid "App issues found"
@@ -132,7 +132,7 @@ msgstr ""
 msgid "Average Tokens per Run"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.ex:166
+#: lib/tuist_web/live/qa_live.ex:168
 #: lib/tuist_web/live/qa_live.html.heex:118
 #, elixir-autogen, elixir-format
 msgid "Avg. QA duration"
@@ -427,7 +427,7 @@ msgstr ""
 msgid "Provide clear instructions for testing"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.ex:22
+#: lib/tuist_web/live/qa_live.ex:23
 #: lib/tuist_web/live/qa_run_live.html.heex:4
 #: lib/tuist_web/live/qa_settings_live.html.heex:13
 #: lib/tuist_web/live/qa_settings_live.html.heex:19
@@ -475,7 +475,7 @@ msgstr ""
 msgid "QA duration"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.ex:146
+#: lib/tuist_web/live/qa_live.ex:148
 #, elixir-autogen, elixir-format
 msgid "QA run count"
 msgstr ""
@@ -648,17 +648,17 @@ msgstr[1] ""
 msgid "logs"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.ex:189
+#: lib/tuist_web/live/qa_live.ex:191
 #, elixir-autogen, elixir-format
 msgid "since last month"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.ex:186
+#: lib/tuist_web/live/qa_live.ex:188
 #, elixir-autogen, elixir-format
 msgid "since last week"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.ex:187
+#: lib/tuist_web/live/qa_live.ex:189
 #, elixir-autogen, elixir-format
 msgid "since last year"
 msgstr ""
@@ -698,12 +698,12 @@ msgstr ""
 msgid "Last 7 days"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.ex:188
+#: lib/tuist_web/live/qa_live.ex:190
 #, elixir-autogen, elixir-format
 msgid "since last period"
 msgstr ""
 
-#: lib/tuist_web/live/qa_live.ex:185
+#: lib/tuist_web/live/qa_live.ex:187
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
 msgstr ""

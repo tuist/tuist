@@ -778,4 +778,193 @@ defmodule Tuist.Cache.AnalyticsTest do
       assert ~U[2024-04-30 08:00:00Z] in got.dates
     end
   end
+
+  describe "cache_hit_rate_metric_by_count/3" do
+    test "averages module cache and Xcode cache hit rates by count" do
+      project = ProjectsFixtures.project_fixture()
+
+      # Module cache: 50% hit rate (1 hit out of 2 cacheable)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-30 10:00:00Z]
+      )
+
+      # Xcode cache: 100% hit rate (2 hits out of 2 cacheable)
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-30 10:00:00Z],
+        cacheable_tasks: [
+          %{key: "task1_key", type: :swift, status: :hit_local},
+          %{key: "task2_key", type: :swift, status: :hit_remote}
+        ]
+      )
+
+      # When
+      got = Analytics.cache_hit_rate_metric_by_count(project.id, :average, limit: 10)
+
+      # Then - Average of [0.5 (module), 1.0 (xcode)] = 0.75
+      assert got == 0.75
+    end
+
+    test "returns nil when no data exists" do
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      got = Analytics.cache_hit_rate_metric_by_count(project.id, :average, limit: 10)
+
+      # Then
+      assert got == nil
+    end
+
+    test "returns only module hit rate when no Xcode builds exist" do
+      project = ProjectsFixtures.project_fixture()
+
+      # Module cache: 50% hit rate
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-30 10:00:00Z]
+      )
+
+      # When
+      got = Analytics.cache_hit_rate_metric_by_count(project.id, :average, limit: 10)
+
+      # Then - Only module cache: 0.5
+      assert got == 0.5
+    end
+
+    test "returns only Xcode hit rate when no module cache events exist" do
+      project = ProjectsFixtures.project_fixture()
+
+      # Xcode cache: 75% hit rate (3 hits out of 4 cacheable)
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-30 10:00:00Z],
+        cacheable_tasks: [
+          %{key: "task1_key", type: :swift, status: :hit_local},
+          %{key: "task2_key", type: :swift, status: :hit_remote},
+          %{key: "task3_key", type: :swift, status: :hit_local},
+          %{key: "task4_key", type: :clang, status: :miss}
+        ]
+      )
+
+      # When
+      got = Analytics.cache_hit_rate_metric_by_count(project.id, :average, limit: 10)
+
+      # Then - Only Xcode cache: 0.75
+      assert got == 0.75
+    end
+
+    test "respects limit and offset parameters" do
+      project = ProjectsFixtures.project_fixture()
+
+      # Oldest event: 25% hit rate
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["A", "B", "C", "D"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      # Newest event: 100% hit rate
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["E", "F"],
+        local_cache_target_hits: ["E", "F"],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-30 10:00:00Z]
+      )
+
+      # Oldest build: 50% hit rate
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-29 10:00:00Z],
+        cacheable_tasks: [
+          %{key: "task1_key", type: :swift, status: :hit_local},
+          %{key: "task2_key", type: :swift, status: :miss}
+        ]
+      )
+
+      # Newest build: 100% hit rate
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-30 10:00:00Z],
+        cacheable_tasks: [
+          %{key: "task3_key", type: :swift, status: :hit_local},
+          %{key: "task4_key", type: :swift, status: :hit_remote}
+        ]
+      )
+
+      # When - get newest 1 item
+      current = Analytics.cache_hit_rate_metric_by_count(project.id, :average, limit: 1, offset: 0)
+
+      # Then - Average of [1.0 (module), 1.0 (xcode)] = 1.0
+      assert current == 1.0
+
+      # When - skip newest, get older item
+      previous = Analytics.cache_hit_rate_metric_by_count(project.id, :average, limit: 1, offset: 1)
+
+      # Then - Average of [0.25 (module), 0.5 (xcode)] = 0.375
+      assert previous == 0.375
+    end
+
+    test "works with p50 metric" do
+      project = ProjectsFixtures.project_fixture()
+
+      # Create multiple events with varying hit rates
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-30 09:00:00Z]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "build",
+        cacheable_targets: ["C", "D"],
+        local_cache_target_hits: ["C", "D"],
+        remote_cache_target_hits: [],
+        ran_at: ~U[2024-04-30 10:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-30 09:00:00Z],
+        cacheable_tasks: [
+          %{key: "task1_key", type: :swift, status: :miss},
+          %{key: "task2_key", type: :swift, status: :miss}
+        ]
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-30 10:00:00Z],
+        cacheable_tasks: [
+          %{key: "task3_key", type: :swift, status: :hit_local},
+          %{key: "task4_key", type: :swift, status: :hit_remote}
+        ]
+      )
+
+      # When
+      got = Analytics.cache_hit_rate_metric_by_count(project.id, :p50, limit: 10)
+
+      # Then - Module p50 of sorted [0.5, 1.0] at index trunc(2*0.5)=1 = 1.0
+      # Xcode p50 of sorted [0.0, 1.0] at index trunc(2*0.5)=1 = 1.0
+      # Average of [1.0, 1.0] = 1.0
+      assert got == 1.0
+    end
+  end
 end

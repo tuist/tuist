@@ -13,6 +13,7 @@ defmodule TuistWeb.PreviewsLive do
   alias Noora.Filter
   alias Tuist.AppBuilds
   alias Tuist.Projects
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
   alias TuistWeb.Utilities.SHA
 
@@ -23,6 +24,7 @@ defmodule TuistWeb.PreviewsLive do
        :head_title,
        "#{dgettext("dashboard_previews", "Previews")} · #{Projects.get_project_slug_from_id(project.id)} · Tuist"
      )
+     |> assign(OpenGraph.og_image_assigns("previews"))
      |> assign(
        :latest_app_previews,
        AppBuilds.latest_previews_with_distinct_bundle_ids(project)

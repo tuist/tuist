@@ -475,22 +475,30 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
 
-      existing_build =
-        Tuist.Repo.insert!(%Build{
-          id: id,
-          duration: 1000,
-          project_id: project.id,
-          account_id: user.account.id,
-          is_ci: false,
-          status: :success
-        })
+      existing_build = %Build{
+        id: id,
+        duration: 1000,
+        project_id: project.id,
+        account_id: user.account.id,
+        is_ci: false,
+        status: :success
+      }
 
-      call_count = :counters.new(1, [:atomics])
+      get_build_call_count = :counters.new(1, [:atomics])
 
       stub(Tuist.Runs, :get_build, fn ^id ->
-        count = :counters.get(call_count, 1)
-        :counters.add(call_count, 1, 1)
+        count = :counters.get(get_build_call_count, 1)
+        :counters.add(get_build_call_count, 1, 1)
         if count == 0, do: nil, else: existing_build
+      end)
+
+      error_changeset = %Ecto.Changeset{
+        errors: [id: {"has already been taken", [constraint: :unique]}],
+        valid?: false
+      }
+
+      stub(Tuist.Runs, :create_build, fn _attrs ->
+        {:error, error_changeset}
       end)
 
       conn =
@@ -506,7 +514,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       response = json_response(conn, :ok)
       assert response["id"] == id
-      assert Tuist.Repo.get(Build, id)
+      assert :counters.get(get_build_call_count, 1) == 2
     end
 
     test "creates a new build when non-required parameters are missing", %{conn: conn} do

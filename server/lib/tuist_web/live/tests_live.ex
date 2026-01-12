@@ -10,6 +10,7 @@ defmodule TuistWeb.TestsLive do
   alias Tuist.Runs
   alias Tuist.Runs.Analytics
   alias TuistWeb.Helpers.DatePicker
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
@@ -19,6 +20,7 @@ defmodule TuistWeb.TestsLive do
         :head_title,
         "#{dgettext("dashboard_tests", "Tests")} · #{account.name}/#{project.name} · Tuist"
       )
+      |> assign(OpenGraph.og_image_assigns("tests"))
       |> assign_recent_test_runs()
       |> assign_slowest_test_cases()
 

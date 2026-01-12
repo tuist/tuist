@@ -11,6 +11,7 @@ defmodule TuistWeb.BuildRunsLive do
   alias Tuist.Accounts
   alias Tuist.Projects
   alias Tuist.Runs
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
   alias TuistWeb.Utilities.SHA
 
@@ -21,6 +22,7 @@ defmodule TuistWeb.BuildRunsLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_builds", "Build Runs")} · #{slug} · Tuist")
+      |> assign(OpenGraph.og_image_assigns("build-runs"))
       |> assign(:available_filters, define_filters(project, configurations))
 
     if connected?(socket) do

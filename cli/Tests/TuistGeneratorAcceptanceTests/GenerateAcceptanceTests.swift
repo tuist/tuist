@@ -1167,6 +1167,19 @@ final class GenerateAcceptanceTestAppWithGlobs: TuistAcceptanceTestCase {
         try await setUpFixture("generated_app_with_globs")
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
+
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+        let allFileReferences = xcodeproj.pbxproj.fileReferences
+        let allFilePaths = allFileReferences.compactMap(\.path)
+
+        XCTAssertTrue(
+            allFilePaths.contains(where: { $0.contains(".hidden.yml") }),
+            "Expected .hidden.yml to be included in the project"
+        )
+        XCTAssertFalse(
+            allFilePaths.contains(where: { $0.contains(".secret.yml") }),
+            "Expected .secret.yml to be excluded from the project"
+        )
     }
 }
 

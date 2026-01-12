@@ -11,6 +11,7 @@ defmodule TuistWeb.CacheRunsLive do
   alias Noora.Filter
   alias Tuist.Accounts
   alias Tuist.CommandEvents
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
@@ -19,6 +20,7 @@ defmodule TuistWeb.CacheRunsLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_cache", "Cache Runs")} · #{slug} · Tuist")
+      |> assign(OpenGraph.og_image_assigns("cache-runs"))
       |> assign(:available_filters, define_filters(project))
 
     if connected?(socket) do

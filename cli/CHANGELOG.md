@@ -1,6 +1,15 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.121.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add excluding parameter to FileElement glob by [@fortmarek](https://github.com/fortmarek) in [#9087](https://github.com/tuist/tuist/pull/9087)
+* Add tuist:synthesized tag to synthesized resource bundles by [@pepicrft](https://github.com/pepicrft) in [#8983](https://github.com/tuist/tuist/pull/8983)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.120.0...4.121.0
+
 ## What's Changed in 4.120.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features

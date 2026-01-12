@@ -11,6 +11,7 @@ defmodule TuistWeb.TestCasesLive do
   alias Tuist.Runs
   alias Tuist.Runs.Analytics
   alias TuistWeb.Helpers.DatePicker
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
@@ -19,6 +20,7 @@ defmodule TuistWeb.TestCasesLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Cases")} · #{slug} · Tuist")
+      |> assign(OpenGraph.og_image_assigns("test-cases"))
       |> assign(:available_filters, define_filters())
 
     if connected?(socket) do

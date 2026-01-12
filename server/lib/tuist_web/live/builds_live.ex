@@ -10,6 +10,7 @@ defmodule TuistWeb.BuildsLive do
   alias Tuist.Runs
   alias Tuist.Runs.Analytics
   alias TuistWeb.Helpers.DatePicker
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   def mount(params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
@@ -19,6 +20,7 @@ defmodule TuistWeb.BuildsLive do
         :head_title,
         "#{dgettext("dashboard_builds", "Builds")} · #{account.name}/#{project.name} · Tuist"
       )
+      |> assign(OpenGraph.og_image_assigns("builds"))
       |> assign_configuration_insights_options(params)
       |> assign_initial_configuration_insights()
       |> assign_recent_builds()

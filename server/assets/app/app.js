@@ -33,6 +33,7 @@ import TimelineSeek from "./js/TimelineSeek.js";
 import BlurOnClick from "./js/BlurOnClick.js";
 import ScrollIntoView from "./js/ScrollIntoView.js";
 import StopPropagationOnDrag from "./js/StopPropagationOnDrag.js";
+import SelectSlackChannelPopup from "./js/SelectSlackChannelPopup.js";
 import { getUserTimezone } from "./js/UserTimezone.js";
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
@@ -48,6 +49,7 @@ Hooks.TimelineSeek = TimelineSeek;
 Hooks.BlurOnClick = BlurOnClick;
 Hooks.ScrollIntoView = ScrollIntoView;
 Hooks.StopPropagationOnDrag = StopPropagationOnDrag;
+Hooks.SelectSlackChannelPopup = SelectSlackChannelPopup;
 
 observeThemeChanges();
 Hooks.ThemeSwitcher = ThemeSwitcher;
