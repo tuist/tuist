@@ -35,6 +35,8 @@ defmodule Tuist.Accounts.Account do
     field :s3_region, :string
     field :s3_endpoint, :string
 
+    field :custom_cache_endpoints_enabled, :boolean, default: false
+
     belongs_to :organization, Organization
     belongs_to :user, User
 
@@ -100,7 +102,7 @@ defmodule Tuist.Accounts.Account do
 
   def update_changeset(account, attrs) do
     account
-    |> cast(attrs, [:name, :namespace_tenant_id, :region, :billing_email])
+    |> cast(attrs, [:name, :namespace_tenant_id, :region, :billing_email, :custom_cache_endpoints_enabled])
     |> validate_handle()
     |> validate_inclusion(:region, [:all, :europe, :usa])
     |> unique_constraint(:namespace_tenant_id)

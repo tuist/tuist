@@ -11,6 +11,7 @@
       :if={FunWithFlags.enabled?(:custom_cache_endpoints, for: @selected_account)}
       cache_endpoints={@cache_endpoints}
       add_cache_endpoint_form={@add_cache_endpoint_form}
+      custom_cache_endpoints_enabled={@selected_account.custom_cache_endpoints_enabled}
     />
     <.card_section data-part="rename-card-section">
       <div data-part="header">

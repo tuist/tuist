@@ -1701,6 +1701,19 @@ defmodule Tuist.AccountsTest do
       assert account.name == "christoph"
     end
 
+    test "persists the custom cache endpoints enabled flag", %{user: user} do
+      account = Repo.preload(user, :account).account
+      assert account.custom_cache_endpoints_enabled == false
+
+      assert {:ok, account} =
+               Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
+
+      assert account.custom_cache_endpoints_enabled == true
+
+      assert {:ok, reloaded_account} = Accounts.get_account_by_id(account.id)
+      assert reloaded_account.custom_cache_endpoints_enabled == true
+    end
+
     test "validates name format", %{user: user} do
       account = Repo.preload(user, :account).account
 
@@ -3824,10 +3837,11 @@ defmodule Tuist.AccountsTest do
   end
 
   describe "get_cache_endpoints_for_handle/1" do
-    test "returns custom endpoints when account has them configured" do
+    test "returns custom endpoints when account has them configured and enabled" do
       # Given
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
+      {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
       {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache1.example.com"})
       {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache2.example.com"})
 
@@ -3842,6 +3856,21 @@ defmodule Tuist.AccountsTest do
       # Given
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+
+      # Then
+      assert endpoints == default_endpoints
+    end
+
+    test "returns default endpoints when custom endpoints exist but are disabled" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache1.example.com"})
       default_endpoints = ["https://default.tuist.dev"]
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 

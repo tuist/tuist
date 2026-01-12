@@ -69,6 +69,7 @@ defmodule TuistWeb.API.CacheControllerTest do
       # Given
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
+      {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
 
       {:ok, _endpoint1} =
         Accounts.create_account_cache_endpoint(account, %{url: "https://custom-cache-1.example.com"})
