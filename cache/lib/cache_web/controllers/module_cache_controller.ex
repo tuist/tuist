@@ -280,7 +280,7 @@ defmodule CacheWeb.ModuleCacheController do
       no_content: {"Part uploaded successfully", nil, nil},
       not_found: {"Upload not found", "application/json", Error},
       request_entity_too_large: {"Part exceeds 10MB limit", "application/json", Error},
-      unprocessable_entity: {"Total upload size exceeds 500MB limit", "application/json", Error},
+      unprocessable_entity: {"Total upload size exceeds 2GB limit", "application/json", Error},
       request_timeout: {"Request body read timed out", "application/json", Error},
       unauthorized: {"Unauthorized", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error},
