@@ -57,16 +57,20 @@ defmodule Cache.MultipartUploadsTest do
       assert {:error, :part_too_large} = MultipartUploads.add_part(upload_id, 1, "/tmp/foo", size)
     end
 
-    test "returns error when total exceeds 500MB" do
+    test "returns error when total exceeds 2GB" do
       {:ok, upload_id} = MultipartUploads.start_upload("acc", "proj", "builds", "abc123", "test.zip")
 
       part_size = 10 * 1024 * 1024
+      max_total_size = 2 * 1024 * 1024 * 1024
 
-      for i <- 1..50 do
+      parts_to_fill = div(max_total_size, part_size)
+
+      for i <- 1..parts_to_fill do
         MultipartUploads.add_part(upload_id, i, "/tmp/part#{i}", part_size)
       end
 
-      assert {:error, :total_size_exceeded} = MultipartUploads.add_part(upload_id, 51, "/tmp/part51", part_size)
+      assert {:error, :total_size_exceeded} =
+               MultipartUploads.add_part(upload_id, parts_to_fill + 1, "/tmp/part_overflow", part_size)
     end
 
     test "can add multiple parts" do
