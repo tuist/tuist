@@ -169,3 +169,15 @@ Also make sure that the target doesn't depend either directly or indirectly on a
 ### Missing symbols {#missing-symbols}
 
 When using sources, Xcode's build system, through Derived Data, can resolve dependencies that are not declared explicitly. However, when you rely on the binary cache, dependencies must be declared explicitly; otherwise you'll likely see compilation errors when symbols can't be found. To debug this, we recommend using the <LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist inspect dependencies --only implicit`</LocalizedLink> command and setting it up in CI to prevent regressions in implicit linking.
+
+### Legacy module cache {#legacy-module-cache}
+
+In Tuist {version}, we have made our new infrastructure for the module cache the default.
+If you experience issues with this new version, you can revert to the legacy cache behavior by setting the `TUIST_LEGACY_MODULE_CACHE` environment variable.
+
+This legacy module cache is a temporary fallback and will be removed on the server side in a future update. Plan to migrate away from it.
+
+```bash
+export TUIST_LEGACY_MODULE_CACHE=1
+tuist generate
+```
