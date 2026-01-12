@@ -9,6 +9,7 @@ alias Tuist.Billing
 alias Tuist.Billing.Subscription
 alias Tuist.Bundles
 alias Tuist.CommandEvents.Event
+alias Tuist.Environment
 alias Tuist.IngestRepo
 alias Tuist.Projects
 alias Tuist.Projects.Project
@@ -1578,8 +1579,6 @@ Enum.map(1..20, fn index ->
 end)
 
 # Create Slack installation for the organization
-alias Tuist.Environment
-
 slack_installation =
   if slack_access_token = Environment.get([:slack, :access_token]) do
     case Repo.get_by(Installation, account_id: organization.account.id) do
