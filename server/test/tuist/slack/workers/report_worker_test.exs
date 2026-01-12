@@ -147,5 +147,26 @@ defmodule Tuist.Slack.Workers.ReportWorkerTest do
 
       assert :ok = ReportWorker.perform(%Oban.Job{args: %{}})
     end
+
+    test "does not send reports when project has a nil timezone", %{project: project} do
+      now = ~U[2025-01-15 09:00:00Z]
+      day_of_week = Date.day_of_week(~D[2025-01-15])
+
+      {:ok, _project} =
+        Projects.update_project(project, %{
+          slack_channel_id: "C123456",
+          slack_channel_name: "test-channel",
+          report_frequency: :daily,
+          report_days_of_week: [day_of_week],
+          report_schedule_time: now,
+          report_timezone: nil
+        })
+
+      stub(DateTime, :utc_now, fn -> now end)
+
+      reject(&Client.post_message/3)
+
+      assert :ok = ReportWorker.perform(%Oban.Job{args: %{}})
+    end
   end
 end
