@@ -21,22 +21,29 @@
       "cache-eu-central-canary"
     ];
 
-    mkMachine = hostname: {
-      name = hostname;
-      value = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
-        modules = [
-          disko.nixosModules.disko
-          opnix.nixosModules.default
-          ./configuration.nix
-          ./users.nix
-          {
-            networking.hostName = hostname;
-          }
-        ];
+    sharedModules = [
+      disko.nixosModules.disko
+      opnix.nixosModules.default
+      ./configuration.nix
+      ./users.nix
+    ];
+
+    mkColmenaNode = hostname: {
+      deployment = {
+        targetHost = "${hostname}.tuist.dev";
+        buildOnTarget = true;
       };
+      imports = sharedModules ++ [
+        {
+          networking.hostName = hostname;
+        }
+      ];
     };
   in {
-    nixosConfigurations = builtins.listToAttrs (map mkMachine machines);
+    colmena = {
+      meta = {
+        nixpkgs = import nixpkgs {system = "x86_64-linux";};
+      };
+    } // nixpkgs.lib.genAttrs machines mkColmenaNode;
   };
 }
