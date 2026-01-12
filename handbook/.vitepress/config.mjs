@@ -118,6 +118,10 @@ export default defineConfig({
             link: "/engineering/scheduled-maintenance",
           },
           {
+            text: "Cache infrastructure",
+            link: "/engineering/cache-infrastructure",
+          },
+          {
             text: "Server",
             items: [
               {
