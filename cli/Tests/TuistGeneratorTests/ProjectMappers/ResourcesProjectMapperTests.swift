@@ -10,6 +10,9 @@ import XcodeGraph
 @testable import TuistGenerator
 
 private let irrelevantBundleName = ""
+private func supportsResources(for target: Target) -> Bool {
+    target.supportsResources && target.product != .staticFramework
+}
 
 // swiftlint:disable:next type_body_length
 struct ResourcesProjectMapperTests {
@@ -51,7 +54,13 @@ struct ResourcesProjectMapperTests {
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "TuistBundle+\(target.name).swift")
         let expectedContents = ResourcesProjectMapper
-            .fileContent(targetName: target.name, bundleName: "\(project.name)_\(target.name)", target: target, in: project)
+            .fileContent(
+                targetName: target.name,
+                bundleName: "\(project.name)_\(target.name)",
+                target: target,
+                in: project,
+                supportsResources: supportsResources(for: target)
+            )
         #expect(file.path == expectedPath)
         #expect(file.contents == expectedContents.data(using: .utf8))
 
@@ -222,7 +231,13 @@ struct ResourcesProjectMapperTests {
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "TuistBundle+\(target.name).swift")
         let expectedContents = ResourcesProjectMapper
-            .fileContent(targetName: target.name, bundleName: "\(project.name)_\(target.name)", target: target, in: project)
+            .fileContent(
+                targetName: target.name,
+                bundleName: "\(project.name)_\(target.name)",
+                target: target,
+                in: project,
+                supportsResources: supportsResources(for: target)
+            )
         #expect(file.path == expectedPath)
         #expect(file.contents == expectedContents.data(using: .utf8))
 
@@ -295,7 +310,13 @@ struct ResourcesProjectMapperTests {
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "TuistBundle+\(target.name).swift")
         let expectedContents = ResourcesProjectMapper
-            .fileContent(targetName: target.name, bundleName: "\(project.name)_\(target.name)", target: target, in: project)
+            .fileContent(
+                targetName: target.name,
+                bundleName: "\(project.name)_\(target.name)",
+                target: target,
+                in: project,
+                supportsResources: supportsResources(for: target)
+            )
         #expect(file.path == expectedPath)
         #expect(file.contents == expectedContents.data(using: .utf8))
 
@@ -438,7 +459,13 @@ struct ResourcesProjectMapperTests {
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "TuistBundle+\(target.name).swift")
         let expectedContents = ResourcesProjectMapper
-            .fileContent(targetName: target.name, bundleName: "\(project.name)_\(target.name)", target: target, in: project)
+            .fileContent(
+                targetName: target.name,
+                bundleName: "\(project.name)_\(target.name)",
+                target: target,
+                in: project,
+                supportsResources: supportsResources(for: target)
+            )
         #expect(file.path == expectedPath)
         #expect(file.contents == expectedContents.data(using: .utf8))
 
@@ -491,7 +518,13 @@ struct ResourcesProjectMapperTests {
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "TuistBundle+\(target.name).swift")
         let expectedContents = ResourcesProjectMapper
-            .fileContent(targetName: target.name, bundleName: irrelevantBundleName, target: target, in: project)
+            .fileContent(
+                targetName: target.name,
+                bundleName: irrelevantBundleName,
+                target: target,
+                in: project,
+                supportsResources: supportsResources(for: target)
+            )
         #expect(file.path == expectedPath)
         #expect(file.contents == expectedContents.data(using: .utf8))
 
@@ -534,7 +567,13 @@ struct ResourcesProjectMapperTests {
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "TuistBundle+\(target.name).swift")
         let expectedContents = ResourcesProjectMapper
-            .fileContent(targetName: target.name, bundleName: irrelevantBundleName, target: target, in: project)
+            .fileContent(
+                targetName: target.name,
+                bundleName: irrelevantBundleName,
+                target: target,
+                in: project,
+                supportsResources: supportsResources(for: target)
+            )
         #expect(file.path == expectedPath)
         #expect(file.contents == expectedContents.data(using: .utf8))
 
@@ -574,7 +613,13 @@ struct ResourcesProjectMapperTests {
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "TuistBundle+\(target.name).swift")
         let expectedContents = ResourcesProjectMapper
-            .fileContent(targetName: target.name, bundleName: irrelevantBundleName, target: target, in: project)
+            .fileContent(
+                targetName: target.name,
+                bundleName: irrelevantBundleName,
+                target: target,
+                in: project,
+                supportsResources: supportsResources(for: target)
+            )
         #expect(file.path == expectedPath)
         #expect(file.contents == expectedContents.data(using: .utf8))
 
@@ -656,7 +701,13 @@ struct ResourcesProjectMapperTests {
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "TuistBundle+\(target.name.camelized.uppercasingFirst).swift")
         let expectedContents = ResourcesProjectMapper
-            .fileContent(targetName: target.name, bundleName: "\(project.name)_test_tuist", target: target, in: project)
+            .fileContent(
+                targetName: target.name,
+                bundleName: "\(project.name)_test_tuist",
+                target: target,
+                in: project,
+                supportsResources: supportsResources(for: target)
+            )
         #expect(file.path == expectedPath)
         #expect(file.contents == expectedContents.data(using: .utf8))
     }
@@ -836,7 +887,8 @@ struct ResourcesProjectMapperTests {
                 targetName: target.name,
                 bundleName: bundleName,
                 target: target,
-                in: project
+                in: project,
+                supportsResources: supportsResources(for: target)
             )
         #expect(file.path == expectedPath)
         #expect(file.contents == expectedContents.data(using: .utf8))
