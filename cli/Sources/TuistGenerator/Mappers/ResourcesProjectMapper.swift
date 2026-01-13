@@ -462,8 +462,8 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                 // More context can be found in this PR: https://github.com/tuist/tuist/pull/6895
                 #if canImport(XCTest)
                 final class UnitTestBundleFinder {}
-                let bundleFinderResourceURL = Bundle(for: UnitTestBundleFinder.self).resourceURL?.appendingPathComponent("..")
-                candidates.append(bundleFinderResourceURL)
+                let testBundleResourceURL = Bundle(for: UnitTestBundleFinder.self).resourceURL
+                candidates.append(testBundleResourceURL?.appendingPathComponent(".."))
                 #endif
 
                 for candidate in candidates {
@@ -473,12 +473,16 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                     }
                 }
 
-                let bundleCandidates: [URL?] = [
+                var bundleCandidates: [URL?] = [
                     Bundle.main.resourceURL,
                     Bundle.main.bundleURL,
                     Bundle.main.privateFrameworksURL,
                     Bundle.main.bundleURL.appendingPathComponent("Frameworks"),
                 ]
+                #if canImport(XCTest)
+                bundleCandidates.append(testBundleResourceURL)
+                bundleCandidates.append(testBundleResourceURL?.appendingPathComponent(".."))
+                #endif
 
                 for candidate in bundleCandidates {
                     let bundlePath = candidate?.appendingPathComponent("\(bundleName).bundle")
