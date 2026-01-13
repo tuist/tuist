@@ -372,6 +372,10 @@
           width: 40%;
         }
 
+        & td {
+          overflow: hidden;
+        }
+
         & td:has([data-part="scheme-cell"][data-flaky]) {
           position: relative;
 
