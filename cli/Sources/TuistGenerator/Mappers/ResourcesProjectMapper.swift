@@ -37,9 +37,10 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
     // swiftlint:disable:next function_body_length
     public func mapTarget(_ target: Target, project: Project) async throws -> ([Target], [SideEffectDescriptor]) {
+        let containsResourcesInBuildableFolders = try await buildableFolderChecker.containsResources(target.buildableFolders)
         if target.resources.resources.isEmpty, target.coreDataModels.isEmpty,
            !target.sources.contains(where: { $0.path.extension == "metal" }),
-           !(try await buildableFolderChecker.containsResources(target.buildableFolders)),
+           !containsResourcesInBuildableFolders,
            !containsSynthesizedFilesInBuildableFolders(target: target, project: project)
         { return (
             [target],
@@ -109,8 +110,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
         if case .external = project.type,
            target.sources.containsObjcFiles,
-           target.resources.containsBundleAccessedResources,
-           !target.supportsResources
+           target.resources.containsBundleAccessedResources || containsResourcesInBuildableFolders
         {
             let (headerFilePath, headerData) = synthesizedObjcHeaderFile(bundleName: bundleName, target: target, project: project)
 
