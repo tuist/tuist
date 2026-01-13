@@ -1058,6 +1058,74 @@ defmodule Tuist.Runs do
   end
 
   @doc """
+  Fetches flaky runs for a specific test case, grouped by scheme and commit SHA.
+  Returns a list of groups, each containing runs with their failures.
+  """
+  def list_flaky_runs_for_test_case(test_case_id) do
+    # Fetch all flaky test case runs for this test case
+    flaky_runs_query =
+      from(tcr in TestCaseRun,
+        where: tcr.test_case_id == ^test_case_id,
+        where: tcr.is_flaky == true,
+        order_by: [desc: tcr.ran_at],
+        limit: 100
+      )
+
+    flaky_runs = ClickHouseRepo.all(flaky_runs_query)
+
+    if Enum.empty?(flaky_runs) do
+      []
+    else
+      # Fetch failures for all flaky runs
+      run_ids = Enum.map(flaky_runs, & &1.id)
+      failures = fetch_failures_for_runs(run_ids)
+      failures_by_run_id = Enum.group_by(failures, & &1.test_case_run_id)
+
+      # Group runs by scheme + commit_sha
+      flaky_runs
+      |> Enum.group_by(fn run -> {run.scheme, run.git_commit_sha} end)
+      |> Enum.map(fn {{scheme, git_commit_sha}, runs} ->
+        passed_count = Enum.count(runs, fn r -> r.status == "success" end)
+        failed_count = Enum.count(runs, fn r -> r.status == "failure" end)
+        latest_ran_at = runs |> Enum.map(& &1.ran_at) |> Enum.max(NaiveDateTime)
+
+        runs_with_failures =
+          Enum.map(runs, fn run ->
+            run_failures = Map.get(failures_by_run_id, run.id, [])
+            Map.put(run, :failures, run_failures)
+          end)
+
+        %{
+          scheme: scheme,
+          git_commit_sha: git_commit_sha,
+          latest_ran_at: latest_ran_at,
+          passed_count: passed_count,
+          failed_count: failed_count,
+          runs: runs_with_failures
+        }
+      end)
+      |> Enum.sort_by(& &1.latest_ran_at, {:desc, NaiveDateTime})
+    end
+  end
+
+  defp fetch_failures_for_runs([]), do: []
+
+  defp fetch_failures_for_runs(run_ids) do
+    query =
+      from(f in TestCaseFailure,
+        where: f.test_case_run_id in ^run_ids,
+        select: %{
+          test_case_run_id: f.test_case_run_id,
+          message: f.message,
+          path: f.path,
+          line_number: f.line_number
+        }
+      )
+
+    ClickHouseRepo.all(query)
+  end
+
+  @doc """
   Clears stale flaky flags from test cases.
 
   A test case's is_flaky flag is considered stale if there have been no flaky

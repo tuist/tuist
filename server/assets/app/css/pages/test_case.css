@@ -141,6 +141,186 @@
     }
   }
 
+  & [data-part="flaky-runs-card"] {
+    & [data-part="flaky-runs-section"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-5);
+
+      & [data-part="collapsible"] {
+        box-shadow: var(--noora-light-border-default);
+        border-radius: var(--noora-radius-xlarge);
+        overflow: hidden;
+
+        & [data-part="trigger"] {
+          cursor: pointer;
+
+          &[data-state="open"] {
+            & [data-part="closed-collapsible-button"] {
+              display: none;
+            }
+          }
+
+          &[data-state="closed"] {
+            & [data-part="open-collapsible-button"] {
+              display: none;
+            }
+          }
+
+          & [data-part="header"] {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: var(--noora-spacing-4);
+            padding: var(--noora-spacing-6);
+            background: var(--noora-surface-background-primary);
+
+            & [data-part="title-and-subtitle"] {
+              flex: 1;
+
+              & [data-part="title"] {
+                display: flex;
+                flex-direction: row;
+                align-items: center;
+                gap: var(--noora-spacing-2);
+                margin: 0;
+                font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+                color: var(--noora-surface-label-primary);
+
+                & [data-part="scheme"] {
+                  color: var(--noora-surface-label-primary);
+                }
+
+                & [data-part="separator"] {
+                  color: var(--noora-surface-label-tertiary);
+                }
+
+                & [data-part="commit"] {
+                  color: var(--noora-surface-label-secondary);
+                  font-family: var(--noora-font-family-mono);
+                }
+              }
+            }
+
+            & [data-part="stats"] {
+              display: flex;
+              flex-direction: row;
+              align-items: center;
+              gap: var(--noora-spacing-5);
+
+              & [data-part="time-ago"] {
+                color: var(--noora-surface-label-tertiary);
+                font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+              }
+
+              & [data-part="passed-count"] {
+                display: flex;
+                flex-direction: row;
+                align-items: center;
+                gap: var(--noora-spacing-1);
+                color: var(--noora-icon-success-label);
+                font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+
+                & svg {
+                  width: var(--noora-icon-size-small);
+                  height: var(--noora-icon-size-small);
+                }
+              }
+
+              & [data-part="failed-count"] {
+                display: flex;
+                flex-direction: row;
+                align-items: center;
+                gap: var(--noora-spacing-1);
+                color: var(--noora-icon-destructive-label);
+                font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+
+                & svg {
+                  width: var(--noora-icon-size-small);
+                  height: var(--noora-icon-size-small);
+                }
+              }
+            }
+          }
+        }
+
+        & [data-part="content"] {
+          display: flex;
+          flex-direction: column;
+          background: var(--noora-surface-background-primary);
+
+          &[data-state="closed"] {
+            display: none;
+          }
+
+          & [data-part="flaky-run-item"] {
+            display: flex;
+            flex-direction: column;
+            gap: var(--noora-spacing-3);
+            padding: var(--noora-spacing-4) var(--noora-spacing-5);
+            border-top: 1px solid var(--noora-surface-border-secondary);
+
+            & [data-part="run-header"] {
+              display: flex;
+              flex-direction: row;
+              align-items: center;
+              gap: var(--noora-spacing-3);
+
+              & [data-part="run-date"] {
+                color: var(--noora-surface-label-primary);
+                font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+              }
+
+              & [data-part="run-metadata"] {
+                display: flex;
+                flex-direction: row;
+                align-items: center;
+                gap: var(--noora-spacing-5);
+                margin-left: auto;
+
+                & [data-part="commit-info"],
+                & [data-part="branch-info"] {
+                  display: flex;
+                  flex-direction: row;
+                  align-items: center;
+                  gap: var(--noora-spacing-2);
+                  color: var(--noora-surface-label-tertiary);
+                  font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+
+                  & svg {
+                    width: var(--noora-icon-size-small);
+                    height: var(--noora-icon-size-small);
+                  }
+                }
+
+                & [data-part="commit-info"] {
+                  font-family: var(--noora-font-family-mono);
+                }
+              }
+            }
+
+            & [data-part="failure-reason"] {
+              display: flex;
+              flex-direction: column;
+              gap: var(--noora-spacing-2);
+              padding: var(--noora-spacing-4);
+              background: var(--noora-surface-background-secondary);
+              border-radius: var(--noora-radius-medium);
+
+              & [data-part="failure-message"] {
+                color: var(--noora-surface-label-secondary);
+                font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+                font-family: var(--noora-font-family-mono);
+                white-space: pre-wrap;
+                word-break: break-word;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
   & [data-part="test-case-runs-card"] {
     & .noora-dropdown-item:not([data-selected]) svg {
       visibility: hidden;
