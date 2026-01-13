@@ -910,52 +910,104 @@
   </.card>
 
   <.card title={dgettext("dashboard_tests", "Test Cases")} icon="exchange" data-part="test-cases">
-    <.card_section
-      :if={not Enum.empty?(@slowest_test_cases)}
-      data-part="slowest-test-cases-section"
+    <div
+      :if={not Enum.empty?(@slowest_test_cases) or not Enum.empty?(@most_flaky_test_cases)}
+      data-part="test-cases-sections"
     >
-      <div data-part="header">
-        <span data-part="title">{dgettext("dashboard_tests", "Slowest test cases")}</span>
-        <.button
-          variant="secondary"
-          label={dgettext("dashboard_tests", "View more")}
-          size="small"
-          navigate={
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases?sort_by=avg_duration&sort_order=desc"
-          }
-        />
-      </div>
-      <div data-part="slowest-test-cases-list">
-        <div :for={test_case <- Enum.take(@slowest_test_cases, 4)} class="test-case-card">
-          <div data-part="header">
-            <div data-part="icon">
-              <.clock_hour_4 />
-            </div>
-            <div data-part="title-and-subtitle">
-              <h3 data-part="title">{test_case.name}</h3>
-              <span
-                :if={test_case.module_name != "" or test_case.suite_name != ""}
-                data-part="subtitle"
-              >
-                {Enum.join([test_case.module_name, test_case.suite_name], " • ")}
+      <.card_section
+        :if={not Enum.empty?(@slowest_test_cases)}
+        data-part="slowest-test-cases-section"
+      >
+        <div data-part="header">
+          <span data-part="title">{dgettext("dashboard_tests", "Slowest test cases")}</span>
+          <.button
+            variant="secondary"
+            label={dgettext("dashboard_tests", "View more")}
+            size="small"
+            navigate={
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases?sort_by=avg_duration&sort_order=desc"
+            }
+          />
+        </div>
+        <div data-part="slowest-test-cases-list">
+          <div :for={test_case <- Enum.take(@slowest_test_cases, 4)} class="test-case-card">
+            <div data-part="header">
+              <div data-part="icon">
+                <.clock_hour_4 />
+              </div>
+              <div data-part="title-and-subtitle">
+                <h3 data-part="title">{test_case.name}</h3>
+                <span
+                  :if={test_case.module_name != "" or test_case.suite_name != ""}
+                  data-part="subtitle"
+                >
+                  {Enum.join([test_case.module_name, test_case.suite_name], " • ")}
+                </span>
+              </div>
+              <span data-part="duration">
+                <.clock_hour_4 />
+                {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  test_case.avg_duration
+                )}
               </span>
             </div>
-            <span data-part="duration">
-              <.clock_hour_4 />
-              {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                test_case.avg_duration
-              )}
-            </span>
+          </div>
+          <div :if={Enum.count(@slowest_test_cases) > 4} data-part="more-card" data-index="two">
+          </div>
+          <div :if={Enum.count(@slowest_test_cases) > 4} data-part="more-card" data-index="one">
           </div>
         </div>
-        <div :if={Enum.count(@slowest_test_cases) > 4} data-part="more-card" data-index="two">
+      </.card_section>
+      <.card_section
+        :if={not Enum.empty?(@most_flaky_test_cases)}
+        data-part="most-flaky-test-cases-section"
+      >
+        <div data-part="header">
+          <span data-part="title">
+            {dgettext("dashboard_tests", "Most occurring flaky tests")}
+          </span>
+          <.button
+            variant="secondary"
+            label={dgettext("dashboard_tests", "View more")}
+            size="small"
+            navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/flaky-tests"}
+          />
         </div>
-        <div :if={Enum.count(@slowest_test_cases) > 4} data-part="more-card" data-index="one">
+        <div data-part="most-flaky-test-cases-list">
+          <div
+            :for={test_case <- Enum.take(@most_flaky_test_cases, 4)}
+            class="flaky-test-case-card"
+          >
+            <div data-part="header">
+              <div data-part="icon">
+                <.alert_triangle />
+              </div>
+              <div data-part="title-and-subtitle">
+                <h3 data-part="title">{test_case.name}</h3>
+                <span
+                  :if={test_case.module_name != "" or test_case.suite_name != ""}
+                  data-part="subtitle"
+                >
+                  {Enum.join([test_case.module_name, test_case.suite_name], " • ")}
+                </span>
+              </div>
+              <.badge
+                label={to_string(test_case.flaky_runs_count)}
+                color="attention"
+                style="light-fill"
+                size="small"
+              />
+            </div>
+          </div>
+          <div :if={Enum.count(@most_flaky_test_cases) > 4} data-part="more-card" data-index="two">
+          </div>
+          <div :if={Enum.count(@most_flaky_test_cases) > 4} data-part="more-card" data-index="one">
+          </div>
         </div>
-      </div>
-    </.card_section>
+      </.card_section>
+    </div>
     <.empty_card_section
-      :if={Enum.empty?(@slowest_test_cases)}
+      :if={Enum.empty?(@slowest_test_cases) and Enum.empty?(@most_flaky_test_cases)}
       title={dgettext("dashboard_tests", "No test cases yet")}
       get_started_href="https://docs.tuist.dev/en/guides/features/insights#tests"
     >
