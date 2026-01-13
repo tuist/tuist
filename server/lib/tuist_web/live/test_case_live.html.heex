@@ -369,22 +369,20 @@
         }
       >
         <:col :let={test_case_run} label={dgettext("dashboard_tests", "Scheme")}>
-          <.text_and_description_cell label={
-            test_case_run.scheme || dgettext("dashboard_tests", "Unknown")
-          } />
+          <div data-part="scheme-cell" data-flaky={test_case_run.is_flaky}>
+            <.text_and_description_cell label={
+              test_case_run.scheme || dgettext("dashboard_tests", "Unknown")
+            } />
+          </div>
         </:col>
         <:col :let={test_case_run} label={dgettext("dashboard_tests", "Status")}>
-          <%= if test_case_run.is_flaky do %>
-            <.status_badge_cell label={dgettext("dashboard_tests", "Flaky")} status="attention" />
-          <% else %>
-            <%= case test_case_run.status do %>
-              <% "success" -> %>
-                <.status_badge_cell label={dgettext("dashboard_tests", "Passed")} status="success" />
-              <% "failure" -> %>
-                <.status_badge_cell label={dgettext("dashboard_tests", "Failed")} status="error" />
-              <% "skipped" -> %>
-                <.status_badge_cell label={dgettext("dashboard_tests", "Skipped")} status="warning" />
-            <% end %>
+          <%= case test_case_run.status do %>
+            <% "success" -> %>
+              <.status_badge_cell label={dgettext("dashboard_tests", "Passed")} status="success" />
+            <% "failure" -> %>
+              <.status_badge_cell label={dgettext("dashboard_tests", "Failed")} status="error" />
+            <% "skipped" -> %>
+              <.status_badge_cell label={dgettext("dashboard_tests", "Skipped")} status="warning" />
           <% end %>
         </:col>
         <:col :let={test_case_run} label={dgettext("dashboard_tests", "Ran by")}>
