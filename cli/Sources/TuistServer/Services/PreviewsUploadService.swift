@@ -111,13 +111,14 @@
 
             switch previewUploadType {
             case let .ipa(bundle):
+                let buildVersion = resolvedBuildVersion(bundle.infoPlist.buildVersion)
                 let binaryId = try await ipaBinaryId(at: bundle.path)
                 let preview = try await uploadPreview(
                     buildPath: bundle.path,
                     previewType: .ipa,
                     displayName: bundle.infoPlist.name,
                     version: bundle.infoPlist.version,
-                    buildVersion: bundle.infoPlist.buildVersion,
+                    buildVersion: buildVersion,
                     bundleIdentifier: bundle.infoPlist.bundleId,
                     icon: iconPaths(for: previewUploadType).first,
                     supportedPlatforms: bundle.infoPlist.supportedPlatforms,
@@ -139,6 +140,7 @@
                     let bundleArchivePath = try await fileArchiver
                         .makeFileArchiver(for: [bundle.path])
                         .zip(name: bundle.path.basename)
+                    let buildVersion = resolvedBuildVersion(bundle.infoPlist.buildVersion)
                     let binaryId = try appBundleBinaryId(at: bundle.path, name: bundle.infoPlist.name)
 
                     preview = try await uploadPreview(
@@ -146,7 +148,7 @@
                         previewType: .appBundle,
                         displayName: bundle.infoPlist.name,
                         version: bundle.infoPlist.version,
-                        buildVersion: bundle.infoPlist.buildVersion,
+                        buildVersion: buildVersion,
                         bundleIdentifier: bundle.infoPlist.bundleId,
                         icon: iconPaths(for: bundle).first,
                         supportedPlatforms: bundle.infoPlist.supportedPlatforms,
@@ -163,6 +165,17 @@
 
                 return preview
             }
+        }
+
+        private func resolvedBuildVersion(_ buildVersion: String) -> String {
+            let variables = Environment.current.variables
+            if let override = variables["TUIST_PREVIEW_BUILD_VERSION"], !override.isEmpty {
+                return override
+            }
+            if let suffix = variables["TUIST_PREVIEW_BUILD_VERSION_SUFFIX"], !suffix.isEmpty {
+                return "\(buildVersion)-\(suffix)"
+            }
+            return buildVersion
         }
 
         private func uploadPreview(
