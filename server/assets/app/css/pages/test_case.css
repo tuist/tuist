@@ -328,9 +328,10 @@
             & [data-part="repetition-failure"] {
               display: flex;
               flex-direction: column;
+              box-shadow: var(--noora-border-section);
               gap: var(--noora-spacing-2);
               padding: var(--noora-spacing-5);
-              background: var(--noora-surface-background-secondary);
+              background: var(--noora-surface-background-tertiary);
               border-radius: var(--noora-radius-medium);
               color: var(--noora-surface-label-primary);
               font: var(--noora-font-weight-regular) var(--noora-font-code-large);
