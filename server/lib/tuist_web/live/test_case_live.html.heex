@@ -200,16 +200,16 @@
                 </div>
                 <div data-part="stats">
                   <span data-part="time-ago">
-                    {Tuist.Utilities.DateFormatter.from_now(group.latest_ran_at)}
+                    {Timex.from_now(group.latest_ran_at)}
                   </span>
-                  <span data-part="passed-count">
+                  <div data-part="passed-count">
                     <.circle_check />
-                    {group.passed_count}
-                  </span>
-                  <span data-part="failed-count">
+                    <span data-part="label">{group.passed_count}</span>
+                  </div>
+                  <div data-part="failed-count">
                     <.circle_x />
-                    {group.failed_count}
-                  </span>
+                    <span data-part="label">{group.failed_count}</span>
+                  </div>
                 </div>
                 <.neutral_button
                   data-part="closed-collapsible-button"
@@ -228,21 +228,21 @@
               </div>
             </div>
             <div data-part="content" data-state="closed">
-              <%= for run <- group.runs do %>
+              <%= for {run, index} <- Enum.with_index(group.runs) do %>
                 <div data-part="flaky-run-item">
                   <div data-part="run-header">
                     <.badge
                       :if={run.status == "success"}
                       label={dgettext("dashboard_tests", "Passed")}
                       color="success"
-                      style="fill"
+                      style="light-fill"
                       size="small"
                     />
                     <.badge
                       :if={run.status == "failure"}
                       label={dgettext("dashboard_tests", "Failed")}
                       color="destructive"
-                      style="fill"
+                      style="light-fill"
                       size="small"
                     />
                     <span data-part="run-date">
@@ -262,16 +262,45 @@
                       />
                     </div>
                   </div>
-                  <%= if run.status == "failure" and Enum.any?(run.failures) do %>
-                    <div data-part="failure-reason">
-                      <%= for failure <- run.failures do %>
-                        <span data-part="failure-message">
-                          {dgettext("dashboard_tests", "Failure reason:")} {failure.message}
-                        </span>
+                  <%= if Enum.any?(run.repetitions) do %>
+                    <div data-part="repetitions">
+                      <%= for {repetition, rep_index} <- Enum.with_index(run.repetitions) do %>
+                        <div data-part="repetition-item">
+                          <.badge
+                            :if={repetition.status == "success"}
+                            label={dgettext("dashboard_tests", "Passed")}
+                            color="success"
+                            style="light-fill"
+                            size="small"
+                          />
+                          <.badge
+                            :if={repetition.status == "failure"}
+                            label={dgettext("dashboard_tests", "Failed")}
+                            color="destructive"
+                            style="light-fill"
+                            size="small"
+                          />
+                          <span data-part="repetition-name">{repetition.name}</span>
+                        </div>
+                        <%= if repetition.status == "failure" and Enum.any?(run.failures) and Enum.at(run.failures, rep_index) do %>
+                          <% failure = Enum.at(run.failures, rep_index) %>
+                          <span data-part="repetition-failure">
+                              {format_failure_message(failure, %{project: @selected_project, git_commit_sha: run.git_commit_sha})}
+                            </span>
+                        <% end %>
                       <% end %>
                     </div>
+                  <% else %>
+                    <%= if run.status == "failure" and Enum.any?(run.failures) do %>
+                      <%= for failure <- run.failures do %>
+                        <span data-part="repetition-failure">
+                          {format_failure_message(failure, %{project: @selected_project, git_commit_sha: run.git_commit_sha})}
+                        </span>
+                      <% end %>
+                    <% end %>
                   <% end %>
                 </div>
+                <.line_divider :if={index < length(group.runs) - 1} />
               <% end %>
             </div>
           </div>

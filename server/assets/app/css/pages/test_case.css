@@ -192,12 +192,13 @@
                 }
 
                 & [data-part="separator"] {
-                  color: var(--noora-surface-label-tertiary);
+                  color: var(--noora-surface-label-secondary);
+                  font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
                 }
 
                 & [data-part="commit"] {
                   color: var(--noora-surface-label-secondary);
-                  font-family: var(--noora-font-family-mono);
+                  font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
                 }
               }
             }
@@ -209,35 +210,34 @@
               gap: var(--noora-spacing-5);
 
               & [data-part="time-ago"] {
-                color: var(--noora-surface-label-tertiary);
+                color: var(--noora-surface-label-secondary);
                 font: var(--noora-font-weight-regular) var(--noora-font-body-small);
               }
-
-              & [data-part="passed-count"] {
+              & [data-part="passed-count"], & [data-part="failed-count"] {
                 display: flex;
                 flex-direction: row;
                 align-items: center;
-                gap: var(--noora-spacing-1);
-                color: var(--noora-icon-success-label);
-                font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+                gap: var(--noora-spacing-2);
 
                 & svg {
-                  width: var(--noora-icon-size-small);
-                  height: var(--noora-icon-size-small);
+                  width: var(--noora-icon-size-medium);
+                  height: var(--noora-icon-size-medium);
+                }
+                & [data-part="label"] {
+                  color: var(--noora-surface-label-primary);
+                  font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+                }
+              }
+
+              & [data-part="passed-count"] {
+                & svg {
+                  color: var(--noora-font-color-success);
                 }
               }
 
               & [data-part="failed-count"] {
-                display: flex;
-                flex-direction: row;
-                align-items: center;
-                gap: var(--noora-spacing-1);
-                color: var(--noora-icon-destructive-label);
-                font: var(--noora-font-weight-medium) var(--noora-font-body-small);
-
                 & svg {
-                  width: var(--noora-icon-size-small);
-                  height: var(--noora-icon-size-small);
+                  color: var(--noora-surface-label-destructive);
                 }
               }
             }
@@ -256,8 +256,8 @@
           & [data-part="flaky-run-item"] {
             display: flex;
             flex-direction: column;
-            gap: var(--noora-spacing-3);
-            padding: var(--noora-spacing-4) var(--noora-spacing-5);
+            gap: var(--noora-spacing-6);
+            padding: var(--noora-spacing-6) var(--noora-spacing-5);
             border-top: 1px solid var(--noora-surface-border-secondary);
 
             & [data-part="run-header"] {
@@ -265,6 +265,7 @@
               flex-direction: row;
               align-items: center;
               gap: var(--noora-spacing-3);
+              padding: var(--noora-spacing-1) var(--noora-spacing-4);
 
               & [data-part="run-date"] {
                 color: var(--noora-surface-label-primary);
@@ -278,13 +279,12 @@
                 gap: var(--noora-spacing-5);
                 margin-left: auto;
 
-                & [data-part="commit-info"],
                 & [data-part="branch-info"] {
                   display: flex;
                   flex-direction: row;
                   align-items: center;
                   gap: var(--noora-spacing-2);
-                  color: var(--noora-surface-label-tertiary);
+                  color: var(--noora-surface-label-primary);
                   font: var(--noora-font-weight-regular) var(--noora-font-body-small);
 
                   & svg {
@@ -299,21 +299,37 @@
               }
             }
 
-            & [data-part="failure-reason"] {
+            & [data-part="repetitions"] {
+              display: flex;
+              flex-direction: column;
+              gap: var(--noora-spacing-3);
+              padding: var(--noora-spacing-4);
+              box-shadow: var(--noora-light-border-default);
+              border-radius: var(--noora-radius-large);
+
+              & [data-part="repetition-item"] {
+                display: flex;
+                flex-direction: row;
+                align-items: center;
+                gap: var(--noora-spacing-3);
+                padding: var(--noora-spacing-1) var(--noora-spacing-4);
+
+                & [data-part="repetition-name"] {
+                  color: var(--noora-surface-label-primary);
+                  font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+                }
+              }
+            }
+
+            & [data-part="repetition-failure"] {
               display: flex;
               flex-direction: column;
               gap: var(--noora-spacing-2);
-              padding: var(--noora-spacing-4);
+              padding: var(--noora-spacing-5);
               background: var(--noora-surface-background-secondary);
               border-radius: var(--noora-radius-medium);
-
-              & [data-part="failure-message"] {
-                color: var(--noora-surface-label-secondary);
-                font: var(--noora-font-weight-regular) var(--noora-font-body-small);
-                font-family: var(--noora-font-family-mono);
-                white-space: pre-wrap;
-                word-break: break-word;
-              }
+              color: var(--noora-surface-label-primary);
+              font: var(--noora-font-weight-regular) var(--noora-font-code-large);
             }
           }
         }

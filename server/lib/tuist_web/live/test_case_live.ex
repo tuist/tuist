@@ -4,6 +4,7 @@ defmodule TuistWeb.TestCaseLive do
   use Noora
 
   import Noora.Filter
+  import TuistWeb.Helpers.FailureMessage
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter

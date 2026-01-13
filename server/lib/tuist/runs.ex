@@ -1076,23 +1076,49 @@ defmodule Tuist.Runs do
     if Enum.empty?(flaky_runs) do
       []
     else
-      # Fetch failures for all flaky runs
       run_ids = Enum.map(flaky_runs, & &1.id)
+
+      # Fetch failures and repetitions for all flaky runs
       failures = fetch_failures_for_runs(run_ids)
       failures_by_run_id = Enum.group_by(failures, & &1.test_case_run_id)
+
+      repetitions = fetch_repetitions_for_runs(run_ids)
+      repetitions_by_run_id = Enum.group_by(repetitions, & &1.test_case_run_id)
 
       # Group runs by scheme + commit_sha
       flaky_runs
       |> Enum.group_by(fn run -> {run.scheme, run.git_commit_sha} end)
       |> Enum.map(fn {{scheme, git_commit_sha}, runs} ->
-        passed_count = Enum.count(runs, fn r -> r.status == "success" end)
-        failed_count = Enum.count(runs, fn r -> r.status == "failure" end)
         latest_ran_at = runs |> Enum.map(& &1.ran_at) |> Enum.max(NaiveDateTime)
 
-        runs_with_failures =
+        runs_with_details =
           Enum.map(runs, fn run ->
             run_failures = Map.get(failures_by_run_id, run.id, [])
-            Map.put(run, :failures, run_failures)
+
+            run_repetitions =
+              repetitions_by_run_id
+              |> Map.get(run.id, [])
+              |> Enum.sort_by(& &1.repetition_number)
+
+            run
+            |> Map.put(:failures, run_failures)
+            |> Map.put(:repetitions, run_repetitions)
+          end)
+
+        # Count passed/failed from repetitions if available, otherwise from run status
+        {passed_count, failed_count} =
+          Enum.reduce(runs_with_details, {0, 0}, fn run, {passed, failed} ->
+            if Enum.any?(run.repetitions) do
+              rep_passed = Enum.count(run.repetitions, &(&1.status == "success"))
+              rep_failed = Enum.count(run.repetitions, &(&1.status == "failure"))
+              {passed + rep_passed, failed + rep_failed}
+            else
+              case run.status do
+                "success" -> {passed + 1, failed}
+                "failure" -> {passed, failed + 1}
+                _ -> {passed, failed}
+              end
+            end
           end)
 
         %{
@@ -1101,7 +1127,7 @@ defmodule Tuist.Runs do
           latest_ran_at: latest_ran_at,
           passed_count: passed_count,
           failed_count: failed_count,
-          runs: runs_with_failures
+          runs: runs_with_details
         }
       end)
       |> Enum.sort_by(& &1.latest_ran_at, {:desc, NaiveDateTime})
@@ -1118,7 +1144,26 @@ defmodule Tuist.Runs do
           test_case_run_id: f.test_case_run_id,
           message: f.message,
           path: f.path,
-          line_number: f.line_number
+          line_number: f.line_number,
+          issue_type: f.issue_type
+        }
+      )
+
+    ClickHouseRepo.all(query)
+  end
+
+  defp fetch_repetitions_for_runs([]), do: []
+
+  defp fetch_repetitions_for_runs(run_ids) do
+    query =
+      from(r in TestCaseRunRepetition,
+        where: r.test_case_run_id in ^run_ids,
+        select: %{
+          test_case_run_id: r.test_case_run_id,
+          repetition_number: r.repetition_number,
+          name: r.name,
+          status: r.status,
+          duration: r.duration
         }
       )
 
