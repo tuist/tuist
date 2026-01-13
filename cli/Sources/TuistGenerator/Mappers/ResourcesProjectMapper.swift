@@ -244,12 +244,10 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         in project: Project,
         supportsResources: Bool
     ) -> String {
-        let bundleAccessor = if supportsResources {
-            if target.product == .staticFramework {
-                swiftStaticFrameworkBundleAccessorString(for: target, bundleName: bundleName)
-            } else {
-                swiftFrameworkBundleAccessorString(for: target)
-            }
+        let bundleAccessor = if target.product == .staticFramework {
+            swiftStaticFrameworkBundleAccessorString(for: target, bundleName: bundleName)
+        } else if supportsResources {
+            swiftFrameworkBundleAccessorString(for: target)
         } else {
             swiftSPMBundleAccessorString(for: target, and: bundleName)
         }
