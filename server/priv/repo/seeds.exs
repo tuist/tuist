@@ -476,6 +476,7 @@ branches = [
 tests =
   Enum.map(1..1500, fn _ ->
     status = Enum.random(["success", "failure"])
+    is_flaky = status == "success" and Enum.random(1..10) == 1
     is_ci = Enum.random([true, false])
     scheme = Enum.random(["AppTests", "FrameworkTests", "UITests"])
     xcode_version = Enum.random(["12.4", "13.0", "13.2"])
@@ -522,6 +523,7 @@ tests =
       macos_version: macos_version,
       xcode_version: xcode_version,
       is_ci: is_ci,
+      is_flaky: is_flaky,
       model_identifier: model_identifier,
       scheme: scheme,
       status: status,
@@ -615,6 +617,8 @@ test_module_runs =
       module_name = Enum.random(module_names)
       # Inherit status from test run, but sometimes modules can succeed even if test failed
       module_status = if test.status == "success", do: 0, else: Enum.random([0, 0, 1])
+      # Inherit flakiness from test run
+      module_is_flaky = test.is_flaky and module_status == 0
       suite_count = Enum.random(2..5)
       case_count = Enum.random(10..50)
       module_duration = Enum.random(1_000..10_000)
@@ -625,6 +629,7 @@ test_module_runs =
         name: module_name,
         test_run_id: test.id,
         status: module_status,
+        is_flaky: module_is_flaky,
         duration: module_duration,
         test_suite_count: suite_count,
         test_case_count: case_count,
@@ -657,6 +662,9 @@ test_suite_runs =
           Enum.random([0, 0, 1, 2])
         end
 
+      # Inherit flakiness from module run
+      suite_is_flaky = module_run.is_flaky and suite_status == 0
+
       case_count =
         Enum.random(
           max(1, div(module_run.test_case_count, suite_count) - 2)..(div(module_run.test_case_count, suite_count) + 2)
@@ -671,6 +679,7 @@ test_suite_runs =
         test_run_id: test_run.id,
         test_module_run_id: module_run.id,
         status: suite_status,
+        is_flaky: suite_is_flaky,
         duration: suite_duration,
         test_case_count: max(case_count, 1),
         avg_test_case_duration: avg_duration,
@@ -691,11 +700,16 @@ test_case_definitions =
   for module_name <- module_names,
       suite_name <- suite_names,
       test_case_name <- test_case_names do
+    status = Enum.random(["success", "failure", "skipped"])
+    # ~10% of successful test cases are marked as flaky
+    is_flaky = status == "success" and Enum.random(1..10) == 1
+
     %{
       name: test_case_name,
       module_name: module_name,
       suite_name: suite_name,
-      status: Enum.random(["success", "failure", "skipped"]),
+      status: status,
+      is_flaky: is_flaky,
       duration: Enum.random(10..500),
       ran_at: NaiveDateTime.utc_now()
     }
@@ -735,6 +749,9 @@ test_case_runs =
           Enum.random([0, 0, 1, 2])
         end
 
+      # Inherit flakiness from suite run, but only for successful test cases
+      case_is_flaky = suite_run.is_flaky and case_status == 0
+
       case_duration = Enum.random(10..max(10, div(suite_run.duration, max(case_count, 1)) * 2))
 
       %{
@@ -751,6 +768,7 @@ test_case_runs =
         ran_at: test_run.ran_at,
         git_branch: test_run.git_branch,
         status: case_status,
+        is_flaky: case_is_flaky,
         duration: case_duration,
         module_name: test_case.module_name,
         suite_name: test_case.suite_name,

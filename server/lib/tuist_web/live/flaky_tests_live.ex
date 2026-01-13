@@ -44,14 +44,6 @@ defmodule TuistWeb.FlakyTestsLive do
         type: :text,
         operator: :=~,
         value: ""
-      },
-      %Filter.Filter{
-        id: "name",
-        field: "name",
-        display_name: dgettext("dashboard_tests", "Test Case"),
-        type: :text,
-        operator: :=~,
-        value: ""
       }
     ]
   end

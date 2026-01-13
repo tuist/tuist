@@ -473,8 +473,8 @@ defmodule Tuist.Runs do
     has_flaky_tests = has_any_flaky_test_case?(test_modules)
 
     attrs =
-      if has_flaky_tests and Map.get(attrs, :status) != "failure" do
-        Map.put(attrs, :status, "flaky")
+      if has_flaky_tests do
+        Map.put(attrs, :is_flaky, true)
       else
         attrs
       end
@@ -547,6 +547,9 @@ defmodule Tuist.Runs do
             do: 0,
             else: div(Enum.sum(new_durations), length(new_durations))
 
+        current_is_flaky = Map.get(data, :is_flaky, false)
+        existing_is_flaky = Map.get(existing_data, :is_flaky, false)
+
         %{
           id: id,
           name: data.name,
@@ -556,6 +559,7 @@ defmodule Tuist.Runs do
           last_status: data.status,
           last_duration: data.duration,
           last_ran_at: data.ran_at,
+          is_flaky: current_is_flaky or existing_is_flaky,
           inserted_at: now,
           recent_durations: new_durations,
           avg_duration: new_avg
@@ -577,7 +581,7 @@ defmodule Tuist.Runs do
         hints: ["FINAL"],
         where: tc.project_id == ^project_id,
         where: tc.id in ^test_case_ids,
-        select: %{id: tc.id, recent_durations: tc.recent_durations}
+        select: %{id: tc.id, recent_durations: tc.recent_durations, is_flaky: tc.is_flaky}
       )
 
     query
@@ -634,6 +638,7 @@ defmodule Tuist.Runs do
   defp create_test_modules(test, test_modules) do
     Enum.each(test_modules, fn module_attrs ->
       module_id = UUIDv7.generate()
+      module_name = Map.get(module_attrs, :name)
 
       test_suites = Map.get(module_attrs, :test_suites, [])
       test_cases = Map.get(module_attrs, :test_cases, [])
@@ -643,11 +648,19 @@ defmodule Tuist.Runs do
 
       avg_test_case_duration = calculate_avg_test_case_duration(test_cases)
 
+      # Pre-compute all test_case_run statuses and flaky flags (including cross-run flaky detection)
+      test_case_run_data =
+        compute_all_test_case_run_statuses(test, test_cases, module_name)
+
+      # Aggregate is_flaky from test_case_run data
+      module_is_flaky = compute_aggregate_is_flaky(Map.values(test_case_run_data))
+
       module_run_attrs = %{
         id: module_id,
-        name: Map.get(module_attrs, :name),
+        name: module_name,
         test_run_id: test.id,
         status: Map.get(module_attrs, :status),
+        is_flaky: module_is_flaky,
         duration: Map.get(module_attrs, :duration, 0),
         test_suite_count: test_suite_count,
         test_case_count: test_case_count,
@@ -660,19 +673,40 @@ defmodule Tuist.Runs do
         |> TestModuleRun.create_changeset(module_run_attrs)
         |> IngestRepo.insert()
 
-      suite_name_to_id = create_test_suites(test, module_id, test_suites, test_cases)
+      suite_name_to_id = create_test_suites(test, module_id, test_suites, test_cases, test_case_run_data)
 
       create_test_cases_for_module(
         test,
         module_id,
         test_cases,
         suite_name_to_id,
-        Map.get(module_attrs, :name)
+        module_name,
+        test_case_run_data
       )
     end)
   end
 
-  defp create_test_suites(test, module_id, test_suites, test_cases) do
+  defp compute_all_test_case_run_statuses(test, test_cases, module_name) do
+    Enum.reduce(test_cases, %{}, fn case_attrs, acc ->
+      case_name = Map.get(case_attrs, :name)
+      suite_name = Map.get(case_attrs, :test_suite_name, "") || ""
+
+      # Generate deterministic test_case_id
+      test_case_id = generate_test_case_id(test.project_id, case_name, module_name, suite_name)
+
+      # Compute status and is_flaky
+      {status, is_flaky} = compute_test_case_run_status_and_flaky(case_attrs)
+
+      # Check for cross-run flaky (same test case + commit on CI with different status)
+      is_flaky =
+        is_flaky or check_cross_run_flaky(test_case_id, test.git_commit_sha, test.is_ci, status)
+
+      identity_key = {case_name, module_name, suite_name}
+      Map.put(acc, identity_key, %{status: status, is_flaky: is_flaky})
+    end)
+  end
+
+  defp create_test_suites(test, module_id, test_suites, test_cases, test_case_run_data) do
     test_cases_by_suite =
       Enum.group_by(test_cases, fn case_attrs ->
         Map.get(case_attrs, :test_suite_name, "")
@@ -688,12 +722,21 @@ defmodule Tuist.Runs do
 
         avg_test_case_duration = calculate_avg_test_case_duration(suite_test_cases)
 
+        # Get data for test cases in this suite
+        suite_data =
+          test_case_run_data
+          |> Enum.filter(fn {{_name, _module, suite}, _data} -> suite == suite_name end)
+          |> Enum.map(fn {_key, data} -> data end)
+
+        suite_is_flaky = compute_aggregate_is_flaky(suite_data)
+
         suite_run = %{
           id: suite_id,
           name: suite_name,
           test_run_id: test.id,
           test_module_run_id: module_id,
           status: Map.get(suite_attrs, :status),
+          is_flaky: suite_is_flaky,
           duration: Map.get(suite_attrs, :duration, 0),
           test_case_count: test_case_count,
           avg_test_case_duration: avg_test_case_duration,
@@ -708,33 +751,22 @@ defmodule Tuist.Runs do
     suite_name_to_id
   end
 
-  defp create_test_cases_for_module(test, module_id, test_cases, suite_name_to_id, module_name) do
+  defp create_test_cases_for_module(test, module_id, test_cases, suite_name_to_id, module_name, test_case_run_data) do
     # Build test case data with identity and latest run info
     test_case_data_list =
       test_cases
       |> Enum.map(fn case_attrs ->
-        # Compute flaky status: has repetitions with at least one failure but final success
-        repetitions = Map.get(case_attrs, :repetitions, [])
-        original_status = Map.get(case_attrs, :status)
-
-        status =
-          if Enum.any?(repetitions) do
-            has_any_failure = Enum.any?(repetitions, fn rep -> Map.get(rep, :status) == "failure" end)
-
-            if has_any_failure and original_status == "success" do
-              "flaky"
-            else
-              original_status
-            end
-          else
-            original_status
-          end
+        case_name = Map.get(case_attrs, :name)
+        suite_name = Map.get(case_attrs, :test_suite_name, "") || ""
+        identity_key = {case_name, module_name, suite_name}
+        %{status: status, is_flaky: is_flaky} = Map.get(test_case_run_data, identity_key)
 
         %{
-          name: Map.get(case_attrs, :name),
+          name: case_name,
           module_name: module_name,
-          suite_name: Map.get(case_attrs, :test_suite_name, "") || "",
+          suite_name: suite_name,
           status: status,
+          is_flaky: is_flaky,
           duration: Map.get(case_attrs, :duration, 0),
           ran_at: test.ran_at
         }
@@ -746,7 +778,7 @@ defmodule Tuist.Runs do
 
     {test_case_runs, all_failures, all_repetitions} =
       Enum.reduce(test_cases, {[], [], []}, fn case_attrs, {runs_acc, failures_acc, reps_acc} ->
-        suite_name = Map.get(case_attrs, :test_suite_name, "")
+        suite_name = Map.get(case_attrs, :test_suite_name, "") || ""
 
         test_suite_run_id = Map.get(suite_name_to_id, suite_name)
 
@@ -754,27 +786,14 @@ defmodule Tuist.Runs do
 
         # Lookup the test_case_id from our map
         case_name = Map.get(case_attrs, :name)
-        identity_key = {case_name, module_name, suite_name || ""}
+        identity_key = {case_name, module_name, suite_name}
         test_case_id = Map.get(test_case_id_map, identity_key)
 
         # Process repetitions if present
         repetitions = Map.get(case_attrs, :repetitions, [])
 
-        # Determine if test is flaky: has repetitions with at least one failure but final success
-        original_status = Map.get(case_attrs, :status)
-
-        status =
-          if Enum.any?(repetitions) do
-            has_any_failure = Enum.any?(repetitions, fn rep -> Map.get(rep, :status) == "failure" end)
-
-            if has_any_failure and original_status == "success" do
-              "flaky"
-            else
-              original_status
-            end
-          else
-            original_status
-          end
+        # Use pre-computed status and is_flaky
+        %{status: status, is_flaky: is_flaky} = Map.get(test_case_run_data, identity_key)
 
         test_case_run = %{
           id: test_case_run_id,
@@ -789,7 +808,9 @@ defmodule Tuist.Runs do
           account_id: test.account_id,
           ran_at: test.ran_at,
           git_branch: test.git_branch,
+          git_commit_sha: test.git_commit_sha || "",
           status: status,
+          is_flaky: is_flaky,
           duration: Map.get(case_attrs, :duration, 0),
           inserted_at: NaiveDateTime.utc_now(),
           module_name: module_name,
@@ -869,12 +890,10 @@ defmodule Tuist.Runs do
   end
 
   @doc """
-  Lists test cases that have had flaky runs for a project.
-  Groups test_case_runs by test_case_id and counts flaky occurrences.
+  Lists test cases that are marked as flaky for a project.
+  Queries test_cases where is_flaky = true and joins with test_case_runs for aggregated stats.
   """
   def list_flaky_test_cases(project_id, attrs) do
-    two_weeks_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -14, :day)
-
     page = Map.get(attrs, :page, 1)
     page_size = Map.get(attrs, :page_size, 20)
     order_by = attrs |> Map.get(:order_by, [:flaky_runs_count]) |> List.first()
@@ -892,56 +911,65 @@ defmodule Tuist.Runs do
         {:flaky_runs_count, :asc} -> {"flaky_runs_count", "ASC"}
         {:last_flaky_at, :desc} -> {"last_flaky_at", "DESC"}
         {:last_flaky_at, :asc} -> {"last_flaky_at", "ASC"}
-        {:name, :desc} -> {"name", "DESC"}
-        {:name, :asc} -> {"name", "ASC"}
+        {:name, :desc} -> {"tc.name", "DESC"}
+        {:name, :asc} -> {"tc.name", "ASC"}
         _ -> {"flaky_runs_count", "DESC"}
       end
 
     offset = (page - 1) * page_size
 
-    base_where = "project_id = {project_id:Int64} AND status = 'flaky' AND inserted_at >= {two_weeks_ago:DateTime64(6)}"
+    base_where = "tc.project_id = {project_id:Int64} AND tc.is_flaky = true"
 
     where_clause =
       if search_term do
-        "#{base_where} AND name ILIKE {search_term:String}"
+        "#{base_where} AND tc.name ILIKE {search_term:String}"
       else
         base_where
       end
 
     query = """
     SELECT
-      test_case_id as id,
-      name,
-      module_name,
-      suite_name,
-      count(id) as flaky_runs_count,
-      max(inserted_at) as last_flaky_at
-    FROM test_case_runs
+      tc.id,
+      tc.name,
+      tc.module_name,
+      tc.suite_name,
+      coalesce(stats.flaky_runs_count, 0) as flaky_runs_count,
+      stats.last_flaky_at
+    FROM test_cases tc FINAL
+    LEFT JOIN (
+      SELECT
+        test_case_id,
+        count(*) as flaky_runs_count,
+        max(inserted_at) as last_flaky_at
+      FROM test_case_runs
+      WHERE project_id = {project_id:Int64} AND is_flaky = true
+      GROUP BY test_case_id
+    ) stats ON tc.id = stats.test_case_id
     WHERE #{where_clause}
-    GROUP BY test_case_id, name, module_name, suite_name
     ORDER BY #{order_clause} #{order_dir}
     LIMIT {limit:Int64}
     OFFSET {offset:Int64}
     """
 
     count_query = """
-    SELECT count(DISTINCT (test_case_id, name, module_name, suite_name)) as count
-    FROM test_case_runs
-    WHERE #{where_clause}
+    SELECT count(*) as count
+    FROM test_cases FINAL
+    WHERE project_id = {project_id:Int64} AND is_flaky = true
+    #{if search_term, do: "AND name ILIKE {search_term:String}", else: ""}
     """
 
     params =
       if search_term do
-        %{project_id: project_id, two_weeks_ago: two_weeks_ago, limit: page_size, offset: offset, search_term: search_term}
+        %{project_id: project_id, limit: page_size, offset: offset, search_term: search_term}
       else
-        %{project_id: project_id, two_weeks_ago: two_weeks_ago, limit: page_size, offset: offset}
+        %{project_id: project_id, limit: page_size, offset: offset}
       end
 
     count_params =
       if search_term do
-        %{project_id: project_id, two_weeks_ago: two_weeks_ago, search_term: search_term}
+        %{project_id: project_id, search_term: search_term}
       else
-        %{project_id: project_id, two_weeks_ago: two_weeks_ago}
+        %{project_id: project_id}
       end
 
     {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
@@ -976,5 +1004,129 @@ defmodule Tuist.Runs do
     }
 
     {flaky_tests, meta}
+  end
+
+  defp compute_test_case_run_status_and_flaky(case_attrs) do
+    repetitions = Map.get(case_attrs, :repetitions, [])
+    original_status = Map.get(case_attrs, :status)
+
+    if Enum.any?(repetitions) do
+      has_any_failure = Enum.any?(repetitions, fn rep -> Map.get(rep, :status) == "failure" end)
+
+      if has_any_failure and original_status == "success" do
+        # Test is flaky: had failures during repetitions but ultimately passed
+        {original_status, true}
+      else
+        {original_status, false}
+      end
+    else
+      {original_status, false}
+    end
+  end
+
+  defp check_cross_run_flaky(test_case_id, git_commit_sha, is_ci, current_status)
+       when is_ci and not is_nil(test_case_id) and not is_nil(git_commit_sha) and
+              current_status in ["success", "failure"] do
+    query =
+      from(tcr in TestCaseRun,
+        where: tcr.test_case_id == ^test_case_id,
+        where: tcr.git_commit_sha == ^git_commit_sha,
+        where: tcr.is_ci == true,
+        where: tcr.status in ["success", "failure"],
+        select: tcr.status,
+        limit: 1
+      )
+
+    case ClickHouseRepo.one(query) do
+      nil ->
+        false
+
+      existing_status when existing_status != current_status ->
+        true
+
+      _ ->
+        false
+    end
+  end
+
+  defp check_cross_run_flaky(_test_case_id, _git_commit_sha, _is_ci, _current_status) do
+    false
+  end
+
+  defp compute_aggregate_is_flaky(test_case_run_data) do
+    Enum.any?(test_case_run_data, fn %{is_flaky: is_flaky} -> is_flaky end)
+  end
+
+  @doc """
+  Clears stale flaky flags from test cases.
+
+  A test case's is_flaky flag is considered stale if there have been no flaky
+  test case runs for that test case in the last 14 days.
+
+  Returns {:ok, count} where count is the number of test cases that had their
+  is_flaky flag cleared.
+  """
+  def clear_stale_flaky_flags do
+    fourteen_days_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -14, :day)
+
+    # Query to get flaky test cases that have no recent flaky runs
+    query = """
+    SELECT
+      tc.id,
+      tc.name,
+      tc.module_name,
+      tc.suite_name,
+      tc.project_id,
+      tc.last_status,
+      tc.last_duration,
+      tc.last_ran_at,
+      tc.inserted_at,
+      tc.recent_durations,
+      tc.avg_duration
+    FROM test_cases tc FINAL
+    LEFT JOIN (
+      SELECT test_case_id
+      FROM test_case_runs
+      WHERE is_flaky = true AND inserted_at >= {cutoff:DateTime64(6)}
+      GROUP BY test_case_id
+    ) recent_flaky ON tc.id = recent_flaky.test_case_id
+    WHERE tc.is_flaky = true AND recent_flaky.test_case_id IS NULL
+    """
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, %{cutoff: fourteen_days_ago})
+
+    if Enum.empty?(rows) do
+      {:ok, 0}
+    else
+      now = NaiveDateTime.utc_now()
+
+      test_cases_to_update =
+        Enum.map(rows, fn [id, name, module_name, suite_name, project_id, last_status, last_duration, last_ran_at, _inserted_at, recent_durations, avg_duration] ->
+          uuid_string =
+            case id do
+              <<_::128>> = binary_uuid -> Ecto.UUID.load!(binary_uuid)
+              string when is_binary(string) -> string
+            end
+
+          %{
+            id: uuid_string,
+            name: name,
+            module_name: module_name,
+            suite_name: suite_name,
+            project_id: project_id,
+            last_status: last_status,
+            last_duration: last_duration,
+            last_ran_at: last_ran_at,
+            is_flaky: false,
+            inserted_at: now,
+            recent_durations: recent_durations,
+            avg_duration: avg_duration
+          }
+        end)
+
+      IngestRepo.insert_all(TestCase, test_cases_to_update)
+
+      {:ok, length(test_cases_to_update)}
+    end
   end
 end
