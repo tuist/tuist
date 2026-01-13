@@ -11,7 +11,7 @@ import XcodeGraph
 
 private let irrelevantBundleName = ""
 private func supportsResources(for target: Target) -> Bool {
-    target.supportsResources && target.product != .staticFramework
+    target.supportsResources && (target.product != .staticFramework || target.containsResources)
 }
 
 // swiftlint:disable:next type_body_length
@@ -524,6 +524,52 @@ struct ResourcesProjectMapperTests {
                 target: target,
                 in: project,
                 supportsResources: supportsResources(for: target)
+            )
+        #expect(file.path == expectedPath)
+        #expect(file.contents == expectedContents.data(using: .utf8))
+
+        // Then: Targets
+        #expect(gotProject.targets.count == 1)
+        let gotTarget = try #require(gotProject.targets.values.sorted().first)
+        #expect(gotTarget.name == target.name)
+        #expect(gotTarget.product == target.product)
+        #expect(gotTarget.resources.resources == resources)
+        #expect(gotTarget.sources.count == 2)
+        #expect(gotTarget.sources.last?.path == expectedPath)
+        #expect(gotTarget.sources.last?.contentHash != nil)
+        #expect(gotTarget.dependencies.count == 0)
+    }
+
+    @Test
+    func mapWhenStaticFrameworkHasResourcesAndSupportsThem() async throws {
+        // Given
+        let resources: [ResourceFileElement] = [.file(path: "/image.png")]
+        let target = Target.test(product: .staticFramework, sources: ["/Absolute/File.swift"], resources: .init(resources))
+        let project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
+
+        // When
+        let (gotProject, gotSideEffects) = try await subject.map(project: project)
+
+        // Then: Side effects
+        #expect(gotSideEffects.count == 1)
+        let sideEffect = try #require(gotSideEffects.first)
+        guard case let SideEffectDescriptor.file(file) = sideEffect else {
+            Issue.record("Expected file descriptor")
+            return
+        }
+        let expectedPath = project.path
+            .appending(component: Constants.DerivedDirectory.name)
+            .appending(component: Constants.DerivedDirectory.sources)
+            .appending(component: "TuistBundle+\(target.name).swift")
+        let expectedContents = ResourcesProjectMapper
+            .fileContent(
+                targetName: target.name,
+                bundleName: irrelevantBundleName,
+                target: target,
+                in: project,
+                supportsResources: true
             )
         #expect(file.path == expectedPath)
         #expect(file.contents == expectedContents.data(using: .utf8))

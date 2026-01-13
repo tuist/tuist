@@ -38,11 +38,20 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
     // swiftlint:disable:next function_body_length
     public func mapTarget(_ target: Target, project: Project) async throws -> ([Target], [SideEffectDescriptor]) {
         let containsResourcesInBuildableFolders = try await buildableFolderChecker.containsResources(target.buildableFolders)
-        let supportsResources = target.supportsResources && target.product != .staticFramework
+        let containsSynthesizedResourcesInBuildableFolders = containsSynthesizedFilesInBuildableFolders(
+            target: target,
+            project: project
+        )
+        let supportsResources = target.supportsResources && (
+            target.product != .staticFramework
+                || target.containsResources
+                || containsResourcesInBuildableFolders
+                || containsSynthesizedResourcesInBuildableFolders
+        )
         if target.resources.resources.isEmpty, target.coreDataModels.isEmpty,
            !target.sources.contains(where: { $0.path.extension == "metal" }),
            !containsResourcesInBuildableFolders,
-           !containsSynthesizedFilesInBuildableFolders(target: target, project: project)
+           !containsSynthesizedResourcesInBuildableFolders
         { return (
             [target],
             []
@@ -116,6 +125,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
         if case .external = project.type,
            target.sources.containsObjcFiles,
+           !supportsResources,
            target.resources.containsBundleAccessedResources || containsResourcesInBuildableFolders
         {
             let (headerFilePath, headerData) = synthesizedObjcHeaderFile(bundleName: bundleName, target: target, project: project)
@@ -241,7 +251,11 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         supportsResources: Bool
     ) -> String {
         let bundleAccessor = if supportsResources {
-            swiftFrameworkBundleAccessorString(for: target)
+            if target.product == .staticFramework {
+                swiftStaticFrameworkBundleAccessorString(for: target)
+            } else {
+                swiftFrameworkBundleAccessorString(for: target)
+            }
         } else {
             swiftSPMBundleAccessorString(for: target, and: bundleName)
         }
