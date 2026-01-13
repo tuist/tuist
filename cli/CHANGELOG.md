@@ -1,7 +1,15 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.121.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.122.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* restore static framework resources without regressions by [@pepicrft](https://github.com/pepicrft) in [#9081](https://github.com/tuist/tuist/pull/9081)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.122.1...4.122.2
+
+## What's Changed in 4.122.1<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -11,7 +19,7 @@ All notable changes to this project will be documented in this file.
 
 * preserve -enable-upcoming-feature flags in OTHER_SWIFT_FLAGS deduplication by [@fortmarek](https://github.com/fortmarek) in [#9106](https://github.com/tuist/tuist/pull/9106)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.120.0...4.121.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.120.0...4.122.1
 
 ## What's Changed in 4.120.0<!-- RELEASE NOTES START -->
 
