@@ -253,13 +253,6 @@
                         <.git_branch />
                         {run.git_branch}
                       </span>
-                      <.badge
-                        :if={run.is_ci}
-                        label="CI"
-                        color="primary"
-                        style="light-fill"
-                        size="small"
-                      />
                     </div>
                   </div>
                   <%= if Enum.any?(run.repetitions) do %>
