@@ -1326,17 +1326,17 @@ final class GenerateAcceptanceTestAppWithMacBundle: TuistAcceptanceTestCase {
         try await XCTAssertProductWithDestinationContainsResource(
             "App.app",
             destination: "Debug-maccatalyst",
-            resource: "Resources/App_ProjectResourcesFramework.bundle"
+            resource: "Frameworks/ProjectResourcesFramework.framework"
         )
         try await XCTAssertProductWithDestinationContainsResource(
             "App.app",
             destination: "Debug-iphonesimulator",
-            resource: "App_ProjectResourcesFramework.bundle"
+            resource: "Frameworks/ProjectResourcesFramework.framework"
         )
         try await XCTAssertProductWithDestinationContainsResource(
             "App.app",
             destination: "Debug-maccatalyst",
-            resource: "Resources/ResourcesFramework_ResourcesFramework.bundle"
+            resource: "Frameworks/ResourcesFramework.framework"
         )
         try await XCTAssertProductWithDestinationDoesNotContainResource(
             "App.app",
@@ -1364,12 +1364,12 @@ final class GenerateAcceptanceTestAppWithMacBundle: TuistAcceptanceTestCase {
         try await XCTAssertProductWithDestinationContainsResource(
             "App_macOS.app",
             destination: "Debug",
-            resource: "Resources/App_ProjectResourcesFramework.bundle"
+            resource: "Frameworks/ProjectResourcesFramework.framework"
         )
         try await XCTAssertProductWithDestinationContainsResource(
             "App_macOS.app",
             destination: "Debug",
-            resource: "Resources/ResourcesFramework_ResourcesFramework.bundle"
+            resource: "Frameworks/ResourcesFramework.framework"
         )
         try await XCTAssertProductWithDestinationContainsResource(
             "App_macOS.app",

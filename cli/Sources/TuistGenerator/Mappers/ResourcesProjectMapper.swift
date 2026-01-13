@@ -42,13 +42,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             target: target,
             project: project
         )
-        let supportsResources = target.supportsResources && {
-            guard target.product == .staticFramework else { return true }
-            if target.destinations.contains(.mac) { return false }
-            return target.containsResources
-                || containsResourcesInBuildableFolders
-                || containsSynthesizedResourcesInBuildableFolders
-        }()
+        let supportsResources = target.supportsResources
         if target.resources.resources.isEmpty, target.coreDataModels.isEmpty,
            !target.sources.contains(where: { $0.path.extension == "metal" }),
            !containsResourcesInBuildableFolders,
