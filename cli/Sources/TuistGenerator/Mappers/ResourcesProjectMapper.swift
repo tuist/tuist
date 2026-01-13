@@ -278,6 +278,8 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         """
     }
 
+    /// Mirrors SwiftPM's Objective-C resource bundle accessor shape.
+    /// https://github.com/swiftlang/swift-package-manager/blob/main/Sources/Build/BuildDescription/ClangModuleBuildDescription.swift
     static func objcImplementationFileContent(
         targetName: String,
         bundleName: String
@@ -346,6 +348,8 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         """
     }
 
+    /// Mirrors SwiftPM's generated resource bundle accessor with Tuist-specific search paths.
+    /// https://github.com/swiftlang/swift-package-manager/blob/main/Sources/Build/BuildDescription/SwiftModuleBuildDescription.swift
     private static func swiftSPMBundleAccessorString(for target: Target, and bundleName: String) -> String {
         """
         // MARK: - Swift Bundle Accessor - for SPM
@@ -409,6 +413,43 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                 .product
         ), the bundle for classes within this module can be used directly.
             static let module = Bundle(for: BundleFinder.self)
+        }
+        """
+    }
+    /// Adapted from SwiftPM's resource bundle accessor logic to handle static frameworks.
+    /// https://github.com/swiftlang/swift-package-manager/blob/main/Sources/Build/BuildDescription/SwiftModuleBuildDescription.swift
+    private static func swiftStaticFrameworkBundleAccessorString(for target: Target) -> String {
+        """
+        // MARK: - Swift Bundle Accessor for Static Frameworks
+        extension Foundation.Bundle {
+        /// Since \(target.name) is a \(target
+            .product), a cut down framework is embedded, with all the resources but only a stub Mach-O image.
+            static let module: Bundle = {
+                var candidates: [URL?] = [
+                    Bundle.main.privateFrameworksURL,
+                    Bundle.main.bundleURL.appendingPathComponent("Frameworks"),
+                    Bundle.main.bundleURL,
+                    Bundle.main.resourceURL,
+                ]
+
+                // This is a fix to make unit tests work with bundled resources.
+                // Making this change allows unit tests to search one directory up for the framework.
+                // More context can be found in this PR: https://github.com/tuist/tuist/pull/6895
+                #if canImport(XCTest)
+                final class UnitTestBundleFinder {}
+                let bundleFinderResourceURL = Bundle(for: UnitTestBundleFinder.self).resourceURL?.appendingPathComponent("..")
+                candidates.append(bundleFinderResourceURL)
+                #endif
+
+                for candidate in candidates {
+                    let frameworkUrl = candidate?.appendingPathComponent("\(target.productNameWithExtension)")
+                    if let bundle = frameworkUrl.flatMap(Bundle.init(url:)) {
+                        return bundle
+                    }
+                }
+
+                return Bundle.main
+            }()
         }
         """
     }

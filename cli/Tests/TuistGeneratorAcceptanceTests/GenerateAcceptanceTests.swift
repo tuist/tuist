@@ -29,6 +29,26 @@ struct GeneratorAcceptanceTests {
         try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
     }
 
+    @Test(.withFixture("generated_local_spm_dependency_with_assets"), .withMockedLogger())
+    func local_spm_dependency_with_assets() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let workspacePath = fixtureDirectory.appending(component: "TuistSampleProject.xcworkspace")
+
+        // When
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+        try await System.shared.run([
+            "/usr/bin/xcodebuild",
+            "-scheme",
+            "TuistSampleProject",
+            "-workspace",
+            workspacePath.pathString,
+            "-destination",
+            "generic/platform=iOS Simulator",
+            "build",
+        ])
+    }
     @Test(
         .withFixture("generated_framework_with_environment_variables"),
         .withMockedLogger(),
