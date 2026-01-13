@@ -38,4 +38,6 @@
   flex: 1;
 
   padding: var(--noora-spacing-5);
+  min-width: 0;
+  overflow: hidden;
 }
