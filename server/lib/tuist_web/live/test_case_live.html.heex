@@ -246,7 +246,7 @@
                       size="small"
                     />
                     <span data-part="run-date">
-                      {Tuist.Utilities.DateFormatter.format_with_timezone(run.ran_at, @user_timezone)}
+                      {Tuist.Utilities.DateFormatter.format_with_timezone_short(run.ran_at, @user_timezone)}
                     </span>
                     <div data-part="run-metadata">
                       <span :if={run.git_branch not in [nil, ""]} data-part="branch-info">
