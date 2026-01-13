@@ -566,7 +566,7 @@ struct ResourcesProjectMapperTests {
         let expectedContents = ResourcesProjectMapper
             .fileContent(
                 targetName: target.name,
-                bundleName: irrelevantBundleName,
+                bundleName: "\(project.name)_\(target.name)",
                 target: target,
                 in: project,
                 supportsResources: true
@@ -584,6 +584,66 @@ struct ResourcesProjectMapperTests {
         #expect(gotTarget.sources.last?.path == expectedPath)
         #expect(gotTarget.sources.last?.contentHash != nil)
         #expect(gotTarget.dependencies.count == 0)
+    }
+
+    @Test
+    func mapWhenStaticFrameworkHasResourcesOnMacOSGeneratesBundle() async throws {
+        // Given
+        let resources: [ResourceFileElement] = [.file(path: "/image.png")]
+        let target = Target.test(
+            destinations: [.mac],
+            product: .staticFramework,
+            sources: ["/Absolute/File.swift"],
+            resources: .init(resources)
+        )
+        let project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
+
+        // When
+        let (gotProject, gotSideEffects) = try await subject.map(project: project)
+
+        // Then: Side effects
+        #expect(gotSideEffects.count == 1)
+        let sideEffect = try #require(gotSideEffects.first)
+        guard case let SideEffectDescriptor.file(file) = sideEffect else {
+            Issue.record("Expected file descriptor")
+            return
+        }
+        let expectedPath = project.path
+            .appending(component: Constants.DerivedDirectory.name)
+            .appending(component: Constants.DerivedDirectory.sources)
+            .appending(component: "TuistBundle+\(target.name).swift")
+        let expectedContents = ResourcesProjectMapper
+            .fileContent(
+                targetName: target.name,
+                bundleName: "\(project.name)_\(target.name)",
+                target: target,
+                in: project,
+                supportsResources: false
+            )
+        #expect(file.path == expectedPath)
+        #expect(file.contents == expectedContents.data(using: .utf8))
+
+        // Then: Targets
+        #expect(gotProject.targets.count == 2)
+        let gotTarget = try #require(gotProject.targets.values.sorted().last)
+        #expect(gotTarget.name == target.name)
+        #expect(gotTarget.product == target.product)
+        #expect(gotTarget.resources.resources.count == 0)
+        #expect(gotTarget.sources.count == 2)
+        #expect(gotTarget.sources.last?.path == expectedPath)
+        #expect(gotTarget.sources.last?.contentHash != nil)
+        #expect(gotTarget.dependencies.count == 1)
+
+        let resourcesTarget = try #require(gotProject.targets.values.sorted().first)
+        #expect(resourcesTarget.name == "\(project.name)_\(target.name)")
+        #expect(resourcesTarget.product == .bundle)
+        #expect(resourcesTarget.destinations == target.destinations)
+        #expect(resourcesTarget.bundleId == "\(target.bundleId).generated.resources")
+        #expect(resourcesTarget.deploymentTargets == target.deploymentTargets)
+        #expect(resourcesTarget.filesGroup == target.filesGroup)
+        #expect(resourcesTarget.resources.resources == resources)
     }
 
     @Test

@@ -42,12 +42,13 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             target: target,
             project: project
         )
-        let supportsResources = target.supportsResources && (
-            target.product != .staticFramework
-                || target.containsResources
+        let supportsResources = target.supportsResources && {
+            guard target.product == .staticFramework else { return true }
+            if target.destinations.contains(.mac) { return false }
+            return target.containsResources
                 || containsResourcesInBuildableFolders
                 || containsSynthesizedResourcesInBuildableFolders
-        )
+        }()
         if target.resources.resources.isEmpty, target.coreDataModels.isEmpty,
            !target.sources.contains(where: { $0.path.extension == "metal" }),
            !containsResourcesInBuildableFolders,
@@ -252,7 +253,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
     ) -> String {
         let bundleAccessor = if supportsResources {
             if target.product == .staticFramework {
-                swiftStaticFrameworkBundleAccessorString(for: target)
+                swiftStaticFrameworkBundleAccessorString(for: target, bundleName: bundleName)
             } else {
                 swiftFrameworkBundleAccessorString(for: target)
             }
@@ -451,7 +452,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
     /// Adapted from SwiftPM's resource bundle accessor logic to handle static frameworks.
     /// https://github.com/swiftlang/swift-package-manager/blob/main/Sources/Build/BuildDescription/SwiftModuleBuildDescription.swift
-    private static func swiftStaticFrameworkBundleAccessorString(for target: Target) -> String {
+    private static func swiftStaticFrameworkBundleAccessorString(for target: Target, bundleName: String) -> String {
         """
         // MARK: - Swift Bundle Accessor for Static Frameworks
         extension Foundation.Bundle {
@@ -477,6 +478,20 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                 for candidate in candidates {
                     let frameworkUrl = candidate?.appendingPathComponent("\(target.productNameWithExtension)")
                     if let bundle = frameworkUrl.flatMap(Bundle.init(url:)) {
+                        return bundle
+                    }
+                }
+
+                let bundleCandidates: [URL?] = [
+                    Bundle.main.resourceURL,
+                    Bundle.main.bundleURL,
+                    Bundle.main.privateFrameworksURL,
+                    Bundle.main.bundleURL.appendingPathComponent("Frameworks"),
+                ]
+
+                for candidate in bundleCandidates {
+                    let bundlePath = candidate?.appendingPathComponent("\(bundleName).bundle")
+                    if let bundle = bundlePath.flatMap(Bundle.init(url:)) {
                         return bundle
                     }
                 }
