@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.123.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* show deprecation notice for CLI < 4.56.1 by [@cschmatzler](https://github.com/cschmatzler) in [#9110](https://github.com/tuist/tuist/pull/9110)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.122.2...4.123.0
+
 ## What's Changed in 4.122.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
