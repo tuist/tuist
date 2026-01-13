@@ -450,7 +450,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         /// Since \(target.name) is a \(target
             .product), a cut down framework is embedded, with all the resources but only a stub Mach-O image.
             static let module: Bundle = {
-                private class BundleFinder {}
+                class BundleFinder {}
                 let hostBundle = Bundle(for: BundleFinder.self)
                 var candidates: [URL?] = [
                     hostBundle.privateFrameworksURL,
