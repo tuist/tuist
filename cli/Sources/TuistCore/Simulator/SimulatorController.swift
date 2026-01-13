@@ -367,7 +367,7 @@ public final class SimulatorController: SimulatorControlling {
             arch = "x86_64"
         }
         if catalyst {
-            return "platform=macOS,variant=Mac Catalyst"
+            return "platform=macOS,variant=Mac Catalyst,name=Any Mac"
         }
         return "platform=macOS,arch=\(arch)"
     }
