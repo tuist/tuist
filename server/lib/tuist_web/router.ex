@@ -118,6 +118,8 @@ defmodule TuistWeb.Router do
 
   pipeline :non_authenticated_api do
     plug :accepts, ["json"]
+
+    plug TuistWeb.WarningsHeaderPlug
   end
 
   pipeline :api_registry_swift do

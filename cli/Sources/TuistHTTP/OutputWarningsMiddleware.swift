@@ -20,8 +20,8 @@ public enum OutputWarningsMiddlewareError: LocalizedError {
     }
 }
 
-/// A middleware that gets any warning returned in a "x-tuist-cloud-warnings" header
-/// and outputs it to the user.
+/// A middleware that gets any warning returned in a "x-tuist-warnings"
+/// header and outputs it to the user.
 public struct OutputWarningsMiddleware: ClientMiddleware {
     public init() {}
 
@@ -34,7 +34,7 @@ public struct OutputWarningsMiddleware: ClientMiddleware {
     ) async throws -> (HTTPResponse, HTTPBody?) {
         let (response, body) = try await next(request, body, baseURL)
         guard let warnings = response.headerFields.first(where: {
-            $0.name.canonicalName == "x-tuist-cloud-warnings"
+            $0.name.canonicalName == "x-tuist-warnings"
         })?.value
         else {
             return (response, body)

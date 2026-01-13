@@ -1,3 +1,4 @@
+Mimic.copy(Redix)
 Mimic.copy(Appsignal.Span)
 Mimic.copy(Appsignal.Tracer)
 Mimic.copy(Base)
