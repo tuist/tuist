@@ -223,7 +223,9 @@
           />
           <.widget
             title={dgettext("dashboard_tests", "Flaky test cases")}
-            description={dgettext("dashboard_tests", "Number of test cases that passed after retry.")}
+            description={
+              dgettext("dashboard_tests", "Number of test cases that passed after retry.")
+            }
             value={@test_metrics.flaky_count}
             id="widget-flaky-test-cases"
           />
@@ -479,21 +481,24 @@
                   sort_icon(@test_cases_sort_order)
               }
             >
-              <.text_and_description_cell
-                label={test_case.name}
-                description={
-                  case {test_case.module_name, test_case.suite_name} do
-                    {module_name, suite_name} when not is_nil(module_name) and suite_name != "" ->
-                      "#{module_name} • #{suite_name}"
+              <div data-part="name-cell" data-flaky={test_case.is_flaky}>
+                <.text_and_description_cell
+                  label={test_case.name}
+                  description={
+                    case {test_case.module_name, test_case.suite_name} do
+                      {module_name, suite_name}
+                      when not is_nil(module_name) and suite_name != "" ->
+                        "#{module_name} • #{suite_name}"
 
-                    {module_name, _} when not is_nil(module_name) ->
-                      module_name
+                      {module_name, _} when not is_nil(module_name) ->
+                        module_name
 
-                    _ ->
-                      nil
-                  end
-                }
-              />
+                      _ ->
+                        nil
+                    end
+                  }
+                />
+              </div>
             </:col>
             <:col
               :let={test_case}
@@ -517,29 +522,22 @@
               />
             </:col>
             <:col :let={test_case} label="Status">
-              <%= if test_case.is_flaky do %>
-                <.status_badge_cell
-                  label={dgettext("dashboard_tests", "Flaky")}
-                  status="attention"
-                />
-              <% else %>
-                <%= case test_case.status do %>
-                  <% "success" -> %>
-                    <.status_badge_cell
-                      label={dgettext("dashboard_tests", "Passed")}
-                      status="success"
-                    />
-                  <% "failure" -> %>
-                    <.status_badge_cell
-                      label={dgettext("dashboard_tests", "Failed")}
-                      status="error"
-                    />
-                  <% "skipped" -> %>
-                    <.status_badge_cell
-                      label={dgettext("dashboard_tests", "Skipped")}
-                      status="warning"
-                    />
-                <% end %>
+              <%= case test_case.status do %>
+                <% "success" -> %>
+                  <.status_badge_cell
+                    label={dgettext("dashboard_tests", "Passed")}
+                    status="success"
+                  />
+                <% "failure" -> %>
+                  <.status_badge_cell
+                    label={dgettext("dashboard_tests", "Failed")}
+                    status="error"
+                  />
+                <% "skipped" -> %>
+                  <.status_badge_cell
+                    label={dgettext("dashboard_tests", "Skipped")}
+                    status="warning"
+                  />
               <% end %>
             </:col>
             <:empty_state>
@@ -661,7 +659,9 @@
                   sort_icon(@test_suites_sort_order)
               }
             >
-              <.text_and_description_cell label={test_suite.name} />
+              <div data-part="name-cell" data-flaky={test_suite.is_flaky}>
+                <.text_and_description_cell label={test_suite.name} />
+              </div>
             </:col>
             <:col
               :let={test_suite}
@@ -699,29 +699,22 @@
               />
             </:col>
             <:col :let={test_suite} label={dgettext("dashboard_tests", "Status")}>
-              <%= if test_suite.is_flaky do %>
-                <.status_badge_cell
-                  label={dgettext("dashboard_tests", "Flaky")}
-                  status="attention"
-                />
-              <% else %>
-                <%= case test_suite.status do %>
-                  <% "success" -> %>
-                    <.status_badge_cell
-                      label={dgettext("dashboard_tests", "Passed")}
-                      status="success"
-                    />
-                  <% "failure" -> %>
-                    <.status_badge_cell
-                      label={dgettext("dashboard_tests", "Failed")}
-                      status="error"
-                    />
-                  <% "skipped" -> %>
-                    <.status_badge_cell
-                      label={dgettext("dashboard_tests", "Skipped")}
-                      status="warning"
-                    />
-                <% end %>
+              <%= case test_suite.status do %>
+                <% "success" -> %>
+                  <.status_badge_cell
+                    label={dgettext("dashboard_tests", "Passed")}
+                    status="success"
+                  />
+                <% "failure" -> %>
+                  <.status_badge_cell
+                    label={dgettext("dashboard_tests", "Failed")}
+                    status="error"
+                  />
+                <% "skipped" -> %>
+                  <.status_badge_cell
+                    label={dgettext("dashboard_tests", "Skipped")}
+                    status="warning"
+                  />
               <% end %>
             </:col>
             <:col
@@ -875,7 +868,9 @@
                   sort_icon(@test_modules_sort_order)
               }
             >
-              <.text_and_description_cell label={test_module.name} />
+              <div data-part="name-cell" data-flaky={test_module.is_flaky}>
+                <.text_and_description_cell label={test_module.name} />
+              </div>
             </:col>
             <:col
               :let={test_module}
@@ -927,24 +922,17 @@
               />
             </:col>
             <:col :let={test_module} label={dgettext("dashboard_tests", "Status")}>
-              <%= if test_module.is_flaky do %>
-                <.status_badge_cell
-                  label={dgettext("dashboard_tests", "Flaky")}
-                  status="attention"
-                />
-              <% else %>
-                <%= case test_module.status do %>
-                  <% "success" -> %>
-                    <.status_badge_cell
-                      label={dgettext("dashboard_tests", "Passed")}
-                      status="success"
-                    />
-                  <% "failure" -> %>
-                    <.status_badge_cell
-                      label={dgettext("dashboard_tests", "Failed")}
-                      status="error"
-                    />
-                <% end %>
+              <%= case test_module.status do %>
+                <% "success" -> %>
+                  <.status_badge_cell
+                    label={dgettext("dashboard_tests", "Passed")}
+                    status="success"
+                  />
+                <% "failure" -> %>
+                  <.status_badge_cell
+                    label={dgettext("dashboard_tests", "Failed")}
+                    status="error"
+                  />
               <% end %>
             </:col>
             <:col

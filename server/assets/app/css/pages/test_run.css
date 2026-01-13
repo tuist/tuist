@@ -202,6 +202,32 @@
         visibility: hidden;
       }
     }
+
+    & .noora-table {
+      & td {
+        overflow: hidden;
+      }
+
+      & td:has([data-part="name-cell"][data-flaky]) {
+        position: relative;
+
+        &::before {
+          content: "";
+          position: absolute;
+          left: 0;
+          top: 3px;
+          bottom: 2px;
+          width: 6px;
+          background-color: var(--noora-chart-flaky);
+          border-radius: 0;
+        }
+      }
+
+      & [data-part="name-cell"] {
+        display: flex;
+        align-items: center;
+      }
+    }
   }
 
   & [data-part="optimization-summary-section"] {
