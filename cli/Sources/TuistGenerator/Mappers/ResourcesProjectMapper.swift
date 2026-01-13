@@ -416,6 +416,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         }
         """
     }
+
     /// Adapted from SwiftPM's resource bundle accessor logic to handle static frameworks.
     /// https://github.com/swiftlang/swift-package-manager/blob/main/Sources/Build/BuildDescription/SwiftModuleBuildDescription.swift
     private static func swiftStaticFrameworkBundleAccessorString(for target: Target) -> String {

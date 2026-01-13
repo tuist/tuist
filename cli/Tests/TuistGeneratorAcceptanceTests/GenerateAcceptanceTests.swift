@@ -49,6 +49,7 @@ struct GeneratorAcceptanceTests {
             "build",
         ])
     }
+
     @Test(
         .withFixture("generated_framework_with_environment_variables"),
         .withMockedLogger(),

@@ -351,45 +351,10 @@ struct ResourcesProjectMapperTests {
         let (gotProject, _) = try await subject.map(project: project)
 
         // Then
-        let gotTarget = try #require(gotProject.targets.values.sorted().last)
-        #expect(gotTarget.buildableFolders.count == 1)
-        let expectedSourcesFolder = BuildableFolder(
-            path: sharedFolderPath,
-            exceptions: BuildableFolderExceptions(
-                exceptions: [
-                    BuildableFolderException(
-                        excluded: [assetsPath],
-                        compilerFlags: [:],
-                        publicHeaders: [],
-                        privateHeaders: []
-                    ),
-                ]
-            ),
-            resolvedFiles: [
-                BuildableFolderFile(path: swiftFilePath, compilerFlags: nil),
-            ]
-        )
-        #expect(gotTarget.buildableFolders.first == expectedSourcesFolder)
-
-        let resourcesTarget = try #require(gotProject.targets.values.sorted().first)
-        #expect(resourcesTarget.buildableFolders.count == 1)
-        let expectedResourcesFolder = BuildableFolder(
-            path: sharedFolderPath,
-            exceptions: BuildableFolderExceptions(
-                exceptions: [
-                    BuildableFolderException(
-                        excluded: [swiftFilePath],
-                        compilerFlags: [:],
-                        publicHeaders: [],
-                        privateHeaders: []
-                    ),
-                ]
-            ),
-            resolvedFiles: [
-                BuildableFolderFile(path: assetsPath, compilerFlags: nil),
-            ]
-        )
-        #expect(resourcesTarget.buildableFolders.first == expectedResourcesFolder)
+        #expect(gotProject.targets.count == 1)
+        #expect(gotProject.targets.values.first(where: { $0.product == .bundle }) == nil)
+        let gotTarget = try #require(gotProject.targets.values.first)
+        #expect(gotTarget.buildableFolders == [buildableFolder])
     }
 
     @Test
@@ -442,84 +407,10 @@ struct ResourcesProjectMapperTests {
         let (gotProject, _) = try await subject.map(project: project)
 
         // Then
-        let gotTarget = try #require(gotProject.targets.values.sorted().last)
-        #expect(gotTarget.buildableFolders.count == 2)
-
-        let expectedRootSources = BuildableFolder(
-            path: rootPath,
-            exceptions: BuildableFolderExceptions(
-                exceptions: [
-                    BuildableFolderException(
-                        excluded: [assetFolder],
-                        compilerFlags: [:],
-                        publicHeaders: [],
-                        privateHeaders: []
-                    ),
-                ]
-            ),
-            resolvedFiles: [
-                BuildableFolderFile(path: swiftFile, compilerFlags: nil),
-            ]
-        )
-
-        #expect(gotTarget.buildableFolders.contains(expectedRootSources))
-        let expectedSourcesFolderSourcesView = BuildableFolder(
-            path: sourcesPath,
-            exceptions: BuildableFolderExceptions(
-                exceptions: [
-                    BuildableFolderException(
-                        excluded: [assetFolder],
-                        compilerFlags: [:],
-                        publicHeaders: [],
-                        privateHeaders: []
-                    ),
-                ]
-            ),
-            resolvedFiles: [
-                BuildableFolderFile(path: swiftFile, compilerFlags: nil),
-            ]
-        )
-        #expect(gotTarget.buildableFolders.contains(expectedSourcesFolderSourcesView))
-
-        let resourcesTarget = try #require(gotProject.targets.values.sorted().first)
-        #expect(resourcesTarget.buildableFolders.count == 3)
-
-        let expectedRootResources = BuildableFolder(
-            path: rootPath,
-            exceptions: BuildableFolderExceptions(
-                exceptions: [
-                    BuildableFolderException(
-                        excluded: [swiftFile],
-                        compilerFlags: [:],
-                        publicHeaders: [],
-                        privateHeaders: []
-                    ),
-                ]
-            ),
-            resolvedFiles: [
-                BuildableFolderFile(path: assetFolder, compilerFlags: nil),
-            ]
-        )
-
-        #expect(resourcesTarget.buildableFolders.contains(expectedRootResources))
-        let expectedSourcesFolderResourcesView = BuildableFolder(
-            path: sourcesPath,
-            exceptions: BuildableFolderExceptions(
-                exceptions: [
-                    BuildableFolderException(
-                        excluded: [swiftFile],
-                        compilerFlags: [:],
-                        publicHeaders: [],
-                        privateHeaders: []
-                    ),
-                ]
-            ),
-            resolvedFiles: [
-                BuildableFolderFile(path: assetFolder, compilerFlags: nil),
-            ]
-        )
-        #expect(resourcesTarget.buildableFolders.contains(expectedSourcesFolderResourcesView))
-        #expect(resourcesTarget.buildableFolders.contains(buildableFolders[2]))
+        #expect(gotProject.targets.count == 1)
+        #expect(gotProject.targets.values.first(where: { $0.product == .bundle }) == nil)
+        let gotTarget = try #require(gotProject.targets.values.first)
+        #expect(gotTarget.buildableFolders == buildableFolders)
     }
 
     @Test
