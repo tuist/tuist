@@ -38,6 +38,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
     // swiftlint:disable:next function_body_length
     public func mapTarget(_ target: Target, project: Project) async throws -> ([Target], [SideEffectDescriptor]) {
         let containsResourcesInBuildableFolders = try await buildableFolderChecker.containsResources(target.buildableFolders)
+        let supportsResources = target.supportsResources && target.product != .staticFramework
         if target.resources.resources.isEmpty, target.coreDataModels.isEmpty,
            !target.sources.contains(where: { $0.path.extension == "metal" }),
            !containsResourcesInBuildableFolders,
@@ -54,7 +55,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         let bundleName = "\(project.name)_\(sanitizedTargetName)"
         var modifiedTarget = target
 
-        if !target.supportsResources {
+        if !supportsResources {
             let (resourceBuildableFolders, remainingBuildableFolders) = partitionBuildableFoldersForResources(
                 target.buildableFolders
             )
@@ -99,7 +100,12 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
         let containSourcesInBuildableFolders = try await buildableFolderChecker.containsSources(target.buildableFolders)
         if target.sources.containsSwiftFiles || containSourcesInBuildableFolders {
-            let (filePath, data) = synthesizedSwiftFile(bundleName: bundleName, target: target, project: project)
+            let (filePath, data) = synthesizedSwiftFile(
+                bundleName: bundleName,
+                target: target,
+                project: project,
+                supportsResources: supportsResources
+            )
 
             let hash = try data.map(contentHasher.hash)
             let sourceFile = SourceFile(path: filePath, contentHash: hash)
@@ -157,7 +163,12 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         })
     }
 
-    private func synthesizedSwiftFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, Data?) {
+    private func synthesizedSwiftFile(
+        bundleName: String,
+        target: Target,
+        project: Project,
+        supportsResources: Bool
+    ) -> (AbsolutePath, Data?) {
         let filePath = project.derivedDirectoryPath(for: target)
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "TuistBundle+\(target.name.toValidSwiftIdentifier()).swift")
@@ -166,7 +177,8 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             targetName: target.name,
             bundleName: bundleName,
             target: target,
-            in: project
+            in: project,
+            supportsResources: supportsResources
         )
         return (filePath, content.data(using: .utf8))
     }
@@ -221,8 +233,14 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
     }
 
     // swiftlint:disable:next function_body_length
-    static func fileContent(targetName _: String, bundleName: String, target: Target, in project: Project) -> String {
-        let bundleAccessor = if target.supportsResources {
+    static func fileContent(
+        targetName _: String,
+        bundleName: String,
+        target: Target,
+        in project: Project,
+        supportsResources: Bool
+    ) -> String {
+        let bundleAccessor = if supportsResources {
             swiftFrameworkBundleAccessorString(for: target)
         } else {
             swiftSPMBundleAccessorString(for: target, and: bundleName)
