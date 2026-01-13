@@ -2436,8 +2436,9 @@ defmodule Tuist.RunsTest do
       # When
       {:ok, test} = Runs.create_test(test_attrs)
 
-      # Then - test run status should be flaky
-      assert test.status == "flaky"
+      # Then - test run should be marked as flaky with original status preserved
+      assert test.status == "success"
+      assert test.is_flaky == true
 
       {test_cases, _meta} =
         Runs.list_test_case_runs(%{
@@ -2447,7 +2448,8 @@ defmodule Tuist.RunsTest do
       assert length(test_cases) == 1
       flaky_case = hd(test_cases)
       assert flaky_case.name == "testFlakyExample"
-      assert flaky_case.status == "flaky"
+      assert flaky_case.status == "success"
+      assert flaky_case.is_flaky == true
     end
 
     test "keeps test case as success when all repetitions pass" do
@@ -2635,7 +2637,7 @@ defmodule Tuist.RunsTest do
   end
 
   describe "list_test_case_runs/1 with flaky filter" do
-    test "filters by flaky status" do
+    test "filters by is_flaky" do
       # Given
       {:ok, test} =
         RunsFixtures.test_fixture(
@@ -2666,13 +2668,14 @@ defmodule Tuist.RunsTest do
         Runs.list_test_case_runs(%{
           filters: [
             %{field: :test_run_id, op: :==, value: test.id},
-            %{field: :status, op: :==, value: "flaky"}
+            %{field: :is_flaky, op: :==, value: true}
           ]
         })
 
       # Then
       assert length(test_cases) == 1
       assert hd(test_cases).name == "flakyTest"
+      assert hd(test_cases).is_flaky == true
     end
   end
 end

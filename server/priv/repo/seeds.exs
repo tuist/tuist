@@ -19,6 +19,8 @@ alias Tuist.QA.Run
 alias Tuist.Repo
 alias Tuist.Runs.Build
 alias Tuist.Runs.Test
+alias Tuist.Runs.TestModuleRun
+alias Tuist.Runs.TestSuiteRun
 alias Tuist.Slack.Installation
 
 # Stubs
@@ -476,7 +478,6 @@ branches = [
 tests =
   Enum.map(1..1500, fn _ ->
     status = Enum.random(["success", "failure"])
-    is_flaky = status == "success" and Enum.random(1..10) == 1
     is_ci = Enum.random([true, false])
     scheme = Enum.random(["AppTests", "FrameworkTests", "UITests"])
     xcode_version = Enum.random(["12.4", "13.0", "13.2"])
@@ -523,7 +524,7 @@ tests =
       macos_version: macos_version,
       xcode_version: xcode_version,
       is_ci: is_ci,
-      is_flaky: is_flaky,
+      is_flaky: false,
       model_identifier: model_identifier,
       scheme: scheme,
       status: status,
@@ -617,8 +618,6 @@ test_module_runs =
       module_name = Enum.random(module_names)
       # Inherit status from test run, but sometimes modules can succeed even if test failed
       module_status = if test.status == "success", do: 0, else: Enum.random([0, 0, 1])
-      # Inherit flakiness from test run
-      module_is_flaky = test.is_flaky and module_status == 0
       suite_count = Enum.random(2..5)
       case_count = Enum.random(10..50)
       module_duration = Enum.random(1_000..10_000)
@@ -629,7 +628,7 @@ test_module_runs =
         name: module_name,
         test_run_id: test.id,
         status: module_status,
-        is_flaky: module_is_flaky,
+        is_flaky: false,
         duration: module_duration,
         test_suite_count: suite_count,
         test_case_count: case_count,
@@ -642,7 +641,7 @@ test_module_runs =
 test_module_runs
 |> Enum.chunk_every(1000)
 |> Enum.each(fn chunk ->
-  IngestRepo.insert_all(Tuist.Runs.TestModuleRun, chunk)
+  IngestRepo.insert_all(TestModuleRun, chunk)
 end)
 
 # Generate test suite runs
@@ -662,9 +661,6 @@ test_suite_runs =
           Enum.random([0, 0, 1, 2])
         end
 
-      # Inherit flakiness from module run
-      suite_is_flaky = module_run.is_flaky and suite_status == 0
-
       case_count =
         Enum.random(
           max(1, div(module_run.test_case_count, suite_count) - 2)..(div(module_run.test_case_count, suite_count) + 2)
@@ -679,7 +675,7 @@ test_suite_runs =
         test_run_id: test_run.id,
         test_module_run_id: module_run.id,
         status: suite_status,
-        is_flaky: suite_is_flaky,
+        is_flaky: false,
         duration: suite_duration,
         test_case_count: max(case_count, 1),
         avg_test_case_duration: avg_duration,
@@ -691,7 +687,7 @@ test_suite_runs =
 test_suite_runs
 |> Enum.chunk_every(1000)
 |> Enum.each(fn chunk ->
-  IngestRepo.insert_all(Tuist.Runs.TestSuiteRun, chunk)
+  IngestRepo.insert_all(TestSuiteRun, chunk)
 end)
 
 # Create test cases first with all unique combinations of (module_name, suite_name, test_case_name)
@@ -700,16 +696,12 @@ test_case_definitions =
   for module_name <- module_names,
       suite_name <- suite_names,
       test_case_name <- test_case_names do
-    status = Enum.random(["success", "failure", "skipped"])
-    # ~10% of successful test cases are marked as flaky
-    is_flaky = status == "success" and Enum.random(1..10) == 1
-
     %{
       name: test_case_name,
       module_name: module_name,
       suite_name: suite_name,
-      status: status,
-      is_flaky: is_flaky,
+      status: Enum.random(["success", "failure", "skipped"]),
+      is_flaky: false,
       duration: Enum.random(10..500),
       ran_at: NaiveDateTime.utc_now()
     }
@@ -724,6 +716,7 @@ test_cases_with_ids =
   end)
 
 # Generate test case runs by selecting from existing test cases
+# A test is flaky when it has multiple iterations within the SAME test run with alternating pass/fail
 test_case_runs =
   Enum.flat_map(test_suite_runs, fn suite_run ->
     case_count = suite_run.test_case_count
@@ -737,51 +730,179 @@ test_case_runs =
       end)
 
     # If no exact match, use all test cases (fallback)
-    available_test_cases = if Enum.empty?(matching_test_cases), do: test_cases_with_ids, else: matching_test_cases
+    available_test_cases =
+      if Enum.empty?(matching_test_cases), do: test_cases_with_ids, else: matching_test_cases
 
-    Enum.map(1..case_count, fn _ ->
+    Enum.flat_map(1..case_count, fn _ ->
       test_case = Enum.random(available_test_cases)
-
-      case_status =
-        if suite_run.status == 0 do
-          Enum.random([0, 0, 0, 0, 0, 0, 0, 0, 1, 2])
-        else
-          Enum.random([0, 0, 1, 2])
-        end
-
-      # Inherit flakiness from suite run, but only for successful test cases
-      case_is_flaky = suite_run.is_flaky and case_status == 0
-
       case_duration = Enum.random(10..max(10, div(suite_run.duration, max(case_count, 1)) * 2))
 
-      %{
-        id: UUIDv7.generate(),
-        name: test_case.name,
-        test_run_id: suite_run.test_run_id,
-        test_module_run_id: suite_run.test_module_run_id,
-        test_suite_run_id: suite_run.id,
-        test_case_id: test_case.id,
-        project_id: test_run.project_id,
-        is_ci: test_run.is_ci,
-        scheme: test_run.scheme,
-        account_id: test_run.account_id,
-        ran_at: test_run.ran_at,
-        git_branch: test_run.git_branch,
-        status: case_status,
-        is_flaky: case_is_flaky,
-        duration: case_duration,
-        module_name: test_case.module_name,
-        suite_name: test_case.suite_name,
-        inserted_at: suite_run.inserted_at
-      }
+      # ~5% chance this test case is flaky within this run (has multiple iterations with alternating results)
+      is_flaky_in_this_run = Enum.random(1..20) == 1
+
+      if is_flaky_in_this_run do
+        # Generate 2-4 iterations with alternating pass/fail, ending in success (flaky but passed)
+        iteration_count = Enum.random(2..4)
+
+        Enum.map(1..iteration_count, fn iteration ->
+          # Alternate between fail and pass, with last iteration being success
+          iteration_status = if iteration == iteration_count, do: 0, else: rem(iteration, 2)
+
+          %{
+            id: UUIDv7.generate(),
+            name: test_case.name,
+            test_run_id: suite_run.test_run_id,
+            test_module_run_id: suite_run.test_module_run_id,
+            test_suite_run_id: suite_run.id,
+            test_case_id: test_case.id,
+            project_id: test_run.project_id,
+            is_ci: test_run.is_ci,
+            scheme: test_run.scheme,
+            account_id: test_run.account_id,
+            ran_at: test_run.ran_at,
+            git_branch: test_run.git_branch,
+            git_commit_sha: test_run.git_commit_sha,
+            status: iteration_status,
+            # Mark as flaky since this is a retry scenario
+            is_flaky: true,
+            duration: case_duration,
+            module_name: test_case.module_name,
+            suite_name: test_case.suite_name,
+            inserted_at: suite_run.inserted_at
+          }
+        end)
+      else
+        # Normal single run
+        case_status =
+          if suite_run.status == 0 do
+            Enum.random([0, 0, 0, 0, 0, 0, 0, 0, 1, 2])
+          else
+            Enum.random([0, 0, 1, 2])
+          end
+
+        [
+          %{
+            id: UUIDv7.generate(),
+            name: test_case.name,
+            test_run_id: suite_run.test_run_id,
+            test_module_run_id: suite_run.test_module_run_id,
+            test_suite_run_id: suite_run.id,
+            test_case_id: test_case.id,
+            project_id: test_run.project_id,
+            is_ci: test_run.is_ci,
+            scheme: test_run.scheme,
+            account_id: test_run.account_id,
+            ran_at: test_run.ran_at,
+            git_branch: test_run.git_branch,
+            git_commit_sha: test_run.git_commit_sha,
+            status: case_status,
+            is_flaky: false,
+            duration: case_duration,
+            module_name: test_case.module_name,
+            suite_name: test_case.suite_name,
+            inserted_at: suite_run.inserted_at
+          }
+        ]
+      end
     end)
   end)
+
+# Identify flaky test_case_ids: those with multiple iterations (alternating results) within the same test_run
+flaky_test_case_ids =
+  test_case_runs
+  |> Enum.filter(& &1.is_flaky)
+  |> Enum.map(& &1.test_case_id)
+  |> Enum.uniq()
+  |> MapSet.new()
 
 test_case_runs
 |> Enum.chunk_every(1000)
 |> Enum.each(fn chunk ->
   IngestRepo.insert_all(Tuist.Runs.TestCaseRun, chunk)
 end)
+
+# Update test_cases to mark flaky ones (re-insert with is_flaky = true for ClickHouse)
+if MapSet.size(flaky_test_case_ids) > 0 do
+  now = NaiveDateTime.utc_now()
+
+  flaky_test_case_updates =
+    Enum.map(flaky_test_case_ids, fn test_case_id ->
+      test_case = Enum.find(test_cases_with_ids, &(&1.id == test_case_id))
+
+      %{
+        id: test_case_id,
+        name: test_case.name,
+        module_name: test_case.module_name,
+        suite_name: test_case.suite_name,
+        project_id: tuist_project.id,
+        last_status: "success",
+        last_duration: Enum.random(10..500),
+        last_ran_at: now,
+        is_flaky: true,
+        inserted_at: now,
+        recent_durations: [],
+        avg_duration: 0
+      }
+    end)
+
+  IngestRepo.insert_all(Tuist.Runs.TestCase, flaky_test_case_updates)
+
+  # Also update test_suite_runs, test_module_runs, and tests to reflect flakiness
+  flaky_case_runs = Enum.filter(test_case_runs, & &1.is_flaky)
+
+  # Find suite_run_ids that contain flaky test_case_runs
+  flaky_suite_run_ids =
+    flaky_case_runs
+    |> Enum.map(& &1.test_suite_run_id)
+    |> Enum.uniq()
+    |> MapSet.new()
+
+  flaky_suite_run_updates =
+    test_suite_runs
+    |> Enum.filter(fn sr -> MapSet.member?(flaky_suite_run_ids, sr.id) end)
+    |> Enum.map(fn sr -> %{sr | is_flaky: true} end)
+
+  if length(flaky_suite_run_updates) > 0 do
+    IngestRepo.insert_all(TestSuiteRun, flaky_suite_run_updates)
+  end
+
+  # Find module_run_ids that contain flaky test_suite_runs
+  flaky_module_run_ids =
+    flaky_suite_run_updates
+    |> Enum.map(& &1.test_module_run_id)
+    |> Enum.uniq()
+    |> MapSet.new()
+
+  flaky_module_run_updates =
+    test_module_runs
+    |> Enum.filter(fn mr -> MapSet.member?(flaky_module_run_ids, mr.id) end)
+    |> Enum.map(fn mr -> %{mr | is_flaky: true} end)
+
+  if length(flaky_module_run_updates) > 0 do
+    IngestRepo.insert_all(TestModuleRun, flaky_module_run_updates)
+  end
+
+  # Find test_run_ids that contain flaky test_module_runs
+  flaky_test_run_ids =
+    flaky_module_run_updates
+    |> Enum.map(& &1.test_run_id)
+    |> Enum.uniq()
+    |> MapSet.new()
+
+  flaky_test_updates =
+    tests
+    |> Enum.filter(fn t -> MapSet.member?(flaky_test_run_ids, t.id) end)
+    |> Enum.map(fn t -> %{t | is_flaky: true} end)
+
+  if length(flaky_test_updates) > 0 do
+    IngestRepo.insert_all(Test, flaky_test_updates)
+  end
+
+  IO.puts("Marked #{MapSet.size(flaky_test_case_ids)} test cases as flaky based on actual run data")
+  IO.puts("  - #{length(flaky_suite_run_updates)} suite runs")
+  IO.puts("  - #{length(flaky_module_run_updates)} module runs")
+  IO.puts("  - #{length(flaky_test_updates)} test runs")
+end
 
 # Generate test case failures for failed test cases
 test_case_failures =

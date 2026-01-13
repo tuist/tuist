@@ -246,11 +246,11 @@ defmodule TuistWeb.TestsLive do
     recent_test_runs_chart_data =
       Enum.map(recent_test_runs, fn run ->
         color =
-          case run.status do
-            "success" -> "var:noora-chart-primary"
-            "failure" -> "var:noora-chart-destructive"
-            "skipped" -> "var:noora-chart-warning"
-            "flaky" -> "var:noora-chart-flaky"
+          cond do
+            run.status == "success" -> "var:noora-chart-primary"
+            run.status == "failure" -> "var:noora-chart-destructive"
+            run.status == "skipped" -> "var:noora-chart-warning"
+            true -> "var:noora-chart-primary"
           end
 
         value = (run.duration / 1000) |> Decimal.from_float() |> Decimal.round(0)
@@ -259,14 +259,12 @@ defmodule TuistWeb.TestsLive do
       end)
 
     failed_test_runs_count = Enum.count(recent_test_runs, fn run -> run.status == "failure" end)
-    flaky_test_runs_count = Enum.count(recent_test_runs, fn run -> run.status == "flaky" end)
     passed_test_runs_count = Enum.count(recent_test_runs, fn run -> run.status == "success" end)
 
     socket
     |> assign(:recent_test_runs, recent_test_runs)
     |> assign(:recent_test_runs_chart_data, recent_test_runs_chart_data)
     |> assign(:failed_test_runs_count, failed_test_runs_count)
-    |> assign(:flaky_test_runs_count, flaky_test_runs_count)
     |> assign(:passed_test_runs_count, passed_test_runs_count)
   end
 

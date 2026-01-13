@@ -659,7 +659,7 @@ defmodule TuistWeb.API.RunsController do
                            status: %Schema{
                              type: :string,
                              description: "The status of the test case.",
-                             enum: ["success", "failure", "skipped", "flaky"]
+                             enum: ["success", "failure", "skipped"]
                            },
                            duration: %Schema{
                              type: :integer,

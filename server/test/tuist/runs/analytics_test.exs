@@ -2250,7 +2250,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           account_id: project.account_id,
           git_ref: "refs/heads/main",
           git_commit_sha: "abc123",
-          status: "success",
+          status: 0,
+          is_flaky: false,
           scheme: "TestScheme",
           duration: 1000,
           macos_version: "14.0",
@@ -2270,7 +2271,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testOne",
-          status: "success",
+          status: 0,
+          is_flaky: false,
           duration: 100,
           inserted_at: ~N[2024-04-30 10:00:00.000000]
         },
@@ -2281,7 +2283,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testTwo",
-          status: "failure",
+          status: 1,
+          is_flaky: false,
           duration: 200,
           inserted_at: ~N[2024-04-30 10:00:00.000000]
         },
@@ -2292,7 +2295,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testThree",
-          status: "success",
+          status: 0,
+          is_flaky: false,
           duration: 300,
           inserted_at: ~N[2024-04-30 10:00:00.000000]
         }
@@ -2319,7 +2323,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           account_id: project.account_id,
           git_ref: "refs/heads/main",
           git_commit_sha: "abc123",
-          status: "success",
+          status: 0,
+          is_flaky: false,
           scheme: "TestScheme",
           duration: 1000,
           macos_version: "14.0",
@@ -2339,7 +2344,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testSuccess",
-          status: "success",
+          status: 0,
+          is_flaky: false,
           duration: 100,
           inserted_at: ~N[2024-04-30 10:00:00.000000]
         },
@@ -2350,7 +2356,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testFlaky",
-          status: "flaky",
+          status: 0,
+          is_flaky: true,
           duration: 200,
           inserted_at: ~N[2024-04-30 10:00:00.000000]
         },
@@ -2361,7 +2368,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testFailure",
-          status: "failure",
+          status: 1,
+          is_flaky: false,
           duration: 300,
           inserted_at: ~N[2024-04-30 10:00:00.000000]
         },
@@ -2372,7 +2380,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           module_name: "MyTests",
           suite_name: "TestSuite",
           name: "testAnotherFlaky",
-          status: "flaky",
+          status: 0,
+          is_flaky: true,
           duration: 150,
           inserted_at: ~N[2024-04-30 10:00:00.000000]
         }
@@ -2399,7 +2408,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           account_id: project.account_id,
           git_ref: "refs/heads/main",
           git_commit_sha: "abc123",
-          status: "success",
+          status: 0,
+          is_flaky: false,
           scheme: "TestScheme",
           duration: 1000,
           macos_version: "14.0",
@@ -2433,7 +2443,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           account_id: project.account_id,
           git_ref: "refs/heads/main",
           git_commit_sha: "abc123",
-          status: "success",
+          status: 0,
+          is_flaky: false,
           scheme: "TestScheme",
           duration: 1000,
           macos_version: "14.0",
@@ -2450,7 +2461,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           account_id: project.account_id,
           git_ref: "refs/heads/main",
           git_commit_sha: "def456",
-          status: "failure",
+          status: 1,
+          is_flaky: false,
           scheme: "AnotherScheme",
           duration: 2000,
           macos_version: "14.0",
@@ -2473,6 +2485,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testOne",
           status: 0,
+          is_flaky: false,
           duration: 50,
           inserted_at: ~N[2024-04-30 10:00:00.000000]
         },
@@ -2484,6 +2497,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testSuccess",
           status: 0,
+          is_flaky: false,
           duration: 100,
           inserted_at: ~N[2024-04-30 11:00:00.000000]
         },
@@ -2495,6 +2509,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testFailure",
           status: 1,
+          is_flaky: false,
           duration: 200,
           inserted_at: ~N[2024-04-30 11:00:00.000000]
         },
@@ -2506,6 +2521,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testAnother",
           status: 0,
+          is_flaky: false,
           duration: 150,
           inserted_at: ~N[2024-04-30 11:00:00.000000]
         }
@@ -2585,7 +2601,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           account_id: project.account_id,
           git_ref: "refs/heads/main",
           git_commit_sha: "abc123",
-          status: "success",
+          status: 0,
+          is_flaky: false,
           scheme: "TestScheme",
           duration: 1000,
           macos_version: "14.0",
@@ -2605,6 +2622,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testOne",
           status: 0,
+          is_flaky: false,
           duration: 100,
           inserted_at: ~N[2024-04-30 10:00:00.000000]
         }
@@ -2642,7 +2660,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           account_id: project.account_id,
           git_ref: "refs/heads/main",
           git_commit_sha: "abc123",
-          status: "success",
+          status: 0,
+          is_flaky: false,
           scheme: "TestScheme",
           duration: 1000,
           macos_version: "14.0",
@@ -2665,6 +2684,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testOne",
           status: 0,
+          is_flaky: false,
           duration: 100,
           inserted_at: ~N[2024-04-30 10:00:00.000000]
         },
@@ -2678,6 +2698,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testTwo",
           status: 0,
+          is_flaky: false,
           duration: 200,
           inserted_at: ~N[2024-04-30 10:00:00.000000]
         },
@@ -2691,6 +2712,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testThree",
           status: 0,
+          is_flaky: false,
           duration: 300,
           inserted_at: ~N[2024-04-29 10:00:00.000000]
         }
@@ -2721,7 +2743,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           account_id: project.account_id,
           git_ref: "refs/heads/main",
           git_commit_sha: "abc123",
-          status: "success",
+          status: 0,
+          is_flaky: false,
           scheme: "TestScheme",
           duration: 1000,
           macos_version: "14.0",
@@ -2738,7 +2761,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           account_id: project.account_id,
           git_ref: "refs/heads/main",
           git_commit_sha: "def456",
-          status: "success",
+          status: 0,
+          is_flaky: false,
           scheme: "TestScheme",
           duration: 1000,
           macos_version: "14.0",
@@ -2761,6 +2785,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testOne",
           status: 0,
+          is_flaky: false,
           duration: 100,
           inserted_at: ~N[2024-04-30 10:00:00.000000]
         },
@@ -2774,6 +2799,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testTwo",
           status: 0,
+          is_flaky: false,
           duration: 200,
           inserted_at: ~N[2024-04-30 11:00:00.000000]
         },
@@ -2787,6 +2813,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testThree",
           status: 0,
+          is_flaky: false,
           duration: 300,
           inserted_at: ~N[2024-04-30 11:00:00.000000]
         }
@@ -2816,7 +2843,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           account_id: project.account_id,
           git_ref: "refs/heads/main",
           git_commit_sha: "abc123",
-          status: "success",
+          status: 0,
+          is_flaky: false,
           scheme: "TestScheme",
           duration: 1000,
           macos_version: "14.0",
@@ -2839,6 +2867,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testOne",
           status: 0,
+          is_flaky: false,
           duration: 100,
           inserted_at: ~N[2024-04-30 10:00:00.000000]
         },
@@ -2852,6 +2881,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testTwo",
           status: 1,
+          is_flaky: false,
           duration: 200,
           inserted_at: ~N[2024-04-30 10:00:00.000000]
         },
@@ -2865,6 +2895,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testThree",
           status: 1,
+          is_flaky: false,
           duration: 300,
           inserted_at: ~N[2024-04-30 10:00:00.000000]
         }
@@ -2913,7 +2944,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           account_id: project.account_id,
           git_ref: "refs/heads/main",
           git_commit_sha: "abc123",
-          status: "success",
+          status: 0,
+          is_flaky: false,
           scheme: "TestScheme",
           duration: 1000,
           macos_version: "14.0",
@@ -2936,6 +2968,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testOne",
           status: 0,
+          is_flaky: false,
           duration: 100,
           inserted_at: ~N[2024-04-30 10:00:00.000000]
         },
@@ -2949,6 +2982,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testTwo",
           status: 0,
+          is_flaky: false,
           duration: 200,
           inserted_at: ~N[2024-04-30 10:00:00.000000]
         },
@@ -2962,6 +2996,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testThree",
           status: 0,
+          is_flaky: false,
           duration: 300,
           inserted_at: ~N[2024-04-30 10:00:00.000000]
         }
@@ -3026,7 +3061,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           account_id: project.account_id,
           git_ref: "refs/heads/main",
           git_commit_sha: "abc123",
-          status: "success",
+          status: 0,
+          is_flaky: false,
           scheme: "TestScheme",
           duration: 1000,
           macos_version: "14.0",
@@ -3043,7 +3079,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           account_id: project.account_id,
           git_ref: "refs/heads/main",
           git_commit_sha: "def456",
-          status: "success",
+          status: 0,
+          is_flaky: false,
           scheme: "TestScheme",
           duration: 1000,
           macos_version: "14.0",
@@ -3066,6 +3103,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testOne",
           status: 0,
+          is_flaky: false,
           duration: 500,
           inserted_at: ~N[2024-04-30 10:00:00.000000]
         },
@@ -3079,6 +3117,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testTwo",
           status: 0,
+          is_flaky: false,
           duration: 100,
           inserted_at: ~N[2024-04-30 11:00:00.000000]
         }
@@ -3110,7 +3149,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           account_id: project.account_id,
           git_ref: "refs/heads/main",
           git_commit_sha: "abc123",
-          status: "success",
+          status: 0,
+          is_flaky: false,
           scheme: "TestScheme",
           duration: 1000,
           macos_version: "14.0",
@@ -3127,7 +3167,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           account_id: project.account_id,
           git_ref: "refs/heads/main",
           git_commit_sha: "def456",
-          status: "success",
+          status: 0,
+          is_flaky: false,
           scheme: "TestScheme",
           duration: 2000,
           macos_version: "14.0",
@@ -3144,7 +3185,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           account_id: project.account_id,
           git_ref: "refs/heads/main",
           git_commit_sha: "ghi789",
-          status: "success",
+          status: 0,
+          is_flaky: false,
           scheme: "TestScheme",
           duration: 3000,
           macos_version: "14.0",
@@ -3212,7 +3254,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           account_id: project.account_id,
           git_ref: "refs/heads/main",
           git_commit_sha: "abc123",
-          status: "success",
+          status: 0,
+          is_flaky: false,
           scheme: "TestScheme",
           duration: 5000,
           macos_version: "14.0",
@@ -3229,7 +3272,8 @@ defmodule Tuist.Runs.AnalyticsTest do
           account_id: project.account_id,
           git_ref: "refs/heads/main",
           git_commit_sha: "def456",
-          status: "success",
+          status: 0,
+          is_flaky: false,
           scheme: "TestScheme",
           duration: 1000,
           macos_version: "14.0",
@@ -3272,6 +3316,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testExample",
           status: 0,
+          is_flaky: false,
           duration: 100,
           inserted_at: ~N[2024-04-30 10:00:00.000000]
         },
@@ -3286,6 +3331,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testExample",
           status: 0,
+          is_flaky: false,
           duration: 100,
           inserted_at: ~N[2024-04-30 10:01:00.000000]
         },
@@ -3300,6 +3346,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testExample",
           status: 1,
+          is_flaky: false,
           duration: 100,
           inserted_at: ~N[2024-04-30 10:02:00.000000]
         }
@@ -3331,6 +3378,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testExample",
           status: 0,
+          is_flaky: false,
           duration: 100,
           inserted_at: ~N[2024-04-30 10:00:00.000000]
         },
@@ -3345,6 +3393,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testExample",
           status: 0,
+          is_flaky: false,
           duration: 100,
           inserted_at: ~N[2024-04-30 10:01:00.000000]
         }
@@ -3376,6 +3425,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testExample",
           status: 0,
+          is_flaky: false,
           duration: 100,
           inserted_at: ~N[2024-04-30 10:00:00.000000]
         },
@@ -3390,6 +3440,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testExample",
           status: 0,
+          is_flaky: false,
           duration: 100,
           inserted_at: ~N[2024-04-30 10:01:00.000000]
         }
@@ -3421,6 +3472,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testExample",
           status: 0,
+          is_flaky: false,
           duration: 100,
           inserted_at: ~N[2024-04-30 10:00:00.000000]
         },
@@ -3435,6 +3487,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testExample",
           status: 1,
+          is_flaky: false,
           duration: 100,
           inserted_at: ~N[2024-04-30 10:01:00.000000]
         }
@@ -3477,6 +3530,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testExample",
           status: 1,
+          is_flaky: false,
           duration: 100,
           inserted_at: ~N[2024-04-30 10:00:00.000000]
         },
@@ -3491,6 +3545,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testExample",
           status: 0,
+          is_flaky: false,
           duration: 100,
           inserted_at: ~N[2024-04-30 10:01:00.000000]
         },
@@ -3505,6 +3560,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           suite_name: "TestSuite",
           name: "testExample",
           status: 0,
+          is_flaky: false,
           duration: 100,
           inserted_at: ~N[2024-04-30 10:02:00.000000]
         }

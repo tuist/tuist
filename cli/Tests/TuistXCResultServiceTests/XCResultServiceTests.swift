@@ -56,7 +56,7 @@ struct XCResultServiceTests {
         #expect(got.testCases.map(\.name) == ["Custom test label"])
         #expect(got.testCases.compactMap(\.duration).sorted() == [103])
     }
-    
+
     @Test
     func parseTestWithRepetitionsXCResult() async throws {
         // Given
@@ -71,6 +71,7 @@ struct XCResultServiceTests {
         #expect(got.testCases.count == 2)
 
         // Verify flaky test (example) - first run failed, retry passed
+        print(got.testCases)
         let flakyTest = try #require(got.testCases.first { $0.name == "example()" })
         #expect(flakyTest.status == .passed)
         #expect(flakyTest.repetitions.count == 2)

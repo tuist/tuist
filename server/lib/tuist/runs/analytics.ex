@@ -1258,7 +1258,7 @@ defmodule Tuist.Runs.Analytics do
         nil -> query
         "failure" -> where(query, [t], t.status == "failure")
         "success" -> where(query, [t], t.status == "success")
-        "flaky" -> where(query, [t], t.status == "flaky")
+        "flaky" -> where(query, [t], t.is_flaky == true)
       end
 
     ClickHouseRepo.all(query)
@@ -1288,7 +1288,7 @@ defmodule Tuist.Runs.Analytics do
         nil -> query
         "failure" -> where(query, [t], t.status == "failure")
         "success" -> where(query, [t], t.status == "success")
-        "flaky" -> where(query, [t], t.status == "flaky")
+        "flaky" -> where(query, [t], t.is_flaky == true)
       end
 
     ClickHouseRepo.one(query) || 0
@@ -2000,7 +2000,7 @@ defmodule Tuist.Runs.Analytics do
         select: %{
           total_count: fragment("coalesce(count(?), 0)", t.id),
           failed_count: fragment("coalesce(countIf(? = 'failure'), 0)", t.status),
-          flaky_count: fragment("coalesce(countIf(? = 'flaky'), 0)", t.status),
+          flaky_count: fragment("coalesce(countIf(?), 0)", t.is_flaky),
           avg_duration: fragment("ifNotFinite(round(avg(?)), 0)", t.duration)
         }
 
@@ -2557,7 +2557,7 @@ defmodule Tuist.Runs.Analytics do
         "failure" -> where(query, [tcr], tcr.status == "failure")
         "success" -> where(query, [tcr], tcr.status == "success")
         "skipped" -> where(query, [tcr], tcr.status == "skipped")
-        "flaky" -> where(query, [tcr], tcr.status == "flaky")
+        "flaky" -> where(query, [tcr], tcr.is_flaky == true)
       end
 
     ClickHouseRepo.all(query)
@@ -2588,7 +2588,7 @@ defmodule Tuist.Runs.Analytics do
         "failure" -> where(query, [tcr], tcr.status == "failure")
         "success" -> where(query, [tcr], tcr.status == "success")
         "skipped" -> where(query, [tcr], tcr.status == "skipped")
-        "flaky" -> where(query, [tcr], tcr.status == "flaky")
+        "flaky" -> where(query, [tcr], tcr.is_flaky == true)
       end
 
     ClickHouseRepo.one(query) || 0
@@ -2909,7 +2909,7 @@ defmodule Tuist.Runs.Analytics do
         where: tcr.test_case_id == ^test_case_id,
         where: tcr.inserted_at >= ^thirty_days_ago,
         select: %{
-          flaky_count: fragment("countIf(? = 'flaky')", tcr.status),
+          flaky_count: fragment("countIf(?)", tcr.is_flaky),
           total_count: count(tcr.id)
         }
       )

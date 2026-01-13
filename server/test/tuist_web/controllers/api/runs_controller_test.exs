@@ -1328,7 +1328,8 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert length(test_cases) == 3
 
       flaky_case = Enum.find(test_cases, &(&1.name == "testFlaky"))
-      assert flaky_case.status == "flaky"
+      assert flaky_case.status == "success"
+      assert flaky_case.is_flaky == true
 
       stable_case = Enum.find(test_cases, &(&1.name == "testStable"))
       assert stable_case.status == "success"

@@ -784,11 +784,6 @@
             style="primary"
           />
           <.legend
-            title={dgettext("dashboard_tests", "Flaky runs")}
-            value={@flaky_test_runs_count}
-            style="flaky"
-          />
-          <.legend
             title={dgettext("dashboard_tests", "Failed runs")}
             value={@failed_test_runs_count}
             style="destructive"
@@ -864,11 +859,6 @@
             :if={test_run.status == "success"}
             label={dgettext("dashboard_tests", "Passed")}
             status="success"
-          />
-          <.status_badge_cell
-            :if={test_run.status == "flaky"}
-            label={dgettext("dashboard_tests", "Flaky")}
-            status="attention"
           />
           <.status_badge_cell
             :if={test_run.status == "failure"}

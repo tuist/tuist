@@ -31,6 +31,7 @@ defmodule Tuist.Runs.Test do
     field :model_identifier, :string
     field :scheme, :string
     field :status, Ch, type: "LowCardinality(String)"
+    field :is_flaky, :boolean, default: false
     field :git_branch, :string
     field :git_commit_sha, :string
     field :git_ref, :string
@@ -63,6 +64,7 @@ defmodule Tuist.Runs.Test do
       :project_id,
       :account_id,
       :status,
+      :is_flaky,
       :git_branch,
       :git_commit_sha,
       :git_ref,
@@ -85,7 +87,7 @@ defmodule Tuist.Runs.Test do
       :status,
       :ran_at
     ])
-    |> validate_inclusion(:status, ["success", "failure", "skipped", "flaky"])
+    |> validate_inclusion(:status, ["success", "failure", "skipped"])
     |> validate_inclusion(:ci_provider, ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"])
   end
 end
