@@ -478,10 +478,12 @@ defmodule Tuist.Runs do
 
   def create_test(attrs) do
     test_modules = Map.get(attrs, :test_modules, [])
+    is_ci = Map.get(attrs, :is_ci, false)
     has_flaky_tests = has_any_flaky_test_case?(test_modules)
 
+    # Only mark the Test as flaky if it's a CI run
     attrs =
-      if has_flaky_tests do
+      if has_flaky_tests and is_ci do
         Map.put(attrs, :is_flaky, true)
       else
         attrs
@@ -556,7 +558,7 @@ defmodule Tuist.Runs do
             else: div(Enum.sum(new_durations), length(new_durations))
 
         current_is_flaky = Map.get(data, :is_flaky, false)
-        existing_is_flaky = Map.get(existing_data, :is_flaky, false)
+        existing_is_flaky = Map.get(existing, :is_flaky, false)
 
         %{
           id: id,
@@ -793,7 +795,8 @@ defmodule Tuist.Runs do
           module_name: module_name,
           suite_name: suite_name,
           status: status,
-          is_flaky: is_flaky,
+          # Only CI runs can mark a test_case as flaky; non-CI runs preserve existing status
+          is_flaky: is_flaky and test.is_ci,
           duration: Map.get(case_attrs, :duration, 0),
           ran_at: test.ran_at
         }

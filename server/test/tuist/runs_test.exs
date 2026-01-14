@@ -2450,6 +2450,172 @@ defmodule Tuist.RunsTest do
       assert flaky_case.name == "testFlakyExample"
       assert flaky_case.status == "success"
       assert flaky_case.is_flaky == true
+
+      # Verify the TestCase record is also marked as flaky (CI run)
+      {:ok, test_case} = Runs.get_test_case_by_id(flaky_case.test_case_id)
+      assert test_case.is_flaky == true
+    end
+
+    test "marks test_case_run as flaky but not test_case for non-CI runs with repetitions" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 2000,
+        status: "success",
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "main",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: false,
+        test_modules: [
+          %{
+            name: "FlakyTestModule",
+            status: "success",
+            duration: 2000,
+            test_cases: [
+              %{
+                name: "testFlakyNonCI",
+                status: "success",
+                duration: 1000,
+                repetitions: [
+                  %{
+                    repetition_number: 1,
+                    name: "First Run",
+                    status: "failure",
+                    duration: 400
+                  },
+                  %{
+                    repetition_number: 2,
+                    name: "Retry 1",
+                    status: "success",
+                    duration: 600
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      # When
+      {:ok, test} = Runs.create_test(test_attrs)
+
+      # Then - test run should NOT be marked as flaky for non-CI
+      assert test.status == "success"
+      assert test.is_flaky == false
+
+      {test_case_runs, _meta} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: test.id}]
+        })
+
+      assert length(test_case_runs) == 1
+      flaky_run = hd(test_case_runs)
+      assert flaky_run.name == "testFlakyNonCI"
+      assert flaky_run.status == "success"
+      # TestCaseRun should still be marked as flaky based on repetitions
+      assert flaky_run.is_flaky == true
+
+      # But TestCase should NOT be marked as flaky (non-CI run)
+      {:ok, test_case} = Runs.get_test_case_by_id(flaky_run.test_case_id)
+      assert test_case.is_flaky == false
+    end
+
+    test "non-CI run does not clear existing flaky flag set by CI run" do
+      # Given - first a CI run marks a test case as flaky
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      ci_test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 2000,
+        status: "success",
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "main",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+        is_ci: true,
+        test_modules: [
+          %{
+            name: "FlakyTestModule",
+            status: "success",
+            duration: 2000,
+            test_cases: [
+              %{
+                name: "testFlakyPreserved",
+                status: "success",
+                duration: 1000,
+                repetitions: [
+                  %{repetition_number: 1, name: "First Run", status: "failure", duration: 400},
+                  %{repetition_number: 2, name: "Retry 1", status: "success", duration: 600}
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      {:ok, ci_test} = Runs.create_test(ci_test_attrs)
+
+      # Get the test case ID from the CI run
+      {ci_test_case_runs, _meta} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: ci_test.id}]
+        })
+
+      ci_run = hd(ci_test_case_runs)
+      test_case_id = ci_run.test_case_id
+
+      # Verify TestCase is marked as flaky after CI run
+      {:ok, test_case_after_ci} = Runs.get_test_case_by_id(test_case_id)
+      assert test_case_after_ci.is_flaky == true
+
+      # Now a non-CI run for the same test case (not flaky this time)
+      non_ci_test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1000,
+        status: "success",
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "main",
+        git_commit_sha: "def456",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: false,
+        test_modules: [
+          %{
+            name: "FlakyTestModule",
+            status: "success",
+            duration: 1000,
+            test_cases: [
+              %{
+                name: "testFlakyPreserved",
+                status: "success",
+                duration: 500
+              }
+            ]
+          }
+        ]
+      }
+
+      {:ok, _non_ci_test} = Runs.create_test(non_ci_test_attrs)
+
+      # TestCase should STILL be marked as flaky (non-CI run should not clear it)
+      {:ok, test_case_after_non_ci} = Runs.get_test_case_by_id(test_case_id)
+      assert test_case_after_non_ci.is_flaky == true
     end
 
     test "keeps test case as success when all repetitions pass" do
