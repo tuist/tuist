@@ -292,4 +292,90 @@ struct GraphCommandServiceTests {
             }
         }
     }
+
+    @Test(.inTemporaryDirectory) func run_whenToon_outputsToFile() async throws {
+        try await withMockedDependencies {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let fileSystem = FileSystem()
+            let graphPath = temporaryDirectory.appending(component: "graph.toon")
+            let projectManifestPath = temporaryDirectory.appending(component: "Project.swift")
+
+            try await fileSystem.touch(graphPath)
+            try await fileSystem.touch(projectManifestPath)
+
+            given(manifestLoader)
+                .hasRootManifest(at: .any)
+                .willReturn(true)
+
+            given(manifestGraphLoader)
+                .load(path: .any, disableSandbox: .any)
+                .willReturn((.test(), [], MapperEnvironment(), []))
+
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test())
+
+            try await subject.run(
+                format: .toon,
+                layoutAlgorithm: .dot,
+                skipTestTargets: false,
+                skipExternalDependencies: false,
+                open: false,
+                platformToFilter: nil,
+                targetsToFilter: [],
+                sourceTargets: [],
+                sinkTargets: [],
+                directOnly: false,
+                typeFilter: [],
+                outputFields: nil,
+                path: temporaryDirectory,
+                outputPath: temporaryDirectory,
+                stdout: false
+            )
+
+            let got = try await fileSystem.readTextFile(at: graphPath)
+            #expect(got.contains("name:"))
+            #expect(got.contains("path:"))
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func run_whenStdout_withToon_outputsToStdout() async throws {
+        try await withMockedDependencies {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let projectManifestPath = temporaryDirectory.appending(component: "Project.swift")
+            let fileSystem = FileSystem()
+
+            try await fileSystem.touch(projectManifestPath)
+
+            given(manifestLoader)
+                .hasRootManifest(at: .any)
+                .willReturn(true)
+
+            given(manifestGraphLoader)
+                .load(path: .any, disableSandbox: .any)
+                .willReturn((.test(), [], MapperEnvironment(), []))
+
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(.test())
+
+            try await subject.run(
+                format: .toon,
+                layoutAlgorithm: .dot,
+                skipTestTargets: false,
+                skipExternalDependencies: false,
+                open: false,
+                platformToFilter: nil,
+                targetsToFilter: [],
+                sourceTargets: [],
+                sinkTargets: [],
+                directOnly: false,
+                typeFilter: [],
+                outputFields: nil,
+                path: temporaryDirectory,
+                outputPath: temporaryDirectory,
+                stdout: true
+            )
+        }
+    }
 }

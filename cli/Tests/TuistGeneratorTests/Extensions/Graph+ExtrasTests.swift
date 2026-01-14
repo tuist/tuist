@@ -147,4 +147,144 @@ struct GraphExtrasTests {
         let depLabelNames = appDeps.map(\.labelName)
         #expect(depLabelNames.allSatisfy { $0 == "target" })
     }
+
+    @Test func filter_withSinkTargets_showsUpstreamDependencies() async throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let coreTarget = Target.test(name: "Core")
+        let networkTarget = Target.test(name: "Network", dependencies: [.target(name: "Core")])
+        let appTarget = Target.test(name: "App", dependencies: [.target(name: "Network")])
+
+        let project = Project.test(
+            path: projectPath,
+            targets: [coreTarget, networkTarget, appTarget]
+        )
+
+        let graph = Graph.test(
+            path: projectPath,
+            projects: [projectPath: project],
+            dependencies: [
+                .target(name: "App", path: projectPath): [
+                    .target(name: "Network", path: projectPath),
+                ],
+                .target(name: "Network", path: projectPath): [
+                    .target(name: "Core", path: projectPath),
+                ],
+                .target(name: "Core", path: projectPath): [],
+            ]
+        )
+
+        // When
+        let result = graph.filter(
+            skipTestTargets: false,
+            skipExternalDependencies: false,
+            platformToFilter: nil,
+            targetsToFilter: [],
+            sourceTargets: [],
+            sinkTargets: ["Core"],
+            directOnly: false,
+            typeFilter: []
+        )
+
+        // Then
+        let targetNames = Set(result.keys.map(\.target.name))
+        #expect(targetNames.contains("Core"))
+        #expect(targetNames.contains("Network"))
+        #expect(targetNames.contains("App"))
+    }
+
+    @Test func filter_withSinkTargetsAndDirectOnly_showsOnlyDirectUpstreamDependencies() async throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let coreTarget = Target.test(name: "Core")
+        let networkTarget = Target.test(name: "Network", dependencies: [.target(name: "Core")])
+        let appTarget = Target.test(name: "App", dependencies: [.target(name: "Network")])
+
+        let project = Project.test(
+            path: projectPath,
+            targets: [coreTarget, networkTarget, appTarget]
+        )
+
+        let graph = Graph.test(
+            path: projectPath,
+            projects: [projectPath: project],
+            dependencies: [
+                .target(name: "App", path: projectPath): [
+                    .target(name: "Network", path: projectPath),
+                ],
+                .target(name: "Network", path: projectPath): [
+                    .target(name: "Core", path: projectPath),
+                ],
+                .target(name: "Core", path: projectPath): [],
+            ]
+        )
+
+        // When
+        let result = graph.filter(
+            skipTestTargets: false,
+            skipExternalDependencies: false,
+            platformToFilter: nil,
+            targetsToFilter: [],
+            sourceTargets: [],
+            sinkTargets: ["Core"],
+            directOnly: true,
+            typeFilter: []
+        )
+
+        // Then
+        let targetNames = Set(result.keys.map(\.target.name))
+        #expect(targetNames.contains("Core"))
+        #expect(targetNames.contains("Network"))
+        #expect(!targetNames.contains("App"))
+    }
+
+    @Test func filter_withSourceAndSink_showsPathBetween() async throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let coreTarget = Target.test(name: "Core")
+        let networkTarget = Target.test(name: "Network", dependencies: [.target(name: "Core")])
+        let uiTarget = Target.test(name: "UI", dependencies: [.target(name: "Core")])
+        let appTarget = Target.test(name: "App", dependencies: [.target(name: "Network"), .target(name: "UI")])
+
+        let project = Project.test(
+            path: projectPath,
+            targets: [coreTarget, networkTarget, uiTarget, appTarget]
+        )
+
+        let graph = Graph.test(
+            path: projectPath,
+            projects: [projectPath: project],
+            dependencies: [
+                .target(name: "App", path: projectPath): [
+                    .target(name: "Network", path: projectPath),
+                    .target(name: "UI", path: projectPath),
+                ],
+                .target(name: "Network", path: projectPath): [
+                    .target(name: "Core", path: projectPath),
+                ],
+                .target(name: "UI", path: projectPath): [
+                    .target(name: "Core", path: projectPath),
+                ],
+                .target(name: "Core", path: projectPath): [],
+            ]
+        )
+
+        // When
+        let result = graph.filter(
+            skipTestTargets: false,
+            skipExternalDependencies: false,
+            platformToFilter: nil,
+            targetsToFilter: [],
+            sourceTargets: ["App"],
+            sinkTargets: ["Core"],
+            directOnly: false,
+            typeFilter: []
+        )
+
+        // Then
+        let targetNames = Set(result.keys.map(\.target.name))
+        #expect(targetNames.contains("App"))
+        #expect(targetNames.contains("Core"))
+        #expect(targetNames.count >= 2)
+    }
 }
