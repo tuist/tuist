@@ -90,6 +90,7 @@
         }
         value={Number.Delimit.number_to_delimited(@test_case_runs_analytics.count, precision: 0)}
         id="widget-test-case-run-count"
+        legend_color="primary"
         trend_value={@test_case_runs_analytics.trend}
         trend_type={:neutral}
         trend_label={@analytics_trend_label}
@@ -110,6 +111,7 @@
           Number.Delimit.number_to_delimited(@failed_test_case_runs_analytics.count, precision: 0)
         }
         id="widget-failed-test-case-run-count"
+        legend_color="destructive"
         trend_value={@failed_test_case_runs_analytics.trend}
         trend_label={@analytics_trend_label}
         trend_type={:inverse}
@@ -133,7 +135,7 @@
             "p99" -> "p99"
             "p90" -> "p90"
             "p50" -> "p50"
-            _ -> "primary"
+            _ -> "secondary"
           end
         }
         description={
