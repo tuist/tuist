@@ -468,16 +468,31 @@ public class ManifestLoader: ManifestLoading {
 
         if !disableSandbox {
             #if os(macOS)
+                let developerDirXcodePath: AbsolutePath? = {
+                    guard let developerDir = Environment.current.variables["DEVELOPER_DIR"],
+                          let developerDirPath = try? AbsolutePath(validating: developerDir)
+                    else {
+                        return nil
+                    }
+                    if developerDirPath.components.suffix(2) == ["Contents", "Developer"] {
+                        return developerDirPath.parentDirectory.parentDirectory
+                    }
+                    return developerDirPath
+                }()
+                var readOnlyPaths: [AbsolutePath] = [
+                    path,
+                    try await XcodeController.current.selected().path,
+                    AbsolutePath("/Library/Preferences/com.apple.dt.Xcode.plist"),
+                    searchPaths.includeSearchPath,
+                    searchPaths.librarySearchPath,
+                    searchPaths.frameworkSearchPath,
+                ]
+                if let developerDirXcodePath {
+                    readOnlyPaths.append(developerDirXcodePath)
+                }
                 let profile = macOSSandboxProfile(
                     readOnlyPaths: Set(
-                        [
-                            path,
-                            try await XcodeController.current.selected().path,
-                            AbsolutePath("/Library/Preferences/com.apple.dt.Xcode.plist"),
-                            searchPaths.includeSearchPath,
-                            searchPaths.librarySearchPath,
-                            searchPaths.frameworkSearchPath,
-                        ] + projectDescriptionHelperModules.map(\.path.parentDirectory)
+                        readOnlyPaths + projectDescriptionHelperModules.map(\.path.parentDirectory)
                     )
                 )
                 return ["sandbox-exec", "-p", profile] + arguments
