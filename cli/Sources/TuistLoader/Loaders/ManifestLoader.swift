@@ -373,7 +373,7 @@ public class ManifestLoader: ManifestLoading {
                     diagnostics.append("DEVELOPER_DIR: \(developerDir)")
                 }
                 diagnostics.append("stderr: \(stderr?.isEmpty == false ? stderr! : "<empty>")")
-                Logger.current.notice(diagnostics.joined(separator: "\n"))
+                Logger.current.debug("\(diagnostics.joined(separator: "\n"))")
             }
             logUnexpectedImportErrorIfNeeded(in: path, error: error, manifest: manifest)
             logPluginHelperBuildErrorIfNeeded(in: path, error: error, manifest: manifest)
