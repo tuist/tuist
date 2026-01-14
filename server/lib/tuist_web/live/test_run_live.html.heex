@@ -122,28 +122,21 @@
             <div data-part="metadata">
               <div data-part="title">{dgettext("dashboard_tests", "Status")}</div>
               <.badge
-                :if={@run.is_flaky}
-                label={dgettext("dashboard_tests", "Flaky")}
-                color="warning"
-                style="fill"
-                size="large"
-              />
-              <.badge
-                :if={@run.status == "success" and not @run.is_flaky}
+                :if={@run.status == "success"}
                 label={dgettext("dashboard_tests", "Passed")}
                 color="success"
                 style="fill"
                 size="large"
               />
               <.badge
-                :if={@run.status == "failure" and not @run.is_flaky}
+                :if={@run.status == "failure"}
                 label={dgettext("dashboard_tests", "Failed")}
                 color="destructive"
                 style="fill"
                 size="large"
               />
               <.badge
-                :if={@run.status == "skipped" and not @run.is_flaky}
+                :if={@run.status == "skipped"}
                 label={dgettext("dashboard_tests", "Skipped")}
                 color="warning"
                 style="fill"
