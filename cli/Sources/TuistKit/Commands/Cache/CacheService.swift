@@ -568,6 +568,7 @@ final class EmptyCacheService: CacheServicing {
                         .destination("generic/platform=\(platform.caseValue) Simulator"),
                         .xcarg("SKIP_INSTALL", "NO"),
                         .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym"),
+                        .xcarg("SWIFT_SERIALIZE_DEBUGGING_OPTIONS", "NO"),
                         .xcarg("ONLY_ACTIVE_ARCH", "NO"),
                         .xcarg("CODE_SIGN_IDENTITY", ""),
                         .xcarg("CODE_SIGN_ENTITLEMENTS", ""),
@@ -610,6 +611,7 @@ final class EmptyCacheService: CacheServicing {
 
             var deviceArguments: [XcodeBuildArgument] = [
                 .xcarg("SKIP_INSTALL", "NO"),
+                .xcarg("SWIFT_SERIALIZE_DEBUGGING_OPTIONS", "NO"),
                 .xcarg("ONLY_ACTIVE_ARCH", "NO"),
                 .xcarg("CODE_SIGN_IDENTITY", ""),
                 .xcarg("CODE_SIGN_ENTITLEMENTS", ""),
@@ -690,6 +692,7 @@ final class EmptyCacheService: CacheServicing {
                     .destination("generic/platform=macOS,variant=Mac Catalyst"),
                     .xcarg("SKIP_INSTALL", "NO"),
                     .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym"),
+                    .xcarg("SWIFT_SERIALIZE_DEBUGGING_OPTIONS", "NO"),
                     .xcarg("ONLY_ACTIVE_ARCH", "NO"),
                     .xcarg("CODE_SIGN_IDENTITY", ""),
                     .xcarg("CODE_SIGN_ENTITLEMENTS", ""),
