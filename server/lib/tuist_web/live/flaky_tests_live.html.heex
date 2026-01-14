@@ -46,7 +46,7 @@
           </.dropdown_item>
           <.dropdown_item
             value="last_flaky_at"
-            label={dgettext("dashboard_tests", "Last run")}
+            label={dgettext("dashboard_tests", "Last flaky run")}
             patch={sort_by_patch(@uri, "last_flaky_at")}
             data-selected={@flaky_tests_sort_by == "last_flaky_at"}
           >
@@ -120,7 +120,7 @@
           </:col>
           <:col
             :let={test_case}
-            label={dgettext("dashboard_tests", "Last run")}
+            label={dgettext("dashboard_tests", "Last flaky run")}
             patch={
               @flaky_tests_sort_by == "last_flaky_at" &&
                 column_sort_patch(assigns, "last_flaky_at")
