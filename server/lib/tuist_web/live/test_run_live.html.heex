@@ -489,6 +489,16 @@
                             <.git_branch />
                             {run.git_branch}
                           </span>
+                          <.link
+                            :if={run.test_run_id != @run.id}
+                            navigate={
+                              ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs/#{run.test_run_id}"
+                            }
+                            data-part="test-run-link"
+                          >
+                            {run.scheme}
+                            <.link_icon />
+                          </.link>
                         </div>
                       </div>
                       <%= if Enum.any?(run.repetitions) do %>
@@ -1624,6 +1634,16 @@
                           <.git_branch />
                           {run.git_branch}
                         </span>
+                        <.link
+                          :if={run.test_run_id != @run.id}
+                          navigate={
+                            ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs/#{run.test_run_id}"
+                          }
+                          data-part="test-run-link"
+                        >
+                          {run.scheme}
+                          <.link_icon />
+                        </.link>
                       </div>
                     </div>
                     <%= if Enum.any?(run.repetitions) do %>

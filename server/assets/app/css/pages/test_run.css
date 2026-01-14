@@ -492,6 +492,25 @@
                     height: var(--noora-icon-size-small);
                   }
                 }
+
+                & [data-part="test-run-link"] {
+                  display: flex;
+                  flex-direction: row;
+                  align-items: center;
+                  gap: var(--noora-spacing-2);
+                  color: var(--noora-surface-label-primary);
+                  font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+                  text-decoration: none;
+
+                  &:hover {
+                    text-decoration: underline;
+                  }
+
+                  & svg {
+                    width: var(--noora-icon-size-small);
+                    height: var(--noora-icon-size-small);
+                  }
+                }
               }
             }
 
