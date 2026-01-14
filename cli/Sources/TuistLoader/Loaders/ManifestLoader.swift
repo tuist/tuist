@@ -341,16 +341,15 @@ public class ManifestLoader: ManifestLoading {
             }
             return arguments.joined(separator: " ")
         }()
-        Logger.current.notice(
-            [
-                "Manifest load invocation",
-                "Manifest: \(path.pathString)",
-                "Command: \(commandDescription)",
-                #"DEVELOPER_DIR: \(Environment.current.variables["DEVELOPER_DIR"] ?? "<unset>")"#,
-                "xcode-select: \(xcodeSelectPath)",
-                "swift --version: \(swiftVersion)",
-            ].joined(separator: "\n")
-        )
+        let manifestLog = [
+            "Manifest load invocation",
+            "Manifest: \(path.pathString)",
+            "Command: \(commandDescription)",
+            #"DEVELOPER_DIR: \(Environment.current.variables["DEVELOPER_DIR"] ?? "<unset>")"#,
+            "xcode-select: \(xcodeSelectPath)",
+            "swift --version: \(swiftVersion)",
+        ].joined(separator: "\n")
+        Logger.current.notice(.init(stringLiteral: manifestLog))
 
         do {
             let string = try System.shared.capture(
@@ -394,7 +393,7 @@ public class ManifestLoader: ManifestLoading {
                     diagnostics.append("DEVELOPER_DIR: \(developerDir)")
                 }
                 diagnostics.append("stderr: \(stderr?.isEmpty == false ? stderr! : "<empty>")")
-                Logger.current.debug("\(diagnostics.joined(separator: "\n"))")
+                Logger.current.debug(.init(stringLiteral: diagnostics.joined(separator: "\n")))
             }
             logUnexpectedImportErrorIfNeeded(in: path, error: error, manifest: manifest)
             logPluginHelperBuildErrorIfNeeded(in: path, error: error, manifest: manifest)
