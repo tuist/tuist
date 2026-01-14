@@ -161,7 +161,7 @@ msgstr ""
 msgid "Jobs"
 msgstr ""
 
-#: lib/tuist_web/components/empty_state.ex:42
+#: lib/tuist_web/components/empty_state.ex:43
 #, elixir-autogen, elixir-format
 msgid "Learn more"
 msgstr ""

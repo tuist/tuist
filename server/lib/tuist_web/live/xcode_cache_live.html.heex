@@ -1,4 +1,32 @@
-<div id="xcode-cache">
+<.empty_state
+  :if={Enum.empty?(@builds)}
+  command="tuist setup cache"
+  id="xcode-cache-empty-state"
+  title={dgettext("dashboard_cache", "Set up Xcode cache for your project")}
+  subtitle={
+    dgettext(
+      "dashboard_cache",
+      "You can set up the Xcode cache for your project by running:"
+    )
+  }
+>
+  <:light_background>
+    <img src="/images/empty_xcode_cache_light.png" />
+  </:light_background>
+  <:dark_background>
+    <img src="/images/empty_xcode_cache_dark.png" />
+  </:dark_background>
+  <:actions>
+    <.button
+      label={dgettext("dashboard_cache", "Tuist documentation")}
+      href="https://docs.tuist.dev/en/guides/features/cache/xcode-cache"
+      target="_blank"
+    >
+      <:icon_right><.chevron_right /></:icon_right>
+    </.button>
+  </:actions>
+</.empty_state>
+<div :if={not Enum.empty?(@builds)} id="xcode-cache">
   <.card
     title={dgettext("dashboard_cache", "Analytics")}
     icon="chart_arcs"
@@ -49,7 +77,9 @@
           <.button
             label={dgettext("dashboard_cache", "Apply")}
             phx-click={
-              JS.dispatch("phx:date-picker-apply", detail: %{id: "xcode-cache-date-range-picker"})
+              JS.dispatch("phx:date-picker-apply",
+                detail: %{id: "xcode-cache-date-range-picker"}
+              )
             }
           />
         </:actions>
