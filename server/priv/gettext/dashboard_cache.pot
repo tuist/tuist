@@ -826,7 +826,7 @@ msgstr ""
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:7
 #, elixir-autogen, elixir-format
-msgid "You can set up the Xcode cache for your project by running the following command."
+msgid "You can set up the Xcode cache for your project by running:"
 msgstr ""
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:21
