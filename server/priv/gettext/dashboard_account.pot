@@ -498,7 +498,7 @@ msgstr ""
 msgid "Organization name"
 msgstr ""
 
-#: lib/tuist/accounts/user.ex:88
+#: lib/tuist/accounts/user.ex:89
 #, elixir-autogen, elixir-format
 msgid "Passwords don't match"
 msgstr ""
