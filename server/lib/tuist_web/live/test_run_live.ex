@@ -55,6 +55,7 @@ defmodule TuistWeb.TestRunLive do
       |> assign_initial_analytics_state()
       |> assign_initial_test_cases_state()
       |> assign_initial_failures_state()
+      |> assign_initial_flaky_runs_state()
       |> assign(:available_filters, [])
       |> assign(:active_filters, [])
       |> assign(:has_selective_testing_data, command_event && Xcode.has_selective_testing_data?(command_event))
@@ -252,6 +253,13 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:failures_page, 1)
   end
 
+  defp assign_initial_flaky_runs_state(socket) do
+    socket
+    |> assign(:flaky_runs_grouped, [])
+    |> assign(:flaky_runs_meta, %{total_groups_count: 0, total_runs_count: 0, total_pages: 1, current_page: 1})
+    |> assign(:flaky_runs_page, 1)
+  end
+
   defp build_uri(params) do
     URI.new!("?" <> URI.encode_query(params))
   end
@@ -315,6 +323,11 @@ defmodule TuistWeb.TestRunLive do
   defp assign_tab_data(socket, "failures", params) do
     {failures, meta} = load_failures_data(socket.assigns.run, params)
     assign_failures_data(socket, failures, meta, params)
+  end
+
+  defp assign_tab_data(socket, "flaky-runs", params) do
+    {flaky_runs, meta} = load_flaky_runs_data(socket.assigns.run, params)
+    assign_flaky_runs_data(socket, flaky_runs, meta, params)
   end
 
   defp assign_tab_data(socket, _tab, params) do
@@ -539,6 +552,38 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:failures_grouped_by_test_case, failures_grouped)
     |> assign(:failures_meta, meta)
     |> assign(:failures_page, String.to_integer(params["failures-page"] || "1"))
+  end
+
+  defp load_flaky_runs_data(run, params) do
+    page = String.to_integer(params["flaky-runs-page"] || "1")
+    page_size = 20
+
+    all_flaky_runs = Runs.list_flaky_runs_for_test_run(run.id)
+    total_groups_count = length(all_flaky_runs)
+    total_runs_count = Enum.reduce(all_flaky_runs, 0, fn group, acc -> acc + length(group.runs) end)
+    total_pages = max(1, ceil(total_groups_count / page_size))
+
+    # Paginate the grouped flaky runs
+    paginated_flaky_runs =
+      all_flaky_runs
+      |> Enum.drop((page - 1) * page_size)
+      |> Enum.take(page_size)
+
+    meta = %{
+      total_groups_count: total_groups_count,
+      total_runs_count: total_runs_count,
+      total_pages: total_pages,
+      current_page: page
+    }
+
+    {paginated_flaky_runs, meta}
+  end
+
+  defp assign_flaky_runs_data(socket, flaky_runs_grouped, meta, params) do
+    socket
+    |> assign(:flaky_runs_grouped, flaky_runs_grouped)
+    |> assign(:flaky_runs_meta, meta)
+    |> assign(:flaky_runs_page, String.to_integer(params["flaky-runs-page"] || "1"))
   end
 
   defp test_cases_dropdown_item_patch_sort(sort_by, uri) do

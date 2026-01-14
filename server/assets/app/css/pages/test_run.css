@@ -306,7 +306,34 @@
         }
       }
 
+      & > [data-part="flaky-runs-list"] {
+        display: flex;
+        position: relative;
+        flex-direction: column;
+        gap: var(--noora-spacing-4);
+        padding-bottom: 19px;
+
+        & > [data-part="more-card"] {
+          position: absolute;
+          box-shadow: var(--noora-border-light-default);
+          border-radius: var(--noora-radius-large);
+          background-color: var(--noora-surface-background-primary);
+          height: 48px;
+          &[data-index="one"] {
+            right: var(--noora-spacing-4);
+            bottom: 9px;
+            left: var(--noora-spacing-4);
+          }
+          &[data-index="two"] {
+            right: var(--noora-spacing-7);
+            bottom: 0;
+            left: var(--noora-spacing-7);
+          }
+        }
+      }
+
       & [data-part="collapsible"] {
+        z-index: var(--noora-z-index-1);
         box-shadow: var(--noora-light-border-default);
         border-radius: var(--noora-radius-xlarge);
         overflow: hidden;
