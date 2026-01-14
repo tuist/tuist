@@ -1289,12 +1289,12 @@ defmodule Tuist.AccountsTest do
       assert user.account.name == "user-name-test"
     end
 
-    test "sanitizes handle when creating user from OAuth2 with multiple special characters" do
+    test "sanitizes handle when creating user from OAuth2 with plus sign" do
       # Given
       oauth_identity = %{
         provider: :github,
         uid: System.unique_integer([:positive]),
-        info: %{email: "user+name@test&example.com"}
+        info: %{email: "user+name@example.com"}
       }
 
       # When
@@ -1304,12 +1304,12 @@ defmodule Tuist.AccountsTest do
       assert user.account.name == "username"
     end
 
-    test "sanitizes handle when creating user from OAuth2 with spaces and special characters" do
+    test "sanitizes handle when creating user from OAuth2 with percent sign" do
       # Given
       oauth_identity = %{
         provider: :github,
         uid: System.unique_integer([:positive]),
-        info: %{email: "user name@test.com"}
+        info: %{email: "user%name@test.com"}
       }
 
       # When
@@ -1650,9 +1650,9 @@ defmodule Tuist.AccountsTest do
       assert user.account.name == "user-name-test"
     end
 
-    test "sanitizes handle by removing multiple special characters" do
+    test "sanitizes handle by removing plus sign" do
       # Given
-      email = "user+name@test&example.com"
+      email = "user+name@example.com"
 
       # When
       {:ok, user} = Accounts.create_user(email, password: valid_user_password())
@@ -1661,9 +1661,9 @@ defmodule Tuist.AccountsTest do
       assert user.account.name == "username"
     end
 
-    test "sanitizes handle by removing spaces and special characters" do
+    test "sanitizes handle by removing percent sign" do
       # Given
-      email = "user name@test.com"
+      email = "user%name@test.com"
 
       # When
       {:ok, user} = Accounts.create_user(email, password: valid_user_password())
