@@ -1,6 +1,6 @@
 <%= if @builds |> Enum.empty? do %>
   <.empty_state
-    command="tuist cache"
+    command="tuist setup cache"
     id="xcode-cache-empty-state"
     title={dgettext("dashboard_cache", "Set up Xcode cache for your project")}
     subtitle={
