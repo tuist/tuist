@@ -213,31 +213,29 @@ defmodule TuistWeb.Router do
           metadata: %{type: :marketing},
           private: private
 
-      for %{slug: blog_post_slug} <- Tuist.Marketing.Blog.get_posts() do
-        get Path.join(locale_path_prefix, blog_post_slug),
-            MarketingController,
-            :blog_post,
-            metadata: %{type: :marketing},
-            private: private
+      # Blog post iframe routes - must come before general blog post route
+      get Path.join(locale_path_prefix, "/blog/:year/:month/:day/:slug/iframe.html"),
+          TuistWeb.Marketing.MarketingBlogIframeController,
+          :show,
+          metadata: %{type: :marketing},
+          private: private
 
-        # Add iframe route for each blog post
-        iframe_path = Path.join([locale_path_prefix, blog_post_slug, "iframe.html"])
+      # Blog post routes - catch-all pattern instead of compile-time iteration
+      get Path.join(locale_path_prefix, "/blog/:year/:month/:day/:slug"),
+          MarketingController,
+          :blog_post,
+          metadata: %{type: :marketing},
+          private: private
 
-        get iframe_path,
-            TuistWeb.Marketing.MarketingBlogIframeController,
-            :show,
-            metadata: %{type: :marketing},
-            private: private
-      end
+      # Case study routes - catch-all pattern instead of compile-time iteration
+      get Path.join(locale_path_prefix, "/customers/:slug"),
+          MarketingController,
+          :case_study,
+          metadata: %{type: :marketing},
+          private: private
 
-      for %{slug: case_study_slug} <- Tuist.Marketing.Customers.get_case_studies() do
-        get Path.join(locale_path_prefix, case_study_slug),
-            MarketingController,
-            :case_study,
-            metadata: %{type: :marketing},
-            private: private
-      end
-
+      # Page routes - kept as compile-time iteration since there are few pages
+      # and they need to be at root level (before /:account_handle routes)
       for %{slug: page_slug} <- Tuist.Marketing.Pages.get_pages() do
         get Path.join(locale_path_prefix, page_slug),
             MarketingController,
