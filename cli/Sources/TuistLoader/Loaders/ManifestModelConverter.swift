@@ -31,7 +31,7 @@ public final class ManifestModelConverter: ManifestModelConverting {
 
     public convenience init() {
         self.init(
-            manifestLoader: ManifestLoader(),
+            manifestLoader: ManifestLoader.current,
             rootDirectoryLocator: RootDirectoryLocator(),
             contentHasher: ContentHasher()
         )

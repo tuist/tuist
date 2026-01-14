@@ -28,11 +28,19 @@
     }
   }
 
+  &#xcode-cache-empty-state > [data-part="background"] {
+    right: auto;
+    bottom: auto;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
   & > [data-part="terminal-card"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-7);
     z-index: var(--noora-z-index-2);
+    margin-top: var(--noora-spacing-12);
     box-shadow: var(--noora-border-light-default);
     border-radius: var(--noora-radius-2xlarge);
     background: var(--noora-surface-background-primary);

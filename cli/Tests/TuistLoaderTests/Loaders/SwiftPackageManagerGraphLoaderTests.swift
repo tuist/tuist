@@ -37,7 +37,8 @@ struct SwiftPackageManagerGraphLoaderTests {
                 path: .any,
                 packageType: .any,
                 packageSettings: .any,
-                packageModuleAliases: .any
+                packageModuleAliases: .any,
+                enabledTraits: .any
             )
             .willReturn(.test())
     }

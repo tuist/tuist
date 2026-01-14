@@ -17,9 +17,7 @@ final class InstallService {
 
     init(
         pluginService: PluginServicing = PluginService(),
-        configLoader: ConfigLoading = ConfigLoader(
-            manifestLoader: CachedManifestLoader()
-        ),
+        configLoader: ConfigLoading = ConfigLoader(),
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
         fileHandler: FileHandling = FileHandler.shared,
         fileSystem: FileSysteming = FileSystem(),
@@ -36,7 +34,7 @@ final class InstallService {
     func run(
         path: String?,
         update: Bool,
-        passthroughArguments: [String],
+        passthroughArguments: [String]
     ) async throws {
         let path = try self.path(path)
 

@@ -23,6 +23,7 @@ struct ShareAcceptanceTests {
     )
     func share_ios_app_with_frameworks() async throws {
         // Given
+        try setUniqueBuildVersionSuffix()
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let simulator = try #require(Simulator.testing)
@@ -58,10 +59,11 @@ struct ShareAcceptanceTests {
         .withMockedEnvironment(),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withFixtureConnectedToCanary("xcode_app"),
+        .withFixtureConnectedToCanary("xcode_app")
     )
     func share_tuist_ipa() async throws {
         // Given
+        try setUniqueBuildVersionSuffix()
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let ipaPath = SwiftTestingHelper.fixturePath(path: try RelativePath(validating: "App.ipa"))
 
@@ -88,6 +90,7 @@ struct ShareAcceptanceTests {
     )
     func share_and_run_ios_app_with_appclip() async throws {
         // Given
+        try setUniqueBuildVersionSuffix()
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let simulator = try #require(Simulator.testing)
@@ -146,6 +149,7 @@ struct ShareAcceptanceTests {
     )
     func share_and_run_xcode_app() async throws {
         // Given
+        try setUniqueBuildVersionSuffix()
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let simulator = try #require(Simulator.testing)
@@ -199,10 +203,11 @@ struct ShareAcceptanceTests {
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
         .withFixtureConnectedToCanary("xcode_app"),
-        .withTestingSimulator("iPhone 16 Plus"),
+        .withTestingSimulator("iPhone 16 Plus")
     )
     func share_xcode_app_files() async throws {
         // Given
+        try setUniqueBuildVersionSuffix()
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let buildDirectory = fixtureDirectory.appending(component: "Build")
@@ -260,5 +265,10 @@ struct ShareAcceptanceTests {
                 .components(separatedBy: .whitespaces)
                 .last
         )
+    }
+
+    private func setUniqueBuildVersionSuffix() throws {
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables["TUIST_PREVIEW_BUILD_VERSION_SUFFIX"] = UUID().uuidString
     }
 }

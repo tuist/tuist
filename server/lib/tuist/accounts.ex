@@ -1704,9 +1704,14 @@ defmodule Tuist.Accounts do
 
   @doc """
   Returns custom cache endpoint URLs for the given account handle, or default endpoints if none configured.
+
+  Custom endpoints are only returned when:
+  - The account exists
+  - The account has `custom_cache_endpoints_enabled` set to `true`
+  - The account has at least one custom cache endpoint configured
   """
   def get_cache_endpoints_for_handle(account_handle) when is_binary(account_handle) do
-    with %Account{} = account <- get_account_by_handle(account_handle),
+    with %Account{custom_cache_endpoints_enabled: true} = account <- get_account_by_handle(account_handle),
          [_ | _] = endpoints <- list_account_cache_endpoints(account) do
       Enum.map(endpoints, & &1.url)
     else

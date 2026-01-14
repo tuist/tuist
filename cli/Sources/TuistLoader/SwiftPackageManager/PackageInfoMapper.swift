@@ -100,7 +100,8 @@ public protocol PackageInfoMapping {
         path: AbsolutePath,
         packageType: PackageType,
         packageSettings: TuistCore.PackageSettings,
-        packageModuleAliases: [String: [String: String]]
+        packageModuleAliases: [String: [String: String]],
+        enabledTraits: Set<String>
     ) async throws -> ProjectDescription.Project?
 }
 
@@ -271,7 +272,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
         path: AbsolutePath,
         packageType: PackageType,
         packageSettings: TuistCore.PackageSettings,
-        packageModuleAliases: [String: [String: String]]
+        packageModuleAliases: [String: [String: String]],
+        enabledTraits: Set<String>
     ) async throws -> ProjectDescription.Project? {
         // Hardcoded mapping for some well known libraries, until the logic can handle those properly
         let productTypes = packageSettings.productTypes.merging(
@@ -324,7 +326,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     productTypes: productTypes,
                     productDestinations: packageSettings.productDestinations,
                     targetSettings: packageSettings.targetSettings,
-                    packageModuleAliases: packageModuleAliases
+                    packageModuleAliases: packageModuleAliases,
+                    packageTraits: packageInfo.traits ?? [],
+                    enabledTraits: enabledTraits
                 )
             }
 
@@ -378,7 +382,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
         productTypes: [String: XcodeGraph.Product],
         productDestinations: [String: XcodeGraph.Destinations],
         targetSettings: [String: XcodeGraph.Settings],
-        packageModuleAliases: [String: [String: String]]
+        packageModuleAliases: [String: [String: String]],
+        packageTraits: [PackageTrait],
+        enabledTraits: Set<String>
     ) async throws -> ProjectDescription.Target? {
         // Ignores or passes a target based on the `type` and the `packageType`.
         // After that, it assumes that no target is ignored.
@@ -572,7 +578,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
             settings: target.settings,
             moduleMap: moduleMap,
             targetSettings: targetSettings[target.name],
-            dependencyModuleAliases: dependencyModuleAliases
+            dependencyModuleAliases: dependencyModuleAliases,
+            packageTraits: packageTraits,
+            enabledTraits: enabledTraits
         )
 
         return .target(
@@ -1036,7 +1044,9 @@ extension ProjectDescription.Settings {
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         moduleMap: ModuleMap?,
         targetSettings: XcodeGraph.Settings?,
-        dependencyModuleAliases: [String: String]
+        dependencyModuleAliases: [String: String],
+        packageTraits: [PackageTrait],
+        enabledTraits: Set<String>
     ) async throws -> Self? {
         let mainPath = try await target.basePath(packageFolder: packageFolder)
         let mainRelativePath = mainPath.relative(to: packageFolder)
@@ -1059,6 +1069,17 @@ extension ProjectDescription.Settings {
         var settingsDictionary: XcodeGraph.SettingsDictionary = [
             "OTHER_SWIFT_FLAGS": ["$(inherited)"],
         ]
+
+        if !enabledTraits.isEmpty {
+            var traitConditions: Set<String> = []
+
+            resolveTraits(enabledTraits, packageTraits: packageTraits, into: &traitConditions)
+
+            if !traitConditions.isEmpty {
+                settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] =
+                    .array(["$(inherited)"] + traitConditions.sorted())
+            }
+        }
 
         // Force enable testing search paths
         let forceEnabledTestingSearchPath: Set<String> = [
@@ -1560,5 +1581,23 @@ extension PackageInfo.Platform {
     var tuistPlatformName: String {
         // catalyst is mapped to iOS platform in tuist
         platformName == "maccatalyst" ? "ios" : platformName
+    }
+}
+
+// MARK: - Trait Resolution
+
+private func resolveTraits(
+    _ traitNames: some Collection<String>,
+    packageTraits: [PackageTrait],
+    into traitConditions: inout Set<String>
+) {
+    for traitName in traitNames {
+        guard let trait = packageTraits.first(where: { $0.name == traitName }) else {
+            continue
+        }
+        if traitName != "default" {
+            traitConditions.insert(traitName)
+        }
+        resolveTraits(trait.enabledTraits, packageTraits: packageTraits, into: &traitConditions)
     }
 }

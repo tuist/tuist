@@ -86,7 +86,7 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
                         publicHeaders: ["headers/public.h"],
                         privateHeaders: ["headers/private.h"]
                     ),
-                ]))],
+                ]))]
             ),
             generatorPaths: generatorPaths,
             externalDependencies: [:],

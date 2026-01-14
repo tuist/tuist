@@ -53,8 +53,7 @@ struct ShareCommandService {
     private let fileArchiverFactory: FileArchivingFactorying
 
     init() {
-        let manifestLoader = ManifestLoaderFactory()
-            .createManifestLoader()
+        let manifestLoader = ManifestLoader.current
         let manifestGraphLoader = ManifestGraphLoader(
             manifestLoader: manifestLoader,
             workspaceMapper: SequentialWorkspaceMapper(mappers: []),

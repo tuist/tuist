@@ -1,14 +1,41 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.121.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.124.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add support for SwiftPM package traits by [@pepicrft](https://github.com/pepicrft) in [#8535](https://github.com/tuist/tuist/pull/8535)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.123.0...4.124.0
+
+## What's Changed in 4.123.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* show deprecation notice for CLI < 4.56.1 by [@cschmatzler](https://github.com/cschmatzler) in [#9110](https://github.com/tuist/tuist/pull/9110)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.122.2...4.123.0
+
+## What's Changed in 4.122.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* restore static framework resources without regressions by [@pepicrft](https://github.com/pepicrft) in [#9081](https://github.com/tuist/tuist/pull/9081)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.122.1...4.122.2
+
+## What's Changed in 4.122.1<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
 * add excluding parameter to FileElement glob by [@fortmarek](https://github.com/fortmarek) in [#9087](https://github.com/tuist/tuist/pull/9087)
 * Add tuist:synthesized tag to synthesized resource bundles by [@pepicrft](https://github.com/pepicrft) in [#8983](https://github.com/tuist/tuist/pull/8983)
+### 🐛 Bug Fixes
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.120.0...4.121.0
+* preserve -enable-upcoming-feature flags in OTHER_SWIFT_FLAGS deduplication by [@fortmarek](https://github.com/fortmarek) in [#9106](https://github.com/tuist/tuist/pull/9106)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.120.0...4.122.1
 
 ## What's Changed in 4.120.0<!-- RELEASE NOTES START -->
 

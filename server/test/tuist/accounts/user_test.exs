@@ -31,6 +31,24 @@ defmodule Tuist.Accounts.UserTest do
       assert "Avoid sequences" in errors_on(got).password
       assert "Add another word or two. Uncommon words are better." in errors_on(got).password
     end
+
+    test "validates email format" do
+      # Given/When
+      got = User.create_user_changeset(%User{}, %{email: "not-an-email", token: "test-token"})
+
+      # Then
+      assert got.valid? == false
+      assert "must be a valid email address" in errors_on(got).email
+    end
+
+    test "rejects email without @ symbol" do
+      # Given/When
+      got = User.create_user_changeset(%User{}, %{email: "brew install --formula tuist", token: "test-token"})
+
+      # Then
+      assert got.valid? == false
+      assert "must be a valid email address" in errors_on(got).email
+    end
   end
 
   describe "password_changeset/2" do

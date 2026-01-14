@@ -9,7 +9,7 @@ defmodule Tuist.GitHub.ReleasesTest do
     :ok
   end
 
-  describe "get_latest_cli_release/0" do
+  describe "get_latest_cli_release/1" do
     test "returns a release if the response is successful" do
       # Given
       published_at = DateTime.utc_now()
@@ -83,6 +83,58 @@ defmodule Tuist.GitHub.ReleasesTest do
       # Then
       assert release.name == "v2.0.0"
       assert release.html_url == "https://github.com/release"
+    end
+
+    test "returns cached release when update: false and cache exists" do
+      # Given
+      published_at = DateTime.utc_now()
+
+      cached_release = %{
+        "published_at" => Timex.format!(published_at, "{ISO:Extended}"),
+        "name" => "v3.0.0",
+        "html_url" => "https://github.com/cached-release",
+        "assets" => []
+      }
+
+      stub(Tuist.KeyValueStore, :get, fn [Releases, "github_releases"] ->
+        [cached_release]
+      end)
+
+      # When
+      release = Releases.get_latest_cli_release(update_if_needed: false)
+
+      # Then
+      assert release.name == "v3.0.0"
+      assert release.html_url == "https://github.com/cached-release"
+    end
+
+    test "returns nil when update_if_needed: false and cache is empty" do
+      # Given
+      stub(Tuist.KeyValueStore, :get, fn [Releases, "github_releases"] ->
+        nil
+      end)
+
+      # When
+      release = Releases.get_latest_cli_release(update_if_needed: false)
+
+      # Then
+      assert release == nil
+    end
+
+    test "does not call fetch_releases when update_if_needed: false" do
+      # Given
+      stub(Tuist.KeyValueStore, :get, fn [Releases, "github_releases"] ->
+        nil
+      end)
+
+      # Req.get should NOT be called when update_if_needed: false
+      reject(Req, :get, 2)
+
+      # When
+      release = Releases.get_latest_cli_release(update_if_needed: false)
+
+      # Then
+      assert release == nil
     end
   end
 

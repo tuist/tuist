@@ -20,7 +20,7 @@
       efiSupport = true;
       efiInstallAsRemovable = true;
     };
-    kernelPackages = pkgs.linuxPackages_6_17;
+    kernelPackages = pkgs.linuxPackages_6_18;
     kernel.sysctl = {
       "net.core.somaxconn" = 4096;
       "net.ipv4.tcp_max_syn_backlog" = 4096;

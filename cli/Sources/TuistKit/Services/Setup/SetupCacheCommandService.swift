@@ -37,7 +37,7 @@ struct SetupCacheCommandService {
         launchctlController: LaunchctlControlling = LaunchctlController(),
         configLoader: ConfigLoading = ConfigLoader(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
-        manifestLoader: ManifestLoading = ManifestLoaderFactory().createManifestLoader()
+        manifestLoader: ManifestLoading = ManifestLoader.current
     ) {
         self.fileSystem = fileSystem
         self.launchctlController = launchctlController

@@ -108,6 +108,8 @@ public protocol ManifestLoading {
 
 // swiftlint:disable:next type_body_length
 public class ManifestLoader: ManifestLoading {
+    @TaskLocal public static var current: ManifestLoading = CachedManifestLoader()
+
     // MARK: - Static
 
     static let startManifestToken = "TUIST_MANIFEST_START"
@@ -330,7 +332,11 @@ public class ManifestLoader: ManifestLoading {
         ) + ["--tuist-dump"]
 
         do {
-            let string = try System.shared.capture(arguments, verbose: false, environment: environment.manifestLoadingVariables)
+            let string = try System.shared.capture(
+                arguments,
+                verbose: false,
+                environment: Environment.current.manifestLoadingVariables
+            )
 
             guard let startTokenRange = string.range(of: ManifestLoader.startManifestToken),
                   let endTokenRange = string.range(of: ManifestLoader.endManifestToken)
@@ -412,12 +418,37 @@ public class ManifestLoader: ManifestLoading {
 
         let packageDescriptionArguments: [String] = try await {
             if case .packageSettings = manifest {
-                let xcode = try await XcodeController.current.selected()
+                let xcodePath = try await {
+                    if let developerDir = Environment.current.variables["DEVELOPER_DIR"] {
+                        let developerDirPath = try AbsolutePath(validating: developerDir)
+                        let resolvedXcodePath = if developerDirPath.components.suffix(2) == ["Contents", "Developer"] {
+                            developerDirPath.parentDirectory.parentDirectory
+                        } else {
+                            developerDirPath
+                        }
+                        let manifestPath = resolvedXcodePath
+                            .appending(
+                                components: "Contents",
+                                "Developer",
+                                "Toolchains",
+                                "XcodeDefault.xctoolchain",
+                                "usr",
+                                "lib",
+                                "swift",
+                                "pm",
+                                "ManifestAPI"
+                            )
+                        if try await fileSystem.exists(manifestPath) {
+                            return resolvedXcodePath
+                        }
+                    }
+                    return try await XcodeController.current.selected().path
+                }()
                 let packageVersion = try swiftPackageManagerController.getToolsVersion(
                     at: path.parentDirectory
                 )
                 let manifestPath =
-                    "\(xcode.path.pathString)/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/pm/ManifestAPI"
+                    "\(xcodePath.pathString)/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/pm/ManifestAPI"
                 return [
                     "-I", manifestPath,
                     "-L", manifestPath,
@@ -437,16 +468,31 @@ public class ManifestLoader: ManifestLoading {
 
         if !disableSandbox {
             #if os(macOS)
+                let developerDirXcodePath: AbsolutePath? = {
+                    guard let developerDir = Environment.current.variables["DEVELOPER_DIR"],
+                          let developerDirPath = try? AbsolutePath(validating: developerDir)
+                    else {
+                        return nil
+                    }
+                    if developerDirPath.components.suffix(2) == ["Contents", "Developer"] {
+                        return developerDirPath.parentDirectory.parentDirectory
+                    }
+                    return developerDirPath
+                }()
+                var readOnlyPaths: [AbsolutePath] = [
+                    path,
+                    try await XcodeController.current.selected().path,
+                    AbsolutePath("/Library/Preferences/com.apple.dt.Xcode.plist"),
+                    searchPaths.includeSearchPath,
+                    searchPaths.librarySearchPath,
+                    searchPaths.frameworkSearchPath,
+                ]
+                if let developerDirXcodePath {
+                    readOnlyPaths.append(developerDirXcodePath)
+                }
                 let profile = macOSSandboxProfile(
                     readOnlyPaths: Set(
-                        [
-                            path,
-                            try await XcodeController.current.selected().path,
-                            AbsolutePath("/Library/Preferences/com.apple.dt.Xcode.plist"),
-                            searchPaths.includeSearchPath,
-                            searchPaths.librarySearchPath,
-                            searchPaths.frameworkSearchPath,
-                        ] + projectDescriptionHelperModules.map(\.path.parentDirectory)
+                        readOnlyPaths + projectDescriptionHelperModules.map(\.path.parentDirectory)
                     )
                 )
                 return ["sandbox-exec", "-p", profile] + arguments

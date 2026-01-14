@@ -29,9 +29,16 @@ defmodule Tuist.GitHub.Releases do
     if Tuist.Environment.dev?() do
       nil
     else
-      case opts
-           |> fetch_releases()
-           |> Enum.find(fn release ->
+      update_if_needed = Keyword.get(opts, :update_if_needed, true)
+
+      releases =
+        if update_if_needed do
+          fetch_releases(opts)
+        else
+          [__MODULE__, "github_releases"] |> KeyValueStore.get() |> List.wrap()
+        end
+
+      case Enum.find(releases, fn release ->
              not String.contains?(release["name"], "@")
            end) do
         nil -> nil

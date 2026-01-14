@@ -196,6 +196,17 @@ defmodule TuistWeb.AccountSettingsLive do
     {:noreply, socket}
   end
 
+  def handle_event(
+        "toggle_custom_cache_endpoints",
+        %{"checked" => checked},
+        %{assigns: %{selected_account: selected_account}} = socket
+      ) do
+    {:ok, updated_account} =
+      Accounts.update_account(selected_account, %{custom_cache_endpoints_enabled: checked})
+
+    {:noreply, assign(socket, selected_account: updated_account)}
+  end
+
   defp delete_cache_endpoint(socket, endpoint_id) do
     selected_account = socket.assigns.selected_account
 
@@ -245,108 +256,31 @@ defmodule TuistWeb.AccountSettingsLive do
 
   attr(:cache_endpoints, :list, required: true)
   attr(:add_cache_endpoint_form, Form, required: true)
+  attr(:custom_cache_endpoints_enabled, :boolean, required: true)
 
   def cache_endpoints_section(assigns) do
     ~H"""
     <.card_section data-part="cache-endpoints-card-section">
       <div data-part="header">
-        <span data-part="title">
-          {dgettext("dashboard_account", "Custom cache endpoints")}
-        </span>
+        <div data-part="toggle-row">
+          <.toggle
+            id={"custom-cache-endpoints-toggle-#{@custom_cache_endpoints_enabled}"}
+            checked={@custom_cache_endpoints_enabled}
+            data-on-checked-change="toggle_custom_cache_endpoints"
+          />
+          <span data-part="title">
+            {dgettext("dashboard_account", "Cache endpoints")}
+          </span>
+        </div>
         <span data-part="subtitle">
           {dgettext(
             "dashboard_account",
-            "Configure custom cache endpoints for self-hosted cache scenarios. When configured, these endpoints will be used instead of the default Tuist-hosted endpoints."
+            "Configure custom cache endpoints for self-hosted cache setups. When enabled, Tuist will read from and write to these endpoints instead of the default Tuist-hosted cache."
           )}
         </span>
       </div>
-      <div data-part="content">
-        <%= if Enum.empty?(@cache_endpoints) do %>
-          <.alert
-            status="information"
-            type="secondary"
-            size="small"
-            title={
-              dgettext(
-                "dashboard_account",
-                "No custom cache endpoints configured. Default Tuist-hosted endpoints will be used."
-              )
-            }
-          />
-        <% else %>
-          <.table id="cache-endpoints-table" rows={@cache_endpoints}>
-            <:col :let={endpoint} label={dgettext("dashboard_account", "URL")}>
-              <.text_cell label={endpoint.url} />
-            </:col>
-            <:col :let={endpoint} label="">
-              <%= if length(@cache_endpoints) == 1 do %>
-                <.modal
-                  id={"delete-endpoint-#{endpoint.id}-modal"}
-                  title={dgettext("dashboard_account", "Delete last cache endpoint?")}
-                  header_size="large"
-                  on_dismiss={"close-delete-endpoint-modal-#{endpoint.id}"}
-                >
-                  <:trigger :let={attrs}>
-                    <.button
-                      type="button"
-                      label={dgettext("dashboard_account", "Delete")}
-                      variant="destructive"
-                      size="small"
-                      {attrs}
-                    />
-                  </:trigger>
-                  <.line_divider />
-                  <div data-part="content">
-                    <.alert
-                      status="warning"
-                      type="secondary"
-                      size="small"
-                      title={
-                        dgettext(
-                          "dashboard_account",
-                          "Removing the last custom cache endpoint will switch your organization back to Tuist-hosted caching. This affects all builds across your organization."
-                        )
-                      }
-                    />
-                  </div>
-                  <.line_divider />
-                  <:footer>
-                    <.modal_footer>
-                      <:action>
-                        <.button
-                          type="button"
-                          label={dgettext("dashboard_account", "Cancel")}
-                          variant="secondary"
-                          phx-click={"close-delete-endpoint-modal-#{endpoint.id}"}
-                        />
-                      </:action>
-                      <:action>
-                        <.button
-                          type="button"
-                          label={dgettext("dashboard_account", "Delete")}
-                          variant="destructive"
-                          phx-click="confirm_delete_last_cache_endpoint"
-                          phx-value-id={endpoint.id}
-                        />
-                      </:action>
-                    </.modal_footer>
-                  </:footer>
-                </.modal>
-              <% else %>
-                <.button
-                  type="button"
-                  label={dgettext("dashboard_account", "Delete")}
-                  variant="destructive"
-                  size="small"
-                  phx-click="delete_cache_endpoint"
-                  phx-value-id={endpoint.id}
-                />
-              <% end %>
-            </:col>
-          </.table>
-        <% end %>
+      <div data-part="button-container">
         <.form
-          data-part="form"
           for={@add_cache_endpoint_form}
           id="add-cache-endpoint-form"
           phx-submit="create_cache_endpoint"
@@ -359,14 +293,17 @@ defmodule TuistWeb.AccountSettingsLive do
           >
             <:trigger :let={attrs}>
               <.button
+                id={"add-cache-endpoint-button-#{@custom_cache_endpoints_enabled}"}
                 label={dgettext("dashboard_account", "Add endpoint")}
                 variant="secondary"
                 size="medium"
+                disabled={!@custom_cache_endpoints_enabled}
+                type="button"
                 {attrs}
               />
             </:trigger>
             <.line_divider />
-            <div data-part="content">
+            <div data-part="modal-content">
               <.text_input
                 field={@add_cache_endpoint_form[:url]}
                 type="basic"
@@ -396,6 +333,106 @@ defmodule TuistWeb.AccountSettingsLive do
             </:footer>
           </.modal>
         </.form>
+      </div>
+      <div :if={@custom_cache_endpoints_enabled || !Enum.empty?(@cache_endpoints)} data-part="content">
+        <.alert
+          :if={!@custom_cache_endpoints_enabled}
+          status="information"
+          type="secondary"
+          size="small"
+          title={
+            dgettext(
+              "dashboard_account",
+              "Custom cache endpoints are disabled. Tuist will use the default Tuist-hosted cache."
+            )
+          }
+        />
+        <.alert
+          :if={@custom_cache_endpoints_enabled and Enum.empty?(@cache_endpoints)}
+          status="information"
+          type="secondary"
+          size="small"
+          title={
+            dgettext(
+              "dashboard_account",
+              "No custom cache endpoints configured. Tuist will use the default Tuist-hosted cache until endpoints are added."
+            )
+          }
+        />
+        <.table
+          :if={@custom_cache_endpoints_enabled and not Enum.empty?(@cache_endpoints)}
+          id="cache-endpoints-table"
+          rows={@cache_endpoints}
+        >
+          <:col :let={endpoint} label={dgettext("dashboard_account", "URL")}>
+            <.text_cell label={endpoint.url} />
+          </:col>
+          <:col :let={endpoint} label="">
+            <%= if length(@cache_endpoints) == 1 do %>
+              <.modal
+                id={"delete-endpoint-#{endpoint.id}-modal"}
+                title={dgettext("dashboard_account", "Delete last cache endpoint?")}
+                header_size="large"
+                on_dismiss={"close-delete-endpoint-modal-#{endpoint.id}"}
+              >
+                <:trigger :let={attrs}>
+                  <.button
+                    type="button"
+                    label={dgettext("dashboard_account", "Delete")}
+                    variant="destructive"
+                    size="small"
+                    {attrs}
+                  />
+                </:trigger>
+                <.line_divider />
+                <div data-part="content">
+                  <.alert
+                    status="warning"
+                    type="secondary"
+                    size="small"
+                    title={
+                      dgettext(
+                        "dashboard_account",
+                        "Removing the last custom cache endpoint will switch your organization back to Tuist-hosted caching. This affects all builds across your organization."
+                      )
+                    }
+                  />
+                </div>
+                <.line_divider />
+                <:footer>
+                  <.modal_footer>
+                    <:action>
+                      <.button
+                        type="button"
+                        label={dgettext("dashboard_account", "Cancel")}
+                        variant="secondary"
+                        phx-click={"close-delete-endpoint-modal-#{endpoint.id}"}
+                      />
+                    </:action>
+                    <:action>
+                      <.button
+                        type="button"
+                        label={dgettext("dashboard_account", "Delete")}
+                        variant="destructive"
+                        phx-click="confirm_delete_last_cache_endpoint"
+                        phx-value-id={endpoint.id}
+                      />
+                    </:action>
+                  </.modal_footer>
+                </:footer>
+              </.modal>
+            <% else %>
+              <.button
+                type="button"
+                label={dgettext("dashboard_account", "Delete")}
+                variant="destructive"
+                size="small"
+                phx-click="delete_cache_endpoint"
+                phx-value-id={endpoint.id}
+              />
+            <% end %>
+          </:col>
+        </.table>
       </div>
     </.card_section>
     """

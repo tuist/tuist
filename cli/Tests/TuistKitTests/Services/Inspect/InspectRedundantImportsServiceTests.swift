@@ -73,7 +73,7 @@ final class LintRedundantImportsServiceTests: TuistUnitTestCase {
             // Given
             let path = try AbsolutePath(validating: "/project")
             let config = Tuist.test(
-                inspectOptions: .test(redundantDependencies: .init(ignoreTagsMatching: ["IgnoreRedundantDependencies"])),
+                inspectOptions: .test(redundantDependencies: .init(ignoreTagsMatching: ["IgnoreRedundantDependencies"]))
             )
             let framework = Target.test(name: "Framework", product: .framework)
             let app = Target.test(
