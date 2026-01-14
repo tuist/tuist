@@ -467,21 +467,32 @@
                 sort_icon(@test_cases_sort_order)
             }
           >
-            <.text_and_description_cell
-              label={test_case.name}
-              description={
-                case {test_case.module_name, test_case.suite_name} do
-                  {module_name, suite_name} when module_name != "" and suite_name != "" ->
-                    "#{module_name} \u2022 #{suite_name}"
+            <div data-part="cell" data-type="text_and_description">
+              <div data-part="column">
+                <span data-part="label">
+                  {test_case.name}
+                  <.badge
+                    :if={test_case.is_flaky}
+                    label={dgettext("dashboard_tests", "Flaky")}
+                    color="attention"
+                    style="light-fill"
+                    size="small"
+                  />
+                </span>
+                <span data-part="description">
+                  {case {test_case.module_name, test_case.suite_name} do
+                    {module_name, suite_name} when module_name != "" and suite_name != "" ->
+                      "#{module_name} \u2022 #{suite_name}"
 
-                  {module_name, _} when module_name != "" ->
-                    module_name
+                    {module_name, _} when module_name != "" ->
+                      module_name
 
-                  _ ->
-                    nil
-                end
-              }
-            />
+                    _ ->
+                      nil
+                  end}
+                </span>
+              </div>
+            </div>
           </:col>
           <:col
             :let={test_case}
@@ -505,26 +516,19 @@
             />
           </:col>
           <:col :let={test_case} label={dgettext("dashboard_tests", "Last status")}>
-            <%= if test_case.is_flaky do %>
-              <.status_badge_cell
-                label={dgettext("dashboard_tests", "Flaky")}
-                status="attention"
-              />
-            <% else %>
-              <%= case test_case.last_status do %>
-                <% "success" -> %>
-                  <.status_badge_cell
-                    label={dgettext("dashboard_tests", "Passed")}
-                    status="success"
-                  />
-                <% "failure" -> %>
-                  <.status_badge_cell label={dgettext("dashboard_tests", "Failed")} status="error" />
-                <% "skipped" -> %>
-                  <.status_badge_cell
-                    label={dgettext("dashboard_tests", "Skipped")}
-                    status="warning"
-                  />
-              <% end %>
+            <%= case test_case.last_status do %>
+              <% "success" -> %>
+                <.status_badge_cell
+                  label={dgettext("dashboard_tests", "Passed")}
+                  status="success"
+                />
+              <% "failure" -> %>
+                <.status_badge_cell label={dgettext("dashboard_tests", "Failed")} status="error" />
+              <% "skipped" -> %>
+                <.status_badge_cell
+                  label={dgettext("dashboard_tests", "Skipped")}
+                  status="warning"
+                />
             <% end %>
           </:col>
           <:col
