@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.124.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add support for SwiftPM package traits by [@pepicrft](https://github.com/pepicrft) in [#8535](https://github.com/tuist/tuist/pull/8535)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.123.0...4.124.0
+
 ## What's Changed in 4.123.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
