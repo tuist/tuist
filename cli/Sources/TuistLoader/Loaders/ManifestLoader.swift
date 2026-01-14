@@ -353,10 +353,6 @@ public class ManifestLoader: ManifestLoading {
             let manifest = string[startTokenRange.upperBound ..< endTokenRange.lowerBound]
             return manifest.data(using: .utf8)!
         } catch {
-            Logger.current.debug("Failed to load manifest at \(path.pathString)")
-            Logger.current.debug("Manifest type: \(manifest)")
-            Logger.current.debug("Arguments: \(arguments.joined(separator: " "))")
-            Logger.current.debug("Error: \(error)")
             logUnexpectedImportErrorIfNeeded(in: path, error: error, manifest: manifest)
             logPluginHelperBuildErrorIfNeeded(in: path, error: error, manifest: manifest)
             throw error
