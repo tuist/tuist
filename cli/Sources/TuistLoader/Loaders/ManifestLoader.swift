@@ -353,6 +353,28 @@ public class ManifestLoader: ManifestLoading {
             let manifest = string[startTokenRange.upperBound ..< endTokenRange.lowerBound]
             return manifest.data(using: .utf8)!
         } catch {
+            if let systemError = error as? SystemError {
+                let (command, stderr): (String, String?) = {
+                    switch systemError {
+                    case let .terminated(command, _, data),
+                         let .signalled(command, _, data):
+                        return (command, String(data: data, encoding: .utf8))
+                    case .parseSwiftVersion:
+                        return ("", nil)
+                    }
+                }()
+                var diagnostics = [
+                    "Manifest loading failed for \(path.pathString)",
+                ]
+                if !command.isEmpty {
+                    diagnostics.append("Command: \(command)")
+                }
+                if let developerDir = Environment.current.variables["DEVELOPER_DIR"] {
+                    diagnostics.append("DEVELOPER_DIR: \(developerDir)")
+                }
+                diagnostics.append("stderr: \(stderr?.isEmpty == false ? stderr! : "<empty>")")
+                Logger.current.notice(diagnostics.joined(separator: "\n"))
+            }
             logUnexpectedImportErrorIfNeeded(in: path, error: error, manifest: manifest)
             logPluginHelperBuildErrorIfNeeded(in: path, error: error, manifest: manifest)
             throw error
