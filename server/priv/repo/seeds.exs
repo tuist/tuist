@@ -548,7 +548,7 @@ tests =
     }
   end)
 
-IngestRepo.insert_all(Test, tests)
+# Note: Tests will be inserted after flaky status is determined
 
 # Generate test modules, suites, cases, and failures similar to how builds generate cacheable tasks
 module_names = [
@@ -638,11 +638,7 @@ test_module_runs =
     end)
   end)
 
-test_module_runs
-|> Enum.chunk_every(1000)
-|> Enum.each(fn chunk ->
-  IngestRepo.insert_all(TestModuleRun, chunk)
-end)
+# Note: Test module runs will be inserted after flaky status is determined
 
 # Generate test suite runs
 test_suite_runs =
@@ -684,11 +680,7 @@ test_suite_runs =
     end)
   end)
 
-test_suite_runs
-|> Enum.chunk_every(1000)
-|> Enum.each(fn chunk ->
-  IngestRepo.insert_all(TestSuiteRun, chunk)
-end)
+# Note: Test suite runs will be inserted after flaky status is determined
 
 # Create test cases first with all unique combinations of (module_name, suite_name, test_case_name)
 # This creates the test_cases and returns a map of {name, module_name, suite_name} => test_case_id
@@ -815,13 +807,83 @@ flaky_test_case_ids =
   |> Enum.uniq()
   |> MapSet.new()
 
+# Determine which suite_runs, module_runs, and tests contain flaky test_case_runs
+flaky_case_runs = Enum.filter(test_case_runs, & &1.is_flaky)
+
+flaky_suite_run_ids =
+  flaky_case_runs
+  |> Enum.map(& &1.test_suite_run_id)
+  |> Enum.uniq()
+  |> MapSet.new()
+
+flaky_module_run_ids =
+  test_suite_runs
+  |> Enum.filter(fn sr -> MapSet.member?(flaky_suite_run_ids, sr.id) end)
+  |> Enum.map(& &1.test_module_run_id)
+  |> Enum.uniq()
+  |> MapSet.new()
+
+flaky_test_run_ids =
+  test_module_runs
+  |> Enum.filter(fn mr -> MapSet.member?(flaky_module_run_ids, mr.id) end)
+  |> Enum.map(& &1.test_run_id)
+  |> Enum.uniq()
+  |> MapSet.new()
+
+# Update the original lists with flaky flags before inserting
+updated_tests =
+  Enum.map(tests, fn t ->
+    if MapSet.member?(flaky_test_run_ids, t.id) do
+      %{t | is_flaky: true}
+    else
+      t
+    end
+  end)
+
+updated_test_module_runs =
+  Enum.map(test_module_runs, fn mr ->
+    if MapSet.member?(flaky_module_run_ids, mr.id) do
+      %{mr | is_flaky: true}
+    else
+      mr
+    end
+  end)
+
+updated_test_suite_runs =
+  Enum.map(test_suite_runs, fn sr ->
+    if MapSet.member?(flaky_suite_run_ids, sr.id) do
+      %{sr | is_flaky: true}
+    else
+      sr
+    end
+  end)
+
+# Now insert everything once (no duplicates)
+updated_tests
+|> Enum.chunk_every(1000)
+|> Enum.each(fn chunk ->
+  IngestRepo.insert_all(Test, chunk)
+end)
+
+updated_test_module_runs
+|> Enum.chunk_every(1000)
+|> Enum.each(fn chunk ->
+  IngestRepo.insert_all(TestModuleRun, chunk)
+end)
+
+updated_test_suite_runs
+|> Enum.chunk_every(1000)
+|> Enum.each(fn chunk ->
+  IngestRepo.insert_all(TestSuiteRun, chunk)
+end)
+
 test_case_runs
 |> Enum.chunk_every(1000)
 |> Enum.each(fn chunk ->
   IngestRepo.insert_all(Tuist.Runs.TestCaseRun, chunk)
 end)
 
-# Update test_cases to mark flaky ones (re-insert with is_flaky = true for ClickHouse)
+# Update test_cases to mark flaky ones
 if MapSet.size(flaky_test_case_ids) > 0 do
   now = NaiveDateTime.utc_now()
 
@@ -847,61 +909,14 @@ if MapSet.size(flaky_test_case_ids) > 0 do
 
   IngestRepo.insert_all(Tuist.Runs.TestCase, flaky_test_case_updates)
 
-  # Also update test_suite_runs, test_module_runs, and tests to reflect flakiness
-  flaky_case_runs = Enum.filter(test_case_runs, & &1.is_flaky)
-
-  # Find suite_run_ids that contain flaky test_case_runs
-  flaky_suite_run_ids =
-    flaky_case_runs
-    |> Enum.map(& &1.test_suite_run_id)
-    |> Enum.uniq()
-    |> MapSet.new()
-
-  flaky_suite_run_updates =
-    test_suite_runs
-    |> Enum.filter(fn sr -> MapSet.member?(flaky_suite_run_ids, sr.id) end)
-    |> Enum.map(fn sr -> %{sr | is_flaky: true} end)
-
-  if length(flaky_suite_run_updates) > 0 do
-    IngestRepo.insert_all(TestSuiteRun, flaky_suite_run_updates)
-  end
-
-  # Find module_run_ids that contain flaky test_suite_runs
-  flaky_module_run_ids =
-    flaky_suite_run_updates
-    |> Enum.map(& &1.test_module_run_id)
-    |> Enum.uniq()
-    |> MapSet.new()
-
-  flaky_module_run_updates =
-    test_module_runs
-    |> Enum.filter(fn mr -> MapSet.member?(flaky_module_run_ids, mr.id) end)
-    |> Enum.map(fn mr -> %{mr | is_flaky: true} end)
-
-  if length(flaky_module_run_updates) > 0 do
-    IngestRepo.insert_all(TestModuleRun, flaky_module_run_updates)
-  end
-
-  # Find test_run_ids that contain flaky test_module_runs
-  flaky_test_run_ids =
-    flaky_module_run_updates
-    |> Enum.map(& &1.test_run_id)
-    |> Enum.uniq()
-    |> MapSet.new()
-
-  flaky_test_updates =
-    tests
-    |> Enum.filter(fn t -> MapSet.member?(flaky_test_run_ids, t.id) end)
-    |> Enum.map(fn t -> %{t | is_flaky: true} end)
-
-  if length(flaky_test_updates) > 0 do
-    IngestRepo.insert_all(Test, flaky_test_updates)
-  end
+  flaky_suite_count = MapSet.size(flaky_suite_run_ids)
+  flaky_module_count = MapSet.size(flaky_module_run_ids)
+  flaky_test_count = MapSet.size(flaky_test_run_ids)
 
   IO.puts("Marked #{MapSet.size(flaky_test_case_ids)} test cases as flaky based on actual run data")
-  IO.puts("  - #{length(flaky_suite_run_updates)} suite runs")
-  IO.puts("  - #{length(flaky_module_run_updates)} module runs")
-  IO.puts("  - #{length(flaky_test_updates)} test runs")
+  IO.puts("  - #{flaky_suite_count} suite runs")
+  IO.puts("  - #{flaky_module_count} module runs")
+  IO.puts("  - #{flaky_test_count} test runs")
 end
 
 # Generate test case failures for failed test cases

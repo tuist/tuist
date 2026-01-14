@@ -814,5 +814,4 @@ defmodule TuistWeb.TestRunLive do
       }
     ]
   end
-
 end

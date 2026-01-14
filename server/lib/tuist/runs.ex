@@ -15,12 +15,12 @@ defmodule Tuist.Runs do
   alias Tuist.Runs.BuildTarget
   alias Tuist.Runs.CacheableTask
   alias Tuist.Runs.CASOutput
+  alias Tuist.Runs.FlakyTestCase
   alias Tuist.Runs.Test
   alias Tuist.Runs.TestCase
   alias Tuist.Runs.TestCaseFailure
   alias Tuist.Runs.TestCaseRun
   alias Tuist.Runs.TestCaseRunRepetition
-  alias Tuist.Runs.FlakyTestCase
   alias Tuist.Runs.TestModuleRun
   alias Tuist.Runs.TestSuiteRun
 
@@ -33,7 +33,14 @@ defmodule Tuist.Runs do
   def get_test(id, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
 
-    case ClickHouseRepo.get(Test, id) do
+    query =
+      from(t in Test,
+        hints: ["FINAL"],
+        where: t.id == ^id,
+        limit: 1
+      )
+
+    case ClickHouseRepo.one(query) do
       nil -> {:error, :not_found}
       test -> {:ok, Repo.preload(test, preload)}
     end
@@ -42,6 +49,7 @@ defmodule Tuist.Runs do
   def get_latest_test_by_build_run_id(build_run_id) do
     query =
       from(t in Test,
+        hints: ["FINAL"],
         where: t.build_run_id == ^build_run_id,
         order_by: [desc: t.ran_at],
         limit: 1
@@ -625,6 +633,7 @@ defmodule Tuist.Runs do
   def list_test_case_runs_by_test_case_id(test_case_id, attrs) do
     base_query =
       from(tcr in TestCaseRun,
+        hints: ["FINAL"],
         where: tcr.test_case_id == ^test_case_id
       )
 
@@ -687,23 +696,41 @@ defmodule Tuist.Runs do
   end
 
   defp compute_all_test_case_run_statuses(test, test_cases, module_name) do
-    Enum.reduce(test_cases, %{}, fn case_attrs, acc ->
-      case_name = Map.get(case_attrs, :name)
-      suite_name = Map.get(case_attrs, :test_suite_name, "") || ""
+    {test_case_run_data, historical_flaky_ids} =
+      Enum.reduce(test_cases, {%{}, []}, fn case_attrs, {data_acc, ids_acc} ->
+        case_name = Map.get(case_attrs, :name)
+        suite_name = Map.get(case_attrs, :test_suite_name, "") || ""
 
-      # Generate deterministic test_case_id
-      test_case_id = generate_test_case_id(test.project_id, case_name, module_name, suite_name)
+        # Generate deterministic test_case_id
+        test_case_id = generate_test_case_id(test.project_id, case_name, module_name, suite_name)
 
-      # Compute status and is_flaky
-      {status, is_flaky} = compute_test_case_run_status_and_flaky(case_attrs)
+        # Compute status and is_flaky
+        {status, is_flaky} = compute_test_case_run_status_and_flaky(case_attrs)
 
-      # Check for cross-run flaky (same test case + commit on CI with different status)
-      is_flaky =
-        is_flaky or check_cross_run_flaky(test_case_id, test.git_commit_sha, test.is_ci, status)
+        # Check for cross-run flaky (same test case + commit on CI with different status)
+        {cross_run_flaky, historical_id} =
+          check_cross_run_flaky(test_case_id, test.git_commit_sha, test.is_ci, status)
 
-      identity_key = {case_name, module_name, suite_name}
-      Map.put(acc, identity_key, %{status: status, is_flaky: is_flaky})
-    end)
+        is_flaky = is_flaky or cross_run_flaky
+
+        # Collect historical run IDs that need to be marked as flaky
+        ids_acc =
+          if historical_id do
+            [historical_id | ids_acc]
+          else
+            ids_acc
+          end
+
+        identity_key = {case_name, module_name, suite_name}
+        {Map.put(data_acc, identity_key, %{status: status, is_flaky: is_flaky}), ids_acc}
+      end)
+
+    # Mark historical test case runs as flaky (insert updated versions)
+    if Enum.any?(historical_flaky_ids) do
+      mark_test_case_runs_as_flaky(historical_flaky_ids)
+    end
+
+    test_case_run_data
   end
 
   defp create_test_suites(test, module_id, test_suites, test_cases, test_case_run_data) do
@@ -903,7 +930,7 @@ defmodule Tuist.Runs do
     search_filter =
       Enum.find(filters, fn f -> f[:field] == :name and f[:op] == :ilike_and end)
 
-    search_term = if search_filter, do: "%#{search_filter[:value]}%", else: nil
+    search_term = if search_filter, do: "%#{search_filter[:value]}%"
 
     {order_clause, order_dir} =
       case {order_by, order_direction} do
@@ -1025,32 +1052,75 @@ defmodule Tuist.Runs do
   end
 
   defp check_cross_run_flaky(test_case_id, git_commit_sha, is_ci, current_status)
-       when is_ci and not is_nil(test_case_id) and not is_nil(git_commit_sha) and
-              current_status in ["success", "failure"] do
+       when is_ci and not is_nil(test_case_id) and not is_nil(git_commit_sha) and current_status in ["success", "failure"] do
     query =
       from(tcr in TestCaseRun,
+        hints: ["FINAL"],
         where: tcr.test_case_id == ^test_case_id,
         where: tcr.git_commit_sha == ^git_commit_sha,
         where: tcr.is_ci == true,
         where: tcr.status in ["success", "failure"],
-        select: tcr.status,
+        select: %{id: tcr.id, status: tcr.status},
         limit: 1
       )
 
     case ClickHouseRepo.one(query) do
       nil ->
-        false
+        {false, nil}
 
-      existing_status when existing_status != current_status ->
-        true
+      %{id: existing_id, status: existing_status} when existing_status != current_status ->
+        {true, existing_id}
 
       _ ->
-        false
+        {false, nil}
     end
   end
 
   defp check_cross_run_flaky(_test_case_id, _git_commit_sha, _is_ci, _current_status) do
-    false
+    {false, nil}
+  end
+
+  defp mark_test_case_runs_as_flaky(test_case_run_ids) when is_list(test_case_run_ids) do
+    # Fetch existing test case runs
+    query =
+      from(tcr in TestCaseRun,
+        hints: ["FINAL"],
+        where: tcr.id in ^test_case_run_ids
+      )
+
+    existing_runs = ClickHouseRepo.all(query)
+
+    # Insert updated versions with is_flaky = true
+    updated_runs =
+      Enum.map(existing_runs, fn run ->
+        %{
+          id: run.id,
+          name: run.name,
+          test_run_id: run.test_run_id,
+          test_module_run_id: run.test_module_run_id,
+          test_suite_run_id: run.test_suite_run_id,
+          status: run.status,
+          duration: run.duration,
+          module_name: run.module_name,
+          suite_name: run.suite_name,
+          project_id: run.project_id,
+          is_ci: run.is_ci,
+          scheme: run.scheme,
+          account_id: run.account_id,
+          ran_at: run.ran_at,
+          git_branch: run.git_branch,
+          test_case_id: run.test_case_id,
+          git_commit_sha: run.git_commit_sha,
+          is_flaky: true,
+          inserted_at: NaiveDateTime.utc_now()
+        }
+      end)
+
+    if Enum.any?(updated_runs) do
+      IngestRepo.insert_all(TestCaseRun, updated_runs)
+    end
+
+    :ok
   end
 
   defp compute_aggregate_is_flaky(test_case_run_data) do
@@ -1065,6 +1135,7 @@ defmodule Tuist.Runs do
     # Fetch all flaky test case runs for this test case
     flaky_runs_query =
       from(tcr in TestCaseRun,
+        hints: ["FINAL"],
         where: tcr.test_case_id == ^test_case_id,
         where: tcr.is_flaky == true,
         order_by: [desc: tcr.ran_at],
@@ -1214,7 +1285,19 @@ defmodule Tuist.Runs do
       now = NaiveDateTime.utc_now()
 
       test_cases_to_update =
-        Enum.map(rows, fn [id, name, module_name, suite_name, project_id, last_status, last_duration, last_ran_at, _inserted_at, recent_durations, avg_duration] ->
+        Enum.map(rows, fn [
+                            id,
+                            name,
+                            module_name,
+                            suite_name,
+                            project_id,
+                            last_status,
+                            last_duration,
+                            last_ran_at,
+                            _inserted_at,
+                            recent_durations,
+                            avg_duration
+                          ] ->
           uuid_string =
             case id do
               <<_::128>> = binary_uuid -> Ecto.UUID.load!(binary_uuid)

@@ -694,20 +694,17 @@ defmodule TuistWeb.API.RunsController do
                            },
                            repetitions: %Schema{
                              type: :array,
-                             description:
-                               "The repetition attempts for this test case (when run with retry-on-failure).",
+                             description: "The repetition attempts for this test case (when run with retry-on-failure).",
                              items: %Schema{
                                type: :object,
                                properties: %{
                                  repetition_number: %Schema{
                                    type: :integer,
-                                   description:
-                                     "The repetition attempt number (1 = First Run, 2 = Retry 1, etc.)"
+                                   description: "The repetition attempt number (1 = First Run, 2 = Retry 1, etc.)"
                                  },
                                  name: %Schema{
                                    type: :string,
-                                   description:
-                                     "The name of the repetition (e.g., 'First Run', 'Retry 1')."
+                                   description: "The name of the repetition (e.g., 'First Run', 'Retry 1')."
                                  },
                                  status: %Schema{
                                    type: :string,

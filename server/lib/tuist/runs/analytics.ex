@@ -2902,7 +2902,7 @@ defmodule Tuist.Runs.Analytics do
   Returns nil if there are no flaky runs or no data.
   """
   def test_case_flakiness_rate_by_id(test_case_id) do
-    thirty_days_ago = DateTime.utc_now() |> DateTime.add(-30, :day)
+    thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
 
     query =
       from(tcr in TestCaseRun,

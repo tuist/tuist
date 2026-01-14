@@ -2678,4 +2678,280 @@ defmodule Tuist.RunsTest do
       assert hd(test_cases).is_flaky == true
     end
   end
+
+  describe "cross-run flaky detection" do
+    test "marks both runs as flaky when same test case on same commit has different results" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account_id = project.account_id
+      commit_sha = "abc123def456"
+      test_case_id = Ecto.UUID.generate()
+
+      # First CI run: test case passes
+      {:ok, first_test} =
+        Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account_id,
+          duration: 1000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: commit_sha,
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testSomething",
+                  status: "success",
+                  duration: 250,
+                  test_case_id: test_case_id
+                }
+              ]
+            }
+          ]
+        })
+
+      # Get the first test case run
+      {first_test_case_runs, _} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: first_test.id}]
+        })
+
+      first_test_case_run = hd(first_test_case_runs)
+
+      # First run should not be flaky initially
+      assert first_test_case_run.is_flaky == false
+      assert first_test_case_run.status == "success"
+
+      # Second CI run: same test case on same commit fails (developer re-runs CI)
+      {:ok, second_test} =
+        Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account_id,
+          duration: 1000,
+          status: "failure",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: commit_sha,
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "failure",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testSomething",
+                  status: "failure",
+                  duration: 250,
+                  test_case_id: test_case_id
+                }
+              ]
+            }
+          ]
+        })
+
+      # Get the second test case run
+      {second_test_case_runs, _} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: second_test.id}]
+        })
+
+      second_test_case_run = hd(second_test_case_runs)
+
+      # Second run should be flaky (detected cross-run flakiness)
+      assert second_test_case_run.is_flaky == true
+      assert second_test_case_run.status == "failure"
+
+      # First run should now also be marked as flaky (via ReplacingMergeTree update)
+      # Query with FINAL hint to get the latest version of the row
+      {updated_first_runs, _} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: first_test.id}]
+        })
+
+      updated_first_run = hd(updated_first_runs)
+      assert updated_first_run.is_flaky == true
+      assert updated_first_run.status == "success"
+    end
+
+    test "does not mark as flaky when same test case on different commits has different results" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account_id = project.account_id
+      test_case_id = Ecto.UUID.generate()
+
+      # First CI run: test case passes on commit A
+      {:ok, first_test} =
+        Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account_id,
+          duration: 1000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "commit_a_123",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testSomething",
+                  status: "success",
+                  duration: 250,
+                  test_case_id: test_case_id
+                }
+              ]
+            }
+          ]
+        })
+
+      # Second CI run: same test case fails on different commit B
+      {:ok, second_test} =
+        Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account_id,
+          duration: 1000,
+          status: "failure",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "commit_b_456",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "failure",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testSomething",
+                  status: "failure",
+                  duration: 250,
+                  test_case_id: test_case_id
+                }
+              ]
+            }
+          ]
+        })
+
+      # Get both test case runs
+      {first_test_case_runs, _} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: first_test.id}]
+        })
+
+      {second_test_case_runs, _} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: second_test.id}]
+        })
+
+      # Neither should be marked as flaky (different commits)
+      assert hd(first_test_case_runs).is_flaky == false
+      assert hd(second_test_case_runs).is_flaky == false
+    end
+
+    test "does not mark as flaky for non-CI runs" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account_id = project.account_id
+      commit_sha = "same_commit_123"
+      test_case_id = Ecto.UUID.generate()
+
+      # First local run: test case passes
+      {:ok, first_test} =
+        Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account_id,
+          duration: 1000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: commit_sha,
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          is_ci: false,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testSomething",
+                  status: "success",
+                  duration: 250,
+                  test_case_id: test_case_id
+                }
+              ]
+            }
+          ]
+        })
+
+      # Second local run: same test case fails on same commit
+      {:ok, second_test} =
+        Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account_id,
+          duration: 1000,
+          status: "failure",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: commit_sha,
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: false,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "failure",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testSomething",
+                  status: "failure",
+                  duration: 250,
+                  test_case_id: test_case_id
+                }
+              ]
+            }
+          ]
+        })
+
+      # Get both test case runs
+      {first_test_case_runs, _} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: first_test.id}]
+        })
+
+      {second_test_case_runs, _} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: second_test.id}]
+        })
+
+      # Neither should be marked as flaky (not CI runs)
+      assert hd(first_test_case_runs).is_flaky == false
+      assert hd(second_test_case_runs).is_flaky == false
+    end
+  end
 end

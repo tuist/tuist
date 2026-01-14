@@ -23,7 +23,7 @@ defmodule Tuist.Runs.TestSuiteRun do
 
   @primary_key {:id, Ecto.UUID, autogenerate: false}
   schema "test_suite_runs" do
-    field :name, :string
+    field :name, Ch, type: "String"
     field :test_run_id, Ecto.UUID
     field :test_module_run_id, Ecto.UUID
     field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1, 'skipped' = 2)"

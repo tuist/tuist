@@ -14,22 +14,17 @@
   <div data-part="header">
     <div data-part="title-group">
       <div data-part="title">
-        <div :if={@run.is_flaky} data-part="badge-flaky">
-          <div data-part="icon">
-            <.alert_triangle />
-          </div>
-        </div>
-        <div :if={@run.status == "success" and not @run.is_flaky} data-part="badge-success">
+        <div :if={@run.status == "success"} data-part="badge-success">
           <div data-part="icon">
             <.circle_check />
           </div>
         </div>
-        <div :if={@run.status == "failure" and not @run.is_flaky} data-part="badge-failure">
+        <div :if={@run.status == "failure"} data-part="badge-failure">
           <div data-part="icon">
             <.alert_circle />
           </div>
         </div>
-        <div :if={@run.status == "skipped" and not @run.is_flaky} data-part="badge-warning">
+        <div :if={@run.status == "skipped"} data-part="badge-warning">
           <div data-part="icon">
             <.alert_hexagon />
           </div>
@@ -37,6 +32,13 @@
         <h1 data-part="label">
           {@run.scheme || dgettext("dashboard_tests", "Unknown")}
         </h1>
+        <.badge
+          :if={@run.is_flaky}
+          label={dgettext("dashboard_tests", "Flaky")}
+          color="attention"
+          style="light-fill"
+          size="large"
+        />
       </div>
       <.link_button
         :if={@run.build_run}

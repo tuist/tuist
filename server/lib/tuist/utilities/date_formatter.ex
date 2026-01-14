@@ -171,8 +171,7 @@ defmodule Tuist.Utilities.DateFormatter do
       Timex.format!(datetime, "{WDshort} {D} {Mshort} {YYYY} at {h24}:{m}") <> " UTC"
   end
 
-  def format_with_timezone_short(%NaiveDateTime{} = naive_datetime, timezone)
-      when is_binary(timezone) do
+  def format_with_timezone_short(%NaiveDateTime{} = naive_datetime, timezone) when is_binary(timezone) do
     utc_datetime = DateTime.from_naive!(naive_datetime, "Etc/UTC")
     local_time = Timex.Timezone.convert(utc_datetime, timezone)
     Timex.format!(local_time, "{WDshort} {D} {Mshort} {YYYY} at {h24}:{m}")

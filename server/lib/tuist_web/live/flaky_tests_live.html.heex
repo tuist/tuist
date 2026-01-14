@@ -1,5 +1,9 @@
 <div id="flaky-tests">
-  <.card title={dgettext("dashboard_tests", "Flaky Tests")} icon="progress_x" data-part="flaky-tests">
+  <.card
+    title={dgettext("dashboard_tests", "Flaky Tests")}
+    icon="progress_x"
+    data-part="flaky-tests"
+  >
     <.card_section data-part="flaky-tests-section">
       <div data-part="filters">
         <.form for={%{}} phx-change="search-flaky-tests" phx-debounce="200">
