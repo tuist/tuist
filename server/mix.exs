@@ -52,7 +52,7 @@ defmodule Tuist.MixProject do
       {:finch, "~> 0.20.0"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
-      {:gettext, "~> 0.26"},
+      {:gettext, "~> 1.0", override: true},
       {:jason, "~> 1.2"},
       {:libcluster, "~> 3.5"},
       {:bandit, git: "https://github.com/tuist/bandit", branch: "skip-body-drain-on-connection-close", override: true},
