@@ -12,51 +12,65 @@
   </.button>
 
   <div data-part="header">
-    <div data-part="title">
-      <div :if={@test_case_detail.last_status == "success"} data-part="badge-success">
-        <div data-part="icon">
-          <.circle_check />
+    <div data-part="title-group">
+      <div data-part="title">
+        <div :if={@test_case_detail.last_status == "success"} data-part="badge-success">
+          <div data-part="icon">
+            <.circle_check />
+          </div>
         </div>
-      </div>
-      <div :if={@test_case_detail.last_status == "failure"} data-part="badge-failure">
-        <div data-part="icon">
-          <.alert_circle />
+        <div :if={@test_case_detail.last_status == "failure"} data-part="badge-failure">
+          <div data-part="icon">
+            <.alert_circle />
+          </div>
         </div>
-      </div>
-      <div :if={@test_case_detail.last_status == "skipped"} data-part="badge-skipped">
-        <div data-part="icon">
-          <.alert_circle />
+        <div :if={@test_case_detail.last_status == "skipped"} data-part="badge-skipped">
+          <div data-part="icon">
+            <.alert_circle />
+          </div>
         </div>
+        <h1 data-part="label">
+          {@test_case_detail.name}
+        </h1>
+        <.badge
+          :if={@test_case_detail.is_flaky}
+          label={dgettext("dashboard_tests", "Flaky")}
+          color="attention"
+          style="light-fill"
+          size="large"
+        />
       </div>
-      <h1 data-part="label">
-        {@test_case_detail.name}
-      </h1>
-      <.badge
-        :if={@test_case_detail.is_flaky}
-        label={dgettext("dashboard_tests", "Flaky")}
-        color="attention"
-        style="light-fill"
-        size="large"
-      />
+      <div
+        :if={@test_case_detail.module_name != "" or @test_case_detail.suite_name != ""}
+        data-part="badges"
+      >
+        <.badge
+          :if={@test_case_detail.module_name != ""}
+          label={"#{dgettext("dashboard_tests", "Module")}: #{@test_case_detail.module_name}"}
+          color="primary"
+          style="light-fill"
+          size="large"
+        />
+        <.badge
+          :if={@test_case_detail.suite_name != ""}
+          label={"#{dgettext("dashboard_tests", "Suite")}: #{@test_case_detail.suite_name}"}
+          color="primary"
+          style="light-fill"
+          size="large"
+        />
+      </div>
     </div>
-    <div
-      :if={@test_case_detail.module_name != "" or @test_case_detail.suite_name != ""}
-      data-part="badges"
-    >
-      <.badge
-        :if={@test_case_detail.module_name != ""}
-        label={"#{dgettext("dashboard_tests", "Module")}: #{@test_case_detail.module_name}"}
-        color="primary"
-        style="light-fill"
-        size="large"
-      />
-      <.badge
-        :if={@test_case_detail.suite_name != ""}
-        label={"#{dgettext("dashboard_tests", "Suite")}: #{@test_case_detail.suite_name}"}
-        color="primary"
-        style="light-fill"
-        size="large"
-      />
+    <div :if={@test_case_detail.is_flaky} data-part="actions">
+      <.button
+        label={dgettext("dashboard_tests", "Unmark as flaky")}
+        variant="secondary"
+        size="medium"
+        phx-click="unmark-as-flaky"
+      >
+        <:icon_left>
+          <.icon name="alert_triangle_off" />
+        </:icon_left>
+      </.button>
     </div>
   </div>
 
