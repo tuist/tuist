@@ -618,6 +618,7 @@ defmodule Tuist.Runs do
   def get_test_case_by_id(id) do
     query =
       from(tc in TestCase,
+        hints: ["FINAL"],
         where: tc.id == ^id,
         limit: 1
       )
@@ -644,13 +645,39 @@ defmodule Tuist.Runs do
         last_duration: test_case.last_duration,
         last_ran_at: test_case.last_ran_at,
         is_flaky: false,
-        inserted_at: DateTime.utc_now(),
+        inserted_at: NaiveDateTime.utc_now(),
         recent_durations: test_case.recent_durations,
         avg_duration: test_case.avg_duration
       }
 
       IngestRepo.insert_all(TestCase, [updated_test_case])
       {:ok, %{test_case | is_flaky: false}}
+    end
+  end
+
+  @doc """
+  Marks a test case as flaky by inserting a new row with is_flaky set to true.
+  ClickHouse ReplacingMergeTree will keep the most recent row.
+  """
+  def mark_test_case_as_flaky(test_case_id) do
+    with {:ok, test_case} <- get_test_case_by_id(test_case_id) do
+      updated_test_case = %{
+        id: test_case.id,
+        name: test_case.name,
+        module_name: test_case.module_name,
+        suite_name: test_case.suite_name,
+        project_id: test_case.project_id,
+        last_status: test_case.last_status,
+        last_duration: test_case.last_duration,
+        last_ran_at: test_case.last_ran_at,
+        is_flaky: true,
+        inserted_at: NaiveDateTime.utc_now(),
+        recent_durations: test_case.recent_durations,
+        avg_duration: test_case.avg_duration
+      }
+
+      IngestRepo.insert_all(TestCase, [updated_test_case])
+      {:ok, %{test_case | is_flaky: true}}
     end
   end
 

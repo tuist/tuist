@@ -60,8 +60,9 @@
         />
       </div>
     </div>
-    <div :if={@test_case_detail.is_flaky} data-part="actions">
+    <div data-part="actions">
       <.button
+        :if={@test_case_detail.is_flaky}
         label={dgettext("dashboard_tests", "Unmark as flaky")}
         variant="secondary"
         size="medium"
@@ -69,6 +70,17 @@
       >
         <:icon_left>
           <.icon name="alert_triangle_off" />
+        </:icon_left>
+      </.button>
+      <.button
+        :if={!@test_case_detail.is_flaky}
+        label={dgettext("dashboard_tests", "Mark as flaky")}
+        variant="secondary"
+        size="medium"
+        phx-click="mark-as-flaky"
+      >
+        <:icon_left>
+          <.icon name="alert_triangle" />
         </:icon_left>
       </.button>
     </div>
