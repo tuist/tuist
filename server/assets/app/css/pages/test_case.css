@@ -198,20 +198,9 @@
                 align-items: center;
                 gap: var(--noora-spacing-2);
                 margin: 0;
-                color: var(--noora-surface-label-primary);
-                font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
 
-                & [data-part="scheme"] {
+                & [data-part="commit-sha"] {
                   color: var(--noora-surface-label-primary);
-                }
-
-                & [data-part="separator"] {
-                  color: var(--noora-surface-label-secondary);
-                  font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-                }
-
-                & [data-part="commit"] {
-                  color: var(--noora-surface-label-secondary);
                   font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
                 }
               }

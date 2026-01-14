@@ -221,14 +221,8 @@
               <div data-part="header">
                 <div data-part="title-and-subtitle">
                   <h3 data-part="title">
-                    <span data-part="scheme">
-                      {group.scheme || dgettext("dashboard_tests", "Unknown")}
-                    </span>
-                    <span :if={group.git_commit_sha not in [nil, ""]} data-part="separator">
-                      •
-                    </span>
-                    <span :if={group.git_commit_sha not in [nil, ""]} data-part="commit">
-                      {String.slice(group.git_commit_sha, 0, 12)}
+                    <span data-part="commit-sha">
+                      {String.slice(group.git_commit_sha || "", 0, 12)}
                     </span>
                   </h3>
                 </div>
