@@ -511,18 +511,16 @@ defmodule Tuist.Runs do
   end
 
   defp has_any_flaky_test_case?(test_modules) do
-    Enum.any?(test_modules, fn module_attrs ->
-      test_cases = Map.get(module_attrs, :test_cases, [])
+    test_modules
+    |> Enum.flat_map(&Map.get(&1, :test_cases, []))
+    |> Enum.any?(&test_case_is_flaky?/1)
+  end
 
-      Enum.any?(test_cases, fn case_attrs ->
-        repetitions = Map.get(case_attrs, :repetitions, [])
-        original_status = Map.get(case_attrs, :status)
+  defp test_case_is_flaky?(case_attrs) do
+    repetitions = Map.get(case_attrs, :repetitions, [])
+    statuses = Enum.map(repetitions, &Map.get(&1, :status))
 
-        Enum.any?(repetitions) and
-          Enum.any?(repetitions, fn rep -> Map.get(rep, :status) == "failure" end) and
-          original_status == "success"
-      end)
-    end)
+    "success" in statuses and "failure" in statuses
   end
 
   @doc """
@@ -635,20 +633,11 @@ defmodule Tuist.Runs do
   """
   def unmark_test_case_as_flaky(test_case_id) do
     with {:ok, test_case} <- get_test_case_by_id(test_case_id) do
-      updated_test_case = %{
-        id: test_case.id,
-        name: test_case.name,
-        module_name: test_case.module_name,
-        suite_name: test_case.suite_name,
-        project_id: test_case.project_id,
-        last_status: test_case.last_status,
-        last_duration: test_case.last_duration,
-        last_ran_at: test_case.last_ran_at,
-        is_flaky: false,
-        inserted_at: NaiveDateTime.utc_now(),
-        recent_durations: test_case.recent_durations,
-        avg_duration: test_case.avg_duration
-      }
+      updated_test_case =
+        test_case
+        |> Map.from_struct()
+        |> Map.drop([:__meta__])
+        |> Map.merge(%{is_flaky: false, inserted_at: NaiveDateTime.utc_now()})
 
       IngestRepo.insert_all(TestCase, [updated_test_case])
       {:ok, %{test_case | is_flaky: false}}
@@ -661,20 +650,11 @@ defmodule Tuist.Runs do
   """
   def mark_test_case_as_flaky(test_case_id) do
     with {:ok, test_case} <- get_test_case_by_id(test_case_id) do
-      updated_test_case = %{
-        id: test_case.id,
-        name: test_case.name,
-        module_name: test_case.module_name,
-        suite_name: test_case.suite_name,
-        project_id: test_case.project_id,
-        last_status: test_case.last_status,
-        last_duration: test_case.last_duration,
-        last_ran_at: test_case.last_ran_at,
-        is_flaky: true,
-        inserted_at: NaiveDateTime.utc_now(),
-        recent_durations: test_case.recent_durations,
-        avg_duration: test_case.avg_duration
-      }
+      updated_test_case =
+        test_case
+        |> Map.from_struct()
+        |> Map.drop([:__meta__])
+        |> Map.merge(%{is_flaky: true, inserted_at: NaiveDateTime.utc_now()})
 
       IngestRepo.insert_all(TestCase, [updated_test_case])
       {:ok, %{test_case | is_flaky: true}}
@@ -1159,27 +1139,10 @@ defmodule Tuist.Runs do
     # Insert updated versions with is_flaky = true
     updated_runs =
       Enum.map(existing_runs, fn run ->
-        %{
-          id: run.id,
-          name: run.name,
-          test_run_id: run.test_run_id,
-          test_module_run_id: run.test_module_run_id,
-          test_suite_run_id: run.test_suite_run_id,
-          status: run.status,
-          duration: run.duration,
-          module_name: run.module_name,
-          suite_name: run.suite_name,
-          project_id: run.project_id,
-          is_ci: run.is_ci,
-          scheme: run.scheme,
-          account_id: run.account_id,
-          ran_at: run.ran_at,
-          git_branch: run.git_branch,
-          test_case_id: run.test_case_id,
-          git_commit_sha: run.git_commit_sha,
-          is_flaky: true,
-          inserted_at: NaiveDateTime.utc_now()
-        }
+        run
+        |> Map.from_struct()
+        |> Map.drop([:__meta__, :ran_by_account])
+        |> Map.merge(%{is_flaky: true, inserted_at: NaiveDateTime.utc_now()})
       end)
 
     if Enum.any?(updated_runs) do
