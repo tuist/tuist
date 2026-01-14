@@ -32,6 +32,7 @@ public func resetUI() {
 public func ui() -> String {
     AlertController.current.print()
     let output = Noora.mocked?.description ?? ""
+    // Stabilize snapshot output by normalizing variable elapsed times.
     return output.replacingOccurrences(
         of: #"\[[0-9]+(?:\.[0-9]+)?s\]"#,
         with: "[0.0s]",
