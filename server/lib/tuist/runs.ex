@@ -253,7 +253,7 @@ defmodule Tuist.Runs do
       from f in TestCaseFailure,
         join: tcr in TestCaseRun,
         on: f.test_case_run_id == tcr.id,
-        where: tcr.test_run_id == ^test_run_id and tcr.is_flaky == false,
+        where: tcr.test_run_id == ^test_run_id,
         select: count(f.id)
 
     ClickHouseRepo.one(query) || 0
@@ -264,7 +264,7 @@ defmodule Tuist.Runs do
       from f in TestCaseFailure,
         join: tcr in TestCaseRun,
         on: f.test_case_run_id == tcr.id,
-        where: tcr.test_run_id == ^test_run_id and tcr.is_flaky == false,
+        where: tcr.test_run_id == ^test_run_id,
         select: %{
           id: f.id,
           test_case_run_id: f.test_case_run_id,
