@@ -330,10 +330,10 @@ public class ManifestLoader: ManifestLoading {
             at: path,
             disableSandbox: disableSandbox
         ) + ["--tuist-dump"]
-        let xcodeSelectPath = (try? System.shared.capture(["/usr/bin/xcode-select", "-p"]))
-            ?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "<error>"
-        let swiftVersion = (try? System.shared.capture(["/usr/bin/xcrun", "swift", "--version"]))
-            ?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "<error>"
+        let xcodeSelectPath = (try? System.shared.capture(["/usr/bin/xcode-select", "-p"]))?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? "<error>"
+        let swiftVersion = (try? System.shared.capture(["/usr/bin/xcrun", "swift", "--version"]))?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? "<error>"
         let commandDescription: String = {
             if arguments.first == "sandbox-exec", arguments.count > 3, arguments[1] == "-p" {
                 let trimmed = [arguments[0], arguments[1], "<profile omitted>"] + Array(arguments.dropFirst(3))
@@ -346,7 +346,7 @@ public class ManifestLoader: ManifestLoading {
                 "Manifest load invocation",
                 "Manifest: \(path.pathString)",
                 "Command: \(commandDescription)",
-                "DEVELOPER_DIR: \(Environment.current.variables[\"DEVELOPER_DIR\"] ?? "<unset>")",
+                #"DEVELOPER_DIR: \(Environment.current.variables["DEVELOPER_DIR"] ?? "<unset>")"#,
                 "xcode-select: \(xcodeSelectPath)",
                 "swift --version: \(swiftVersion)",
             ].joined(separator: "\n")
