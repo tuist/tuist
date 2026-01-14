@@ -18,8 +18,7 @@ final class HashSelectiveTestingCommandService {
 
     convenience init(selectiveTestingGraphHasher: SelectiveTestingGraphHashing) {
         let generatorFactory = GeneratorFactory()
-        let manifestLoader = ManifestLoaderFactory()
-            .createManifestLoader()
+        let manifestLoader = ManifestLoader.current
         let manifestGraphLoader = ManifestGraphLoader(
             manifestLoader: manifestLoader,
             workspaceMapper: SequentialWorkspaceMapper(mappers: []),
@@ -27,7 +26,7 @@ final class HashSelectiveTestingCommandService {
         )
         self.init(
             generatorFactory: generatorFactory,
-            configLoader: ConfigLoader(manifestLoader: ManifestLoader()),
+            configLoader: ConfigLoader(),
             manifestLoader: manifestLoader,
             manifestGraphLoader: manifestGraphLoader,
             xcodeGraphMapper: XcodeGraphMapper(),

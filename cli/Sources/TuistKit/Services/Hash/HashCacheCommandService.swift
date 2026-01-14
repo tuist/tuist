@@ -39,11 +39,12 @@ final class HashCacheCommandService {
         #else
             let generatorFactory = GeneratorFactory()
         #endif
+        let manifestLoader = ManifestLoader.current
         self.init(
             generatorFactory: generatorFactory,
             cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
-            configLoader: ConfigLoader(manifestLoader: ManifestLoader()),
-            manifestLoader: ManifestLoaderFactory().createManifestLoader()
+            configLoader: ConfigLoader(manifestLoader: manifestLoader),
+            manifestLoader: manifestLoader
         )
     }
 

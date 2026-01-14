@@ -120,7 +120,6 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
         if case .external = project.type,
            target.sources.containsObjcFiles,
-           !supportsResources,
            target.resources.containsBundleAccessedResources || containsResourcesInBuildableFolders
         {
             let (headerFilePath, headerData) = synthesizedObjcHeaderFile(bundleName: bundleName, target: target, project: project)
@@ -245,12 +244,10 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         in project: Project,
         supportsResources: Bool
     ) -> String {
-        let bundleAccessor = if supportsResources {
-            if target.product == .staticFramework {
-                swiftStaticFrameworkBundleAccessorString(for: target, bundleName: bundleName)
-            } else {
-                swiftFrameworkBundleAccessorString(for: target)
-            }
+        let bundleAccessor = if target.product == .staticFramework {
+            swiftStaticFrameworkBundleAccessorString(for: target, bundleName: bundleName)
+        } else if supportsResources {
+            swiftFrameworkBundleAccessorString(for: target)
         } else {
             swiftSPMBundleAccessorString(for: target, and: bundleName)
         }
@@ -388,11 +385,17 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         ), the bundle containing the resources is copied into the final product.
             static let module: Bundle = {
                 let bundleName = "\(bundleName)"
-                let bundleFinderResourceURL = Bundle(for: BundleFinder.self).resourceURL
+                let hostBundle = Bundle(for: BundleFinder.self)
+                let bundleFinderResourceURL = hostBundle.resourceURL
                 var candidates = [
-                    Bundle.main.resourceURL,
-                    bundleFinderResourceURL,
+                    hostBundle.privateFrameworksURL,
+                    hostBundle.bundleURL.appendingPathComponent("Frameworks"),
+                    hostBundle.bundleURL,
+                    hostBundle.resourceURL,
+                    Bundle.main.privateFrameworksURL,
+                    Bundle.main.bundleURL.appendingPathComponent("Frameworks"),
                     Bundle.main.bundleURL,
+                    Bundle.main.resourceURL,
                 ]
                 // This is a fix to make Previews work with bundled resources.
                 // Logic here is taken from SPM's generated `resource_bundle_accessors.swift` file,
@@ -453,35 +456,41 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         /// Since \(target.name) is a \(target
             .product), a cut down framework is embedded, with all the resources but only a stub Mach-O image.
             static let module: Bundle = {
+                class BundleFinder {}
+                let hostBundle = Bundle(for: BundleFinder.self)
+                let bundleFinderResourceURL = hostBundle.resourceURL
                 var candidates: [URL?] = [
+                    hostBundle.privateFrameworksURL,
+                    hostBundle.bundleURL.appendingPathComponent("Frameworks"),
+                    hostBundle.bundleURL,
+                    hostBundle.bundleURL.deletingLastPathComponent(),
+                    hostBundle.resourceURL,
                     Bundle.main.privateFrameworksURL,
                     Bundle.main.bundleURL.appendingPathComponent("Frameworks"),
                     Bundle.main.bundleURL,
                     Bundle.main.resourceURL,
-                ]
-
-                // This is a fix to make unit tests work with bundled resources.
-                // Making this change allows unit tests to search one directory up for the framework.
-                // More context can be found in this PR: https://github.com/tuist/tuist/pull/6895
-                #if canImport(XCTest)
-                final class UnitTestBundleFinder {}
-                let bundleFinderResourceURL = Bundle(for: UnitTestBundleFinder.self).resourceURL?.appendingPathComponent("..")
-                candidates.append(bundleFinderResourceURL)
-                #endif
+                ].map({ $0?.appendingPathComponent("\(target.productNameWithExtension)") })
 
                 for candidate in candidates {
-                    let frameworkUrl = candidate?.appendingPathComponent("\(target.productNameWithExtension)")
-                    if let bundle = frameworkUrl.flatMap(Bundle.init(url:)) {
+                    if let bundle = candidate.flatMap(Bundle.init(url:)) {
                         return bundle
                     }
                 }
 
-                let bundleCandidates: [URL?] = [
+                var bundleCandidates: [URL?] = [
+                    hostBundle.resourceURL,
+                    hostBundle.bundleURL,
+                    hostBundle.privateFrameworksURL,
+                    hostBundle.bundleURL.appendingPathComponent("Frameworks"),
+                    hostBundle.bundleURL.deletingLastPathComponent(),
                     Bundle.main.resourceURL,
                     Bundle.main.bundleURL,
                     Bundle.main.privateFrameworksURL,
                     Bundle.main.bundleURL.appendingPathComponent("Frameworks"),
                 ]
+                #if canImport(XCTest)
+                bundleCandidates.append(bundleFinderResourceURL?.appendingPathComponent(".."))
+                #endif
 
                 for candidate in bundleCandidates {
                     let bundlePath = candidate?.appendingPathComponent("\(bundleName).bundle")

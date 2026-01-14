@@ -24,7 +24,7 @@ final class GenerateService {
         timeTakenLoggerFormatter: TimeTakenLoggerFormatting = TimeTakenLoggerFormatter(),
         opener: Opening = Opener(),
         pluginService: PluginServicing = PluginService(),
-        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader())
+        configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory

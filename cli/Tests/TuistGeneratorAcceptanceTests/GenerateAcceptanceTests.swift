@@ -186,8 +186,8 @@ final class GenerateAcceptanceTestiOSAppWithFrameworkAndResources: TuistAcceptan
             )
         }
         for resource in [
-            "StaticFramework3_StaticFramework3.bundle",
-            "StaticFramework4_StaticFramework4.bundle",
+            "StaticFramework3.framework",
+            "StaticFramework4.framework",
         ] {
             try await XCTAssertProductWithDestinationContainsResource(
                 "App.app",
@@ -211,12 +211,12 @@ final class GenerateAcceptanceTestiOSAppWithFrameworkAndResources: TuistAcceptan
             resource: "StaticFramework2Resources-tuist.png"
         )
         try await XCTAssertProductWithDestinationContainsResource(
-            "StaticFramework3_StaticFramework3.bundle",
+            "StaticFramework3.framework",
             destination: "Debug-iphonesimulator",
             resource: "StaticFramework3Resources-tuist.png"
         )
         try await XCTAssertProductWithDestinationContainsResource(
-            "StaticFramework4_StaticFramework4.bundle",
+            "StaticFramework4.framework",
             destination: "Debug-iphonesimulator",
             resource: "StaticFramework4Resources-tuist.png"
         )
@@ -799,7 +799,7 @@ final class GenerateAcceptanceTestGeneratedStaticFrameworkIncludesMetalLib: Tuis
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "StaticMetallibFramework")
         try await XCTAssertProductWithDestinationContainsResource(
-            "StaticMetallibFramework_StaticMetallibFramework.bundle",
+            "StaticMetallibFramework.framework",
             destination: "Debug",
             resource: "default.metallib"
         )

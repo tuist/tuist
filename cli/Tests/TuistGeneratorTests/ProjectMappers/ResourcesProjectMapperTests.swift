@@ -134,8 +134,13 @@ struct ResourcesProjectMapperTests {
         let (gotProject, gotSideEffects) = try await subject.map(project: project)
 
         // Then
-        #expect(gotSideEffects.isEmpty)
-        #expect(project == gotProject)
+        let gotTarget = try #require(gotProject.targets.values.sorted().last)
+        verifyObjcBundleAccessor(
+            for: target,
+            gotTarget: gotTarget,
+            gotSideEffects: gotSideEffects,
+            project: project
+        )
     }
 
     @Test
