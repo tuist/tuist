@@ -217,43 +217,31 @@
           data-state="closed"
         >
           <div data-part="root">
-            <div data-part="trigger">
-              <div data-part="header">
-                <div data-part="title-and-subtitle">
-                  <h3 data-part="title">
-                    <span data-part="commit-sha">
-                      {String.slice(group.git_commit_sha || "", 0, 12)}
-                    </span>
-                  </h3>
-                </div>
-                <div data-part="stats">
-                  <span data-part="time-ago">
-                    {Timex.from_now(group.latest_ran_at)}
+            <div data-part="header-row">
+              <div data-part="title-and-subtitle">
+                <h3 data-part="title">
+                  <span data-part="commit-sha">
+                    {String.slice(group.git_commit_sha || "", 0, 12)}
                   </span>
-                  <div data-part="passed-count">
-                    <.circle_check />
-                    <span data-part="label">{group.passed_count}</span>
-                  </div>
-                  <div data-part="failed-count">
-                    <.circle_x />
-                    <span data-part="label">{group.failed_count}</span>
-                  </div>
-                </div>
-                <.neutral_button
-                  data-part="closed-collapsible-button"
-                  variant="secondary"
-                  size="small"
-                >
-                  <.chevron_down />
-                </.neutral_button>
-                <.neutral_button
-                  data-part="open-collapsible-button"
-                  variant="secondary"
-                  size="small"
-                >
-                  <.chevron_up />
-                </.neutral_button>
+                </h3>
               </div>
+              <div data-part="stats">
+                <span data-part="time-ago">
+                  {Timex.from_now(group.latest_ran_at)}
+                </span>
+                <div data-part="passed-count">
+                  <.circle_check />
+                  <span data-part="label">{group.passed_count}</span>
+                </div>
+                <div data-part="failed-count">
+                  <.circle_x />
+                  <span data-part="label">{group.failed_count}</span>
+                </div>
+              </div>
+              <.neutral_button data-part="trigger" variant="secondary" size="medium">
+                <span data-part="icon-closed"><.chevron_down /></span>
+                <span data-part="icon-open"><.chevron_up /></span>
+              </.neutral_button>
             </div>
             <div data-part="content" data-state="closed">
               <%= for {run, index} <- Enum.with_index(group.runs) do %>
