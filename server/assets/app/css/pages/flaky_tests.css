@@ -31,6 +31,10 @@
       & td:nth-child(1) {
         width: 50%;
       }
+
+      & [data-part="last-flaky-run-link"] {
+        padding: var(--noora-spacing-7);
+      }
     }
   }
 

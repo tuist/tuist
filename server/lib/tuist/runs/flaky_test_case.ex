@@ -4,5 +4,5 @@ defmodule Tuist.Runs.FlakyTestCase do
   This is used to display test cases that have had flaky runs.
   """
 
-  defstruct [:id, :name, :module_name, :suite_name, :flaky_runs_count, :last_flaky_at]
+  defstruct [:id, :name, :module_name, :suite_name, :flaky_runs_count, :last_flaky_at, :last_flaky_run_id]
 end

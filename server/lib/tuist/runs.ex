@@ -1017,13 +1017,15 @@ defmodule Tuist.Runs do
       tc.module_name,
       tc.suite_name,
       coalesce(stats.flaky_runs_count, 0) as flaky_runs_count,
-      stats.last_flaky_at
+      stats.last_flaky_at,
+      stats.last_flaky_run_id
     FROM test_cases tc FINAL
     LEFT JOIN (
       SELECT
         test_case_id,
         count(*) as flaky_runs_count,
-        max(inserted_at) as last_flaky_at
+        max(inserted_at) as last_flaky_at,
+        argMax(test_run_id, inserted_at) as last_flaky_run_id
       FROM test_case_runs
       WHERE project_id = {project_id:Int64} AND is_flaky = true
       GROUP BY test_case_id
@@ -1058,9 +1060,16 @@ defmodule Tuist.Runs do
     {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
 
     flaky_tests =
-      Enum.map(rows, fn [id, name, module_name, suite_name, flaky_runs_count, last_flaky_at] ->
+      Enum.map(rows, fn [id, name, module_name, suite_name, flaky_runs_count, last_flaky_at, last_flaky_run_id] ->
         uuid_string =
           case id do
+            <<_::128>> = binary_uuid -> Ecto.UUID.load!(binary_uuid)
+            string when is_binary(string) -> string
+            nil -> nil
+          end
+
+        last_flaky_run_id_string =
+          case last_flaky_run_id do
             <<_::128>> = binary_uuid -> Ecto.UUID.load!(binary_uuid)
             string when is_binary(string) -> string
             nil -> nil
@@ -1072,7 +1081,8 @@ defmodule Tuist.Runs do
           module_name: module_name,
           suite_name: suite_name,
           flaky_runs_count: flaky_runs_count,
-          last_flaky_at: last_flaky_at
+          last_flaky_at: last_flaky_at,
+          last_flaky_run_id: last_flaky_run_id_string
         }
       end)
 

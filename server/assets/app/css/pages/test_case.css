@@ -186,8 +186,8 @@
             flex-direction: row;
             align-items: center;
             gap: var(--noora-spacing-4);
-            padding: var(--noora-spacing-6);
             background: var(--noora-surface-background-primary);
+            padding: var(--noora-spacing-6);
 
             & [data-part="title-and-subtitle"] {
               flex: 1;
@@ -198,8 +198,8 @@
                 align-items: center;
                 gap: var(--noora-spacing-2);
                 margin: 0;
-                font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
                 color: var(--noora-surface-label-primary);
+                font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
 
                 & [data-part="scheme"] {
                   color: var(--noora-surface-label-primary);
@@ -227,7 +227,8 @@
                 color: var(--noora-surface-label-secondary);
                 font: var(--noora-font-weight-regular) var(--noora-font-body-small);
               }
-              & [data-part="passed-count"], & [data-part="failed-count"] {
+              & [data-part="passed-count"],
+              & [data-part="failed-count"] {
                 display: flex;
                 flex-direction: row;
                 align-items: center;
@@ -271,8 +272,8 @@
             display: flex;
             flex-direction: column;
             gap: var(--noora-spacing-6);
-            padding: var(--noora-spacing-6) var(--noora-spacing-5);
             border-top: 1px solid var(--noora-surface-border-secondary);
+            padding: var(--noora-spacing-6) var(--noora-spacing-5);
 
             &:first-child {
               padding-top: var(--noora-spacing-3);
@@ -321,9 +322,9 @@
               display: flex;
               flex-direction: column;
               gap: var(--noora-spacing-3);
-              padding: var(--noora-spacing-4);
               box-shadow: var(--noora-light-border-default);
               border-radius: var(--noora-radius-large);
+              padding: var(--noora-spacing-4);
 
               & [data-part="repetition-item"] {
                 display: flex;
@@ -342,11 +343,11 @@
             & [data-part="repetition-failure"] {
               display: flex;
               flex-direction: column;
-              box-shadow: var(--noora-border-section);
               gap: var(--noora-spacing-2);
-              padding: var(--noora-spacing-5);
-              background: var(--noora-surface-background-tertiary);
+              box-shadow: var(--noora-border-section);
               border-radius: var(--noora-radius-medium);
+              background: var(--noora-surface-background-tertiary);
+              padding: var(--noora-spacing-5);
               color: var(--noora-surface-label-primary);
               font: var(--noora-font-weight-regular) var(--noora-font-code-large);
             }

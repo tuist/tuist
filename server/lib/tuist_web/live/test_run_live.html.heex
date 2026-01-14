@@ -42,7 +42,6 @@
       </div>
       <.link_button
         :if={@run.build_run}
-        target="_blank"
         navigate={
           ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@run.build_run.id}"
         }

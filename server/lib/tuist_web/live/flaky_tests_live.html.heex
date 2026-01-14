@@ -130,7 +130,20 @@
                 sort_icon(@flaky_tests_sort_order)
             }
           >
-            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(test_case.last_flaky_at)} />
+            <.link_button
+              :if={test_case.last_flaky_run_id}
+              navigate={
+                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs/#{test_case.last_flaky_run_id}"
+              }
+              label={Tuist.Utilities.DateFormatter.from_now(test_case.last_flaky_at)}
+              underline
+              variant="secondary"
+              size="large"
+              data-part="last-flaky-run-link"
+            />
+            <span :if={is_nil(test_case.last_flaky_run_id)}>
+              {Tuist.Utilities.DateFormatter.from_now(test_case.last_flaky_at)}
+            </span>
           </:col>
         </.table>
         <.pagination_group
