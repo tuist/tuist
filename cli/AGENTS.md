@@ -3,15 +3,17 @@
 This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subsystem boundaries.
 
 ## Key Boundaries
-- Entry points and command wiring live in `cli/Sources/tuist` and `cli/Sources/TuistKit` (legacy; avoid adding new code as work moves into smaller modules).
+- Entry point lives in `cli/Sources/tuist`.
 - Core domain models and shared abstractions live in `cli/Sources/TuistCore`.
 - Common utilities and infra (logging, file system helpers, etc.) live in `cli/Sources/TuistSupport`.
-- Project generation pipeline lives in `cli/Sources/TuistGenerator`.
-- External-facing modules live in:
-  - Tuist Server client: `cli/Sources/TuistServer`
-  - Cache client: `cli/Sources/TuistCache`
-  - Dependencies tooling: `cli/Sources/TuistDependencies`
-  - Manifest loading: `cli/Sources/TuistLoader`
+- Tuist Server client: `cli/Sources/TuistServer`
+- Cache client: `cli/Sources/TuistCache`
+- Dependencies tooling: `cli/Sources/TuistDependencies`
+- Manifest loading: `cli/Sources/TuistLoader`
+
+## Legacy Modules (avoid adding new code)
+- `cli/Sources/TuistKit` - Monolithic command wiring; new commands should be added to feature-specific modules.
+- `cli/Sources/TuistGenerator` - Monolithic generation pipeline; new generation logic should be added to smaller, focused modules.
 
 ## Code Style
 - Do not add one-line comments unless they are truly useful.
