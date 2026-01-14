@@ -280,11 +280,15 @@ defmodule TuistWeb.TestRunLive do
     # Load failures data for the overview preview card
     {failures_grouped, failures_meta} = load_failures_data(socket.assigns.run, params)
 
+    # Load flaky runs data
+    flaky_runs_grouped = Runs.list_flaky_runs_for_test_run(socket.assigns.run.id)
+
     socket =
       socket
       |> assign(:selected_test_tab, selected_test_tab)
       |> assign(:failures_grouped_by_test_case, failures_grouped)
       |> assign(:failures_meta, failures_meta)
+      |> assign(:flaky_runs_grouped, flaky_runs_grouped)
       |> assign_selective_testing_defaults()
       |> assign_binary_cache_defaults()
       |> assign_param_defaults(params)

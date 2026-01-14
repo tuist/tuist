@@ -1205,6 +1205,81 @@ defmodule Tuist.Runs do
     end
   end
 
+  @doc """
+  Fetches flaky runs for a specific test run, grouped by test case name.
+  Returns a list of groups, each containing runs with their failures.
+  """
+  def list_flaky_runs_for_test_run(test_run_id) do
+    flaky_runs_query =
+      from(tcr in TestCaseRun,
+        hints: ["FINAL"],
+        where: tcr.test_run_id == ^test_run_id,
+        where: tcr.is_flaky == true,
+        order_by: [desc: tcr.ran_at]
+      )
+
+    flaky_runs = ClickHouseRepo.all(flaky_runs_query)
+
+    if Enum.empty?(flaky_runs) do
+      []
+    else
+      run_ids = Enum.map(flaky_runs, & &1.id)
+
+      failures = fetch_failures_for_runs(run_ids)
+      failures_by_run_id = Enum.group_by(failures, & &1.test_case_run_id)
+
+      repetitions = fetch_repetitions_for_runs(run_ids)
+      repetitions_by_run_id = Enum.group_by(repetitions, & &1.test_case_run_id)
+
+      flaky_runs
+      |> Enum.group_by(fn run -> {run.test_case_id, run.name, run.module_name, run.suite_name} end)
+      |> Enum.map(fn {{test_case_id, name, module_name, suite_name}, runs} ->
+        latest_ran_at = runs |> Enum.map(& &1.ran_at) |> Enum.max(NaiveDateTime)
+
+        runs_with_details =
+          Enum.map(runs, fn run ->
+            run_failures = Map.get(failures_by_run_id, run.id, [])
+
+            run_repetitions =
+              repetitions_by_run_id
+              |> Map.get(run.id, [])
+              |> Enum.sort_by(& &1.repetition_number)
+
+            run
+            |> Map.put(:failures, run_failures)
+            |> Map.put(:repetitions, run_repetitions)
+          end)
+
+        {passed_count, failed_count} =
+          Enum.reduce(runs_with_details, {0, 0}, fn run, {passed, failed} ->
+            if Enum.any?(run.repetitions) do
+              rep_passed = Enum.count(run.repetitions, &(&1.status == "success"))
+              rep_failed = Enum.count(run.repetitions, &(&1.status == "failure"))
+              {passed + rep_passed, failed + rep_failed}
+            else
+              case run.status do
+                "success" -> {passed + 1, failed}
+                "failure" -> {passed, failed + 1}
+                _ -> {passed, failed}
+              end
+            end
+          end)
+
+        %{
+          test_case_id: test_case_id,
+          name: name,
+          module_name: module_name,
+          suite_name: suite_name,
+          latest_ran_at: latest_ran_at,
+          passed_count: passed_count,
+          failed_count: failed_count,
+          runs: runs_with_details
+        }
+      end)
+      |> Enum.sort_by(& &1.latest_ran_at, {:desc, NaiveDateTime})
+    end
+  end
+
   defp fetch_failures_for_runs([]), do: []
 
   defp fetch_failures_for_runs(run_ids) do
