@@ -29,7 +29,8 @@ struct DependenciesAcceptanceTests {
         // When: Build
         try await TuistTest.run(
             InstallCommand.self,
-            ["--path", fixtureDirectory.pathString]
+            ["--path", fixtureDirectory.pathString],
+            options: [.useInstallLock]
         )
         try await TuistTest.run(
             GenerateCommand.self,
@@ -86,7 +87,8 @@ struct DependenciesAcceptanceTests {
         // When: Install dependencies
         try await TuistTest.run(
             InstallCommand.self,
-            ["--path", fixtureDirectory.pathString]
+            ["--path", fixtureDirectory.pathString],
+            options: [.useInstallLock]
         )
 
         // When: Generate and build

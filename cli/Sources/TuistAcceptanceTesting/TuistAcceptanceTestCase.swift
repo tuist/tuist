@@ -73,6 +73,23 @@ open class TuistAcceptanceTestCase: XCTestCase {
         try await parsedCommand.run()
     }
 
+    /// Runs InstallCommand with locking to prevent parallel SPM resolution conflicts.
+    /// This serializes install operations so tests can benefit from SPM's global cache.
+    public func run(_ command: InstallCommand.Type, _ arguments: [String] = []) async throws {
+        try await TestingInstall.acquiringPoolLock {
+            let arguments = [
+                "--path", fixturePath.pathString,
+            ] + arguments
+
+            var parsedCommand = try command.parse(arguments)
+            try await parsedCommand.run()
+        }
+    }
+
+    public func run(_ command: InstallCommand.Type, _ arguments: String...) async throws {
+        try await run(command, Array(arguments))
+    }
+
     public func run(_ command: InitCommand.Type, _ arguments: String...) async throws {
         let parsedCommand = try command.parse(arguments)
         try await parsedCommand.run()

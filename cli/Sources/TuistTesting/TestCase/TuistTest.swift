@@ -47,6 +47,22 @@ public func withMockedDependencies(forwardLogs: Bool = false, _ closure: () asyn
 
 public enum TuistTestRunOption {
     case useSimulatorLock
+    case useInstallLock
+}
+
+public enum TestingInstall {
+    private static let lock = PoolLock(capacity: 1)
+
+    public static func acquiringPoolLock(_ closure: () async throws -> Void) async throws {
+        await lock.acquire()
+        do {
+            try await closure()
+        } catch {
+            await lock.release()
+            throw error
+        }
+        await lock.release()
+    }
 }
 
 public enum TuistTest {
@@ -73,11 +89,14 @@ public enum TuistTest {
             mockEnvironment.processId = UUID().uuidString
         }
 
-        let acquireLock = arguments.first(where: { ["-destination", "--device"].contains($0) }) != nil || options
-            .contains(.useSimulatorLock)
+        let acquireSimulatorLock = arguments.first(where: { ["-destination", "--device"].contains($0) }) != nil ||
+            options.contains(.useSimulatorLock)
+        let acquireInstallLock = options.contains(.useInstallLock)
 
-        if acquireLock {
+        if acquireSimulatorLock {
             try await TestingSimulators.acquiringPoolLock(run)
+        } else if acquireInstallLock {
+            try await TestingInstall.acquiringPoolLock(run)
         } else {
             try await run()
         }
