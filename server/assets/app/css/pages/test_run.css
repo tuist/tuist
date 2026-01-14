@@ -450,8 +450,8 @@
             & [data-part="repetitions"] {
               display: flex;
               flex-direction: column;
-              gap: var(--noora-spacing-3);
-              padding: var(--noora-spacing-4);
+              gap: var(--noora-spacing-5);
+              padding: var(--noora-spacing-5);
               box-shadow: var(--noora-light-border-default);
               border-radius: var(--noora-radius-large);
 
