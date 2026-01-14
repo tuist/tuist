@@ -1,6 +1,15 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.124.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* disable Swift debug serialization to prevent LLDB warnings by [@pepicrft](https://github.com/pepicrft) in [#9116](https://github.com/tuist/tuist/pull/9116)
+* fix flaky DumpServiceIntegrationTests for package manifests by [@pepicrft](https://github.com/pepicrft) in [#9113](https://github.com/tuist/tuist/pull/9113)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.124.0...4.124.1
+
 ## What's Changed in 4.124.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
