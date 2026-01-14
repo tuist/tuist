@@ -14,11 +14,9 @@ print_status() {
 }
 XCODE_WORKSPACE_PATH=$MISE_PROJECT_ROOT/Tuist.xcworkspace
 source $MISE_PROJECT_ROOT/mise/utilities/setup.sh
-XCODE_PATH_SCRIPT_PATH=$SCRIPT_DIR/../../../utilities/xcode_path.sh
 BUILD_DIRECTORY=$MISE_PROJECT_ROOT/build
 TMP_DIR=/private$(mktemp -d)
 trap "rm -rf $TMP_DIR" EXIT # Ensures it gets deleted
-XCODE_VERSION=$(cat $MISE_PROJECT_ROOT/.xcode-version)
 TUIST_DIR=$MISE_PROJECT_ROOT
 APPLE_ID=$(op read "op://tuist/App Specific Password/username")
 TEAM_ID='U6LC622NKF'
@@ -44,9 +42,6 @@ print_status "Importing certificate to keychain..."
 security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Developer ID Application Certificate/password") -A
 
 echo "$(format_section "Building release into $BUILD_DIRECTORY")"
-
-echo "Static executables will be built with $XCODE_PATH"
-echo "Dynamic bundles will be built with $XCODE_PATH"
 
 rm -rf $MISE_PROJECT_ROOT/Tuist.xcodeproj
 rm -rf $MISE_PROJECT_ROOT/Tuist.xcworkspace
@@ -85,7 +80,7 @@ build_cli() {
 echo "$(format_section "Building")"
 
 echo "$(format_subsection "Generating Xcode project")"
-DEVELOPER_DIR=$XCODE_PATH TUIST_FORCE_STATIC_LINKING=1 tuist generate --no-binary-cache --path $MISE_PROJECT_ROOT --no-open
+TUIST_FORCE_STATIC_LINKING=1 tuist generate --no-binary-cache --path $MISE_PROJECT_ROOT --no-open
 
 echo "$(format_subsection "Building tuist executable")"
 build_cli
