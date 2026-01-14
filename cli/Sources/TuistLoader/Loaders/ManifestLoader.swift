@@ -421,13 +421,28 @@ public class ManifestLoader: ManifestLoading {
                 let xcodePath = try await {
                     if let developerDir = Environment.current.variables["DEVELOPER_DIR"] {
                         let developerDirPath = try AbsolutePath(validating: developerDir)
-                        if developerDirPath.components.suffix(2) == ["Contents", "Developer"] {
-                            return developerDirPath.parentDirectory.parentDirectory
+                        let resolvedXcodePath = if developerDirPath.components.suffix(2) == ["Contents", "Developer"] {
+                            developerDirPath.parentDirectory.parentDirectory
+                        } else {
+                            developerDirPath
                         }
-                        return developerDirPath
-                    } else {
-                        return try await XcodeController.current.selected().path
+                        let manifestPath = resolvedXcodePath
+                            .appending(
+                                components: "Contents",
+                                "Developer",
+                                "Toolchains",
+                                "XcodeDefault.xctoolchain",
+                                "usr",
+                                "lib",
+                                "swift",
+                                "pm",
+                                "ManifestAPI"
+                            )
+                        if try await fileSystem.exists(manifestPath) {
+                            return resolvedXcodePath
+                        }
                     }
+                    return try await XcodeController.current.selected().path
                 }()
                 let packageVersion = try swiftPackageManagerController.getToolsVersion(
                     at: path.parentDirectory

@@ -468,20 +468,10 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                     Bundle.main.bundleURL.appendingPathComponent("Frameworks"),
                     Bundle.main.bundleURL,
                     Bundle.main.resourceURL,
-                ]
-
-                // This is a fix to make unit tests work with bundled resources.
-                // Making this change allows unit tests to search one directory up for the framework.
-                // More context can be found in this PR: https://github.com/tuist/tuist/pull/6895
-                #if canImport(XCTest)
-                final class UnitTestBundleFinder {}
-                let testBundleResourceURL = Bundle(for: UnitTestBundleFinder.self).resourceURL
-                candidates.append(testBundleResourceURL?.appendingPathComponent(".."))
-                #endif
+                ].map({ $0?.appendingPathComponent("\(target.productNameWithExtension)") })
 
                 for candidate in candidates {
-                    let frameworkUrl = candidate?.appendingPathComponent("\(target.productNameWithExtension)")
-                    if let bundle = frameworkUrl.flatMap(Bundle.init(url:)) {
+                    if let bundle = candidate.flatMap(Bundle.init(url:)) {
                         return bundle
                     }
                 }
