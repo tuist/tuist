@@ -458,6 +458,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             static let module: Bundle = {
                 class BundleFinder {}
                 let hostBundle = Bundle(for: BundleFinder.self)
+                let bundleFinderResourceURL = hostBundle.resourceURL
                 var candidates: [URL?] = [
                     hostBundle.privateFrameworksURL,
                     hostBundle.bundleURL.appendingPathComponent("Frameworks"),
@@ -488,8 +489,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                     Bundle.main.bundleURL.appendingPathComponent("Frameworks"),
                 ]
                 #if canImport(XCTest)
-                bundleCandidates.append(testBundleResourceURL)
-                bundleCandidates.append(testBundleResourceURL?.appendingPathComponent(".."))
+                bundleCandidates.append(bundleFinderResourceURL?.appendingPathComponent(".."))
                 #endif
 
                 for candidate in bundleCandidates {
