@@ -3,15 +3,19 @@
 This directory contains the core business logic and domain modules for the server.
 
 ## Responsibilities
+
 - Ecto schemas, contexts, and domain services.
 - Business rules for accounts, projects, bundles, previews, registry, and analytics.
 
 ## Boundaries
+
 - Web controllers and LiveView code live in `server/lib/tuist_web`.
 - Data migrations live in `server/priv`.
 
 ## Related Context (Downlinks)
+
 - Accounts: `server/lib/tuist/accounts/AGENTS.md`
+- Alerts: `server/lib/tuist/alerts/AGENTS.md`
 - Api: `server/lib/tuist/api/AGENTS.md`
 - App Builds: `server/lib/tuist/app_builds/AGENTS.md`
 - Authentication: `server/lib/tuist/authentication/AGENTS.md`
@@ -49,6 +53,7 @@ This directory contains the core business logic and domain modules for the serve
 - Xcode: `server/lib/tuist/xcode/AGENTS.md`
 
 ## Related Context
+
 - Web layer: `server/lib/tuist_web/AGENTS.md`
 - Migrations and seeds: `server/priv/AGENTS.md`
 - Data export requirements: `server/data-export.md`
