@@ -13,31 +13,17 @@
 
   <div data-part="header">
     <div data-part="title">
-      <div :if={@test_case_detail.is_flaky} data-part="badge-flaky">
-        <div data-part="icon">
-          <.alert_triangle />
-        </div>
-      </div>
-      <div
-        :if={@test_case_detail.last_status == "success" and not @test_case_detail.is_flaky}
-        data-part="badge-success"
-      >
+      <div :if={@test_case_detail.last_status == "success"} data-part="badge-success">
         <div data-part="icon">
           <.circle_check />
         </div>
       </div>
-      <div
-        :if={@test_case_detail.last_status == "failure" and not @test_case_detail.is_flaky}
-        data-part="badge-failure"
-      >
+      <div :if={@test_case_detail.last_status == "failure"} data-part="badge-failure">
         <div data-part="icon">
           <.alert_circle />
         </div>
       </div>
-      <div
-        :if={@test_case_detail.last_status == "skipped" and not @test_case_detail.is_flaky}
-        data-part="badge-skipped"
-      >
+      <div :if={@test_case_detail.last_status == "skipped"} data-part="badge-skipped">
         <div data-part="icon">
           <.alert_circle />
         </div>
@@ -45,6 +31,13 @@
       <h1 data-part="label">
         {@test_case_detail.name}
       </h1>
+      <.badge
+        :if={@test_case_detail.is_flaky}
+        label={dgettext("dashboard_tests", "Flaky")}
+        color="attention"
+        style="light-fill"
+        size="large"
+      />
     </div>
     <div
       :if={@test_case_detail.module_name != "" or @test_case_detail.suite_name != ""}
