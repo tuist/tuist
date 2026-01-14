@@ -13,10 +13,17 @@
     right: 0;
     bottom: 0;
     left: 0;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
 
     & > svg {
       width: 100%;
       height: 100%;
+    }
+
+    & > img {
+      position: absolute;
     }
 
     html[data-theme="light"] &[data-style="dark"] {

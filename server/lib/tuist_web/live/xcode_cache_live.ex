@@ -5,6 +5,7 @@ defmodule TuistWeb.XcodeCacheLive do
 
   import Ecto.Query
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.EmptyState
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
 
