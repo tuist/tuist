@@ -18,17 +18,26 @@
           <.alert_triangle />
         </div>
       </div>
-      <div :if={@test_case_detail.last_status == "success" and not @test_case_detail.is_flaky} data-part="badge-success">
+      <div
+        :if={@test_case_detail.last_status == "success" and not @test_case_detail.is_flaky}
+        data-part="badge-success"
+      >
         <div data-part="icon">
           <.circle_check />
         </div>
       </div>
-      <div :if={@test_case_detail.last_status == "failure" and not @test_case_detail.is_flaky} data-part="badge-failure">
+      <div
+        :if={@test_case_detail.last_status == "failure" and not @test_case_detail.is_flaky}
+        data-part="badge-failure"
+      >
         <div data-part="icon">
           <.alert_circle />
         </div>
       </div>
-      <div :if={@test_case_detail.last_status == "skipped" and not @test_case_detail.is_flaky} data-part="badge-skipped">
+      <div
+        :if={@test_case_detail.last_status == "skipped" and not @test_case_detail.is_flaky}
+        data-part="badge-skipped"
+      >
         <div data-part="icon">
           <.alert_circle />
         </div>
@@ -193,9 +202,15 @@
               <div data-part="header">
                 <div data-part="title-and-subtitle">
                   <h3 data-part="title">
-                    <span data-part="scheme">{group.scheme || dgettext("dashboard_tests", "Unknown")}</span>
-                    <span :if={group.git_commit_sha not in [nil, ""]} data-part="separator">•</span>
-                    <span :if={group.git_commit_sha not in [nil, ""]} data-part="commit">{String.slice(group.git_commit_sha, 0, 12)}</span>
+                    <span data-part="scheme">
+                      {group.scheme || dgettext("dashboard_tests", "Unknown")}
+                    </span>
+                    <span :if={group.git_commit_sha not in [nil, ""]} data-part="separator">
+                      •
+                    </span>
+                    <span :if={group.git_commit_sha not in [nil, ""]} data-part="commit">
+                      {String.slice(group.git_commit_sha, 0, 12)}
+                    </span>
                   </h3>
                 </div>
                 <div data-part="stats">
@@ -246,7 +261,10 @@
                       size="small"
                     />
                     <span data-part="run-date">
-                      {Tuist.Utilities.DateFormatter.format_with_timezone_short(run.ran_at, @user_timezone)}
+                      {Tuist.Utilities.DateFormatter.format_with_timezone_short(
+                        run.ran_at,
+                        @user_timezone
+                      )}
                     </span>
                     <div data-part="run-metadata">
                       <span :if={run.git_branch not in [nil, ""]} data-part="branch-info">
@@ -278,8 +296,11 @@
                         <%= if repetition.status == "failure" and Enum.any?(run.failures) and Enum.at(run.failures, rep_index) do %>
                           <% failure = Enum.at(run.failures, rep_index) %>
                           <span data-part="repetition-failure">
-                              {format_failure_message(failure, %{project: @selected_project, git_commit_sha: run.git_commit_sha})}
-                            </span>
+                            {format_failure_message(failure, %{
+                              project: @selected_project,
+                              git_commit_sha: run.git_commit_sha
+                            })}
+                          </span>
                         <% end %>
                       <% end %>
                     </div>
@@ -287,7 +308,10 @@
                     <%= if run.status == "failure" and Enum.any?(run.failures) do %>
                       <%= for failure <- run.failures do %>
                         <span data-part="repetition-failure">
-                          {format_failure_message(failure, %{project: @selected_project, git_commit_sha: run.git_commit_sha})}
+                          {format_failure_message(failure, %{
+                            project: @selected_project,
+                            git_commit_sha: run.git_commit_sha
+                          })}
                         </span>
                       <% end %>
                     <% end %>
@@ -369,10 +393,19 @@
         }
       >
         <:col :let={test_case_run} label={dgettext("dashboard_tests", "Scheme")}>
-          <div data-part="scheme-cell" data-flaky={test_case_run.is_flaky}>
-            <.text_and_description_cell label={
-              test_case_run.scheme || dgettext("dashboard_tests", "Unknown")
-            } />
+          <div data-part="cell" data-type="text_and_description">
+            <div data-part="column">
+              <span data-part="label">
+                {test_case_run.scheme || dgettext("dashboard_tests", "Unknown")}
+                <.badge
+                  :if={test_case_run.is_flaky}
+                  label={dgettext("dashboard_tests", "Flaky")}
+                  color="attention"
+                  style="light-fill"
+                  size="small"
+                />
+              </span>
+            </div>
           </div>
         </:col>
         <:col :let={test_case_run} label={dgettext("dashboard_tests", "Status")}>

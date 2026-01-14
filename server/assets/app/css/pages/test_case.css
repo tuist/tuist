@@ -376,24 +376,10 @@
           overflow: hidden;
         }
 
-        & td:has([data-part="scheme-cell"][data-flaky]) {
-          position: relative;
-
-          &::before {
-            content: "";
-            position: absolute;
-            left: 0;
-            top: 3px;
-            bottom: 2px;
-            width: 6px;
-            background-color: var(--noora-chart-flaky);
-            border-radius: 0;
-          }
-        }
-
-        & [data-part="scheme-cell"] {
+        & [data-part="label"] {
           display: flex;
           align-items: center;
+          gap: var(--noora-spacing-3);
         }
       }
     }

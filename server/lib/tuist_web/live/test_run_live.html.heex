@@ -481,11 +481,20 @@
                   sort_icon(@test_cases_sort_order)
               }
             >
-              <div data-part="name-cell" data-flaky={test_case.is_flaky}>
-                <.text_and_description_cell
-                  label={test_case.name}
-                  description={
-                    case {test_case.module_name, test_case.suite_name} do
+              <div data-part="cell" data-type="text_and_description">
+                <div data-part="column">
+                  <span data-part="label">
+                    {test_case.name}
+                    <.badge
+                      :if={test_case.is_flaky}
+                      label={dgettext("dashboard_tests", "Flaky")}
+                      color="attention"
+                      style="light-fill"
+                      size="small"
+                    />
+                  </span>
+                  <span data-part="description">
+                    {case {test_case.module_name, test_case.suite_name} do
                       {module_name, suite_name}
                       when not is_nil(module_name) and suite_name != "" ->
                         "#{module_name} • #{suite_name}"
@@ -495,9 +504,9 @@
 
                       _ ->
                         nil
-                    end
-                  }
-                />
+                    end}
+                  </span>
+                </div>
               </div>
             </:col>
             <:col
@@ -659,8 +668,19 @@
                   sort_icon(@test_suites_sort_order)
               }
             >
-              <div data-part="name-cell" data-flaky={test_suite.is_flaky}>
-                <.text_and_description_cell label={test_suite.name} />
+              <div data-part="cell" data-type="text_and_description">
+                <div data-part="column">
+                  <span data-part="label">
+                    {test_suite.name}
+                    <.badge
+                      :if={test_suite.is_flaky}
+                      label={dgettext("dashboard_tests", "Flaky")}
+                      color="attention"
+                      style="light-fill"
+                      size="small"
+                    />
+                  </span>
+                </div>
               </div>
             </:col>
             <:col
@@ -868,8 +888,19 @@
                   sort_icon(@test_modules_sort_order)
               }
             >
-              <div data-part="name-cell" data-flaky={test_module.is_flaky}>
-                <.text_and_description_cell label={test_module.name} />
+              <div data-part="cell" data-type="text_and_description">
+                <div data-part="column">
+                  <span data-part="label">
+                    {test_module.name}
+                    <.badge
+                      :if={test_module.is_flaky}
+                      label={dgettext("dashboard_tests", "Flaky")}
+                      color="attention"
+                      style="light-fill"
+                      size="small"
+                    />
+                  </span>
+                </div>
               </div>
             </:col>
             <:col
