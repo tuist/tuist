@@ -12,8 +12,10 @@ defmodule TuistWeb.Helpers.FailureMessage do
   Formats a failure message with optional linking to source code in GitHub.
   """
   def format_failure_message(failure, run) do
+    path = if failure.path in [nil, ""], do: nil, else: failure.path
+
     message =
-      case {failure.path, failure.issue_type, failure.message} do
+      case {path, failure.issue_type, failure.message} do
         # No path cases
         {nil, "assertion_failure", nil} ->
           dgettext("dashboard_tests", "Expectation failed")
@@ -74,15 +76,15 @@ defmodule TuistWeb.Helpers.FailureMessage do
           "#{path}:#{failure.line_number}: #{message}"
       end
 
-    linkify_failure_location(message, failure, run)
+    linkify_failure_location(message, path, failure, run)
   end
 
-  defp linkify_failure_location(message, failure, run) do
-    if not is_nil(failure.path) and has_github_vcs?(run) do
-      location_text = "#{failure.path}:#{failure.line_number}"
+  defp linkify_failure_location(message, path, failure, run) do
+    if not is_nil(path) and has_github_vcs?(run) do
+      location_text = "#{path}:#{failure.line_number}"
 
       location_link =
-        ~s(<a href="https://github.com/#{run.project.vcs_connection.repository_full_handle}/blob/#{run.git_commit_sha}/#{failure.path}#L#{failure.line_number}" target="_blank">#{location_text}</a>)
+        ~s(<a href="https://github.com/#{run.project.vcs_connection.repository_full_handle}/blob/#{run.git_commit_sha}/#{path}#L#{failure.line_number}" target="_blank">#{location_text}</a>)
 
       message
       |> String.replace(location_text, location_link)
