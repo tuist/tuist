@@ -384,6 +384,17 @@
       data-part="flaky-runs-card"
     >
       <.card_section data-part="flaky-runs-section">
+        <div data-part="header">
+          <span data-part="title">
+            {dgettext("dashboard_tests", "Flaky Runs")}
+          </span>
+          <span data-part="dot">
+            {dgettext("dashboard_tests", "•")}
+          </span>
+          <span data-part="count">
+            {Enum.reduce(@flaky_runs_grouped, 0, fn group, acc -> acc + length(group.runs) end)}
+          </span>
+        </div>
         <%= for group <- @flaky_runs_grouped do %>
           <div
             id={"flaky-group-#{group.test_case_id}"}
