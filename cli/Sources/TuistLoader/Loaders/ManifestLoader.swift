@@ -330,26 +330,6 @@ public class ManifestLoader: ManifestLoading {
             at: path,
             disableSandbox: disableSandbox
         ) + ["--tuist-dump"]
-        let xcodeSelectPath = (try? System.shared.capture(["/usr/bin/xcode-select", "-p"]))?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? "<error>"
-        let swiftVersion = (try? System.shared.capture(["/usr/bin/xcrun", "swift", "--version"]))?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? "<error>"
-        let commandDescription: String = {
-            if arguments.first == "sandbox-exec", arguments.count > 3, arguments[1] == "-p" {
-                let trimmed = [arguments[0], arguments[1], "<profile omitted>"] + Array(arguments.dropFirst(3))
-                return trimmed.joined(separator: " ")
-            }
-            return arguments.joined(separator: " ")
-        }()
-        let manifestLog = [
-            "Manifest load invocation",
-            "Manifest: \(path.pathString)",
-            "Command: \(commandDescription)",
-            #"DEVELOPER_DIR: \(Environment.current.variables["DEVELOPER_DIR"] ?? "<unset>")"#,
-            "xcode-select: \(xcodeSelectPath)",
-            "swift --version: \(swiftVersion)",
-        ].joined(separator: "\n")
-        Logger.current.notice(.init(stringLiteral: manifestLog))
 
         do {
             let string = try System.shared.capture(
@@ -373,28 +353,6 @@ public class ManifestLoader: ManifestLoading {
             let manifest = string[startTokenRange.upperBound ..< endTokenRange.lowerBound]
             return manifest.data(using: .utf8)!
         } catch {
-            if let systemError = error as? SystemError {
-                let (command, stderr): (String, String?) = {
-                    switch systemError {
-                    case let .terminated(command, _, data),
-                         let .signalled(command, _, data):
-                        return (command, String(data: data, encoding: .utf8))
-                    case .parseSwiftVersion:
-                        return ("", nil)
-                    }
-                }()
-                var diagnostics = [
-                    "Manifest loading failed for \(path.pathString)",
-                ]
-                if !command.isEmpty {
-                    diagnostics.append("Command: \(command)")
-                }
-                if let developerDir = Environment.current.variables["DEVELOPER_DIR"] {
-                    diagnostics.append("DEVELOPER_DIR: \(developerDir)")
-                }
-                diagnostics.append("stderr: \(stderr?.isEmpty == false ? stderr! : "<empty>")")
-                Logger.current.debug(.init(stringLiteral: diagnostics.joined(separator: "\n")))
-            }
             logUnexpectedImportErrorIfNeeded(in: path, error: error, manifest: manifest)
             logPluginHelperBuildErrorIfNeeded(in: path, error: error, manifest: manifest)
             throw error
