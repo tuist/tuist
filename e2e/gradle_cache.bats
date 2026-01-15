@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 # E2E test: Gradle build cache integration
-# Tests that Gradle builds can push and pull cache artifacts from the Tuist server
+# Tests that Gradle builds can push and pull cache artifacts from the Tuist cache server
 
 setup_file() {
     load 'test_helper'
@@ -8,7 +8,7 @@ setup_file() {
     # Configuration
     export GRADLE_PROJECT_DIR="${REPO_ROOT}/examples/gradle/simple_android_app"
     export TUIST_TOKEN="${GRADLE_TOKEN:-tuist_01234567-89ab-cdef-0123-456789abcdef_gradlecachedevtoken}"
-    export TUIST_CACHE_URL="${SERVER_URL}/api/cache/gradle/tuist/gradle/"
+    export TUIST_CACHE_URL="${CACHE_SERVER_URL}/api/cache/gradle"
 
     # Verify prerequisites
     require_cmd java
@@ -20,9 +20,9 @@ setup_file() {
         skip "Gradle project directory not found: $GRADLE_PROJECT_DIR"
     fi
 
-    # Start the server if not already running
-    if ! server_is_running; then
-        server_start "$REPO_ROOT/server"
+    # Start the cache server if not already running
+    if ! cache_server_is_running; then
+        cache_server_start "$REPO_ROOT/cache"
     fi
 }
 
@@ -30,7 +30,7 @@ teardown_file() {
     load 'test_helper'
 
     if [[ "${KEEP_SERVER:-}" != "true" ]]; then
-        server_stop
+        cache_server_stop
     fi
 }
 

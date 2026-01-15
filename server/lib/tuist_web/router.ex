@@ -419,11 +419,6 @@ defmodule TuistWeb.Router do
         post "/:id", CASController, :save
       end
 
-      scope "/gradle/:account_handle/:project_handle" do
-        get "/:hash", Cache.GradleController, :load
-        put "/:hash", Cache.GradleController, :save
-      end
-
       get "/endpoints", CacheController, :endpoints
       get "/", CacheController, :download
       get "/exists", CacheController, :exists

@@ -52,6 +52,26 @@ defmodule Cache.S3Transfers do
   end
 
   @doc """
+  Enqueues a Gradle build cache artifact for upload to S3.
+
+  Uses INSERT with ON CONFLICT DO NOTHING to avoid duplicate entries.
+  This is a single atomic statement, avoiding SQLite contention under bursty load.
+  """
+  def enqueue_gradle_upload(account_handle, project_handle, key) do
+    enqueue(:upload, account_handle, project_handle, :gradle, key)
+  end
+
+  @doc """
+  Enqueues a Gradle build cache artifact for download from S3 to local disk.
+
+  Uses INSERT with ON CONFLICT DO NOTHING to avoid duplicate entries.
+  This is a single atomic statement, avoiding SQLite contention under bursty load.
+  """
+  def enqueue_gradle_download(account_handle, project_handle, key) do
+    enqueue(:download, account_handle, project_handle, :gradle, key)
+  end
+
+  @doc """
   Returns a list of pending transfers for the given type, ordered by insertion time (FIFO).
   """
   def pending(type, limit) when type in [:upload, :download] do
