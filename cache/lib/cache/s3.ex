@@ -165,4 +165,45 @@ defmodule Cache.S3 do
         {:error, reason}
     end
   end
+
+  @doc """
+  Deletes all objects with the given prefix from S3.
+
+  Lists all objects matching the prefix and deletes them in batches.
+  Returns {:ok, deleted_count} on success, or {:error, reason} on failure.
+  """
+  def delete_all_with_prefix(prefix) do
+    bucket = Application.get_env(:cache, :s3)[:bucket]
+
+    Logger.info("Deleting all S3 objects with prefix: #{prefix}")
+
+    case list_and_delete_objects(bucket, prefix, 0) do
+      {:ok, count} ->
+        Logger.info("Successfully deleted #{count} objects from S3 with prefix: #{prefix}")
+        {:ok, count}
+
+      {:error, reason} = error ->
+        Logger.error("Failed to delete S3 objects with prefix #{prefix}: #{inspect(reason)}")
+        error
+    end
+  end
+
+  defp list_and_delete_objects(bucket, prefix, acc) do
+    bucket
+    |> ExAws.S3.list_objects(prefix: prefix)
+    |> ExAws.stream!()
+    |> Stream.map(& &1.key)
+    |> Stream.chunk_every(1000)
+    |> Enum.reduce_while({:ok, acc}, fn keys, {:ok, count} ->
+      case bucket
+           |> ExAws.S3.delete_multiple_objects(keys)
+           |> ExAws.request() do
+        {:ok, _} ->
+          {:cont, {:ok, count + length(keys)}}
+
+        {:error, reason} ->
+          {:halt, {:error, reason}}
+      end
+    end)
+  end
 end

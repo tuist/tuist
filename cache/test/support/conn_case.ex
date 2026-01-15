@@ -23,14 +23,13 @@ defmodule CacheWeb.ConnCase do
   using do
     quote do
       use CacheWeb, :verified_routes
+      use Oban.Testing, repo: Cache.Repo
 
       import CacheWeb.ConnCase
       import Phoenix.ConnTest
       import Plug.Conn
       # The default endpoint for testing
       @endpoint CacheWeb.Endpoint
-
-      # Import conveniences for testing with connections
     end
   end
 

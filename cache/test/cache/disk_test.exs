@@ -325,4 +325,25 @@ defmodule Cache.DiskIntegrationTest do
       assert File.exists?(dest_path)
     end
   end
+
+  describe "delete_project/2" do
+    test "deletes all artifacts for a project" do
+      account = unique_account()
+      project = "test_project"
+
+      Disk.cas_put(account, project, "hash1", "content1")
+      Disk.cas_put(account, project, "hash2", "content2")
+      assert Disk.cas_exists?(account, project, "hash1")
+      assert Disk.cas_exists?(account, project, "hash2")
+
+      assert :ok = Disk.delete_project(account, project)
+
+      refute Disk.cas_exists?(account, project, "hash1")
+      refute Disk.cas_exists?(account, project, "hash2")
+    end
+
+    test "returns :ok when project directory does not exist" do
+      assert :ok = Disk.delete_project("nonexistent_account", "nonexistent_project")
+    end
+  end
 end
