@@ -23,7 +23,7 @@ defmodule Tuist.Alerts.Workers.AlertWorker do
     for alert_rule <- alert_rules do
       %{alert_rule_id: alert_rule.id}
       |> __MODULE__.new(unique: [period: 300, keys: [:alert_rule_id]])
-      |> Oban.insert()
+      |> Oban.insert!()
     end
 
     :ok

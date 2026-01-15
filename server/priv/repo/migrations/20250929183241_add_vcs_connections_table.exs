@@ -1,5 +1,6 @@
 defmodule Tuist.Repo.Migrations.AddVcsConnectionsTable do
   use Ecto.Migration
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
 
   def change do
     create table(:vcs_connections, primary_key: false) do

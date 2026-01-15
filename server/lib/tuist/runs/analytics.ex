@@ -1806,6 +1806,7 @@ defmodule Tuist.Runs.Analytics do
     normalize_result(result)
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp avg_cache_hit_rate(project_id, start_datetime, end_datetime, opts) do
     query =
       from(b in Build,
@@ -2097,6 +2098,7 @@ defmodule Tuist.Runs.Analytics do
     * `:dates` - List of dates for the chart
     * `:values` - List of hit rate values (as percentages)
   """
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def module_cache_hit_rate_analytics(opts \\ []) do
     project_id = Keyword.get(opts, :project_id)
     start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))

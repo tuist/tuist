@@ -356,8 +356,8 @@ public enum Module: String, CaseIterable {
         case .plugin:
             moduleTags.append("domain:plugins")
         case .simulator, .xcActivityLog, .git, .rootDirectoryLocator,
-             .process, .ci, .cas, .casAnalytics, .launchctl, .xcResultService, .xcodeProjectOrWorkspacePathLocator,
-             .http:
+            .process, .ci, .cas, .casAnalytics, .launchctl, .xcResultService, .xcodeProjectOrWorkspacePathLocator,
+            .http:
             moduleTags.append("domain:infrastructure")
         }
 

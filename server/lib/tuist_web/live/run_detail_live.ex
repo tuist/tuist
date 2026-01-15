@@ -369,6 +369,7 @@ defmodule TuistWeb.RunDetailLive do
     ]
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def cache_chart_border_radius(local_hits, remote_hits, misses, category) do
     has_local = local_hits > 0
     has_remote = remote_hits > 0

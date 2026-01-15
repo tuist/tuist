@@ -466,23 +466,6 @@ export async function guidesSidebar(locale) {
             "sidebars.guides.items.develop.items.selective-testing.text",
           )}</span>`,
           link: `/${locale}/guides/features/selective-testing`,
-          collapsed: true,
-          items: [
-            {
-              text: localizedString(
-                locale,
-                "sidebars.guides.items.develop.items.selective-testing.items.xcode-project.text",
-              ),
-              link: `/${locale}/guides/features/selective-testing/xcode-project`,
-            },
-            {
-              text: localizedString(
-                locale,
-                "sidebars.guides.items.develop.items.selective-testing.items.generated-project.text",
-              ),
-              link: `/${locale}/guides/features/selective-testing/generated-project`,
-            },
-          ],
         },
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${registryIcon()} ${localizedString(

@@ -38,18 +38,18 @@ defmodule Tuist.Slack.Workers.ReportWorker do
         )
       )
 
-    for project <- projects, is_due?(project, now) do
+    for project <- projects, due?(project, now) do
       %{project_id: project.id}
       |> __MODULE__.new(unique: [period: 3600, keys: [:project_id]])
-      |> Oban.insert()
+      |> Oban.insert!()
     end
 
     :ok
   end
 
-  defp is_due?(%{report_timezone: nil}, _now_utc), do: false
+  defp due?(%{report_timezone: nil}, _now_utc), do: false
 
-  defp is_due?(project, now_utc) do
+  defp due?(project, now_utc) do
     timezone = project.report_timezone
     local_now = Timex.Timezone.convert(now_utc, timezone)
     local_hour = local_now.hour

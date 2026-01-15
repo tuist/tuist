@@ -1,7 +1,6 @@
 import ArgumentParser
 import Foundation
 import TuistSupport
-import XcodeGraph
 
 public struct XcodeBuildTestWithoutBuildingCommand: AsyncParsableCommand, TrackableParsableCommand,
     RecentPathRememberableCommand
@@ -10,7 +9,7 @@ public struct XcodeBuildTestWithoutBuildingCommand: AsyncParsableCommand, Tracka
         CommandConfiguration(
             commandName: "test-without-building",
             _superCommandName: "xcodebuild",
-            abstract: "tuist xcodebuild test-without-building extends the xcodebuild CLI test action with insights and selective testing capabilities."
+            abstract: "tuist xcodebuild test-without-building extends the xcodebuild CLI test action with insights."
         )
     }
 
@@ -25,13 +24,9 @@ public struct XcodeBuildTestWithoutBuildingCommand: AsyncParsableCommand, Tracka
     public var passthroughXcodebuildArguments: [String] = []
 
     public func run() async throws {
-        try await XcodeBuildTestCommandService(
-            cacheStorageFactory: Extension.cacheStorageFactory,
-            selectiveTestingGraphHasher: Extension.selectiveTestingGraphHasher,
-            selectiveTestingService: Extension.selectiveTestingService
-        )
-        .run(
-            passthroughXcodebuildArguments: ["test-without-building"] + passthroughXcodebuildArguments
-        )
+        try await XcodeBuildTestCommandService()
+            .run(
+                passthroughXcodebuildArguments: ["test-without-building"] + passthroughXcodebuildArguments
+            )
     }
 }

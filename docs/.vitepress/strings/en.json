@@ -342,18 +342,7 @@
               }
             },
             "selective-testing": {
-              "text": "Selective testing",
-              "items": {
-                "selective-testing": {
-                  "text": "Selective testing"
-                },
-                "xcode-project": {
-                  "text": "Xcode project"
-                },
-                "generated-project": {
-                  "text": "Generated project"
-                }
-              }
+              "text": "Selective testing"
             },
             "insights": {
               "text": "Build insights"

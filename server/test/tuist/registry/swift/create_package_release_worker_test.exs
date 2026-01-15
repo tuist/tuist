@@ -14,6 +14,7 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
   alias Tuist.VCS.Repositories.Content
   alias TuistTestSupport.Fixtures.Registry.Swift.PackagesFixtures
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp setup_standard_stubs(_scope, _name, version, directory_name) do
     directory_path = "/tmp/briefly--123-test/briefly-456-test/#{directory_name}"
     package_swift_path = "#{directory_path}/Package.swift"
@@ -435,7 +436,7 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
 
       assert package_release
       assert package_release.version == "1.0.0"
-      assert Enum.count(package_release.manifests) == 0
+      assert package_release.manifests == []
     end
 
     test "handles Package.swift with String interpolation in package URLs" do

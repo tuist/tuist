@@ -1,5 +1,6 @@
 defmodule Tuist.Repo.Migrations.AddBuildVersionUniqueConstraintToAppBuilds do
   use Ecto.Migration
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
 
   def change do
     drop unique_index(:app_builds, [:binary_id])

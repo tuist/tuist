@@ -5,7 +5,8 @@ struct InspectRedundantImportsCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "redundant-imports",
-            abstract: "Find redundant imports in Tuist projects failing when cases are found."
+            abstract: "Find redundant imports in Tuist projects failing when cases are found.",
+            shouldDisplay: false
         )
     }
 
@@ -18,7 +19,14 @@ struct InspectRedundantImportsCommand: AsyncParsableCommand {
     var path: String?
 
     func run() async throws {
-        try await InspectRedundantImportsService()
-            .run(path: path)
+        AlertController.current
+            .warning(
+                .alert(
+                    "The 'tuist inspect redundant-imports' command is deprecated. Use 'tuist inspect dependencies --only redundant' instead."
+                )
+            )
+
+        try await InspectDependenciesCommandService()
+            .run(path: path, inspectionTypes: [.redundant])
     }
 }

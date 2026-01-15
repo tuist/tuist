@@ -202,6 +202,7 @@ defmodule Tuist.Bundles do
     |> Enum.sort_by(fn bundle -> bundle.inserted_at end, {:desc, DateTime})
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def last_project_bundle(%Project{} = project, opts \\ []) do
     query = where(from(b in Bundle), [b], b.project_id == ^project.id)
 

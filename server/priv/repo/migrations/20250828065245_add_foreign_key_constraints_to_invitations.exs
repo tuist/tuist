@@ -1,5 +1,6 @@
 defmodule Tuist.Repo.Migrations.AddForeignKeyConstraintsToInvitations do
   use Ecto.Migration
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
 
   def up do
     # Clean up any orphaned invitation records before adding constraints

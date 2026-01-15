@@ -63,6 +63,7 @@ defmodule TuistWeb.BuildsLive do
     }
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
     analytics_environment = params["analytics-environment"] || "any"
     analytics_build_scheme = params["analytics-build-scheme"] || "any"

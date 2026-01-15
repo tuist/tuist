@@ -13,6 +13,7 @@ defmodule Tuist.Utilities.DateFormatter do
     format_duration_from_milliseconds(duration_ms * 1000, opts)
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def format_duration_from_milliseconds(duration_ms, opts \\ []) do
     include_seconds = Keyword.get(opts, :include_seconds, true)
     duration_ms = trunc(duration_ms)

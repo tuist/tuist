@@ -1,5 +1,6 @@
 defmodule Tuist.Repo.Migrations.AddAccountCacheEndpointsTable do
   use Ecto.Migration
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
 
   def change do
     create table(:account_cache_endpoints, primary_key: false) do

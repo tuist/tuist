@@ -1,5 +1,6 @@
 defmodule Tuist.Repo.Migrations.AddAlertRulesTable do
   use Ecto.Migration
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
 
   def change do
     create table(:alert_rules, primary_key: false) do

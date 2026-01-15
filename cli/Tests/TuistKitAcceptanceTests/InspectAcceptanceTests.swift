@@ -133,7 +133,7 @@ final class LintAcceptanceTests: TuistAcceptanceTestCase {
         try await withMockedDependencies {
             try await setUpFixture("generated_ios_app_with_headers")
             try await run(InspectImplicitImportsCommand.self)
-            XCTAssertStandardOutput(pattern: "We did not find any implicit dependencies in your project.")
+            XCTAssertStandardOutput(pattern: "We did not find any dependency issues in your project (checked: implicit).")
         }
     }
 
@@ -150,11 +150,13 @@ final class LintAcceptanceTests: TuistAcceptanceTestCase {
                 "TypeAliasModule",
                 "VarModule",
             ]
-            let expectedAppIssue = InspectImportsIssue(target: "App", dependencies: appDependencies)
-            let expectedFrameworkIssue = InspectImportsIssue(target: "FrameworkA", dependencies: ["FrameworkB"])
-            let expectedError = InspectImportsServiceError.implicitImportsFound([expectedAppIssue, expectedFrameworkIssue])
-
-            await XCTAssertThrowsSpecific(try await run(InspectImplicitImportsCommand.self), expectedError)
+            await XCTAssertThrowsSpecific(
+                try await run(InspectImplicitImportsCommand.self),
+                InspectImportsServiceError.issuesFound(implicit: [
+                    .init(target: "App", dependencies: appDependencies),
+                    .init(target: "FrameworkA", dependencies: ["FrameworkB"]),
+                ])
+            )
         }
     }
 
@@ -163,7 +165,7 @@ final class LintAcceptanceTests: TuistAcceptanceTestCase {
             try await setUpFixture("generated_framework_with_macros_and_tests")
             try await run(InstallCommand.self)
             try await run(InspectRedundantImportsCommand.self)
-            XCTAssertStandardOutput(pattern: "We did not find any redundant dependencies in your project.")
+            XCTAssertStandardOutput(pattern: "We did not find any dependency issues in your project (checked: redundant).")
         }
     }
 }
