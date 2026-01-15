@@ -19,7 +19,7 @@ defmodule Tuist.IngestRepo.Migrations.AddIsFlakyColumns do
 
     execute("""
     ALTER TABLE test_cases
-    ADD COLUMN IF NOT EXISTS last_is_flaky Bool DEFAULT false
+    ADD COLUMN IF NOT EXISTS is_flaky Bool DEFAULT false
     """)
 
     execute("""
@@ -46,7 +46,7 @@ defmodule Tuist.IngestRepo.Migrations.AddIsFlakyColumns do
 
     execute("""
     ALTER TABLE test_cases
-    DROP COLUMN IF EXISTS last_is_flaky
+    DROP COLUMN IF EXISTS is_flaky
     """)
 
     execute("""
