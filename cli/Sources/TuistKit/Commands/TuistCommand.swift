@@ -35,6 +35,7 @@ public struct TuistCommand: AsyncParsableCommand {
                         DumpCommand.self,
                         EditCommand.self,
                         GenerateCommand.self,
+                        GradleCommand.self,
                         GraphCommand.self,
                         InstallCommand.self,
                         MigrationCommand.self,
