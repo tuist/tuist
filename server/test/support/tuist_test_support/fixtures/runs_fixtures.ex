@@ -125,7 +125,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
 
     changeset = Tuist.Runs.CASOutput.changeset(build_run_id, cas_output)
 
-    Tuist.IngestRepo.insert(changeset)
+    IngestRepo.insert(changeset)
   end
 
   def test_case_fixture(attrs \\ []) do

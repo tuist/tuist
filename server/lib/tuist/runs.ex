@@ -636,7 +636,7 @@ defmodule Tuist.Runs do
       attrs =
         test_case
         |> Map.from_struct()
-        |> Map.drop([:__meta__])
+        |> Map.delete(:__meta__)
         |> Map.merge(%{is_flaky: false, inserted_at: NaiveDateTime.utc_now()})
 
       IngestRepo.insert_all(TestCase, [attrs])
@@ -654,7 +654,7 @@ defmodule Tuist.Runs do
       attrs =
         test_case
         |> Map.from_struct()
-        |> Map.drop([:__meta__])
+        |> Map.delete(:__meta__)
         |> Map.merge(%{is_flaky: true, inserted_at: NaiveDateTime.utc_now()})
 
       IngestRepo.insert_all(TestCase, [attrs])
@@ -760,16 +760,11 @@ defmodule Tuist.Runs do
         }
       end)
 
-    # Batch check for cross-run flakiness
     {test_case_data, historical_flaky_ids} =
       check_cross_run_flakiness(test, test_case_data)
 
-    # Mark historical test case runs as flaky
-    if Enum.any?(historical_flaky_ids) do
-      mark_test_case_runs_as_flaky(historical_flaky_ids)
-    end
+    mark_test_case_runs_as_flaky(historical_flaky_ids)
 
-    # Convert to map keyed by identity
     Map.new(test_case_data, fn data ->
       {data.identity_key, %{status: data.status, is_flaky: data.is_flaky}}
     end)
@@ -1132,7 +1127,6 @@ defmodule Tuist.Runs do
   end
 
   defp mark_test_case_runs_as_flaky(test_case_run_ids) when is_list(test_case_run_ids) do
-    # Fetch existing test case runs
     query =
       from(tcr in TestCaseRun,
         hints: ["FINAL"],
@@ -1141,7 +1135,6 @@ defmodule Tuist.Runs do
 
     existing_runs = ClickHouseRepo.all(query)
 
-    # Insert updated versions with is_flaky = true
     updated_runs =
       Enum.map(existing_runs, fn run ->
         run
@@ -1152,9 +1145,9 @@ defmodule Tuist.Runs do
 
     if Enum.any?(updated_runs) do
       IngestRepo.insert_all(TestCaseRun, updated_runs)
+    else
+      :ok
     end
-
-    :ok
   end
 
   defp is_any_test_case_run_flaky?(test_case_run_data) do

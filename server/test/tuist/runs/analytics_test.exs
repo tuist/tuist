@@ -3860,7 +3860,7 @@ defmodule Tuist.Runs.AnalyticsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
       test_case = RunsFixtures.test_case_fixture(project_id: project.id)
-      inserted_at = DateTime.add(DateTime.utc_now(), -1, :day) |> DateTime.to_naive()
+      inserted_at = DateTime.utc_now() |> DateTime.add(-1, :day) |> DateTime.to_naive()
 
       RunsFixtures.test_case_run_fixture(
         test_case_id: test_case.id,
@@ -3901,7 +3901,7 @@ defmodule Tuist.Runs.AnalyticsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
       test_case = RunsFixtures.test_case_fixture(project_id: project.id)
-      inserted_at = DateTime.add(DateTime.utc_now(), -1, :day) |> DateTime.to_naive()
+      inserted_at = DateTime.utc_now() |> DateTime.add(-1, :day) |> DateTime.to_naive()
 
       RunsFixtures.test_case_run_fixture(
         test_case_id: test_case.id,
@@ -3945,14 +3945,14 @@ defmodule Tuist.Runs.AnalyticsTest do
         test_case_id: test_case.id,
         project_id: project.id,
         is_flaky: true,
-        inserted_at: DateTime.add(DateTime.utc_now(), -1, :day) |> DateTime.to_naive()
+        inserted_at: DateTime.utc_now() |> DateTime.add(-1, :day) |> DateTime.to_naive()
       )
 
       RunsFixtures.test_case_run_fixture(
         test_case_id: test_case.id,
         project_id: project.id,
         is_flaky: true,
-        inserted_at: DateTime.add(DateTime.utc_now(), -40, :day) |> DateTime.to_naive()
+        inserted_at: DateTime.utc_now() |> DateTime.add(-40, :day) |> DateTime.to_naive()
       )
 
       # When
