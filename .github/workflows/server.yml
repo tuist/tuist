@@ -625,11 +625,6 @@ jobs:
         with:
           cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
           working_directory: server
-      - name: Set up JDK
-        uses: actions/setup-java@v4
-        with:
-          java-version: "17"
-          distribution: "temurin"
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
       - run: mise run install
