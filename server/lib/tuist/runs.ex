@@ -543,7 +543,7 @@ defmodule Tuist.Runs do
 
     test_case_ids = Enum.map(test_case_ids_with_data, fn {id, _} -> id end)
 
-    existing_data = fetch_existing_test_case_data(project_id, test_case_ids)
+    existing_data = get_project_test_cases(project_id, test_case_ids)
 
     test_cases =
       Enum.map(test_case_ids_with_data, fn {id, data} ->
@@ -581,9 +581,9 @@ defmodule Tuist.Runs do
     end)
   end
 
-  defp fetch_existing_test_case_data(_project_id, []), do: %{}
+  defp get_project_test_cases(_project_id, []), do: %{}
 
-  defp fetch_existing_test_case_data(project_id, test_case_ids) do
+  defp get_project_test_cases(project_id, test_case_ids) do
     query =
       from(tc in TestCase,
         hints: ["FINAL"],
@@ -633,13 +633,14 @@ defmodule Tuist.Runs do
   """
   def unmark_test_case_as_flaky(test_case_id) do
     with {:ok, test_case} <- get_test_case_by_id(test_case_id) do
-      updated_test_case =
+      attrs =
         test_case
         |> Map.from_struct()
         |> Map.drop([:__meta__])
         |> Map.merge(%{is_flaky: false, inserted_at: NaiveDateTime.utc_now()})
 
-      IngestRepo.insert_all(TestCase, [updated_test_case])
+      IngestRepo.insert_all(TestCase, [attrs])
+
       {:ok, %{test_case | is_flaky: false}}
     end
   end
@@ -650,13 +651,14 @@ defmodule Tuist.Runs do
   """
   def mark_test_case_as_flaky(test_case_id) do
     with {:ok, test_case} <- get_test_case_by_id(test_case_id) do
-      updated_test_case =
+      attrs =
         test_case
         |> Map.from_struct()
         |> Map.drop([:__meta__])
         |> Map.merge(%{is_flaky: true, inserted_at: NaiveDateTime.utc_now()})
 
-      IngestRepo.insert_all(TestCase, [updated_test_case])
+      IngestRepo.insert_all(TestCase, [attrs])
+
       {:ok, %{test_case | is_flaky: true}}
     end
   end
