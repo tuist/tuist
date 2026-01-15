@@ -3854,4 +3854,112 @@ defmodule Tuist.Runs.AnalyticsTest do
       assert_in_delta previous, 0.7, 0.001
     end
   end
+
+  describe "get_test_case_flakiness_rate/1" do
+    test "returns flakiness rate as percentage when there are flaky runs" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id)
+      inserted_at = DateTime.add(DateTime.utc_now(), -1, :day) |> DateTime.to_naive()
+
+      RunsFixtures.test_case_run_fixture(
+        test_case_id: test_case.id,
+        project_id: project.id,
+        is_flaky: true,
+        inserted_at: inserted_at
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        test_case_id: test_case.id,
+        project_id: project.id,
+        is_flaky: false,
+        inserted_at: inserted_at
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        test_case_id: test_case.id,
+        project_id: project.id,
+        is_flaky: false,
+        inserted_at: inserted_at
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        test_case_id: test_case.id,
+        project_id: project.id,
+        is_flaky: true,
+        inserted_at: inserted_at
+      )
+
+      # When
+      got = Analytics.get_test_case_flakiness_rate(test_case)
+
+      # Then - 2 flaky runs out of 4 total = 50%
+      assert got == 50.0
+    end
+
+    test "returns 0.0 when there are no flaky runs" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id)
+      inserted_at = DateTime.add(DateTime.utc_now(), -1, :day) |> DateTime.to_naive()
+
+      RunsFixtures.test_case_run_fixture(
+        test_case_id: test_case.id,
+        project_id: project.id,
+        is_flaky: false,
+        inserted_at: inserted_at
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        test_case_id: test_case.id,
+        project_id: project.id,
+        is_flaky: false,
+        inserted_at: inserted_at
+      )
+
+      # When
+      got = Analytics.get_test_case_flakiness_rate(test_case)
+
+      # Then
+      assert got == 0.0
+    end
+
+    test "returns 0.0 when there are no runs" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id)
+
+      # When
+      got = Analytics.get_test_case_flakiness_rate(test_case)
+
+      # Then
+      assert got == 0.0
+    end
+
+    test "only counts runs from the last 30 days" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id)
+
+      RunsFixtures.test_case_run_fixture(
+        test_case_id: test_case.id,
+        project_id: project.id,
+        is_flaky: true,
+        inserted_at: DateTime.add(DateTime.utc_now(), -1, :day) |> DateTime.to_naive()
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        test_case_id: test_case.id,
+        project_id: project.id,
+        is_flaky: true,
+        inserted_at: DateTime.add(DateTime.utc_now(), -40, :day) |> DateTime.to_naive()
+      )
+
+      # When
+      got = Analytics.get_test_case_flakiness_rate(test_case)
+
+      # Then - Only 1 flaky run in the last 30 days out of 1 total = 100%
+      assert got == 100.0
+    end
+  end
 end

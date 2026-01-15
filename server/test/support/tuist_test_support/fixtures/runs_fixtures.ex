@@ -2,7 +2,10 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
   @moduledoc """
   Fixtures for runs.
   """
+  alias Tuist.IngestRepo
   alias Tuist.Runs
+  alias Tuist.Runs.TestCase
+  alias Tuist.Runs.TestCaseRun
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
@@ -123,5 +126,53 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
     changeset = Tuist.Runs.CASOutput.changeset(build_run_id, cas_output)
 
     Tuist.IngestRepo.insert(changeset)
+  end
+
+  def test_case_fixture(attrs \\ []) do
+    project_id =
+      Keyword.get_lazy(attrs, :project_id, fn ->
+        ProjectsFixtures.project_fixture().id
+      end)
+
+    %TestCase{
+      id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
+      name: Keyword.get(attrs, :name, "testExample"),
+      module_name: Keyword.get(attrs, :module_name, "MyTests"),
+      suite_name: Keyword.get(attrs, :suite_name, "TestSuite"),
+      project_id: project_id,
+      last_status: Keyword.get(attrs, :last_status, "success"),
+      last_duration: Keyword.get(attrs, :last_duration, 100),
+      last_ran_at: Keyword.get(attrs, :last_ran_at, NaiveDateTime.utc_now()),
+      is_flaky: Keyword.get(attrs, :is_flaky, false),
+      inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now()),
+      avg_duration: Keyword.get(attrs, :avg_duration, 100)
+    }
+  end
+
+  def test_case_run_fixture(attrs \\ []) do
+    project_id =
+      Keyword.get_lazy(attrs, :project_id, fn ->
+        ProjectsFixtures.project_fixture().id
+      end)
+
+    test_case_run = %{
+      id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
+      test_run_id: Keyword.get_lazy(attrs, :test_run_id, fn -> UUIDv7.generate() end),
+      test_module_run_id: Keyword.get_lazy(attrs, :test_module_run_id, fn -> UUIDv7.generate() end),
+      test_case_id: Keyword.get_lazy(attrs, :test_case_id, fn -> UUIDv7.generate() end),
+      project_id: project_id,
+      git_branch: Keyword.get(attrs, :git_branch, "main"),
+      module_name: Keyword.get(attrs, :module_name, "MyTests"),
+      suite_name: Keyword.get(attrs, :suite_name, "TestSuite"),
+      name: Keyword.get(attrs, :name, "testExample"),
+      status: Keyword.get(attrs, :status, 0),
+      is_flaky: Keyword.get(attrs, :is_flaky, false),
+      duration: Keyword.get(attrs, :duration, 100),
+      inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now())
+    }
+
+    {1, _} = IngestRepo.insert_all(TestCaseRun, [test_case_run])
+
+    test_case_run
   end
 end

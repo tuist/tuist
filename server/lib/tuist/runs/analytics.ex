@@ -12,6 +12,7 @@ defmodule Tuist.Runs.Analytics do
   alias Tuist.Repo
   alias Tuist.Runs.Build
   alias Tuist.Runs.Test
+  alias Tuist.Runs.TestCase
   alias Tuist.Runs.TestCaseRun
   alias Tuist.Tasks
   alias Tuist.Xcode.XcodeGraph
@@ -2897,11 +2898,11 @@ defmodule Tuist.Runs.Analytics do
   end
 
   @doc """
-  Gets the flakiness rate for a specific test case by its UUID.
+  Gets the flakiness rate for a specific test case.
   Calculates the ratio of flaky runs to total runs in the last 30 days.
-  Returns nil if there are no flaky runs or no data.
+  Returns 0.0 if there are no flaky runs or no data.
   """
-  def test_case_flakiness_rate_by_id(test_case_id) do
+  def get_test_case_flakiness_rate(%TestCase{id: test_case_id}) do
     thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
 
     query =
@@ -2917,12 +2918,11 @@ defmodule Tuist.Runs.Analytics do
     result = ClickHouseRepo.one(query)
 
     case result do
-      %{flaky_count: flaky_count, total_count: total_count}
-      when total_count > 0 and flaky_count > 0 ->
+      %{flaky_count: flaky_count, total_count: total_count} when total_count > 0 ->
         Float.round(flaky_count / total_count * 100, 1)
 
       _ ->
-        nil
+        0.0
     end
   end
 
