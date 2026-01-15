@@ -15,6 +15,8 @@ defmodule Tuist.Runs.Build do
       :category,
       :status,
       :git_branch,
+      :git_commit_sha,
+      :git_ref,
       :xcode_version,
       :macos_version,
       :account_id,

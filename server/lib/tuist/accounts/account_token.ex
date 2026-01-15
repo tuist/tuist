@@ -39,6 +39,7 @@ defmodule Tuist.Accounts.AccountToken do
     "project:bundles:read",
     "project:bundles:write",
     "project:tests:read",
+    "project:tests:cases:read",
     "project:tests:write",
     "project:builds:read",
     "project:builds:write",

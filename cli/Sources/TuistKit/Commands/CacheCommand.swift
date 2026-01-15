@@ -9,7 +9,11 @@ public struct CacheCommand: AsyncParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "cache",
-            abstract: "Warms the local and remote cache."
+            abstract: "Warms the local and remote cache.",
+            subcommands: [
+                CacheListCommand.self,
+                CacheShowCommand.self,
+            ]
         )
     }
 

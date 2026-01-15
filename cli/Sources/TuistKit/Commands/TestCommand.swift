@@ -32,7 +32,12 @@ public struct TestCommand: AsyncParsableCommand, LogConfigurableCommand,
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "test",
-            abstract: "Tests a project"
+            abstract: "Tests a project",
+            subcommands: [
+                TestListCommand.self,
+                TestShowCommand.self,
+                TestCaseCommand.self,
+            ]
         )
     }
 

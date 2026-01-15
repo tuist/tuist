@@ -52,6 +52,16 @@ public enum EnvKey: String, CaseIterable {
     case generateOpen = "TUIST_GENERATE_OPEN"
     case generateBinaryCache = "TUIST_GENERATE_BINARY_CACHE"
     case generateCacheProfile = "TUIST_GENERATE_CACHE_PROFILE"
+    case generateListFullHandle = "TUIST_GENERATE_LIST_FULL_HANDLE"
+    case generateListPath = "TUIST_GENERATE_LIST_PATH"
+    case generateListGitBranch = "TUIST_GENERATE_LIST_GIT_BRANCH"
+    case generateListGitCommitSHA = "TUIST_GENERATE_LIST_GIT_COMMIT_SHA"
+    case generateListGitRef = "TUIST_GENERATE_LIST_GIT_REF"
+    case generateListJson = "TUIST_GENERATE_LIST_JSON"
+    case generateShowId = "TUIST_GENERATE_SHOW_ID"
+    case generateShowFullHandle = "TUIST_GENERATE_SHOW_FULL_HANDLE"
+    case generateShowPath = "TUIST_GENERATE_SHOW_PATH"
+    case generateShowJson = "TUIST_GENERATE_SHOW_JSON"
 
     // GRAPH
 
@@ -281,6 +291,77 @@ public enum EnvKey: String, CaseIterable {
     case bundleShowId = "TUIST_BUNDLE_SHOW_ID"
     case bundleShowPath = "TUIST_BUNDLE_SHOW_PATH"
     case bundleShowJson = "TUIST_BUNDLE_SHOW_JSON"
+
+    // CACHE LIST
+
+    case cacheListFullHandle = "TUIST_CACHE_LIST_FULL_HANDLE"
+    case cacheListPath = "TUIST_CACHE_LIST_PATH"
+    case cacheListGitBranch = "TUIST_CACHE_LIST_GIT_BRANCH"
+    case cacheListGitCommitSHA = "TUIST_CACHE_LIST_GIT_COMMIT_SHA"
+    case cacheListGitRef = "TUIST_CACHE_LIST_GIT_REF"
+    case cacheListJson = "TUIST_CACHE_LIST_JSON"
+
+    // CACHE SHOW
+
+    case cacheShowFullHandle = "TUIST_CACHE_SHOW_FULL_HANDLE"
+    case cacheShowId = "TUIST_CACHE_SHOW_ID"
+    case cacheShowPath = "TUIST_CACHE_SHOW_PATH"
+    case cacheShowJson = "TUIST_CACHE_SHOW_JSON"
+
+    // BUILD LIST
+
+    case buildListFullHandle = "TUIST_BUILD_LIST_FULL_HANDLE"
+    case buildListPath = "TUIST_BUILD_LIST_PATH"
+    case buildListStatus = "TUIST_BUILD_LIST_STATUS"
+    case buildListCategory = "TUIST_BUILD_LIST_CATEGORY"
+    case buildListScheme = "TUIST_BUILD_LIST_SCHEME"
+    case buildListConfiguration = "TUIST_BUILD_LIST_CONFIGURATION"
+    case buildListGitBranch = "TUIST_BUILD_LIST_GIT_BRANCH"
+    case buildListGitCommitSHA = "TUIST_BUILD_LIST_GIT_COMMIT_SHA"
+    case buildListGitRef = "TUIST_BUILD_LIST_GIT_REF"
+    case buildListJson = "TUIST_BUILD_LIST_JSON"
+
+    // BUILD SHOW
+
+    case buildShowFullHandle = "TUIST_BUILD_SHOW_FULL_HANDLE"
+    case buildShowId = "TUIST_BUILD_SHOW_ID"
+    case buildShowPath = "TUIST_BUILD_SHOW_PATH"
+    case buildShowJson = "TUIST_BUILD_SHOW_JSON"
+
+    // TEST LIST
+
+    case testListFullHandle = "TUIST_TEST_LIST_FULL_HANDLE"
+    case testListPath = "TUIST_TEST_LIST_PATH"
+    case testListStatus = "TUIST_TEST_LIST_STATUS"
+    case testListScheme = "TUIST_TEST_LIST_SCHEME"
+    case testListGitBranch = "TUIST_TEST_LIST_GIT_BRANCH"
+    case testListGitCommitSHA = "TUIST_TEST_LIST_GIT_COMMIT_SHA"
+    case testListGitRef = "TUIST_TEST_LIST_GIT_REF"
+    case testListJson = "TUIST_TEST_LIST_JSON"
+
+    // TEST SHOW
+
+    case testShowFullHandle = "TUIST_TEST_SHOW_FULL_HANDLE"
+    case testShowId = "TUIST_TEST_SHOW_ID"
+    case testShowPath = "TUIST_TEST_SHOW_PATH"
+    case testShowJson = "TUIST_TEST_SHOW_JSON"
+
+    // TEST CASE LIST
+
+    case testCaseListFullHandle = "TUIST_TEST_CASE_LIST_FULL_HANDLE"
+    case testCaseListPath = "TUIST_TEST_CASE_LIST_PATH"
+    case testCaseListName = "TUIST_TEST_CASE_LIST_NAME"
+    case testCaseListModuleName = "TUIST_TEST_CASE_LIST_MODULE_NAME"
+    case testCaseListSuiteName = "TUIST_TEST_CASE_LIST_SUITE_NAME"
+    case testCaseListStatus = "TUIST_TEST_CASE_LIST_STATUS"
+    case testCaseListJson = "TUIST_TEST_CASE_LIST_JSON"
+
+    // TEST CASE SHOW
+
+    case testCaseShowFullHandle = "TUIST_TEST_CASE_SHOW_FULL_HANDLE"
+    case testCaseShowId = "TUIST_TEST_CASE_SHOW_ID"
+    case testCaseShowPath = "TUIST_TEST_CASE_SHOW_PATH"
+    case testCaseShowJson = "TUIST_TEST_CASE_SHOW_JSON"
 
     // ORGANIZATION UPDATE MEMBER
 

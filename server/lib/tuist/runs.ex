@@ -37,6 +37,13 @@ defmodule Tuist.Runs do
     end
   end
 
+  def get_test_case(id) do
+    case ClickHouseRepo.get(TestCase, id) do
+      nil -> {:error, :not_found}
+      test_case -> {:ok, test_case}
+    end
+  end
+
   def get_latest_test_by_build_run_id(build_run_id) do
     query =
       from(t in Test,
