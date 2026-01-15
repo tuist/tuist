@@ -1,6 +1,18 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.125.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add unified inspect dependencies command by [@hiltonc](https://github.com/hiltonc) in [#8887](https://github.com/tuist/tuist/pull/8887)
+* Add exceptTargetQueries to cache profiles by [@hiltonc](https://github.com/hiltonc) in [#8761](https://github.com/tuist/tuist/pull/8761)
+### 🐛 Bug Fixes
+
+* Static framework bundles for tests and metal by [@pepicrft](https://github.com/pepicrft) in [#9123](https://github.com/tuist/tuist/pull/9123)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.124.1...4.125.0
+
 ## What's Changed in 4.124.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
