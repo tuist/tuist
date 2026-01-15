@@ -253,4 +253,70 @@ defmodule Tuist.Utilities.DateFormatterTest do
       assert DateFormatter.format_with_timezone(123, "America/New_York") == "Unknown"
     end
   end
+
+  describe "format_with_timezone_short/2" do
+    test "converts UTC datetime to user timezone with short format" do
+      utc_time = ~U[2024-01-15 14:30:25Z]
+
+      ny_formatted = DateFormatter.format_with_timezone_short(utc_time, "America/New_York")
+      assert ny_formatted == "Mon 15 Jan 2024 at 09:30"
+
+      london_formatted = DateFormatter.format_with_timezone_short(utc_time, "Europe/London")
+      assert london_formatted == "Mon 15 Jan 2024 at 14:30"
+
+      tokyo_formatted = DateFormatter.format_with_timezone_short(utc_time, "Asia/Tokyo")
+      assert tokyo_formatted == "Mon 15 Jan 2024 at 23:30"
+    end
+
+    test "handles daylight saving time correctly" do
+      utc_summer = ~U[2024-07-15 14:30:25Z]
+
+      ny_summer = DateFormatter.format_with_timezone_short(utc_summer, "America/New_York")
+      assert ny_summer == "Mon 15 Jul 2024 at 10:30"
+
+      london_summer = DateFormatter.format_with_timezone_short(utc_summer, "Europe/London")
+      assert london_summer == "Mon 15 Jul 2024 at 15:30"
+    end
+
+    test "falls back to UTC when timezone is nil" do
+      utc_time = ~U[2024-01-15 14:30:25Z]
+
+      result = DateFormatter.format_with_timezone_short(utc_time, nil)
+      assert result == "Mon 15 Jan 2024 at 14:30 UTC"
+    end
+
+    test "falls back to UTC when timezone is invalid" do
+      utc_time = ~U[2024-01-15 14:30:25Z]
+
+      result = DateFormatter.format_with_timezone_short(utc_time, "Invalid/Timezone")
+      assert result == "Mon 15 Jan 2024 at 14:30 UTC"
+    end
+
+    test "handles NaiveDateTime by assuming UTC" do
+      naive_time = ~N[2024-01-15 14:30:25]
+
+      ny_formatted = DateFormatter.format_with_timezone_short(naive_time, "America/New_York")
+      assert ny_formatted == "Mon 15 Jan 2024 at 09:30"
+    end
+
+    test "falls back to UTC for NaiveDateTime when timezone is nil" do
+      naive_time = ~N[2024-01-15 14:30:25]
+
+      result = DateFormatter.format_with_timezone_short(naive_time, nil)
+      assert result == "Mon 15 Jan 2024 at 14:30 UTC"
+    end
+
+    test "falls back to UTC for NaiveDateTime when timezone is invalid" do
+      naive_time = ~N[2024-01-15 14:30:25]
+
+      result = DateFormatter.format_with_timezone_short(naive_time, "Invalid/Timezone")
+      assert result == "Mon 15 Jan 2024 at 14:30 UTC"
+    end
+
+    test "returns 'Unknown' for unsupported datetime types" do
+      assert DateFormatter.format_with_timezone_short(nil, "America/New_York") == "Unknown"
+      assert DateFormatter.format_with_timezone_short("invalid", "America/New_York") == "Unknown"
+      assert DateFormatter.format_with_timezone_short(123, "America/New_York") == "Unknown"
+    end
+  end
 end
