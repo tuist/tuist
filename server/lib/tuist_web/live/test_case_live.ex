@@ -202,7 +202,7 @@ defmodule TuistWeb.TestCaseLive do
   defp assign_analytics(
          %{assigns: %{selected_project: project, test_case_id: test_case_id, test_case_detail: test_case_detail}} = socket
        ) do
-    [reliability, analytics, flakiness_rate, flaky_runs_grouped] =
+    [reliability, analytics, flakiness_rate, {flaky_runs_grouped, flaky_runs_meta}] =
       Task.await_many(
         [
           Task.async(fn ->
@@ -229,6 +229,7 @@ defmodule TuistWeb.TestCaseLive do
     |> assign(:analytics, analytics)
     |> assign(:flakiness_rate, flakiness_rate)
     |> assign(:flaky_runs_grouped, flaky_runs_grouped)
+    |> assign(:flaky_runs_meta, flaky_runs_meta)
   end
 
   defp assign_test_case_runs(

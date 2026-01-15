@@ -1086,28 +1086,14 @@ defmodule Tuist.Runs do
 
     flaky_tests =
       Enum.map(rows, fn [id, name, module_name, suite_name, flaky_runs_count, last_flaky_at, last_flaky_run_id] ->
-        uuid_string =
-          case id do
-            <<_::128>> = binary_uuid -> Ecto.UUID.load!(binary_uuid)
-            string when is_binary(string) -> string
-            nil -> nil
-          end
-
-        last_flaky_run_id_string =
-          case last_flaky_run_id do
-            <<_::128>> = binary_uuid -> Ecto.UUID.load!(binary_uuid)
-            string when is_binary(string) -> string
-            nil -> nil
-          end
-
         %FlakyTestCase{
-          id: uuid_string,
+          id: Ecto.UUID.load!(id),
           name: name,
           module_name: module_name,
           suite_name: suite_name,
           flaky_runs_count: flaky_runs_count,
           last_flaky_at: last_flaky_at,
-          last_flaky_run_id: last_flaky_run_id_string
+          last_flaky_run_id: if(last_flaky_run_id, do: Ecto.UUID.load!(last_flaky_run_id), else: nil)
         }
       end)
 
@@ -1153,81 +1139,136 @@ defmodule Tuist.Runs do
   end
 
   @doc """
-  Fetches flaky runs for a specific test case, grouped by scheme and commit SHA.
-  Returns a list of groups, each containing runs with their failures.
+  Returns the count of unique flaky run groups (scheme + commit_sha) for a test case.
   """
-  def list_flaky_runs_for_test_case(test_case_id) do
-    # Fetch all flaky test case runs for this test case
-    flaky_runs_query =
+  def get_flaky_runs_groups_count_for_test_case(test_case_id) do
+    query =
       from(tcr in TestCaseRun,
         hints: ["FINAL"],
         where: tcr.test_case_id == ^test_case_id,
         where: tcr.is_flaky == true,
-        order_by: [desc: tcr.ran_at],
-        limit: 100
+        select: fragment("count(DISTINCT (scheme, git_commit_sha))")
       )
 
-    flaky_runs = ClickHouseRepo.all(flaky_runs_query)
+    ClickHouseRepo.one(query) || 0
+  end
 
-    if Enum.empty?(flaky_runs) do
-      []
+  @doc """
+  Fetches flaky runs for a specific test case, grouped by scheme and commit SHA.
+  Returns paginated groups, each containing all runs with their failures.
+  """
+  def list_flaky_runs_for_test_case(test_case_id, params \\ %{}) do
+    page = Map.get(params, :page, 1)
+    page_size = Map.get(params, :page_size, 20)
+    offset = (page - 1) * page_size
+
+    # Get paginated distinct groups ordered by latest_ran_at
+    groups_query =
+      from(tcr in TestCaseRun,
+        hints: ["FINAL"],
+        where: tcr.test_case_id == ^test_case_id,
+        where: tcr.is_flaky == true,
+        group_by: [tcr.scheme, tcr.git_commit_sha],
+        select: %{
+          scheme: tcr.scheme,
+          git_commit_sha: tcr.git_commit_sha,
+          latest_ran_at: max(tcr.ran_at)
+        },
+        order_by: [desc: max(tcr.ran_at)],
+        limit: ^page_size,
+        offset: ^offset
+      )
+
+    groups = ClickHouseRepo.all(groups_query)
+
+    if Enum.empty?(groups) do
+      {[], build_pagination_meta(0, page, page_size)}
     else
+      group_keys = MapSet.new(groups, fn g -> {g.scheme, g.git_commit_sha} end)
+
+      # Fetch all flaky runs for this test case and filter by group keys
+      flaky_runs_query =
+        from(tcr in TestCaseRun,
+          hints: ["FINAL"],
+          where: tcr.test_case_id == ^test_case_id,
+          where: tcr.is_flaky == true,
+          order_by: [desc: tcr.ran_at]
+        )
+
+      flaky_runs =
+        flaky_runs_query
+        |> ClickHouseRepo.all()
+        |> Enum.filter(fn run -> MapSet.member?(group_keys, {run.scheme, run.git_commit_sha}) end)
+
       run_ids = Enum.map(flaky_runs, & &1.id)
 
-      # Fetch failures and repetitions for all flaky runs
       failures = fetch_failures_for_runs(run_ids)
       failures_by_run_id = Enum.group_by(failures, & &1.test_case_run_id)
 
       repetitions = fetch_repetitions_for_runs(run_ids)
       repetitions_by_run_id = Enum.group_by(repetitions, & &1.test_case_run_id)
 
-      # Group runs by scheme + commit_sha
-      flaky_runs
-      |> Enum.group_by(fn run -> {run.scheme, run.git_commit_sha} end)
-      |> Enum.map(fn {{scheme, git_commit_sha}, runs} ->
-        latest_ran_at = runs |> Enum.map(& &1.ran_at) |> Enum.max(NaiveDateTime)
+      runs_by_group = Enum.group_by(flaky_runs, fn run -> {run.scheme, run.git_commit_sha} end)
 
-        runs_with_details =
-          Enum.map(runs, fn run ->
-            run_failures = Map.get(failures_by_run_id, run.id, [])
+      flaky_groups =
+        Enum.map(groups, fn group ->
+          group_key = {group.scheme, group.git_commit_sha}
+          runs = Map.get(runs_by_group, group_key, [])
 
-            run_repetitions =
-              repetitions_by_run_id
-              |> Map.get(run.id, [])
-              |> Enum.sort_by(& &1.repetition_number)
+          runs_with_details =
+            Enum.map(runs, fn run ->
+              run_failures = Map.get(failures_by_run_id, run.id, [])
 
-            run
-            |> Map.put(:failures, run_failures)
-            |> Map.put(:repetitions, run_repetitions)
-          end)
+              run_repetitions =
+                repetitions_by_run_id
+                |> Map.get(run.id, [])
+                |> Enum.sort_by(& &1.repetition_number)
 
-        # Count passed/failed from repetitions if available, otherwise from run status
-        {passed_count, failed_count} =
-          Enum.reduce(runs_with_details, {0, 0}, fn run, {passed, failed} ->
-            if Enum.any?(run.repetitions) do
-              rep_passed = Enum.count(run.repetitions, &(&1.status == "success"))
-              rep_failed = Enum.count(run.repetitions, &(&1.status == "failure"))
-              {passed + rep_passed, failed + rep_failed}
-            else
-              case run.status do
-                "success" -> {passed + 1, failed}
-                "failure" -> {passed, failed + 1}
-                _ -> {passed, failed}
-              end
-            end
-          end)
+              run
+              |> Map.put(:failures, run_failures)
+              |> Map.put(:repetitions, run_repetitions)
+            end)
 
-        %{
-          scheme: scheme,
-          git_commit_sha: git_commit_sha,
-          latest_ran_at: latest_ran_at,
-          passed_count: passed_count,
-          failed_count: failed_count,
-          runs: runs_with_details
-        }
-      end)
-      |> Enum.sort_by(& &1.latest_ran_at, {:desc, NaiveDateTime})
+          {passed_count, failed_count} = count_passed_failed(runs_with_details)
+
+          %{
+            scheme: group.scheme,
+            git_commit_sha: group.git_commit_sha,
+            latest_ran_at: group.latest_ran_at,
+            passed_count: passed_count,
+            failed_count: failed_count,
+            runs: runs_with_details
+          }
+        end)
+
+      total_count = get_flaky_runs_groups_count_for_test_case(test_case_id)
+      {flaky_groups, build_pagination_meta(total_count, page, page_size)}
     end
+  end
+
+  defp count_passed_failed(runs_with_details) do
+    Enum.reduce(runs_with_details, {0, 0}, fn run, {passed, failed} ->
+      if Enum.any?(run.repetitions) do
+        rep_passed = Enum.count(run.repetitions, &(&1.status == "success"))
+        rep_failed = Enum.count(run.repetitions, &(&1.status == "failure"))
+        {passed + rep_passed, failed + rep_failed}
+      else
+        case run.status do
+          "success" -> {passed + 1, failed}
+          "failure" -> {passed, failed + 1}
+          _ -> {passed, failed}
+        end
+      end
+    end)
+  end
+
+  defp build_pagination_meta(total_count, page, page_size) do
+    %{
+      total_count: total_count,
+      total_pages: if(total_count > 0, do: ceil(total_count / page_size), else: 0),
+      current_page: page,
+      page_size: page_size
+    }
   end
 
   @doc """
@@ -1245,9 +1286,6 @@ defmodule Tuist.Runs do
 
     flaky_runs = ClickHouseRepo.all(flaky_runs_query)
 
-    if Enum.empty?(flaky_runs) do
-      []
-    else
       run_ids = Enum.map(flaky_runs, & &1.id)
 
       failures = fetch_failures_for_runs(run_ids)
@@ -1302,7 +1340,6 @@ defmodule Tuist.Runs do
         }
       end)
       |> Enum.sort_by(& &1.latest_ran_at, {:desc, NaiveDateTime})
-    end
   end
 
   defp fetch_failures_for_runs([]), do: []

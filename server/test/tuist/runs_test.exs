@@ -3618,4 +3618,307 @@ defmodule Tuist.RunsTest do
       assert project2_results == []
     end
   end
+
+  describe "get_flaky_runs_groups_count_for_test_case/1" do
+    test "returns 0 when no flaky runs exist" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          status: "success",
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 500,
+              test_cases: [%{name: "testSomething", status: "success", duration: 250}]
+            }
+          ]
+        )
+
+      {[test_case], _} = Runs.list_test_cases(project.id, %{})
+
+      count = Runs.get_flaky_runs_groups_count_for_test_case(test_case.id)
+      assert count == 0
+    end
+
+    test "returns count of unique scheme + commit_sha groups" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = Ecto.UUID.generate()
+
+      test_modules = fn status ->
+        [
+          %{
+            name: "TestModule",
+            status: status,
+            duration: 500,
+            test_cases: [%{name: "flakyTest", status: status, duration: 250, test_case_id: test_case_id}]
+          }
+        ]
+      end
+
+      # Create flaky runs on commit1
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "commit1",
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -7200),
+          test_modules: test_modules.("success")
+        )
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "commit1",
+          is_ci: true,
+          status: "failure",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          test_modules: test_modules.("failure")
+        )
+
+      # Create flaky runs on commit2
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "commit2",
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -1800),
+          test_modules: test_modules.("success")
+        )
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "commit2",
+          is_ci: true,
+          status: "failure",
+          ran_at: NaiveDateTime.utc_now(),
+          test_modules: test_modules.("failure")
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {[test_case], _} = Runs.list_test_cases(project.id, %{})
+      count = Runs.get_flaky_runs_groups_count_for_test_case(test_case.id)
+
+      # 2 groups: (default_scheme, commit1) and (default_scheme, commit2)
+      assert count == 2
+    end
+  end
+
+  describe "list_flaky_runs_for_test_case/2" do
+    test "returns empty list with meta when no flaky runs exist" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          status: "success",
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 500,
+              test_cases: [%{name: "testSomething", status: "success", duration: 250}]
+            }
+          ]
+        )
+
+      {[test_case], _} = Runs.list_test_cases(project.id, %{})
+
+      {groups, meta} = Runs.list_flaky_runs_for_test_case(test_case.id)
+
+      assert groups == []
+      assert meta.total_count == 0
+      assert meta.total_pages == 0
+    end
+
+    test "returns flaky runs grouped by scheme and commit_sha" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = Ecto.UUID.generate()
+
+      test_modules = fn status ->
+        [
+          %{
+            name: "TestModule",
+            status: status,
+            duration: 500,
+            test_cases: [%{name: "flakyTest", status: status, duration: 250, test_case_id: test_case_id}]
+          }
+        ]
+      end
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "abc123",
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          test_modules: test_modules.("success")
+        )
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "abc123",
+          is_ci: true,
+          status: "failure",
+          ran_at: NaiveDateTime.utc_now(),
+          test_modules: test_modules.("failure")
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {[test_case], _} = Runs.list_test_cases(project.id, %{})
+      {groups, meta} = Runs.list_flaky_runs_for_test_case(test_case.id)
+
+      assert length(groups) == 1
+      assert meta.total_count == 1
+
+      group = hd(groups)
+      assert group.git_commit_sha == "abc123"
+      assert length(group.runs) == 2
+      assert group.passed_count == 1
+      assert group.failed_count == 1
+    end
+
+    test "supports pagination on groups" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = Ecto.UUID.generate()
+
+      test_modules = fn status ->
+        [
+          %{
+            name: "TestModule",
+            status: status,
+            duration: 500,
+            test_cases: [%{name: "flakyTest", status: status, duration: 250, test_case_id: test_case_id}]
+          }
+        ]
+      end
+
+      # Create 3 groups (3 different commits)
+      for i <- 1..3 do
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: project.account_id,
+            git_commit_sha: "commit#{i}",
+            is_ci: true,
+            status: "success",
+            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600 * i),
+            test_modules: test_modules.("success")
+          )
+
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: project.account_id,
+            git_commit_sha: "commit#{i}",
+            is_ci: true,
+            status: "failure",
+            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600 * i + 1800),
+            test_modules: test_modules.("failure")
+          )
+      end
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {[test_case], _} = Runs.list_test_cases(project.id, %{})
+
+      {page1, meta1} = Runs.list_flaky_runs_for_test_case(test_case.id, %{page: 1, page_size: 2})
+      assert length(page1) == 2
+      assert meta1.total_count == 3
+      assert meta1.total_pages == 2
+      assert meta1.current_page == 1
+
+      {page2, meta2} = Runs.list_flaky_runs_for_test_case(test_case.id, %{page: 2, page_size: 2})
+      assert length(page2) == 1
+      assert meta2.current_page == 2
+    end
+
+    test "orders groups by latest_ran_at descending" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = Ecto.UUID.generate()
+
+      test_modules = fn status ->
+        [
+          %{
+            name: "TestModule",
+            status: status,
+            duration: 500,
+            test_cases: [%{name: "flakyTest", status: status, duration: 250, test_case_id: test_case_id}]
+          }
+        ]
+      end
+
+      # Create older group first
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "older_commit",
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -7200),
+          test_modules: test_modules.("success")
+        )
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "older_commit",
+          is_ci: true,
+          status: "failure",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          test_modules: test_modules.("failure")
+        )
+
+      # Create newer group
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "newer_commit",
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -1800),
+          test_modules: test_modules.("success")
+        )
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "newer_commit",
+          is_ci: true,
+          status: "failure",
+          ran_at: NaiveDateTime.utc_now(),
+          test_modules: test_modules.("failure")
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {[test_case], _} = Runs.list_test_cases(project.id, %{})
+      {groups, _} = Runs.list_flaky_runs_for_test_case(test_case.id)
+
+      assert length(groups) == 2
+      assert Enum.at(groups, 0).git_commit_sha == "newer_commit"
+      assert Enum.at(groups, 1).git_commit_sha == "older_commit"
+    end
+  end
 end
