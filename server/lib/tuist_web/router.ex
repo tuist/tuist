@@ -215,29 +215,24 @@ defmodule TuistWeb.Router do
           metadata: %{type: :marketing},
           private: private
 
-      # Blog post iframe routes - must come before general blog post route
       get Path.join(locale_path_prefix, "/blog/:year/:month/:day/:slug/iframe.html"),
           TuistWeb.Marketing.MarketingBlogIframeController,
           :show,
           metadata: %{type: :marketing},
           private: private
 
-      # Blog post routes - catch-all pattern instead of compile-time iteration
       get Path.join(locale_path_prefix, "/blog/:year/:month/:day/:slug"),
           MarketingController,
           :blog_post,
           metadata: %{type: :marketing},
           private: private
 
-      # Case study routes - catch-all pattern instead of compile-time iteration
       get Path.join(locale_path_prefix, "/customers/:slug"),
           MarketingController,
           :case_study,
           metadata: %{type: :marketing},
           private: private
 
-      # Page routes - kept as compile-time iteration since there are few pages
-      # and they need to be at root level (before /:account_handle routes)
       for %{slug: page_slug} <- Tuist.Marketing.Pages.get_pages() do
         get Path.join(locale_path_prefix, page_slug),
             MarketingController,
