@@ -3349,4 +3349,273 @@ defmodule Tuist.RunsTest do
       assert updated_test_case.is_flaky == false
     end
   end
+
+  describe "list_flaky_test_cases/2" do
+    test "returns empty list when no flaky test cases exist" do
+      project = ProjectsFixtures.project_fixture()
+
+      {flaky_tests, meta} = Runs.list_flaky_test_cases(project.id, %{})
+
+      assert flaky_tests == []
+      assert meta.total_count == 0
+      assert meta.total_pages == 0
+    end
+
+    test "returns flaky test cases for a project" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = Ecto.UUID.generate()
+
+      test_modules = fn status ->
+        [
+          %{
+            name: "TestModule",
+            status: status,
+            duration: 500,
+            test_cases: [%{name: "flakyTest", status: status, duration: 250, test_case_id: test_case_id}]
+          }
+        ]
+      end
+
+      {:ok, _first_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "abc123",
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          test_modules: test_modules.("success")
+        )
+
+      {:ok, _second_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "abc123",
+          is_ci: true,
+          status: "failure",
+          ran_at: NaiveDateTime.utc_now(),
+          test_modules: test_modules.("failure")
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {flaky_tests, meta} = Runs.list_flaky_test_cases(project.id, %{})
+
+      assert length(flaky_tests) == 1
+      assert meta.total_count == 1
+
+      flaky_test = hd(flaky_tests)
+      assert flaky_test.name == "flakyTest"
+      assert flaky_test.module_name == "TestModule"
+      assert flaky_test.flaky_runs_count == 2
+    end
+
+    test "supports pagination" do
+      project = ProjectsFixtures.project_fixture()
+
+      for i <- 1..3 do
+        test_case_id = Ecto.UUID.generate()
+
+        test_modules = fn status ->
+          [
+            %{
+              name: "TestModule",
+              status: status,
+              duration: 500,
+              test_cases: [%{name: "flakyTest#{i}", status: status, duration: 250, test_case_id: test_case_id}]
+            }
+          ]
+        end
+
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: project.account_id,
+            git_commit_sha: "commit#{i}",
+            is_ci: true,
+            status: "success",
+            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+            test_modules: test_modules.("success")
+          )
+
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: project.account_id,
+            git_commit_sha: "commit#{i}",
+            is_ci: true,
+            status: "failure",
+            ran_at: NaiveDateTime.utc_now(),
+            test_modules: test_modules.("failure")
+          )
+      end
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {page1, meta1} = Runs.list_flaky_test_cases(project.id, %{page: 1, page_size: 2})
+      assert length(page1) == 2
+      assert meta1.total_count == 3
+      assert meta1.total_pages == 2
+      assert meta1.current_page == 1
+
+      {page2, meta2} = Runs.list_flaky_test_cases(project.id, %{page: 2, page_size: 2})
+      assert length(page2) == 1
+      assert meta2.current_page == 2
+    end
+
+    test "supports search filtering by name" do
+      project = ProjectsFixtures.project_fixture()
+
+      for {name, i} <- [{"loginTest", 1}, {"logoutTest", 2}, {"profileTest", 3}] do
+        test_case_id = Ecto.UUID.generate()
+
+        test_modules = fn status ->
+          [
+            %{
+              name: "TestModule",
+              status: status,
+              duration: 500,
+              test_cases: [%{name: name, status: status, duration: 250, test_case_id: test_case_id}]
+            }
+          ]
+        end
+
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: project.account_id,
+            git_commit_sha: "commit#{i}",
+            is_ci: true,
+            status: "success",
+            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+            test_modules: test_modules.("success")
+          )
+
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: project.account_id,
+            git_commit_sha: "commit#{i}",
+            is_ci: true,
+            status: "failure",
+            ran_at: NaiveDateTime.utc_now(),
+            test_modules: test_modules.("failure")
+          )
+      end
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {results, meta} =
+        Runs.list_flaky_test_cases(project.id, %{
+          filters: [%{field: :name, op: :ilike_and, value: "log"}]
+        })
+
+      assert length(results) == 2
+      assert meta.total_count == 2
+      names = Enum.map(results, & &1.name)
+      assert "loginTest" in names
+      assert "logoutTest" in names
+    end
+
+    test "supports ordering by name" do
+      project = ProjectsFixtures.project_fixture()
+
+      for {name, i} <- [{"zebra", 1}, {"alpha", 2}, {"beta", 3}] do
+        test_case_id = Ecto.UUID.generate()
+
+        test_modules = fn status ->
+          [
+            %{
+              name: "TestModule",
+              status: status,
+              duration: 500,
+              test_cases: [%{name: name, status: status, duration: 250, test_case_id: test_case_id}]
+            }
+          ]
+        end
+
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: project.account_id,
+            git_commit_sha: "commit#{i}",
+            is_ci: true,
+            status: "success",
+            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+            test_modules: test_modules.("success")
+          )
+
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: project.account_id,
+            git_commit_sha: "commit#{i}",
+            is_ci: true,
+            status: "failure",
+            ran_at: NaiveDateTime.utc_now(),
+            test_modules: test_modules.("failure")
+          )
+      end
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {asc_results, _} =
+        Runs.list_flaky_test_cases(project.id, %{order_by: [:name], order_directions: [:asc]})
+
+      assert Enum.map(asc_results, & &1.name) == ["alpha", "beta", "zebra"]
+
+      {desc_results, _} =
+        Runs.list_flaky_test_cases(project.id, %{order_by: [:name], order_directions: [:desc]})
+
+      assert Enum.map(desc_results, & &1.name) == ["zebra", "beta", "alpha"]
+    end
+
+    test "does not return test cases from other projects" do
+      project1 = ProjectsFixtures.project_fixture()
+      project2 = ProjectsFixtures.project_fixture()
+      test_case_id = Ecto.UUID.generate()
+
+      test_modules = fn status ->
+        [
+          %{
+            name: "TestModule",
+            status: status,
+            duration: 500,
+            test_cases: [%{name: "flakyTest", status: status, duration: 250, test_case_id: test_case_id}]
+          }
+        ]
+      end
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project1.id,
+          account_id: project1.account_id,
+          git_commit_sha: "abc123",
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          test_modules: test_modules.("success")
+        )
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project1.id,
+          account_id: project1.account_id,
+          git_commit_sha: "abc123",
+          is_ci: true,
+          status: "failure",
+          ran_at: NaiveDateTime.utc_now(),
+          test_modules: test_modules.("failure")
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {project1_results, _} = Runs.list_flaky_test_cases(project1.id, %{})
+      assert length(project1_results) == 1
+
+      {project2_results, _} = Runs.list_flaky_test_cases(project2.id, %{})
+      assert project2_results == []
+    end
+  end
 end
