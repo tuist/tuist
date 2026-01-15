@@ -27,7 +27,8 @@ defmodule Tuist.Projects.Project do
     field :qa_app_description, :string, default: ""
     field :qa_email, :string, default: ""
     field :qa_password, :string, default: ""
-    field :build_system, Ecto.Enum, values: [xcode: 0, gradle: 1], default: :xcode
+    field :build_systems, {:array, Ecto.Enum}, values: [xcode: 0, gradle: 1], default: [:xcode]
+    field :generated_project, :boolean, default: false
 
     field :slack_channel_id, :string
     field :slack_channel_name, :string
@@ -68,13 +69,29 @@ defmodule Tuist.Projects.Project do
       :created_at,
       :visibility,
       :default_previews_visibility,
-      :build_system
+      :build_systems,
+      :generated_project
     ])
     |> validate_inclusion(:visibility, [:private, :public])
     |> validate_required([:token, :account_id, :name])
     |> validate_name()
     |> validate_inclusion(:default_previews_visibility, [:private, :public])
-    |> validate_inclusion(:build_system, [:xcode, :gradle])
+    |> validate_build_systems()
+  end
+
+  defp validate_build_systems(changeset) do
+    validate_change(changeset, :build_systems, fn :build_systems, build_systems ->
+      valid_values = [:xcode, :gradle]
+
+      invalid =
+        Enum.reject(build_systems, fn system -> system in valid_values end)
+
+      if Enum.empty?(invalid) do
+        []
+      else
+        [build_systems: "contains invalid values: #{inspect(invalid)}"]
+      end
+    end)
   end
 
   def update_changeset(project, attrs) do
