@@ -23,6 +23,8 @@ import {
   agenticBuildingIcon,
   qaIcon,
   slackIcon,
+  testInsightsIcon,
+  flakyTestsIcon,
 } from "./icons.mjs";
 import { loadData as loadExamplesData } from "./data/examples";
 import { loadData as loadProjectDescriptionData } from "./data/project-description";
@@ -533,6 +535,23 @@ export async function guidesSidebar(locale) {
             "sidebars.guides.items.develop.items.insights.text",
           )}</span>`,
           link: `/${locale}/guides/features/insights`,
+        },
+        {
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${testInsightsIcon()} ${localizedString(
+            locale,
+            "sidebars.guides.items.develop.items.test-insights.text",
+          )}</span>`,
+          link: `/${locale}/guides/features/test-insights`,
+          collapsed: true,
+          items: [
+            {
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${flakyTestsIcon()} ${localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.test-insights.items.flaky-tests.text",
+              )}</span>`,
+              link: `/${locale}/guides/features/test-insights/flaky-tests`,
+            },
+          ],
         },
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${bundleSizeIcon()} ${localizedString(

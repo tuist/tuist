@@ -358,6 +358,14 @@
             "insights": {
               "text": "Build insights"
             },
+            "test-insights": {
+              "text": "Test insights",
+              "items": {
+                "flaky-tests": {
+                  "text": "Flaky tests"
+                }
+              }
+            },
             "bundle-size": {
               "text": "Bundle insights"
             },
