@@ -293,4 +293,60 @@ defmodule Cache.S3Test do
       end)
     end
   end
+
+  describe "delete_all_with_prefix/1" do
+    test "deletes all objects with given prefix" do
+      prefix = "test_account/test_project/"
+
+      expect(ExAws, :stream!, fn _operation ->
+        [
+          %{key: "#{prefix}cas/AB/CD/hash1"},
+          %{key: "#{prefix}module/builds/EF/GH/hash2/file.zip"}
+        ]
+      end)
+
+      expect(ExAws.S3, :delete_multiple_objects, fn "test-bucket", keys ->
+        assert keys == ["#{prefix}cas/AB/CD/hash1", "#{prefix}module/builds/EF/GH/hash2/file.zip"]
+        {:delete_multiple_operation, "test-bucket", keys}
+      end)
+
+      expect(ExAws, :request, fn {:delete_multiple_operation, "test-bucket", _keys} ->
+        {:ok, %{}}
+      end)
+
+      capture_log(fn ->
+        assert {:ok, 2} = S3.delete_all_with_prefix(prefix)
+      end)
+    end
+
+    test "returns {:ok, 0} when no objects exist" do
+      prefix = "test_account/test_project/"
+
+      expect(ExAws, :stream!, fn _operation -> [] end)
+
+      capture_log(fn ->
+        assert {:ok, 0} = S3.delete_all_with_prefix(prefix)
+      end)
+    end
+
+    test "returns error when delete_multiple_objects fails" do
+      prefix = "test_account/test_project/"
+
+      expect(ExAws, :stream!, fn _operation ->
+        [%{key: "#{prefix}cas/AB/CD/hash1"}]
+      end)
+
+      expect(ExAws.S3, :delete_multiple_objects, fn "test-bucket", _keys ->
+        {:delete_multiple_operation, "test-bucket", []}
+      end)
+
+      expect(ExAws, :request, fn {:delete_multiple_operation, "test-bucket", _keys} ->
+        {:error, :access_denied}
+      end)
+
+      capture_log(fn ->
+        assert {:error, :access_denied} = S3.delete_all_with_prefix(prefix)
+      end)
+    end
+  end
 end
