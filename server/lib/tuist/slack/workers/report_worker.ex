@@ -43,6 +43,8 @@ defmodule Tuist.Slack.Workers.ReportWorker do
       |> __MODULE__.new(unique: [period: 3600, keys: [:project_id]])
       |> Oban.insert!()
     end
+
+    :ok
   end
 
   defp due?(%{report_timezone: nil}, _now_utc), do: false

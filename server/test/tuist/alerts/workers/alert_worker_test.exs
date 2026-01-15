@@ -23,9 +23,9 @@ defmodule Tuist.Alerts.Workers.AlertWorkerTest do
       # Given
       alert_rule = AlertsFixtures.alert_rule_fixture(project: project)
 
-      expect(Oban, :insert, fn changeset ->
+      expect(Oban, :insert!, fn changeset ->
         assert changeset.changes.args == %{alert_rule_id: alert_rule.id}
-        {:ok, %Oban.Job{}}
+        %Oban.Job{}
       end)
 
       # When

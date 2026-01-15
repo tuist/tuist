@@ -25,6 +25,8 @@ defmodule Tuist.Alerts.Workers.AlertWorker do
       |> __MODULE__.new(unique: [period: 300, keys: [:alert_rule_id]])
       |> Oban.insert!()
     end
+
+    :ok
   end
 
   defp check_and_notify(alert_rule) do
