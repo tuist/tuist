@@ -1,5 +1,6 @@
 defmodule Tuist.Repo.Migrations.MigrateAccountTokensScopes do
   use Ecto.Migration
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
 
   def change do
     # Step 1: Add new string array column

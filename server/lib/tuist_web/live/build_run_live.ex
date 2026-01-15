@@ -15,6 +15,7 @@ defmodule TuistWeb.BuildRunLive do
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
     run =
       case Runs.get_build(params["build_run_id"]) do
@@ -86,6 +87,7 @@ defmodule TuistWeb.BuildRunLive do
     {:ok, socket}
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def handle_params(
         params,
         _uri,
@@ -1259,6 +1261,7 @@ defmodule TuistWeb.BuildRunLive do
     "?#{query}"
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def cache_chart_border_radius(local_hits, remote_hits, misses, category) do
     has_local = local_hits > 0
     has_remote = remote_hits > 0

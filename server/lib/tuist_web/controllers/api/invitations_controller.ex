@@ -49,6 +49,7 @@ defmodule TuistWeb.API.InvitationsController do
     }
   )
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def create(
         %{path_params: %{"organization_name" => organization_name}, body_params: %{invitee_email: invitee_email}} = conn,
         _params

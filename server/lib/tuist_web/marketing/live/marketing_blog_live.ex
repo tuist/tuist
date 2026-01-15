@@ -35,6 +35,7 @@ defmodule TuistWeb.Marketing.MarketingBlogLive do
     {:ok, socket}
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def handle_params(params, _url, socket) do
     all_entries = Content.get_entries()
     search_query = Map.get(params, "search", "")

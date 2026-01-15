@@ -199,6 +199,7 @@ defmodule TuistWeb.TestCasesLive do
     {:noreply, socket}
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
     analytics_environment = params["analytics-environment"] || "any"
     selected_duration_type = params["duration-type"] || "avg"

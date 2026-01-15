@@ -1,5 +1,6 @@
 defmodule Tuist.Repo.Migrations.CreateQAScreenshots do
   use Ecto.Migration
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
 
   def up do
     create table(:qa_screenshots, primary_key: false) do

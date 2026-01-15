@@ -1,5 +1,6 @@
 defmodule Tuist.Repo.Migrations.BackfillBundleTypes do
   use Ecto.Migration
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
   import Ecto.Query
 
   def up do

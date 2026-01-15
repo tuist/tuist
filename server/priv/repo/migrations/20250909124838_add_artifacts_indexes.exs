@@ -1,5 +1,6 @@
 defmodule Tuist.Repo.Migrations.AddArtifactsIndexes do
   use Ecto.Migration
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
 
   def change do
     # Add index for bundle_id - most common query pattern (WHERE bundle_id = ?)
