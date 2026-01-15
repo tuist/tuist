@@ -10,9 +10,18 @@ export SERVER_PID_FILE="${TMPDIR:-/tmp}/tuist-e2e-server.pid"
 export SERVER_URL="${SERVER_URL:-http://localhost:8080}"
 export SERVER_STARTUP_TIMEOUT="${SERVER_STARTUP_TIMEOUT:-60}"
 
+# Cache server configuration
+export CACHE_SERVER_PID_FILE="${TMPDIR:-/tmp}/tuist-e2e-cache-server.pid"
+export CACHE_SERVER_URL="${CACHE_SERVER_URL:-http://localhost:8181}"
+
 # Check if server is running
 server_is_running() {
     curl -sf "$SERVER_URL" >/dev/null 2>&1
+}
+
+# Check if cache server is running
+cache_server_is_running() {
+    curl -sf "${CACHE_SERVER_URL}/up" >/dev/null 2>&1
 }
 
 # Start the Phoenix server
@@ -84,4 +93,50 @@ setup_android_sdk() {
     if [[ -z "${ANDROID_HOME:-}" ]]; then
         skip "Android SDK not found. Set ANDROID_HOME or install Android Studio"
     fi
+}
+
+# Start the cache Phoenix server
+cache_server_start() {
+    local server_dir="$1"
+
+    if cache_server_is_running; then
+        echo "# Cache server already running, stopping first..." >&3
+        cache_server_stop
+    fi
+
+    echo "# Starting cache server..." >&3
+    cd "$server_dir" || return 1
+    MIX_ENV=dev mix phx.server &
+    echo $! > "$CACHE_SERVER_PID_FILE"
+
+    cache_server_wait
+}
+
+# Stop the cache server
+cache_server_stop() {
+    if [[ -f "$CACHE_SERVER_PID_FILE" ]]; then
+        local pid
+        pid=$(cat "$CACHE_SERVER_PID_FILE")
+        if kill -0 "$pid" 2>/dev/null; then
+            echo "# Stopping cache server (PID: $pid)..." >&3
+            kill "$pid" 2>/dev/null || true
+            wait "$pid" 2>/dev/null || true
+        fi
+        rm -f "$CACHE_SERVER_PID_FILE"
+    fi
+}
+
+# Wait for cache server to be ready
+cache_server_wait() {
+    local elapsed=0
+    while ! cache_server_is_running; do
+        if [[ $elapsed -ge $SERVER_STARTUP_TIMEOUT ]]; then
+            echo "# Cache server failed to start within ${SERVER_STARTUP_TIMEOUT}s" >&3
+            return 1
+        fi
+        echo "# Waiting for cache server... (${elapsed}s)" >&3
+        sleep 2
+        elapsed=$((elapsed + 2))
+    done
+    echo "# Cache server is ready" >&3
 }
