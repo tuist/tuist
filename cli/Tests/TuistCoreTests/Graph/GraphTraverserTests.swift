@@ -1209,6 +1209,40 @@ final class GraphTraverserTests: TuistUnitTestCase {
         )
     }
 
+    func test_embeddableFrameworks_when_dependencyIsStaticFrameworkWithMetalSources() throws {
+        // Given
+        let target = Target.test(name: "Main", product: .app)
+        let staticFramework = Target.test(
+            name: "MetalFramework",
+            product: .staticFramework,
+            sources: ["/Absolute/Shader.metal"]
+        )
+        let project = Project.test(targets: [target, staticFramework])
+
+        // Given: Value Graph
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(
+                    name: target.name,
+                    path: project.path
+                ): Set(arrayLiteral: .target(name: staticFramework.name, path: project.path)),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
+
+        // Then
+        // Metal compilation generates a default.metallib resource, so the framework must be embedded in the app bundle.
+        XCTAssertEqual(
+            got, [
+                .product(target: "MetalFramework", productName: "MetalFramework.framework"),
+            ]
+        )
+    }
+
     func test_embeddableFrameworks_when_appIsMergeableAndDependencyIsATarget() throws {
         // Given
         let target = Target.test(name: "Main", mergedBinaryType: .automatic)
