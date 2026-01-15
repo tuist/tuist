@@ -416,6 +416,11 @@ public enum EnvKey: String, CaseIterable {
 
     /// CACHE START
     case cacheStartPath = "TUIST_CACHE_START_PATH"
+
+    // GRADLE CACHE
+
+    case gradleCacheJson = "TUIST_GRADLE_CACHE_JSON"
+    case gradleCachePath = "TUIST_GRADLE_CACHE_PATH"
 }
 
 extension EnvKey {

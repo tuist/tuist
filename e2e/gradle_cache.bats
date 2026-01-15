@@ -9,6 +9,8 @@ setup_file() {
     export GRADLE_PROJECT_DIR="${REPO_ROOT}/examples/gradle/simple_android_app"
     export TUIST_TOKEN="${GRADLE_TOKEN:-tuist_01234567-89ab-cdef-0123-456789abcdef_gradlecachedevtoken}"
     export TUIST_CACHE_URL="${CACHE_SERVER_URL}/api/cache/gradle"
+    export TUIST_ACCOUNT_HANDLE="${TUIST_ACCOUNT_HANDLE:-tuist}"
+    export TUIST_PROJECT_HANDLE="${TUIST_PROJECT_HANDLE:-gradle}"
 
     # Verify prerequisites
     require_cmd java
