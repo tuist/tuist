@@ -205,7 +205,7 @@
   <.card
     :if={Enum.any?(@flaky_runs_grouped)}
     title={dgettext("dashboard_tests", "Flaky Runs")}
-    icon="dashboard"
+    icon="alert_triangle"
     data-part="flaky-runs-card"
   >
     <.card_section data-part="flaky-runs-section">
@@ -275,6 +275,15 @@
                       <.git_branch />
                       {run.git_branch}
                     </span>
+                    <.link
+                      navigate={
+                        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs/#{run.test_run_id}"
+                      }
+                      data-part="test-run-link"
+                    >
+                      {run.scheme}
+                      <.link_icon />
+                    </.link>
                   </div>
                 </div>
                 <div :if={Enum.any?(run.repetitions)} data-part="repetitions">
