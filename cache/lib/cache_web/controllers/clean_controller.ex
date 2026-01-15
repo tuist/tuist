@@ -41,9 +41,10 @@ defmodule CacheWeb.CleanController do
   def clean(conn, %{account_handle: account_handle, project_handle: project_handle}) do
     Logger.info("Cleaning cache for project #{account_handle}/#{project_handle}")
 
-    %{account_handle: account_handle, project_handle: project_handle}
-    |> CleanProjectWorker.new()
-    |> Oban.insert()
+    {:ok, _job} =
+      %{account_handle: account_handle, project_handle: project_handle}
+      |> CleanProjectWorker.new()
+      |> Oban.insert()
 
     send_resp(conn, :no_content, "")
   end

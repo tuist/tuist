@@ -1,5 +1,5 @@
 defmodule Cache.CleanProjectWorkerTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   use Mimic
 
   import ExUnit.CaptureLog

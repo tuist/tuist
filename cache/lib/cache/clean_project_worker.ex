@@ -3,7 +3,7 @@ defmodule Cache.CleanProjectWorker do
   Oban worker that cleans all cache artifacts for a project from both disk and S3.
   """
 
-  use Oban.Worker, queue: :maintenance, max_attempts: 3
+  use Oban.Worker, queue: :default, max_attempts: 3
 
   alias Cache.Disk
   alias Cache.S3
