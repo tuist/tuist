@@ -329,10 +329,6 @@
                     height: var(--noora-icon-size-small);
                   }
                 }
-
-                & [data-part="commit-info"] {
-                  font-family: var(--noora-font-family-mono);
-                }
               }
             }
 
