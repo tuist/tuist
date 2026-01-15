@@ -1297,20 +1297,7 @@ defmodule Tuist.Runs do
           |> Map.put(:repetitions, run_repetitions)
         end)
 
-      {passed_count, failed_count} =
-        Enum.reduce(runs_with_details, {0, 0}, fn run, {passed, failed} ->
-          if Enum.any?(run.repetitions) do
-            rep_passed = Enum.count(run.repetitions, &(&1.status == "success"))
-            rep_failed = Enum.count(run.repetitions, &(&1.status == "failure"))
-            {passed + rep_passed, failed + rep_failed}
-          else
-            case run.status do
-              "success" -> {passed + 1, failed}
-              "failure" -> {passed, failed + 1}
-              _ -> {passed, failed}
-            end
-          end
-        end)
+      {passed_count, failed_count} = count_passed_failed(runs_with_details)
 
       %{
         test_case_id: test_case_id,
