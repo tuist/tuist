@@ -2927,6 +2927,9 @@ defmodule Tuist.RunsTest do
           ]
         })
 
+      # Force ClickHouse to merge and deduplicate rows
+      RunsFixtures.optimize_test_case_runs()
+
       # Get the second test case run
       {second_test_case_runs, _} =
         Runs.list_test_case_runs(%{
@@ -2940,7 +2943,6 @@ defmodule Tuist.RunsTest do
       assert second_test_case_run.status == "failure"
 
       # First run should now also be marked as flaky (via ReplacingMergeTree update)
-      # Query with FINAL hint to get the latest version of the row
       {updated_first_runs, _} =
         Runs.list_test_case_runs(%{
           filters: [%{field: :test_run_id, op: :==, value: first_test.id}]
@@ -2949,6 +2951,71 @@ defmodule Tuist.RunsTest do
       updated_first_run = hd(updated_first_runs)
       assert updated_first_run.is_flaky == true
       assert updated_first_run.status == "success"
+    end
+
+    test "marks all runs as flaky when multiple runs exist before a conflicting run" do
+      # Scenario: Run A passes, Run B passes, Run C fails
+      # All three should be marked as flaky
+      project = ProjectsFixtures.project_fixture()
+      commit_sha = "abc123def456"
+      test_case_id = Ecto.UUID.generate()
+
+      test_modules = fn status ->
+        [
+          %{
+            name: "TestModule",
+            status: status,
+            duration: 500,
+            test_cases: [%{name: "testSomething", status: status, duration: 250, test_case_id: test_case_id}]
+          }
+        ]
+      end
+
+      {:ok, first_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: commit_sha,
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -7200),
+          test_modules: test_modules.("success")
+        )
+
+      {:ok, second_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: commit_sha,
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          test_modules: test_modules.("success")
+        )
+
+      {:ok, third_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: commit_sha,
+          is_ci: true,
+          status: "failure",
+          ran_at: NaiveDateTime.utc_now(),
+          test_modules: test_modules.("failure")
+        )
+
+      # Force ClickHouse to merge and deduplicate rows
+      RunsFixtures.optimize_test_case_runs()
+
+      # All three runs should be marked as flaky
+      {third_runs, _} = Runs.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: third_test.id}]})
+      assert hd(third_runs).is_flaky == true
+
+      {first_runs, _} = Runs.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: first_test.id}]})
+      assert hd(first_runs).is_flaky == true
+
+      {second_runs, _} = Runs.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: second_test.id}]})
+      assert hd(second_runs).is_flaky == true
     end
 
     test "does not mark as flaky when same test case on different commits has different results" do

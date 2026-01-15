@@ -2,12 +2,17 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
   @moduledoc """
   Fixtures for runs.
   """
+  alias Ecto.Adapters.SQL
   alias Tuist.IngestRepo
   alias Tuist.Runs
   alias Tuist.Runs.TestCase
   alias Tuist.Runs.TestCaseRun
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+
+  def optimize_test_case_runs do
+    SQL.query!(IngestRepo, "OPTIMIZE TABLE test_case_runs FINAL", [])
+  end
 
   def build_fixture(attrs \\ []) do
     project_id =

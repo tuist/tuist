@@ -778,23 +778,25 @@ defmodule Tuist.Runs do
     existing_runs = get_existing_ci_runs_for_commit(test_case_ids, test.git_commit_sha)
 
     Enum.map_reduce(test_case_data, [], fn data, historical_ids ->
-      case get_cross_run_flaky_status(data, existing_runs) do
-        {true, historical_id} ->
-          {%{data | is_flaky: true}, [historical_id | historical_ids]}
-
-        {false, nil} ->
+      case get_cross_run_flaky_ids(data, existing_runs) do
+        [] ->
           {data, historical_ids}
+
+        flaky_ids ->
+          {%{data | is_flaky: true}, flaky_ids ++ historical_ids}
       end
     end)
   end
 
-  defp get_cross_run_flaky_status(data, existing_runs) do
-    existing = Map.get(existing_runs, data.test_case_id)
+  defp get_cross_run_flaky_ids(data, existing_runs) do
+    existing = Map.get(existing_runs, data.test_case_id, [])
 
-    if existing && data.status in ["success", "failure"] && existing.status != data.status do
-      {true, existing.id}
+    if data.status in ["success", "failure"] do
+      existing
+      |> Enum.filter(&(&1.status != data.status))
+      |> Enum.map(& &1.id)
     else
-      {false, nil}
+      []
     end
   end
 
@@ -812,7 +814,6 @@ defmodule Tuist.Runs do
     query
     |> ClickHouseRepo.all()
     |> Enum.group_by(& &1.test_case_id)
-    |> Map.new(fn {test_case_id, runs} -> {test_case_id, hd(runs)} end)
   end
 
   defp create_test_suites(test, module_id, test_suites, test_cases, test_case_run_data) do
@@ -831,7 +832,6 @@ defmodule Tuist.Runs do
 
         avg_test_case_duration = calculate_avg_test_case_duration(suite_test_cases)
 
-        # Get data for test cases in this suite
         suite_data =
           test_case_run_data
           |> Enum.filter(fn {{_name, _module, suite}, _data} -> suite == suite_name end)
@@ -899,10 +899,8 @@ defmodule Tuist.Runs do
         identity_key = {case_name, module_name, suite_name}
         test_case_id = Map.get(test_case_id_map, identity_key)
 
-        # Process repetitions if present
         repetitions = Map.get(case_attrs, :repetitions, [])
 
-        # Use pre-computed status and is_flaky
         %{status: status, is_flaky: is_flaky} = Map.get(test_case_run_data, identity_key)
 
         test_case_run = %{
