@@ -264,13 +264,17 @@ defmodule Tuist.Projects do
     token = Keyword.get(opts, :token, Tuist.Tokens.generate_token())
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
     visibility = Keyword.get(opts, :visibility, :private)
+    build_systems = Keyword.get(opts, :build_systems, [:xcode])
+    generated_project = Keyword.get(opts, :generated_project, false)
 
     %{
       token: token,
       name: name,
       account_id: account_id,
       created_at: created_at,
-      visibility: visibility
+      visibility: visibility,
+      build_systems: build_systems,
+      generated_project: generated_project
     }
     |> Project.create_changeset()
     |> Repo.insert()
@@ -281,6 +285,8 @@ defmodule Tuist.Projects do
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
     visibility = Keyword.get(opts, :visibility, :private)
     preload = Keyword.get(opts, :preload, [])
+    build_systems = Keyword.get(opts, :build_systems, [:xcode])
+    generated_project = Keyword.get(opts, :generated_project, false)
 
     %Project{}
     |> Project.create_changeset(%{
@@ -289,7 +295,9 @@ defmodule Tuist.Projects do
       account_id: account_id,
       created_at: created_at,
       visibility: visibility,
-      default_previews_visibility: Keyword.get(opts, :default_previews_visibility, :private)
+      default_previews_visibility: Keyword.get(opts, :default_previews_visibility, :private),
+      build_systems: build_systems,
+      generated_project: generated_project
     })
     |> Repo.insert!()
     |> Repo.preload(preload)

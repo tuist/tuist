@@ -359,7 +359,7 @@ gradle_project =
           name: "gradle",
           account: %{id: organization.account.id}
         },
-        build_system: :gradle
+        build_systems: [:gradle]
       )
   end
 
@@ -377,7 +377,7 @@ existing_gradle_token = Repo.get(AccountToken, gradle_token_id)
 
 if is_nil(existing_gradle_token) do
   encrypted_token_hash =
-    Bcrypt.hash_pwd_salt(gradle_token_hash <> Tuist.Environment.secret_key_password())
+    Bcrypt.hash_pwd_salt(gradle_token_hash <> Environment.secret_key_password())
 
   changeset =
     AccountToken.create_changeset(%{
@@ -398,7 +398,7 @@ else
   IO.puts("Gradle cache token already exists: #{gradle_full_token}")
 end
 
-IO.puts("Gradle project created: tuist/gradle (build_system: gradle)")
+IO.puts("Gradle project created: tuist/gradle (build_systems: [:gradle])")
 
 IO.puts("Generating #{seed_config.build_runs} build runs in parallel...")
 
