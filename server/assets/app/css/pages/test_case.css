@@ -325,6 +325,12 @@
               border-radius: var(--noora-radius-large);
               padding: var(--noora-spacing-5);
 
+              & [data-part="repetition-wrapper"] {
+                display: flex;
+                flex-direction: column;
+                gap: var(--noora-spacing-5);
+              }
+
               & [data-part="repetition-item"] {
                 display: flex;
                 flex-direction: row;
