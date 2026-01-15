@@ -86,9 +86,12 @@ struct TestAcceptanceTests {
             ["--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString, "App"]
         )
 
-        let appPath = try #require(
-            await findBuiltAppPath(in: temporaryDirectory, fileSystem: fileSystem)
-        )
+        let productsPath = temporaryDirectory.appending(components: "Build", "Products")
+        let matches = try await fileSystem.glob(
+            directory: productsPath,
+            include: ["**/App.app"]
+        ).collect()
+        let appPath = try #require(matches.first)
         let metallibPath = appPath.appending(
             components: "Frameworks",
             "StaticMetalFramework.framework",
@@ -96,18 +99,6 @@ struct TestAcceptanceTests {
         )
         #expect(try await fileSystem.exists(metallibPath))
     }
-}
-
-private func findBuiltAppPath(
-    in derivedDataPath: AbsolutePath,
-    fileSystem: FileSystem
-) async throws -> AbsolutePath? {
-    let productsPath = derivedDataPath.appending(components: "Build", "Products")
-    let matches = try await fileSystem.glob(
-        directory: productsPath,
-        include: ["**/App.app"]
-    ).collect()
-    return matches.first
 }
 
 /// Test projects using tuist test
