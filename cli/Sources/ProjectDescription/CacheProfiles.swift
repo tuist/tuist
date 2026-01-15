@@ -35,13 +35,22 @@ public struct CacheProfile: Codable, Equatable, Sendable {
     /// String literals like "MyTarget" and "tag:MyTag" are supported via `ExpressibleByStringLiteral`.
     public let targetQueries: [TargetQuery]
 
+    /// Target names or tags to exclude from binary caching.
+    /// These exceptions override both the base profile behavior and any targets specified in `targetQueries`.
+    /// Use `.named("MyTarget")` or `.tagged("MyTag")`.
+    ///
+    /// String literals like "MyTarget" and "tag:MyTag" are supported via `ExpressibleByStringLiteral`.
+    public let exceptTargetQueries: [TargetQuery]
+
     public static func profile(
         _ base: BaseCacheProfile = .onlyExternal,
-        and targetQueries: [TargetQuery] = []
+        and targetQueries: [TargetQuery] = [],
+        except exceptTargetQueries: [TargetQuery] = []
     ) -> Self {
         CacheProfile(
             base: base,
-            targetQueries: targetQueries
+            targetQueries: targetQueries,
+            exceptTargetQueries: exceptTargetQueries
         )
     }
 }
