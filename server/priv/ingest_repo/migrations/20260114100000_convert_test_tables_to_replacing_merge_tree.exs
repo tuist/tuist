@@ -85,10 +85,9 @@ defmodule Tuist.IngestRepo.Migrations.ConvertTestTablesToReplacingMergeTree do
         # Copy data in batches using cursor-based pagination on inserted_at
         copy_data_in_batches(table_name, new_table)
 
-        # Swap tables
-        IngestRepo.query!(
-          "RENAME TABLE #{table_name} TO #{old_table}, #{new_table} TO #{table_name}"
-        )
+        # Swap tables (separate queries for ClickHouse Shared database compatibility)
+        IngestRepo.query!("RENAME TABLE #{table_name} TO #{old_table}")
+        IngestRepo.query!("RENAME TABLE #{new_table} TO #{table_name}")
 
         # Drop old table
         IngestRepo.query!("DROP TABLE #{old_table}")
@@ -124,8 +123,9 @@ defmodule Tuist.IngestRepo.Migrations.ConvertTestTablesToReplacingMergeTree do
     # Copy data using FINAL to get deduplicated rows
     copy_data_in_batches(table_name, new_table, use_final: true)
 
-    # Swap tables
-    IngestRepo.query!("RENAME TABLE #{table_name} TO #{old_table}, #{new_table} TO #{table_name}")
+    # Swap tables (separate queries for ClickHouse Shared database compatibility)
+    IngestRepo.query!("RENAME TABLE #{table_name} TO #{old_table}")
+    IngestRepo.query!("RENAME TABLE #{new_table} TO #{table_name}")
 
     # Drop old table
     IngestRepo.query!("DROP TABLE #{old_table}")
