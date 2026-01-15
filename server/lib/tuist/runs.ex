@@ -1202,10 +1202,10 @@ defmodule Tuist.Runs do
 
       run_ids = Enum.map(flaky_runs, & &1.id)
 
-      failures = fetch_failures_for_runs(run_ids)
+      failures = get_failures_for_runs(run_ids)
       failures_by_run_id = Enum.group_by(failures, & &1.test_case_run_id)
 
-      repetitions = fetch_repetitions_for_runs(run_ids)
+      repetitions = get_repetitions_for_runs(run_ids)
       repetitions_by_run_id = Enum.group_by(repetitions, & &1.test_case_run_id)
 
       runs_by_group = Enum.group_by(flaky_runs, fn run -> {run.scheme, run.git_commit_sha} end)
@@ -1272,10 +1272,10 @@ defmodule Tuist.Runs do
   end
 
   @doc """
-  Fetches flaky runs for a specific test run, grouped by test case name.
+  Gets flaky runs for a specific test run, grouped by test case name.
   Returns a list of groups, each containing runs with their failures.
   """
-  def list_flaky_runs_for_test_run(test_run_id) do
+  def get_flaky_runs_for_test_run(test_run_id) do
     flaky_runs_query =
       from(tcr in TestCaseRun,
         hints: ["FINAL"],
@@ -1288,10 +1288,10 @@ defmodule Tuist.Runs do
 
       run_ids = Enum.map(flaky_runs, & &1.id)
 
-      failures = fetch_failures_for_runs(run_ids)
+      failures = get_failures_for_runs(run_ids)
       failures_by_run_id = Enum.group_by(failures, & &1.test_case_run_id)
 
-      repetitions = fetch_repetitions_for_runs(run_ids)
+      repetitions = get_repetitions_for_runs(run_ids)
       repetitions_by_run_id = Enum.group_by(repetitions, & &1.test_case_run_id)
 
       flaky_runs
@@ -1342,9 +1342,9 @@ defmodule Tuist.Runs do
       |> Enum.sort_by(& &1.latest_ran_at, {:desc, NaiveDateTime})
   end
 
-  defp fetch_failures_for_runs([]), do: []
+  defp get_failures_for_runs([]), do: []
 
-  defp fetch_failures_for_runs(run_ids) do
+  defp get_failures_for_runs(run_ids) do
     query =
       from(f in TestCaseFailure,
         where: f.test_case_run_id in ^run_ids,
@@ -1360,9 +1360,9 @@ defmodule Tuist.Runs do
     ClickHouseRepo.all(query)
   end
 
-  defp fetch_repetitions_for_runs([]), do: []
+  defp get_repetitions_for_runs([]), do: []
 
-  defp fetch_repetitions_for_runs(run_ids) do
+  defp get_repetitions_for_runs(run_ids) do
     query =
       from(r in TestCaseRunRepetition,
         where: r.test_case_run_id in ^run_ids,
@@ -1390,76 +1390,33 @@ defmodule Tuist.Runs do
   def clear_stale_flaky_flags do
     fourteen_days_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -14, :day)
 
-    # Query to get flaky test cases that have no recent flaky runs
-    query = """
-    SELECT
-      tc.id,
-      tc.name,
-      tc.module_name,
-      tc.suite_name,
-      tc.project_id,
-      tc.last_status,
-      tc.last_duration,
-      tc.last_ran_at,
-      tc.inserted_at,
-      tc.recent_durations,
-      tc.avg_duration
-    FROM test_cases tc FINAL
-    LEFT JOIN (
-      SELECT test_case_id
-      FROM test_case_runs
-      WHERE is_flaky = true AND inserted_at >= {cutoff:DateTime64(6)}
-      GROUP BY test_case_id
-    ) recent_flaky ON tc.id = recent_flaky.test_case_id
-    WHERE tc.is_flaky = true AND recent_flaky.test_case_id IS NULL
-    """
+    recent_flaky_subquery =
+      from(tcr in TestCaseRun,
+        where: tcr.is_flaky == true and tcr.inserted_at >= ^fourteen_days_ago,
+        group_by: tcr.test_case_id,
+        select: tcr.test_case_id
+      )
 
-    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, %{cutoff: fourteen_days_ago})
+    query =
+      from(tc in TestCase,
+        hints: ["FINAL"],
+        where: tc.is_flaky == true,
+        where: tc.id not in subquery(recent_flaky_subquery)
+      )
 
-    if Enum.empty?(rows) do
-      {:ok, 0}
-    else
-      now = NaiveDateTime.utc_now()
+    stale_test_cases = ClickHouseRepo.all(query)
+    now = NaiveDateTime.utc_now()
 
-      test_cases_to_update =
-        Enum.map(rows, fn [
-                            id,
-                            name,
-                            module_name,
-                            suite_name,
-                            project_id,
-                            last_status,
-                            last_duration,
-                            last_ran_at,
-                            _inserted_at,
-                            recent_durations,
-                            avg_duration
-                          ] ->
-          uuid_string =
-            case id do
-              <<_::128>> = binary_uuid -> Ecto.UUID.load!(binary_uuid)
-              string when is_binary(string) -> string
-            end
+    test_cases_to_update =
+      Enum.map(stale_test_cases, fn test_case ->
+        test_case
+        |> Map.from_struct()
+        |> Map.drop([:__meta__])
+        |> Map.merge(%{is_flaky: false, inserted_at: now})
+      end)
 
-          %{
-            id: uuid_string,
-            name: name,
-            module_name: module_name,
-            suite_name: suite_name,
-            project_id: project_id,
-            last_status: last_status,
-            last_duration: last_duration,
-            last_ran_at: last_ran_at,
-            is_flaky: false,
-            inserted_at: now,
-            recent_durations: recent_durations,
-            avg_duration: avg_duration
-          }
-        end)
+    IngestRepo.insert_all(TestCase, test_cases_to_update)
 
-      IngestRepo.insert_all(TestCase, test_cases_to_update)
-
-      {:ok, length(test_cases_to_update)}
-    end
+    {:ok, length(test_cases_to_update)}
   end
 end

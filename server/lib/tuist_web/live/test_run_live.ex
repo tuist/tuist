@@ -289,7 +289,7 @@ defmodule TuistWeb.TestRunLive do
     {failures_grouped, failures_meta} = load_failures_data(socket.assigns.run, params)
 
     # Load flaky runs data
-    flaky_runs_grouped = Runs.list_flaky_runs_for_test_run(socket.assigns.run.id)
+    flaky_runs_grouped = Runs.get_flaky_runs_for_test_run(socket.assigns.run.id)
 
     socket =
       socket
@@ -558,7 +558,7 @@ defmodule TuistWeb.TestRunLive do
     page = String.to_integer(params["flaky-runs-page"] || "1")
     page_size = 20
 
-    all_flaky_runs = Runs.list_flaky_runs_for_test_run(run.id)
+    all_flaky_runs = Runs.get_flaky_runs_for_test_run(run.id)
     total_groups_count = length(all_flaky_runs)
     total_runs_count = Enum.reduce(all_flaky_runs, 0, fn group, acc -> acc + length(group.runs) end)
     total_pages = max(1, ceil(total_groups_count / page_size))
