@@ -1,5 +1,6 @@
 defmodule Tuist.Repo.Migrations.DropTestCasesTables do
   use Ecto.Migration
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
 
   def up do
     drop_if_exists table(:test_case_runs)

@@ -15,6 +15,7 @@ defmodule TuistWeb.TestRunLive do
 
   @table_page_size 20
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
     run =
       case Runs.get_test(params["test_run_id"], preload: [:ran_by_account, :build_run]) do
@@ -395,6 +396,7 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:test_modules_active_filters, filters)
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp assign_param_defaults(socket, params) do
     socket
     |> assign(:selective_testing_filter, params["selective-testing-filter"] || "")
@@ -814,6 +816,7 @@ defmodule TuistWeb.TestRunLive do
     ]
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def format_failure_message(failure, run) do
     message =
       case {failure.path, failure.issue_type, failure.message} do

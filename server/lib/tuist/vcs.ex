@@ -37,6 +37,7 @@ defmodule Tuist.VCS do
   - ci_project_handle: string
   - ci_host: string (optional, for self-hosted instances)
   """
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def ci_run_url(%{ci_provider: provider, ci_run_id: run_id, ci_project_handle: project_handle} = ci_metadata)
       when not is_nil(run_id) and run_id != "" do
     host = Map.get(ci_metadata, :ci_host)

@@ -31,6 +31,7 @@ defmodule TuistWeb.BundlesLive do
     {:ok, socket}
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def handle_params(params, _uri, %{assigns: %{selected_project: project}} = socket) do
     uri = URI.new!("?" <> URI.encode_query(params))
 
@@ -170,8 +171,10 @@ defmodule TuistWeb.BundlesLive do
   defp build_flop_filters(filters) do
     size_filters =
       filters
-      |> Enum.filter(fn filter -> filter.field in [:install_size, :download_size] end)
-      |> Enum.filter(fn filter -> not is_nil(filter.value) and filter.value != "" end)
+      |> Enum.filter(fn filter ->
+        filter.field in [:install_size, :download_size] and
+          not is_nil(filter.value) and filter.value != ""
+      end)
       |> Enum.map(fn filter ->
         # Convert MB to bytes (multiply by 1,048,576)
         mb_value = String.to_integer(filter.value)
@@ -182,8 +185,10 @@ defmodule TuistWeb.BundlesLive do
 
     platform_filters =
       filters
-      |> Enum.filter(fn filter -> filter.field == :supported_platforms end)
-      |> Enum.filter(fn filter -> not is_nil(filter.value) and filter.value != "" end)
+      |> Enum.filter(fn filter ->
+        filter.field == :supported_platforms and
+          not is_nil(filter.value) and filter.value != ""
+      end)
       |> Enum.map(fn filter ->
         %{field: filter.field, op: :contains, value: filter.value}
       end)

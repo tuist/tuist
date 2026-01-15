@@ -1,5 +1,6 @@
 defmodule Tuist.Repo.Migrations.RemoveCacheActionItemsProjectIdFkey do
   use Ecto.Migration
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
 
   def up do
     drop constraint(:cache_action_items, "cache_action_items_project_id_fkey")

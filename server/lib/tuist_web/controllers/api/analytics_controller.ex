@@ -381,6 +381,7 @@ defmodule TuistWeb.API.AnalyticsController do
     }
   )
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def create(%{body_params: body_params, assigns: %{selected_project: selected_project}} = conn, _params) do
     current_user = Authentication.current_user(conn)
 

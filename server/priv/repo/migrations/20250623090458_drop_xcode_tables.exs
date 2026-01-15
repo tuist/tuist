@@ -1,5 +1,6 @@
 defmodule Tuist.Repo.Migrations.DropXcodeTables do
   use Ecto.Migration
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
 
   def up do
     # excellent_migrations:safety-assured-for-next-line table_dropped

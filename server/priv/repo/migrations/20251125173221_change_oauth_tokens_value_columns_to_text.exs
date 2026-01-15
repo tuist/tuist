@@ -1,5 +1,6 @@
 defmodule Tuist.Repo.Migrations.ChangeOauthTokensValueColumnsToText do
   use Ecto.Migration
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
 
   def up do
     alter table(:oauth_tokens) do

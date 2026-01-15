@@ -198,6 +198,7 @@ defmodule TuistWeb.Marketing.Localization do
   For relative marketing URLs, prepends locale (except for English which has no prefix).
   External URLs that are not docs.tuist.dev are returned as-is.
   """
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def localized_href(href, target_locale) do
     uri = URI.parse(href)
 

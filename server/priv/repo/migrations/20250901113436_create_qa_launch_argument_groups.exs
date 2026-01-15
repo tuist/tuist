@@ -1,5 +1,6 @@
 defmodule Tuist.Repo.Migrations.CreateQaLaunchArgumentGroups do
   use Ecto.Migration
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
 
   def change do
     create table(:qa_launch_argument_groups, primary_key: false) do

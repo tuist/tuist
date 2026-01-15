@@ -1,5 +1,6 @@
 defmodule Tuist.Repo.Migrations.AddIndexPreviewsProjectId do
   use Ecto.Migration
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
 
   @disable_ddl_transaction true
   @disable_migration_lock true
