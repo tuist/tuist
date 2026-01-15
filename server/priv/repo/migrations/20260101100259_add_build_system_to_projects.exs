@@ -3,9 +3,11 @@ defmodule Tuist.Repo.Migrations.AddBuildSystemToProjects do
 
   def change do
     alter table(:projects) do
-      add :build_system, :integer, default: 0, null: false
+      add :build_systems, {:array, :integer}, default: [0], null: false
+      add :generated_project, :boolean, default: false, null: false
     end
 
-    create index(:projects, [:build_system])
+    create index(:projects, [:build_systems], using: :gin)
+    create index(:projects, [:generated_project])
   end
 end

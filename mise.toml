@@ -9,6 +9,7 @@
     "1password-cli" = "2.32.0"
     java = "temurin-21"
     gradle = "9.2.1"
+    bats = "1.11.1"
 
 [hooks]
     postinstall = "{{config_root}}/mise/tasks/install.sh"
