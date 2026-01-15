@@ -118,7 +118,7 @@
     />
   </.tab_menu_horizontal>
 
-  <div :if={@selected_tab == "overview"}>
+  <div :if={@selected_tab == "overview"} data-part="overview">
     <.card
       title={dgettext("dashboard_tests", "Test Details")}
       icon="chart_arcs"

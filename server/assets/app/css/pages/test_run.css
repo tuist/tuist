@@ -226,7 +226,8 @@
     }
   }
 
-  & > [data-part="failures-overview-card"] {
+  & > [data-part="failures-overview-card"],
+  & > [data-part="overview"] > [data-part="failures-overview-card"] {
     & > [data-part="failures-overview-card-section"] {
       gap: var(--noora-spacing-8);
 
@@ -279,7 +280,14 @@
     }
   }
 
-  & > [data-part="flaky-runs-card"] {
+  & > [data-part="overview"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+  }
+
+  & > [data-part="flaky-runs-card"],
+  & > [data-part="overview"] > [data-part="flaky-runs-card"] {
     & > [data-part="flaky-runs-section"] {
       display: flex;
       flex-direction: column;
