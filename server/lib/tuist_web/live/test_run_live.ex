@@ -4,6 +4,7 @@ defmodule TuistWeb.TestRunLive do
   use Noora
 
   import TuistWeb.Helpers.FailureMessage
+  import TuistWeb.Helpers.VCSLinks
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
@@ -47,6 +48,7 @@ defmodule TuistWeb.TestRunLive do
 
     socket =
       socket
+      |> assign(:selected_project, project)
       |> assign(:run, run)
       |> assign(:command_event, command_event)
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Run")} · #{slug} · Tuist")

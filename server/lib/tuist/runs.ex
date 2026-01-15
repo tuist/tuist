@@ -1,6 +1,18 @@
 defmodule Tuist.Runs do
   @moduledoc """
     Module for interacting with runs.
+
+    ## ClickHouse and the FINAL hint
+
+    This module uses ClickHouse with ReplacingMergeTree tables to store test data.
+    ClickHouse doesn't support in-place updates - to "update" a row (e.g., setting `is_flaky`),
+    we insert a new row with the updated values. ClickHouse eventually deduplicates rows with
+    the same primary key by keeping the most recent one (based on `inserted_at`).
+
+    However, until ClickHouse runs its background merge process, duplicate rows may exist.
+    The `hints: ["FINAL"]` query hint forces ClickHouse to deduplicate on read, ensuring
+    we always get the latest version of each row. This is essential for correctness but
+    has a performance cost, so it should only be used where up-to-date data is required.
   """
 
   import Ecto.Query
@@ -628,38 +640,20 @@ defmodule Tuist.Runs do
   end
 
   @doc """
-  Unmarks a test case as flaky by inserting a new row with is_flaky set to false.
+  Sets the flaky status of a test case by inserting a new row with the given is_flaky value.
   ClickHouse ReplacingMergeTree will keep the most recent row.
   """
-  def unmark_test_case_as_flaky(test_case_id) do
+  def set_test_case_flaky(test_case_id, is_flaky) when is_boolean(is_flaky) do
     with {:ok, test_case} <- get_test_case_by_id(test_case_id) do
       attrs =
         test_case
         |> Map.from_struct()
         |> Map.delete(:__meta__)
-        |> Map.merge(%{is_flaky: false, inserted_at: NaiveDateTime.utc_now()})
+        |> Map.merge(%{is_flaky: is_flaky, inserted_at: NaiveDateTime.utc_now()})
 
-      IngestRepo.insert_all(TestCase, [attrs])
+      {1, nil} = IngestRepo.insert_all(TestCase, [attrs])
 
-      {:ok, %{test_case | is_flaky: false}}
-    end
-  end
-
-  @doc """
-  Marks a test case as flaky by inserting a new row with is_flaky set to true.
-  ClickHouse ReplacingMergeTree will keep the most recent row.
-  """
-  def mark_test_case_as_flaky(test_case_id) do
-    with {:ok, test_case} <- get_test_case_by_id(test_case_id) do
-      attrs =
-        test_case
-        |> Map.from_struct()
-        |> Map.delete(:__meta__)
-        |> Map.merge(%{is_flaky: true, inserted_at: NaiveDateTime.utc_now()})
-
-      IngestRepo.insert_all(TestCase, [attrs])
-
-      {:ok, %{test_case | is_flaky: true}}
+      {:ok, %{test_case | is_flaky: is_flaky}}
     end
   end
 

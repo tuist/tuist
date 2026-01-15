@@ -176,20 +176,22 @@
           <div data-part="metadata-row">
             <div data-part="metadata">
               <div data-part="title">{dgettext("dashboard_tests", "Branch")}</div>
-              <span data-part="value">
-                <.git_branch />
-                {if @run.git_branch == "",
-                  do: dgettext("dashboard_tests", "Unknown"),
-                  else: @run.git_branch}
-              </span>
+              <.branch_link
+                project={@selected_project}
+                branch={@run.git_branch}
+                show_icon
+                fallback={dgettext("dashboard_tests", "Unknown")}
+                data-part="value"
+              />
             </div>
             <div data-part="metadata">
               <div data-part="title">{dgettext("dashboard_tests", "Commit")}</div>
-              <span data-part="value">
-                {if @run.git_commit_sha == "",
-                  do: dgettext("dashboard_tests", "Unknown"),
-                  else: String.slice(@run.git_commit_sha, 0, 8)}
-              </span>
+              <.commit_link
+                project={@selected_project}
+                commit_sha={@run.git_commit_sha}
+                fallback={dgettext("dashboard_tests", "Unknown")}
+                data-part="value"
+              />
             </div>
             <div data-part="metadata">
               <div data-part="title">{dgettext("dashboard_tests", "Mac device")}</div>
@@ -498,10 +500,12 @@
                         )}
                       </span>
                       <div data-part="run-metadata">
-                        <span :if={run.git_branch not in [nil, ""]} data-part="branch-info">
-                          <.git_branch />
-                          {run.git_branch}
-                        </span>
+                        <.branch_link
+                          project={@selected_project}
+                          branch={run.git_branch}
+                          show_icon
+                          data-part="branch-info"
+                        />
                         <.link
                           :if={run.test_run_id != @run.id}
                           navigate={
@@ -1645,10 +1649,12 @@
                     )}
                   </span>
                   <div data-part="run-metadata">
-                    <span :if={run.git_branch not in [nil, ""]} data-part="branch-info">
-                      <.git_branch />
-                      {run.git_branch}
-                    </span>
+                    <.branch_link
+                      project={@selected_project}
+                      branch={run.git_branch}
+                      show_icon
+                      data-part="branch-info"
+                    />
                     <.link
                       :if={run.test_run_id != @run.id}
                       navigate={

@@ -220,9 +220,11 @@
           <div data-part="header-row">
             <div data-part="title-and-subtitle">
               <h3 data-part="title">
-                <span data-part="commit-sha">
-                  {String.slice(group.git_commit_sha || "", 0, 12)}
-                </span>
+                <.commit_link
+                  project={@selected_project}
+                  commit_sha={group.git_commit_sha}
+                  data-part="commit-sha"
+                />
               </h3>
             </div>
             <div data-part="stats">
@@ -271,10 +273,12 @@
                     )}
                   </span>
                   <div data-part="run-metadata">
-                    <span :if={run.git_branch not in [nil, ""]} data-part="branch-info">
-                      <.git_branch />
-                      {run.git_branch}
-                    </span>
+                    <.branch_link
+                      project={@selected_project}
+                      branch={run.git_branch}
+                      show_icon
+                      data-part="branch-info"
+                    />
                     <.link
                       navigate={
                         ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs/#{run.test_run_id}"

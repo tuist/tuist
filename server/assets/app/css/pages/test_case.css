@@ -184,9 +184,18 @@
               gap: var(--noora-spacing-2);
               margin: 0;
 
-              & [data-part="commit-sha"] {
+              & [data-part="commit-sha"],
+              & [data-part="commit-sha-link"] {
                 color: var(--noora-surface-label-primary);
                 font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+              }
+
+              & [data-part="commit-sha-link"] {
+                text-decoration: none;
+
+                &:hover {
+                  text-decoration: underline;
+                }
               }
             }
           }
@@ -267,16 +276,16 @@
             display: none;
           }
 
+          & [data-part="flaky-run-item-wrapper"]:first-child [data-part="flaky-run-item"] {
+            padding-top: var(--noora-spacing-3);
+          }
+
           & [data-part="flaky-run-item"] {
             display: flex;
             flex-direction: column;
             gap: var(--noora-spacing-6);
             border-top: 1px solid var(--noora-surface-border-secondary);
             padding: var(--noora-spacing-6) var(--noora-spacing-5);
-
-            &:first-child {
-              padding-top: var(--noora-spacing-3);
-            }
 
             & [data-part="run-header"] {
               display: flex;
@@ -297,7 +306,8 @@
                 gap: var(--noora-spacing-5);
                 margin-left: auto;
 
-                & [data-part="branch-info"] {
+                & [data-part="branch-info"],
+                & [data-part="branch-info-link"] {
                   display: flex;
                   flex-direction: row;
                   align-items: center;
@@ -308,6 +318,14 @@
                   & svg {
                     width: var(--noora-icon-size-small);
                     height: var(--noora-icon-size-small);
+                  }
+                }
+
+                & [data-part="branch-info-link"] {
+                  text-decoration: none;
+
+                  &:hover {
+                    text-decoration: underline;
                   }
                 }
 

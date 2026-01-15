@@ -3190,7 +3190,7 @@ defmodule Tuist.RunsTest do
     end
   end
 
-  describe "mark_test_case_as_flaky/1" do
+  describe "set_test_case_flaky/2" do
     test "marks a test case as flaky" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -3214,7 +3214,7 @@ defmodule Tuist.RunsTest do
       assert test_case.is_flaky == false
 
       # When
-      result = Runs.mark_test_case_as_flaky(test_case.id)
+      result = Runs.set_test_case_flaky(test_case.id, true)
 
       # Then
       assert {:ok, updated_test_case} = result
@@ -3231,7 +3231,7 @@ defmodule Tuist.RunsTest do
       non_existent_id = UUIDv7.generate()
 
       # When
-      result = Runs.mark_test_case_as_flaky(non_existent_id)
+      result = Runs.set_test_case_flaky(non_existent_id, true)
 
       # Then
       assert result == {:error, :not_found}
@@ -3259,18 +3259,16 @@ defmodule Tuist.RunsTest do
       {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
 
       # Mark as flaky first
-      {:ok, _} = Runs.mark_test_case_as_flaky(test_case.id)
+      {:ok, _} = Runs.set_test_case_flaky(test_case.id, true)
 
       # When - mark as flaky again
-      result = Runs.mark_test_case_as_flaky(test_case.id)
+      result = Runs.set_test_case_flaky(test_case.id, true)
 
       # Then
       assert {:ok, updated_test_case} = result
       assert updated_test_case.is_flaky == true
     end
-  end
 
-  describe "unmark_test_case_as_flaky/1" do
     test "unmarks a test case as flaky" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -3293,12 +3291,12 @@ defmodule Tuist.RunsTest do
       {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
 
       # Mark as flaky first
-      {:ok, _} = Runs.mark_test_case_as_flaky(test_case.id)
+      {:ok, _} = Runs.set_test_case_flaky(test_case.id, true)
       {:ok, flaky_test_case} = Runs.get_test_case_by_id(test_case.id)
       assert flaky_test_case.is_flaky == true
 
       # When
-      result = Runs.unmark_test_case_as_flaky(test_case.id)
+      result = Runs.set_test_case_flaky(test_case.id, false)
 
       # Then
       assert {:ok, updated_test_case} = result
@@ -3310,12 +3308,12 @@ defmodule Tuist.RunsTest do
       assert fetched_test_case.is_flaky == false
     end
 
-    test "returns error when test case does not exist" do
+    test "returns error when unmarking test case that does not exist" do
       # Given
       non_existent_id = UUIDv7.generate()
 
       # When
-      result = Runs.unmark_test_case_as_flaky(non_existent_id)
+      result = Runs.set_test_case_flaky(non_existent_id, false)
 
       # Then
       assert result == {:error, :not_found}
@@ -3344,7 +3342,7 @@ defmodule Tuist.RunsTest do
       assert test_case.is_flaky == false
 
       # When - unmark when already not flaky
-      result = Runs.unmark_test_case_as_flaky(test_case.id)
+      result = Runs.set_test_case_flaky(test_case.id, false)
 
       # Then
       assert {:ok, updated_test_case} = result

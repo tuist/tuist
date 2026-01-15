@@ -5,6 +5,7 @@ defmodule TuistWeb.TestCaseLive do
 
   import Noora.Filter
   import TuistWeb.Helpers.FailureMessage
+  import TuistWeb.Helpers.VCSLinks
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
@@ -21,6 +22,8 @@ defmodule TuistWeb.TestCaseLive do
         _session,
         %{assigns: %{selected_project: project, selected_account: account}} = socket
       ) do
+    project = Tuist.Repo.preload(project, :vcs_connection)
+
     test_case_detail =
       case Runs.get_test_case_by_id(test_case_id) do
         {:ok, test_case} -> test_case
@@ -40,6 +43,7 @@ defmodule TuistWeb.TestCaseLive do
 
     socket =
       socket
+      |> assign(:selected_project, project)
       |> assign(:test_case_id, test_case_id)
       |> assign(:test_case_detail, test_case_detail)
       |> assign(:head_title, "#{test_case_detail.name} · #{slug} · Tuist")
@@ -160,7 +164,7 @@ defmodule TuistWeb.TestCaseLive do
         _params,
         %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail}} = socket
       ) do
-    {:ok, updated_test_case} = Runs.unmark_test_case_as_flaky(test_case_id)
+    {:ok, updated_test_case} = Runs.set_test_case_flaky(test_case_id, false)
 
     {:noreply,
      socket
@@ -173,7 +177,7 @@ defmodule TuistWeb.TestCaseLive do
         _params,
         %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail}} = socket
       ) do
-    {:ok, updated_test_case} = Runs.mark_test_case_as_flaky(test_case_id)
+    {:ok, updated_test_case} = Runs.set_test_case_flaky(test_case_id, true)
 
     {:noreply, assign(socket, :test_case_detail, %{test_case_detail | is_flaky: updated_test_case.is_flaky})}
   end
