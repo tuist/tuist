@@ -1,11 +1,11 @@
 ---
 {
-  "title": "Generated project",
-  "titleTemplate": ":title · Selective testing · Features · Guides · Tuist",
-  "description": "Learn how to leverage selective testing with a generated project."
+  "title": "Selective testing",
+  "titleTemplate": ":title · Features · Guides · Tuist",
+  "description": "Learn how to leverage selective testing to run only the tests that have changed."
 }
 ---
-# Generated project {#generated-project}
+# Selective testing {#selective-testing}
 
 ::: warning REQUIREMENTS
 <!-- -->
