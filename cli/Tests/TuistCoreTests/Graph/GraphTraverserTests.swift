@@ -1235,6 +1235,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
 
         // Then
+        // Metal compilation generates a default.metallib resource, so the framework must be embedded in the app bundle.
         XCTAssertEqual(
             got, [
                 .product(target: "MetalFramework", productName: "MetalFramework.framework"),

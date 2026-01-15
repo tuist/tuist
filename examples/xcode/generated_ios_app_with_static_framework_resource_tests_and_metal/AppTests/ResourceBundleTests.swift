@@ -1,9 +1,9 @@
 import StaticResourcesFramework
-import XCTest
+import Testing
 
-final class ResourceBundleTests: XCTestCase {
-    func test_readsResourceFromStaticFrameworkBundle() throws {
+struct ResourceBundleTests {
+    @Test func readsResourceFromStaticFrameworkBundle() throws {
         let message = try ResourceReader().message()
-        XCTAssertEqual(message, "Hello from StaticResourcesFramework")
+        #expect(message == "Hello from StaticResourcesFramework")
     }
 }

@@ -13,7 +13,7 @@ static frameworks and validates the fixes:
 - `StaticResourcesFramework` is a static framework with a bundled `Message.txt` resource.
 - `StaticMetalFramework` is a static framework that only contains a `.metal` file.
 - `AppTests` reads the resource via `Bundle.module` from `StaticResourcesFramework`.
-- `App` should embed `StaticMetalFramework.framework` so `default.metallib` is present.
+- `App` is a SwiftUI app that should embed `StaticMetalFramework.framework` so `default.metallib` is present.
 
 ## Run
 
