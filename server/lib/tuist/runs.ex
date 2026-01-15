@@ -1007,98 +1007,90 @@ defmodule Tuist.Runs do
     order_by = attrs |> Map.get(:order_by, [:flaky_runs_count]) |> List.first()
     order_direction = attrs |> Map.get(:order_directions, [:desc]) |> List.first()
     filters = Map.get(attrs, :filters, [])
-
-    search_filter =
-      Enum.find(filters, fn f -> f[:field] == :name and f[:op] == :ilike_and end)
-
-    search_term = if search_filter, do: "%#{search_filter[:value]}%"
-
-    {order_clause, order_dir} =
-      case {order_by, order_direction} do
-        {:flaky_runs_count, :desc} -> {"flaky_runs_count", "DESC"}
-        {:flaky_runs_count, :asc} -> {"flaky_runs_count", "ASC"}
-        {:last_flaky_at, :desc} -> {"last_flaky_at", "DESC"}
-        {:last_flaky_at, :asc} -> {"last_flaky_at", "ASC"}
-        {:name, :desc} -> {"tc.name", "DESC"}
-        {:name, :asc} -> {"tc.name", "ASC"}
-        _ -> {"flaky_runs_count", "DESC"}
-      end
-
     offset = (page - 1) * page_size
 
-    base_where = "tc.project_id = {project_id:Int64} AND tc.is_flaky = true"
+    search_filter = Enum.find(filters, fn f -> f[:field] == :name and f[:op] == :ilike_and end)
+    search_term = if search_filter, do: search_filter[:value]
 
-    where_clause =
+    stats_subquery =
+      from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id and tcr.is_flaky == true,
+        group_by: tcr.test_case_id,
+        select: %{
+          test_case_id: tcr.test_case_id,
+          flaky_runs_count: count(tcr.id),
+          last_flaky_at: max(tcr.inserted_at),
+          last_flaky_run_id: fragment("argMax(test_run_id, inserted_at)")
+        }
+      )
+
+    base_query =
+      from(tc in TestCase,
+        hints: ["FINAL"],
+        left_join: stats in subquery(stats_subquery),
+        on: tc.id == stats.test_case_id,
+        where: tc.project_id == ^project_id and tc.is_flaky == true,
+        select: %{
+          id: tc.id,
+          name: tc.name,
+          module_name: tc.module_name,
+          suite_name: tc.suite_name,
+          flaky_runs_count: coalesce(stats.flaky_runs_count, 0),
+          last_flaky_at: stats.last_flaky_at,
+          last_flaky_run_id: stats.last_flaky_run_id
+        }
+      )
+
+    query =
       if search_term do
-        "#{base_where} AND tc.name ILIKE {search_term:String}"
+        from([tc, stats] in base_query, where: ilike(tc.name, ^"%#{search_term}%"))
       else
-        base_where
+        base_query
       end
 
-    query = """
-    SELECT
-      tc.id,
-      tc.name,
-      tc.module_name,
-      tc.suite_name,
-      coalesce(stats.flaky_runs_count, 0) as flaky_runs_count,
-      stats.last_flaky_at,
-      stats.last_flaky_run_id
-    FROM test_cases tc FINAL
-    LEFT JOIN (
-      SELECT
-        test_case_id,
-        count(*) as flaky_runs_count,
-        max(inserted_at) as last_flaky_at,
-        argMax(test_run_id, inserted_at) as last_flaky_run_id
-      FROM test_case_runs
-      WHERE project_id = {project_id:Int64} AND is_flaky = true
-      GROUP BY test_case_id
-    ) stats ON tc.id = stats.test_case_id
-    WHERE #{where_clause}
-    ORDER BY #{order_clause} #{order_dir}
-    LIMIT {limit:Int64}
-    OFFSET {offset:Int64}
-    """
-
-    count_query = """
-    SELECT count(*) as count
-    FROM test_cases FINAL
-    WHERE project_id = {project_id:Int64} AND is_flaky = true
-    #{if search_term, do: "AND name ILIKE {search_term:String}", else: ""}
-    """
-
-    params =
-      if search_term do
-        %{project_id: project_id, limit: page_size, offset: offset, search_term: search_term}
-      else
-        %{project_id: project_id, limit: page_size, offset: offset}
+    query =
+      case {order_by, order_direction} do
+        {:flaky_runs_count, :asc} -> from([tc, stats] in query, order_by: [asc: coalesce(stats.flaky_runs_count, 0)])
+        {:last_flaky_at, :desc} -> from([tc, stats] in query, order_by: [desc: stats.last_flaky_at])
+        {:last_flaky_at, :asc} -> from([tc, stats] in query, order_by: [asc: stats.last_flaky_at])
+        {:name, :desc} -> from([tc, stats] in query, order_by: [desc: tc.name])
+        {:name, :asc} -> from([tc, stats] in query, order_by: [asc: tc.name])
+        _ -> from([tc, stats] in query, order_by: [desc: coalesce(stats.flaky_runs_count, 0)])
       end
 
-    count_params =
-      if search_term do
-        %{project_id: project_id, search_term: search_term}
-      else
-        %{project_id: project_id}
-      end
+    query = from(q in query, limit: ^page_size, offset: ^offset)
 
-    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
+    results = ClickHouseRepo.all(query)
 
     flaky_tests =
-      Enum.map(rows, fn [id, name, module_name, suite_name, flaky_runs_count, last_flaky_at, last_flaky_run_id] ->
+      Enum.map(results, fn row ->
         %FlakyTestCase{
-          id: Ecto.UUID.load!(id),
-          name: name,
-          module_name: module_name,
-          suite_name: suite_name,
-          flaky_runs_count: flaky_runs_count,
-          last_flaky_at: last_flaky_at,
-          last_flaky_run_id: if(last_flaky_run_id, do: Ecto.UUID.load!(last_flaky_run_id), else: nil)
+          id: row.id,
+          name: row.name,
+          module_name: row.module_name,
+          suite_name: row.suite_name,
+          flaky_runs_count: row.flaky_runs_count,
+          last_flaky_at: row.last_flaky_at,
+          last_flaky_run_id: row.last_flaky_run_id
         }
       end)
 
-    {:ok, %{rows: [[total_count]]}} = ClickHouseRepo.query(count_query, count_params)
-    total_pages = ceil(total_count / page_size)
+    count_query =
+      from(tc in TestCase,
+        hints: ["FINAL"],
+        where: tc.project_id == ^project_id and tc.is_flaky == true,
+        select: count(tc.id)
+      )
+
+    count_query =
+      if search_term do
+        from(tc in count_query, where: ilike(tc.name, ^"%#{search_term}%"))
+      else
+        count_query
+      end
+
+    total_count = ClickHouseRepo.one(count_query)
+    total_pages = if total_count > 0, do: ceil(total_count / page_size), else: 0
 
     meta = %{
       total_count: total_count,
@@ -1162,7 +1154,6 @@ defmodule Tuist.Runs do
     page_size = Map.get(params, :page_size, 20)
     offset = (page - 1) * page_size
 
-    # Get paginated distinct groups ordered by latest_ran_at
     groups_query =
       from(tcr in TestCaseRun,
         hints: ["FINAL"],
@@ -1180,70 +1171,72 @@ defmodule Tuist.Runs do
       )
 
     groups = ClickHouseRepo.all(groups_query)
+    group_keys = MapSet.new(groups, fn g -> {g.scheme, g.git_commit_sha} end)
 
-    if Enum.empty?(groups) do
-      {[], build_pagination_meta(0, page, page_size)}
-    else
-      group_keys = MapSet.new(groups, fn g -> {g.scheme, g.git_commit_sha} end)
+    flaky_runs_query =
+      from(tcr in TestCaseRun,
+        hints: ["FINAL"],
+        where: tcr.test_case_id == ^test_case_id,
+        where: tcr.is_flaky == true,
+        order_by: [desc: tcr.ran_at]
+      )
 
-      # Fetch all flaky runs for this test case and filter by group keys
-      flaky_runs_query =
-        from(tcr in TestCaseRun,
-          hints: ["FINAL"],
-          where: tcr.test_case_id == ^test_case_id,
-          where: tcr.is_flaky == true,
-          order_by: [desc: tcr.ran_at]
-        )
+    flaky_runs =
+      flaky_runs_query
+      |> ClickHouseRepo.all()
+      |> Enum.filter(fn run -> MapSet.member?(group_keys, {run.scheme, run.git_commit_sha}) end)
 
-      flaky_runs =
-        flaky_runs_query
-        |> ClickHouseRepo.all()
-        |> Enum.filter(fn run -> MapSet.member?(group_keys, {run.scheme, run.git_commit_sha}) end)
+    run_ids = Enum.map(flaky_runs, & &1.id)
 
-      run_ids = Enum.map(flaky_runs, & &1.id)
+    failures = get_failures_for_runs(run_ids)
+    failures_by_run_id = Enum.group_by(failures, & &1.test_case_run_id)
 
-      failures = get_failures_for_runs(run_ids)
-      failures_by_run_id = Enum.group_by(failures, & &1.test_case_run_id)
+    repetitions = get_repetitions_for_runs(run_ids)
+    repetitions_by_run_id = Enum.group_by(repetitions, & &1.test_case_run_id)
 
-      repetitions = get_repetitions_for_runs(run_ids)
-      repetitions_by_run_id = Enum.group_by(repetitions, & &1.test_case_run_id)
+    runs_by_group = Enum.group_by(flaky_runs, fn run -> {run.scheme, run.git_commit_sha} end)
 
-      runs_by_group = Enum.group_by(flaky_runs, fn run -> {run.scheme, run.git_commit_sha} end)
+    flaky_groups =
+      Enum.map(groups, fn group ->
+        group_key = {group.scheme, group.git_commit_sha}
+        runs = Map.get(runs_by_group, group_key, [])
 
-      flaky_groups =
-        Enum.map(groups, fn group ->
-          group_key = {group.scheme, group.git_commit_sha}
-          runs = Map.get(runs_by_group, group_key, [])
+        runs_with_details =
+          Enum.map(runs, fn run ->
+            run_failures = Map.get(failures_by_run_id, run.id, [])
 
-          runs_with_details =
-            Enum.map(runs, fn run ->
-              run_failures = Map.get(failures_by_run_id, run.id, [])
+            run_repetitions =
+              repetitions_by_run_id
+              |> Map.get(run.id, [])
+              |> Enum.sort_by(& &1.repetition_number)
 
-              run_repetitions =
-                repetitions_by_run_id
-                |> Map.get(run.id, [])
-                |> Enum.sort_by(& &1.repetition_number)
+            run
+            |> Map.put(:failures, run_failures)
+            |> Map.put(:repetitions, run_repetitions)
+          end)
 
-              run
-              |> Map.put(:failures, run_failures)
-              |> Map.put(:repetitions, run_repetitions)
-            end)
+        {passed_count, failed_count} = count_passed_failed(runs_with_details)
 
-          {passed_count, failed_count} = count_passed_failed(runs_with_details)
+        %{
+          scheme: group.scheme,
+          git_commit_sha: group.git_commit_sha,
+          latest_ran_at: group.latest_ran_at,
+          passed_count: passed_count,
+          failed_count: failed_count,
+          runs: runs_with_details
+        }
+      end)
 
-          %{
-            scheme: group.scheme,
-            git_commit_sha: group.git_commit_sha,
-            latest_ran_at: group.latest_ran_at,
-            passed_count: passed_count,
-            failed_count: failed_count,
-            runs: runs_with_details
-          }
-        end)
+    total_count = get_flaky_runs_groups_count_for_test_case(test_case_id)
 
-      total_count = get_flaky_runs_groups_count_for_test_case(test_case_id)
-      {flaky_groups, build_pagination_meta(total_count, page, page_size)}
-    end
+    meta = %{
+      total_count: total_count,
+      total_pages: if(total_count > 0, do: ceil(total_count / page_size), else: 0),
+      current_page: page,
+      page_size: page_size
+    }
+
+    {flaky_groups, meta}
   end
 
   defp count_passed_failed(runs_with_details) do
@@ -1260,15 +1253,6 @@ defmodule Tuist.Runs do
         end
       end
     end)
-  end
-
-  defp build_pagination_meta(total_count, page, page_size) do
-    %{
-      total_count: total_count,
-      total_pages: if(total_count > 0, do: ceil(total_count / page_size), else: 0),
-      current_page: page,
-      page_size: page_size
-    }
   end
 
   @doc """
