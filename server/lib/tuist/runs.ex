@@ -682,6 +682,8 @@ defmodule Tuist.Runs do
   end
 
   defp create_test_modules(test, test_modules) do
+    test_case_run_data = get_test_case_run_data(test, test_modules)
+
     Enum.each(test_modules, fn module_attrs ->
       module_id = UUIDv7.generate()
       module_name = Map.get(module_attrs, :name)
@@ -694,12 +696,12 @@ defmodule Tuist.Runs do
 
       avg_test_case_duration = calculate_avg_test_case_duration(test_cases)
 
-      # Pre-compute all test_case_run statuses and flaky flags (including cross-run flaky detection)
-      test_case_run_data =
-        compute_all_test_case_run_statuses(test, test_cases, module_name)
+      module_test_case_run_data =
+        test_case_run_data
+        |> Enum.filter(fn {{_name, mod_name, _suite}, _data} -> mod_name == module_name end)
+        |> Map.new()
 
-      # Aggregate is_flaky from test_case_run data
-      module_is_flaky = compute_aggregate_is_flaky(Map.values(test_case_run_data))
+      module_is_flaky = is_any_test_case_run_flaky?(Map.values(module_test_case_run_data))
 
       module_run_attrs = %{
         id: module_id,
@@ -719,7 +721,7 @@ defmodule Tuist.Runs do
         |> TestModuleRun.create_changeset(module_run_attrs)
         |> IngestRepo.insert()
 
-      suite_name_to_id = create_test_suites(test, module_id, test_suites, test_cases, test_case_run_data)
+      suite_name_to_id = create_test_suites(test, module_id, test_suites, test_cases, module_test_case_run_data)
 
       create_test_cases_for_module(
         test,
@@ -727,47 +729,95 @@ defmodule Tuist.Runs do
         test_cases,
         suite_name_to_id,
         module_name,
-        test_case_run_data
+        module_test_case_run_data
       )
     end)
   end
 
-  defp compute_all_test_case_run_statuses(test, test_cases, module_name) do
-    {test_case_run_data, historical_flaky_ids} =
-      Enum.reduce(test_cases, {%{}, []}, fn case_attrs, {data_acc, ids_acc} ->
-        case_name = Map.get(case_attrs, :name)
-        suite_name = Map.get(case_attrs, :test_suite_name, "") || ""
+  defp get_test_case_run_data(test, test_modules) do
+    all_test_cases =
+      Enum.flat_map(test_modules, fn module_attrs ->
+        module_name = Map.get(module_attrs, :name)
+        test_cases = Map.get(module_attrs, :test_cases, [])
 
-        # Generate deterministic test_case_id
-        test_case_id = generate_test_case_id(test.project_id, case_name, module_name, suite_name)
-
-        # Compute status and is_flaky
-        {status, is_flaky} = compute_test_case_run_status_and_flaky(case_attrs)
-
-        # Check for cross-run flaky (same test case + commit on CI with different status)
-        {cross_run_flaky, historical_id} =
-          check_cross_run_flaky(test_case_id, test.git_commit_sha, test.is_ci, status)
-
-        is_flaky = is_flaky or cross_run_flaky
-
-        # Collect historical run IDs that need to be marked as flaky
-        ids_acc =
-          if historical_id do
-            [historical_id | ids_acc]
-          else
-            ids_acc
-          end
-
-        identity_key = {case_name, module_name, suite_name}
-        {Map.put(data_acc, identity_key, %{status: status, is_flaky: is_flaky}), ids_acc}
+        Enum.map(test_cases, fn case_attrs ->
+          Map.put(case_attrs, :module_name, module_name)
+        end)
       end)
 
-    # Mark historical test case runs as flaky (insert updated versions)
+    test_case_data =
+      Enum.map(all_test_cases, fn case_attrs ->
+        case_name = Map.get(case_attrs, :name)
+        module_name = Map.get(case_attrs, :module_name)
+        suite_name = Map.get(case_attrs, :test_suite_name, "") || ""
+        test_case_id = generate_test_case_id(test.project_id, case_name, module_name, suite_name)
+
+        %{
+          identity_key: {case_name, module_name, suite_name},
+          test_case_id: test_case_id,
+          status: Map.get(case_attrs, :status),
+          is_flaky: test_case_is_flaky?(case_attrs)
+        }
+      end)
+
+    # Batch check for cross-run flakiness
+    {test_case_data, historical_flaky_ids} =
+      check_cross_run_flakiness(test, test_case_data)
+
+    # Mark historical test case runs as flaky
     if Enum.any?(historical_flaky_ids) do
       mark_test_case_runs_as_flaky(historical_flaky_ids)
     end
 
-    test_case_run_data
+    # Convert to map keyed by identity
+    Map.new(test_case_data, fn data ->
+      {data.identity_key, %{status: data.status, is_flaky: data.is_flaky}}
+    end)
+  end
+
+  defp check_cross_run_flakiness(%{is_ci: false}, test_case_data), do: {test_case_data, []}
+  defp check_cross_run_flakiness(%{git_commit_sha: nil}, test_case_data), do: {test_case_data, []}
+
+  defp check_cross_run_flakiness(test, test_case_data) do
+    test_case_ids = Enum.map(test_case_data, & &1.test_case_id)
+    existing_runs = get_existing_ci_runs_for_commit(test_case_ids, test.git_commit_sha)
+
+    Enum.map_reduce(test_case_data, [], fn data, historical_ids ->
+      case get_cross_run_flaky_status(data, existing_runs) do
+        {true, historical_id} ->
+          {%{data | is_flaky: true}, [historical_id | historical_ids]}
+
+        {false, nil} ->
+          {data, historical_ids}
+      end
+    end)
+  end
+
+  defp get_cross_run_flaky_status(data, existing_runs) do
+    existing = Map.get(existing_runs, data.test_case_id)
+
+    if existing && data.status in ["success", "failure"] && existing.status != data.status do
+      {true, existing.id}
+    else
+      {false, nil}
+    end
+  end
+
+  defp get_existing_ci_runs_for_commit(test_case_ids, git_commit_sha) do
+    query =
+      from(tcr in TestCaseRun,
+        hints: ["FINAL"],
+        where: tcr.test_case_id in ^test_case_ids,
+        where: tcr.git_commit_sha == ^git_commit_sha,
+        where: tcr.is_ci == true,
+        where: tcr.status in ["success", "failure"],
+        select: %{test_case_id: tcr.test_case_id, id: tcr.id, status: tcr.status}
+      )
+
+    query
+    |> ClickHouseRepo.all()
+    |> Enum.group_by(& &1.test_case_id)
+    |> Map.new(fn {test_case_id, runs} -> {test_case_id, hd(runs)} end)
   end
 
   defp create_test_suites(test, module_id, test_suites, test_cases, test_case_run_data) do
@@ -792,7 +842,7 @@ defmodule Tuist.Runs do
           |> Enum.filter(fn {{_name, _module, suite}, _data} -> suite == suite_name end)
           |> Enum.map(fn {_key, data} -> data end)
 
-        suite_is_flaky = compute_aggregate_is_flaky(suite_data)
+        suite_is_flaky = is_any_test_case_run_flaky?(suite_data)
 
         suite_run = %{
           id: suite_id,
@@ -1081,53 +1131,6 @@ defmodule Tuist.Runs do
     {flaky_tests, meta}
   end
 
-  defp compute_test_case_run_status_and_flaky(case_attrs) do
-    repetitions = Map.get(case_attrs, :repetitions, [])
-    original_status = Map.get(case_attrs, :status)
-
-    if Enum.any?(repetitions) do
-      has_any_failure = Enum.any?(repetitions, fn rep -> Map.get(rep, :status) == "failure" end)
-
-      if has_any_failure and original_status == "success" do
-        # Test is flaky: had failures during repetitions but ultimately passed
-        {original_status, true}
-      else
-        {original_status, false}
-      end
-    else
-      {original_status, false}
-    end
-  end
-
-  defp check_cross_run_flaky(test_case_id, git_commit_sha, is_ci, current_status)
-       when is_ci and not is_nil(test_case_id) and not is_nil(git_commit_sha) and current_status in ["success", "failure"] do
-    query =
-      from(tcr in TestCaseRun,
-        hints: ["FINAL"],
-        where: tcr.test_case_id == ^test_case_id,
-        where: tcr.git_commit_sha == ^git_commit_sha,
-        where: tcr.is_ci == true,
-        where: tcr.status in ["success", "failure"],
-        select: %{id: tcr.id, status: tcr.status},
-        limit: 1
-      )
-
-    case ClickHouseRepo.one(query) do
-      nil ->
-        {false, nil}
-
-      %{id: existing_id, status: existing_status} when existing_status != current_status ->
-        {true, existing_id}
-
-      _ ->
-        {false, nil}
-    end
-  end
-
-  defp check_cross_run_flaky(_test_case_id, _git_commit_sha, _is_ci, _current_status) do
-    {false, nil}
-  end
-
   defp mark_test_case_runs_as_flaky(test_case_run_ids) when is_list(test_case_run_ids) do
     # Fetch existing test case runs
     query =
@@ -1154,7 +1157,7 @@ defmodule Tuist.Runs do
     :ok
   end
 
-  defp compute_aggregate_is_flaky(test_case_run_data) do
+  defp is_any_test_case_run_flaky?(test_case_run_data) do
     Enum.any?(test_case_run_data, fn %{is_flaky: is_flaky} -> is_flaky end)
   end
 
