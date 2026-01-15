@@ -4424,7 +4424,7 @@ defmodule Tuist.RunsTest do
           is_flaky: true
         )
 
-      IngestRepo.insert_all(TestCase, [Map.from_struct(test_case) |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       # Create a recent flaky run (within 14 days)
       RunsFixtures.test_case_run_fixture(
@@ -4453,7 +4453,7 @@ defmodule Tuist.RunsTest do
           is_flaky: true
         )
 
-      IngestRepo.insert_all(TestCase, [Map.from_struct(test_case) |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       # Create an old flaky run (more than 14 days ago)
       RunsFixtures.test_case_run_fixture(
@@ -4484,7 +4484,7 @@ defmodule Tuist.RunsTest do
           is_flaky: true
         )
 
-      IngestRepo.insert_all(TestCase, [Map.from_struct(test_case) |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       # Create a non-flaky run
       RunsFixtures.test_case_run_fixture(
@@ -4528,8 +4528,8 @@ defmodule Tuist.RunsTest do
         )
 
       IngestRepo.insert_all(TestCase, [
-        Map.from_struct(stale_test_case) |> Map.delete(:__meta__),
-        Map.from_struct(recent_test_case) |> Map.delete(:__meta__)
+        stale_test_case |> Map.from_struct() |> Map.delete(:__meta__),
+        recent_test_case |> Map.from_struct() |> Map.delete(:__meta__)
       ])
 
       # Old flaky run for stale test case
@@ -4572,7 +4572,7 @@ defmodule Tuist.RunsTest do
           is_flaky: false
         )
 
-      IngestRepo.insert_all(TestCase, [Map.from_struct(test_case) |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       {:ok, _count} = Runs.clear_stale_flaky_flags()
 
