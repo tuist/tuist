@@ -1,5 +1,7 @@
 import FileSystem
 import FileSystemTesting
+import Foundation
+import Path
 import Testing
 import TuistAcceptanceTesting
 import TuistSupport
@@ -66,6 +68,46 @@ struct TestAcceptanceTests {
             ]
         )
     }
+
+    @Test(
+        .withFixture("generated_ios_app_with_static_framework_resource_tests_and_metal"),
+        .inTemporaryDirectory,
+        .withMockedEnvironment(),
+        .withMockedLogger()
+    ) func ios_app_with_static_framework_resources_and_metal() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        // When/Then: test execution should succeed
+        try await TuistTest.run(
+            TestCommand.self,
+            ["--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString, "App"]
+        )
+
+        let appPath = try #require(
+            await findBuiltAppPath(in: temporaryDirectory, fileSystem: fileSystem)
+        )
+        let metallibPath = appPath.appending(
+            components: "Frameworks",
+            "StaticMetalFramework.framework",
+            "default.metallib"
+        )
+        #expect(try await fileSystem.exists(metallibPath))
+    }
+}
+
+private func findBuiltAppPath(
+    in derivedDataPath: AbsolutePath,
+    fileSystem: FileSystem
+) async throws -> AbsolutePath? {
+    let productsPath = derivedDataPath.appending(components: "Build", "Products")
+    let matches = try await fileSystem.glob(
+        directory: productsPath,
+        include: ["**/App.app"]
+    ).collect()
+    return matches.first
 }
 
 /// Test projects using tuist test
