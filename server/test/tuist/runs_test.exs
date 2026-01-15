@@ -3120,4 +3120,166 @@ defmodule Tuist.RunsTest do
       assert hd(second_test_case_runs).is_flaky == false
     end
   end
+
+  describe "mark_test_case_as_flaky/1" do
+    test "marks a test case as flaky" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "testOne", status: "success", duration: 100}
+              ]
+            }
+          ]
+        )
+
+      {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
+      assert test_case.is_flaky == false
+
+      # When
+      result = Runs.mark_test_case_as_flaky(test_case.id)
+
+      # Then
+      assert {:ok, updated_test_case} = result
+      assert updated_test_case.is_flaky == true
+      assert updated_test_case.id == test_case.id
+
+      # Verify it persisted
+      {:ok, fetched_test_case} = Runs.get_test_case_by_id(test_case.id)
+      assert fetched_test_case.is_flaky == true
+    end
+
+    test "returns error when test case does not exist" do
+      # Given
+      non_existent_id = UUIDv7.generate()
+
+      # When
+      result = Runs.mark_test_case_as_flaky(non_existent_id)
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+
+    test "keeps test case flaky if already flaky" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "testOne", status: "success", duration: 100}
+              ]
+            }
+          ]
+        )
+
+      {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
+
+      # Mark as flaky first
+      {:ok, _} = Runs.mark_test_case_as_flaky(test_case.id)
+
+      # When - mark as flaky again
+      result = Runs.mark_test_case_as_flaky(test_case.id)
+
+      # Then
+      assert {:ok, updated_test_case} = result
+      assert updated_test_case.is_flaky == true
+    end
+  end
+
+  describe "unmark_test_case_as_flaky/1" do
+    test "unmarks a test case as flaky" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "testOne", status: "success", duration: 100}
+              ]
+            }
+          ]
+        )
+
+      {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
+
+      # Mark as flaky first
+      {:ok, _} = Runs.mark_test_case_as_flaky(test_case.id)
+      {:ok, flaky_test_case} = Runs.get_test_case_by_id(test_case.id)
+      assert flaky_test_case.is_flaky == true
+
+      # When
+      result = Runs.unmark_test_case_as_flaky(test_case.id)
+
+      # Then
+      assert {:ok, updated_test_case} = result
+      assert updated_test_case.is_flaky == false
+      assert updated_test_case.id == test_case.id
+
+      # Verify it persisted
+      {:ok, fetched_test_case} = Runs.get_test_case_by_id(test_case.id)
+      assert fetched_test_case.is_flaky == false
+    end
+
+    test "returns error when test case does not exist" do
+      # Given
+      non_existent_id = UUIDv7.generate()
+
+      # When
+      result = Runs.unmark_test_case_as_flaky(non_existent_id)
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+
+    test "keeps test case not flaky if already not flaky" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "testOne", status: "success", duration: 100}
+              ]
+            }
+          ]
+        )
+
+      {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
+      assert test_case.is_flaky == false
+
+      # When - unmark when already not flaky
+      result = Runs.unmark_test_case_as_flaky(test_case.id)
+
+      # Then
+      assert {:ok, updated_test_case} = result
+      assert updated_test_case.is_flaky == false
+    end
+  end
 end
