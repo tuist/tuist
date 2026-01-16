@@ -7,9 +7,12 @@ defmodule Tuist.Slack do
 
   alias Tuist.Alerts.Alert
   alias Tuist.Alerts.AlertRule
+  alias Tuist.Alerts.FlakyTestAlert
+  alias Tuist.Alerts.FlakyTestAlertRule
   alias Tuist.Environment
   alias Tuist.Projects.Project
   alias Tuist.Repo
+  alias Tuist.Slack.Client
   alias Tuist.Slack.Installation
   alias Tuist.Utilities.DateFormatter
 
@@ -44,6 +47,11 @@ defmodule Tuist.Slack do
       |> Ecto.Multi.update_all(
         :clear_alert_rule_slack_fields,
         clear_alert_rule_slack_fields_query(account_id),
+        []
+      )
+      |> Ecto.Multi.update_all(
+        :clear_flaky_test_alert_rule_slack_fields,
+        clear_flaky_test_alert_rule_slack_fields_query(account_id),
         []
       )
       |> Ecto.Multi.delete(:delete_installation, installation)
@@ -85,6 +93,20 @@ defmodule Tuist.Slack do
     from(ar in AlertRule,
       join: p in Project,
       on: ar.project_id == p.id,
+      where: p.account_id == ^account_id,
+      update: [
+        set: [
+          slack_channel_id: nil,
+          slack_channel_name: nil
+        ]
+      ]
+    )
+  end
+
+  defp clear_flaky_test_alert_rule_slack_fields_query(account_id) do
+    from(ftar in FlakyTestAlertRule,
+      join: p in Project,
+      on: ftar.project_id == p.id,
       where: p.account_id == ^account_id,
       update: [
         set: [
@@ -189,7 +211,7 @@ defmodule Tuist.Slack do
     } = alert = Repo.preload(alert, alert_rule: [project: [account: :slack_installation]])
 
     blocks = build_alert_blocks(alert, account_name, project_name)
-    Tuist.Slack.Client.post_message(access_token, slack_channel_id, blocks)
+    Client.post_message(access_token, slack_channel_id, blocks)
   end
 
   defp build_alert_blocks(alert, account_name, project_name) do
@@ -307,5 +329,112 @@ defmodule Tuist.Slack do
 
   defp format_alert_percentage(rate) when is_number(rate) do
     "#{Float.round(rate * 100, 1)}%"
+  end
+
+  @doc """
+  Sends a flaky test alert notification to Slack.
+  """
+  def send_flaky_test_alert(%FlakyTestAlert{} = alert) do
+    %FlakyTestAlert{
+      flaky_test_alert_rule: %{
+        slack_channel_id: slack_channel_id,
+        project: %{
+          name: project_name,
+          account: %{name: account_name, slack_installation: %Installation{access_token: access_token}}
+        }
+      }
+    } = alert = Repo.preload(alert, flaky_test_alert_rule: [project: [account: :slack_installation]])
+
+    blocks = build_flaky_test_alert_blocks(alert, account_name, project_name)
+    Client.post_message(access_token, slack_channel_id, blocks)
+  end
+
+  defp build_flaky_test_alert_blocks(alert, account_name, project_name) do
+    [
+      flaky_test_alert_header_block(),
+      flaky_test_alert_context_block(alert),
+      alert_divider_block(),
+      flaky_test_alert_test_case_block(alert),
+      flaky_test_alert_metric_block(alert),
+      flaky_test_alert_footer_block(alert, account_name, project_name)
+    ]
+  end
+
+  defp flaky_test_alert_header_block do
+    %{
+      type: "header",
+      text: %{
+        type: "plain_text",
+        text: ":warning: Alert: Flaky Test Detected"
+      }
+    }
+  end
+
+  defp flaky_test_alert_context_block(%FlakyTestAlert{inserted_at: triggered_at}) do
+    ts = DateTime.to_unix(triggered_at)
+    fallback = Calendar.strftime(triggered_at, "%b %d, %H:%M")
+
+    %{
+      type: "context",
+      elements: [
+        %{type: "mrkdwn", text: "Triggered at <!date^#{ts}^{date_short} {time}|#{fallback}>"}
+      ]
+    }
+  end
+
+  defp flaky_test_alert_test_case_block(%FlakyTestAlert{
+         test_case_name: name,
+         test_case_module_name: module_name,
+         test_case_suite_name: suite_name
+       }) do
+    details =
+      ["*Test:* `#{name}`", "*Module:* #{module_name}"]
+      |> maybe_add_suite(suite_name)
+      |> Enum.join("\n")
+
+    %{
+      type: "section",
+      text: %{
+        type: "mrkdwn",
+        text: details
+      }
+    }
+  end
+
+  defp maybe_add_suite(details, nil), do: details
+  defp maybe_add_suite(details, ""), do: details
+  defp maybe_add_suite(details, suite_name), do: details ++ ["*Suite:* #{suite_name}"]
+
+  defp flaky_test_alert_metric_block(%FlakyTestAlert{
+         flaky_runs_count: flaky_runs_count,
+         flaky_test_alert_rule: %{trigger_threshold: threshold}
+       }) do
+    runs_label = if flaky_runs_count == 1, do: "run", else: "runs"
+    threshold_label = if threshold == 1, do: "run", else: "runs"
+
+    %{
+      type: "section",
+      text: %{
+        type: "mrkdwn",
+        text:
+          "*#{flaky_runs_count} flaky #{runs_label} detected in the last 30 days*\n" <>
+            "Threshold: #{threshold} #{threshold_label}"
+      }
+    }
+  end
+
+  defp flaky_test_alert_footer_block(alert, account_name, project_name) do
+    base_url = Environment.app_url()
+    test_case_url = "#{base_url}/#{account_name}/#{project_name}/tests/test-cases/#{alert.test_case_id}"
+
+    %{
+      type: "context",
+      elements: [
+        %{
+          type: "mrkdwn",
+          text: "<#{test_case_url}|View test case>"
+        }
+      ]
+    }
   end
 end

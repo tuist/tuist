@@ -557,8 +557,8 @@ defmodule Tuist.Runs do
 
     existing_data = get_project_test_cases(project_id, test_case_ids)
 
-    test_cases =
-      Enum.map(test_case_ids_with_data, fn {id, data} ->
+    {test_cases, newly_flaky_test_case_ids} =
+      Enum.map_reduce(test_case_ids_with_data, [], fn {id, data}, acc ->
         existing = Map.get(existing_data, id, %{recent_durations: []})
         new_durations = Enum.take([data.duration | existing.recent_durations], 50)
 
@@ -569,8 +569,9 @@ defmodule Tuist.Runs do
 
         current_is_flaky = Map.get(data, :is_flaky, false)
         existing_is_flaky = Map.get(existing, :is_flaky, false)
+        newly_flaky = current_is_flaky and not existing_is_flaky
 
-        %{
+        test_case = %{
           id: id,
           name: data.name,
           module_name: data.module_name,
@@ -584,13 +585,32 @@ defmodule Tuist.Runs do
           recent_durations: new_durations,
           avg_duration: new_avg
         }
+
+        acc = if newly_flaky, do: [id | acc], else: acc
+        {test_case, acc}
       end)
 
     IngestRepo.insert_all(TestCase, test_cases)
 
+    enqueue_flaky_test_alert_jobs(project_id, newly_flaky_test_case_ids)
+
     Map.new(test_cases, fn tc ->
       {{tc.name, tc.module_name, tc.suite_name}, tc.id}
     end)
+  end
+
+  defp enqueue_flaky_test_alert_jobs(_project_id, []), do: :ok
+
+  defp enqueue_flaky_test_alert_jobs(project_id, test_case_ids) do
+    alias Tuist.Alerts.Workers.FlakyTestAlertWorker
+
+    for test_case_id <- test_case_ids do
+      %{test_case_id: test_case_id, project_id: project_id}
+      |> FlakyTestAlertWorker.new()
+      |> Oban.insert()
+    end
+
+    :ok
   end
 
   defp get_project_test_cases(_project_id, []), do: %{}

@@ -239,438 +239,763 @@
           {dgettext("dashboard_projects", "Get notified when metrics regress")}
         </span>
       </div>
-      <.modal
-        id="create-alert-modal"
-        title={dgettext("dashboard_projects", "Create alert rule")}
-        header_size="large"
-        on_dismiss="close_create_alert_modal"
-      >
-        <:trigger :let={attrs}>
-          <.button
-            label={dgettext("dashboard_projects", "Add alert rule")}
-            variant="secondary"
-            size="medium"
-            phx-click="open_create_alert_modal"
-            {attrs}
-          />
-        </:trigger>
-        <.line_divider />
-        <p data-part="alert-description">
-          {alert_rule_description(
-            @create_alert_form_category,
-            @create_alert_form_metric,
-            @create_alert_form_deviation,
-            @create_alert_form_rolling_window_size
-          )}
-        </p>
-        <.alert
-          :if={!@slack_installation}
-          status="information"
-          type="secondary"
-          size="medium"
-          data-part="slack-connect-alert"
-          title={
-            dgettext(
-              "dashboard_projects",
-              "Connect your Slack account before selecting channels."
-            )
-          }
-        >
-          <:action>
-            <.link_button
-              :if={is_nil(@slack_installation)}
-              href={~p"/#{@selected_account.name}/integrations"}
-              target="_blank"
-              label={dgettext("dashboard_projects", "Connect Slack")}
-              variant="secondary"
-            >
-              <:icon_right><.external_link /></:icon_right>
-            </.link_button>
-          </:action>
-        </.alert>
-        <div data-part="alert-form">
-          <div data-part="schedule-row">
-            <label data-part="schedule-label">
-              {dgettext("dashboard_projects", "Name")}
-            </label>
-            <.text_input
-              type="basic"
-              id="create-alert-name"
-              name="name"
-              value={@create_alert_form_name}
-              placeholder={dgettext("dashboard_projects", "Alert name")}
-              phx-keyup="update_create_alert_form_name"
-              phx-debounce="300"
-            />
-          </div>
-          <div data-part="schedule-row">
-            <label data-part="schedule-label">
-              {dgettext("dashboard_projects", "Category")}
-            </label>
-            <.dropdown
-              id="create-alert-category-dropdown"
-              label={category_label(@create_alert_form_category)}
-            >
-              <.dropdown_item
-                :for={category <- [:build_run_duration, :test_run_duration, :cache_hit_rate]}
-                value={Atom.to_string(category)}
-                label={category_label(category)}
-                phx-click="update_create_alert_form_category"
-                phx-value-category={category}
-                data-selected={@create_alert_form_category == category}
-              >
-                <:right_icon :if={@create_alert_form_category == category}>
-                  <.icon name="check" />
-                </:right_icon>
-              </.dropdown_item>
-            </.dropdown>
-          </div>
-          <div data-part="schedule-row">
-            <label data-part="schedule-label">
-              {dgettext("dashboard_projects", "Metric")}
-            </label>
-            <.dropdown
-              id="create-alert-metric-dropdown"
-              label={metric_label(@create_alert_form_metric)}
-            >
-              <.dropdown_item
-                :for={metric <- [:p50, :p90, :p99, :average]}
-                value={Atom.to_string(metric)}
-                label={metric_label(metric)}
-                phx-click="update_create_alert_form_metric"
-                phx-value-metric={metric}
-                data-selected={@create_alert_form_metric == metric}
-              >
-                <:right_icon :if={@create_alert_form_metric == metric}>
-                  <.icon name="check" />
-                </:right_icon>
-              </.dropdown_item>
-            </.dropdown>
-          </div>
-          <div data-part="schedule-row">
-            <label data-part="schedule-label">
-              {dgettext("dashboard_projects", "Deviation (%)")}
-            </label>
-            <.text_input
-              type="basic"
-              id="create-alert-deviation"
-              name="deviation"
-              value={@create_alert_form_deviation}
-              phx-keyup="update_create_alert_form_deviation"
-              phx-debounce="300"
-            />
-          </div>
-          <div data-part="schedule-row">
-            <label data-part="schedule-label">
-              {dgettext("dashboard_projects", "Rolling window")}
-            </label>
-            <.text_input
-              type="basic"
-              id="create-alert-rolling-window-size"
-              name="rolling_window_size"
-              value={@create_alert_form_rolling_window_size}
-              phx-keyup="update_create_alert_form_rolling_window_size"
-              phx-debounce="300"
-            />
-          </div>
-          <div data-part="schedule-row">
-            <label data-part="schedule-label">
-              {dgettext("dashboard_projects", "Slack channel")}
-            </label>
-            <div data-part="channel-selection-column">
-              <.tag
-                :if={@create_alert_form_channel_id}
-                label={"##{@create_alert_form_channel_name}"}
-              />
-              <.button
-                label={
-                  if @create_alert_form_channel_id,
-                    do: dgettext("dashboard_projects", "Update channel"),
-                    else: dgettext("dashboard_projects", "Select channel")
-                }
-                variant="secondary"
-                size="medium"
-                id="create-alert-form-channel-selection-link"
-                href={alert_channel_selection_url(@selected_account.id)}
-                phx-hook="SelectSlackChannelPopup"
-                data-event="create_alert_form_channel_selected"
-                disabled={is_nil(@slack_installation)}
-              />
-            </div>
-          </div>
-        </div>
-        <.line_divider />
-        <:footer>
-          <.modal_footer>
-            <:action>
-              <.button
-                type="button"
-                label={dgettext("dashboard_projects", "Cancel")}
-                variant="secondary"
-                phx-click="close_create_alert_modal"
-              />
-            </:action>
-            <:action>
-              <.button
-                type="button"
-                label={dgettext("dashboard_projects", "Create")}
-                variant="primary"
-                disabled={@create_alert_form_name == "" || is_nil(@create_alert_form_channel_id)}
-                phx-click="create_alert_rule"
-              />
-            </:action>
-          </.modal_footer>
-        </:footer>
-      </.modal>
     </div>
     <div data-part="content">
-      <.table
-        :if={@alert_rules != []}
-        id="alert-rules-table"
-        rows={@alert_rules}
-        row_key={fn rule -> rule.id end}
-      >
-        <:col :let={rule} label={dgettext("dashboard_projects", "Name")}>
-          <.text_cell label={rule.name} />
-        </:col>
-        <:col :let={rule} label={dgettext("dashboard_projects", "Category")}>
-          <.tag_cell label={category_label(rule.category)} />
-        </:col>
-        <:col :let={rule} label={dgettext("dashboard_projects", "Metric")}>
-          <.text_cell label={metric_label(rule.metric)} />
-        </:col>
-        <:col :let={rule} label={dgettext("dashboard_projects", "Deviation")}>
-          <.text_cell label={"#{rule.deviation_percentage}%"} />
-        </:col>
-        <:col :let={rule} label={dgettext("dashboard_projects", "Rolling window")}>
-          <.text_cell label={Integer.to_string(rule.rolling_window_size)} />
-        </:col>
-        <:col :let={rule} label={dgettext("dashboard_projects", "Channel")}>
-          <.text_cell
-            :if={is_nil(rule.slack_channel_id)}
-            label={dgettext("dashboard_projects", "None")}
-          />
-          <.badge_cell
-            :if={not is_nil(rule.slack_channel_id)}
-            label={"##{rule.slack_channel_name}"}
-            color="information"
-            style="light-fill"
-          />
-        </:col>
-        <:col :let={rule} label="">
-          <.button_cell>
-            <:button>
-              <% form = Map.get(@edit_alert_forms, rule.id, %{}) %>
-              <.modal
-                id={"update-alert-modal-#{rule.id}"}
-                title={dgettext("dashboard_projects", "Update alert rule")}
-                header_size="large"
-                on_dismiss={JS.push("close_edit_alert_modal", value: %{id: rule.id})}
-                data-part="update-alert-modal"
-              >
-                <:trigger :let={attrs}>
-                  <.button icon_only size="small" variant="secondary" {attrs}>
-                    <.icon name="pencil" />
-                  </.button>
-                </:trigger>
-                <.line_divider />
-                <p data-part="alert-description">
-                  {alert_rule_description(
-                    form[:category] || rule.category,
-                    form[:metric] || rule.metric,
-                    form[:deviation] || rule.deviation_percentage,
-                    form[:rolling_window_size] || rule.rolling_window_size
-                  )}
-                </p>
-                <.alert
-                  :if={!@slack_installation}
-                  data-part="slack-connect-alert"
-                  status="information"
-                  type="secondary"
-                  size="medium"
-                  title={
-                    dgettext(
-                      "dashboard_projects",
-                      "Connect your Slack account before selecting channels."
-                    )
-                  }
+      <div data-part="alert-section">
+        <div data-part="subsection-header">
+          <h3 data-part="subsection-title">
+            {dgettext("dashboard_projects", "Metrics")}
+          </h3>
+          <.modal
+            id="create-alert-modal"
+            title={dgettext("dashboard_projects", "Create alert rule")}
+            header_size="large"
+            on_dismiss="close_create_alert_modal"
+          >
+            <:trigger :let={attrs}>
+              <.button
+                label={dgettext("dashboard_projects", "Add alert rule")}
+                variant="secondary"
+                size="medium"
+                phx-click="open_create_alert_modal"
+                {attrs}
+              />
+            </:trigger>
+            <.line_divider />
+            <p data-part="alert-description">
+              {alert_rule_description(
+                @create_alert_form_category,
+                @create_alert_form_metric,
+                @create_alert_form_deviation,
+                @create_alert_form_rolling_window_size
+              )}
+            </p>
+            <.alert
+              :if={!@slack_installation}
+              status="information"
+              type="secondary"
+              size="medium"
+              data-part="slack-connect-alert"
+              title={
+                dgettext(
+                  "dashboard_projects",
+                  "Connect your Slack account before selecting channels."
+                )
+              }
+            >
+              <:action>
+                <.link_button
+                  :if={is_nil(@slack_installation)}
+                  href={~p"/#{@selected_account.name}/integrations"}
+                  target="_blank"
+                  label={dgettext("dashboard_projects", "Connect Slack")}
+                  variant="secondary"
                 >
-                  <:action>
-                    <.link_button
-                      href={~p"/#{@selected_account.name}/integrations"}
-                      target="_blank"
-                      label={dgettext("dashboard_projects", "Connect Slack")}
-                      variant="secondary"
-                    >
-                      <:icon_right><.external_link /></:icon_right>
-                    </.link_button>
-                  </:action>
-                </.alert>
-                <div data-part="alert-form">
-                  <div data-part="schedule-row">
-                    <label data-part="schedule-label">
-                      {dgettext("dashboard_projects", "Name")}
-                    </label>
-                    <.text_input
-                      type="basic"
-                      id={"edit-alert-name-#{rule.id}"}
-                      name="name"
-                      value={form[:name] || rule.name}
-                      placeholder={dgettext("dashboard_projects", "Alert name")}
-                      phx-keyup="update_edit_alert_form_name"
-                      phx-value-id={rule.id}
-                      phx-debounce="300"
-                    />
-                  </div>
-                  <div data-part="schedule-row">
-                    <label data-part="schedule-label">
-                      {dgettext("dashboard_projects", "Category")}
-                    </label>
-                    <.dropdown
-                      id={"edit-alert-category-dropdown-#{rule.id}"}
-                      label={category_label(form[:category] || rule.category)}
-                    >
-                      <.dropdown_item
-                        :for={
-                          category <- [:build_run_duration, :test_run_duration, :cache_hit_rate]
-                        }
-                        value={Atom.to_string(category)}
-                        label={category_label(category)}
-                        phx-click="update_edit_alert_form_category"
-                        phx-value-id={rule.id}
-                        phx-value-category={category}
-                        data-selected={(form[:category] || rule.category) == category}
-                      >
-                        <:right_icon :if={(form[:category] || rule.category) == category}>
-                          <.icon name="check" />
-                        </:right_icon>
-                      </.dropdown_item>
-                    </.dropdown>
-                  </div>
-                  <div data-part="schedule-row">
-                    <label data-part="schedule-label">
-                      {dgettext("dashboard_projects", "Metric")}
-                    </label>
-                    <.dropdown
-                      id={"edit-alert-metric-dropdown-#{rule.id}"}
-                      label={metric_label(form[:metric] || rule.metric)}
-                    >
-                      <.dropdown_item
-                        :for={metric <- [:p50, :p90, :p99, :average]}
-                        value={Atom.to_string(metric)}
-                        label={metric_label(metric)}
-                        phx-click="update_edit_alert_form_metric"
-                        phx-value-id={rule.id}
-                        phx-value-metric={metric}
-                        data-selected={(form[:metric] || rule.metric) == metric}
-                      >
-                        <:right_icon :if={(form[:metric] || rule.metric) == metric}>
-                          <.icon name="check" />
-                        </:right_icon>
-                      </.dropdown_item>
-                    </.dropdown>
-                  </div>
-                  <div data-part="schedule-row">
-                    <label data-part="schedule-label">
-                      {dgettext("dashboard_projects", "Deviation (%)")}
-                    </label>
-                    <.text_input
-                      type="basic"
-                      id={"edit-alert-deviation-#{rule.id}"}
-                      name="deviation"
-                      value={form[:deviation] || rule.deviation_percentage}
-                      phx-keyup="update_edit_alert_form_deviation"
-                      phx-value-id={rule.id}
-                      phx-debounce="300"
-                    />
-                  </div>
-                  <div data-part="schedule-row">
-                    <label data-part="schedule-label">
-                      {dgettext("dashboard_projects", "Rolling window")}
-                    </label>
-                    <.text_input
-                      type="basic"
-                      id={"edit-alert-rolling-window-size-#{rule.id}"}
-                      name="rolling_window_size"
-                      value={form[:rolling_window_size] || rule.rolling_window_size}
-                      phx-keyup="update_edit_alert_form_rolling_window_size"
-                      phx-value-id={rule.id}
-                      phx-debounce="300"
-                    />
-                  </div>
-                  <div data-part="schedule-row">
-                    <label data-part="schedule-label">
-                      {dgettext("dashboard_projects", "Slack channel")}
-                    </label>
-                    <div data-part="channel-selection-column">
-                      <.tag
-                        :if={form[:channel_id] || rule.slack_channel_id}
-                        label={"##{form[:channel_name] || rule.slack_channel_name}"}
-                      />
-                      <.button
-                        :if={@slack_installation}
-                        label={
-                          if form[:channel_id] || rule.slack_channel_id,
-                            do: dgettext("dashboard_projects", "Update channel"),
-                            else: dgettext("dashboard_projects", "Select channel")
-                        }
+                  <:icon_right><.external_link /></:icon_right>
+                </.link_button>
+              </:action>
+            </.alert>
+            <div data-part="alert-form">
+              <div data-part="schedule-row">
+                <label data-part="schedule-label">
+                  {dgettext("dashboard_projects", "Name")}
+                </label>
+                <.text_input
+                  type="basic"
+                  id="create-alert-name"
+                  name="name"
+                  value={@create_alert_form_name}
+                  placeholder={dgettext("dashboard_projects", "Alert name")}
+                  phx-keyup="update_create_alert_form_name"
+                  phx-debounce="300"
+                />
+              </div>
+              <div data-part="schedule-row">
+                <label data-part="schedule-label">
+                  {dgettext("dashboard_projects", "Category")}
+                </label>
+                <.dropdown
+                  id="create-alert-category-dropdown"
+                  label={category_label(@create_alert_form_category)}
+                >
+                  <.dropdown_item
+                    :for={category <- [:build_run_duration, :test_run_duration, :cache_hit_rate]}
+                    value={Atom.to_string(category)}
+                    label={category_label(category)}
+                    phx-click="update_create_alert_form_category"
+                    phx-value-category={category}
+                    data-selected={@create_alert_form_category == category}
+                  >
+                    <:right_icon :if={@create_alert_form_category == category}>
+                      <.icon name="check" />
+                    </:right_icon>
+                  </.dropdown_item>
+                </.dropdown>
+              </div>
+              <div data-part="schedule-row">
+                <label data-part="schedule-label">
+                  {dgettext("dashboard_projects", "Metric")}
+                </label>
+                <.dropdown
+                  id="create-alert-metric-dropdown"
+                  label={metric_label(@create_alert_form_metric)}
+                >
+                  <.dropdown_item
+                    :for={metric <- [:p50, :p90, :p99, :average]}
+                    value={Atom.to_string(metric)}
+                    label={metric_label(metric)}
+                    phx-click="update_create_alert_form_metric"
+                    phx-value-metric={metric}
+                    data-selected={@create_alert_form_metric == metric}
+                  >
+                    <:right_icon :if={@create_alert_form_metric == metric}>
+                      <.icon name="check" />
+                    </:right_icon>
+                  </.dropdown_item>
+                </.dropdown>
+              </div>
+              <div data-part="schedule-row">
+                <label data-part="schedule-label">
+                  {dgettext("dashboard_projects", "Deviation (%)")}
+                </label>
+                <.text_input
+                  type="basic"
+                  id="create-alert-deviation"
+                  name="deviation"
+                  value={@create_alert_form_deviation}
+                  phx-keyup="update_create_alert_form_deviation"
+                  phx-debounce="300"
+                />
+              </div>
+              <div data-part="schedule-row">
+                <label data-part="schedule-label">
+                  {dgettext("dashboard_projects", "Rolling window")}
+                </label>
+                <.text_input
+                  type="basic"
+                  id="create-alert-rolling-window-size"
+                  name="rolling_window_size"
+                  value={@create_alert_form_rolling_window_size}
+                  phx-keyup="update_create_alert_form_rolling_window_size"
+                  phx-debounce="300"
+                />
+              </div>
+              <div data-part="schedule-row">
+                <label data-part="schedule-label">
+                  {dgettext("dashboard_projects", "Slack channel")}
+                </label>
+                <div data-part="channel-selection-column">
+                  <.tag
+                    :if={@create_alert_form_channel_id}
+                    label={"##{@create_alert_form_channel_name}"}
+                  />
+                  <.button
+                    label={
+                      if @create_alert_form_channel_id,
+                        do: dgettext("dashboard_projects", "Update channel"),
+                        else: dgettext("dashboard_projects", "Select channel")
+                    }
+                    variant="secondary"
+                    size="medium"
+                    id="create-alert-form-channel-selection-link"
+                    href={alert_channel_selection_url(@selected_account.id)}
+                    phx-hook="SelectSlackChannelPopup"
+                    data-event="create_alert_form_channel_selected"
+                    disabled={is_nil(@slack_installation)}
+                  />
+                </div>
+              </div>
+            </div>
+            <.line_divider />
+            <:footer>
+              <.modal_footer>
+                <:action>
+                  <.button
+                    type="button"
+                    label={dgettext("dashboard_projects", "Cancel")}
+                    variant="secondary"
+                    phx-click="close_create_alert_modal"
+                  />
+                </:action>
+                <:action>
+                  <.button
+                    type="button"
+                    label={dgettext("dashboard_projects", "Create")}
+                    variant="primary"
+                    disabled={
+                      @create_alert_form_name == "" || is_nil(@create_alert_form_channel_id)
+                    }
+                    phx-click="create_alert_rule"
+                  />
+                </:action>
+              </.modal_footer>
+            </:footer>
+          </.modal>
+        </div>
+        <.table
+          id="alert-rules-table"
+          rows={@alert_rules}
+          row_key={fn rule -> rule.id end}
+        >
+          <:col :let={rule} label={dgettext("dashboard_projects", "Name")}>
+            <.text_cell label={rule.name} />
+          </:col>
+          <:col :let={rule} label={dgettext("dashboard_projects", "Category")}>
+            <.tag_cell label={category_label(rule.category)} />
+          </:col>
+          <:col :let={rule} label={dgettext("dashboard_projects", "Metric")}>
+            <.text_cell label={metric_label(rule.metric)} />
+          </:col>
+          <:col :let={rule} label={dgettext("dashboard_projects", "Deviation")}>
+            <.text_cell label={"#{rule.deviation_percentage}%"} />
+          </:col>
+          <:col :let={rule} label={dgettext("dashboard_projects", "Rolling window")}>
+            <.text_cell label={Integer.to_string(rule.rolling_window_size)} />
+          </:col>
+          <:col :let={rule} label={dgettext("dashboard_projects", "Channel")}>
+            <.text_cell
+              :if={is_nil(rule.slack_channel_id)}
+              label={dgettext("dashboard_projects", "None")}
+            />
+            <.badge_cell
+              :if={not is_nil(rule.slack_channel_id)}
+              label={"##{rule.slack_channel_name}"}
+              color="information"
+              style="light-fill"
+            />
+          </:col>
+          <:col :let={rule} label="">
+            <.button_cell>
+              <:button>
+                <% form = Map.get(@edit_alert_forms, rule.id, %{}) %>
+                <.modal
+                  id={"update-alert-modal-#{rule.id}"}
+                  title={dgettext("dashboard_projects", "Update alert rule")}
+                  header_size="large"
+                  on_dismiss={JS.push("close_edit_alert_modal", value: %{id: rule.id})}
+                  data-part="update-alert-modal"
+                >
+                  <:trigger :let={attrs}>
+                    <.button icon_only size="small" variant="secondary" {attrs}>
+                      <.icon name="pencil" />
+                    </.button>
+                  </:trigger>
+                  <.line_divider />
+                  <p data-part="alert-description">
+                    {alert_rule_description(
+                      form[:category] || rule.category,
+                      form[:metric] || rule.metric,
+                      form[:deviation] || rule.deviation_percentage,
+                      form[:rolling_window_size] || rule.rolling_window_size
+                    )}
+                  </p>
+                  <.alert
+                    :if={!@slack_installation}
+                    data-part="slack-connect-alert"
+                    status="information"
+                    type="secondary"
+                    size="medium"
+                    title={
+                      dgettext(
+                        "dashboard_projects",
+                        "Connect your Slack account before selecting channels."
+                      )
+                    }
+                  >
+                    <:action>
+                      <.link_button
+                        href={~p"/#{@selected_account.name}/integrations"}
+                        target="_blank"
+                        label={dgettext("dashboard_projects", "Connect Slack")}
                         variant="secondary"
-                        size="medium"
-                        id={"edit-alert-form-channel-selection-link-#{rule.id}"}
-                        href={alert_channel_selection_url(@selected_account.id)}
-                        phx-hook="SelectSlackChannelPopup"
-                        data-event="edit_alert_form_channel_selected"
-                        data-id={rule.id}
-                      />
-                      <.button
-                        :if={!@slack_installation}
-                        label={dgettext("dashboard_projects", "Select channel")}
-                        variant="secondary"
-                        size="medium"
-                        disabled
+                      >
+                        <:icon_right><.external_link /></:icon_right>
+                      </.link_button>
+                    </:action>
+                  </.alert>
+                  <div data-part="alert-form">
+                    <div data-part="schedule-row">
+                      <label data-part="schedule-label">
+                        {dgettext("dashboard_projects", "Name")}
+                      </label>
+                      <.text_input
+                        type="basic"
+                        id={"edit-alert-name-#{rule.id}"}
+                        name="name"
+                        value={form[:name] || rule.name}
+                        placeholder={dgettext("dashboard_projects", "Alert name")}
+                        phx-keyup="update_edit_alert_form_name"
+                        phx-value-id={rule.id}
+                        phx-debounce="300"
                       />
                     </div>
+                    <div data-part="schedule-row">
+                      <label data-part="schedule-label">
+                        {dgettext("dashboard_projects", "Category")}
+                      </label>
+                      <.dropdown
+                        id={"edit-alert-category-dropdown-#{rule.id}"}
+                        label={category_label(form[:category] || rule.category)}
+                      >
+                        <.dropdown_item
+                          :for={
+                            category <- [:build_run_duration, :test_run_duration, :cache_hit_rate]
+                          }
+                          value={Atom.to_string(category)}
+                          label={category_label(category)}
+                          phx-click="update_edit_alert_form_category"
+                          phx-value-id={rule.id}
+                          phx-value-category={category}
+                          data-selected={(form[:category] || rule.category) == category}
+                        >
+                          <:right_icon :if={(form[:category] || rule.category) == category}>
+                            <.icon name="check" />
+                          </:right_icon>
+                        </.dropdown_item>
+                      </.dropdown>
+                    </div>
+                    <div data-part="schedule-row">
+                      <label data-part="schedule-label">
+                        {dgettext("dashboard_projects", "Metric")}
+                      </label>
+                      <.dropdown
+                        id={"edit-alert-metric-dropdown-#{rule.id}"}
+                        label={metric_label(form[:metric] || rule.metric)}
+                      >
+                        <.dropdown_item
+                          :for={metric <- [:p50, :p90, :p99, :average]}
+                          value={Atom.to_string(metric)}
+                          label={metric_label(metric)}
+                          phx-click="update_edit_alert_form_metric"
+                          phx-value-id={rule.id}
+                          phx-value-metric={metric}
+                          data-selected={(form[:metric] || rule.metric) == metric}
+                        >
+                          <:right_icon :if={(form[:metric] || rule.metric) == metric}>
+                            <.icon name="check" />
+                          </:right_icon>
+                        </.dropdown_item>
+                      </.dropdown>
+                    </div>
+                    <div data-part="schedule-row">
+                      <label data-part="schedule-label">
+                        {dgettext("dashboard_projects", "Deviation (%)")}
+                      </label>
+                      <.text_input
+                        type="basic"
+                        id={"edit-alert-deviation-#{rule.id}"}
+                        name="deviation"
+                        value={form[:deviation] || rule.deviation_percentage}
+                        phx-keyup="update_edit_alert_form_deviation"
+                        phx-value-id={rule.id}
+                        phx-debounce="300"
+                      />
+                    </div>
+                    <div data-part="schedule-row">
+                      <label data-part="schedule-label">
+                        {dgettext("dashboard_projects", "Rolling window")}
+                      </label>
+                      <.text_input
+                        type="basic"
+                        id={"edit-alert-rolling-window-size-#{rule.id}"}
+                        name="rolling_window_size"
+                        value={form[:rolling_window_size] || rule.rolling_window_size}
+                        phx-keyup="update_edit_alert_form_rolling_window_size"
+                        phx-value-id={rule.id}
+                        phx-debounce="300"
+                      />
+                    </div>
+                    <div data-part="schedule-row">
+                      <label data-part="schedule-label">
+                        {dgettext("dashboard_projects", "Slack channel")}
+                      </label>
+                      <div data-part="channel-selection-column">
+                        <.tag
+                          :if={form[:channel_id] || rule.slack_channel_id}
+                          label={"##{form[:channel_name] || rule.slack_channel_name}"}
+                        />
+                        <.button
+                          :if={@slack_installation}
+                          label={
+                            if form[:channel_id] || rule.slack_channel_id,
+                              do: dgettext("dashboard_projects", "Update channel"),
+                              else: dgettext("dashboard_projects", "Select channel")
+                          }
+                          variant="secondary"
+                          size="medium"
+                          id={"edit-alert-form-channel-selection-link-#{rule.id}"}
+                          href={alert_channel_selection_url(@selected_account.id)}
+                          phx-hook="SelectSlackChannelPopup"
+                          data-event="edit_alert_form_channel_selected"
+                          data-id={rule.id}
+                        />
+                        <.button
+                          :if={!@slack_installation}
+                          label={dgettext("dashboard_projects", "Select channel")}
+                          variant="secondary"
+                          size="medium"
+                          disabled
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <.line_divider />
-                <:footer>
-                  <.modal_footer>
-                    <:action>
-                      <.button
-                        type="button"
-                        label={dgettext("dashboard_projects", "Cancel")}
-                        variant="secondary"
-                        phx-click="close_edit_alert_modal"
-                        phx-value-id={rule.id}
-                      />
-                    </:action>
-                    <:action>
-                      <.button
-                        type="button"
-                        label={dgettext("dashboard_projects", "Update")}
-                        variant="primary"
-                        phx-click="update_alert_rule"
-                        phx-value-id={rule.id}
-                      />
-                    </:action>
-                  </.modal_footer>
-                </:footer>
-              </.modal>
-            </:button>
-            <:button>
+                  <.line_divider />
+                  <:footer>
+                    <.modal_footer>
+                      <:action>
+                        <.button
+                          type="button"
+                          label={dgettext("dashboard_projects", "Cancel")}
+                          variant="secondary"
+                          phx-click="close_edit_alert_modal"
+                          phx-value-id={rule.id}
+                        />
+                      </:action>
+                      <:action>
+                        <.button
+                          type="button"
+                          label={dgettext("dashboard_projects", "Update")}
+                          variant="primary"
+                          phx-click="update_alert_rule"
+                          phx-value-id={rule.id}
+                        />
+                      </:action>
+                    </.modal_footer>
+                  </:footer>
+                </.modal>
+              </:button>
+              <:button>
+                <.button
+                  icon_only
+                  size="small"
+                  variant="secondary"
+                  phx-click="delete_alert_rule"
+                  phx-value-alert_rule_id={rule.id}
+                >
+                  <.icon name="trash" />
+                </.button>
+              </:button>
+            </.button_cell>
+          </:col>
+          <:empty_state>
+            <.table_empty_state
+              icon="bell"
+              title={dgettext("dashboard_projects", "No alert rules")}
+              subtitle={dgettext("dashboard_projects", "Create an alert rule to get notified when metrics regress")}
+            />
+          </:empty_state>
+        </.table>
+      </div>
+      <div data-part="alert-section">
+        <div data-part="subsection-header">
+          <h3 data-part="subsection-title">
+            {dgettext("dashboard_projects", "Flaky test")}
+          </h3>
+          <.modal
+            id="create-flaky-test-alert-modal"
+            title={dgettext("dashboard_projects", "Create alert rule")}
+            header_size="large"
+            on_dismiss="close_create_flaky_test_alert_modal"
+          >
+            <:trigger :let={attrs}>
               <.button
-                icon_only
-                size="small"
+                label={dgettext("dashboard_projects", "Add alert rule")}
                 variant="secondary"
-                phx-click="delete_alert_rule"
-                phx-value-alert_rule_id={rule.id}
-              >
-                <.icon name="trash" />
-              </.button>
-            </:button>
-          </.button_cell>
-        </:col>
-      </.table>
+                size="medium"
+                phx-click="open_create_flaky_test_alert_modal"
+                {attrs}
+              />
+            </:trigger>
+            <.line_divider />
+            <p data-part="alert-description">
+              {flaky_test_alert_rule_description(@create_flaky_test_alert_form_trigger_threshold)}
+            </p>
+            <.alert
+              :if={!@slack_installation}
+              status="information"
+              type="secondary"
+              size="medium"
+              data-part="slack-connect-alert"
+              title={
+                dgettext(
+                  "dashboard_projects",
+                  "Connect your Slack account before selecting channels."
+                )
+              }
+            >
+              <:action>
+                <.link_button
+                  :if={is_nil(@slack_installation)}
+                  href={~p"/#{@selected_account.name}/integrations"}
+                  target="_blank"
+                  label={dgettext("dashboard_projects", "Connect Slack")}
+                  variant="secondary"
+                >
+                  <:icon_right><.external_link /></:icon_right>
+                </.link_button>
+              </:action>
+            </.alert>
+            <div data-part="alert-form">
+              <div data-part="schedule-row">
+                <label data-part="schedule-label">
+                  {dgettext("dashboard_projects", "Name")}
+                </label>
+                <.text_input
+                  type="basic"
+                  id="create-flaky-test-alert-name"
+                  name="name"
+                  value={@create_flaky_test_alert_form_name}
+                  placeholder={dgettext("dashboard_projects", "Alert name")}
+                  phx-keyup="update_create_flaky_test_alert_form_name"
+                  phx-debounce="300"
+                />
+              </div>
+              <div data-part="schedule-row">
+                <label data-part="schedule-label">
+                  {dgettext("dashboard_projects", "Trigger threshold")}
+                </label>
+                <.text_input
+                  type="basic"
+                  id="create-flaky-test-alert-trigger-threshold"
+                  name="trigger_threshold"
+                  value={@create_flaky_test_alert_form_trigger_threshold}
+                  phx-keyup="update_create_flaky_test_alert_form_trigger_threshold"
+                  phx-debounce="300"
+                />
+              </div>
+              <div data-part="schedule-row">
+                <label data-part="schedule-label">
+                  {dgettext("dashboard_projects", "Slack channel")}
+                </label>
+                <div data-part="channel-selection-column">
+                  <.tag
+                    :if={@create_flaky_test_alert_form_channel_id}
+                    label={"##{@create_flaky_test_alert_form_channel_name}"}
+                  />
+                  <.button
+                    label={
+                      if @create_flaky_test_alert_form_channel_id,
+                        do: dgettext("dashboard_projects", "Update channel"),
+                        else: dgettext("dashboard_projects", "Select channel")
+                    }
+                    variant="secondary"
+                    size="medium"
+                    id="create-flaky-test-alert-form-channel-selection-link"
+                    href={alert_channel_selection_url(@selected_account.id)}
+                    phx-hook="SelectSlackChannelPopup"
+                    data-event="create_flaky_test_alert_form_channel_selected"
+                    disabled={is_nil(@slack_installation)}
+                  />
+                </div>
+              </div>
+            </div>
+            <.line_divider />
+            <:footer>
+              <.modal_footer>
+                <:action>
+                  <.button
+                    type="button"
+                    label={dgettext("dashboard_projects", "Cancel")}
+                    variant="secondary"
+                    phx-click="close_create_flaky_test_alert_modal"
+                  />
+                </:action>
+                <:action>
+                  <.button
+                    type="button"
+                    label={dgettext("dashboard_projects", "Create")}
+                    variant="primary"
+                    disabled={
+                      @create_flaky_test_alert_form_name == "" ||
+                        is_nil(@create_flaky_test_alert_form_channel_id)
+                    }
+                    phx-click="create_flaky_test_alert_rule"
+                  />
+                </:action>
+              </.modal_footer>
+            </:footer>
+          </.modal>
+        </div>
+        <.table
+          id="flaky-test-alert-rules-table"
+          rows={@flaky_test_alert_rules}
+          row_key={fn rule -> rule.id end}
+        >
+          <:col :let={rule} label={dgettext("dashboard_projects", "Name")}>
+            <.text_cell label={rule.name} />
+          </:col>
+          <:col :let={rule} label={dgettext("dashboard_projects", "Trigger threshold")}>
+            <.text_cell label={Integer.to_string(rule.trigger_threshold)} />
+          </:col>
+          <:col :let={rule} label={dgettext("dashboard_projects", "Channel")}>
+            <.text_cell
+              :if={is_nil(rule.slack_channel_id)}
+              label={dgettext("dashboard_projects", "None")}
+            />
+            <.badge_cell
+              :if={not is_nil(rule.slack_channel_id)}
+              label={"##{rule.slack_channel_name}"}
+              color="information"
+              style="light-fill"
+            />
+          </:col>
+          <:col :let={rule} label="">
+            <.button_cell>
+              <:button>
+                <% form = Map.get(@edit_flaky_test_alert_forms, rule.id, %{}) %>
+                <.modal
+                  id={"update-flaky-test-alert-modal-#{rule.id}"}
+                  title={dgettext("dashboard_projects", "Update alert rule")}
+                  header_size="large"
+                  on_dismiss={JS.push("close_edit_flaky_test_alert_modal", value: %{id: rule.id})}
+                  data-part="update-flaky-test-alert-modal"
+                >
+                  <:trigger :let={attrs}>
+                    <.button icon_only size="small" variant="secondary" {attrs}>
+                      <.icon name="pencil" />
+                    </.button>
+                  </:trigger>
+                  <.line_divider />
+                  <p data-part="alert-description">
+                    {flaky_test_alert_rule_description(
+                      form[:trigger_threshold] || rule.trigger_threshold
+                    )}
+                  </p>
+                  <.alert
+                    :if={!@slack_installation}
+                    data-part="slack-connect-alert"
+                    status="information"
+                    type="secondary"
+                    size="medium"
+                    title={
+                      dgettext(
+                        "dashboard_projects",
+                        "Connect your Slack account before selecting channels."
+                      )
+                    }
+                  >
+                    <:action>
+                      <.link_button
+                        href={~p"/#{@selected_account.name}/integrations"}
+                        target="_blank"
+                        label={dgettext("dashboard_projects", "Connect Slack")}
+                        variant="secondary"
+                      >
+                        <:icon_right><.external_link /></:icon_right>
+                      </.link_button>
+                    </:action>
+                  </.alert>
+                  <div data-part="alert-form">
+                    <div data-part="schedule-row">
+                      <label data-part="schedule-label">
+                        {dgettext("dashboard_projects", "Name")}
+                      </label>
+                      <.text_input
+                        type="basic"
+                        id={"edit-flaky-test-alert-name-#{rule.id}"}
+                        name="name"
+                        value={form[:name] || rule.name}
+                        placeholder={dgettext("dashboard_projects", "Alert name")}
+                        phx-keyup="update_edit_flaky_test_alert_form_name"
+                        phx-value-id={rule.id}
+                        phx-debounce="300"
+                      />
+                    </div>
+                    <div data-part="schedule-row">
+                      <label data-part="schedule-label">
+                        {dgettext("dashboard_projects", "Trigger threshold")}
+                      </label>
+                      <.text_input
+                        type="basic"
+                        id={"edit-flaky-test-alert-trigger-threshold-#{rule.id}"}
+                        name="trigger_threshold"
+                        value={form[:trigger_threshold] || rule.trigger_threshold}
+                        phx-keyup="update_edit_flaky_test_alert_form_trigger_threshold"
+                        phx-value-id={rule.id}
+                        phx-debounce="300"
+                      />
+                    </div>
+                    <div data-part="schedule-row">
+                      <label data-part="schedule-label">
+                        {dgettext("dashboard_projects", "Slack channel")}
+                      </label>
+                      <div data-part="channel-selection-column">
+                        <.tag
+                          :if={form[:channel_id] || rule.slack_channel_id}
+                          label={"##{form[:channel_name] || rule.slack_channel_name}"}
+                        />
+                        <.button
+                          :if={@slack_installation}
+                          label={
+                            if form[:channel_id] || rule.slack_channel_id,
+                              do: dgettext("dashboard_projects", "Update channel"),
+                              else: dgettext("dashboard_projects", "Select channel")
+                          }
+                          variant="secondary"
+                          size="medium"
+                          id={"edit-flaky-test-alert-form-channel-selection-link-#{rule.id}"}
+                          href={alert_channel_selection_url(@selected_account.id)}
+                          phx-hook="SelectSlackChannelPopup"
+                          data-event="edit_flaky_test_alert_form_channel_selected"
+                          data-id={rule.id}
+                        />
+                        <.button
+                          :if={!@slack_installation}
+                          label={dgettext("dashboard_projects", "Select channel")}
+                          variant="secondary"
+                          size="medium"
+                          disabled
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <.line_divider />
+                  <:footer>
+                    <.modal_footer>
+                      <:action>
+                        <.button
+                          type="button"
+                          label={dgettext("dashboard_projects", "Cancel")}
+                          variant="secondary"
+                          phx-click="close_edit_flaky_test_alert_modal"
+                          phx-value-id={rule.id}
+                        />
+                      </:action>
+                      <:action>
+                        <.button
+                          type="button"
+                          label={dgettext("dashboard_projects", "Update")}
+                          variant="primary"
+                          phx-click="update_flaky_test_alert_rule"
+                          phx-value-id={rule.id}
+                        />
+                      </:action>
+                    </.modal_footer>
+                  </:footer>
+                </.modal>
+              </:button>
+              <:button>
+                <.button
+                  icon_only
+                  size="small"
+                  variant="secondary"
+                  phx-click="delete_flaky_test_alert_rule"
+                  phx-value-rule_id={rule.id}
+                >
+                  <.icon name="trash" />
+                </.button>
+              </:button>
+            </.button_cell>
+          </:col>
+          <:empty_state>
+            <.table_empty_state
+              icon="bell"
+              title={dgettext("dashboard_projects", "No alert rules")}
+              subtitle={dgettext("dashboard_projects", "Create an alert rule to get notified about flaky tests")}
+            />
+          </:empty_state>
+        </.table>
+      </div>
     </div>
   </.card_section>
 </div>
