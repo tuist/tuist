@@ -135,6 +135,30 @@ defmodule TuistWeb.MembersLiveTest do
     end
   end
 
+  describe "avatar rendering" do
+    # TODO: Remove skip tag once noora is updated to >= 0.57.0 (https://github.com/tuist/Noora/pull/849)
+    @tag :skip
+    test "renders avatar for member with consecutive delimiters in account name", %{
+      conn: conn,
+      organization: organization,
+      account: account
+    } do
+      # Given: A user with consecutive delimiters in their account name
+      # This causes String.split to produce empty strings, and String.first("") returns nil
+      user_with_delimiters =
+        AccountsFixtures.user_fixture(handle: "test--user#{System.unique_integer([:positive])}")
+
+      Accounts.add_user_to_organization(user_with_delimiters, organization)
+
+      # When: Visit the members page
+      # Then: Should render without crashing (previously caused FunctionClauseError in String.upcase)
+      {:ok, lv, html} = live(conn, ~p"/#{account.name}/members")
+
+      assert html =~ "Members"
+      assert has_element?(lv, "tr#member-#{user_with_delimiters.id}")
+    end
+  end
+
   describe "members table row_key" do
     test "correctly generates unique row keys for list structure", %{
       conn: conn,
