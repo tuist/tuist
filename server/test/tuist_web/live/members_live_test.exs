@@ -136,8 +136,6 @@ defmodule TuistWeb.MembersLiveTest do
   end
 
   describe "avatar rendering" do
-    # TODO: Remove skip tag once noora is updated to >= 0.57.0 (https://github.com/tuist/Noora/pull/849)
-    @tag :skip
     test "renders avatar for member with consecutive delimiters in account name", %{
       conn: conn,
       organization: organization,
