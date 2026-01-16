@@ -24,6 +24,7 @@ defmodule TuistWeb.AccountSettingsLive do
     region_form = to_form(Account.update_changeset(selected_account, %{region: Atom.to_string(selected_account.region)}))
     add_cache_endpoint_form = to_form(AccountCacheEndpoint.create_changeset(%{}))
     cache_endpoints = Accounts.list_account_cache_endpoints(selected_account)
+    custom_cache_endpoints_available = Accounts.custom_cache_endpoints_available?(selected_account)
 
     socket =
       socket
@@ -34,6 +35,7 @@ defmodule TuistWeb.AccountSettingsLive do
       |> assign(region_form: region_form)
       |> assign(add_cache_endpoint_form: add_cache_endpoint_form)
       |> assign(cache_endpoints: cache_endpoints)
+      |> assign(custom_cache_endpoints_available: custom_cache_endpoints_available)
       |> assign(:head_title, "#{dgettext("dashboard_account", "Settings")} · #{selected_account.name} · Tuist")
 
     {:ok, socket}

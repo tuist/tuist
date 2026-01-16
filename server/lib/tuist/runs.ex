@@ -683,7 +683,6 @@ defmodule Tuist.Runs do
   def list_test_case_runs_by_test_case_id(test_case_id, attrs) do
     base_query =
       from(tcr in TestCaseRun,
-        hints: ["FINAL"],
         where: tcr.test_case_id == ^test_case_id
       )
 
@@ -816,7 +815,6 @@ defmodule Tuist.Runs do
   defp get_existing_ci_runs_for_commit(test_case_ids, git_commit_sha) do
     query =
       from(tcr in TestCaseRun,
-        hints: ["FINAL"],
         where: tcr.test_case_id in ^test_case_ids,
         where: tcr.git_commit_sha == ^git_commit_sha,
         where: tcr.is_ci == true,
@@ -1132,7 +1130,6 @@ defmodule Tuist.Runs do
   defp mark_test_case_runs_as_flaky(test_case_run_ids) when is_list(test_case_run_ids) do
     query =
       from(tcr in TestCaseRun,
-        hints: ["FINAL"],
         where: tcr.id in ^test_case_run_ids
       )
 
@@ -1163,7 +1160,6 @@ defmodule Tuist.Runs do
   def get_flaky_runs_groups_count_for_test_case(test_case_id) do
     query =
       from(tcr in TestCaseRun,
-        hints: ["FINAL"],
         where: tcr.test_case_id == ^test_case_id,
         where: tcr.is_flaky == true,
         select: fragment("count(DISTINCT (scheme, git_commit_sha))")
@@ -1183,7 +1179,6 @@ defmodule Tuist.Runs do
 
     groups_query =
       from(tcr in TestCaseRun,
-        hints: ["FINAL"],
         where: tcr.test_case_id == ^test_case_id,
         where: tcr.is_flaky == true,
         group_by: [tcr.scheme, tcr.git_commit_sha],
@@ -1202,7 +1197,6 @@ defmodule Tuist.Runs do
 
     flaky_runs_query =
       from(tcr in TestCaseRun,
-        hints: ["FINAL"],
         where: tcr.test_case_id == ^test_case_id,
         where: tcr.is_flaky == true,
         order_by: [desc: tcr.ran_at]
@@ -1289,7 +1283,6 @@ defmodule Tuist.Runs do
   def get_flaky_runs_for_test_run(test_run_id) do
     flaky_runs_query =
       from(tcr in TestCaseRun,
-        hints: ["FINAL"],
         where: tcr.test_run_id == ^test_run_id,
         where: tcr.is_flaky == true,
         order_by: [desc: tcr.ran_at]

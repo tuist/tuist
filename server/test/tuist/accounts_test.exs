@@ -18,6 +18,7 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Environment
   alias Tuist.Projects
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
@@ -3839,8 +3840,10 @@ defmodule Tuist.AccountsTest do
   describe "get_cache_endpoints_for_handle/1" do
     test "returns custom endpoints when account has them configured and enabled" do
       # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
       {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
       {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache1.example.com"})
       {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache2.example.com"})
@@ -3854,8 +3857,11 @@ defmodule Tuist.AccountsTest do
 
     test "returns default endpoints when account has no custom endpoints" do
       # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      {:ok, _} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
       default_endpoints = ["https://default.tuist.dev"]
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
@@ -3868,8 +3874,27 @@ defmodule Tuist.AccountsTest do
 
     test "returns default endpoints when custom endpoints exist but are disabled" do
       # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache1.example.com"})
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+
+      # Then
+      assert endpoints == default_endpoints
+    end
+
+    test "returns default endpoints when account is not enterprise on hosted" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
       {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache1.example.com"})
       default_endpoints = ["https://default.tuist.dev"]
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)

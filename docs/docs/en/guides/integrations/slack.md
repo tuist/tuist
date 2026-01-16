@@ -20,7 +20,9 @@ First, connect your Slack workspace to your Tuist account in the `Integrations` 
 Click **Connect Slack** to authorize Tuist to post messages to your workspace. This will redirect you to Slack's authorization page where you can approve the connection.
 
 > [!NOTE] SLACK ADMIN APPROVAL
+> <!-- -->
 > If your Slack workspace restricts app installations, you may need to request approval from a Slack administrator. Slack will guide you through the approval request process during authorization.
+> <!-- -->
 
 ### Project reports {#project-reports}
 
@@ -32,6 +34,11 @@ You can configure:
 - **Channel**: Select which Slack channel receives the reports
 - **Schedule**: Choose which days of the week to receive reports
 - **Time**: Set the time of day
+
+> [!WARNING] PRIVATE CHANNELS
+> <!-- -->
+> For the Tuist Slack app to post messages in a private channel, you must first add the Tuist bot to that channel. In Slack, open the private channel, click the channel name to open settings, select "Integrations", then "Add apps" and search for Tuist.
+> <!-- -->
 
 Once configured, Tuist sends automated daily reports to your selected Slack channel:
 
@@ -58,7 +65,9 @@ When an alert triggers, you'll receive a message like this in your Slack channel
 <img src="/images/guides/integrations/slack/alert.png" alt="An image that shows a Slack alert message" style="max-width: 500px;" />
 
 > [!NOTE] COOLDOWN PERIOD
+> <!-- -->
 > After an alert triggers, it won't fire again for the same rule for 24 hours. This prevents notification fatigue when a metric stays elevated.
+> <!-- -->
 
 ### Flaky test alerts {#flaky-test-alerts}
 

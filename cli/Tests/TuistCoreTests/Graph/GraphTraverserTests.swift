@@ -1243,6 +1243,35 @@ final class GraphTraverserTests: TuistUnitTestCase {
         )
     }
 
+    func test_embeddableFrameworks_when_dependencyIsStaticFrameworkWithResources() throws {
+        // Given
+        let target = Target.test(name: "Main", product: .app)
+        let staticFramework = Target.test(
+            name: "StaticResourcesFramework",
+            product: .staticFramework,
+            resources: .init([.file(path: "/Absolute/Asset.png")])
+        )
+        let project = Project.test(targets: [target, staticFramework])
+
+        // Given: Value Graph
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(
+                    name: target.name,
+                    path: project.path
+                ): Set(arrayLiteral: .target(name: staticFramework.name, path: project.path)),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
+
+        // Then
+        XCTAssertEqual(got, [])
+    }
+
     func test_embeddableFrameworks_when_appIsMergeableAndDependencyIsATarget() throws {
         // Given
         let target = Target.test(name: "Main", mergedBinaryType: .automatic)
