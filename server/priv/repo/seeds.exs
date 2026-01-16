@@ -23,6 +23,158 @@ alias Tuist.Runs.TestModuleRun
 alias Tuist.Runs.TestSuiteRun
 alias Tuist.Slack.Installation
 
+# =============================================================================
+# Configuration via Environment Variables
+# =============================================================================
+#
+# This seed script supports configurable data volumes via environment variables.
+# Use SEED_SCALE to quickly set production-like data volumes.
+#
+# Usage examples:
+#   mix run priv/repo/seeds.exs                  # Default (small) - small dataset
+#   SEED_SCALE=medium mix run priv/repo/seeds.exs    # Production-like volumes
+#   SEED_SCALE=large mix run priv/repo/seeds.exs     # 2x production volumes
+#
+# Individual overrides (these override SEED_SCALE):
+#   SEED_BUILD_RUNS=100000 mix run priv/repo/seeds.exs
+#   SEED_TEST_RUNS=500000 mix run priv/repo/seeds.exs
+#   SEED_COMMAND_EVENTS=6000000 mix run priv/repo/seeds.exs
+#
+# Environment variable reference:
+#   SEED_SCALE              - Preset scale: "small" (default), "medium", "large"
+#   SEED_BATCH_SIZE         - Batch size for inserts (default: 10000)
+#   SEED_BUILD_RUNS         - Number of build runs
+#   SEED_TEST_RUNS          - Number of test runs
+#   SEED_COMMAND_EVENTS     - Number of command events
+#   SEED_PREVIEWS           - Number of previews
+#   SEED_BUNDLES            - Number of bundles
+#   SEED_CAS_OPS_PER_BUILD  - CAS operations per build
+#   SEED_FILES_PER_BUILD    - Build files to generate per build (for selected builds)
+#   SEED_TARGETS_PER_BUILD  - Build targets per build
+#   SEED_ISSUES_PER_BUILD   - Build issues per build (for failed builds)
+#
+# Production baseline counts (from actual production data):
+#   build_runs:        ~100,000 (estimated)
+#   build_files:       945,344,477
+#   build_issues:      44,594,093
+#   build_targets:     71,632,365
+#   cacheable_tasks:   8,141,136
+#   cas_events:        81,710,106
+#   cas_outputs:       34,626,431
+#   command_events:    6,031,152
+#   test_case_failures: 200,769
+#   test_case_runs:    28,153,324
+#   test_cases:        307,133
+#   test_module_runs:  263,716
+#   test_runs:         590,917
+#   test_suite_runs:   4,172,779
+#   xcode_graphs:      374,214
+#   xcode_projects:    80,442,835
+#   xcode_targets:     268,969,447
+#
+# =============================================================================
+
+# Scale presets
+seed_scale = System.get_env("SEED_SCALE", "small")
+
+{default_build_runs, default_test_runs, default_command_events, default_previews, default_bundles,
+ default_cas_ops_per_build, default_files_per_build, default_targets_per_build, default_issues_per_build,
+ default_modules_per_test, default_suites_per_module, default_cases_per_suite,
+ default_xcode_projects_per_graph, default_xcode_targets_per_project} =
+  case seed_scale do
+    "medium" ->
+      # Match production volumes
+      {100_000, 590_000, 6_000_000, 100, 50,
+       25, 500, 50, 30,
+       4, 5, 15,
+       5, 8}
+
+    "large" ->
+      # 2x production volumes for staging/canary load testing
+      {200_000, 1_200_000, 12_000_000, 200, 100,
+       25, 500, 50, 30,
+       4, 5, 15,
+       5, 8}
+
+    _ ->
+      # Default small values (small dataset for fast local development)
+      {2_000, 1_500, 8_000, 40, 20,
+       15, 0, 0, 0,
+       3, 4, 10,
+       3, 5}
+  end
+
+# Allow individual overrides
+seed_config = %{
+  batch_size: String.to_integer(System.get_env("SEED_BATCH_SIZE", "10000")),
+  build_runs: String.to_integer(System.get_env("SEED_BUILD_RUNS", "#{default_build_runs}")),
+  test_runs: String.to_integer(System.get_env("SEED_TEST_RUNS", "#{default_test_runs}")),
+  command_events: String.to_integer(System.get_env("SEED_COMMAND_EVENTS", "#{default_command_events}")),
+  previews: String.to_integer(System.get_env("SEED_PREVIEWS", "#{default_previews}")),
+  bundles: String.to_integer(System.get_env("SEED_BUNDLES", "#{default_bundles}")),
+  cas_ops_per_build: String.to_integer(System.get_env("SEED_CAS_OPS_PER_BUILD", "#{default_cas_ops_per_build}")),
+  files_per_build: String.to_integer(System.get_env("SEED_FILES_PER_BUILD", "#{default_files_per_build}")),
+  targets_per_build: String.to_integer(System.get_env("SEED_TARGETS_PER_BUILD", "#{default_targets_per_build}")),
+  issues_per_build: String.to_integer(System.get_env("SEED_ISSUES_PER_BUILD", "#{default_issues_per_build}")),
+  modules_per_test: String.to_integer(System.get_env("SEED_MODULES_PER_TEST", "#{default_modules_per_test}")),
+  suites_per_module: String.to_integer(System.get_env("SEED_SUITES_PER_MODULE", "#{default_suites_per_module}")),
+  cases_per_suite: String.to_integer(System.get_env("SEED_CASES_PER_SUITE", "#{default_cases_per_suite}")),
+  xcode_projects_per_graph: String.to_integer(System.get_env("SEED_XCODE_PROJECTS_PER_GRAPH", "#{default_xcode_projects_per_graph}")),
+  xcode_targets_per_project: String.to_integer(System.get_env("SEED_XCODE_TARGETS_PER_PROJECT", "#{default_xcode_targets_per_project}"))
+}
+
+IO.puts("=== Seed Configuration (scale: #{seed_scale}) ===")
+IO.puts("  build_runs: #{seed_config.build_runs}")
+IO.puts("  test_runs: #{seed_config.test_runs}")
+IO.puts("  command_events: #{seed_config.command_events}")
+IO.puts("  previews: #{seed_config.previews}")
+IO.puts("  bundles: #{seed_config.bundles}")
+IO.puts("  batch_size: #{seed_config.batch_size}")
+IO.puts("")
+
+# Helper for progress logging during large inserts
+defmodule SeedHelpers do
+  def insert_in_batches(items, schema, repo, batch_size, label \\ "") do
+    total = length(items)
+    if total > batch_size do
+      IO.puts("Inserting #{total} #{label} in batches of #{batch_size}...")
+    end
+
+    items
+    |> Enum.chunk_every(batch_size)
+    |> Enum.with_index(1)
+    |> Enum.each(fn {chunk, chunk_index} ->
+      repo.insert_all(schema, chunk)
+      if total > batch_size do
+        progress = min(chunk_index * batch_size, total)
+        percentage = trunc(progress / total * 100)
+        IO.write("\r  Progress: #{percentage}% (#{progress}/#{total})")
+        if progress == total, do: IO.puts("")
+      end
+    end)
+  end
+
+  def stream_and_insert(generator_fn, count, schema, repo, batch_size, label \\ "") do
+    if count > batch_size do
+      IO.puts("Generating and inserting #{count} #{label}...")
+    end
+
+    Stream.repeatedly(generator_fn)
+    |> Stream.take(count)
+    |> Stream.chunk_every(batch_size)
+    |> Stream.with_index(1)
+    |> Enum.each(fn {chunk, chunk_index} ->
+      repo.insert_all(schema, chunk)
+      if count > batch_size do
+        progress = min(chunk_index * batch_size, count)
+        percentage = trunc(progress / count * 100)
+        IO.write("\r  Progress: #{percentage}% (#{progress}/#{count})")
+        if progress == count, do: IO.puts("")
+      end
+    end)
+  end
+end
+
 # Stubs
 email = "tuistrocks@tuist.dev"
 password = "tuistrocks"
@@ -147,55 +299,65 @@ if is_nil(Repo.get_by(QA.LaunchArgumentGroup, project_id: tuist_project.id, name
   |> Repo.insert!()
 end
 
-builds =
-  Enum.map(1..2000, fn _ ->
-    status = Enum.random([:success, :failure])
-    is_ci = Enum.random([true, false])
-    scheme = Enum.random(["App", "AppTests"])
-    xcode_version = Enum.random(["12.4", "13.0", "13.2"])
-    macos_version = Enum.random(["11.2.3", "12.3.4", "13.4.5"])
+IO.puts("Generating #{seed_config.build_runs} build runs...")
 
-    model_identifier =
-      Enum.random(["MacBookPro14,2", "MacBookPro15,1", "MacBookPro10,2", "Macmini8,1"])
+build_generator = fn ->
+  status = Enum.random([:success, :failure])
+  is_ci = Enum.random([true, false])
+  scheme = Enum.random(["App", "AppTests"])
+  xcode_version = Enum.random(["12.4", "13.0", "13.2", "14.0", "15.0", "15.2"])
+  macos_version = Enum.random(["11.2.3", "12.3.4", "13.4.5", "14.0", "14.5"])
 
-    configuration = Enum.random(["Debug", "Release"])
+  model_identifier =
+    Enum.random(["MacBookPro14,2", "MacBookPro15,1", "MacBookPro10,2", "Macmini8,1", "Mac14,6"])
 
-    account_id = if is_ci, do: organization.account.id, else: user.account.id
+  configuration = Enum.random(["Debug", "Release"])
 
-    inserted_at =
-      DateTime.new!(
-        Date.add(DateTime.utc_now(), -Enum.random(0..400)),
-        Time.new!(
-          Enum.random(0..23),
-          Enum.random(0..59),
-          Enum.random(0..59)
-        )
+  account_id = if is_ci, do: organization.account.id, else: user.account.id
+
+  inserted_at =
+    DateTime.new!(
+      Date.add(DateTime.utc_now(), -Enum.random(0..400)),
+      Time.new!(
+        Enum.random(0..23),
+        Enum.random(0..59),
+        Enum.random(0..59)
       )
+    )
 
-    total_tasks = Enum.random(50..200)
-    remote_hits = Enum.random(0..div(total_tasks, 2))
-    local_hits = Enum.random(0..(total_tasks - remote_hits))
+  total_tasks = Enum.random(50..200)
+  remote_hits = Enum.random(0..div(total_tasks, 2))
+  local_hits = Enum.random(0..(total_tasks - remote_hits))
 
-    %{
-      id: UUIDv7.generate(),
-      duration: Enum.random(10_000..100_000),
-      macos_version: macos_version,
-      xcode_version: xcode_version,
-      is_ci: is_ci,
-      model_identifier: model_identifier,
-      project_id: tuist_project.id,
-      account_id: account_id,
-      scheme: scheme,
-      configuration: configuration,
-      inserted_at: inserted_at,
-      status: status,
-      cacheable_tasks_count: total_tasks,
-      cacheable_task_remote_hits_count: remote_hits,
-      cacheable_task_local_hits_count: local_hits
-    }
+  %{
+    id: UUIDv7.generate(),
+    duration: Enum.random(10_000..100_000),
+    macos_version: macos_version,
+    xcode_version: xcode_version,
+    is_ci: is_ci,
+    model_identifier: model_identifier,
+    project_id: tuist_project.id,
+    account_id: account_id,
+    scheme: scheme,
+    configuration: configuration,
+    inserted_at: inserted_at,
+    status: status,
+    cacheable_tasks_count: total_tasks,
+    cacheable_task_remote_hits_count: remote_hits,
+    cacheable_task_local_hits_count: local_hits
+  }
+end
+
+builds = Enum.map(1..seed_config.build_runs, fn _ -> build_generator.() end)
+
+# Insert builds in batches for large volumes
+build_records =
+  builds
+  |> Enum.chunk_every(seed_config.batch_size)
+  |> Enum.flat_map(fn chunk ->
+    {_count, records} = Repo.insert_all(Build, chunk, returning: [:id])
+    records
   end)
-
-{_count, build_records} = Repo.insert_all(Build, builds, returning: [:id])
 
 generate_cache_key = fn _build_id, _task_type, _index ->
   # Generate base64-like content similar to the real example
@@ -305,10 +467,16 @@ cas_file_types = [
   "diagnostics"
 ]
 
+IO.puts("Generating CAS outputs (#{seed_config.cas_ops_per_build} per build)...")
+
 cas_outputs =
   Enum.flat_map(builds, fn build ->
-    # Generate 5-25 CAS operations per build
-    operation_count = Enum.random(5..25)
+    # Generate CAS operations per build based on config
+    operation_count = if seed_config.cas_ops_per_build > 0 do
+      max(5, Enum.random(div(seed_config.cas_ops_per_build, 2)..seed_config.cas_ops_per_build))
+    else
+      Enum.random(5..25)
+    end
 
     Enum.map(1..operation_count, fn _i ->
       operation = Enum.random(["download", "upload"])
@@ -332,14 +500,12 @@ cas_outputs =
     end)
   end)
 
-cas_outputs
-|> Enum.chunk_every(1000)
-|> Enum.each(fn chunk ->
-  IngestRepo.insert_all(Tuist.Runs.CASOutput, chunk)
-end)
+SeedHelpers.insert_in_batches(cas_outputs, Tuist.Runs.CASOutput, IngestRepo, seed_config.batch_size, "CAS outputs")
 
 # Generate CAS events based on CAS outputs
 # CAS events track upload/download actions for analytics
+IO.puts("Generating CAS events...")
+
 cas_events =
   Enum.map(cas_outputs, fn cas_output ->
     # Use the operation from CAS output (upload or download) as the action
@@ -355,20 +521,20 @@ cas_events =
     }
   end)
 
-cas_events
-|> Enum.chunk_every(1000)
-|> Enum.each(fn chunk ->
-  IngestRepo.insert_all(Tuist.Cache.CASEvent, chunk)
-end)
+SeedHelpers.insert_in_batches(cas_events, Tuist.Cache.CASEvent, IngestRepo, seed_config.batch_size, "CAS events")
 
 # Group CAS outputs by build_id for later use
 cas_outputs_by_build = Enum.group_by(cas_outputs, & &1.build_run_id)
+
+# For cacheable tasks, use a proportion of builds based on scale
+cacheable_tasks_build_count = min(length(build_records), max(500, div(seed_config.build_runs, 4)))
+IO.puts("Generating cacheable tasks for #{cacheable_tasks_build_count} builds...")
 
 cacheable_tasks =
   build_records
   |> Enum.map(& &1.id)
   |> Enum.shuffle()
-  |> Enum.take(500)
+  |> Enum.take(cacheable_tasks_build_count)
   |> Enum.flat_map(fn build_id ->
     build = Enum.find(builds, &(&1.id == build_id))
     total_tasks = build.cacheable_tasks_count
@@ -459,11 +625,7 @@ cacheable_tasks =
     tasks
   end)
 
-cacheable_tasks
-|> Enum.chunk_every(1000)
-|> Enum.each(fn chunk ->
-  IngestRepo.insert_all(Tuist.Runs.CacheableTask, chunk)
-end)
+SeedHelpers.insert_in_batches(cacheable_tasks, Tuist.Runs.CacheableTask, IngestRepo, seed_config.batch_size, "cacheable tasks")
 
 branches = [
   "main",
@@ -475,8 +637,10 @@ branches = [
   "hotfix/security"
 ]
 
+IO.puts("Generating #{seed_config.test_runs} test runs...")
+
 tests =
-  Enum.map(1..1500, fn _ ->
+  Enum.map(1..seed_config.test_runs, fn _ ->
     status = Enum.random(["success", "failure"])
     is_ci = Enum.random([true, false])
     scheme = Enum.random(["AppTests", "FrameworkTests", "UITests"])
@@ -607,19 +771,35 @@ paths = [
 ]
 
 # Select a subset of test runs to generate detailed data for (similar to builds)
-selected_tests = tests |> Enum.shuffle() |> Enum.take(800)
+# Scale the selection based on total test runs
+selected_test_count = min(length(tests), max(800, div(seed_config.test_runs, 2)))
+selected_tests = tests |> Enum.shuffle() |> Enum.take(selected_test_count)
+
+IO.puts("Generating test module runs for #{selected_test_count} tests...")
 
 test_module_runs =
   Enum.flat_map(selected_tests, fn test ->
-    # Each test run has 2-4 test modules
-    module_count = Enum.random(2..4)
+    # Each test run has modules based on config
+    module_count = if seed_config.modules_per_test > 0 do
+      max(2, Enum.random(max(1, seed_config.modules_per_test - 1)..(seed_config.modules_per_test + 1)))
+    else
+      Enum.random(2..4)
+    end
 
     Enum.map(1..module_count, fn _ ->
       module_name = Enum.random(module_names)
       # Inherit status from test run, but sometimes modules can succeed even if test failed
       module_status = if test.status == "success", do: 0, else: Enum.random([0, 0, 1])
-      suite_count = Enum.random(2..5)
-      case_count = Enum.random(10..50)
+      suite_count = if seed_config.suites_per_module > 0 do
+        max(2, Enum.random(max(1, seed_config.suites_per_module - 1)..(seed_config.suites_per_module + 1)))
+      else
+        Enum.random(2..5)
+      end
+      case_count = if seed_config.cases_per_suite > 0 do
+        suite_count * max(5, Enum.random(max(1, seed_config.cases_per_suite - 3)..(seed_config.cases_per_suite + 3)))
+      else
+        Enum.random(10..50)
+      end
       module_duration = Enum.random(1_000..10_000)
       avg_duration = div(module_duration, max(case_count, 1))
 
@@ -859,29 +1039,12 @@ updated_test_suite_runs =
   end)
 
 # Now insert everything once (no duplicates)
-updated_tests
-|> Enum.chunk_every(1000)
-|> Enum.each(fn chunk ->
-  IngestRepo.insert_all(Test, chunk)
-end)
+IO.puts("Inserting test data...")
 
-updated_test_module_runs
-|> Enum.chunk_every(1000)
-|> Enum.each(fn chunk ->
-  IngestRepo.insert_all(TestModuleRun, chunk)
-end)
-
-updated_test_suite_runs
-|> Enum.chunk_every(1000)
-|> Enum.each(fn chunk ->
-  IngestRepo.insert_all(TestSuiteRun, chunk)
-end)
-
-test_case_runs
-|> Enum.chunk_every(1000)
-|> Enum.each(fn chunk ->
-  IngestRepo.insert_all(Tuist.Runs.TestCaseRun, chunk)
-end)
+SeedHelpers.insert_in_batches(updated_tests, Test, IngestRepo, seed_config.batch_size, "test runs")
+SeedHelpers.insert_in_batches(updated_test_module_runs, TestModuleRun, IngestRepo, seed_config.batch_size, "test module runs")
+SeedHelpers.insert_in_batches(updated_test_suite_runs, TestSuiteRun, IngestRepo, seed_config.batch_size, "test suite runs")
+SeedHelpers.insert_in_batches(test_case_runs, Tuist.Runs.TestCaseRun, IngestRepo, seed_config.batch_size, "test case runs")
 
 # Update test_cases to mark flaky ones
 if MapSet.size(flaky_test_case_ids) > 0 do
@@ -945,14 +1108,12 @@ test_case_failures =
     end)
   end)
 
-test_case_failures
-|> Enum.chunk_every(1000)
-|> Enum.each(fn chunk ->
-  IngestRepo.insert_all(Tuist.Runs.TestCaseFailure, chunk)
-end)
+SeedHelpers.insert_in_batches(test_case_failures, Tuist.Runs.TestCaseFailure, IngestRepo, seed_config.batch_size, "test case failures")
+
+IO.puts("Generating #{seed_config.command_events} command events...")
 
 command_events =
-  Enum.map(1..8000, fn _event ->
+  Enum.map(1..seed_config.command_events, fn _event ->
     names = ["test", "cache", "generate"]
     name = Enum.random(names)
     status = Enum.random([0, 1])
@@ -1059,14 +1220,11 @@ command_events =
     }
   end)
 
-command_events
-|> Enum.chunk_every(1000)
-|> Enum.each(fn chunk ->
-  IngestRepo.insert_all(Event, chunk)
-end)
+SeedHelpers.insert_in_batches(command_events, Event, IngestRepo, seed_config.batch_size, "command events")
 
 # Generate XcodeGraphs for generate command events (for Compilation Optimizations tab)
 generate_events = Enum.filter(command_events, fn event -> event.name == "generate" end)
+IO.puts("Found #{length(generate_events)} generate events for Xcode graph generation")
 
 project_names = [
   "App",
@@ -1102,9 +1260,13 @@ generate_hash = fn ->
   |> List.to_string()
 end
 
+# Scale xcode graphs based on available generate events
+xcode_graph_count = min(length(generate_events), max(100, div(seed_config.command_events, 30)))
+IO.puts("Generating #{xcode_graph_count} Xcode graphs...")
+
 xcode_graphs_data =
   generate_events
-  |> Enum.take(100)
+  |> Enum.take(xcode_graph_count)
   |> Enum.map(fn event ->
     xcode_graph_id = UUIDv7.generate()
     inserted_at = NaiveDateTime.truncate(event.created_at, :second)
@@ -1119,18 +1281,21 @@ xcode_graphs_data =
     }
   end)
 
-xcode_graphs_data
-|> Enum.map(fn graph ->
-  Map.delete(graph, :event)
-end)
-|> Enum.chunk_every(1000)
-|> Enum.each(fn chunk ->
-  IngestRepo.insert_all(Tuist.Xcode.XcodeGraph, chunk)
-end)
+xcode_graphs_for_insert =
+  xcode_graphs_data
+  |> Enum.map(fn graph -> Map.delete(graph, :event) end)
+
+SeedHelpers.insert_in_batches(xcode_graphs_for_insert, Tuist.Xcode.XcodeGraph, IngestRepo, seed_config.batch_size, "Xcode graphs")
+
+IO.puts("Generating Xcode projects (#{seed_config.xcode_projects_per_graph} per graph)...")
 
 xcode_projects_data =
   Enum.flat_map(xcode_graphs_data, fn graph ->
-    project_count = Enum.random(2..5)
+    project_count = if seed_config.xcode_projects_per_graph > 0 do
+      max(2, Enum.random(max(1, seed_config.xcode_projects_per_graph - 1)..(seed_config.xcode_projects_per_graph + 1)))
+    else
+      Enum.random(2..5)
+    end
 
     Enum.map(1..project_count, fn i ->
       project_name = Enum.at(project_names, rem(i - 1, length(project_names)))
@@ -1146,11 +1311,7 @@ xcode_projects_data =
     end)
   end)
 
-xcode_projects_data
-|> Enum.chunk_every(50)
-|> Enum.each(fn chunk ->
-  IngestRepo.insert_all(Tuist.Xcode.XcodeProject, chunk)
-end)
+SeedHelpers.insert_in_batches(xcode_projects_data, Tuist.Xcode.XcodeProject, IngestRepo, seed_config.batch_size, "Xcode projects")
 
 product_types = [
   "app",
@@ -1180,9 +1341,15 @@ generate_subhash = fn ->
   |> List.to_string()
 end
 
+IO.puts("Generating Xcode targets (#{seed_config.xcode_targets_per_project} per project)...")
+
 xcode_targets_data =
   Enum.flat_map(xcode_projects_data, fn project ->
-    target_count = Enum.random(3..8)
+    target_count = if seed_config.xcode_targets_per_project > 0 do
+      max(3, Enum.random(max(1, seed_config.xcode_targets_per_project - 2)..(seed_config.xcode_targets_per_project + 2)))
+    else
+      Enum.random(3..8)
+    end
 
     Enum.map(1..target_count, fn i ->
       target_name = Enum.at(target_names, rem(i - 1, length(target_names)))
@@ -1250,11 +1417,7 @@ xcode_targets_data =
     end)
   end)
 
-xcode_targets_data
-|> Enum.chunk_every(50)
-|> Enum.each(fn chunk ->
-  IngestRepo.insert_all(Tuist.Xcode.XcodeTarget, chunk)
-end)
+SeedHelpers.insert_in_batches(xcode_targets_data, Tuist.Xcode.XcodeTarget, IngestRepo, seed_config.batch_size, "Xcode targets")
 
 bundle_identifiers = [
   "com.example.myapp.mixed",
@@ -1272,8 +1435,10 @@ platform_combinations = [
 
 preview_tracks = ["", "", "", "beta", "nightly", "internal"]
 
+IO.puts("Generating #{seed_config.previews} previews...")
+
 test_previews =
-  Enum.map(1..40, fn _index ->
+  Enum.map(1..seed_config.previews, fn _index ->
     bundle_identifier = Enum.random(bundle_identifiers)
     supported_platforms = Enum.random(platform_combinations)
 
@@ -1635,7 +1800,9 @@ bundle_names = [
   "TuistInternalApp"
 ]
 
-Enum.map(1..20, fn index ->
+IO.puts("Generating #{seed_config.bundles} bundles...")
+
+Enum.map(1..seed_config.bundles, fn index ->
   bundle_id = UUIDv7.generate()
   bundle_name = Enum.random(bundle_names)
   bundle_type = Enum.random(bundle_types)
@@ -1843,3 +2010,18 @@ if slack_installation do
     IO.puts("Created #{length(sample_alerts)} sample alerts")
   end
 end
+
+IO.puts("")
+IO.puts("=== Seed Complete (scale: #{seed_scale}) ===")
+IO.puts("Generated:")
+IO.puts("  - #{seed_config.build_runs} build runs")
+IO.puts("  - #{seed_config.test_runs} test runs")
+IO.puts("  - #{seed_config.command_events} command events")
+IO.puts("  - #{seed_config.previews} previews")
+IO.puts("  - #{seed_config.bundles} bundles")
+IO.puts("")
+IO.puts("To generate production-like volumes, run:")
+IO.puts("  SEED_SCALE=medium mix run priv/repo/seeds.exs")
+IO.puts("")
+IO.puts("To generate 2x production volumes (staging/canary load testing), run:")
+IO.puts("  SEED_SCALE=large mix run priv/repo/seeds.exs")
