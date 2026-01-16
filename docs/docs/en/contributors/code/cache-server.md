@@ -26,8 +26,6 @@ mix phx.server
 
 The cache server expects a <LocalizedLink href="/contributors/code/server">Tuist server</LocalizedLink> running at `http://localhost:8080`.
 
-Authentication uses `TUIST_CACHE_API_KEY`. In development, the server and cache default to a shared value, so you only need to set it if you want to override the default.
-
 ### Nginx and local setup {#nginx-and-local-setup}
 
 In production the cache service is fronted by nginx to optimize read performance. Local development with `mix phx.server` does not use nginx. If you want to test the full nginx + release setup locally, use `cache/docker-compose.yml`, which starts the cache release and nginx wired through a Unix socket.

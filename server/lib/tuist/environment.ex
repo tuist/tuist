@@ -560,7 +560,7 @@ defmodule Tuist.Environment do
   end
 
   def cache_api_key(secrets \\ secrets()) do
-    get([:cache_api_key], secrets) || if(dev?(), do: "dev-cache-api-key")
+    get([:cache_api_key], secrets)
   end
 
   def clickhouse_flush_interval_ms(secrets \\ secrets()) do
