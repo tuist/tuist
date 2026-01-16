@@ -354,9 +354,8 @@ defmodule Tuist.Slack do
       flaky_test_alert_header_block(),
       flaky_test_alert_context_block(alert),
       alert_divider_block(),
-      flaky_test_alert_test_case_block(alert),
-      flaky_test_alert_metric_block(alert),
-      flaky_test_alert_footer_block(alert, account_name, project_name)
+      flaky_test_alert_test_case_block(alert, account_name, project_name),
+      flaky_test_alert_metric_block(alert)
     ]
   end
 
@@ -382,13 +381,19 @@ defmodule Tuist.Slack do
     }
   end
 
-  defp flaky_test_alert_test_case_block(%FlakyTestAlert{
-         test_case_name: name,
-         test_case_module_name: module_name,
-         test_case_suite_name: suite_name
-       }) do
+  defp flaky_test_alert_test_case_block(alert, account_name, project_name) do
+    %FlakyTestAlert{
+      test_case_id: test_case_id,
+      test_case_name: name,
+      test_case_module_name: module_name,
+      test_case_suite_name: suite_name
+    } = alert
+
+    base_url = Environment.app_url()
+    test_case_url = "#{base_url}/#{account_name}/#{project_name}/tests/test-cases/#{test_case_id}"
+
     details =
-      ["*Test:* `#{name}`", "*Module:* #{module_name}"]
+      ["*Test:* <#{test_case_url}|`#{name}`>", "*Module:* #{module_name}"]
       |> maybe_add_suite(suite_name)
       |> Enum.join("\n")
 
@@ -405,36 +410,15 @@ defmodule Tuist.Slack do
   defp maybe_add_suite(details, ""), do: details
   defp maybe_add_suite(details, suite_name), do: details ++ ["*Suite:* #{suite_name}"]
 
-  defp flaky_test_alert_metric_block(%FlakyTestAlert{
-         flaky_runs_count: flaky_runs_count,
-         flaky_test_alert_rule: %{trigger_threshold: threshold}
-       }) do
+  defp flaky_test_alert_metric_block(%FlakyTestAlert{flaky_runs_count: flaky_runs_count}) do
     runs_label = if flaky_runs_count == 1, do: "run", else: "runs"
-    threshold_label = if threshold == 1, do: "run", else: "runs"
 
     %{
       type: "section",
       text: %{
         type: "mrkdwn",
-        text:
-          "*#{flaky_runs_count} flaky #{runs_label} detected in the last 30 days*\n" <>
-            "Threshold: #{threshold} #{threshold_label}"
+        text: "*#{flaky_runs_count} flaky #{runs_label} detected in the last 30 days*"
       }
-    }
-  end
-
-  defp flaky_test_alert_footer_block(alert, account_name, project_name) do
-    base_url = Environment.app_url()
-    test_case_url = "#{base_url}/#{account_name}/#{project_name}/tests/test-cases/#{alert.test_case_id}"
-
-    %{
-      type: "context",
-      elements: [
-        %{
-          type: "mrkdwn",
-          text: "<#{test_case_url}|View test case>"
-        }
-      ]
     }
   end
 end
