@@ -11,7 +11,7 @@ Source: [github.com/tuist/tuist/tree/main/cache](https://github.com/tuist/tuist/
 
 ## What it is for {#what-it-is-for}
 
-The cache server is a separate service that complements the main Tuist server by providing cache storage and retrieval. It serves CAS artifacts and key-value metadata, authenticates via the Tuist server API, and is designed to run closer to where builds happen to reduce latency.
+The cache server is a separate cache service that provides cache storage and retrieval. It serves CAS artifacts and key-value metadata and authenticates via the Tuist server API.
 
 ## How to contribute {#how-to-contribute}
 
