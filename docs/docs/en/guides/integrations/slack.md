@@ -33,6 +33,9 @@ You can configure:
 - **Schedule**: Choose which days of the week to receive reports
 - **Time**: Set the time of day
 
+> [!WARNING] PRIVATE CHANNELS
+> For the Tuist Slack app to post messages in a private channel, you must first add the Tuist bot to that channel. In Slack, open the private channel, click the channel name to open settings, select "Integrations", then "Add apps" and search for Tuist.
+
 Once configured, Tuist sends automated daily reports to your selected Slack channel:
 
 <img src="/images/guides/integrations/slack/report.png" alt="An image that shows a Slack report message" style="max-width: 500px;" />
