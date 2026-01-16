@@ -841,6 +841,31 @@ struct ResourcesProjectMapperTests {
         try verifySideEffects(gotSideEffects, for: target, in: project, bundleName: "\(project.name)_\(target.name)")
     }
 
+    @Test(arguments: [
+        ("/ViewController.swift", true),
+        ("/TargetResources.swift", false)
+    ])
+    func mapWhenProjectIsNotExternalTargetHasTargetResourcesSwiftSourceAndResourceFiles(
+        sourceFile: SourceFile,
+        expectsPublicImport: Bool
+    ) async throws {
+        // Given
+        let sources: [SourceFile] = [sourceFile]
+        let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
+        let target = Target.test(name: "Target", product: .staticLibrary, sources: sources, resources: .init(resources))
+        let project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), targets: [target], type: .local)
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
+
+        // When
+        let (_, gotSideEffects) = try await subject.map(project: project)
+
+        // Then: Side effects
+        try verifySideEffects(gotSideEffects, for: target, in: project, bundleName: "\(project.name)_\(target.name)") { file in
+            #expect(file.contents?.contains("public import Foundation".data(using: .utf8)!) == expectsPublicImport)
+        }
+    }
+
     @Test
     func mapWhenProjectIsExternalTargetHasObjcSourceFiles() async throws {
         // Given
@@ -921,7 +946,8 @@ struct ResourcesProjectMapperTests {
         _ gotSideEffects: [SideEffectDescriptor],
         for target: Target,
         in project: Project,
-        bundleName: String
+        bundleName: String,
+        additionalFileExpectations: ((FileDescriptor) -> Void)? = nil
     ) throws {
         #expect(gotSideEffects.count == 1)
         let sideEffect = try #require(gotSideEffects.first)
@@ -943,6 +969,10 @@ struct ResourcesProjectMapperTests {
             )
         #expect(file.path == expectedPath)
         #expect(file.contents == expectedContents.data(using: .utf8))
+        if let additionalFileExpectations {
+            additionalFileExpectations(file)
+        }
+
     }
 
     private func verifyObjcBundleAccessor(
