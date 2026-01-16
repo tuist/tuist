@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import TuistCache
 import TuistCore
 import TuistLoader
 import TuistRootDirectoryLocator
@@ -62,6 +63,9 @@ final class CleanService {
     private let configLoader: ConfigLoading
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let cleanCacheService: CleanCacheServicing
+    private let cleanProjectCacheService: CleanProjectCacheServicing
+    private let getCacheEndpointsService: GetCacheEndpointsServicing
+    private let serverAuthenticationController: ServerAuthenticationControlling
     private let fileSystem: FileSystem
 
     init(
@@ -72,6 +76,9 @@ final class CleanService {
         configLoader: ConfigLoading,
         serverEnvironmentService: ServerEnvironmentServicing,
         cleanCacheService: CleanCacheServicing,
+        cleanProjectCacheService: CleanProjectCacheServicing,
+        getCacheEndpointsService: GetCacheEndpointsServicing,
+        serverAuthenticationController: ServerAuthenticationControlling,
         fileSystem: FileSystem
     ) {
         self.fileHandler = fileHandler
@@ -81,6 +88,9 @@ final class CleanService {
         self.configLoader = configLoader
         self.serverEnvironmentService = serverEnvironmentService
         self.cleanCacheService = cleanCacheService
+        self.cleanProjectCacheService = cleanProjectCacheService
+        self.getCacheEndpointsService = getCacheEndpointsService
+        self.serverAuthenticationController = serverAuthenticationController
         self.fileSystem = fileSystem
     }
 
@@ -93,6 +103,9 @@ final class CleanService {
             configLoader: ConfigLoader(),
             serverEnvironmentService: ServerEnvironmentService(),
             cleanCacheService: CleanCacheService(),
+            cleanProjectCacheService: CleanProjectCacheService(),
+            getCacheEndpointsService: GetCacheEndpointsService(),
+            serverAuthenticationController: ServerAuthenticationController(),
             fileSystem: FileSystem()
         )
     }
@@ -136,10 +149,39 @@ final class CleanService {
             let config = try await configLoader.loadConfig(path: resolvedPath)
             guard let fullHandle = config.fullHandle else { return }
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-            try await cleanCacheService.cleanCache(
-                serverURL: serverURL,
-                fullHandle: fullHandle
-            )
+
+            if Environment.current.isExperimentalRegionalCacheEnabled {
+                let handles = fullHandle.components(separatedBy: "/")
+                guard handles.count == 2 else { return }
+                let accountHandle = handles[0]
+                let projectHandle = handles[1]
+
+                let endpoints = try await getCacheEndpointsService.getCacheEndpoints(
+                    serverURL: serverURL,
+                    accountHandle: accountHandle
+                )
+
+                try await withThrowingTaskGroup(of: Void.self) { group in
+                    for endpoint in endpoints {
+                        guard let cacheURL = URL(string: endpoint) else { continue }
+                        group.addTask {
+                            try await self.cleanProjectCacheService.cleanProjectCache(
+                                accountHandle: accountHandle,
+                                projectHandle: projectHandle,
+                                serverURL: cacheURL,
+                                authenticationURL: serverURL,
+                                serverAuthenticationController: self.serverAuthenticationController
+                            )
+                        }
+                    }
+                    try await group.waitForAll()
+                }
+            } else {
+                try await cleanCacheService.cleanCache(
+                    serverURL: serverURL,
+                    fullHandle: fullHandle
+                )
+            }
 
             Logger.current.notice("Successfully cleaned the remote storage.")
         }

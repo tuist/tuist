@@ -53,6 +53,7 @@ defmodule TuistWeb.Endpoint do
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
   plug TuistCommon.Plugs.RequestContextPlug, enabled_fn: &Tuist.Environment.error_tracking_enabled?/0
+  plug TuistWeb.Plugs.AppsignalSamplingPlug
   plug TuistWeb.Plugs.CloseConnectionOnErrorPlug
 
   plug Stripe.WebhookPlug,

@@ -60,5 +60,7 @@ defmodule CacheWeb.Router do
     post "/module/start", ModuleCacheController, :start_multipart
     post "/module/part", ModuleCacheController, :upload_part
     post "/module/complete", ModuleCacheController, :complete_multipart
+
+    delete "/clean", CleanController, :clean
   end
 end

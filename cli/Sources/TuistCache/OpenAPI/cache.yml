@@ -218,6 +218,51 @@ paths:
       summary: Save a CAS artifact
       tags:
         - CAS
+  /api/cache/clean:
+    delete:
+      callbacks: {}
+      operationId: cleanProjectCache
+      parameters:
+        - description: The handle of the account
+          in: query
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project
+          in: query
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '204':
+          description: Cache cleaned successfully
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Forbidden
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Failed to clean cache
+      summary: Clean all cache artifacts for a project
+      tags:
+        - Clean
   /api/cache/keyvalue:
     put:
       callbacks: {}
@@ -504,7 +549,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Total upload size exceeds 500MB limit
+          description: Total upload size exceeds 2GB limit
       summary: Upload a part of a multipart module cache upload
       tags:
         - ModuleCache
