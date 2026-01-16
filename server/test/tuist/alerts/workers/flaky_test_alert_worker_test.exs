@@ -97,7 +97,7 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorkerTest do
 
       stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
       stub(Runs, :get_flaky_runs_groups_count_for_test_case, fn _id -> 5 end)
-      stub(Alerts, :get_project_flaky_test_alert_rules, fn _project_id -> [mock_rule] end)
+      stub(Alerts, :get_project_flaky_test_alert_rules, fn _project -> [mock_rule] end)
 
       reject(&Slack.send_flaky_test_alert/1)
 

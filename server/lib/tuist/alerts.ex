@@ -9,11 +9,9 @@ defmodule Tuist.Alerts do
   alias Tuist.Alerts.FlakyTestAlert
   alias Tuist.Alerts.FlakyTestAlertRule
   alias Tuist.Cache.Analytics, as: CacheAnalytics
-  alias Tuist.ClickHouseRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Runs.Analytics
-  alias Tuist.Runs.TestCaseRun
 
   def get_project_alert_rules(%Project{id: project_id}) do
     AlertRule
@@ -156,10 +154,6 @@ defmodule Tuist.Alerts do
   end
 
   def get_project_flaky_test_alert_rules(%Project{id: project_id}) do
-    get_project_flaky_test_alert_rules(project_id)
-  end
-
-  def get_project_flaky_test_alert_rules(project_id) do
     FlakyTestAlertRule
     |> where([a], a.project_id == ^project_id)
     |> order_by([a], asc: a.inserted_at)

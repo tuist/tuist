@@ -14,15 +14,17 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorker do
     unique: [keys: [:test_case_id], states: [:available, :scheduled, :executing, :retryable]]
 
   alias Tuist.Alerts
+  alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.Runs
   alias Tuist.Slack
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"test_case_id" => test_case_id, "project_id" => project_id}}) do
-    with {:ok, test_case} <- Runs.get_test_case_by_id(test_case_id) do
+    with {:ok, test_case} <- Runs.get_test_case_by_id(test_case_id),
+         %Projects.Project{} = project <- Projects.get_project_by_id(project_id) do
       flaky_runs_count = Runs.get_flaky_runs_groups_count_for_test_case(test_case_id)
-      rules = Alerts.get_project_flaky_test_alert_rules(project_id)
+      rules = Alerts.get_project_flaky_test_alert_rules(project)
 
       for rule <- rules do
         check_and_notify(rule, test_case, flaky_runs_count)
