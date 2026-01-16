@@ -53,24 +53,9 @@ alias Tuist.Slack.Installation
 #   SEED_TARGETS_PER_BUILD  - Build targets per build
 #   SEED_ISSUES_PER_BUILD   - Build issues per build (for failed builds)
 #
-# Production baseline counts (from actual production data):
-#   build_runs:        ~100,000 (estimated)
-#   build_files:       945,344,477
-#   build_issues:      44,594,093
-#   build_targets:     71,632,365
-#   cacheable_tasks:   8,141,136
-#   cas_events:        81,710,106
-#   cas_outputs:       34,626,431
-#   command_events:    6,031,152
-#   test_case_failures: 200,769
-#   test_case_runs:    28,153,324
-#   test_cases:        307,133
-#   test_module_runs:  263,716
-#   test_runs:         590,917
-#   test_suite_runs:   4,172,779
-#   xcode_graphs:      374,214
-#   xcode_projects:    80,442,835
-#   xcode_targets:     268,969,447
+# The "medium" and "large" presets are calibrated based on production data
+# as of January 2026. These values should be periodically reviewed and updated
+# as production data grows.
 #
 # =============================================================================
 
@@ -83,14 +68,14 @@ seed_scale = System.get_env("SEED_SCALE", "small")
  default_xcode_projects_per_graph, default_xcode_targets_per_project} =
   case seed_scale do
     "medium" ->
-      # Match production volumes
+      # Production-like volumes (calibrated January 2026)
       {100_000, 590_000, 6_000_000, 100, 50,
        25, 500, 50, 30,
        4, 5, 15,
        5, 8}
 
     "large" ->
-      # 2x production volumes for staging/canary load testing
+      # 2x production volumes for staging/canary load testing (calibrated January 2026)
       {200_000, 1_200_000, 12_000_000, 200, 100,
        25, 500, 50, 30,
        4, 5, 15,
