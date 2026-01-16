@@ -9,6 +9,8 @@
 
 Being open is a practical advantage: the code is available, you can run it locally, and you can use coding agents to answer questions faster and debug potential bugs in the codebase.
 
+If you find missing or incomplete documentation while debugging, update the English docs under `docs/` and open a PR.
+
 ## Use coding agents {#use-coding-agents}
 
 Coding agents are useful for:
