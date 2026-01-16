@@ -172,7 +172,7 @@ When using sources, Xcode's build system, through Derived Data, can resolve depe
 
 ### Legacy module cache {#legacy-module-cache}
 
-In Tuist {version}, we have made our new infrastructure for the module cache the default.
+In Tuist `4.128.0`, we have made our new infrastructure for the module cache the default.
 If you experience issues with this new version, you can revert to the legacy cache behavior by setting the `TUIST_LEGACY_MODULE_CACHE` environment variable.
 
 This legacy module cache is a temporary fallback and will be removed on the server side in a future update. Plan to migrate away from it.
