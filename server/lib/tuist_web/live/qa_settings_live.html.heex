@@ -10,6 +10,11 @@
       navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/settings"}
     />
     <.tab_menu_horizontal_item
+      label={dgettext("dashboard_qa", "Notifications")}
+      selected={false}
+      navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/notifications"}
+    />
+    <.tab_menu_horizontal_item
       label={dgettext("dashboard_qa", "QA")}
       selected={true}
       navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/qa"}
