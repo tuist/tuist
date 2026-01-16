@@ -274,13 +274,11 @@ struct TuistCacheEECanaryAcceptanceTests {
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withTestingSimulator("iPhone 17"),
-        .withFixtureConnectedToCanary("generated_ios_app_with_frameworks")
+        .withFixtureConnectedToCanary("generated_multiplatform_app")
     ) func run_with_no_selective_testing() async throws {
         // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let simulator = try #require(Simulator.testing)
 
         // When: I run tests for the first time
         try await TuistTest.run(
@@ -290,8 +288,6 @@ struct TuistCacheEECanaryAcceptanceTests {
                 fixtureDirectory.pathString,
                 "--derived-data-path",
                 temporaryDirectory.pathString,
-                "--device",
-                simulator.name,
                 "--",
                 "CODE_SIGN_IDENTITY=",
                 "CODE_SIGNING_REQUIRED=NO",
@@ -308,8 +304,6 @@ struct TuistCacheEECanaryAcceptanceTests {
                 fixtureDirectory.pathString,
                 "--derived-data-path",
                 temporaryDirectory.pathString,
-                "--device",
-                simulator.name,
                 "--",
                 "CODE_SIGN_IDENTITY=",
                 "CODE_SIGNING_REQUIRED=NO",
@@ -326,14 +320,12 @@ struct TuistCacheEECanaryAcceptanceTests {
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withTestingSimulator("iPhone 17"),
-        .withFixtureConnectedToCanary("generated_ios_app_with_frameworks")
+        .withFixtureConnectedToCanary("generated_multiplatform_app")
     ) func run_with_no_selective_testing_legacy() async throws {
         // Given
         enableLegacyCache()
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let simulator = try #require(Simulator.testing)
 
         // When: I run tests for the first time
         try await TuistTest.run(
@@ -343,8 +335,6 @@ struct TuistCacheEECanaryAcceptanceTests {
                 fixtureDirectory.pathString,
                 "--derived-data-path",
                 temporaryDirectory.pathString,
-                "--device",
-                simulator.name,
                 "--",
                 "CODE_SIGN_IDENTITY=",
                 "CODE_SIGNING_REQUIRED=NO",
@@ -361,8 +351,6 @@ struct TuistCacheEECanaryAcceptanceTests {
                 fixtureDirectory.pathString,
                 "--derived-data-path",
                 temporaryDirectory.pathString,
-                "--device",
-                simulator.name,
                 "--",
                 "CODE_SIGN_IDENTITY=",
                 "CODE_SIGNING_REQUIRED=NO",

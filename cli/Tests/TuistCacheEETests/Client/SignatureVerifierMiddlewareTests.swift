@@ -59,8 +59,7 @@ struct SignatureVerifierMiddlewareTests {
         #expect(gotResponse == response)
     }
 
-    @Test(.withMockedEnvironment()) func throws_when_cache_path_and_hash_and_missing_header() async throws {
-        Environment.mocked?.variables["TUIST_LEGACY_MODULE_CACHE"] = "1"
+    @Test(.withMockedEnvironment(legacyModuleCache: true)) func throws_when_cache_path_and_hash_and_missing_header() async throws {
         let subject = SignatureVerifierMiddleware(isDevelopment: false, base64SigningKey: base64SigningKey)
         let request = HTTPRequest(
             method: .get,
@@ -84,8 +83,7 @@ struct SignatureVerifierMiddlewareTests {
         })
     }
 
-    @Test(.withMockedEnvironment()) func throws_when_cache_path_and_hash_and_invalid_signature_header() async throws {
-        Environment.mocked?.variables["TUIST_LEGACY_MODULE_CACHE"] = "1"
+    @Test(.withMockedEnvironment(legacyModuleCache: true)) func throws_when_cache_path_and_hash_and_invalid_signature_header() async throws {
         let subject = SignatureVerifierMiddleware(isDevelopment: false, base64SigningKey: base64SigningKey)
         let request = HTTPRequest(
             method: .get,
@@ -133,8 +131,7 @@ struct SignatureVerifierMiddlewareTests {
         #expect(gotResponse == response)
     }
 
-    @Test(.withMockedEnvironment()) func forwards_the_request_when_cache_path_and_hash_and_valid_signature_header() async throws {
-        Environment.mocked?.variables["TUIST_LEGACY_MODULE_CACHE"] = "1"
+    @Test(.withMockedEnvironment(legacyModuleCache: true)) func forwards_the_request_when_cache_path_and_hash_and_valid_signature_header() async throws {
         let subject = SignatureVerifierMiddleware(isDevelopment: false, base64SigningKey: base64SigningKey)
         let signature = try subject.signWithBase64SigningKey("123456")
         let request = HTTPRequest(
