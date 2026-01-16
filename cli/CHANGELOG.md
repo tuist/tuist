@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
+* make new module cache default by [@cschmatzler](https://github.com/cschmatzler) in [#9094](https://github.com/tuist/tuist/pull/9094)
 * add support for flaky tests detection by [@fortmarek](https://github.com/fortmarek) in [#9098](https://github.com/tuist/tuist/pull/9098)
 * implement remote cache cleaning by [@cschmatzler](https://github.com/cschmatzler) in [#9124](https://github.com/tuist/tuist/pull/9124)
 ### 🐛 Bug Fixes
