@@ -329,6 +329,7 @@ export default defineConfig({
 /documentation/tuist/code-reviews /contributors/code-reviews 301
 /documentation/tuist/reporting-bugs /contributors/issue-reporting 301
 /documentation/tuist/championing-projects /contributors/code 301
+/contributors/get-started /contributors/code 301
 /guide/scale/ufeatures-architecture.html /guide/scale/tma-architecture.html 301
 /guide/scale/ufeatures-architecture /guide/scale/tma-architecture 301
 /guide/introduction/cost-of-convenience /guides/develop/projects/cost-of-convenience 301
