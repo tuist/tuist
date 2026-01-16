@@ -60,6 +60,21 @@ When an alert triggers, you'll receive a message like this in your Slack channel
 > [!NOTE] COOLDOWN PERIOD
 > After an alert triggers, it won't fire again for the same rule for 24 hours. This prevents notification fatigue when a metric stays elevated.
 
+### Flaky test alerts {#flaky-test-alerts}
+
+Get notified instantly when a test becomes flaky. Unlike metric-based alert rules that compare rolling windows, flaky test alerts trigger the moment Tuist detects a new flaky test, helping you catch test instability before it impacts your team.
+
+To create a flaky test alert rule, go to your project's notification settings and click **Add flaky test alert rule**:
+
+You can configure:
+- **Name**: A descriptive name for the alert
+- **Trigger threshold**: The minimum number of flaky runs in the last 30 days required to trigger an alert
+- **Slack channel**: Where to send the alert
+
+When a test becomes flaky and meets your threshold, you'll receive a notification with a direct link to investigate the test case:
+
+<img src="/images/guides/integrations/slack/flaky-test-alert.png" alt="An image that shows a Slack flaky test alert message" style="max-width: 500px;" />
+
 ## On-premise installations {#on-premise}
 
 For on-premise Tuist installations, you'll need to create your own Slack app and configure the necessary environment variables.
