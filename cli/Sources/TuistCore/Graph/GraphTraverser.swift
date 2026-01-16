@@ -1473,7 +1473,7 @@ public class GraphTraverser: GraphTraversing {
     private func isEmbeddableDependencyTarget(dependency: GraphDependency) -> Bool {
         testTarget(dependency: dependency) {
             $0.product.isDynamic ||
-                ($0.product == .staticFramework && ($0.containsResources || $0.containsMetalFiles))
+                ($0.product == .staticFramework && $0.containsMetalFiles)
         }
     }
 
