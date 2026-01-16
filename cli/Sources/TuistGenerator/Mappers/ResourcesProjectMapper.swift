@@ -253,15 +253,26 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         }
 
         // Add public accessors only for non external projects
-        let publicBundleAccessor = switch project.type {
-        case .external:
-            ""
-        case .local:
-            if target.sourcesContainsPublicResourceClassName {
+        let (imports, publicBundleAccessor): (String, String) = switch project.type {
+        case .external,
+                .local where target.sourcesContainsPublicResourceClassName:
+            (
+                """
+                import Foundation
+                """,
                 ""
-            } else {
+            )
+        case .local:
+            (
+                """
+                #if hasFeature(InternalImportsByDefault)
+                public import Foundation
+                #else
+                import Foundation
+                #endif
+                """,
                 publicBundleAccessorString(for: target)
-            }
+            )
         }
 
         return """
@@ -270,11 +281,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         // swiftlint:disable all
         // swift-format-ignore-file
         // swiftformat:disable all
-        #if hasFeature(InternalImportsByDefault)
-        public import Foundation
-        #else
-        import Foundation
-        #endif
+        \(imports)
         \(bundleAccessor)
         \(publicBundleAccessor)
         // swiftformat:enable all
