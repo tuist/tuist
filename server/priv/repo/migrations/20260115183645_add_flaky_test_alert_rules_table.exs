@@ -13,6 +13,7 @@ defmodule Tuist.Repo.Migrations.AddFlakyTestAlertRulesTable do
       timestamps(type: :timestamptz)
     end
 
+    # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create index(:flaky_test_alert_rules, [:project_id])
   end
 end

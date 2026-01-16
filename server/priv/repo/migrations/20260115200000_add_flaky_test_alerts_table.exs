@@ -18,7 +18,9 @@ defmodule Tuist.Repo.Migrations.AddFlakyTestAlertsTable do
       timestamps(type: :timestamptz)
     end
 
+    # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create index(:flaky_test_alerts, [:flaky_test_alert_rule_id])
+    # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create index(:flaky_test_alerts, [:inserted_at])
   end
 end
