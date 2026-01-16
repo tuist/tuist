@@ -1,7 +1,7 @@
 /contributors/issue-reporting /en/contributors/issue-reporting 301
 /contributors/code-reviews /en/contributors/code-reviews 301
 /contributors/principles /en/contributors/principles 301
-/contributors/get-started /en/contributors/get-started 301
+/contributors/get-started /en/contributors/code 301
 /guides/develop/build/cache /en/guides/develop/build/cache 301
 /guides/develop/inspect/implicit-dependencies /en/guides/develop/inspect/implicit-dependencies 301
 /guides/develop/build /en/guides/develop/build 301

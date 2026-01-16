@@ -101,7 +101,7 @@ You’ll also need a solution to store files (e.g. framework and library binarie
 <!-- -->
 If your goal is primarily to bring your own bucket for storing binaries and reduce cache latency, you might not need to self-host the whole server. You can self-host cache nodes and connect them to the hosted Tuist server or your self-hosted server.
 
-See the [Cache self-hosting guide](/guides/cache/self-host).
+See the <LocalizedLink href="/guides/cache/self-host">Cache self-hosting guide</LocalizedLink>.
 <!-- -->
 :::
 
