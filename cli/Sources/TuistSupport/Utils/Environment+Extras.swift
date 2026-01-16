@@ -1,5 +1,5 @@
 extension Environmenting {
-    public var isExperimentalRegionalCacheEnabled: Bool {
-        isVariableTruthy("TUIST_EXPERIMENTAL_MODULE_CACHE")
+    public var isLegacyModuleCacheEnabled: Bool {
+        isVariableTruthy("TUIST_LEGACY_MODULE_CACHE")
     }
 }
