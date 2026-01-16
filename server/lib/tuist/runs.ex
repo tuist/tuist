@@ -17,6 +17,7 @@ defmodule Tuist.Runs do
 
   import Ecto.Query
 
+  alias Tuist.Alerts.Workers.FlakyTestAlertWorker
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
@@ -602,12 +603,10 @@ defmodule Tuist.Runs do
   defp enqueue_flaky_test_alert_jobs(_project_id, []), do: :ok
 
   defp enqueue_flaky_test_alert_jobs(project_id, test_case_ids) do
-    alias Tuist.Alerts.Workers.FlakyTestAlertWorker
-
     for test_case_id <- test_case_ids do
       %{test_case_id: test_case_id, project_id: project_id}
       |> FlakyTestAlertWorker.new()
-      |> Oban.insert()
+      |> Oban.insert!()
     end
 
     :ok
