@@ -49,8 +49,22 @@ The CLI depends on `ProjectDescription` being built. If it fails to run, build t
 
 #### From the terminal {#from-the-terminal}
 
+First generate the workspace:
+
 ```bash
-tuist run tuist generate --path /path/to/project --no-open
+tuist generate --no-open
+```
+
+Then build the `tuist` executable with Xcode and run it from DerivedData:
+
+```bash
+xcodebuild \
+  -workspace Tuist.xcworkspace \
+  -scheme tuist \
+  -configuration Debug \
+  -derivedDataPath .build/tuist-derived-data
+
+./.build/tuist-derived-data/Build/Products/Debug/tuist generate --path /path/to/project --no-open
 ```
 
 Or via Swift Package Manager:
