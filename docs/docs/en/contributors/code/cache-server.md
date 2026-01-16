@@ -28,6 +28,10 @@ The cache server expects a <LocalizedLink href="/contributors/code/server">Tuist
 
 Authentication uses `TUIST_CACHE_API_KEY`. In development, the server and cache default to a shared value, so you only need to set it if you want to override the default.
 
+### Nginx and local setup {#nginx-and-local-setup}
+
+In production the cache service is fronted by nginx to optimize read performance. Local nginx setup is not fully documented yet, but the `cache/docker-compose.yml` file shows the intended wiring and can be used as a reference when you need to test the full setup locally.
+
 ### Tests {#tests}
 
 ```bash
