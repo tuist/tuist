@@ -11,9 +11,11 @@
 The Tuist cache service can be self-hosted to provide a private binary cache for your team. This is most useful for organizations with large artifacts and frequent builds, where placing the cache closer to your CI infrastructure reduces latency and improves cache efficiency. By minimizing the distance between your build agents and the cache, you ensure that network overhead doesn't negate the speed benefits of caching.
 
 ::: info
+<!-- -->
 Self-hosting cache nodes requires an **Enterprise plan**.
 
 You can connect self-hosted cache nodes to either the hosted Tuist server (`https://tuist.dev`) or a self-hosted Tuist server. Self-hosting the Tuist server itself requires a separate server license. See the [server self-hosting guide](/guides/server/self-host/install).
+<!-- -->
 :::
 
 ## Prerequisites {#prerequisites}
@@ -27,7 +29,9 @@ You can connect self-hosted cache nodes to either the hosted Tuist server (`http
 The cache service is distributed as a Docker image at [ghcr.io/tuist/cache](https://ghcr.io/tuist/cache). We provide reference configuration files in the [cache directory](https://github.com/tuist/tuist/tree/main/cache).
 
 ::: tip
+<!-- -->
 We provide a Docker Compose setup because it's a convenient baseline for evaluation and small deployments. You can use it as a reference and adapt it to your preferred deployment model (Kubernetes, raw Docker, etc.).
+<!-- -->
 :::
 
 ### Configuration files {#config-files}
@@ -43,7 +47,9 @@ curl -o docker/nginx.conf https://raw.githubusercontent.com/tuist/tuist/main/cac
 Create a `.env` file with your configuration.
 
 ::: tip
+<!-- -->
 The service is built with Elixir/Phoenix, so some variables use the `PHX_` prefix. You can treat these as standard service configuration.
+<!-- -->
 :::
 
 ```env

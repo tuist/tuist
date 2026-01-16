@@ -9,7 +9,9 @@
 # Cache Architecture {#cache-architecture}
 
 ::: info
+<!-- -->
 This page provides a technical overview of the Tuist cache service architecture. It is primarily intended for **self-hosting users** and **contributors** who need to understand the internal workings of the service. General users who only want to use the cache do not need to read this.
+<!-- -->
 :::
 
 The Tuist cache service is a standalone service that provides Content Addressable Storage (CAS) for build artifacts and a key-value store for cache metadata.
