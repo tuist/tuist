@@ -155,9 +155,11 @@ defmodule Tuist.Alerts do
     |> Repo.one()
   end
 
-  # Flaky Test Alert Rule functions
-
   def get_project_flaky_test_alert_rules(%Project{id: project_id}) do
+    get_project_flaky_test_alert_rules(project_id)
+  end
+
+  def get_project_flaky_test_alert_rules(project_id) do
     FlakyTestAlertRule
     |> where([a], a.project_id == ^project_id)
     |> order_by([a], asc: a.inserted_at)
@@ -187,66 +189,9 @@ defmodule Tuist.Alerts do
     Repo.delete(rule)
   end
 
-  def get_flaky_test_alert_rules_by_project_id(project_id) do
-    FlakyTestAlertRule
-    |> where([r], r.project_id == ^project_id)
-    |> Repo.all()
-  end
-
-  def get_all_flaky_test_alert_rules do
-    FlakyTestAlertRule
-    |> Repo.all()
-    |> Repo.preload(project: [account: :slack_installation])
-  end
-
   def create_flaky_test_alert(attrs) do
     %FlakyTestAlert{}
     |> FlakyTestAlert.changeset(attrs)
     |> Repo.insert()
-  end
-
-  def flaky_test_cooldown_elapsed?(%FlakyTestAlertRule{id: rule_id}) do
-    case get_latest_flaky_test_alert(rule_id) do
-      nil -> true
-      alert -> DateTime.diff(DateTime.utc_now(), alert.inserted_at, :hour) >= 24
-    end
-  end
-
-  @doc """
-  Evaluates a flaky test alert rule by counting flaky runs in the last 30 days.
-
-  Returns:
-  - `{:triggered, %{flaky_runs_count: integer}}` if threshold exceeded
-  - `:ok` if no alert needed
-  """
-  def evaluate_flaky_test_alert(%FlakyTestAlertRule{} = rule) do
-    thirty_days_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -30, :day)
-
-    flaky_runs_count =
-      ClickHouseRepo.one(
-        from(tcr in TestCaseRun,
-          hints: ["FINAL"],
-          where: tcr.project_id == ^rule.project_id,
-          where: tcr.is_flaky == true,
-          where: tcr.inserted_at >= ^thirty_days_ago,
-          select: count(tcr.id, :distinct)
-        )
-      )
-
-    flaky_runs_count = flaky_runs_count || 0
-
-    if flaky_runs_count >= rule.trigger_threshold do
-      {:triggered, %{flaky_runs_count: flaky_runs_count}}
-    else
-      :ok
-    end
-  end
-
-  defp get_latest_flaky_test_alert(rule_id) do
-    FlakyTestAlert
-    |> where([a], a.flaky_test_alert_rule_id == ^rule_id)
-    |> order_by([a], desc: a.inserted_at)
-    |> limit(1)
-    |> Repo.one()
   end
 end

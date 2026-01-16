@@ -22,7 +22,7 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorker do
   def perform(%Oban.Job{args: %{"test_case_id" => test_case_id, "project_id" => project_id}}) do
     with {:ok, test_case} <- Runs.get_test_case_by_id(test_case_id) do
       flaky_runs_count = Runs.get_flaky_runs_groups_count_for_test_case(test_case_id)
-      rules = Alerts.get_flaky_test_alert_rules_by_project_id(project_id)
+      rules = Alerts.get_project_flaky_test_alert_rules(project_id)
 
       for rule <- rules do
         check_and_notify(rule, test_case, flaky_runs_count)

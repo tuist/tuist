@@ -641,65 +641,6 @@ defmodule Tuist.AlertsTest do
     end
   end
 
-  describe "get_flaky_test_alert_rules_by_project_id/1" do
-    test "returns flaky test alert rules for a project ID" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-      rule1 = AlertsFixtures.flaky_test_alert_rule_fixture(project: project)
-      rule2 = AlertsFixtures.flaky_test_alert_rule_fixture(project: project)
-
-      # When
-      rules = Alerts.get_flaky_test_alert_rules_by_project_id(project.id)
-
-      # Then
-      assert length(rules) == 2
-      rule_ids = Enum.map(rules, & &1.id)
-      assert rule1.id in rule_ids
-      assert rule2.id in rule_ids
-    end
-
-    test "returns empty list when project has no rules" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      # When
-      rules = Alerts.get_flaky_test_alert_rules_by_project_id(project.id)
-
-      # Then
-      assert rules == []
-    end
-  end
-
-  describe "get_all_flaky_test_alert_rules/0" do
-    test "returns all flaky test alert rules with preloaded associations" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-      rule1 = AlertsFixtures.flaky_test_alert_rule_fixture(project: project)
-      rule2 = AlertsFixtures.flaky_test_alert_rule_fixture(project: project)
-
-      # When
-      rules = Alerts.get_all_flaky_test_alert_rules()
-
-      # Then
-      rule_ids = Enum.map(rules, & &1.id)
-      assert rule1.id in rule_ids
-      assert rule2.id in rule_ids
-    end
-
-    test "preloads project and account" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-      _rule = AlertsFixtures.flaky_test_alert_rule_fixture(project: project)
-
-      # When
-      [fetched_rule] = Alerts.get_all_flaky_test_alert_rules()
-
-      # Then
-      assert fetched_rule.project
-      assert fetched_rule.project.account
-    end
-  end
-
   describe "create_flaky_test_alert/1" do
     test "creates a flaky test alert with valid attributes" do
       # Given
@@ -726,52 +667,6 @@ defmodule Tuist.AlertsTest do
       assert alert.test_case_name == "testExample"
       assert alert.test_case_module_name == "MyTests"
       assert alert.test_case_suite_name == "TestSuite"
-    end
-  end
-
-  describe "flaky_test_cooldown_elapsed?/1" do
-    test "returns true when no alerts exist for the rule" do
-      # Given
-      rule = AlertsFixtures.flaky_test_alert_rule_fixture()
-
-      # When/Then
-      assert Alerts.flaky_test_cooldown_elapsed?(rule) == true
-    end
-
-    test "returns true when more than 24 hours have passed since last alert" do
-      # Given
-      rule = AlertsFixtures.flaky_test_alert_rule_fixture()
-
-      twenty_five_hours_ago =
-        DateTime.utc_now()
-        |> DateTime.add(-25, :hour)
-        |> DateTime.truncate(:second)
-
-      AlertsFixtures.flaky_test_alert_fixture(
-        flaky_test_alert_rule: rule,
-        inserted_at: twenty_five_hours_ago
-      )
-
-      # When/Then
-      assert Alerts.flaky_test_cooldown_elapsed?(rule) == true
-    end
-
-    test "returns false when less than 24 hours have passed since last alert" do
-      # Given
-      rule = AlertsFixtures.flaky_test_alert_rule_fixture()
-
-      one_hour_ago =
-        DateTime.utc_now()
-        |> DateTime.add(-1, :hour)
-        |> DateTime.truncate(:second)
-
-      AlertsFixtures.flaky_test_alert_fixture(
-        flaky_test_alert_rule: rule,
-        inserted_at: one_hour_ago
-      )
-
-      # When/Then
-      assert Alerts.flaky_test_cooldown_elapsed?(rule) == false
     end
   end
 end
