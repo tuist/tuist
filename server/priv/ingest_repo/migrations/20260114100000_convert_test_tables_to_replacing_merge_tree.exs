@@ -49,26 +49,46 @@ defmodule Tuist.IngestRepo.Migrations.ConvertTestTablesToReplacingMergeTree do
   defp convert_table(table_name) do
     Logger.info("Converting #{table_name} to ReplacingMergeTree...")
 
-    # Check if table is already ReplacingMergeTree
-    {:ok, %{rows: rows}} =
-      IngestRepo.query(
-        "SELECT engine FROM system.tables WHERE database = currentDatabase() AND name = {table:String}",
-        %{table: table_name}
-      )
+    new_table = "#{table_name}_new"
+    old_table = "#{table_name}_old"
+    order_by = Map.fetch!(@table_order_by, table_name)
 
-    case rows do
-      [["ReplacingMergeTree"]] ->
+    # Check current state - handle recovery from partially failed migration
+    main_table_state = get_table_state(table_name)
+    old_table_state = get_table_state(old_table)
+
+    case {main_table_state, old_table_state} do
+      # Already converted and no leftover _old table - nothing to do
+      {{:exists, "ReplacingMergeTree", _}, :not_exists} ->
         Logger.info("#{table_name} is already ReplacingMergeTree, skipping conversion")
 
-      _ ->
-        new_table = "#{table_name}_new"
-        old_table = "#{table_name}_old"
-        order_by = Map.fetch!(@table_order_by, table_name)
+      # Recovery case: main table is ReplacingMergeTree but _old table has data
+      # This means a previous migration failed after rename but before completion
+      # We need to copy data from _old to main table
+      {{:exists, "ReplacingMergeTree", main_count}, {:exists, _, old_count}}
+      when old_count > main_count ->
+        Logger.info(
+          "Recovering #{table_name}: found #{old_count} rows in #{old_table}, #{main_count} in #{table_name}"
+        )
 
-        # Clean up any leftover temporary tables from previous failed runs
-        # Use SYNC to ensure operations complete across all replicas in ClickHouse Cloud
-        IngestRepo.query!("DROP TABLE IF EXISTS #{new_table} SYNC")
+        copy_data_in_batches(old_table, table_name)
+        Logger.info("Recovery complete for #{table_name}, dropping #{old_table}")
         IngestRepo.query!("DROP TABLE IF EXISTS #{old_table} SYNC")
+        Logger.info("Completed recovering #{table_name}")
+
+      # Normal case: main table exists but is not ReplacingMergeTree
+      {{:exists, _, _}, _} ->
+        # Clean up _new table only (not _old - it might have data from failed run)
+        IngestRepo.query!("DROP TABLE IF EXISTS #{new_table} SYNC")
+
+        # If _old exists but main table has more/equal data, it's safe to drop _old
+        case old_table_state do
+          {:exists, _, _} ->
+            IngestRepo.query!("DROP TABLE IF EXISTS #{old_table} SYNC")
+
+          :not_exists ->
+            :ok
+        end
 
         # Get column definitions from existing table
         columns = get_column_definitions(table_name)
@@ -95,6 +115,36 @@ defmodule Tuist.IngestRepo.Migrations.ConvertTestTablesToReplacingMergeTree do
         # Keep old table for safety - will be dropped in a follow-up migration
 
         Logger.info("Completed converting #{table_name}")
+
+      # Edge case: main table doesn't exist but _old does - restore from _old
+      {:not_exists, {:exists, engine, count}} ->
+        Logger.info(
+          "#{table_name} missing but #{old_table} exists with #{count} rows, restoring..."
+        )
+
+        IngestRepo.query!("RENAME TABLE #{old_table} TO #{table_name}")
+        wait_for_table_rename(old_table, table_name)
+        # Recursively call to convert the restored table
+        convert_table(table_name)
+    end
+  end
+
+  defp get_table_state(table_name) do
+    {:ok, %{rows: table_rows}} =
+      IngestRepo.query(
+        "SELECT engine FROM system.tables WHERE database = currentDatabase() AND name = {table:String}",
+        %{table: table_name}
+      )
+
+    case table_rows do
+      [[engine]] ->
+        {:ok, %{rows: [[count]]}} =
+          IngestRepo.query("SELECT count(*) FROM #{table_name}", %{})
+
+        {:exists, engine, count}
+
+      [] ->
+        :not_exists
     end
   end
 
