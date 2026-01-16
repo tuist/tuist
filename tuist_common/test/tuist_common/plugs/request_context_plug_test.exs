@@ -9,7 +9,7 @@ defmodule TuistCommon.Plugs.RequestContextPlugTest do
       opts = RequestContextPlug.init([])
       assert is_map(opts)
       assert Map.has_key?(opts, :enabled_fn)
-      assert is_function(opts.enabled_fn, 0)
+      assert opts.enabled_fn == {RequestContextPlug, :appsignal_active?, []}
     end
 
     test "uses provided enabled_fn option" do
