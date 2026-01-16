@@ -53,7 +53,7 @@ if config_env() == :prod do
     secret_key_base: secret_key_base
 
   config :cache, :cas,
-    server_url: System.get_env("SERVER_URL") || "https://tuist.dev"
+    server_url: System.get_env("SERVER_URL") || "https://tuist.dev",
     storage_dir: System.get_env("CAS_STORAGE_DIR") || raise("environment variable CAS_STORAGE_DIR is missing"),
     disk_usage_high_watermark_percent: Cache.Config.float_env("CAS_DISK_HIGH_WATERMARK_PERCENT", 85.0),
     disk_usage_target_percent: Cache.Config.float_env("CAS_DISK_TARGET_PERCENT", 70.0),
