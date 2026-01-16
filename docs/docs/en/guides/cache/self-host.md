@@ -32,8 +32,6 @@ We provide a Docker Compose setup because it's a convenient baseline for evaluat
 
 ### Configuration files {#config-files}
 
-Create a directory for your deployment and download the configuration files:
-
 ```bash
 curl -O https://raw.githubusercontent.com/tuist/tuist/main/cache/docker-compose.yml
 mkdir -p docker
@@ -54,7 +52,7 @@ The service is built with Elixir/Phoenix, so some variables use the `PHX_` prefi
 SECRET_KEY_BASE=YOUR_SECRET_KEY_BASE
 
 # Public hostname or IP address where your cache service will be reachable.
-PHX_HOST=cache.example.com
+PUBLIC_HOST=cache.example.com
 
 # URL of the Tuist server used for authentication (REQUIRED).
 # - Hosted: https://tuist.dev
@@ -75,8 +73,8 @@ CAS_STORAGE_DIR=/cas
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `SECRET_KEY_BASE` | Yes | | Secret key used to sign and encrypt data (minimum 64 characters). |
-| `PHX_HOST` | Yes | | Public hostname or IP address of your cache service. Used to generate absolute URLs. |
-| `SERVER_URL` | Yes | | URL of your Tuist server for authentication. No default. |
+| `PUBLIC_HOST` | Yes | | Public hostname or IP address of your cache service. Used to generate absolute URLs. |
+| `SERVER_URL` | Yes | | URL of your Tuist server for authentication. Defaults to `https://tuist.dev` |
 | `CAS_STORAGE_DIR` | Yes | | Directory where CAS artifacts are stored on disk. The provided Docker Compose setup uses `/cas`. |
 | `S3_BUCKET` | Yes | | S3 bucket name. |
 | `S3_HOST` | Yes | | S3 endpoint hostname. |
@@ -137,9 +135,7 @@ The Docker Compose configuration uses three volumes:
 
 The cache service exposes Prometheus-compatible metrics at `/metrics`.
 
-If you use Grafana, you can import the reference dashboard provided in the repository:
-
-- `cache/priv/grafana_dashboards/cache_service.json`
+If you use Grafana, you can import the [reference dashboard](https://raw.githubusercontent.com/tuist/tuist/refs/heads/main/cache/priv/grafana_dashboards/cache_service.json).
 
 ## Upgrading {#upgrading}
 
@@ -157,7 +153,7 @@ The service runs database migrations automatically on startup.
 If you expect caching but are seeing consistent cache misses (for example, the CLI is repeatedly uploading the same artifacts, or downloads never happen), follow these steps:
 
 1. Verify the custom cache endpoint is correctly configured in your organization settings.
-2. Ensure your Tuist CLI is authenticated by running `tuist auth`.
+2. Ensure your Tuist CLI is authenticated by running `tuist auth login`.
 3. Check the cache service logs for any errors: `docker compose logs cache`.
 
 ### Socket path mismatch {#troubleshooting-socket}
