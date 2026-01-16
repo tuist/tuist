@@ -66,8 +66,9 @@ defmodule Tuist.IngestRepo.Migrations.ConvertTestTablesToReplacingMergeTree do
         order_by = Map.fetch!(@table_order_by, table_name)
 
         # Clean up any leftover temporary tables from previous failed runs
-        IngestRepo.query!("DROP TABLE IF EXISTS #{new_table}")
-        IngestRepo.query!("DROP TABLE IF EXISTS #{old_table}")
+        # Use SYNC to ensure operations complete across all replicas in ClickHouse Cloud
+        IngestRepo.query!("DROP TABLE IF EXISTS #{new_table} SYNC")
+        IngestRepo.query!("DROP TABLE IF EXISTS #{old_table} SYNC")
 
         # Get column definitions from existing table
         columns = get_column_definitions(table_name)
@@ -86,8 +87,9 @@ defmodule Tuist.IngestRepo.Migrations.ConvertTestTablesToReplacingMergeTree do
         copy_data_in_batches(table_name, new_table)
 
         # Swap tables (separate queries for ClickHouse Shared database compatibility)
-        IngestRepo.query!("RENAME TABLE #{table_name} TO #{old_table}")
-        IngestRepo.query!("RENAME TABLE #{new_table} TO #{table_name}")
+        # Use SYNC to ensure operations complete across all replicas in ClickHouse Cloud
+        IngestRepo.query!("RENAME TABLE #{table_name} TO #{old_table} SYNC")
+        IngestRepo.query!("RENAME TABLE #{new_table} TO #{table_name} SYNC")
 
         # Keep old table for safety - will be dropped in a follow-up migration
 
@@ -103,8 +105,9 @@ defmodule Tuist.IngestRepo.Migrations.ConvertTestTablesToReplacingMergeTree do
     order_by = Map.fetch!(@table_original_order_by, table_name)
 
     # Clean up any leftover temporary tables from previous failed runs
-    IngestRepo.query!("DROP TABLE IF EXISTS #{new_table}")
-    IngestRepo.query!("DROP TABLE IF EXISTS #{old_table}")
+    # Use SYNC to ensure operations complete across all replicas in ClickHouse Cloud
+    IngestRepo.query!("DROP TABLE IF EXISTS #{new_table} SYNC")
+    IngestRepo.query!("DROP TABLE IF EXISTS #{old_table} SYNC")
 
     # Get column definitions from existing table
     columns = get_column_definitions(table_name)
@@ -123,8 +126,9 @@ defmodule Tuist.IngestRepo.Migrations.ConvertTestTablesToReplacingMergeTree do
     copy_data_in_batches(table_name, new_table, use_final: true)
 
     # Swap tables (separate queries for ClickHouse Shared database compatibility)
-    IngestRepo.query!("RENAME TABLE #{table_name} TO #{old_table}")
-    IngestRepo.query!("RENAME TABLE #{new_table} TO #{table_name}")
+    # Use SYNC to ensure operations complete across all replicas in ClickHouse Cloud
+    IngestRepo.query!("RENAME TABLE #{table_name} TO #{old_table} SYNC")
+    IngestRepo.query!("RENAME TABLE #{new_table} TO #{table_name} SYNC")
 
     # Keep old table for safety - will be dropped in a follow-up migration
 
