@@ -31,6 +31,7 @@ config :cache, Oban,
   engine: Oban.Engines.Lite,
   notifier: Oban.Notifiers.PG,
   queues: [
+    clean: 10,
     maintenance: 1,
     s3_transfers: 1
   ],
