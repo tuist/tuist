@@ -9,10 +9,11 @@ defmodule Tuist.IngestRepo.Migrations.DropOldTestTables do
   alias Tuist.IngestRepo
 
   def up do
-    IngestRepo.query!("DROP TABLE IF EXISTS test_runs_old")
-    IngestRepo.query!("DROP TABLE IF EXISTS test_module_runs_old")
-    IngestRepo.query!("DROP TABLE IF EXISTS test_suite_runs_old")
-    IngestRepo.query!("DROP TABLE IF EXISTS test_case_runs_old")
+    # Use SYNC to ensure drops complete across all ClickHouse Cloud replicas
+    IngestRepo.query!("DROP TABLE IF EXISTS test_runs_old SYNC")
+    IngestRepo.query!("DROP TABLE IF EXISTS test_module_runs_old SYNC")
+    IngestRepo.query!("DROP TABLE IF EXISTS test_suite_runs_old SYNC")
+    IngestRepo.query!("DROP TABLE IF EXISTS test_case_runs_old SYNC")
   end
 
   def down do
