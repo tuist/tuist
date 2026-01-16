@@ -836,22 +836,17 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       # When
       conn =
-        Oban.Testing.with_testing_mode(:manual, fn ->
-          conn =
-            conn
-            |> Authentication.put_current_user(user)
-            |> assign(:cache, cache)
-            |> put(~p"/api/projects/#{account.name}/#{project.name}/cache/clean")
-
-          assert_enqueued(
-            worker: CleanProjectWorker,
-            args: %{project_id: project.id}
-          )
-
-          conn
-        end)
+        conn
+        |> Authentication.put_current_user(user)
+        |> assign(:cache, cache)
+        |> put(~p"/api/projects/#{account.name}/#{project.name}/cache/clean")
 
       # Then
+      assert_enqueued(
+        worker: CleanProjectWorker,
+        args: %{project_id: project.id}
+      )
+
       response = response(conn, :no_content)
       assert response == ""
     end
@@ -866,24 +861,18 @@ defmodule TuistWeb.API.CacheControllerTest do
 
       # When
       conn =
-        Oban.Testing.with_testing_mode(:manual, fn ->
-          conn =
-            conn
-            |> Authentication.put_current_user(user)
-            |> assign(:cache, cache)
-            |> put(~p"/api/projects/#{account.name}/#{project.name}/cache/clean")
-
-          assert_enqueued(
-            worker: CleanProjectWorker,
-            args: %{project_id: project.id}
-          )
-
-          conn
-        end)
+        conn
+        |> Authentication.put_current_user(user)
+        |> assign(:cache, cache)
+        |> put(~p"/api/projects/#{account.name}/#{project.name}/cache/clean")
 
       # Then
-      response = response(conn, :no_content)
+      assert_enqueued(
+        worker: CleanProjectWorker,
+        args: %{project_id: project.id}
+      )
 
+      response = response(conn, :no_content)
       assert response == ""
     end
 

@@ -48,27 +48,25 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
     )
 
     # When
-    Oban.Testing.with_testing_mode(:manual, fn ->
-      SyncStripeMetersWorker.perform(%Oban.Job{args: %{}})
+    SyncStripeMetersWorker.perform(%Oban.Job{args: %{}})
 
-      # Then
-      assert_enqueued(
-        worker: SyncCustomerStripeMetersWorker,
-        args: %{customer_id: first_account_customer_id}
-      )
+    # Then
+    assert_enqueued(
+      worker: SyncCustomerStripeMetersWorker,
+      args: %{customer_id: first_account_customer_id}
+    )
 
-      assert_enqueued(
-        worker: SyncCustomerStripeMetersWorker,
-        args: %{customer_id: second_account_customer_id}
-      )
+    assert_enqueued(
+      worker: SyncCustomerStripeMetersWorker,
+      args: %{customer_id: second_account_customer_id}
+    )
 
-      all_jobs = all_enqueued(worker: SyncCustomerStripeMetersWorker)
-      assert length(all_jobs) == 2
+    all_jobs = all_enqueued(worker: SyncCustomerStripeMetersWorker)
+    assert length(all_jobs) == 2
 
-      customer_ids_in_jobs = all_jobs |> Enum.map(& &1.args["customer_id"]) |> Enum.sort()
-      expected_customer_ids = Enum.sort([first_account_customer_id, second_account_customer_id])
-      assert customer_ids_in_jobs == expected_customer_ids
-    end)
+    customer_ids_in_jobs = all_jobs |> Enum.map(& &1.args["customer_id"]) |> Enum.sort()
+    expected_customer_ids = Enum.sort([first_account_customer_id, second_account_customer_id])
+    assert customer_ids_in_jobs == expected_customer_ids
   end
 
   test "enqueues SyncCustomerStripeMetersWorker jobs for each billable customer with LLM usage" do
@@ -91,18 +89,16 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
       })
 
     # When
-    Oban.Testing.with_testing_mode(:manual, fn ->
-      SyncStripeMetersWorker.perform(%Oban.Job{args: %{}})
+    SyncStripeMetersWorker.perform(%Oban.Job{args: %{}})
 
-      # Then
-      assert_enqueued(
-        worker: SyncCustomerStripeMetersWorker,
-        args: %{customer_id: customer_with_tokens}
-      )
+    # Then
+    assert_enqueued(
+      worker: SyncCustomerStripeMetersWorker,
+      args: %{customer_id: customer_with_tokens}
+    )
 
-      all_jobs = all_enqueued(worker: SyncCustomerStripeMetersWorker)
-      assert length(all_jobs) == 1
-    end)
+    all_jobs = all_enqueued(worker: SyncCustomerStripeMetersWorker)
+    assert length(all_jobs) == 1
   end
 
   test "enqueues each customer only once when they have both cache events and LLM usage" do
@@ -135,14 +131,12 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
       })
 
     # When
-    Oban.Testing.with_testing_mode(:manual, fn ->
-      SyncStripeMetersWorker.perform(%Oban.Job{args: %{}})
+    SyncStripeMetersWorker.perform(%Oban.Job{args: %{}})
 
-      # Then
-      assert_enqueued(worker: SyncCustomerStripeMetersWorker, args: %{customer_id: customer_id})
+    # Then
+    assert_enqueued(worker: SyncCustomerStripeMetersWorker, args: %{customer_id: customer_id})
 
-      all_jobs = all_enqueued(worker: SyncCustomerStripeMetersWorker)
-      assert length(all_jobs) == 1
-    end)
+    all_jobs = all_enqueued(worker: SyncCustomerStripeMetersWorker)
+    assert length(all_jobs) == 1
   end
 end

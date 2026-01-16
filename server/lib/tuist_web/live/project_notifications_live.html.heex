@@ -757,7 +757,7 @@
               </div>
               <div data-part="schedule-row">
                 <label data-part="schedule-label">
-                  {dgettext("dashboard_projects", "Trigger threshold")}
+                  {dgettext("dashboard_projects", "Occurrences")}
                 </label>
                 <.text_input
                   type="basic"
@@ -829,7 +829,7 @@
           <:col :let={rule} label={dgettext("dashboard_projects", "Name")}>
             <.text_cell label={rule.name} />
           </:col>
-          <:col :let={rule} label={dgettext("dashboard_projects", "Trigger threshold")}>
+          <:col :let={rule} label={dgettext("dashboard_projects", "Occurrences")}>
             <.text_cell label={Integer.to_string(rule.trigger_threshold)} />
           </:col>
           <:col :let={rule} label={dgettext("dashboard_projects", "Channel")}>
@@ -908,7 +908,7 @@
                     </div>
                     <div data-part="schedule-row">
                       <label data-part="schedule-label">
-                        {dgettext("dashboard_projects", "Trigger threshold")}
+                        {dgettext("dashboard_projects", "Occurrences")}
                       </label>
                       <.text_input
                         type="basic"

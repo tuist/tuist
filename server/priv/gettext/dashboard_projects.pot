@@ -849,13 +849,6 @@ msgstr ""
 msgid "Metrics"
 msgstr ""
 
-#: lib/tuist_web/live/project_notifications_live.html.heex:760
-#: lib/tuist_web/live/project_notifications_live.html.heex:832
-#: lib/tuist_web/live/project_notifications_live.html.heex:911
-#, elixir-autogen, elixir-format
-msgid "Trigger threshold"
-msgstr ""
-
 #: lib/tuist_web/live/project_notifications_live.ex:734
 #, elixir-autogen, elixir-format
 msgid "Alert when flaky runs occur in at least <strong>%{count} run</strong> in the last 30 days."
@@ -877,4 +870,11 @@ msgstr ""
 #: lib/tuist_web/live/project_notifications_live.html.heex:998
 #, elixir-autogen, elixir-format
 msgid "No alert rules"
+msgstr ""
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:760
+#: lib/tuist_web/live/project_notifications_live.html.heex:832
+#: lib/tuist_web/live/project_notifications_live.html.heex:911
+#, elixir-autogen, elixir-format
+msgid "Occurrences"
 msgstr ""
