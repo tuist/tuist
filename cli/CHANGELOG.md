@@ -1,6 +1,19 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.126.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add support for flaky tests detection by [@fortmarek](https://github.com/fortmarek) in [#9098](https://github.com/tuist/tuist/pull/9098)
+* implement remote cache cleaning by [@cschmatzler](https://github.com/cschmatzler) in [#9124](https://github.com/tuist/tuist/pull/9124)
+### 🐛 Bug Fixes
+
+* remove selective testing support for vanilla Xcode projects by [@fortmarek](https://github.com/fortmarek) in [#9126](https://github.com/tuist/tuist/pull/9126)
+* update inspect acceptance tests for new output format by [@pepicrft](https://github.com/pepicrft) in [#9125](https://github.com/tuist/tuist/pull/9125)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.125.0...4.126.0
+
 ## What's Changed in 4.125.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features

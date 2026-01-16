@@ -8,7 +8,7 @@
       selected_account={@selected_account}
     />
     <.cache_endpoints_section
-      :if={FunWithFlags.enabled?(:custom_cache_endpoints, for: @selected_account)}
+      :if={@custom_cache_endpoints_available}
       cache_endpoints={@cache_endpoints}
       add_cache_endpoint_form={@add_cache_endpoint_form}
       custom_cache_endpoints_enabled={@selected_account.custom_cache_endpoints_enabled}

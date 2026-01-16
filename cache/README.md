@@ -33,7 +33,7 @@ This service provides:
 
 2. Configure environment variables:
    - `SECRET_KEY_BASE` - Phoenix secret key base (generate with `mix phx.gen.secret`)
-   - `PHX_HOST` - Hostname for the service (release entrypoint sets `$(cat /etc/host_hostname).tuist.dev`)
+   - `PUBLIC_HOST` - Hostname for the service (release entrypoint sets `$(cat /etc/host_hostname).tuist.dev`)
    - `PORT` - Port to run on (default: 4000)
    - `SERVER_URL` - URL of the main Tuist server for authentication
    - `CAS_STORAGE_DIR` - Directory for CAS artifact storage (default: `/cas`)

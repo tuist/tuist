@@ -10,6 +10,7 @@ defmodule TuistWeb.API.CacheControllerTest do
   alias Tuist.Repo
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
 
@@ -44,8 +45,11 @@ defmodule TuistWeb.API.CacheControllerTest do
     test "returns default endpoints when account_handle is provided but account has no custom endpoints",
          %{conn: conn} do
       # Given
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      {:ok, _} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
 
       expected_endpoints = [
         "https://cache-eu-central-test.tuist.dev",
@@ -67,8 +71,10 @@ defmodule TuistWeb.API.CacheControllerTest do
     test "returns custom endpoints when account has custom endpoints configured",
          %{conn: conn} do
       # Given
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
       {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
 
       {:ok, _endpoint1} =

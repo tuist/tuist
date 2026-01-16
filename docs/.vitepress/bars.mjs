@@ -131,7 +131,7 @@ export function navBar(locale) {
             locale,
             "navbar.resources.items.contributors.text",
           ),
-          link: `/${locale}/contributors/get-started`,
+          link: `/${locale}/contributors/code`,
         },
         {
           text: localizedString(
@@ -171,9 +171,40 @@ export function contributorsSidebar(locale) {
         {
           text: localizedString(
             locale,
-            "sidebars.contributors.items.get-started.text",
+            "sidebars.contributors.items.code.text",
           ),
-          link: `/${locale}/contributors/get-started`,
+          link: `/${locale}/contributors/code`,
+          collapsed: true,
+          items: [
+            {
+              text: localizedString(
+                locale,
+                "sidebars.contributors.items.code.items.cli.text",
+              ),
+              link: `/${locale}/contributors/code/cli`,
+            },
+            {
+              text: localizedString(
+                locale,
+                "sidebars.contributors.items.code.items.server.text",
+              ),
+              link: `/${locale}/contributors/code/server`,
+            },
+            {
+              text: localizedString(
+                locale,
+                "sidebars.contributors.items.code.items.handbook.text",
+              ),
+              link: `/${locale}/contributors/code/handbook`,
+            },
+            {
+              text: localizedString(
+                locale,
+                "sidebars.contributors.items.code.items.docs.text",
+              ),
+              link: `/${locale}/contributors/code/docs`,
+            },
+          ],
         },
         {
           text: localizedString(
@@ -195,6 +226,13 @@ export function contributorsSidebar(locale) {
             "sidebars.contributors.items.principles.text",
           ),
           link: `/${locale}/contributors/principles`,
+        },
+        {
+          text: localizedString(
+            locale,
+            "sidebars.contributors.items.debugging.text",
+          ),
+          link: `/${locale}/contributors/debugging`,
         },
         {
           text: localizedString(
@@ -668,6 +706,14 @@ export async function guidesSidebar(locale) {
               link: `/${locale}/guides/server/self-host/install`,
             },
             {
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${cacheIcon()} Cache nodes</span>`,
+              link: `/${locale}/guides/cache/self-host`,
+            },
+            {
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${cacheIcon()} Cache architecture</span>`,
+              link: `/${locale}/guides/cache/architecture`,
+            },
+            {
               text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${telemetryIcon()} ${localizedString(
                 locale,
                 "sidebars.guides.items.server.items.self-hosting.items.telemetry.text",
@@ -678,5 +724,8 @@ export async function guidesSidebar(locale) {
         },
       ],
     },
+    // Cache service documentation is discoverable under Server > Self-hosting,
+    // since that's where users look for infrastructure-related setup.
+    
   ];
 }
