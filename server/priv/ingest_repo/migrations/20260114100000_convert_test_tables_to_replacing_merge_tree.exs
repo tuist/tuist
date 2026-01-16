@@ -58,38 +58,35 @@ defmodule Tuist.IngestRepo.Migrations.ConvertTestTablesToReplacingMergeTree do
     old_table_state = get_table_state(old_table)
 
     case {main_table_state, old_table_state} do
-      # Already converted and no leftover _old table - nothing to do
-      {{:exists, "ReplacingMergeTree", _}, :not_exists} ->
-        Logger.info("#{table_name} is already ReplacingMergeTree, skipping conversion")
+      # Already converted - nothing to do (old tables will be cleaned up in follow-up migration)
+      {{:exists, "ReplacingMergeTree", _}, _} ->
+        Logger.info("#{table_name} is already ReplacingMergeTree, checking for recovery...")
 
-      # Recovery case: main table is ReplacingMergeTree but _old table has data
-      # This means a previous migration failed after rename but before completion
-      # We need to copy data from _old to main table
-      {{:exists, "ReplacingMergeTree", main_count}, {:exists, _, old_count}}
-      when old_count > main_count ->
-        Logger.info(
-          "Recovering #{table_name}: found #{old_count} rows in #{old_table}, #{main_count} in #{table_name}"
-        )
+        # Recovery case: main table is ReplacingMergeTree but _old table has more data
+        # This means a previous migration failed after rename but before data copy completed
+        case old_table_state do
+          {:exists, _, old_count} when old_count > 0 ->
+            {:exists, _, main_count} = main_table_state
 
-        copy_data_in_batches(old_table, table_name)
-        Logger.info("Recovery complete for #{table_name}, dropping #{old_table}")
-        IngestRepo.query!("DROP TABLE IF EXISTS #{old_table} SYNC")
-        Logger.info("Completed recovering #{table_name}")
+            if old_count > main_count do
+              Logger.info(
+                "Recovering #{table_name}: found #{old_count} rows in #{old_table}, #{main_count} in #{table_name}"
+              )
+
+              copy_data_in_batches(old_table, table_name)
+              Logger.info("Recovery complete for #{table_name}, keeping #{old_table} for safety")
+            else
+              Logger.info(
+                "#{table_name} has #{main_count} rows, #{old_table} has #{old_count} rows - no recovery needed"
+              )
+            end
+
+          _ ->
+            Logger.info("No recovery needed for #{table_name}")
+        end
 
       # Normal case: main table exists but is not ReplacingMergeTree
       {{:exists, _, _}, _} ->
-        # Clean up _new table only (not _old - it might have data from failed run)
-        IngestRepo.query!("DROP TABLE IF EXISTS #{new_table} SYNC")
-
-        # If _old exists but main table has more/equal data, it's safe to drop _old
-        case old_table_state do
-          {:exists, _, _} ->
-            IngestRepo.query!("DROP TABLE IF EXISTS #{old_table} SYNC")
-
-          :not_exists ->
-            :ok
-        end
-
         # Get column definitions from existing table
         columns = get_column_definitions(table_name)
         indexes = get_index_definitions(table_name)
@@ -113,11 +110,10 @@ defmodule Tuist.IngestRepo.Migrations.ConvertTestTablesToReplacingMergeTree do
         wait_for_table_rename(new_table, table_name)
 
         # Keep old table for safety - will be dropped in a follow-up migration
-
-        Logger.info("Completed converting #{table_name}")
+        Logger.info("Completed converting #{table_name}, keeping #{old_table} for safety")
 
       # Edge case: main table doesn't exist but _old does - restore from _old
-      {:not_exists, {:exists, engine, count}} ->
+      {:not_exists, {:exists, _engine, count}} ->
         Logger.info(
           "#{table_name} missing but #{old_table} exists with #{count} rows, restoring..."
         )
@@ -155,11 +151,6 @@ defmodule Tuist.IngestRepo.Migrations.ConvertTestTablesToReplacingMergeTree do
     old_table = "#{table_name}_old"
     order_by = Map.fetch!(@table_original_order_by, table_name)
 
-    # Clean up any leftover temporary tables from previous failed runs
-    # Use SYNC to ensure operations complete across all replicas in ClickHouse Cloud
-    IngestRepo.query!("DROP TABLE IF EXISTS #{new_table} SYNC")
-    IngestRepo.query!("DROP TABLE IF EXISTS #{old_table} SYNC")
-
     # Get column definitions from existing table
     columns = get_column_definitions(table_name)
     indexes = get_index_definitions(table_name)
@@ -183,8 +174,7 @@ defmodule Tuist.IngestRepo.Migrations.ConvertTestTablesToReplacingMergeTree do
     wait_for_table_rename(new_table, table_name)
 
     # Keep old table for safety - will be dropped in a follow-up migration
-
-    Logger.info("Completed reverting #{table_name}")
+    Logger.info("Completed reverting #{table_name}, keeping #{old_table} for safety")
   end
 
   defp get_column_definitions(table_name) do
