@@ -109,7 +109,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
 
       assert response == %{
                "name" => "generate",
-               "id" => command_event.legacy_id,
+               "id" => command_event.id,
                "project_id" => project.id,
                "url" => url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}"),
                "test_run_url" => nil
@@ -480,48 +480,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert response["url"] == url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}")
     end
 
-    test "returns legacy_id as id for CLI versions below 4.56", %{conn: conn, user: user} do
-      # Given
-      conn = Authentication.put_current_user(conn, user)
-
-      account = Accounts.get_account_from_user(user)
-      project = ProjectsFixtures.project_fixture(account_id: account.id)
-
-      # When
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> put_req_header("x-tuist-cli-version", "4.55.0")
-        |> post(
-          "/api/analytics?project_id=#{account.name}/#{project.name}",
-          %{
-            name: "generate",
-            command_arguments: ["App"],
-            duration: 100,
-            tuist_version: "4.55.0",
-            swift_version: "5.0",
-            macos_version: "10.15",
-            is_ci: false,
-            client_id: "client-id"
-          }
-        )
-
-      # Then
-      response = json_response(conn, :ok)
-
-      assert %{
-               "id" => id,
-               "name" => "generate",
-               "project_id" => project_id,
-               "url" => url
-             } = response
-
-      assert is_integer(id)
-      assert project_id == project.id
-      assert String.contains?(url, "/runs/")
-    end
-
-    test "returns id as id for CLI versions 4.56 and above", %{conn: conn, user: user} do
+    test "returns UUID as id", %{conn: conn, user: user} do
       # Given
       conn = Authentication.put_current_user(conn, user)
 
@@ -558,47 +517,6 @@ defmodule TuistWeb.AnalyticsControllerTest do
              } = response
 
       assert Tuist.UUIDv7.valid?(id)
-      assert project_id == project.id
-      assert String.contains?(url, "/runs/")
-    end
-
-    test "returns legacy_id when CLI version header is missing but tuist_version is old", %{
-      conn: conn,
-      user: user
-    } do
-      conn = Authentication.put_current_user(conn, user)
-
-      account = Accounts.get_account_from_user(user)
-      project = ProjectsFixtures.project_fixture(account_id: account.id)
-
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post(
-          "/api/analytics?project_id=#{account.name}/#{project.name}",
-          %{
-            name: "generate",
-            command_arguments: ["App"],
-            duration: 100,
-            tuist_version: "4.55.0",
-            swift_version: "5.0",
-            macos_version: "10.15",
-            is_ci: false,
-            client_id: "client-id"
-          }
-        )
-
-      # Then
-      response = json_response(conn, :ok)
-
-      assert %{
-               "id" => id,
-               "name" => "generate",
-               "project_id" => project_id,
-               "url" => url
-             } = response
-
-      assert is_integer(id)
       assert project_id == project.id
       assert String.contains?(url, "/runs/")
     end

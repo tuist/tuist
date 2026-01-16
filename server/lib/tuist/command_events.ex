@@ -62,30 +62,7 @@ defmodule Tuist.CommandEvents do
     |> Enum.map(&Event.normalize_enums/1)
   end
 
-  def get_command_event_by_id(id, opts \\ [])
-
-  def get_command_event_by_id(nil, _opts), do: {:error, :not_found}
-
-  def get_command_event_by_id(id, opts) when is_binary(id) do
-    case Integer.parse(id) do
-      {int_id, ""} ->
-        get_command_event_by_id(int_id, opts)
-
-      _ ->
-        get_command_event_by_uuid(id, opts)
-    end
-  end
-
-  def get_command_event_by_id(id, _opts) when is_integer(id) do
-    case ClickHouseRepo.one(from(e in Event, where: e.legacy_id == ^id)) do
-      nil -> {:error, :not_found}
-      event -> {:ok, Event.normalize_enums(event)}
-    end
-  end
-
-  def get_command_event_by_id(_id, _opts), do: {:error, :not_found}
-
-  defp get_command_event_by_uuid(id, _opts) do
+  def get_command_event_by_id(id) do
     with {:ok, uuid} <- Ecto.UUID.cast(id),
          event when not is_nil(event) <-
            ClickHouseRepo.one(from(e in Event, where: e.id == ^uuid)) do
