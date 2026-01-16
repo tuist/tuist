@@ -193,13 +193,6 @@ export function contributorsSidebar(locale) {
             {
               text: localizedString(
                 locale,
-                "sidebars.contributors.items.code.items.cache-server.text",
-              ),
-              link: `/${locale}/contributors/code/cache-server`,
-            },
-            {
-              text: localizedString(
-                locale,
                 "sidebars.contributors.items.code.items.handbook.text",
               ),
               link: `/${locale}/contributors/code/handbook`,

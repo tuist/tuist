@@ -11,7 +11,6 @@ Tuist is a monorepo. Each component has its own tooling, dependencies, and local
 
 - <LocalizedLink href="/contributors/code/cli">CLI</LocalizedLink>
 - <LocalizedLink href="/contributors/code/server">Server</LocalizedLink>
-- <LocalizedLink href="/contributors/code/cache-server">Cache Server</LocalizedLink>
 - <LocalizedLink href="/contributors/code/handbook">Handbook</LocalizedLink>
 - <LocalizedLink href="/contributors/code/docs">Docs</LocalizedLink>
 
