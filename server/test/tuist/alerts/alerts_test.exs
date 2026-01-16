@@ -521,8 +521,6 @@ defmodule Tuist.AlertsTest do
     end
   end
 
-  # Flaky Test Alert Rule tests
-
   describe "get_project_flaky_test_alert_rules/1" do
     test "returns flaky test alert rules for a project" do
       # Given
