@@ -2547,55 +2547,36 @@ defmodule Tuist.Runs.Analytics do
         order_by: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format)
       )
 
-    query =
-      case is_ci do
-        nil -> query
-        true -> where(query, [tcr], tcr.is_ci == true)
-        false -> where(query, [tcr], tcr.is_ci == false)
-      end
-
-    query =
-      case status do
-        nil -> query
-        "failure" -> where(query, [tcr], tcr.status == "failure")
-        "success" -> where(query, [tcr], tcr.status == "success")
-        "skipped" -> where(query, [tcr], tcr.status == "skipped")
-        "flaky" -> where(query, [tcr], tcr.is_flaky == true)
-      end
-
-    ClickHouseRepo.all(query)
+    query
+    |> apply_is_ci_filter(is_ci)
+    |> apply_status_filter(status)
+    |> ClickHouseRepo.all()
   end
 
   defp test_case_run_total_count(project_id, start_datetime, end_datetime, opts) do
     is_ci = Keyword.get(opts, :is_ci)
     status = Keyword.get(opts, :status)
 
-    query =
-      from(tcr in TestCaseRun,
-        where: tcr.project_id == ^project_id,
-        where: tcr.inserted_at >= ^start_datetime,
-        where: tcr.inserted_at <= ^end_datetime,
-        select: count(tcr.id)
-      )
-
-    query =
-      case is_ci do
-        nil -> query
-        true -> where(query, [tcr], tcr.is_ci == true)
-        false -> where(query, [tcr], tcr.is_ci == false)
-      end
-
-    query =
-      case status do
-        nil -> query
-        "failure" -> where(query, [tcr], tcr.status == "failure")
-        "success" -> where(query, [tcr], tcr.status == "success")
-        "skipped" -> where(query, [tcr], tcr.status == "skipped")
-        "flaky" -> where(query, [tcr], tcr.is_flaky == true)
-      end
-
-    ClickHouseRepo.one(query) || 0
+    from(tcr in TestCaseRun,
+      where: tcr.project_id == ^project_id,
+      where: tcr.inserted_at >= ^start_datetime,
+      where: tcr.inserted_at <= ^end_datetime,
+      select: count(tcr.id)
+    )
+    |> apply_is_ci_filter(is_ci)
+    |> apply_status_filter(status)
+    |> ClickHouseRepo.one() || 0
   end
+
+  defp apply_is_ci_filter(query, nil), do: query
+  defp apply_is_ci_filter(query, true), do: where(query, [tcr], tcr.is_ci == true)
+  defp apply_is_ci_filter(query, false), do: where(query, [tcr], tcr.is_ci == false)
+
+  defp apply_status_filter(query, nil), do: query
+  defp apply_status_filter(query, "failure"), do: where(query, [tcr], tcr.status == "failure")
+  defp apply_status_filter(query, "success"), do: where(query, [tcr], tcr.status == "success")
+  defp apply_status_filter(query, "skipped"), do: where(query, [tcr], tcr.status == "skipped")
+  defp apply_status_filter(query, "flaky"), do: where(query, [tcr], tcr.is_flaky == true)
 
   @doc """
   Gets test case run duration analytics for a project over a time period.

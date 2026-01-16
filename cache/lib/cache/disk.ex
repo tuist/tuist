@@ -264,6 +264,21 @@ defmodule Cache.Disk do
   end
 
   @doc """
+  Deletes all artifacts for a project from disk.
+
+  Removes the entire project directory, which includes both CAS and module cache artifacts.
+  Returns :ok on success, {:error, reason} on failure.
+  """
+  def delete_project(account_handle, project_handle) do
+    path = Path.join(storage_dir(), "#{account_handle}/#{project_handle}")
+
+    case File.rm_rf(path) do
+      {:ok, _} -> :ok
+      {:error, reason, _} -> {:error, reason}
+    end
+  end
+
+  @doc """
   Returns disk usage stats for the filesystem that backs the provided path.
   """
   def usage(path) when is_binary(path) do

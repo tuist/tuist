@@ -21,6 +21,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/cache/cas/{id}`.
     /// - Remark: Generated from `#/paths//api/cache/cas/{id}/post(saveCASArtifact)`.
     func saveCASArtifact(_ input: Operations.saveCASArtifact.Input) async throws -> Operations.saveCASArtifact.Output
+    /// Clean all cache artifacts for a project
+    ///
+    /// - Remark: HTTP `DELETE /api/cache/clean`.
+    /// - Remark: Generated from `#/paths//api/cache/clean/delete(cleanProjectCache)`.
+    func cleanProjectCache(_ input: Operations.cleanProjectCache.Input) async throws -> Operations.cleanProjectCache.Output
     /// Put a key-value entry
     ///
     /// - Remark: HTTP `PUT /api/cache/keyvalue`.
@@ -90,6 +95,19 @@ extension APIProtocol {
             query: query,
             headers: headers,
             body: body
+        ))
+    }
+    /// Clean all cache artifacts for a project
+    ///
+    /// - Remark: HTTP `DELETE /api/cache/clean`.
+    /// - Remark: Generated from `#/paths//api/cache/clean/delete(cleanProjectCache)`.
+    public func cleanProjectCache(
+        query: Operations.cleanProjectCache.Input.Query,
+        headers: Operations.cleanProjectCache.Input.Headers = .init()
+    ) async throws -> Operations.cleanProjectCache.Output {
+        try await cleanProjectCache(Operations.cleanProjectCache.Input(
+            query: query,
+            headers: headers
         ))
     }
     /// Put a key-value entry
@@ -1106,6 +1124,282 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.internalServerError`.
             /// - SeeAlso: `.internalServerError`.
             public var internalServerError: Operations.saveCASArtifact.Output.InternalServerError {
+                get throws {
+                    switch self {
+                    case let .internalServerError(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "internalServerError",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Clean all cache artifacts for a project
+    ///
+    /// - Remark: HTTP `DELETE /api/cache/clean`.
+    /// - Remark: Generated from `#/paths//api/cache/clean/delete(cleanProjectCache)`.
+    public enum cleanProjectCache {
+        public static let id: Swift.String = "cleanProjectCache"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/cache/clean/DELETE/query`.
+            public struct Query: Sendable, Hashable {
+                /// The handle of the account
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/clean/DELETE/query/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project
+                ///
+                /// - Remark: Generated from `#/paths/api/cache/clean/DELETE/query/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account
+                ///   - project_handle: The handle of the project
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var query: Operations.cleanProjectCache.Input.Query
+            /// - Remark: Generated from `#/paths/api/cache/clean/DELETE/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.cleanProjectCache.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.cleanProjectCache.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.cleanProjectCache.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - query:
+            ///   - headers:
+            public init(
+                query: Operations.cleanProjectCache.Input.Query,
+                headers: Operations.cleanProjectCache.Input.Headers = .init()
+            ) {
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct NoContent: Sendable, Hashable {
+                /// Creates a new `NoContent`.
+                public init() {}
+            }
+            /// Cache cleaned successfully
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/clean/delete(cleanProjectCache)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            case noContent(Operations.cleanProjectCache.Output.NoContent)
+            /// Cache cleaned successfully
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/clean/delete(cleanProjectCache)/responses/204`.
+            ///
+            /// HTTP response code: `204 noContent`.
+            public static var noContent: Self {
+                .noContent(.init())
+            }
+            /// The associated value of the enum case if `self` is `.noContent`.
+            ///
+            /// - Throws: An error if `self` is not `.noContent`.
+            /// - SeeAlso: `.noContent`.
+            public var noContent: Operations.cleanProjectCache.Output.NoContent {
+                get throws {
+                    switch self {
+                    case let .noContent(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "noContent",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Unauthorized: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/clean/DELETE/responses/401/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/clean/DELETE/responses/401/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.cleanProjectCache.Output.Unauthorized.Body
+                /// Creates a new `Unauthorized`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.cleanProjectCache.Output.Unauthorized.Body) {
+                    self.body = body
+                }
+            }
+            /// Unauthorized
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/clean/delete(cleanProjectCache)/responses/401`.
+            ///
+            /// HTTP response code: `401 unauthorized`.
+            case unauthorized(Operations.cleanProjectCache.Output.Unauthorized)
+            /// The associated value of the enum case if `self` is `.unauthorized`.
+            ///
+            /// - Throws: An error if `self` is not `.unauthorized`.
+            /// - SeeAlso: `.unauthorized`.
+            public var unauthorized: Operations.cleanProjectCache.Output.Unauthorized {
+                get throws {
+                    switch self {
+                    case let .unauthorized(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "unauthorized",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/clean/DELETE/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/clean/DELETE/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.cleanProjectCache.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.cleanProjectCache.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// Forbidden
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/clean/delete(cleanProjectCache)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.cleanProjectCache.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.cleanProjectCache.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct InternalServerError: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/cache/clean/DELETE/responses/500/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/cache/clean/DELETE/responses/500/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.cleanProjectCache.Output.InternalServerError.Body
+                /// Creates a new `InternalServerError`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.cleanProjectCache.Output.InternalServerError.Body) {
+                    self.body = body
+                }
+            }
+            /// Failed to clean cache
+            ///
+            /// - Remark: Generated from `#/paths//api/cache/clean/delete(cleanProjectCache)/responses/500`.
+            ///
+            /// HTTP response code: `500 internalServerError`.
+            case internalServerError(Operations.cleanProjectCache.Output.InternalServerError)
+            /// The associated value of the enum case if `self` is `.internalServerError`.
+            ///
+            /// - Throws: An error if `self` is not `.internalServerError`.
+            /// - SeeAlso: `.internalServerError`.
+            public var internalServerError: Operations.cleanProjectCache.Output.InternalServerError {
                 get throws {
                     switch self {
                     case let .internalServerError(response):
@@ -2580,7 +2874,7 @@ public enum Operations {
                     self.body = body
                 }
             }
-            /// Total upload size exceeds 500MB limit
+            /// Total upload size exceeds 2GB limit
             ///
             /// - Remark: Generated from `#/paths//api/cache/module/part/post(uploadModuleCachePart)/responses/422`.
             ///

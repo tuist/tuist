@@ -668,6 +668,14 @@ export async function guidesSidebar(locale) {
               link: `/${locale}/guides/server/self-host/install`,
             },
             {
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${cacheIcon()} Cache nodes</span>`,
+              link: `/${locale}/guides/cache/self-host`,
+            },
+            {
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${cacheIcon()} Cache architecture</span>`,
+              link: `/${locale}/guides/cache/architecture`,
+            },
+            {
               text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${telemetryIcon()} ${localizedString(
                 locale,
                 "sidebars.guides.items.server.items.self-hosting.items.telemetry.text",
@@ -678,5 +686,8 @@ export async function guidesSidebar(locale) {
         },
       ],
     },
+    // Cache service documentation is discoverable under Server > Self-hosting,
+    // since that's where users look for infrastructure-related setup.
+    
   ];
 }

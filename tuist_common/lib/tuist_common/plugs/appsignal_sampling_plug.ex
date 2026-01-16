@@ -1,4 +1,4 @@
-defmodule Cache.Appsignal.SamplingPlug do
+defmodule TuistCommon.Plugs.AppsignalSamplingPlug do
   @moduledoc """
   A Plug that implements sampling for AppSignal transactions.
   AppSignal bills for APM for every request, not just errors, so sampling
@@ -6,17 +6,36 @@ defmodule Cache.Appsignal.SamplingPlug do
 
   - All errors (HTTP status >= 400) are always sent to AppSignal
   - 10% of successful requests are sampled
+
+  When `:sampled_controllers` is specified, only requests to those controllers
+  are sampled. All other requests are always traced.
   """
 
   @behaviour Plug
 
   @sample_rate 0.1
 
-  def init(opts), do: opts
+  defstruct sampled_controllers: []
 
-  def call(conn, _opts) do
+  def init(opts), do: struct!(__MODULE__, opts)
+
+  def call(conn, %__MODULE__{sampled_controllers: []}) do
     Plug.Conn.register_before_send(conn, fn conn ->
       apply_sampling(conn)
+      conn
+    end)
+  end
+
+  def call(conn, %__MODULE__{sampled_controllers: sampled_controllers}) do
+    Plug.Conn.register_before_send(conn, fn conn ->
+      controller = conn.private[:phoenix_controller]
+
+      if controller in sampled_controllers do
+        apply_sampling(conn)
+      else
+        :ok
+      end
+
       conn
     end)
   end

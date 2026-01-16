@@ -89,8 +89,7 @@ defmodule Tuist.IngestRepo.Migrations.ConvertTestTablesToReplacingMergeTree do
         IngestRepo.query!("RENAME TABLE #{table_name} TO #{old_table}")
         IngestRepo.query!("RENAME TABLE #{new_table} TO #{table_name}")
 
-        # Drop old table
-        IngestRepo.query!("DROP TABLE #{old_table}")
+        # Keep old table for safety - will be dropped in a follow-up migration
 
         Logger.info("Completed converting #{table_name}")
     end
@@ -127,8 +126,7 @@ defmodule Tuist.IngestRepo.Migrations.ConvertTestTablesToReplacingMergeTree do
     IngestRepo.query!("RENAME TABLE #{table_name} TO #{old_table}")
     IngestRepo.query!("RENAME TABLE #{new_table} TO #{table_name}")
 
-    # Drop old table
-    IngestRepo.query!("DROP TABLE #{old_table}")
+    # Keep old table for safety - will be dropped in a follow-up migration
 
     Logger.info("Completed reverting #{table_name}")
   end
