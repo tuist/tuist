@@ -27,15 +27,9 @@ defmodule Tuist.IngestRepo.Migrations.AddIsFlakyColumns do
     ADD COLUMN IF NOT EXISTS is_flaky Bool DEFAULT false
     """)
 
-    execute("""
-    ALTER TABLE test_case_runs
-    ADD INDEX IF NOT EXISTS idx_cross_run_flaky (test_case_id, git_commit_sha, is_ci)
-    TYPE bloom_filter() GRANULARITY 1
-    """)
-
-    execute("""
-    ALTER TABLE test_case_runs MATERIALIZE INDEX idx_cross_run_flaky
-    """)
+    execute(
+      "ALTER TABLE test_case_runs ADD INDEX IF NOT EXISTS idx_cross_run_flaky (test_case_id, git_commit_sha, is_ci) TYPE bloom_filter GRANULARITY 1"
+    )
   end
 
   def down do
