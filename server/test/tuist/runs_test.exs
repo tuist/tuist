@@ -1,7 +1,9 @@
 defmodule Tuist.RunsTest do
   use TuistTestSupport.Cases.DataCase
 
+  alias Tuist.IngestRepo
   alias Tuist.Runs
+  alias Tuist.Runs.TestCase
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -2373,6 +2375,2207 @@ defmodule Tuist.RunsTest do
 
       # Then
       assert result == {:error, :not_found}
+    end
+  end
+
+  describe "create_test/1 with repetitions (flaky tests)" do
+    test "marks test case as flaky when repetitions have mixed results but final success" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 2000,
+        status: "success",
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "main",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [
+          %{
+            name: "FlakyTestModule",
+            status: "success",
+            duration: 2000,
+            test_cases: [
+              %{
+                name: "testFlakyExample",
+                status: "success",
+                duration: 1000,
+                repetitions: [
+                  %{
+                    repetition_number: 1,
+                    name: "First Run",
+                    status: "failure",
+                    duration: 400
+                  },
+                  %{
+                    repetition_number: 2,
+                    name: "Retry 1",
+                    status: "success",
+                    duration: 600
+                  }
+                ],
+                failures: [
+                  %{
+                    message: "Flaky assertion failed",
+                    path: "/path/to/test.swift",
+                    line_number: 10,
+                    issue_type: "assertion"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      # When
+      {:ok, test} = Runs.create_test(test_attrs)
+
+      # Then - test run should be marked as flaky with original status preserved
+      assert test.status == "success"
+      assert test.is_flaky == true
+
+      {test_cases, _meta} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: test.id}]
+        })
+
+      assert length(test_cases) == 1
+      flaky_case = hd(test_cases)
+      assert flaky_case.name == "testFlakyExample"
+      assert flaky_case.status == "success"
+      assert flaky_case.is_flaky == true
+
+      # Verify the TestCase record is also marked as flaky (CI run)
+      {:ok, test_case} = Runs.get_test_case_by_id(flaky_case.test_case_id)
+      assert test_case.is_flaky == true
+    end
+
+    test "marks test_case_run as flaky but not test_case for non-CI runs with repetitions" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 2000,
+        status: "success",
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "main",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: false,
+        test_modules: [
+          %{
+            name: "FlakyTestModule",
+            status: "success",
+            duration: 2000,
+            test_cases: [
+              %{
+                name: "testFlakyNonCI",
+                status: "success",
+                duration: 1000,
+                repetitions: [
+                  %{
+                    repetition_number: 1,
+                    name: "First Run",
+                    status: "failure",
+                    duration: 400
+                  },
+                  %{
+                    repetition_number: 2,
+                    name: "Retry 1",
+                    status: "success",
+                    duration: 600
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      # When
+      {:ok, test} = Runs.create_test(test_attrs)
+
+      # Then - test run should NOT be marked as flaky for non-CI
+      assert test.status == "success"
+      assert test.is_flaky == false
+
+      {test_case_runs, _meta} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: test.id}]
+        })
+
+      assert length(test_case_runs) == 1
+      flaky_run = hd(test_case_runs)
+      assert flaky_run.name == "testFlakyNonCI"
+      assert flaky_run.status == "success"
+      # TestCaseRun should still be marked as flaky based on repetitions
+      assert flaky_run.is_flaky == true
+
+      # But TestCase should NOT be marked as flaky (non-CI run)
+      {:ok, test_case} = Runs.get_test_case_by_id(flaky_run.test_case_id)
+      assert test_case.is_flaky == false
+    end
+
+    test "non-CI run does not clear existing flaky flag set by CI run" do
+      # Given - first a CI run marks a test case as flaky
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      ci_test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 2000,
+        status: "success",
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "main",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+        is_ci: true,
+        test_modules: [
+          %{
+            name: "FlakyTestModule",
+            status: "success",
+            duration: 2000,
+            test_cases: [
+              %{
+                name: "testFlakyPreserved",
+                status: "success",
+                duration: 1000,
+                repetitions: [
+                  %{repetition_number: 1, name: "First Run", status: "failure", duration: 400},
+                  %{repetition_number: 2, name: "Retry 1", status: "success", duration: 600}
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      {:ok, ci_test} = Runs.create_test(ci_test_attrs)
+
+      # Get the test case ID from the CI run
+      {ci_test_case_runs, _meta} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: ci_test.id}]
+        })
+
+      ci_run = hd(ci_test_case_runs)
+      test_case_id = ci_run.test_case_id
+
+      # Verify TestCase is marked as flaky after CI run
+      {:ok, test_case_after_ci} = Runs.get_test_case_by_id(test_case_id)
+      assert test_case_after_ci.is_flaky == true
+
+      # Now a non-CI run for the same test case (not flaky this time)
+      non_ci_test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1000,
+        status: "success",
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "main",
+        git_commit_sha: "def456",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: false,
+        test_modules: [
+          %{
+            name: "FlakyTestModule",
+            status: "success",
+            duration: 1000,
+            test_cases: [
+              %{
+                name: "testFlakyPreserved",
+                status: "success",
+                duration: 500
+              }
+            ]
+          }
+        ]
+      }
+
+      {:ok, _non_ci_test} = Runs.create_test(non_ci_test_attrs)
+
+      # TestCase should STILL be marked as flaky (non-CI run should not clear it)
+      {:ok, test_case_after_non_ci} = Runs.get_test_case_by_id(test_case_id)
+      assert test_case_after_non_ci.is_flaky == true
+    end
+
+    test "keeps test case as success when all repetitions pass" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 2000,
+        status: "success",
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "main",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [
+          %{
+            name: "StableTestModule",
+            status: "success",
+            duration: 2000,
+            test_cases: [
+              %{
+                name: "testStableExample",
+                status: "success",
+                duration: 1000,
+                repetitions: [
+                  %{
+                    repetition_number: 1,
+                    name: "First Run",
+                    status: "success",
+                    duration: 500
+                  },
+                  %{
+                    repetition_number: 2,
+                    name: "Retry 1",
+                    status: "success",
+                    duration: 500
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      # When
+      {:ok, test} = Runs.create_test(test_attrs)
+
+      # Then
+      {test_cases, _meta} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: test.id}]
+        })
+
+      assert length(test_cases) == 1
+      stable_case = hd(test_cases)
+      assert stable_case.name == "testStableExample"
+      assert stable_case.status == "success"
+    end
+
+    test "keeps test case as failure when final result is failure" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 2000,
+        status: "failure",
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "main",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [
+          %{
+            name: "FailingTestModule",
+            status: "failure",
+            duration: 2000,
+            test_cases: [
+              %{
+                name: "testAlwaysFails",
+                status: "failure",
+                duration: 1000,
+                repetitions: [
+                  %{
+                    repetition_number: 1,
+                    name: "First Run",
+                    status: "failure",
+                    duration: 500
+                  },
+                  %{
+                    repetition_number: 2,
+                    name: "Retry 1",
+                    status: "failure",
+                    duration: 500
+                  }
+                ],
+                failures: [
+                  %{
+                    message: "Always fails",
+                    path: "/path/to/test.swift",
+                    line_number: 20,
+                    issue_type: "assertion"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+
+      # When
+      {:ok, test} = Runs.create_test(test_attrs)
+
+      # Then
+      {test_cases, _meta} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: test.id}]
+        })
+
+      assert length(test_cases) == 1
+      failed_case = hd(test_cases)
+      assert failed_case.name == "testAlwaysFails"
+      assert failed_case.status == "failure"
+    end
+
+    test "creates test without repetitions and keeps original status" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1000,
+        status: "success",
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "main",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [
+          %{
+            name: "NormalTestModule",
+            status: "success",
+            duration: 1000,
+            test_cases: [
+              %{
+                name: "testNormal",
+                status: "success",
+                duration: 500
+              }
+            ]
+          }
+        ]
+      }
+
+      # When
+      {:ok, test} = Runs.create_test(test_attrs)
+
+      # Then
+      {test_cases, _meta} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: test.id}]
+        })
+
+      assert length(test_cases) == 1
+      normal_case = hd(test_cases)
+      assert normal_case.name == "testNormal"
+      assert normal_case.status == "success"
+    end
+  end
+
+  describe "list_test_case_runs/1 with flaky filter" do
+    test "filters by is_flaky" do
+      # Given
+      {:ok, test} =
+        RunsFixtures.test_fixture(
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "successTest", status: "success", duration: 100},
+                %{name: "failureTest", status: "failure", duration: 200},
+                %{
+                  name: "flakyTest",
+                  status: "success",
+                  duration: 300,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 150},
+                    %{repetition_number: 2, name: "Retry 1", status: "success", duration: 150}
+                  ]
+                }
+              ]
+            }
+          ]
+        )
+
+      # When
+      {test_cases, _meta} =
+        Runs.list_test_case_runs(%{
+          filters: [
+            %{field: :test_run_id, op: :==, value: test.id},
+            %{field: :is_flaky, op: :==, value: true}
+          ]
+        })
+
+      # Then
+      assert length(test_cases) == 1
+      assert hd(test_cases).name == "flakyTest"
+      assert hd(test_cases).is_flaky == true
+    end
+  end
+
+  describe "cross-run flaky detection" do
+    test "marks both runs as flaky when same test case on same commit has different results" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account_id = project.account_id
+      commit_sha = "abc123def456"
+      test_case_id = Ecto.UUID.generate()
+
+      # First CI run: test case passes
+      {:ok, first_test} =
+        Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account_id,
+          duration: 1000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: commit_sha,
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testSomething",
+                  status: "success",
+                  duration: 250,
+                  test_case_id: test_case_id
+                }
+              ]
+            }
+          ]
+        })
+
+      # Get the first test case run
+      {first_test_case_runs, _} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: first_test.id}]
+        })
+
+      first_test_case_run = hd(first_test_case_runs)
+
+      # First run should not be flaky initially
+      assert first_test_case_run.is_flaky == false
+      assert first_test_case_run.status == "success"
+
+      # Second CI run: same test case on same commit fails (developer re-runs CI)
+      {:ok, second_test} =
+        Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account_id,
+          duration: 1000,
+          status: "failure",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: commit_sha,
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "failure",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testSomething",
+                  status: "failure",
+                  duration: 250,
+                  test_case_id: test_case_id
+                }
+              ]
+            }
+          ]
+        })
+
+      # Force ClickHouse to merge and deduplicate rows
+      RunsFixtures.optimize_test_case_runs()
+
+      # Get the second test case run
+      {second_test_case_runs, _} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: second_test.id}]
+        })
+
+      second_test_case_run = hd(second_test_case_runs)
+
+      # Second run should be flaky (detected cross-run flakiness)
+      assert second_test_case_run.is_flaky == true
+      assert second_test_case_run.status == "failure"
+
+      # First run should now also be marked as flaky (via ReplacingMergeTree update)
+      {updated_first_runs, _} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: first_test.id}]
+        })
+
+      updated_first_run = hd(updated_first_runs)
+      assert updated_first_run.is_flaky == true
+      assert updated_first_run.status == "success"
+    end
+
+    test "marks all runs as flaky when multiple runs exist before a conflicting run" do
+      # Scenario: Run A passes, Run B passes, Run C fails
+      # All three should be marked as flaky
+      project = ProjectsFixtures.project_fixture()
+      commit_sha = "abc123def456"
+      test_case_id = Ecto.UUID.generate()
+
+      test_modules = fn status ->
+        [
+          %{
+            name: "TestModule",
+            status: status,
+            duration: 500,
+            test_cases: [%{name: "testSomething", status: status, duration: 250, test_case_id: test_case_id}]
+          }
+        ]
+      end
+
+      {:ok, first_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: commit_sha,
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -7200),
+          test_modules: test_modules.("success")
+        )
+
+      {:ok, second_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: commit_sha,
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          test_modules: test_modules.("success")
+        )
+
+      {:ok, third_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: commit_sha,
+          is_ci: true,
+          status: "failure",
+          ran_at: NaiveDateTime.utc_now(),
+          test_modules: test_modules.("failure")
+        )
+
+      # Force ClickHouse to merge and deduplicate rows
+      RunsFixtures.optimize_test_case_runs()
+
+      # All three runs should be marked as flaky
+      {third_runs, _} = Runs.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: third_test.id}]})
+      assert hd(third_runs).is_flaky == true
+
+      {first_runs, _} = Runs.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: first_test.id}]})
+      assert hd(first_runs).is_flaky == true
+
+      {second_runs, _} = Runs.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: second_test.id}]})
+      assert hd(second_runs).is_flaky == true
+    end
+
+    test "does not mark as flaky when same test case on different commits has different results" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account_id = project.account_id
+      test_case_id = Ecto.UUID.generate()
+
+      # First CI run: test case passes on commit A
+      {:ok, first_test} =
+        Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account_id,
+          duration: 1000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "commit_a_123",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testSomething",
+                  status: "success",
+                  duration: 250,
+                  test_case_id: test_case_id
+                }
+              ]
+            }
+          ]
+        })
+
+      # Second CI run: same test case fails on different commit B
+      {:ok, second_test} =
+        Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account_id,
+          duration: 1000,
+          status: "failure",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "commit_b_456",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "failure",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testSomething",
+                  status: "failure",
+                  duration: 250,
+                  test_case_id: test_case_id
+                }
+              ]
+            }
+          ]
+        })
+
+      # Get both test case runs
+      {first_test_case_runs, _} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: first_test.id}]
+        })
+
+      {second_test_case_runs, _} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: second_test.id}]
+        })
+
+      # Neither should be marked as flaky (different commits)
+      assert hd(first_test_case_runs).is_flaky == false
+      assert hd(second_test_case_runs).is_flaky == false
+    end
+
+    test "does not mark as flaky for non-CI runs" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account_id = project.account_id
+      commit_sha = "same_commit_123"
+      test_case_id = Ecto.UUID.generate()
+
+      # First local run: test case passes
+      {:ok, first_test} =
+        Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account_id,
+          duration: 1000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: commit_sha,
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          is_ci: false,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testSomething",
+                  status: "success",
+                  duration: 250,
+                  test_case_id: test_case_id
+                }
+              ]
+            }
+          ]
+        })
+
+      # Second local run: same test case fails on same commit
+      {:ok, second_test} =
+        Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account_id,
+          duration: 1000,
+          status: "failure",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: commit_sha,
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: false,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "failure",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testSomething",
+                  status: "failure",
+                  duration: 250,
+                  test_case_id: test_case_id
+                }
+              ]
+            }
+          ]
+        })
+
+      # Get both test case runs
+      {first_test_case_runs, _} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: first_test.id}]
+        })
+
+      {second_test_case_runs, _} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: second_test.id}]
+        })
+
+      # Neither should be marked as flaky (not CI runs)
+      assert hd(first_test_case_runs).is_flaky == false
+      assert hd(second_test_case_runs).is_flaky == false
+    end
+  end
+
+  describe "set_test_case_flaky/2" do
+    test "marks a test case as flaky" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "testOne", status: "success", duration: 100}
+              ]
+            }
+          ]
+        )
+
+      {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
+      assert test_case.is_flaky == false
+
+      # When
+      result = Runs.set_test_case_flaky(test_case.id, true)
+
+      # Then
+      assert {:ok, updated_test_case} = result
+      assert updated_test_case.is_flaky == true
+      assert updated_test_case.id == test_case.id
+
+      # Verify it persisted
+      {:ok, fetched_test_case} = Runs.get_test_case_by_id(test_case.id)
+      assert fetched_test_case.is_flaky == true
+    end
+
+    test "returns error when test case does not exist" do
+      # Given
+      non_existent_id = UUIDv7.generate()
+
+      # When
+      result = Runs.set_test_case_flaky(non_existent_id, true)
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+
+    test "keeps test case flaky if already flaky" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "testOne", status: "success", duration: 100}
+              ]
+            }
+          ]
+        )
+
+      {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
+
+      # Mark as flaky first
+      {:ok, _} = Runs.set_test_case_flaky(test_case.id, true)
+
+      # When - mark as flaky again
+      result = Runs.set_test_case_flaky(test_case.id, true)
+
+      # Then
+      assert {:ok, updated_test_case} = result
+      assert updated_test_case.is_flaky == true
+    end
+
+    test "unmarks a test case as flaky" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "testOne", status: "success", duration: 100}
+              ]
+            }
+          ]
+        )
+
+      {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
+
+      # Mark as flaky first
+      {:ok, _} = Runs.set_test_case_flaky(test_case.id, true)
+      {:ok, flaky_test_case} = Runs.get_test_case_by_id(test_case.id)
+      assert flaky_test_case.is_flaky == true
+
+      # When
+      result = Runs.set_test_case_flaky(test_case.id, false)
+
+      # Then
+      assert {:ok, updated_test_case} = result
+      assert updated_test_case.is_flaky == false
+      assert updated_test_case.id == test_case.id
+
+      # Verify it persisted
+      {:ok, fetched_test_case} = Runs.get_test_case_by_id(test_case.id)
+      assert fetched_test_case.is_flaky == false
+    end
+
+    test "returns error when unmarking test case that does not exist" do
+      # Given
+      non_existent_id = UUIDv7.generate()
+
+      # When
+      result = Runs.set_test_case_flaky(non_existent_id, false)
+
+      # Then
+      assert result == {:error, :not_found}
+    end
+
+    test "keeps test case not flaky if already not flaky" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "testOne", status: "success", duration: 100}
+              ]
+            }
+          ]
+        )
+
+      {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
+      assert test_case.is_flaky == false
+
+      # When - unmark when already not flaky
+      result = Runs.set_test_case_flaky(test_case.id, false)
+
+      # Then
+      assert {:ok, updated_test_case} = result
+      assert updated_test_case.is_flaky == false
+    end
+  end
+
+  describe "list_flaky_test_cases/2" do
+    test "returns empty list when no flaky test cases exist" do
+      project = ProjectsFixtures.project_fixture()
+
+      {flaky_tests, meta} = Runs.list_flaky_test_cases(project.id, %{})
+
+      assert flaky_tests == []
+      assert meta.total_count == 0
+      assert meta.total_pages == 0
+    end
+
+    test "returns flaky test cases for a project" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = Ecto.UUID.generate()
+
+      test_modules = fn status ->
+        [
+          %{
+            name: "TestModule",
+            status: status,
+            duration: 500,
+            test_cases: [%{name: "flakyTest", status: status, duration: 250, test_case_id: test_case_id}]
+          }
+        ]
+      end
+
+      {:ok, _first_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "abc123",
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          test_modules: test_modules.("success")
+        )
+
+      {:ok, _second_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "abc123",
+          is_ci: true,
+          status: "failure",
+          ran_at: NaiveDateTime.utc_now(),
+          test_modules: test_modules.("failure")
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {flaky_tests, meta} = Runs.list_flaky_test_cases(project.id, %{})
+
+      assert length(flaky_tests) == 1
+      assert meta.total_count == 1
+
+      flaky_test = hd(flaky_tests)
+      assert flaky_test.name == "flakyTest"
+      assert flaky_test.module_name == "TestModule"
+      assert flaky_test.flaky_runs_count == 2
+    end
+
+    test "supports pagination" do
+      project = ProjectsFixtures.project_fixture()
+
+      for i <- 1..3 do
+        test_case_id = Ecto.UUID.generate()
+
+        test_modules = fn status ->
+          [
+            %{
+              name: "TestModule",
+              status: status,
+              duration: 500,
+              test_cases: [%{name: "flakyTest#{i}", status: status, duration: 250, test_case_id: test_case_id}]
+            }
+          ]
+        end
+
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: project.account_id,
+            git_commit_sha: "commit#{i}",
+            is_ci: true,
+            status: "success",
+            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+            test_modules: test_modules.("success")
+          )
+
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: project.account_id,
+            git_commit_sha: "commit#{i}",
+            is_ci: true,
+            status: "failure",
+            ran_at: NaiveDateTime.utc_now(),
+            test_modules: test_modules.("failure")
+          )
+      end
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {page1, meta1} = Runs.list_flaky_test_cases(project.id, %{page: 1, page_size: 2})
+      assert length(page1) == 2
+      assert meta1.total_count == 3
+      assert meta1.total_pages == 2
+      assert meta1.current_page == 1
+
+      {page2, meta2} = Runs.list_flaky_test_cases(project.id, %{page: 2, page_size: 2})
+      assert length(page2) == 1
+      assert meta2.current_page == 2
+    end
+
+    test "supports search filtering by name" do
+      project = ProjectsFixtures.project_fixture()
+
+      for {name, i} <- [{"loginTest", 1}, {"logoutTest", 2}, {"profileTest", 3}] do
+        test_case_id = Ecto.UUID.generate()
+
+        test_modules = fn status ->
+          [
+            %{
+              name: "TestModule",
+              status: status,
+              duration: 500,
+              test_cases: [%{name: name, status: status, duration: 250, test_case_id: test_case_id}]
+            }
+          ]
+        end
+
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: project.account_id,
+            git_commit_sha: "commit#{i}",
+            is_ci: true,
+            status: "success",
+            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+            test_modules: test_modules.("success")
+          )
+
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: project.account_id,
+            git_commit_sha: "commit#{i}",
+            is_ci: true,
+            status: "failure",
+            ran_at: NaiveDateTime.utc_now(),
+            test_modules: test_modules.("failure")
+          )
+      end
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {results, meta} =
+        Runs.list_flaky_test_cases(project.id, %{
+          filters: [%{field: :name, op: :ilike_and, value: "log"}]
+        })
+
+      assert length(results) == 2
+      assert meta.total_count == 2
+      names = Enum.map(results, & &1.name)
+      assert "loginTest" in names
+      assert "logoutTest" in names
+    end
+
+    test "supports ordering by name" do
+      project = ProjectsFixtures.project_fixture()
+
+      for {name, i} <- [{"zebra", 1}, {"alpha", 2}, {"beta", 3}] do
+        test_case_id = Ecto.UUID.generate()
+
+        test_modules = fn status ->
+          [
+            %{
+              name: "TestModule",
+              status: status,
+              duration: 500,
+              test_cases: [%{name: name, status: status, duration: 250, test_case_id: test_case_id}]
+            }
+          ]
+        end
+
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: project.account_id,
+            git_commit_sha: "commit#{i}",
+            is_ci: true,
+            status: "success",
+            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+            test_modules: test_modules.("success")
+          )
+
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: project.account_id,
+            git_commit_sha: "commit#{i}",
+            is_ci: true,
+            status: "failure",
+            ran_at: NaiveDateTime.utc_now(),
+            test_modules: test_modules.("failure")
+          )
+      end
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {asc_results, _} =
+        Runs.list_flaky_test_cases(project.id, %{order_by: [:name], order_directions: [:asc]})
+
+      assert Enum.map(asc_results, & &1.name) == ["alpha", "beta", "zebra"]
+
+      {desc_results, _} =
+        Runs.list_flaky_test_cases(project.id, %{order_by: [:name], order_directions: [:desc]})
+
+      assert Enum.map(desc_results, & &1.name) == ["zebra", "beta", "alpha"]
+    end
+
+    test "does not return test cases from other projects" do
+      project1 = ProjectsFixtures.project_fixture()
+      project2 = ProjectsFixtures.project_fixture()
+      test_case_id = Ecto.UUID.generate()
+
+      test_modules = fn status ->
+        [
+          %{
+            name: "TestModule",
+            status: status,
+            duration: 500,
+            test_cases: [%{name: "flakyTest", status: status, duration: 250, test_case_id: test_case_id}]
+          }
+        ]
+      end
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project1.id,
+          account_id: project1.account_id,
+          git_commit_sha: "abc123",
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          test_modules: test_modules.("success")
+        )
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project1.id,
+          account_id: project1.account_id,
+          git_commit_sha: "abc123",
+          is_ci: true,
+          status: "failure",
+          ran_at: NaiveDateTime.utc_now(),
+          test_modules: test_modules.("failure")
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {project1_results, _} = Runs.list_flaky_test_cases(project1.id, %{})
+      assert length(project1_results) == 1
+
+      {project2_results, _} = Runs.list_flaky_test_cases(project2.id, %{})
+      assert project2_results == []
+    end
+  end
+
+  describe "get_flaky_runs_groups_count_for_test_case/1" do
+    test "returns 0 when no flaky runs exist" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          status: "success",
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 500,
+              test_cases: [%{name: "testSomething", status: "success", duration: 250}]
+            }
+          ]
+        )
+
+      {[test_case], _} = Runs.list_test_cases(project.id, %{})
+
+      count = Runs.get_flaky_runs_groups_count_for_test_case(test_case.id)
+      assert count == 0
+    end
+
+    test "returns count of unique scheme + commit_sha groups" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = Ecto.UUID.generate()
+
+      test_modules = fn status ->
+        [
+          %{
+            name: "TestModule",
+            status: status,
+            duration: 500,
+            test_cases: [%{name: "flakyTest", status: status, duration: 250, test_case_id: test_case_id}]
+          }
+        ]
+      end
+
+      # Create flaky runs on commit1
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "commit1",
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -7200),
+          test_modules: test_modules.("success")
+        )
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "commit1",
+          is_ci: true,
+          status: "failure",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          test_modules: test_modules.("failure")
+        )
+
+      # Create flaky runs on commit2
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "commit2",
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -1800),
+          test_modules: test_modules.("success")
+        )
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "commit2",
+          is_ci: true,
+          status: "failure",
+          ran_at: NaiveDateTime.utc_now(),
+          test_modules: test_modules.("failure")
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {[test_case], _} = Runs.list_test_cases(project.id, %{})
+      count = Runs.get_flaky_runs_groups_count_for_test_case(test_case.id)
+
+      # 2 groups: (default_scheme, commit1) and (default_scheme, commit2)
+      assert count == 2
+    end
+  end
+
+  describe "list_flaky_runs_for_test_case/2" do
+    test "returns empty list with meta when no flaky runs exist" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          status: "success",
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 500,
+              test_cases: [%{name: "testSomething", status: "success", duration: 250}]
+            }
+          ]
+        )
+
+      {[test_case], _} = Runs.list_test_cases(project.id, %{})
+
+      {groups, meta} = Runs.list_flaky_runs_for_test_case(test_case.id)
+
+      assert groups == []
+      assert meta.total_count == 0
+      assert meta.total_pages == 0
+    end
+
+    test "returns flaky runs grouped by scheme and commit_sha" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = Ecto.UUID.generate()
+
+      test_modules = fn status ->
+        [
+          %{
+            name: "TestModule",
+            status: status,
+            duration: 500,
+            test_cases: [%{name: "flakyTest", status: status, duration: 250, test_case_id: test_case_id}]
+          }
+        ]
+      end
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "abc123",
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          test_modules: test_modules.("success")
+        )
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "abc123",
+          is_ci: true,
+          status: "failure",
+          ran_at: NaiveDateTime.utc_now(),
+          test_modules: test_modules.("failure")
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {[test_case], _} = Runs.list_test_cases(project.id, %{})
+      {groups, meta} = Runs.list_flaky_runs_for_test_case(test_case.id)
+
+      assert length(groups) == 1
+      assert meta.total_count == 1
+
+      group = hd(groups)
+      assert group.git_commit_sha == "abc123"
+      assert length(group.runs) == 2
+      assert group.passed_count == 1
+      assert group.failed_count == 1
+    end
+
+    test "supports pagination on groups" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = Ecto.UUID.generate()
+
+      test_modules = fn status ->
+        [
+          %{
+            name: "TestModule",
+            status: status,
+            duration: 500,
+            test_cases: [%{name: "flakyTest", status: status, duration: 250, test_case_id: test_case_id}]
+          }
+        ]
+      end
+
+      # Create 3 groups (3 different commits)
+      for i <- 1..3 do
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: project.account_id,
+            git_commit_sha: "commit#{i}",
+            is_ci: true,
+            status: "success",
+            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600 * i),
+            test_modules: test_modules.("success")
+          )
+
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: project.account_id,
+            git_commit_sha: "commit#{i}",
+            is_ci: true,
+            status: "failure",
+            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600 * i + 1800),
+            test_modules: test_modules.("failure")
+          )
+      end
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {[test_case], _} = Runs.list_test_cases(project.id, %{})
+
+      {page1, meta1} = Runs.list_flaky_runs_for_test_case(test_case.id, %{page: 1, page_size: 2})
+      assert length(page1) == 2
+      assert meta1.total_count == 3
+      assert meta1.total_pages == 2
+      assert meta1.current_page == 1
+
+      {page2, meta2} = Runs.list_flaky_runs_for_test_case(test_case.id, %{page: 2, page_size: 2})
+      assert length(page2) == 1
+      assert meta2.current_page == 2
+    end
+
+    test "orders groups by latest_ran_at descending" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = Ecto.UUID.generate()
+
+      test_modules = fn status ->
+        [
+          %{
+            name: "TestModule",
+            status: status,
+            duration: 500,
+            test_cases: [%{name: "flakyTest", status: status, duration: 250, test_case_id: test_case_id}]
+          }
+        ]
+      end
+
+      # Create older group first
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "older_commit",
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -7200),
+          test_modules: test_modules.("success")
+        )
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "older_commit",
+          is_ci: true,
+          status: "failure",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          test_modules: test_modules.("failure")
+        )
+
+      # Create newer group
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "newer_commit",
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -1800),
+          test_modules: test_modules.("success")
+        )
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "newer_commit",
+          is_ci: true,
+          status: "failure",
+          ran_at: NaiveDateTime.utc_now(),
+          test_modules: test_modules.("failure")
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {[test_case], _} = Runs.list_test_cases(project.id, %{})
+      {groups, _} = Runs.list_flaky_runs_for_test_case(test_case.id)
+
+      assert length(groups) == 2
+      assert Enum.at(groups, 0).git_commit_sha == "newer_commit"
+      assert Enum.at(groups, 1).git_commit_sha == "older_commit"
+    end
+  end
+
+  describe "get_flaky_runs_for_test_run/1" do
+    test "returns empty list when no flaky runs exist for the test run" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          status: "success",
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 500,
+              test_cases: [%{name: "testSomething", status: "success", duration: 250}]
+            }
+          ]
+        )
+
+      result = Runs.get_flaky_runs_for_test_run(test_run.id)
+
+      assert result == []
+    end
+
+    test "returns flaky runs grouped by test case" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, test_run} =
+        Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 2000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "FlakyTestModule",
+              status: "success",
+              duration: 2000,
+              test_cases: [
+                %{
+                  name: "testFlakyExample",
+                  status: "success",
+                  duration: 1000,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 400},
+                    %{repetition_number: 2, name: "Retry 1", status: "success", duration: 600}
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      RunsFixtures.optimize_test_case_runs()
+
+      result = Runs.get_flaky_runs_for_test_run(test_run.id)
+
+      assert length(result) == 1
+      group = hd(result)
+      assert is_binary(group.test_case_id)
+      assert group.name == "testFlakyExample"
+      assert group.module_name == "FlakyTestModule"
+      assert length(group.runs) == 1
+    end
+
+    test "includes failures for each run" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, test_run} =
+        Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 2000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "FlakyTestModule",
+              status: "success",
+              duration: 2000,
+              test_cases: [
+                %{
+                  name: "testFlakyExample",
+                  status: "success",
+                  duration: 1000,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 400},
+                    %{repetition_number: 2, name: "Retry 1", status: "success", duration: 600}
+                  ],
+                  failures: [
+                    %{
+                      message: "Assertion failed",
+                      path: "/path/to/test.swift",
+                      line_number: 42,
+                      issue_type: "assertion_failure"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      RunsFixtures.optimize_test_case_runs()
+
+      result = Runs.get_flaky_runs_for_test_run(test_run.id)
+
+      assert length(result) == 1
+      group = hd(result)
+      run = hd(group.runs)
+      assert length(run.failures) == 1
+      failure = hd(run.failures)
+      assert failure.message == "Assertion failed"
+      assert failure.path == "/path/to/test.swift"
+      assert failure.line_number == 42
+    end
+
+    test "includes repetitions for each run sorted by repetition_number" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, test_run} =
+        Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 2000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "FlakyTestModule",
+              status: "success",
+              duration: 2000,
+              test_cases: [
+                %{
+                  name: "testFlakyExample",
+                  status: "success",
+                  duration: 1000,
+                  repetitions: [
+                    %{repetition_number: 3, name: "Retry 2", status: "success", duration: 300},
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 400},
+                    %{repetition_number: 2, name: "Retry 1", status: "failure", duration: 500}
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      RunsFixtures.optimize_test_case_runs()
+
+      result = Runs.get_flaky_runs_for_test_run(test_run.id)
+
+      assert length(result) == 1
+      group = hd(result)
+      run = hd(group.runs)
+      assert length(run.repetitions) == 3
+      assert Enum.at(run.repetitions, 0).repetition_number == 1
+      assert Enum.at(run.repetitions, 1).repetition_number == 2
+      assert Enum.at(run.repetitions, 2).repetition_number == 3
+    end
+
+    test "calculates passed_count and failed_count from repetitions" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, test_run} =
+        Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 2000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "FlakyTestModule",
+              status: "success",
+              duration: 2000,
+              test_cases: [
+                %{
+                  name: "testFlakyExample",
+                  status: "success",
+                  duration: 1000,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 400},
+                    %{repetition_number: 2, name: "Retry 1", status: "failure", duration: 500},
+                    %{repetition_number: 3, name: "Retry 2", status: "success", duration: 300}
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      RunsFixtures.optimize_test_case_runs()
+
+      result = Runs.get_flaky_runs_for_test_run(test_run.id)
+
+      assert length(result) == 1
+      group = hd(result)
+      assert group.passed_count == 1
+      assert group.failed_count == 2
+    end
+
+    test "calculates passed_count and failed_count without repetitions" do
+      project = ProjectsFixtures.project_fixture()
+
+      # Create two test runs on the same commit to trigger cross-run flaky detection
+      {:ok, _first_run} =
+        Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 1000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{name: "testFlaky", status: "success", duration: 250}
+              ]
+            }
+          ]
+        })
+
+      {:ok, second_run} =
+        Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 1000,
+          status: "failure",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "failure",
+              duration: 500,
+              test_cases: [
+                %{name: "testFlaky", status: "failure", duration: 250}
+              ]
+            }
+          ]
+        })
+
+      RunsFixtures.optimize_test_case_runs()
+
+      result = Runs.get_flaky_runs_for_test_run(second_run.id)
+
+      assert length(result) == 1
+      group = hd(result)
+      assert group.passed_count == 0
+      assert group.failed_count == 1
+    end
+
+    test "groups multiple test cases separately" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, test_run} =
+        Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 2000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "FlakyTestModule",
+              status: "success",
+              duration: 2000,
+              test_cases: [
+                %{
+                  name: "testFlakyOne",
+                  status: "success",
+                  duration: 1000,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 400},
+                    %{repetition_number: 2, name: "Retry 1", status: "success", duration: 600}
+                  ]
+                },
+                %{
+                  name: "testFlakyTwo",
+                  status: "success",
+                  duration: 800,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 300},
+                    %{repetition_number: 2, name: "Retry 1", status: "success", duration: 500}
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      RunsFixtures.optimize_test_case_runs()
+
+      result = Runs.get_flaky_runs_for_test_run(test_run.id)
+
+      assert length(result) == 2
+      names = Enum.map(result, & &1.name)
+      assert "testFlakyOne" in names
+      assert "testFlakyTwo" in names
+    end
+
+    test "sorts groups by latest_ran_at descending" do
+      project = ProjectsFixtures.project_fixture()
+
+      # Create a single test run with two flaky test cases
+      {:ok, test_run} =
+        Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 2000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{
+                  name: "testEarlier",
+                  status: "success",
+                  duration: 250,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 100},
+                    %{repetition_number: 2, name: "Retry", status: "success", duration: 150}
+                  ]
+                },
+                %{
+                  name: "testLater",
+                  status: "success",
+                  duration: 250,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 100},
+                    %{repetition_number: 2, name: "Retry", status: "success", duration: 150}
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      RunsFixtures.optimize_test_case_runs()
+
+      result = Runs.get_flaky_runs_for_test_run(test_run.id)
+
+      # Both test cases should be returned
+      assert length(result) == 2
+      names = Enum.map(result, & &1.name)
+      assert "testEarlier" in names
+      assert "testLater" in names
+    end
+
+    test "only returns flaky runs from the specified test run" do
+      project = ProjectsFixtures.project_fixture()
+
+      # Create first test run with flaky test
+      {:ok, first_run} =
+        Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 1000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "abc123",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testFlaky",
+                  status: "success",
+                  duration: 250,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 100},
+                    %{repetition_number: 2, name: "Retry", status: "success", duration: 150}
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      # Create second test run with flaky test
+      {:ok, second_run} =
+        Runs.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: project.account_id,
+          duration: 1000,
+          status: "success",
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          git_branch: "main",
+          git_commit_sha: "def456",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "testFlaky",
+                  status: "success",
+                  duration: 250,
+                  repetitions: [
+                    %{repetition_number: 1, name: "First Run", status: "failure", duration: 100},
+                    %{repetition_number: 2, name: "Retry", status: "success", duration: 150}
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      RunsFixtures.optimize_test_case_runs()
+
+      # Query for first run - should only get flaky runs from first run
+      result_first = Runs.get_flaky_runs_for_test_run(first_run.id)
+      assert length(result_first) == 1
+      assert length(hd(result_first).runs) == 1
+
+      # Query for second run - should only get flaky runs from second run
+      result_second = Runs.get_flaky_runs_for_test_run(second_run.id)
+      assert length(result_second) == 1
+      assert length(hd(result_second).runs) == 1
+    end
+  end
+
+  describe "clear_stale_flaky_flags/0" do
+    test "does not clear flaky flag when test case has recent flaky runs" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = Ecto.UUID.generate()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          id: test_case_id,
+          project_id: project.id,
+          is_flaky: true
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # Create a recent flaky run (within 14 days)
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        is_flaky: true,
+        inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3, :day)
+      )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {:ok, _count} = Runs.clear_stale_flaky_flags()
+
+      {:ok, fetched_test_case} = Runs.get_test_case_by_id(test_case_id)
+      assert fetched_test_case.is_flaky == true
+    end
+
+    test "clears flaky flag when test case has no recent flaky runs" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = Ecto.UUID.generate()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          id: test_case_id,
+          project_id: project.id,
+          is_flaky: true
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # Create an old flaky run (more than 14 days ago)
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        is_flaky: true,
+        inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -20, :day)
+      )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {:ok, count} = Runs.clear_stale_flaky_flags()
+
+      assert count >= 1
+
+      {:ok, fetched_test_case} = Runs.get_test_case_by_id(test_case_id)
+      assert fetched_test_case.is_flaky == false
+    end
+
+    test "clears flaky flag when test case has no flaky runs at all" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = Ecto.UUID.generate()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          id: test_case_id,
+          project_id: project.id,
+          is_flaky: true
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # Create a non-flaky run
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        is_flaky: false,
+        inserted_at: NaiveDateTime.utc_now()
+      )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {:ok, count} = Runs.clear_stale_flaky_flags()
+
+      assert count >= 1
+
+      {:ok, fetched_test_case} = Runs.get_test_case_by_id(test_case_id)
+      assert fetched_test_case.is_flaky == false
+    end
+
+    test "only clears stale flaky flags, preserving recent ones" do
+      project = ProjectsFixtures.project_fixture()
+      stale_test_case_id = Ecto.UUID.generate()
+      recent_test_case_id = Ecto.UUID.generate()
+
+      # Create a test case with stale flaky runs
+      stale_test_case =
+        RunsFixtures.test_case_fixture(
+          id: stale_test_case_id,
+          project_id: project.id,
+          name: "staleTest",
+          is_flaky: true
+        )
+
+      # Create a test case with recent flaky runs
+      recent_test_case =
+        RunsFixtures.test_case_fixture(
+          id: recent_test_case_id,
+          project_id: project.id,
+          name: "recentTest",
+          is_flaky: true
+        )
+
+      IngestRepo.insert_all(TestCase, [
+        stale_test_case |> Map.from_struct() |> Map.delete(:__meta__),
+        recent_test_case |> Map.from_struct() |> Map.delete(:__meta__)
+      ])
+
+      # Old flaky run for stale test case
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: stale_test_case_id,
+        is_flaky: true,
+        inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -20, :day)
+      )
+
+      # Recent flaky run for recent test case
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: recent_test_case_id,
+        is_flaky: true,
+        inserted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3, :day)
+      )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {:ok, count} = Runs.clear_stale_flaky_flags()
+
+      assert count >= 1
+
+      {:ok, fetched_stale} = Runs.get_test_case_by_id(stale_test_case_id)
+      assert fetched_stale.is_flaky == false
+
+      {:ok, fetched_recent} = Runs.get_test_case_by_id(recent_test_case_id)
+      assert fetched_recent.is_flaky == true
+    end
+
+    test "does not affect non-flaky test cases" do
+      project = ProjectsFixtures.project_fixture()
+      non_flaky_test_case_id = Ecto.UUID.generate()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          id: non_flaky_test_case_id,
+          project_id: project.id,
+          is_flaky: false
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      {:ok, _count} = Runs.clear_stale_flaky_flags()
+
+      {:ok, fetched_test_case} = Runs.get_test_case_by_id(non_flaky_test_case_id)
+      assert fetched_test_case.is_flaky == false
     end
   end
 end

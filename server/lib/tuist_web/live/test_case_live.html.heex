@@ -12,44 +12,77 @@
   </.button>
 
   <div data-part="header">
-    <div data-part="title">
-      <div :if={@test_case_detail.last_status == "success"} data-part="badge-success">
-        <div data-part="icon">
-          <.circle_check />
+    <div data-part="title-group">
+      <div data-part="title">
+        <div :if={@test_case_detail.last_status == "success"} data-part="badge-success">
+          <div data-part="icon">
+            <.circle_check />
+          </div>
         </div>
-      </div>
-      <div :if={@test_case_detail.last_status == "failure"} data-part="badge-failure">
-        <div data-part="icon">
-          <.alert_circle />
+        <div :if={@test_case_detail.last_status == "failure"} data-part="badge-failure">
+          <div data-part="icon">
+            <.alert_circle />
+          </div>
         </div>
-      </div>
-      <div :if={@test_case_detail.last_status == "skipped"} data-part="badge-skipped">
-        <div data-part="icon">
-          <.alert_circle />
+        <div :if={@test_case_detail.last_status == "skipped"} data-part="badge-skipped">
+          <div data-part="icon">
+            <.alert_circle />
+          </div>
         </div>
+        <h1 data-part="label">
+          {@test_case_detail.name}
+        </h1>
+        <.badge
+          :if={@test_case_detail.is_flaky}
+          label={dgettext("dashboard_tests", "Flaky")}
+          color="attention"
+          style="light-fill"
+          size="large"
+        />
       </div>
-      <h1 data-part="label">
-        {@test_case_detail.name}
-      </h1>
+      <div
+        :if={@test_case_detail.module_name != "" or @test_case_detail.suite_name != ""}
+        data-part="badges"
+      >
+        <.badge
+          :if={@test_case_detail.module_name != ""}
+          label={"#{dgettext("dashboard_tests", "Module")}: #{@test_case_detail.module_name}"}
+          color="primary"
+          style="light-fill"
+          size="large"
+        />
+        <.badge
+          :if={@test_case_detail.suite_name != ""}
+          label={"#{dgettext("dashboard_tests", "Suite")}: #{@test_case_detail.suite_name}"}
+          color="primary"
+          style="light-fill"
+          size="large"
+        />
+      </div>
     </div>
-    <div
-      :if={@test_case_detail.module_name != "" or @test_case_detail.suite_name != ""}
-      data-part="badges"
-    >
-      <.badge
-        :if={@test_case_detail.module_name != ""}
-        label={"#{dgettext("dashboard_tests", "Module")}: #{@test_case_detail.module_name}"}
-        color="primary"
-        style="light-fill"
-        size="large"
-      />
-      <.badge
-        :if={@test_case_detail.suite_name != ""}
-        label={"#{dgettext("dashboard_tests", "Suite")}: #{@test_case_detail.suite_name}"}
-        color="primary"
-        style="light-fill"
-        size="large"
-      />
+    <div data-part="actions">
+      <.button
+        :if={@test_case_detail.is_flaky}
+        label={dgettext("dashboard_tests", "Unmark as flaky")}
+        variant="secondary"
+        size="medium"
+        phx-click="unmark-as-flaky"
+      >
+        <:icon_left>
+          <.icon name="alert_triangle_off" />
+        </:icon_left>
+      </.button>
+      <.button
+        :if={!@test_case_detail.is_flaky}
+        label={dgettext("dashboard_tests", "Mark as flaky")}
+        variant="secondary"
+        size="medium"
+        phx-click="mark-as-flaky"
+      >
+        <:icon_left>
+          <.icon name="alert_triangle" />
+        </:icon_left>
+      </.button>
     </div>
   </div>
 
@@ -107,6 +140,18 @@
       </div>
       <div data-part="widgets">
         <.widget
+          :if={@flakiness_rate && @flakiness_rate > 0}
+          title={dgettext("dashboard_tests", "Flakiness rate")}
+          description={
+            dgettext(
+              "dashboard_tests",
+              "Percentage of test runs that were flaky in the last 30 days."
+            )
+          }
+          value={"#{@flakiness_rate}%"}
+          id="widget-flakiness-rate"
+        />
+        <.widget
           title={dgettext("dashboard_tests", "Test reliability")}
           description={
             dgettext(
@@ -153,6 +198,149 @@
           empty={@analytics.total_count == 0}
           empty_label={dgettext("dashboard_tests", "No data")}
         />
+      </div>
+    </.card_section>
+  </.card>
+
+  <.card
+    :if={Enum.any?(@flaky_runs_grouped)}
+    title={dgettext("dashboard_tests", "Flaky Runs")}
+    icon="alert_triangle"
+    data-part="flaky-runs-card"
+  >
+    <.card_section data-part="flaky-runs-section">
+      <div
+        :for={group <- @flaky_runs_grouped}
+        id={"flaky-group-#{group.scheme}-#{group.git_commit_sha}"}
+        phx-hook="NooraCollapsible"
+        data-part="collapsible"
+        data-state="closed"
+      >
+        <div data-part="root">
+          <div data-part="header-row">
+            <div data-part="title-and-subtitle">
+              <h3 data-part="title">
+                <.commit_link
+                  project={@selected_project}
+                  commit_sha={group.git_commit_sha}
+                  data-part="commit-sha"
+                />
+              </h3>
+            </div>
+            <div data-part="stats">
+              <span data-part="time-ago">
+                {Timex.from_now(group.latest_ran_at)}
+              </span>
+              <div data-part="passed-count">
+                <.circle_check />
+                <span data-part="label">{group.passed_count}</span>
+              </div>
+              <div data-part="failed-count">
+                <.circle_x />
+                <span data-part="label">{group.failed_count}</span>
+              </div>
+            </div>
+            <.neutral_button data-part="trigger" variant="secondary" size="medium">
+              <span data-part="icon-closed"><.chevron_down /></span>
+              <span data-part="icon-open"><.chevron_up /></span>
+            </.neutral_button>
+          </div>
+          <div data-part="content" data-state="closed">
+            <div
+              :for={{run, index} <- Enum.with_index(group.runs)}
+              data-part="flaky-run-item-wrapper"
+            >
+              <div data-part="flaky-run-item">
+                <div data-part="run-header">
+                  <.badge
+                    :if={run.status == "success"}
+                    label={dgettext("dashboard_tests", "Passed")}
+                    color="success"
+                    style="light-fill"
+                    size="small"
+                  />
+                  <.badge
+                    :if={run.status == "failure"}
+                    label={dgettext("dashboard_tests", "Failed")}
+                    color="destructive"
+                    style="light-fill"
+                    size="small"
+                  />
+                  <span data-part="run-date">
+                    {Tuist.Utilities.DateFormatter.format_with_timezone_short(
+                      run.ran_at,
+                      @user_timezone
+                    )}
+                  </span>
+                  <div data-part="run-metadata">
+                    <.branch_link
+                      project={@selected_project}
+                      branch={run.git_branch}
+                      show_icon
+                      data-part="branch-info"
+                    />
+                    <.link
+                      navigate={
+                        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs/#{run.test_run_id}"
+                      }
+                      data-part="test-run-link"
+                    >
+                      {run.scheme}
+                      <.link_icon />
+                    </.link>
+                  </div>
+                </div>
+                <div :if={Enum.any?(run.repetitions)} data-part="repetitions">
+                  <div
+                    :for={{repetition, rep_index} <- Enum.with_index(run.repetitions)}
+                    data-part="repetition-wrapper"
+                  >
+                    <div data-part="repetition-item">
+                      <.badge
+                        :if={repetition.status == "success"}
+                        label={dgettext("dashboard_tests", "Passed")}
+                        color="success"
+                        style="light-fill"
+                        size="small"
+                      />
+                      <.badge
+                        :if={repetition.status == "failure"}
+                        label={dgettext("dashboard_tests", "Failed")}
+                        color="destructive"
+                        style="light-fill"
+                        size="small"
+                      />
+                      <span data-part="repetition-name">{repetition.name}</span>
+                    </div>
+                    <span
+                      :if={
+                        repetition.status == "failure" and Enum.any?(run.failures) and
+                          Enum.at(run.failures, rep_index)
+                      }
+                      data-part="repetition-failure"
+                    >
+                      {format_failure_message(Enum.at(run.failures, rep_index), %{
+                        project: @selected_project,
+                        git_commit_sha: run.git_commit_sha
+                      })}
+                    </span>
+                  </div>
+                </div>
+                <span
+                  :for={failure <- run.failures}
+                  :if={!Enum.any?(run.repetitions) and run.status == "failure"}
+                  data-part="repetition-failure"
+                >
+                  {format_failure_message(failure, %{
+                    project: @selected_project,
+                    git_commit_sha: run.git_commit_sha
+                  })}
+                </span>
+              </div>
+              <.line_divider :if={index < length(group.runs) - 1} />
+            </div>
+          </div>
+        </div>
       </div>
     </.card_section>
   </.card>
@@ -224,19 +412,37 @@
         }
       >
         <:col :let={test_case_run} label={dgettext("dashboard_tests", "Scheme")}>
-          <.text_and_description_cell label={
-            test_case_run.scheme || dgettext("dashboard_tests", "Unknown")
-          } />
+          <div data-part="cell" data-type="text_and_description">
+            <div data-part="column">
+              <span data-part="label">
+                {test_case_run.scheme || dgettext("dashboard_tests", "Unknown")}
+                <.badge
+                  :if={test_case_run.is_flaky}
+                  label={dgettext("dashboard_tests", "Flaky")}
+                  color="attention"
+                  style="light-fill"
+                  size="large"
+                />
+              </span>
+            </div>
+          </div>
         </:col>
         <:col :let={test_case_run} label={dgettext("dashboard_tests", "Status")}>
-          <%= case test_case_run.status do %>
-            <% "success" -> %>
-              <.status_badge_cell label={dgettext("dashboard_tests", "Passed")} status="success" />
-            <% "failure" -> %>
-              <.status_badge_cell label={dgettext("dashboard_tests", "Failed")} status="error" />
-            <% "skipped" -> %>
-              <.status_badge_cell label={dgettext("dashboard_tests", "Skipped")} status="warning" />
-          <% end %>
+          <.status_badge_cell
+            :if={test_case_run.status == "success"}
+            label={dgettext("dashboard_tests", "Passed")}
+            status="success"
+          />
+          <.status_badge_cell
+            :if={test_case_run.status == "failure"}
+            label={dgettext("dashboard_tests", "Failed")}
+            status="error"
+          />
+          <.status_badge_cell
+            :if={test_case_run.status == "skipped"}
+            label={dgettext("dashboard_tests", "Skipped")}
+            status="warning"
+          />
         </:col>
         <:col :let={test_case_run} label={dgettext("dashboard_tests", "Ran by")}>
           <.test_ran_by_badge_cell test={test_case_run} />

@@ -7,6 +7,7 @@ public struct TestCase {
     public var duration: Int?
     public let status: TestStatus
     public let failures: [TestCaseFailure]
+    public let repetitions: [TestCaseRepetition]
 
     public init(
         name: String,
@@ -14,7 +15,8 @@ public struct TestCase {
         module: String?,
         duration: Int?,
         status: TestStatus,
-        failures: [TestCaseFailure]
+        failures: [TestCaseFailure],
+        repetitions: [TestCaseRepetition] = []
     ) {
         self.name = name
         self.testSuite = testSuite
@@ -22,5 +24,6 @@ public struct TestCase {
         self.duration = duration
         self.status = status
         self.failures = failures
+        self.repetitions = repetitions
     }
 }

@@ -3,6 +3,8 @@ defmodule TuistWeb.TestRunLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.Helpers.FailureMessage
+  import TuistWeb.Helpers.VCSLinks
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
@@ -47,6 +49,7 @@ defmodule TuistWeb.TestRunLive do
 
     socket =
       socket
+      |> assign(:selected_project, project)
       |> assign(:run, run)
       |> assign(:command_event, command_event)
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Run")} · #{slug} · Tuist")
@@ -55,6 +58,7 @@ defmodule TuistWeb.TestRunLive do
       |> assign_initial_analytics_state()
       |> assign_initial_test_cases_state()
       |> assign_initial_failures_state()
+      |> assign_initial_flaky_runs_state()
       |> assign(:available_filters, [])
       |> assign(:active_filters, [])
       |> assign(:has_selective_testing_data, command_event && Xcode.has_selective_testing_data?(command_event))
@@ -252,6 +256,13 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:failures_page, 1)
   end
 
+  defp assign_initial_flaky_runs_state(socket) do
+    socket
+    |> assign(:flaky_runs_grouped, [])
+    |> assign(:flaky_runs_meta, %{total_groups_count: 0, total_runs_count: 0, total_pages: 1, current_page: 1})
+    |> assign(:flaky_runs_page, 1)
+  end
+
   defp build_uri(params) do
     URI.new!("?" <> URI.encode_query(params))
   end
@@ -280,11 +291,15 @@ defmodule TuistWeb.TestRunLive do
     # Load failures data for the overview preview card
     {failures_grouped, failures_meta} = load_failures_data(socket.assigns.run, params)
 
+    # Load flaky runs data
+    flaky_runs_grouped = Runs.get_flaky_runs_for_test_run(socket.assigns.run.id)
+
     socket =
       socket
       |> assign(:selected_test_tab, selected_test_tab)
       |> assign(:failures_grouped_by_test_case, failures_grouped)
       |> assign(:failures_meta, failures_meta)
+      |> assign(:flaky_runs_grouped, flaky_runs_grouped)
       |> assign_selective_testing_defaults()
       |> assign_binary_cache_defaults()
       |> assign_param_defaults(params)
@@ -311,6 +326,11 @@ defmodule TuistWeb.TestRunLive do
   defp assign_tab_data(socket, "failures", params) do
     {failures, meta} = load_failures_data(socket.assigns.run, params)
     assign_failures_data(socket, failures, meta, params)
+  end
+
+  defp assign_tab_data(socket, "flaky-runs", params) do
+    {flaky_runs, meta} = load_flaky_runs_data(socket.assigns.run, params)
+    assign_flaky_runs_data(socket, flaky_runs, meta, params)
   end
 
   defp assign_tab_data(socket, _tab, params) do
@@ -536,6 +556,38 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:failures_grouped_by_test_case, failures_grouped)
     |> assign(:failures_meta, meta)
     |> assign(:failures_page, String.to_integer(params["failures-page"] || "1"))
+  end
+
+  defp load_flaky_runs_data(run, params) do
+    page = String.to_integer(params["flaky-runs-page"] || "1")
+    page_size = 20
+
+    all_flaky_runs = Runs.get_flaky_runs_for_test_run(run.id)
+    total_groups_count = length(all_flaky_runs)
+    total_runs_count = Enum.reduce(all_flaky_runs, 0, fn group, acc -> acc + length(group.runs) end)
+    total_pages = max(1, ceil(total_groups_count / page_size))
+
+    # Paginate the grouped flaky runs
+    paginated_flaky_runs =
+      all_flaky_runs
+      |> Enum.drop((page - 1) * page_size)
+      |> Enum.take(page_size)
+
+    meta = %{
+      total_groups_count: total_groups_count,
+      total_runs_count: total_runs_count,
+      total_pages: total_pages,
+      current_page: page
+    }
+
+    {paginated_flaky_runs, meta}
+  end
+
+  defp assign_flaky_runs_data(socket, flaky_runs_grouped, meta, params) do
+    socket
+    |> assign(:flaky_runs_grouped, flaky_runs_grouped)
+    |> assign(:flaky_runs_meta, meta)
+    |> assign(:flaky_runs_page, String.to_integer(params["flaky-runs-page"] || "1"))
   end
 
   defp test_cases_dropdown_item_patch_sort(sort_by, uri) do
@@ -814,93 +866,5 @@ defmodule TuistWeb.TestRunLive do
         value: nil
       }
     ]
-  end
-
-  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
-  def format_failure_message(failure, run) do
-    message =
-      case {failure.path, failure.issue_type, failure.message} do
-        # No path cases
-        {nil, "assertion_failure", nil} ->
-          dgettext("dashboard_tests", "Expectation failed")
-
-        {nil, "assertion_failure", message} ->
-          dgettext("dashboard_tests", "Expectation failed: %{message}", message: message)
-
-        {nil, "error_thrown", nil} ->
-          dgettext("dashboard_tests", "Caught error")
-
-        {nil, "error_thrown", message} ->
-          dgettext("dashboard_tests", "Caught error: %{message}", message: message)
-
-        {nil, "issue_recorded", nil} ->
-          dgettext("dashboard_tests", "Issue recorded")
-
-        {nil, "issue_recorded", message} ->
-          dgettext("dashboard_tests", "Issue recorded: %{message}", message: message)
-
-        {nil, _, nil} ->
-          dgettext("dashboard_tests", "Unknown error")
-
-        {nil, _, message} ->
-          message
-
-        # Has path cases
-        {path, "assertion_failure", nil} ->
-          dgettext("dashboard_tests", "Expectation failed at %{location}", location: "#{path}:#{failure.line_number}")
-
-        {path, "assertion_failure", message} ->
-          dgettext("dashboard_tests", "Expectation failed at %{location}: %{message}",
-            location: "#{path}:#{failure.line_number}",
-            message: message
-          )
-
-        {path, "error_thrown", nil} ->
-          dgettext("dashboard_tests", "Caught error at %{location}", location: "#{path}:#{failure.line_number}")
-
-        {path, "error_thrown", message} ->
-          dgettext("dashboard_tests", "Caught error at %{location}: %{message}",
-            location: "#{path}:#{failure.line_number}",
-            message: message
-          )
-
-        {path, "issue_recorded", nil} ->
-          dgettext("dashboard_tests", "Issue recorded at %{location}", location: "#{path}:#{failure.line_number}")
-
-        {path, "issue_recorded", message} ->
-          dgettext("dashboard_tests", "Issue recorded at %{location}: %{message}",
-            location: "#{path}:#{failure.line_number}",
-            message: message
-          )
-
-        {path, _, nil} ->
-          "#{path}:#{failure.line_number}"
-
-        {path, _, message} ->
-          "#{path}:#{failure.line_number}: #{message}"
-      end
-
-    linkify_failure_location(message, failure, run)
-  end
-
-  defp linkify_failure_location(message, failure, run) do
-    if not is_nil(failure.path) and has_github_vcs?(run) do
-      location_text = "#{failure.path}:#{failure.line_number}"
-
-      location_link =
-        ~s(<a href="https://github.com/#{run.project.vcs_connection.repository_full_handle}/blob/#{run.git_commit_sha}/#{failure.path}#L#{failure.line_number}" target="_blank">#{location_text}</a>)
-
-      message
-      |> String.replace(location_text, location_link)
-      |> raw()
-    else
-      message
-    end
-  end
-
-  defp has_github_vcs?(run) do
-    not is_nil(run.project.vcs_connection) and
-      run.project.vcs_connection.provider == :github and
-      not is_nil(run.git_commit_sha)
   end
 end

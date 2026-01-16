@@ -25,22 +25,23 @@ defmodule Tuist.Runs.Test do
   @primary_key {:id, Ecto.UUID, autogenerate: false}
   schema "test_runs" do
     field :duration, Ch, type: "Int32"
-    field :macos_version, :string
-    field :xcode_version, :string
+    field :macos_version, Ch, type: "String"
+    field :xcode_version, Ch, type: "String"
     field :is_ci, :boolean
-    field :model_identifier, :string
-    field :scheme, :string
+    field :model_identifier, Ch, type: "String"
+    field :scheme, Ch, type: "String"
     field :status, Ch, type: "LowCardinality(String)"
-    field :git_branch, :string
-    field :git_commit_sha, :string
-    field :git_ref, :string
+    field :is_flaky, :boolean, default: false
+    field :git_branch, Ch, type: "String"
+    field :git_commit_sha, Ch, type: "String"
+    field :git_ref, Ch, type: "String"
     field :ran_at, Ch, type: "DateTime64(6)"
     field :project_id, Ch, type: "Int64"
     field :account_id, Ch, type: "Int64"
     field :build_run_id, Ecto.UUID
-    field :ci_run_id, :string
-    field :ci_project_handle, :string
-    field :ci_host, :string
+    field :ci_run_id, Ch, type: "String"
+    field :ci_project_handle, Ch, type: "String"
+    field :ci_host, Ch, type: "String"
     field :ci_provider, Ch, type: "LowCardinality(Nullable(String))"
 
     belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
@@ -63,6 +64,7 @@ defmodule Tuist.Runs.Test do
       :project_id,
       :account_id,
       :status,
+      :is_flaky,
       :git_branch,
       :git_commit_sha,
       :git_ref,

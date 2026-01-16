@@ -56,4 +56,41 @@ struct XCResultServiceTests {
         #expect(got.testCases.map(\.name) == ["Custom test label"])
         #expect(got.testCases.compactMap(\.duration).sorted() == [103])
     }
+
+    @Test
+    func parseTestWithRepetitionsXCResult() async throws {
+        // Given
+        let xcresult = try AbsolutePath(validating: #file).parentDirectory
+            .appending(try RelativePath(validating: "../Fixtures/test-with-repetitions.xcresult"))
+
+        // When
+        let got = try #require(try await subject.parse(path: xcresult, rootDirectory: nil))
+
+        // Then
+        #expect(got.status == .passed)
+        #expect(got.testCases.count == 2)
+
+        // Verify flaky test (example) - first run failed, retry passed
+        print(got.testCases)
+        let flakyTest = try #require(got.testCases.first { $0.name == "example()" })
+        #expect(flakyTest.status == .passed)
+        #expect(flakyTest.repetitions.count == 2)
+        #expect(flakyTest.repetitions[0].name == "First Run")
+        #expect(flakyTest.repetitions[0].status == .failed)
+        #expect(flakyTest.repetitions[0].repetitionNumber == 1)
+        #expect(flakyTest.repetitions[1].name == "Retry 1")
+        #expect(flakyTest.repetitions[1].status == .passed)
+        #expect(flakyTest.repetitions[1].repetitionNumber == 2)
+        // Failure message should be captured from the failed repetition
+        #expect(flakyTest.failures.count == 1)
+        #expect(flakyTest.failures[0].message?.contains("Bool.random()") == true)
+
+        // Verify non-flaky test (topLevelTest) - both runs passed
+        let nonFlakyTest = try #require(got.testCases.first { $0.name == "topLevelTest()" })
+        #expect(nonFlakyTest.status == .passed)
+        #expect(nonFlakyTest.repetitions.count == 2)
+        #expect(nonFlakyTest.repetitions[0].status == .passed)
+        #expect(nonFlakyTest.repetitions[1].status == .passed)
+        #expect(nonFlakyTest.failures.isEmpty)
+    }
 }

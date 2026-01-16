@@ -158,4 +158,38 @@ defmodule Tuist.Utilities.DateFormatter do
     # Fallback for other types
     "Unknown"
   end
+
+  @doc """
+  Format datetime with timezone conversion, using a shorter format with "at".
+
+  Produces format like "Mon 12 Jan 2025 at 12:37"
+  """
+  def format_with_timezone_short(%DateTime{} = datetime, timezone) when is_binary(timezone) do
+    local_time = Timex.Timezone.convert(datetime, timezone)
+    Timex.format!(local_time, "{WDshort} {D} {Mshort} {YYYY} at {h24}:{m}")
+  rescue
+    _ ->
+      Timex.format!(datetime, "{WDshort} {D} {Mshort} {YYYY} at {h24}:{m}") <> " UTC"
+  end
+
+  def format_with_timezone_short(%NaiveDateTime{} = naive_datetime, timezone) when is_binary(timezone) do
+    utc_datetime = DateTime.from_naive!(naive_datetime, "Etc/UTC")
+    local_time = Timex.Timezone.convert(utc_datetime, timezone)
+    Timex.format!(local_time, "{WDshort} {D} {Mshort} {YYYY} at {h24}:{m}")
+  rescue
+    _ ->
+      Timex.format!(naive_datetime, "{WDshort} {D} {Mshort} {YYYY} at {h24}:{m}") <> " UTC"
+  end
+
+  def format_with_timezone_short(%DateTime{} = datetime, _timezone) do
+    Timex.format!(datetime, "{WDshort} {D} {Mshort} {YYYY} at {h24}:{m}") <> " UTC"
+  end
+
+  def format_with_timezone_short(%NaiveDateTime{} = naive_datetime, _timezone) do
+    Timex.format!(naive_datetime, "{WDshort} {D} {Mshort} {YYYY} at {h24}:{m}") <> " UTC"
+  end
+
+  def format_with_timezone_short(_datetime, _timezone) do
+    "Unknown"
+  end
 end

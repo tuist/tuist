@@ -23,10 +23,11 @@ defmodule Tuist.Runs.TestSuiteRun do
 
   @primary_key {:id, Ecto.UUID, autogenerate: false}
   schema "test_suite_runs" do
-    field :name, :string
+    field :name, Ch, type: "String"
     field :test_run_id, Ecto.UUID
     field :test_module_run_id, Ecto.UUID
     field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1, 'skipped' = 2)"
+    field :is_flaky, :boolean, default: false
     field :duration, Ch, type: "Int32"
     field :test_case_count, Ch, type: "Int32"
     field :avg_test_case_duration, Ch, type: "Int32"
@@ -41,6 +42,7 @@ defmodule Tuist.Runs.TestSuiteRun do
       :test_run_id,
       :test_module_run_id,
       :status,
+      :is_flaky,
       :duration,
       :test_case_count,
       :avg_test_case_duration,

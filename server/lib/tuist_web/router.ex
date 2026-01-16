@@ -215,30 +215,23 @@ defmodule TuistWeb.Router do
           metadata: %{type: :marketing},
           private: private
 
-      for %{slug: blog_post_slug} <- Tuist.Marketing.Blog.get_posts() do
-        get Path.join(locale_path_prefix, blog_post_slug),
-            MarketingController,
-            :blog_post,
-            metadata: %{type: :marketing},
-            private: private
+      get Path.join(locale_path_prefix, "/blog/:year/:month/:day/:slug/iframe.html"),
+          TuistWeb.Marketing.MarketingBlogIframeController,
+          :show,
+          metadata: %{type: :marketing},
+          private: private
 
-        # Add iframe route for each blog post
-        iframe_path = Path.join([locale_path_prefix, blog_post_slug, "iframe.html"])
+      get Path.join(locale_path_prefix, "/blog/:year/:month/:day/:slug"),
+          MarketingController,
+          :blog_post,
+          metadata: %{type: :marketing},
+          private: private
 
-        get iframe_path,
-            TuistWeb.Marketing.MarketingBlogIframeController,
-            :show,
-            metadata: %{type: :marketing},
-            private: private
-      end
-
-      for %{slug: case_study_slug} <- Tuist.Marketing.Customers.get_case_studies() do
-        get Path.join(locale_path_prefix, case_study_slug),
-            MarketingController,
-            :case_study,
-            metadata: %{type: :marketing},
-            private: private
-      end
+      get Path.join(locale_path_prefix, "/customers/:slug"),
+          MarketingController,
+          :case_study,
+          metadata: %{type: :marketing},
+          private: private
 
       for %{slug: page_slug} <- Tuist.Marketing.Pages.get_pages() do
         get Path.join(locale_path_prefix, page_slug),
@@ -760,6 +753,7 @@ defmodule TuistWeb.Router do
       live "/tests/test-runs/:test_run_id", TestRunLive
       live "/tests/test-cases", TestCasesLive
       live "/tests/test-cases/:test_case_id", TestCaseLive
+      live "/tests/flaky-tests", FlakyTestsLive
       live "/module-cache", ModuleCacheLive
       live "/module-cache/cache-runs", CacheRunsLive
       live "/module-cache/generate-runs", GenerateRunsLive

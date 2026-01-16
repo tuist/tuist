@@ -3587,6 +3587,64 @@ public enum Components {
                         ///
                         /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_casesPayload/name`.
                         public var name: Swift.String
+                        /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_casesPayload/repetitionsPayload`.
+                        public struct repetitionsPayloadPayload: Codable, Hashable, Sendable {
+                            /// The duration of this repetition in milliseconds.
+                            ///
+                            /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_casesPayload/repetitionsPayload/duration`.
+                            public var duration: Swift.Int?
+                            /// The name of the repetition (e.g., 'First Run', 'Retry 1').
+                            ///
+                            /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_casesPayload/repetitionsPayload/name`.
+                            public var name: Swift.String
+                            /// The repetition attempt number (1 = First Run, 2 = Retry 1, etc.)
+                            ///
+                            /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_casesPayload/repetitionsPayload/repetition_number`.
+                            public var repetition_number: Swift.Int
+                            /// The status of this repetition attempt.
+                            ///
+                            /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_casesPayload/repetitionsPayload/status`.
+                            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case success = "success"
+                                case failure = "failure"
+                            }
+                            /// The status of this repetition attempt.
+                            ///
+                            /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_casesPayload/repetitionsPayload/status`.
+                            public var status: Components.Schemas.RunParams.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload.statusPayload
+                            /// Creates a new `repetitionsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - duration: The duration of this repetition in milliseconds.
+                            ///   - name: The name of the repetition (e.g., 'First Run', 'Retry 1').
+                            ///   - repetition_number: The repetition attempt number (1 = First Run, 2 = Retry 1, etc.)
+                            ///   - status: The status of this repetition attempt.
+                            public init(
+                                duration: Swift.Int? = nil,
+                                name: Swift.String,
+                                repetition_number: Swift.Int,
+                                status: Components.Schemas.RunParams.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload.statusPayload
+                            ) {
+                                self.duration = duration
+                                self.name = name
+                                self.repetition_number = repetition_number
+                                self.status = status
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case duration
+                                case name
+                                case repetition_number
+                                case status
+                            }
+                        }
+                        /// The repetition attempts for this test case (when run with retry-on-failure).
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_casesPayload/repetitions`.
+                        public typealias repetitionsPayload = [Components.Schemas.RunParams.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload]
+                        /// The repetition attempts for this test case (when run with retry-on-failure).
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_casesPayload/repetitions`.
+                        public var repetitions: Components.Schemas.RunParams.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayload?
                         /// The status of the test case.
                         ///
                         /// - Remark: Generated from `#/components/schemas/RunParams/case2/test_modulesPayload/test_casesPayload/status`.
@@ -3594,6 +3652,7 @@ public enum Components {
                             case success = "success"
                             case failure = "failure"
                             case skipped = "skipped"
+                            case flaky = "flaky"
                         }
                         /// The status of the test case.
                         ///
@@ -3609,18 +3668,21 @@ public enum Components {
                         ///   - duration: The duration of the test case in milliseconds.
                         ///   - failures: The failures that occurred in this test case.
                         ///   - name: The name of the test case.
+                        ///   - repetitions: The repetition attempts for this test case (when run with retry-on-failure).
                         ///   - status: The status of the test case.
                         ///   - test_suite_name: The name of the test suite this test case belongs to (optional).
                         public init(
                             duration: Swift.Int,
                             failures: Components.Schemas.RunParams.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayload? = nil,
                             name: Swift.String,
+                            repetitions: Components.Schemas.RunParams.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayload? = nil,
                             status: Components.Schemas.RunParams.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.statusPayload,
                             test_suite_name: Swift.String? = nil
                         ) {
                             self.duration = duration
                             self.failures = failures
                             self.name = name
+                            self.repetitions = repetitions
                             self.status = status
                             self.test_suite_name = test_suite_name
                         }
@@ -3628,6 +3690,7 @@ public enum Components {
                             case duration
                             case failures
                             case name
+                            case repetitions
                             case status
                             case test_suite_name
                         }
@@ -4400,6 +4463,64 @@ public enum Components {
                     ///
                     /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_casesPayload/name`.
                     public var name: Swift.String
+                    /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_casesPayload/repetitionsPayload`.
+                    public struct repetitionsPayloadPayload: Codable, Hashable, Sendable {
+                        /// The duration of this repetition in milliseconds.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_casesPayload/repetitionsPayload/duration`.
+                        public var duration: Swift.Int?
+                        /// The name of the repetition (e.g., 'First Run', 'Retry 1').
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_casesPayload/repetitionsPayload/name`.
+                        public var name: Swift.String
+                        /// The repetition attempt number (1 = First Run, 2 = Retry 1, etc.)
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_casesPayload/repetitionsPayload/repetition_number`.
+                        public var repetition_number: Swift.Int
+                        /// The status of this repetition attempt.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_casesPayload/repetitionsPayload/status`.
+                        @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case success = "success"
+                            case failure = "failure"
+                        }
+                        /// The status of this repetition attempt.
+                        ///
+                        /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_casesPayload/repetitionsPayload/status`.
+                        public var status: Components.Schemas.TestRun.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload.statusPayload
+                        /// Creates a new `repetitionsPayloadPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - duration: The duration of this repetition in milliseconds.
+                        ///   - name: The name of the repetition (e.g., 'First Run', 'Retry 1').
+                        ///   - repetition_number: The repetition attempt number (1 = First Run, 2 = Retry 1, etc.)
+                        ///   - status: The status of this repetition attempt.
+                        public init(
+                            duration: Swift.Int? = nil,
+                            name: Swift.String,
+                            repetition_number: Swift.Int,
+                            status: Components.Schemas.TestRun.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload.statusPayload
+                        ) {
+                            self.duration = duration
+                            self.name = name
+                            self.repetition_number = repetition_number
+                            self.status = status
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case duration
+                            case name
+                            case repetition_number
+                            case status
+                        }
+                    }
+                    /// The repetition attempts for this test case (when run with retry-on-failure).
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_casesPayload/repetitions`.
+                    public typealias repetitionsPayload = [Components.Schemas.TestRun.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload]
+                    /// The repetition attempts for this test case (when run with retry-on-failure).
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_casesPayload/repetitions`.
+                    public var repetitions: Components.Schemas.TestRun.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayload?
                     /// The status of the test case.
                     ///
                     /// - Remark: Generated from `#/components/schemas/TestRun/test_modulesPayload/test_casesPayload/status`.
@@ -4407,6 +4528,7 @@ public enum Components {
                         case success = "success"
                         case failure = "failure"
                         case skipped = "skipped"
+                        case flaky = "flaky"
                     }
                     /// The status of the test case.
                     ///
@@ -4422,18 +4544,21 @@ public enum Components {
                     ///   - duration: The duration of the test case in milliseconds.
                     ///   - failures: The failures that occurred in this test case.
                     ///   - name: The name of the test case.
+                    ///   - repetitions: The repetition attempts for this test case (when run with retry-on-failure).
                     ///   - status: The status of the test case.
                     ///   - test_suite_name: The name of the test suite this test case belongs to (optional).
                     public init(
                         duration: Swift.Int,
                         failures: Components.Schemas.TestRun.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayload? = nil,
                         name: Swift.String,
+                        repetitions: Components.Schemas.TestRun.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayload? = nil,
                         status: Components.Schemas.TestRun.test_modulesPayloadPayload.test_casesPayloadPayload.statusPayload,
                         test_suite_name: Swift.String? = nil
                     ) {
                         self.duration = duration
                         self.failures = failures
                         self.name = name
+                        self.repetitions = repetitions
                         self.status = status
                         self.test_suite_name = test_suite_name
                     }
@@ -4441,6 +4566,7 @@ public enum Components {
                         case duration
                         case failures
                         case name
+                        case repetitions
                         case status
                         case test_suite_name
                     }
@@ -25786,6 +25912,64 @@ public enum Operations {
                                 ///
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_casesPayload/name`.
                                 public var name: Swift.String
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_casesPayload/repetitionsPayload`.
+                                public struct repetitionsPayloadPayload: Codable, Hashable, Sendable {
+                                    /// The duration of this repetition in milliseconds.
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_casesPayload/repetitionsPayload/duration`.
+                                    public var duration: Swift.Int?
+                                    /// The name of the repetition (e.g., 'First Run', 'Retry 1').
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_casesPayload/repetitionsPayload/name`.
+                                    public var name: Swift.String
+                                    /// The repetition attempt number (1 = First Run, 2 = Retry 1, etc.)
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_casesPayload/repetitionsPayload/repetition_number`.
+                                    public var repetition_number: Swift.Int
+                                    /// The status of this repetition attempt.
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_casesPayload/repetitionsPayload/status`.
+                                    @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                        case success = "success"
+                                        case failure = "failure"
+                                    }
+                                    /// The status of this repetition attempt.
+                                    ///
+                                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_casesPayload/repetitionsPayload/status`.
+                                    public var status: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload.statusPayload
+                                    /// Creates a new `repetitionsPayloadPayload`.
+                                    ///
+                                    /// - Parameters:
+                                    ///   - duration: The duration of this repetition in milliseconds.
+                                    ///   - name: The name of the repetition (e.g., 'First Run', 'Retry 1').
+                                    ///   - repetition_number: The repetition attempt number (1 = First Run, 2 = Retry 1, etc.)
+                                    ///   - status: The status of this repetition attempt.
+                                    public init(
+                                        duration: Swift.Int? = nil,
+                                        name: Swift.String,
+                                        repetition_number: Swift.Int,
+                                        status: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload.statusPayload
+                                    ) {
+                                        self.duration = duration
+                                        self.name = name
+                                        self.repetition_number = repetition_number
+                                        self.status = status
+                                    }
+                                    public enum CodingKeys: String, CodingKey {
+                                        case duration
+                                        case name
+                                        case repetition_number
+                                        case status
+                                    }
+                                }
+                                /// The repetition attempts for this test case (when run with retry-on-failure).
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_casesPayload/repetitions`.
+                                public typealias repetitionsPayload = [Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload]
+                                /// The repetition attempts for this test case (when run with retry-on-failure).
+                                ///
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_casesPayload/repetitions`.
+                                public var repetitions: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayload?
                                 /// The status of the test case.
                                 ///
                                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case2/test_modulesPayload/test_casesPayload/status`.
@@ -25793,6 +25977,7 @@ public enum Operations {
                                     case success = "success"
                                     case failure = "failure"
                                     case skipped = "skipped"
+                                    case flaky = "flaky"
                                 }
                                 /// The status of the test case.
                                 ///
@@ -25808,18 +25993,21 @@ public enum Operations {
                                 ///   - duration: The duration of the test case in milliseconds.
                                 ///   - failures: The failures that occurred in this test case.
                                 ///   - name: The name of the test case.
+                                ///   - repetitions: The repetition attempts for this test case (when run with retry-on-failure).
                                 ///   - status: The status of the test case.
                                 ///   - test_suite_name: The name of the test suite this test case belongs to (optional).
                                 public init(
                                     duration: Swift.Int,
                                     failures: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayload? = nil,
                                     name: Swift.String,
+                                    repetitions: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayload? = nil,
                                     status: Operations.createRun.Input.Body.jsonPayload.Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.statusPayload,
                                     test_suite_name: Swift.String? = nil
                                 ) {
                                     self.duration = duration
                                     self.failures = failures
                                     self.name = name
+                                    self.repetitions = repetitions
                                     self.status = status
                                     self.test_suite_name = test_suite_name
                                 }
@@ -25827,6 +26015,7 @@ public enum Operations {
                                     case duration
                                     case failures
                                     case name
+                                    case repetitions
                                     case status
                                     case test_suite_name
                                 }

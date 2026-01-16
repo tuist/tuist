@@ -12,6 +12,7 @@ defmodule Tuist.Runs.Analytics do
   alias Tuist.Repo
   alias Tuist.Runs.Build
   alias Tuist.Runs.Test
+  alias Tuist.Runs.TestCase
   alias Tuist.Runs.TestCaseRun
   alias Tuist.Tasks
   alias Tuist.Xcode.XcodeGraph
@@ -1258,6 +1259,7 @@ defmodule Tuist.Runs.Analytics do
         nil -> query
         "failure" -> where(query, [t], t.status == "failure")
         "success" -> where(query, [t], t.status == "success")
+        "flaky" -> where(query, [t], t.is_flaky == true)
       end
 
     ClickHouseRepo.all(query)
@@ -1287,6 +1289,7 @@ defmodule Tuist.Runs.Analytics do
         nil -> query
         "failure" -> where(query, [t], t.status == "failure")
         "success" -> where(query, [t], t.status == "success")
+        "flaky" -> where(query, [t], t.is_flaky == true)
       end
 
     ClickHouseRepo.one(query) || 0
@@ -1989,6 +1992,7 @@ defmodule Tuist.Runs.Analytics do
   Returns a map with:
   - total_count: Total number of test cases
   - failed_count: Number of failed test cases
+  - flaky_count: Number of flaky test cases
   - avg_duration: Average test case duration in milliseconds
   """
   def get_test_run_metrics(test_run_id) do
@@ -1997,11 +2001,12 @@ defmodule Tuist.Runs.Analytics do
         where: t.test_run_id == ^test_run_id,
         select: %{
           total_count: fragment("coalesce(count(?), 0)", t.id),
-          failed_count: fragment("coalesce(countIf(? = 1), 0)", t.status),
+          failed_count: fragment("coalesce(countIf(? = 'failure'), 0)", t.status),
+          flaky_count: fragment("coalesce(countIf(?), 0)", t.is_flaky),
           avg_duration: fragment("ifNotFinite(round(avg(?)), 0)", t.duration)
         }
 
-    ClickHouseRepo.one(query) || %{total_count: 0, failed_count: 0, avg_duration: 0}
+    ClickHouseRepo.one(query) || %{total_count: 0, failed_count: 0, flaky_count: 0, avg_duration: 0}
   end
 
   @doc """
@@ -2542,53 +2547,36 @@ defmodule Tuist.Runs.Analytics do
         order_by: fragment("formatDateTime(?, ?)", tcr.inserted_at, ^date_format)
       )
 
-    query =
-      case is_ci do
-        nil -> query
-        true -> where(query, [tcr], tcr.is_ci == true)
-        false -> where(query, [tcr], tcr.is_ci == false)
-      end
-
-    query =
-      case status do
-        nil -> query
-        "failure" -> where(query, [tcr], tcr.status == "failure")
-        "success" -> where(query, [tcr], tcr.status == "success")
-        "skipped" -> where(query, [tcr], tcr.status == "skipped")
-      end
-
-    ClickHouseRepo.all(query)
+    query
+    |> apply_is_ci_filter(is_ci)
+    |> apply_status_filter(status)
+    |> ClickHouseRepo.all()
   end
 
   defp test_case_run_total_count(project_id, start_datetime, end_datetime, opts) do
     is_ci = Keyword.get(opts, :is_ci)
     status = Keyword.get(opts, :status)
 
-    query =
-      from(tcr in TestCaseRun,
-        where: tcr.project_id == ^project_id,
-        where: tcr.inserted_at >= ^start_datetime,
-        where: tcr.inserted_at <= ^end_datetime,
-        select: count(tcr.id)
-      )
-
-    query =
-      case is_ci do
-        nil -> query
-        true -> where(query, [tcr], tcr.is_ci == true)
-        false -> where(query, [tcr], tcr.is_ci == false)
-      end
-
-    query =
-      case status do
-        nil -> query
-        "failure" -> where(query, [tcr], tcr.status == "failure")
-        "success" -> where(query, [tcr], tcr.status == "success")
-        "skipped" -> where(query, [tcr], tcr.status == "skipped")
-      end
-
-    ClickHouseRepo.one(query) || 0
+    from(tcr in TestCaseRun,
+      where: tcr.project_id == ^project_id,
+      where: tcr.inserted_at >= ^start_datetime,
+      where: tcr.inserted_at <= ^end_datetime,
+      select: count(tcr.id)
+    )
+    |> apply_is_ci_filter(is_ci)
+    |> apply_status_filter(status)
+    |> ClickHouseRepo.one() || 0
   end
+
+  defp apply_is_ci_filter(query, nil), do: query
+  defp apply_is_ci_filter(query, true), do: where(query, [tcr], tcr.is_ci == true)
+  defp apply_is_ci_filter(query, false), do: where(query, [tcr], tcr.is_ci == false)
+
+  defp apply_status_filter(query, nil), do: query
+  defp apply_status_filter(query, "failure"), do: where(query, [tcr], tcr.status == "failure")
+  defp apply_status_filter(query, "success"), do: where(query, [tcr], tcr.status == "success")
+  defp apply_status_filter(query, "skipped"), do: where(query, [tcr], tcr.status == "skipped")
+  defp apply_status_filter(query, "flaky"), do: where(query, [tcr], tcr.is_flaky == true)
 
   @doc """
   Gets test case run duration analytics for a project over a time period.
@@ -2889,6 +2877,35 @@ defmodule Tuist.Runs.Analytics do
           failed_count: failed,
           avg_duration: normalize_duration(avg)
         }
+    end
+  end
+
+  @doc """
+  Gets the flakiness rate for a specific test case.
+  Calculates the ratio of flaky runs to total runs in the last 30 days.
+  Returns 0.0 if there are no flaky runs or no data.
+  """
+  def get_test_case_flakiness_rate(%TestCase{id: test_case_id}) do
+    thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
+
+    query =
+      from(tcr in TestCaseRun,
+        where: tcr.test_case_id == ^test_case_id,
+        where: tcr.inserted_at >= ^thirty_days_ago,
+        select: %{
+          flaky_count: fragment("countIf(?)", tcr.is_flaky),
+          total_count: count(tcr.id)
+        }
+      )
+
+    result = ClickHouseRepo.one(query)
+
+    case result do
+      %{flaky_count: flaky_count, total_count: total_count} when total_count > 0 ->
+        Float.round(flaky_count / total_count * 100, 1)
+
+      _ ->
+        0.0
     end
   end
 
