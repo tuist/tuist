@@ -30,7 +30,7 @@ Authentication uses `TUIST_CACHE_API_KEY`. In development, the server and cache 
 
 ### Nginx and local setup {#nginx-and-local-setup}
 
-In production the cache service is fronted by nginx to optimize read performance. Local nginx setup is not fully documented yet, but the `cache/docker-compose.yml` file shows the intended wiring and can be used as a reference when you need to test the full setup locally.
+In production the cache service is fronted by nginx to optimize read performance. Local development with `mix phx.server` does not use nginx. If you want to test the full nginx + release setup locally, use `cache/docker-compose.yml`, which starts the cache release and nginx wired through a Unix socket.
 
 ### Tests {#tests}
 
