@@ -733,8 +733,8 @@ defmodule TuistWeb.ProjectNotificationsLive do
     text =
       dngettext(
         "dashboard_projects",
-        "Alert when flaky runs occur in at least <strong>%{count} run</strong> over the last 30 days.",
-        "Alert when flaky runs occur in at least <strong>%{count} runs</strong> over the last 30 days.",
+        "Alert when flaky runs occur in at least <strong>%{count} run</strong> in the last 30 days.",
+        "Alert when flaky runs occur in at least <strong>%{count} runs</strong> in the last 30 days.",
         trigger_threshold
       )
 

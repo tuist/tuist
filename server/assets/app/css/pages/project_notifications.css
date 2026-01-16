@@ -229,6 +229,10 @@
 
   & [data-part="update-flaky-test-alert-modal"],
   & #create-flaky-test-alert-modal {
+    & [data-part="content"] > [data-part="body"] {
+      width: 430px;
+    }
+
     & [data-part="alert-form"] {
       padding-bottom: var(--noora-spacing-9);
     }
