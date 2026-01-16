@@ -59,7 +59,7 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorker do
           })
 
         alert = Repo.preload(alert, flaky_test_alert_rule: [project: [account: :slack_installation]])
-        Slack.send_flaky_test_alert(alert)
+        :ok = Slack.send_flaky_test_alert(alert)
     end
   end
 end
