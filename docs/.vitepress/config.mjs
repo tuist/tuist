@@ -1,4 +1,4 @@
-import { defineConfig } from "vitepress";
+import { withMermaid } from "vitepress-plugin-mermaid";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
 import {
@@ -146,7 +146,7 @@ const searchOptionsLocales = Object.fromEntries(
   enabledLocales.map((locale) => [locale, getSearchOptionsForLocale(locale)])
 );
 
-export default defineConfig({
+export default withMermaid({
   title: "Tuist",
   titleTemplate: ":title | Tuist",
   description: "Scale your Xcode app development",
