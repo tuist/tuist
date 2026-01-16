@@ -111,17 +111,6 @@ defmodule Tuist.IngestRepo.Migrations.ConvertTestTablesToReplacingMergeTree do
 
         # Keep old table for safety - will be dropped in a follow-up migration
         Logger.info("Completed converting #{table_name}, keeping #{old_table} for safety")
-
-      # Edge case: main table doesn't exist but _old does - restore from _old
-      {:not_exists, {:exists, _engine, count}} ->
-        Logger.info(
-          "#{table_name} missing but #{old_table} exists with #{count} rows, restoring..."
-        )
-
-        IngestRepo.query!("RENAME TABLE #{old_table} TO #{table_name}")
-        wait_for_table_rename(old_table, table_name)
-        # Recursively call to convert the restored table
-        convert_table(table_name)
     end
   end
 
