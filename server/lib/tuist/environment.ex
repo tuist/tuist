@@ -127,7 +127,7 @@ defmodule Tuist.Environment do
             ["https://cache-eu-central-staging.tuist.dev", "https://cache-us-east-staging.tuist.dev"]
 
           can?() ->
-            ["https://cache-eu-central-canary.tuist.dev", "https://cache-us-east-canary.tuist.dev"]
+            ["https://cache-eu-central-canary.tuist.dev"]
 
           dev?() ->
             ["http://localhost:8087"]
