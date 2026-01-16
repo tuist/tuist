@@ -695,7 +695,7 @@ defmodule Tuist.Runs do
         |> Enum.filter(fn {{_name, mod_name, _suite}, _data} -> mod_name == module_name end)
         |> Map.new()
 
-      module_is_flaky = is_any_test_case_run_flaky?(Map.values(module_test_case_run_data))
+      module_is_flaky = any_test_case_run_flaky?(Map.values(module_test_case_run_data))
 
       module_run_attrs = %{
         id: module_id,
@@ -831,7 +831,7 @@ defmodule Tuist.Runs do
           |> Enum.filter(fn {{_name, _module, suite}, _data} -> suite == suite_name end)
           |> Enum.map(fn {_key, data} -> data end)
 
-        suite_is_flaky = is_any_test_case_run_flaky?(suite_data)
+        suite_is_flaky = any_test_case_run_flaky?(suite_data)
 
         suite_run = %{
           id: suite_id,
@@ -1003,9 +1003,40 @@ defmodule Tuist.Runs do
     filters = Map.get(attrs, :filters, [])
     offset = (page - 1) * page_size
 
-    search_filter = Enum.find(filters, fn f -> f[:field] == :name and f[:op] == :ilike_and end)
-    search_term = if search_filter, do: search_filter[:value]
+    search_term = extract_search_term(filters)
 
+    results =
+      project_id
+      |> build_flaky_test_cases_query(search_term)
+      |> apply_flaky_order(order_by, order_direction)
+      |> from(limit: ^page_size, offset: ^offset)
+      |> ClickHouseRepo.all()
+
+    flaky_tests = Enum.map(results, &row_to_flaky_test_case/1)
+
+    total_count =
+      project_id
+      |> build_flaky_test_cases_count_query(search_term)
+      |> ClickHouseRepo.one()
+
+    total_pages = if total_count > 0, do: ceil(total_count / page_size), else: 0
+
+    meta = %{
+      total_count: total_count,
+      total_pages: total_pages,
+      current_page: page,
+      page_size: page_size
+    }
+
+    {flaky_tests, meta}
+  end
+
+  defp extract_search_term(filters) do
+    search_filter = Enum.find(filters, fn f -> f[:field] == :name and f[:op] == :ilike_and end)
+    if search_filter, do: search_filter[:value]
+  end
+
+  defp build_flaky_test_cases_query(project_id, search_term) do
     stats_subquery =
       from(tcr in TestCaseRun,
         where: tcr.project_id == ^project_id and tcr.is_flaky == true,
@@ -1035,65 +1066,48 @@ defmodule Tuist.Runs do
         }
       )
 
-    query =
-      if search_term do
-        from([tc, stats] in base_query, where: ilike(tc.name, ^"%#{search_term}%"))
-      else
-        base_query
-      end
+    apply_name_search(base_query, search_term)
+  end
 
-    query =
-      case {order_by, order_direction} do
-        {:flaky_runs_count, :asc} -> from([tc, stats] in query, order_by: [asc: coalesce(stats.flaky_runs_count, 0)])
-        {:last_flaky_at, :desc} -> from([tc, stats] in query, order_by: [desc: stats.last_flaky_at])
-        {:last_flaky_at, :asc} -> from([tc, stats] in query, order_by: [asc: stats.last_flaky_at])
-        {:name, :desc} -> from([tc, stats] in query, order_by: [desc: tc.name])
-        {:name, :asc} -> from([tc, stats] in query, order_by: [asc: tc.name])
-        _ -> from([tc, stats] in query, order_by: [desc: coalesce(stats.flaky_runs_count, 0)])
-      end
-
-    query = from(q in query, limit: ^page_size, offset: ^offset)
-
-    results = ClickHouseRepo.all(query)
-
-    flaky_tests =
-      Enum.map(results, fn row ->
-        %FlakyTestCase{
-          id: row.id,
-          name: row.name,
-          module_name: row.module_name,
-          suite_name: row.suite_name,
-          flaky_runs_count: row.flaky_runs_count,
-          last_flaky_at: row.last_flaky_at,
-          last_flaky_run_id: row.last_flaky_run_id
-        }
-      end)
-
-    count_query =
+  defp build_flaky_test_cases_count_query(project_id, search_term) do
+    apply_name_search(
       from(tc in TestCase,
         hints: ["FINAL"],
         where: tc.project_id == ^project_id and tc.is_flaky == true,
         select: count(tc.id)
-      )
+      ),
+      search_term
+    )
+  end
 
-    count_query =
-      if search_term do
-        from(tc in count_query, where: ilike(tc.name, ^"%#{search_term}%"))
-      else
-        count_query
-      end
+  defp apply_name_search(query, nil), do: query
+  defp apply_name_search(query, term), do: from(q in query, where: ilike(q.name, ^"%#{term}%"))
 
-    total_count = ClickHouseRepo.one(count_query)
-    total_pages = if total_count > 0, do: ceil(total_count / page_size), else: 0
+  defp apply_flaky_order(query, :flaky_runs_count, :asc),
+    do: from([tc, stats] in query, order_by: [asc: coalesce(stats.flaky_runs_count, 0)])
 
-    meta = %{
-      total_count: total_count,
-      total_pages: total_pages,
-      current_page: page,
-      page_size: page_size
+  defp apply_flaky_order(query, :last_flaky_at, :desc),
+    do: from([tc, stats] in query, order_by: [desc: stats.last_flaky_at])
+
+  defp apply_flaky_order(query, :last_flaky_at, :asc),
+    do: from([tc, stats] in query, order_by: [asc: stats.last_flaky_at])
+
+  defp apply_flaky_order(query, :name, :desc), do: from([tc, stats] in query, order_by: [desc: tc.name])
+  defp apply_flaky_order(query, :name, :asc), do: from([tc, stats] in query, order_by: [asc: tc.name])
+
+  defp apply_flaky_order(query, _, _),
+    do: from([tc, stats] in query, order_by: [desc: coalesce(stats.flaky_runs_count, 0)])
+
+  defp row_to_flaky_test_case(row) do
+    %FlakyTestCase{
+      id: row.id,
+      name: row.name,
+      module_name: row.module_name,
+      suite_name: row.suite_name,
+      flaky_runs_count: row.flaky_runs_count,
+      last_flaky_at: row.last_flaky_at,
+      last_flaky_run_id: row.last_flaky_run_id
     }
-
-    {flaky_tests, meta}
   end
 
   defp mark_test_case_runs_as_flaky(test_case_run_ids) when is_list(test_case_run_ids) do
@@ -1120,7 +1134,7 @@ defmodule Tuist.Runs do
     end
   end
 
-  defp is_any_test_case_run_flaky?(test_case_run_data) do
+  defp any_test_case_run_flaky?(test_case_run_data) do
     Enum.any?(test_case_run_data, fn %{is_flaky: is_flaky} -> is_flaky end)
   end
 
