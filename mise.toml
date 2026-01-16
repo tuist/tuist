@@ -12,7 +12,6 @@
     postinstall = "{{config_root}}/mise/tasks/install.sh"
 
 [env]
-    TUIST_EXPERIMENTAL_MODULE_CACHE="1"
     TUIST_CACHE_CONCURRENCY_LIMIT="none"
     # Elixir recommends half of the number of cores: https://elixir-lang.org/blog/2025/10/16/elixir-v1-19-0-released/
     MIX_OS_DEPS_COMPILE_PARTITION_COUNT=4

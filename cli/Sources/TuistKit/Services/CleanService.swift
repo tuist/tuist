@@ -150,7 +150,12 @@ final class CleanService {
             guard let fullHandle = config.fullHandle else { return }
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
-            if Environment.current.isExperimentalRegionalCacheEnabled {
+            if Environment.current.isLegacyModuleCacheEnabled {
+                try await cleanCacheService.cleanCache(
+                    serverURL: serverURL,
+                    fullHandle: fullHandle
+                )
+            } else {
                 let handles = fullHandle.components(separatedBy: "/")
                 guard handles.count == 2 else { return }
                 let accountHandle = handles[0]
@@ -176,11 +181,6 @@ final class CleanService {
                     }
                     try await group.waitForAll()
                 }
-            } else {
-                try await cleanCacheService.cleanCache(
-                    serverURL: serverURL,
-                    fullHandle: fullHandle
-                )
             }
 
             Logger.current.notice("Successfully cleaned the remote storage.")

@@ -215,67 +215,68 @@ final class CleanServiceTests: TuistUnitTestCase {
         XCTAssertFalse(swiftPackageManagerBuildFileExists)
     }
 
-    func test_run_with_remote() async throws {
-        try await withMockedDependencies {
-            // Given
-            let url = URL(string: "https://cloud.com")!
+    func test_run_with_remote_legacy() async throws {
+        try await withMockedEnvironment {
+            try await withMockedDependencies {
+                Environment.mocked?.variables["TUIST_LEGACY_MODULE_CACHE"] = "1"
+                // Given
+                let url = URL(string: "https://cloud.com")!
 
-            given(configLoader)
-                .loadConfig(path: .any)
-                .willReturn(
-                    Tuist.test(
-                        fullHandle: "tuist/tuist",
-                        url: url
+                given(configLoader)
+                    .loadConfig(path: .any)
+                    .willReturn(
+                        Tuist.test(
+                            fullHandle: "tuist/tuist",
+                            url: url
+                        )
                     )
+
+                given(serverEnvironmentService)
+                    .url(configServerURL: .any)
+                    .willReturn(url)
+
+                given(cleanCacheService)
+                    .cleanCache(
+                        serverURL: .value(url),
+                        fullHandle: .value("tuist/tuist")
+                    )
+                    .willReturn(())
+
+                given(cacheDirectoriesProvider)
+                    .cacheDirectory(for: .any)
+                    .willReturn(try temporaryPath())
+
+                let projectPath = try temporaryPath()
+                given(rootDirectoryLocator)
+                    .locate(from: .any)
+                    .willReturn(projectPath)
+                given(manifestFilesLocator)
+                    .locatePackageManifest(at: .any)
+                    .willReturn(nil)
+
+                // When
+                try await subject.run(
+                    categories: TuistCleanCategory.allCases,
+                    remote: true,
+                    path: nil
                 )
 
-            given(serverEnvironmentService)
-                .url(configServerURL: .any)
-                .willReturn(url)
-
-            given(cleanCacheService)
-                .cleanCache(
-                    serverURL: .value(url),
-                    fullHandle: .value("tuist/tuist")
-                )
-                .willReturn(())
-
-            given(cacheDirectoriesProvider)
-                .cacheDirectory(for: .any)
-                .willReturn(try temporaryPath())
-
-            let projectPath = try temporaryPath()
-            given(rootDirectoryLocator)
-                .locate(from: .any)
-                .willReturn(projectPath)
-            given(manifestFilesLocator)
-                .locatePackageManifest(at: .any)
-                .willReturn(nil)
-
-            // When
-            try await subject.run(
-                categories: TuistCleanCategory.allCases,
-                remote: true,
-                path: nil
-            )
-
-            // Then
-            verify(cleanCacheService)
-                .cleanCache(serverURL: .any, fullHandle: .any)
-                .called(1)
-            XCTAssertStandardOutput(pattern: "Successfully cleaned the remote storage.")
+                // Then
+                verify(cleanCacheService)
+                    .cleanCache(serverURL: .any, fullHandle: .any)
+                    .called(1)
+                XCTAssertStandardOutput(pattern: "Successfully cleaned the remote storage.")
+            }
         }
     }
 
-    func test_run_with_remote_experimental_module_cache() async throws {
+    func test_run_with_remote() async throws {
         try await withMockedEnvironment {
             try await withMockedDependencies {
+                Environment.mocked?.variables["TUIST_LEGACY_MODULE_CACHE"] = "0"
                 // Given
-                let mockEnvironment = try XCTUnwrap(Environment.mocked)
-                mockEnvironment.variables["TUIST_EXPERIMENTAL_MODULE_CACHE"] = "1"
                 let serverURL = URL(string: "https://cloud.com")!
-                let cacheEndpoint1 = "https://cache1.cloud.com"
-                let cacheEndpoint2 = "https://cache2.cloud.com"
+                let cacheEndpoint = "https://cache1.cloud.com"
 
                 given(configLoader)
                     .loadConfig(path: .any)
@@ -292,7 +293,7 @@ final class CleanServiceTests: TuistUnitTestCase {
 
                 given(getCacheEndpointsService)
                     .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("tuist"))
-                    .willReturn([cacheEndpoint1, cacheEndpoint2])
+                    .willReturn([cacheEndpoint])
 
                 given(cleanProjectCacheService)
                     .cleanProjectCache(
@@ -332,7 +333,7 @@ final class CleanServiceTests: TuistUnitTestCase {
                         authenticationURL: .any,
                         serverAuthenticationController: .any
                     )
-                    .called(2)
+                    .called(1)
                 XCTAssertStandardOutput(pattern: "Successfully cleaned the remote storage.")
             }
         }

@@ -89,6 +89,7 @@ public struct EnvironmentTestingTrait: TestTrait, SuiteTrait, TestScoping {
     let temporaryDirectory: AbsolutePath?
     let inheritedVariables: [String]
     let arguments: [String]
+    let legacyModuleCache: Bool?
 
     public func provideScope(
         for _: Test,
@@ -98,14 +99,25 @@ public struct EnvironmentTestingTrait: TestTrait, SuiteTrait, TestScoping {
         let mockEnvironment = try MockEnvironment(temporaryDirectory: temporaryDirectory)
         mockEnvironment.variables = ProcessInfo.processInfo.environment.filter { inheritedVariables.contains($0.key) }
         mockEnvironment.arguments = arguments
+        if let legacyModuleCache {
+            mockEnvironment.variables["TUIST_LEGACY_MODULE_CACHE"] = legacyModuleCache ? "1" : "0"
+        }
         try await Environment.$current.withValue(mockEnvironment) {
             try await function()
         }
     }
 }
 
-public func withMockedEnvironment(temporaryDirectory: AbsolutePath? = nil, _ closure: () async throws -> Void) async throws {
-    try await Environment.$current.withValue(MockEnvironment(temporaryDirectory: temporaryDirectory)) {
+public func withMockedEnvironment(
+    temporaryDirectory: AbsolutePath? = nil,
+    legacyModuleCache: Bool? = nil,
+    _ closure: () async throws -> Void
+) async throws {
+    let mockEnvironment = try MockEnvironment(temporaryDirectory: temporaryDirectory)
+    if let legacyModuleCache {
+        mockEnvironment.variables["TUIST_LEGACY_MODULE_CACHE"] = legacyModuleCache ? "1" : "0"
+    }
+    try await Environment.$current.withValue(mockEnvironment) {
         try await closure()
     }
 }
@@ -115,8 +127,14 @@ extension Trait where Self == EnvironmentTestingTrait {
     public static func withMockedEnvironment(
         temporaryDirectory: AbsolutePath? = nil,
         inheritingVariables inheritedVariables: [String] = [],
-        arguments: [String] = []
+        arguments: [String] = [],
+        legacyModuleCache: Bool? = nil
     ) -> Self {
-        Self(temporaryDirectory: temporaryDirectory, inheritedVariables: inheritedVariables, arguments: arguments)
+        Self(
+            temporaryDirectory: temporaryDirectory,
+            inheritedVariables: inheritedVariables,
+            arguments: arguments,
+            legacyModuleCache: legacyModuleCache
+        )
     }
 }
