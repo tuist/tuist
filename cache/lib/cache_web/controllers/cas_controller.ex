@@ -146,18 +146,7 @@ defmodule CacheWeb.CASController do
   defp save_new_artifact(conn, account_handle, project_handle, id) do
     case BodyReader.read(conn) do
       {:ok, data, conn_after} ->
-        size =
-          case data do
-            {:file, tmp_path} ->
-              case File.stat(tmp_path) do
-                {:ok, %File.Stat{size: sz}} -> sz
-                _ -> 0
-              end
-
-            bin when is_binary(bin) ->
-              byte_size(bin)
-          end
-
+        size = get_data_size(data)
         :telemetry.execute([:cache, :cas, :upload, :attempt], %{size: size}, %{})
         persist_artifact(conn_after, account_handle, project_handle, id, data, size)
 
@@ -213,4 +202,13 @@ defmodule CacheWeb.CASController do
 
   defp cleanup_tmp_file({:file, tmp_path}), do: File.rm(tmp_path)
   defp cleanup_tmp_file(_binary_data), do: :ok
+
+  defp get_data_size({:file, tmp_path}) do
+    case File.stat(tmp_path) do
+      {:ok, %File.Stat{size: sz}} -> sz
+      _ -> 0
+    end
+  end
+
+  defp get_data_size(bin) when is_binary(bin), do: byte_size(bin)
 end
