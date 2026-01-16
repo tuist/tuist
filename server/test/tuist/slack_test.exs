@@ -340,7 +340,7 @@ defmodule Tuist.SlackTest do
         assert length(blocks) == 5
 
         header_block = Enum.find(blocks, fn b -> b.type == "header" end)
-        assert header_block.text.text =~ "Flaky Test Detected"
+        assert header_block.text.text =~ "New flaky test detected"
 
         test_case_block = Enum.at(blocks, 3)
         assert test_case_block.text.text =~ "testExample"

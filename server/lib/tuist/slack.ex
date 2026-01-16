@@ -364,7 +364,7 @@ defmodule Tuist.Slack do
       type: "header",
       text: %{
         type: "plain_text",
-        text: ":warning: Alert: Flaky Test Detected"
+        text: ":warning: New flaky test detected"
       }
     }
   end
@@ -393,7 +393,7 @@ defmodule Tuist.Slack do
     test_case_url = "#{base_url}/#{account_name}/#{project_name}/tests/test-cases/#{test_case_id}"
 
     details =
-      ["*Test:* <#{test_case_url}|`#{name}`>", "*Module:* #{module_name}"]
+      ["*Test:* <#{test_case_url}|#{name}>", "*Module:* #{module_name}"]
       |> maybe_add_suite(suite_name)
       |> Enum.join("\n")
 
