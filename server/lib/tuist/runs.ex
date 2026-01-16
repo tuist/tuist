@@ -614,7 +614,6 @@ defmodule Tuist.Runs do
 
   defp get_project_test_cases(_project_id, []), do: %{}
 
-
   defp get_project_test_cases(project_id, test_case_ids) do
     query =
       from(tc in TestCase,

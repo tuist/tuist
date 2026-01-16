@@ -3,8 +3,7 @@ defmodule Tuist.Alerts.FlakyTestAlertRule do
   Represents a flaky test alert rule configuration for a project.
 
   Flaky test alert rules define when alerts should be triggered based on the number
-  of test runs with flaky tests. Each rule has a 24-hour cooldown to prevent
-  notification spam.
+  of test runs with flaky tests.
   """
   use Ecto.Schema
 
