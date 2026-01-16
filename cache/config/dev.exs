@@ -20,7 +20,7 @@ config :cache, CacheWeb.Endpoint,
 config :cache, :cas,
   server_url: "http://localhost:8080",
   storage_dir: "tmp/cas",
-  api_key: System.get_env("TUIST_CACHE_API_KEY")
+  api_key: System.get_env("TUIST_CACHE_API_KEY") || "dev-cache-api-key"
 
 config :cache, :oban_web_basic_auth, username: "admin", password: "admin"
 

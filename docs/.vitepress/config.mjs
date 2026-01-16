@@ -1,4 +1,4 @@
-import { withMermaid } from "vitepress-plugin-mermaid";
+import { defineConfig } from "vitepress";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
 import {
@@ -146,7 +146,23 @@ const searchOptionsLocales = Object.fromEntries(
   enabledLocales.map((locale) => [locale, getSearchOptionsForLocale(locale)])
 );
 
-export default withMermaid({
+const devLocaleRedirectPlugin = () => ({
+  name: "dev-locale-redirect",
+  apply: "serve",
+  configureServer(server) {
+    server.middlewares.use((req, res, next) => {
+      if (req.url === "/" || req.url === "/index.html" || req.url?.startsWith("/?")) {
+        res.statusCode = 302;
+        res.setHeader("Location", "/en/");
+        res.end();
+        return;
+      }
+      next();
+    });
+  },
+});
+
+export default defineConfig({
   title: "Tuist",
   titleTemplate: ":title | Tuist",
   description: "Scale your Xcode app development",
@@ -162,7 +178,7 @@ export default withMermaid({
     metaChunk: true,
   },
   vite: {
-    plugins: [llmstxtPlugin()],
+    plugins: [llmstxtPlugin(), devLocaleRedirectPlugin()],
     css: {
       postcss: {
         plugins: [
@@ -308,11 +324,11 @@ export default withMermaid({
 /tutorials/tuist/enterprise-infrastructure-requirements /cloud/on-premise 301
 /tutorials/tuist/enterprise-environment /cloud/on-premise 301
 /tutorials/tuist/enterprise-deployment /cloud/on-premise 301
-/documentation/tuist/get-started-as-contributor /contributors/get-started 301
+/documentation/tuist/get-started-as-contributor /contributors/code 301
 /documentation/tuist/manifesto /contributors/principles 301
 /documentation/tuist/code-reviews /contributors/code-reviews 301
 /documentation/tuist/reporting-bugs /contributors/issue-reporting 301
-/documentation/tuist/championing-projects /contributors/get-started 301
+/documentation/tuist/championing-projects /contributors/code 301
 /guide/scale/ufeatures-architecture.html /guide/scale/tma-architecture.html 301
 /guide/scale/ufeatures-architecture /guide/scale/tma-architecture 301
 /guide/introduction/cost-of-convenience /guides/develop/projects/cost-of-convenience 301

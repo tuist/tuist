@@ -119,8 +119,25 @@
     "contributors": {
       "text": "Contributors",
       "items": {
-        "get-started": {
-          "text": "Get started"
+        "code": {
+          "text": "Code",
+          "items": {
+            "cli": {
+              "text": "CLI"
+            },
+            "server": {
+              "text": "Server"
+            },
+            "cache-server": {
+              "text": "Cache Server"
+            },
+            "handbook": {
+              "text": "Handbook"
+            },
+            "docs": {
+              "text": "Docs"
+            }
+          }
         },
         "issue-reporting": {
           "text": "Issue reporting"
@@ -130,6 +147,9 @@
         },
         "principles": {
           "text": "Principles"
+        },
+        "debugging": {
+          "text": "Debugging"
         },
         "translate": {
           "text": "Translate"
