@@ -1,7 +1,18 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.126.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.128.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* only emit a public import when public symbols are present by [@JimRoepcke](https://github.com/JimRoepcke) in [#9129](https://github.com/tuist/tuist/pull/9129)
+
+## New Contributors
+* [@JimRoepcke](https://github.com/JimRoepcke) made their first contribution in [#9129](https://github.com/tuist/tuist/pull/9129)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.128.0...4.128.1
+
+## What's Changed in 4.128.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -14,7 +25,7 @@ All notable changes to this project will be documented in this file.
 * remove selective testing support for vanilla Xcode projects by [@fortmarek](https://github.com/fortmarek) in [#9126](https://github.com/tuist/tuist/pull/9126)
 * update inspect acceptance tests for new output format by [@pepicrft](https://github.com/pepicrft) in [#9125](https://github.com/tuist/tuist/pull/9125)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.125.0...4.126.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.125.0...4.128.0
 
 ## What's Changed in 4.125.0<!-- RELEASE NOTES START -->
 
