@@ -87,9 +87,10 @@ defmodule Tuist.IngestRepo.Migrations.ConvertTestTablesToReplacingMergeTree do
         copy_data_in_batches(table_name, new_table)
 
         # Swap tables (separate queries for ClickHouse Shared database compatibility)
-        # Use SYNC to ensure operations complete across all replicas in ClickHouse Cloud
-        IngestRepo.query!("RENAME TABLE #{table_name} TO #{old_table} SYNC")
-        IngestRepo.query!("RENAME TABLE #{new_table} TO #{table_name} SYNC")
+        IngestRepo.query!("RENAME TABLE #{table_name} TO #{old_table}")
+        wait_for_table_rename(table_name, old_table)
+        IngestRepo.query!("RENAME TABLE #{new_table} TO #{table_name}")
+        wait_for_table_rename(new_table, table_name)
 
         # Keep old table for safety - will be dropped in a follow-up migration
 
@@ -126,9 +127,10 @@ defmodule Tuist.IngestRepo.Migrations.ConvertTestTablesToReplacingMergeTree do
     copy_data_in_batches(table_name, new_table, use_final: true)
 
     # Swap tables (separate queries for ClickHouse Shared database compatibility)
-    # Use SYNC to ensure operations complete across all replicas in ClickHouse Cloud
-    IngestRepo.query!("RENAME TABLE #{table_name} TO #{old_table} SYNC")
-    IngestRepo.query!("RENAME TABLE #{new_table} TO #{table_name} SYNC")
+    IngestRepo.query!("RENAME TABLE #{table_name} TO #{old_table}")
+    wait_for_table_rename(table_name, old_table)
+    IngestRepo.query!("RENAME TABLE #{new_table} TO #{table_name}")
+    wait_for_table_rename(new_table, table_name)
 
     # Keep old table for safety - will be dropped in a follow-up migration
 
@@ -176,6 +178,32 @@ defmodule Tuist.IngestRepo.Migrations.ConvertTestTablesToReplacingMergeTree do
       "INDEX #{name} (#{expr}) TYPE #{type_full} GRANULARITY #{granularity}"
     end)
     |> Enum.join(",\n  ")
+  end
+
+  # Wait for a table rename to propagate across all ClickHouse Cloud replicas.
+  # In ClickHouse Cloud, RENAME TABLE is async and may not immediately reflect
+  # on all replicas. This function polls until the new table name is visible.
+  defp wait_for_table_rename(old_name, new_name, attempts \\ 0) do
+    max_attempts = 30
+    delay_ms = 500
+
+    {:ok, %{rows: rows}} =
+      IngestRepo.query(
+        "SELECT count(*) FROM system.tables WHERE database = currentDatabase() AND name = {table:String}",
+        %{table: new_name}
+      )
+
+    case rows do
+      [[1]] ->
+        :ok
+
+      [[0]] when attempts < max_attempts ->
+        Process.sleep(delay_ms)
+        wait_for_table_rename(old_name, new_name, attempts + 1)
+
+      [[0]] ->
+        raise "Timeout waiting for table rename from #{old_name} to #{new_name} to propagate"
+    end
   end
 
   defp copy_data_in_batches(source_table, target_table, opts \\ []) do
