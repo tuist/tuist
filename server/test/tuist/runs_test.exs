@@ -2,6 +2,7 @@ defmodule Tuist.RunsTest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
+  alias Tuist.Alerts.Workers.FlakyTestAlertWorker
   alias Tuist.IngestRepo
   alias Tuist.Runs
   alias Tuist.Runs.TestCase
@@ -4585,13 +4586,7 @@ defmodule Tuist.RunsTest do
       # Given
       project = ProjectsFixtures.project_fixture()
 
-      expect(Oban, :insert, fn changeset ->
-        assert changeset.changes.args[:project_id] == project.id
-        assert is_binary(changeset.changes.args[:test_case_id])
-        {:ok, %Oban.Job{}}
-      end)
-
-      # When - create a test case that is flaky for the first time
+      # When
       Runs.create_test_cases(project.id, [
         %{
           name: "testFlaky",
@@ -4604,16 +4599,15 @@ defmodule Tuist.RunsTest do
         }
       ])
 
-      # Then - verify that Oban.insert was called (done via expect)
+      # Then
+      assert_enqueued(worker: FlakyTestAlertWorker, args: %{project_id: project.id})
     end
 
     test "does not enqueue job when test case is not flaky" do
       # Given
       project = ProjectsFixtures.project_fixture()
 
-      reject(&Oban.insert/1)
-
-      # When - create a non-flaky test case
+      # When
       Runs.create_test_cases(project.id, [
         %{
           name: "testNonFlaky",
@@ -4626,18 +4620,14 @@ defmodule Tuist.RunsTest do
         }
       ])
 
-      # Then - verify that Oban.insert was not called (done via reject)
+      # Then
+      refute_enqueued(worker: FlakyTestAlertWorker)
     end
 
     test "does not enqueue job when test case was already flaky" do
       # Given
       project = ProjectsFixtures.project_fixture()
 
-      # First create the test case as flaky
-      expect(Oban, :insert, fn _changeset ->
-        {:ok, %Oban.Job{}}
-      end)
-
       Runs.create_test_cases(project.id, [
         %{
           name: "testAlreadyFlaky",
@@ -4650,10 +4640,7 @@ defmodule Tuist.RunsTest do
         }
       ])
 
-      # Now create the same test case again as flaky - should not enqueue again
-      reject(&Oban.insert/1)
-
-      # When - create the same test case again (already flaky)
+      # When - create the same test case again as flaky
       Runs.create_test_cases(project.id, [
         %{
           name: "testAlreadyFlaky",
@@ -4666,19 +4653,15 @@ defmodule Tuist.RunsTest do
         }
       ])
 
-      # Then - verify that Oban.insert was not called the second time (done via reject)
+      # Then - only one job should be enqueued (from first creation)
+      assert length(all_enqueued(worker: FlakyTestAlertWorker)) == 1
     end
 
     test "enqueues jobs for multiple newly flaky test cases" do
       # Given
       project = ProjectsFixtures.project_fixture()
 
-      expect(Oban, :insert, 2, fn changeset ->
-        send(self(), {:oban_insert, changeset.changes.args[:test_case_id]})
-        {:ok, %Oban.Job{}}
-      end)
-
-      # When - create multiple test cases that are flaky for the first time
+      # When
       Runs.create_test_cases(project.id, [
         %{
           name: "testFlaky1",
@@ -4700,9 +4683,8 @@ defmodule Tuist.RunsTest do
         }
       ])
 
-      # Then - verify that Oban.insert was called twice
-      assert_received {:oban_insert, _id1}
-      assert_received {:oban_insert, _id2}
+      # Then
+      assert length(all_enqueued(worker: FlakyTestAlertWorker)) == 2
     end
   end
 end
