@@ -4,11 +4,14 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorker do
 
   This worker is enqueued when a test case transitions from non-flaky to flaky.
   It checks all flaky test alert rules for the project and sends notifications
-  if the test case's flaky runs count exceeds the rule's threshold and cooldown has elapsed.
+  if the test case's flaky runs count exceeds the rule's threshold.
 
-  The job is unique per test_case_id with a 24-hour period to prevent notification spam.
+  The job is unique per test_case_id only while being processed - once completed,
+  a new job can be inserted for the same test case.
   """
-  use Oban.Worker, max_attempts: 3, unique: [period: 86_400, keys: [:test_case_id]]
+  use Oban.Worker,
+    max_attempts: 3,
+    unique: [keys: [:test_case_id], states: [:available, :scheduled, :executing, :retryable]]
 
   alias Tuist.Alerts
   alias Tuist.Repo
