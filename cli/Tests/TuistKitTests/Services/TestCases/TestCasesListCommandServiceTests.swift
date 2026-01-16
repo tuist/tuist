@@ -39,6 +39,8 @@ struct TestCasesListCommandServiceTests {
                 moduleName: nil,
                 suiteName: nil,
                 status: nil,
+                page: nil,
+                perPage: nil,
                 json: false
             )
         })
@@ -87,6 +89,8 @@ struct TestCasesListCommandServiceTests {
             moduleName: nil,
             suiteName: nil,
             status: nil,
+            page: nil,
+            perPage: nil,
             json: true
         )
 

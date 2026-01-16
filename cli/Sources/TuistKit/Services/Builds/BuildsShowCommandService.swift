@@ -66,12 +66,12 @@ final class BuildsShowCommandService: BuildsShowCommandServicing {
             return
         }
 
-        try Noora.current.info(.list([
-            "ID: \(build.id)",
-            "Status: \(build.status)",
-            "Duration: \(build.duration)",
-            "Ran at: \(Formatters.formatDate(Date(timeIntervalSince1970: TimeInterval(build.ran_at))))",
-            "URL: \(build.url)",
-        ]))
+        Noora.current.passthrough("""
+            ID: \(build.id)
+            Status: \(build.status)
+            Duration: \(build.duration)
+            Ran at: \(Formatters.formatDate(Date(timeIntervalSince1970: TimeInterval(build.ran_at))))
+            URL: \(build.url)
+            """)
     }
 }

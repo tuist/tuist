@@ -66,12 +66,12 @@ final class TestCasesShowCommandService: TestCasesShowCommandServicing {
             return
         }
 
-        try Noora.current.info(.list([
-            "ID: \(testCase.id)",
-            "Name: \(testCase.name)",
-            "Status: \(testCase.last_status)",
-            "Last ran at: \(Formatters.formatDate(Date(timeIntervalSince1970: TimeInterval(testCase.last_ran_at))))",
-            "URL: \(testCase.url)",
-        ]))
+        Noora.current.passthrough("""
+            ID: \(testCase.id)
+            Name: \(testCase.name)
+            Status: \(testCase.last_status)
+            Last ran at: \(Formatters.formatDate(Date(timeIntervalSince1970: TimeInterval(testCase.last_ran_at))))
+            URL: \(testCase.url)
+            """)
     }
 }

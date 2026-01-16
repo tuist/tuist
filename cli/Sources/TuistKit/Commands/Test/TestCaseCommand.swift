@@ -5,7 +5,7 @@ struct TestCaseCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "case",
-            abstract: "A set of commands to manage test cases.",
+            abstract: "Commands to interact with test cases stored on the server.",
             subcommands: [
                 TestCaseListCommand.self,
                 TestCaseShowCommand.self,

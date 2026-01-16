@@ -57,6 +57,8 @@ public enum EnvKey: String, CaseIterable {
     case generateListGitBranch = "TUIST_GENERATE_LIST_GIT_BRANCH"
     case generateListGitCommitSHA = "TUIST_GENERATE_LIST_GIT_COMMIT_SHA"
     case generateListGitRef = "TUIST_GENERATE_LIST_GIT_REF"
+    case generateListPage = "TUIST_GENERATE_LIST_PAGE"
+    case generateListPerPage = "TUIST_GENERATE_LIST_PER_PAGE"
     case generateListJson = "TUIST_GENERATE_LIST_JSON"
     case generateShowId = "TUIST_GENERATE_SHOW_ID"
     case generateShowFullHandle = "TUIST_GENERATE_SHOW_FULL_HANDLE"
@@ -299,6 +301,8 @@ public enum EnvKey: String, CaseIterable {
     case cacheListGitBranch = "TUIST_CACHE_LIST_GIT_BRANCH"
     case cacheListGitCommitSHA = "TUIST_CACHE_LIST_GIT_COMMIT_SHA"
     case cacheListGitRef = "TUIST_CACHE_LIST_GIT_REF"
+    case cacheListPage = "TUIST_CACHE_LIST_PAGE"
+    case cacheListPerPage = "TUIST_CACHE_LIST_PER_PAGE"
     case cacheListJson = "TUIST_CACHE_LIST_JSON"
 
     // CACHE SHOW
@@ -319,6 +323,8 @@ public enum EnvKey: String, CaseIterable {
     case buildListGitBranch = "TUIST_BUILD_LIST_GIT_BRANCH"
     case buildListGitCommitSHA = "TUIST_BUILD_LIST_GIT_COMMIT_SHA"
     case buildListGitRef = "TUIST_BUILD_LIST_GIT_REF"
+    case buildListPage = "TUIST_BUILD_LIST_PAGE"
+    case buildListPerPage = "TUIST_BUILD_LIST_PER_PAGE"
     case buildListJson = "TUIST_BUILD_LIST_JSON"
 
     // BUILD SHOW
@@ -337,6 +343,8 @@ public enum EnvKey: String, CaseIterable {
     case testListGitBranch = "TUIST_TEST_LIST_GIT_BRANCH"
     case testListGitCommitSHA = "TUIST_TEST_LIST_GIT_COMMIT_SHA"
     case testListGitRef = "TUIST_TEST_LIST_GIT_REF"
+    case testListPage = "TUIST_TEST_LIST_PAGE"
+    case testListPerPage = "TUIST_TEST_LIST_PER_PAGE"
     case testListJson = "TUIST_TEST_LIST_JSON"
 
     // TEST SHOW
@@ -354,6 +362,8 @@ public enum EnvKey: String, CaseIterable {
     case testCaseListModuleName = "TUIST_TEST_CASE_LIST_MODULE_NAME"
     case testCaseListSuiteName = "TUIST_TEST_CASE_LIST_SUITE_NAME"
     case testCaseListStatus = "TUIST_TEST_CASE_LIST_STATUS"
+    case testCaseListPage = "TUIST_TEST_CASE_LIST_PAGE"
+    case testCaseListPerPage = "TUIST_TEST_CASE_LIST_PER_PAGE"
     case testCaseListJson = "TUIST_TEST_CASE_LIST_JSON"
 
     // TEST CASE SHOW

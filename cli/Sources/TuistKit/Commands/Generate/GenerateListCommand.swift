@@ -7,7 +7,7 @@ struct GenerateListCommand: AsyncParsableCommand, NooraReadyCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "list",
-            abstract: "Lists all the generate runs in a project.",
+            abstract: "Lists all the generations in a project.",
             helpNames: [.long, .short]
         )
     }
@@ -28,24 +28,38 @@ struct GenerateListCommand: AsyncParsableCommand, NooraReadyCommand {
 
     @Option(
         name: .long,
-        help: "Filter generate runs by git branch.",
+        help: "Filter generations by git branch.",
         envKey: .generateListGitBranch
     )
     var gitBranch: String?
 
     @Option(
         name: .long,
-        help: "Filter generate runs by git commit SHA.",
+        help: "Filter generations by git commit SHA.",
         envKey: .generateListGitCommitSHA
     )
     var gitCommitSHA: String?
 
     @Option(
         name: .long,
-        help: "Filter generate runs by git ref.",
+        help: "Filter generations by git ref.",
         envKey: .generateListGitRef
     )
     var gitRef: String?
+
+    @Option(
+        name: .long,
+        help: "The page number to fetch.",
+        envKey: .generateListPage
+    )
+    var page: Int?
+
+    @Option(
+        name: .customLong("per-page"),
+        help: "The number of items per page.",
+        envKey: .generateListPerPage
+    )
+    var perPage: Int?
 
     @Flag(
         help: "The output in JSON format.",
@@ -62,6 +76,8 @@ struct GenerateListCommand: AsyncParsableCommand, NooraReadyCommand {
             gitBranch: gitBranch,
             gitCommitSHA: gitCommitSHA,
             gitRef: gitRef,
+            page: page,
+            perPage: perPage,
             json: json
         )
     }

@@ -61,6 +61,20 @@ struct TestListCommand: AsyncParsableCommand, NooraReadyCommand {
     )
     var gitRef: String?
 
+    @Option(
+        name: .long,
+        help: "The page number to fetch.",
+        envKey: .testListPage
+    )
+    var page: Int?
+
+    @Option(
+        name: .customLong("per-page"),
+        help: "The number of items per page.",
+        envKey: .testListPerPage
+    )
+    var perPage: Int?
+
     @Flag(
         help: "The output in JSON format.",
         envKey: .testListJson
@@ -78,6 +92,8 @@ struct TestListCommand: AsyncParsableCommand, NooraReadyCommand {
             gitBranch: gitBranch,
             gitCommitSHA: gitCommitSHA,
             gitRef: gitRef,
+            page: page,
+            perPage: perPage,
             json: json
         )
     }

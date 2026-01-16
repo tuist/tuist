@@ -12,6 +12,8 @@ protocol GenerationsListCommandServicing {
         gitBranch: String?,
         gitCommitSHA: String?,
         gitRef: String?,
+        page: Int?,
+        perPage: Int?,
         json: Bool
     ) async throws
 }
@@ -48,6 +50,8 @@ final class GenerationsListCommandService: GenerationsListCommandServicing {
         gitBranch: String?,
         gitCommitSHA: String?,
         gitRef: String?,
+        page: Int?,
+        perPage: Int?,
         json: Bool
     ) async throws {
         let directoryPath: AbsolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
@@ -64,8 +68,8 @@ final class GenerationsListCommandService: GenerationsListCommandServicing {
             gitBranch: gitBranch,
             gitCommitSHA: gitCommitSHA,
             gitRef: gitRef,
-            page: nil,
-            pageSize: 50,
+            page: page,
+            pageSize: perPage,
             serverURL: serverURL
         )
 

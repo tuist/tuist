@@ -7,13 +7,13 @@ struct GenerateShowCommand: AsyncParsableCommand, NooraReadyCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "show",
-            abstract: "Shows details for a generate run.",
+            abstract: "Shows details for a generation.",
             helpNames: [.long, .short]
         )
     }
 
     @Argument(
-        help: "The generate run id.",
+        help: "The generation id.",
         envKey: .generateShowId
     )
     var runId: String

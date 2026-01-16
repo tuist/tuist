@@ -7,7 +7,7 @@ struct TestCaseListCommand: AsyncParsableCommand, NooraReadyCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "list",
-            abstract: "Lists all test cases in a project.",
+            abstract: "Lists all test cases stored on the server for a project.",
             helpNames: [.long, .short]
         )
     }
@@ -54,6 +54,20 @@ struct TestCaseListCommand: AsyncParsableCommand, NooraReadyCommand {
     )
     var status: String?
 
+    @Option(
+        name: .long,
+        help: "The page number to fetch.",
+        envKey: .testCaseListPage
+    )
+    var page: Int?
+
+    @Option(
+        name: .customLong("per-page"),
+        help: "The number of items per page.",
+        envKey: .testCaseListPerPage
+    )
+    var perPage: Int?
+
     @Flag(
         help: "The output in JSON format.",
         envKey: .testCaseListJson
@@ -70,6 +84,8 @@ struct TestCaseListCommand: AsyncParsableCommand, NooraReadyCommand {
             moduleName: moduleName,
             suiteName: suiteName,
             status: status,
+            page: page,
+            perPage: perPage,
             json: json
         )
     }

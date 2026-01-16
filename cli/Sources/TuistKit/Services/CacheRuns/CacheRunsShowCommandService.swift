@@ -66,13 +66,13 @@ final class CacheRunsShowCommandService: CacheRunsShowCommandServicing {
             return
         }
 
-        try Noora.current.info(.list([
-            "ID: \(run.id)",
-            "Name: \(run.name)",
-            "Status: \(run.status)",
-            "Duration: \(run.duration)",
-            "Ran at: \(Formatters.formatDate(Date(timeIntervalSince1970: TimeInterval(run.ran_at))))",
-            "URL: \(run.url)",
-        ]))
+        Noora.current.passthrough("""
+            ID: \(run.id)
+            Name: \(run.name)
+            Status: \(run.status)
+            Duration: \(run.duration)
+            Ran at: \(Formatters.formatDate(Date(timeIntervalSince1970: TimeInterval(run.ran_at))))
+            URL: \(run.url)
+            """)
     }
 }

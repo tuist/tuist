@@ -7,13 +7,13 @@ struct BuildShowCommand: AsyncParsableCommand, NooraReadyCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "show",
-            abstract: "Shows information about a build run.",
+            abstract: "Shows information about a build.",
             helpNames: [.long, .short]
         )
     }
 
     @Argument(
-        help: "The ID of the build run to show.",
+        help: "The ID of the build to show.",
         envKey: .buildShowId
     )
     var buildId: String

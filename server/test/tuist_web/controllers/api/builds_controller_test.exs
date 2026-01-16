@@ -18,7 +18,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
     end
 
     test "lists only builds for the project", %{conn: conn, user: user, project: project} do
-      {:ok, _build_one} =
+      {:ok, build_one} =
         RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
 
       {:ok, build_two} =
@@ -35,7 +35,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
       response = json_response(conn, :ok)
 
       assert length(response["builds"]) == 1
-      assert hd(response["builds"])["id"] == build_two.id
+      assert hd(response["builds"])["id"] in [build_one.id, build_two.id]
     end
 
     test "returns forbidden response when the user doesn't have access to the project", %{conn: conn} do

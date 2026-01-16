@@ -40,6 +40,8 @@ struct TestsListCommandServiceTests {
                 gitBranch: nil,
                 gitCommitSHA: nil,
                 gitRef: nil,
+                page: nil,
+                perPage: nil,
                 json: false
             )
         })
@@ -96,6 +98,8 @@ struct TestsListCommandServiceTests {
             gitBranch: nil,
             gitCommitSHA: nil,
             gitRef: nil,
+            page: nil,
+            perPage: nil,
             json: true
         )
 

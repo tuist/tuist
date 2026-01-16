@@ -47,6 +47,20 @@ struct CacheListCommand: AsyncParsableCommand, NooraReadyCommand {
     )
     var gitRef: String?
 
+    @Option(
+        name: .long,
+        help: "The page number to fetch.",
+        envKey: .cacheListPage
+    )
+    var page: Int?
+
+    @Option(
+        name: .customLong("per-page"),
+        help: "The number of items per page.",
+        envKey: .cacheListPerPage
+    )
+    var perPage: Int?
+
     @Flag(
         help: "The output in JSON format.",
         envKey: .cacheListJson
@@ -62,6 +76,8 @@ struct CacheListCommand: AsyncParsableCommand, NooraReadyCommand {
             gitBranch: gitBranch,
             gitCommitSHA: gitCommitSHA,
             gitRef: gitRef,
+            page: page,
+            perPage: perPage,
             json: json
         )
     }

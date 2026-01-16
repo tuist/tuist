@@ -13,6 +13,8 @@ protocol TestCasesListCommandServicing {
         moduleName: String?,
         suiteName: String?,
         status: String?,
+        page: Int?,
+        perPage: Int?,
         json: Bool
     ) async throws
 }
@@ -50,6 +52,8 @@ final class TestCasesListCommandService: TestCasesListCommandServicing {
         moduleName: String?,
         suiteName: String?,
         status: String?,
+        page: Int?,
+        perPage: Int?,
         json: Bool
     ) async throws {
         let directoryPath: AbsolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
@@ -67,8 +71,8 @@ final class TestCasesListCommandService: TestCasesListCommandServicing {
             moduleName: moduleName,
             suiteName: suiteName,
             status: status,
-            page: nil,
-            pageSize: 50,
+            page: page,
+            pageSize: perPage,
             serverURL: serverURL
         )
 
@@ -90,9 +94,9 @@ final class TestCasesListCommandService: TestCasesListCommandServicing {
             TableColumn(title: "URL", width: .auto),
         ], rows: response.test_cases.map { testCase in
             return [
-                testCase.id,
-                testCase.name,
-                testCase.last_status,
+                "\(testCase.id)",
+                "\(testCase.name)",
+                "\(testCase.last_status)",
                 "\(Formatters.formatDate(Date(timeIntervalSince1970: TimeInterval(testCase.last_ran_at))))",
                 "\(.link(title: "Link", href: testCase.url))",
             ]

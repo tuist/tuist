@@ -16,6 +16,8 @@ protocol BuildsListCommandServicing {
         gitBranch: String?,
         gitCommitSHA: String?,
         gitRef: String?,
+        page: Int?,
+        perPage: Int?,
         json: Bool
     ) async throws
 }
@@ -56,6 +58,8 @@ final class BuildsListCommandService: BuildsListCommandServicing {
         gitBranch: String?,
         gitCommitSHA: String?,
         gitRef: String?,
+        page: Int?,
+        perPage: Int?,
         json: Bool
     ) async throws {
         let directoryPath: AbsolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
@@ -76,8 +80,8 @@ final class BuildsListCommandService: BuildsListCommandServicing {
             gitBranch: gitBranch,
             gitCommitSHA: gitCommitSHA,
             gitRef: gitRef,
-            page: nil,
-            pageSize: 50,
+            page: page,
+            pageSize: perPage,
             serverURL: serverURL
         )
 
@@ -99,9 +103,9 @@ final class BuildsListCommandService: BuildsListCommandServicing {
             TableColumn(title: "URL", width: .auto),
         ], rows: response.builds.map { build in
             return [
-                build.id,
+                "\(build.id)",
                 "\(build.duration)",
-                build.status,
+                "\(build.status)",
                 "\(Formatters.formatDate(Date(timeIntervalSince1970: TimeInterval(build.ran_at))))",
                 "\(.link(title: "Link", href: build.url))",
             ]

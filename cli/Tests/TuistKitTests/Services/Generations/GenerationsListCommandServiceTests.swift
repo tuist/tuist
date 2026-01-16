@@ -38,6 +38,8 @@ struct GenerationsListCommandServiceTests {
                 gitBranch: nil,
                 gitCommitSHA: nil,
                 gitRef: nil,
+                page: nil,
+                perPage: nil,
                 json: false
             )
         })
@@ -97,6 +99,8 @@ struct GenerationsListCommandServiceTests {
             gitBranch: nil,
             gitCommitSHA: nil,
             gitRef: nil,
+            page: nil,
+            perPage: nil,
             json: true
         )
 

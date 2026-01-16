@@ -14,6 +14,8 @@ protocol TestsListCommandServicing {
         gitBranch: String?,
         gitCommitSHA: String?,
         gitRef: String?,
+        page: Int?,
+        perPage: Int?,
         json: Bool
     ) async throws
 }
@@ -52,6 +54,8 @@ final class TestsListCommandService: TestsListCommandServicing {
         gitBranch: String?,
         gitCommitSHA: String?,
         gitRef: String?,
+        page: Int?,
+        perPage: Int?,
         json: Bool
     ) async throws {
         let directoryPath: AbsolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
@@ -70,8 +74,8 @@ final class TestsListCommandService: TestsListCommandServicing {
             gitBranch: gitBranch,
             gitCommitSHA: gitCommitSHA,
             gitRef: gitRef,
-            page: nil,
-            pageSize: 50,
+            page: page,
+            pageSize: perPage,
             serverURL: serverURL
         )
 
@@ -93,9 +97,9 @@ final class TestsListCommandService: TestsListCommandServicing {
             TableColumn(title: "URL", width: .auto),
         ], rows: response.tests.map { test in
             return [
-                test.id,
+                "\(test.id)",
                 "\(test.duration)",
-                test.status,
+                "\(test.status)",
                 "\(Formatters.formatDate(Date(timeIntervalSince1970: TimeInterval(test.ran_at))))",
                 "\(.link(title: "Link", href: test.url))",
             ]
