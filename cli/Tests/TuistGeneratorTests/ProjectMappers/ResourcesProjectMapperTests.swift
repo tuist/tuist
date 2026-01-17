@@ -1020,7 +1020,6 @@ struct ResourcesProjectMapperTests {
         if let additionalFileExpectations {
             additionalFileExpectations(file)
         }
-
     }
 
     private func verifyObjcBundleAccessor(

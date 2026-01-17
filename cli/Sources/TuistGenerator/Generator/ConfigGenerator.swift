@@ -193,6 +193,7 @@ final class ConfigGenerator: ConfigGenerating {
                 ),
                 inherit: true
             )
+        excludeInfoPlistForLocalStaticFramework(settings: &settings, target: target, project: project)
 
         let variantBuildConfiguration = XCBuildConfiguration(
             name: buildConfiguration.xcodeValue,
@@ -369,6 +370,31 @@ final class ConfigGenerator: ConfigGenerating {
         }
 
         return settings
+    }
+
+    private func excludeInfoPlistForLocalStaticFramework(
+        settings: inout SettingsDictionary,
+        target: Target,
+        project: Project
+    ) {
+        guard target.product == .staticFramework, project.type == .local else { return }
+        let excludedSourceKey = "EXCLUDED_SOURCE_FILE_NAMES"
+        let infoPlistName = "Info.plist"
+        var excludedValues: [String] = ["$(inherited)"]
+        if let existingExcluded = settings[excludedSourceKey] {
+            switch existingExcluded {
+            case let .string(value):
+                excludedValues.append(value)
+            case let .array(values):
+                excludedValues.append(contentsOf: values)
+            }
+        }
+        if !excludedValues.contains(infoPlistName) {
+            excludedValues.append(infoPlistName)
+        }
+        var seen = Set<String>()
+        excludedValues = excludedValues.filter { seen.insert($0).inserted }
+        settings[excludedSourceKey] = .array(excludedValues)
     }
 
     private func deploymentTargetDerivedSettings(target: Target) -> SettingsDictionary {

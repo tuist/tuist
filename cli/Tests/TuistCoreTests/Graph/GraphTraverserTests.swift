@@ -1269,7 +1269,11 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [])
+        XCTAssertEqual(
+            got, [
+                .product(target: "StaticResourcesFramework", productName: "StaticResourcesFramework.framework"),
+            ]
+        )
     }
 
     func test_embeddableFrameworks_when_appIsMergeableAndDependencyIsATarget() throws {
