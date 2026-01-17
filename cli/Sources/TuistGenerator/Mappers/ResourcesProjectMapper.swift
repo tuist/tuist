@@ -167,10 +167,11 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
     private func excludeInfoPlistForLocalStaticFramework(target: inout Target, project: Project) {
         guard project.type == .local, target.product == .staticFramework else { return }
-        // Static frameworks with resources are embedded to copy their bundles; exclude Info.plist to avoid overriding the app's merged Info.plist.
+        // Static frameworks with resources are embedded to copy their bundles; exclude Info.plist to avoid overriding the app's
+        // merged Info.plist.
         let excludedSourceKey = "EXCLUDED_SOURCE_FILE_NAMES"
         let infoPlistName = "Info.plist"
-        var excludedValues: [String] = ["$(inherited)"]
+        var excludedValues = ["$(inherited)"]
         if let existingExcluded = target.settings?.base[excludedSourceKey] {
             switch existingExcluded {
             case let .string(value):

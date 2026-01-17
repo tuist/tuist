@@ -1491,7 +1491,7 @@ public class GraphTraverser: GraphTraversing {
         guard case .target = dependency, let graphTarget = target(from: dependency) else { return false }
         let target = graphTarget.target
         if target.product.isDynamic { return true }
-        if target.product == .staticFramework, (target.containsResources || target.containsMetalFiles) {
+        if target.product == .staticFramework, target.containsResources || target.containsMetalFiles {
             return graphTarget.project.type == .local
         }
         return false

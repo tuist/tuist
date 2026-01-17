@@ -371,7 +371,6 @@ final class ConfigGenerator: ConfigGenerating {
         return settings
     }
 
-
     private func deploymentTargetDerivedSettings(target: Target) -> SettingsDictionary {
         var settings: SettingsDictionary = [:]
 
