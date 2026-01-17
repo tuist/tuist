@@ -183,49 +183,6 @@ struct ConfigGeneratorTests {
         assert(config: releaseConfig, contains: expectedSettings)
     }
 
-    @Test(
-        .withMockedXcodeController,
-        .inTemporaryDirectory
-    ) func generateTargetConfig_whenLocalStaticFramework_excludesInfoPlist() async throws {
-        // Given
-        let targetSettings = Settings.test(base: [
-            "EXCLUDED_SOURCE_FILE_NAMES": SettingValue.string("Custom.plist"),
-        ])
-        let target = Target.test(
-            name: "Test",
-            product: .staticFramework,
-            settings: targetSettings
-        )
-        let project = Project.test(
-            targets: [target],
-            type: .local
-        )
-        let graph = Graph.test(path: project.path)
-        let graphTraverser = GraphTraverser(graph: graph)
-
-        // When
-        try await subject.generateTargetConfig(
-            target,
-            project: project,
-            pbxTarget: pbxTarget,
-            pbxproj: pbxproj,
-            projectSettings: .default,
-            fileElements: ProjectFileElements(),
-            graphTraverser: graphTraverser,
-            sourceRootPath: try AbsolutePath(validating: "/project")
-        )
-
-        // Then
-        let configurationList = pbxTarget.buildConfigurationList
-        let debugConfig = configurationList?.configuration(name: "Debug")
-
-        let expectedSettings: SettingsDictionary = [
-            "EXCLUDED_SOURCE_FILE_NAMES": .array(["$(inherited)", "Custom.plist", "Info.plist"]),
-        ]
-
-        assert(config: debugConfig, contains: expectedSettings)
-    }
-
     @Test(.withMockedXcodeController, .inTemporaryDirectory) func generateTestTargetConfiguration_iOS() async throws {
         // Given / When
         try await generateTestTargetConfig(appName: "App")

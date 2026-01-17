@@ -1488,10 +1488,13 @@ public class GraphTraverser: GraphTraversing {
     }
 
     private func isEmbeddableDependencyTarget(dependency: GraphDependency) -> Bool {
-        testTarget(dependency: dependency) {
-            $0.product.isDynamic ||
-                ($0.product == .staticFramework && ($0.containsResources || $0.containsMetalFiles))
+        guard case .target = dependency, let graphTarget = target(from: dependency) else { return false }
+        let target = graphTarget.target
+        if target.product.isDynamic { return true }
+        if target.product == .staticFramework, (target.containsResources || target.containsMetalFiles) {
+            return graphTarget.project.type == .local
         }
+        return false
     }
 
     private func canDependencyEmbedBinaries(dependency: GraphDependency) -> Bool {

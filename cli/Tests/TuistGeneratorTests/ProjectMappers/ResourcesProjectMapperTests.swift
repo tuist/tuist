@@ -942,6 +942,38 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
+    func mapWhenProjectIsLocalStaticFramework_excludesInfoPlistFromSources() async throws {
+        // Given
+        let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
+        let targetSettings = Settings(
+            base: ["EXCLUDED_SOURCE_FILE_NAMES": SettingValue.string("Custom.plist")],
+            baseDebug: [:],
+            configurations: Settings.default.configurations
+        )
+        let target = Target.test(
+            name: "StaticResourcesFramework",
+            product: .staticFramework,
+            settings: targetSettings,
+            resources: .init(resources)
+        )
+        let project = Project.test(
+            path: try AbsolutePath(validating: "/AbsolutePath/Project"),
+            targets: [target],
+            type: .local
+        )
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
+
+        // When
+        let (gotProject, _) = try await subject.map(project: project)
+
+        // Then
+        let gotTarget = try #require(gotProject.targets[target.name])
+        #expect(gotTarget.settings?.base["EXCLUDED_SOURCE_FILE_NAMES"] ==
+            SettingValue.array(["$(inherited)", "Custom.plist", "Info.plist"]))
+    }
+
+    @Test
     func mapWhenProjectIsNotExternalTargetHasObjcSourceFiles() async throws {
         // Given
         let sources: [SourceFile] = ["/ViewController.m"]
