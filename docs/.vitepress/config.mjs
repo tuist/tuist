@@ -158,6 +158,40 @@ const searchOptionsLocales = Object.fromEntries(
   enabledLocales.map((locale) => [locale, getSearchOptionsForLocale(locale)])
 );
 
+function redirectToEnglishForGeneratedDocs(req, res) {
+  const localizedCliPassthrough = new Set([
+    "/cli/logging",
+    "/cli/directories",
+    "/cli/shell-completions",
+  ]);
+  const url = req.url ?? "";
+  const [pathname, search = ""] = url.split("?");
+  const parts = pathname.split("/").filter(Boolean);
+  if (parts.length < 2) return false;
+  const [locale, section, ...rest] = parts;
+  if (locale === "en") return false;
+
+  const redirect = (path) => {
+    res.statusCode = 302;
+    res.setHeader("Location", search ? `${path}?${search}` : path);
+    res.end();
+  };
+
+  if (section === "cli") {
+    const cliPath = `/cli/${rest.join("/")}`;
+    if (localizedCliPassthrough.has(cliPath)) return false;
+    redirect(`/en${cliPath}`);
+    return true;
+  }
+
+  if (section === "references" && rest[0] === "project-description") {
+    redirect(`/en/references/${rest.join("/")}`);
+    return true;
+  }
+
+  return false;
+}
+
 const devLocaleRedirectPlugin = () => ({
   name: "dev-locale-redirect",
   apply: "serve",
@@ -169,40 +203,7 @@ const devLocaleRedirectPlugin = () => ({
         res.end();
         return;
       }
-      const localizedCliPassthrough = [
-        "/cli/logging",
-        "/cli/directories",
-        "/cli/shell-completions",
-      ];
-      const url = req.url ?? "";
-      const localeCliMatch = url.match(/^\/([^/]+)\/cli\/(.+)/);
-      if (localeCliMatch) {
-        const [, locale, path] = localeCliMatch;
-        if (
-          locale !== "en" &&
-          !localizedCliPassthrough.includes(`/cli/${path}`)
-        ) {
-          res.statusCode = 302;
-          res.setHeader("Location", `/en/cli/${path}`);
-          res.end();
-          return;
-        }
-      }
-      const localeManifestMatch = url.match(
-        /^\/([^/]+)\/references\/project-description\/(.+)/,
-      );
-      if (localeManifestMatch) {
-        const [, locale, path] = localeManifestMatch;
-        if (locale !== "en") {
-          res.statusCode = 302;
-          res.setHeader(
-            "Location",
-            `/en/references/project-description/${path}`,
-          );
-          res.end();
-          return;
-        }
-      }
+      if (redirectToEnglishForGeneratedDocs(req, res)) return;
       next();
     });
   },
