@@ -30,7 +30,8 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
                 disableShowEnvironmentVarsInScriptPhases: true,
                 disableSynthesizedResourceAccessors: true,
                 textSettings: .textSettings(usesTabs: true, indentWidth: 1, tabWidth: 2, wrapsLines: true),
-                xcodeProjectName: "XcodeName"
+                xcodeProjectName: "XcodeName",
+                folderSortingStrategy: .groupsBeforeFolderReferences
             ),
             packages: [
                 .remote(url: "url", requirement: .branch("b")),
@@ -76,7 +77,8 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
                     disableBundleAccessors: true,
                     disableShowEnvironmentVarsInScriptPhases: true,
                     disableSynthesizedResourceAccessors: true,
-                    textSettings: .init(usesTabs: true, indentWidth: 1, tabWidth: 2, wrapsLines: true)
+                    textSettings: .init(usesTabs: true, indentWidth: 1, tabWidth: 2, wrapsLines: true),
+                    folderSortingStrategy: .groupsBeforeFolderReferences
                 ),
                 settings: .default,
                 filesGroup: .group(name: "Project"),

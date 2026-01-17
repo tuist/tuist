@@ -25,7 +25,7 @@ extension Project {
         /// Configures the name of the generated .xcodeproj.
         public var xcodeProjectName: String?
 
-        public var groupSortPosition: GroupSortPosition
+        public var folderSortingStrategy: FolderSortingStrategy
 
         public static func options(
             automaticSchemesOptions: AutomaticSchemesOptions = .enabled(),
@@ -36,7 +36,7 @@ extension Project {
             disableSynthesizedResourceAccessors: Bool = false,
             textSettings: TextSettings = .textSettings(),
             xcodeProjectName: String? = nil,
-            groupSortPosition: GroupSortPosition = .sortGroupsBeforeBuildableFolders
+            folderSortingStrategy: FolderSortingStrategy = .groupsBeforeFolderReferences
         ) -> Self {
             self.init(
                 automaticSchemesOptions: automaticSchemesOptions,
@@ -47,7 +47,7 @@ extension Project {
                 disableSynthesizedResourceAccessors: disableSynthesizedResourceAccessors,
                 textSettings: textSettings,
                 xcodeProjectName: xcodeProjectName,
-                groupSortPosition: groupSortPosition
+                folderSortingStrategy: folderSortingStrategy
             )
         }
     }
@@ -114,13 +114,11 @@ extension Project.Options {
         }
     }
 
-    public enum GroupSortPosition: Codable, Equatable, Sendable {
-        /// Regular folders appear before buildable folders.
-        /// This is the default behavior and matches how Xcode originally handles the sorting.
-        case sortGroupsBeforeBuildableFolders
-        
-        /// Buildable folders are sorted together with regular folders alphabetically.
-        /// Both folder types have the same sort priority and appear before files.
-        case sortGroupsAndBuildableFoldersTogether
+    public enum FolderSortingStrategy: Codable, Equatable, Sendable {
+        /// Group folders are sorted before folder references
+        case groupsBeforeFolderReferences
+
+        /// Group folders and folder references are sorted together alphabetically
+        case alphabetical
     }
 }

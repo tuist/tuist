@@ -54,9 +54,9 @@ class ProjectGroups {
         frameworks: PBXGroup,
         cachedFrameworks: PBXGroup,
         pbxproj: PBXProj,
-        groupSortPosition: PBXGroupSortPosition = .sortGroupsBeforeBuildableFolders
+        folderSortingStrategy: FolderSortingStrategy = .groupsBeforeFolderReferences
     ) {
-        _sortedMain = SortedPBXGroup(wrappedValue: main, groupSortPosition: groupSortPosition)
+        _sortedMain = SortedPBXGroup(wrappedValue: main, folderSortingStrategy: folderSortingStrategy)
         self.projectGroups = Dictionary(uniqueKeysWithValues: projectGroups)
         self.products = products
         self.frameworks = frameworks
@@ -140,7 +140,7 @@ class ProjectGroups {
             frameworks: frameworksGroup,
             cachedFrameworks: cacheGroup,
             pbxproj: pbxproj,
-            groupSortPosition: project.options.pbxGroupSortPosition
+            folderSortingStrategy: project.options.folderSortingStrategy
         )
     }
 
@@ -153,16 +153,5 @@ class ProjectGroups {
             }
         }
         return groupNames
-    }
-}
-
-extension Project.Options {
-    fileprivate var pbxGroupSortPosition: PBXGroupSortPosition {
-        switch groupSortPosition {
-        case .sortGroupsAndBuildableFoldersTogether:
-            return .sortGroupsAndBuildableFoldersTogether
-        case .sortGroupsBeforeBuildableFolders:
-            return .sortGroupsBeforeBuildableFolders
-        }
     }
 }
