@@ -58,7 +58,6 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         let sanitizedTargetName = target.name.sanitizedModuleName
         let bundleName = "\(project.name)_\(sanitizedTargetName)"
         var modifiedTarget = target
-        excludeInfoPlistForLocalStaticFramework(target: &modifiedTarget, project: project)
 
         let shouldGenerateResourceBundle = !supportsResources &&
             !(project.type == .local && target.product == .staticFramework)
@@ -165,41 +164,6 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         return ([modifiedTarget] + additionalTargets, sideEffects)
     }
 
-    private func excludeInfoPlistForLocalStaticFramework(target: inout Target, project: Project) {
-        guard project.type == .local, target.product == .staticFramework else { return }
-        // Static frameworks with resources are embedded to copy their bundles; exclude Info.plist to avoid overriding the app's
-        // merged Info.plist.
-        let excludedSourceKey = "EXCLUDED_SOURCE_FILE_NAMES"
-        let infoPlistName = "Info.plist"
-        var excludedValues = ["$(inherited)"]
-        if let existingExcluded = target.settings?.base[excludedSourceKey] {
-            switch existingExcluded {
-            case let .string(value):
-                excludedValues.append(value)
-            case let .array(values):
-                excludedValues.append(contentsOf: values)
-            }
-        }
-        if !excludedValues.contains(infoPlistName) {
-            excludedValues.append(infoPlistName)
-        }
-        var seen = Set<String>()
-        excludedValues = excludedValues.filter { seen.insert($0).inserted }
-        var base = target.settings?.base ?? SettingsDictionary()
-        base[excludedSourceKey] = .array(excludedValues)
-        if let settings = target.settings {
-            target.settings = settings.with(base: base)
-        } else {
-            target.settings = Settings(
-                base: base,
-                baseDebug: [:],
-                configurations: Settings.default.configurations,
-                defaultSettings: .recommended,
-                defaultConfiguration: nil
-            )
-        }
-    }
-
     private func containsSynthesizedFilesInBuildableFolders(target: Target, project: Project) -> Bool {
         let extensions = Set(project.resourceSynthesizers.flatMap(\.extensions))
         return target.buildableFolders.contains(where: { folder in
@@ -276,7 +240,6 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         }
     }
 
-    // swiftlint:disable:next function_body_length
     static func fileContent(
         targetName _: String,
         bundleName: String,
