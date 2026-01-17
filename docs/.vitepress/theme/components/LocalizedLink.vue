@@ -1,7 +1,13 @@
 <script setup>
+import { computed } from "vue";
 import { useData } from "vitepress";
 
 const { lang } = useData();
+
+const nonLocalizedRoutes = [
+  "/cli",
+  "/references/project-description",
+];
 
 const props = defineProps({
   href: {
@@ -18,10 +24,20 @@ const props = defineProps({
   }
 });
 
+const resolvedLocale = computed(() => {
+  const href = props.href ?? "";
+  const isNonLocalized = nonLocalizedRoutes.some(
+    (route) => href === route || href.startsWith(`${route}/`),
+  );
+  return isNonLocalized ? "en" : lang.value;
+});
+
+const resolvedHref = computed(() => `/${resolvedLocale.value}${props.href}`);
+
 // Log invalid links in development mode
 if (import.meta.env.DEV && props.href) {
   // This can help catch issues during development
-  const fullHref = `/${lang}${props.href}`;
+  const fullHref = resolvedHref.value;
   
   // Warn about common issues
   if (props.href.includes('.html')) {
@@ -36,9 +52,9 @@ if (import.meta.env.DEV && props.href) {
 
 <template>
     <a 
-      :href="`/${lang}${href}`"
+      :href="resolvedHref"
       :data-original-href="href"
-      :data-localized-href="`/${lang}${href}`"
+      :data-localized-href="resolvedHref"
     >
       <slot></slot>
     </a>

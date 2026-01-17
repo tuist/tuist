@@ -142,6 +142,18 @@ const enabledLocales = process.env.DOCS_LOCALES
   ? process.env.DOCS_LOCALES.split(",")
   : allLocales;
 
+const docsContentDir = path.join(import.meta.dirname, "..", "docs");
+const localeDirs = (await fs.readdir(docsContentDir, { withFileTypes: true }))
+  .filter(
+    (entry) =>
+      entry.isDirectory() &&
+      !["generated", "public"].includes(entry.name),
+  )
+  .map((entry) => entry.name);
+const llmsIgnore = localeDirs
+  .filter((locale) => locale !== "en")
+  .map((locale) => `docs/${locale}/**`);
+
 const searchOptionsLocales = Object.fromEntries(
   enabledLocales.map((locale) => [locale, getSearchOptionsForLocale(locale)])
 );
@@ -178,7 +190,12 @@ export default defineConfig({
     metaChunk: true,
   },
   vite: {
-    plugins: [llmstxtPlugin(), devLocaleRedirectPlugin()],
+    plugins: [
+      llmstxtPlugin({
+        ignore: llmsIgnore,
+      }),
+      devLocaleRedirectPlugin(),
+    ],
     css: {
       postcss: {
         plugins: [
@@ -198,7 +215,7 @@ export default defineConfig({
       target: 'esnext',
     },
   },
-  mpa: false,
+  mpa: true,
   locales: Object.fromEntries(
     await Promise.all(
       enabledLocales.map(async (locale) => {
