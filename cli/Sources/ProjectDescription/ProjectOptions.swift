@@ -25,6 +25,8 @@ extension Project {
         /// Configures the name of the generated .xcodeproj.
         public var xcodeProjectName: String?
 
+        public var groupSortPosition: GroupSortPosition
+
         public static func options(
             automaticSchemesOptions: AutomaticSchemesOptions = .enabled(),
             defaultKnownRegions: [String]? = nil,
@@ -33,7 +35,8 @@ extension Project {
             disableShowEnvironmentVarsInScriptPhases: Bool = false,
             disableSynthesizedResourceAccessors: Bool = false,
             textSettings: TextSettings = .textSettings(),
-            xcodeProjectName: String? = nil
+            xcodeProjectName: String? = nil,
+            groupSortPosition: GroupSortPosition = .sortGroupsBeforeBuildableFolders
         ) -> Self {
             self.init(
                 automaticSchemesOptions: automaticSchemesOptions,
@@ -43,7 +46,8 @@ extension Project {
                 disableShowEnvironmentVarsInScriptPhases: disableShowEnvironmentVarsInScriptPhases,
                 disableSynthesizedResourceAccessors: disableSynthesizedResourceAccessors,
                 textSettings: textSettings,
-                xcodeProjectName: xcodeProjectName
+                xcodeProjectName: xcodeProjectName,
+                groupSortPosition: groupSortPosition
             )
         }
     }
@@ -108,5 +112,15 @@ extension Project.Options {
         ) -> Self {
             self.init(usesTabs: usesTabs, indentWidth: indentWidth, tabWidth: tabWidth, wrapsLines: wrapsLines)
         }
+    }
+
+    public enum GroupSortPosition: Codable, Equatable, Sendable {
+        /// Regular folders appear before buildable folders.
+        /// This is the default behavior and matches how Xcode originally handles the sorting.
+        case sortGroupsBeforeBuildableFolders
+        
+        /// Buildable folders are sorted together with regular folders alphabetically.
+        /// Both folder types have the same sort priority and appear before files.
+        case sortGroupsAndBuildableFoldersTogether
     }
 }

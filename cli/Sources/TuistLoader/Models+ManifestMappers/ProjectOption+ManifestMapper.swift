@@ -16,7 +16,8 @@ extension XcodeGraph.Project.Options {
                 indentWidth: manifest.textSettings.indentWidth,
                 tabWidth: manifest.textSettings.tabWidth,
                 wrapsLines: manifest.textSettings.wrapsLines
-            )
+            ),
+            groupSortPosition: .from(manifest: manifest.groupSortPosition)
         )
     }
 }
@@ -63,6 +64,17 @@ extension XcodeGraph.Project.Options.AutomaticSchemesOptions.TargetSchemesGroupi
             return .byNameSuffix(build: build, test: test, run: run)
         case .notGrouped:
             return .notGrouped
+        }
+    }
+}
+
+extension XcodeGraph.Project.Options.GroupSortPosition {
+    static func from(manifest: ProjectDescription.Project.Options.GroupSortPosition) -> Self {
+        switch manifest {
+        case .sortGroupsBeforeBuildableFolders:
+            return .sortGroupsBeforeBuildableFolders
+        case .sortGroupsAndBuildableFoldersTogether:
+            return .sortGroupsAndBuildableFoldersTogether
         }
     }
 }
