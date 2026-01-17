@@ -169,6 +169,40 @@ const devLocaleRedirectPlugin = () => ({
         res.end();
         return;
       }
+      const localizedCliPassthrough = [
+        "/cli/logging",
+        "/cli/directories",
+        "/cli/shell-completions",
+      ];
+      const url = req.url ?? "";
+      const localeCliMatch = url.match(/^\/([^/]+)\/cli\/(.+)/);
+      if (localeCliMatch) {
+        const [, locale, path] = localeCliMatch;
+        if (
+          locale !== "en" &&
+          !localizedCliPassthrough.includes(`/cli/${path}`)
+        ) {
+          res.statusCode = 302;
+          res.setHeader("Location", `/en/cli/${path}`);
+          res.end();
+          return;
+        }
+      }
+      const localeManifestMatch = url.match(
+        /^\/([^/]+)\/references\/project-description\/(.+)/,
+      );
+      if (localeManifestMatch) {
+        const [, locale, path] = localeManifestMatch;
+        if (locale !== "en") {
+          res.statusCode = 302;
+          res.setHeader(
+            "Location",
+            `/en/references/project-description/${path}`,
+          );
+          res.end();
+          return;
+        }
+      }
       next();
     });
   },
@@ -386,7 +420,7 @@ export default defineConfig({
 /guides/develop/workflows /guides/develop/continuous-integration/workflows 301
 /guides/dashboard/on-premise/install /server/on-premise/install 301
 /guides/dashboard/on-premise/metrics /server/on-premise/metrics 301
-/:locale/references/project-description/structs/config /:locale/references/project-description/structs/tuist  301
+/:locale/references/project-description/structs/config /en/references/project-description/structs/tuist  301
 /:locale/guides/develop/test/smart-runner /:locale/guides/develop/test/selective-testing 301
 /:locale/guides/start/new-project /:locale/guides/develop/projects/adoption/new-project 301
 /:locale/guides/start/swift-package /:locale/guides/develop/projects/adoption/swift-package 301
@@ -420,6 +454,8 @@ export default defineConfig({
 /:locale/server /:locale/guides/server/accounts-and-projects 301
 /:locale/references/examples /:locale/guides/examples/generated-projects 301
 /:locale/references/examples/* /:locale/guides/examples/generated-projects/:splat 301
+/:locale/cli/* /en/cli/:splat 301
+/:locale/references/project-description/* /en/references/project-description/:splat 301
 ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
   encoding: "utf-8",
 })}
