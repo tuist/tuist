@@ -4,6 +4,8 @@ import * as fs from "node:fs";
 import ejs from "ejs";
 import { localizedString } from "../i18n.mjs";
 
+const CLI_CONTENT_LOCALE = "en";
+
 // Root directory
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -110,15 +112,21 @@ function content(command) {
 }
 
 export async function paths(locale) {
+  if (locale !== CLI_CONTENT_LOCALE) {
+    return [];
+  }
   let paths = [];
-  (await loadData(locale)).items[0].items.forEach((command) => {
-    traverse(command, paths);
-  });
+  (await loadData(locale, CLI_CONTENT_LOCALE)).items[0].items.forEach(
+    (command) => {
+      traverse(command, paths);
+    },
+  );
   return paths;
 }
 
 export async function cliSidebar(locale) {
-  const sidebar = await loadData(locale);
+  const linkLocale = CLI_CONTENT_LOCALE;
+  const sidebar = await loadData(locale, linkLocale);
   return {
     ...sidebar,
     items: [
@@ -130,21 +138,21 @@ export async function cliSidebar(locale) {
               locale,
               "sidebars.cli.items.cli.items.logging.text",
             ),
-            link: `/${locale}/cli/logging`,
+            link: `/${linkLocale}/cli/logging`,
           },
           {
             text: localizedString(
               locale,
               "sidebars.cli.items.cli.items.directories.text",
             ),
-            link: `/${locale}/cli/directories`,
+            link: `/${linkLocale}/cli/directories`,
           },
           {
             text: localizedString(
               locale,
               "sidebars.cli.items.cli.items.shell-completions.text",
             ),
-            link: `/${locale}/cli/shell-completions`,
+            link: `/${linkLocale}/cli/shell-completions`,
           },
         ],
       },
@@ -153,11 +161,11 @@ export async function cliSidebar(locale) {
   };
 }
 
-export async function loadData(locale) {
+export async function loadData(locale, linkLocale = locale) {
   function parseCommand(
     command,
     parentCommand = "tuist",
-    parentPath = `/${locale}/cli/`,
+    parentPath = `/${linkLocale}/cli/`,
   ) {
     const output = {
       text: command.commandName,

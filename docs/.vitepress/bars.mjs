@@ -30,6 +30,9 @@ import { loadData as loadExamplesData } from "./data/examples";
 import { loadData as loadProjectDescriptionData } from "./data/project-description";
 import { localizedString } from "./i18n.mjs";
 
+const CLI_CONTENT_LOCALE = "en";
+const MANIFEST_REFERENCE_LOCALE = "en";
+
 async function projectDescriptionSidebar(locale) {
   const projectDescriptionTypesData = await loadProjectDescriptionData();
   const projectDescriptionSidebar = {
@@ -51,7 +54,7 @@ async function projectDescriptionSidebar(locale) {
           .filter((item) => item.category === category)
           .map((item) => ({
             text: item.title,
-            link: `/${locale}/references/project-description/${item.identifier}`,
+            link: `/${MANIFEST_REFERENCE_LOCALE}/references/project-description/${item.identifier}`,
           })),
       });
     }
@@ -114,7 +117,7 @@ export function navBar(locale) {
         locale,
         "navbar.cli.text",
       )} ${codeBrowserIcon()}</span>`,
-      link: `/${locale}/cli/auth`,
+      link: `/${CLI_CONTENT_LOCALE}/cli/auth`,
     },
     {
       text: localizedString(locale, "navbar.resources.text"),
@@ -124,7 +127,7 @@ export function navBar(locale) {
             locale,
             "navbar.resources.items.references.text",
           ),
-          link: `/${locale}/references/project-description/structs/project`,
+          link: `/${MANIFEST_REFERENCE_LOCALE}/references/project-description/structs/project`,
         },
         {
           text: localizedString(
