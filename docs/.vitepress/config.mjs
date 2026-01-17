@@ -166,9 +166,9 @@ function redirectToEnglishForGeneratedDocs(req, res) {
   ]);
   const url = req.url ?? "";
   const [pathname, search = ""] = url.split("?");
-  const parts = pathname.split("/").filter(Boolean);
-  if (parts.length < 2) return false;
-  const [locale, section, ...rest] = parts;
+  const match = pathname.match(/^\/([^/]+)(\/.+)$/);
+  if (!match) return false;
+  const [, locale, rest] = match;
   if (locale === "en") return false;
 
   const redirect = (path) => {
@@ -177,15 +177,14 @@ function redirectToEnglishForGeneratedDocs(req, res) {
     res.end();
   };
 
-  if (section === "cli") {
-    const cliPath = `/cli/${rest.join("/")}`;
-    if (localizedCliPassthrough.has(cliPath)) return false;
-    redirect(`/en${cliPath}`);
+  if (rest.startsWith("/cli/")) {
+    if (localizedCliPassthrough.has(rest)) return false;
+    redirect(`/en${rest}`);
     return true;
   }
 
-  if (section === "references" && rest[0] === "project-description") {
-    redirect(`/en/references/${rest.join("/")}`);
+  if (rest.startsWith("/references/project-description/")) {
+    redirect(`/en${rest}`);
     return true;
   }
 
