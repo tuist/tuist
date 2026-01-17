@@ -70,6 +70,11 @@ final class DumpServiceTests: TuistTestCase {
                 "disableBundleAccessors": false,
                 "disableShowEnvironmentVarsInScriptPhases": false,
                 "disableSynthesizedResourceAccessors": false,
+                "folderSortingStrategy": {
+                  "groupsBeforeFolderReferences": {
+            
+                  }
+                },
                 "textSettings": {
 
                 }
