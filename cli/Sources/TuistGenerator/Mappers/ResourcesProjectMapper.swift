@@ -255,7 +255,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         // Add public accessors only for non external projects
         let (imports, publicBundleAccessor): (String, String) = switch project.type {
         case .external,
-                .local where target.sourcesContainsPublicResourceClassName:
+             .local where target.sourcesContainsPublicResourceClassName:
             (
                 """
                 import Foundation

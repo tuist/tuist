@@ -843,7 +843,7 @@ struct ResourcesProjectMapperTests {
 
     @Test(arguments: [
         ("/ViewController.swift", true),
-        ("/TargetResources.swift", false)
+        ("/TargetResources.swift", false),
     ])
     func mapWhenProjectIsNotExternalTargetHasTargetResourcesSwiftSourceAndResourceFiles(
         sourceFile: SourceFile,
@@ -972,7 +972,6 @@ struct ResourcesProjectMapperTests {
         if let additionalFileExpectations {
             additionalFileExpectations(file)
         }
-
     }
 
     private func verifyObjcBundleAccessor(
