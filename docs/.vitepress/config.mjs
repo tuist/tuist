@@ -137,7 +137,7 @@ function getSearchOptionsForLocale(locale) {
   };
 }
 
-const allLocales = ["en", "ko", "ja", "ru", "es", "pt", "ar", "zh_Hans", "pl", "yue_Hant"];
+const allLocales = ["en", "ko", "ja", "ru", "es", "pt", "ar", "pl"];
 const enabledLocales = process.env.DOCS_LOCALES
   ? process.env.DOCS_LOCALES.split(",")
   : allLocales;
