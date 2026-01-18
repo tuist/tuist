@@ -15,7 +15,7 @@ const showAsideBottom = computed(() => lang.value !== "en");
 </script>
 
 <script client:load>
-import "../../interactivity.client.js";
+import "../interactivity.client.js";
 </script>
 
 <template>
