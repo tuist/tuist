@@ -588,8 +588,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             destinations: destinations,
             product: product,
             productName: productName,
-            bundleId: targetName
-                .replacingOccurrences(of: "_", with: ".").replacingOccurrences(of: "/", with: "."),
+            bundleId: "dev.tuist.\(targetName.replacingOccurrences(of: "_", with: ".").replacingOccurrences(of: "/", with: "."))",
             deploymentTargets: deploymentTargets,
             infoPlist: .default,
             sources: sources,

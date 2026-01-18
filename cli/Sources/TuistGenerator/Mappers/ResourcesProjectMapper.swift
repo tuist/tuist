@@ -59,7 +59,11 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         let bundleName = "\(project.name)_\(sanitizedTargetName)"
         var modifiedTarget = target
 
-        if !supportsResources {
+        let shouldGenerateResourceBundle = !supportsResources &&
+            !(project.type == .local && target.product == .staticFramework)
+
+        if shouldGenerateResourceBundle {
+            // Keep resources in a separate bundle to match SwiftPM's Bundle.module expectations and avoid collisions.
             let (resourceBuildableFolders, remainingBuildableFolders) = partitionBuildableFoldersForResources(
                 target.buildableFolders
             )
@@ -236,7 +240,6 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         }
     }
 
-    // swiftlint:disable:next function_body_length
     static func fileContent(
         targetName _: String,
         bundleName: String,
@@ -252,10 +255,10 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             swiftSPMBundleAccessorString(for: target, and: bundleName)
         }
 
-        // Add public accessors only for non external projects
+        // External projects ship their own public API, so we only mirror SwiftPM's Bundle.module accessors here.
         let (imports, publicBundleAccessor): (String, String) = switch project.type {
         case .external,
-                .local where target.sourcesContainsPublicResourceClassName:
+             .local where target.sourcesContainsPublicResourceClassName:
             (
                 """
                 import Foundation

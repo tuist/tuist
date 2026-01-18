@@ -144,6 +144,25 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
+    func mapWhenExternalStaticLibraryHasResourcesGeneratesBundleTarget() async throws {
+        // Given
+        let resources: [ResourceFileElement] = [.file(path: "/image.png")]
+        let target = Target.test(product: .staticLibrary, sources: ["/Absolute/File.swift"], resources: .init(resources))
+        let project = Project.test(targets: [target], type: .external(hash: nil))
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
+
+        // When
+        let (gotProject, _) = try await subject.map(project: project)
+
+        // Then
+        // External packages often use Bundle.module, so we keep a dedicated resource bundle target.
+        let resourcesTarget = try #require(gotProject.targets.values.first(where: { $0.product == .bundle }))
+        #expect(resourcesTarget.name == "\(project.name)_\(target.name)")
+        #expect(gotProject.targets.count == 2)
+    }
+
+    @Test
     func mapWhenDisableBundleAccessorsIsTrueDoesNotGenerateAccessors() async throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
@@ -825,6 +844,35 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
+    func mapWhenProjectIsExternalStaticFrameworkHasResourcesUsesStaticFrameworkAccessor() async throws {
+        // Given
+        let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
+        let target = Target.test(product: .staticFramework, sources: ["/ViewController.swift"], resources: .init(resources))
+        let project = Project.test(
+            path: try AbsolutePath(validating: "/AbsolutePath/Project"),
+            targets: [target],
+            type: .external(hash: nil)
+        )
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
+
+        // When
+        let (_, gotSideEffects) = try await subject.map(project: project)
+
+        // Then
+        let sideEffect = try #require(gotSideEffects.first)
+        guard case let SideEffectDescriptor.file(file) = sideEffect else {
+            Issue.record("Expected file descriptor")
+            return
+        }
+        let contents = String(data: file.contents ?? Data(), encoding: .utf8) ?? ""
+        // External static frameworks keep SwiftPM-style accessors to locate the resource bundle.
+        #expect(contents.contains("Swift Bundle Accessor for Static Frameworks"))
+        #expect(contents.contains("static let module"))
+        #expect(!contents.contains("public final class"))
+    }
+
+    @Test
     func mapWhenProjectIsNotExternalTargetHasSwiftSourceAndResourceFiles() async throws {
         // Given
         let sources: [SourceFile] = ["/ViewController.swift"]
@@ -843,7 +891,7 @@ struct ResourcesProjectMapperTests {
 
     @Test(arguments: [
         ("/ViewController.swift", true),
-        ("/TargetResources.swift", false)
+        ("/TargetResources.swift", false),
     ])
     func mapWhenProjectIsNotExternalTargetHasTargetResourcesSwiftSourceAndResourceFiles(
         sourceFile: SourceFile,
@@ -972,7 +1020,6 @@ struct ResourcesProjectMapperTests {
         if let additionalFileExpectations {
             additionalFileExpectations(file)
         }
-
     }
 
     private func verifyObjcBundleAccessor(
