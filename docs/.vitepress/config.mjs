@@ -146,8 +146,7 @@ const docsContentDir = path.join(import.meta.dirname, "..", "docs");
 const localeDirs = (await fs.readdir(docsContentDir, { withFileTypes: true }))
   .filter(
     (entry) =>
-      entry.isDirectory() &&
-      !["generated", "public"].includes(entry.name),
+      entry.isDirectory() && !["generated", "public"].includes(entry.name),
   )
   .map((entry) => entry.name);
 const llmsIgnore = localeDirs
@@ -155,7 +154,7 @@ const llmsIgnore = localeDirs
   .map((locale) => `docs/${locale}/**`);
 
 const searchOptionsLocales = Object.fromEntries(
-  enabledLocales.map((locale) => [locale, getSearchOptionsForLocale(locale)])
+  enabledLocales.map((locale) => [locale, getSearchOptionsForLocale(locale)]),
 );
 
 function redirectToEnglishForGeneratedDocs(req, res) {
@@ -196,7 +195,11 @@ const devLocaleRedirectPlugin = () => ({
   apply: "serve",
   configureServer(server) {
     server.middlewares.use((req, res, next) => {
-      if (req.url === "/" || req.url === "/index.html" || req.url?.startsWith("/?")) {
+      if (
+        req.url === "/" ||
+        req.url === "/index.html" ||
+        req.url?.startsWith("/?")
+      ) {
         res.statusCode = 302;
         res.setHeader("Location", "/en/");
         res.end();
@@ -244,12 +247,12 @@ export default defineConfig({
       // Disable sourcemaps to speed up builds
       sourcemap: false,
       // Use esbuild for minification (default, but explicit)
-      minify: 'esbuild',
+      minify: "esbuild",
       // Target modern browsers for faster builds
-      target: 'esnext',
+      target: "esnext",
     },
   },
-  mpa: true,
+  mpa: false,
   locales: Object.fromEntries(
     await Promise.all(
       enabledLocales.map(async (locale) => {
@@ -272,8 +275,8 @@ export default defineConfig({
             themeConfig: await themeConfig(locale),
           },
         ];
-      })
-    )
+      }),
+    ),
   ),
   cleanUrls: true,
   head: [
@@ -340,10 +343,7 @@ export default defineConfig({
   },
   async buildEnd({ outDir }) {
     // Run validations in parallel
-    await Promise.all([
-      validateAdmonitions(outDir),
-      checkLocalePages(outDir)
-    ]);
+    await Promise.all([validateAdmonitions(outDir), checkLocalePages(outDir)]);
 
     // Copy functions directory to dist
     const functionsSource = path.join(path.dirname(outDir), "functions");
