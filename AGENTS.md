@@ -6,10 +6,10 @@ This file provides guidance to AI agents when working with code in this reposito
 - `cli/` - Tuist CLI (Swift) - see `cli/AGENTS.md`
 - `server/` - Tuist Server (Elixir/Phoenix) - see `server/AGENTS.md`
 - `cache/` - Tuist cache service (Elixir/Phoenix) - see `cache/AGENTS.md`
-- `app/` - Tuist iOS and macOS app
+- `app/` - Tuist iOS and macOS app - see `app/AGENTS.md`
 - `handbook/` - Company handbook (VitePress) - see `handbook/AGENTS.md`
-- `docs/` - Documentation and guides
-- `infra/` - Infrastructure and deployment assets
+- `docs/` - Documentation and guides - see `docs/AGENTS.md`
+- `infra/` - Infrastructure and deployment assets - see `infra/AGENTS.md`
 
 ## Global Guardrails
 - Do not modify `CHANGELOG.md` (auto-generated).
