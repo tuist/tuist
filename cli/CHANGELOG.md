@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
+* External resources failing at runtime unable to find their associated bundle by [@pepicrft](https://github.com/pepicrft) in [#9148](https://github.com/tuist/tuist/pull/9148)
 * only emit a public import when public symbols are present by [@JimRoepcke](https://github.com/JimRoepcke) in [#9129](https://github.com/tuist/tuist/pull/9129)
 
 ## New Contributors
