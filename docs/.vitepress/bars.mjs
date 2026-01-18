@@ -21,10 +21,15 @@ import {
   getStartedIcon,
   qaIcon,
   slackIcon,
+  testInsightsIcon,
+  flakyTestsIcon,
 } from "./icons.mjs";
 import { loadData as loadExamplesData } from "./data/examples";
 import { loadData as loadProjectDescriptionData } from "./data/project-description";
 import { localizedString } from "./i18n.mjs";
+
+const CLI_CONTENT_LOCALE = "en";
+const MANIFEST_REFERENCE_LOCALE = "en";
 
 async function projectDescriptionSidebar(locale) {
   const projectDescriptionTypesData = await loadProjectDescriptionData();
@@ -47,7 +52,7 @@ async function projectDescriptionSidebar(locale) {
           .filter((item) => item.category === category)
           .map((item) => ({
             text: item.title,
-            link: `/${locale}/references/project-description/${item.identifier}`,
+            link: `/${MANIFEST_REFERENCE_LOCALE}/references/project-description/${item.identifier}`,
           })),
       });
     }
@@ -110,7 +115,7 @@ export function navBar(locale) {
         locale,
         "navbar.cli.text",
       )} ${codeBrowserIcon()}</span>`,
-      link: `/${locale}/cli/auth`,
+      link: `/${CLI_CONTENT_LOCALE}/cli/auth`,
     },
     {
       text: localizedString(locale, "navbar.resources.text"),
@@ -120,14 +125,14 @@ export function navBar(locale) {
             locale,
             "navbar.resources.items.references.text",
           ),
-          link: `/${locale}/references/project-description/structs/project`,
+          link: `/${MANIFEST_REFERENCE_LOCALE}/references/project-description/structs/project`,
         },
         {
           text: localizedString(
             locale,
             "navbar.resources.items.contributors.text",
           ),
-          link: `/${locale}/contributors/get-started`,
+          link: `/${locale}/contributors/code`,
         },
         {
           text: localizedString(
@@ -167,9 +172,40 @@ export function contributorsSidebar(locale) {
         {
           text: localizedString(
             locale,
-            "sidebars.contributors.items.get-started.text",
+            "sidebars.contributors.items.code.text",
           ),
-          link: `/${locale}/contributors/get-started`,
+          link: `/${locale}/contributors/code`,
+          collapsed: true,
+          items: [
+            {
+              text: localizedString(
+                locale,
+                "sidebars.contributors.items.code.items.cli.text",
+              ),
+              link: `/${locale}/contributors/code/cli`,
+            },
+            {
+              text: localizedString(
+                locale,
+                "sidebars.contributors.items.code.items.server.text",
+              ),
+              link: `/${locale}/contributors/code/server`,
+            },
+            {
+              text: localizedString(
+                locale,
+                "sidebars.contributors.items.code.items.handbook.text",
+              ),
+              link: `/${locale}/contributors/code/handbook`,
+            },
+            {
+              text: localizedString(
+                locale,
+                "sidebars.contributors.items.code.items.docs.text",
+              ),
+              link: `/${locale}/contributors/code/docs`,
+            },
+          ],
         },
         {
           text: localizedString(
@@ -191,6 +227,13 @@ export function contributorsSidebar(locale) {
             "sidebars.contributors.items.principles.text",
           ),
           link: `/${locale}/contributors/principles`,
+        },
+        {
+          text: localizedString(
+            locale,
+            "sidebars.contributors.items.debugging.text",
+          ),
+          link: `/${locale}/contributors/debugging`,
         },
         {
           text: localizedString(
@@ -462,23 +505,6 @@ export async function guidesSidebar(locale) {
             "sidebars.guides.items.develop.items.selective-testing.text",
           )}</span>`,
           link: `/${locale}/guides/features/selective-testing`,
-          collapsed: true,
-          items: [
-            {
-              text: localizedString(
-                locale,
-                "sidebars.guides.items.develop.items.selective-testing.items.xcode-project.text",
-              ),
-              link: `/${locale}/guides/features/selective-testing/xcode-project`,
-            },
-            {
-              text: localizedString(
-                locale,
-                "sidebars.guides.items.develop.items.selective-testing.items.generated-project.text",
-              ),
-              link: `/${locale}/guides/features/selective-testing/generated-project`,
-            },
-          ],
         },
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${registryIcon()} ${localizedString(
@@ -531,6 +557,23 @@ export async function guidesSidebar(locale) {
             "sidebars.guides.items.develop.items.insights.text",
           )}</span>`,
           link: `/${locale}/guides/features/insights`,
+        },
+        {
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${testInsightsIcon()} ${localizedString(
+            locale,
+            "sidebars.guides.items.develop.items.test-insights.text",
+          )}</span>`,
+          link: `/${locale}/guides/features/test-insights`,
+          collapsed: true,
+          items: [
+            {
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${flakyTestsIcon()} ${localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.test-insights.items.flaky-tests.text",
+              )}</span>`,
+              link: `/${locale}/guides/features/test-insights/flaky-tests`,
+            },
+          ],
         },
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${bundleSizeIcon()} ${localizedString(
@@ -648,6 +691,14 @@ export async function guidesSidebar(locale) {
               link: `/${locale}/guides/server/self-host/install`,
             },
             {
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${cacheIcon()} Cache nodes</span>`,
+              link: `/${locale}/guides/cache/self-host`,
+            },
+            {
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${cacheIcon()} Cache architecture</span>`,
+              link: `/${locale}/guides/cache/architecture`,
+            },
+            {
               text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${telemetryIcon()} ${localizedString(
                 locale,
                 "sidebars.guides.items.server.items.self-hosting.items.telemetry.text",
@@ -658,5 +709,8 @@ export async function guidesSidebar(locale) {
         },
       ],
     },
+    // Cache service documentation is discoverable under Server > Self-hosting,
+    // since that's where users look for infrastructure-related setup.
+    
   ];
 }

@@ -876,7 +876,7 @@ msgstr ""
 msgid "QA"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_blog_live.ex:112
+#: lib/tuist_web/marketing/live/marketing_blog_live.ex:113
 #: lib/tuist_web/marketing/structured_markup.ex:186
 #, elixir-autogen, elixir-format
 msgid "Read engaging stories and expert insights."

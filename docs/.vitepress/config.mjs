@@ -137,14 +137,79 @@ function getSearchOptionsForLocale(locale) {
   };
 }
 
-const allLocales = ["en", "ko", "ja", "ru", "es", "pt", "ar", "zh_Hans", "pl", "yue_Hant"];
+const allLocales = ["en", "ko", "ja", "ru", "es", "pt", "ar", "pl"];
 const enabledLocales = process.env.DOCS_LOCALES
   ? process.env.DOCS_LOCALES.split(",")
   : allLocales;
 
+const docsContentDir = path.join(import.meta.dirname, "..", "docs");
+const localeDirs = (await fs.readdir(docsContentDir, { withFileTypes: true }))
+  .filter(
+    (entry) =>
+      entry.isDirectory() && !["generated", "public"].includes(entry.name),
+  )
+  .map((entry) => entry.name);
+const llmsIgnore = localeDirs
+  .filter((locale) => locale !== "en")
+  .map((locale) => `docs/${locale}/**`);
+
 const searchOptionsLocales = Object.fromEntries(
-  enabledLocales.map((locale) => [locale, getSearchOptionsForLocale(locale)])
+  enabledLocales.map((locale) => [locale, getSearchOptionsForLocale(locale)]),
 );
+
+function redirectToEnglishForGeneratedDocs(req, res) {
+  const localizedCliPassthrough = new Set([
+    "/cli/logging",
+    "/cli/directories",
+    "/cli/shell-completions",
+  ]);
+  const url = req.url ?? "";
+  const [pathname, search = ""] = url.split("?");
+  const match = pathname.match(/^\/([^/]+)(\/.+)$/);
+  if (!match) return false;
+  const [, locale, rest] = match;
+  if (locale === "en") return false;
+
+  const redirect = (path) => {
+    res.statusCode = 302;
+    res.setHeader("Location", search ? `${path}?${search}` : path);
+    res.end();
+  };
+
+  if (rest.startsWith("/cli/")) {
+    if (localizedCliPassthrough.has(rest)) return false;
+    redirect(`/en${rest}`);
+    return true;
+  }
+
+  if (rest.startsWith("/references/project-description/")) {
+    redirect(`/en${rest}`);
+    return true;
+  }
+
+  return false;
+}
+
+const devLocaleRedirectPlugin = () => ({
+  name: "dev-locale-redirect",
+  apply: "serve",
+  configureServer(server) {
+    server.middlewares.use((req, res, next) => {
+      if (
+        req.url === "/" ||
+        req.url === "/index.html" ||
+        req.url?.startsWith("/?")
+      ) {
+        res.statusCode = 302;
+        res.setHeader("Location", "/en/");
+        res.end();
+        return;
+      }
+      if (redirectToEnglishForGeneratedDocs(req, res)) return;
+      next();
+    });
+  },
+});
 
 export default defineConfig({
   title: "Tuist",
@@ -162,7 +227,12 @@ export default defineConfig({
     metaChunk: true,
   },
   vite: {
-    plugins: [llmstxtPlugin()],
+    plugins: [
+      llmstxtPlugin({
+        ignore: llmsIgnore,
+      }),
+      devLocaleRedirectPlugin(),
+    ],
     css: {
       postcss: {
         plugins: [
@@ -177,9 +247,9 @@ export default defineConfig({
       // Disable sourcemaps to speed up builds
       sourcemap: false,
       // Use esbuild for minification (default, but explicit)
-      minify: 'esbuild',
+      minify: "esbuild",
       // Target modern browsers for faster builds
-      target: 'esnext',
+      target: "esnext",
     },
   },
   mpa: false,
@@ -205,8 +275,8 @@ export default defineConfig({
             themeConfig: await themeConfig(locale),
           },
         ];
-      })
-    )
+      }),
+    ),
   ),
   cleanUrls: true,
   head: [
@@ -273,10 +343,7 @@ export default defineConfig({
   },
   async buildEnd({ outDir }) {
     // Run validations in parallel
-    await Promise.all([
-      validateAdmonitions(outDir),
-      checkLocalePages(outDir)
-    ]);
+    await Promise.all([validateAdmonitions(outDir), checkLocalePages(outDir)]);
 
     // Copy functions directory to dist
     const functionsSource = path.join(path.dirname(outDir), "functions");
@@ -308,11 +375,12 @@ export default defineConfig({
 /tutorials/tuist/enterprise-infrastructure-requirements /cloud/on-premise 301
 /tutorials/tuist/enterprise-environment /cloud/on-premise 301
 /tutorials/tuist/enterprise-deployment /cloud/on-premise 301
-/documentation/tuist/get-started-as-contributor /contributors/get-started 301
+/documentation/tuist/get-started-as-contributor /contributors/code 301
 /documentation/tuist/manifesto /contributors/principles 301
 /documentation/tuist/code-reviews /contributors/code-reviews 301
 /documentation/tuist/reporting-bugs /contributors/issue-reporting 301
-/documentation/tuist/championing-projects /contributors/get-started 301
+/documentation/tuist/championing-projects /contributors/code 301
+/contributors/get-started /contributors/code 301
 /guide/scale/ufeatures-architecture.html /guide/scale/tma-architecture.html 301
 /guide/scale/ufeatures-architecture /guide/scale/tma-architecture 301
 /guide/introduction/cost-of-convenience /guides/develop/projects/cost-of-convenience 301
@@ -352,7 +420,7 @@ export default defineConfig({
 /guides/develop/workflows /guides/develop/continuous-integration/workflows 301
 /guides/dashboard/on-premise/install /server/on-premise/install 301
 /guides/dashboard/on-premise/metrics /server/on-premise/metrics 301
-/:locale/references/project-description/structs/config /:locale/references/project-description/structs/tuist  301
+/:locale/references/project-description/structs/config /en/references/project-description/structs/tuist  301
 /:locale/guides/develop/test/smart-runner /:locale/guides/develop/test/selective-testing 301
 /:locale/guides/start/new-project /:locale/guides/develop/projects/adoption/new-project 301
 /:locale/guides/start/swift-package /:locale/guides/develop/projects/adoption/swift-package 301
@@ -384,6 +452,8 @@ export default defineConfig({
 /:locale/server /:locale/guides/server/accounts-and-projects 301
 /:locale/references/examples /:locale/guides/examples/generated-projects 301
 /:locale/references/examples/* /:locale/guides/examples/generated-projects/:splat 301
+/:locale/cli/* /en/cli/:splat 301
+/:locale/references/project-description/* /en/references/project-description/:splat 301
 ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
   encoding: "utf-8",
 })}

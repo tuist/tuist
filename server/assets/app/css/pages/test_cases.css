@@ -46,6 +46,12 @@
       & td:nth-child(1) {
         width: 50%;
       }
+
+      & [data-part="label"] {
+        display: flex;
+        align-items: center;
+        gap: var(--noora-spacing-4);
+      }
     }
   }
 

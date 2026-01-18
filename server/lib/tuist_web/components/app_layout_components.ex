@@ -93,6 +93,17 @@ defmodule TuistWeb.AppLayoutComponents do
             )
           }
         />
+        <.sidebar_item
+          label={dgettext("dashboard", "Flaky Tests")}
+          icon="progress_x"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/flaky-tests"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/flaky-tests"
+            )
+          }
+        />
       </.sidebar_group>
       <.sidebar_group
         id="sidebar-module-cache"

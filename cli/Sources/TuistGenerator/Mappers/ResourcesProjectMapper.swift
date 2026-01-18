@@ -59,7 +59,11 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         let bundleName = "\(project.name)_\(sanitizedTargetName)"
         var modifiedTarget = target
 
-        if !supportsResources {
+        let shouldGenerateResourceBundle = !supportsResources &&
+            !(project.type == .local && target.product == .staticFramework)
+
+        if shouldGenerateResourceBundle {
+            // Keep resources in a separate bundle to match SwiftPM's Bundle.module expectations and avoid collisions.
             let (resourceBuildableFolders, remainingBuildableFolders) = partitionBuildableFoldersForResources(
                 target.buildableFolders
             )
@@ -236,7 +240,6 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         }
     }
 
-    // swiftlint:disable:next function_body_length
     static func fileContent(
         targetName _: String,
         bundleName: String,
@@ -252,16 +255,27 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             swiftSPMBundleAccessorString(for: target, and: bundleName)
         }
 
-        // Add public accessors only for non external projects
-        let publicBundleAccessor = switch project.type {
-        case .external:
-            ""
-        case .local:
-            if target.sourcesContainsPublicResourceClassName {
+        // External projects ship their own public API, so we only mirror SwiftPM's Bundle.module accessors here.
+        let (imports, publicBundleAccessor): (String, String) = switch project.type {
+        case .external,
+             .local where target.sourcesContainsPublicResourceClassName:
+            (
+                """
+                import Foundation
+                """,
                 ""
-            } else {
+            )
+        case .local:
+            (
+                """
+                #if hasFeature(InternalImportsByDefault)
+                public import Foundation
+                #else
+                import Foundation
+                #endif
+                """,
                 publicBundleAccessorString(for: target)
-            }
+            )
         }
 
         return """
@@ -270,11 +284,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         // swiftlint:disable all
         // swift-format-ignore-file
         // swiftformat:disable all
-        #if hasFeature(InternalImportsByDefault)
-        public import Foundation
-        #else
-        import Foundation
-        #endif
+        \(imports)
         \(bundleAccessor)
         \(publicBundleAccessor)
         // swiftformat:enable all
@@ -386,7 +396,6 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             static let module: Bundle = {
                 let bundleName = "\(bundleName)"
                 let hostBundle = Bundle(for: BundleFinder.self)
-                let bundleFinderResourceURL = hostBundle.resourceURL
                 var candidates = [
                     hostBundle.privateFrameworksURL,
                     hostBundle.bundleURL.appendingPathComponent("Frameworks"),
@@ -417,9 +426,11 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                 // This is a fix to make unit tests work with bundled resources.
                 // Making this change allows unit tests to search one directory up for a bundle.
                 // More context can be found in this PR: https://github.com/tuist/tuist/pull/6895
-                #if canImport(XCTest)
-                candidates.append(bundleFinderResourceURL?.appendingPathComponent(".."))
-                #endif
+                if ProcessInfo.processInfo.processName == "xctest"
+                    || ProcessInfo.processInfo.processName == "swift-testing"
+                {
+                    candidates.append(hostBundle.bundleURL.appendingPathComponent(".."))
+                }
 
                 for candidate in candidates {
                     let bundlePath = candidate?.appendingPathComponent(bundleName + ".bundle")
@@ -458,7 +469,6 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             static let module: Bundle = {
                 class BundleFinder {}
                 let hostBundle = Bundle(for: BundleFinder.self)
-                let bundleFinderResourceURL = hostBundle.resourceURL
                 var candidates: [URL?] = [
                     hostBundle.privateFrameworksURL,
                     hostBundle.bundleURL.appendingPathComponent("Frameworks"),
@@ -488,9 +498,11 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                     Bundle.main.privateFrameworksURL,
                     Bundle.main.bundleURL.appendingPathComponent("Frameworks"),
                 ]
-                #if canImport(XCTest)
-                bundleCandidates.append(bundleFinderResourceURL?.appendingPathComponent(".."))
-                #endif
+                if ProcessInfo.processInfo.processName == "xctest"
+                    || ProcessInfo.processInfo.processName == "swift-testing"
+                {
+                    bundleCandidates.append(hostBundle.bundleURL.appendingPathComponent(".."))
+                }
 
                 for candidate in bundleCandidates {
                     let bundlePath = candidate?.appendingPathComponent("\(bundleName).bundle")

@@ -99,6 +99,20 @@
         empty={@test_runs_analytics.count == 0}
       />
       <.widget
+        title={dgettext("dashboard_tests", "Flaky test runs")}
+        legend_color="flaky"
+        description={dgettext("dashboard_tests", "The number of test runs with flaky tests.")}
+        value={@flaky_test_runs_analytics.count}
+        id="widget-flaky-test-runs"
+        phx_click="select_widget"
+        phx_value_widget="flaky_test_run_count"
+        selected={@analytics_selected_widget == "flaky_test_run_count"}
+        trend_value={@flaky_test_runs_analytics.trend}
+        trend_type={:inverse}
+        trend_label={@analytics_trend_label}
+        empty={@flaky_test_runs_analytics.count == 0}
+      />
+      <.widget
         title={dgettext("dashboard_tests", "Failed test runs")}
         legend_color="destructive"
         description={dgettext("dashboard_tests", "The number of test runs that failed.")}
@@ -355,6 +369,70 @@
               )
               |> Enum.map(&Tuple.to_list/1),
             name: dgettext("dashboard_tests", "Test runs"),
+            type: "line",
+            smooth: 0.1,
+            symbol: "none"
+          }
+        ]}
+        y_axis_min={0}
+      />
+      <.chart
+        :if={@analytics_selected_widget == "flaky_test_run_count"}
+        id="flaky-test-run-count-chart"
+        type="line"
+        extra_options={
+          %{
+            grid: %{
+              width: "97%",
+              left: "0.4%",
+              height: "88%",
+              top: "5%"
+            },
+            xAxis: %{
+              boundaryGap: false,
+              type: "category",
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary",
+                formatter: "fn:toLocaleDate",
+                customValues: [
+                  @flaky_test_runs_analytics.dates |> List.first(),
+                  @flaky_test_runs_analytics.dates |> List.last()
+                ],
+                padding: [10, 0, 0, 0]
+              }
+            },
+            yAxis: %{
+              splitNumber: 4,
+              splitLine: %{
+                lineStyle: %{
+                  color: "var:noora-chart-lines"
+                }
+              },
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary"
+              }
+            },
+            legend: %{
+              show: false
+            },
+            tooltip:
+              if @analytics_preset == "last-24-hours" do
+                %{dateFormat: "hour"}
+              else
+                %{}
+              end
+          }
+        }
+        series={[
+          %{
+            color: "var:noora-chart-flaky",
+            data:
+              Enum.zip(
+                @flaky_test_runs_analytics.dates,
+                @flaky_test_runs_analytics.values
+              )
+              |> Enum.map(&Tuple.to_list/1),
+            name: dgettext("dashboard_tests", "Flaky test runs"),
             type: "line",
             smooth: 0.1,
             symbol: "none"
@@ -832,52 +910,104 @@
   </.card>
 
   <.card title={dgettext("dashboard_tests", "Test Cases")} icon="exchange" data-part="test-cases">
-    <.card_section
-      :if={not Enum.empty?(@slowest_test_cases)}
-      data-part="slowest-test-cases-section"
+    <div
+      :if={not Enum.empty?(@slowest_test_cases) or not Enum.empty?(@most_flaky_test_cases)}
+      data-part="test-cases-sections"
     >
-      <div data-part="header">
-        <span data-part="title">{dgettext("dashboard_tests", "Slowest test cases")}</span>
-        <.button
-          variant="secondary"
-          label={dgettext("dashboard_tests", "View more")}
-          size="small"
-          navigate={
-            ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases?sort_by=avg_duration&sort_order=desc"
-          }
-        />
-      </div>
-      <div data-part="slowest-test-cases-list">
-        <div :for={test_case <- Enum.take(@slowest_test_cases, 4)} class="test-case-card">
-          <div data-part="header">
-            <div data-part="icon">
-              <.clock_hour_4 />
-            </div>
-            <div data-part="title-and-subtitle">
-              <h3 data-part="title">{test_case.name}</h3>
-              <span
-                :if={test_case.module_name != "" or test_case.suite_name != ""}
-                data-part="subtitle"
-              >
-                {Enum.join([test_case.module_name, test_case.suite_name], " • ")}
+      <.card_section
+        :if={not Enum.empty?(@slowest_test_cases)}
+        data-part="slowest-test-cases-section"
+      >
+        <div data-part="header">
+          <span data-part="title">{dgettext("dashboard_tests", "Slowest test cases")}</span>
+          <.button
+            variant="secondary"
+            label={dgettext("dashboard_tests", "View more")}
+            size="small"
+            navigate={
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases?sort_by=avg_duration&sort_order=desc"
+            }
+          />
+        </div>
+        <div data-part="slowest-test-cases-list">
+          <div :for={test_case <- Enum.take(@slowest_test_cases, 4)} class="test-case-card">
+            <div data-part="header">
+              <div data-part="icon">
+                <.clock_hour_4 />
+              </div>
+              <div data-part="title-and-subtitle">
+                <h3 data-part="title">{test_case.name}</h3>
+                <span
+                  :if={test_case.module_name != "" or test_case.suite_name != ""}
+                  data-part="subtitle"
+                >
+                  {Enum.join([test_case.module_name, test_case.suite_name], " • ")}
+                </span>
+              </div>
+              <span data-part="duration">
+                <.clock_hour_4 />
+                {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  test_case.avg_duration
+                )}
               </span>
             </div>
-            <span data-part="duration">
-              <.clock_hour_4 />
-              {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                test_case.avg_duration
-              )}
-            </span>
+          </div>
+          <div :if={Enum.count(@slowest_test_cases) > 4} data-part="more-card" data-index="two">
+          </div>
+          <div :if={Enum.count(@slowest_test_cases) > 4} data-part="more-card" data-index="one">
           </div>
         </div>
-        <div :if={Enum.count(@slowest_test_cases) > 4} data-part="more-card" data-index="two">
+      </.card_section>
+      <.card_section
+        :if={not Enum.empty?(@most_flaky_test_cases)}
+        data-part="most-flaky-test-cases-section"
+      >
+        <div data-part="header">
+          <span data-part="title">
+            {dgettext("dashboard_tests", "Most occurring flaky tests")}
+          </span>
+          <.button
+            variant="secondary"
+            label={dgettext("dashboard_tests", "View more")}
+            size="small"
+            navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/flaky-tests"}
+          />
         </div>
-        <div :if={Enum.count(@slowest_test_cases) > 4} data-part="more-card" data-index="one">
+        <div data-part="most-flaky-test-cases-list">
+          <div
+            :for={test_case <- Enum.take(@most_flaky_test_cases, 4)}
+            class="flaky-test-case-card"
+          >
+            <div data-part="header">
+              <div data-part="icon">
+                <.alert_triangle />
+              </div>
+              <div data-part="title-and-subtitle">
+                <h3 data-part="title">{test_case.name}</h3>
+                <span
+                  :if={test_case.module_name != "" or test_case.suite_name != ""}
+                  data-part="subtitle"
+                >
+                  {Enum.join([test_case.module_name, test_case.suite_name], " • ")}
+                </span>
+              </div>
+              <.badge
+                label={to_string(test_case.flaky_runs_count)}
+                color="attention"
+                style="light-fill"
+                size="small"
+              />
+            </div>
+          </div>
+          <div :if={Enum.count(@most_flaky_test_cases) > 4} data-part="more-card" data-index="two">
+          </div>
+          <div :if={Enum.count(@most_flaky_test_cases) > 4} data-part="more-card" data-index="one">
+          </div>
         </div>
-      </div>
-    </.card_section>
+      </.card_section>
+    </div>
     <.empty_card_section
-      :if={Enum.empty?(@slowest_test_cases)}
+      :if={Enum.empty?(@slowest_test_cases) and Enum.empty?(@most_flaky_test_cases)}
       title={dgettext("dashboard_tests", "No test cases yet")}
       get_started_href="https://docs.tuist.dev/en/guides/features/insights#tests"
     >

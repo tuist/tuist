@@ -119,8 +119,22 @@
     "contributors": {
       "text": "Contributors",
       "items": {
-        "get-started": {
-          "text": "Get started"
+        "code": {
+          "text": "Code",
+          "items": {
+            "cli": {
+              "text": "CLI"
+            },
+            "server": {
+              "text": "Server"
+            },
+            "handbook": {
+              "text": "Handbook"
+            },
+            "docs": {
+              "text": "Docs"
+            }
+          }
         },
         "issue-reporting": {
           "text": "Issue reporting"
@@ -130,6 +144,9 @@
         },
         "principles": {
           "text": "Principles"
+        },
+        "debugging": {
+          "text": "Debugging"
         },
         "translate": {
           "text": "Translate"
@@ -342,21 +359,18 @@
               }
             },
             "selective-testing": {
-              "text": "Selective testing",
-              "items": {
-                "selective-testing": {
-                  "text": "Selective testing"
-                },
-                "xcode-project": {
-                  "text": "Xcode project"
-                },
-                "generated-project": {
-                  "text": "Generated project"
-                }
-              }
+              "text": "Selective testing"
             },
             "insights": {
               "text": "Build insights"
+            },
+            "test-insights": {
+              "text": "Test insights",
+              "items": {
+                "flaky-tests": {
+                  "text": "Flaky tests"
+                }
+              }
             },
             "bundle-size": {
               "text": "Bundle insights"

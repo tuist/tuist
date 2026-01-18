@@ -1,5 +1,6 @@
 defmodule Tuist.Repo.Migrations.CreateQARuns do
   use Ecto.Migration
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
 
   def change do
     create table(:qa_runs, primary_key: false) do

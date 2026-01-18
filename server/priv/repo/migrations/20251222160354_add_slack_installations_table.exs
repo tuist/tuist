@@ -1,5 +1,6 @@
 defmodule Tuist.Repo.Migrations.AddSlackInstallationsTable do
   use Ecto.Migration
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
 
   def change do
     create table(:slack_installations, primary_key: false) do

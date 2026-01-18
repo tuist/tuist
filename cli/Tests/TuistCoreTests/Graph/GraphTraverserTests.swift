@@ -1209,6 +1209,110 @@ final class GraphTraverserTests: TuistUnitTestCase {
         )
     }
 
+    func test_embeddableFrameworks_when_dependencyIsStaticFrameworkWithMetalSources() throws {
+        // Given
+        let target = Target.test(name: "Main", product: .app)
+        let staticFramework = Target.test(
+            name: "MetalFramework",
+            product: .staticFramework,
+            sources: ["/Absolute/Shader.metal"]
+        )
+        let project = Project.test(targets: [target, staticFramework])
+
+        // Given: Value Graph
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(
+                    name: target.name,
+                    path: project.path
+                ): Set(arrayLiteral: .target(name: staticFramework.name, path: project.path)),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
+
+        // Then
+        // Metal compilation generates a default.metallib resource, so the framework must be embedded in the app bundle.
+        XCTAssertEqual(
+            got, [
+                .product(target: "MetalFramework", productName: "MetalFramework.framework"),
+            ]
+        )
+    }
+
+    func test_embeddableFrameworks_when_dependencyIsStaticFrameworkWithResources() throws {
+        // Given
+        let target = Target.test(name: "Main", product: .app)
+        let staticFramework = Target.test(
+            name: "StaticResourcesFramework",
+            product: .staticFramework,
+            resources: .init([.file(path: "/Absolute/Asset.png")])
+        )
+        let project = Project.test(targets: [target, staticFramework])
+
+        // Given: Value Graph
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(
+                    name: target.name,
+                    path: project.path
+                ): Set(arrayLiteral: .target(name: staticFramework.name, path: project.path)),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
+
+        // Then
+        XCTAssertEqual(
+            got, [
+                .product(target: "StaticResourcesFramework", productName: "StaticResourcesFramework.framework"),
+            ]
+        )
+    }
+
+    func test_embeddableFrameworks_when_dependencyIsExternalStaticFrameworkWithResources() throws {
+        // Given
+        let app = Target.test(name: "Main", product: .app)
+        let staticFramework = Target.test(
+            name: "ExternalResourcesFramework",
+            product: .staticFramework,
+            resources: .init([.file(path: "/Absolute/Asset.png")])
+        )
+        let project = Project.test(path: "/App", targets: [app])
+        let externalProject = Project.test(
+            path: "/External",
+            targets: [staticFramework],
+            type: .external(hash: nil)
+        )
+
+        // Given: Value Graph
+        let graph = Graph.test(
+            projects: [
+                project.path: project,
+                externalProject.path: externalProject,
+            ],
+            dependencies: [
+                .target(
+                    name: app.name,
+                    path: project.path
+                ): Set(arrayLiteral: .target(name: staticFramework.name, path: externalProject.path)),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.embeddableFrameworks(path: project.path, name: app.name).sorted()
+
+        // Then
+        XCTAssertEqual(got, [])
+    }
+
     func test_embeddableFrameworks_when_appIsMergeableAndDependencyIsATarget() throws {
         // Given
         let target = Target.test(name: "Main", mergedBinaryType: .automatic)

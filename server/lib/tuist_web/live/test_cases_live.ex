@@ -63,12 +63,16 @@ defmodule TuistWeb.TestCasesLive do
         value: ""
       },
       %Filter.Filter{
-        id: "name",
-        field: "name",
-        display_name: dgettext("dashboard_tests", "Test Case"),
-        type: :text,
-        operator: :=~,
-        value: ""
+        id: "is_flaky",
+        field: :is_flaky,
+        display_name: dgettext("dashboard_tests", "Test case"),
+        type: :option,
+        options: ["flaky"],
+        options_display_names: %{
+          "flaky" => dgettext("dashboard_tests", "Flaky")
+        },
+        operator: :==,
+        value: nil
       }
     ]
   end
@@ -199,6 +203,7 @@ defmodule TuistWeb.TestCasesLive do
     {:noreply, socket}
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
     analytics_environment = params["analytics-environment"] || "any"
     selected_duration_type = params["duration-type"] || "avg"
@@ -342,7 +347,10 @@ defmodule TuistWeb.TestCasesLive do
   defp validate_sort_by(_invalid), do: @default_sort_field
 
   defp build_flop_filters(filters, search) do
-    flop_filters = Filter.Operations.convert_filters_to_flop(filters)
+    flop_filters =
+      filters
+      |> Filter.Operations.convert_filters_to_flop()
+      |> Enum.map(&convert_is_flaky_filter/1)
 
     if search == "" do
       flop_filters
@@ -350,6 +358,12 @@ defmodule TuistWeb.TestCasesLive do
       flop_filters ++ [%{field: :name, op: :ilike_and, value: search}]
     end
   end
+
+  defp convert_is_flaky_filter(%{field: :is_flaky, value: "flaky"} = filter) do
+    %{filter | value: true}
+  end
+
+  defp convert_is_flaky_filter(filter), do: filter
 
   defp sort_icon("asc"), do: "square_rounded_arrow_up"
   defp sort_icon("desc"), do: "square_rounded_arrow_down"

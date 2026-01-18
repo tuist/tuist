@@ -97,6 +97,14 @@ The Docker image's entrypoint automatically runs any pending ClickHouse schema m
 
 You’ll also need a solution to store files (e.g. framework and library binaries). Currently we support any storage that's S3-compliant.
 
+::: tip OPTIMIZED CACHING
+<!-- -->
+If your goal is primarily to bring your own bucket for storing binaries and reduce cache latency, you might not need to self-host the whole server. You can self-host cache nodes and connect them to the hosted Tuist server or your self-hosted server.
+
+See the <LocalizedLink href="/guides/cache/self-host">cache self-hosting guide</LocalizedLink>.
+<!-- -->
+:::
+
 ## Configuration {#configuration}
 
 The configuration of the service is done at runtime through environment variables. Given the sensitive nature of these variables, we advise encrypting and storing them in secure password management solutions. Rest assured, Tuist handles these variables with utmost care, ensuring they are never displayed in logs.

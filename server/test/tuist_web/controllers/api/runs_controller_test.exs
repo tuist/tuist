@@ -1231,6 +1231,113 @@ defmodule TuistWeb.API.RunsControllerTest do
              }
     end
 
+    test "creates a new test run with flaky test cases (repetitions)", %{conn: conn} do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.dev")
+      project = ProjectsFixtures.project_fixture(preload: [:account], account_id: user.account.id)
+
+      # When
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/projects/#{project.account.name}/#{project.name}/runs",
+          type: "test",
+          duration: 3000,
+          macos_version: "14.0",
+          xcode_version: "15.0",
+          is_ci: true,
+          status: "success",
+          test_modules: [
+            %{
+              name: "FlakyTests",
+              status: "success",
+              duration: 3000,
+              test_cases: [
+                %{
+                  name: "testStable",
+                  status: "success",
+                  duration: 500,
+                  repetitions: [
+                    %{
+                      repetition_number: 1,
+                      name: "First Run",
+                      status: "success",
+                      duration: 250
+                    },
+                    %{
+                      repetition_number: 2,
+                      name: "Retry 1",
+                      status: "success",
+                      duration: 250
+                    }
+                  ]
+                },
+                %{
+                  name: "testFlaky",
+                  status: "success",
+                  duration: 1000,
+                  repetitions: [
+                    %{
+                      repetition_number: 1,
+                      name: "First Run",
+                      status: "failure",
+                      duration: 400
+                    },
+                    %{
+                      repetition_number: 2,
+                      name: "Retry 1",
+                      status: "success",
+                      duration: 600
+                    }
+                  ],
+                  failures: [
+                    %{
+                      message: "Flaky assertion",
+                      path: "Tests/FlakyTests.swift",
+                      line_number: 15,
+                      issue_type: "assertion_failure"
+                    }
+                  ]
+                },
+                %{
+                  name: "testNoRepetitions",
+                  status: "success",
+                  duration: 300
+                }
+              ]
+            }
+          ]
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      {:ok, test_run} = Tuist.Runs.get_test(response["id"])
+
+      assert test_run.duration == 3000
+      assert test_run.status == "success"
+
+      # Verify test cases were stored with correct statuses
+      {test_cases, _meta} =
+        Tuist.Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: test_run.id}],
+          order_by: [:name],
+          order_directions: [:asc]
+        })
+
+      assert length(test_cases) == 3
+
+      flaky_case = Enum.find(test_cases, &(&1.name == "testFlaky"))
+      assert flaky_case.status == "success"
+      assert flaky_case.is_flaky == true
+
+      stable_case = Enum.find(test_cases, &(&1.name == "testStable"))
+      assert stable_case.status == "success"
+
+      no_rep_case = Enum.find(test_cases, &(&1.name == "testNoRepetitions"))
+      assert no_rep_case.status == "success"
+    end
+
     test "creates a new test run with skipped status", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture(preload: [:account], email: "tuist@tuist.dev")

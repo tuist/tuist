@@ -1,6 +1,54 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.128.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* External resources failing at runtime unable to find their associated bundle by [@pepicrft](https://github.com/pepicrft) in [#9148](https://github.com/tuist/tuist/pull/9148)
+* only emit a public import when public symbols are present by [@JimRoepcke](https://github.com/JimRoepcke) in [#9129](https://github.com/tuist/tuist/pull/9129)
+
+## New Contributors
+* [@JimRoepcke](https://github.com/JimRoepcke) made their first contribution in [#9129](https://github.com/tuist/tuist/pull/9129)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.128.0...4.128.1
+
+## What's Changed in 4.128.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* make new module cache default by [@cschmatzler](https://github.com/cschmatzler) in [#9094](https://github.com/tuist/tuist/pull/9094)
+* add support for flaky tests detection by [@fortmarek](https://github.com/fortmarek) in [#9098](https://github.com/tuist/tuist/pull/9098)
+* implement remote cache cleaning by [@cschmatzler](https://github.com/cschmatzler) in [#9124](https://github.com/tuist/tuist/pull/9124)
+### 🐛 Bug Fixes
+
+* Compilation errors when a static framework contains resources by [@pepicrft](https://github.com/pepicrft) in [#9141](https://github.com/tuist/tuist/pull/9141)
+* remove selective testing support for vanilla Xcode projects by [@fortmarek](https://github.com/fortmarek) in [#9126](https://github.com/tuist/tuist/pull/9126)
+* update inspect acceptance tests for new output format by [@pepicrft](https://github.com/pepicrft) in [#9125](https://github.com/tuist/tuist/pull/9125)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.125.0...4.128.0
+
+## What's Changed in 4.125.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add unified inspect dependencies command by [@hiltonc](https://github.com/hiltonc) in [#8887](https://github.com/tuist/tuist/pull/8887)
+* Add exceptTargetQueries to cache profiles by [@hiltonc](https://github.com/hiltonc) in [#8761](https://github.com/tuist/tuist/pull/8761)
+### 🐛 Bug Fixes
+
+* Static framework bundles for tests and metal by [@pepicrft](https://github.com/pepicrft) in [#9123](https://github.com/tuist/tuist/pull/9123)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.124.1...4.125.0
+
+## What's Changed in 4.124.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* disable Swift debug serialization to prevent LLDB warnings by [@pepicrft](https://github.com/pepicrft) in [#9116](https://github.com/tuist/tuist/pull/9116)
+* fix flaky DumpServiceIntegrationTests for package manifests by [@pepicrft](https://github.com/pepicrft) in [#9113](https://github.com/tuist/tuist/pull/9113)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.124.0...4.124.1
+
 ## What's Changed in 4.124.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features

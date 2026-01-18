@@ -4,6 +4,8 @@ defmodule TuistWeb.TestCaseLive do
   use Noora
 
   import Noora.Filter
+  import TuistWeb.Helpers.FailureMessage
+  import TuistWeb.Helpers.VCSLinks
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
@@ -20,6 +22,8 @@ defmodule TuistWeb.TestCaseLive do
         _session,
         %{assigns: %{selected_project: project, selected_account: account}} = socket
       ) do
+    project = Tuist.Repo.preload(project, :vcs_connection)
+
     test_case_detail =
       case Runs.get_test_case_by_id(test_case_id) do
         {:ok, test_case} -> test_case
@@ -39,6 +43,7 @@ defmodule TuistWeb.TestCaseLive do
 
     socket =
       socket
+      |> assign(:selected_project, project)
       |> assign(:test_case_id, test_case_id)
       |> assign(:test_case_detail, test_case_detail)
       |> assign(:head_title, "#{test_case_detail.name} · #{slug} · Tuist")
@@ -154,6 +159,29 @@ defmodule TuistWeb.TestCaseLive do
      |> push_event("close-popover", %{all: true})}
   end
 
+  def handle_event(
+        "unmark-as-flaky",
+        _params,
+        %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail}} = socket
+      ) do
+    {:ok, updated_test_case} = Runs.set_test_case_flaky(test_case_id, false)
+
+    {:noreply,
+     socket
+     |> assign(:test_case_detail, %{test_case_detail | is_flaky: updated_test_case.is_flaky})
+     |> assign(:flaky_runs_grouped, [])}
+  end
+
+  def handle_event(
+        "mark-as-flaky",
+        _params,
+        %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail}} = socket
+      ) do
+    {:ok, updated_test_case} = Runs.set_test_case_flaky(test_case_id, true)
+
+    {:noreply, assign(socket, :test_case_detail, %{test_case_detail | is_flaky: updated_test_case.is_flaky})}
+  end
+
   def handle_info({:test_created, %{name: "test"}}, socket) do
     socket =
       socket
@@ -167,8 +195,10 @@ defmodule TuistWeb.TestCaseLive do
     {:noreply, socket}
   end
 
-  defp assign_analytics(%{assigns: %{selected_project: project, test_case_id: test_case_id}} = socket) do
-    [reliability, analytics] =
+  defp assign_analytics(
+         %{assigns: %{selected_project: project, test_case_id: test_case_id, test_case_detail: test_case_detail}} = socket
+       ) do
+    [reliability, analytics, flakiness_rate, {flaky_runs_grouped, flaky_runs_meta}] =
       Task.await_many(
         [
           Task.async(fn ->
@@ -179,6 +209,12 @@ defmodule TuistWeb.TestCaseLive do
           end),
           Task.async(fn ->
             Analytics.test_case_analytics_by_id(test_case_id)
+          end),
+          Task.async(fn ->
+            Analytics.get_test_case_flakiness_rate(test_case_detail)
+          end),
+          Task.async(fn ->
+            Runs.list_flaky_runs_for_test_case(test_case_id)
           end)
         ],
         30_000
@@ -187,6 +223,9 @@ defmodule TuistWeb.TestCaseLive do
     socket
     |> assign(:reliability, reliability)
     |> assign(:analytics, analytics)
+    |> assign(:flakiness_rate, flakiness_rate)
+    |> assign(:flaky_runs_grouped, flaky_runs_grouped)
+    |> assign(:flaky_runs_meta, flaky_runs_meta)
   end
 
   defp assign_test_case_runs(

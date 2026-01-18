@@ -256,7 +256,7 @@ Some companies support our community and open source efforts with contributions 
 
 ## Want to contribute?
 
-You can use our [contribution docs](https://docs.tuist.dev/en/contributors/get-started) to get started. You can find good issues for first-time contributors [here](https://github.com/tuist/tuist/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
+You can use our [contribution docs](https://docs.tuist.dev/en/contributors/code) to get started. You can find good issues for first-time contributors [here](https://github.com/tuist/tuist/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
 
 ## Core Alumni
 

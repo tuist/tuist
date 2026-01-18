@@ -1,5 +1,6 @@
 defmodule Tuist.Repo.Migrations.ClientsSignaturesAdapters do
   use Ecto.Migration
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
 
   def up do
     alter table(:oauth_clients) do

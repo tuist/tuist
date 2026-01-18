@@ -1,5 +1,6 @@
 defmodule Tuist.Repo.Migrations.RenameSlackReportColumnsToReport do
   use Ecto.Migration
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
 
   def change do
     rename table(:projects), :slack_report_frequency, to: :report_frequency

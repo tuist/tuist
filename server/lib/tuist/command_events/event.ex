@@ -25,7 +25,6 @@ defmodule Tuist.CommandEvents.Event do
 
   @primary_key {:id, Ch, type: "UUID", autogenerate: false}
   schema "command_events" do
-    field :legacy_id, Ch, type: "UInt64"
     field :name, Ch, type: "String"
     field :subcommand, Ch, type: "Nullable(String)"
     field :command_arguments, Ch, type: "Nullable(String)"
@@ -83,7 +82,6 @@ defmodule Tuist.CommandEvents.Event do
     event_attrs =
       event_attrs
       |> Map.put_new(:id, id)
-      |> Map.put(:legacy_id, Tuist.UUIDv7.to_int64(id))
       |> normalize_status()
       |> Map.update(:command_arguments, "", fn
         args when is_list(args) -> Enum.join(args, " ")

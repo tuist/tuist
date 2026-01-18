@@ -1,5 +1,6 @@
 defmodule Tuist.Repo.Migrations.MakeQARunsAppBuildIdNullable do
   use Ecto.Migration
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
 
   def up do
     drop constraint(:qa_runs, "qa_runs_app_build_id_fkey")

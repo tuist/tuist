@@ -232,6 +232,7 @@ defmodule Tuist.Authorization.Checks do
     false
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def command_event_project_access(user_or_nil, command_event) when is_struct(command_event) do
     project =
       case Map.get(command_event, :project) do

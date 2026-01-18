@@ -9,6 +9,7 @@ struct CacheProfilesCodableTests {
             [
                 "p1": .profile(.onlyExternal, and: ["A", "tag:foo"]),
                 "p2": .profile(.none, and: []),
+                "p3": .profile(.allPossible, and: ["B"], except: ["C", "tag:exclude"]),
             ],
             default: .allPossible
         )

@@ -8,7 +8,7 @@ services:
       - cas_data:/cas:rw
       - sqlite_data:/data:rw
     environment:
-      PHX_HOST: ${PHX_HOST}
+      PUBLIC_HOST: ${PUBLIC_HOST}
       PHX_SERVER: "true"
       SECRET_KEY_BASE: ${SECRET_KEY_BASE}
       SERVER_URL: ${SERVER_URL}

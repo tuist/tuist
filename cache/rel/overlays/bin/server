@@ -18,6 +18,6 @@ if [ -z "$host_name" ]; then
   exit 1
 fi
 
-export PHX_HOST="$host_name.tuist.dev"
+export PUBLIC_HOST="$host_name.tuist.dev"
 
 PHX_SERVER=true exec ./cache start

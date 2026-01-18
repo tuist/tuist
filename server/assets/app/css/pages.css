@@ -30,4 +30,5 @@
 @import "./pages/test_run.css";
 @import "./pages/test_cases.css";
 @import "./pages/test_case.css";
+@import "./pages/flaky_tests.css";
 @import "./pages/xcode_cache.css";

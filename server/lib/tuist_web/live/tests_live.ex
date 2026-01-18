@@ -23,6 +23,7 @@ defmodule TuistWeb.TestsLive do
       |> assign(OpenGraph.og_image_assigns("tests"))
       |> assign_recent_test_runs()
       |> assign_slowest_test_cases()
+      |> assign_most_flaky_test_cases()
 
     if connected?(socket) do
       Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
@@ -155,7 +156,8 @@ defmodule TuistWeb.TestsLive do
        |> assign_analytics(socket.assigns.current_params)
        |> assign_selective_testing(socket.assigns.current_params)
        |> assign_recent_test_runs()
-       |> assign_slowest_test_cases()}
+       |> assign_slowest_test_cases()
+       |> assign_most_flaky_test_cases()}
     end
   end
 
@@ -180,10 +182,11 @@ defmodule TuistWeb.TestsLive do
         _ -> opts
       end
 
-    [test_runs_analytics, failed_test_runs_analytics, test_runs_duration_analytics] =
+    [test_runs_analytics, flaky_test_runs_analytics, failed_test_runs_analytics, test_runs_duration_analytics] =
       Task.await_many(
         [
           Task.async(fn -> Analytics.test_run_analytics(project.id, opts) end),
+          Task.async(fn -> Analytics.test_run_analytics(project.id, Keyword.put(opts, :status, "flaky")) end),
           Task.async(fn -> Analytics.test_run_analytics(project.id, Keyword.put(opts, :status, "failure")) end),
           Task.async(fn -> Analytics.test_run_duration_analytics(project.id, opts) end)
         ],
@@ -192,6 +195,7 @@ defmodule TuistWeb.TestsLive do
 
     socket
     |> assign(:test_runs_analytics, test_runs_analytics)
+    |> assign(:flaky_test_runs_analytics, flaky_test_runs_analytics)
     |> assign(:failed_test_runs_analytics, failed_test_runs_analytics)
     |> assign(:test_runs_duration_analytics, test_runs_duration_analytics)
     |> assign(:analytics_environment, analytics_environment)
@@ -244,10 +248,11 @@ defmodule TuistWeb.TestsLive do
     recent_test_runs_chart_data =
       Enum.map(recent_test_runs, fn run ->
         color =
-          case run.status do
-            "success" -> "var:noora-chart-primary"
-            "failure" -> "var:noora-chart-destructive"
-            "skipped" -> "var:noora-chart-warning"
+          cond do
+            run.status == "success" -> "var:noora-chart-primary"
+            run.status == "failure" -> "var:noora-chart-destructive"
+            run.status == "skipped" -> "var:noora-chart-warning"
+            true -> "var:noora-chart-primary"
           end
 
         value = (run.duration / 1000) |> Decimal.from_float() |> Decimal.round(0)
@@ -275,6 +280,18 @@ defmodule TuistWeb.TestsLive do
       })
 
     assign(socket, :slowest_test_cases, slowest_test_cases)
+  end
+
+  defp assign_most_flaky_test_cases(%{assigns: %{selected_project: project}} = socket) do
+    {most_flaky_test_cases, _meta} =
+      Runs.list_flaky_test_cases(project.id, %{
+        page: 1,
+        page_size: 5,
+        order_by: [:flaky_runs_count],
+        order_directions: [:desc]
+      })
+
+    assign(socket, :most_flaky_test_cases, most_flaky_test_cases)
   end
 
   defp trend_label("last-24-hours"), do: dgettext("dashboard_tests", "since yesterday")

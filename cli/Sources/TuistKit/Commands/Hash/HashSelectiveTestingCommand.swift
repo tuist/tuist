@@ -3,7 +3,7 @@ import Foundation
 import TuistHasher
 import TuistSupport
 
-/// A command to hash an Xcode or generated project.
+/// A command to hash a generated project.
 public struct HashSelectiveTestingCommand: AsyncParsableCommand {
     public init() {}
 
@@ -23,16 +23,9 @@ public struct HashSelectiveTestingCommand: AsyncParsableCommand {
     )
     var path: String?
 
-    @Argument(
-        parsing: .captureForPassthrough,
-        help: "When running tests selectively through 'tuist xcodebuild test', the additional 'xcodebuild' arguments that you'd pass, some of which are hashed."
-    )
-    public var passthroughXcodebuildArguments: [String] = []
-
     public func run() async throws {
         try await HashSelectiveTestingCommandService(selectiveTestingGraphHasher: Extension.selectiveTestingGraphHasher).run(
-            path: path,
-            passthroughXcodebuildArguments: passthroughXcodebuildArguments
+            path: path
         )
     }
 }

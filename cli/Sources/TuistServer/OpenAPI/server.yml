@@ -1516,12 +1516,50 @@ components:
                           type: string
                           x-struct:
                           x-validate:
+                        repetitions:
+                          description: The repetition attempts for this test case (when run with retry-on-failure).
+                          items:
+                            properties:
+                              duration:
+                                description: The duration of this repetition in milliseconds.
+                                type: integer
+                                x-struct:
+                                x-validate:
+                              name:
+                                description: "The name of the repetition (e.g., 'First Run', 'Retry 1')."
+                                type: string
+                                x-struct:
+                                x-validate:
+                              repetition_number:
+                                description: The repetition attempt number (1 = First Run, 2 = Retry 1, etc.)
+                                type: integer
+                                x-struct:
+                                x-validate:
+                              status:
+                                description: The status of this repetition attempt.
+                                enum:
+                                  - success
+                                  - failure
+                                type: string
+                                x-struct:
+                                x-validate:
+                            required:
+                              - repetition_number
+                              - name
+                              - status
+                            type: object
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
                         status:
                           description: The status of the test case.
                           enum:
                             - success
                             - failure
                             - skipped
+                            - flaky
                           type: string
                           x-struct:
                           x-validate:
@@ -1977,12 +2015,50 @@ components:
                       type: string
                       x-struct:
                       x-validate:
+                    repetitions:
+                      description: The repetition attempts for this test case (when run with retry-on-failure).
+                      items:
+                        properties:
+                          duration:
+                            description: The duration of this repetition in milliseconds.
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          name:
+                            description: "The name of the repetition (e.g., 'First Run', 'Retry 1')."
+                            type: string
+                            x-struct:
+                            x-validate:
+                          repetition_number:
+                            description: The repetition attempt number (1 = First Run, 2 = Retry 1, etc.)
+                            type: integer
+                            x-struct:
+                            x-validate:
+                          status:
+                            description: The status of this repetition attempt.
+                            enum:
+                              - success
+                              - failure
+                            type: string
+                            x-struct:
+                            x-validate:
+                        required:
+                          - repetition_number
+                          - name
+                          - status
+                        type: object
+                        x-struct:
+                        x-validate:
+                      type: array
+                      x-struct:
+                      x-validate:
                     status:
                       description: The status of the test case.
                       enum:
                         - success
                         - failure
                         - skipped
+                        - flaky
                       type: string
                       x-struct:
                       x-validate:
@@ -4179,6 +4255,22 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: Page number for pagination.
           in: query
           name: page
@@ -4199,22 +4291,6 @@ paths:
           in: query
           name: git_branch
           required: false
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
           schema:
             type: string
             x-struct:
@@ -8227,12 +8303,50 @@ paths:
                                   type: string
                                   x-struct:
                                   x-validate:
+                                repetitions:
+                                  description: The repetition attempts for this test case (when run with retry-on-failure).
+                                  items:
+                                    properties:
+                                      duration:
+                                        description: The duration of this repetition in milliseconds.
+                                        type: integer
+                                        x-struct:
+                                        x-validate:
+                                      name:
+                                        description: "The name of the repetition (e.g., 'First Run', 'Retry 1')."
+                                        type: string
+                                        x-struct:
+                                        x-validate:
+                                      repetition_number:
+                                        description: The repetition attempt number (1 = First Run, 2 = Retry 1, etc.)
+                                        type: integer
+                                        x-struct:
+                                        x-validate:
+                                      status:
+                                        description: The status of this repetition attempt.
+                                        enum:
+                                          - success
+                                          - failure
+                                        type: string
+                                        x-struct:
+                                        x-validate:
+                                    required:
+                                      - repetition_number
+                                      - name
+                                      - status
+                                    type: object
+                                    x-struct:
+                                    x-validate:
+                                  type: array
+                                  x-struct:
+                                  x-validate:
                                 status:
                                   description: The status of the test case.
                                   enum:
                                     - success
                                     - failure
                                     - skipped
+                                    - flaky
                                   type: string
                                   x-struct:
                                   x-validate:
