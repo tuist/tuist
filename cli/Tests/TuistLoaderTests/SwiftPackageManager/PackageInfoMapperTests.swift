@@ -914,7 +914,7 @@ struct PackageInfoMapperTests {
                 .testWithDefaultConfigs(
                     name: "Package",
                     targets: [
-                        .test("Target_1", basePath: basePath, customBundleID: "Target.1"),
+                        .test("Target_1", basePath: basePath, customBundleID: "dev.tuist.Target.1"),
                     ]
                 )
         )
@@ -1048,7 +1048,7 @@ struct PackageInfoMapperTests {
                             "com_example_target-1",
                             basePath: basePath,
                             customProductName: "com_example_target_1",
-                            customBundleID: "com.example.target-1",
+                            customBundleID: "dev.tuist.com.example.target-1",
                             customSources: .custom(.sourceFilesList(globs: [
                                 basePath
                                     .appending(try RelativePath(validating: "Package/Sources/com.example.target-1/**"))
@@ -2296,7 +2296,7 @@ struct PackageInfoMapperTests {
                     "Target1",
                     basePath: basePath,
                     customProductName: "Target1",
-                    customBundleID: "Target1",
+                    customBundleID: "dev.tuist.Target1",
                     customSources: .custom(.sourceFilesList(globs: [
                         basePath.appending(try RelativePath(validating: "Package/Sources/Target1/**"))
                             .pathString,
@@ -4138,7 +4138,7 @@ struct PackageInfoMapperTests {
                     "Target1",
                     basePath: basePath,
                     customProductName: "Target1",
-                    customBundleID: "Target1",
+                    customBundleID: "dev.tuist.Target1",
                     customSources: .custom(.sourceFilesList(globs: [
                         basePath.appending(try RelativePath(validating: "Package/Sources/Target1/**")).pathString,
                     ])),
@@ -4159,7 +4159,7 @@ struct PackageInfoMapperTests {
                     "Dependency1",
                     basePath: basePath,
                     customProductName: "Dependency1",
-                    customBundleID: "Dependency1",
+                    customBundleID: "dev.tuist.Dependency1",
                     customSources: .custom(.sourceFilesList(globs: [
                         basePath.appending(try RelativePath(validating: "Package/Sources/Dependency1/**")).pathString,
                     ]))
@@ -4168,7 +4168,7 @@ struct PackageInfoMapperTests {
                     "Dependency2",
                     basePath: basePath,
                     customProductName: "Dependency2",
-                    customBundleID: "Dependency2",
+                    customBundleID: "dev.tuist.Dependency2",
                     customSources: .custom(.sourceFilesList(globs: [
                         basePath.appending(try RelativePath(validating: "Package/Sources/Dependency2/**")).pathString,
                     ]))
@@ -4244,7 +4244,7 @@ struct PackageInfoMapperTests {
                     "Target1",
                     basePath: basePath,
                     customProductName: "Target1",
-                    customBundleID: "Target1",
+                    customBundleID: "dev.tuist.Target1",
                     customSources: .custom(.sourceFilesList(globs: [
                         basePath.appending(try RelativePath(validating: "Package/Sources/Target1/**")).pathString,
                     ])),
@@ -5552,7 +5552,7 @@ extension ProjectDescription.Target {
             destinations: destinations,
             product: product,
             productName: customProductName ?? name,
-            bundleId: customBundleID ?? name,
+            bundleId: customBundleID ?? "dev.tuist.\(name)",
             deploymentTargets: deploymentTargets,
             infoPlist: .default,
             sources: sources,

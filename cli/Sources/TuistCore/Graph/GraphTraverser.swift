@@ -416,6 +416,23 @@ public class GraphTraverser: GraphTraversing {
             }
         )
 
+        let directLocalStaticFrameworksWithResources = directTargetDependencies(path: path, name: name)
+            .filter { dependency in
+                let target = dependency.graphTarget.target
+                return dependency.graphTarget.project.type == .local &&
+                    target.product == .staticFramework &&
+                    (target.containsResources || target.containsMetalFiles)
+            }
+
+        references.formUnionPreferringRequiredStatus(
+            directLocalStaticFrameworksWithResources.compactMap {
+                self.dependencyReference(
+                    to: .target(name: $0.graphTarget.target.name, path: $0.graphTarget.path),
+                    from: .target(name: name, path: path)
+                )
+            }
+        )
+
         // Exclude any products embed in unit test host apps
         if target.target.product == .unitTests {
             if let hostApp = unitTestHost(path: path, name: name) {
@@ -1471,10 +1488,13 @@ public class GraphTraverser: GraphTraversing {
     }
 
     private func isEmbeddableDependencyTarget(dependency: GraphDependency) -> Bool {
-        testTarget(dependency: dependency) {
-            $0.product.isDynamic ||
-                ($0.product == .staticFramework && $0.containsMetalFiles)
+        guard case .target = dependency, let graphTarget = target(from: dependency) else { return false }
+        let target = graphTarget.target
+        if target.product.isDynamic { return true }
+        if target.product == .staticFramework, target.containsResources || target.containsMetalFiles {
+            return graphTarget.project.type == .local
         }
+        return false
     }
 
     private func canDependencyEmbedBinaries(dependency: GraphDependency) -> Bool {
