@@ -5,7 +5,9 @@ import TuistCore
 import TuistSupport
 import XcodeGraph
 
-/// This mapper adds Xcode cache compilation settings when enableCaching is enabled in the Tuist configuration
+/// This mapper adds Xcode cache compilation settings when enableCaching is enabled in the Tuist configuration.
+/// When enableCaching is true, local CAS (Compilation Caching Service) settings are added.
+/// When a fullHandle is also provided, remote caching settings are additionally configured.
 public final class XcodeCacheSettingsProjectMapper: ProjectMapping {
     private let tuist: Tuist
 
@@ -14,9 +16,7 @@ public final class XcodeCacheSettingsProjectMapper: ProjectMapping {
     }
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
-        guard tuist.project.generatedProject?.generationOptions.enableCaching == true,
-              let fullHandle = tuist.fullHandle
-        else {
+        guard tuist.project.generatedProject?.generationOptions.enableCaching ?? false else {
             return (project, [])
         }
 
@@ -26,16 +26,17 @@ public final class XcodeCacheSettingsProjectMapper: ProjectMapping {
             )
 
         var project = project
-
         var baseSettings = project.settings.base
-        baseSettings["COMPILATION_CACHE_ENABLE_CACHING"] = .string("YES")
 
-        baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] = .string(
-            Environment.current.cacheSocketPathString(for: fullHandle)
-        )
-
-        baseSettings["COMPILATION_CACHE_ENABLE_PLUGIN"] = .string("YES")
-        baseSettings["COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS"] = .string("YES")
+        baseSettings["COMPILATION_CACHE_ENABLE_CACHING"] = "YES"
+        if let fullHandle = tuist.fullHandle {
+            // Remote caching settings - only when fullHandle is configured
+            baseSettings["COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS"] = "YES"
+            baseSettings["COMPILATION_CACHE_ENABLE_PLUGIN"] = "YES"
+            baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] = .string(
+                Environment.current.cacheSocketPathString(for: fullHandle)
+            )
+        }
 
         project.settings = Settings(
             base: baseSettings,
