@@ -1,6 +1,16 @@
 .public-project-cta-banner {
   display: none;
+  position: relative;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: var(--noora-spacing-8);
   container-type: inline-size;
+  margin: var(--noora-spacing-7) var(--noora-spacing-5) 0;
+  box-shadow: var(--noora-light-border-default);
+  border-radius: var(--noora-radius-xlarge);
+  padding: var(--noora-spacing-6) var(--noora-spacing-5);
+  overflow: hidden;
 
   &[data-ready] {
     display: flex;
@@ -9,28 +19,18 @@
   &[data-dismissed] {
     display: none;
   }
-  flex-direction: column;
-  position: relative;
-  justify-content: center;
-  align-items: center;
-  gap: var(--noora-spacing-8);
-  border-radius: var(--noora-radius-xlarge);
-  padding: var(--noora-spacing-6) var(--noora-spacing-5);
-  overflow: hidden;
-  box-shadow: var(--noora-light-border-default);
-  margin: var(--noora-spacing-7) var(--noora-spacing-5) 0;
 
   & [data-part="background"] {
     position: absolute;
-    inset: 0;
     z-index: 0;
+    inset: 0;
     overflow: hidden;
 
     & [data-part="shell"] {
       display: flex;
       position: absolute;
-      left: 0;
       bottom: -24px;
+      left: 0;
       translate: 0% 0%;
 
       & svg {
@@ -41,28 +41,28 @@
 
     & [data-part="gradient-right"] {
       position: absolute;
-      bottom: -50%;
       right: -5%;
+      bottom: -50%;
+      transform: rotate(50deg);
       filter: blur(100px);
       border-radius: 1000px;
       background: light-dark(oklch(53.2% 0.276 286.9 / 0.06), oklch(53.2% 0.276 286.9 / 0.2));
       width: 70%;
       min-width: 300px;
       height: 40cqw;
-      transform: rotate(50deg);
 
       &::before {
-        content: "";
         position: absolute;
         top: 20%;
         right: 30%;
+        transform: rotate(-15deg);
         filter: blur(80px);
         border-radius: 1000px;
         background: light-dark(oklch(53.2% 0.276 286.9 / 0.05), oklch(53.2% 0.276 286.9 / 0.15));
         width: 80%;
         min-width: 250px;
         height: 25cqw;
-        transform: rotate(-15deg);
+        content: "";
       }
     }
 
@@ -70,13 +70,13 @@
       position: absolute;
       bottom: -100%;
       left: -10%;
+      transform: rotate(-20deg);
       filter: blur(80px);
       border-radius: 1000px;
       background: light-dark(oklch(53.2% 0.276 286.9 / 0.05), oklch(53.2% 0.276 286.9 / 0.12));
       width: 70%;
       min-width: 300px;
       height: 20cqw;
-      transform: rotate(-20deg);
     }
   }
 
