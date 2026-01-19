@@ -117,8 +117,6 @@ defmodule TuistWeb.TestRunLiveTest do
         is_new: true
       )
 
-      Process.sleep(100)
-
       # When
       {:ok, lv, _html} =
         live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
@@ -147,8 +145,6 @@ defmodule TuistWeb.TestRunLiveTest do
         name: "testFlakyCase",
         is_flaky: true
       )
-
-      Process.sleep(100)
 
       # When
       {:ok, lv, _html} =
@@ -179,8 +175,6 @@ defmodule TuistWeb.TestRunLiveTest do
         is_new: false,
         is_flaky: false
       )
-
-      Process.sleep(100)
 
       # When
       {:ok, lv, _html} =
