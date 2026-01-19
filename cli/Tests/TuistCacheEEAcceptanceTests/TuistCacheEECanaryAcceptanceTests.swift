@@ -274,7 +274,7 @@ struct TuistCacheEECanaryAcceptanceTests {
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withFixtureConnectedToCanary("generated_multiplatform_app")
+        .withFixtureConnectedToCanary("generated_ios_app_with_frameworks")
     ) func run_with_no_selective_testing() async throws {
         // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
@@ -312,7 +312,7 @@ struct TuistCacheEECanaryAcceptanceTests {
         )
 
         // Then: Results should be stored
-        TuistTest.expectLogs("Storing remote selectiveTests. Hold tight...")
+        TuistTest.expectLogs("Storing remote selectiveTests via module cache. Hold tight...")
     }
 
     @Test(
@@ -320,7 +320,7 @@ struct TuistCacheEECanaryAcceptanceTests {
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withFixtureConnectedToCanary("generated_multiplatform_app")
+        .withFixtureConnectedToCanary("generated_ios_app_with_frameworks")
     ) func run_with_no_selective_testing_legacy() async throws {
         // Given
         enableLegacyCache()
