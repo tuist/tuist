@@ -55,6 +55,8 @@ metadata_dropped
 status
 preprocessed_configs
 uuid
+clickhouse-data
+config.d
 
 # Local development
 .opencode/
@@ -62,4 +64,3 @@ uuid
 minio/
 
 burrito_out
-

@@ -3,6 +3,7 @@ defmodule TuistWeb.ModuleCacheLive do
   use TuistWeb, :live_view
   use Noora
 
+  import Ecto.Query
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
@@ -184,20 +185,20 @@ defmodule TuistWeb.ModuleCacheLive do
   end
 
   defp assign_recent_runs(%{assigns: %{selected_project: project}} = socket, _params) do
-    options = %{
-      filters: [
-        %{field: :project_id, op: :==, value: project.id},
-        %{field: :cacheable_targets_count, op: :>, value: 0}
-      ],
-      order_by: [:ran_at],
-      order_directions: [:desc],
-      first: 40,
-      for: Event
-    }
+    # Add 14-day filter to leverage ClickHouse partition pruning and reduce rows scanned
+    fourteen_days_ago = DateTime.add(DateTime.utc_now(), -14, :day)
 
-    {events, _} = Tuist.ClickHouseFlop.validate_and_run!(Event, options, for: Event)
-
-    events = Enum.map(events, &Event.normalize_enums/1)
+    events =
+      from(e in Event,
+        where:
+          e.project_id == ^project.id and
+            e.cacheable_targets_count > 0 and
+            e.ran_at >= ^fourteen_days_ago,
+        order_by: [desc: e.ran_at],
+        limit: 40
+      )
+      |> Tuist.ClickHouseRepo.all()
+      |> Enum.map(&Event.normalize_enums/1)
 
     user_map = CommandEvents.get_user_account_names_for_runs(events)
 
