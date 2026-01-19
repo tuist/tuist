@@ -381,14 +381,21 @@ defmodule Tuist.VCS do
         project: project
       })
 
+    flaky_tests_body =
+      get_flaky_tests_body(%{
+        test_runs: test_runs,
+        project: project
+      })
+
     if is_nil(previews_body) and is_nil(test_body) and is_nil(bundles_body) and
-         is_nil(builds_body) do
+         is_nil(builds_body) and is_nil(flaky_tests_body) do
       nil
     else
       """
       #{@tuist_run_report_prefix}
       """ <>
-        (previews_body || "") <> (test_body || "") <> (builds_body || "") <> (bundles_body || "")
+        (previews_body || "") <> (test_body || "") <> (flaky_tests_body || "") <> (builds_body || "") <>
+        (bundles_body || "")
     end
   end
 
@@ -583,6 +590,71 @@ defmodule Tuist.VCS do
       "failure" -> "❌"
       "success" -> "✅"
       "skipped" -> "⏭️"
+    end
+  end
+
+  @max_flaky_tests_in_comment 5
+
+  defp get_flaky_tests_body(%{test_runs: test_runs, project: project}) do
+    flaky_tests_by_run =
+      test_runs
+      |> Enum.map(fn test_run ->
+        flaky_tests = Runs.get_flaky_runs_for_test_run(test_run.id)
+        {test_run, flaky_tests}
+      end)
+      |> Enum.filter(fn {_test_run, flaky_tests} -> Enum.any?(flaky_tests) end)
+
+    if Enum.empty?(flaky_tests_by_run) do
+      nil
+    else
+      project = Repo.preload(project, :account)
+
+      all_flaky_tests =
+        flaky_tests_by_run
+        |> Enum.flat_map(fn {_test_run, flaky_tests} -> flaky_tests end)
+        |> Enum.uniq_by(& &1.test_case_id)
+
+      total_flaky_count = length(all_flaky_tests)
+      displayed_flaky_tests = Enum.take(all_flaky_tests, @max_flaky_tests_in_comment)
+
+      runs_summary =
+        Enum.map_join(flaky_tests_by_run, "", fn {test_run, flaky_tests} ->
+          flaky_count = length(flaky_tests)
+          scheme = if test_run.scheme == "" or is_nil(test_run.scheme), do: "Unknown", else: test_run.scheme
+
+          flaky_runs_url =
+            Environment.app_url(
+              path: "/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=flaky-runs"
+            )
+
+          "- **#{scheme}**: #{flaky_count} flaky #{if flaky_count == 1, do: "test", else: "tests"} ([View all](#{flaky_runs_url}))\n"
+        end)
+
+      more_tests_note =
+        if total_flaky_count > @max_flaky_tests_in_comment do
+          "\n> Showing #{@max_flaky_tests_in_comment} of #{total_flaky_count} flaky tests. See links above for full details.\n"
+        else
+          ""
+        end
+
+      """
+
+      #### Flaky Tests ⚠️
+
+      #{runs_summary}
+      | Test case | Module | Suite |
+      |:-|:-|:-|
+      #{Enum.map_join(displayed_flaky_tests, "", fn flaky_test ->
+        test_case_url =
+          Environment.app_url(
+            path: "/#{project.account.name}/#{project.name}/tests/test-cases/#{flaky_test.test_case_id}"
+          )
+
+        """
+        | [#{flaky_test.name}](#{test_case_url}) | #{flaky_test.module_name} | #{flaky_test.suite_name} |
+        """
+      end)}#{more_tests_note}
+      """
     end
   end
 
