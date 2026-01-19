@@ -53,3 +53,7 @@ Tuist automatically clears the flaky flag from tests that haven't been flaky for
 You can also manually mark or unmark tests as flaky from the test case detail page. This is useful when:
 - You want to acknowledge a known flaky test while working on a fix
 - A test was incorrectly flagged due to infrastructure issues
+
+## Slack notifications {#slack-notifications}
+
+Get notified instantly when a test becomes flaky by setting up <LocalizedLink href="/guides/integrations/slack#flaky-test-alerts">flaky test alerts</LocalizedLink> in your Slack integration.

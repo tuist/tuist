@@ -306,4 +306,123 @@ defmodule Tuist.SlackTest do
       assert result == :ok
     end
   end
+
+  describe "send_flaky_test_alert/1" do
+    test "sends flaky test alert notification to Slack" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      rule =
+        AlertsFixtures.flaky_test_alert_rule_fixture(
+          project: project,
+          slack_channel_id: "C12345",
+          slack_channel_name: "flaky-alerts"
+        )
+
+      test_case_id = Ecto.UUID.generate()
+
+      alert =
+        AlertsFixtures.flaky_test_alert_fixture(
+          flaky_test_alert_rule: rule,
+          flaky_runs_count: 5,
+          test_case_id: test_case_id,
+          test_case_name: "testExample",
+          test_case_module_name: "MyTests",
+          test_case_suite_name: "TestSuite"
+        )
+
+      expect(Client, :post_message, fn token, channel_id, blocks ->
+        assert token == installation.access_token
+        assert channel_id == "C12345"
+        assert is_list(blocks)
+        assert length(blocks) == 5
+
+        header_block = Enum.find(blocks, fn b -> b.type == "header" end)
+        assert header_block.text.text =~ "New flaky test detected"
+
+        test_case_block = Enum.at(blocks, 3)
+        assert test_case_block.text.text =~ "testExample"
+        assert test_case_block.text.text =~ "MyTests"
+        assert test_case_block.text.text =~ "TestSuite"
+        assert test_case_block.text.text =~ test_case_id
+
+        metric_block = Enum.at(blocks, 4)
+        assert metric_block.text.text =~ "5 flaky runs"
+        :ok
+      end)
+
+      # When
+      result = Slack.send_flaky_test_alert(alert)
+
+      # Then
+      assert result == :ok
+    end
+
+    test "uses singular 'run' when flaky_runs_count is 1" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      rule =
+        AlertsFixtures.flaky_test_alert_rule_fixture(
+          project: project,
+          slack_channel_id: "C12345",
+          slack_channel_name: "flaky-alerts"
+        )
+
+      alert =
+        AlertsFixtures.flaky_test_alert_fixture(
+          flaky_test_alert_rule: rule,
+          flaky_runs_count: 1
+        )
+
+      expect(Client, :post_message, fn _token, _channel_id, blocks ->
+        metric_block = Enum.at(blocks, 4)
+        assert metric_block.text.text =~ "1 flaky run"
+        refute metric_block.text.text =~ "1 flaky runs"
+        :ok
+      end)
+
+      # When
+      result = Slack.send_flaky_test_alert(alert)
+
+      # Then
+      assert result == :ok
+    end
+
+    test "omits suite name when it is nil" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      rule =
+        AlertsFixtures.flaky_test_alert_rule_fixture(
+          project: project,
+          slack_channel_id: "C12345",
+          slack_channel_name: "flaky-alerts"
+        )
+
+      alert =
+        AlertsFixtures.flaky_test_alert_fixture(
+          flaky_test_alert_rule: rule,
+          test_case_suite_name: nil
+        )
+
+      expect(Client, :post_message, fn _token, _channel_id, blocks ->
+        test_case_block = Enum.at(blocks, 3)
+        refute test_case_block.text.text =~ "Suite:"
+        :ok
+      end)
+
+      # When
+      result = Slack.send_flaky_test_alert(alert)
+
+      # Then
+      assert result == :ok
+    end
+  end
 end

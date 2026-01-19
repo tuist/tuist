@@ -28,7 +28,9 @@ defmodule Tuist.Accounts.Workers.UpdateAllAccountsUsageWorkerTest do
       )
 
       # When
-      %{} |> UpdateAllAccountsUsageWorker.new() |> Oban.insert()
+      Oban.Testing.with_testing_mode(:inline, fn ->
+        %{} |> UpdateAllAccountsUsageWorker.new() |> Oban.insert()
+      end)
 
       # Then
       account = Repo.reload!(account)
@@ -57,7 +59,9 @@ defmodule Tuist.Accounts.Workers.UpdateAllAccountsUsageWorkerTest do
       )
 
       # When
-      %{} |> UpdateAllAccountsUsageWorker.new() |> Oban.insert()
+      Oban.Testing.with_testing_mode(:inline, fn ->
+        %{} |> UpdateAllAccountsUsageWorker.new() |> Oban.insert()
+      end)
 
       # Then
       account = Repo.reload!(account)
@@ -92,7 +96,9 @@ defmodule Tuist.Accounts.Workers.UpdateAllAccountsUsageWorkerTest do
       )
 
       # When
-      %{page_size: 1} |> UpdateAllAccountsUsageWorker.new() |> Oban.insert()
+      Oban.Testing.with_testing_mode(:inline, fn ->
+        %{page_size: 1} |> UpdateAllAccountsUsageWorker.new() |> Oban.insert()
+      end)
 
       # Then
       account = Repo.reload!(account)
@@ -124,7 +130,9 @@ defmodule Tuist.Accounts.Workers.UpdateAllAccountsUsageWorkerTest do
       )
 
       # When
-      %{} |> UpdateAllAccountsUsageWorker.new() |> Oban.insert()
+      Oban.Testing.with_testing_mode(:inline, fn ->
+        %{} |> UpdateAllAccountsUsageWorker.new() |> Oban.insert()
+      end)
 
       # Then
       account = Repo.reload!(account)
@@ -150,7 +158,9 @@ defmodule Tuist.Accounts.Workers.UpdateAllAccountsUsageWorkerTest do
         created_at: ~U[2025-04-17 16:00:00Z]
       )
 
-      %{} |> UpdateAllAccountsUsageWorker.new() |> Oban.insert()
+      Oban.Testing.with_testing_mode(:inline, fn ->
+        %{} |> UpdateAllAccountsUsageWorker.new() |> Oban.insert()
+      end)
 
       # Then: 1 run
       account = Repo.reload!(account)
@@ -170,7 +180,9 @@ defmodule Tuist.Accounts.Workers.UpdateAllAccountsUsageWorkerTest do
       now = ~U[2025-04-18 17:00:00Z]
       stub(DateTime, :utc_now, fn -> now end)
 
-      %{} |> UpdateAllAccountsUsageWorker.new() |> Oban.insert()
+      Oban.Testing.with_testing_mode(:inline, fn ->
+        %{} |> UpdateAllAccountsUsageWorker.new() |> Oban.insert()
+      end)
 
       # Then: 2 run
       account = Repo.reload!(account)

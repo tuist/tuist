@@ -3,6 +3,7 @@ import Ecto.Query
 alias Tuist.Accounts
 alias Tuist.Alerts.Alert
 alias Tuist.Alerts.AlertRule
+alias Tuist.Alerts.FlakyTestAlertRule
 alias Tuist.AppBuilds.AppBuild
 alias Tuist.AppBuilds.Preview
 alias Tuist.Billing
@@ -1833,6 +1834,26 @@ if slack_installation do
     Repo.insert_all(Alert, sample_alerts)
     IO.puts("Created #{length(sample_alerts)} sample alerts")
   end
+
+  # Create flaky test alert rule
+  flaky_test_alert_rule =
+    case Repo.get_by(FlakyTestAlertRule, project_id: tuist_project.id, name: "Flaky Test Alert") do
+      nil ->
+        %FlakyTestAlertRule{}
+        |> FlakyTestAlertRule.changeset(%{
+          project_id: tuist_project.id,
+          name: "Flaky Test Alert",
+          trigger_threshold: 3,
+          slack_channel_id: "C0A598PACRG",
+          slack_channel_name: "test"
+        })
+        |> Repo.insert!()
+
+      existing_rule ->
+        existing_rule
+    end
+
+  IO.puts("Created flaky test alert rule: #{flaky_test_alert_rule.name}")
 end
 
 IO.puts("")

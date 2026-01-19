@@ -10,7 +10,7 @@ config :logger, level: :warning
 config :phoenix, :plug_init_mode, :runtime
 
 # Oban
-config :tuist, Oban, testing: :inline
+config :tuist, Oban, testing: :manual
 
 config :tuist, Tuist.ClickHouseRepo,
   hostname: "localhost",
