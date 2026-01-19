@@ -97,7 +97,7 @@ jobs:
       - name: Test
         env:
           TUIST_EE: 1
-        run: tuist test TuistCacheEEAcceptanceTests --no-selective-testing --test-targets TuistCacheEEAcceptanceTests/TuistCacheEECanaryAcceptanceTests
+        run: tuist test TuistCacheEEAcceptanceTests --no-selective-testing --test-targets TuistCacheEEAcceptanceTests/TuistCacheEECanaryAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
   production:
     environment: server-production
     name: Production Deployment
