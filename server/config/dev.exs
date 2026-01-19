@@ -33,7 +33,8 @@ config :phoenix_live_view, :debug_heex_annotations, true
 config :tuist, Tuist.ClickHouseRepo,
   hostname: "localhost",
   port: 8123,
-  database: "tuist_development"
+  database: "tuist_development",
+  priv: "priv/ingest_repo"
 
 config :tuist, Tuist.IngestRepo,
   hostname: "localhost",
