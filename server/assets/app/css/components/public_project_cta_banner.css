@@ -110,29 +110,17 @@
     }
   }
 
-  & [data-part="dismiss"] {
-    display: flex;
+  & button[data-part="dismiss"][data-part="dismiss"] {
     position: absolute;
     top: var(--noora-spacing-4);
     right: var(--noora-spacing-4);
-    justify-content: center;
-    align-items: center;
     z-index: 1;
-    cursor: pointer;
-    border: none;
-    border-radius: var(--noora-radius-small);
     background: transparent;
-    padding: var(--noora-spacing-2);
     color: var(--noora-surface-label-secondary);
-    transition: color 0.15s ease;
 
     &:hover {
+      background: transparent;
       color: var(--noora-surface-label-primary);
-    }
-
-    & svg {
-      width: 16px;
-      height: 16px;
     }
   }
 }

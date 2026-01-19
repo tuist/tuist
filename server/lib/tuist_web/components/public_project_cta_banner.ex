@@ -50,9 +50,9 @@ defmodule TuistWeb.Components.PublicProjectCTABanner do
           />
         </div>
       </div>
-      <button data-part="dismiss" type="button" aria-label="Dismiss">
+      <.neutral_button data-part="dismiss" size="medium">
         <.close />
-      </button>
+      </.neutral_button>
     </div>
     """
   end
