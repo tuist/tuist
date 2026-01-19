@@ -11,6 +11,8 @@ defmodule Tuist.CommandEvents do
   alias Tuist.CommandEvents.Event
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
+  alias Tuist.Cache
+  alias Tuist.Cache.ModuleCacheEvent
   alias Tuist.Repo
   alias Tuist.Storage
   alias Tuist.Time
@@ -224,14 +226,20 @@ defmodule Tuist.CommandEvents do
 
     project_ids = Repo.all(from(p in Project, where: p.account_id == ^account_id, select: p.id))
 
-    ClickHouseRepo.one(
-      from(c in Event,
-        where: c.project_id in ^project_ids,
-        where: c.ran_at >= ^beginning_of_month,
-        where: c.remote_cache_hits_count > 0 or c.remote_test_hits_count > 0,
-        select: %{remote_cache_hits_count: count(c.id)}
-      )
-    )
+    command_event_count =
+      ClickHouseRepo.one(
+        from(c in Event,
+          where: c.project_id in ^project_ids,
+          where: c.ran_at >= ^beginning_of_month,
+          where: c.remote_cache_hits_count > 0 or c.remote_test_hits_count > 0,
+          select: count(c.id)
+        )
+      ) || 0
+
+    module_cache_hit_count =
+      Cache.count_module_cache_hit_runs(project_ids, beginning_of_month, date)
+
+    %{remote_cache_hits_count: command_event_count + module_cache_hit_count}
   end
 
   def delete_account_events(account_id) do
@@ -244,13 +252,26 @@ defmodule Tuist.CommandEvents do
     start_of_yesterday = now |> Timex.shift(days: -1) |> Timex.beginning_of_day()
     end_of_yesterday = now |> Timex.shift(days: -1) |> Timex.end_of_day()
 
-    from(e in Event,
-      where: e.ran_at >= ^start_of_yesterday and e.ran_at <= ^end_of_yesterday,
-      group_by: e.project_id,
-      select: e.project_id
-    )
-    |> ClickHouseRepo.all()
-    |> case do
+    command_event_project_ids =
+      from(e in Event,
+        where: e.ran_at >= ^start_of_yesterday and e.ran_at <= ^end_of_yesterday,
+        group_by: e.project_id,
+        select: e.project_id
+      )
+      |> ClickHouseRepo.all()
+
+    module_cache_project_ids =
+      from(m in ModuleCacheEvent,
+        where: m.inserted_at >= ^DateTime.to_naive(start_of_yesterday),
+        where: m.inserted_at <= ^DateTime.to_naive(end_of_yesterday),
+        group_by: m.project_id,
+        select: m.project_id
+      )
+      |> ClickHouseRepo.all()
+
+    project_ids = Enum.uniq(command_event_project_ids ++ module_cache_project_ids)
+
+    case project_ids do
       [] ->
         []
 
@@ -284,21 +305,27 @@ defmodule Tuist.CommandEvents do
         0
 
       project_ids ->
-        ClickHouseRepo.one(
-          from(e in Event,
-            where:
-              e.ran_at >= ^start_of_yesterday and e.ran_at <= ^end_of_yesterday and
-                e.project_id in ^project_ids,
-            select:
-              sum(
-                fragment(
-                  "CASE WHEN COALESCE(length(?), 0) > 0 OR COALESCE(length(?), 0) > 0 THEN 1 ELSE 0 END",
-                  e.remote_cache_target_hits,
-                  e.remote_test_target_hits
+        command_event_count =
+          ClickHouseRepo.one(
+            from(e in Event,
+              where:
+                e.ran_at >= ^start_of_yesterday and e.ran_at <= ^end_of_yesterday and
+                  e.project_id in ^project_ids,
+              select:
+                sum(
+                  fragment(
+                    "CASE WHEN COALESCE(length(?), 0) > 0 OR COALESCE(length(?), 0) > 0 THEN 1 ELSE 0 END",
+                    e.remote_cache_target_hits,
+                    e.remote_test_target_hits
+                  )
                 )
-              )
-          )
-        )
+            )
+          ) || 0
+
+        module_cache_hit_count =
+          Cache.count_module_cache_hit_runs(project_ids, start_of_yesterday, end_of_yesterday)
+
+        command_event_count + module_cache_hit_count
     end
   end
 

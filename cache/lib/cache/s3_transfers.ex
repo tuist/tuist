@@ -18,7 +18,7 @@ defmodule Cache.S3Transfers do
   This is a single atomic statement, avoiding SQLite contention under bursty load.
   """
   def enqueue_cas_upload(account_handle, project_handle, key) do
-    enqueue(:upload, account_handle, project_handle, :cas, key)
+    enqueue(:upload, account_handle, project_handle, :cas, key, nil)
   end
 
   @doc """
@@ -28,7 +28,7 @@ defmodule Cache.S3Transfers do
   This is a single atomic statement, avoiding SQLite contention under bursty load.
   """
   def enqueue_cas_download(account_handle, project_handle, key) do
-    enqueue(:download, account_handle, project_handle, :cas, key)
+    enqueue(:download, account_handle, project_handle, :cas, key, nil)
   end
 
   @doc """
@@ -37,8 +37,8 @@ defmodule Cache.S3Transfers do
   Uses INSERT with ON CONFLICT DO NOTHING to avoid duplicate entries.
   This is a single atomic statement, avoiding SQLite contention under bursty load.
   """
-  def enqueue_module_upload(account_handle, project_handle, key) do
-    enqueue(:upload, account_handle, project_handle, :module, key)
+  def enqueue_module_upload(account_handle, project_handle, key, run_id) do
+    enqueue(:upload, account_handle, project_handle, :module, key, normalize_run_id(run_id))
   end
 
   @doc """
@@ -47,8 +47,8 @@ defmodule Cache.S3Transfers do
   Uses INSERT with ON CONFLICT DO NOTHING to avoid duplicate entries.
   This is a single atomic statement, avoiding SQLite contention under bursty load.
   """
-  def enqueue_module_download(account_handle, project_handle, key) do
-    enqueue(:download, account_handle, project_handle, :module, key)
+  def enqueue_module_download(account_handle, project_handle, key, run_id) do
+    enqueue(:download, account_handle, project_handle, :module, key, normalize_run_id(run_id))
   end
 
   @doc """
@@ -84,7 +84,7 @@ defmodule Cache.S3Transfers do
     :ok
   end
 
-  defp enqueue(type, account_handle, project_handle, artifact_type, key) do
+  defp enqueue(type, account_handle, project_handle, artifact_type, key, run_id) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
     Repo.insert(
@@ -94,9 +94,14 @@ defmodule Cache.S3Transfers do
         project_handle: project_handle,
         artifact_type: artifact_type,
         key: key,
+        run_id: run_id,
         inserted_at: now
       },
       on_conflict: :nothing
     )
   end
+
+  defp normalize_run_id(nil), do: nil
+  defp normalize_run_id(""), do: nil
+  defp normalize_run_id(run_id), do: run_id
 end

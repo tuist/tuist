@@ -82,6 +82,9 @@ defmodule CacheWeb.ModuleCacheController do
     :telemetry.execute([:cache, :module, :download, :hit], %{}, %{})
     :ok = CacheArtifacts.track_artifact_access(key)
 
+      run_id = get_req_header(conn, "x-tuist-run-id") |> List.first()
+
+
     case Disk.module_stat(account_handle, project_handle, category, hash, name) do
       {:ok, %File.Stat{size: size}} ->
         local_path = Disk.module_local_accel_path(account_handle, project_handle, category, hash, name)
@@ -91,7 +94,9 @@ defmodule CacheWeb.ModuleCacheController do
           hash: hash,
           name: name,
           account_handle: account_handle,
-          project_handle: project_handle
+          project_handle: project_handle,
+          run_id: run_id,
+          remote_ip: conn.remote_ip
         })
 
         conn
@@ -103,7 +108,7 @@ defmodule CacheWeb.ModuleCacheController do
         :telemetry.execute([:cache, :module, :download, :disk_miss], %{}, %{})
 
         if S3.exists?(key) do
-          S3Transfers.enqueue_module_download(account_handle, project_handle, key)
+          S3Transfers.enqueue_module_download(account_handle, project_handle, key, run_id)
 
           case S3.presign_download_url(key) do
             {:ok, url} ->
@@ -371,8 +376,10 @@ defmodule CacheWeb.ModuleCacheController do
       Enum.each(part_paths, &File.rm/1)
 
       key = Disk.module_key(upload.account_handle, upload.project_handle, upload.category, upload.hash, upload.name)
+    run_id = get_req_header(conn, "x-tuist-run-id") |> List.first()
+
       :ok = CacheArtifacts.track_artifact_access(key)
-      S3Transfers.enqueue_module_upload(upload.account_handle, upload.project_handle, key)
+      S3Transfers.enqueue_module_upload(upload.account_handle, upload.project_handle, key, run_id)
 
       :telemetry.execute(
         [:cache, :module, :multipart, :complete],

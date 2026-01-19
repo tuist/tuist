@@ -1,8 +1,8 @@
-defmodule Cache.CASEventsPipelineTest do
+defmodule Cache.CacheEventsPipelineTest do
   use ExUnit.Case, async: false
   use Mimic
 
-  alias Cache.CASEventsPipeline
+  alias Cache.CacheEventsPipeline
 
   setup do
     stub(Cache.Authentication, :server_url, fn -> "http://localhost:4000" end)
@@ -24,8 +24,7 @@ defmodule Cache.CASEventsPipelineTest do
         acknowledger: {Broadway.CallerAcknowledger, {self(), make_ref()}, :ok}
       }
 
-      result = CASEventsPipeline.handle_message(:default, message, %{})
-
+      result = CacheEventsPipeline.handle_message(:default, message, %{})
       assert result.batch_key == :default
       assert result.batcher == :http
       assert result.data == event
@@ -57,7 +56,7 @@ defmodule Cache.CASEventsPipelineTest do
       reject(&Req.request/1)
 
       result =
-        CASEventsPipeline.handle_batch(
+        CacheEventsPipeline.handle_batch(
           :http,
           messages,
           %{batch_key: :default},
@@ -76,6 +75,13 @@ defmodule Cache.CASEventsPipelineTest do
           action: "upload",
           size: 1024,
           cas_id: "abc123",
+          account_handle: account_handle,
+          project_handle: project_handle
+        },
+        %{
+          event_type: "module_cache_hit",
+          run_id: "run-123",
+          source: "disk",
           account_handle: account_handle,
           project_handle: project_handle
         },
@@ -102,7 +108,7 @@ defmodule Cache.CASEventsPipelineTest do
 
         body = options[:body]
         decoded_body = Jason.decode!(body)
-        assert length(decoded_body["events"]) == 2
+        assert length(decoded_body["events"]) == 3
 
         # Verify first event includes handles
         assert Enum.at(decoded_body["events"], 0)["account_handle"] == account_handle
@@ -111,12 +117,19 @@ defmodule Cache.CASEventsPipelineTest do
         assert Enum.at(decoded_body["events"], 0)["size"] == 1024
         assert Enum.at(decoded_body["events"], 0)["cas_id"] == "abc123"
 
-        # Verify second event includes handles
+        # Verify module cache hit includes run info
         assert Enum.at(decoded_body["events"], 1)["account_handle"] == account_handle
         assert Enum.at(decoded_body["events"], 1)["project_handle"] == project_handle
-        assert Enum.at(decoded_body["events"], 1)["action"] == "download"
-        assert Enum.at(decoded_body["events"], 1)["size"] == 2048
-        assert Enum.at(decoded_body["events"], 1)["cas_id"] == "def456"
+        assert Enum.at(decoded_body["events"], 1)["event_type"] == "module_cache_hit"
+        assert Enum.at(decoded_body["events"], 1)["run_id"] == "run-123"
+        assert Enum.at(decoded_body["events"], 1)["source"] == "disk"
+
+        # Verify last event includes handles
+        assert Enum.at(decoded_body["events"], 2)["account_handle"] == account_handle
+        assert Enum.at(decoded_body["events"], 2)["project_handle"] == project_handle
+        assert Enum.at(decoded_body["events"], 2)["action"] == "download"
+        assert Enum.at(decoded_body["events"], 2)["size"] == 2048
+        assert Enum.at(decoded_body["events"], 2)["cas_id"] == "def456"
 
         headers = options[:headers]
         assert {"content-type", "application/json"} in headers
@@ -126,7 +139,7 @@ defmodule Cache.CASEventsPipelineTest do
       end)
 
       result =
-        CASEventsPipeline.handle_batch(
+        CacheEventsPipeline.handle_batch(
           :http,
           messages,
           %{batch_key: :default},

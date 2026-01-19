@@ -60,7 +60,9 @@ defmodule Cache.S3TransferWorker do
 
     :telemetry.execute([:cache, transfer.artifact_type, :download, :s3_hit], %{size: size}, %{
       account_handle: transfer.account_handle,
-      project_handle: transfer.project_handle
+      project_handle: transfer.project_handle,
+      run_id: transfer.run_id,
+      remote_ip: nil
     })
 
     transfer.id

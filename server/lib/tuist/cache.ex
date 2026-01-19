@@ -7,6 +7,7 @@ defmodule Tuist.Cache do
 
   alias Tuist.Cache.CASEvent
   alias Tuist.Cache.Entry
+  alias Tuist.Cache.ModuleCacheEvent
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
 
@@ -86,5 +87,44 @@ defmodule Tuist.Cache do
       end)
 
     IngestRepo.insert_all(CASEvent, entries)
+  end
+
+  @doc """
+  Creates multiple module cache events in a batch.
+
+  ## Examples
+
+      iex> create_module_cache_events([%{project_id: 1, run_id: "run", source: "disk"}, ...])
+      {:ok, 2}
+  """
+  def create_module_cache_events(events) when is_list(events) do
+    now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+
+    entries =
+      Enum.map(events, fn event ->
+        %{
+          id: UUIDv7.generate(),
+          project_id: event.project_id,
+          run_id: event.run_id,
+          source: event.source,
+          inserted_at: now
+        }
+      end)
+
+    IngestRepo.insert_all(ModuleCacheEvent, entries)
+  end
+
+  def count_module_cache_hit_runs([], _start_datetime, _end_datetime), do: 0
+
+  def count_module_cache_hit_runs(project_ids, start_datetime, end_datetime) do
+    query =
+      from(e in ModuleCacheEvent,
+        where: e.project_id in ^project_ids,
+        where: e.inserted_at >= ^DateTime.to_naive(start_datetime),
+        where: e.inserted_at <= ^DateTime.to_naive(end_datetime),
+        select: fragment("count(DISTINCT (toString(?), ?))", e.project_id, e.run_id)
+      )
+
+    ClickHouseRepo.one(query) || 0
   end
 end

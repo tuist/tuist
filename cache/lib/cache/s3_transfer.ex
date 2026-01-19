@@ -17,6 +17,7 @@ defmodule Cache.S3Transfer do
     field :project_handle, :string
     field :artifact_type, Ecto.Enum, values: [:cas, :module]
     field :key, :string
+    field :run_id, :string
     field :inserted_at, :utc_datetime
   end
 end

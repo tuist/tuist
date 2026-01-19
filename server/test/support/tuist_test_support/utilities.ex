@@ -27,6 +27,7 @@ defmodule TuistTestSupport.Utilities do
       "TRUNCATE TABLE IF EXISTS cacheable_tasks",
       "TRUNCATE TABLE IF EXISTS cas_outputs",
       "TRUNCATE TABLE IF EXISTS cas_events",
+      "TRUNCATE TABLE IF EXISTS module_cache_events",
       "TRUNCATE TABLE IF EXISTS build_files",
       "TRUNCATE TABLE IF EXISTS build_issues",
       "TRUNCATE TABLE IF EXISTS build_targets"

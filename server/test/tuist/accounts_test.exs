@@ -12,8 +12,8 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Accounts.User
   alias Tuist.Accounts.UserRole
   alias Tuist.Accounts.UserToken
-  alias Tuist.Base64
   alias Tuist.Billing
+  alias Tuist.Cache.ModuleCacheEvent
   alias Tuist.CommandEvents
   alias Tuist.Environment
   alias Tuist.Projects
@@ -21,6 +21,7 @@ defmodule Tuist.AccountsTest do
   alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+
 
   setup do
     stub(JOSE.JWT, :peek_payload, fn _ ->
@@ -159,6 +160,28 @@ defmodule Tuist.AccountsTest do
 
       # Then
       assert %{remote_cache_hits_count: 1} == got
+
+      cache_event = %ModuleCacheEvent{
+        id: UUIDv7.generate(),
+        project_id: project_id,
+        run_id: "run-1",
+        source: "disk",
+        inserted_at: ~N[2025-05-17 16:00:00]
+      }
+
+      Tuist.IngestRepo.insert(cache_event)
+
+      duplicate_event = %ModuleCacheEvent{
+        id: UUIDv7.generate(),
+        project_id: project_id,
+        run_id: "run-1",
+        source: "s3",
+        inserted_at: ~N[2025-05-17 16:05:00]
+      }
+
+      Tuist.IngestRepo.insert(duplicate_event)
+
+      assert %{remote_cache_hits_count: 2} == Accounts.account_month_usage(account_id)
     end
 
     test "returns the right value when there are no remote cache hits" do
@@ -172,6 +195,28 @@ defmodule Tuist.AccountsTest do
 
       # Then
       assert %{remote_cache_hits_count: 0} == got
+
+      cache_event = %ModuleCacheEvent{
+        id: UUIDv7.generate(),
+        project_id: account_id + 100,
+        run_id: "run-2",
+        source: "s3",
+        inserted_at: ~N[2025-05-17 16:00:00]
+      }
+
+      Tuist.IngestRepo.insert(cache_event)
+
+      same_project_event = %ModuleCacheEvent{
+        id: UUIDv7.generate(),
+        project_id: account_id + 100,
+        run_id: "run-2",
+        source: "disk",
+        inserted_at: ~N[2025-05-17 16:05:00]
+      }
+
+      Tuist.IngestRepo.insert(same_project_event)
+
+      assert %{remote_cache_hits_count: 0} == Accounts.account_month_usage(account_id, now)
     end
   end
 
@@ -2768,7 +2813,7 @@ defmodule Tuist.AccountsTest do
       # Given
       account = AccountsFixtures.user_fixture(preload: [:account]).account
 
-      expect(Base64, :encode, fn _ -> "generated-hash" end)
+      expect(Tuist.Base64, :encode, fn _ -> "generated-hash" end)
 
       # When
       {:ok, {_, got_token_value}} =
