@@ -723,6 +723,10 @@ defmodule TuistWeb.TestRunLive do
 
   defp remap_test_case_filter_fields(%{field: :test_case_duration} = filter), do: %{filter | field: :duration}
   defp remap_test_case_filter_fields(%{field: :test_case_status} = filter), do: %{filter | field: :status}
+
+  defp remap_test_case_filter_fields(%{field: :test_case_is_new} = filter),
+    do: %{filter | field: :is_new, value: filter.value == "true"}
+
   defp remap_test_case_filter_fields(filter), do: filter
 
   defp remap_test_suite_filter_fields(%{field: :test_suite_test_case_count} = filter),
@@ -768,6 +772,18 @@ defmodule TuistWeb.TestRunLive do
           "success" => dgettext("dashboard_tests", "Passed"),
           "failure" => dgettext("dashboard_tests", "Failed"),
           "skipped" => dgettext("dashboard_tests", "Skipped")
+        },
+        operator: :==,
+        value: nil
+      },
+      %Filter.Filter{
+        id: "test_case_is_new",
+        field: :test_case_is_new,
+        display_name: dgettext("dashboard_tests", "Test Case"),
+        type: :option,
+        options: ["true"],
+        options_display_names: %{
+          "true" => dgettext("dashboard_tests", "New")
         },
         operator: :==,
         value: nil
