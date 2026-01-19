@@ -278,7 +278,13 @@ defmodule Tuist.VCS do
          issue_id: issue_id,
          installation_id: installation_id
        }) do
-    case client.get_comments(%{repository_full_handle: repository, issue_id: issue_id, installation_id: installation_id}) do
+    comments_params = %{
+      repository_full_handle: repository,
+      issue_id: issue_id,
+      installation_id: installation_id
+    }
+
+    case client.get_comments(comments_params) do
       {:ok, comments} ->
         Enum.find(comments, fn comment ->
           comment.client_id == Environment.github_app_client_id() and
@@ -387,15 +393,14 @@ defmodule Tuist.VCS do
         project: project
       })
 
-    if is_nil(previews_body) and is_nil(test_body) and is_nil(bundles_body) and
-         is_nil(builds_body) and is_nil(flaky_tests_body) do
+    bodies = [previews_body, test_body, flaky_tests_body, builds_body, bundles_body]
+
+    if Enum.all?(bodies, &is_nil/1) do
       nil
     else
       """
       #{@tuist_run_report_prefix}
-      """ <>
-        (previews_body || "") <> (test_body || "") <> (flaky_tests_body || "") <> (builds_body || "") <>
-        (bundles_body || "")
+      """ <> Enum.map_join(bodies, "", &(&1 || ""))
     end
   end
 
@@ -645,10 +650,7 @@ defmodule Tuist.VCS do
       | Test case | Module | Suite |
       |:-|:-|:-|
       #{Enum.map_join(displayed_flaky_tests, "", fn flaky_test ->
-        test_case_url =
-          Environment.app_url(
-            path: "/#{project.account.name}/#{project.name}/tests/test-cases/#{flaky_test.test_case_id}"
-          )
+        test_case_url = Environment.app_url(path: "/#{project.account.name}/#{project.name}/tests/test-cases/#{flaky_test.test_case_id}")
 
         """
         | [#{flaky_test.name}](#{test_case_url}) | #{flaky_test.module_name} | #{flaky_test.suite_name} |
@@ -786,7 +788,8 @@ defmodule Tuist.VCS do
       [ttl: to_timeout(minute: 15)],
       fn ->
         # This can take long for organizations with a lot of repositories.
-        # Ideally, we would only fetch this information once, store it in the database, and then sync the repositories via webhooks.
+        # Ideally, we would only fetch this information once, store it in the database,
+        # and then sync the repositories via webhooks.
         # For now, we're sticking to this simple version.
         get_all_repositories_recursively(installation_id, [])
       end

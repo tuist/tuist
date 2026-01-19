@@ -730,7 +730,7 @@ msgstr ""
 msgid "United States"
 msgstr ""
 
-#: lib/tuist/vcs.ex:465
+#: lib/tuist/vcs.ex:477
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr ""
