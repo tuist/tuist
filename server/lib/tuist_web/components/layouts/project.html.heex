@@ -16,6 +16,15 @@
       current_user={@current_user}
     />
     <div class="layout__content">
+      <TuistWeb.Components.PublicProjectCtaBanner.public_project_cta_banner
+        :if={
+          TuistWeb.Components.PublicProjectCtaBanner.show_banner?(
+            @selected_account.name,
+            @selected_project.name,
+            @current_user
+          )
+        }
+      />
       {@inner_content}
     </div>
   </section>

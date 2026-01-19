@@ -1,0 +1,142 @@
+.public-project-cta-banner {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  justify-content: center;
+  align-items: center;
+  gap: var(--noora-spacing-8);
+  border-radius: var(--noora-radius-xlarge);
+  padding: var(--noora-spacing-6) var(--noora-spacing-5);
+  overflow: hidden;
+  box-shadow: var(--noora-light-border-default);
+
+  & [data-part="background"] {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+
+    & [data-part="shell"] {
+      display: flex;
+      position: absolute;
+      left: 0;
+      bottom: -24px;
+      translate: 0% 0%;
+
+      & svg {
+        width: auto;
+        height: 168px;
+      }
+    }
+
+    & [data-part="gradient-right"] {
+      position: absolute;
+      bottom: -50%;
+      right: -5%;
+      filter: blur(100px);
+      border-radius: 1000px;
+      background: light-dark(oklch(53.2% 0.276 286.9 / 0.06), oklch(53.2% 0.276 286.9 / 0.2));
+      width: 70%;
+      min-width: 300px;
+      height: 40vw;
+      transform: rotate(50deg);
+
+      &::before {
+        content: "";
+        position: absolute;
+        top: 20%;
+        right: 30%;
+        filter: blur(80px);
+        border-radius: 1000px;
+        background: light-dark(oklch(53.2% 0.276 286.9 / 0.05), oklch(53.2% 0.276 286.9 / 0.15));
+        width: 80%;
+        min-width: 250px;
+        height: 25vw;
+        transform: rotate(-15deg);
+      }
+    }
+
+    & [data-part="gradient-left"] {
+      position: absolute;
+      bottom: -100%;
+      left: -10%;
+      filter: blur(80px);
+      border-radius: 1000px;
+      background: light-dark(oklch(53.2% 0.276 286.9 / 0.05), oklch(53.2% 0.276 286.9 / 0.12));
+      width: 70%;
+      min-width: 300px;
+      height: 20vw;
+      transform: rotate(-20deg);
+    }
+  }
+
+  & [data-part="content"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--noora-spacing-9);
+    z-index: 1;
+
+    & > p {
+      margin: 0;
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+      text-align: center;
+
+      html[data-theme="light"] & {
+        color: var(--noora-surface-label-primary);
+      }
+
+      html[data-theme="dark"] & {
+        background: linear-gradient(105deg, rgba(255, 255, 255, 1) 6%, rgba(201, 201, 201, 1) 109%);
+        background-clip: text;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+    }
+
+    & [data-part="actions"] {
+      display: flex;
+      gap: var(--noora-spacing-2);
+    }
+  }
+
+  & [data-part="dismiss"] {
+    display: flex;
+    position: absolute;
+    top: var(--noora-spacing-4);
+    right: var(--noora-spacing-4);
+    justify-content: center;
+    align-items: center;
+    z-index: 1;
+    cursor: pointer;
+    border: none;
+    border-radius: var(--noora-radius-small);
+    background: transparent;
+    padding: var(--noora-spacing-2);
+    color: var(--noora-surface-label-secondary);
+    transition: background-color 0.15s ease, color 0.15s ease;
+
+    &:hover {
+      background: var(--noora-surface-background-tertiary);
+      color: var(--noora-surface-label-primary);
+    }
+
+    html[data-theme="dark"] & {
+      color: #c7ccd1;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: #ffffff;
+      }
+    }
+
+    & svg {
+      width: 16px;
+      height: 16px;
+    }
+  }
+
+  &[data-dismissed] {
+    display: none;
+  }
+}
