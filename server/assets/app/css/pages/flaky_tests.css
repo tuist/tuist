@@ -14,6 +14,30 @@
     gap: var(--noora-spacing-4);
   }
 
+  & > [data-part="analytics"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+
+    & .noora-dropdown-item:not([data-selected]) svg {
+      visibility: hidden;
+    }
+
+    & > [data-part="analytics-chart-section"] {
+      padding: var(--noora-spacing-9) var(--noora-spacing-7);
+
+      & > [data-part="legends"] {
+        margin-left: var(--noora-spacing-5);
+        padding-bottom: unset;
+      }
+
+      & .noora-chart {
+        padding: var(--noora-spacing-3);
+        height: 148px;
+      }
+    }
+  }
+
   & [data-part="flaky-tests-section"] {
     display: flex;
     flex-direction: column;
@@ -34,11 +58,8 @@
     }
   }
 
-  & .noora-card {
-    overflow-x: hidden;
-  }
-
   & > [data-part="flaky-tests"] {
+    overflow-x: hidden;
     & .noora-dropdown-item:not([data-selected]) svg {
       visibility: hidden;
     }

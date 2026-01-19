@@ -1231,69 +1231,50 @@ defmodule Tuist.Runs.Analytics do
   defp test_run_count(project_id, start_datetime, end_datetime, _date_period, time_bucket, opts) do
     date_format = get_clickhouse_date_format(time_bucket)
 
-    is_ci = Keyword.get(opts, :is_ci)
-    status = Keyword.get(opts, :status)
-
-    query =
-      from(t in Test,
-        where: t.project_id == ^project_id,
-        where: t.ran_at >= ^start_datetime,
-        where: t.ran_at <= ^end_datetime,
-        group_by: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format),
-        select: %{
-          date: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format),
-          count: count(t.id)
-        },
-        order_by: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format)
-      )
-
-    query =
-      case is_ci do
-        nil -> query
-        true -> where(query, [t], t.is_ci == true)
-        false -> where(query, [t], t.is_ci == false)
-      end
-
-    query =
-      case status do
-        nil -> query
-        "failure" -> where(query, [t], t.status == "failure")
-        "success" -> where(query, [t], t.status == "success")
-        "flaky" -> where(query, [t], t.is_flaky == true)
-      end
-
-    ClickHouseRepo.all(query)
+    from(t in Test,
+      where: t.project_id == ^project_id,
+      where: t.ran_at >= ^start_datetime,
+      where: t.ran_at <= ^end_datetime,
+      group_by: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format),
+      select: %{
+        date: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format),
+        count: count(t.id)
+      },
+      order_by: fragment("formatDateTime(?, ?)", t.ran_at, ^date_format)
+    )
+    |> apply_test_run_filters(opts)
+    |> ClickHouseRepo.all()
   end
 
   defp test_run_total_count(project_id, start_datetime, end_datetime, opts) do
-    is_ci = Keyword.get(opts, :is_ci)
-    status = Keyword.get(opts, :status)
-
-    query =
-      from(t in Test,
-        where: t.project_id == ^project_id,
-        where: t.ran_at >= ^start_datetime,
-        where: t.ran_at <= ^end_datetime,
-        select: count(t.id)
-      )
-
-    query =
-      case is_ci do
-        nil -> query
-        true -> where(query, [t], t.is_ci == true)
-        false -> where(query, [t], t.is_ci == false)
-      end
-
-    query =
-      case status do
-        nil -> query
-        "failure" -> where(query, [t], t.status == "failure")
-        "success" -> where(query, [t], t.status == "success")
-        "flaky" -> where(query, [t], t.is_flaky == true)
-      end
-
-    ClickHouseRepo.one(query) || 0
+    from(t in Test,
+      where: t.project_id == ^project_id,
+      where: t.ran_at >= ^start_datetime,
+      where: t.ran_at <= ^end_datetime,
+      select: count(t.id)
+    )
+    |> apply_test_run_filters(opts)
+    |> ClickHouseRepo.one() || 0
   end
+
+  defp apply_test_run_filters(query, opts) do
+    query
+    |> apply_test_is_ci_filter(Keyword.get(opts, :is_ci))
+    |> apply_test_is_flaky_filter(Keyword.get(opts, :is_flaky))
+    |> apply_test_status_filter(Keyword.get(opts, :status))
+  end
+
+  defp apply_test_is_ci_filter(query, nil), do: query
+  defp apply_test_is_ci_filter(query, true), do: where(query, [t], t.is_ci == true)
+  defp apply_test_is_ci_filter(query, false), do: where(query, [t], t.is_ci == false)
+
+  defp apply_test_is_flaky_filter(query, nil), do: query
+  defp apply_test_is_flaky_filter(query, true), do: where(query, [t], t.is_flaky == true)
+  defp apply_test_is_flaky_filter(query, false), do: where(query, [t], t.is_flaky == false)
+
+  defp apply_test_status_filter(query, nil), do: query
+  defp apply_test_status_filter(query, "failure"), do: where(query, [t], t.status == "failure")
+  defp apply_test_status_filter(query, "success"), do: where(query, [t], t.status == "success")
 
   def test_run_duration_analytics(project_id, opts \\ []) do
     start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
