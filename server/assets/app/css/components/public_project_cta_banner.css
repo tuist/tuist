@@ -124,20 +124,10 @@
     background: transparent;
     padding: var(--noora-spacing-2);
     color: var(--noora-surface-label-secondary);
-    transition: background-color 0.15s ease, color 0.15s ease;
+    transition: color 0.15s ease;
 
     &:hover {
-      background: var(--noora-surface-background-tertiary);
       color: var(--noora-surface-label-primary);
-    }
-
-    html[data-theme="dark"] & {
-      color: #c7ccd1;
-
-      &:hover {
-        background: rgba(255, 255, 255, 0.1);
-        color: #ffffff;
-      }
     }
 
     & svg {

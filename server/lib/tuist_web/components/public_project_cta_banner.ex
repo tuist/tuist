@@ -37,6 +37,7 @@ defmodule TuistWeb.Components.PublicProjectCTABanner do
           <.button
             label={dgettext("dashboard", "Get started")}
             variant="primary"
+            size="large"
             href="https://docs.tuist.dev/en/"
             target="_blank"
           />
@@ -45,6 +46,7 @@ defmodule TuistWeb.Components.PublicProjectCTABanner do
             variant="secondary"
             href="https://cal.com/team/tuist/cloud"
             target="_blank"
+            size="large"
           />
         </div>
       </div>
