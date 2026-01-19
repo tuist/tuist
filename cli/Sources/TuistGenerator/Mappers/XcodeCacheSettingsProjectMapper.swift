@@ -28,16 +28,14 @@ public final class XcodeCacheSettingsProjectMapper: ProjectMapping {
         var project = project
         var baseSettings = project.settings.base
 
-        // Remote caching settings - only when fullHandle is configured
+        baseSettings["COMPILATION_CACHE_ENABLE_CACHING"] = "YES"
         if let fullHandle = tuist.fullHandle {
-            baseSettings["COMPILATION_CACHE_ENABLE_CACHING"] = "YES"
+            // Remote caching settings - only when fullHandle is configured
             baseSettings["COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS"] = "YES"
             baseSettings["COMPILATION_CACHE_ENABLE_PLUGIN"] = "YES"
             baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] = .string(
                 Environment.current.cacheSocketPathString(for: fullHandle)
             )
-        } else {
-            baseSettings["COMPILATION_CACHE_ENABLE_CACHING"] = "YES"
         }
 
         project.settings = Settings(
