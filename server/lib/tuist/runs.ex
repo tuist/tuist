@@ -847,11 +847,14 @@ defmodule Tuist.Runs do
   end
 
   defp get_test_case_ids_with_ci_runs_on_branch(test_case_ids, branch) do
+    ninety_days_ago = NaiveDateTime.utc_now() |> NaiveDateTime.add(-90, :day)
+
     query =
       from(tcr in TestCaseRun,
         where: tcr.test_case_id in ^test_case_ids,
         where: tcr.git_branch == ^branch,
         where: tcr.is_ci == true,
+        where: tcr.ran_at >= ^ninety_days_ago,
         distinct: true,
         select: tcr.test_case_id
       )
