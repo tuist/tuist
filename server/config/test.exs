@@ -16,6 +16,7 @@ config :tuist, Tuist.ClickHouseRepo,
   hostname: "localhost",
   port: 8123,
   database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}",
+  priv: "priv/ingest_repo",
   # Workaround for ClickHouse lazy materialization bug with projections
   # https://github.com/ClickHouse/ClickHouse/issues/80201
   settings: [query_plan_optimize_lazy_materialization: 0]
@@ -61,7 +62,7 @@ config :tuist,
   api_pipeline_producer_options: []
 
 config :tuist,
-  ecto_repos: [Tuist.Repo, Tuist.IngestRepo],
+  ecto_repos: [Tuist.Repo, Tuist.IngestRepo, Tuist.ClickHouseRepo],
   generators: [timestamp_type: :utc_datetime],
   api_pipeline_producer_module: OffBroadwayMemory.Producer,
   api_pipeline_producer_options: [buffer: :api_data_pipeline_in_memory_buffer]
