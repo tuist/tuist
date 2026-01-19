@@ -724,11 +724,11 @@ defmodule TuistWeb.TestRunLive do
   defp remap_test_case_filter_fields(%{field: :test_case_duration} = filter), do: %{filter | field: :duration}
   defp remap_test_case_filter_fields(%{field: :test_case_status} = filter), do: %{filter | field: :status}
 
-  defp remap_test_case_filter_fields(%{field: :test_case_is_new} = filter),
-    do: %{filter | field: :is_new, value: filter.value == "true"}
+  defp remap_test_case_filter_fields(%{field: :test_case_trait, value: "new"} = filter),
+    do: %{filter | field: :is_new, value: true}
 
-  defp remap_test_case_filter_fields(%{field: :test_case_is_flaky} = filter),
-    do: %{filter | field: :is_flaky, value: filter.value == "true"}
+  defp remap_test_case_filter_fields(%{field: :test_case_trait, value: "flaky"} = filter),
+    do: %{filter | field: :is_flaky, value: true}
 
   defp remap_test_case_filter_fields(filter), do: filter
 
@@ -780,25 +780,14 @@ defmodule TuistWeb.TestRunLive do
         value: nil
       },
       %Filter.Filter{
-        id: "test_case_is_new",
-        field: :test_case_is_new,
+        id: "test_case_trait",
+        field: :test_case_trait,
         display_name: dgettext("dashboard_tests", "Test Case"),
         type: :option,
-        options: ["true"],
+        options: ["new", "flaky"],
         options_display_names: %{
-          "true" => dgettext("dashboard_tests", "New")
-        },
-        operator: :==,
-        value: nil
-      },
-      %Filter.Filter{
-        id: "test_case_is_flaky",
-        field: :test_case_is_flaky,
-        display_name: dgettext("dashboard_tests", "Test Case"),
-        type: :option,
-        options: ["true"],
-        options_display_names: %{
-          "true" => dgettext("dashboard_tests", "Flaky")
+          "new" => dgettext("dashboard_tests", "New"),
+          "flaky" => dgettext("dashboard_tests", "Flaky")
         },
         operator: :==,
         value: nil
