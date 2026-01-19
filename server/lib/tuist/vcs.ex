@@ -26,6 +26,7 @@ defmodule Tuist.VCS do
   alias Tuist.VCS.GitHubAppInstallation
 
   @tuist_run_report_prefix "### 🛠️ Tuist Run Report 🛠️"
+  @max_flaky_tests_in_comment 5
 
   @doc """
   Constructs a CI run URL based on the CI provider and metadata.
@@ -597,8 +598,6 @@ defmodule Tuist.VCS do
       "skipped" -> "⏭️"
     end
   end
-
-  @max_flaky_tests_in_comment 5
 
   defp get_flaky_tests_body(%{test_runs: test_runs, project: project}) do
     flaky_tests_by_run =
