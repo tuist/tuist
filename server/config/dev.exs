@@ -33,8 +33,7 @@ config :phoenix_live_view, :debug_heex_annotations, true
 config :tuist, Tuist.ClickHouseRepo,
   hostname: "localhost",
   port: 8123,
-  database: "tuist_development",
-  priv: "priv/ingest_repo"
+  database: "tuist_development"
 
 config :tuist, Tuist.IngestRepo,
   hostname: "localhost",
@@ -194,7 +193,7 @@ config :tuist, TuistWeb.Endpoint,
 config :tuist, dev_routes: true
 
 config :tuist,
-  ecto_repos: [Tuist.Repo, Tuist.IngestRepo, Tuist.ClickHouseRepo],
+  ecto_repos: [Tuist.Repo, Tuist.IngestRepo],
   generators: [timestamp_type: :utc_datetime],
   api_pipeline_producer_module: OffBroadwayMemory.Producer,
   api_pipeline_producer_options: [buffer: :api_data_pipeline_in_memory_buffer]

@@ -125,7 +125,6 @@ if Enum.member?([:prod, :stag, :can], env) do
     pool_size: Tuist.Environment.clickhouse_pool_size(secrets),
     queue_target: Tuist.Environment.clickhouse_queue_target(secrets),
     queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
-    priv: "priv/ingest_repo",
     settings: [
       readonly: 1,
       # Specifies the join algorithms to use in order of preference: direct (fastest for small tables),
@@ -155,7 +154,7 @@ if Enum.member?([:prod, :stag, :can], env) do
   config :tuist, Tuist.Repo, database_options
 
   config :tuist,
-    ecto_repos: [Tuist.Repo, Tuist.IngestRepo, Tuist.ClickHouseRepo],
+    ecto_repos: [Tuist.Repo, Tuist.IngestRepo],
     generators: [timestamp_type: :utc_datetime],
     api_pipeline_producer_module: OffBroadwayMemory.Producer,
     api_pipeline_producer_options: [buffer: :api_data_pipeline_in_memory_buffer]
