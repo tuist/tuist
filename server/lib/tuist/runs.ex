@@ -847,7 +847,7 @@ defmodule Tuist.Runs do
   end
 
   defp get_test_case_ids_with_ci_runs_on_branch(test_case_ids, branch) do
-    ninety_days_ago = NaiveDateTime.utc_now() |> NaiveDateTime.add(-90, :day)
+    ninety_days_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -90, :day)
 
     query =
       from(tcr in TestCaseRun,
