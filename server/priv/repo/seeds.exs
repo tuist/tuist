@@ -858,6 +858,7 @@ chunk_processor = fn chunk_indices ->
                       git_commit_sha: test.git_commit_sha,
                       status: case_status,
                       is_flaky: Enum.random([false, false, false, false, true]),
+                      is_new: Enum.random([false, false, false, false, false, true]),
                       duration: Enum.random(10..200),
                       module_name: test_case.module_name,
                       suite_name: test_case.suite_name,
