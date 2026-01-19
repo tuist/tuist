@@ -61,7 +61,7 @@ config :tuist,
   api_pipeline_producer_options: []
 
 config :tuist,
-  ecto_repos: [Tuist.Repo, Tuist.IngestRepo],
+  ecto_repos: [Tuist.Repo, Tuist.IngestRepo, Tuist.ClickHouseRepo],
   generators: [timestamp_type: :utc_datetime],
   api_pipeline_producer_module: OffBroadwayMemory.Producer,
   api_pipeline_producer_options: [buffer: :api_data_pipeline_in_memory_buffer]
