@@ -10,7 +10,7 @@ config :logger, level: :warning
 config :phoenix, :plug_init_mode, :runtime
 
 # Oban
-config :tuist, Oban, testing: :inline
+config :tuist, Oban, testing: :manual
 
 config :tuist, Tuist.ClickHouseRepo,
   hostname: "localhost",
@@ -18,7 +18,7 @@ config :tuist, Tuist.ClickHouseRepo,
   database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}",
   # Workaround for ClickHouse lazy materialization bug with projections
   # https://github.com/ClickHouse/ClickHouse/issues/80201
-  settings: [query_plan_optimize_lazy_materialization: 0]
+  settings: [readonly: 1, query_plan_optimize_lazy_materialization: 0]
 
 config :tuist, Tuist.IngestRepo,
   hostname: "localhost",

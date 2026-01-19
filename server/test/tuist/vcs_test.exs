@@ -1617,22 +1617,20 @@ defmodule Tuist.VCSTest do
       }
 
       # When / Then
-      Oban.Testing.with_testing_mode(:manual, fn ->
-        result = VCS.enqueue_vcs_pull_request_comment(job_params)
+      result = VCS.enqueue_vcs_pull_request_comment(job_params)
 
-        assert {:ok, %Oban.Job{}} = result
+      assert {:ok, %Oban.Job{}} = result
 
-        assert_enqueued(
-          worker: VCS.Workers.CommentWorker,
-          args: %{
-            "build_id" => build.id,
-            "git_commit_sha" => "abc123",
-            "git_ref" => "refs/pull/123/head",
-            "git_remote_url_origin" => "https://github.com/tuist/tuist",
-            "project_id" => project.id
-          }
-        )
-      end)
+      assert_enqueued(
+        worker: VCS.Workers.CommentWorker,
+        args: %{
+          "build_id" => build.id,
+          "git_commit_sha" => "abc123",
+          "git_ref" => "refs/pull/123/head",
+          "git_remote_url_origin" => "https://github.com/tuist/tuist",
+          "project_id" => project.id
+        }
+      )
     end
   end
 

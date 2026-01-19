@@ -29,7 +29,9 @@ defmodule Tuist.Ops.HourlySlackReportWorkerTest do
       expect(Slack, :send_message, fn ^expected_message -> :ok end)
 
       # When
-      {:ok, _} = %{} |> HourlySlackReportWorker.new() |> Oban.insert()
+      Oban.Testing.with_testing_mode(:inline, fn ->
+        {:ok, _} = %{} |> HourlySlackReportWorker.new() |> Oban.insert()
+      end)
     end
 
     test "doesn't send a message when there were no new users or organizations in the last hour" do
@@ -37,7 +39,9 @@ defmodule Tuist.Ops.HourlySlackReportWorkerTest do
       Mimic.reject(&Slack.send_message/1)
 
       # When
-      {:ok, _} = %{} |> HourlySlackReportWorker.new() |> Oban.insert()
+      Oban.Testing.with_testing_mode(:inline, fn ->
+        {:ok, _} = %{} |> HourlySlackReportWorker.new() |> Oban.insert()
+      end)
     end
   end
 end

@@ -61,7 +61,9 @@ defmodule Tuist.Slack.Workers.ReportWorkerTest do
         :ok
       end)
 
-      assert :ok = ReportWorker.perform(%Oban.Job{args: %{}})
+      Oban.Testing.with_testing_mode(:inline, fn ->
+        assert :ok = ReportWorker.perform(%Oban.Job{args: %{}})
+      end)
     end
 
     test "does not send reports for projects with the report disabled", %{project: project} do
