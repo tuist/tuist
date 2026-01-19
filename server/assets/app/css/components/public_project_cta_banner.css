@@ -106,7 +106,7 @@
 
     & [data-part="actions"] {
       display: flex;
-      gap: var(--noora-spacing-2);
+      gap: var(--noora-spacing-4);
     }
   }
 

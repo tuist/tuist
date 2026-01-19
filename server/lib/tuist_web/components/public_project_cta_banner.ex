@@ -1,4 +1,4 @@
-defmodule TuistWeb.Components.PublicProjectCtaBanner do
+defmodule TuistWeb.Components.PublicProjectCTABanner do
   @moduledoc """
   A CTA banner component shown to unauthenticated users viewing the tuist/tuist project dashboard.
   """
@@ -12,7 +12,7 @@ defmodule TuistWeb.Components.PublicProjectCtaBanner do
     <div
       id="public-project-cta-banner"
       class="public-project-cta-banner"
-      phx-hook="PublicProjectCtaBanner"
+      phx-hook="PublicProjectCTABanner"
     >
       <div data-part="background">
         <div data-part="shell">

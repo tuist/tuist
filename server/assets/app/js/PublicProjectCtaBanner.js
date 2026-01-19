@@ -9,7 +9,7 @@ function dismissBanner() {
   document.cookie = `${COOKIE_NAME}=true; path=/; SameSite=Lax; max-age=${COOKIE_MAX_AGE}`;
 }
 
-const PublicProjectCtaBanner = {
+const PublicProjectCTABanner = {
   mounted() {
     if (isBannerDismissed()) {
       return;
@@ -27,4 +27,4 @@ const PublicProjectCtaBanner = {
   },
 };
 
-export default PublicProjectCtaBanner;
+export default PublicProjectCTABanner;
