@@ -44,7 +44,7 @@ defmodule TuistWeb.Components.PublicProjectCTABanner do
           <.button
             label={dgettext("dashboard", "Talk to us")}
             variant="secondary"
-            href="https://cal.com/team/tuist/cloud"
+            href="https://cal.tuist.dev/team/tuist/tuist"
             target="_blank"
             size="large"
           />
