@@ -1290,25 +1290,39 @@ defmodule Tuist.VCSTest do
           xcode_version: "12.4",
           is_ci: false,
           ran_at: ~N[2024-04-30 03:00:00],
-          test_modules: []
+          test_modules: [
+            %{
+              name: "MyModule",
+              status: "success",
+              duration: 1000,
+              test_suites: [
+                %{
+                  name: "MySuite",
+                  status: "success",
+                  duration: 1000
+                }
+              ],
+              test_cases: [
+                %{
+                  name: "test_flaky_behavior",
+                  test_suite_name: "MySuite",
+                  status: "success",
+                  duration: 250,
+                  repetitions: [
+                    %{repetition_number: 1, name: "test_flaky_behavior", status: "failure", duration: 100},
+                    %{repetition_number: 2, name: "test_flaky_behavior", status: "success", duration: 150}
+                  ]
+                }
+              ]
+            }
+          ]
         })
 
-      test_case_id = UUIDv7.generate()
+      RunsFixtures.optimize_test_case_runs()
 
-      stub(Runs, :get_flaky_runs_for_test_run, fn _test_run_id ->
-        [
-          %{
-            test_case_id: test_case_id,
-            name: "test_flaky_behavior",
-            module_name: "MyModule",
-            suite_name: "MySuite",
-            latest_ran_at: ~N[2024-04-30 03:00:00],
-            passed_count: 2,
-            failed_count: 1,
-            runs: []
-          }
-        ]
-      end)
+      # Get the test case ID from the created flaky test data
+      [flaky_test] = Runs.get_flaky_runs_for_test_run(test_run.id)
+      test_case_id = flaky_test.test_case_id
 
       stub(Req, :get, fn _opts ->
         {:ok, %Req.Response{status: 200, body: []}}
@@ -1329,7 +1343,7 @@ defmodule Tuist.VCSTest do
 
         | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
         |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 0 % | 0 | 0 | 0 | #{commit_link} |
+        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 0 % | 1 | 0 | 1 | #{commit_link} |
 
 
         #### Flaky Tests ⚠️
@@ -1376,6 +1390,21 @@ defmodule Tuist.VCSTest do
           ]
         )
 
+      # Create 7 flaky test cases
+      flaky_test_cases =
+        for i <- 1..7 do
+          %{
+            name: "test_flaky_#{i}",
+            test_suite_name: "Suite#{i}",
+            status: "success",
+            duration: 250,
+            repetitions: [
+              %{repetition_number: 1, name: "test_flaky_#{i}", status: "failure", duration: 100},
+              %{repetition_number: 2, name: "test_flaky_#{i}", status: "success", duration: 150}
+            ]
+          }
+        end
+
       {:ok, _test_run} =
         Runs.create_test(%{
           id: UUIDv7.generate(),
@@ -1390,24 +1419,17 @@ defmodule Tuist.VCSTest do
           xcode_version: "12.4",
           is_ci: false,
           ran_at: ~N[2024-04-30 03:00:00],
-          test_modules: []
+          test_modules: [
+            %{
+              name: "MyModule",
+              status: "success",
+              duration: 1000,
+              test_cases: flaky_test_cases
+            }
+          ]
         })
 
-      flaky_tests =
-        for i <- 1..7 do
-          %{
-            test_case_id: UUIDv7.generate(),
-            name: "test_flaky_#{i}",
-            module_name: "Module#{i}",
-            suite_name: "Suite#{i}",
-            latest_ran_at: ~N[2024-04-30 03:00:00],
-            passed_count: 2,
-            failed_count: 1,
-            runs: []
-          }
-        end
-
-      stub(Runs, :get_flaky_runs_for_test_run, fn _test_run_id -> flaky_tests end)
+      RunsFixtures.optimize_test_case_runs()
 
       stub(Req, :get, fn _opts ->
         {:ok, %Req.Response{status: 200, body: []}}
@@ -1428,10 +1450,10 @@ defmodule Tuist.VCSTest do
 
         assert length(flaky_test_rows) == 5
 
-        assert body =~ "7 flaky tests"
-        assert body =~ "View all"
-        assert body =~ "tab=flaky-runs"
-        assert body =~ "Showing 5 of 7 flaky tests"
+        assert String.contains?(body, "7 flaky tests")
+        assert String.contains?(body, "View all")
+        assert String.contains?(body, "tab=flaky-runs")
+        assert String.contains?(body, "Showing 5 of 7 flaky tests")
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
@@ -1461,7 +1483,8 @@ defmodule Tuist.VCSTest do
           ]
         )
 
-      {:ok, test_run_one} =
+      # First test run has one flaky test (shared)
+      {:ok, _test_run_one} =
         Runs.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,
@@ -1475,10 +1498,28 @@ defmodule Tuist.VCSTest do
           xcode_version: "12.4",
           is_ci: false,
           ran_at: ~N[2024-04-30 03:00:00],
-          test_modules: []
+          test_modules: [
+            %{
+              name: "SharedModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{
+                  name: "test_shared_flaky",
+                  status: "success",
+                  duration: 250,
+                  repetitions: [
+                    %{repetition_number: 1, name: "test_shared_flaky", status: "failure", duration: 100},
+                    %{repetition_number: 2, name: "test_shared_flaky", status: "success", duration: 150}
+                  ]
+                }
+              ]
+            }
+          ]
         })
 
-      {:ok, test_run_two} =
+      # Second test run has the same flaky test (shared) plus a unique one
+      {:ok, _test_run_two} =
         Runs.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,
@@ -1492,56 +1533,43 @@ defmodule Tuist.VCSTest do
           xcode_version: "12.4",
           is_ci: false,
           ran_at: ~N[2024-04-30 04:00:00],
-          test_modules: []
+          test_modules: [
+            %{
+              name: "SharedModule",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "test_shared_flaky",
+                  status: "success",
+                  duration: 250,
+                  repetitions: [
+                    %{repetition_number: 1, name: "test_shared_flaky", status: "failure", duration: 100},
+                    %{repetition_number: 2, name: "test_shared_flaky", status: "success", duration: 150}
+                  ]
+                }
+              ]
+            },
+            %{
+              name: "UniqueModule",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "test_unique_flaky",
+                  status: "success",
+                  duration: 250,
+                  repetitions: [
+                    %{repetition_number: 1, name: "test_unique_flaky", status: "failure", duration: 100},
+                    %{repetition_number: 2, name: "test_unique_flaky", status: "success", duration: 150}
+                  ]
+                }
+              ]
+            }
+          ]
         })
 
-      shared_test_case_id = UUIDv7.generate()
-      unique_test_case_id = UUIDv7.generate()
-
-      stub(Runs, :get_flaky_runs_for_test_run, fn test_run_id ->
-        cond do
-          test_run_id == test_run_one.id ->
-            [
-              %{
-                test_case_id: shared_test_case_id,
-                name: "test_shared_flaky",
-                module_name: "SharedModule",
-                suite_name: "SharedSuite",
-                latest_ran_at: ~N[2024-04-30 03:00:00],
-                passed_count: 2,
-                failed_count: 1,
-                runs: []
-              }
-            ]
-
-          test_run_id == test_run_two.id ->
-            [
-              %{
-                test_case_id: shared_test_case_id,
-                name: "test_shared_flaky",
-                module_name: "SharedModule",
-                suite_name: "SharedSuite",
-                latest_ran_at: ~N[2024-04-30 04:00:00],
-                passed_count: 3,
-                failed_count: 2,
-                runs: []
-              },
-              %{
-                test_case_id: unique_test_case_id,
-                name: "test_unique_flaky",
-                module_name: "UniqueModule",
-                suite_name: "UniqueSuite",
-                latest_ran_at: ~N[2024-04-30 04:00:00],
-                passed_count: 1,
-                failed_count: 1,
-                runs: []
-              }
-            ]
-
-          true ->
-            []
-        end
-      end)
+      RunsFixtures.optimize_test_case_runs()
 
       stub(Req, :get, fn _opts ->
         {:ok, %Req.Response{status: 200, body: []}}
@@ -1555,19 +1583,20 @@ defmodule Tuist.VCSTest do
       expect(Req, :post, fn opts ->
         body = opts[:json][:body]
 
-        assert body =~ "test_shared_flaky"
-        assert body =~ "test_unique_flaky"
+        assert String.contains?(body, "test_shared_flaky")
+        assert String.contains?(body, "test_unique_flaky")
 
+        # Shared test should only appear once in the table (deduplicated by test_case_id)
         shared_flaky_count =
           body
           |> String.split("\n")
-          |> Enum.count(&(&1 =~ "test_shared_flaky"))
+          |> Enum.count(&String.contains?(&1, "test_shared_flaky"))
 
         assert shared_flaky_count == 1
 
-        assert body =~ "**test1**: 1 flaky test"
-        assert body =~ "**test2**: 2 flaky tests"
-        assert body =~ "tab=flaky-runs"
+        assert String.contains?(body, "**test1**: 1 flaky test")
+        assert String.contains?(body, "**test2**: 2 flaky tests")
+        assert String.contains?(body, "tab=flaky-runs")
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
