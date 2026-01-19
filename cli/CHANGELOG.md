@@ -1,7 +1,15 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.128.1<!-- RELEASE NOTES START -->
+## What's Changed in 4.129.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* enable local CAS when enableCaching is true and Tuist project is not configured by [@danieleformichelli](https://github.com/danieleformichelli) in [#9157](https://github.com/tuist/tuist/pull/9157)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.128.3...4.129.0
+
+## What's Changed in 4.128.3<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
 
@@ -12,7 +20,7 @@ All notable changes to this project will be documented in this file.
 ## New Contributors
 * [@JimRoepcke](https://github.com/JimRoepcke) made their first contribution in [#9129](https://github.com/tuist/tuist/pull/9129)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.128.0...4.128.1
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.128.0...4.128.3
 
 ## What's Changed in 4.128.0<!-- RELEASE NOTES START -->
 
