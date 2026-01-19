@@ -40,7 +40,7 @@ struct XcodeCacheSettingsProjectMapperTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func map_whenFullHandleNil_returnsUnmodifiedProject() async throws {
+    func map_whenFullHandleNil_addsLocalCacheSettingsOnly() async throws {
         // Given
         let tuist = Tuist(
             project: .generated(
@@ -64,8 +64,23 @@ struct XcodeCacheSettingsProjectMapperTests {
         let (mappedProject, sideEffects) = try subject.map(project: project)
 
         // Then
-        #expect(mappedProject == project)
         #expect(sideEffects.isEmpty)
+
+        let baseSettings = mappedProject.settings.base
+        #expect(baseSettings["EXISTING_SETTING"] == .string("value"))
+
+        // Local CAS settings should be present
+        #expect(baseSettings["COMPILATION_CACHE_ENABLE_PLUGIN"] == .string("YES"))
+        #expect(baseSettings["SWIFT_ENABLE_COMPILE_CACHE"] == .string("YES"))
+        #expect(baseSettings["CLANG_ENABLE_COMPILE_CACHE"] == .string("YES"))
+        #expect(baseSettings["SWIFT_ENABLE_EXPLICIT_MODULES"] == .string("YES"))
+        #expect(baseSettings["SWIFT_USE_INTEGRATED_DRIVER"] == .string("YES"))
+        #expect(baseSettings["CLANG_ENABLE_MODULES"] == .string("YES"))
+
+        // Remote caching settings should NOT be present (no fullHandle)
+        #expect(baseSettings["COMPILATION_CACHE_ENABLE_CACHING"] == nil)
+        #expect(baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] == nil)
+        #expect(baseSettings["COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS"] == nil)
     }
 
     @Test(.inTemporaryDirectory)
@@ -99,8 +114,17 @@ struct XcodeCacheSettingsProjectMapperTests {
 
         let baseSettings = mappedProject.settings.base
         #expect(baseSettings["EXISTING_SETTING"] == .string("value"))
-        #expect(baseSettings["COMPILATION_CACHE_ENABLE_CACHING"] == .string("YES"))
+
+        // Local CAS settings
         #expect(baseSettings["COMPILATION_CACHE_ENABLE_PLUGIN"] == .string("YES"))
+        #expect(baseSettings["SWIFT_ENABLE_COMPILE_CACHE"] == .string("YES"))
+        #expect(baseSettings["CLANG_ENABLE_COMPILE_CACHE"] == .string("YES"))
+        #expect(baseSettings["SWIFT_ENABLE_EXPLICIT_MODULES"] == .string("YES"))
+        #expect(baseSettings["SWIFT_USE_INTEGRATED_DRIVER"] == .string("YES"))
+        #expect(baseSettings["CLANG_ENABLE_MODULES"] == .string("YES"))
+
+        // Remote caching settings (since fullHandle is provided)
+        #expect(baseSettings["COMPILATION_CACHE_ENABLE_CACHING"] == .string("YES"))
         #expect(baseSettings["COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS"] == .string("YES"))
 
         let socketPath = Environment.current.cacheSocketPathString(for: fullHandle)
@@ -136,8 +160,17 @@ struct XcodeCacheSettingsProjectMapperTests {
         #expect(sideEffects.isEmpty)
 
         let baseSettings = mappedProject.settings.base
-        #expect(baseSettings["COMPILATION_CACHE_ENABLE_CACHING"] == .string("YES"))
+
+        // Local CAS settings
         #expect(baseSettings["COMPILATION_CACHE_ENABLE_PLUGIN"] == .string("YES"))
+        #expect(baseSettings["SWIFT_ENABLE_COMPILE_CACHE"] == .string("YES"))
+        #expect(baseSettings["CLANG_ENABLE_COMPILE_CACHE"] == .string("YES"))
+        #expect(baseSettings["SWIFT_ENABLE_EXPLICIT_MODULES"] == .string("YES"))
+        #expect(baseSettings["SWIFT_USE_INTEGRATED_DRIVER"] == .string("YES"))
+        #expect(baseSettings["CLANG_ENABLE_MODULES"] == .string("YES"))
+
+        // Remote caching settings (since fullHandle is provided)
+        #expect(baseSettings["COMPILATION_CACHE_ENABLE_CACHING"] == .string("YES"))
 
         let socketPath = Environment.current.cacheSocketPathString(for: fullHandle)
         #expect(baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] == .string(socketPath))
@@ -182,6 +215,7 @@ struct XcodeCacheSettingsProjectMapperTests {
 
         // Then
         #expect(mappedProject.settings.base["CUSTOM"] == .string("value"))
+        #expect(mappedProject.settings.base["SWIFT_ENABLE_COMPILE_CACHE"] == .string("YES"))
         #expect(mappedProject.settings.base["COMPILATION_CACHE_ENABLE_CACHING"] == .string("YES"))
     }
 }
