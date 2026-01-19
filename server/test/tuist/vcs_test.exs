@@ -1265,6 +1265,355 @@ defmodule Tuist.VCSTest do
         build_url: fn _ -> "" end
       })
     end
+
+    test "creates a comment with flaky tests" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha,
+          scheme: "test",
+          ran_at: ~N[2024-04-30 03:00:00],
+          test_modules: [
+            %{
+              name: "MyModule",
+              status: "success",
+              duration: 1000,
+              test_suites: [
+                %{
+                  name: "MySuite",
+                  status: "success",
+                  duration: 1000
+                }
+              ],
+              test_cases: [
+                %{
+                  name: "test_flaky_behavior",
+                  test_suite_name: "MySuite",
+                  status: "success",
+                  duration: 250,
+                  repetitions: [
+                    %{repetition_number: 1, name: "test_flaky_behavior", status: "failure", duration: 100},
+                    %{repetition_number: 2, name: "test_flaky_behavior", status: "success", duration: 150}
+                  ]
+                }
+              ]
+            }
+          ]
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      # Get the test case ID from the created flaky test data
+      [flaky_test] = Runs.get_flaky_runs_for_test_run(test_run.id)
+      test_case_id = flaky_test.test_case_id
+
+      stub(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      stub(Environment, :app_url, fn opts ->
+        path = Keyword.get(opts, :path, "/")
+        "https://tuist.dev#{path}"
+      end)
+
+      commit_link = "[123456789](#{@git_remote_url_origin}/commit/#{@git_commit_sha})"
+
+      expected_body =
+        """
+        ### 🛠️ Tuist Run Report 🛠️
+
+        #### Tests 🧪
+
+        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
+        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 0 % | 1 | 0 | 1 | #{commit_link} |
+
+
+        #### Flaky Tests ⚠️
+
+        - **test**: 1 flaky test ([View all](https://tuist.dev/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=flaky-runs))
+
+        | Test case | Module | Suite |
+        |:-|:-|:-|
+        | [test_flaky_behavior](https://tuist.dev/#{project.account.name}/#{project.name}/tests/test-cases/#{test_case_id}) | MyModule | MySuite |
+
+        """
+
+      expect(Req, :post, fn opts ->
+        assert opts[:finch] == Tuist.Finch
+        assert opts[:headers] == @default_headers
+        assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
+        assert opts[:json] == %{body: expected_body}
+
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn _ -> "" end,
+        preview_qr_code_url: fn _ -> "" end,
+        command_run_url: fn _ -> "" end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
+      })
+    end
+
+    test "limits flaky tests to 5 in comment and shows truncation note" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      # Create 7 flaky test cases
+      flaky_test_cases =
+        for i <- 1..7 do
+          %{
+            name: "test_flaky_#{i}",
+            status: "success",
+            duration: 250,
+            repetitions: [
+              %{repetition_number: 1, name: "test_flaky_#{i}", status: "failure", duration: 100},
+              %{repetition_number: 2, name: "test_flaky_#{i}", status: "success", duration: 150}
+            ]
+          }
+        end
+
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha,
+          scheme: "test",
+          ran_at: ~N[2024-04-30 03:00:00],
+          test_modules: [
+            %{
+              name: "MyModule",
+              status: "success",
+              duration: 1000,
+              test_cases: flaky_test_cases
+            }
+          ]
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      # Get flaky tests and take first 5 (same as production code)
+      flaky_tests = Runs.get_flaky_runs_for_test_run(test_run.id)
+      displayed_flaky_tests = Enum.take(flaky_tests, 5)
+
+      stub(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      stub(Environment, :app_url, fn opts ->
+        path = Keyword.get(opts, :path, "/")
+        "https://tuist.dev#{path}"
+      end)
+
+      commit_link = "[123456789](#{@git_remote_url_origin}/commit/#{@git_commit_sha})"
+
+      flaky_tests_table_rows =
+        Enum.map_join(displayed_flaky_tests, "", fn flaky_test ->
+          "| [#{flaky_test.name}](https://tuist.dev/#{project.account.name}/#{project.name}/tests/test-cases/#{flaky_test.test_case_id}) | MyModule |  |\n"
+        end)
+
+      expected_body =
+        """
+        ### 🛠️ Tuist Run Report 🛠️
+
+        #### Tests 🧪
+
+        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
+        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 0 % | 7 | 0 | 7 | #{commit_link} |
+
+
+        #### Flaky Tests ⚠️
+
+        - **test**: 7 flaky tests ([View all](https://tuist.dev/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=flaky-runs))
+
+        | Test case | Module | Suite |
+        |:-|:-|:-|
+        #{flaky_tests_table_rows}
+        > Showing 5 of 7 flaky tests. See links above for full details.
+
+        """
+
+      expect(Req, :post, fn opts ->
+        assert opts[:finch] == Tuist.Finch
+        assert opts[:headers] == @default_headers
+        assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
+        assert opts[:json] == %{body: expected_body}
+
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn _ -> "" end,
+        preview_qr_code_url: fn _ -> "" end,
+        command_run_url: fn _ -> "" end,
+        test_run_url: fn %{test_run: tr} -> "https://tuist.dev/test_runs/#{tr.id}" end,
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
+      })
+    end
+
+    test "deduplicates flaky tests by test_case_id across multiple test runs" do
+      # Given
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "tuist/tuist",
+            provider: :github
+          ]
+        )
+
+      # First test run has one flaky test (shared)
+      {:ok, _test_run_one} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha,
+          scheme: "test1",
+          ran_at: ~N[2024-04-30 03:00:00],
+          test_modules: [
+            %{
+              name: "SharedModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{
+                  name: "test_shared_flaky",
+                  status: "success",
+                  duration: 250,
+                  repetitions: [
+                    %{repetition_number: 1, name: "test_shared_flaky", status: "failure", duration: 100},
+                    %{repetition_number: 2, name: "test_shared_flaky", status: "success", duration: 150}
+                  ]
+                }
+              ]
+            }
+          ]
+        )
+
+      # Second test run has the same flaky test (shared) plus a unique one
+      {:ok, _test_run_two} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_ref: @git_ref,
+          git_commit_sha: @git_commit_sha,
+          scheme: "test2",
+          ran_at: ~N[2024-04-30 04:00:00],
+          test_modules: [
+            %{
+              name: "SharedModule",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "test_shared_flaky",
+                  status: "success",
+                  duration: 250,
+                  repetitions: [
+                    %{repetition_number: 1, name: "test_shared_flaky", status: "failure", duration: 100},
+                    %{repetition_number: 2, name: "test_shared_flaky", status: "success", duration: 150}
+                  ]
+                }
+              ]
+            },
+            %{
+              name: "UniqueModule",
+              status: "success",
+              duration: 500,
+              test_cases: [
+                %{
+                  name: "test_unique_flaky",
+                  status: "success",
+                  duration: 250,
+                  repetitions: [
+                    %{repetition_number: 1, name: "test_unique_flaky", status: "failure", duration: 100},
+                    %{repetition_number: 2, name: "test_unique_flaky", status: "success", duration: 150}
+                  ]
+                }
+              ]
+            }
+          ]
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      stub(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 200, body: []}}
+      end)
+
+      stub(Environment, :app_url, fn opts ->
+        path = Keyword.get(opts, :path, "/")
+        "https://tuist.dev#{path}"
+      end)
+
+      expect(Req, :post, fn opts ->
+        body = opts[:json][:body]
+
+        assert String.contains?(body, "test_shared_flaky")
+        assert String.contains?(body, "test_unique_flaky")
+
+        # Shared test should only appear once in the table (deduplicated by test_case_id)
+        shared_flaky_count =
+          body
+          |> String.split("\n")
+          |> Enum.count(&String.contains?(&1, "test_shared_flaky"))
+
+        assert shared_flaky_count == 1
+
+        assert String.contains?(body, "**test1**: 1 flaky test")
+        assert String.contains?(body, "**test2**: 2 flaky tests")
+        assert String.contains?(body, "tab=flaky-runs")
+
+        {:ok, %Req.Response{status: 200, body: %{}}}
+      end)
+
+      # When / Then
+      VCS.post_vcs_pull_request_comment(%{
+        project: project,
+        git_commit_sha: @git_commit_sha,
+        git_ref: @git_ref,
+        git_remote_url_origin: @git_remote_url_origin,
+        preview_url: fn _ -> "" end,
+        preview_qr_code_url: fn _ -> "" end,
+        command_run_url: fn _ -> "" end,
+        test_run_url: fn %{test_run: test_run} -> "https://tuist.dev/test_runs/#{test_run.id}" end,
+        bundle_url: fn _ -> "" end,
+        build_url: fn _ -> "" end
+      })
+    end
   end
 
   describe "create_comment/1" do

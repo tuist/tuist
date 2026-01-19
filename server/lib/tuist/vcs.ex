@@ -26,6 +26,7 @@ defmodule Tuist.VCS do
   alias Tuist.VCS.GitHubAppInstallation
 
   @tuist_run_report_prefix "### 🛠️ Tuist Run Report 🛠️"
+  @max_flaky_tests_in_comment 5
 
   @doc """
   Constructs a CI run URL based on the CI provider and metadata.
@@ -278,7 +279,13 @@ defmodule Tuist.VCS do
          issue_id: issue_id,
          installation_id: installation_id
        }) do
-    case client.get_comments(%{repository_full_handle: repository, issue_id: issue_id, installation_id: installation_id}) do
+    comments_params = %{
+      repository_full_handle: repository,
+      issue_id: issue_id,
+      installation_id: installation_id
+    }
+
+    case client.get_comments(comments_params) do
       {:ok, comments} ->
         Enum.find(comments, fn comment ->
           comment.client_id == Environment.github_app_client_id() and
@@ -381,14 +388,20 @@ defmodule Tuist.VCS do
         project: project
       })
 
-    if is_nil(previews_body) and is_nil(test_body) and is_nil(bundles_body) and
-         is_nil(builds_body) do
+    flaky_tests_body =
+      get_flaky_tests_body(%{
+        test_runs: test_runs,
+        project: project
+      })
+
+    bodies = [previews_body, test_body, flaky_tests_body, builds_body, bundles_body]
+
+    if Enum.all?(bodies, &is_nil/1) do
       nil
     else
       """
       #{@tuist_run_report_prefix}
-      """ <>
-        (previews_body || "") <> (test_body || "") <> (builds_body || "") <> (bundles_body || "")
+      """ <> Enum.map_join(bodies, "", &(&1 || ""))
     end
   end
 
@@ -586,6 +599,66 @@ defmodule Tuist.VCS do
     end
   end
 
+  defp get_flaky_tests_body(%{test_runs: test_runs, project: project}) do
+    flaky_tests_by_run =
+      test_runs
+      |> Enum.map(fn test_run ->
+        flaky_tests = Runs.get_flaky_runs_for_test_run(test_run.id)
+        {test_run, flaky_tests}
+      end)
+      |> Enum.filter(fn {_test_run, flaky_tests} -> Enum.any?(flaky_tests) end)
+
+    if Enum.empty?(flaky_tests_by_run) do
+      nil
+    else
+      project = Repo.preload(project, :account)
+
+      all_flaky_tests =
+        flaky_tests_by_run
+        |> Enum.flat_map(fn {_test_run, flaky_tests} -> flaky_tests end)
+        |> Enum.uniq_by(& &1.test_case_id)
+
+      total_flaky_count = length(all_flaky_tests)
+      displayed_flaky_tests = Enum.take(all_flaky_tests, @max_flaky_tests_in_comment)
+
+      runs_summary =
+        Enum.map_join(flaky_tests_by_run, "", fn {test_run, flaky_tests} ->
+          flaky_count = length(flaky_tests)
+          scheme = if test_run.scheme == "" or is_nil(test_run.scheme), do: "Unknown", else: test_run.scheme
+
+          flaky_runs_url =
+            Environment.app_url(
+              path: "/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=flaky-runs"
+            )
+
+          "- **#{scheme}**: #{flaky_count} flaky #{if flaky_count == 1, do: "test", else: "tests"} ([View all](#{flaky_runs_url}))\n"
+        end)
+
+      more_tests_note =
+        if total_flaky_count > @max_flaky_tests_in_comment do
+          "\n> Showing #{@max_flaky_tests_in_comment} of #{total_flaky_count} flaky tests. See links above for full details.\n"
+        else
+          ""
+        end
+
+      """
+
+      #### Flaky Tests ⚠️
+
+      #{runs_summary}
+      | Test case | Module | Suite |
+      |:-|:-|:-|
+      #{Enum.map_join(displayed_flaky_tests, "", fn flaky_test ->
+        test_case_url = Environment.app_url(path: "/#{project.account.name}/#{project.name}/tests/test-cases/#{flaky_test.test_case_id}")
+
+        """
+        | [#{flaky_test.name}](#{test_case_url}) | #{flaky_test.module_name} | #{flaky_test.suite_name} |
+        """
+      end)}#{more_tests_note}
+      """
+    end
+  end
+
   defp get_latest_builds(%{git_ref: git_ref, project: project}) do
     git_ref_pattern = get_git_ref_pattern(git_ref)
 
@@ -714,7 +787,8 @@ defmodule Tuist.VCS do
       [ttl: to_timeout(minute: 15)],
       fn ->
         # This can take long for organizations with a lot of repositories.
-        # Ideally, we would only fetch this information once, store it in the database, and then sync the repositories via webhooks.
+        # Ideally, we would only fetch this information once, store it in the database,
+        # and then sync the repositories via webhooks.
         # For now, we're sticking to this simple version.
         get_all_repositories_recursively(installation_id, [])
       end
