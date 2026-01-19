@@ -113,31 +113,33 @@ defmodule Cache.BodyReader do
         {:ok, conn_after, bytes_read}
 
       {:ok, chunk, conn_after} ->
-        bytes = bytes_read + byte_size(chunk)
-
-        if bytes > max_bytes do
-          {:error, :too_large, conn_after}
-        else
-          case writer.(chunk) do
-            :ok -> {:ok, conn_after, bytes}
-            {:error, reason} -> {:error, reason, conn_after}
-          end
-        end
+        write_chunk(conn_after, opts, device, bytes_read, chunk, writer, max_bytes, false)
 
       {:more, chunk, conn_after} ->
-        bytes = bytes_read + byte_size(chunk)
-
-        if bytes > max_bytes do
-          {:error, :too_large, conn_after}
-        else
-          case writer.(chunk) do
-            :ok -> read_loop(conn_after, opts, device, bytes, writer, max_bytes)
-            {:error, reason} -> {:error, reason, conn_after}
-          end
-        end
+        write_chunk(conn_after, opts, device, bytes_read, chunk, writer, max_bytes, true)
 
       {:error, reason} ->
         {:error, reason, conn}
+    end
+  end
+
+  defp write_chunk(conn, opts, device, bytes_read, chunk, writer, max_bytes, recurse?) do
+    bytes = bytes_read + byte_size(chunk)
+
+    if bytes > max_bytes do
+      {:error, :too_large, conn}
+    else
+      case writer.(chunk) do
+        :ok ->
+          if recurse? do
+            read_loop(conn, opts, device, bytes, writer, max_bytes)
+          else
+            {:ok, conn, bytes}
+          end
+
+        {:error, reason} ->
+          {:error, reason, conn}
+      end
     end
   end
 

@@ -3,6 +3,8 @@ defmodule Cache.Application do
 
   use Application
 
+  alias TuistCommon.Appsignal.ErrorFilter
+
   @impl true
   def start(_type, _args) do
     if System.get_env("SKIP_MIGRATIONS") != "true" do
@@ -51,7 +53,7 @@ defmodule Cache.Application do
   defp attach_appsignal_error_filter do
     :logger.add_primary_filter(
       :appsignal_error_filter,
-      {&TuistCommon.Appsignal.ErrorFilter.filter/2, []}
+      {&ErrorFilter.filter/2, []}
     )
   end
 

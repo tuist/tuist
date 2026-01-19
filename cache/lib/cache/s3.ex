@@ -5,6 +5,8 @@ defmodule Cache.S3 do
   Isolated behind a module for easy testing without mutating global config.
   """
 
+  alias ExAws.S3.Upload
+
   require Logger
 
   def presign_download_url(key) when is_binary(key) do
@@ -79,7 +81,7 @@ defmodule Cache.S3 do
       bucket = Application.get_env(:cache, :s3)[:bucket]
 
       case local_path
-           |> ExAws.S3.Upload.stream_file()
+           |> Upload.stream_file()
            |> ExAws.S3.upload(bucket, key)
            |> ExAws.request() do
         {:ok, _response} ->
