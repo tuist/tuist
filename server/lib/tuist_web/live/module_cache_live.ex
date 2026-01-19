@@ -3,11 +3,10 @@ defmodule TuistWeb.ModuleCacheLive do
   use TuistWeb, :live_view
   use Noora
 
+  import Ecto.Query
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
-
-  import Ecto.Query
 
   alias Tuist.CommandEvents
   alias Tuist.CommandEvents.Event
@@ -187,7 +186,7 @@ defmodule TuistWeb.ModuleCacheLive do
 
   defp assign_recent_runs(%{assigns: %{selected_project: project}} = socket, _params) do
     # Add 14-day filter to leverage ClickHouse partition pruning and reduce rows scanned
-    fourteen_days_ago = DateTime.utc_now() |> DateTime.add(-14, :day)
+    fourteen_days_ago = DateTime.add(DateTime.utc_now(), -14, :day)
 
     events =
       from(e in Event,
