@@ -12,13 +12,15 @@ function dismissBanner() {
 const PublicProjectCtaBanner = {
   mounted() {
     if (isBannerDismissed()) {
-      this.el.setAttribute("data-dismissed", "");
       return;
     }
+
+    this.el.setAttribute("data-ready", "");
 
     this.el.addEventListener("click", (e) => {
       if (e.target.closest("[data-part='dismiss']")) {
         dismissBanner();
+        this.el.removeAttribute("data-ready");
         this.el.setAttribute("data-dismissed", "");
       }
     });

@@ -1,5 +1,14 @@
 .public-project-cta-banner {
-  display: flex;
+  display: none;
+  container-type: inline-size;
+
+  &[data-ready] {
+    display: flex;
+  }
+
+  &[data-dismissed] {
+    display: none;
+  }
   flex-direction: column;
   position: relative;
   justify-content: center;
@@ -9,6 +18,7 @@
   padding: var(--noora-spacing-6) var(--noora-spacing-5);
   overflow: hidden;
   box-shadow: var(--noora-light-border-default);
+  margin: var(--noora-spacing-7) var(--noora-spacing-5) 0;
 
   & [data-part="background"] {
     position: absolute;
@@ -38,7 +48,7 @@
       background: light-dark(oklch(53.2% 0.276 286.9 / 0.06), oklch(53.2% 0.276 286.9 / 0.2));
       width: 70%;
       min-width: 300px;
-      height: 40vw;
+      height: 40cqw;
       transform: rotate(50deg);
 
       &::before {
@@ -51,7 +61,7 @@
         background: light-dark(oklch(53.2% 0.276 286.9 / 0.05), oklch(53.2% 0.276 286.9 / 0.15));
         width: 80%;
         min-width: 250px;
-        height: 25vw;
+        height: 25cqw;
         transform: rotate(-15deg);
       }
     }
@@ -65,7 +75,7 @@
       background: light-dark(oklch(53.2% 0.276 286.9 / 0.05), oklch(53.2% 0.276 286.9 / 0.12));
       width: 70%;
       min-width: 300px;
-      height: 20vw;
+      height: 20cqw;
       transform: rotate(-20deg);
     }
   }
@@ -134,9 +144,5 @@
       width: 16px;
       height: 16px;
     }
-  }
-
-  &[data-dismissed] {
-    display: none;
   }
 }
