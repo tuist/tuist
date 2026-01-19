@@ -1374,7 +1374,7 @@ defmodule Tuist.VCSTest do
       })
     end
 
-    test "limits flaky tests to 5 in comment" do
+    test "limits flaky tests to 5 in comment and shows truncation note" do
       # Given
       project =
         ProjectsFixtures.project_fixture(
@@ -1389,7 +1389,6 @@ defmodule Tuist.VCSTest do
         for i <- 1..7 do
           %{
             name: "test_flaky_#{i}",
-            test_suite_name: "Suite#{i}",
             status: "success",
             duration: 250,
             repetitions: [
@@ -1399,7 +1398,7 @@ defmodule Tuist.VCSTest do
           }
         end
 
-      {:ok, _test_run} =
+      {:ok, test_run} =
         RunsFixtures.test_fixture(
           project_id: project.id,
           account_id: project.account_id,
@@ -1419,6 +1418,10 @@ defmodule Tuist.VCSTest do
 
       RunsFixtures.optimize_test_case_runs()
 
+      # Get flaky tests and take first 5 (same as production code)
+      flaky_tests = Runs.get_flaky_runs_for_test_run(test_run.id)
+      displayed_flaky_tests = Enum.take(flaky_tests, 5)
+
       stub(Req, :get, fn _opts ->
         {:ok, %Req.Response{status: 200, body: []}}
       end)
@@ -1428,20 +1431,40 @@ defmodule Tuist.VCSTest do
         "https://tuist.dev#{path}"
       end)
 
+      commit_link = "[123456789](#{@git_remote_url_origin}/commit/#{@git_commit_sha})"
+
+      flaky_tests_table_rows =
+        Enum.map_join(displayed_flaky_tests, "", fn flaky_test ->
+          "| [#{flaky_test.name}](https://tuist.dev/#{project.account.name}/#{project.name}/tests/test-cases/#{flaky_test.test_case_id}) | MyModule |  |\n"
+        end)
+
+      expected_body =
+        """
+        ### 🛠️ Tuist Run Report 🛠️
+
+        #### Tests 🧪
+
+        | Scheme | Status | Cache hit rate | Tests | Skipped | Ran | Commit |
+        |:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+        | [test](https://tuist.dev/test_runs/#{test_run.id}) | ✅ | 0 % | 7 | 0 | 7 | #{commit_link} |
+
+
+        #### Flaky Tests ⚠️
+
+        - **test**: 7 flaky tests ([View all](https://tuist.dev/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=flaky-runs))
+
+        | Test case | Module | Suite |
+        |:-|:-|:-|
+        #{flaky_tests_table_rows}
+        > Showing 5 of 7 flaky tests. See links above for full details.
+
+        """
+
       expect(Req, :post, fn opts ->
-        body = opts[:json][:body]
-
-        flaky_test_rows =
-          body
-          |> String.split("\n")
-          |> Enum.filter(&String.starts_with?(&1, "| [test_flaky_"))
-
-        assert length(flaky_test_rows) == 5
-
-        assert String.contains?(body, "7 flaky tests")
-        assert String.contains?(body, "View all")
-        assert String.contains?(body, "tab=flaky-runs")
-        assert String.contains?(body, "Showing 5 of 7 flaky tests")
+        assert opts[:finch] == Tuist.Finch
+        assert opts[:headers] == @default_headers
+        assert opts[:url] == "https://api.github.com/repos/tuist/tuist/issues/1/comments"
+        assert opts[:json] == %{body: expected_body}
 
         {:ok, %Req.Response{status: 200, body: %{}}}
       end)
