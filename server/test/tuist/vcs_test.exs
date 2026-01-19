@@ -1277,18 +1277,12 @@ defmodule Tuist.VCSTest do
         )
 
       {:ok, test_run} =
-        Runs.create_test(%{
-          id: UUIDv7.generate(),
+        RunsFixtures.test_fixture(
           project_id: project.id,
           account_id: project.account_id,
           git_ref: @git_ref,
           git_commit_sha: @git_commit_sha,
-          status: "success",
           scheme: "test",
-          duration: 1000,
-          macos_version: "11.2.3",
-          xcode_version: "12.4",
-          is_ci: false,
           ran_at: ~N[2024-04-30 03:00:00],
           test_modules: [
             %{
@@ -1316,7 +1310,7 @@ defmodule Tuist.VCSTest do
               ]
             }
           ]
-        })
+        )
 
       RunsFixtures.optimize_test_case_runs()
 
@@ -1406,18 +1400,12 @@ defmodule Tuist.VCSTest do
         end
 
       {:ok, _test_run} =
-        Runs.create_test(%{
-          id: UUIDv7.generate(),
+        RunsFixtures.test_fixture(
           project_id: project.id,
           account_id: project.account_id,
           git_ref: @git_ref,
           git_commit_sha: @git_commit_sha,
-          status: "success",
           scheme: "test",
-          duration: 1000,
-          macos_version: "11.2.3",
-          xcode_version: "12.4",
-          is_ci: false,
           ran_at: ~N[2024-04-30 03:00:00],
           test_modules: [
             %{
@@ -1427,7 +1415,7 @@ defmodule Tuist.VCSTest do
               test_cases: flaky_test_cases
             }
           ]
-        })
+        )
 
       RunsFixtures.optimize_test_case_runs()
 
@@ -1485,18 +1473,12 @@ defmodule Tuist.VCSTest do
 
       # First test run has one flaky test (shared)
       {:ok, _test_run_one} =
-        Runs.create_test(%{
-          id: UUIDv7.generate(),
+        RunsFixtures.test_fixture(
           project_id: project.id,
           account_id: project.account_id,
           git_ref: @git_ref,
           git_commit_sha: @git_commit_sha,
-          status: "success",
           scheme: "test1",
-          duration: 1000,
-          macos_version: "11.2.3",
-          xcode_version: "12.4",
-          is_ci: false,
           ran_at: ~N[2024-04-30 03:00:00],
           test_modules: [
             %{
@@ -1516,22 +1498,16 @@ defmodule Tuist.VCSTest do
               ]
             }
           ]
-        })
+        )
 
       # Second test run has the same flaky test (shared) plus a unique one
       {:ok, _test_run_two} =
-        Runs.create_test(%{
-          id: UUIDv7.generate(),
+        RunsFixtures.test_fixture(
           project_id: project.id,
           account_id: project.account_id,
           git_ref: @git_ref,
           git_commit_sha: @git_commit_sha,
-          status: "success",
           scheme: "test2",
-          duration: 1000,
-          macos_version: "11.2.3",
-          xcode_version: "12.4",
-          is_ci: false,
           ran_at: ~N[2024-04-30 04:00:00],
           test_modules: [
             %{
@@ -1567,7 +1543,7 @@ defmodule Tuist.VCSTest do
               ]
             }
           ]
-        })
+        )
 
       RunsFixtures.optimize_test_case_runs()
 
