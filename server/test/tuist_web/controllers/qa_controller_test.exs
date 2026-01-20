@@ -40,7 +40,11 @@ defmodule TuistWeb.QAControllerTest do
       expected_key =
         "#{String.downcase(account.name)}/#{String.downcase(project.name)}/qa/#{qa_run.id}/screenshots/#{screenshot.id}.png"
 
-      stub(Storage, :stream_object, fn ^expected_key, _actor ->
+      expect(Storage, :object_exists?, fn ^expected_key, _actor ->
+        true
+      end)
+
+      expect(Storage, :stream_object, fn ^expected_key, _actor ->
         ["chunk1", "chunk2", "chunk3"]
       end)
 
@@ -55,6 +59,37 @@ defmodule TuistWeb.QAControllerTest do
       assert conn.status == 200
       assert get_resp_header(conn, "content-type") == ["image/png"]
       assert conn.state == :chunked
+    end
+
+    test "returns not found when screenshot object is missing", %{
+      conn: conn,
+      account: account,
+      project: project,
+      qa_run: qa_run,
+      screenshot: screenshot
+    } do
+      # Given
+      expected_key =
+        "#{String.downcase(account.name)}/#{String.downcase(project.name)}/qa/#{qa_run.id}/screenshots/#{screenshot.id}.png"
+
+      expect(Storage, :object_exists?, fn ^expected_key, _actor ->
+        false
+      end)
+
+      stub(Storage, :stream_object, fn _object_key, _actor ->
+        flunk("stream_object/2 should not be called when object is missing")
+      end)
+
+      # When
+      conn =
+        get(
+          conn,
+          ~p"/#{account.name}/#{project.name}/qa/runs/#{qa_run.id}/screenshots/#{screenshot.id}"
+        )
+
+      # Then
+      assert conn.status == 404
+      assert conn.resp_body == ""
     end
 
     test "raises NotFoundError when screenshot ID doesn't exist", %{

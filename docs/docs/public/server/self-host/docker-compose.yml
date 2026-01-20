@@ -1,0 +1,268 @@
+# Tuist Server - Local Development Docker Compose
+# This configuration provides a complete local development environment
+# with all dependencies included (PostgreSQL, ClickHouse, MinIO, Redis)
+
+services:
+  # PostgreSQL with TimescaleDB extension
+  postgres:
+    image: timescale/timescaledb-ha:pg16
+    container_name: tuist-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tuist
+      POSTGRES_PASSWORD: tuist_dev_password
+      POSTGRES_DB: tuist_dev
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tuist -d tuist_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tuist-network
+
+  # ClickHouse Keeper for coordination (required for ClickHouse 25.x)
+  clickhouse-keeper:
+    image: clickhouse/clickhouse-keeper:25.5-alpine
+    container_name: tuist-clickhouse-keeper
+    restart: unless-stopped
+    hostname: clickhouse-keeper
+    ports:
+      - '9181:9181'
+    volumes:
+      - clickhouse_keeper_data:/var/lib/clickhouse-keeper
+      - ./clickhouse-keeper-config.xml:/etc/clickhouse-keeper/keeper_config.xml:ro
+    networks:
+      - tuist-network
+
+  # ClickHouse for analytics (optional but recommended)
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.5-alpine
+    container_name: tuist-clickhouse
+    restart: unless-stopped
+    depends_on:
+      clickhouse-keeper:
+        condition: service_started
+    environment:
+      CLICKHOUSE_DB: tuist_dev
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: clickhouse_dev_password
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+      # Configure ClickHouse Keeper
+      CLICKHOUSE_KEEPER_SERVER: clickhouse-keeper:9181
+    ports:
+      - '8124:8123'  # HTTP interface (using 8124 to avoid conflicts)
+      - '9001:9000'  # Native client (using 9001 to avoid conflicts)
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./clickhouse-config.xml:/etc/clickhouse-server/config.d/keeper.xml:ro
+    networks:
+      - tuist-network
+
+  # MinIO for S3-compatible storage
+  minio:
+    image: minio/minio:latest
+    container_name: tuist-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: tuist
+      MINIO_ROOT_PASSWORD: tuist_dev_password
+    ports:
+      - '9002:9000'  # API (using 9002 to avoid conflicts with ClickHouse)
+      - '9003:9001'  # Console (using 9003 to avoid conflicts)
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tuist-network
+
+  # MinIO bucket creation (runs once to create the bucket)
+  minio-setup:
+    image: minio/mc:latest
+    container_name: tuist-minio-setup
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set tuist-minio http://minio:9000 tuist tuist_dev_password;
+      mc mb tuist-minio/tuist-dev-bucket --ignore-existing;
+      mc anonymous set download tuist-minio/tuist-dev-bucket;
+      exit 0;
+      "
+    networks:
+      - tuist-network
+
+  # Redis for persistent KV storage across deploys (optional)
+  redis:
+    image: redis:7-alpine
+    container_name: tuist-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - tuist-network
+
+  # PostgreSQL web UI (optional, for development convenience)
+  pgweb:
+    image: sosedoff/pgweb:latest
+    container_name: tuist-pgweb
+    restart: unless-stopped
+    ports:
+      - '8081:8081'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGWEB_DATABASE_URL: postgres://tuist:tuist_dev_password@postgres:5432/tuist_dev?sslmode=disable
+    networks:
+      - tuist-network
+
+  # Tuist Server
+  tuist:
+    image: ghcr.io/tuist/tuist:latest
+    platform: linux/amd64  # Required for Apple Silicon Macs
+    container_name: tuist-server
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_started
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - '8080:8080'  # Main application
+      - '9091:9091'  # Prometheus metrics (optional)
+    environment:
+      # ============================================
+      # Application Configuration
+      # ============================================
+      TUIST_WEB: 'true'
+      TUIST_HOSTED: '0'
+      MIX_ENV: 'dev'
+
+      # ============================================
+      # Database Configuration
+      # ============================================
+      DATABASE_URL: postgres://tuist:tuist_dev_password@postgres:5432/tuist_dev?sslmode=disable
+      TUIST_CLICKHOUSE_URL: http://default:clickhouse_dev_password@clickhouse:8123/tuist_dev
+      TUIST_USE_SSL_FOR_DATABASE: '0'
+      TUIST_DATABASE_POOL_SIZE: '10'
+
+      # ============================================
+      # Secrets Configuration
+      # ============================================
+      # Load from .env file or set directly
+      TUIST_SECRET_KEY_BASE: ${TUIST_SECRET_KEY_BASE:-c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa}
+
+      # ============================================
+      # License Configuration
+      # ============================================
+      # Load from .env file (required for production)
+      TUIST_LICENSE: ${TUIST_LICENSE:-}
+
+      # ============================================
+      # S3 Storage Configuration (MinIO)
+      # ============================================
+      TUIST_S3_ACCESS_KEY_ID: tuist
+      TUIST_S3_SECRET_ACCESS_KEY: tuist_dev_password
+      TUIST_S3_BUCKET_NAME: tuist-dev-bucket
+      TUIST_S3_REGION: us-east-1
+      TUIST_S3_ENDPOINT: http://minio:9000
+      TUIST_S3_VIRTUAL_HOST: 'false'
+      TUIST_S3_PROTOCOL: http1
+
+      # ============================================
+      # Application URL
+      # ============================================
+      TUIST_APP_URL: http://localhost:8080
+
+      # ============================================
+      # Redis Configuration (persistent KV storage)
+      # ============================================
+      TUIST_REDIS_URL: redis://redis:6379
+
+      # ============================================
+      # Email Configuration (optional - skipped by default in dev)
+      # ============================================
+      TUIST_SKIP_EMAIL_CONFIRMATION: 'true'
+      # Uncomment to test email functionality with Mailgun:
+      # TUIST_MAILGUN_API_KEY: 'your-mailgun-api-key'
+      # TUIST_MAILING_DOMAIN: 'mg.yourdomain.com'
+      # TUIST_MAILING_FROM_ADDRESS: 'noreply@yourdomain.com'
+
+      # ============================================
+      # Authentication Configuration
+      # ============================================
+      # At least one authentication method is required for users to log in
+      # Configure in .env file or uncomment and set directly:
+
+      # GitHub OAuth
+      TUIST_GITHUB_APP_CLIENT_ID: ${TUIST_GITHUB_APP_CLIENT_ID:-}
+      TUIST_GITHUB_APP_CLIENT_SECRET: ${TUIST_GITHUB_APP_CLIENT_SECRET:-}
+
+      # Google OAuth
+      TUIST_GOOGLE_OAUTH_CLIENT_ID: ${TUIST_GOOGLE_OAUTH_CLIENT_ID:-}
+      TUIST_GOOGLE_OAUTH_CLIENT_SECRET: ${TUIST_GOOGLE_OAUTH_CLIENT_SECRET:-}
+
+      # Apple Sign In
+      # TUIST_APPLE_SERVICE_CLIENT_ID: 'your-apple-service-id'
+      # TUIST_APPLE_TEAM_ID: 'your-apple-team-id'
+      # TUIST_APPLE_PRIVATE_KEY_ID: 'your-apple-key-id'
+      # TUIST_APPLE_PRIVATE_KEY: 'your-apple-private-key'
+
+      # ============================================
+      # Monitoring Configuration (optional)
+      # ============================================
+      TUIST_PROMETHEUS_ENABLED: 'true'
+      # TUIST_APP_SIGNAL_PUSH_API_KEY: 'your-appsignal-key'
+      # TUIST_POSTHOG_API_KEY: 'your-posthog-key'
+      # TUIST_POSTHOG_URL: 'https://app.posthog.com'
+
+      # ============================================
+      # Development Settings
+      # ============================================
+      TUIST_LOG_LEVEL: 'info'
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - tuist-network
+
+networks:
+  tuist-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  clickhouse_data:
+    driver: local
+  clickhouse_keeper_data:
+    driver: local
+  minio_data:
+    driver: local
+  redis_data:
+    driver: local

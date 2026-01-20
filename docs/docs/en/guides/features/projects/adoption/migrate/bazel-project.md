@@ -39,7 +39,7 @@ let project = Project(
 <!-- -->
 :::
 
-Here's another example but compating how to define unit tests in Bazel and Tuist:
+Here's another example but comparing how to define unit tests in Bazel and Tuist:
 
 ::: code-group
 ```txt [BUILD (Bazel)]

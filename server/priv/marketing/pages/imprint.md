@@ -1,9 +1,10 @@
 ---
-title: Imprint · Tuist
+title: Imprint
 description: Tuist was built for the future of Xcode development. We believe that code is abundant and should be owned by both everyone and no one.
+last_updated: 2023-10-23
 ---
 
-# Imprint
+## Company
 
 - **Tuist GmbH**
 - Managing Directors: Pedro Piñera Buendía, Marek Fořt

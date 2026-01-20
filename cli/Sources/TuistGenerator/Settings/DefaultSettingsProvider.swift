@@ -34,7 +34,6 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         "CLANG_ANALYZER_NONNULL",
         "CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION",
         "CLANG_CXX_LANGUAGE_STANDARD",
-        "CLANG_CXX_LIBRARY",
         "CLANG_ENABLE_MODULES",
         "CLANG_ENABLE_OBJC_ARC",
         "CLANG_ENABLE_OBJC_WEAK",
@@ -100,8 +99,8 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         let settingsHelper = SettingsHelper()
         let defaultSettings = project.settings.defaultSettings
         let variant = settingsHelper.variant(buildConfiguration)
-        let projectDefaultAll = try BuildSettingsProvider.projectDefault(variant: .all).toSettings()
-        let projectDefaultVariant = try BuildSettingsProvider.projectDefault(variant: variant).toSettings()
+        let projectDefaultAll = BuildSettingsProvider.projectDefault(variant: .all).toSettings()
+        let projectDefaultVariant = BuildSettingsProvider.projectDefault(variant: variant).toSettings()
         let filter = try await createFilter(
             defaultSettings: defaultSettings,
             essentialKeys: DefaultSettingsProvider.essentialProjectSettings
@@ -177,14 +176,14 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         let product = settingsHelper.settingsProviderProduct(target)
         let settingsPlatform = settingsHelper.settingsProviderPlatform(platform)
         let variant = settingsHelper.variant(buildConfiguration)
-        let targetDefaultAll = try BuildSettingsProvider.targetDefault(
+        let targetDefaultAll = BuildSettingsProvider.targetDefault(
             variant: .all,
             platform: settingsPlatform,
             product: product,
             swift: true
         ).toSettings()
         let additionalTargetDefaults = additionalTargetSettings(for: target)
-        let targetDefaultVariant = try BuildSettingsProvider.targetDefault(
+        let targetDefaultVariant = BuildSettingsProvider.targetDefault(
             variant: variant,
             platform: settingsPlatform,
             product: product,

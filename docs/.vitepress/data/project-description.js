@@ -2,7 +2,12 @@ import * as path from "node:path";
 import fg from "fast-glob";
 import fs from "node:fs";
 
+const MANIFEST_REFERENCE_LOCALE = "en";
+
 export async function paths(locale) {
+  if (locale !== MANIFEST_REFERENCE_LOCALE) {
+    return [];
+  }
   return (await loadData()).map((item) => {
     return {
       params: {

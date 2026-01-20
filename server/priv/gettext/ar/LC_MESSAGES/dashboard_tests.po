@@ -1,0 +1,1110 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-12-24 14:50+0000\n"
+"PO-Revision-Date: 2025-12-24 20:50+0000\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Language-Team: Arabic <https://translate.tuist.dev/projects/tuist/"
+"dashboard_tests/ar/>\n"
+"Language: ar\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 "
+"&& n%100<=10 ? 3 : n%100>=11 ? 4 : 5;\n"
+"X-Generator: Weblate 5.15.1\n"
+
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new messages manually only if they're dynamic
+## messages that can't be statically extracted.
+##
+## Run "mix gettext.extract" to bring this file up to
+## date. Leave "msgstr"s empty as changing them here has no
+## effect: edit them in PO (.po) files instead.
+#
+#: lib/tuist_web/live/test_run_live.html.heex:253
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{duration}s"
+msgstr "%{المدة}s"
+
+#: lib/tuist_web/live/test_run_live.html.heex:153
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{run_duration}s"
+msgstr "%{مدّة_التشغيل}s"
+
+#: lib/tuist_web/live/tests_live.html.heex:537
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{selective_test_effectiveness}%"
+msgstr "%{{انتقائية_اختبار_الفعالية_الانتقائية}%"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1296
+#, elixir-autogen, elixir-format, fuzzy
+msgid "All tests passed!"
+msgstr "نجحت جميع الاختبارات!"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:2
+#: lib/tuist_web/live/test_runs_live.html.heex:2
+#: lib/tuist_web/live/tests_live.html.heex:2
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Analytics"
+msgstr "التحليلات"
+
+#: lib/tuist_web/live/test_cases_live.ex:293
+#: lib/tuist_web/live/test_runs_live.ex:326
+#: lib/tuist_web/live/tests_live.ex:284
+#: lib/tuist_web/live/tests_live.html.heex:11
+#: lib/tuist_web/live/tests_live.html.heex:454
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Any"
+msgstr "أي"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:324
+#: lib/tuist_web/live/test_runs_live.html.heex:319
+#: lib/tuist_web/live/tests_live.html.heex:254
+#: lib/tuist_web/live/tests_live.html.heex:616
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Average"
+msgstr "المتوسط"
+
+#: lib/tuist_web/live/test_run_live.html.heex:216
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Average duration of all test cases."
+msgstr "متوسط المدة الزمنية لجميع حالات الاختبار."
+
+#: lib/tuist_web/live/test_cases_live.html.heex:140
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Average duration of individual test case executions during a given period."
+msgstr "متوسط مدة تنفيذ حالات الاختبار الفردية خلال فترة معينة."
+
+#: lib/tuist_web/live/test_runs_live.html.heex:138
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Average duration of test runs during a given period."
+msgstr "متوسط مدة تشغيل الاختبار خلال فترة معينة."
+
+#: lib/tuist_web/live/test_case_live.html.heex:142
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Average duration of this test case across the last 50 runs."
+msgstr "متوسط المدة الزمنية لحالة الاختبار هذه عبر آخر 50 عملية تشغيل."
+
+#: lib/tuist_web/live/test_cases_live.html.heex:402
+#: lib/tuist_web/live/test_cases_live.html.heex:426
+#: lib/tuist_web/live/test_cases_live.html.heex:486
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Avg. duration"
+msgstr "متوسط المدة"
+
+#: lib/tuist_web/live/test_run_live.ex:737
+#: lib/tuist_web/live/test_run_live.ex:788
+#: lib/tuist_web/live/test_run_live.html.heex:215
+#: lib/tuist_web/live/test_run_live.html.heex:574
+#: lib/tuist_web/live/test_run_live.html.heex:603
+#: lib/tuist_web/live/test_run_live.html.heex:659
+#: lib/tuist_web/live/test_run_live.html.heex:773
+#: lib/tuist_web/live/test_run_live.html.heex:810
+#: lib/tuist_web/live/test_run_live.html.heex:880
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Avg. test case duration"
+msgstr "متوسط مدة الاختبار"
+
+#: lib/tuist_web/live/test_case_live.html.heex:140
+#: lib/tuist_web/live/test_cases_live.ex:261
+#: lib/tuist_web/live/test_cases_live.html.heex:125
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Avg. test case run duration"
+msgstr "متوسط مدة تشغيل حالة الاختبار"
+
+#: lib/tuist_web/live/test_runs_live.ex:294
+#: lib/tuist_web/live/test_runs_live.html.heex:123
+#: lib/tuist_web/live/tests_live.html.heex:122
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Avg. test run duration"
+msgstr "متوسط مدة تشغيل الاختبار"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1131
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Binary Cache"
+msgstr "ذاكرة التخزين المؤقت الثنائية"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1093
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Binary cache hits"
+msgstr "زيارات ذاكرة التخزين المؤقت الثنائية"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1107
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Binary cache misses"
+msgstr "أخطاء ذاكرة التخزين المؤقت الثنائية"
+
+#: lib/tuist_web/live/test_run_live.html.heex:167
+#: lib/tuist_web/live/test_runs_live.ex:52
+#: lib/tuist_web/live/test_runs_live.html.heex:437
+#: lib/tuist_web/live/tests_live.html.heex:796
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Branch"
+msgstr "الفرع"
+
+#: lib/tuist_web/live/test_run_live.html.heex:43
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Build: %{scheme}"
+msgstr "البناء: %{نظام}"
+
+#: lib/tuist_web/live/test_case_live.ex:90
+#: lib/tuist_web/live/test_cases_live.ex:295
+#: lib/tuist_web/live/test_runs_live.ex:328
+#: lib/tuist_web/live/tests_live.ex:286
+#: lib/tuist_web/live/tests_live.html.heex:27
+#: lib/tuist_web/live/tests_live.html.heex:470
+#, elixir-autogen, elixir-format, fuzzy
+msgid "CI"
+msgstr "CI"
+
+#: lib/tuist_web/live/test_run_live.html.heex:68
+#, elixir-autogen, elixir-format, fuzzy
+msgid "CI Run"
+msgstr "تشغيل CI"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1118
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cache hit rate"
+msgstr "معدل الوصول إلى ذاكرة التخزين المؤقت"
+
+#: lib/tuist_web/live/test_run_live.ex:828
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Caught error"
+msgstr "خطأ تم اكتشافه"
+
+#: lib/tuist_web/live/test_run_live.ex:856
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Caught error at %{location}"
+msgstr "تم اكتشاف خطأ في %{الموقع}"
+
+#: lib/tuist_web/live/test_run_live.ex:859
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Caught error at %{location}: %{message}"
+msgstr "تم اكتشاف خطأ في %{الموقع}: %{الرسالة}"
+
+#: lib/tuist_web/live/test_run_live.ex:831
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Caught error: %{message}"
+msgstr "خطأ تم اكتشافه: %{رسالة}"
+
+#: lib/tuist_web/live/test_run_live.html.heex:230
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Command"
+msgstr "الأوامر"
+
+#: lib/tuist_web/live/test_run_live.html.heex:250
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Command duration"
+msgstr "مدة الأمر"
+
+#: lib/tuist_web/live/test_run_live.html.heex:176
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Commit"
+msgstr "الالتزام"
+
+#: lib/tuist_web/live/test_run_live.html.heex:94
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Compilation Optimizations"
+msgstr "تحسينات التجميع المحسنة"
+
+#: lib/tuist_web/live/test_run_live.html.heex:59
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Download result"
+msgstr "نتيجة التحميل"
+
+#: lib/tuist_web/live/test_case_live.ex:69
+#: lib/tuist_web/live/test_case_live.html.heex:182
+#: lib/tuist_web/live/test_case_live.html.heex:198
+#: lib/tuist_web/live/test_case_live.html.heex:246
+#: lib/tuist_web/live/test_run_live.ex:702
+#: lib/tuist_web/live/test_run_live.ex:745
+#: lib/tuist_web/live/test_run_live.ex:796
+#: lib/tuist_web/live/test_run_live.html.heex:150
+#: lib/tuist_web/live/test_run_live.html.heex:409
+#: lib/tuist_web/live/test_run_live.html.heex:424
+#: lib/tuist_web/live/test_run_live.html.heex:484
+#: lib/tuist_web/live/test_run_live.html.heex:577
+#: lib/tuist_web/live/test_run_live.html.heex:611
+#: lib/tuist_web/live/test_run_live.html.heex:699
+#: lib/tuist_web/live/test_run_live.html.heex:776
+#: lib/tuist_web/live/test_run_live.html.heex:818
+#: lib/tuist_web/live/test_run_live.html.heex:915
+#: lib/tuist_web/live/test_runs_live.html.heex:450
+#: lib/tuist_web/live/tests_live.html.heex:809
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Duration"
+msgstr "المدة"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:7
+#: lib/tuist_web/live/test_runs_live.html.heex:7
+#: lib/tuist_web/live/tests_live.html.heex:7
+#: lib/tuist_web/live/tests_live.html.heex:450
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Environment:"
+msgstr "البيئة:"
+
+#: lib/tuist_web/live/test_run_live.ex:822
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Expectation failed"
+msgstr "فشل التوقع"
+
+#: lib/tuist_web/live/test_run_live.ex:847
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Expectation failed at %{location}"
+msgstr "فشل التوقع عند %{الموقع}"
+
+#: lib/tuist_web/live/test_run_live.ex:850
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Expectation failed at %{location}: %{message}"
+msgstr "فشل التوقع في %{الموقع}: %{الرسالة}"
+
+#: lib/tuist_web/live/test_run_live.ex:825
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Expectation failed: %{message}"
+msgstr "فشل التوقع: %{الرسالة}"
+
+#: lib/tuist_web/live/test_case_live.ex:60
+#: lib/tuist_web/live/test_case_live.html.heex:75
+#: lib/tuist_web/live/test_case_live.html.heex:236
+#: lib/tuist_web/live/test_cases_live.ex:41
+#: lib/tuist_web/live/test_cases_live.html.heex:513
+#: lib/tuist_web/live/test_run_live.ex:715
+#: lib/tuist_web/live/test_run_live.ex:758
+#: lib/tuist_web/live/test_run_live.ex:809
+#: lib/tuist_web/live/test_run_live.html.heex:129
+#: lib/tuist_web/live/test_run_live.html.heex:512
+#: lib/tuist_web/live/test_run_live.html.heex:687
+#: lib/tuist_web/live/test_run_live.html.heex:908
+#: lib/tuist_web/live/test_runs_live.ex:43
+#: lib/tuist_web/live/test_runs_live.html.heex:428
+#: lib/tuist_web/live/tests_live.html.heex:787
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed"
+msgstr "فشل"
+
+#: lib/tuist_web/live/test_runs_live.ex:277
+#: lib/tuist_web/live/test_runs_live.html.heex:102
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed run count"
+msgstr "عدد مرات التشغيل الفاشلة"
+
+#: lib/tuist_web/live/test_runs_live.html.heex:104
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed run count represents a number of how many test runs failed during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
+msgstr ""
+"يمثل عدد عمليات التشغيل الفاشلة عددًا لعدد عمليات تشغيل الاختبار الفاشلة خلال "
+"فترة معينة. يتم تنفيذ عملية تشغيل الاختبار إما عن طريق تشغيل 'اختبار tuist "
+"test' أو 'اختبار tuist xcodebuild test'."
+
+#: lib/tuist_web/live/tests_live.html.heex:709
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed runs"
+msgstr "عمليات التشغيل الفاشلة"
+
+#: lib/tuist_web/live/test_case_live.html.heex:133
+#: lib/tuist_web/live/test_cases_live.ex:244
+#: lib/tuist_web/live/test_cases_live.html.heex:102
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed test case runs"
+msgstr "فشل تشغيل حالة اختبار فاشلة"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:104
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed test case runs represents the number of individual test case executions that failed during a given period."
+msgstr ""
+"تمثل عمليات تشغيل حالات الاختبار الفاشلة عدد عمليات تنفيذ حالات الاختبار الفردية "
+"التي فشلت خلال فترة معينة."
+
+#: lib/tuist_web/live/test_run_live.html.heex:209
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed test cases"
+msgstr "حالات الاختبار الفاشلة"
+
+#: lib/tuist_web/live/tests_live.html.heex:102
+#: lib/tuist_web/live/tests_live.html.heex:421
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed test runs"
+msgstr "عمليات الاختبار الفاشلة"
+
+#: lib/tuist_web/live/test_run_live.html.heex:101
+#: lib/tuist_web/live/test_run_live.html.heex:275
+#: lib/tuist_web/live/test_run_live.html.heex:282
+#: lib/tuist_web/live/test_run_live.html.heex:1215
+#: lib/tuist_web/live/test_run_live.html.heex:1222
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failures"
+msgstr "الإخفاقات"
+
+#: lib/tuist_web/live/test_case_live.html.heex:207
+#: lib/tuist_web/live/test_cases_live.html.heex:435
+#: lib/tuist_web/live/test_run_live.html.heex:433
+#: lib/tuist_web/live/test_run_live.html.heex:620
+#: lib/tuist_web/live/test_run_live.html.heex:827
+#: lib/tuist_web/live/test_runs_live.html.heex:394
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Filter"
+msgstr "التصفية"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1058
+#: lib/tuist_web/live/test_run_live.html.heex:1186
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Hash"
+msgstr "تجزئة"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1036
+#: lib/tuist_web/live/test_run_live.html.heex:1164
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Hit"
+msgstr "ضرب"
+
+#: lib/tuist_web/live/test_run_live.ex:834
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Issue recorded"
+msgstr "تم تسجيل الإصدار"
+
+#: lib/tuist_web/live/test_run_live.ex:865
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Issue recorded at %{location}"
+msgstr "تم تسجيل المشكلة في %{الموقع}"
+
+#: lib/tuist_web/live/test_run_live.ex:868
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Issue recorded at %{location}: %{message}"
+msgstr "تم تسجيل المشكلة في %{الموقع}: %{الرسالة}"
+
+#: lib/tuist_web/live/test_run_live.ex:837
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Issue recorded: %{message}"
+msgstr "تم تسجيل المشكلة: %{الرسالة}"
+
+#: lib/tuist_web/live/test_case_live.html.heex:65
+#: lib/tuist_web/live/test_cases_live.ex:36
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last Status"
+msgstr "الحالة الأخيرة"
+
+#: lib/tuist_web/live/test_case_live.html.heex:98
+#: lib/tuist_web/live/test_cases_live.html.heex:403
+#: lib/tuist_web/live/test_cases_live.html.heex:410
+#: lib/tuist_web/live/test_cases_live.html.heex:523
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last ran at"
+msgstr "آخر مرة ركض فيها"
+
+#: lib/tuist_web/live/test_case_live.html.heex:89
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last run duration"
+msgstr "مدة التشغيل الأخير"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:505
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last status"
+msgstr "الحالة الأخيرة"
+
+#: lib/tuist_web/live/test_cases_live.ex:294
+#: lib/tuist_web/live/test_run_live.html.heex:1046
+#: lib/tuist_web/live/test_run_live.html.heex:1174
+#: lib/tuist_web/live/test_runs_live.ex:327
+#: lib/tuist_web/live/tests_live.ex:285
+#: lib/tuist_web/live/tests_live.html.heex:19
+#: lib/tuist_web/live/tests_live.html.heex:462
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Local"
+msgstr "محلي"
+
+#: lib/tuist_web/live/test_run_live.html.heex:184
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Mac device"
+msgstr "جهاز Mac"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1052
+#: lib/tuist_web/live/test_run_live.html.heex:1180
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Missed"
+msgstr "فائتة"
+
+#: lib/tuist_web/live/test_case_live.html.heex:41
+#: lib/tuist_web/live/test_cases_live.ex:50
+#: lib/tuist_web/live/test_run_live.html.heex:764
+#: lib/tuist_web/live/test_run_live.html.heex:779
+#: lib/tuist_web/live/test_run_live.html.heex:786
+#: lib/tuist_web/live/test_run_live.html.heex:838
+#: lib/tuist_web/live/test_run_live.html.heex:1022
+#: lib/tuist_web/live/test_run_live.html.heex:1150
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Module"
+msgstr "الوحدة النمطية"
+
+#: lib/tuist_web/live/test_run_live.html.heex:379
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Modules"
+msgstr "الوحدات النمطية"
+
+#: lib/tuist_web/live/test_case_live.html.heex:121
+#: lib/tuist_web/live/test_case_live.html.heex:154
+#: lib/tuist_web/live/test_cases_live.html.heex:184
+#: lib/tuist_web/live/test_runs_live.html.heex:179
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No data"
+msgstr "لا توجد بيانات"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:375
+#: lib/tuist_web/live/test_cases_live.html.heex:550
+#: lib/tuist_web/live/test_runs_live.html.heex:370
+#: lib/tuist_web/live/test_runs_live.html.heex:473
+#: lib/tuist_web/live/tests_live.html.heex:432
+#: lib/tuist_web/live/tests_live.html.heex:824
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No data yet"
+msgstr "لا توجد بيانات بعد"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1295
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No failures detected"
+msgstr "لم يتم اكتشاف أي أعطال"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1066
+#: lib/tuist_web/live/test_run_live.html.heex:1194
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No modules found"
+msgstr "لم يتم العثور على أي وحدات"
+
+#: lib/tuist_web/live/test_case_live.html.heex:282
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No test case runs found"
+msgstr "لم يتم العثور على أي حالات اختبار"
+
+#: lib/tuist_web/live/test_run_live.html.heex:525
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No test cases found"
+msgstr "لم يتم العثور على حالات اختبار"
+
+#: lib/tuist_web/live/tests_live.html.heex:881
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No test cases yet"
+msgstr "لا توجد حالات اختبار حتى الآن"
+
+#: lib/tuist_web/live/test_run_live.html.heex:937
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No test modules found"
+msgstr "لم يتم العثور على وحدات اختبار"
+
+#: lib/tuist_web/live/test_run_live.html.heex:721
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No test suites found"
+msgstr "لم يتم العثور على أي مجموعات اختبار"
+
+#: lib/tuist_web/live/test_run_live.html.heex:210
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Number of test cases that failed."
+msgstr "عدد حالات الاختبار التي فشلت."
+
+#: lib/tuist_web/live/test_case_live.html.heex:134
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Number of times this test case has failed."
+msgstr "عدد المرات التي فشلت فيها حالة الاختبار هذه."
+
+#: lib/tuist_web/live/test_run_live.html.heex:959
+#: lib/tuist_web/live/test_run_live.html.heex:1087
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Optimization Summary"
+msgstr "ملخص التحسين"
+
+#: lib/tuist_web/live/test_run_live.html.heex:80
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Overview"
+msgstr "لمحة عامة"
+
+#: lib/tuist_web/live/test_case_live.ex:59
+#: lib/tuist_web/live/test_case_live.html.heex:68
+#: lib/tuist_web/live/test_case_live.html.heex:234
+#: lib/tuist_web/live/test_cases_live.ex:40
+#: lib/tuist_web/live/test_cases_live.html.heex:509
+#: lib/tuist_web/live/test_run_live.ex:714
+#: lib/tuist_web/live/test_run_live.ex:757
+#: lib/tuist_web/live/test_run_live.ex:808
+#: lib/tuist_web/live/test_run_live.html.heex:122
+#: lib/tuist_web/live/test_run_live.html.heex:507
+#: lib/tuist_web/live/test_run_live.html.heex:682
+#: lib/tuist_web/live/test_run_live.html.heex:903
+#: lib/tuist_web/live/test_runs_live.ex:42
+#: lib/tuist_web/live/test_runs_live.html.heex:423
+#: lib/tuist_web/live/tests_live.html.heex:782
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Passed"
+msgstr "نجحت"
+
+#: lib/tuist_web/live/tests_live.html.heex:704
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Passed runs"
+msgstr "الأشواط التي تم اجتيازها"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1120
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Percentage of modules that were successfully retrieved from the cache."
+msgstr ""
+"النسبة المئوية للوحدات النمطية التي تم استرجاعها بنجاح من ذاكرة التخزين "
+"المؤقت."
+
+#: lib/tuist_web/live/test_case_live.html.heex:183
+#: lib/tuist_web/live/test_case_live.html.heex:190
+#: lib/tuist_web/live/test_case_live.html.heex:267
+#: lib/tuist_web/live/test_run_live.html.heex:159
+#: lib/tuist_web/live/test_run_live.html.heex:260
+#: lib/tuist_web/live/test_runs_live.html.heex:458
+#: lib/tuist_web/live/tests_live.html.heex:817
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Ran at"
+msgstr "ركض في"
+
+#: lib/tuist_web/live/test_case_live.ex:85
+#: lib/tuist_web/live/test_case_live.html.heex:241
+#: lib/tuist_web/live/test_run_live.html.heex:144
+#: lib/tuist_web/live/test_runs_live.ex:68
+#: lib/tuist_web/live/test_runs_live.html.heex:447
+#: lib/tuist_web/live/tests_live.html.heex:806
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Ran by"
+msgstr "تم تشغيله بواسطة"
+
+#: lib/tuist_web/live/tests_live.html.heex:687
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Recent Test Runs"
+msgstr "عمليات التشغيل التجريبية الأخيرة"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1040
+#: lib/tuist_web/live/test_run_live.html.heex:1168
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Remote"
+msgstr "جهاز التحكم عن بُعد"
+
+#: lib/tuist_web/live/test_case_live.html.heex:226
+#: lib/tuist_web/live/test_runs_live.html.heex:415
+#: lib/tuist_web/live/tests_live.html.heex:774
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Scheme"
+msgstr "المخطط"
+
+#: lib/tuist_web/live/test_case_live.html.heex:172
+#: lib/tuist_web/live/test_cases_live.html.heex:391
+#: lib/tuist_web/live/test_run_live.html.heex:398
+#: lib/tuist_web/live/test_run_live.html.heex:557
+#: lib/tuist_web/live/test_run_live.html.heex:753
+#: lib/tuist_web/live/test_run_live.html.heex:1013
+#: lib/tuist_web/live/test_run_live.html.heex:1141
+#: lib/tuist_web/live/test_runs_live.html.heex:386
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Search..."
+msgstr "بحث..."
+
+#: lib/tuist_web/live/test_run_live.html.heex:1003
+#: lib/tuist_web/live/tests_live.html.heex:442
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective Testing"
+msgstr "الاختبار الانتقائي"
+
+#: lib/tuist_web/live/tests_live.html.heex:535
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective test effectiveness"
+msgstr "فعالية الاختبار الانتقائي"
+
+#: lib/tuist_web/live/test_run_live.html.heex:976
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective test hits"
+msgstr "ضربات الاختبار الانتقائية"
+
+#: lib/tuist_web/live/test_run_live.html.heex:978
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective test hits represents the number of test modules that were skipped thanks to the selective testing."
+msgstr ""
+"تمثل نتائج الاختبار الانتقائي عدد وحدات الاختبار التي تم تخطيها بفضل الاختبار "
+"الانتقائي."
+
+#: lib/tuist_web/live/test_run_live.html.heex:990
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective test misses"
+msgstr "أخطاء الاختبار الانتقائي"
+
+#: lib/tuist_web/live/test_run_live.html.heex:992
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective test misses represents the number of test modules that were run as they were not successfully run before."
+msgstr ""
+"تمثل حالات فشل الاختبار الانتقائي عدد وحدات الاختبار التي تم تشغيلها حيث لم يتم "
+"تشغيلها بنجاح من قبل."
+
+#: lib/tuist_web/live/tests_live.html.heex:676
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective testing: no data yet"
+msgstr "الاختبار الانتقائي: لا توجد بيانات بعد"
+
+#: lib/tuist_web/live/test_case_live.ex:61
+#: lib/tuist_web/live/test_case_live.html.heex:82
+#: lib/tuist_web/live/test_case_live.html.heex:238
+#: lib/tuist_web/live/test_cases_live.ex:42
+#: lib/tuist_web/live/test_cases_live.html.heex:516
+#: lib/tuist_web/live/test_run_live.ex:716
+#: lib/tuist_web/live/test_run_live.ex:759
+#: lib/tuist_web/live/test_run_live.html.heex:136
+#: lib/tuist_web/live/test_run_live.html.heex:517
+#: lib/tuist_web/live/test_run_live.html.heex:692
+#: lib/tuist_web/live/test_runs_live.ex:44
+#: lib/tuist_web/live/test_runs_live.html.heex:433
+#: lib/tuist_web/live/tests_live.html.heex:792
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Skipped"
+msgstr "تم التخطي"
+
+#: lib/tuist_web/live/tests_live.html.heex:840
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Slowest test cases"
+msgstr "أبطأ حالات الاختبار"
+
+#: lib/tuist_web/live/test_case_live.html.heex:186
+#: lib/tuist_web/live/test_cases_live.html.heex:406
+#: lib/tuist_web/live/test_run_live.html.heex:412
+#: lib/tuist_web/live/test_run_live.html.heex:583
+#: lib/tuist_web/live/test_run_live.html.heex:782
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Sort by:"
+msgstr "فرز حسب:"
+
+#: lib/tuist_web/live/test_case_live.ex:55
+#: lib/tuist_web/live/test_case_live.html.heex:231
+#: lib/tuist_web/live/test_run_live.ex:710
+#: lib/tuist_web/live/test_run_live.ex:753
+#: lib/tuist_web/live/test_run_live.ex:804
+#: lib/tuist_web/live/test_run_live.html.heex:118
+#: lib/tuist_web/live/test_run_live.html.heex:678
+#: lib/tuist_web/live/test_run_live.html.heex:899
+#: lib/tuist_web/live/test_runs_live.ex:38
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Status"
+msgstr "الحالة"
+
+#: lib/tuist_web/live/test_case_live.html.heex:112
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Success rate based on runs from the %{branch} branch. Falls back to all branches if no runs exist on %{branch}."
+msgstr ""
+"معدل النجاح بناءً على عمليات التشغيل من فرع %{فرع}. يعود إلى جميع الفروع في "
+"حالة عدم وجود عمليات تشغيل على %{فرع}."
+
+#: lib/tuist_web/live/test_case_live.html.heex:48
+#: lib/tuist_web/live/test_cases_live.ex:58
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Suite"
+msgstr "جناح"
+
+#: lib/tuist_web/live/test_case_live.html.heex:57
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Summary"
+msgstr "الملخص"
+
+#: lib/tuist_web/live/test_cases_live.ex:66
+#: lib/tuist_web/live/test_cases_live.html.heex:401
+#: lib/tuist_web/live/test_cases_live.html.heex:418
+#: lib/tuist_web/live/test_cases_live.html.heex:458
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Case"
+msgstr "حالة الاختبار"
+
+#: lib/tuist_web/live/test_case_live.html.heex:161
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Case Runs"
+msgstr "تشغيل حالة الاختبار"
+
+#: lib/tuist_web/live/test_case_live.html.heex:3
+#: lib/tuist_web/live/test_cases_live.ex:21
+#: lib/tuist_web/live/test_cases_live.html.heex:383
+#: lib/tuist_web/live/test_run_live.html.heex:369
+#: lib/tuist_web/live/test_run_live.html.heex:387
+#: lib/tuist_web/live/tests_live.html.heex:834
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Cases"
+msgstr "حالات الاختبار"
+
+#: lib/tuist_web/live/test_run_live.html.heex:110
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Details"
+msgstr "تفاصيل الاختبار"
+
+#: lib/tuist_web/live/test_run_live.html.heex:742
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Modules"
+msgstr "وحدات الاختبار"
+
+#: lib/tuist_web/live/test_run_live.html.heex:87
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Optimizations"
+msgstr "تحسينات الاختبار"
+
+#: lib/tuist_web/live/test_run_live.ex:51
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Run"
+msgstr "اختبار التشغيل"
+
+#: lib/tuist_web/live/test_run_live.html.heex:3
+#: lib/tuist_web/live/test_runs_live.ex:23
+#: lib/tuist_web/live/test_runs_live.html.heex:378
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Runs"
+msgstr "عمليات التشغيل التجريبية"
+
+#: lib/tuist_web/live/test_run_live.html.heex:374
+#: lib/tuist_web/live/test_run_live.html.heex:546
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Suites"
+msgstr "أجنحة الاختبار"
+
+#: lib/tuist_web/live/test_run_live.html.heex:408
+#: lib/tuist_web/live/test_run_live.html.heex:416
+#: lib/tuist_web/live/test_run_live.html.heex:456
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test case"
+msgstr "حالة الاختبار"
+
+#: lib/tuist_web/live/test_case_live.ex:26
+#: lib/tuist_web/live/test_case_live.ex:31
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test case not found."
+msgstr "حالة الاختبار غير موجودة."
+
+#: lib/tuist_web/live/test_case_live.html.heex:124
+#: lib/tuist_web/live/test_cases_live.ex:236
+#: lib/tuist_web/live/test_cases_live.html.heex:84
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test case runs"
+msgstr "تشغيل حالة الاختبار"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:86
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test case runs represents the total number of individual test case executions during a given period."
+msgstr ""
+"تمثل عمليات تشغيل حالة الاختبار إجمالي عدد عمليات تنفيذ حالة الاختبار الفردية "
+"خلال فترة معينة."
+
+#: lib/tuist_web/live/test_run_live.ex:729
+#: lib/tuist_web/live/test_run_live.ex:780
+#: lib/tuist_web/live/test_run_live.html.heex:203
+#: lib/tuist_web/live/test_run_live.html.heex:571
+#: lib/tuist_web/live/test_run_live.html.heex:595
+#: lib/tuist_web/live/test_run_live.html.heex:645
+#: lib/tuist_web/live/test_run_live.html.heex:770
+#: lib/tuist_web/live/test_run_live.html.heex:802
+#: lib/tuist_web/live/test_run_live.html.heex:866
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test cases"
+msgstr "حالات الاختبار"
+
+#: lib/tuist_web/live/test_case_live.html.heex:110
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test reliability"
+msgstr "موثوقية الاختبار"
+
+#: lib/tuist_web/live/test_runs_live.ex:269
+#: lib/tuist_web/live/test_runs_live.html.heex:84
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test run count"
+msgstr "عدد مرات التشغيل التجريبي"
+
+#: lib/tuist_web/live/test_runs_live.html.heex:86
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test run count represents a number of how many test runs were run during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
+msgstr ""
+"يمثل عدد عمليات تشغيل الاختبار عدد عمليات تشغيل الاختبار التي تم تشغيلها خلال "
+"فترة معينة. يتم تنفيذ عملية تشغيل الاختبار إما عن طريق تشغيل 'اختبار tuist "
+"test' أو 'اختبار tuist xcodebuild'."
+
+#: lib/tuist_web/live/test_run_live.ex:25
+#: lib/tuist_web/live/test_run_live.ex:29
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test run not found."
+msgstr "لم يتم العثور على اختبار التشغيل غير موجود."
+
+#: lib/tuist_web/live/tests_live.html.heex:88
+#: lib/tuist_web/live/tests_live.html.heex:357
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test runs"
+msgstr "عمليات التشغيل التجريبية"
+
+#: lib/tuist_web/live/test_run_live.html.heex:568
+#: lib/tuist_web/live/test_run_live.html.heex:580
+#: lib/tuist_web/live/test_run_live.html.heex:587
+#: lib/tuist_web/live/test_run_live.html.heex:631
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test suite"
+msgstr "مجموعة الاختبارات"
+
+#: lib/tuist_web/live/test_run_live.ex:772
+#: lib/tuist_web/live/test_run_live.html.heex:767
+#: lib/tuist_web/live/test_run_live.html.heex:794
+#: lib/tuist_web/live/test_run_live.html.heex:852
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test suites"
+msgstr "مجموعات الاختبار"
+
+#: lib/tuist_web/live/tests_live.ex:20
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Tests"
+msgstr "الاختبارات"
+
+#: lib/tuist_web/live/tests_live.html.heex:134
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The average test run duration with individual percentile intervals."
+msgstr "متوسط مدة تشغيل الاختبار مع الفترات المئوية الفردية."
+
+#: lib/tuist_web/live/tests_live.html.heex:104
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The number of test runs that failed."
+msgstr "عدد عمليات التشغيل الاختبار التي فشلت."
+
+#: lib/tuist_web/live/tests_live.html.heex:90
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The total number of test runs."
+msgstr "العدد الإجمالي لعمليات الاختبار."
+
+#: lib/tuist_web/live/test_run_live.html.heex:965
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total modules"
+msgstr "إجمالي الوحدات"
+
+#: lib/tuist_web/live/test_run_live.html.heex:967
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total modules represents the total number of testable modules."
+msgstr "يمثل إجمالي الوحدات النمطية إجمالي عدد الوحدات القابلة للاختبار."
+
+#: lib/tuist_web/live/test_run_live.html.heex:1095
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total number of modules taken from either the local or the remote cache."
+msgstr "إجمالي عدد الوحدات المأخوذة من ذاكرة التخزين المؤقت المحلية أو البعيدة."
+
+#: lib/tuist_web/live/test_run_live.html.heex:1109
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total number of modules that could have been taken from the cache if it was fully populated."
+msgstr ""
+"إجمالي عدد الوحدات التي يمكن أخذها من ذاكرة التخزين المؤقت إذا كانت ممتلئة "
+"بالكامل."
+
+#: lib/tuist_web/live/test_run_live.html.heex:204
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total number of test cases executed."
+msgstr "إجمالي عدد حالات الاختبار المنفذة."
+
+#: lib/tuist_web/live/test_case_live.html.heex:126
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total number of times this test case has been executed."
+msgstr "إجمالي عدد المرات التي تم فيها تنفيذ حالة الاختبار هذه."
+
+#: lib/tuist_web/live/test_run_live.html.heex:1067
+#: lib/tuist_web/live/test_run_live.html.heex:1195
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Try changing your search term"
+msgstr "حاول تغيير مصطلح البحث"
+
+#: lib/tuist_web/live/test_case_live.html.heex:283
+#: lib/tuist_web/live/test_run_live.html.heex:526
+#: lib/tuist_web/live/test_run_live.html.heex:722
+#: lib/tuist_web/live/test_run_live.html.heex:938
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Try updating your search"
+msgstr "حاول تحديث بحثك"
+
+#: lib/tuist_web/live/test_run_live.html.heex:243
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Tuist version"
+msgstr "إصدار تويست"
+
+#: lib/tuist_web/live/test_case_live.html.heex:228
+#: lib/tuist_web/live/test_run_live.html.heex:33
+#: lib/tuist_web/live/test_run_live.html.heex:44
+#: lib/tuist_web/live/test_run_live.html.heex:171
+#: lib/tuist_web/live/test_run_live.html.heex:179
+#: lib/tuist_web/live/test_run_live.html.heex:188
+#: lib/tuist_web/live/test_run_live.html.heex:1060
+#: lib/tuist_web/live/test_run_live.html.heex:1188
+#: lib/tuist_web/live/test_runs_live.html.heex:442
+#: lib/tuist_web/live/tests_live.html.heex:776
+#: lib/tuist_web/live/tests_live.html.heex:801
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Unknown"
+msgstr "غير معروف"
+
+#: lib/tuist_web/live/test_run_live.ex:840
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Unknown error"
+msgstr "خطأ غير معروف"
+
+#: lib/tuist_web/live/test_run_live.html.heex:292
+#: lib/tuist_web/live/tests_live.html.heex:694
+#: lib/tuist_web/live/tests_live.html.heex:843
+#, elixir-autogen, elixir-format, fuzzy
+msgid "View more"
+msgstr "عرض المزيد"
+
+#: lib/tuist_web/live/test_run_live.html.heex:193
+#, elixir-autogen, elixir-format, fuzzy
+msgid "macOS version"
+msgstr "إصدار macOS"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:363
+#: lib/tuist_web/live/test_runs_live.html.heex:358
+#: lib/tuist_web/live/tests_live.html.heex:293
+#: lib/tuist_web/live/tests_live.html.heex:664
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p50"
+msgstr "p50"
+
+#: lib/tuist_web/live/test_cases_live.ex:258
+#: lib/tuist_web/live/test_cases_live.html.heex:128
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p50 test case run duration"
+msgstr "مدة تشغيل حالة الاختبار p50"
+
+#: lib/tuist_web/live/test_runs_live.ex:291
+#: lib/tuist_web/live/test_runs_live.html.heex:126
+#: lib/tuist_web/live/tests_live.html.heex:121
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p50 test run duration"
+msgstr "مدة اختبار التشغيل التجريبي p50"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:350
+#: lib/tuist_web/live/test_runs_live.html.heex:345
+#: lib/tuist_web/live/tests_live.html.heex:280
+#: lib/tuist_web/live/tests_live.html.heex:648
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p90"
+msgstr "p90"
+
+#: lib/tuist_web/live/test_cases_live.ex:255
+#: lib/tuist_web/live/test_cases_live.html.heex:127
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p90 test case run duration"
+msgstr "مدة تشغيل حالة الاختبار p90"
+
+#: lib/tuist_web/live/test_runs_live.ex:288
+#: lib/tuist_web/live/test_runs_live.html.heex:125
+#: lib/tuist_web/live/tests_live.html.heex:120
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p90 test run duration"
+msgstr "مدة اختبار التشغيل التجريبي p90"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:337
+#: lib/tuist_web/live/test_runs_live.html.heex:332
+#: lib/tuist_web/live/tests_live.html.heex:267
+#: lib/tuist_web/live/tests_live.html.heex:632
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p99"
+msgstr "p99"
+
+#: lib/tuist_web/live/test_cases_live.ex:252
+#: lib/tuist_web/live/test_cases_live.html.heex:126
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p99 test case run duration"
+msgstr "مدة تشغيل حالة اختبار p99"
+
+#: lib/tuist_web/live/test_runs_live.ex:285
+#: lib/tuist_web/live/test_runs_live.html.heex:124
+#: lib/tuist_web/live/tests_live.html.heex:119
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p99 test run duration"
+msgstr "مدة اختبار التشغيل التجريبي لـ p99"
+
+#: lib/tuist_web/live/test_cases_live.ex:291
+#: lib/tuist_web/live/test_runs_live.ex:324
+#: lib/tuist_web/live/tests_live.ex:282
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since last month"
+msgstr "منذ الشهر الماضي"
+
+#: lib/tuist_web/live/test_cases_live.ex:288
+#: lib/tuist_web/live/test_runs_live.ex:321
+#: lib/tuist_web/live/tests_live.ex:279
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since last week"
+msgstr "منذ الأسبوع الماضي"
+
+#: lib/tuist_web/live/test_cases_live.ex:289
+#: lib/tuist_web/live/test_runs_live.ex:322
+#: lib/tuist_web/live/tests_live.ex:280
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since last year"
+msgstr "منذ العام الماضي"
+
+#: lib/tuist_web/live/test_run_live.html.heex:285
+#: lib/tuist_web/live/test_run_live.html.heex:1225
+#, elixir-autogen, elixir-format, fuzzy
+msgid "•"
+msgstr "-"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:74
+#: lib/tuist_web/live/test_runs_live.html.heex:74
+#: lib/tuist_web/live/tests_live.html.heex:76
+#: lib/tuist_web/live/tests_live.html.heex:519
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Apply"
+msgstr "قدم طلبك"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:67
+#: lib/tuist_web/live/test_runs_live.html.heex:67
+#: lib/tuist_web/live/tests_live.html.heex:67
+#: lib/tuist_web/live/tests_live.html.heex:510
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cancel"
+msgstr "إلغاء"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:58
+#: lib/tuist_web/live/test_runs_live.html.heex:58
+#: lib/tuist_web/live/tests_live.html.heex:58
+#: lib/tuist_web/live/tests_live.html.heex:501
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Custom"
+msgstr "مخصص"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:55
+#: lib/tuist_web/live/test_runs_live.html.heex:55
+#: lib/tuist_web/live/tests_live.html.heex:55
+#: lib/tuist_web/live/tests_live.html.heex:498
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 12 months"
+msgstr "آخر 12 شهراً"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:40
+#: lib/tuist_web/live/test_runs_live.html.heex:40
+#: lib/tuist_web/live/tests_live.html.heex:40
+#: lib/tuist_web/live/tests_live.html.heex:483
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 24 hours"
+msgstr "آخر 24 ساعة"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:50
+#: lib/tuist_web/live/test_runs_live.html.heex:50
+#: lib/tuist_web/live/tests_live.html.heex:50
+#: lib/tuist_web/live/tests_live.html.heex:493
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 30 days"
+msgstr "آخر 30 يوماً"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:45
+#: lib/tuist_web/live/test_runs_live.html.heex:45
+#: lib/tuist_web/live/tests_live.html.heex:45
+#: lib/tuist_web/live/tests_live.html.heex:488
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 7 days"
+msgstr "آخر 7 أيام"
+
+#: lib/tuist_web/live/test_cases_live.ex:290
+#: lib/tuist_web/live/test_runs_live.ex:323
+#: lib/tuist_web/live/tests_live.ex:281
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since last period"
+msgstr "منذ الفترة الماضية"
+
+#: lib/tuist_web/live/test_cases_live.ex:287
+#: lib/tuist_web/live/test_runs_live.ex:320
+#: lib/tuist_web/live/tests_live.ex:278
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since yesterday"
+msgstr "منذ الأمس"

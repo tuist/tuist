@@ -87,7 +87,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.generation(
                 config: .test(project: .testGeneratedProject()),
-                ignoreBinaryCache: false,
+                cacheProfile: .onlyExternal,
                 cacheSources: includedTargets,
                 configuration: "Debug",
                 cacheStorage: cacheStorage
@@ -105,6 +105,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.binaryCacheWarming(
                 config: .test(),
+                targets: [.iOS: includedTargets],
                 cacheSources: includedTargets,
                 configuration: "Debug",
                 cacheStorage: cacheStorage
@@ -122,6 +123,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.binaryCacheWarming(
                 config: .test(),
+                targets: [.iOS: includedTargets],
                 cacheSources: includedTargets,
                 configuration: "Debug",
                 cacheStorage: cacheStorage
@@ -133,6 +135,24 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             )
         }
 
+        func test_cache_contains_the_generate_cacheable_schemes_graph_mapper() {
+            // Given
+            let includedTargets: Set<TargetQuery> = Set([.named("MyTarget")])
+
+            // When
+            let got = subject.binaryCacheWarming(
+                config: .test(),
+                targets: [.iOS: includedTargets],
+                cacheSources: includedTargets,
+                configuration: "Debug",
+                cacheStorage: cacheStorage
+            )
+
+            // Then
+            let mapper = XCTAssertContainsElementOfType(got, GenerateCacheableSchemesGraphMapper.self)
+            XCTAssertEqual(mapper?.targets, [.iOS: includedTargets])
+        }
+
         func test_focus_contains_the_filter_target_dependenies_tree_graph_mapper() {
             // Given
             let config = Tuist.test()
@@ -141,7 +161,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.generation(
                 config: config,
-                ignoreBinaryCache: true,
+                cacheProfile: .none,
                 cacheSources: cacheSources,
                 configuration: "Debug",
                 cacheStorage: cacheStorage
@@ -160,7 +180,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.generation(
                 config: config,
-                ignoreBinaryCache: false,
+                cacheProfile: .onlyExternal,
                 cacheSources: cacheSources,
                 configuration: "Debug",
                 cacheStorage: cacheStorage
@@ -185,7 +205,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.generation(
                 config: config,
-                ignoreBinaryCache: false,
+                cacheProfile: .onlyExternal,
                 cacheSources: cacheSources,
                 configuration: "Debug",
                 cacheStorage: cacheStorage
@@ -204,7 +224,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.automation(
                 config: config,
-                ignoreBinaryCache: true,
+                ignoreBinaryCache: false,
                 ignoreSelectiveTesting: false,
                 testPlan: nil,
                 includedTargets: [],
@@ -225,7 +245,7 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             // When
             let got = subject.automation(
                 config: config,
-                ignoreBinaryCache: true,
+                ignoreBinaryCache: false,
                 ignoreSelectiveTesting: true,
                 testPlan: nil,
                 includedTargets: [],
@@ -239,6 +259,87 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             XCTAssertContainsElementOfType(
                 got, FocusTargetsGraphMappers.self, after: TestsCacheGraphMapper.self
             )
+        }
+
+        func test_automation_contains_the_tests_cache_tree_shaking_mapper() throws {
+            // Given
+            let config = Tuist.test()
+
+            // When
+            let got = subject.automation(
+                config: config,
+                ignoreBinaryCache: false,
+                ignoreSelectiveTesting: false,
+                testPlan: nil,
+                includedTargets: [],
+                excludedTargets: [],
+                configuration: "Debug",
+                cacheStorage: cacheStorage,
+                destination: nil
+            )
+
+            // Then
+            XCTAssertContainsElementOfType(
+                got, TreeShakePrunedTargetsGraphMapper.self, after: FocusTargetsGraphMappers.self
+            )
+        }
+
+        func test_default_contains_focus_mappers_when_targets_specified() {
+            // Given
+            let includedTargets: Set<TargetQuery> = [.named("MyTarget")]
+
+            // When
+            let got = subject.default(config: .test(), includedTargets: includedTargets)
+
+            // Then
+            let mapper = XCTAssertContainsElementOfType(got, FocusTargetsGraphMappers.self)
+            XCTAssertEqual(mapper?.includedTargets, includedTargets)
+        }
+
+        func test_default_does_not_contain_focus_mappers_when_no_targets_specified() {
+            // When
+            let got = subject.default(config: .test(), includedTargets: [])
+
+            // Then
+            XCTAssertDoesntContainElementOfType(got, FocusTargetsGraphMappers.self)
+        }
+
+        func test_default_contains_explicit_dependency_mapper_when_enforced() {
+            // Given
+            let config = Tuist.test(
+                project: .generated(.test(generationOptions: .test(enforceExplicitDependencies: true)))
+            )
+
+            // When
+            let got = subject.default(config: config, includedTargets: [])
+
+            // Then
+            XCTAssertContainsElementOfType(got, ExplicitDependencyGraphMapper.self)
+        }
+
+        func test_binaryCacheWarmingPreload_and_generation_use_same_base_mappers() {
+            // Given
+            let config = Tuist.test()
+            let targets: Set<TargetQuery> = [.named("MyTarget")]
+
+            // When
+            let preloadMappers = subject.binaryCacheWarmingPreload(
+                targetsToBinaryCache: targets,
+                config: config
+            )
+            let generationMappers = subject.generation(
+                config: config,
+                cacheProfile: .none,
+                cacheSources: targets,
+                configuration: "Debug",
+                cacheStorage: cacheStorage
+            )
+
+            // Then - Both should contain the same hash-affecting mappers in the same order
+            let preloadMapperTypes = preloadMappers.prefix(8).map { String(describing: type(of: $0)) }
+            let generationMapperTypes = generationMappers.prefix(8).map { String(describing: type(of: $0)) }
+
+            XCTAssertEqual(preloadMapperTypes, generationMapperTypes)
         }
     }
 #endif

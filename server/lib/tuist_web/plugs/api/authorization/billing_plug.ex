@@ -115,9 +115,8 @@ defmodule TuistWeb.API.Authorization.BillingPlug do
   end
 
   defp get_subscription_data(%{assigns: %{selected_project: selected_project}}) do
-    account =
-      %{current_month_remote_cache_hits_count: current_month_remote_cache_hits_count} =
-      Accounts.get_account_by_id(selected_project.account_id)
+    {:ok, account} = Accounts.get_account_by_id(selected_project.account_id)
+    %{current_month_remote_cache_hits_count: current_month_remote_cache_hits_count} = account
 
     subscription = Billing.get_current_active_subscription(account)
 

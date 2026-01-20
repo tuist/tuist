@@ -17,10 +17,8 @@ defmodule Tuist.Repo.Migrations.MigrateCommandEventsToUuidPrimaryKey do
   """
 
   def up do
-    secrets = Tuist.Environment.decrypt_secrets()
-
     # PRE-MIGRATION VALIDATION: Ensure data integrity before proceeding
-    validate_migration_prerequisites!(secrets)
+    validate_migration_prerequisites!()
 
     # STEP 1: Add legacy_artifact_path flag to distinguish pre-migration records
     # This helps track which command_events were created before the UUID migration
@@ -71,49 +69,6 @@ defmodule Tuist.Repo.Migrations.MigrateCommandEventsToUuidPrimaryKey do
       modify :command_event_id, :uuid, null: false
     end
 
-    # STEP 3: Conditionally migrate xcode_graphs foreign keys for on-premise deployments
-    # NOTE: This only runs for deployments that do not have Clickhouse configured
-    if !Tuist.Environment.clickhouse_configured?(secrets) || Tuist.Environment.test?() do
-      # Drop the existing unique index before modifying the column
-      # excellent_migrations:safety-assured-for-next-line index_not_concurrently
-      drop unique_index(:xcode_graphs, [:command_event_id])
-
-      # Add temporary UUID column to hold the new foreign key values
-      alter table(:xcode_graphs) do
-        add :command_event_uuid, :uuid
-      end
-
-      # Populate UUID column by joining with command_events on the integer ID
-      # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-      execute """
-      UPDATE xcode_graphs
-      SET command_event_uuid = command_events.uuid
-      FROM command_events
-      WHERE xcode_graphs.command_event_id = command_events.id
-      """
-
-      # Remove the old integer foreign key column
-      alter table(:xcode_graphs) do
-        # excellent_migrations:safety-assured-for-next-line column_removed
-        remove :command_event_id
-      end
-
-      # Rename the UUID column to take the place of the old foreign key
-      # excellent_migrations:safety-assured-for-next-line column_renamed
-      rename table(:xcode_graphs), :command_event_uuid, to: :command_event_id
-
-      # Ensure the new foreign key column has proper constraints
-      alter table(:xcode_graphs) do
-        # excellent_migrations:safety-assured-for-next-line column_type_changed
-        # excellent_migrations:safety-assured-for-next-line not_null_added
-        modify :command_event_id, :uuid, null: false
-      end
-
-      # Recreate the unique index with the new UUID column
-      # excellent_migrations:safety-assured-for-next-line index_not_concurrently
-      create unique_index(:xcode_graphs, [:command_event_id])
-    end
-
     # STEP 4: Change the primary key of command_events from (id, created_at) to (uuid, created_at)
     # This is a TimescaleDB hypertable, so we need to maintain the created_at partition key
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
@@ -134,8 +89,6 @@ defmodule Tuist.Repo.Migrations.MigrateCommandEventsToUuidPrimaryKey do
   end
 
   def down do
-    secrets = Tuist.Environment.decrypt_secrets()
-
     # REVERSAL STEP 1: Reverse the column renaming (id -> uuid, legacy_id -> id)
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute "ALTER TABLE command_events DROP CONSTRAINT command_events_pkey;"
@@ -153,53 +106,8 @@ defmodule Tuist.Repo.Migrations.MigrateCommandEventsToUuidPrimaryKey do
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute "ALTER TABLE command_events ADD PRIMARY KEY (id, created_at);"
 
-    # REVERSAL STEP 3: Restore xcode_graphs integer foreign keys (only for on-premise)
-    # This section only runs for on-premise deployments where xcode_graphs is in PostgreSQL
-    if !Tuist.Environment.clickhouse_configured?(secrets) || Tuist.Environment.test?() do
-      # Drop the UUID-based unique index
-      # excellent_migrations:safety-assured-for-next-line index_not_concurrently
-      drop unique_index(:xcode_graphs, [:command_event_id])
-
-      # Add temporary integer column to hold the restored foreign key values
-      alter table(:xcode_graphs) do
-        add :command_event_int_id, :integer
-      end
-
-      # Populate integer column by joining with command_events on the UUID
-      # This reverses the UUID->integer mapping
-      # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-      execute """
-      UPDATE xcode_graphs
-      SET command_event_int_id = command_events.id
-      FROM command_events
-      WHERE xcode_graphs.command_event_id = command_events.uuid
-      """
-
-      # Remove the UUID foreign key column
-      alter table(:xcode_graphs) do
-        # excellent_migrations:safety-assured-for-next-line column_removed
-        remove :command_event_id
-      end
-
-      # Rename the integer column back to command_event_id
-      # excellent_migrations:safety-assured-for-next-line column_renamed
-      rename table(:xcode_graphs), :command_event_int_id, to: :command_event_id
-
-      # Restore the integer column constraints
-      alter table(:xcode_graphs) do
-        # excellent_migrations:safety-assured-for-next-line column_type_changed
-        # excellent_migrations:safety-assured-for-next-line not_null_added
-        modify :command_event_id, :integer, null: false
-      end
-
-      # Recreate the unique index with the integer column
-      # excellent_migrations:safety-assured-for-next-line index_not_concurrently
-      create unique_index(:xcode_graphs, [:command_event_id])
-    end
-
     # REVERSAL STEP 4: Restore test_case_runs integer foreign keys
     # This table always exists in PostgreSQL for both deployment types
-
     # Add temporary integer column to hold the restored foreign key values
     alter table(:test_case_runs) do
       add :command_event_int_id, :integer
@@ -246,7 +154,7 @@ defmodule Tuist.Repo.Migrations.MigrateCommandEventsToUuidPrimaryKey do
   # 2. All command_events have UUID values
   # 3. No orphaned foreign key references exist
   # 4. No duplicate UUIDs exist
-  defp validate_migration_prerequisites!(secrets) do
+  defp validate_migration_prerequisites!() do
     IO.puts("Validating migration prerequisites...")
 
     # Check 1: Verify all command_events have UUID values
@@ -291,22 +199,6 @@ defmodule Tuist.Repo.Migrations.MigrateCommandEventsToUuidPrimaryKey do
 
     if orphaned_test_runs > 0 do
       raise "Found #{orphaned_test_runs} orphaned test_case_runs with non-existent command_event_ids"
-    end
-
-    # Check 4: Verify no orphaned xcode_graphs exist (only for on-premise)
-    if !Tuist.Environment.clickhouse_configured?(secrets) || Tuist.Environment.test?() do
-      # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-      {:ok, %{rows: [[orphaned_xcode_graphs]]}} =
-        repo().query("""
-          SELECT COUNT(*)
-          FROM xcode_graphs xg
-          LEFT JOIN command_events ce ON xg.command_event_id = ce.id
-          WHERE ce.id IS NULL;
-        """)
-
-      if orphaned_xcode_graphs > 0 do
-        raise "Found #{orphaned_xcode_graphs} orphaned xcode_graphs with non-existent command_event_ids"
-      end
     end
 
     # Check 5: Verify test_case_runs will get valid UUIDs

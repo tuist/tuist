@@ -1,11 +1,11 @@
 ---
 {
-  "title": "Insights",
+  "title": "Build Insights",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Get insights into your projects to maintain a product developer environment."
+  "description": "Get insights into your builds to maintain a productive developer environment."
 }
 ---
-# Insights {#insights}
+# Build Insights {#build-insights}
 
 ::: warning REQUIREMENTS
 <!-- -->
@@ -15,17 +15,9 @@
 
 Working on large projects shouldn't feel like a chore. In fact, it should be as enjoyable as working on a project you started just two weeks ago. One of the reasons it is not is because as the project grows, the developer experience suffers. The build times increase and tests become slow and flaky. It's often easy to overlook these issues until it gets to a point where they become unbearable – however, at that point, it's difficult to address them. Tuist Insights provides you with the tools to monitor the health of your project and maintain a productive developer environment as your project scales.
 
-In other words, Tuist Insights helps you to anwer questions such as:
+In other words, Tuist Insights helps you to answer questions such as:
 - Has the build time significantly increased in the last week?
-- Have my tests become slower? Which ones?
-
-::: info
-<!-- -->
-Tuist Insights are in early development.
-<!-- -->
-:::
-
-## Builds {#builds}
+- Are my builds slower on CI compared to local development?
 
 While you probably have some metrics for the performance of CI workflows, you might not have the same visibility into the local development environment. However, local build times are one of the most important factors that contribute to the developer experience.
 
@@ -62,9 +54,11 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 ```
 
 ::: tip MISE & PROJECT PATHS
+<!-- -->
 Your environment's `PATH` environment variable is not inherited by the scheme post action, and therefore you have to use Mise's absolute path,
 which will depend on how you installed Mise. Moreover, don't forget to inherit the build settings from a target in your project such that you
 can run Mise from the directory pointed to by $SRCROOT.
+<!-- -->
 :::
 
 
@@ -87,9 +81,9 @@ Auto-generated schemes automatically include the `tuist inspect build` post-acti
 <!-- -->
 :::
 >
-> If you are not interested in tracking build insights in your auto-generated schemes, disable them using the <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink> generation option.
+> If you are not interested in tracking insights in your auto-generated schemes, disable them using the <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink> generation option.
 
-If you are using generated projects, you can set up a custom <LocalizedLink href="references/project-description/structs/buildaction#postactions">build post-action</LocalizedLink> using a custom scheme, such as:
+If you are using generated projects with custom schemes, you can set up post-actions for build insights:
 
 ```swift
 let project = Project(
@@ -104,40 +98,46 @@ let project = Project(
             buildAction: .buildAction(
                 targets: ["MyApp"],
                 postActions: [
+                    // Build insights: Track build times and performance
                     .executionAction(
                         title: "Inspect Build",
                         scriptText: """
-                        eval \"$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)\"
-                        tuist inspect build
+                        $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
                         """,
                         target: "MyApp"
                     )
                 ],
+                // Run build post-actions even if the build fails
                 runPostActionsOnFailure: true
             ),
-            testAction: .testAction(targets: ["MyAppTests"]),
             runAction: .runAction(configuration: "Debug")
         )
     ]
 )
 ```
 
-If you're not using Mise, your script can be simplified to just:
+If you're not using Mise, your scripts can be simplified to:
 
 ```swift
-.postAction(
-    name: "Inspect Build",
-    script: "tuist inspect build",
-    execution: .always
+buildAction: .buildAction(
+    targets: ["MyApp"],
+    postActions: [
+        .executionAction(
+            title: "Inspect Build",
+            scriptText: "tuist inspect build",
+            target: "MyApp"
+        )
+    ],
+    runPostActionsOnFailure: true
 )
 ```
 
 ## Continuous integration {#continuous-integration}
 
-To track build times also on the CI, you will need to ensure that your CI is <LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>.
+To track build insights on CI, you will need to ensure that your CI is <LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>.
 
 Additionally, you will either need to:
 - Use the <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</LocalizedLink> command when invoking `xcodebuild` actions.
 - Add `-resultBundlePath` to your `xcodebuild` invocation.
 
-When `xcodebuild` builds your project without `-resultBundlePath`, the `.xcactivitylog` file is not generated. But the `tuist inspect build` post-action requires that file to be generated to analyze your build.
+When `xcodebuild` builds your project without `-resultBundlePath`, the required activity log and result bundle files are not generated. The `tuist inspect build` post-action requires these files to analyze your builds.

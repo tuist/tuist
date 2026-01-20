@@ -6,12 +6,13 @@ defmodule TuistWeb.ProjectSettingsLive do
   alias Tuist.Authorization
   alias Tuist.Projects
   alias Tuist.Projects.Project
+  alias TuistWeb.Helpers.OpenGraph
 
   @impl true
   def mount(_params, _uri, %{assigns: %{selected_project: selected_project, current_user: current_user}} = socket) do
     if Authorization.authorize(:project_update, current_user, selected_project) != :ok do
       raise TuistWeb.Errors.UnauthorizedError,
-            gettext("You are not authorized to perform this action.")
+            dgettext("dashboard_projects", "You are not authorized to perform this action.")
     end
 
     rename_project_form = to_form(Project.update_changeset(selected_project, %{}))
@@ -21,9 +22,15 @@ defmodule TuistWeb.ProjectSettingsLive do
       socket
       |> assign(rename_project_form: rename_project_form)
       |> assign(delete_project_form: delete_project_form)
-      |> assign(:head_title, "#{gettext("Settings")} · #{selected_project.name} · Tuist")
+      |> assign(:head_title, "#{dgettext("dashboard_projects", "Settings")} · #{selected_project.name} · Tuist")
+      |> assign(OpenGraph.og_image_assigns("settings"))
 
     {:ok, socket}
+  end
+
+  @impl true
+  def handle_params(_params, _uri, socket) do
+    {:noreply, socket}
   end
 
   @impl true

@@ -44,12 +44,14 @@ public enum EnvKey: String, CaseIterable {
 
     case installPath = "TUIST_INSTALL_PATH"
     case installUpdate = "TUIST_INSTALL_UPDATE"
+    case installPassthroughArguments = "TUIST_INSTALL_PASSTHROUGH_ARGUMENTS"
 
     // GENERATE
 
     case generatePath = "TUIST_GENERATE_PATH"
     case generateOpen = "TUIST_GENERATE_OPEN"
     case generateBinaryCache = "TUIST_GENERATE_BINARY_CACHE"
+    case generateCacheProfile = "TUIST_GENERATE_CACHE_PROFILE"
 
     // GRAPH
 
@@ -107,16 +109,27 @@ public enum EnvKey: String, CaseIterable {
 
     case lintRedundantDependenciesPath = "TUIST_LINT_REDUNDANT_DEPENDENCIES_PATH"
 
-    // BUILD
+    // INSPECT DEPENDENCIES
+
+    case inspectDependenciesPath = "TUIST_INSPECT_DEPENDENCIES_PATH"
+    case inspectDependenciesOnly = "TUIST_INSPECT_DEPENDENCIES_ONLY"
+
+    // INSPECT BUILD
 
     case inspectBuildPath = "TUIST_INSPECT_BUILD_PATH"
     case inspectBuildDerivedDataPath = "TUIST_INSPECT_BUILD_DERIVED_DATA_PATH"
 
-    // BUNDLE
+    // INSPECT BUNDLE
 
     case inspectBundle = "TUIST_INSPECT_BUNDLE"
     case inspectBundleJSON = "TUIST_INSPECT_BUNDLE_JSON"
     case inspectBundlePath = "TUIST_INSPECT_BUNDLE_PATH"
+
+    // INSPECT TEST
+
+    case inspectTestPath = "TUIST_INSPECT_TEST_PATH"
+    case inspectTestDerivedDataPath = "TUIST_INSPECT_TEST_DERIVED_DATA_PATH"
+    case inspectTestResultBundlePath = "TUIST_INSPECT_TEST_RESULT_BUNDLE_PATH"
 
     // RUN
 
@@ -153,6 +166,7 @@ public enum EnvKey: String, CaseIterable {
     case testRosetta = "TUIST_TEST_ROSETTA"
     case testConfiguration = "TUIST_TEST_CONFIGURATION"
     case testSkipUITests = "TUIST_TEST_SKIP_UITESTS"
+    case testSkipUnitTests = "TUIST_TEST_SKIP_UNITTESTS"
     case testResultBundlePath = "TUIST_TEST_RESULT_BUNDLE_PATH"
     case testDerivedDataPath = "TUIST_TEST_DERIVED_DATA_PATH"
     case testRetryCount = "TUIST_TEST_RETRY_COUNT"
@@ -187,6 +201,15 @@ public enum EnvKey: String, CaseIterable {
     case projectTokenFullHandle = "TUIST_PROJECT_TOKEN_FULL_HANDLE"
     case projectTokenPath = "TUIST_PROJECT_TOKEN_PATH"
     case projectTokenId = "TUIST_PROJECT_TOKEN_ID"
+
+    // ACCOUNT TOKENS
+
+    case accountTokensAccountHandle = "TUIST_ACCOUNT_TOKENS_ACCOUNT_HANDLE"
+    case accountTokensPath = "TUIST_ACCOUNT_TOKENS_PATH"
+    case accountTokensName = "TUIST_ACCOUNT_TOKENS_NAME"
+    case accountTokensScopes = "TUIST_ACCOUNT_TOKENS_SCOPES"
+    case accountTokensExpires = "TUIST_ACCOUNT_TOKENS_EXPIRES"
+    case accountTokensProjects = "TUIST_ACCOUNT_TOKENS_PROJECTS"
 
     // ORGANIZATION LIST
 
@@ -312,6 +335,7 @@ public enum EnvKey: String, CaseIterable {
     case sharePlatform = "TUIST_SHARE_PLATFORM"
     case shareJSON = "TUIST_SHARE_JSON"
     case shareDerivedDataPath = "TUIST_SHARE_DERIVED_DATA_PATH"
+    case shareTrack = "TUIST_SHARE_TRACK"
 
     // CACHE
 
@@ -331,6 +355,9 @@ public enum EnvKey: String, CaseIterable {
 
     case hashTestPath = "TUIST_HASH_TEST_PATH"
     case hashTestConfiguration = "TUIST_HASH_TEST_CONFIGURATION"
+
+    /// CACHE START
+    case cacheStartPath = "TUIST_CACHE_START_PATH"
 }
 
 extension EnvKey {

@@ -4,6 +4,7 @@ defmodule Tuist.GitHub.App do
   """
 
   alias Tuist.Environment
+  alias Tuist.GitHub.Retry
   alias Tuist.KeyValueStore
 
   def get_installation_token(installation_id, opts \\ []) do
@@ -67,17 +68,26 @@ defmodule Tuist.GitHub.App do
       {"X-GitHub-Api-Version", "2022-11-28"}
     ]
 
-    case Req.post(
-           url: "https://api.github.com/app/installations/#{installation_id}/access_tokens",
-           headers: headers,
-           finch: Tuist.Finch
-         ) do
+    req_opts =
+      [
+        url: "https://api.github.com/app/installations/#{installation_id}/access_tokens",
+        headers: headers,
+        finch: Tuist.Finch
+      ] ++ Retry.retry_options()
+
+    case Req.post(req_opts) do
       {:ok, %Req.Response{status: 201, body: %{"token" => token, "expires_at" => expires_at}}} ->
         {:ok, expires_at, _} = DateTime.from_iso8601(expires_at)
         {:ok, %{token: token, expires_at: expires_at}}
 
       {:ok, %Req.Response{status: _status, body: _body}} ->
         {:error, "Failed to get installation token"}
+
+      {:error, %Req.HTTPError{} = error} ->
+        {:error, "GitHub API connection error: #{inspect(error.reason)}"}
+
+      {:error, error} ->
+        {:error, "Unexpected error getting installation token: #{inspect(error)}"}
     end
   end
 end

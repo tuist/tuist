@@ -20,6 +20,7 @@ defmodule TuistWeb.EmptyState do
 
   slot :light_background, required: true, doc: "The background of the empty state in light mode."
   slot :dark_background, required: true, doc: "The background of the empty state in dark mode."
+  slot :actions, required: false, doc: "Optional actions to display after the terminal."
 
   def empty_state(assigns) do
     ~H"""
@@ -39,7 +40,7 @@ defmodule TuistWeb.EmptyState do
             </span>
             <.link_button
               :if={@learn_more_href}
-              label={gettext("Learn more")}
+              label={dgettext("dashboard", "Learn more")}
               underline
               size="medium"
               href={@learn_more_href}
@@ -48,6 +49,9 @@ defmodule TuistWeb.EmptyState do
           </span>
         </div>
         <.terminal id={@id} command={@command} />
+        <div :if={@actions != []} data-part="actions">
+          {render_slot(@actions)}
+        </div>
       </div>
     </div>
     """

@@ -1,24 +1,13 @@
 ---
 title: Community
 description: Tuist wouldn't be where it is today without the help of our amazing community.
+last_updated: 2023-10-23
 ---
-
-# Community
 
 **Tuist is an open-core company built on the foundation of open source and shared values.**
 Collaboration is at the heart of what we do—we believe that by working together, we can create the ultimate productivity platform for app developers.
 
 This page is dedicated to our community and the incredible individuals who make Tuist possible. It features a non-exhaustive list of contributors who actively support Tuist in various ways.
-
-## Core team
-
-The core team is a steering group of individuals that ensure decisions are made in the best interest of the community and drive the project forward:
-
-- [Pedro Piñera Buendía](https://github.com/pepicrft) (Company CEO)
-- [Marek Fořt](https://github.com/fortmarek) (Company CTO)
-- [Kas](https://github.com/kwridan) (Community)
-- [Daniele Formichelli](https://github.com/danyf90) (Community)
-- [Mike Simons](https://github.com/waltflanagan) (Community)
 
 ## Ambassadors
 
@@ -59,6 +48,9 @@ We view languages as powerful tools for fostering deeper connections with the co
 
 People come and go. We are grateful for the contributions of our alumni:
 
+- [Kas](https://github.com/kwridan) (Core Team)
+- [Daniele Formichelli](https://github.com/danyf90) (Core Team)
+- [Mike Simons](https://github.com/waltflanagan) (Core Team)
 - [Natan Rolnik](http://natanrolnik.me/) (Core Team)
 - [Andrea Cipriani](https://github.com/andreacipriani) (Core Team)
 - [Oliver Atkinson](https://github.com/ollieatkinson) (Core Team)

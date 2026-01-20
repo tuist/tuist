@@ -31,18 +31,18 @@ defmodule Tuist.Guardian do
   end
 
   def resource_from_claims(%{"sub" => id, "type" => "account"} = claims) do
-    account = Accounts.get_account_by_id(id)
+    case Accounts.get_account_by_id(id) do
+      {:ok, account} ->
+        {:ok,
+         %AuthenticatedAccount{
+           account: account,
+           scopes: claims["scopes"],
+           all_projects: false,
+           project_ids: extract_project_ids(claims)
+         }}
 
-    if account do
-      scopes = Enum.map(claims["scopes"], &String.to_atom/1)
-
-      {:ok,
-       %AuthenticatedAccount{
-         account: account,
-         scopes: scopes
-       }}
-    else
-      {:error, :resource_not_found}
+      {:error, :not_found} ->
+        {:error, :resource_not_found}
     end
   end
 
@@ -50,6 +50,10 @@ defmodule Tuist.Guardian do
     resource = Accounts.get_user_by_id(id)
     {:ok, resource}
   end
+
+  defp extract_project_ids(%{"project_ids" => project_ids}) when is_list(project_ids), do: project_ids
+  defp extract_project_ids(%{"project_id" => project_id}) when not is_nil(project_id), do: [project_id]
+  defp extract_project_ids(_), do: nil
 
   def after_encode_and_sign(resource, claims, token, _options) do
     with {:ok, _} <-

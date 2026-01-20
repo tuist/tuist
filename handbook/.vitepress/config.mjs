@@ -118,6 +118,10 @@ export default defineConfig({
             link: "/engineering/scheduled-maintenance",
           },
           {
+            text: "Cache infrastructure",
+            link: "/engineering/cache-infrastructure",
+          },
+          {
             text: "Server",
             items: [
               {
@@ -158,7 +162,7 @@ export default defineConfig({
         collapsed: true,
         items: [
           { text: "Guidelines", link: "/marketing/guidelines" },
-          { text: "Case studies", link: "/marketing/case-studies" },
+          { text: "Case Studies", link: "/marketing/case-studies" },
         ],
       },
       {

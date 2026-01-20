@@ -1,0 +1,86 @@
+<TuistWeb.Marketing.Layouts.marketing {assigns}>
+  <main id="marketing-case-study" phx-hook="CodeCopy">
+    <TuistWeb.Marketing.MarketingComponents.navbar {assigns} />
+
+    <TuistWeb.Marketing.MarketingComponents.header_background />
+
+    <header data-part="header">
+      <div data-part="content">
+        <div data-part="category">
+          <a href={~p"/customers"}>{dgettext("marketing", "Customers")}</a>
+          <.math_slash aria-hidden="true" />
+          <span>{@case_study.company}</span>
+        </div>
+
+        <h1 data-part="title">
+          {@case_study.title}
+        </h1>
+
+        <div data-part="metadata">
+          <span>{Timex.format!(@case_study.date, "{Mfull} {D}, {YYYY}")}</span>
+        </div>
+      </div>
+
+      <img
+        data-part="image"
+        src={@case_study.og_image_path}
+        alt={dgettext("marketing", "%{company} case study", company: @case_study.company)}
+      />
+    </header>
+
+    <section data-part="metadata">
+      <main data-part="content">
+        <div data-part="entry">
+          <span data-part="label">{@case_study.company}</span>
+          <.link data-part="value" href={@case_study.url} target="_blank">
+            {@case_study.url |> URI.parse() |> Map.get(:host)}
+            <.external_link aria-hidden="true" />
+            <span class="sr-only">{dgettext("marketing", "(opens in new tab)")}</span>
+          </.link>
+        </div>
+        <div data-part="entry">
+          <span data-part="label">{dgettext("marketing", "Founded")}</span>
+          <span data-part="value">{@case_study.founded_date}</span>
+        </div>
+        <div data-part="entry">
+          <span data-part="label">{dgettext("marketing", "Onboarded")}</span>
+          <span data-part="value">
+            {Timex.format!(@case_study.onboarded_date, "{Mfull} {YYYY}")}
+          </span>
+        </div>
+      </main>
+    </section>
+
+    <section id="case-study-content" data-part="content" data-prose phx-hook="ShikiHighlight">
+      {raw(@case_study.body)}
+    </section>
+
+    <section :if={@related_case_studies != []} data-part="read-next">
+      <h2 data-part="title">{dgettext("marketing", "Read next")}</h2>
+      <div data-part="cases">
+        <.link
+          :for={related <- @related_case_studies}
+          data-part="case"
+          href={TuistWeb.Marketing.MarketingHTML.localized_href(related.slug)}
+        >
+          <img
+            data-part="image"
+            src={related.og_image_path}
+            alt={dgettext("marketing", "%{company} case study", company: related.company)}
+          />
+          <div data-part="content">
+            <h3 data-part="title">{related.title}</h3>
+            <footer data-part="footer">
+              <span data-part="read-story">{dgettext("marketing", "Read story")}</span>
+              <.arrow_right aria-hidden="true" />
+            </footer>
+          </div>
+        </.link>
+      </div>
+    </section>
+
+    <section data-part="cta">
+      <.marketing_banner title={dgettext("marketing", "AI moves fast. So should your builds.")} />
+    </section>
+  </main>
+</TuistWeb.Marketing.Layouts.marketing>

@@ -1,5 +1,7 @@
 import FileSystem
 import FileSystemTesting
+import Foundation
+import Path
 import Testing
 import TuistAcceptanceTesting
 import TuistSupport
@@ -10,7 +12,7 @@ import XCTest
 
 struct TestAcceptanceTests {
     @Test(
-        .withFixture("ios_app_with_frameworks"),
+        .withFixture("generated_ios_app_with_frameworks"),
         .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedLogger()
@@ -27,7 +29,7 @@ struct TestAcceptanceTests {
     }
 
     @Test(
-        .withFixture("app_with_framework_and_tests"),
+        .withFixture("generated_app_with_framework_and_tests"),
         .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedLogger()
@@ -66,29 +68,60 @@ struct TestAcceptanceTests {
             ]
         )
     }
+
+    @Test(
+        .withFixture("generated_ios_app_with_static_framework_resource_tests_and_metal"),
+        .inTemporaryDirectory,
+        .withMockedEnvironment(),
+        .withMockedLogger()
+    ) func ios_app_with_static_framework_resources_and_metal() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        // When/Then: test execution should succeed
+        try await TuistTest.run(
+            TestCommand.self,
+            ["--path", fixtureDirectory.pathString, "--derived-data-path", temporaryDirectory.pathString, "App"]
+        )
+
+        let productsPath = temporaryDirectory.appending(components: "Build", "Products")
+        let matches = try await fileSystem.glob(
+            directory: productsPath,
+            include: ["**/App.app"]
+        ).collect()
+        let appPath = try #require(matches.first)
+        let metallibPath = appPath.appending(
+            components: "Frameworks",
+            "StaticMetalFramework.framework",
+            "default.metallib"
+        )
+        #expect(try await fileSystem.exists(metallibPath))
+    }
 }
 
 /// Test projects using tuist test
 final class TestXCTestAcceptanceTests: TuistAcceptanceTestCase {
     func test_with_framework_with_spm_bundle() async throws {
-        try await setUpFixture(.frameworkWithSPMBundle)
+        try await setUpFixture("generated_framework_with_spm_bundle")
         try await run(InstallCommand.self)
         try await run(TestCommand.self)
     }
 
     func test_with_app_with_test_plan() async throws {
-        try await setUpFixture(.appWithTestPlan)
+        try await setUpFixture("generated_app_with_test_plan")
         try await run(TestCommand.self)
         try await run(TestCommand.self, "App", "--test-plan", "All")
     }
 
     func test_with_app_workspace_with_test_plan() async throws {
-        try await setUpFixture(.appWorkspaceWithTestPlan)
+        try await setUpFixture("generated_app_workspace_with_test_plan")
         try await run(TestCommand.self, "App", "--test-plan", "AppTestPlan")
     }
 
     func test_with_invalid_arguments() async throws {
-        try await setUpFixture(.appWithFrameworkAndTests)
+        try await setUpFixture("generated_app_with_framework_and_tests")
         await XCTAssertThrowsSpecific(
             try await run(TestCommand.self, "App", "--", "-scheme", "App"),
             XcodeBuildPassthroughArgumentError.alreadyHandled("-scheme")
@@ -134,7 +167,7 @@ final class TestXCTestAcceptanceTests: TuistAcceptanceTestCase {
     }
 
     func test_with_multiplatform_app() async throws {
-        try await setUpFixture(.multiplatformApp)
+        try await setUpFixture("generated_multiplatform_app")
         try await run(TestCommand.self)
     }
 }

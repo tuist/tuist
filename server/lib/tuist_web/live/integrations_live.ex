@@ -5,6 +5,7 @@ defmodule TuistWeb.IntegrationsLive do
 
   alias Tuist.Authorization
   alias Tuist.Projects
+  alias Tuist.Slack
   alias Tuist.Utilities.DateFormatter
   alias Tuist.VCS
 
@@ -12,11 +13,12 @@ defmodule TuistWeb.IntegrationsLive do
   def mount(_params, _uri, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
     if Authorization.authorize(:account_update, current_user, selected_account) != :ok do
       raise TuistWeb.Errors.UnauthorizedError,
-            gettext("You are not authorized to perform this action.")
+            dgettext("dashboard_integrations", "You are not authorized to perform this action.")
     end
 
-    selected_account = Tuist.Repo.preload(selected_account, [:github_app_installation, :projects])
+    selected_account = Tuist.Repo.preload(selected_account, [:github_app_installation, :slack_installation, :projects])
     github_installation = selected_account.github_app_installation
+    slack_installation = selected_account.slack_installation
     vcs_connections = vcs_connections(selected_account)
 
     socket =
@@ -24,10 +26,11 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(selected_tab: "integrations")
       |> assign(selected_account: selected_account)
       |> assign(github_app_installation: github_installation)
+      |> assign(slack_installation: slack_installation)
       |> assign(vcs_connections: vcs_connections)
       |> assign(selected_project_id: nil)
       |> assign(selected_repository_full_handle: nil)
-      |> assign(:head_title, "#{gettext("Integrations")} · #{selected_account.name} · Tuist")
+      |> assign(:head_title, "#{dgettext("dashboard_integrations", "Integrations")} · #{selected_account.name} · Tuist")
       |> then(fn socket ->
         if github_installation do
           assign_async(socket, :github_repositories, fn ->
@@ -109,6 +112,17 @@ defmodule TuistWeb.IntegrationsLive do
     {:noreply, socket}
   end
 
+  @impl true
+  def handle_event("disconnect-slack", _params, %{assigns: assigns} = socket) do
+    %{slack_installation: slack_installation} = assigns
+
+    if slack_installation do
+      {:ok, _} = Slack.delete_installation(slack_installation)
+    end
+
+    {:noreply, assign(socket, slack_installation: nil)}
+  end
+
   defp get_available_projects(%{selected_account: selected_account, vcs_connections: vcs_connections}) do
     connected_project_ids = MapSet.new(vcs_connections, & &1.project_id)
 
@@ -144,9 +158,9 @@ defmodule TuistWeb.IntegrationsLive do
     time_ago = DateFormatter.from_now(vcs_connection.inserted_at)
 
     if is_nil(vcs_connection.created_by) do
-      gettext("Connected %{time_ago}", time_ago: time_ago)
+      dgettext("dashboard_integrations", "Connected %{time_ago}", time_ago: time_ago)
     else
-      gettext("Connected %{time_ago} by %{name}",
+      dgettext("dashboard_integrations", "Connected %{time_ago} by %{name}",
         time_ago: time_ago,
         name: vcs_connection.created_by.account.name
       )

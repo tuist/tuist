@@ -1,4 +1,5 @@
 defmodule TuistWeb.Socket do
+  @moduledoc false
   use Phoenix.Socket
 
   alias Tuist.Authentication

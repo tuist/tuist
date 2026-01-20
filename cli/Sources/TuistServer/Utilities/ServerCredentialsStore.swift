@@ -12,11 +12,11 @@ public struct ServerCredentials: Sendable, Codable, Equatable {
     public let accessToken: String
 
     /// JWT refresh token
-    public let refreshToken: String
+    public let refreshToken: String?
 
     public init(
         accessToken: String,
-        refreshToken: String
+        refreshToken: String? = nil
     ) {
         self.accessToken = accessToken
         self.refreshToken = refreshToken
@@ -27,7 +27,7 @@ public struct ServerCredentials: Sendable, Codable, Equatable {
     extension ServerCredentials {
         public static func test(
             accessToken: String = "access-token",
-            refreshToken: String = "refresh-token"
+            refreshToken: String? = "refresh-token"
         ) -> ServerCredentials {
             return ServerCredentials(accessToken: accessToken, refreshToken: refreshToken)
         }
@@ -111,9 +111,11 @@ public final class ServerCredentialsStore: ServerCredentialsStoring, ObservableO
     public func store(credentials: ServerCredentials, serverURL: URL) async throws {
         switch backend {
         case .keychain:
-            try keychain(serverURL: serverURL)
-                .comment("Refresh token against \(serverURL.absoluteString)")
-                .set(credentials.refreshToken, key: serverURL.absoluteString + "_refresh_token")
+            if let refreshToken = credentials.refreshToken {
+                try keychain(serverURL: serverURL)
+                    .comment("Refresh token against \(serverURL.absoluteString)")
+                    .set(refreshToken, key: serverURL.absoluteString + "_refresh_token")
+            }
             try keychain(serverURL: serverURL)
                 .comment("Refresh token against \(serverURL.absoluteString)")
                 .set(credentials.accessToken, key: serverURL.absoluteString + "_access_token")

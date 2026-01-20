@@ -1,9 +1,8 @@
 ---
-title: We ❤️ openness · Tuist
+title: We ❤️ openness
 description: We are building an open company, and we believe that openness is the key to building the best tools for developers. This document outlines our commitment to openness and how we are building Tuist in the open.
+last_updated: 2023-10-23
 ---
-
-# We ❤️ openness
 
 We want to build the best extension to Apple's native toolchain, and we believe we can only do so by embracing openness. Born in the open-source community, openness has shaped how we think, build, and share our work at Tuist.
 

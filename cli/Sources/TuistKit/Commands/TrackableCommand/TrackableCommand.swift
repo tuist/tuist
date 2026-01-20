@@ -1,11 +1,11 @@
 import ArgumentParser
+import FileSystem
 import Foundation
 import OpenAPIRuntime
 import Path
-import TuistAnalytics
-import TuistAsyncQueue
 import TuistCache
 import TuistCore
+import TuistProcess
 import TuistServer
 import TuistSupport
 import XcodeGraph
@@ -22,10 +22,13 @@ public struct TrackableCommandInfo {
     let graphBinaryBuildDuration: TimeInterval?
     let binaryCacheItems: [AbsolutePath: [String: CacheItem]]
     let selectiveTestingCacheItems: [AbsolutePath: [String: CacheItem]]
+    let targetContentHashSubhashes: [String: TargetContentHashSubhashes]
     let previewId: String?
     let resultBundlePath: AbsolutePath?
     let ranAt: Date
     let buildRunId: String?
+    let testRunId: String?
+    let cacheEndpoint: String
 }
 
 /// A `TrackableCommand` wraps a `ParsableCommand` and reports its execution to an analytics provider
@@ -34,27 +37,35 @@ public class TrackableCommand {
     private let clock: Clock
     private let commandArguments: [String]
     private let commandEventFactory: CommandEventFactory
-    private let asyncQueue: AsyncQueuing
     private let fileHandler: FileHandling
+    private let backgroundProcessRunner: BackgroundProcessRunning
+    private let uploadAnalyticsService: UploadAnalyticsServicing
+    private let fileSystem: FileSysteming
 
     public init(
         command: ParsableCommand,
         commandArguments: [String],
         clock: Clock = WallClock(),
         commandEventFactory: CommandEventFactory = CommandEventFactory(),
-        asyncQueue: AsyncQueuing = AsyncQueue.sharedInstance,
         fileHandler: FileHandling = FileHandler.shared,
+        backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
+        uploadAnalyticsService: UploadAnalyticsServicing = UploadAnalyticsService(),
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.command = command
         self.commandArguments = commandArguments
         self.clock = clock
         self.commandEventFactory = commandEventFactory
-        self.asyncQueue = asyncQueue
         self.fileHandler = fileHandler
+        self.backgroundProcessRunner = backgroundProcessRunner
+        self.uploadAnalyticsService = uploadAnalyticsService
+        self.fileSystem = fileSystem
     }
 
     public func run(
-        backend: TuistAnalyticsServerBackend?
+        fullHandle: String?,
+        serverURL: URL?,
+        shouldTrackAnalytics: Bool
     ) async throws {
         let timer = clock.startTimer()
         let ranAt = clock.now
@@ -73,27 +84,27 @@ public class TrackableCommand {
                 } else {
                     try command.run()
                 }
-                if let backend {
-                    try await dispatchCommandEvent(
+                if let fullHandle, let serverURL, shouldTrackAnalytics {
+                    try await uploadCommandEvent(
                         timer: timer,
                         status: .success,
                         runId: runMetadataStorage.runId,
                         path: path,
                         runMetadataStorage: runMetadataStorage,
-                        backend: backend,
-                        ranAt: ranAt
+                        fullHandle: fullHandle,
+                        serverURL: serverURL
                     )
                 }
             } catch {
-                if let backend {
-                    try await dispatchCommandEvent(
+                if let fullHandle, let serverURL, shouldTrackAnalytics {
+                    try await uploadCommandEvent(
                         timer: timer,
                         status: .failure("\(error)"),
                         runId: await runMetadataStorage.runId,
                         path: path,
                         runMetadataStorage: runMetadataStorage,
-                        backend: backend,
-                        ranAt: ranAt
+                        fullHandle: fullHandle,
+                        serverURL: serverURL
                     )
                 }
                 throw error
@@ -101,14 +112,14 @@ public class TrackableCommand {
         }
     }
 
-    private func dispatchCommandEvent(
+    private func uploadCommandEvent(
         timer: any ClockTimer,
         status: CommandEvent.Status,
         runId: String,
         path: AbsolutePath,
         runMetadataStorage: RunMetadataStorage,
-        backend: TuistAnalyticsServerBackend,
-        ranAt _: Date
+        fullHandle: String,
+        serverURL: URL
     ) async throws {
         let durationInSeconds = timer.stop()
         let durationInMs = Int(durationInSeconds * 1000)
@@ -125,10 +136,13 @@ public class TrackableCommand {
             graphBinaryBuildDuration: runMetadataStorage.graphBinaryBuildDuration,
             binaryCacheItems: runMetadataStorage.binaryCacheItems,
             selectiveTestingCacheItems: runMetadataStorage.selectiveTestingCacheItems,
+            targetContentHashSubhashes: runMetadataStorage.targetContentHashSubhashes,
             previewId: runMetadataStorage.previewId,
             resultBundlePath: runMetadataStorage.resultBundlePath,
             ranAt: Date(),
-            buildRunId: runMetadataStorage.buildRunId
+            buildRunId: runMetadataStorage.buildRunId,
+            testRunId: runMetadataStorage.testRunId,
+            cacheEndpoint: runMetadataStorage.cacheEndpoint
         )
         let commandEvent = try commandEventFactory.make(
             from: info,
@@ -137,11 +151,22 @@ public class TrackableCommand {
         if (command as? TrackableParsableCommand)?.analyticsRequired == true || Environment.current.isCI {
             Logger.current.info("Uploading run metadata...")
             do {
-                let serverCommandEvent: ServerCommandEvent = try await backend.send(commandEvent: commandEvent)
-                Logger.current
-                    .info(
-                        "You can view a detailed run report at: \(serverCommandEvent.url.absoluteString)"
-                    )
+                let serverCommandEvent = try await uploadAnalyticsService.upload(
+                    commandEvent: commandEvent,
+                    fullHandle: fullHandle,
+                    serverURL: serverURL
+                )
+                if let testRunURL = serverCommandEvent.testRunURL {
+                    Logger.current
+                        .info(
+                            "You can view a detailed test report at: \(testRunURL.absoluteString)"
+                        )
+                } else {
+                    Logger.current
+                        .info(
+                            "You can view a detailed run report at: \(serverCommandEvent.url.absoluteString)"
+                        )
+                }
             } catch let error as ClientError {
                 Logger.current
                     .warning("Failed to upload run metadata: \(String(describing: error.underlyingError))")
@@ -149,7 +174,18 @@ public class TrackableCommand {
                 Logger.current.warning("Failed to upload run metadata: \(String(describing: error))")
             }
         } else {
-            try asyncQueue.dispatch(event: commandEvent)
+            let tempDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "analytics")
+            let commandEventPath = tempDirectory.appending(component: "command-event.json")
+            try await fileSystem.writeAsJSON(commandEvent, at: commandEventPath)
+            try backgroundProcessRunner.runInBackground(
+                [Environment.current.currentExecutablePath()?.pathString ?? "tuist"] + [
+                    "analytics-upload",
+                    commandEventPath.pathString,
+                    fullHandle,
+                    serverURL.absoluteString,
+                ],
+                environment: ProcessInfo.processInfo.environment
+            )
         }
     }
 

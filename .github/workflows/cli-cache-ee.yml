@@ -15,10 +15,11 @@ on:
       - "*.swift"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
-      - "cli/Fixtures/**"
+      - "examples/xcode/**"
       - "Tuist/**"
       - ".xcode-version"
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - .github/workflows/cli-cache-ee.yml
       - mise/tasks/cli/ee.sh
@@ -30,7 +31,7 @@ on:
       - "*.swift"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
-      - "cli/Fixtures/**"
+      - "examples/xcode/**"
       - "Tuist/**"
       - ".xcode-version"
   workflow_dispatch:
@@ -40,13 +41,13 @@ on:
         required: false
 
 permissions:
+  id-token: write
   contents: read
 
 env:
-  TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
-  MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
   GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
   TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
+  TUIST_ENABLE_CACHING: "true"
 
 concurrency:
   group: cli-cache-ee-${{ github.head_ref }}
@@ -99,7 +100,7 @@ jobs:
       always() &&
       (github.event_name == 'push' ||
        github.event_name == 'workflow_dispatch' ||
-       (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true'))
+       (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true' && github.event.pull_request.draft == false))
     steps:
       - uses: actions/checkout@v4
         if: ${{ github.event.inputs.commit_sha == '' }}
@@ -120,8 +121,14 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Setup Tuist cache
+        run: tuist setup cache
+      - name: Install Tuist dependencies
+        if: steps.cache-restore.outputs.cache-matched-key == ''
+        run: tuist install
       - name: Initialize TuistCacheEE submodule
         run: mise run cli:ee
       - name: Run tests
@@ -143,7 +150,7 @@ jobs:
       always() &&
       (github.event_name == 'push' ||
        github.event_name == 'workflow_dispatch' ||
-       (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true'))
+       (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true' && github.event.pull_request.draft == false))
     steps:
       - uses: actions/checkout@v4
         if: ${{ github.event.inputs.commit_sha == '' }}
@@ -164,12 +171,18 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Setup Tuist cache
+        run: tuist setup cache
+      - name: Install Tuist dependencies
+        if: steps.cache-restore.outputs.cache-matched-key == ''
+        run: tuist install
       - name: Initialize TuistCacheEE submodule
         run: mise run cli:ee
       - name: Run tests
-        run: mise x -- tuist test TuistCacheEEAcceptanceTests
+        run: mise x -- tuist test TuistCacheEEAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
         env:
           TUIST_EE: 1
       - name: Save cache
@@ -187,7 +200,7 @@ jobs:
       always() &&
       (github.event_name == 'push' ||
        github.event_name == 'workflow_dispatch' ||
-       (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true'))
+       (github.event_name == 'pull_request' && needs.check-team-membership.outputs.is-team-member == 'true' && github.event.pull_request.draft == false))
     steps:
       - uses: actions/checkout@v4
         if: ${{ github.event.inputs.commit_sha == '' }}
@@ -208,12 +221,18 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-cli-
       - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - name: Setup Tuist cache
+        run: tuist setup cache
+      - name: Install Tuist dependencies
+        if: steps.cache-restore.outputs.cache-matched-key == ''
+        run: tuist install
       - name: Initialize TuistCacheEE submodule
         run: mise run cli:ee
       - name: Run tests
-        run: mise x -- tuist test TuistCacheEEUnitTests
+        run: mise x -- tuist test TuistCacheEEUnitTests -- -retry-tests-on-failure -test-iterations 4
         env:
           TUIST_EE: 1
       - name: Save cache

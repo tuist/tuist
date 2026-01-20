@@ -5,62 +5,63 @@
   "description": "Learn how to contribute to Tuist by reviewing code"
 }
 ---
-# Code reviews {#code-reviews}
+# Обзоры кода {#code-reviews}
 
-Reviewing pull requests is a common type of contribution. Despite continuous
-integration (CI) ensuring the code does what’s supposed to do, it’s not enough.
-There are contribution traits that can’t be automated: design, code structure &
-architecture, tests quality, or typos. The following sections represent
-different aspects of the code review process.
+Просмотр запросов на исправление - распространенный вид вклада. Несмотря на то
+что непрерывная интеграция (CI) гарантирует, что код делает то, что должен
+делать, этого недостаточно. Существуют характеристики вклада, которые невозможно
+автоматизировать: дизайн, структура и архитектура кода, качество тестов или
+опечатки. В следующих разделах представлены различные аспекты процесса проверки
+кода.
 
-## Readability {#readability}
+## Читаемость {#readability}
 
-Does the code express its intention clearly? **If you need to spend a bunch of
-time figuring out what the code does, the code implementation needs to be
-improved.** Suggest splitting the code into smaller abstractions that are easier
-to understand. Alternative, and as a last resource, they can add a comment
-explaining the reasoning behind it. Ask yourself if you’d be able to understand
-the code in a near future, without any surrounding context like the pull request
-description.
+Ясно ли код выражает свои намерения? **Если вам приходится тратить кучу времени
+на то, чтобы понять, что делает код, значит, его реализация нуждается в
+улучшении.** Предложите разбить код на более мелкие абстракции, которые легче
+понять. В качестве альтернативы и последнего средства они могут добавить
+комментарий, объясняющий причину такого решения. Спросите себя, сможете ли вы
+понять код в ближайшем будущем без какого-либо окружающего контекста, например,
+описания запроса.
 
-## Small pull requests {#small-pull-requests}
+## Небольшие запросы на вытягивание {#small-pull-requests}
 
-Large pull requests are hard to review and it’s easier to miss out details. If a
-pull request becomes too large and unmanageable, suggest the author to break it
-down.
+Большие запросы сложно просматривать, и в них легче упустить детали. Если запрос
+становится слишком большим и неуправляемым, предложите автору разбить его на
+части.
 
-::: info EXCEPTIONS
+::: инфо ИСКЛЮЧЕНИЯ
 <!-- -->
-There are few scenarios where splitting up the pull request is not possible,
-like when the changes are tightly coupled and can’t be split. In those cases,
-the author should provide a clear explanation of the changes and the reasoning
-behind them.
+Есть несколько сценариев, когда разделение запроса на вытягивание невозможно,
+например, когда изменения тесно связаны между собой и не могут быть разделены. В
+таких случаях автор должен предоставить четкое объяснение изменений и их
+обоснование.
 <!-- -->
 :::
 
-## Consistency {#consistency}
+## Последовательность {#consistency}
 
-It’s important that the changes are consistent with the rest of the project.
-Inconsistencies complicate maintenance, and therefore we should avoid them. If
-there’s an approach to output messages to the user, or report errors, we should
-stick to that. If the author disagrees with the project’s standards, suggest
-them to open an issue where we can discuss them further.
+Важно, чтобы изменения согласовывались с остальной частью проекта.
+Несогласованность усложняет сопровождение, поэтому ее следует избегать. Если
+есть подход к выводу сообщений пользователю или сообщению об ошибках, следует
+придерживаться его. Если автор не согласен со стандартами проекта, предложите
+ему открыть тему, где мы сможем обсудить это подробнее.
 
-## Tests {#tests}
+## Тесты {#tests}
 
-Tests allow changing code with confidence. The code on pull requests should be
-tested, and all tests should pass. A good test is a test that consistently
-produces the same result and that it’s easy to understand and maintain.
-Reviewers spend most of the review time in the implementation code, but tests
-are equally important because they are code too.
+Тесты позволяют изменять код с уверенностью. Код в pull request'ах должен быть
+протестирован, и все тесты должны пройти. Хороший тест - это тест, который
+постоянно дает один и тот же результат и который легко понять и поддерживать.
+Большую часть времени рецензенты проводят в коде реализации, но тесты не менее
+важны, потому что они тоже являются кодом.
 
-## Breaking changes {#breaking-changes}
+## Разрывные изменения {#breaking-changes}
 
-Breaking changes are a bad user experience for users of Tuist. Contributions
-should avoid introducing breaking changes unless it’s strictly necessary. There
-are many language features that we can leverage to evolve the interface of Tuist
-without resorting to a breaking change. Whether a change is breaking or not
-might not be obvious. A method to verify whether the change is breaking is
-running Tuist against the fixture projects in the fixtures directory. It
-requires putting ourselves in the user’s shoes and imagine how the changes would
-impact them.
+Ломающиеся изменения - это плохой опыт для пользователей Tuist. Вкладчикам
+следует избегать внесения разрывных изменений, если это не является строго
+необходимым. Существует множество возможностей языка, которые мы можем
+использовать для развития интерфейса Tuist, не прибегая к ломающим изменениям.
+То, является ли изменение ломающим или нет, может быть неочевидным. Метод,
+позволяющий проверить, является ли изменение ломающим, - запуск Tuist с
+проектами фикстур в каталоге фикстур. Для этого нужно поставить себя на место
+пользователя и представить, как изменения повлияют на него.

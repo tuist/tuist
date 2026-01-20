@@ -8,9 +8,18 @@ defmodule TuistWeb.Oauth.AuthorizeController do
   alias Boruta.Oauth.AuthorizeResponse
   alias Boruta.Oauth.Error
   alias Boruta.Oauth.ResourceOwner
+  alias TuistWeb.Errors.BadRequestError
 
-  def authorize(%Plug.Conn{assigns: %{current_user: %Tuist.Accounts.User{} = current_user}} = conn, _params) do
-    Oauth.authorize(conn, %ResourceOwner{sub: to_string(current_user.id), username: current_user.email}, __MODULE__)
+  @max_state_length 10_000
+
+  def authorize(%Plug.Conn{assigns: %{current_user: %Tuist.Accounts.User{} = current_user}} = conn, params) do
+    :ok = validate_state_length!(params)
+
+    Oauth.authorize(
+      conn,
+      %ResourceOwner{sub: to_string(current_user.id), username: current_user.email},
+      __MODULE__
+    )
   end
 
   def authorize(%Plug.Conn{} = conn, _params) do
@@ -59,4 +68,10 @@ defmodule TuistWeb.Oauth.AuthorizeController do
     |> redirect(to: ~p"/users/log_in")
     |> halt()
   end
+
+  defp validate_state_length!(%{"state" => state}) when byte_size(state) > @max_state_length do
+    raise BadRequestError, "The state parameter must not exceed #{@max_state_length} characters."
+  end
+
+  defp validate_state_length!(_params), do: :ok
 end

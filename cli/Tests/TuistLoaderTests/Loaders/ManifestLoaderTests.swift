@@ -122,7 +122,7 @@ final class ManifestLoaderTests: TuistTestCase {
         )
 
         // When
-        let got = try await subject.loadPackage(at: manifestPath.parentDirectory)
+        let got = try await subject.loadPackage(at: manifestPath.parentDirectory, disableSandbox: true)
 
         // Then
         XCTAssertBetterEqual(

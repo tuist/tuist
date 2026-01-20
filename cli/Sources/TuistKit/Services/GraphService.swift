@@ -22,8 +22,7 @@ final class GraphService {
     private let configLoader: ConfigLoading
 
     convenience init() {
-        let manifestLoader = ManifestLoaderFactory()
-            .createManifestLoader()
+        let manifestLoader = ManifestLoader.current
         let manifestGraphLoader = ManifestGraphLoader(
             manifestLoader: manifestLoader,
             workspaceMapper: SequentialWorkspaceMapper(mappers: []),
@@ -71,7 +70,7 @@ final class GraphService {
         if try await manifestLoader.hasRootManifest(at: path) {
             (graph, _, _, _) = try await manifestGraphLoader.load(
                 path: path,
-                disableSandbox: config.project.generatedProject?.generationOptions.disableSandbox ?? true
+                disableSandbox: config.project.disableSandbox
             )
         } else {
             graph = try await xcodeGraphMapper.map(at: path)

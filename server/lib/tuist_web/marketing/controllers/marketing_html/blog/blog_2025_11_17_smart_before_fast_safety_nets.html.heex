@@ -1,0 +1,452 @@
+<% custom_head =
+  ~s|<script nonce="#{get_csp_nonce()}" src="https://d3js.org/d3.v7.min.js"></script>
+    <script nonce="#{get_csp_nonce()}" src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>|
+
+custom_styles = """
+  #viz-container {
+    width: 100%;
+    height: 400px;
+    position: relative;
+    background: transparent;
+    padding: 0 15px;
+    box-sizing: border-box;
+  }
+
+  #sankey {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .ci-pool {
+    position: absolute;
+    bottom: 5px;
+    left: 0;
+    right: 0;
+    padding: 0 20px;
+    text-align: center;
+  }
+
+  .ci-pool-label {
+    font-size: 10px;
+    color: var(--noora-surface-label-tertiary, #6b7280);
+    font-weight: 500;
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  .ci-pool-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 8px;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  .ci-env {
+    width: 100%;
+    height: 28px;
+    border: 2px solid var(--noora-border-secondary, #e5e7eb);
+    border-radius: 4px;
+    background: var(--noora-background-secondary, #f9fafb);
+    transition: all 0.3s ease;
+  }
+
+  .ci-env.running {
+    border-color: currentColor;
+  }
+"""
+
+custom_script = """
+  document.addEventListener('DOMContentLoaded', function() {
+    const container = document.getElementById('viz-container');
+    if (!container) {
+      console.error('viz-container not found');
+      return;
+    }
+
+    const width = container.clientWidth;
+    const height = 400;
+    // Calculate margins for responsive layout - ensure enough space for labels
+    const isMobile = width < 768;
+    // On mobile, use smaller fixed margins; on desktop, use percentage-based
+    const leftLabelSpace = isMobile ? 95 : Math.max(170, width * 0.22);
+    const rightLabelSpace = isMobile ? 85 : Math.max(120, width * 0.17);
+    const margin = {
+      top: 30,
+      right: rightLabelSpace,
+      bottom: 95,
+      left: leftLabelSpace
+    };
+
+    // Colors
+    const colors = {
+      developer1: '#3b82f6',
+      developer2: '#06b6d4',
+      codexLocal: '#8b5cf6',
+      codexRemote: '#ec4899',
+      gate: '#f59e0b',
+      main: '#10b981'
+    };
+
+    // State
+    let commitsToday = 0;
+    let svg, graph;
+    let ciQueue = [];
+    let runningJobs = [];
+
+    // Commit rates (average seconds between commits) - faster to show more activity
+    const commitRates = {
+      developer: 5,
+      codexLocal: 7,
+      codexRemote: 9
+    };
+
+    // CI and review settings
+    const ciDuration = 3000; // Increased to 3 seconds so commits spend more time at the gate
+    const conflictProbability = 0.15;
+    const ciFailureProbability = 0.10;
+
+    function updateVisualization() {
+      const nodeData = [
+        { id: 'developer1', label: 'Developer (you)', color: colors.developer1 },
+        { id: 'developer2', label: 'Developer (Marcus)', color: colors.developer2 },
+        { id: 'codex-local-0', label: 'Codex (local)', color: colors.codexLocal },
+        { id: 'codex-remote-0', label: 'Codex (remote)', color: colors.codexRemote },
+        { id: 'gate', label: 'PR + CI', color: colors.gate },
+        { id: 'main', label: 'main', color: colors.main }
+      ];
+
+      const links = [
+        { source: 'developer1', target: 'gate', value: 2 },
+        { source: 'developer2', target: 'gate', value: 2 },
+        { source: 'codex-local-0', target: 'gate', value: 2 },
+        { source: 'codex-remote-0', target: 'gate', value: 2 },
+        { source: 'gate', target: 'main', value: 4 }
+      ];
+
+      const data = { nodes: nodeData, links };
+
+      d3.select('#sankey').selectAll('*').remove();
+
+      svg = d3.select('#sankey')
+        .attr('width', width)
+        .attr('height', height)
+        .attr('viewBox', [0, 0, width, height])
+        .style('background', 'transparent');
+
+      const gridGroup = svg.append('g').attr('class', 'grid');
+      for (let i = margin.top; i < height - margin.bottom; i += 40) {
+        gridGroup.append('line')
+          .attr('class', 'grid-line')
+          .attr('x1', margin.left)
+          .attr('y1', i)
+          .attr('x2', width - margin.right)
+          .attr('y2', i);
+      }
+
+      const sankey = d3.sankey()
+        .nodeId(d => d.id)
+        .nodeWidth(16)
+        .nodePadding(20)
+        .extent([[margin.left, margin.top], [width - margin.right, height - margin.bottom]]);
+
+      graph = sankey({
+        nodes: data.nodes.map(d => Object.assign({}, d)),
+        links: data.links.map(d => Object.assign({}, d))
+      });
+
+      svg.append('g')
+        .selectAll('path')
+        .data(graph.links)
+        .join('path')
+        .attr('class', 'link')
+        .attr('d', d3.sankeyLinkHorizontal())
+        .attr('stroke', d => {
+          const sourceNode = data.nodes.find(n => n.id === d.source.id);
+          return sourceNode.color;
+        });
+
+      const nodeGroups = svg.append('g')
+        .selectAll('g')
+        .data(graph.nodes)
+        .join('g');
+
+      nodeGroups.append('rect')
+        .attr('class', d => (d.id !== 'main' && d.id !== 'gate') ? 'node-rect coding' : 'node-rect')
+        .attr('x', d => d.x0)
+        .attr('y', d => d.y0)
+        .attr('height', d => d.y1 - d.y0)
+        .attr('width', d => d.x1 - d.x0)
+        .attr('fill', d => d.color)
+        .attr('rx', 2);
+
+      // Add labels with responsive offsets
+      const labelOffset = 8;
+      const diagramLeft = margin.left + (width - margin.left - margin.right) / 3;
+      const diagramRight = margin.left + 2 * (width - margin.left - margin.right) / 3;
+
+      nodeGroups.append('text')
+        .attr('class', 'node-label')
+        .attr('x', d => {
+          if (d.x0 < diagramLeft) {
+            // Left side - position at margin edge
+            return margin.left - labelOffset;
+          } else if (d.x0 > diagramRight) {
+            // Right side
+            return d.x1 + labelOffset;
+          } else {
+            // Middle
+            return (d.x0 + d.x1) / 2;
+          }
+        })
+        .attr('y', d => d.x0 >= diagramLeft && d.x0 <= diagramRight ? d.y0 - 8 : (d.y0 + d.y1) / 2)
+        .attr('text-anchor', d => d.x0 < diagramLeft ? 'end' : (d.x0 > diagramRight ? 'start' : 'middle'))
+        .attr('dy', d => d.x0 >= diagramLeft && d.x0 <= diagramRight ? '0' : '0.35em')
+        .style('font-size', isMobile ? '11px' : null)
+        .text(d => {
+          // Shorten labels on mobile
+          if (isMobile) {
+            if (d.label.includes('Developer (you)')) return 'Dev (you)';
+            if (d.label.includes('Developer (Marcus)')) return 'Dev (M)';
+            if (d.label.includes('Codex (local)')) return 'Codex (L)';
+            if (d.label.includes('Codex (remote)')) return 'Codex (R)';
+          }
+          return d.label;
+        });
+
+      nodeGroups
+        .filter(d => d.id === 'main')
+        .append('text')
+        .attr('class', 'commit-counter')
+        .attr('id', 'commits-today')
+        .attr('x', d => d.x1 + labelOffset)
+        .attr('y', d => (d.y0 + d.y1) / 2 + 20)
+        .attr('text-anchor', 'start')
+        .style('font-size', isMobile ? '11px' : null)
+        .text('0 commits');
+
+      const sourceNodes = graph.nodes.filter(d => d.id.includes('developer') || d.id.includes('codex'));
+      sourceNodes.forEach(node => {
+        scheduleCommit(node);
+      });
+    }
+
+    function scheduleCommit(sourceNode) {
+      let rate = commitRates.developer;
+      if (sourceNode.id.includes('codex-local')) {
+        rate = commitRates.codexLocal;
+      } else if (sourceNode.id.includes('codex-remote')) {
+        rate = commitRates.codexRemote;
+      }
+
+      const delay = (rate * 1000) * (0.5 + Math.random());
+
+      setTimeout(() => {
+        if (!isPaused) {
+          animateCommit(sourceNode);
+        }
+        scheduleCommit(sourceNode);
+      }, delay);
+    }
+
+    function animateCommit(sourceNode) {
+      const pathToGate = svg.selectAll('.link')
+        .filter(d => d.source.id === sourceNode.id && d.target.id === 'gate')
+        .node();
+
+      if (!pathToGate) return;
+
+      const pathLength = pathToGate.getTotalLength();
+      const startPoint = pathToGate.getPointAtLength(0);
+
+      const commitDot = svg.append('circle')
+        .attr('class', 'commit-dot')
+        .attr('cx', startPoint.x)
+        .attr('cy', startPoint.y)
+        .attr('r', 6)
+        .attr('fill', sourceNode.color);
+
+      commitDot
+        .transition()
+        .duration(1000)
+        .ease(d3.easeCubicInOut)
+        .tween('pathTween', function() {
+          return function(t) {
+            const point = pathToGate.getPointAtLength(t * pathLength);
+            d3.select(this)
+              .attr('cx', point.x)
+              .attr('cy', point.y);
+          };
+        })
+        .on('end', () => {
+          // Find and reserve a CI environment immediately when commit arrives at gate
+          const envIndex = findAvailableEnv();
+          if (envIndex !== -1) {
+            const env = document.getElementById(`ci-env-${envIndex}`);
+            const color = sourceNode.color;
+            env.classList.add('running');
+            env.style.color = color;
+            env.style.background = `${color}15`;
+          }
+
+          // All commits spend time at the gate before being processed
+          setTimeout(() => {
+            const hasConflict = Math.random() < conflictProbability;
+            const ciFailure = Math.random() < ciFailureProbability;
+            const rejected = hasConflict || ciFailure;
+
+            if (rejected) {
+              // Release the CI environment if commit is rejected
+              if (envIndex !== -1) {
+                const env = document.getElementById(`ci-env-${envIndex}`);
+                env.classList.remove('running');
+                env.style.color = '';
+                env.style.background = '';
+              }
+
+              // Animate back to source
+              setTimeout(() => {
+                commitDot
+                  .transition()
+                  .duration(800)
+                  .ease(d3.easeCubicInOut)
+                  .tween('pathTweenBack', function() {
+                    return function(t) {
+                      // Animate backwards along the path (1 - t)
+                      const point = pathToGate.getPointAtLength((1 - t) * pathLength);
+                      d3.select(this)
+                        .attr('cx', point.x)
+                        .attr('cy', point.y);
+                    };
+                  })
+                  .on('end', () => {
+                    // Fade out at source
+                    commitDot
+                      .transition()
+                      .duration(300)
+                      .attr('r', 0)
+                      .attr('opacity', 0)
+                      .remove();
+                  });
+              }, 300);
+            } else {
+              // Push to queue with the reserved environment
+              ciQueue.push({ dot: commitDot, sourceNode, envIndex });
+            }
+          }, 2000); // Wait 2 seconds at the gate before processing
+        });
+    }
+
+    function processCIQueue() {
+      const maxRunners = 8;
+
+      while (runningJobs.length < maxRunners && ciQueue.length > 0) {
+        const job = ciQueue.shift();
+        // Use the pre-reserved environment index
+        const envIndex = job.envIndex;
+
+        if (envIndex !== -1) {
+          startCIJob(job, envIndex);
+        }
+      }
+    }
+
+    function findAvailableEnv() {
+      for (let i = 0; i < 8; i++) {
+        const env = document.getElementById(`ci-env-${i}`);
+        if (!env.classList.contains('running')) {
+          return i;
+        }
+      }
+      return -1;
+    }
+
+    function startCIJob(job, envIndex) {
+      // Environment is already highlighted, just register the job as running
+      runningJobs.push({ job, envIndex });
+
+      const pathToMain = svg.selectAll('.link')
+        .filter(d => d.source.id === 'gate' && d.target.id === 'main')
+        .node();
+
+      if (!pathToMain) return;
+
+      const pathLength2 = pathToMain.getTotalLength();
+
+      job.dot
+        .transition()
+        .duration(1000)
+        .ease(d3.easeCubicInOut)
+        .tween('pathTween2', function() {
+          return function(t) {
+            const point = pathToMain.getPointAtLength(t * pathLength2);
+            d3.select(this)
+              .attr('cx', point.x)
+              .attr('cy', point.y);
+          };
+        })
+        .on('end', () => {
+          job.dot
+            .transition()
+            .duration(200)
+            .attr('r', 10)
+            .attr('opacity', 0.5)
+            .transition()
+            .duration(200)
+            .attr('r', 0)
+            .attr('opacity', 0)
+            .remove();
+
+          commitsToday++;
+          d3.select('#commits-today').text(`${commitsToday} commits`);
+
+          env.classList.remove('running');
+          env.style.color = '';
+          env.style.background = '';
+
+          runningJobs = runningJobs.filter(j => j.envIndex !== envIndex);
+
+          processCIQueue();
+        });
+    }
+
+    setInterval(processCIQueue, 100);
+
+    updateVisualization();
+
+    // Redraw on window resize for responsive behavior
+    let resizeTimeout;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+        updateVisualization();
+      }, 250);
+    });
+  });
+""" %>
+
+<TuistWeb.Marketing.Components.BlogIframeLayout.base
+  custom_styles={custom_styles}
+  custom_script={custom_script}
+  custom_head={custom_head}
+>
+  <div id="viz-container" phx-update="ignore">
+    <svg id="sankey"></svg>
+
+    <div class="ci-pool">
+      <span class="ci-pool-label">CI Runners</span>
+      <div class="ci-pool-grid">
+        <div class="ci-env" id="ci-env-0"></div>
+        <div class="ci-env" id="ci-env-1"></div>
+        <div class="ci-env" id="ci-env-2"></div>
+        <div class="ci-env" id="ci-env-3"></div>
+        <div class="ci-env" id="ci-env-4"></div>
+        <div class="ci-env" id="ci-env-5"></div>
+        <div class="ci-env" id="ci-env-6"></div>
+        <div class="ci-env" id="ci-env-7"></div>
+      </div>
+    </div>
+  </div>
+</TuistWeb.Marketing.Components.BlogIframeLayout.base>

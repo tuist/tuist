@@ -1,7 +1,6 @@
 #if canImport(TuistCore)
     import Foundation
     import Path
-    import TuistCache
     import TuistCore
 
     /// Empty `CacheStoring` implementation as we noop cache storing in the opensource repository
@@ -16,7 +15,7 @@
         }
 
         public func store(_: [CacheStorableItem: [AbsolutePath]], cacheCategory _: RemoteCacheCategory)
-            async throws
-        {}
+            async throws -> [CacheStorableItem]
+        { [] }
     }
 #endif

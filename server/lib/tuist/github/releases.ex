@@ -13,6 +13,7 @@ defmodule Tuist.GitHub.Releases do
   and avoiding excessive API requests to GitHub.
   """
 
+  alias Tuist.GitHub.Retry
   alias Tuist.KeyValueStore
 
   require Logger
@@ -25,24 +26,39 @@ defmodule Tuist.GitHub.Releases do
   end
 
   def get_latest_cli_release(opts \\ []) do
-    case opts
-         |> fetch_releases()
-         |> Enum.find(fn release ->
-           not String.contains?(release["name"], "@")
-         end) do
-      nil -> nil
-      release -> map_release(release)
+    if Tuist.Environment.dev?() do
+      nil
+    else
+      update_if_needed = Keyword.get(opts, :update_if_needed, true)
+
+      releases =
+        if update_if_needed do
+          fetch_releases(opts)
+        else
+          [__MODULE__, "github_releases"] |> KeyValueStore.get() |> List.wrap()
+        end
+
+      case Enum.find(releases, fn release ->
+             not String.contains?(release["name"], "@")
+           end) do
+        nil -> nil
+        release -> map_release(release)
+      end
     end
   end
 
   def get_latest_app_release(opts \\ []) do
-    KeyValueStore.get_or_update(
-      [__MODULE__, "github_latest_app_release"],
-      [ttl: Keyword.get(opts, :ttl, @ttl)],
-      fn ->
-        fetch_latest_app_release()
-      end
-    )
+    if Tuist.Environment.dev?() do
+      nil
+    else
+      KeyValueStore.get_or_update(
+        [__MODULE__, "github_latest_app_release"],
+        [ttl: Keyword.get(opts, :ttl, @ttl)],
+        fn ->
+          fetch_latest_app_release()
+        end
+      )
+    end
   end
 
   defp fetch_releases(opts) do
@@ -56,7 +72,10 @@ defmodule Tuist.GitHub.Releases do
   end
 
   defp req_releases do
-    case Req.get(releases_url(), finch: Tuist.Finch) do
+    headers = github_auth_headers()
+    req_opts = [finch: Tuist.Finch, headers: headers] ++ Retry.retry_options()
+
+    case Req.get(releases_url(), req_opts) do
       {:ok, %Req.Response{status: 200, body: releases}} ->
         releases
 
@@ -65,6 +84,19 @@ defmodule Tuist.GitHub.Releases do
 
       {:error, _reason} ->
         []
+    end
+  end
+
+  defp github_auth_headers do
+    case Tuist.Environment.github_token_update_package_releases() do
+      nil ->
+        []
+
+      token ->
+        [
+          {"Accept", "application/vnd.github.v3+json"},
+          {"Authorization", "Bearer #{token}"}
+        ]
     end
   end
 
@@ -83,8 +115,10 @@ defmodule Tuist.GitHub.Releases do
 
   defp fetch_latest_app_release(opts \\ []) do
     url = Keyword.get(opts, :url, releases_url())
+    headers = github_auth_headers()
+    req_opts = [finch: Tuist.Finch, headers: headers] ++ Retry.retry_options()
 
-    case Req.get(url, finch: Tuist.Finch) do
+    case Req.get(url, req_opts) do
       {:ok, %Req.Response{status: 200, body: releases, headers: headers}} ->
         next_url = extract_next_url(headers)
 

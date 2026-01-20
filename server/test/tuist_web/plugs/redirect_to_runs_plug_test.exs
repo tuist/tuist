@@ -17,7 +17,7 @@ defmodule TuistWeb.RedirecToRunsPlugTest do
     conn = RedirectToRunsPlug.call(conn, %{})
 
     # Then
-    assert redirected_to(conn) == ~p"/owner-name/project-name/binary-cache/generate-runs"
+    assert redirected_to(conn) == ~p"/owner-name/project-name/module-cache/generate-runs"
   end
 
   test "returns the same connection when timescale is available", %{conn: conn} do

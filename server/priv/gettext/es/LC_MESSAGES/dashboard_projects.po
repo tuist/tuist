@@ -1,0 +1,568 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-12-24 14:50+0000\n"
+"PO-Revision-Date: 2025-12-24 20:47+0000\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
+"Language-Team: Spanish <https://translate.tuist.dev/projects/tuist/"
+"dashboard_projects/es/>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"X-Generator: Weblate 5.15.1\n"
+
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new messages manually only if they're dynamic
+## messages that can't be statically extracted.
+##
+## Run "mix gettext.extract" to bring this file up to
+## date. Leave "msgstr"s empty as changing them here has no
+## effect: edit them in PO (.po) files instead.
+#
+#: lib/tuist_web/live/overview_live.html.heex:816
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{average_build_time}s"
+msgstr "%{average_build_time}s"
+
+#: lib/tuist_web/live/overview_live.html.heex:104
+#: lib/tuist_web/live/overview_live.html.heex:180
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{binary_cache_effectiveness}%"
+msgstr "%{binary_cache_effectiveness}%"
+
+#: lib/tuist_web/live/overview_live.html.heex:140
+#: lib/tuist_web/live/overview_live.html.heex:159
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{duration}s"
+msgstr "%{duración}s"
+
+#: lib/tuist_web/live/overview_live.html.heex:189
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{selective_test_effectiveness}%"
+msgstr "%{selective_test_effectiveness}%%"
+
+#: lib/tuist_web/live/overview_live.html.heex:122
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{selective_tests_effectiveness}%"
+msgstr "%{selective_tests_effectiveness}%%"
+
+#: lib/tuist_web/live/create_project_live.ex:76
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Account"
+msgstr "Cuenta"
+
+#: lib/tuist_web/live/projects_live.ex:223
+#, elixir-autogen, elixir-format, fuzzy
+msgid "All projects"
+msgstr "Todos los proyectos"
+
+#: lib/tuist_web/live/overview_live.html.heex:3
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Analytics"
+msgstr "Analítica"
+
+#: lib/tuist_web/live/overview_live.ex:325
+#: lib/tuist_web/live/overview_live.html.heex:23
+#: lib/tuist_web/live/overview_live.html.heex:654
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Any"
+msgstr "Cualquier"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:40
+#: lib/tuist_web/live/project_settings_live.html.heex:64
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Anyone with the link"
+msgstr "Cualquiera con el enlace"
+
+#: lib/tuist_web/live/overview_live.html.heex:511
+#, elixir-autogen, elixir-format, fuzzy
+msgid "App:"
+msgstr "App:"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:161
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Are you sure you want to delete this?"
+msgstr "¿Seguro que quieres borrar esto?"
+
+#: lib/tuist_web/live/overview_live.html.heex:132
+#: lib/tuist_web/live/overview_live.html.heex:814
+#: lib/tuist_web/live/overview_live.html.heex:883
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Average build time"
+msgstr "Tiempo medio de construcción"
+
+#: lib/tuist_web/live/overview_live.html.heex:151
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Average test time"
+msgstr "Tiempo medio de prueba"
+
+#: lib/tuist_web/live/overview_live.html.heex:134
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Average time it takes to build a project as reported from Xcode post actions."
+msgstr ""
+"Tiempo medio que se tarda en crear un proyecto según las acciones "
+"posteriores de Xcode."
+
+#: lib/tuist_web/live/overview_live.html.heex:153
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Average time it takes to test a project when using the 'tuist test' command."
+msgstr ""
+"Tiempo medio que se tarda en probar un proyecto cuando se utiliza el comando "
+"'tuist test'."
+
+#: lib/tuist_web/live/overview_live.html.heex:377
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Binary cache and selective testing: no data yet"
+msgstr "Caché binario y pruebas selectivas: aún no hay datos"
+
+#: lib/tuist_web/live/overview_live.html.heex:324
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Build time"
+msgstr "Tiempo de construcción"
+
+#: lib/tuist_web/live/overview_live.html.heex:287
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Build time saved"
+msgstr "Ahorro de tiempo de construcción"
+
+#: lib/tuist_web/live/overview_live.html.heex:642
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Builds"
+msgstr "Compilaciones"
+
+#: lib/tuist_web/live/overview_live.html.heex:622
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Bundle install size"
+msgstr "Tamaño de instalación del paquete"
+
+#: lib/tuist_web/live/overview_live.html.heex:503
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Bundles"
+msgstr "Paquetes"
+
+#: lib/tuist_web/live/overview_live.ex:333
+#: lib/tuist_web/live/overview_live.html.heex:39
+#: lib/tuist_web/live/overview_live.html.heex:670
+#, elixir-autogen, elixir-format, fuzzy
+msgid "CI"
+msgstr "CI"
+
+#: lib/tuist_web/live/overview_live.html.heex:96
+#: lib/tuist_web/live/overview_live.html.heex:178
+#: lib/tuist_web/live/overview_live.html.heex:251
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cache effectiveness"
+msgstr "Eficacia de la caché"
+
+#: lib/tuist_web/live/overview_live.html.heex:98
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cache effectiveness represents the combined hit rate of both Module cache and Xcode cache, showing the percentage of cacheable items that were resolved from cache rather than being rebuilt."
+msgstr ""
+"La eficacia de la caché representa la tasa de aciertos combinada de la caché "
+"del módulo y la caché de Xcode, y muestra el porcentaje de elementos "
+"almacenables en caché que se resolvieron desde la caché en lugar de "
+"reconstruirse."
+
+#: lib/tuist_web/live/overview_live.html.heex:79
+#: lib/tuist_web/live/overview_live.html.heex:552
+#: lib/tuist_web/live/overview_live.html.heex:710
+#: lib/tuist_web/live/project_settings_live.html.heex:125
+#: lib/tuist_web/live/project_settings_live.html.heex:197
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cancel"
+msgstr "Cancelar"
+
+#: lib/tuist_web/live/create_project_live.ex:78
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Choose an account to create your project or set up a new organization."
+msgstr "Elija una cuenta para crear su proyecto o crear una nueva organización."
+
+#: lib/tuist_web/live/create_project_live.ex:97
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Continue"
+msgstr "Continúe en"
+
+#: lib/tuist_web/live/create_project_live.ex:60
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Create a Tuist project to continue"
+msgstr "Crear un proyecto Tuist para continuar"
+
+#: lib/tuist_web/live/projects_live.ex:320
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Create a new project"
+msgstr "Create a new project"
+
+#: lib/tuist_web/live/create_project_live.ex:58
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Create a project"
+msgstr "Crear un proyecto"
+
+#: lib/tuist_web/live/create_project_live.ex:102
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Create organization"
+msgstr "Crear organización"
+
+#: lib/tuist_web/live/projects_live.ex:306
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Create project"
+msgstr "Crear proyecto"
+
+#: lib/tuist_web/live/projects_live.ex:170
+#: lib/tuist_web/live/projects_live.ex:213
+#: lib/tuist_web/live/projects_live.ex:280
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Created %{time}"
+msgstr "Creado %{time}"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:205
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Delete"
+msgstr "Borrar"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:146
+#: lib/tuist_web/live/project_settings_live.html.heex:167
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Delete project"
+msgstr "Suprimir proyecto"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:179
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Deleting the project will permanently remove all of its data"
+msgstr "Al borrar el proyecto se eliminarán definitivamente todos sus datos"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:186
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Enter this project's name to confirm"
+msgstr "Introduzca el nombre de este proyecto para confirmar"
+
+#: lib/tuist_web/live/overview_live.html.heex:19
+#: lib/tuist_web/live/overview_live.html.heex:650
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Environment:"
+msgstr "Medio ambiente:"
+
+#: lib/tuist_web/live/overview_live.html.heex:735
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed builds"
+msgstr "Construcciones fallidas"
+
+#: lib/tuist_web/live/overview_live.html.heex:405
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed runs"
+msgstr "Ejecuciones fallidas"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:8
+#: lib/tuist_web/live/project_settings_live.html.heex:19
+#, elixir-autogen, elixir-format, fuzzy
+msgid "General"
+msgstr "General"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:32
+#, elixir-autogen, elixir-format, fuzzy
+msgid "General access"
+msgstr "Acceso general"
+
+#: lib/tuist_web/live/overview_live.html.heex:573
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Install size"
+msgstr "Tamaño de la instalación"
+
+#: lib/tuist_web/live/overview_live.html.heex:787
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 30 runs"
+msgstr "Últimas 30 carreras"
+
+#: lib/tuist_web/live/overview_live.html.heex:458
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 40 runs"
+msgstr "Últimas 40 carreras"
+
+#: lib/tuist_web/live/projects_live.ex:165
+#: lib/tuist_web/live/projects_live.ex:208
+#: lib/tuist_web/live/projects_live.ex:275
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last interacted with %{time}"
+msgstr "Última interacción con %{time}"
+
+#: lib/tuist_web/live/overview_live.html.heex:483
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Latest app previews"
+msgstr "Últimos avances de aplicaciones"
+
+#: lib/tuist_web/live/overview_live.ex:329
+#: lib/tuist_web/live/overview_live.html.heex:31
+#: lib/tuist_web/live/overview_live.html.heex:662
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Local"
+msgstr "Local"
+
+#: lib/tuist_web/live/create_project_live.ex:67
+#: lib/tuist_web/live/projects_live.ex:328
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Name"
+msgstr "Nombre"
+
+#: lib/tuist_web/live/projects_live.ex:313
+#, elixir-autogen, elixir-format, fuzzy
+msgid "New project"
+msgstr "Nuevo proyecto"
+
+#: lib/tuist_web/live/overview_live.html.heex:895
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No builds yet"
+msgstr "Aún no hay construcciones"
+
+#: lib/tuist_web/live/overview_live.html.heex:633
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No bundles yet"
+msgstr "Aún no hay paquetes"
+
+#: lib/tuist_web/live/overview_live.html.heex:493
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No previews yet"
+msgstr "Aún no hay avances"
+
+#: lib/tuist_web/live/overview_live.html.heex:792
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No recent builds yet"
+msgstr "Aún no hay versiones recientes"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:38
+#: lib/tuist_web/live/project_settings_live.html.heex:52
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Only people with access"
+msgstr "Sólo las personas con acceso"
+
+#: lib/tuist_web/live/create_project_live.ex:100
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Or set up a new organization"
+msgstr "O crear una nueva organización"
+
+#: lib/tuist_web/live/overview_live.ex:25
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Overview"
+msgstr "Visión general"
+
+#: lib/tuist_web/live/overview_live.html.heex:730
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Passed builds"
+msgstr "Edificios aprobados"
+
+#: lib/tuist_web/live/overview_live.html.heex:400
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Passed runs"
+msgstr "Tiradas aprobadas"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:24
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Preview access"
+msgstr "Acceso anticipado"
+
+#: lib/tuist_web/live/overview_live.html.heex:472
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Previews"
+msgstr "Previews"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:117
+#: lib/tuist_web/live/project_settings_live.html.heex:189
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Project name"
+msgstr "Nombre del proyecto"
+
+#: lib/tuist_web/live/projects_live.ex:33
+#: lib/tuist_web/live/projects_live.ex:124
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Projects"
+msgstr "Proyectos"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:13
+#, elixir-autogen, elixir-format, fuzzy
+msgid "QA"
+msgstr "QA"
+
+#: lib/tuist_web/live/projects_live.ex:180
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Recent projects"
+msgstr "Proyectos recientes"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:133
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Rename"
+msgstr "Cambie el nombre de"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:80
+#: lib/tuist_web/live/project_settings_live.html.heex:101
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Rename project"
+msgstr "Cambiar el nombre del proyecto"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:95
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Rename your project?"
+msgstr "¿Cambiar el nombre del proyecto?"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:112
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Renaming can have unexpected consequences"
+msgstr "Cambiar de nombre puede tener consecuencias inesperadas"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:83
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Renaming your project can have unintended side effects."
+msgstr ""
+"Cambiar el nombre del proyecto puede tener efectos secundarios no deseados."
+
+#: lib/tuist_web/live/overview_live.html.heex:463
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Runs: no data yet"
+msgstr "Recorridos: aún no hay datos"
+
+#: lib/tuist_web/live/overview_live.html.heex:350
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Saved"
+msgstr "Guardado"
+
+#: lib/tuist_web/live/projects_live.ex:235
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Search projects..."
+msgstr "Buscar proyectos..."
+
+#: lib/tuist_web/live/create_project_live.ex:72
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Select account"
+msgstr "Seleccionar cuenta"
+
+#: lib/tuist_web/live/overview_live.html.heex:114
+#: lib/tuist_web/live/overview_live.html.heex:187
+#: lib/tuist_web/live/overview_live.html.heex:266
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective test effectiveness"
+msgstr "Eficacia selectiva de las pruebas"
+
+#: lib/tuist_web/live/overview_live.html.heex:116
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective test effectiveness represents the ratio of selective test hits compared to selective test misses."
+msgstr ""
+"La eficacia de la prueba selectiva representa la proporción de aciertos de "
+"la prueba selectiva en comparación con los fallos de la prueba selectiva."
+
+#: lib/tuist_web/live/project_settings_live.html.heex:27
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Set your previews to be public or private by default."
+msgstr ""
+"Configura tus previsualizaciones para que sean públicas o privadas por "
+"defecto."
+
+#: lib/tuist_web/live/project_settings_live.ex:24
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Settings"
+msgstr "Ajustes"
+
+#: lib/tuist_web/live/projects_live.ex:196
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Supported platforms"
+msgstr "Plataformas compatibles"
+
+#: lib/tuist_web/live/overview_live.html.heex:386
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Tests"
+msgstr "Pruebas"
+
+#: lib/tuist_web/live/projects_live.ex:24
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The page you are looking for doesn't exist or has been moved."
+msgstr "La página que busca no existe o ha sido movida."
+
+#: lib/tuist_web/live/project_settings_live.html.heex:149
+#, elixir-autogen, elixir-format, fuzzy
+msgid "This action cannot be undone."
+msgstr "Esta acción no puede deshacerse."
+
+#: lib/tuist_web/live/create_project_live.ex:50
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Tuist Logo"
+msgstr "Logotipo de Tuist"
+
+#: lib/tuist_web/live/overview_live.html.heex:390
+#: lib/tuist_web/live/overview_live.html.heex:476
+#: lib/tuist_web/live/overview_live.html.heex:807
+#, elixir-autogen, elixir-format, fuzzy
+msgid "View more"
+msgstr "Ver más"
+
+#: lib/tuist_web/live/project_settings_live.ex:14
+#, elixir-autogen, elixir-format, fuzzy
+msgid "You are not authorized to perform this action."
+msgstr "No está autorizado a realizar esta acción."
+
+#: lib/tuist_web/live/overview_live.ex:322
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since last month"
+msgstr "desde el mes pasado"
+
+#: lib/tuist_web/live/overview_live.ex:319
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since last week"
+msgstr "desde la semana pasada"
+
+#: lib/tuist_web/live/overview_live.ex:320
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since last year"
+msgstr "desde el año pasado"
+
+#: lib/tuist_web/live/overview_live.html.heex:86
+#: lib/tuist_web/live/overview_live.html.heex:561
+#: lib/tuist_web/live/overview_live.html.heex:717
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Apply"
+msgstr "Solicitar"
+
+#: lib/tuist_web/live/overview_live.html.heex:70
+#: lib/tuist_web/live/overview_live.html.heex:543
+#: lib/tuist_web/live/overview_live.html.heex:701
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Custom"
+msgstr "A medida"
+
+#: lib/tuist_web/live/overview_live.html.heex:67
+#: lib/tuist_web/live/overview_live.html.heex:540
+#: lib/tuist_web/live/overview_live.html.heex:698
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 12 months"
+msgstr "Últimos 12 meses"
+
+#: lib/tuist_web/live/overview_live.html.heex:52
+#: lib/tuist_web/live/overview_live.html.heex:683
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 24 hours"
+msgstr "Últimas 24 horas"
+
+#: lib/tuist_web/live/overview_live.html.heex:62
+#: lib/tuist_web/live/overview_live.html.heex:535
+#: lib/tuist_web/live/overview_live.html.heex:693
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 30 days"
+msgstr "Últimos 30 días"
+
+#: lib/tuist_web/live/overview_live.html.heex:57
+#: lib/tuist_web/live/overview_live.html.heex:530
+#: lib/tuist_web/live/overview_live.html.heex:688
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 7 days"
+msgstr "Últimos 7 días"
+
+#: lib/tuist_web/live/overview_live.ex:321
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since last period"
+msgstr "desde el último periodo"
+
+#: lib/tuist_web/live/overview_live.ex:318
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since yesterday"
+msgstr "desde ayer"

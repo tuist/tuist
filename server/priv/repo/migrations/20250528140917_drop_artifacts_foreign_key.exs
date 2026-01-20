@@ -1,5 +1,6 @@
 defmodule Tuist.Repo.Migrations.DropArtifactsForeignKey do
   use Ecto.Migration
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
 
   def up do
     drop constraint(:artifacts, "artifacts_artifact_id_fkey")

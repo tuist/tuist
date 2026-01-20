@@ -34,7 +34,7 @@ final class EditService {
     init(
         projectEditor: ProjectEditing = ProjectEditor(),
         opener: Opening = Opener(),
-        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
+        configLoader: ConfigLoading = ConfigLoader(),
         pluginService: PluginServicing = PluginService(),
         cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider()
     ) {

@@ -54,6 +54,7 @@ import TuistServer
     import TuistOnboarding
     import TuistPreviews
     import TuistProfile
+    import TuistSDK
 
     enum TabIdentifier: Hashable {
         case previews, profile
@@ -107,6 +108,13 @@ import TuistServer
                             }
                         }
                         .withErrorHandling()
+                        .task {
+                            TuistSDK(
+                                fullHandle: "tuist/tuist",
+                                apiKey: "tuist_019b26d5-fd7e-7b79-ae62-b5525b26ce38_OTSCoR3hGfPI20i1Hfnpl7HPSWI="
+                            )
+                            .monitorPreviewUpdates()
+                        }
                     }
                 }
             }

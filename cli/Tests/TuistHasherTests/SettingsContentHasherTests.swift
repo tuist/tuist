@@ -83,4 +83,43 @@ final class SettingsContentHasherTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(hash, "CURRENT_PROJECT_VERSION:string(\"2\")-hash;prodreleaseSWIFT_VERSION:string(\"5\")-hash;essential")
     }
+
+    func test_hash_filtersWarningFlags() async throws {
+        // Given
+        let settings = Settings(
+            base: [
+                "SWIFT_VERSION": SettingValue.string("5"),
+                "OTHER_SWIFT_FLAGS": SettingValue
+                    .array([
+                        "-Xfrontend",
+                        "-warn-long-function-bodies=450",
+                        "-Xfrontend",
+                        "-enable-actor-data-race-checks",
+                        "-O",
+                        "-Xfrontend",
+                        "-warn-concurrency",
+                    ]),
+            ],
+            configurations: [
+                BuildConfiguration.debug("Debug"): Configuration(
+                    settings: [
+                        "GCC_OPTIMIZATION_LEVEL": SettingValue.string("0"),
+                        "OTHER_SWIFT_FLAGS": SettingValue
+                            .array(["-Xfrontend", "-warn-long-expression-type-checking=300"]),
+                    ],
+                    xcconfig: nil
+                ),
+            ],
+            defaultSettings: .none
+        )
+
+        // When
+        let hash = try await subject.hash(settings: settings)
+
+        // Then: Warning flags should be filtered out, but non-warning flags should be kept
+        XCTAssertEqual(
+            hash,
+            "OTHER_SWIFT_FLAGS:array([\"-Xfrontend\", \"-enable-actor-data-race-checks\", \"-O\"])-SWIFT_VERSION:string(\"5\")-hash;DebugdebugGCC_OPTIMIZATION_LEVEL:string(\"0\")-hash;none"
+        )
+    }
 }

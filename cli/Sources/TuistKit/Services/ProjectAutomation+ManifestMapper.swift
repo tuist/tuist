@@ -118,7 +118,7 @@ extension ProjectAutomation.Target {
                 frameworkStatus = .none
             }
             return .framework(path: path.pathString, status: frameworkStatus)
-        case let .xcframework(path, expectedSignature, status, _):
+        case let .xcframework(path, _, status, _):
             let frameworkStatus: ProjectAutomation.LinkingStatus
             switch status {
             case .optional:

@@ -22,10 +22,16 @@ import {
   getStartedIcon,
   agenticBuildingIcon,
   qaIcon,
+  slackIcon,
+  testInsightsIcon,
+  flakyTestsIcon,
 } from "./icons.mjs";
 import { loadData as loadExamplesData } from "./data/examples";
 import { loadData as loadProjectDescriptionData } from "./data/project-description";
 import { localizedString } from "./i18n.mjs";
+
+const CLI_CONTENT_LOCALE = "en";
+const MANIFEST_REFERENCE_LOCALE = "en";
 
 async function projectDescriptionSidebar(locale) {
   const projectDescriptionTypesData = await loadProjectDescriptionData();
@@ -48,7 +54,7 @@ async function projectDescriptionSidebar(locale) {
           .filter((item) => item.category === category)
           .map((item) => ({
             text: item.title,
-            link: `/${locale}/references/project-description/${item.identifier}`,
+            link: `/${MANIFEST_REFERENCE_LOCALE}/references/project-description/${item.identifier}`,
           })),
       });
     }
@@ -111,7 +117,7 @@ export function navBar(locale) {
         locale,
         "navbar.cli.text",
       )} ${codeBrowserIcon()}</span>`,
-      link: `/${locale}/cli/auth`,
+      link: `/${CLI_CONTENT_LOCALE}/cli/auth`,
     },
     {
       text: localizedString(locale, "navbar.resources.text"),
@@ -121,14 +127,14 @@ export function navBar(locale) {
             locale,
             "navbar.resources.items.references.text",
           ),
-          link: `/${locale}/references/project-description/structs/project`,
+          link: `/${MANIFEST_REFERENCE_LOCALE}/references/project-description/structs/project`,
         },
         {
           text: localizedString(
             locale,
             "navbar.resources.items.contributors.text",
           ),
-          link: `/${locale}/contributors/get-started`,
+          link: `/${locale}/contributors/code`,
         },
         {
           text: localizedString(
@@ -168,9 +174,40 @@ export function contributorsSidebar(locale) {
         {
           text: localizedString(
             locale,
-            "sidebars.contributors.items.get-started.text",
+            "sidebars.contributors.items.code.text",
           ),
-          link: `/${locale}/contributors/get-started`,
+          link: `/${locale}/contributors/code`,
+          collapsed: true,
+          items: [
+            {
+              text: localizedString(
+                locale,
+                "sidebars.contributors.items.code.items.cli.text",
+              ),
+              link: `/${locale}/contributors/code/cli`,
+            },
+            {
+              text: localizedString(
+                locale,
+                "sidebars.contributors.items.code.items.server.text",
+              ),
+              link: `/${locale}/contributors/code/server`,
+            },
+            {
+              text: localizedString(
+                locale,
+                "sidebars.contributors.items.code.items.handbook.text",
+              ),
+              link: `/${locale}/contributors/code/handbook`,
+            },
+            {
+              text: localizedString(
+                locale,
+                "sidebars.contributors.items.code.items.docs.text",
+              ),
+              link: `/${locale}/contributors/code/docs`,
+            },
+          ],
         },
         {
           text: localizedString(
@@ -192,6 +229,13 @@ export function contributorsSidebar(locale) {
             "sidebars.contributors.items.principles.text",
           ),
           link: `/${locale}/contributors/principles`,
+        },
+        {
+          text: localizedString(
+            locale,
+            "sidebars.contributors.items.debugging.text",
+          ),
+          link: `/${locale}/contributors/debugging`,
         },
         {
           text: localizedString(
@@ -420,6 +464,13 @@ export async function guidesSidebar(locale) {
             {
               text: localizedString(
                 locale,
+                "sidebars.guides.items.develop.items.generated-projects.items.metadata-tags.text",
+              ),
+              link: `/${locale}/guides/features/projects/metadata-tags`,
+            },
+            {
+              text: localizedString(
+                locale,
                 "sidebars.guides.items.develop.items.generated-projects.items.best-practices.text",
               ),
               link: `/${locale}/guides/features/projects/best-practices`,
@@ -432,6 +483,23 @@ export async function guidesSidebar(locale) {
             "sidebars.guides.items.develop.items.cache.text",
           )}</span>`,
           link: `/${locale}/guides/features/cache`,
+          collapsed: true,
+          items: [
+            {
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.cache.items.xcode-cache.text",
+              ),
+              link: `/${locale}/guides/features/cache/xcode-cache`,
+            },
+            {
+              text: localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.cache.items.module-cache.text",
+              ),
+              link: `/${locale}/guides/features/cache/module-cache`,
+            },
+          ],
         },
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${testIcon()} ${localizedString(
@@ -439,23 +507,6 @@ export async function guidesSidebar(locale) {
             "sidebars.guides.items.develop.items.selective-testing.text",
           )}</span>`,
           link: `/${locale}/guides/features/selective-testing`,
-          collapsed: true,
-          items: [
-            {
-              text: localizedString(
-                locale,
-                "sidebars.guides.items.develop.items.selective-testing.items.xcode-project.text",
-              ),
-              link: `/${locale}/guides/features/selective-testing/xcode-project`,
-            },
-            {
-              text: localizedString(
-                locale,
-                "sidebars.guides.items.develop.items.selective-testing.items.generated-project.text",
-              ),
-              link: `/${locale}/guides/features/selective-testing/generated-project`,
-            },
-          ],
         },
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${registryIcon()} ${localizedString(
@@ -508,6 +559,23 @@ export async function guidesSidebar(locale) {
             "sidebars.guides.items.develop.items.insights.text",
           )}</span>`,
           link: `/${locale}/guides/features/insights`,
+        },
+        {
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${testInsightsIcon()} ${localizedString(
+            locale,
+            "sidebars.guides.items.develop.items.test-insights.text",
+          )}</span>`,
+          link: `/${locale}/guides/features/test-insights`,
+          collapsed: true,
+          items: [
+            {
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${flakyTestsIcon()} ${localizedString(
+                locale,
+                "sidebars.guides.items.develop.items.test-insights.items.flaky-tests.text",
+              )}</span>`,
+              link: `/${locale}/guides/features/test-insights/flaky-tests`,
+            },
+          ],
         },
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${bundleSizeIcon()} ${localizedString(
@@ -578,15 +646,31 @@ export async function guidesSidebar(locale) {
           link: `/${locale}/guides/integrations/continuous-integration`,
         },
         {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${ssoIcon()} SSO</span>`,
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${ssoIcon()} ${localizedString(
+            locale,
+            "sidebars.guides.items.integrations.items.sso.text",
+          )}</span>`,
           link: `/${locale}/guides/integrations/sso`,
         },
         {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${gitForgesIcon()} Git forges</span>`,
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${slackIcon()} ${localizedString(
+            locale,
+            "sidebars.guides.items.integrations.items.slack.text",
+          )}</span>`,
+          link: `/${locale}/guides/integrations/slack`,
+        },
+        {
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${gitForgesIcon()} ${localizedString(
+            locale,
+            "sidebars.guides.items.integrations.items.git-forges.text",
+          )}</span>`,
           collapsed: true,
           items: [
             {
-              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${githubIcon()} GitHub</span>`,
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${githubIcon()} ${localizedString(
+                locale,
+                "sidebars.guides.items.integrations.items.git-forges.items.github.text",
+              )}</span>`,
               link: `/${locale}/guides/integrations/gitforge/github`,
             },
           ],
@@ -594,31 +678,57 @@ export async function guidesSidebar(locale) {
       ],
     },
     {
-      text: "Server",
+      text: localizedString(locale, "sidebars.guides.items.server.text"),
       items: [
         {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${accountsIcon()} Accounts and projects</span>`,
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${accountsIcon()} ${localizedString(
+            locale,
+            "sidebars.guides.items.server.items.accounts-and-projects.text",
+          )}</span>`,
           link: `/${locale}/guides/server/accounts-and-projects`,
         },
         {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${authIcon()} Authentication</span>`,
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${authIcon()} ${localizedString(
+            locale,
+            "sidebars.guides.items.server.items.authentication.text",
+          )}</span>`,
           link: `/${locale}/guides/server/authentication`,
         },
         {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${selfHostingIcon()} Self-hosting</span>`,
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${selfHostingIcon()} ${localizedString(
+            locale,
+            "sidebars.guides.items.server.items.self-hosting.text",
+          )}</span>`,
           collapsed: true,
           items: [
             {
-              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${installIcon()} Installation</span>`,
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${installIcon()} ${localizedString(
+                locale,
+                "sidebars.guides.items.server.items.self-hosting.items.installation.text",
+              )}</span>`,
               link: `/${locale}/guides/server/self-host/install`,
             },
             {
-              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${telemetryIcon()} Telemetry</span>`,
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${cacheIcon()} Cache nodes</span>`,
+              link: `/${locale}/guides/cache/self-host`,
+            },
+            {
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${cacheIcon()} Cache architecture</span>`,
+              link: `/${locale}/guides/cache/architecture`,
+            },
+            {
+              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${telemetryIcon()} ${localizedString(
+                locale,
+                "sidebars.guides.items.server.items.self-hosting.items.telemetry.text",
+              )}</span>`,
               link: `/${locale}/guides/server/self-host/telemetry`,
             },
           ],
         },
       ],
     },
+    // Cache service documentation is discoverable under Server > Self-hosting,
+    // since that's where users look for infrastructure-related setup.
+    
   ];
 }

@@ -16,6 +16,8 @@ defmodule Tuist.Registry.Swift.Packages do
   alias Tuist.VCS
   alias Tuist.VCS.Repositories.Content
 
+  require Logger
+
   @alternate_package_manifest_regex ~r/\APackage@swift-(\d+)(?:\.(\d+))?(?:\.(\d+))?.swift\z/
 
   def paginated_packages(attrs, opts \\ []) do
@@ -54,9 +56,10 @@ defmodule Tuist.Registry.Swift.Packages do
   def get_package_by_scope_and_name(%{scope: scope, name: name}, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
 
-    Package
-    |> Repo.get_by(scope: scope, name: name)
-    |> Repo.preload(preload)
+    case Repo.get_by(Package, scope: scope, name: name) do
+      nil -> {:error, :not_found}
+      package -> {:ok, Repo.preload(package, preload)}
+    end
   end
 
   def get_packages_by_scope_and_name_pairs(packages, opts \\ []) do
@@ -94,25 +97,39 @@ defmodule Tuist.Registry.Swift.Packages do
         package: %Package{repository_full_handle: repository_full_handle, scope: scope, name: name} = package,
         token: token
       }) do
-    %{
-      repository_full_handle: repository_full_handle,
-      provider: :github,
-      token: token
-    }
-    |> VCS.get_tags()
-    |> Enum.map(& &1.name)
-    |> Enum.filter(fn version ->
-      # Matches semantic version as per: https://semver.org/
-      # Examples: 1.0.0, 1.0.0-alpha, 1.0.0-alpha.1, 1.1
-      # Skip dev versions like 0.9.3-dev1985
-      Regex.match?(~r/^v?\d+\.\d+(\.\d+)?[0-9A-Za-z-]*(\.[0-9A-Za-z]*)?$/, version) and
-        not Regex.match?(~r/-dev/, version) and
-        not Enum.any?(package.package_releases, &(&1.version == semantic_version(version)))
-    end)
-    |> Enum.uniq_by(&semantic_version(&1))
-    |> Enum.map(fn version ->
-      %{scope: scope, name: name, version: version}
-    end)
+    case VCS.get_tags(%{
+           repository_full_handle: repository_full_handle,
+           provider: :github,
+           token: token
+         }) do
+      {:error, {:http_error, status}} when status in [403, 404] ->
+        Logger.debug("Skipping #{scope}/#{name} (#{repository_full_handle}): repository not found or not accessible")
+        []
+
+      {:error, {:http_error, status}} ->
+        Logger.debug("Skipping #{scope}/#{name} (#{repository_full_handle}): HTTP error #{status}")
+        []
+
+      tags ->
+        tags
+        |> Enum.map(& &1.name)
+        |> Enum.filter(fn version ->
+          # Matches semantic version as per: https://semver.org/
+          # Examples: 1.0.0, 1.0.0-alpha, 1.0.0-alpha.1, 1.1
+          # Skip dev versions like 0.9.3-dev1985
+          # Skip non-semantic versions like 3.2.0.1 (four-part versions)
+          Regex.match?(
+            ~r/^v?\d+\.\d+(\.\d+)?(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/,
+            version
+          ) and
+            not Regex.match?(~r/-dev/, version) and
+            not Enum.any?(package.package_releases, &(&1.version == semantic_version(version)))
+        end)
+        |> Enum.uniq_by(&semantic_version(&1))
+        |> Enum.map(fn version ->
+          %{scope: scope, name: name, version: version}
+        end)
+    end
   end
 
   def semantic_version(version) do
@@ -148,44 +165,58 @@ defmodule Tuist.Registry.Swift.Packages do
         version: version,
         token: token
       }) do
-    {:ok, source_archive_path} =
-      VCS.get_source_archive_by_tag_and_repository_full_handle(%{
-        provider: :github,
-        repository_full_handle: repository_full_handle,
-        tag: version,
-        token: token
-      })
-
     {:ok, source_archive_directory} = Briefly.create(type: :directory)
 
-    System.cmd(
-      "unzip",
-      [source_archive_path, "-d", source_archive_directory]
-    )
+    source_result =
+      if has_submodules?(%{repository_full_handle: repository_full_handle, token: token, tag: version}) do
+        Logger.info("Using git clone with submodules for #{repository_full_handle}@#{version}")
+        repo_name = repository_full_handle |> String.split("/") |> List.last()
+        clone_dest = Path.join(source_archive_directory, "#{repo_name}-#{String.replace(version, "/", "-")}")
 
-    [source_directory] = File.ls!(source_archive_directory)
-
-    new_source_archive_directory = "#{source_archive_directory}/source_archive.zip"
-
-    (source_archive_directory <> "/" <> source_directory)
-    |> File.ls!()
-    |> Enum.each(fn file_name ->
-      file_path = source_archive_directory <> "/" <> source_directory <> "/" <> file_name
-
-      if (String.ends_with?(file_name, "Package.swift") or
-            Regex.match?(
-              @alternate_package_manifest_regex,
-              file_name
-            )) and not File.dir?(file_path) do
-        file_content =
-          File.read!(file_path)
-
-        File.write!(
-          file_path,
-          replace_package_by_name_references_with_product_in_package_manifest(file_content)
-        )
+        clone_with_submodules(%{
+          repository_full_handle: repository_full_handle,
+          tag: version,
+          token: token,
+          destination: clone_dest
+        })
+      else
+        get_source_from_zipball(%{
+          repository_full_handle: repository_full_handle,
+          tag: version,
+          token: token,
+          temp_dir: source_archive_directory
+        })
       end
-    end)
+
+    case source_result do
+      {:error, reason} ->
+        {:error, reason}
+
+      {:ok, source_directory} ->
+        create_package_release_from_source(%{
+          package: package,
+          package_id: package_id,
+          scope: scope,
+          name: name,
+          version: version,
+          token: token,
+          source_archive_directory: source_archive_directory,
+          source_directory: source_directory
+        })
+    end
+  end
+
+  defp create_package_release_from_source(%{
+         package: package,
+         package_id: package_id,
+         scope: scope,
+         name: name,
+         version: version,
+         token: token,
+         source_archive_directory: source_archive_directory,
+         source_directory: source_directory
+       }) do
+    new_source_archive_path = "#{source_archive_directory}/source_archive.zip"
 
     {_, 0} =
       System.cmd(
@@ -193,13 +224,13 @@ defmodule Tuist.Registry.Swift.Packages do
         [
           "--symlinks",
           "-r",
-          new_source_archive_directory,
-          source_directory
+          new_source_archive_path,
+          Path.basename(source_directory)
         ],
         cd: source_archive_directory
       )
 
-    data = File.read!(new_source_archive_directory)
+    data = File.read!(new_source_archive_path)
 
     object_key =
       package_object_key(%{scope: scope, name: name},
@@ -234,6 +265,82 @@ defmodule Tuist.Registry.Swift.Packages do
     })
 
     package_release
+  end
+
+  defp has_submodules?(%{repository_full_handle: repository_full_handle, token: token, tag: tag}) do
+    case VCS.get_repository_content(
+           %{repository_full_handle: repository_full_handle, provider: :github, token: token},
+           reference: tag,
+           path: ".gitmodules"
+         ) do
+      {:ok, %Content{content: content}} when is_binary(content) and content != "" -> true
+      _ -> false
+    end
+  end
+
+  defp clone_with_submodules(%{
+         repository_full_handle: repository_full_handle,
+         tag: tag,
+         token: token,
+         destination: destination
+       }) do
+    clone_url = "https://#{token}@github.com/#{repository_full_handle}.git"
+
+    case System.cmd(
+           "git",
+           [
+             "-c",
+             "url.https://github.com/.insteadOf=git@github.com:",
+             "clone",
+             "--depth",
+             "1",
+             "--branch",
+             tag,
+             "--recurse-submodules",
+             "--shallow-submodules",
+             clone_url,
+             destination
+           ],
+           stderr_to_stdout: true
+         ) do
+      {_output, 0} ->
+        remove_git_metadata(destination)
+        {:ok, destination}
+
+      {output, code} ->
+        Logger.warning("Git clone failed for #{repository_full_handle}@#{tag} (exit #{code}): #{output}")
+        {:error, "Git clone failed (exit #{code}): #{output}"}
+    end
+  end
+
+  defp remove_git_metadata(directory) do
+    directory
+    |> Path.join("**/.git")
+    |> Path.wildcard(match_dot: true)
+    |> Enum.each(&File.rm_rf!/1)
+
+    gitmodules_path = Path.join(directory, ".gitmodules")
+    if File.exists?(gitmodules_path), do: File.rm(gitmodules_path)
+  end
+
+  defp get_source_from_zipball(%{
+         repository_full_handle: repository_full_handle,
+         tag: tag,
+         token: token,
+         temp_dir: temp_dir
+       }) do
+    {:ok, source_archive_path} =
+      VCS.get_source_archive_by_tag_and_repository_full_handle(%{
+        provider: :github,
+        repository_full_handle: repository_full_handle,
+        tag: tag,
+        token: token
+      })
+
+    System.cmd("unzip", [source_archive_path, "-d", temp_dir])
+
+    [source_directory] = File.ls!(temp_dir)
+    {:ok, Path.join(temp_dir, source_directory)}
   end
 
   defp create_package_manifests(%{
@@ -309,7 +416,7 @@ defmodule Tuist.Registry.Swift.Packages do
 
     Storage.put_object(
       package_object_key(%{scope: scope, name: name}, version: version, path: path),
-      replace_package_by_name_references_with_product_in_package_manifest(package_manifest_content),
+      package_manifest_content,
       :registry
     )
 
@@ -344,116 +451,6 @@ defmodule Tuist.Registry.Swift.Packages do
     |> Repo.preload(preload)
   end
 
-  defp replace_package_by_name_references_with_product_in_package_manifest(package_manifest) do
-    packages =
-      extract_url_only_packages(package_manifest) ++ extract_named_url_packages(package_manifest)
-
-    Enum.reduce(packages, package_manifest, fn package, package_manifest ->
-      package
-      |> replace_targets_content(package_manifest)
-      |> String.replace(
-        ~r/(?<!.product\(name: )"#{package.by_name_reference}"/is,
-        "\"#{package.name}\""
-      )
-      # Workaround for a bug in SwiftPM fixed in: https://github.com/swiftlang/swift-package-manager/pull/8194
-      |> String.replace(
-        ~r/package:\s*"#{package.name}"/is,
-        "package: \"#{package.name}\""
-      )
-    end)
-  end
-
-  # This method replaces content only inside the targets: [..] array.
-  defp replace_targets_content(package, package_manifest) do
-    Enum.reduce(
-      Regex.scan(~r/targets:\s*\[/, package_manifest, return: :index),
-      package_manifest,
-      fn [{bracket_position, length}], package_manifest ->
-        case find_matching_bracket(package_manifest, bracket_position + length, 1) do
-          {:ok, position} ->
-            {pre_content, content} = String.split_at(package_manifest, bracket_position)
-
-            {content_to_replace, post_content} = String.split_at(content, position - bracket_position + 1)
-
-            replaced_content =
-              content_to_replace
-              |> String.replace(
-                ~r/(?<!.product\(name: )"#{package.by_name_reference}"/is,
-                "\"#{package.name}\""
-              )
-              |> String.replace(
-                ~r/(?<![package|name]: )(?<!\()"(#{package.name})"/is,
-                ".product(name: \"#{package.name}\", package: \"#{package.name}\")"
-              )
-              |> String.replace(
-                ~r/.byName\(name:\s*"(#{package.name})"\s*\)/is,
-                ".product(name: \"#{package.name}\", package: \"#{package.name}\")"
-              )
-
-            pre_content <> replaced_content <> post_content
-
-          {:error, _} ->
-            package_manifest
-        end
-      end
-    )
-  end
-
-  defp find_matching_bracket(string, pos, _count) when pos >= byte_size(string) do
-    {:error, "No matching bracket found"}
-  end
-
-  defp find_matching_bracket(string, pos, count) do
-    case String.at(string, pos) do
-      "[" ->
-        find_matching_bracket(string, pos + 1, count + 1)
-
-      "]" ->
-        if count == 1 do
-          {:ok, pos}
-        else
-          find_matching_bracket(string, pos + 1, count - 1)
-        end
-
-      _ ->
-        find_matching_bracket(string, pos + 1, count)
-    end
-  end
-
-  defp extract_url_only_packages(package_manifest) do
-    ~r/\.package\(\s*url:\s*"([^"\\]+)"/
-    |> Regex.scan(package_manifest)
-    |> Enum.map(&List.last/1)
-    |> Enum.filter(&valid_repository_url?/1)
-    |> Enum.map(&VCS.get_repository_full_handle_from_url/1)
-    |> Enum.map(&elem(&1, 1))
-    |> Enum.map(&get_package_scope_and_name_from_repository_full_handle/1)
-    |> Enum.map(&%{scope: &1.scope, name: &1.name, by_name_reference: &1.name})
-  end
-
-  defp extract_named_url_packages(package_manifest) do
-    ~r/\.package\(\s*name:\s*"([^"\\]+)"\s*,\s*url:\s*"([^"\\]+)/
-    |> Regex.scan(package_manifest)
-    |> Enum.map(&Enum.slice(&1, -2, 2))
-    |> Enum.filter(&valid_repository_url?(List.last(&1)))
-    |> Enum.map(fn [by_name_reference, package_url] ->
-      [scope, package_name] =
-        package_url
-        |> VCS.get_repository_full_handle_from_url()
-        |> elem(1)
-        |> String.split("/")
-
-      %{scope: scope, name: package_name, by_name_reference: by_name_reference}
-    end)
-  end
-
-  defp valid_repository_url?(package_url) do
-    case VCS.get_repository_full_handle_from_url(package_url) do
-      {:ok, _} -> true
-      {:error, _} -> false
-    end
-  end
-
   def package_manifest_as_string(%{scope: scope, name: name, version: version}) do
     object_key =
       package_object_key(%{scope: scope, name: name}, version: version, path: "Package.swift")
@@ -461,24 +458,6 @@ defmodule Tuist.Registry.Swift.Packages do
     if Storage.object_exists?(object_key, :registry) do
       package_manifest =
         Storage.get_object_as_string(object_key, :registry)
-
-      packages =
-        ~r/url:\s*"([^"]+)"/
-        |> Regex.scan(package_manifest)
-        |> Enum.map(&List.last/1)
-        |> Enum.filter(&valid_repository_url?/1)
-        |> Enum.map(&VCS.get_repository_full_handle_from_url/1)
-        |> Enum.map(&elem(&1, 1))
-        |> Enum.map(&get_package_scope_and_name_from_repository_full_handle/1)
-
-      package_manifest =
-        Enum.reduce(packages, package_manifest, fn package, package_manifest ->
-          String.replace(
-            package_manifest,
-            ~r/(?<![package|name]: )"(#{package.name})"/i,
-            ".product(name: \"#{package.name}\", package: \"#{package.name}\")"
-          )
-        end)
 
       {:ok, package_manifest}
     else

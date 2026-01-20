@@ -71,7 +71,7 @@ final class InitAcceptanceTestmacOSApp: TuistAcceptanceTestCase {
     func test_xcode_project_ios_app() async throws {
         try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { _ in
-                try await setUpFixture(.xcodeProjectiOSApp)
+                try await setUpFixture("xcode_project_ios_app")
 
                 let initAnswers = InitPromptAnswers(
                     workflowType: .connectProjectOrSwiftPackage("App"),

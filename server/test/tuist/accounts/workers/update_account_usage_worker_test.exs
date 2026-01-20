@@ -1,5 +1,5 @@
 defmodule Tuist.Accounts.Workers.UpdateAccountUsageWorkerTest do
-  use TuistTestSupport.Cases.DataCase, async: true
+  use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
   alias Tuist.Accounts.Workers.UpdateAccountUsageWorker
@@ -27,10 +27,12 @@ defmodule Tuist.Accounts.Workers.UpdateAccountUsageWorkerTest do
       )
 
       # When
-      {:ok, _} =
-        %{account_id: account.id, updated_at: updated_at}
-        |> UpdateAccountUsageWorker.new()
-        |> Oban.insert()
+      Oban.Testing.with_testing_mode(:inline, fn ->
+        {:ok, _} =
+          %{account_id: account.id, updated_at: updated_at}
+          |> UpdateAccountUsageWorker.new()
+          |> Oban.insert()
+      end)
 
       # # Then
       account = Repo.reload!(account)

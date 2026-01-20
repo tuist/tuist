@@ -14,8 +14,16 @@ CLI는 문제를 진단하는데 도움이 되는 메세지를 내부적으로 �
 명령어 실행이 원하지 않는 결과가 나오면 로그를 확인해 문제를 진단할 수 있습니다. CLI는 로그를
 [OSLog](https://developer.apple.com/documentation/os/oslog)와 파일 시스템으로 전달합니다.
 
-각 실행마다 `$XDG_STATE_HOME/tuist/logs/{uuid}.log` 위치에 로그 파일을 생성하고,
-`$XDG_STATE_HOME`은 환경 변수가 설정되어 있지 않으면 `~/.local/state`입니다.
+실행할 때마다 `$XDG_STATE_HOME/tuist/logs/{uuid}.log`에 로그 파일을 생성하는데, `$XDG_STATE_HOME`
+환경 변수가 설정되지 않은 경우 `~/.local/state` 경로를 사용합니다. Tuist 전용 상태 디렉터리를 설정하기 위해
+`$XDG_STATE_HOME` 보다 우선하는 `$TUIST_XDG_STATE_HOME`를 사용할 수도 있습니다.
+
+::: tip
+<!-- -->
+<LocalizedLink href="/cli/directories">디렉토리 설명서</LocalizedLink>에서 Tuist의 디렉토리 구성
+및 사용자 지정 디렉토리를 설정하는 방법에 대해 자세히 알아보세요.
+<!-- -->
+:::
 
 기본적으로 CLI는 실행이 예기치 않게 종료되면 로그 경로를 출력합니다. 그렇지 않으면, 위에서 언급한 경로에서 로그를 확인할 수 있습니다.
 
@@ -37,7 +45,7 @@ name: Node CI
 on: [push]
 
 env:
-  XDG_STATE_HOME: /tmp
+  TUIST_XDG_STATE_HOME: /tmp
 
 jobs:
   build:
@@ -49,8 +57,21 @@ jobs:
       - run: tuist generate
       # ... do something with the project
       - name: Export Tuist logs
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: tuist-logs
           path: /tmp/tuist/logs/*.log
 ```
+
+### 캐시 데몬 디버깅 {#cache-daemon-debugging}
+
+캐시 관련 문제를 디버깅하기 위해, Tuist는 하위 시스템 `dev.tuist.cache`를 가지고 `os_log` 를 사용하여 캐시 데몬
+작업을 기록합니다. 아래 명령 사용하여 이 로그를 실시간으로 스트리밍할 수 있습니다:
+
+```bash
+log stream --predicate 'subsystem == "dev.tuist.cache"' --debug
+```
+
+이 로그는 `dev.tuist.cache`으로 하위 시스템을 필터링하여 콘솔 앱에서도 볼 수 있습니다. 이는 캐시 작업에 대한 자세한 정보를
+제공하여, 캐시 업로드, 다운로드 및 통신 문제를 진단하는 데 도움이 될 수 있습니다.

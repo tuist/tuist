@@ -1,5 +1,6 @@
 defmodule Tuist.Repo.Migrations.CreateBillingTokenUsage do
   use Ecto.Migration
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
 
   def change do
     create table(:token_usages, primary_key: false) do

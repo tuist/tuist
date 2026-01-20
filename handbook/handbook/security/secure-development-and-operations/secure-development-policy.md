@@ -102,7 +102,7 @@ Testing of security functionality shall be performed at defined periods during t
 deployed to Tuist GmbH production systems without documented, successful test results and evidence of security
 remediation activities.
 
-Comprehensive penetration testing shall be performed at least annually on applications and cloud resources according to the requirements outlined in the Penetration Testing Policy. As per our [Shared Responsibility Model](/security/shared-responsibility-model), network infrastructure penetration testing is the responsibility of our cloud provider Fly.io.
+Comprehensive penetration testing shall be performed at least annually on applications and cloud resources according to the requirements outlined in the Penetration Testing Policy. As per our [Shared Responsibility Model](/security/shared-responsibility-model), network infrastructure penetration testing is the responsibility of our cloud provider Render.
 
 Application-level network traffic shall be monitored, controlled, managed, and periodically evaluated to identify vulnerabilities, anomalies, and capacity issues in accordance with the [Network Traffic Management Policy](/security/business-continuity-and-data-protection/network-traffic-management-policy).
 

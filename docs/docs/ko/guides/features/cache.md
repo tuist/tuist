@@ -2,170 +2,46 @@
 {
   "title": "Cache",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Optimize your build times by caching compiled binaries and sharing them across different environments."
+  "description": "Optimize your build times with Tuist Cache."
 }
 ---
-# Cache {#cache}
+# 캐시 {#cache}
 
-::: warning REQUIREMENTS
+Xcode의 빌드 시스템은 [증분 빌드](https://en.wikipedia.org/wiki/Incremental_build_model)를
+제공하여 단일 시스템에서 효율성을 향상시킵니다. 그러나 빌드 아티팩트는 다른 환경 간에 공유되지 않으므로 [지속적 통합(CI)
+환경](https://en.wikipedia.org/wiki/Continuous_integration) 또는 로컬 개발 환경(Mac)에서 동일한
+코드를 반복해서 다시 빌드해야 합니다.
+
+Tuist는 캐싱 기능으로 이러한 문제를 해결하여 로컬 개발 환경과 CI 환경 모두에서 빌드 시간을 크게 단축합니다. 이러한 접근 방식은 피드백
+루프를 가속화할 뿐만 아니라 컨텍스트 전환의 필요성을 최소화하여 궁극적으로 생산성을 향상시킵니다.
+
+두 가지 유형의 캐싱을 제공합니다:
+- <LocalizedLink href="/guides/features/cache/module-cache">모듈 캐시</LocalizedLink>
+- <LocalizedLink href="/guides/features/cache/xcode-cache">Xcode 캐시</LocalizedLink>
+
+## 모듈 캐시 {#module-cache}
+
+튜이스트의 <LocalizedLink href="/guides/features/projects">프로젝트 생성</LocalizedLink>
+기능을 사용하는 프로젝트의 경우, 개별 모듈을 바이너리로 캐싱하여 팀과 CI 환경 전체에서 공유하는 강력한 캐싱 시스템을 제공합니다.
+
+새로운 Xcode 캐시를 사용할 수도 있지만, 이 기능은 현재 로컬 빌드에 최적화되어 있으며 생성된 프로젝트 캐싱에 비해 캐시 적중률이 낮을 수
+있습니다. 그러나 어떤 캐싱 솔루션을 사용할지는 구체적인 요구 사항과 선호도에 따라 결정해야 합니다. 최상의 결과를 얻기 위해 두 캐싱 솔루션을
+결합할 수도 있습니다.
+
+<LocalizedLink href="/guides/features/cache/module-cache">모듈 캐시에 대해 자세히 알아보기 →</LocalizedLink>
+
+## Xcode 캐시 {#xcode-cache}
+
+::: 경고 XCODE 내 캐시 상태 경고
 <!-- -->
-- A <LocalizedLink href="/guides/features/projects">generated
-  project</LocalizedLink>
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
-  project</LocalizedLink>
-<!-- -->
-:::
-
-Xcode's build system provides [incremental
-builds](https://en.wikipedia.org/wiki/Incremental_build_model), enhancing
-efficiency under normal circumstances. However, this feature falls short in
-[Continuous Integration (CI)
-environments](https://en.wikipedia.org/wiki/Continuous_integration), where data
-essential for incremental builds is not shared across different builds.
-Additionally, **developers often reset this data locally to troubleshoot complex
-compilation problems**, leading to more frequent clean builds. This results in
-teams spending excessive time waiting for local builds to finish or for
-Continuous Integration pipelines to provide feedback on pull requests.
-Furthermore, the frequent context switching in such an environment compounds
-this unproductiveness.
-
-Tuist addresses these challenges effectively with its caching feature. This tool
-optimizes the build process by caching compiled binaries, significantly reducing
-build times both in local development and CI environments. This approach not
-only accelerates feedback loops but also minimizes the need for context
-switching, ultimately boosting productivity.
-
-## Warming {#warming}
-
-Tuist efficiently
-<LocalizedLink href="/guides/features/projects/hashing">utilizes
-hashes</LocalizedLink> for each target in the dependency graph to detect
-changes. Utilizing this data, it builds and assigns unique identifiers to
-binaries derived from these targets. At the time of graph generation, Tuist then
-seamlessly substitutes the original targets with their corresponding binary
-versions.
-
-This operation, known as *"warming,"* produces binaries for local use or for
-sharing with teammates and CI environments via Tuist. The process of warming the
-cache is straightforward and can be initiated with a simple command:
-
-
-```bash
-tuist cache
-```
-
-The command re-uses binaries to speed up the process.
-
-## Usage {#usage}
-
-By default, when Tuist commands necessitate project generation, they
-automatically substitute dependencies with their binary equivalents from the
-cache, if available. Additionally, if you specify a list of targets to focus on,
-Tuist will also replace any dependent targets with their cached binaries,
-provided they are available. For those who prefer a different approach, there is
-an option to opt out of this behavior entirely by using a specific flag:
-
-::: code-group
-```bash [Project generation]
-tuist generate # Only dependencies
-tuist generate Search # Dependencies + Search dependencies
-tuist generate Search Settings # Dependencies, and Search and Settings dependencies
-tuist generate --no-binary-cache # No cache at all
-```
-
-```bash [Testing]
-tuist test
-```
+Xcode 캐싱은 현재 로컬 증분 빌드에 최적화되어 있으며 빌드 작업의 전체 스펙트럼이 아직 경로 독립적이지 않습니다. 하지만 Tuist의 원격
+캐시를 연결하면 이점을 경험할 수 있으며, 빌드 시스템의 기능이 계속 향상됨에 따라 빌드 시간은 시간이 지남에 따라 개선될 것으로 예상됩니다.
 <!-- -->
 :::
 
-::: warning
-<!-- -->
-Binary caching is a feature designed for development workflows such as running
-the app on a simulator or device, or running tests. It is not intended for
-release builds. When archiving the app, generate a project with the sources by
-using the `--no-binary-cache` flag.
-<!-- -->
-:::
+Apple은 Bazel 및 Buck과 같은 다른 빌드 시스템과 유사한 빌드 수준에서 새로운 캐싱 솔루션을 개발해 왔습니다. 새로운 캐싱 기능은
+Xcode 26부터 사용할 수 있으며, 이제 Tuist는 Tuist의
+<LocalizedLink href="/guides/features/projects">프로젝트 생성</LocalizedLink> 기능 사용
+여부와 관계없이 이 기능과 원활하게 통합됩니다.
 
-## Supported products {#supported-products}
-
-Only the following target products are cacheable by Tuist:
-
-- Frameworks (static and dynamic) that don't depend on
-  [XCTest](https://developer.apple.com/documentation/xctest)
-- Bundles
-- Swift Macros
-
-We are working on supporting libraries and targets that depend on XCTest.
-
-::: info UPSTREAM DEPENDENCIES
-<!-- -->
-When a target is non-cacheable it makes the upstream targets non-cacheable too.
-For example, if you have the dependency graph `A > B`, where A depends on B, if
-B is non-cacheable, A will also be non-cacheable.
-<!-- -->
-:::
-
-## Efficiency {#efficiency}
-
-The level of efficiency that can be achieved with binary caching depends
-strongly on the graph structure. To achieve the best results, we recommend the
-following:
-
-1. Avoid very nested dependency graphs. The shallower the graph, the better.
-2. Define dependencies with protocol/interface targets instead of implementation
-   ones, and dependency-inject implementations from the top-most targets.
-3. Split frequently-modified targets into smaller ones whose likelihood of
-   change is lower.
-
-The above suggestions are part of the
-<LocalizedLink href="/guides/features/projects/tma-architecture">The Modular
-Architecture</LocalizedLink>, which we propose as a way to structure your
-projects to maximize the benefits not only of binary caching but also of Xcode's
-capabilities.
-
-## Recommended setup {#recommended-setup}
-
-We recommend having a CI job that **runs in every commit in the main branch** to
-warm the cache. This will ensure the cache always contains binaries for the
-changes in `main` so local and CI branch build incrementally upon them.
-
-::: tip CACHE WARMING USES BINARIES
-<!-- -->
-The `tuist cache` command also makes use of the binary cache to speed up the
-warming.
-<!-- -->
-:::
-
-The following are some examples of common workflows:
-
-### A developer starts to work on a new feature {#a-developer-starts-to-work-on-a-new-feature}
-
-1. They create a new branch from `main`.
-2. They run `tuist generate`.
-3. Tuist pulls the most recent binaries from `main` and generates the project
-   with them.
-
-### A developer pushes changes upstream {#a-developer-pushes-changes-upstream}
-
-1. The CI pipeline will run `tuist build` or `tuist test` to build or test the
-   project.
-2. The workflow will pull the most recent binaries from `main` and generate the
-   project with them.
-3. It will then build or test the project incrementally.
-
-## Troubleshooting {#troubleshooting}
-
-### It doesn't use binaries for my targets {#it-doesnt-use-binaries-for-my-targets}
-
-Ensure that the
-<LocalizedLink href="/guides/features/projects/hashing#debugging">hashes are
-deterministic</LocalizedLink> across environments and runs. This might happen if
-the project has references to the environment, for example through absolute
-paths. You can use the `diff` command to compare the projects generated by two
-consecutive invocations of `tuist generate` or across environments or runs.
-
-Also make sure that the target doesn't depend either directly or indirectly on a
-<LocalizedLink href="/guides/features/cache#supported-products">non-cacheable
-target</LocalizedLink>.
+<LocalizedLink href="/guides/features/cache/xcode-cache">Xcode 캐시에 대해 자세히 알아보기 →</LocalizedLink>

@@ -8,6 +8,44 @@ defmodule Tuist.KeyValueStore do
   alias Tuist.Environment
 
   @doc ~S"""
+  This function returns a value from the cache using the given key without updating it.
+  Returns `nil` if the key is not found.
+
+  ## Opts
+
+  - `:cache`: The cache to use. Defaults to `:tuist`.
+
+  ## Examples
+
+  iex> Tuist.KeyValueStore.get(:example_key)
+  nil
+  """
+  def get(cache_key, opts \\ []) do
+    if use_redis?(opts) do
+      try do
+        get_from_redis(cache_key)
+      rescue
+        _error in Redix.ConnectionError ->
+          get_from_cachex(cache_key, opts)
+      end
+    else
+      get_from_cachex(cache_key, opts)
+    end
+  end
+
+  defp get_from_redis(cache_key) do
+    case Redix.command(Environment.redis_conn_name(), ["GET", cache_key(cache_key)]) do
+      {:ok, nil} -> nil
+      {:ok, value} -> :erlang.binary_to_term(value)
+    end
+  end
+
+  defp get_from_cachex(cache_key, opts) do
+    {:ok, cached_value} = Cachex.get(cachex_cache(opts), cache_key(cache_key))
+    cached_value
+  end
+
+  @doc ~S"""
   This function returns a value from the cache using the given key and locking the access.
   If the key is accessed concurrently, the first caller will execute the function and cache the result,
   while the others suspend until the first caller completes.

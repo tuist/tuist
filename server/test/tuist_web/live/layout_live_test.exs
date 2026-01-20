@@ -184,6 +184,13 @@ defmodule TuistWeb.LayoutLiveTest do
                      value: user.account.id,
                      avatar_color: "gray",
                      show_avatar: true
+                   },
+                   %{
+                     label: "Create organization",
+                     value: "create-organization",
+                     selected: false,
+                     href: ~p"/organizations/new",
+                     icon: "building_plus"
                    }
                  ],
                  label: user.account.name,
@@ -234,6 +241,13 @@ defmodule TuistWeb.LayoutLiveTest do
                      href: ~p"/#{user.account.name}/projects",
                      avatar_color: "gray",
                      show_avatar: true
+                   },
+                   %{
+                     label: "Create organization",
+                     value: "create-organization",
+                     selected: false,
+                     href: ~p"/organizations/new",
+                     icon: "building_plus"
                    }
                  ],
                  label: organization.account.name,
@@ -284,6 +298,13 @@ defmodule TuistWeb.LayoutLiveTest do
                      href: ~p"/#{user.account.name}/projects",
                      avatar_color: "gray",
                      show_avatar: true
+                   },
+                   %{
+                     label: "Create organization",
+                     value: "create-organization",
+                     selected: false,
+                     href: ~p"/organizations/new",
+                     icon: "building_plus"
                    }
                  ],
                  label: organization.account.name,

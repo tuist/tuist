@@ -49,6 +49,7 @@ defmodule TuistWeb.API.InvitationsController do
     }
   )
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def create(
         %{path_params: %{"organization_name" => organization_name}, body_params: %{invitee_email: invitee_email}} = conn,
         _params
@@ -59,7 +60,12 @@ defmodule TuistWeb.API.InvitationsController do
     organization = Accounts.get_organization_by_handle(organization_name)
 
     invitee_email_valid? = Tuist.Accounts.User.email_valid?(invitee_email)
-    invitee = Accounts.get_user_by_email(invitee_email)
+
+    invitee =
+      case Accounts.get_user_by_email(invitee_email) do
+        {:ok, user} -> user
+        {:error, :not_found} -> nil
+      end
 
     cond do
       is_nil(organization) ->

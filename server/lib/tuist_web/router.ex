@@ -10,6 +10,8 @@ defmodule TuistWeb.Router do
 
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.MarketingController
+  alias TuistWeb.Plugs.AppsignalAttributionPlug
+  alias TuistWeb.Plugs.UeberauthHostPlug
 
   pipeline :open_api do
     plug OpenApiSpex.Plug.PutApiSpec, module: TuistWeb.API.Spec
@@ -17,6 +19,7 @@ defmodule TuistWeb.Router do
 
   pipeline :content_security_policy do
     plug :put_content_security_policy,
+      frame_ancestors: "'self'",
       img_src:
         "'self' data: https://github.com https://*.githubusercontent.com https://*.gravatar.com https://*.s3.amazonaws.com",
       media_src:
@@ -29,7 +32,7 @@ defmodule TuistWeb.Router do
       # wasm-unsafe-eval is necssary for the Shiki code highlighting
       script_src: "'self' 'nonce' 'wasm-unsafe-eval'",
       script_src_elem:
-        "'self' 'nonce' https://cdn.jsdelivr.net https://esm.sh https://chat.cdn-plain.com https://*.posthog.com https://marketing.tuist.dev",
+        "'self' 'nonce' https://d3js.org https://cdn.jsdelivr.net https://esm.sh https://chat.cdn-plain.com https://*.posthog.com https://marketing.tuist.dev",
       font_src: "'self' https://fonts.gstatic.com data: https://fonts.scalar.com https://rsms.me",
       frame_src: "'self' https://chat.cdn-plain.com https://*.tuist.dev https://newassets.hcaptcha.com",
       connect_src: "'self' https://chat.cdn-plain.com  https://chat.uk.plain.com https://*.posthog.com"
@@ -39,11 +42,14 @@ defmodule TuistWeb.Router do
     plug :accepts, ["html"]
     plug :disable_robot_indexing
     plug :fetch_session
+    plug TuistWeb.Plugs.TimezonePlug
     plug :fetch_live_flash
     plug :put_root_layout, html: {TuistWeb.Layouts, :app}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug UeberauthHostPlug
     plug :fetch_current_user
+    plug AppsignalAttributionPlug
     plug :content_security_policy
   end
 
@@ -55,6 +61,7 @@ defmodule TuistWeb.Router do
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug :fetch_current_user
+    plug AppsignalAttributionPlug
     plug :content_security_policy
   end
 
@@ -65,6 +72,7 @@ defmodule TuistWeb.Router do
     plug :fetch_live_flash
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug UeberauthHostPlug
     plug Ueberauth
   end
 
@@ -77,8 +85,10 @@ defmodule TuistWeb.Router do
     plug :fetch_live_flash
     plug :put_root_layout, html: {TuistWeb.Layouts, :app}
     plug :put_secure_browser_headers
+    plug UeberauthHostPlug
     plug Ueberauth
     plug :fetch_current_user
+    plug AppsignalAttributionPlug
     plug :content_security_policy
   end
 
@@ -90,8 +100,10 @@ defmodule TuistWeb.Router do
     plug :put_root_layout, html: {TuistWeb.Marketing.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug UeberauthHostPlug
     plug Ueberauth
     plug :fetch_current_user
+    plug AppsignalAttributionPlug
     plug :assign_current_path
     plug :content_security_policy
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
@@ -106,23 +118,29 @@ defmodule TuistWeb.Router do
 
   pipeline :non_authenticated_api do
     plug :accepts, ["json"]
+
+    plug TuistWeb.WarningsHeaderPlug
   end
 
   pipeline :api_registry_swift do
     plug :accepts, ["swift-registry-v1-json", "swift-registry-v1-zip", "swift-registry-v1-api"]
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
+    plug AppsignalAttributionPlug
+    plug TuistWeb.RateLimit.Registry
   end
 
   pipeline :authenticated_api do
-    plug :accepts, ["json"]
+    plug :accepts, ["json", "application/octet-stream"]
 
     plug TuistWeb.WarningsHeaderPlug
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
     plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :open_api}
+    plug AppsignalAttributionPlug
   end
 
   pipeline :authenticated do
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
+    plug AppsignalAttributionPlug
   end
 
   pipeline :on_premise_api do
@@ -139,6 +157,8 @@ defmodule TuistWeb.Router do
     pipe_through [:browser_marketing_feed]
 
     redirect("/rss.xml", "/blog/rss.xml", :permanent, preserve_query_string: true)
+    redirect("/case-studies", "/customers", :permanent, preserve_query_string: true)
+    redirect("/case-studies/:slug", "/customers/:slug", :permanent, preserve_query_string: true)
 
     get "/blog/rss.xml", MarketingController, :blog_rss, metadata: %{type: :marketing}
 
@@ -174,6 +194,11 @@ defmodule TuistWeb.Router do
              metadata: %{type: :marketing},
              private: private
 
+        live Path.join(locale_path_prefix, "/customers"),
+             TuistWeb.Marketing.MarketingCustomersLive,
+             metadata: %{type: :marketing},
+             private: private
+
         live Path.join(locale_path_prefix, "/qa"),
              TuistWeb.Marketing.MarketingQALive,
              metadata: %{type: :marketing},
@@ -190,13 +215,23 @@ defmodule TuistWeb.Router do
           metadata: %{type: :marketing},
           private: private
 
-      for %{slug: blog_post_slug} <- Tuist.Marketing.Blog.get_posts() do
-        get Path.join(locale_path_prefix, blog_post_slug),
-            MarketingController,
-            :blog_post,
-            metadata: %{type: :marketing},
-            private: private
-      end
+      get Path.join(locale_path_prefix, "/blog/:year/:month/:day/:slug/iframe.html"),
+          TuistWeb.Marketing.MarketingBlogIframeController,
+          :show,
+          metadata: %{type: :marketing},
+          private: private
+
+      get Path.join(locale_path_prefix, "/blog/:year/:month/:day/:slug"),
+          MarketingController,
+          :blog_post,
+          metadata: %{type: :marketing},
+          private: private
+
+      get Path.join(locale_path_prefix, "/customers/:slug"),
+          MarketingController,
+          :case_study,
+          metadata: %{type: :marketing},
+          private: private
 
       for %{slug: page_slug} <- Tuist.Marketing.Pages.get_pages() do
         get Path.join(locale_path_prefix, page_slug),
@@ -251,6 +286,7 @@ defmodule TuistWeb.Router do
     pipe_through [:open_api, :browser_app]
 
     get "/github/setup", GitHubAppSetupController, :setup
+    get "/slack/callback", SlackOAuthController, :callback
   end
 
   scope "/.well-known", TuistWeb do
@@ -272,6 +308,8 @@ defmodule TuistWeb.Router do
 
       scope "/tokens" do
         post "/", AccountTokensController, :create
+        get "/", AccountTokensController, :index
+        delete "/:token_name", AccountTokensController, :delete
       end
     end
 
@@ -322,6 +360,7 @@ defmodule TuistWeb.Router do
           post "/generate-url", PreviewsController, :multipart_generate_url
           post "/complete", PreviewsController, :multipart_complete
           post "/:preview_id/icons", PreviewsController, :upload_icon
+          get "/latest", PreviewsController, :latest
           get "/:preview_id", PreviewsController, :show
           get "/", PreviewsController, :index
           delete "/:preview_id", PreviewsController, :delete
@@ -363,6 +402,17 @@ defmodule TuistWeb.Router do
     end
 
     scope "/cache" do
+      scope "/keyvalue" do
+        put "/", Cache.KeyValueController, :put_value
+        get "/:cas_id", Cache.KeyValueController, :get_value
+      end
+
+      scope "/cas" do
+        get "/:id", CASController, :load
+        post "/:id", CASController, :save
+      end
+
+      get "/endpoints", CacheController, :endpoints
       get "/", CacheController, :download
       get "/exists", CacheController, :exists
 
@@ -393,6 +443,7 @@ defmodule TuistWeb.Router do
   end
 
   scope "/api", TuistWeb.API do
+    # Deprecated Swift package registry endpoints
     scope "/accounts/:account_handle/registry", Registry do
       scope "/swift" do
         pipe_through [:api_registry_swift]
@@ -404,6 +455,18 @@ defmodule TuistWeb.Router do
         get "/availability", SwiftController, :availability
         post "/login", SwiftController, :login
       end
+    end
+
+    # Swift package registry endpoints
+    scope "/registry/swift", Registry do
+      pipe_through [:api_registry_swift]
+
+      get "/identifiers", SwiftController, :identifiers
+      get "/:scope/:name", SwiftController, :list_releases
+      get "/:scope/:name/:version", SwiftController, :show_release
+      get "/:scope/:name/:version/Package.swift", SwiftController, :show_package_swift
+      get "/availability", SwiftController, :availability
+      post "/login", SwiftController, :login
     end
   end
 
@@ -421,6 +484,10 @@ defmodule TuistWeb.Router do
 
     post "/auth", AuthController, :authenticate
     post "/auth/apple", AuthController, :authenticate_apple
+
+    get "/registry/swift", Registry.SwiftController, :availability
+
+    post "/auth/oidc/token", OIDCController, :exchange_token
   end
 
   scope "/oauth2", TuistWeb.Oauth do
@@ -497,8 +564,10 @@ defmodule TuistWeb.Router do
       live "/users/register", UserRegistrationLive, :new
       live "/users/log_in", UserLoginLive, :new
       live "/users/log_in/okta", UserOktaLoginLive, :new
+      live "/users/log_in/sso", SSOLoginLive, :new
       live "/users/reset_password", UserForgotPasswordLive, :new
       live "/users/reset_password/:token", UserResetPasswordLive, :edit
+      live "/users/choose-username", ChooseUsernameLive, :new
     end
 
     post "/users/log_in", UserSessionController, :create
@@ -524,6 +593,11 @@ defmodule TuistWeb.Router do
       on_mount: [{TuistWeb.Authentication, :mount_current_user}] do
       live "/users/confirm/:token", UserConfirmationLive, :edit
     end
+  end
+
+  scope "/auth", TuistWeb do
+    pipe_through [:browser_app]
+    get "/complete-signup", AuthController, :complete_signup
   end
 
   scope "/users/auth", TuistWeb do
@@ -647,7 +721,7 @@ defmodule TuistWeb.Router do
 
     live_session :account,
       layout: {TuistWeb.Layouts, :account},
-      on_mount: [{TuistWeb.LayoutLive, :account}, {TuistWeb.Authentication, :mount_current_user}] do
+      on_mount: [{TuistWeb.Authentication, :ensure_authenticated}, {TuistWeb.LayoutLive, :account}] do
       live "/", ProjectsLive
       live "/projects", ProjectsLive
       live "/members", MembersLive
@@ -674,9 +748,16 @@ defmodule TuistWeb.Router do
         {TuistWeb.LayoutLive, :project},
         {TuistWeb.Authentication, :mount_current_user}
       ] do
+      live "/tests", TestsLive
       live "/tests/test-runs", TestRunsLive
-      live "/binary-cache/cache-runs", CacheRunsLive
-      live "/binary-cache/generate-runs", GenerateRunsLive
+      live "/tests/test-runs/:test_run_id", TestRunLive
+      live "/tests/test-cases", TestCasesLive
+      live "/tests/test-cases/:test_case_id", TestCaseLive
+      live "/tests/flaky-tests", FlakyTestsLive
+      live "/module-cache", ModuleCacheLive
+      live "/module-cache/cache-runs", CacheRunsLive
+      live "/module-cache/generate-runs", GenerateRunsLive
+      live "/xcode-cache", XcodeCacheLive
       live "/connect", ConnectLive
       live "/", OverviewLive
       live "/analytics", OverviewLive
@@ -692,8 +773,13 @@ defmodule TuistWeb.Router do
       live "/runs/:run_id", RunDetailLive
       get "/runs/:run_id/download", RunsController, :download
       live "/settings", ProjectSettingsLive
+      live "/settings/notifications", ProjectNotificationsLive
       live "/settings/qa", QASettingsLive
     end
+
+    # Redirects for renamed routes
+    get "/binary-cache/cache-runs", RedirectPlug, to: "/module-cache/cache-runs"
+    get "/binary-cache/generate-runs", RedirectPlug, to: "/module-cache/generate-runs"
   end
 
   def assign_current_path(conn, _params) do

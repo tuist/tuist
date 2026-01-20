@@ -1,6 +1,708 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.129.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* enable local CAS when enableCaching is true and Tuist project is not configured by [@danieleformichelli](https://github.com/danieleformichelli) in [#9157](https://github.com/tuist/tuist/pull/9157)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.128.3...4.129.0
+
+## What's Changed in 4.128.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* fix acceptance tests by [@cschmatzler](https://github.com/cschmatzler) in [#9150](https://github.com/tuist/tuist/pull/9150)
+* External resources failing at runtime unable to find their associated bundle by [@pepicrft](https://github.com/pepicrft) in [#9148](https://github.com/tuist/tuist/pull/9148)
+* only emit a public import when public symbols are present by [@JimRoepcke](https://github.com/JimRoepcke) in [#9129](https://github.com/tuist/tuist/pull/9129)
+
+## New Contributors
+* [@JimRoepcke](https://github.com/JimRoepcke) made their first contribution in [#9129](https://github.com/tuist/tuist/pull/9129)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.128.0...4.128.3
+
+## What's Changed in 4.128.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* make new module cache default by [@cschmatzler](https://github.com/cschmatzler) in [#9094](https://github.com/tuist/tuist/pull/9094)
+* add support for flaky tests detection by [@fortmarek](https://github.com/fortmarek) in [#9098](https://github.com/tuist/tuist/pull/9098)
+* implement remote cache cleaning by [@cschmatzler](https://github.com/cschmatzler) in [#9124](https://github.com/tuist/tuist/pull/9124)
+### 🐛 Bug Fixes
+
+* Compilation errors when a static framework contains resources by [@pepicrft](https://github.com/pepicrft) in [#9141](https://github.com/tuist/tuist/pull/9141)
+* remove selective testing support for vanilla Xcode projects by [@fortmarek](https://github.com/fortmarek) in [#9126](https://github.com/tuist/tuist/pull/9126)
+* update inspect acceptance tests for new output format by [@pepicrft](https://github.com/pepicrft) in [#9125](https://github.com/tuist/tuist/pull/9125)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.125.0...4.128.0
+
+## What's Changed in 4.125.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add unified inspect dependencies command by [@hiltonc](https://github.com/hiltonc) in [#8887](https://github.com/tuist/tuist/pull/8887)
+* Add exceptTargetQueries to cache profiles by [@hiltonc](https://github.com/hiltonc) in [#8761](https://github.com/tuist/tuist/pull/8761)
+### 🐛 Bug Fixes
+
+* Static framework bundles for tests and metal by [@pepicrft](https://github.com/pepicrft) in [#9123](https://github.com/tuist/tuist/pull/9123)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.124.1...4.125.0
+
+## What's Changed in 4.124.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* disable Swift debug serialization to prevent LLDB warnings by [@pepicrft](https://github.com/pepicrft) in [#9116](https://github.com/tuist/tuist/pull/9116)
+* fix flaky DumpServiceIntegrationTests for package manifests by [@pepicrft](https://github.com/pepicrft) in [#9113](https://github.com/tuist/tuist/pull/9113)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.124.0...4.124.1
+
+## What's Changed in 4.124.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add support for SwiftPM package traits by [@pepicrft](https://github.com/pepicrft) in [#8535](https://github.com/tuist/tuist/pull/8535)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.123.0...4.124.0
+
+## What's Changed in 4.123.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* show deprecation notice for CLI < 4.56.1 by [@cschmatzler](https://github.com/cschmatzler) in [#9110](https://github.com/tuist/tuist/pull/9110)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.122.2...4.123.0
+
+## What's Changed in 4.122.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* restore static framework resources without regressions by [@pepicrft](https://github.com/pepicrft) in [#9081](https://github.com/tuist/tuist/pull/9081)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.122.1...4.122.2
+
+## What's Changed in 4.122.1<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add excluding parameter to FileElement glob by [@fortmarek](https://github.com/fortmarek) in [#9087](https://github.com/tuist/tuist/pull/9087)
+* Add tuist:synthesized tag to synthesized resource bundles by [@pepicrft](https://github.com/pepicrft) in [#8983](https://github.com/tuist/tuist/pull/8983)
+### 🐛 Bug Fixes
+
+* preserve -enable-upcoming-feature flags in OTHER_SWIFT_FLAGS deduplication by [@fortmarek](https://github.com/fortmarek) in [#9106](https://github.com/tuist/tuist/pull/9106)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.120.0...4.122.1
+
+## What's Changed in 4.120.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* export hashed graph to file via env variable by [@fortmarek](https://github.com/fortmarek) in [#9078](https://github.com/tuist/tuist/pull/9078)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.119.4...4.120.0
+
+## What's Changed in 4.119.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* exclude __MACOSX folders for remote binary targets by [@mo5tone](https://github.com/mo5tone) in [#9075](https://github.com/tuist/tuist/pull/9075)
+* ensure consistent graph mapper order for cache hashing by [@fortmarek](https://github.com/fortmarek) in [#9077](https://github.com/tuist/tuist/pull/9077)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.119.3...4.119.4
+
+## What's Changed in 4.119.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* filter Catalyst destinations for external dependencies by [@pepicrft](https://github.com/pepicrft) in [#9067](https://github.com/tuist/tuist/pull/9067)
+* handle multi-byte UTF-8 characters in xcresult parsing by [@fortmarek](https://github.com/fortmarek) in [#9061](https://github.com/tuist/tuist/pull/9061)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.119.1...4.119.3
+
+## What's Changed in 4.119.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* use generic destination for Mac Catalyst cache builds by [@pepicrft](https://github.com/pepicrft) in [#9038](https://github.com/tuist/tuist/pull/9038)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.119.0...4.119.1
+
+## What's Changed in 4.119.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* custom cache endpoints by [@cschmatzler](https://github.com/cschmatzler) in [#8980](https://github.com/tuist/tuist/pull/8980)
+### 🐛 Bug Fixes
+
+* Generate TuistBundle if buildableFolders contains synthesized file by [@denisgaskov](https://github.com/denisgaskov) in [#8998](https://github.com/tuist/tuist/pull/8998)
+* Include Mac Catalyst slice when building XCFrameworks for cache by [@pepicrft](https://github.com/pepicrft) in [#9028](https://github.com/tuist/tuist/pull/9028)
+### 🚜 Refactor
+
+* rename fixtures to examples and simplify fixture handling by [@pepicrft](https://github.com/pepicrft) in [#8962](https://github.com/tuist/tuist/pull/8962)
+
+## New Contributors
+* [@denisgaskov](https://github.com/denisgaskov) made their first contribution in [#8998](https://github.com/tuist/tuist/pull/8998)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.118.1...4.119.0
+
+## What's Changed in 4.118.1<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* module cache by [@cschmatzler](https://github.com/cschmatzler) in [#8931](https://github.com/tuist/tuist/pull/8931)
+### 🐛 Bug Fixes
+
+* fix selective testing when experimental cache enabled by [@cschmatzler](https://github.com/cschmatzler) in [#8981](https://github.com/tuist/tuist/pull/8981)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.117.0...4.118.1
+
+## What's Changed in 4.117.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* preview tracks by [@fortmarek](https://github.com/fortmarek) in [#8939](https://github.com/tuist/tuist/pull/8939)
+### 🐛 Bug Fixes
+
+* handle cross-project dependencies in redundant import inspection by [@hiltonc](https://github.com/hiltonc) in [#8862](https://github.com/tuist/tuist/pull/8862)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.116.2...4.117.0
+
+## What's Changed in 4.116.2<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* compute binary id as part of tuist share by [@fortmarek](https://github.com/fortmarek) in [#8912](https://github.com/tuist/tuist/pull/8912)
+### 🐛 Bug Fixes
+
+* require previews to have unique binary id and bundle version by [@fortmarek](https://github.com/fortmarek) in [#8944](https://github.com/tuist/tuist/pull/8944)
+* add support for the new mise bin path by [@fortmarek](https://github.com/fortmarek) in [#8929](https://github.com/tuist/tuist/pull/8929)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.115.1...4.116.2
+
+## What's Changed in 4.115.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* migrate Fixtures - Tuist initializer with .project by [@2sem](https://github.com/2sem) in [#8886](https://github.com/tuist/tuist/pull/8886)
+
+## New Contributors
+* [@2sem](https://github.com/2sem) made their first contribution in [#8886](https://github.com/tuist/tuist/pull/8886)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.115.0...4.115.1
+
+## What's Changed in 4.115.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* upload command run analytics in the background by [@fortmarek](https://github.com/fortmarek) in [#8883](https://github.com/tuist/tuist/pull/8883)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.114.0...4.115.0
+
+## What's Changed in 4.114.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* OIDC support Bitrise and CircleCI by [@fortmarek](https://github.com/fortmarek) in [#8878](https://github.com/tuist/tuist/pull/8878)
+* OIDC token support for GitHub Actions by [@fortmarek](https://github.com/fortmarek) in [#8858](https://github.com/tuist/tuist/pull/8858)
+### 🐛 Bug Fixes
+
+* parsing XCActivityLog on Xcode 26.2 and newer by [@fortmarek](https://github.com/fortmarek) in [#8866](https://github.com/tuist/tuist/pull/8866)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.112.0...4.114.0
+
+## What's Changed in 4.112.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* account tokens by [@fortmarek](https://github.com/fortmarek) in [#8834](https://github.com/tuist/tuist/pull/8834)
+* report module cache subhashes by [@fortmarek](https://github.com/fortmarek) in [#8822](https://github.com/tuist/tuist/pull/8822)
+### 🐛 Bug Fixes
+
+* respect explicit cache profile none with target focus by [@hiltonc](https://github.com/hiltonc) in [#8830](https://github.com/tuist/tuist/pull/8830)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.110.3...4.112.0
+
+## What's Changed in 4.110.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* handle skipped tests due to a failed build by [@fortmarek](https://github.com/fortmarek) in [#8808](https://github.com/tuist/tuist/pull/8808)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.110.2...4.110.3
+
+## What's Changed in 4.110.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* false positive for a .uiTests implicit import of .app by [@fortmarek](https://github.com/fortmarek) in [#8811](https://github.com/tuist/tuist/pull/8811)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.110.1...4.110.2
+
+## What's Changed in 4.110.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* duration for test cases with custom label by [@fortmarek](https://github.com/fortmarek) in [#8800](https://github.com/tuist/tuist/pull/8800)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.110.0...4.110.1
+
+## What's Changed in 4.110.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* deprecate tuist build command by [@pepicrft](https://github.com/pepicrft) in [#8401](https://github.com/tuist/tuist/pull/8401)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.109.2...4.110.0
+
+## What's Changed in 4.109.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* relegate test result upload error to a warning by [@fortmarek](https://github.com/fortmarek) in [#8790](https://github.com/tuist/tuist/pull/8790)
+* Don't replace targeted external dependencies with cached binary by [@hiltonc](https://github.com/hiltonc) in [#8731](https://github.com/tuist/tuist/pull/8731)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.109.0...4.109.2
+
+## What's Changed in 4.109.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* link tests to builds by [@fortmarek](https://github.com/fortmarek) in [#8771](https://github.com/tuist/tuist/pull/8771)
+### 🐛 Bug Fixes
+
+* Remove CLANG_CXX_LIBRARY essential build setting by [@alexmx](https://github.com/alexmx) in [#8763](https://github.com/tuist/tuist/pull/8763)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.108.0...4.109.0
+
+## What's Changed in 4.108.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* track CI run id for test insights by [@fortmarek](https://github.com/fortmarek) in [#8769](https://github.com/tuist/tuist/pull/8769)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.107.2...4.108.0
+
+## What's Changed in 4.107.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* remove fullHandle requirement for tuist registry setup by [@fortmarek](https://github.com/fortmarek) in [#8750](https://github.com/tuist/tuist/pull/8750)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.107.1...4.107.2
+
+## What's Changed in 4.107.1<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add test insights by [@fortmarek](https://github.com/fortmarek) in [#8347](https://github.com/tuist/tuist/pull/8347)
+### 🐛 Bug Fixes
+
+* duplicated XCFrameworks in embed phase by [@fortmarek](https://github.com/fortmarek) in [#8736](https://github.com/tuist/tuist/pull/8736)
+* skip warning Swift flags when hashing by [@fortmarek](https://github.com/fortmarek) in [#8728](https://github.com/tuist/tuist/pull/8728)
+* prefer products with matching casing by [@fortmarek](https://github.com/fortmarek) in [#8717](https://github.com/tuist/tuist/pull/8717)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.106.1...4.107.1
+
+## What's Changed in 4.106.1<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* open registry by [@fortmarek](https://github.com/fortmarek) in [#8708](https://github.com/tuist/tuist/pull/8708)
+### 🐛 Bug Fixes
+
+* external dependency case insensitive lookup by [@fortmarek](https://github.com/fortmarek) in [#8714](https://github.com/tuist/tuist/pull/8714)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.105.1...4.106.1
+
+## What's Changed in 4.105.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* fix false negative implicit import detection of transitive local dependencies by [@Kolos65](https://github.com/Kolos65) in [#8665](https://github.com/tuist/tuist/pull/8665)
+* refreshing token data race by [@fortmarek](https://github.com/fortmarek) in [#8706](https://github.com/tuist/tuist/pull/8706)
+
+## New Contributors
+* [@Kolos65](https://github.com/Kolos65) made their first contribution in [#8665](https://github.com/tuist/tuist/pull/8665)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.105.0...4.105.1
+
+## What's Changed in 4.105.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* improve error message of tuist inspect implicit-imports by [@n-zaitsev](https://github.com/n-zaitsev) in [#8604](https://github.com/tuist/tuist/pull/8604)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.104.7...4.105.0
+
+## What's Changed in 4.104.7<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* resolve token refresh data race in ServerAuthenticationController by [@fortmarek](https://github.com/fortmarek) in [#8692](https://github.com/tuist/tuist/pull/8692)
+* skip hashing Xcode version by [@fortmarek](https://github.com/fortmarek) in [#8658](https://github.com/tuist/tuist/pull/8658)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.104.5...4.104.7
+
+## What's Changed in 4.104.5<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* add Emerge Tools SnapshottingTests to the list of targets that depend on XCTest by [@duarteich](https://github.com/duarteich) in [#8653](https://github.com/tuist/tuist/pull/8653)
+
+## New Contributors
+* [@duarteich](https://github.com/duarteich) made their first contribution in [#8653](https://github.com/tuist/tuist/pull/8653)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.104.4...4.104.5
+
+## What's Changed in 4.104.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* respect xcframework status by [@fortmarek](https://github.com/fortmarek) in [#8651](https://github.com/tuist/tuist/pull/8651)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.104.3...4.104.4
+
+## What's Changed in 4.104.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* duplicate CAS outputs by [@fortmarek](https://github.com/fortmarek) in [#8646](https://github.com/tuist/tuist/pull/8646)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.104.2...4.104.3
+
+## What's Changed in 4.104.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* skip hashing lockfiles by [@fortmarek](https://github.com/fortmarek) in [#8650](https://github.com/tuist/tuist/pull/8650)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.104.1...4.104.2
+
+## What's Changed in 4.104.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* misreported Xcode cache analytics by [@fortmarek](https://github.com/fortmarek) in [#8638](https://github.com/tuist/tuist/pull/8638)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.104.0...4.104.1
+
+## What's Changed in 4.104.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* connect directly to the cache endpoint by [@fortmarek](https://github.com/fortmarek) in [#8628](https://github.com/tuist/tuist/pull/8628)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.103.0...4.104.0
+
+## What's Changed in 4.103.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* track cas outputs type and cacheable task description by [@fortmarek](https://github.com/fortmarek) in [#8609](https://github.com/tuist/tuist/pull/8609)
+* track cacheable task description by [@fortmarek](https://github.com/fortmarek) in [#8603](https://github.com/tuist/tuist/pull/8603)
+### 🐛 Bug Fixes
+
+* Add extended string delimiter to Strings value in PlistsTemplate by [@ast3150](https://github.com/ast3150) in [#8607](https://github.com/tuist/tuist/pull/8607)
+
+## New Contributors
+* [@ast3150](https://github.com/ast3150) made their first contribution in [#8607](https://github.com/tuist/tuist/pull/8607)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.101.0...4.103.0
+
+## What's Changed in 4.101.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* track cache key read/write latency by [@fortmarek](https://github.com/fortmarek) in [#8598](https://github.com/tuist/tuist/pull/8598)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.100.0...4.101.0
+
+## What's Changed in 4.100.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* cas output analytics by [@fortmarek](https://github.com/fortmarek) in [#8584](https://github.com/tuist/tuist/pull/8584)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.99.2...4.100.0
+
+## What's Changed in 4.99.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* ensure disableSandbox config is used when dumping package manifests by [@pepicrft](https://github.com/pepicrft) in [#8475](https://github.com/tuist/tuist/pull/8475)
+* support import kind declarations in inspect by [@hiltonc](https://github.com/hiltonc) in [#8455](https://github.com/tuist/tuist/pull/8455)
+* cache Config manifest to improve performance by [@hiltonc](https://github.com/hiltonc) in [#8561](https://github.com/tuist/tuist/pull/8561)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.99.1...4.99.2
+
+## What's Changed in 4.99.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Fix buildable folder resource placement for static targets by [@natanrolnik](https://github.com/natanrolnik) in [#8548](https://github.com/tuist/tuist/pull/8548)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.99.0...4.99.1
+
+## What's Changed in 4.99.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* optimize Xcode cache by compressing CAS artifacts by [@fortmarek](https://github.com/fortmarek) in [#8565](https://github.com/tuist/tuist/pull/8565)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.98.0...4.99.0
+
+## What's Changed in 4.98.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Optimize cache hit detection and add diagnostic remarks by [@fortmarek](https://github.com/fortmarek) in [#8556](https://github.com/tuist/tuist/pull/8556)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.97.2...4.98.0
+
+## What's Changed in 4.97.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* clean up warnings by [@waltflanagan](https://github.com/waltflanagan) in [#7666](https://github.com/tuist/tuist/pull/7666)
+* fix content hashing to use relative path when file does not exist by [@waltflanagan](https://github.com/waltflanagan) in [#8557](https://github.com/tuist/tuist/pull/8557)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.97.0...4.97.2
+
+## What's Changed in 4.97.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Add cache profiles to fine tune cached binary replacement by [@hiltonc](https://github.com/hiltonc) in [#8122](https://github.com/tuist/tuist/pull/8122)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.96.0...4.97.0
+
+## What's Changed in 4.96.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Add support for SwiftPM disableWarning setting by [@pepicrft](https://github.com/pepicrft) in [#8549](https://github.com/tuist/tuist/pull/8549)
+* improve upload error handling for cache artifacts by [@fortmarek](https://github.com/fortmarek) in [#8553](https://github.com/tuist/tuist/pull/8553)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.95.1...4.96.0
+
+## What's Changed in 4.95.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* downgrade duplicated product name linting from error to warning by [@n-zaitsev](https://github.com/n-zaitsev) in [#8540](https://github.com/tuist/tuist/pull/8540)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.95.0...4.95.1
+
+## What's Changed in 4.95.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Add support for passing arguments to SwiftPM by [@pepicrft](https://github.com/pepicrft) in [#8544](https://github.com/tuist/tuist/pull/8544)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.94.0...4.95.0
+
+## What's Changed in 4.94.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add support for Swift Package Manager strictMemorySafety setting by [@pepicrft](https://github.com/pepicrft) in [#8539](https://github.com/tuist/tuist/pull/8539)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.93.0...4.94.0
+
+## What's Changed in 4.93.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* xcode cache analytics by [@fortmarek](https://github.com/fortmarek) in [#8534](https://github.com/tuist/tuist/pull/8534)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.92.1...4.93.0
+
+## What's Changed in 4.92.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Add support for Internal Imports By Default for Asset accessors by [@PSKuznetsov](https://github.com/PSKuznetsov) in [#8241](https://github.com/tuist/tuist/pull/8241)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.92.0...4.92.1
+
+## What's Changed in 4.92.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add cache daemon logs by [@fortmarek](https://github.com/fortmarek) in [#8520](https://github.com/tuist/tuist/pull/8520)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.91.1...4.92.0
+
+## What's Changed in 4.91.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Multiple targets with same hash by [@pepicrft](https://github.com/pepicrft) in [#8533](https://github.com/tuist/tuist/pull/8533)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.91.0...4.91.1
+
+## What's Changed in 4.91.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Default to no concurrency limit when doing cache uploads and downloads by [@pepicrft](https://github.com/pepicrft) in [#8527](https://github.com/tuist/tuist/pull/8527)
+### 🐛 Bug Fixes
+
+* Bundle accessor not being generated for txt, js or json resources by [@natanrolnik](https://github.com/natanrolnik) in [#8532](https://github.com/tuist/tuist/pull/8532)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.90.0...4.91.0
+
+## What's Changed in 4.90.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add support for TUIST_-prefixed XDG environment variables by [@pepicrft](https://github.com/pepicrft) in [#8508](https://github.com/tuist/tuist/pull/8508)
+### 🐛 Bug Fixes
+
+* improve error messages of cache daemon by [@fortmarek](https://github.com/fortmarek) in [#8509](https://github.com/tuist/tuist/pull/8509)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.89.1...4.90.0
+
+## What's Changed in 4.89.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* use TUIST_CONFIG_TOKEN when launching the cache daemon by [@fortmarek](https://github.com/fortmarek) in [#8506](https://github.com/tuist/tuist/pull/8506)
+* ignore macros in inspect redundant dependencies by [@hiltonc](https://github.com/hiltonc) in [#8457](https://github.com/tuist/tuist/pull/8457)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.89.0...4.89.1
+
+## What's Changed in 4.89.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Only use binaries for external dependencies when no focus target is passed to `tuist generate` by [@pepicrft](https://github.com/pepicrft) in [#8478](https://github.com/tuist/tuist/pull/8478)
+* Add --skip-unit-tests parameter to tuist test command by [@RomanAnpilov](https://github.com/RomanAnpilov) in [#8291](https://github.com/tuist/tuist/pull/8291)
+### 🐛 Bug Fixes
+
+* ignore unit test host app in inspect redundant dependencies by [@hiltonc](https://github.com/hiltonc) in [#8456](https://github.com/tuist/tuist/pull/8456)
+
+## New Contributors
+* [@RomanAnpilov](https://github.com/RomanAnpilov) made their first contribution in [#8291](https://github.com/tuist/tuist/pull/8291)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.88.0...4.89.0
+
+## What's Changed in 4.88.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* don't restrict which kind of token is used based on the environment by [@fortmarek](https://github.com/fortmarek) in [#8464](https://github.com/tuist/tuist/pull/8464)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.87.0...4.88.0
+
+## What's Changed in 4.87.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* tuist setup cache command by [@fortmarek](https://github.com/fortmarek) in [#8450](https://github.com/tuist/tuist/pull/8450)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.86.4...4.87.0
+
+## What's Changed in 4.86.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* add individual target sub-hashes for debugging by [@fortmarek](https://github.com/fortmarek) in [#8460](https://github.com/tuist/tuist/pull/8460)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.86.3...4.86.4
+
+## What's Changed in 4.86.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Add support for `.xcdatamodel` opaque directories by [@MouadBenjrinija](https://github.com/MouadBenjrinija) in [#8445](https://github.com/tuist/tuist/pull/8445)
+
+## New Contributors
+* [@MouadBenjrinija](https://github.com/MouadBenjrinija) made their first contribution in [#8445](https://github.com/tuist/tuist/pull/8445)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.86.2...4.86.3
+
+## What's Changed in 4.86.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* don't throw file not found when hashing generated source files by [@fortmarek](https://github.com/fortmarek) in [#8449](https://github.com/tuist/tuist/pull/8449)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.86.1...4.86.2
+
+## What's Changed in 4.86.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* mysteriously vanished binaries by [@fortmarek](https://github.com/fortmarek) in [#8447](https://github.com/tuist/tuist/pull/8447)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.86.0...4.86.1
+
+## What's Changed in 4.86.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Xcode cache server by [@fortmarek](https://github.com/fortmarek) in [#8420](https://github.com/tuist/tuist/pull/8420)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.85.2...4.86.0
+
+## What's Changed in 4.85.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* extend inspect build to 5 seconds by [@fortmarek](https://github.com/fortmarek) in [#8446](https://github.com/tuist/tuist/pull/8446)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.85.1...4.85.2
+
+## What's Changed in 4.85.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Generated projects with binaries not replacing some targets with macros as transitive dependencies by [@pepicrft](https://github.com/pepicrft) in [#8444](https://github.com/tuist/tuist/pull/8444)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.85.0...4.85.1
+
+## What's Changed in 4.85.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Optimize resource interface synthesis through parallelization by [@pepicrft](https://github.com/pepicrft) in [#8436](https://github.com/tuist/tuist/pull/8436)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.84.3...4.85.0
+
+## What's Changed in 4.84.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* don't report clean action by [@fortmarek](https://github.com/fortmarek) in [#8439](https://github.com/tuist/tuist/pull/8439)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.84.2...4.84.3
+
+## What's Changed in 4.84.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Handle target action input and output file paths that contain variables by [@pepicrft](https://github.com/pepicrft) in [#8432](https://github.com/tuist/tuist/pull/8432)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.84.1...4.84.2
+
+## What's Changed in 4.84.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* align 'tuist hash cache' to use same generator as cache warming by [@pepicrft](https://github.com/pepicrft) in [#8427](https://github.com/tuist/tuist/pull/8427)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.84.0...4.84.1
+
+## What's Changed in 4.84.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* Improve remote cache error handling by [@pepicrft](https://github.com/pepicrft) in [#8413](https://github.com/tuist/tuist/pull/8413)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.83.0...4.84.0
+
 ## What's Changed in 4.83.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
@@ -47,6 +749,7 @@ All notable changes to this project will be documented in this file.
 ### ⛰️  Features
 
 * Make implicit import detection work with buildable folders by [@pepicrft](https://github.com/pepicrft) in [#8358](https://github.com/tuist/tuist/pull/8358)
+* add CI run reference to build runs by [@fortmarek](https://github.com/fortmarek) in [#8356](https://github.com/tuist/tuist/pull/8356)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.80.0...4.81.0
 
@@ -55,6 +758,7 @@ All notable changes to this project will be documented in this file.
 ### ⛰️  Features
 
 * Report server-side payment-required responses as warnings by [@pepicrft](https://github.com/pepicrft) in [#8338](https://github.com/tuist/tuist/pull/8338)
+* add configuration to build insights by [@fortmarek](https://github.com/fortmarek) in [#8330](https://github.com/tuist/tuist/pull/8330)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.79.7...4.80.0
 
@@ -362,9 +1066,6 @@ All notable changes to this project will be documented in this file.
 
 * add filePath and customWorkingDirectory support to RunAction by [@plu](https://github.com/plu) in [#8071](https://github.com/tuist/tuist/pull/8071)
 
-## New Contributors
-* [@plu](https://github.com/plu) made their first contribution in [#8071](https://github.com/tuist/tuist/pull/8071)
-
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.64.2...4.65.0
 
 ## What's Changed in 4.64.2<!-- RELEASE NOTES START -->
@@ -444,6 +1145,7 @@ All notable changes to this project will be documented in this file.
 ### 🐛 Bug Fixes
 
 * generation regression by [@pepicrft](https://github.com/pepicrft) in [#8011](https://github.com/tuist/tuist/pull/8011)
+* fetching devices when running previews by [@fortmarek](https://github.com/fortmarek) in [#8010](https://github.com/tuist/tuist/pull/8010)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.61.0...4.61.1
 

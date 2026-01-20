@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import OpenAPIRuntime
+import TuistHTTP
 
 @Mockable
 public protocol MultipartUploadCompletePreviewsServicing {
@@ -23,7 +24,7 @@ public enum MultipartUploadCompletePreviewsServiceError: LocalizedError, Equatab
     public var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
-            return "The multi-part upload could not get completed due to an unknown Tuist Cloud response of \(statusCode)."
+            return "The multi-part upload could not get completed due to an unknown Tuist response of \(statusCode)."
         case let .notFound(message), let .forbidden(message), let .unauthorized(message):
             return message
         case let .invalidPreview(id):

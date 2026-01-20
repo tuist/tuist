@@ -6,9 +6,19 @@
 /// Note: For convenience, an element can be represented as a string literal
 ///       `"some/pattern/**"` is the equivalent of `FileElement.glob(pattern: "some/pattern/**")`
 public enum FileElement: Codable, Equatable, Sendable {
-    /// A file path (or glob pattern) to include. For convenience, a string literal can be used as an alternate way to specify
-    /// this option.
-    case glob(pattern: Path)
+    /// A file path (or glob pattern) to include, with optional exclusions.
+    ///
+    /// For convenience, a string literal can be used as an alternate way to specify this option.
+    ///
+    /// - Parameters:
+    ///   - pattern: A glob pattern for files to include.
+    ///   - excluding: An array of glob patterns to exclude from the matched files.
+    ///
+    /// Example:
+    /// ```swift
+    /// .glob(pattern: "Documentation/**/*.md", excluding: ["Documentation/internal/**"])
+    /// ```
+    case glob(pattern: Path, excluding: [Path] = [])
 
     /// A directory path to include as a folder reference.
     case folderReference(path: Path)
@@ -34,15 +44,15 @@ extension FileElement: ExpressibleByStringInterpolation {
     }
 }
 
-extension [FileElement]: ExpressibleByUnicodeScalarLiteral {
+extension [FileElement]: @retroactive ExpressibleByUnicodeScalarLiteral {
     public typealias UnicodeScalarLiteralType = String
 }
 
-extension [FileElement]: ExpressibleByExtendedGraphemeClusterLiteral {
+extension [FileElement]: @retroactive ExpressibleByExtendedGraphemeClusterLiteral {
     public typealias ExtendedGraphemeClusterLiteralType = String
 }
 
-extension [FileElement]: ExpressibleByStringLiteral {
+extension [FileElement]: @retroactive ExpressibleByStringLiteral {
     public typealias StringLiteralType = String
 
     public init(stringLiteral value: String) {

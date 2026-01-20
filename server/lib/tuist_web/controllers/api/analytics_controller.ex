@@ -4,6 +4,7 @@ defmodule TuistWeb.API.AnalyticsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.CommandEvents
+  alias Tuist.Runs
   alias Tuist.Storage
   alias Tuist.VCS
   alias Tuist.Xcode
@@ -15,6 +16,7 @@ defmodule TuistWeb.API.AnalyticsController do
   alias TuistWeb.API.Schemas.CommandEventArtifact
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.Authentication
+  alias TuistWeb.Headers
   alias TuistWeb.Plugs.LoaderPlug
 
   plug(OpenApiSpex.Plug.CastAndValidate,
@@ -161,7 +163,7 @@ defmodule TuistWeb.API.AnalyticsController do
            status: %Schema{
              type: :string,
              description: "The status of the command.",
-             enum: [:success, :failure]
+             enum: ["success", "failure"]
            },
            error_message: %Schema{
              type: :string,
@@ -184,6 +186,10 @@ defmodule TuistWeb.API.AnalyticsController do
              type: :string,
              description: "The git branch."
            },
+           cache_endpoint: %Schema{
+             type: :string,
+             description: "The cache endpoint URL used for this command (regional module cache)."
+           },
            preview_id: %Schema{
              type: :string,
              description: "The preview identifier."
@@ -191,6 +197,10 @@ defmodule TuistWeb.API.AnalyticsController do
            build_run_id: %Schema{
              type: :string,
              description: "The build run identifier."
+           },
+           test_run_id: %Schema{
+             type: :string,
+             description: "The test run identifier."
            },
            xcode_graph: %Schema{
              type: :object,
@@ -231,6 +241,58 @@ defmodule TuistWeb.API.AnalyticsController do
                              type: :string,
                              description: "Name of the target"
                            },
+                           product: %Schema{
+                             type: :string,
+                             description: "Product type of the target",
+                             enum: [
+                               "app",
+                               "static_library",
+                               "dynamic_library",
+                               "framework",
+                               "static_framework",
+                               "unit_tests",
+                               "ui_tests",
+                               "bundle",
+                               "command_line_tool",
+                               "app_extension",
+                               "watch_2_app",
+                               "watch_2_extension",
+                               "tv_top_shelf_extension",
+                               "messages_extension",
+                               "sticker_pack_extension",
+                               "app_clip",
+                               "xpc",
+                               "system_extension",
+                               "extension_kit_extension",
+                               "macro"
+                             ]
+                           },
+                           bundle_id: %Schema{
+                             type: :string,
+                             description: "Bundle ID of the target"
+                           },
+                           product_name: %Schema{
+                             type: :string,
+                             description: "Product name of the target"
+                           },
+                           destinations: %Schema{
+                             type: :array,
+                             description: "Destinations for the target",
+                             items: %Schema{
+                               type: :string,
+                               enum: [
+                                 "iphone",
+                                 "ipad",
+                                 "mac",
+                                 "mac_with_ipad_design",
+                                 "mac_catalyst",
+                                 "apple_watch",
+                                 "apple_tv",
+                                 "apple_vision",
+                                 "apple_vision_with_ipad_design"
+                               ]
+                             }
+                           },
                            binary_cache_metadata: %Schema{
                              type: :object,
                              description: "Binary cache metadata",
@@ -248,6 +310,32 @@ defmodule TuistWeb.API.AnalyticsController do
                                build_duration: %Schema{
                                  type: :integer,
                                  description: "The compilation time of a binary in milliseconds."
+                               },
+                               subhashes: %Schema{
+                                 type: :object,
+                                 description: "Individual component hashes that make up the final hash",
+                                 properties: %{
+                                   sources: %Schema{type: :string, description: "Sources hash"},
+                                   resources: %Schema{type: :string, description: "Resources hash"},
+                                   copy_files: %Schema{type: :string, description: "Copy files hash"},
+                                   core_data_models: %Schema{type: :string, description: "Core data models hash"},
+                                   target_scripts: %Schema{type: :string, description: "Target scripts hash"},
+                                   environment: %Schema{type: :string, description: "Environment hash"},
+                                   headers: %Schema{type: :string, description: "Headers hash"},
+                                   deployment_target: %Schema{type: :string, description: "Deployment target hash"},
+                                   info_plist: %Schema{type: :string, description: "Info.plist hash"},
+                                   entitlements: %Schema{type: :string, description: "Entitlements hash"},
+                                   dependencies: %Schema{type: :string, description: "Dependencies hash"},
+                                   project_settings: %Schema{type: :string, description: "Project settings hash"},
+                                   target_settings: %Schema{type: :string, description: "Target settings hash"},
+                                   buildable_folders: %Schema{type: :string, description: "Buildable folders hash"},
+                                   additional_strings: %Schema{
+                                     type: :array,
+                                     description: "Additional strings used in the hash",
+                                     items: %Schema{type: :string}
+                                   },
+                                   external: %Schema{type: :string, description: "External project hash"}
+                                 }
                                }
                              }
                            },
@@ -293,6 +381,7 @@ defmodule TuistWeb.API.AnalyticsController do
     }
   )
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def create(%{body_params: body_params, assigns: %{selected_project: selected_project}} = conn, _params) do
     current_user = Authentication.current_user(conn)
 
@@ -308,6 +397,23 @@ defmodule TuistWeb.API.AnalyticsController do
     git_remote_url_origin = Map.get(body_params, :git_remote_url_origin)
     preview_id = Map.get(body_params, :preview_id)
     build_run_id = Map.get(body_params, :build_run_id)
+    test_run_id = Map.get(body_params, :test_run_id)
+
+    # For older versions of CLIs that don't inspect the .xcresult, yet, we want to create a test run from the command event, so these runs show up in the "Test Runs" page.
+    cli_version = Headers.get_cli_version(conn)
+
+    should_create_test_run =
+      is_nil(cli_version) or Version.compare(cli_version, Version.parse!("4.110.0")) == :lt
+
+    test_run_id =
+      if body_params.name == "test" and is_nil(test_run_id) and should_create_test_run do
+        case create_test_run_from_command_event(body_params, selected_project) do
+          {:ok, test_run} -> test_run.id
+          {:error, _} -> nil
+        end
+      else
+        test_run_id
+      end
 
     cache_metadata = cache_metadata(body_params)
     selective_testing_metadata = selective_testing_metadata(body_params)
@@ -338,8 +444,10 @@ defmodule TuistWeb.API.AnalyticsController do
         git_ref: git_ref,
         git_remote_url_origin: git_remote_url_origin,
         git_branch: Map.get(body_params, :git_branch),
+        cache_endpoint: Map.get(body_params, :cache_endpoint, ""),
         ran_at: date(body_params),
-        build_run_id: build_run_id
+        build_run_id: build_run_id,
+        test_run_id: test_run_id
       })
 
     xcode_graph = Map.get(body_params, :xcode_graph)
@@ -358,6 +466,7 @@ defmodule TuistWeb.API.AnalyticsController do
         preview_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id",
         preview_qr_code_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
         command_run_url_template: "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
+        test_run_url_template: "#{url(~p"/")}:account_name/:project_name/tests/test-runs/:test_run_id",
         bundle_url_template: "#{url(~p"/")}:account_name/:project_name/bundles/:bundle_id",
         build_url_template: "#{url(~p"/")}:account_name/:project_name/builds/build-runs/:build_id"
       })
@@ -372,13 +481,21 @@ defmodule TuistWeb.API.AnalyticsController do
         )
       end
 
+    test_run_url =
+      if is_nil(test_run_id) do
+        nil
+      else
+        url(~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-runs/#{test_run_id}")
+      end
+
     conn
     |> put_status(:ok)
     |> json(%{
-      id: get_id_field(command_event),
+      id: command_event.id,
       project_id: command_event.project_id,
       name: command_event.name,
-      url: url
+      url: url,
+      test_run_url: test_run_url
     })
   end
 
@@ -443,6 +560,39 @@ defmodule TuistWeb.API.AnalyticsController do
       }
     end
   end
+
+  defp create_test_run_from_command_event(body_params, project) do
+    scheme = extract_scheme_from_command_arguments(Map.get(body_params, :command_arguments, []))
+
+    Runs.create_test(%{
+      id: UUIDv7.generate(),
+      duration: body_params.duration,
+      macos_version: body_params.macos_version,
+      xcode_version: body_params.swift_version,
+      is_ci: body_params.is_ci,
+      model_identifier: "",
+      scheme: scheme,
+      project_id: project.id,
+      account_id: project.account_id,
+      status: Map.get(body_params, :status),
+      git_branch: Map.get(body_params, :git_branch),
+      git_commit_sha: Map.get(body_params, :git_commit_sha),
+      git_ref: Map.get(body_params, :git_ref),
+      ran_at: date(body_params),
+      test_modules: [],
+      test_cases: []
+    })
+  end
+
+  defp extract_scheme_from_command_arguments([_test_command, scheme_or_flag | _rest]) when is_binary(scheme_or_flag) do
+    if String.starts_with?(scheme_or_flag, "-") do
+      nil
+    else
+      scheme_or_flag
+    end
+  end
+
+  defp extract_scheme_from_command_arguments(_), do: nil
 
   operation(:multipart_start,
     summary: "It initiates a multipart upload for a run artifact",
@@ -826,70 +976,22 @@ defmodule TuistWeb.API.AnalyticsController do
     # Use selected_project from URL if available (new routes), otherwise fall back to authenticated project (old routes)
     project = Map.get(conn.assigns, :selected_project) || Authentication.current_project(conn)
 
-    with {:ok, run_id} <- normalize_run_id(run_id) do
-      object_key =
-        case type do
-          "result_bundle" ->
-            CommandEvents.get_result_bundle_key(run_id, project)
+    object_key =
+      case type do
+        "result_bundle" ->
+          CommandEvents.get_result_bundle_key(run_id, project)
 
-          "invocation_record" ->
-            CommandEvents.get_result_bundle_invocation_record_key(
-              run_id,
-              project
-            )
+        "invocation_record" ->
+          CommandEvents.get_result_bundle_invocation_record_key(
+            run_id,
+            project
+          )
 
-          "result_bundle_object" ->
-            CommandEvents.get_result_bundle_object_key(run_id, project, name)
-        end
-
-      {:ok, object_key}
-    end
-  end
-
-  defp normalize_run_id(run_id) do
-    if Tuist.Environment.clickhouse_configured?() do
-      if Tuist.UUIDv7.valid?(run_id) do
-        # Newer CLI versions send UUIDs which can be converted to integer IDs,
-        # but older versions send integer IDs which cannot be converted back to UUIDs.
-        # Due to this one-way conversion, we must use the legacy_id for object keys.
-        {:ok, Tuist.UUIDv7.to_int64(run_id)}
-      else
-        {:ok, run_id}
+        "result_bundle_object" ->
+          CommandEvents.get_result_bundle_object_key(run_id, project, name)
       end
-    else
-      case CommandEvents.get_command_event_by_id(run_id) do
-        {:ok, command_event} ->
-          # For Postgres, we _know_ both UUID and legacy ID, but to keep querying simpler, we use the legacy ID to match Clickhouse behavior.
-          {:ok, command_event.legacy_id}
 
-        _ ->
-          # For multipart upload operations, we can work with the run_id even if the run doesn't exist yet
-          # since these operations are used during async run insertion
-          if Tuist.UUIDv7.valid?(run_id) do
-            {:ok, Tuist.UUIDv7.to_int64(run_id)}
-          else
-            # If it's already an integer ID (string), use it as-is
-            {:ok, run_id}
-          end
-      end
-    end
-  end
-
-  defp get_id_field(command_event) do
-    if version_less_than?(command_event.tuist_version, "4.56.0") do
-      command_event.legacy_id
-    else
-      command_event.id
-    end
-  end
-
-  defp version_less_than?(version, target_version) do
-    with {:ok, version} <- Version.parse(version),
-         :lt <- Version.compare(version, target_version) do
-      true
-    else
-      _ -> false
-    end
+    {:ok, object_key}
   end
 
   defp bad_request_when_project_authenticated_from_non_ci_environment(%{body_params: body_params} = conn, _opts) do

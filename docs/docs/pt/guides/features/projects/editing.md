@@ -40,6 +40,27 @@ project.
 <!-- -->
 :::
 
+### Ignoring manifest files {#ignoring-manifest-files}
+
+If your project contains Swift files with the same name as manifest files (e.g.,
+`Project.swift`) in subdirectories that are not actual Tuist manifests, you can
+create a `.tuistignore` file at the root of your project to exclude them from
+the editing project.
+
+The `.tuistignore` file uses glob patterns to specify which files should be
+ignored:
+
+```gitignore
+# Ignore all Project.swift files in the Sources directory
+Sources/**/Project.swift
+
+# Ignore specific subdirectories
+Tests/Fixtures/**/Workspace.swift
+```
+
+This is particularly useful when you have test fixtures or example code that
+happens to use the same naming convention as Tuist manifest files.
+
 ## Edit and generate workflow {#edit-and-generate-workflow}
 
 As you might have noticed, the editing can't be done from the generated Xcode

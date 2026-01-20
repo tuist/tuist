@@ -2,7 +2,7 @@ import Foundation
 import Path
 
 /// A `CommandEvent` is the analytics event to track the execution of a Tuist command
-public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
+public struct CommandEvent: Codable, Equatable {
     public let runId: String
     public let name: String
     public let subcommand: String?
@@ -24,17 +24,12 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
     public let resultBundlePath: AbsolutePath?
     public let ranAt: Date
     public let buildRunId: String?
+    public var testRunId: String?
+    public let cacheEndpoint: String
 
     public enum Status: Codable, Equatable {
         case success, failure(String)
     }
-
-    public let id = UUID()
-    public var date: Date {
-        ranAt
-    }
-
-    public let dispatcherId = "TuistAnalytics"
 
     private enum CodingKeys: String, CodingKey {
         case runId
@@ -58,6 +53,8 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         case resultBundlePath
         case ranAt
         case buildRunId
+        case testRunId
+        case cacheEndpoint
     }
 
     public init(
@@ -81,7 +78,9 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         previewId: String?,
         resultBundlePath: AbsolutePath?,
         ranAt: Date,
-        buildRunId: String?
+        buildRunId: String?,
+        testRunId: String?,
+        cacheEndpoint: String
     ) {
         self.runId = runId
         self.name = name
@@ -104,6 +103,8 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         self.resultBundlePath = resultBundlePath
         self.ranAt = ranAt
         self.buildRunId = buildRunId
+        self.testRunId = testRunId
+        self.cacheEndpoint = cacheEndpoint
     }
 }
 
@@ -129,7 +130,9 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
             previewId: String? = nil,
             resultBundlePath: AbsolutePath? = nil,
             ranAt: Date = Date(),
-            buildRunId: String? = nil
+            buildRunId: String? = nil,
+            testRunId: String? = nil,
+            cacheEndpoint: String = ""
         ) -> CommandEvent {
             CommandEvent(
                 runId: runId,
@@ -152,7 +155,9 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
                 previewId: previewId,
                 resultBundlePath: resultBundlePath,
                 ranAt: ranAt,
-                buildRunId: buildRunId
+                buildRunId: buildRunId,
+                testRunId: testRunId,
+                cacheEndpoint: cacheEndpoint
             )
         }
     }

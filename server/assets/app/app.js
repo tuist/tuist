@@ -33,6 +33,9 @@ import TimelineSeek from "./js/TimelineSeek.js";
 import BlurOnClick from "./js/BlurOnClick.js";
 import ScrollIntoView from "./js/ScrollIntoView.js";
 import StopPropagationOnDrag from "./js/StopPropagationOnDrag.js";
+import SelectSlackChannelPopup from "./js/SelectSlackChannelPopup.js";
+import PublicProjectCTABanner from "./js/PublicProjectCTABanner.js";
+import { getUserTimezone } from "./js/UserTimezone.js";
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
 let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("content");
@@ -47,13 +50,19 @@ Hooks.TimelineSeek = TimelineSeek;
 Hooks.BlurOnClick = BlurOnClick;
 Hooks.ScrollIntoView = ScrollIntoView;
 Hooks.StopPropagationOnDrag = StopPropagationOnDrag;
+Hooks.SelectSlackChannelPopup = SelectSlackChannelPopup;
+Hooks.PublicProjectCTABanner = PublicProjectCTABanner;
 
 observeThemeChanges();
 Hooks.ThemeSwitcher = ThemeSwitcher;
 
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
-  params: { _csrf_token: csrfToken, _csp_nonce: cspNonce },
+  params: {
+    _csrf_token: csrfToken,
+    _csp_nonce: cspNonce,
+    user_timezone: getUserTimezone(),
+  },
   hooks: { ...Hooks, ...Noora.Hooks },
 });
 

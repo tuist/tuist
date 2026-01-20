@@ -249,7 +249,7 @@ extension SettingsDictionary {
         case let .array(value):
             var seen = Set<String>()
             let value = value.enumerated().filter {
-                if $0.element.starts(with: "-X") || $0.element == "-I" {
+                if $0.element.isFlagWithArgument {
                     if value.endIndex > $0.offset + 1 {
                         return !seen.contains($0.element + value[$0.offset + 1])
                     } else {
@@ -260,7 +260,7 @@ extension SettingsDictionary {
                         return seen.insert($0.element).inserted
                     } else {
                         let previousElement = value[$0.offset - 1]
-                        if previousElement.starts(with: "-X") || previousElement == "-I" {
+                        if previousElement.isFlagWithArgument {
                             return seen.insert(previousElement + $0.element).inserted
                         } else {
                             return seen.insert($0.element).inserted
@@ -306,5 +306,14 @@ extension GraphDependency.XCFramework {
     fileprivate func containsLibrary() -> Bool {
         infoPlist.libraries
             .contains(where: { $0.path.extension == "a" })
+    }
+}
+
+extension String {
+    fileprivate var isFlagWithArgument: Bool {
+        starts(with: "-X") ||
+            self == "-I" ||
+            self == "-enable-upcoming-feature" ||
+            self == "-enable-experimental-feature"
     }
 }

@@ -79,20 +79,32 @@ public protocol GraphTraversing {
     /// - Returns: All direct and transitive target dependencies, traversing from the passed targets
     func allTargetDependencies(traversingFromTargets: [GraphTarget]) -> Set<GraphTarget>
 
-    /// Given a project directory and target name, it returns **all** its direct target dependencies present in the same project.
+    /// Given a project directory and target name, it returns **all** its direct target dependencies (including external
+    /// dependencies).
     /// If you want only direct target dependencies present in the same project as the target, use `directLocalTargetDependencies`
-    /// instead
+    /// instead.
     /// - Parameters:
     ///   - path: Path to the directory that contains the target's project.
     ///   - name: Target name.
     func directTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTargetReference>
 
-    /// Given a project directory and target name, it returns all its direct target dependencies present in the same project.
-    /// To get **all** direct target dependencies use the method `directTargetDependencies` instead
+    /// Given a project directory and target name, it returns direct target dependencies from the **same project only** (same
+    /// path).
+    /// Excludes dependencies from other projects in the workspace AND external dependencies.
+    /// To get all local (non-external) dependencies, use `directNonExternalTargetDependencies`.
     /// - Parameters:
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name.
     func directLocalTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTargetReference>
+
+    /// Given a project directory and target name, it returns all its direct target dependencies from local projects (excluding
+    /// external dependencies).
+    /// This includes dependencies from the same project AND other local projects in the workspace.
+    /// To get only dependencies from the same project, use `directLocalTargetDependencies`.
+    /// - Parameters:
+    ///   - path: Path to the directory that contains the project.
+    ///   - name: Target name.
+    func directNonExternalTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTargetReference>
 
     /// Given a project directory and a target name, it returns all the dependencies that are extensions.
     /// - Parameters:
@@ -263,6 +275,15 @@ public protocol GraphTraversing {
     /// - Returns: A dictionary with the graph targets as keys, and the platforms that they support
     /// as values
     func externalTargetSupportedPlatforms() -> [GraphTarget: Set<Platform>]
+
+    /// External targets (e.g. from packages) might indicate that they support destinations that
+    /// they don't really support. To prevent this from causing compilation issues, Tuist cascades
+    /// the supported destinations down to the external dependencies.
+    /// This function narrows down the destinations of the external dependencies and returns a
+    /// dictionary containing the graph target as a key, and the supported destinations as the value.
+    /// - Returns: A dictionary with the graph targets as keys, and the destinations that they support
+    /// as values
+    func externalTargetSupportedDestinations() -> [GraphTarget: Set<Destination>]
 
     /// Given a target's project path and name, it returns its target dependencies that are external.
     /// - Parameters:

@@ -21,7 +21,7 @@ defmodule TuistWeb.QALogChannelTest do
 
     claims = %{
       "type" => "account",
-      "scopes" => ["qa_run_update", "qa_step_create", "qa_screenshot_create"],
+      "scopes" => ["project:qa_run:update", "project:qa_step:create", "project:qa_screenshot:create"],
       "project_id" => project.id
     }
 

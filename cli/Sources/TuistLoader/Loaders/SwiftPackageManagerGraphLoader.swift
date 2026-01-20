@@ -44,12 +44,10 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
 
 /// A protocol that defines an interface to load the `DependenciesGraph` for the `SwiftPackageManager` dependencies.
 public protocol SwiftPackageManagerGraphLoading {
-    /// Generates the `DependenciesGraph` for the `SwiftPackageManager` dependencies.
-    /// - Parameter path: The path to the directory that contains the `checkouts` directory where `SwiftPackageManager` installed
-    /// dependencies.
     func load(
         packagePath: AbsolutePath,
-        packageSettings: TuistCore.PackageSettings
+        packageSettings: TuistCore.PackageSettings,
+        disableSandbox: Bool
     ) async throws -> TuistLoader.DependenciesGraph
 }
 
@@ -63,7 +61,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
     public init(
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
         packageInfoMapper: PackageInfoMapping = PackageInfoMapper(),
-        manifestLoader: ManifestLoading = ManifestLoader(),
+        manifestLoader: ManifestLoading = ManifestLoader.current,
         fileSystem: FileSysteming = FileSystem(),
         contentHasher: ContentHashing = ContentHasher()
     ) {
@@ -77,7 +75,8 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
     // swiftlint:disable:next function_body_length
     public func load(
         packagePath: AbsolutePath,
-        packageSettings: TuistCore.PackageSettings
+        packageSettings: TuistCore.PackageSettings,
+        disableSandbox: Bool
     ) async throws -> TuistLoader.DependenciesGraph {
         let path = packagePath.parentDirectory.appending(
             component: Constants.SwiftPackageManager.packageBuildDirectoryName
@@ -93,6 +92,8 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             .decode(SwiftPackageManagerWorkspaceState.self, from: try await fileSystem.readFile(at: workspacePath))
 
         try await validatePackageResolved(at: packagePath.parentDirectory)
+
+        let rootPackage = try await manifestLoader.loadPackage(at: packagePath.parentDirectory, disableSandbox: disableSandbox)
 
         var packageInfos: [
             // swiftlint:disable:next large_tuple
@@ -133,7 +134,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                 throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
             }
 
-            let packageInfo = try await manifestLoader.loadPackage(at: packageFolder)
+            let packageInfo = try await manifestLoader.loadPackage(at: packageFolder, disableSandbox: disableSandbox)
             let targetToArtifactPaths = try workspaceState.object.artifacts
                 .filter { $0.packageRef.identity == dependency.packageRef.identity }
                 .reduce(into: [:]) { result, artifact in
@@ -200,6 +201,12 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             packageModuleAliases: mutablePackageModuleAliases
         )
 
+        let packageInfoDictionaryById = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.id, $0.info) })
+        let enabledTraitsPerPackage = enabledTraits(
+            rootPackageInfo: rootPackage,
+            packageInfos: packageInfoDictionaryById
+        )
+
         let packageModuleAliases = mutablePackageModuleAliases
         let mappedPackageInfos = try await packageInfos.concurrentMap { packageInfo in
             (
@@ -210,7 +217,8 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                     path: packageInfo.folder,
                     packageType: .external(artifactPaths: packageToTargetsToArtifactPaths[packageInfo.name] ?? [:]),
                     packageSettings: packageSettings,
-                    packageModuleAliases: packageModuleAliases
+                    packageModuleAliases: packageModuleAliases,
+                    enabledTraits: enabledTraitsPerPackage[packageInfo.id] ?? []
                 )
             )
         }
@@ -277,6 +285,55 @@ extension ProjectDescription.Platform {
             return .watchOS
         case .visionOS:
             return .visionOS
+        }
+    }
+}
+
+// MARK: - Trait Processing
+
+/// Extracts the enabled traits for each package dependency from the root package and all packages in the dependency graph.
+/// - Parameters:
+///   - rootPackageInfo: The `PackageInfo` of the root package (the Tuist `Package.swift`)
+///   - packageInfos: All `PackageInfo`s in the dependency graph, keyed by package identity
+/// - Returns: A dictionary where keys are package identities and values are the set of enabled trait names
+func enabledTraits(
+    rootPackageInfo: PackageInfo,
+    packageInfos: [String: PackageInfo]
+) -> [String: Set<String>] {
+    var result: [String: Set<String>] = [:]
+
+    processTraits(
+        from: rootPackageInfo.dependencies,
+        enabledTraitsForCurrentPackage: [],
+        result: &result
+    )
+
+    for (packageId, packageInfo) in packageInfos {
+        let enabledForThisPackage = result[packageId] ?? []
+        processTraits(
+            from: packageInfo.dependencies,
+            enabledTraitsForCurrentPackage: enabledForThisPackage,
+            result: &result
+        )
+    }
+
+    return result
+}
+
+private func processTraits(
+    from dependencies: [PackageDependency],
+    enabledTraitsForCurrentPackage: Set<String>,
+    result: inout [String: Set<String>]
+) {
+    for dependency in dependencies {
+        for trait in dependency.traits {
+            if let condition = trait.condition {
+                if !condition.isDisjoint(with: enabledTraitsForCurrentPackage) {
+                    result[dependency.identity, default: []].insert(trait.name)
+                }
+            } else {
+                result[dependency.identity, default: []].insert(trait.name)
+            }
         }
     }
 }

@@ -130,7 +130,8 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
 
             let manifestsDependencyGraph = try await swiftPackageManagerGraphLoader.load(
                 packagePath: packagePath,
-                packageSettings: loadedPackageSettings
+                packageSettings: loadedPackageSettings,
+                disableSandbox: disableSandbox
             )
             dependenciesGraph = try await converter.convert(dependenciesGraph: manifestsDependencyGraph, path: path)
             packageSettings = loadedPackageSettings

@@ -172,6 +172,8 @@ extension PlatformCondition?: Swift.Comparable {
 }
 
 #if DEBUG
+    import TuistSupport
+
     extension GraphDependencyReference {
         public static func testFramework(
             path: AbsolutePath = "/frameworks/tuist.framework",

@@ -9,51 +9,9 @@ defmodule TuistWeb.CacheRunsLiveTest do
   alias Tuist.Runs.Analytics
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
 
-  describe "lists latest cache runs - postgres" do
-    setup do
-      stub(Tuist.Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-      :ok
-    end
-
-    test "lists latest cache runs", %{
-      conn: conn,
-      user: user,
-      organization: organization,
-      project: project
-    } do
-      # Given
-      with_flushed_ingestion_buffers(fn ->
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          user_id: user.id,
-          name: "cache",
-          command_arguments: ["cache", "App"]
-        )
-
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          user_id: user.id,
-          name: "cache",
-          command_arguments: ["cache", "AppTwo"]
-        )
-      end)
-
-      # When
-      {:ok, lv, _html} =
-        live(conn, ~p"/#{organization.account.name}/#{project.name}/binary-cache/cache-runs")
-
-      # Then
-      assert has_element?(lv, "span", "tuist cache App")
-      assert has_element?(lv, "span", "tuist cache AppTwo")
-    end
-  end
-
-  describe "lists latest cache runs - clickhouse" do
+  describe "lists latest cache runs" do
     setup do
       copy(Analytics)
-      stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> true end)
 
       stub(Analytics, :runs_analytics, fn _, _, _ ->
         %{runs_per_period: %{}, dates: [], values: [], count: 0, trend: 0}
@@ -70,29 +28,57 @@ defmodule TuistWeb.CacheRunsLiveTest do
       project: project
     } do
       # Given
-      with_flushed_ingestion_buffers(fn ->
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          user_id: user.id,
-          name: "cache",
-          command_arguments: ["cache", "App"]
-        )
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        user_id: user.id,
+        name: "cache",
+        command_arguments: ["cache", "App"]
+      )
 
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          user_id: user.id,
-          name: "cache",
-          command_arguments: ["cache", "AppTwo"]
-        )
-      end)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        user_id: user.id,
+        name: "cache",
+        command_arguments: ["cache", "AppTwo"]
+      )
 
       # When
       {:ok, lv, _html} =
-        live(conn, ~p"/#{organization.account.name}/#{project.name}/binary-cache/cache-runs")
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/cache-runs")
 
       # Then
       assert has_element?(lv, "span", "tuist cache App")
       assert has_element?(lv, "span", "tuist cache AppTwo")
+    end
+
+    test "ignores cursor that doesn't match order fields", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        user_id: user.id,
+        name: "cache",
+        command_arguments: ["cache", "App"]
+      )
+
+      # A cursor that was encoded with hit_rate order field
+      # (decoded: {:ok, %{hit_rate: 8.5}})
+      invalid_cursor = "g3QAAAABdwhoaXRfcmF0ZUZAoTAAAAAAAA=="
+
+      # When - using the cursor with a different order field (ran_at, the default)
+      # This should NOT raise an error, but ignore the invalid cursor
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/module-cache/cache-runs?before=#{invalid_cursor}"
+        )
+
+      # Then - should still render the page with results
+      assert has_element?(lv, "span", "tuist cache App")
     end
   end
 end

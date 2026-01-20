@@ -28,6 +28,13 @@ defmodule Tuist.Projects.Project do
     field :qa_email, :string, default: ""
     field :qa_password, :string, default: ""
 
+    field :slack_channel_id, :string
+    field :slack_channel_name, :string
+    field :report_frequency, Ecto.Enum, values: [never: 0, daily: 1], default: :never
+    field :report_days_of_week, {:array, :integer}, default: []
+    field :report_schedule_time, :utc_datetime
+    field :report_timezone, :string
+
     belongs_to :account, Account
 
     has_many :previews, Preview
@@ -69,7 +76,13 @@ defmodule Tuist.Projects.Project do
       :default_previews_visibility,
       :qa_app_description,
       :qa_email,
-      :qa_password
+      :qa_password,
+      :slack_channel_id,
+      :slack_channel_name,
+      :report_frequency,
+      :report_days_of_week,
+      :report_schedule_time,
+      :report_timezone
     ])
     |> validate_name()
     |> validate_inclusion(:visibility, [:private, :public])

@@ -1,6 +1,6 @@
 <div align="center">
   <div>
-    <a href="https://tuist.io" target="_blank"><img src="assets/header.jpg" alt="header"/></a>
+    <a href="https://tuist.dev" target="_blank"><img src="assets/header.png" alt="header"/></a>
   </div>
   <img src="https://img.shields.io/github/commit-activity/w/tuist/tuist?style=flat-square&label=commits" alt="Commit Activity">
   <a href="https://fosstodon.org/@tuist"><img src="https://img.shields.io/badge/tuist-gray.svg?logo=mastodon&logoColor=f5f5f5" alt="Mastodon badge"></a>
@@ -21,12 +21,14 @@ Tuist is a virtual platform team for Swift app devs who ship. Through an integra
 
 The following solutions are part of Tuist:
 
-- [🗂️ **Generated projects**](https://docs.tuist.dev/en/guides/features/projects): A solution for more accessible and easier-to-manage Xcode projects.
-- [🚝 **Cache**](https://docs.tuist.dev/en/guides/features/cache): Speed up builds across environments with a content-addressable store.
-- [✅ **Selective testing**](https://docs.tuist.dev/en/guides/features/selective-testing): Run tests faster by selecting them based on the file changes.
-- [📦 **Registry**](https://docs.tuist.dev/en/guides/features/registry): Speed up the resolution of [Swift Package Index](https://swiftpackageindex.com/)-indexed packages.
-- [📈 **Insights**](https://docs.tuist.dev/en/guides/features/insights): Get actionable insights from your projects, builds, and test runs to make informed decisions.
-- [📱 **Bundle analysis**](https://docs.tuist.dev/en/guides/features/bundle-size): Analyze your built apps and get suggestions to improve them.
+- [🗂️ **Generated projects**](https://docs.tuist.dev/en/guides/develop/projects): A solution for more accessible and easier-to-manage Xcode projects.
+- [🚝 **Cache**](https://docs.tuist.dev/en/guides/develop/cache): Speed up builds across environments with a content-addressable store.
+- [✅ **Selective testing**](https://docs.tuist.dev/en/guides/develop/selective-testing): Run tests faster by selecting them based on the file changes.
+- [📦 **Registry**](https://docs.tuist.dev/en/guides/develop/registry): Speed up the resolution of [Swift Package Index](https://swiftpackageindex.com/)-indexed packages.
+- [📈 **Build insights**](https://docs.tuist.dev/en/guides/develop/insights): Get actionable insights from your projects, builds, and test runs to make informed decisions.
+- [📱 **Bundle insights**](https://docs.tuist.dev/en/guides/develop/bundle-size): Analyze your built apps and get suggestions to improve them.
+- [📱 **Previews**](https://docs.tuist.dev/en/guides/features/previews): Sharing apps (previews) as easy as sharing a link.
+- [✅ **QA**](https://docs.tuist.dev/en/guides/features/qa): QA your app using LLM-based agents.
 
 Openness and community are cornerstones in shaping Tuist, as we believe they are the key to building the best solution. We recommend checking out the following resources:
 
@@ -56,7 +58,7 @@ You can check out [the project documentation](https://docs.tuist.dev).
 
 ### Sample projects
 
-You can find some sample projects in the [fixtures folder](cli/Fixtures) or the [awesome Tuist repo](https://github.com/tuist/awesome-tuist)! 🎉
+You can find some sample projects in the [examples folder](examples/xcode) or the [awesome Tuist repo](https://github.com/tuist/awesome-tuist)! 🎉
 
 ## Development
 
@@ -254,19 +256,7 @@ Some companies support our community and open source efforts with contributions 
 
 ## Want to contribute?
 
-You can use our [contribution docs](https://docs.tuist.dev/en/contributors/get-started) to get started. You can find good issues for first-time contributors [here](https://github.com/tuist/tuist/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
-
-## Core Team
-
-<table>
-  <tr>
-    <td align="center"><a href="https://github.com/pepicrft"><img src="https://avatars1.githubusercontent.com/u/663605?v=4" width="100px;" alt=""/><br /><sub><b>Pedro Piñera</b></sub></a><br /></td>
-    <td align="center"><a href="https://github.com/fortmarek"><img src="https://avatars0.githubusercontent.com/u/9371695?v=4" width="100px;" alt=""/><br /><sub><b>Marek Fořt</b></sub></a><br /></td>
-    <td align="center"><a href="http://www.matrixprojects.net"><img src="https://avatars3.githubusercontent.com/u/11914919?v=4" width="100px;" alt=""/><br /><sub><b>Kas</b></sub></a><br /></td>
-    <td align="center"><a href="https://github.com/danyf90"><img src="https://avatars.githubusercontent.com/u/2794031?v=4" width="100px;" alt=""/><br /><sub><b>Daniele Formichelli</b></sub></a><br /></td>
-    <td align="center" valign="top" width="14.28%"><a href="https://github.com/waltflanagan"><img src="https://avatars.githubusercontent.com/u/398293?v=4" width="100px;" alt=""/><br /><sub><b>Mike Simons</b></sub></a></td>
-  </tr>
-</table>
+You can use our [contribution docs](https://docs.tuist.dev/en/contributors/code) to get started. You can find good issues for first-time contributors [here](https://github.com/tuist/tuist/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
 
 ## Core Alumni
 
@@ -274,11 +264,18 @@ The following people were once core contributors helping steer the project in th
 
 <table>
   <tr>
+    <td align="center"><a href="http://www.matrixprojects.net"><img src="https://avatars3.githubusercontent.com/u/11914919?v=4" width="100px;" alt=""/><br /><sub><b>Kas</b></sub></a><br /></td>
+    <td align="center"><a href="https://github.com/danyf90"><img src="https://avatars.githubusercontent.com/u/2794031?v=4" width="100px;" alt=""/><br /><sub><b>Daniele Formichelli</b></sub></a><br /></td>
+    <td align="center" valign="top" width="14.28%"><a href="https://github.com/waltflanagan"><img src="https://avatars.githubusercontent.com/u/398293?v=4" width="100px;" alt=""/><br /><sub><b>Mike Simons</b></sub></a></td>
+  </tr>
+  <tr>
     <td align="center"><a href="http://natanrolnik.me"><img src="https://avatars3.githubusercontent.com/u/1164565?v=4" width="100px;" alt=""/><br /><sub><b>Natan Rolnik</b></sub></a><br /></td>
     <td align="center"><a href="https://github.com/andreacipriani"><img src="https://avatars3.githubusercontent.com/u/536929?v=4" width="100px;" alt=""/><br /><sub><b>Andrea Cipriani</b></sub></a><br /></td>
     <td align="center"><a href="https://github.com/ollieatkinson"><img src="https://avatars1.githubusercontent.com/u/1382565?v=4" width="100px;" alt=""/><br /><sub><b>Oliver Atkinson</b></sub></a><br /></td>
     <td align="center"><a href="https://github.com/RomainBoulay"><img src="https://avatars1.githubusercontent.com/u/169323?v=4" width="100px;" alt=""/><br /><sub><b>Romain Boulay</b></sub></a><br /></td>
     <td align="center"><a href="https://github.com/laxmorek"><img src="https://avatars1.githubusercontent.com/u/4774319?v=4" width="100px;" alt=""/><br /><sub><b>Kamil Harasimowicz</b></sub></a><br /></td>
+  </tr>
+  <tr>
     <td align="center"><a href="http://www.luispadron.com"><img src="https://avatars3.githubusercontent.com/u/13840545?v=4" width="100px;" alt=""/><br /><sub><b>Luis Padron</b></sub></a></td>
     <td align="center"><a href="https://github.com/adellibovi"><img src="https://avatars3.githubusercontent.com/u/67916?v=4" width="100px;" alt=""/><br /><sub><b>Alfredo Delli Bovi</b></sub></a><br /></td>
   </tr>

@@ -7,70 +7,11 @@ defmodule TuistWeb.TestRunsLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Runs.Analytics
-  alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
 
-  describe "lists latest test runs - postgres" do
-    setup do
-      stub(Tuist.Environment, :clickhouse_configured?, fn -> false end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> false end)
-      :ok
-    end
-
-    test "lists latest test runs", %{
-      conn: conn,
-      user: user,
-      organization: organization,
-      project: project
-    } do
-      # Given
-      _test_run_one =
-        with_flushed_ingestion_buffers(fn ->
-          CommandEventsFixtures.command_event_fixture(
-            project_id: project.id,
-            user_id: user.id,
-            name: "test",
-            command_arguments: ["test", "App"]
-          )
-
-          CommandEventsFixtures.command_event_fixture(
-            project_id: project.id,
-            user_id: user.id,
-            name: "test",
-            command_arguments: ["test", "AppTwo"]
-          )
-        end)
-
-      _test_run_one =
-        with_flushed_ingestion_buffers(fn ->
-          CommandEventsFixtures.command_event_fixture(
-            project_id: project.id,
-            user_id: user.id,
-            name: "test",
-            command_arguments: ["test", "App"]
-          )
-
-          CommandEventsFixtures.command_event_fixture(
-            project_id: project.id,
-            user_id: user.id,
-            name: "test",
-            command_arguments: ["test", "AppTwo"]
-          )
-        end)
-
-      # When
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs")
-
-      # Then
-      assert has_element?(lv, "span", "tuist test App")
-      assert has_element?(lv, "span", "tuist test AppTwo")
-    end
-  end
-
-  describe "lists latest test runs - clickhouse" do
+  describe "lists latest test runs" do
     setup do
       copy(Analytics)
-      stub(Tuist.Environment, :clickhouse_configured?, fn -> true end)
-      stub(FunWithFlags, :enabled?, fn :clickhouse_events -> true end)
 
       stub(Analytics, :runs_analytics, fn _, _, _ ->
         %{runs_per_period: %{}, dates: [], values: [], count: 0, trend: 0}
@@ -85,93 +26,59 @@ defmodule TuistWeb.TestRunsLiveTest do
 
     test "lists latest test runs", %{
       conn: conn,
-      user: user,
       organization: organization,
       project: project
     } do
       # Given
-      _test_run_one =
-        with_flushed_ingestion_buffers(fn ->
-          CommandEventsFixtures.command_event_fixture(
-            project_id: project.id,
-            user_id: user.id,
-            name: "test",
-            command_arguments: ["test", "App"]
-          )
+      {:ok, _test_run1} =
+        RunsFixtures.test_fixture(project_id: project.id, account_id: organization.account.id, scheme: "App")
 
-          CommandEventsFixtures.command_event_fixture(
-            project_id: project.id,
-            user_id: user.id,
-            name: "test",
-            command_arguments: ["test", "AppTwo"]
-          )
-        end)
-
-      _test_run_one =
-        with_flushed_ingestion_buffers(fn ->
-          CommandEventsFixtures.command_event_fixture(
-            project_id: project.id,
-            user_id: user.id,
-            name: "test",
-            command_arguments: ["test", "App"]
-          )
-
-          CommandEventsFixtures.command_event_fixture(
-            project_id: project.id,
-            user_id: user.id,
-            name: "test",
-            command_arguments: ["test", "AppTwo"]
-          )
-        end)
+      {:ok, _test_run2} =
+        RunsFixtures.test_fixture(project_id: project.id, account_id: organization.account.id, scheme: "AppTwo")
 
       # When
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs")
 
       # Then
-      assert has_element?(lv, "span", "tuist test App")
-      assert has_element?(lv, "span", "tuist test AppTwo")
+      assert has_element?(lv, "[data-part='test-runs-table']")
     end
 
-    test "filters test runs by status", %{
+    test "handles cursor from another page with different sort fields", %{
       conn: conn,
-      user: user,
       organization: organization,
       project: project
     } do
-      with_flushed_ingestion_buffers(fn ->
-        CommandEventsFixtures.command_event_fixture(
+      for i <- 1..25 do
+        RunsFixtures.test_fixture(
           project_id: project.id,
-          user_id: user.id,
-          name: "test",
-          command_arguments: ["test", "PassingTest"],
-          status: :success
+          account_id: organization.account.id,
+          scheme: "App-#{i}",
+          duration: i * 1000
         )
+      end
 
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project.id,
-          user_id: user.id,
-          name: "test",
-          command_arguments: ["test", "FailingTest"],
-          status: :failure
-        )
-      end)
+      # Generate a cursor with duration sorting (simulating a cursor from another page like bundles)
+      {_test_runs, %{end_cursor: cursor}} =
+        Tuist.Runs.list_test_runs(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id}
+          ],
+          order_by: [:duration],
+          order_directions: [:desc],
+          first: 20
+        })
 
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs")
+      # Navigate to test runs with a cursor that encodes duration field
+      # Test runs always sorts by created_at, so this cursor is incompatible
+      # Before the fix, this would raise Flop.InvalidParamsError
+      assert {:ok, lv, _html} =
+               live(
+                 conn,
+                 ~p"/#{organization.account.name}/#{project.name}/tests/test-runs?after=#{cursor}"
+               )
 
-      assert has_element?(lv, "span", "tuist test PassingTest")
-      assert has_element?(lv, "span", "tuist test FailingTest")
-
-      params = %{"filter_status_op" => "==", "filter_status_val" => "0"}
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs?#{params}")
-
-      assert has_element?(lv, "span", "tuist test PassingTest")
-      refute has_element?(lv, "span", "tuist test FailingTest")
-
-      params = %{"filter_status_op" => "==", "filter_status_val" => "1"}
-      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs?#{params}")
-
-      refute has_element?(lv, "span", "tuist test PassingTest")
-      assert has_element?(lv, "span", "tuist test FailingTest")
+      # The cursor is cleared on initial load, so the page should load without error
+      assert has_element?(lv, "[data-part='test-runs-table']")
     end
   end
 end

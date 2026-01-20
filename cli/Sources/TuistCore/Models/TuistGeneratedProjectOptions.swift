@@ -44,11 +44,13 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 disablePackageVersionLocking: false,
                 staticSideEffectsWarningTargets: .all,
                 buildInsightsDisabled: true,
+                testInsightsDisabled: true,
                 disableSandbox: true,
-                includeGenerateScheme: false
+                includeGenerateScheme: false,
+                enableCaching: false
             ),
             installOptions: .init(passthroughSwiftPackageManagerArguments: []),
-            cacheOptions: CacheOptions(keepSourceTargets: false)
+            cacheOptions: CacheOptions(keepSourceTargets: false, profiles: .init([:], default: .onlyExternal))
         )
     }
 }
@@ -72,8 +74,10 @@ extension TuistGeneratedProjectOptions {
         public let defaultConfiguration: String?
         public var optionalAuthentication: Bool
         public let buildInsightsDisabled: Bool
+        public let testInsightsDisabled: Bool
         public let disableSandbox: Bool
         public let includeGenerateScheme: Bool
+        public let enableCaching: Bool
 
         public init(
             resolveDependenciesWithSystemScm: Bool,
@@ -85,8 +89,10 @@ extension TuistGeneratedProjectOptions {
             defaultConfiguration: String? = nil,
             optionalAuthentication: Bool = false,
             buildInsightsDisabled: Bool,
+            testInsightsDisabled: Bool,
             disableSandbox: Bool,
-            includeGenerateScheme: Bool
+            includeGenerateScheme: Bool,
+            enableCaching: Bool = false
         ) {
             self.resolveDependenciesWithSystemScm = resolveDependenciesWithSystemScm
             self.disablePackageVersionLocking = disablePackageVersionLocking
@@ -97,18 +103,10 @@ extension TuistGeneratedProjectOptions {
             self.defaultConfiguration = defaultConfiguration
             self.optionalAuthentication = optionalAuthentication
             self.buildInsightsDisabled = buildInsightsDisabled
+            self.testInsightsDisabled = testInsightsDisabled
             self.disableSandbox = disableSandbox
             self.includeGenerateScheme = includeGenerateScheme
-        }
-    }
-
-    public struct CacheOptions: Codable, Equatable, Sendable, Hashable {
-        public var keepSourceTargets: Bool
-
-        public init(
-            keepSourceTargets: Bool = false
-        ) {
-            self.keepSourceTargets = keepSourceTargets
+            self.enableCaching = enableCaching
         }
     }
 
@@ -178,8 +176,10 @@ extension TuistGeneratedProjectOptions {
             defaultConfiguration: String? = nil,
             optionalAuthentication: Bool = false,
             buildInsightsDisabled: Bool = true,
+            testInsightsDisabled: Bool = true,
             disableSandbox: Bool = true,
-            includeGenerateScheme: Bool = true
+            includeGenerateScheme: Bool = true,
+            enableCaching: Bool = false
         ) -> Self {
             .init(
                 resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
@@ -191,8 +191,10 @@ extension TuistGeneratedProjectOptions {
                 defaultConfiguration: defaultConfiguration,
                 optionalAuthentication: optionalAuthentication,
                 buildInsightsDisabled: buildInsightsDisabled,
+                testInsightsDisabled: testInsightsDisabled,
                 disableSandbox: disableSandbox,
-                includeGenerateScheme: includeGenerateScheme
+                includeGenerateScheme: includeGenerateScheme,
+                enableCaching: enableCaching
             )
         }
     }
@@ -203,16 +205,6 @@ extension TuistGeneratedProjectOptions {
         ) -> Self {
             .init(
                 passthroughSwiftPackageManagerArguments: passthroughSwiftPackageManagerArguments
-            )
-        }
-    }
-
-    extension TuistGeneratedProjectOptions.CacheOptions {
-        public static func test(
-            keepSourceTargets: Bool = false
-        ) -> Self {
-            .init(
-                keepSourceTargets: keepSourceTargets
             )
         }
     }

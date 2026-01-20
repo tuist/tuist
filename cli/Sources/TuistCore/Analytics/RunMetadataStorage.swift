@@ -36,6 +36,12 @@ public actor RunMetadataStorage {
         self.selectiveTestingCacheItems = selectiveTestingCacheItems
     }
 
+    /// Target content hash subhashes keyed by hash
+    public private(set) var targetContentHashSubhashes: [String: TargetContentHashSubhashes] = [:]
+    public func update(targetContentHashSubhashes: [String: TargetContentHashSubhashes]) {
+        self.targetContentHashSubhashes = targetContentHashSubhashes
+    }
+
     /// Preview associated with the current run
     public private(set) var previewId: String?
     public func update(previewId: String?) {
@@ -52,5 +58,17 @@ public actor RunMetadataStorage {
     public private(set) var buildRunId: String?
     public func update(buildRunId: String?) {
         self.buildRunId = buildRunId
+    }
+
+    /// The ID of the latest test run.
+    public private(set) var testRunId: String?
+    public func update(testRunId: String?) {
+        self.testRunId = testRunId
+    }
+
+    /// Cache endpoint used for the current run (regional module cache)
+    public private(set) var cacheEndpoint: String = ""
+    public func update(cacheEndpoint: String) {
+        self.cacheEndpoint = cacheEndpoint
     }
 }

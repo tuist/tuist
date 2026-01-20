@@ -100,7 +100,8 @@ public protocol PackageInfoMapping {
         path: AbsolutePath,
         packageType: PackageType,
         packageSettings: TuistCore.PackageSettings,
-        packageModuleAliases: [String: [String: String]]
+        packageModuleAliases: [String: [String: String]],
+        enabledTraits: Set<String>
     ) async throws -> ProjectDescription.Project?
 }
 
@@ -206,6 +207,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
         ])
         let remoteXcframeworks = try await fileSystem.glob(directory: remoteXcframeworksPath, include: ["**/*.xcframework"])
             .collect()
+            // Filter out __MACOSX folder
+            .filter { $0.parentDirectory.basenameWithoutExt != "__MACOSX" }
         for xcframework in remoteXcframeworks {
             let dependencyName = xcframework.relative(to: remoteXcframeworksPath).basenameWithoutExt
             let xcframeworkPath = Path
@@ -269,7 +272,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
         path: AbsolutePath,
         packageType: PackageType,
         packageSettings: TuistCore.PackageSettings,
-        packageModuleAliases: [String: [String: String]]
+        packageModuleAliases: [String: [String: String]],
+        enabledTraits: Set<String>
     ) async throws -> ProjectDescription.Project? {
         // Hardcoded mapping for some well known libraries, until the logic can handle those properly
         let productTypes = packageSettings.productTypes.merging(
@@ -322,7 +326,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     productTypes: productTypes,
                     productDestinations: packageSettings.productDestinations,
                     targetSettings: packageSettings.targetSettings,
-                    packageModuleAliases: packageModuleAliases
+                    packageModuleAliases: packageModuleAliases,
+                    packageTraits: packageInfo.traits ?? [],
+                    enabledTraits: enabledTraits
                 )
             }
 
@@ -376,7 +382,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
         productTypes: [String: XcodeGraph.Product],
         productDestinations: [String: XcodeGraph.Destinations],
         targetSettings: [String: XcodeGraph.Settings],
-        packageModuleAliases: [String: [String: String]]
+        packageModuleAliases: [String: [String: String]],
+        packageTraits: [PackageTrait],
+        enabledTraits: Set<String>
     ) async throws -> ProjectDescription.Target? {
         // Ignores or passes a target based on the `type` and the `packageType`.
         // After that, it assumes that no target is ignored.
@@ -515,7 +523,14 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         .linker,
                         .define
                     ),
-                    (.linker, .unsafeFlags), (_, .enableExperimentalFeature), (_, .swiftLanguageMode), (_, .defaultIsolation):
+                    (.linker, .unsafeFlags), (.linker, .disableWarning), (_, .enableExperimentalFeature), (_, .swiftLanguageMode),
+                    (
+                        _,
+                        .defaultIsolation
+                    ), (
+                        _,
+                        .strictMemorySafety
+                    ):
                         return nil
                     }
                 } catch {
@@ -563,7 +578,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
             settings: target.settings,
             moduleMap: moduleMap,
             targetSettings: targetSettings[target.name],
-            dependencyModuleAliases: dependencyModuleAliases
+            dependencyModuleAliases: dependencyModuleAliases,
+            packageTraits: packageTraits,
+            enabledTraits: enabledTraits
         )
 
         return .target(
@@ -571,8 +588,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             destinations: destinations,
             product: product,
             productName: productName,
-            bundleId: targetName
-                .replacingOccurrences(of: "_", with: ".").replacingOccurrences(of: "/", with: "."),
+            bundleId: "dev.tuist.\(targetName.replacingOccurrences(of: "_", with: ".").replacingOccurrences(of: "/", with: "."))",
             deploymentTargets: deploymentTargets,
             infoPlist: .default,
             sources: sources,
@@ -980,7 +996,13 @@ extension ProjectDescription.TargetDependency {
                     .linker,
                     .define
                 ),
-                (.linker, .unsafeFlags), (_, .enableExperimentalFeature), (_, .swiftLanguageMode), (_, .defaultIsolation):
+                (.linker, .unsafeFlags), (.linker, .disableWarning), (_, .enableExperimentalFeature), (_, .swiftLanguageMode), (
+                    _,
+                    .defaultIsolation
+                ), (
+                    _,
+                    .strictMemorySafety
+                ):
                     return nil
                 }
             } catch {
@@ -1021,7 +1043,9 @@ extension ProjectDescription.Settings {
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         moduleMap: ModuleMap?,
         targetSettings: XcodeGraph.Settings?,
-        dependencyModuleAliases: [String: String]
+        dependencyModuleAliases: [String: String],
+        packageTraits: [PackageTrait],
+        enabledTraits: Set<String>
     ) async throws -> Self? {
         let mainPath = try await target.basePath(packageFolder: packageFolder)
         let mainRelativePath = mainPath.relative(to: packageFolder)
@@ -1045,6 +1069,17 @@ extension ProjectDescription.Settings {
             "OTHER_SWIFT_FLAGS": ["$(inherited)"],
         ]
 
+        if !enabledTraits.isEmpty {
+            var traitConditions: Set<String> = []
+
+            resolveTraits(enabledTraits, packageTraits: packageTraits, into: &traitConditions)
+
+            if !traitConditions.isEmpty {
+                settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] =
+                    .array(["$(inherited)"] + traitConditions.sorted())
+            }
+        }
+
         // Force enable testing search paths
         let forceEnabledTestingSearchPath: Set<String> = [
             "Mocker", // https://github.com/WeTransfer/Mocker
@@ -1064,6 +1099,7 @@ extension ProjectDescription.Settings {
             "MockableTest", // https://github.com/Kolos65/Mockable.git
             "Testing", // https://github.com/apple/swift-testing
             "Cuckoo", // https://github.com/Brightify/Cuckoo
+            "SnapshottingTests", // https://github.com/EmergeTools/SnapshotPreviews
             "_SwiftSyntaxTestSupport", // https://github.com/swiftlang/swift-syntax
             "SwiftSyntaxMacrosTestSupport", // https://github.com/swiftlang/swift-syntax
         ]
@@ -1544,5 +1580,23 @@ extension PackageInfo.Platform {
     var tuistPlatformName: String {
         // catalyst is mapped to iOS platform in tuist
         platformName == "maccatalyst" ? "ios" : platformName
+    }
+}
+
+// MARK: - Trait Resolution
+
+private func resolveTraits(
+    _ traitNames: some Collection<String>,
+    packageTraits: [PackageTrait],
+    into traitConditions: inout Set<String>
+) {
+    for traitName in traitNames {
+        guard let trait = packageTraits.first(where: { $0.name == traitName }) else {
+            continue
+        }
+        if traitName != "default" {
+            traitConditions.insert(traitName)
+        }
+        resolveTraits(trait.enabledTraits, packageTraits: packageTraits, into: &traitConditions)
     }
 }

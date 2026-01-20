@@ -1,0 +1,920 @@
+msgid ""
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-12-24 11:48+0000\nLast-Translator: Weblate Admin <admin@cloudron.local>\nLanguage-Team: Russian <https://translate.tuist.dev/projects/tuist/marketing/ru/>\nLanguage: ru\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\nX-Generator: Weblate 5.15.1\n"
+
+# # This file is a PO Template file.
+# #
+# # "msgid"s here are often extracted from source code.
+# # Add new messages manually only if they're dynamic
+# # messages that can't be statically extracted.
+# #
+# # Run "mix gettext.extract" to bring this file up to
+# # date. Leave "msgstr"s empty as changing them here has no
+# # effect: edit them in PO (.po) files instead.
+#
+msgid "\"We could solve our immediate problems and do so while maintaining a familiar"
+msgstr "\"Мы смогли решить наши текущие проблемы и при этом сохранить привычный"
+
+msgid "105 remote binaries pulled"
+msgstr "105 удалённых бинарников загружено"
+
+msgid "10K+"
+msgstr "10K+"
+
+msgid "1400+"
+msgstr "1400+"
+
+msgid "300+"
+msgstr "300+"
+
+msgid "5K+"
+msgstr "5K+"
+
+msgid "8300+"
+msgstr "8300+"
+
+msgid "9+"
+msgstr "9+"
+
+msgid ""
+"<p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with \"contact sales\" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>\n"
+"<p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>\n"
+msgstr "<p>Наша приверженность к open-source и наши основные ценности формируют наш уникальный подход к ценообразованию. В отличие от многих моделей, которые пытаются выжать из вас каждый доллар с помощью звонков \"Свяжитесь с отделом продаж\", ограниченных демо и других маркетинговых приёмов, мы верим в честность и прозрачность. Мы относимся ко всем одинаково и устанавливаем справедливые цены для всех. Выбирая наши сервисы, вы не только получаете отличный продукт, но и поддерживаете развитие новых open-source проектов. Мы рассматриваем построение успешного бизнеса как долгосрочное путешествие, а не как спринт, наполненный сомнительными практиками. Вы можете %{read_more} о нашей философии.</p>\n<p>Поддерживая Tuist, вы также поддерживаете развитие open-source программного обеспечения для экосистемы Swift.</p>\n"
+
+msgid "A confirmation email has been sent to your account with further details."
+msgstr "На ваш адрес отправлено письмо с подтверждением и подробностями."
+
+msgid "A newsletter from the Tuist team sharing product updates, our perspective on modern app development, and what's on the horizon. Stay in the loop with where we're headed and why."
+msgstr "Рассылка от команды Tuist с обновлениями продукта, нашим взглядом на современную мобильную разработку и тем, что нас ждёт впереди. Будьте в курсе того, куда мы движемся и почему."
+
+msgid "API Documentation"
+msgstr "Документация API"
+
+msgid "About"
+msgstr "О Tuist"
+
+msgid "Active community members and counting"
+msgstr "Активных участников сообщества, и становится больше"
+
+msgid "Agentic QA"
+msgstr "Агентное QA"
+
+msgid "Agentic testing of your app completed"
+msgstr "AI-тестирование завершено"
+
+msgid "Air"
+msgstr "Air"
+
+msgid "All"
+msgstr "Все"
+
+msgid "All features, no credit card required"
+msgstr "Все функции, без привязки карты"
+
+msgid "All systems normal"
+msgstr "Все системы в норме"
+
+msgid "All the features you need,"
+msgstr "Все нужные функции"
+
+msgid "Analyze build times per target and file with metadata like environment, Xcode version, and commit."
+msgstr "Анализируйте время сборки по целям и файлам с учётом окружения, версии Xcode и коммита."
+
+msgid "Automate testing your apps for Apple platforms using agents."
+msgstr "Автоматизируйте тестирование приложений для платформ Apple с помощью агентов."
+
+msgid "Base price"
+msgstr "Базовая цена"
+
+msgid "Best for teams and growing startups."
+msgstr "Лучший выбор для команд и растущих стартапов."
+
+msgid "Beyond expectations"
+msgstr "Выше ожиданий"
+
+msgid "Blog"
+msgstr "Блог"
+
+msgid "Blog posts by the Tuist team."
+msgstr "Блог команды Tuist."
+
+msgid "Bluesky"
+msgstr "Bluesky"
+
+msgid "Build Insights"
+msgstr "Аналитика сборок"
+
+msgid "Build insights"
+msgstr "Аналитика сборки"
+
+msgid "Build times reduced by 80%"
+msgstr "Сборка быстрее на 80%"
+
+msgid "Building the future of scalable app development"
+msgstr "Создаём будущее масштабируемой разработки приложений"
+
+msgid "Builds"
+msgstr "Сборки"
+
+msgid "Bumble solved key issues without changing the core dev experience"
+msgstr "Bumble решил ключевые проблемы, сохранив привычный опыт разработки"
+
+msgid "Bundle Insights"
+msgstr "Аналитика бандлов"
+
+msgid "Bundle analysis"
+msgstr "Аналитика бандлов"
+
+msgid "Bundle insights"
+msgstr "Аналитика бандлов"
+
+msgid "Cache"
+msgstr "Кэш"
+
+msgid "Can I change or cancel my plan at any time?"
+msgstr "Могу ли я изменить или отменить свой план в любое время?"
+
+msgid "Changelog"
+msgstr "История изменений"
+
+msgid "Chat with the founders"
+msgstr "Чат с основателями"
+
+msgid "Check our sources, issues, and PRs"
+msgstr "Ознакомьтесь с нашим кодом, задачами и PR"
+
+msgid "Check out our GitHub to see all the action—where the magic happens and collaboration thrives."
+msgstr "Загляните на наш GitHub — там творится магия и кипит совместная работа."
+
+msgid "Check out our REST API documentation"
+msgstr "Ознакомьтесь с нашей документацией REST API"
+
+msgid "Check out our documentation"
+msgstr "Ознакомьтесь с нашей документацией"
+
+msgid "Close menu"
+msgstr "Закрыть меню"
+
+msgid "Community"
+msgstr "Сообщество"
+
+msgid "Community Forum"
+msgstr "Форум сообщества"
+
+msgid "Community forum"
+msgstr "Форум сообщества"
+
+msgid "Community support"
+msgstr "Поддержка сообщества"
+
+msgid "Community support via forum"
+msgstr "Поддержка сообщества на форуме"
+
+msgid "Company"
+msgstr "Компания"
+
+msgid "Compare our plans"
+msgstr "Сравнить наши планы"
+
+msgid "Concise Summary"
+msgstr "Краткое описание"
+
+msgid "Connect with other Tuist users, share experiences, and get help from the community."
+msgstr "Общайтесь с другими пользователями Tuist, делитесь опытом и получайте помощь от сообщества."
+
+msgid "Contact"
+msgstr "Контакты"
+
+msgid "Contact us"
+msgstr "Свяжитесь с нами"
+
+msgid "Contributors"
+msgstr "контрибьюторов"
+
+msgid "Cookie policy"
+msgstr "Политика cookie"
+
+msgid "Create your plan or self-host your instance."
+msgstr "Создайте свой план или разверните у себя."
+
+msgid "Custom legal agreements and terms of service tailored to your organization's needs."
+msgstr "Индивидуальные юридические соглашения и условия обслуживания, адаптированные под потребности вашей организации."
+
+msgid "Cuts build times by caching and reusing binaries"
+msgstr "Сокращает время сборки за счёт кеширования и повторного использования бинарных файлов"
+
+msgid "Dashboard"
+msgstr "Дашборд"
+
+msgid "Designed for large scale organizations."
+msgstr "Предназначен для крупных организаций."
+
+msgid "Developers"
+msgstr "Разработчики"
+
+msgid "Discover our flexible pricing plans at Tuist. Enjoy a free tier with no time limits, and pay only for what you use. Plus, it's free forever for open source projects."
+msgstr "Откройте гибкие тарифы Tuist. Бесплатный уровень без ограничений по времени — платите только за то, чем пользуетесь. Open-source проектам — бесплатно навсегда."
+
+msgid "Do you offer annual billing discounts?"
+msgstr "Есть ли скидки при годовой оплате?"
+
+msgid "Do you offer discounts for non-profits and open-source?"
+msgstr "Есть ли скидки для некоммерческих организаций и open-source проектов?"
+
+msgid "Do you support a seat-based pricing model?"
+msgstr "Есть ли у вас тарифы, зависящие от числа пользователей?"
+
+msgid "Docs"
+msgstr "Документация"
+
+msgid "Documentation"
+msgstr "Документация"
+
+msgid "Download"
+msgstr "Скачать"
+
+msgid "Download our iOS and macOS apps"
+msgstr "Скачайте наши приложения для iOS и macOS"
+
+msgid "Effortlessly share your app with a single URL."
+msgstr "Легко делитесь своим приложением через одну ссылку."
+
+msgid "Email Support"
+msgstr "Поддержка по почте"
+
+msgid "Enhance your development environment with actionable insights."
+msgstr "Расширьте возможности своей среды разработки с помощью полезной аналитики."
+
+msgid "Enterprise"
+msgstr "Enterprise"
+
+msgid "Explore our documentation—your go-to guide for mastering all things."
+msgstr "Ознакомьтесь с нашей документацией — вашим путеводителем по всему, что нужно знать."
+
+msgid "Faster & more lightweight OSS packages resolution"
+msgstr "Более быстрое и лёгкое разрешение OSS-пакетов"
+
+msgid "Features"
+msgstr "Возможности"
+
+msgid "For direct assistance with technical issues or account-related questions, reach out to our support team via email."
+msgstr "Для помощи с техническими проблемами или вопросами по аккаунту свяжитесь с нашей командой поддержки по почте."
+
+msgid "Forum"
+msgstr "Форум"
+
+msgid "Free under tier limits"
+msgstr "Бесплатно в рамках лимитов"
+
+msgid "Frequently Asked Questions"
+msgstr "Часто задаваемые вопросы"
+
+msgid "Generated Projects"
+msgstr "Сгенерированные проекты"
+
+msgid "Generated projects"
+msgstr "Сгенерированные проекты"
+
+msgid "Get Support"
+msgstr "Связаться с поддержкой"
+
+msgid "Get early access"
+msgstr "Получить ранний доступ"
+
+msgid "Get help when you need it through various support channels."
+msgstr "Получайте помощь в любое время через разные каналы поддержки."
+
+msgid "Get started"
+msgstr "Начать"
+
+msgid "Get started with Tuist at no cost, and only invest more when you're ready for higher limits, personalized support, or alternative billing options."
+msgstr "Начните использовать Tuist бесплатно, а платить — только когда будете готовы перейти на повышенные лимиты, персональную поддержку или другие варианты оплаты."
+
+msgid "Get started with no credit card required."
+msgstr "Начните без привязки карты."
+
+msgid "GitHub"
+msgstr "GitHub"
+
+msgid "Got ideas or questions? Join the conversation in our community forum."
+msgstr "Есть идеи или вопросы? Присоединяйтесь к обсуждению на нашем форуме сообщества."
+
+msgid "Great! The email %{email} has been confirmed and subscribed to Tuist Digest."
+msgstr "Отлично! Электронная почта %{email} подтверждена и подписана на Tuist Digest."
+
+msgid "Happiness"
+msgstr "Счастье"
+
+msgid "Hear from our community about their experience with Tuist"
+msgstr "Узнайте, что говорит сообщество о своём опыте с Tuist"
+
+msgid "Host Tuist server on your own infrastructure for complete control and data sovereignty."
+msgstr "Разместите сервер Tuist на своей инфраструктуре для полного контроля и автономии данных."
+
+msgid "How can I estimate the cost for my project?"
+msgstr "Как я могу оценить стоимость своего проекта?"
+
+msgid "How can I estimate the cost of my project?"
+msgstr "Как я могу оценить стоимость своего проекта?"
+
+msgid "How do we calculate units?"
+msgstr "Как мы считаем использование?"
+
+msgid "Ideal for individual developers."
+msgstr "Идеально для индивидуальных разработчиков."
+
+msgid "Imprint"
+msgstr "Юридические сведения"
+
+msgid "Insights"
+msgstr "Аналитика"
+
+msgid "Insights from your builds and test runs"
+msgstr "Аналитика сборок и тестов"
+
+msgid "Instantly share your app using a URL"
+msgstr "Мгновенно делитесь приложением по ссылке"
+
+msgid "Invalid verification link. Please try signing up again."
+msgstr "Ссылка для подтверждения недействительна. Пожалуйста, попробуйте зарегистрироваться ещё раз."
+
+msgid "Is there a free trial for paid plans?"
+msgstr "Есть ли пробный период для платных тарифов?"
+
+msgid "Is there a free trial on paid plans?"
+msgstr "Есть ли пробный период для платных тарифов?"
+
+msgid "Is there a minimum contract length?"
+msgstr "Есть ли минимальный срок договора?"
+
+msgid "Issue Tracking"
+msgstr "Отслеживание задач"
+
+msgid "Issues"
+msgstr "Задачи"
+
+msgid "Join discussions and share ideas on our Discourse forum"
+msgstr "Присоединяйтесь к обсуждениям и делитесь идеями на нашем форуме Discourse"
+
+msgid "Join our Slack group for real-time conversations and to connect with the Tuist community"
+msgstr "Присоединяйтесь к нашему Slack, чтобы общаться в реальном времени и быть на связи с сообществом Tuist"
+
+msgid "Join the community on Slack"
+msgstr "Присоединяйтесь к нашему сообществу в Slack"
+
+msgid "Jonathan Crooke, Bumble"
+msgstr "Jonathan Crooke, Bumble"
+
+msgid "Keep up with the latest and greatest changes in Tuist."
+msgstr "Будьте в курсе самых свежих и значимых изменений в Tuist."
+
+msgid "Last updated %{date}"
+msgstr "Последнее обновление %{date}"
+
+msgid "Learn & contribute to our source code"
+msgstr "Изучайте и вносите вклад в наш исходный код"
+
+msgid "Learn about Tuist and meet the team"
+msgstr "Познакомьтесь с Tuist и его командой"
+
+msgid "Legal"
+msgstr "Правовая информация"
+
+msgid "LinkedIn"
+msgstr "LinkedIn"
+
+msgid "Load more"
+msgstr "Показать ещё"
+
+msgid "Log in"
+msgstr "Войти"
+
+msgid "Longevity"
+msgstr "Устойчивость"
+
+msgid "Make Xcode projects easier to manage and scale"
+msgstr "Управляйте и масштабируйте проекты Xcode проще"
+
+msgid "Make mobile"
+msgstr "Сделайте мобильную разработку"
+
+msgid "Make modular Xcode projects more manageable"
+msgstr "Упростите работу с модульными проектами Xcode"
+
+msgid "Mastodon"
+msgstr "Mastodon"
+
+msgid "Module cache"
+msgstr "Кэш модулей"
+
+msgid "Most popular"
+msgstr "Популярный"
+
+msgid "Newsletter"
+msgstr "Рассылка"
+
+msgid "Newsletter Verification Failed"
+msgstr "Не удалось подтвердить подписку на рассылку"
+
+msgid "Newsletter issues are sent every 6 weeks and you can unsubscribe at any time."
+msgstr "Мы рассылаем новости раз в 6 недель, и вы можете отписаться в любое время."
+
+msgid "No, there's no minimum contract length. You're free to cancel at any time."
+msgstr "Нет, минимальный срок договора не установлен. Вы можете расторгнуть его в любое время."
+
+msgid "Ongoing incident"
+msgstr "Текущий инцидент"
+
+msgid "Open the %{feature} feature documentation"
+msgstr "Откройте документацию функции %{feature}"
+
+msgid "Openness"
+msgstr "Открытость"
+
+msgid "Optimized app bundles"
+msgstr "Оптимизированные пакеты приложений"
+
+msgid "Our approach is rooted in curiosity and open collaboration. We share our journey, contribute tools as open source, and cultivate communities where developers learn and grow together. When we solve problems in the open, everyone wins."
+msgstr "Наш подход основан на любознательности и открытом сотрудничестве. Мы делимся своим опытом, публикуем инструменты с открытым исходным кодом и растим сообщества, где разработчики учатся и развиваются вместе. Когда мы решаем задачи открыто, выигрывают все."
+
+msgid "Our cache solution integrates with Xcode 26's build system cache capabilities."
+msgstr "Наше решение для кэша интегрируется с возможностями системы кэширования сборок Xcode 26."
+
+msgid "Pay nothing if below free tier limits"
+msgstr "Бесплатно в пределах лимитов"
+
+msgid "Pay only for what you use per feature"
+msgstr "Платите только за то, чем пользуетесь"
+
+msgid "People"
+msgstr "Люди"
+
+msgid "Please check your email to confirm your subscription."
+msgstr "Пожалуйста, проверьте почту, чтобы подтвердить подписку."
+
+msgid "Powered by"
+msgstr "На базе"
+
+msgid "Previews"
+msgstr "Превью"
+
+msgid "Price per unit above free tier"
+msgstr "Цена сверх бесплатного лимита"
+
+msgid "Pricing"
+msgstr "Тарифы"
+
+msgid "Priority support"
+msgstr "Приоритетная поддержка"
+
+msgid "Priority support via Slack channel"
+msgstr "Приоритетная поддержка в Slack"
+
+msgid "Privacy policy"
+msgstr "Политика конфиденциальности"
+
+msgid "Pro"
+msgstr "Pro"
+
+msgid "Product"
+msgstr "Продукт"
+
+msgid "Pull requests merged"
+msgstr "слитых pull requests"
+
+msgid "QA"
+msgstr "QA"
+
+msgid "Read engaging stories and expert insights."
+msgstr "Читайте увлекательные истории и экспертные инсайты."
+
+msgid "Read the Bumble customer story"
+msgstr "Читайте историю Bumble"
+
+msgid "Read the Trendyol customer story"
+msgstr "Читайте историю Trendyol"
+
+msgid "Registry"
+msgstr "Реестр"
+
+msgid "Requires a generated project"
+msgstr "Требуется сгенерированный проект"
+
+msgid "Resources"
+msgstr "Ресурсы"
+
+msgid "Right Inside Your Workflow"
+msgstr "Прямо в вашем рабочем процессе"
+
+msgid "Screenshots & Replays"
+msgstr "Скриншоты и воспроизведение"
+
+msgid "Security"
+msgstr "Безопасность"
+
+msgid "Selective testing"
+msgstr "Выборочное тестирование"
+
+msgid "Self-host your instance of Tuist"
+msgstr "Разверните свой инстанс Tuist на вашей инфраструктуре"
+
+msgid "Self-hosting Tuist instance"
+msgstr "Самостоятельный хостинг Tuist"
+
+msgid "Send us an email"
+msgstr "Напишите нам письмо"
+
+msgid "Share your app builds with others via URL for testing on simulators or devices."
+msgstr "Делитесь своими сборками приложений с другими пользователями по URL для тестирования на симуляторах или устройствах."
+
+msgid "Shared app preview with the team"
+msgstr "Предпросмотр отправлен команде"
+
+msgid "Shrink your app by cleaning up code and assets"
+msgstr "Уменьшайте размер приложения, очищая код и ресурсы"
+
+msgid "Sign up"
+msgstr "Регистрация"
+
+msgid "Sign up to get early access to Tuist QA"
+msgstr "Зарегистрируйтесь, чтобы получить ранний доступ к Tuist QA"
+
+msgid "Since adopting Tuist in our iOS project, we've seen major improvements in scalability and productivity. Overall, it has made our development process faster and more efficient, allowing the team to focus on building features without being slowed down by tool limitations."
+msgstr "С момента внедрения Tuist в наш iOS-проект мы заметили существенный рост масштабируемости и продуктивности. Это ускорило и сделало процесс разработки более эффективным, позволив команде сосредоточиться на создании новых фичей, не отвлекаясь на ограничения инструментов."
+
+msgid "Skipped repetitive tests"
+msgstr "Без повторных тестов"
+
+msgid "Slack"
+msgstr "Slack"
+
+msgid "Social Media Links"
+msgstr "Ссылки на социальные сети"
+
+msgid "Socials"
+msgstr "Социальные сети"
+
+msgid "Something went wrong. Please try again."
+msgstr "Что-то пошло не так. Пожалуйста, попробуйте снова."
+
+msgid "Sources"
+msgstr "Исходный код"
+
+msgid "Speed up clean builds by caching binaries for cacheable targets and Swift tasks."
+msgstr "Ускоряйте чистые сборки за счёт кеширования бинарных файлов для кешируемых таргетов и Swift-задач."
+
+msgid "Speed up test runs by skipping test suites whose tests are not impacted by the changes."
+msgstr "Ускоряйте тесты, пропуская наборы, не затронутые изменениями."
+
+msgid "Speed up your builds and test runs."
+msgstr "Ускоряйте ваши сборки и запуск тестов."
+
+msgid "Speeds up builds by reusing compiled binaries, cutting down build times in both local development and CI."
+msgstr "Ускоряет сборку за счёт повторного использования уже скомпилированных бинарных файлов – как локально, так и в CI."
+
+msgid "Standard support"
+msgstr "Стандартная поддержка"
+
+msgid "Standard support via Slack and email"
+msgstr "Стандартная поддержка через Slack и почту"
+
+msgid "Standards"
+msgstr "Стандарты"
+
+msgid "Stars on GitHub"
+msgstr "звёзд на GitHub"
+
+msgid "Start free,"
+msgstr "Начните бесплатно,"
+
+msgid "Start free, scale as you grow"
+msgstr "Начните бесплатно, масштабируйтесь по мере роста"
+
+msgid "Stay in touch"
+msgstr "Оставайтесь на связи"
+
+msgid "Stay updated with the latest changes and improvements in Tuist."
+msgstr "Следите за обновлениями и улучшениями в Tuist."
+
+msgid "Stay updated with the latest changes and improvements in Tuist. Read our changelog for detailed information about new features, bug fixes, and enhancements."
+msgstr "Следите за обновлениями и улучшениями в Tuist. Ознакомьтесь с changelog, чтобы узнать подробности о новых функциях, исправлениях ошибок и улучшениях."
+
+msgid "Stay updated—subscribe to our newsletter"
+msgstr "Следите за обновлениями – подпишитесь на нашу рассылку"
+
+msgid "Subscribe"
+msgstr "Подписаться"
+
+msgid "Successfully Subscribed!"
+msgstr "Подписка оформлена!"
+
+msgid "Supercharge your app development"
+msgstr "Ускорьте разработку вашего приложения"
+
+msgid "Support"
+msgstr "Поддержка"
+
+msgid "Swift Stories Newsletter"
+msgstr "Рассылка Swift Stories"
+
+msgid "Tailored agreement for specific needs"
+msgstr "Индивидуальные условия под ваши задачи"
+
+msgid "Tailored legal terms"
+msgstr "Индивидуальные юридические соглашения"
+
+msgid "Talk to us"
+msgstr "Связаться с нами"
+
+msgid "Teams using Tuist"
+msgstr "команд, использующие Tuist"
+
+msgid "Terms of service"
+msgstr "Условия обслуживания"
+
+msgid "Test only the code impacted by the changes"
+msgstr "Тестируйте только те части кода, на которые повлияли изменения"
+
+msgid "That's why Tuist exists—to restore the joy of development at any scale. We enhance Apple's native tooling by bringing innovative ideas from across the development ecosystem, so teams can focus on creating exceptional apps instead of fighting their build system."
+msgstr "Именно поэтому существует Tuist – вернуть удовольствие от разработки в проектах любого размера. Мы усиливаем нативные инструменты Apple, привнося в них передовые идеи из экосистемы разработки, чтобы команды могли сосредоточиться на создании отличных приложений, а не на разбор проблем со сборкой."
+
+msgid "The newsletter issue %{issue_number} was not found."
+msgstr "Выпуск рассылки %{issue_number} не найден."
+
+msgid "The newsletter issue number %{issue_number} is not a valid number."
+msgstr "Номер выпуска рассылки %{issue_number} недействителен."
+
+msgid "The same iOS tooling that powers apps with millions of users, delivered as a service for your team"
+msgstr "Те же инструменты iOS, что используются в приложениях с миллионами пользователей, – теперь как сервис для вашей команды"
+
+msgid "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
+msgstr "Те же инструменты iOS, что используются в приложениях с миллионами пользователей, – теперь как сервис для вашей команды"
+
+msgid "The team"
+msgstr "Команда"
+
+msgid "There was an error signing you up on the newsletter"
+msgstr "Произошла ошибка при оформлении подписки на рассылку"
+
+msgid "Track and reduce app size by spotting duplicate assets and bloated resources."
+msgstr "Отслеживайте и уменьшайте размер приложения, находя дубликаты ресурсов и избыточные данные."
+
+msgid "Trendyol reduced build times by 65% with Tuist"
+msgstr "С Tuist Trendyol ускорила сборки на 65%"
+
+msgid "Trusted by the world's best developer teams"
+msgstr "Нам доверяют лучшие команды разработчиков по всему миру"
+
+msgid "Tuist"
+msgstr "Tuist"
+
+msgid "Tuist Blog"
+msgstr "Блог Tuist"
+
+msgid "Tuist Changelog"
+msgstr "История изменений Tuist"
+
+msgid "Tuist Digest"
+msgstr "Tuist Digest"
+
+msgid "Tuist Digest Newsletter"
+msgstr "Рассылка Tuist Digest"
+
+msgid "Tuist Icon"
+msgstr "Иконка Tuist"
+
+msgid "Tuist Pro includes support through our community forum and GitHub issues. Enterprise plans include dedicated support via Slack channels with high priority response times."
+msgstr "Tuist Pro включает поддержку через форум сообщества и GitHub Issues. В планах Enterprise доступна выделенная поддержка через Slack с высоким приоритетом ответов."
+
+msgid "Tuist QA"
+msgstr "Tuist QA"
+
+msgid "Tuist QA runs AI-powered tests from your PRs, giving you summaries with issues, steps, and screenshots — so bugs are caught before they reach main."
+msgstr "Tuist QA запускает AI-тесты из PR и выдаёт сводку с проблемами, шагами и скриншотами – баги ловятся ещё до попадания в main."
+
+msgid "Tuist bridges the gaps in Apple's tooling that prevent teams from moving fast. We solve the build complexity, workflow friction, and collaboration challenges—so you can deliver exceptional apps at speed."
+msgstr "Tuist закрывает пробелы в инструментах Apple, которые мешают командам двигаться быстро. Мы решаем проблемы сложности сборки, трения в рабочих процессах и трудностей в совместной работе, чтобы вы могли быстрее выпускать отличные приложения."
+
+msgid "Tuist has allowed us to migrate our existing monolythic codebase to a modular one. We extracted our different domains into specific modules. It allowed us to remove extra dependencies, ease testability and made our development cycles faster than ever. It even allowed us to bring up 'Test Apps' for speeding up our development on each module."
+msgstr "Tuist позволил нам перейти от монолитной кодовой базы к модульной. Мы выделили отдельные домены в специализированные модули. Это помогло убрать лишние зависимости, упростило тестирование и сделало циклы разработки быстрее, чем когда-либо. Tuist даже позволил нам запускать «Тестовые приложения», чтобы ускорить разработку каждого модуля."
+
+msgid "Tuist has been a game-changer for our large codebase, where multiple engineers collaborate simultaneously. I've been using it since version 1, and it's been incredible to see how the product has evolved and expanded with new features over time."
+msgstr "Tuist кардинально изменил подход к работе с нашей обширной кодовой базой, над которой одновременно работают несколько инженеров. Я использую его ещё с версии 1, и было невероятно наблюдать, как продукт развивается и расширяется новыми возможностями со временем."
+
+msgid "Tuist has revolutionized our iOS development workflow at DraftKings. Its automation capabilities have streamlined project generation, build settings, and dependency management. Highly recommended for iOS teams seeking workflow optimization."
+msgstr "Tuist произвёл революцию в нашем процессе iOS-разработки в DraftKings. Благодаря автоматизации он упростил генерацию проектов, настройки сборки и управление зависимостями. Настоятельно рекомендуем командам iOS, которые хотят оптимизировать свой рабочий процесс."
+
+msgid "Tuist is designed to grow with you. Only add a card if you need more than the free tier limits or dedicated support."
+msgstr "Tuist создан, чтобы расти вместе с вами. Добавляйте карту только тогда, когда вам понадобится превышение бесплатных лимитов или выделенная поддержка."
+
+msgid "Tuist's blog"
+msgstr "Блог Tuist"
+
+msgid "Tuist's changelog"
+msgstr "История изменений Tuist"
+
+msgid "Turn projects defined with a Swift-DSL into Xcode workspaces and projects."
+msgstr "Преобразуйте проекты на Swift-DSL в рабочие пространства и проекты Xcode."
+
+msgid "Unlimited"
+msgstr "Безлимитно"
+
+msgid "Unlock your iOS team's full potential"
+msgstr "Раскройте весь потенциал вашей команды iOS"
+
+msgid "Updates to Tuist's features and improvements."
+msgstr "Обновления функциональности и улучшения Tuist."
+
+msgid "Usage-based pricing after free tier."
+msgstr "Тарифы на основе использования после бесплатного уровня."
+
+msgid "Usage/seat based pricing"
+msgstr "Оплата за использование/пользователей"
+
+msgid "Using Tuist in our current project has been a game-changer. It has significantly de-stressed our build times and reduced conflicts within the team, allowing us to focus more on development and less on configuration issues. We're confident that it will continue to enhance our productivity and collaboration in future projects."
+msgstr "Использование Tuist в нашем текущем проекте стало настоящим прорывом. Он значительно снизил стресс, связанный со временем сборки, и сократил количество конфликтов внутри команды, позволяя нам больше сосредотачиваться на разработке, а не на проблемах конфигурации. Мы уверены, что Tuist и дальше будет повышать нашу продуктивность и улучшать взаимодействие в будущих проектах."
+
+msgid "Verification failed. Please try signing up again."
+msgstr "Не удалось подтвердить. Пожалуйста, попробуйте пройти регистрацию ещё раз."
+
+msgid "Verification link expired or invalid. Please try signing up again."
+msgstr "Ссылка просрочена или недействительна. Пожалуйста, попробуйте зарегистрироваться ещё раз."
+
+msgid "Videos"
+msgstr "Видео"
+
+msgid "View all"
+msgstr "Показать всё"
+
+msgid "View in web browser"
+msgstr "Открыть в браузере"
+
+msgid "Visit the forum"
+msgstr "Перейти на форум"
+
+msgid "We accept credit card payments and wire transfers."
+msgstr "Мы принимаем оплату банковскими картами и банковскими переводами."
+
+msgid "We believe openness builds better tools, keeping only what’s needed closed for sustainable development."
+msgstr "Мы считаем, что открытость способствует созданию лучших инструментов, оставляя закрытым только то, что необходимо для устойчивого развития."
+
+msgid "We embrace standards for long-term success while respecting freedom of choice."
+msgstr "Мы придерживаемся стандартов ради долгосрочного успеха, уважая свободу выбора."
+
+msgid "We have a generous free tier on every paid plan so you can try out the features before paying any money."
+msgstr "В каждом платном тарифе есть щедрый бесплатный лимит, чтобы вы могли опробовать функции до оплаты."
+
+msgid "We prioritize developer happiness because it's closely tied to creating better apps."
+msgstr "Мы ставим счастье разработчиков в приоритет, потому что оно напрямую влияет на создание лучших приложений."
+
+msgid "We want to enable teams to scale with joy"
+msgstr "Мы хотим помочь командам расти с удовольствием"
+
+msgid "We're a group of builders who believe scaling your app shouldn't kill your creativity. We've experienced the frustration of watching exciting Swift projects turn into build-time nightmares and tooling headaches as they grow, so we decided to build something better."
+msgstr "Мы – команда создателей, которые верят: масштабирование приложения не должно убивать креативность. Мы сами сталкивались с тем, как перспективные Swift-проекты со временем превращаются в ад бесконечных сборок и головную боль из-за инструментов. Поэтому мы решили сделать что-то лучше."
+
+msgid "We're here to help you succeed with Tuist. Whether you need technical assistance, have questions about features or have ideas how to improve the project, we have multiple ways you can reach out to us."
+msgstr "Мы здесь, чтобы помочь вам добиться успеха с Tuist. Если вам нужна техническая помощь, есть вопросы о функциях или идеи по улучшению проекта – у нас есть несколько способов, как вы можете связаться с нами."
+
+msgid "We’re a small, passionate team that cares deeply about developer experience and takes pride in crafting tools with care and attention to detail."
+msgstr "Мы – небольшая команда энтузиастов, которой действительно важен опыт разработчиков. Мы гордимся тем, что создаём инструменты с заботой и вниманием к деталям."
+
+msgid "We’ve sent a confirmation email to your inbox. Please check your spam or promotions folder and confirm your subscription."
+msgstr "Мы отправили письмо с подтверждением на вашу почту. Пожалуйста, проверьте папки «Спам» или «Промоакции» и подтвердите подписку."
+
+msgid "What happens if I exceed my plan limits?"
+msgstr "Что произойдёт, если я превышу лимиты своего тарифа?"
+
+msgid "What payment methods do you accept?"
+msgstr "Какие способы оплаты вы принимаете?"
+
+msgid "What support is included with each plan?"
+msgstr "Что включено в поддержку каждого тарифа?"
+
+msgid "What we believe in"
+msgstr "Во что мы верим"
+
+msgid "Why is your pricing model more accessible compared to traditional enterprise models?"
+msgstr "Почему ваша модель ценообразования более доступна по сравнению с традиционными корпоративными моделями?"
+
+msgid "With macros, external SDKs, and many SPM modules (fully modularized app) Xcode was constantly slow or stuck on my M1 device. SPM kept resolving, code completion didn't work, and swift-syntax compiled forever. It's not just for big teams with big apps. Tuist gave me back my productivity as indie developer for my side projects."
+msgstr "С макросами, внешними SDK и множеством модулей SPM (полностью модульное приложение) Xcode постоянно тормозил или зависал на моём M1. SPM всё время пересобирал зависимости, автодополнение не работало, а swift-syntax компилировался бесконечно. Tuist — это не только для больших команд и крупных приложений. Он вернул мне продуктивность как независимому разработчику в моих сторонних проектах."
+
+msgid "Xcode Cache"
+msgstr "Кэш Xcode"
+
+msgid "Years of building OSS Foundation"
+msgstr "лет создания OSS Foundation"
+
+msgid "Yes, we do. Please contact us at contact@tuist.dev to discuss your team's needs and we'll set up a custom plan that works for you."
+msgstr "Да, конечно. Пожалуйста, свяжитесь с нами по адресу contact@tuist.dev, расскажите о потребностях вашей команды, и мы подготовим индивидуальный план, который вам подойдёт."
+
+msgid "Yes, we do. Please reach out to contact@tuist.dev for more information."
+msgstr "Да, конечно. Пожалуйста, напишите на contact@tuist.dev, чтобы получить дополнительную информацию."
+
+msgid "Yes, we do. Please reach out to oss@tuist.io for more information."
+msgstr "Да, конечно. Пожалуйста, напишите на oss@tuist.io, чтобы получить дополнительную информацию."
+
+msgid "Yes, we offer discounts for yearly subscriptions. Please contact us at contact@tuist.dev to learn more."
+msgstr "Да, мы предлагаем скидки при годовой подписке. Пожалуйста, свяжитесь с нами по адресу contact@tuist.dev, чтобы узнать подробности."
+
+msgid "Yes, you can manage your plan at any time through our management interface."
+msgstr "Да, вы можете управлять своим тарифом в любой момент через интерфейс управления."
+
+msgid "You can set up the Air plan and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
+msgstr "Вы можете подключить тариф Air и использовать функции несколько дней, чтобы оценить объём использования. Если вам потребуется больший лимит, просто сообщите нам – мы поможем настроить индивидуальный план."
+
+msgid "You can set up the Air plan, and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
+msgstr "Вы можете подключить тариф Air и использовать функции несколько дней, чтобы оценить объём использования. Если вам потребуется больший лимит, просто сообщите нам – мы поможем настроить индивидуальный план."
+
+msgid "You'll be warned before reaching your plan limits. Once reached, the plan will cap interactions to prevent unexpected charges."
+msgstr "Мы предупредим вас перед достижением лимитов тарифа. После превышения взаимодействия будут ограничены, чтобы избежать непредвиденных расходов."
+
+msgid "You'll receive newsletter issues every 6 weeks with the most important work happening in Tuist and our vision for the future of app development at scale."
+msgstr "Вы будете получать рассылку каждые шесть недель с ключевыми новостями Tuist и нашим видением будущего масштабируемой разработки приложений."
+
+msgid "You're only charged for the features you use, based on your usage, and only after you exceed a free threshold."
+msgstr "Вы платите только за используемые функции: по факту использования и только после превышения бесплатного лимита."
+
+msgid "Your platform team, as a service"
+msgstr "Ваша платформенная команда как сервис"
+
+msgid "core development experience\""
+msgstr "ключевой опыт разработки»"
+
+msgid "in one platform"
+msgstr "в одной платформе"
+
+msgid "open source"
+msgstr "open source"
+
+msgid "pay as you go"
+msgstr "оплата по факту"
+
+msgid "pinpoint the exact moment of the issue during testing"
+msgstr "точно определить момент возникновения ошибки при тестировании"
+
+msgid "read more"
+msgstr "подробнее"
+
+msgid "review every step the agent took with visual context"
+msgstr "проверьте каждый шаг агента с визуальным контекстом"
+
+msgid "see what was tested, issues found, and results at a glance"
+msgstr "сразу увидите, что протестировано, какие проблемы найдены и каковы результаты"
+
+msgid "via Community Forum"
+msgstr "через форум сообщества"
+
+msgid "via dedicated Slack"
+msgstr "через выделенный канал Slack"
+
+msgid "your competitive advantage"
+msgstr "своим конкурентным преимуществом"
+
+msgid "Custom"
+msgstr "Индивидуальный"
+
+msgid "Free"
+msgstr "Бесплатно"
+
+msgid "and up"
+msgstr "и выше"
+
+msgid "per additional unit"
+msgstr "per additional unit"
+
+msgid "AI writes faster. So should your builds."
+msgstr "AI writes faster. So should your builds."
+
+msgid "A Tuist command execution that interacts with the server pull test result information. As an estimate, this is roughly equivalent to the number of test runs on CI."
+msgstr "Выполнение команды Tuist, которая взаимодействует с сервером и извлекает информацию о результатах тестирования. По приблизительным оценкам, это примерно равно количеству прогонов тестов на CI."
+
+msgid "A Tuist command execution that interacts with the server to pull module binaries. As an estimate, this is roughly equivalent to the number of clean builds on CI, plus local project generations that aren't cached locally."
+msgstr "Выполнение команды Tuist, которая взаимодействует с сервером для извлечения бинарных файлов модулей. По приблизительным оценкам, это примерно равно количеству чистых сборок на CI, плюс локальные генерации проектов, которые не кэшируются локально."
+
+msgid "About us"
+msgstr "О нас"
+
+msgid "Hits"
+msgstr "Обращения"
+
+msgid "Read customer story"
+msgstr "Прочитать историю клиента"
+
+msgid "Explore Tuist's features"
+msgstr "Изучите возможности Tuist"
+
+msgid "Explore features"
+msgstr "Изучите особенности"
+
+msgid "live on our dashboard"
+msgstr "в прямом эфире на нашей приборной панели"
+
+msgid "Language"
+msgstr "Язык"
+
+#~ msgid "%{count} minute"
+#~ msgid_plural "%{count} minutes"
+#~ msgstr[0] "%{count} минута"
+#~ msgstr[1] "%{count} минуты"
+#~ msgstr[2] "%{count} минут"

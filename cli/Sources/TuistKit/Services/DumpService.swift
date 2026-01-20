@@ -11,11 +11,9 @@ final class DumpService {
     private let configLoader: ConfigLoading
 
     convenience init() {
-        let manifestLoader = CachedManifestLoader()
-        let configLoader = ConfigLoader(manifestLoader: manifestLoader)
         self.init(
-            manifestLoader: manifestLoader,
-            configLoader: configLoader
+            manifestLoader: ManifestLoader.current,
+            configLoader: ConfigLoader()
         )
     }
 
@@ -48,13 +46,13 @@ final class DumpService {
             let config = try await configLoader.loadConfig(path: projectPath)
             encoded = try await manifestLoader.loadProject(
                 at: projectPath,
-                disableSandbox: config.project.generatedProject?.generationOptions.disableSandbox ?? true
+                disableSandbox: config.project.disableSandbox
             )
         case .workspace:
             let config = try await configLoader.loadConfig(path: projectPath)
             encoded = try await manifestLoader.loadWorkspace(
                 at: projectPath,
-                disableSandbox: config.project.generatedProject?.generationOptions.disableSandbox ?? true
+                disableSandbox: config.project.disableSandbox
             )
         case .config:
             encoded = try await manifestLoader.loadConfig(at: projectPath)
@@ -66,7 +64,7 @@ final class DumpService {
             let config = try await configLoader.loadConfig(path: projectPath)
             encoded = try await manifestLoader.loadPackageSettings(
                 at: projectPath,
-                disableSandbox: config.project.generatedProject?.generationOptions.disableSandbox ?? true
+                disableSandbox: config.project.disableSandbox
             )
         }
 

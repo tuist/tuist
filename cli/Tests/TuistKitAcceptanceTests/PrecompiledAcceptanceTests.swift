@@ -6,7 +6,7 @@ import XCTest
 
 final class PrecomiledAcceptanceTestiOSAppWithStaticFrameworks: TuistAcceptanceTestCase {
     func test_ios_app_with_static_frameworks() async throws {
-        try await setUpFixture(.iosAppWithStaticFrameworks)
+        try await setUpFixture("generated_ios_app_with_static_frameworks")
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
     }
@@ -14,7 +14,7 @@ final class PrecomiledAcceptanceTestiOSAppWithStaticFrameworks: TuistAcceptanceT
 
 final class PrecomiledAcceptanceTestiOSAppWithStaticLibraries: TuistAcceptanceTestCase {
     func test_ios_app_with_static_libraries() async throws {
-        try await setUpFixture(.iosAppWithStaticLibraries)
+        try await setUpFixture("generated_ios_app_with_static_libraries")
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
     }
@@ -22,7 +22,7 @@ final class PrecomiledAcceptanceTestiOSAppWithStaticLibraries: TuistAcceptanceTe
 
 final class PrecomiledAcceptanceTestiOSAppWithTransitiveFramework: TuistAcceptanceTestCase {
     func test_ios_app_with_transitive_framework() async throws {
-        try await setUpFixture(.iosAppWithTransitiveFramework)
+        try await setUpFixture("generated_ios_app_with_transitive_framework")
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self, "App", "--platform", "iOS")
         try await XCTAssertProductWithDestinationContainsFrameworkWithArchitecture(
@@ -43,7 +43,7 @@ final class PrecomiledAcceptanceTestiOSAppWithTransitiveFramework: TuistAcceptan
 
 final class PrecompiledAcceptanceTestiOSAppWithStaticLibraryAndPackage: TuistAcceptanceTestCase {
     func test_ios_app_with_static_library_and_package() async throws {
-        try await setUpFixture(.iosAppWithStaticLibraryAndPackage)
+        try await setUpFixture("generated_ios_app_with_static_library_and_package")
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
     }
@@ -51,7 +51,7 @@ final class PrecompiledAcceptanceTestiOSAppWithStaticLibraryAndPackage: TuistAcc
 
 final class PrecompiledAcceptanceTestiOSAppWithXCFrameworks: TuistAcceptanceTestCase {
     func test_ios_app_with_xcframeworks() async throws {
-        try await setUpFixture(.iosAppWithXcframeworks)
+        try await setUpFixture("generated_ios_app_with_xcframeworks")
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
         try await XCTAssertProductWithDestinationContainsFrameworkWithArchitecture(

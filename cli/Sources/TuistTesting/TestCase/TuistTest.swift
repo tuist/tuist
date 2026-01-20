@@ -6,6 +6,7 @@ import Logging
 import Noora
 import Path
 import Testing
+import TuistCore
 import TuistServer
 import TuistSupport
 import XcodeProj
@@ -29,7 +30,9 @@ func _withMockedDependencies(forwardLogs: Bool = false, _ closure: () async thro
                     try await AlertController.$current.withValue(AlertController()) {
                         try await ServerCredentialsStore.$current.withValue(MockServerCredentialsStoring()) {
                             try await CachedValueStore.$current.withValue(MockCachedValueStoring()) {
-                                try await closure()
+                                try await RunMetadataStorage.$current.withValue(RunMetadataStorage()) {
+                                    try await closure()
+                                }
                             }
                         }
                     }

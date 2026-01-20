@@ -1,0 +1,132 @@
+name: Cache
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - cache/**
+      - tuist_common/**
+      - .github/workflows/cache.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - cache/**
+      - tuist_common/**
+      - .github/workflows/cache.yml
+  merge_group: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cache-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: cache
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  format:
+    name: Format
+    runs-on: namespace-profile-default
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            cache/deps
+            cache/_build
+          key: cache-mix-${{ hashFiles('cache/mix.lock') }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: cache
+      - name: Install dependencies
+        run: mise run install
+      - name: Check format
+        run: mise run format --check
+
+  credo:
+    name: Credo
+    runs-on: namespace-profile-default
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            cache/deps
+            cache/_build
+          key: cache-mix-${{ hashFiles('cache/mix.lock') }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: cache
+      - name: Install dependencies
+        run: mise run install
+      - name: Run Credo
+        run: mise run credo
+
+  test:
+    name: Test
+    runs-on: namespace-profile-default
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            cache/deps
+            cache/_build
+          key: cache-mix-${{ hashFiles('cache/mix.lock') }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: cache
+      - name: Install dependencies
+        run: mise run install
+      - name: Run tests
+        run: mise run test
+
+  compile-prod:
+    name: Compile (prod)
+    runs-on: namespace-profile-default
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore Mix Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            cache/deps
+            cache/_build
+          key: cache-mix-${{ hashFiles('cache/mix.lock') }}
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+          working_directory: cache
+      - name: Install dependencies
+        run: mise run install
+      - name: Compile with MIX_ENV=prod
+        run: MIX_ENV=prod mix compile --warnings-as-errors
+
+  docker-compose:
+    name: Docker Compose
+    runs-on: namespace-profile-default
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate docker-compose.yml
+        run: docker compose config --quiet

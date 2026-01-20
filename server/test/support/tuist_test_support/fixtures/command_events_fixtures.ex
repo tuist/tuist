@@ -3,9 +3,9 @@ defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
   Fixtures for command events.
   """
 
+  import TuistTestSupport.Utilities, only: [with_flushed_ingestion_buffers: 1]
+
   alias Tuist.CommandEvents
-  alias Tuist.CommandEvents.ResultBundle.ActionTestMetadata
-  alias Tuist.CommandEvents.TargetTestSummary
   alias Tuist.Time
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
@@ -15,147 +15,47 @@ defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
         ProjectsFixtures.project_fixture().id
       end)
 
-    CommandEvents.create_command_event(
-      %{
-        name: Keyword.get(attrs, :name, "generate"),
-        subcommand: Keyword.get(attrs, :subcommand, ""),
-        command_arguments: Keyword.get(attrs, :command_arguments, []),
-        duration: Keyword.get(attrs, :duration, 0),
-        tuist_version: "4.1.0",
-        swift_version: "5.2",
-        macos_version: "10.15",
-        project_id: project_id,
-        cacheable_targets: Keyword.get(attrs, :cacheable_targets, []),
-        local_cache_target_hits: Keyword.get(attrs, :local_cache_target_hits, []),
-        remote_cache_target_hits: Keyword.get(attrs, :remote_cache_target_hits, []),
-        test_targets: Keyword.get(attrs, :test_targets, []),
-        local_test_target_hits: Keyword.get(attrs, :local_test_target_hits, []),
-        remote_test_target_hits: Keyword.get(attrs, :remote_test_target_hits, []),
-        is_ci: Keyword.get(attrs, :is_ci, false),
-        client_id: "client-id",
-        user_id: Keyword.get(attrs, :user_id, 1),
-        status: Keyword.get(attrs, :status, :success),
-        error_message: Keyword.get(attrs, :error_message),
-        preview_id: Keyword.get(attrs, :preview_id),
-        git_commit_sha: Keyword.get(attrs, :git_commit_sha),
-        git_ref: Keyword.get(attrs, :git_ref),
-        git_branch: Keyword.get(attrs, :git_branch),
-        created_at: Keyword.get(attrs, :created_at, Time.utc_now()),
-        ran_at: Keyword.get(attrs, :ran_at, DateTime.utc_now()),
-        build_run_id: Keyword.get(attrs, :build_run_id)
-      },
-      preload: Keyword.get(attrs, :preload, [])
-    )
-  end
+    created_at = Keyword.get_lazy(attrs, :created_at, fn -> Time.utc_now() end)
 
-  def test_case_fixture(attrs \\ []) do
-    project_id =
-      Keyword.get_lazy(attrs, :project_id, fn ->
-        ProjectsFixtures.project_fixture().id
+    ran_at =
+      Keyword.get_lazy(attrs, :ran_at, fn ->
+        default_ran_at(created_at)
       end)
 
-    CommandEvents.create_test_case(
-      %{
-        name: Keyword.get(attrs, :name, "test"),
-        module_name: Keyword.get(attrs, :module_name, "AppTests"),
-        identifier:
-          Keyword.get(
-            attrs,
-            :identifier,
-            "AppTests/testExample/#{TuistTestSupport.Utilities.unique_integer()}"
-          ),
-        project_identifier: Keyword.get(attrs, :project_identifier, "AppTests/AppTests.xcodeproj"),
-        project_id: project_id
-      },
-      flaky: Keyword.get(attrs, :flaky, false)
-    )
-  end
-
-  def test_case_run_fixture(attrs \\ []) do
-    command_event_id =
-      Keyword.get_lazy(attrs, :command_event_id, fn ->
-        command_event = command_event_fixture()
-        command_event.id
-      end)
-
-    test_case_id =
-      Keyword.get_lazy(attrs, :test_case_id, fn ->
-        test_case_fixture().id
-      end)
-
-    xcode_target_id = Keyword.get(attrs, :xcode_target_id, UUIDv7.generate())
-
-    CommandEvents.create_test_case_run(
-      %{
-        status: Keyword.get(attrs, :status, :success),
-        command_event_id: command_event_id,
-        test_case_id: test_case_id,
-        xcode_target_id: xcode_target_id
-      },
-      flaky: Keyword.get(attrs, :flaky, false),
-      inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)),
-      duration: Keyword.get(attrs, :duration, 0)
-    )
-  end
-
-  def test_summary_fixture(attrs \\ []) do
-    project_tests =
-      Keyword.get(attrs, :project_tests, %{
-        "App/MainApp.xcodeproj" => %{
-          "AppTests" => %TargetTestSummary{
-            tests: [
-              %ActionTestMetadata{
-                test_status: :success,
-                name: "testHello()",
-                identifier_url: "test://com.apple.xcode/MainApp/AppTests/AppDelegateTests/testHello"
-              }
-            ],
-            status: :success
-          }
+    with_flushed_ingestion_buffers(fn ->
+      CommandEvents.create_command_event(
+        %{
+          name: Keyword.get(attrs, :name, "generate"),
+          subcommand: Keyword.get(attrs, :subcommand, ""),
+          command_arguments: Keyword.get(attrs, :command_arguments, []),
+          duration: Keyword.get(attrs, :duration, 0),
+          tuist_version: "4.1.0",
+          swift_version: "5.2",
+          macos_version: "10.15",
+          project_id: project_id,
+          cacheable_targets: Keyword.get(attrs, :cacheable_targets, []),
+          local_cache_target_hits: Keyword.get(attrs, :local_cache_target_hits, []),
+          remote_cache_target_hits: Keyword.get(attrs, :remote_cache_target_hits, []),
+          test_targets: Keyword.get(attrs, :test_targets, []),
+          local_test_target_hits: Keyword.get(attrs, :local_test_target_hits, []),
+          remote_test_target_hits: Keyword.get(attrs, :remote_test_target_hits, []),
+          is_ci: Keyword.get(attrs, :is_ci, false),
+          client_id: "client-id",
+          user_id: Keyword.get(attrs, :user_id, 1),
+          status: Keyword.get(attrs, :status, :success),
+          error_message: Keyword.get(attrs, :error_message),
+          preview_id: Keyword.get(attrs, :preview_id),
+          git_commit_sha: Keyword.get(attrs, :git_commit_sha),
+          git_ref: Keyword.get(attrs, :git_ref),
+          git_branch: Keyword.get(attrs, :git_branch),
+          created_at: created_at,
+          ran_at: ran_at,
+          build_run_id: Keyword.get(attrs, :build_run_id),
+          test_run_id: Keyword.get(attrs, :test_run_id)
         },
-        "Framework1/Framework1.xcodeproj" => %{
-          "Framework1Tests" => %TargetTestSummary{
-            tests: [
-              %ActionTestMetadata{
-                test_status: :success,
-                name: "testHello()",
-                identifier_url: "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHello"
-              },
-              %ActionTestMetadata{
-                test_status: :success,
-                name: "testHelloFromFramework2()",
-                identifier_url:
-                  "test://com.apple.xcode/Framework1/Framework1Tests/Framework1Tests/testHelloFromFramework2"
-              }
-            ],
-            status: :success
-          }
-        },
-        "Framework2/Framework2.xcodeproj" => %{
-          "Framework2Tests" => %TargetTestSummary{
-            tests: [
-              %ActionTestMetadata{
-                test_status: :failure,
-                name: "testHello()",
-                identifier_url: "test://com.apple.xcode/Framework2/Framework2Tests/Framework2Tests/testHello"
-              },
-              %ActionTestMetadata{
-                test_status: :success,
-                name: "testHello()",
-                identifier_url: "test://com.apple.xcode/Framework2/Framework2Tests/MyPublicClassTests/testHello"
-              }
-            ],
-            status: :failure
-          }
-        }
-      })
-
-    %Tuist.CommandEvents.TestSummary{
-      project_tests: project_tests,
-      failed_tests_count: 1,
-      successful_tests_count: 4,
-      total_tests_count: 5
-    }
+        preload: Keyword.get(attrs, :preload, [])
+      )
+    end)
   end
 
   def invocation_record_fixture do
@@ -1678,4 +1578,14 @@ defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
     }
     """
   end
+
+  defp default_ran_at(%DateTime{} = created_at), do: created_at
+
+  defp default_ran_at(%NaiveDateTime{} = created_at) do
+    DateTime.from_naive!(created_at, "Etc/UTC")
+  end
+
+  defp default_ran_at(<<_::binary>> = created_at), do: created_at
+
+  defp default_ran_at(_), do: DateTime.utc_now()
 end

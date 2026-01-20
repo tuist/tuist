@@ -5,11 +5,13 @@ defmodule TuistWeb.CacheRunsLive do
 
   import Noora.Filter
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Runs.CacheEndpointFormatter
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
   alias Tuist.Accounts
   alias Tuist.CommandEvents
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
@@ -17,7 +19,8 @@ defmodule TuistWeb.CacheRunsLive do
 
     socket =
       socket
-      |> assign(:head_title, "#{gettext("Cache Runs")} · #{slug} · Tuist")
+      |> assign(:head_title, "#{dgettext("dashboard_cache", "Cache Runs")} · #{slug} · Tuist")
+      |> assign(OpenGraph.og_image_assigns("cache-runs"))
       |> assign(:available_filters, define_filters(project))
 
     if connected?(socket) do
@@ -32,7 +35,7 @@ defmodule TuistWeb.CacheRunsLive do
       %Filter.Filter{
         id: "name",
         field: :name,
-        display_name: gettext("Command"),
+        display_name: dgettext("dashboard_cache", "Command"),
         type: :text,
         operator: :=~,
         value: ""
@@ -40,12 +43,12 @@ defmodule TuistWeb.CacheRunsLive do
       %Filter.Filter{
         id: "status",
         field: :status,
-        display_name: gettext("Status"),
+        display_name: dgettext("dashboard_cache", "Status"),
         type: :option,
         options: [0, 1],
         options_display_names: %{
-          0 => gettext("Passed"),
-          1 => gettext("Failed")
+          0 => dgettext("dashboard_cache", "Passed"),
+          1 => dgettext("dashboard_cache", "Failed")
         },
         operator: :==,
         value: nil
@@ -53,7 +56,7 @@ defmodule TuistWeb.CacheRunsLive do
       %Filter.Filter{
         id: "git_branch",
         field: :git_branch,
-        display_name: gettext("Branch"),
+        display_name: dgettext("dashboard_cache", "Branch"),
         type: :text,
         operator: :=~,
         value: ""
@@ -61,10 +64,20 @@ defmodule TuistWeb.CacheRunsLive do
       %Filter.Filter{
         id: "hit_rate",
         field: :hit_rate,
-        display_name: gettext("Hit rate"),
+        display_name: dgettext("dashboard_cache", "Hit rate"),
         type: :percentage,
         operator: :>,
         value: ""
+      },
+      %Filter.Filter{
+        id: "cache_endpoint",
+        field: :cache_endpoint,
+        display_name: dgettext("dashboard_cache", "Cache Endpoint"),
+        type: :option,
+        options: cache_endpoint_options(),
+        options_display_names: cache_endpoint_display_names("tuist.dev"),
+        operator: :==,
+        value: nil
       }
     ]
 
@@ -77,7 +90,7 @@ defmodule TuistWeb.CacheRunsLive do
           %Filter.Filter{
             id: "ran_by",
             field: :ran_by,
-            display_name: gettext("Ran by"),
+            display_name: dgettext("dashboard_cache", "Ran by"),
             type: :option,
             options: [:ci] ++ Enum.map(users, fn user -> user.account.id end),
             options_display_names:
@@ -129,7 +142,7 @@ defmodule TuistWeb.CacheRunsLive do
      socket
      |> push_patch(
        to:
-         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/binary-cache/cache-runs?#{updated_params}"
+         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/module-cache/cache-runs?#{updated_params}"
      )
      |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
      |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
@@ -142,7 +155,7 @@ defmodule TuistWeb.CacheRunsLive do
      socket
      |> push_patch(
        to:
-         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/binary-cache/cache-runs?#{updated_query_params}"
+         ~p"/#{socket.assigns.selected_project.account.name}/#{socket.assigns.selected_project.name}/module-cache/cache-runs?#{updated_query_params}"
      )
      # There's a DOM reconciliation bug where the dropdown closes and then reappears somewhere else on the page. To remedy, just nuke it entirely.
      |> push_event("close-dropdown", %{id: "all", all: true})
@@ -189,21 +202,29 @@ defmodule TuistWeb.CacheRunsLive do
   end
 
   defp list_cache_runs(project_id, %{"after" => after_cursor}, order_by, order_direction, filters) do
-    list_cache_runs(project_id,
-      after: after_cursor,
-      order_by: order_by,
-      order_direction: order_direction,
-      filters: filters
-    )
+    if cursor_matches_order?(after_cursor, order_by) do
+      list_cache_runs(project_id,
+        after: after_cursor,
+        order_by: order_by,
+        order_direction: order_direction,
+        filters: filters
+      )
+    else
+      list_cache_runs(project_id, %{}, order_by, order_direction, filters)
+    end
   end
 
-  defp list_cache_runs(project_id, %{"before" => before}, order_by, order_direction, filters) do
-    list_cache_runs(project_id,
-      before: before,
-      order_by: order_by,
-      order_direction: order_direction,
-      filters: filters
-    )
+  defp list_cache_runs(project_id, %{"before" => before_cursor}, order_by, order_direction, filters) do
+    if cursor_matches_order?(before_cursor, order_by) do
+      list_cache_runs(project_id,
+        before: before_cursor,
+        order_by: order_by,
+        order_direction: order_direction,
+        filters: filters
+      )
+    else
+      list_cache_runs(project_id, %{}, order_by, order_direction, filters)
+    end
   end
 
   defp list_cache_runs(project_id, _params, order_by, order_direction, filters) do
@@ -212,6 +233,13 @@ defmodule TuistWeb.CacheRunsLive do
       order_direction: order_direction,
       filters: filters
     )
+  end
+
+  defp cursor_matches_order?(cursor, order_by) do
+    case Flop.Cursor.decode(cursor) do
+      {:ok, decoded} -> Map.has_key?(decoded, order_by)
+      :error -> false
+    end
   end
 
   defp list_cache_runs(project_id, attrs) do
@@ -223,7 +251,7 @@ defmodule TuistWeb.CacheRunsLive do
 
     options = %{
       filters: flop_filters,
-      order_by: [Keyword.get(attrs, :order_by, :created_at)],
+      order_by: [Keyword.get(attrs, :order_by, :ran_at)],
       order_directions: [Keyword.get(attrs, :order_direction, :desc)]
     }
 

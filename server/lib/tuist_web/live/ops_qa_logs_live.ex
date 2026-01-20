@@ -11,7 +11,7 @@ defmodule TuistWeb.OpsQALogsLive do
   def mount(%{"qa_run_id" => qa_run_id}, _session, socket) do
     case QA.qa_run_for_ops(qa_run_id) do
       nil ->
-        raise NotFoundError, gettext("QA run not found")
+        raise NotFoundError, dgettext("dashboard_qa", "QA run not found")
 
       qa_run ->
         logs = QA.logs_for_run(qa_run_id)
@@ -26,7 +26,7 @@ defmodule TuistWeb.OpsQALogsLive do
          |> assign(:qa_run, qa_run)
          |> assign(:logs, logs)
          |> assign(:formatted_logs, formatted_logs)
-         |> assign(:head_title, "#{gettext("QA Logs")} · #{qa_run.project_name} · Tuist")}
+         |> assign(:head_title, "#{dgettext("dashboard_qa", "QA Logs")} · #{qa_run.project_name} · Tuist")}
     end
   end
 

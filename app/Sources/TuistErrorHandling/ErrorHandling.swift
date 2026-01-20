@@ -1,5 +1,6 @@
 import OpenAPIRuntime
 import SwiftUI
+import TuistHTTP
 import TuistServer
 
 struct ErrorAlert: Identifiable {
@@ -16,7 +17,7 @@ public final class ErrorHandling: ObservableObject {
         let errorDescription: String
         if let clientError = error as? ClientError {
             if let underlyingServerClientError = clientError.underlyingError
-                as? ServerClientAuthenticationError
+                as? ClientAuthenticationError
             {
                 errorDescription = "\(underlyingServerClientError.errorDescription ?? "Unknown error")"
             } else {

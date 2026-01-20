@@ -5,7 +5,7 @@ defmodule Tuist.Marketing.Blog.PostParser do
 
   def parse(path, contents) do
     [frontmatter_string, body] =
-      contents |> String.replace(~r/^---\n/, "") |> String.split(["\n---\n"])
+      contents |> String.replace(~r/^---\n/, "") |> String.split(["\n---\n"], parts: 2)
 
     date_string = get_date_string_from_path(path)
     date = date_string |> Timex.parse!("{YYYY}/{M}/{D}") |> Timex.to_datetime("Etc/UTC")

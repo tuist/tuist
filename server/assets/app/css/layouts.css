@@ -14,10 +14,15 @@
   flex: 1;
   flex-direction: row;
   background: var(--noora-surface-background-primary);
-  overflow: hidden;
 
   & .noora-sidebar {
+    position: sticky;
+    top: 0;
+    flex-shrink: 0;
+    align-self: flex-start;
     margin-top: var(--noora-spacing-5);
+    max-height: 100vh;
+    overflow-y: auto;
   }
 }
 
@@ -33,5 +38,6 @@
   flex: 1;
 
   padding: var(--noora-spacing-5);
-  overflow-y: scroll;
+  min-width: 0;
+  overflow: hidden;
 }

@@ -39,7 +39,7 @@ public struct XcodeBuildCommand: AsyncParsableCommand, TrackableParsableCommand,
 }
 
 struct EmptySelectiveTestingGraphHasher: SelectiveTestingGraphHashing {
-    func hash(graph _: Graph, additionalStrings _: [String]) async throws -> [GraphTarget: String] {
+    func hash(graph _: Graph, additionalStrings _: [String]) async throws -> [GraphTarget: TargetContentHash] {
         [:]
     }
 }
@@ -129,7 +129,7 @@ struct EmptySelectiveTestingService: SelectiveTestingServicing {
         public func hash(
             graph: Graph,
             additionalStrings: [String]
-        ) async throws -> [GraphTarget: String] {
+        ) async throws -> [GraphTarget: TargetContentHash] {
             let graphTraverser = GraphTraverser(graph: graph)
             let hashableTargets = hashableTargets(graphTraverser: graphTraverser)
             return try await graphContentHasher.contentHashes(

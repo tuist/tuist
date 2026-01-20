@@ -62,10 +62,10 @@ defmodule Tuist.BundlesTest do
           project_id: project_id,
           artifacts: [
             %{
-              "artifact_type" => "invalid",
-              "path" => "Tuist.app/Tuist.bundle",
-              "shasum" => "092378b10a45c64bbf5cb8846dd13ff03e728f7925994b812c40b8922644d325",
-              "size" => 1183
+              artifact_type: :invalid,
+              path: "Tuist.app/Tuist.bundle",
+              shasum: "092378b10a45c64bbf5cb8846dd13ff03e728f7925994b812c40b8922644d325",
+              size: 1183
             }
           ]
         })
@@ -384,7 +384,7 @@ defmodule Tuist.BundlesTest do
       got =
         Bundles.project_bundle_install_size_analytics(
           project,
-          start_date: Date.add(DateTime.utc_now(), -2),
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
           git_branch: "main"
         )
 
@@ -432,7 +432,7 @@ defmodule Tuist.BundlesTest do
       got =
         Bundles.project_bundle_install_size_analytics(
           project,
-          start_date: Date.add(DateTime.utc_now(), -90),
+          start_datetime: DateTime.add(DateTime.utc_now(), -90, :day),
           git_branch: "main"
         )
 
@@ -483,7 +483,7 @@ defmodule Tuist.BundlesTest do
       got =
         Bundles.project_bundle_install_size_analytics(
           project,
-          start_date: Date.add(DateTime.utc_now(), -9),
+          start_datetime: DateTime.add(DateTime.utc_now(), -9, :day),
           git_branch: "main"
         )
 
@@ -543,7 +543,7 @@ defmodule Tuist.BundlesTest do
       got =
         Bundles.project_bundle_install_size_analytics(
           project,
-          start_date: Date.add(DateTime.utc_now(), -2),
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
           git_branch: "main",
           type: :ipa
         )
@@ -554,6 +554,44 @@ defmodule Tuist.BundlesTest do
                %{date: ~D[2024-04-29], bundle_install_size: 4000},
                %{date: ~D[2024-04-30], bundle_install_size: 2000}
              ]
+    end
+
+    test "returns hourly bundle install size analytics for a single day range" do
+      # Given - stub DateTime.utc_now to a known time
+      # Hourly range generates 24 hours ending at utc_now, so:
+      # Range will be 2024-04-29 12:00:00Z to 2024-04-30 11:00:00Z (inclusive)
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 11:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        git_branch: "main",
+        install_size: 2000,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        git_branch: "main",
+        install_size: 4000,
+        inserted_at: ~U[2024-04-30 08:00:00Z]
+      )
+
+      # When
+      got =
+        Bundles.project_bundle_install_size_analytics(
+          project,
+          start_datetime: ~U[2024-04-30 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z],
+          git_branch: "main"
+        )
+
+      # Then
+      assert length(got) == 24
+
+      dates = Enum.map(got, & &1.date)
+      assert ~U[2024-04-30 03:00:00Z] in dates
+      assert ~U[2024-04-30 08:00:00Z] in dates
     end
   end
 
@@ -602,7 +640,7 @@ defmodule Tuist.BundlesTest do
       got =
         Bundles.bundle_download_size_analytics(
           project,
-          start_date: Date.add(DateTime.utc_now(), -2),
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
           git_branch: "main"
         )
 
@@ -650,7 +688,7 @@ defmodule Tuist.BundlesTest do
       got =
         Bundles.bundle_download_size_analytics(
           project,
-          start_date: Date.add(DateTime.utc_now(), -90),
+          start_datetime: DateTime.add(DateTime.utc_now(), -90, :day),
           git_branch: "main"
         )
 
@@ -699,7 +737,7 @@ defmodule Tuist.BundlesTest do
       got =
         Bundles.bundle_download_size_analytics(
           project,
-          start_date: Date.add(DateTime.utc_now(), -9),
+          start_datetime: DateTime.add(DateTime.utc_now(), -9, :day),
           git_branch: "main"
         )
 
@@ -761,7 +799,7 @@ defmodule Tuist.BundlesTest do
       got =
         Bundles.bundle_download_size_analytics(
           project,
-          start_date: Date.add(DateTime.utc_now(), -2),
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
           git_branch: "main",
           type: :ipa
         )
@@ -773,23 +811,42 @@ defmodule Tuist.BundlesTest do
                %{date: ~D[2024-04-30], bundle_download_size: 1500}
              ]
     end
-  end
 
-  describe "format_bytes/1" do
-    test "formats bytes when 2 bytes" do
-      assert "2 B" == Bundles.format_bytes(2)
-    end
+    test "returns hourly bundle download size analytics for a single day range" do
+      # Given - stub DateTime.utc_now to a known time
+      # Hourly range generates 24 hours ending at utc_now
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 11:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
 
-    test "formats bytes when 1024 bytes" do
-      assert "1.0 KB" == Bundles.format_bytes(1024)
-    end
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        git_branch: "main",
+        download_size: 2000,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
 
-    test "formats bytes when 1_000_000 bytes" do
-      assert "1.0 MB" == Bundles.format_bytes(1_000_000)
-    end
+      BundlesFixtures.bundle_fixture(
+        project: project,
+        git_branch: "main",
+        download_size: 4000,
+        inserted_at: ~U[2024-04-30 08:00:00Z]
+      )
 
-    test "formats bytes when 1_000_000_000 bytes" do
-      assert "1.0 GB" == Bundles.format_bytes(1_000_000_000)
+      # When
+      got =
+        Bundles.bundle_download_size_analytics(
+          project,
+          start_datetime: ~U[2024-04-30 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z],
+          git_branch: "main"
+        )
+
+      # Then
+      assert length(got) == 24
+
+      dates = Enum.map(got, & &1.date)
+      assert ~U[2024-04-30 03:00:00Z] in dates
+      assert ~U[2024-04-30 08:00:00Z] in dates
     end
   end
 
@@ -942,6 +999,58 @@ defmodule Tuist.BundlesTest do
 
       # Then
       assert Bundles.get_bundle(bundle.id) == {:error, :not_found}
+    end
+  end
+
+  describe "list_bundles/1" do
+    test "returns all bundles for a project" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      bundle1 = BundlesFixtures.bundle_fixture(project: project, name: "App1")
+      bundle2 = BundlesFixtures.bundle_fixture(project: project, name: "App2")
+
+      # Different project bundle should not be included
+      _other_bundle = BundlesFixtures.bundle_fixture(name: "Other")
+
+      # When
+      {bundles, _meta} =
+        Bundles.list_bundles(%{
+          filters: [%{field: :project_id, op: :==, value: project.id}],
+          order_by: [:inserted_at],
+          order_directions: [:desc],
+          first: 10
+        })
+
+      # Then
+      bundle_ids = Enum.map(bundles, & &1.id)
+      assert bundle1.id in bundle_ids
+      assert bundle2.id in bundle_ids
+      assert length(bundles) == 2
+    end
+  end
+
+  describe "has_bundles_in_project?/1" do
+    test "returns true when project has bundles" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      _bundle = BundlesFixtures.bundle_fixture(project: project)
+
+      # When
+      result = Bundles.has_bundles_in_project?(project)
+
+      # Then
+      assert result == true
+    end
+
+    test "returns false when project has no bundles" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      result = Bundles.has_bundles_in_project?(project)
+
+      # Then
+      assert result == false
     end
   end
 end

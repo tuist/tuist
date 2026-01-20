@@ -26,6 +26,7 @@ defmodule Tuist.Repo.Migrations.BackfillAccountBillingEmail do
             left_join: direct_usr in "users",
             on: a.user_id == direct_usr.id,
             left_join: u in "users_roles",
+            on: true,
             left_join: r in "roles",
             on:
               u.role_id == r.id and

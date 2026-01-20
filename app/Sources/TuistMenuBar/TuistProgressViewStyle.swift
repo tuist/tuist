@@ -37,6 +37,6 @@ struct TuistProgressViewStyle<StrokeContent: ShapeStyle>: ProgressViewStyle {
                 .foregroundColor(.secondary)
         }
         .frame(width: 14, height: 14)
-        .padding(strokeWidth / 2) // Compensate for middle stroke position.
+        .padding(strokeWidth / 2) // Compensate for middle stroke position
     }
 }

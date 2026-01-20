@@ -67,6 +67,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
                 path: ipaPath,
                 infoPlist: AppBundle.InfoPlist(
                     version: "0.9.0",
+                    buildVersion: "0.9.0",
                     name: "Tuist",
                     bundleId: "io.tuist.app",
                     minimumOSVersion: Version("18.4"),
@@ -96,6 +97,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
                 path: appBundlePath,
                 infoPlist: AppBundle.InfoPlist(
                     version: "1.0",
+                    buildVersion: "1",
                     name: "App",
                     bundleId: "io.tuist.MainApp",
                     minimumOSVersion: Version("17.0"),
@@ -127,6 +129,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
                 path: appBundlePath,
                 infoPlist: AppBundle.InfoPlist(
                     version: "1.0",
+                    buildVersion: "1",
                     name: "App",
                     bundleId: "io.tuist.App",
                     minimumOSVersion: Version("17.0"),
@@ -157,6 +160,8 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
             <string>App</string>
             <key>CFBundleShortVersionString</key>
             <string>1.0</string>
+            <key>CFBundleVersion</key>
+            <string>1</string>
             <key>CFBundleSupportedPlatforms</key>
             <array>
                 <string>AppleTVOS</string>
@@ -177,6 +182,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
                 path: appBundlePath,
                 infoPlist: AppBundle.InfoPlist(
                     version: "1.0",
+                    buildVersion: "1",
                     name: "App",
                     bundleId: "io.tuist.TVApp",
                     minimumOSVersion: Version("18.2"),
@@ -219,6 +225,8 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
             <string>App</string>
             <key>CFBundleShortVersionString</key>
             <string>1.0</string>
+            <key>CFBundleVersion</key>
+            <string>1</string>
             <key>CFBundleSupportedPlatforms</key>
             <array>
                 <string>AppleTVOS</string>
@@ -239,6 +247,7 @@ final class AppBundleLoaderTests: TuistUnitTestCase {
                 path: appBundlePath,
                 infoPlist: AppBundle.InfoPlist(
                     version: "1.0",
+                    buildVersion: "1",
                     name: "App",
                     bundleId: "io.tuist.TVApp",
                     minimumOSVersion: Version("18.2"),

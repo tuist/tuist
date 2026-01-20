@@ -7,7 +7,8 @@ struct ProjectTokensRevokeCommand: AsyncParsableCommand {
         CommandConfiguration(
             commandName: "revoke",
             _superCommandName: "tokens",
-            abstract: "Revoke Tuist project tokens."
+            abstract: "Revoke Tuist project tokens.",
+            shouldDisplay: false
         )
     }
 

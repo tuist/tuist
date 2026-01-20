@@ -1,7 +1,11 @@
 export default {
   mounted() {
     this.copyToClipboard = (event) => {
-      navigator.clipboard.writeText(event.target.dataset.clipboardValue);
+      // Use currentTarget to get the element with the phx-hook, not the clicked child
+      const value = event.currentTarget.dataset.clipboardValue;
+      if (value) {
+        navigator.clipboard.writeText(value);
+      }
     };
 
     this.el.addEventListener("click", this.copyToClipboard);

@@ -140,20 +140,24 @@ struct CommandEnvironmentVariableTests {
         setVariable(.generatePath, value: "/path/to/generate")
         setVariable(.generateOpen, value: "false")
         setVariable(.generateBinaryCache, value: "false")
+        setVariable(.generateCacheProfile, value: "development")
 
         let generateCommandWithEnvVars = try GenerateCommand.parse([])
         #expect(generateCommandWithEnvVars.path == "/path/to/generate")
         #expect(generateCommandWithEnvVars.open == false)
         #expect(generateCommandWithEnvVars.binaryCache == false)
+        #expect(generateCommandWithEnvVars.cacheProfile == "development")
 
         let generateCommandWithArgs = try GenerateCommand.parse([
             "--path", "/new/generate/path",
             "--open",
             "--binary-cache",
+            "--cache-profile", "all-possible",
         ])
         #expect(generateCommandWithArgs.path == "/new/generate/path")
         #expect(generateCommandWithArgs.open == true)
         #expect(generateCommandWithArgs.binaryCache == true)
+        #expect(generateCommandWithArgs.cacheProfile == .allPossible)
     }
 
     @Test(.withMockedEnvironment()) func graphCommandUsesEnvVars() throws {
@@ -454,6 +458,7 @@ struct CommandEnvironmentVariableTests {
         setVariable(.testRosetta, value: "true")
         setVariable(.testConfiguration, value: "Debug")
         setVariable(.testSkipUITests, value: "true")
+        setVariable(.testSkipUnitTests, value: "true")
         setVariable(.testResultBundlePath, value: "/path/to/resultBundle")
         setVariable(.testDerivedDataPath, value: "/path/to/derivedData")
         setVariable(.testRetryCount, value: "2")
@@ -477,6 +482,7 @@ struct CommandEnvironmentVariableTests {
         #expect(testCommandWithEnvVars.rosetta == true)
         #expect(testCommandWithEnvVars.configuration == "Debug")
         #expect(testCommandWithEnvVars.skipUITests == true)
+        #expect(testCommandWithEnvVars.skipUnitTests == true)
         #expect(testCommandWithEnvVars.resultBundlePath == "/path/to/resultBundle")
         #expect(testCommandWithEnvVars.derivedDataPath == "/path/to/derivedData")
         #expect(testCommandWithEnvVars.retryCount == 2)

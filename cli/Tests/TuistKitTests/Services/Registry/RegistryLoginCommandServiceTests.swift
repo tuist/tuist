@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Testing
+import TuistHTTP
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -56,8 +57,15 @@ struct RegistryLoginCommandServiceTests {
             let mockEnvironment = try #require(Environment.mocked)
             mockEnvironment.variables = [:]
             given(createAccountTokenService)
-                .createAccountToken(accountHandle: .any, scopes: .any, serverURL: .any)
-                .willReturn("token")
+                .createAccountToken(
+                    accountHandle: .any,
+                    scopes: .any,
+                    name: .any,
+                    expiresAt: .any,
+                    projectHandles: .any,
+                    serverURL: .any
+                )
+                .willReturn(.init(id: "token-id", token: "token"))
             given(swiftPackageManagerController)
                 .packageRegistryLogin(token: .value("token"), registryURL: .any)
                 .willReturn()

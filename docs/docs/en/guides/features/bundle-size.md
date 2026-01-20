@@ -1,11 +1,11 @@
 ---
 {
-  "title": "Bundle Size",
+  "title": "Bundle insights",
   "titleTemplate": ":title · Features · Guides · Tuist",
   "description": "Find out how to make and keep your app's memory footprint as small as possible."
 }
 ---
-# Bundle Size {#bundle-size}
+# Bundle insights {#bundle-size}
 
 ::: warning REQUIREMENTS
 <!-- -->
@@ -52,7 +52,7 @@ jobs:
       - name: Analyze bundle
         run: tuist inspect bundle App.ipa
         env:
-          TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
+          TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
 ```
 
 Once set up, you will be able to see how your bundle size evolves over time:

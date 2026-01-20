@@ -1,0 +1,118 @@
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new messages manually only if they're dynamic
+## messages that can't be statically extracted.
+##
+## Run "mix gettext.extract" to bring this file up to
+## date. Leave "msgstr"s empty as changing them here has no
+## effect: edit them in PO (.po) files instead.
+#
+msgid ""
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.html.heex:50
+#, elixir-autogen, elixir-format
+msgid "Add new project connection"
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.html.heex:113
+#, elixir-autogen, elixir-format
+msgid "Cancel"
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.html.heex:65
+#, elixir-autogen, elixir-format
+msgid "Choose Tuist project"
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.html.heex:92
+#, elixir-autogen, elixir-format
+msgid "Choose a repository"
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.html.heex:43
+#, elixir-autogen, elixir-format
+msgid "Choose repository to connect to"
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.html.heex:9
+#, elixir-autogen, elixir-format
+msgid "Connect any of your GitHub repositories to a project"
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.ex:161
+#, elixir-autogen, elixir-format
+msgid "Connected %{time_ago}"
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.ex:163
+#, elixir-autogen, elixir-format
+msgid "Connected %{time_ago} by %{name}"
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.html.heex:120
+#, elixir-autogen, elixir-format
+msgid "Create Connection"
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.html.heex:6
+#, elixir-autogen, elixir-format
+msgid "GitHub"
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.html.heex:19
+#, elixir-autogen, elixir-format
+msgid "Install GitHub App"
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.ex:33
+#: lib/tuist_web/live/integrations_live.html.heex:2
+#, elixir-autogen, elixir-format
+msgid "Integrations"
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.html.heex:159
+#, elixir-autogen, elixir-format
+msgid "Manage"
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "Manage integration"
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.html.heex:162
+#, elixir-autogen, elixir-format
+msgid "Remove connection"
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.ex:16
+#, elixir-autogen, elixir-format
+msgid "You are not authorized to perform this action."
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.html.heex:38
+#, elixir-autogen, elixir-format
+msgid "Your access to repositories depends on your GitHub and Tuist integration setup."
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.html.heex:190
+#, elixir-autogen, elixir-format
+msgid "Connect Slack"
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.html.heex:180
+#, elixir-autogen, elixir-format
+msgid "Connect Slack to receive project analytics reports"
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.html.heex:197
+#, elixir-autogen, elixir-format
+msgid "Disconnect from %{team_name}"
+msgstr ""
+
+#: lib/tuist_web/live/integrations_live.html.heex:177
+#, elixir-autogen, elixir-format
+msgid "Slack"
+msgstr ""

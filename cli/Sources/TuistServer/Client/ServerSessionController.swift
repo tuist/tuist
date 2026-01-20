@@ -147,7 +147,7 @@ public final class ServerSessionController: ServerSessionControlling {
         switch token {
         case let .user(accessToken: accessToken, refreshToken: _):
             return accessToken.preferredUsername
-        case .project:
+        case .project, .account:
             return nil
         }
     }
@@ -165,7 +165,7 @@ public final class ServerSessionController: ServerSessionControlling {
                 throw ServerSessionControllerError.unauthenticated
             }
             return username
-        case .project:
+        case .project, .account:
             throw ServerSessionControllerError.unauthenticated
         }
     }

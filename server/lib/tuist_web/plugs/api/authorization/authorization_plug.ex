@@ -54,6 +54,10 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
     authorize_project(conn, :cache, opts)
   end
 
+  defp authorize_account(%{assigns: assigns} = conn, :registry) when not is_map_key(assigns, :selected_account) do
+    conn
+  end
+
   defp authorize_account(%{assigns: %{selected_account: selected_account}} = conn, category) do
     action = get_action(conn)
 
@@ -81,9 +85,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
   def authorize_project(%{assigns: %{selected_project: selected_project}} = conn, category, opts \\ []) do
     caching = Keyword.get(opts, :caching, false)
     action = get_action(conn)
-
-    subject =
-      Authentication.authenticated_subject(conn)
+    subject = Authentication.authenticated_subject(conn)
 
     subject_id =
       case subject do

@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Mockable
+import ProjectDescription
 import TuistSupport
 import XCTest
 
@@ -187,7 +188,17 @@ final class DumpServiceTests: TuistTestCase {
               "project": {
                 "tuist": {
                   "cacheOptions": {
-                    "keepSourceTargets": false
+                    "keepSourceTargets": false,
+                    "profiles": {
+                      "defaultProfile": {
+                        "onlyExternal": {
+
+                        }
+                      },
+                      "profileByName": {
+
+                      }
+                    }
                   },
                   "compatibleXcodeVersions": {
                     "all": {
@@ -201,6 +212,7 @@ final class DumpServiceTests: TuistTestCase {
                     "buildInsightsDisabled": false,
                     "disablePackageVersionLocking": false,
                     "disableSandbox": true,
+                    "enableCaching": false,
                     "enforceExplicitDependencies": false,
                     "includeGenerateScheme": true,
                     "optionalAuthentication": false,
@@ -209,7 +221,8 @@ final class DumpServiceTests: TuistTestCase {
                       "all": {
 
                       }
-                    }
+                    },
+                    "testInsightsDisabled": false
                   },
                   "installOptions": {
                     "passthroughSwiftPackageManagerArguments": [
@@ -293,35 +306,32 @@ final class DumpServiceTests: TuistTestCase {
 
     func test_prints_the_manifest_when_package_manifest() async throws {
         try await withMockedDependencies {
+            // Given
             let tmpDir = try temporaryPath()
-            let config = """
-            // swift-tools-version: 5.9
-            import PackageDescription
+            let tuistDir = tmpDir.appending(component: Constants.tuistDirectoryName)
+            try fileHandler.createFolder(tuistDir)
 
-            #if TUIST
-            import ProjectDescription
+            let manifestLoader = MockManifestLoading()
+            given(manifestLoader)
+                .loadPackageSettings(at: .any, disableSandbox: .any)
+                .willReturn(
+                    ProjectDescription.PackageSettings(
+                        targetSettings: ["TargetA": ["OTHER_LDFLAGS": .string("-ObjC")]]
+                    )
+                )
+            given(manifestLoader)
+                .register(plugins: .any)
+                .willReturn(())
 
-            let packageSettings = PackageSettings(
-                targetSettings: ["TargetA": ["OTHER_LDFLAGS": "-ObjC"]]
+            let subject = DumpService(
+                manifestLoader: manifestLoader,
+                configLoader: ConfigLoader()
             )
 
-            #endif
-
-            let package = Package(
-                name: "PackageName",
-                dependencies: []
-            )
-
-            """
-            try fileHandler.createFolder(tmpDir.appending(component: Constants.tuistDirectoryName))
-            try config.write(
-                toFile: tmpDir.appending(
-                    component: Constants.SwiftPackageManager.packageSwiftName
-                ).pathString,
-                atomically: true,
-                encoding: .utf8
-            )
+            // When
             try await subject.run(path: tmpDir.pathString, manifest: .package)
+
+            // Then
             let expected = """
             {
               "baseSettings": {
@@ -364,25 +374,28 @@ final class DumpServiceTests: TuistTestCase {
 
     func test_prints_the_manifest_when_package_manifest_without_package_settings() async throws {
         try await withMockedDependencies {
+            // Given
             let tmpDir = try temporaryPath()
-            let config = """
-            // swift-tools-version: 5.9
-            import PackageDescription
+            let tuistDir = tmpDir.appending(component: Constants.tuistDirectoryName)
+            try await fileSystem.makeDirectory(at: tuistDir)
 
-            let package = Package(
-                name: "PackageName",
-                dependencies: []
+            let manifestLoader = MockManifestLoading()
+            given(manifestLoader)
+                .loadPackageSettings(at: .any, disableSandbox: .any)
+                .willReturn(ProjectDescription.PackageSettings())
+            given(manifestLoader)
+                .register(plugins: .any)
+                .willReturn(())
+
+            let subject = DumpService(
+                manifestLoader: manifestLoader,
+                configLoader: ConfigLoader()
             )
 
-            """
-            try await fileSystem.makeDirectory(at: tmpDir.appending(component: Constants.tuistDirectoryName))
-            try await fileSystem.writeText(
-                config,
-                at: tmpDir.appending(
-                    component: Constants.SwiftPackageManager.packageSwiftName
-                )
-            )
+            // When
             try await subject.run(path: tmpDir.pathString, manifest: .package)
+
+            // Then
             let expected = """
             {
               "baseSettings": {

@@ -23,7 +23,7 @@ public class TemplateLoader: TemplateLoading {
     /// Default constructor.
     public convenience init() {
         self.init(
-            manifestLoader: ManifestLoader(),
+            manifestLoader: ManifestLoader.current,
             rootDirectoryLocator: RootDirectoryLocator()
         )
     }

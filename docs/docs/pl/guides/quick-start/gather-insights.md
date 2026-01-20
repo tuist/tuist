@@ -5,21 +5,21 @@
   "description": "Learn how to gather insights about your project."
 }
 ---
-# Gather insights {#gather-insights}
+# Zbieranie informacji {#gather-insights}
 
-Tuist can integrate with a server to extend its capabilities. One of those
-capabilities is gathering insights about your project and builds. All you need
-is to have an account with a project in the server.
+Tuist może integrować się z serwerem w celu rozszerzenia jego możliwości. Jedną
+z tych możliwości jest gromadzenie informacji o projekcie i kompilacjach.
+Wystarczy mieć konto z projektem na serwerze.
 
-First of all, you'll need to authenticate by running:
+Przede wszystkim musisz się uwierzytelnić, uruchamiając aplikację:
 
 ```bash
 tuist auth login
 ```
 
-## Create a project {#create-a-project}
+## Utwórz projekt {#create-a-project}
 
-You can then create a project by running:
+Następnie można utworzyć projekt, uruchamiając go:
 
 ```bash
 tuist project create my-handle/MyApp
@@ -27,13 +27,13 @@ tuist project create my-handle/MyApp
 # Tuist project my-handle/MyApp was successfully created 🎉 {#tuist-project-myhandlemyapp-was-successfully-created-}
 ```
 
-Copy `my-handle/MyApp`, which represents the full handle of the project.
+Skopiuj `my-handle/MyApp`, który reprezentuje pełny uchwyt projektu.
 
-## Connect projects {#connect-projects}
+## Połącz projekty {#connect-projects}
 
-After creating the project on the server, you'll have to connect it to your
-local project. Run `tuist edit` and edit the `Tuist.swift` file to include the
-full handle of the project:
+Po utworzeniu projektu na serwerze należy połączyć go z projektem lokalnym.
+Uruchom `tuist edit` i edytuj plik `tuist.swift`, aby zawierał pełny uchwyt
+projektu:
 
 ```swift
 import ProjectDescription
@@ -41,21 +41,23 @@ import ProjectDescription
 let tuist = Tuist(fullHandle: "my-handle/MyApp")
 ```
 
-Voilà! You're now ready to gather insights about your project and builds. Run
-`tuist test` to run the tests reporting the results to the server.
+Voila! Jesteś teraz gotowy do zbierania informacji o swoim projekcie i
+kompilacjach. Uruchom `tuist test`, aby uruchomić testy raportujące wyniki do
+serwera.
 
-::: info
+:: info
 <!-- -->
-Tuist enqueues the results locally and tries to send them without blocking the
-command. Therefore, they might not be sent immediately after the command
-finishes. In CI, the results are sent immediately.
+Tuist buforuje wyniki lokalnie i próbuje je wysłać bez blokowania polecenia. W
+związku z tym wyniki mogą nie zostać wysłane natychmiast po zakończeniu
+polecenia. W CI wyniki są wysyłane natychmiast.
 <!-- -->
 :::
 
 
-![An image that shows a list of runs in the
-server](/images/guides/quick-start/runs.png)
+![Obrazek przedstawiający listę uruchomień na
+serwerze](/images/guides/quick-start/runs.png)
 
-Having data from your projects and builds is crucial in making informed
-decisions. Tuist will continue to extend its capabilities, and you'll benefit
-from them without having to change your project configuration. Magic, right? 🪄
+Posiadanie danych z projektów i kompilacji ma kluczowe znaczenie dla
+podejmowania świadomych decyzji. Tuist będzie nadal rozszerzać swoje możliwości,
+a Ty będziesz mógł z nich korzystać bez konieczności zmiany konfiguracji
+projektu. Magia, prawda? 🪄

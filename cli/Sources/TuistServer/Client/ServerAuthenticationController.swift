@@ -3,6 +3,7 @@ import Foundation
 import Mockable
 import OpenAPIRuntime
 import Path
+import TuistHTTP
 
 #if canImport(TuistProcess)
     import TuistProcess
@@ -57,6 +58,10 @@ public enum AuthenticationToken: Equatable, CustomStringConvertible {
     /// in CI environments where limited scopes are desired for security reasons.
     case project(String)
 
+    /// The token represents an account session, typically obtained via OIDC from a CI provider.
+    /// These tokens cannot be refreshed and are valid until expiry.
+    case account(JWT)
+
     /// It returns the value of the token
     public var value: String {
         switch self {
@@ -64,6 +69,8 @@ public enum AuthenticationToken: Equatable, CustomStringConvertible {
             return accessToken.token
         case let .project(token):
             return token
+        case let .account(accessToken):
+            return accessToken.token
         }
     }
 
@@ -73,6 +80,8 @@ public enum AuthenticationToken: Equatable, CustomStringConvertible {
             return "User token: \(value)"
         case let .project(token):
             return "Project token: \(token)"
+        case .account:
+            return "Account token: \(value)"
         }
     }
 }
@@ -198,7 +207,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             refreshAuthTokenService: RefreshAuthTokenServicing = RefreshAuthTokenService(),
             fileSystem: FileSysteming = FileSystem(),
             backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
-            cachedValueStore: CachedValueStoring = CachedValueStore()
+            cachedValueStore: CachedValueStoring = CachedValueStore.current
         ) {
             self.refreshAuthTokenService = refreshAuthTokenService
             self.fileSystem = fileSystem
@@ -209,7 +218,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         public init(
             refreshAuthTokenService: RefreshAuthTokenServicing = RefreshAuthTokenService(),
             fileSystem: FileSysteming = FileSystem(),
-            cachedValueStore: CachedValueStoring = CachedValueStore()
+            cachedValueStore: CachedValueStoring = CachedValueStore.current
         ) {
             self.refreshAuthTokenService = refreshAuthTokenService
             self.fileSystem = fileSystem
@@ -221,8 +230,8 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         async throws -> AuthenticationToken?
     {
         #if canImport(TuistSupport)
-            if Environment.current.isCI {
-                return try await ciAuthenticationToken()
+            if let environmentToken = try await environmentToken() {
+                return environmentToken
             } else {
                 return try await authenticationTokenRefreshingIfNeeded(
                     serverURL: serverURL,
@@ -284,7 +293,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         forceRefresh: Bool,
         inBackground: Bool,
         locking: Bool,
-        forceInProcessLock: Bool = false,
+        forceInProcessLock: Bool = false
     ) async throws
         -> AuthenticationToken?
     {
@@ -302,7 +311,8 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         }
 
         switch (
-            try await tokenStatus(serverURL: serverURL, forceRefresh: forceRefresh), inBackground,
+            try await tokenStatus(serverURL: serverURL, forceRefresh: forceRefresh),
+            inBackground,
             locking
         ) {
         case let (.valid(token), _, _):
@@ -316,15 +326,25 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                 )
             } else {
                 #if canImport(TuistSupport)
-                    return try await fileSystemLocked(
-                        serverURL: serverURL,
-                        action: { deleteLockfile in
-                            _ = try await executeRefresh(
-                                serverURL: serverURL, forceRefresh: forceRefresh
-                            )
-                            try await deleteLockfile()
-                        }, fetchActionResult: fetchActionResult
-                    )
+                    return try await cachedValueStore.getValue(key: lockKey(serverURL: serverURL)) {
+                        let token = try await fileSystemLocked(
+                            serverURL: serverURL,
+                            action: { deleteLockfile in
+                                _ = try await executeRefresh(
+                                    serverURL: serverURL, forceRefresh: forceRefresh
+                                )
+                                try await deleteLockfile()
+                            }, fetchActionResult: fetchActionResult
+                        )
+                        switch token {
+                        case .project:
+                            return (token, nil as Date?)
+                        case let .account(accessToken):
+                            return (token, accessToken.expiryDate)
+                        case let .user(accessToken: _, refreshToken: refreshToken):
+                            return (token, refreshToken.expiryDate)
+                        }
+                    }
                 #else
                     return try await inProcessLockedRefresh(
                         serverURL: serverURL, forceRefresh: forceRefresh
@@ -335,14 +355,24 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             return try await executeRefresh(serverURL: serverURL, forceRefresh: forceRefresh)?.value
         case (.expired, true, true): // Background with locking
             #if canImport(TuistSupport)
-                return try await Self.fileSystemLockActor.withLock(
-                    lockfilePath: lockFilePath(serverURL: serverURL),
-                    serverURL: serverURL,
-                    action: { _ in
-                        try await spawnRefreshProcess(serverURL: serverURL)
-                    },
-                    fetchActionResult: fetchActionResult
-                )
+                return try await cachedValueStore.getValue(key: lockKey(serverURL: serverURL)) {
+                    let token = try await Self.fileSystemLockActor.withLock(
+                        lockfilePath: lockFilePath(serverURL: serverURL),
+                        serverURL: serverURL,
+                        action: { _ in
+                            try await spawnRefreshProcess(serverURL: serverURL)
+                        },
+                        fetchActionResult: fetchActionResult
+                    )
+                    switch token {
+                    case .project:
+                        return (token, nil as Date?)
+                    case let .account(accessToken):
+                        return (token, accessToken.expiryDate)
+                    case let .user(accessToken: _, refreshToken: refreshToken):
+                        return (token, refreshToken.expiryDate)
+                    }
+                }
             #else
                 return nil
             #endif
@@ -442,6 +472,11 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         switch token {
         case .project:
             return .valid(token)
+        case let .account(accessToken):
+            let now = Date.now()
+            let expiresIn = accessToken.expiryDate.timeIntervalSince(now)
+            if expiresIn < 30 { return .expired }
+            return .valid(token)
         case let .user(
             accessToken, refreshToken
         ):
@@ -474,6 +509,9 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             switch token {
             case .project:
                 upToDateToken = token
+            case let .account(accessToken):
+                upToDateToken = token
+                expiresAt = accessToken.expiryDate
             case let .user(
                 accessToken, refreshToken
             ):
@@ -545,29 +583,44 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             serverURL: serverURL
         )
         return try credentials.map {
-            return .user(
-                accessToken: try JWT.parse($0.accessToken),
-                refreshToken: try JWT.parse($0.refreshToken)
-            )
+            let accessToken = try JWT.parse($0.accessToken)
+            if accessToken.type == "account" {
+                return .account(accessToken)
+            } else {
+                return .user(
+                    accessToken: accessToken,
+                    refreshToken: try JWT.parse($0.refreshToken!)
+                )
+            }
         }
     }
 
-    private func ciAuthenticationToken() async throws -> AuthenticationToken? {
+    private func environmentToken() async throws -> AuthenticationToken? {
         #if canImport(TuistSupport)
             if let configToken = Environment.current.tuistVariables[
                 Constants.EnvironmentVariables.token
             ] {
                 return .project(configToken)
             } else if let deprecatedToken = Environment.current.tuistVariables[
+                Constants.EnvironmentVariables.deprecatedToken
+            ] {
+                AlertController.current
+                    .warning(
+                        .alert(
+                            "Use `TUIST_TOKEN` environment variable instead of `TUIST_CONFIG_TOKEN` to authenticate on the CI"
+                        )
+                    )
+                return .project(deprecatedToken)
+            } else if let deprecatedCloudToken = Environment.current.tuistVariables[
                 "TUIST_CONFIG_CLOUD_TOKEN"
             ] {
                 AlertController.current
                     .warning(
                         .alert(
-                            "Use `TUIST_CONFIG_TOKEN` environment variable instead of `TUIST_CONFIG_CLOUD_TOKEN` to authenticate on the CI"
+                            "Use `TUIST_TOKEN` environment variable instead of `TUIST_CONFIG_CLOUD_TOKEN` to authenticate on the CI"
                         )
                     )
-                return .project(deprecatedToken)
+                return .project(deprecatedCloudToken)
             } else {
                 return nil
             }
@@ -608,12 +661,12 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             case .notConnectedToInternet:
                 throw error
             default:
-                throw ServerClientAuthenticationError.notAuthenticated
+                throw ClientAuthenticationError.notAuthenticated
             }
         } catch let error as RefreshAuthTokenServiceError {
             throw error
         } catch {
-            throw ServerClientAuthenticationError.notAuthenticated
+            throw ClientAuthenticationError.notAuthenticated
         }
     }
 }

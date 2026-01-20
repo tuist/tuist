@@ -96,7 +96,8 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
       "@type" => "Product",
       "name" => "Tuist",
       "description" =>
-        gettext(
+        dgettext(
+          "marketing",
           "Tuist is designed to grow with you. Only add a card if you need more than the free tier limits or dedicated support."
         ),
       "brand" => get_organization_structured_data(),
@@ -181,8 +182,8 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
             post |> get_blog_post_structured_markup_data() |> Map.put("position", index + 1)
           end)
       },
-      "name" => gettext("Tuist's blog"),
-      "description" => gettext("Read engaging stories and expert insights."),
+      "name" => dgettext("marketing", "Tuist's blog"),
+      "description" => dgettext("marketing", "Read engaging stories and expert insights."),
       "publisher" => StructuredMarkup.get_organization_structured_data()
     }
   end
@@ -214,8 +215,8 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
     %{
       "@context" => "https://schema.org",
       "@type" => "ItemList",
-      "name" => gettext("Changelog"),
-      "description" => gettext("Stay updated with the latest changes and improvements in Tuist."),
+      "name" => dgettext("marketing", "Changelog"),
+      "description" => dgettext("marketing", "Stay updated with the latest changes and improvements in Tuist."),
       "publisher" => StructuredMarkup.get_organization_structured_data(),
       "itemListElement" =>
         entries
@@ -234,6 +235,50 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
             }
           }
         end)
+    }
+  end
+
+  def get_case_study_article_structured_data(case_study) do
+    date_time = DateTime.new!(case_study.date, ~T[00:00:00], "Etc/UTC")
+
+    %{
+      "@context" => "https://schema.org",
+      "@type" => "Article",
+      "mainEntityOfPage" => %{
+        "@type" => "WebPage",
+        "@id" => Tuist.Environment.app_url(path: case_study.slug)
+      },
+      "headline" => case_study.title,
+      "description" => case_study.excerpt,
+      "image" => Tuist.Environment.app_url(path: case_study.og_image_path),
+      "author" => %{
+        "@type" => "Organization",
+        "name" => case_study.company,
+        "url" => case_study.url
+      },
+      "publisher" => StructuredMarkup.get_organization_structured_data(),
+      "datePublished" => Timex.format!(date_time, "{ISO:Extended}"),
+      "dateModified" => Timex.format!(date_time, "{ISO:Extended}"),
+      "articleBody" => case_study.excerpt
+    }
+  end
+
+  def get_case_studies_structured_data(cases) do
+    %{
+      "@context" => "https://schema.org",
+      "@type" => "CollectionPage",
+      "mainEntityOfPage" => %{
+        "@type" => "ItemList",
+        "itemListElement" =>
+          cases
+          |> Enum.with_index()
+          |> Enum.map(fn {case_study, index} ->
+            case_study |> get_case_study_article_structured_data() |> Map.put("position", index + 1)
+          end)
+      },
+      "name" => dgettext("marketing", "Tuist Customers"),
+      "description" => dgettext("marketing", "Learn how teams use Tuist to scale their iOS development."),
+      "publisher" => StructuredMarkup.get_organization_structured_data()
     }
   end
 end

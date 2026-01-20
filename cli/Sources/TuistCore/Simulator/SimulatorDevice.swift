@@ -3,7 +3,7 @@ import Path
 import TuistSupport
 
 /// It represents a simulator device. Devices are obtained using Xcode's CLI simctl
-public struct SimulatorDevice: Codable, Hashable, CustomStringConvertible, Equatable {
+public struct SimulatorDevice: Sendable, Codable, Hashable, CustomStringConvertible, Equatable {
     /// Device data path.
     public let dataPath: AbsolutePath
 

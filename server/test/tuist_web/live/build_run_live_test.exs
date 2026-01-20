@@ -155,4 +155,60 @@ defmodule TuistWeb.BuildRunLiveTest do
     # Then
     refute has_element?(lv, "a", "CI Run")
   end
+
+  test "shows cache tab when build has cacheable tasks", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    cacheable_tasks = [
+      %{type: :swift, status: :hit_remote, key: "cache-key-1"},
+      %{type: :clang, status: :hit_local, key: "cache-key-2"},
+      %{type: :swift, status: :miss, key: "cache-key-3"}
+    ]
+
+    {:ok, build_run} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        scheme: "App",
+        cacheable_tasks: cacheable_tasks
+      )
+
+    # When
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_run.id}")
+
+    # Then - Check that the Xcode Cache tab is present in the horizontal tab menu
+    assert has_element?(lv, ".noora-tab-menu-horizontal-item", "Xcode Cache")
+
+    # When clicking on the xcode cache tab
+    lv |> element(".noora-tab-menu-horizontal-item", "Xcode Cache") |> render_click()
+
+    # Then it should show the summary statistics
+    assert has_element?(lv, "[data-part='title']", "Task hits")
+    assert has_element?(lv, "[data-part='value']", "2")
+    assert has_element?(lv, "[data-part='title']", "Task misses")
+    assert has_element?(lv, "[data-part='value']", "1")
+    assert has_element?(lv, "[data-part='title']", "Hit rate")
+  end
+
+  test "hides cache tab when build has no cacheable tasks", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    {:ok, build_run} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        scheme: "App",
+        cacheable_tasks: []
+      )
+
+    # When
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_run.id}")
+
+    # Then - Check that the Xcode Cache tab is not present in the horizontal tab menu
+    refute has_element?(lv, ".noora-tab-menu-horizontal-item", "Xcode Cache")
+  end
 end

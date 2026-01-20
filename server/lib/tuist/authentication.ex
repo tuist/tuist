@@ -29,9 +29,16 @@ defmodule Tuist.Authentication do
     project_token = Projects.get_project_by_full_token(token)
 
     if is_nil(project_token) do
-      case Accounts.account_token(token, preload: [:account]) do
+      case Accounts.account_token(token, preload: [:account, :account_token_projects]) do
         {:ok, account_token} ->
-          %AuthenticatedAccount{account: account_token.account, scopes: account_token.scopes}
+          %AuthenticatedAccount{
+            account: account_token.account,
+            scopes: account_token.scopes,
+            all_projects: account_token.all_projects,
+            project_ids: Enum.map(account_token.account_token_projects, & &1.project_id),
+            token_id: account_token.id,
+            created_by_account_id: account_token.created_by_account_id
+          }
 
         _ ->
           nil
@@ -65,7 +72,7 @@ defmodule Tuist.Authentication do
            old_claims
            |> Map.drop(["jti", "iss", "iat", "nbf", "exp"])
            |> Map.put("preferred_username", preferred_username),
-         {:ok, new_token, new_claims} <- Tuist.Guardian.encode_and_sign(user, new_claims, opts) do
+         {:ok, new_token, new_claims} <- __MODULE__.encode_and_sign(user, new_claims, opts) do
       Tuist.Guardian.on_revoke(old_claims, old_token)
       {:ok, {old_token, old_claims}, {new_token, new_claims}}
     else
@@ -82,6 +89,12 @@ defmodule Tuist.Authentication do
   end
 
   def encode_and_sign(resource, claims \\ %{}, opts \\ []) do
+    projects =
+      resource
+      |> Projects.list_accessible_projects(recent: 5)
+      |> Enum.map(&"#{&1.account.name}/#{&1.name}")
+
+    claims = Map.put(claims, "projects", projects)
     Tuist.Guardian.encode_and_sign(resource, claims, opts)
   end
 

@@ -45,7 +45,7 @@ public struct XCConfigContentHasher: XCConfigContentHashing {
 
     private func hash(
         path: Path.AbsolutePath,
-        processedPaths: OrderedSet<Path.AbsolutePath>,
+        processedPaths: OrderedSet<Path.AbsolutePath>
     ) async throws -> String {
         let source = try await fileSystem.readTextFile(at: path)
 

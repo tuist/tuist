@@ -143,4 +143,36 @@ final class FileElementManifestMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertEmpty(got)
     }
+
+    func test_from_excludes_files_matching_excluding_pattern() async throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let rootDirectory = temporaryPath
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: temporaryPath,
+            rootDirectory: rootDirectory
+        )
+        let allFiles = try await createFiles([
+            "Documentation/README.md",
+            "Documentation/USAGE.md",
+            "Documentation/internal/SECRET.md",
+        ])
+
+        let manifest = ProjectDescription.FileElement.glob(
+            pattern: "Documentation/**/*.md",
+            excluding: ["Documentation/internal/**"]
+        )
+
+        // When
+        let got = try await XcodeGraph.FileElement.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem,
+            includeFiles: { !FileHandler.shared.isFolder($0) }
+        )
+
+        // Then
+        let expectedFiles = allFiles.filter { !$0.pathString.contains("internal") }
+        XCTAssertEqual(got.map(\.path).sorted(), expectedFiles.sorted())
+    }
 }

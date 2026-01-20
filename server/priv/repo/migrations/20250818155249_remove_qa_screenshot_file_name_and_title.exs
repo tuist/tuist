@@ -1,5 +1,6 @@
 defmodule Tuist.Repo.Migrations.RemoveQaScreenshotFileNameAndTitle do
   use Ecto.Migration
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
 
   def up do
     alter table(:qa_screenshots) do

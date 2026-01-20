@@ -5,7 +5,7 @@ defmodule TuistWeb.APIControllerTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup do
-    user = AccountsFixtures.user_fixture(email: "tuist@tuist.io")
+    user = AccountsFixtures.user_fixture(email: "tuist@tuist.dev")
     %{user: user}
   end
 

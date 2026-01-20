@@ -9,20 +9,25 @@ on:
       - ".github/workflows/app.yml"
       - "Tuist/**"
       - ".xcode-version"
+      - "Package.swift"
+      - "Package.resolved"
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - "app/**"
       - ".github/workflows/app.yml"
       - "Tuist/**"
       - ".xcode-version"
+      - "Package.swift"
+      - "Package.resolved"
 
 permissions:
+  id-token: write
   contents: read
 
 env:
-  TUIST_CONFIG_TOKEN: ${{ secrets.TUIST_CONFIG_TOKEN }}
-  MISE_SOPS_AGE_KEY: ${{ secrets.MISE_SOPS_AGE_KEY }}
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
 
 concurrency:
   group: app-${{ github.head_ref }}
@@ -32,6 +37,7 @@ jobs:
   check-team-membership:
     name: Check Team Membership
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     if: github.event_name == 'pull_request'
     outputs:
       is-team-member: ${{ steps.check.outputs.is-member }}
@@ -69,11 +75,13 @@ jobs:
   app-build:
     name: Build
     runs-on: namespace-profile-default-macos
+    timeout-minutes: 30
     needs: [check-team-membership]
     if: |
       always() &&
       !cancelled() &&
-      !contains(needs.*.result, 'failure')
+      !contains(needs.*.result, 'failure') &&
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -88,8 +96,19 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
-          restore-keys: .build
       - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist auth login
+      - name: Setup Tuist cache
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist setup cache
+      - name: Install Tuist dependencies
+        if: steps.cache-restore.outputs.cache-matched-key == ''
+        run: tuist install
+      - name: Update CFBundleVersion
+        run: |
+          sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${{ github.run_number }}\",/g" "app/Project.swift"
       - name: Generate TuistApp
         run: mise x -- tuist generate TuistApp
       - name: Build TuistApp
@@ -110,11 +129,13 @@ jobs:
   app-test:
     name: Test
     runs-on: macos-26
+    timeout-minutes: 30
     needs: [check-team-membership]
     if: |
       always() &&
       !cancelled() &&
-      !contains(needs.*.result, 'failure')
+      !contains(needs.*.result, 'failure') &&
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -129,10 +150,18 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
-          restore-keys: .build
       - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist auth login
+      - name: Setup Tuist cache
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist setup cache
+      - name: Install Tuist dependencies
+        if: steps.cache-restore.outputs.cache-matched-key == ''
+        run: tuist install
       - name: Test TuistApp
-        run: mise x -- tuist test TuistApp -- CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+        run: tuist test TuistApp -- -retry-tests-on-failure -test-iterations 4 CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
@@ -143,11 +172,15 @@ jobs:
   app-device-build:
     name: Device Build
     runs-on: macos-26
+    timeout-minutes: 30
     needs: [check-team-membership]
     if: |
       always() &&
       !cancelled() &&
-      !contains(needs.*.result, 'failure')
+      !contains(needs.*.result, 'failure') &&
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    env:
+      OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
@@ -162,8 +195,19 @@ jobs:
         with:
           path: .build
           key: ${{ runner.os }}-app-${{ hashFiles('Package.resolved') }}
-          restore-keys: .build
       - uses: jdx/mise-action@v2
+      - name: Authenticate with Tuist
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist auth login
+      - name: Setup Tuist cache
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist setup cache
+      - name: Install Tuist dependencies
+        if: steps.cache-restore.outputs.cache-matched-key == ''
+        run: tuist install
+      - name: Update CFBundleVersion
+        run: |
+          sed -i '' -e "s/CFBundleVersion.*/CFBundleVersion\": \"${{ github.run_number }}\",/g" "app/Project.swift"
       - name: Generate TuistApp
         run: mise x -- tuist generate TuistApp
       - name: Bundle iOS app

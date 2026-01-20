@@ -62,5 +62,41 @@ defmodule Tuist.GitHub.AppTest do
       # Then
       assert {:error, "Failed to get installation token"} = result
     end
+
+    test "returns error when HTTP connection fails after retries" do
+      # Given
+      installation_id = "12345"
+
+      # Note: The actual Req client will retry this error 3 times with exponential backoff
+      # before returning the error. This test simulates the final error state after retries.
+      stub(Req, :post, fn _opts ->
+        {:error, %Req.HTTPError{protocol: :http2, reason: :closed_for_writing}}
+      end)
+
+      # When
+      result = App.get_installation_token(installation_id)
+
+      # Then
+      assert {:error, error_message} = result
+      assert error_message =~ "GitHub API connection error"
+      assert error_message =~ "closed_for_writing"
+    end
+
+    test "returns error when unexpected error occurs" do
+      # Given
+      installation_id = "12345"
+
+      stub(Req, :post, fn _opts ->
+        {:error, :timeout}
+      end)
+
+      # When
+      result = App.get_installation_token(installation_id)
+
+      # Then
+      assert {:error, error_message} = result
+      assert error_message =~ "Unexpected error getting installation token"
+      assert error_message =~ "timeout"
+    end
   end
 end

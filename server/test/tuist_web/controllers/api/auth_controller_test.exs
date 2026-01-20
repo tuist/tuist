@@ -498,7 +498,7 @@ defmodule TuistWeb.API.AuthControllerTest do
           "typ" => "refresh"
         })
 
-      fetched_user = Accounts.get_user_by_email(email)
+      {:ok, fetched_user} = Accounts.get_user_by_email(email)
       assert fetched_user.email == email
     end
   end

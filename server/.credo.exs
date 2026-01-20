@@ -14,11 +14,12 @@ alias Credo.Checks.TimestampsType
       },
       requires: ["./credo/checks/**/*.ex"],
       checks: %{
-        enabled: [{Credo.Check.Refactor.Nesting, [max_nesting: 3]}],
         extra: [
+          {Credo.Check.Refactor.Nesting, [max_nesting: 3]},
           {TimestampsType, files: %{included: ["priv/repo/migrations/"]}, allowed_type: :timestamptz},
           {TimestampsType, files: %{included: ["lib/"]}, allowed_type: :utc_datetime},
-          {ExcellentMigrations.CredoCheck.MigrationsSafety, []}
+          {ExcellentMigrations.CredoCheck.MigrationsSafety, []},
+          {Credo.Checks.UnusedReturnValue, files: %{excluded: ["priv/repo/migrations/"]}}
         ],
         disabled: [
           {Credo.Check.Design.TagTODO, []}

@@ -95,9 +95,9 @@ public class CachedManifestLoader: ManifestLoading {
         }
     }
 
-    public func loadPackage(at path: AbsolutePath) async throws -> PackageInfo {
-        try await load(manifest: .package, at: path, disableSandbox: true) {
-            try await manifestLoader.loadPackage(at: path)
+    public func loadPackage(at path: AbsolutePath, disableSandbox: Bool) async throws -> PackageInfo {
+        try await load(manifest: .package, at: path, disableSandbox: disableSandbox) {
+            try await manifestLoader.loadPackage(at: path, disableSandbox: disableSandbox)
         }
     }
 

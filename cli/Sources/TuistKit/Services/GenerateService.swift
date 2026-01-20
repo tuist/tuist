@@ -24,7 +24,7 @@ final class GenerateService {
         timeTakenLoggerFormatter: TimeTakenLoggerFormatting = TimeTakenLoggerFormatter(),
         opener: Opening = Opener(),
         pluginService: PluginServicing = PluginService(),
-        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader())
+        configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -40,7 +40,8 @@ final class GenerateService {
         includedTargets: Set<TargetQuery>,
         noOpen: Bool,
         configuration: String?,
-        ignoreBinaryCache: Bool
+        ignoreBinaryCache: Bool,
+        cacheProfile: CacheProfileType?
     ) async throws {
         let timer = clock.startTimer()
         let path = try self.path(path)
@@ -50,11 +51,18 @@ final class GenerateService {
                 "The 'tuist generate' command is only available for generated projects and Swift packages."
             )
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
+
+        let resolvedCacheProfile = try config.resolveCacheProfile(
+            ignoreBinaryCache: ignoreBinaryCache,
+            includedTargets: includedTargets,
+            cacheProfile: cacheProfile
+        )
+
         let generator = generatorFactory.generation(
             config: config,
             includedTargets: includedTargets,
             configuration: configuration,
-            ignoreBinaryCache: ignoreBinaryCache,
+            cacheProfile: resolvedCacheProfile,
             cacheStorage: cacheStorage
         )
         let (workspacePath, _, _) = try await generator.generateWithGraph(

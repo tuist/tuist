@@ -271,4 +271,26 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(name, "ARKit.framework")
         XCTAssertEqual(status, .required)
     }
+
+    func test_from_when_external_target_casing_differs() throws {
+        // Given
+        let dependency = ProjectDescription.TargetDependency.external(name: "MyLibrary")
+        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"), rootDirectory: "/")
+
+        // When
+        let got = try XcodeGraph.TargetDependency.from(
+            manifest: dependency,
+            generatorPaths: generatorPaths,
+            externalDependencies: ["myLibrary": [.project(target: "MyLibrary", path: "/Project")]]
+        )
+
+        // Then - should resolve successfully with case-insensitive lookup
+        XCTAssertEqual(got.count, 1)
+        guard case let .project(target, path, _, _) = got[0] else {
+            XCTFail("Dependency should be project")
+            return
+        }
+        XCTAssertEqual(target, "MyLibrary")
+        XCTAssertEqual(path, "/Project")
+    }
 }

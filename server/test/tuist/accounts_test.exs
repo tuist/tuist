@@ -8,7 +8,9 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountToken
+  alias Tuist.Accounts.Role
   alias Tuist.Accounts.User
+  alias Tuist.Accounts.UserRole
   alias Tuist.Accounts.UserToken
   alias Tuist.Base64
   alias Tuist.Billing
@@ -16,6 +18,7 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Environment
   alias Tuist.Projects
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
@@ -27,9 +30,6 @@ defmodule Tuist.AccountsTest do
         }
       }
     end)
-
-    stub(FunWithFlags, :enabled?, fn :clickhouse_events -> true end)
-    stub(Environment, :clickhouse_configured?, fn -> true end)
 
     :ok
   end
@@ -147,14 +147,12 @@ defmodule Tuist.AccountsTest do
       _user = %{account: %{id: account_id}} = AccountsFixtures.user_fixture()
       _project = %{id: project_id} = ProjectsFixtures.project_fixture(account_id: account_id)
 
-      with_flushed_ingestion_buffers(fn ->
-        CommandEventsFixtures.command_event_fixture(
-          project_id: project_id,
-          remote_test_target_hits: ["Core"],
-          remote_cache_target_hits: ["Kit"],
-          created_at: ~U[2025-05-17 15:27:00Z]
-        )
-      end)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project_id,
+        remote_test_target_hits: ["Core"],
+        remote_cache_target_hits: ["Kit"],
+        created_at: ~U[2025-05-17 15:27:00Z]
+      )
 
       # When
       got = Accounts.account_month_usage(account_id)
@@ -230,25 +228,23 @@ defmodule Tuist.AccountsTest do
       today = ~U[2025-01-02 23:00:00Z]
       stub(DateTime, :utc_now, fn -> today end)
 
-      with_flushed_ingestion_buffers(fn ->
-        CommandEventsFixtures.command_event_fixture(
-          name: "generate",
-          project_id: first_user_project.id,
-          user_id: first_user.id,
-          remote_cache_target_hits: ["Module"],
-          remote_test_target_hits: ["ModuleTeests"],
-          ran_at: ~U[2025-01-01 23:00:00Z]
-        )
+      CommandEventsFixtures.command_event_fixture(
+        name: "generate",
+        project_id: first_user_project.id,
+        user_id: first_user.id,
+        remote_cache_target_hits: ["Module"],
+        remote_test_target_hits: ["ModuleTeests"],
+        ran_at: ~U[2025-01-01 23:00:00Z]
+      )
 
-        CommandEventsFixtures.command_event_fixture(
-          name: "generate",
-          project_id: second_user_project.id,
-          user_id: second_user.id,
-          remote_cache_target_hits: ["Module"],
-          remote_test_target_hits: ["ModuleTeests"],
-          ran_at: ~U[2025-01-01 23:00:00Z]
-        )
-      end)
+      CommandEventsFixtures.command_event_fixture(
+        name: "generate",
+        project_id: second_user_project.id,
+        user_id: second_user.id,
+        remote_cache_target_hits: ["Module2"],
+        remote_test_target_hits: ["Module2Tests"],
+        ran_at: ~U[2025-01-01 23:00:00Z]
+      )
 
       # When
       assert [^first_account_customer_id] = Accounts.list_billable_customers()
@@ -372,7 +368,7 @@ defmodule Tuist.AccountsTest do
           provider: :okta,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -405,7 +401,7 @@ defmodule Tuist.AccountsTest do
           provider: :google,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -435,7 +431,7 @@ defmodule Tuist.AccountsTest do
           provider: :google,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -523,7 +519,7 @@ defmodule Tuist.AccountsTest do
           provider: :google,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -604,7 +600,7 @@ defmodule Tuist.AccountsTest do
           provider: :google,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -948,7 +944,7 @@ defmodule Tuist.AccountsTest do
 
   describe "invite_user_to_organization/2" do
     setup do
-      stub(Environment, :smtp_user_name, fn -> "smtp_user_name" end)
+      stub(Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
       :ok
     end
 
@@ -1013,13 +1009,13 @@ defmodule Tuist.AccountsTest do
   end
 
   describe "get_user_by_email/1" do
-    test "does not return the user if the email does not exist" do
-      refute Accounts.get_user_by_email("unknown@example.com")
+    test "returns {:error, :not_found} if the email does not exist" do
+      assert {:error, :not_found} = Accounts.get_user_by_email("unknown@example.com")
     end
 
-    test "returns the user if the email exists doing a case-insensitive search" do
+    test "returns {:ok, user} if the email exists doing a case-insensitive search" do
       %{id: id} = user = user_fixture()
-      assert %User{id: ^id} = Accounts.get_user_by_email(String.upcase(user.email))
+      assert {:ok, %User{id: ^id}} = Accounts.get_user_by_email(String.upcase(user.email))
     end
   end
 
@@ -1154,7 +1150,7 @@ defmodule Tuist.AccountsTest do
 
       # Then
       assert Accounts.get_organization_by_id(organization.id) == {:error, :not_found}
-      assert Accounts.get_account_by_id(account.id) == nil
+      assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
     end
   end
 
@@ -1294,12 +1290,12 @@ defmodule Tuist.AccountsTest do
       assert user.account.name == "user-name-test"
     end
 
-    test "sanitizes handle when creating user from OAuth2 with multiple special characters" do
+    test "sanitizes handle when creating user from OAuth2 with plus sign" do
       # Given
       oauth_identity = %{
         provider: :github,
         uid: System.unique_integer([:positive]),
-        info: %{email: "user+name@test&example.com"}
+        info: %{email: "user+name@example.com"}
       }
 
       # When
@@ -1309,12 +1305,12 @@ defmodule Tuist.AccountsTest do
       assert user.account.name == "username"
     end
 
-    test "sanitizes handle when creating user from OAuth2 with spaces and special characters" do
+    test "sanitizes handle when creating user from OAuth2 with percent sign" do
       # Given
       oauth_identity = %{
         provider: :github,
         uid: System.unique_integer([:positive]),
-        info: %{email: "user name@test.com"}
+        info: %{email: "user%name@test.com"}
       }
 
       # When
@@ -1451,13 +1447,11 @@ defmodule Tuist.AccountsTest do
       Accounts.add_user_to_organization(user, organization)
 
       command_event =
-        with_flushed_ingestion_buffers(fn ->
-          CommandEventsFixtures.command_event_fixture(
-            name: "generate",
-            project_id: project.id,
-            user_id: user.id
-          )
-        end)
+        CommandEventsFixtures.command_event_fixture(
+          name: "generate",
+          project_id: project.id,
+          user_id: user.id
+        )
 
       Accounts.update_last_visited_project(user, project.id)
       code = Accounts.create_device_code("some-code")
@@ -1468,7 +1462,7 @@ defmodule Tuist.AccountsTest do
 
       # Then
       assert Accounts.get_user_by_id(user.id) == nil
-      assert Accounts.get_account_by_id(account.id) == nil
+      assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
       assert Projects.get_project_by_id(project.id) == nil
 
       assert Accounts.get_oauth2_identity_by_provider_and_id(
@@ -1516,6 +1510,7 @@ defmodule Tuist.AccountsTest do
     test "doesn't start biling trial if it's an on-premise environment" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> false end)
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
       email = unique_user_email()
 
       # When
@@ -1530,6 +1525,7 @@ defmodule Tuist.AccountsTest do
     test "create a user with a password" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
       email = unique_user_email()
 
       # When
@@ -1543,6 +1539,7 @@ defmodule Tuist.AccountsTest do
 
     test "creates the user infering the handle from the email when no handle is provided" do
       # Given
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
       email = unique_user_email()
 
       # When
@@ -1556,6 +1553,7 @@ defmodule Tuist.AccountsTest do
 
     test "create a user with a password when new pricing model is enabled" do
       # Given
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
       email = unique_user_email()
 
       # When
@@ -1582,6 +1580,7 @@ defmodule Tuist.AccountsTest do
     test "create a user with a password when email has a dot in the username" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
       email = "username.with.dot@tuist.io"
 
       # When
@@ -1612,11 +1611,10 @@ defmodule Tuist.AccountsTest do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
       Accounts.create_user("foo@tuist.io")
-      Accounts.create_user("foo1@tuist.io")
-      Accounts.create_user("foo2@tuist.io")
-      Accounts.create_user("foo3@tuist.io")
-      Accounts.create_user("foo4@tuist.io")
-      Accounts.create_user("foo5@tuist.io")
+
+      for i <- 1..20 do
+        Accounts.create_user("foo#{i}@tuist.io")
+      end
 
       # When
       {:error, :account_handle_taken} = Accounts.create_user("foo@tuist.test")
@@ -1653,9 +1651,9 @@ defmodule Tuist.AccountsTest do
       assert user.account.name == "user-name-test"
     end
 
-    test "sanitizes handle by removing multiple special characters" do
+    test "sanitizes handle by removing plus sign" do
       # Given
-      email = "user+name@test&example.com"
+      email = "user+name@example.com"
 
       # When
       {:ok, user} = Accounts.create_user(email, password: valid_user_password())
@@ -1664,9 +1662,9 @@ defmodule Tuist.AccountsTest do
       assert user.account.name == "username"
     end
 
-    test "sanitizes handle by removing spaces and special characters" do
+    test "sanitizes handle by removing percent sign" do
       # Given
-      email = "user name@test.com"
+      email = "user%name@test.com"
 
       # When
       {:ok, user} = Accounts.create_user(email, password: valid_user_password())
@@ -1702,6 +1700,19 @@ defmodule Tuist.AccountsTest do
       account = Repo.preload(user, :account).account
       assert {:ok, account} = Accounts.update_account(account, %{name: "christoph"})
       assert account.name == "christoph"
+    end
+
+    test "persists the custom cache endpoints enabled flag", %{user: user} do
+      account = Repo.preload(user, :account).account
+      assert account.custom_cache_endpoints_enabled == false
+
+      assert {:ok, account} =
+               Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
+
+      assert account.custom_cache_endpoints_enabled == true
+
+      assert {:ok, reloaded_account} = Accounts.get_account_by_id(account.id)
+      assert reloaded_account.custom_cache_endpoints_enabled == true
     end
 
     test "validates name format", %{user: user} do
@@ -1774,7 +1785,7 @@ defmodule Tuist.AccountsTest do
 
   describe "deliver_user_confirmation_instructions/2" do
     setup do
-      stub(Environment, :smtp_user_name, fn -> "stmp_user_name" end)
+      stub(Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
       %{user: user_fixture(confirmed_at: nil)}
     end
 
@@ -1799,7 +1810,7 @@ defmodule Tuist.AccountsTest do
     setup do
       user = user_fixture(confirmed_at: nil)
 
-      stub(Environment, :smtp_user_name, fn -> "stmp_user_name" end)
+      stub(Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
 
       token =
         extract_user_token(fn confirmation_url ->
@@ -1836,7 +1847,7 @@ defmodule Tuist.AccountsTest do
 
   describe "deliver_user_reset_password_instructions/2" do
     setup do
-      stub(Environment, :smtp_user_name, fn -> "stmp_user_name" end)
+      stub(Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
       %{user: user_fixture()}
     end
 
@@ -1861,7 +1872,7 @@ defmodule Tuist.AccountsTest do
     setup do
       user = user_fixture()
 
-      stub(Environment, :smtp_user_name, fn -> "stmp_user_name" end)
+      stub(Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
 
       token =
         extract_user_token(fn reset_password_url ->
@@ -2135,12 +2146,12 @@ defmodule Tuist.AccountsTest do
           provider: :github,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           }
         })
 
       # Then
-      assert user.email == "tuist@tuist.io"
+      assert user.email == "tuist@tuist.dev"
     end
 
     test "creates a user from a google identity with a hosted domain" do
@@ -2153,7 +2164,7 @@ defmodule Tuist.AccountsTest do
           provider: :google,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -2165,7 +2176,7 @@ defmodule Tuist.AccountsTest do
         })
 
       # Then
-      assert user.email == "tuist@tuist.io"
+      assert user.email == "tuist@tuist.dev"
       oauth2_identity = Accounts.get_oauth2_identity_by_provider_and_id(:google, 123)
       assert oauth2_identity.provider_organization_id == "tuist.io"
     end
@@ -2180,7 +2191,7 @@ defmodule Tuist.AccountsTest do
           provider: :google,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -2192,20 +2203,20 @@ defmodule Tuist.AccountsTest do
         })
 
       # Then
-      assert user.email == "tuist@tuist.io"
+      assert user.email == "tuist@tuist.dev"
       oauth2_identity = Accounts.get_oauth2_identity_by_provider_and_id(:google, 123)
       assert oauth2_identity.provider_organization_id == nil
     end
 
     test "updates an existing user with a new github identity" do
-      user = user_fixture(email: "tuist@tuist.io")
+      user = user_fixture(email: "tuist@tuist.dev")
 
       got =
         Accounts.find_or_create_user_from_oauth2(%{
           provider: :github,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           }
         })
 
@@ -2214,14 +2225,14 @@ defmodule Tuist.AccountsTest do
     end
 
     test "updates an existing user with a new okta identity" do
-      user = user_fixture(email: "tuist@tuist.io")
+      user = user_fixture(email: "tuist@tuist.dev")
 
       got =
         Accounts.find_or_create_user_from_oauth2(%{
           provider: :okta,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -2276,7 +2287,7 @@ defmodule Tuist.AccountsTest do
   end
 
   describe "get_account_from_customer_id/1" do
-    test "returns the account with the given customer_id" do
+    test "returns {:ok, account} with the given customer_id" do
       # Given
       stub(Stripe.Customer, :create, fn _ -> {:ok, %Stripe.Customer{id: "customer_id"}} end)
       user = AccountsFixtures.user_fixture()
@@ -2287,10 +2298,10 @@ defmodule Tuist.AccountsTest do
       got = Accounts.get_account_from_customer_id(customer_id)
 
       # Then
-      assert got == account
+      assert got == {:ok, account}
     end
 
-    test "returns nil if the account with the given customer_id does not exist" do
+    test "returns {:error, :not_found} if the account with the given customer_id does not exist" do
       # Given
       AccountsFixtures.user_fixture()
 
@@ -2298,7 +2309,7 @@ defmodule Tuist.AccountsTest do
       got = Accounts.get_account_from_customer_id("unknown")
 
       # Then
-      assert got == nil
+      assert got == {:error, :not_found}
     end
   end
 
@@ -2331,7 +2342,7 @@ defmodule Tuist.AccountsTest do
           provider: :google,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -2362,6 +2373,60 @@ defmodule Tuist.AccountsTest do
     end
   end
 
+  describe "add_user_to_organization/3" do
+    test "does not create duplicate roles when called twice with same role" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
+
+      # When - Add user to organization twice with :user role
+      :ok = Accounts.add_user_to_organization(user, organization, role: :user)
+      :ok = Accounts.add_user_to_organization(user, organization, role: :user)
+
+      # Then - Should only have one role/user_role for this user+organization
+      roles =
+        Tuist.Repo.all(
+          from(ur in UserRole,
+            join: r in Role,
+            on: ur.role_id == r.id,
+            where:
+              ur.user_id == ^user.id and r.resource_type == "Organization" and
+                r.resource_id == ^organization.id,
+            select: r
+          )
+        )
+
+      assert length(roles) == 1
+      assert hd(roles).name == "user"
+    end
+
+    test "does not create duplicate roles when called twice with different roles" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
+
+      # When - Add user as :user, then try to add again as :admin (should not create duplicate)
+      :ok = Accounts.add_user_to_organization(user, organization, role: :user)
+      :ok = Accounts.add_user_to_organization(user, organization, role: :admin)
+
+      # Then - Should only have one role (the first one created)
+      roles =
+        Tuist.Repo.all(
+          from(ur in UserRole,
+            join: r in Role,
+            on: ur.role_id == r.id,
+            where:
+              ur.user_id == ^user.id and r.resource_type == "Organization" and
+                r.resource_id == ^organization.id,
+            select: r
+          )
+        )
+
+      # The second call should be a no-op if a role already exists
+      assert length(roles) == 1
+    end
+  end
+
   describe "update_user_role_in_organization/3" do
     test "Updates user role from user to admin" do
       # Given
@@ -2371,7 +2436,7 @@ defmodule Tuist.AccountsTest do
       Accounts.add_user_to_organization(user, organization, role: :user)
 
       # When
-      Accounts.update_user_role_in_organization(user, organization, :admin)
+      {:ok, _} = Accounts.update_user_role_in_organization(user, organization, :admin)
 
       # Then
       assert Accounts.organization_admin?(user, organization) == true
@@ -2385,7 +2450,7 @@ defmodule Tuist.AccountsTest do
       Accounts.add_user_to_organization(user, organization, role: :admin)
 
       # When
-      Accounts.update_user_role_in_organization(user, organization, :user)
+      {:ok, _} = Accounts.update_user_role_in_organization(user, organization, :user)
 
       # Then
       assert Accounts.organization_admin?(user, organization) == false
@@ -2457,7 +2522,7 @@ defmodule Tuist.AccountsTest do
           provider: :google,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -2509,7 +2574,7 @@ defmodule Tuist.AccountsTest do
           provider: :okta,
           uid: 123,
           info: %{
-            email: "tuist@tuist.io"
+            email: "tuist@tuist.dev"
           },
           extra: %{
             raw_info: %{
@@ -2664,7 +2729,7 @@ defmodule Tuist.AccountsTest do
       account = AccountsFixtures.user_fixture(preload: [:account]).account
 
       {:ok, {account_token, account_token_value}} =
-        Accounts.create_account_token(%{account: account, scopes: [:registry_read]})
+        Accounts.create_account_token(%{account: account, scopes: ["account:registry:read"], name: "test-token"})
 
       # When
       {:ok, got} = Accounts.account_token(account_token_value)
@@ -2707,11 +2772,265 @@ defmodule Tuist.AccountsTest do
 
       # When
       {:ok, {_, got_token_value}} =
-        Accounts.create_account_token(%{account: account, scopes: [:registry_read]})
+        Accounts.create_account_token(%{
+          account: account,
+          scopes: ["account:registry:read"],
+          name: "my-token"
+        })
 
       # Then
       %{id: token_id} = Repo.one(AccountToken)
       assert "tuist_#{token_id}_generated-hash" == got_token_value
+    end
+
+    test "creates account token with all_projects: false by default" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      # When
+      {:ok, {token, _}} =
+        Accounts.create_account_token(%{
+          account: account,
+          scopes: ["project:cache:read"],
+          name: "default-token"
+        })
+
+      # Then
+      assert token.all_projects == false
+    end
+
+    test "creates account token with all_projects: true when explicitly set" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      # When
+      {:ok, {token, _}} =
+        Accounts.create_account_token(%{
+          account: account,
+          scopes: ["project:cache:read"],
+          name: "all-projects-token",
+          all_projects: true
+        })
+
+      # Then
+      assert token.all_projects == true
+    end
+
+    test "creates account token with project restrictions" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      # When
+      {:ok, {token, _}} =
+        Accounts.create_account_token(%{
+          account: account,
+          scopes: ["project:cache:read"],
+          name: "restricted-token",
+          all_projects: false,
+          project_ids: [project.id]
+        })
+
+      # Then
+      assert token.all_projects == false
+      token_with_projects = Repo.preload(token, :projects)
+      assert length(token_with_projects.projects) == 1
+      assert hd(token_with_projects.projects).id == project.id
+    end
+
+    test "creates account token with multiple project restrictions" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      project1 = ProjectsFixtures.project_fixture(account_id: account.id)
+      project2 = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      # When
+      {:ok, {token, _}} =
+        Accounts.create_account_token(%{
+          account: account,
+          scopes: ["project:cache:read"],
+          name: "multi-project-token",
+          all_projects: false,
+          project_ids: [project1.id, project2.id]
+        })
+
+      # Then
+      assert token.all_projects == false
+      token_with_projects = Repo.preload(token, :projects)
+      assert length(token_with_projects.projects) == 2
+      project_ids = Enum.map(token_with_projects.projects, & &1.id)
+      assert project1.id in project_ids
+      assert project2.id in project_ids
+    end
+  end
+
+  describe "list_account_tokens/2" do
+    test "returns tokens for the account with pagination" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      AccountsFixtures.account_token_fixture(account: account, name: "token-1")
+      AccountsFixtures.account_token_fixture(account: account, name: "token-2")
+
+      # When
+      {tokens, meta} = Accounts.list_account_tokens(account, %{page: 1, page_size: 10})
+
+      # Then
+      assert length(tokens) == 2
+      assert meta.total_count == 2
+    end
+
+    test "does not return tokens from other accounts" do
+      # Given
+      account1 = AccountsFixtures.user_fixture(preload: [:account]).account
+      account2 = AccountsFixtures.user_fixture(preload: [:account]).account
+      AccountsFixtures.account_token_fixture(account: account1, name: "token-1")
+      AccountsFixtures.account_token_fixture(account: account2, name: "token-2")
+
+      # When
+      {tokens, _meta} = Accounts.list_account_tokens(account1)
+
+      # Then
+      assert length(tokens) == 1
+      assert hd(tokens).name == "token-1"
+    end
+
+    test "preloads projects association" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      {:ok, {_token, _}} =
+        Accounts.create_account_token(%{
+          account: account,
+          scopes: ["project:cache:read"],
+          name: "restricted-token",
+          all_projects: false,
+          project_ids: [project.id]
+        })
+
+      # When
+      {tokens, _meta} = Accounts.list_account_tokens(account)
+
+      # Then
+      assert length(tokens) == 1
+      token = hd(tokens)
+      assert Ecto.assoc_loaded?(token.projects)
+      assert length(token.projects) == 1
+      assert hd(token.projects).id == project.id
+    end
+  end
+
+  describe "get_account_token_by_name/3" do
+    test "returns token when found" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      token = AccountsFixtures.account_token_fixture(account: account, name: "my-token")
+
+      # When
+      {:ok, found_token} = Accounts.get_account_token_by_name(account, "my-token")
+
+      # Then
+      assert found_token.id == token.id
+      assert found_token.name == "my-token"
+    end
+
+    test "returns error when token not found" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      # When
+      result = Accounts.get_account_token_by_name(account, "non-existent")
+
+      # Then
+      assert {:error, :not_found} == result
+    end
+
+    test "does not return token from different account" do
+      # Given
+      account1 = AccountsFixtures.user_fixture(preload: [:account]).account
+      account2 = AccountsFixtures.user_fixture(preload: [:account]).account
+      AccountsFixtures.account_token_fixture(account: account1, name: "shared-name")
+
+      # When
+      result = Accounts.get_account_token_by_name(account2, "shared-name")
+
+      # Then
+      assert {:error, :not_found} == result
+    end
+
+    test "preloads specified associations" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      AccountsFixtures.account_token_fixture(account: account, name: "my-token")
+
+      # When
+      {:ok, found_token} =
+        Accounts.get_account_token_by_name(account, "my-token", preload: [:projects])
+
+      # Then
+      assert Ecto.assoc_loaded?(found_token.projects)
+    end
+  end
+
+  describe "delete_account_token/1" do
+    test "deletes an account token" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      token = AccountsFixtures.account_token_fixture(account: account, name: "token-to-delete")
+
+      # When
+      {:ok, deleted_token} = Accounts.delete_account_token(token)
+
+      # Then
+      assert deleted_token.id == token.id
+      assert {:error, :not_found} == Accounts.get_account_token_by_name(account, "token-to-delete")
+    end
+
+    test "deletes an account token with project associations" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      {:ok, {token, _}} =
+        Accounts.create_account_token(%{
+          account: account,
+          scopes: ["project:cache:read"],
+          name: "restricted-token",
+          all_projects: false,
+          project_ids: [project.id]
+        })
+
+      # When
+      {:ok, _} = Accounts.delete_account_token(token)
+
+      # Then
+      assert {:error, :not_found} == Accounts.get_account_token_by_name(account, "restricted-token")
+    end
+  end
+
+  describe "account_token_expired?/1" do
+    test "returns false when expires_at is nil" do
+      # Given
+      token = %AccountToken{expires_at: nil}
+
+      # When/Then
+      refute Accounts.account_token_expired?(token)
+    end
+
+    test "returns false when expires_at is in the future" do
+      # Given
+      token = %AccountToken{expires_at: DateTime.add(DateTime.utc_now(), 1, :hour)}
+
+      # When/Then
+      refute Accounts.account_token_expired?(token)
+    end
+
+    test "returns true when expires_at is in the past" do
+      # Given
+      token = %AccountToken{expires_at: DateTime.add(DateTime.utc_now(), -1, :hour)}
+
+      # When/Then
+      assert Accounts.account_token_expired?(token)
     end
   end
 
@@ -2857,7 +3176,7 @@ defmodule Tuist.AccountsTest do
 
       # Then
       assert Accounts.get_user_by_id(user.id) == nil
-      assert Accounts.get_account_by_id(account.id) == nil
+      assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
     end
 
     test "deletes an organization account successfully" do
@@ -2871,7 +3190,7 @@ defmodule Tuist.AccountsTest do
 
       # Then
       assert Accounts.get_organization_by_id(organization.id) == {:error, :not_found}
-      assert Accounts.get_account_by_id(account.id) == nil
+      assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
     end
   end
 
@@ -2893,6 +3212,40 @@ defmodule Tuist.AccountsTest do
       # Then
       assert got_organization.id == organization.id
       assert got_organization.sso_provider == :okta
+    end
+
+    test "falls back to domain-based matching when user doesn't exist" do
+      # Given - no user exists but organization exists for domain
+      AccountsFixtures.organization_fixture(
+        sso_provider: :okta,
+        sso_organization_id: "company.okta.com"
+      )
+
+      # When
+      {:ok, organization} = Accounts.okta_organization_for_user_email("newuser@company.com")
+
+      # Then
+      assert organization.sso_provider == :okta
+      assert organization.sso_organization_id == "company.okta.com"
+    end
+
+    test "falls back to domain-based matching when user has no okta organization" do
+      # Given
+      user = AccountsFixtures.user_fixture(email: "user@company.com")
+      # User has no organization
+
+      # But organization exists for domain
+      AccountsFixtures.organization_fixture(
+        sso_provider: :okta,
+        sso_organization_id: "company.okta.com"
+      )
+
+      # When
+      {:ok, organization} = Accounts.okta_organization_for_user_email(user.email)
+
+      # Then
+      assert organization.sso_provider == :okta
+      assert organization.sso_organization_id == "company.okta.com"
     end
 
     test "returns error when user does not exist" do
@@ -3028,7 +3381,553 @@ defmodule Tuist.AccountsTest do
 
       # Then
       assert reason == error_reason
-      assert is_nil(Accounts.get_account_by_id(account.id).namespace_tenant_id)
+      {:ok, reloaded_account} = Accounts.get_account_by_id(account.id)
+      assert is_nil(reloaded_account.namespace_tenant_id)
+    end
+  end
+
+  describe "get_oauth2_identity/2" do
+    test "returns {:ok, identity} when OAuth2 identity exists" do
+      # Given
+      provider = :github
+      uid = System.unique_integer([:positive])
+
+      user =
+        Accounts.find_or_create_user_from_oauth2(%{
+          provider: provider,
+          uid: uid,
+          info: %{email: "oauth-exists-test-#{uid}@example.com"}
+        })
+
+      # When
+      {:ok, identity} = Accounts.get_oauth2_identity(provider, uid)
+
+      # Then
+      assert identity.provider == provider
+      assert identity.id_in_provider == to_string(uid)
+      assert identity.user.id == user.id
+    end
+
+    test "returns {:error, :not_found} when OAuth2 identity does not exist" do
+      # When/Then
+      assert {:error, :not_found} = Accounts.get_oauth2_identity(:github, "nonexistent-uid")
+    end
+
+    test "returns {:error, :not_found} for different provider with same uid" do
+      # Given
+      uid = System.unique_integer([:positive])
+
+      Accounts.find_or_create_user_from_oauth2(%{
+        provider: :github,
+        uid: uid,
+        info: %{email: "oauth-provider-test-#{uid}@example.com"}
+      })
+
+      # When/Then
+      assert {:error, :not_found} = Accounts.get_oauth2_identity(:google, uid)
+    end
+  end
+
+  describe "link_oauth_identity_to_user/2" do
+    test "links OAuth identity to an existing user" do
+      # Given
+      user = user_fixture(email: "existing-user@example.com")
+
+      attrs = %{
+        provider: :google,
+        id_in_provider: "google-uid-#{System.unique_integer([:positive])}",
+        provider_organization_id: nil
+      }
+
+      # When
+      {:ok, oauth_identity} = Accounts.link_oauth_identity_to_user(user, attrs)
+
+      # Then
+      assert oauth_identity.user_id == user.id
+      assert oauth_identity.provider == :google
+      assert oauth_identity.id_in_provider == to_string(attrs.id_in_provider)
+    end
+
+    test "the linked OAuth identity can be retrieved" do
+      # Given
+      user = user_fixture(email: "link-test@example.com")
+      uid = "google-uid-#{System.unique_integer([:positive])}"
+
+      attrs = %{
+        provider: :google,
+        id_in_provider: uid,
+        provider_organization_id: nil
+      }
+
+      # When
+      {:ok, _oauth_identity} = Accounts.link_oauth_identity_to_user(user, attrs)
+
+      # Then
+      {:ok, retrieved} = Accounts.get_oauth2_identity(:google, uid)
+      assert retrieved.user.id == user.id
+    end
+
+    test "assigns user to SSO organization when provider_organization_id matches" do
+      # Given
+      organization =
+        organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: "link-sso-test.io"
+        )
+
+      user = user_fixture(email: "link-sso-user@example.com")
+
+      attrs = %{
+        provider: :google,
+        id_in_provider: "google-uid-#{System.unique_integer([:positive])}",
+        provider_organization_id: "link-sso-test.io"
+      }
+
+      # When
+      {:ok, _oauth_identity} = Accounts.link_oauth_identity_to_user(user, attrs)
+
+      # Then
+      assert Accounts.belongs_to_organization?(user, organization)
+    end
+
+    test "returns error when OAuth identity already exists for that provider and uid" do
+      # Given
+      user1 = user_fixture(email: "user1@example.com")
+      user2 = user_fixture(email: "user2@example.com")
+      uid = "shared-uid-#{System.unique_integer([:positive])}"
+
+      attrs = %{
+        provider: :github,
+        id_in_provider: uid,
+        provider_organization_id: nil
+      }
+
+      # First link succeeds
+      {:ok, _} = Accounts.link_oauth_identity_to_user(user1, attrs)
+
+      # When - second link to same OAuth identity fails
+      {:error, changeset} = Accounts.link_oauth_identity_to_user(user2, attrs)
+
+      # Then
+      assert changeset.errors != []
+    end
+  end
+
+  describe "extract_provider_organization_id/1" do
+    test "extracts hosted domain for Google provider" do
+      # Given
+      auth = %{
+        provider: :google,
+        extra: %{
+          raw_info: %{
+            user: %{"hd" => "tuist.io"}
+          }
+        }
+      }
+
+      # When
+      result = Accounts.extract_provider_organization_id(auth)
+
+      # Then
+      assert result == "tuist.io"
+    end
+
+    test "returns nil for Google provider without hosted domain" do
+      # Given
+      auth = %{
+        provider: :google,
+        extra: %{
+          raw_info: %{
+            user: %{}
+          }
+        }
+      }
+
+      # When
+      result = Accounts.extract_provider_organization_id(auth)
+
+      # Then
+      assert is_nil(result)
+    end
+
+    test "returns nil for GitHub provider" do
+      # Given
+      auth = %{
+        provider: :github,
+        extra: %{
+          raw_info: %{
+            user: %{}
+          }
+        }
+      }
+
+      # When
+      result = Accounts.extract_provider_organization_id(auth)
+
+      # Then
+      assert is_nil(result)
+    end
+
+    test "returns nil for Apple provider" do
+      # Given
+      auth = %{
+        provider: :apple,
+        extra: %{
+          raw_info: %{
+            user: %{}
+          }
+        }
+      }
+
+      # When
+      result = Accounts.extract_provider_organization_id(auth)
+
+      # Then
+      assert is_nil(result)
+    end
+
+    test "extracts issuer domain for Okta provider" do
+      # Given
+      auth = %{
+        provider: :okta,
+        extra: %{
+          raw_info: %{
+            token: %{
+              other_params: %{
+                "id_token" => "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL3R1aXN0Lm9rdGEuY29tIn0.test"
+              }
+            }
+          }
+        }
+      }
+
+      # When
+      result = Accounts.extract_provider_organization_id(auth)
+
+      # Then
+      assert result == "tuist.okta.com"
+    end
+  end
+
+  describe "create_user_from_pending_oauth/2" do
+    test "creates user with specified username" do
+      # Given
+      oauth_data = %{
+        "provider" => "github",
+        "uid" => "oauth-uid-#{System.unique_integer([:positive])}",
+        "email" => "newuser-#{System.unique_integer([:positive])}@example.com",
+        "provider_organization_id" => nil
+      }
+
+      username = "chosen-username-#{System.unique_integer([:positive])}"
+
+      # When
+      {:ok, user} = Accounts.create_user_from_pending_oauth(oauth_data, username)
+
+      # Then
+      assert user.account.name == username
+      assert user.email == oauth_data["email"]
+    end
+
+    test "creates OAuth2 identity for the user" do
+      # Given
+      uid = "oauth-uid-#{System.unique_integer([:positive])}"
+
+      oauth_data = %{
+        "provider" => "github",
+        "uid" => uid,
+        "email" => "newuser-#{System.unique_integer([:positive])}@example.com",
+        "provider_organization_id" => nil
+      }
+
+      username = "chosen-username-#{System.unique_integer([:positive])}"
+
+      # When
+      {:ok, _user} = Accounts.create_user_from_pending_oauth(oauth_data, username)
+
+      # Then
+      assert {:ok, _identity} = Accounts.get_oauth2_identity(:github, uid)
+    end
+
+    test "assigns user to SSO organization when provider_organization_id matches" do
+      # Given
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: "sso-test.io"
+        )
+
+      oauth_data = %{
+        "provider" => "google",
+        "uid" => "oauth-uid-#{System.unique_integer([:positive])}",
+        "email" => "ssouser-#{System.unique_integer([:positive])}@sso-test.io",
+        "provider_organization_id" => "sso-test.io"
+      }
+
+      username = "sso-user-#{System.unique_integer([:positive])}"
+
+      # When
+      {:ok, user} = Accounts.create_user_from_pending_oauth(oauth_data, username)
+
+      # Then
+      assert Accounts.belongs_to_organization?(user, organization)
+    end
+
+    test "returns error when username is already taken" do
+      # Given
+      existing_user = AccountsFixtures.user_fixture()
+      existing_username = existing_user.account.name
+
+      oauth_data = %{
+        "provider" => "github",
+        "uid" => "oauth-uid-#{System.unique_integer([:positive])}",
+        "email" => "newuser-#{System.unique_integer([:positive])}@example.com",
+        "provider_organization_id" => nil
+      }
+
+      # When
+      result = Accounts.create_user_from_pending_oauth(oauth_data, existing_username)
+
+      # Then
+      assert {:error, :account_handle_taken} = result
+    end
+
+    test "returns error for invalid username format" do
+      # Given
+      oauth_data = %{
+        "provider" => "github",
+        "uid" => "oauth-uid-#{System.unique_integer([:positive])}",
+        "email" => "newuser-#{System.unique_integer([:positive])}@example.com",
+        "provider_organization_id" => nil
+      }
+
+      invalid_username = "invalid username with spaces"
+
+      # When
+      result = Accounts.create_user_from_pending_oauth(oauth_data, invalid_username)
+
+      # Then
+      assert {:error, errors} = result
+      assert Map.has_key?(errors, :name)
+    end
+  end
+
+  describe "list_account_cache_endpoints/1" do
+    test "returns empty list when account has no cache endpoints" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      endpoints = Accounts.list_account_cache_endpoints(account)
+
+      # Then
+      assert endpoints == []
+    end
+
+    test "returns cache endpoints for account" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, endpoint1} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache1.example.com"})
+      {:ok, endpoint2} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache2.example.com"})
+
+      # When
+      endpoints = Accounts.list_account_cache_endpoints(account)
+
+      # Then
+      assert length(endpoints) == 2
+      endpoint_ids = Enum.map(endpoints, & &1.id)
+      assert endpoint1.id in endpoint_ids
+      assert endpoint2.id in endpoint_ids
+    end
+  end
+
+  describe "create_account_cache_endpoint/2" do
+    test "creates cache endpoint with valid URL" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      {:ok, endpoint} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache.example.com"})
+
+      # Then
+      assert endpoint.url == "https://cache.example.com"
+      assert endpoint.account_id == account.id
+    end
+
+    test "returns error for invalid URL" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      {:error, changeset} = Accounts.create_account_cache_endpoint(account, %{url: "not-a-url"})
+
+      # Then
+      assert %{url: ["must be a valid HTTP or HTTPS URL"]} = errors_on(changeset)
+    end
+
+    test "returns error when adding duplicate URL for same account" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, _endpoint} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache.example.com"})
+
+      # When
+      {:error, changeset} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache.example.com"})
+
+      # Then
+      assert %{account_id: ["has already been added"]} = errors_on(changeset)
+    end
+
+    test "allows same URL for different accounts" do
+      # Given
+      user1 = AccountsFixtures.user_fixture()
+      user2 = AccountsFixtures.user_fixture()
+      account1 = Accounts.get_account_from_user(user1)
+      account2 = Accounts.get_account_from_user(user2)
+      {:ok, _endpoint1} = Accounts.create_account_cache_endpoint(account1, %{url: "https://cache.example.com"})
+
+      # When
+      result = Accounts.create_account_cache_endpoint(account2, %{url: "https://cache.example.com"})
+
+      # Then
+      assert {:ok, endpoint} = result
+      assert endpoint.url == "https://cache.example.com"
+    end
+  end
+
+  describe "delete_account_cache_endpoint/1" do
+    test "deletes the cache endpoint" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, endpoint} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache.example.com"})
+
+      # When
+      {:ok, _} = Accounts.delete_account_cache_endpoint(endpoint)
+
+      # Then
+      assert Accounts.list_account_cache_endpoints(account) == []
+    end
+  end
+
+  describe "get_account_cache_endpoint!/1" do
+    test "returns the cache endpoint" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, endpoint} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache.example.com"})
+
+      # When
+      fetched_endpoint = Accounts.get_account_cache_endpoint!(endpoint.id)
+
+      # Then
+      assert fetched_endpoint.id == endpoint.id
+      assert fetched_endpoint.url == endpoint.url
+    end
+
+    test "raises when endpoint does not exist" do
+      # Given / When / Then
+      assert_raise Ecto.NoResultsError, fn ->
+        Accounts.get_account_cache_endpoint!(Ecto.UUID.generate())
+      end
+    end
+  end
+
+  describe "get_cache_endpoints_for_handle/1" do
+    test "returns custom endpoints when account has them configured and enabled" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache1.example.com"})
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache2.example.com"})
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+
+      # Then
+      assert Enum.sort(endpoints) == Enum.sort(["https://cache1.example.com", "https://cache2.example.com"])
+    end
+
+    test "returns default endpoints when account has no custom endpoints" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      {:ok, _} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+
+      # Then
+      assert endpoints == default_endpoints
+    end
+
+    test "returns default endpoints when custom endpoints exist but are disabled" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache1.example.com"})
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+
+      # Then
+      assert endpoints == default_endpoints
+    end
+
+    test "returns default endpoints when account is not enterprise on hosted" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache1.example.com"})
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+
+      # Then
+      assert endpoints == default_endpoints
+    end
+
+    test "returns default endpoints when account handle does not exist" do
+      # Given
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle("nonexistent-account")
+
+      # Then
+      assert endpoints == default_endpoints
+    end
+
+    test "returns default endpoints when handle is nil" do
+      # Given
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(nil)
+
+      # Then
+      assert endpoints == default_endpoints
     end
   end
 end

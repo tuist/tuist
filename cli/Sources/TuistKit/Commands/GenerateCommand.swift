@@ -4,12 +4,6 @@ import TuistCore
 import TuistServer
 import TuistSupport
 
-extension TargetQuery: @retroactive ExpressibleByArgument {
-    public init?(argument: String) {
-        self.init(stringLiteral: argument)
-    }
-}
-
 public struct GenerateCommand: AsyncParsableCommand, RecentPathRememberableCommand {
     public init() {}
 
@@ -55,12 +49,26 @@ public struct GenerateCommand: AsyncParsableCommand, RecentPathRememberableComma
     var binaryCache: Bool = true
 
     @Option(
+        name: .long,
+        help: "Binary cache profile to use: \(BaseCacheProfile.allCases.map(\.rawValue).joined(separator: ", ")), or a custom profile name. Defaults to the profile configured in Tuist.swift, or 'only-external' if not configured.",
+        envKey: .generateCacheProfile
+    )
+    var cacheProfile: CacheProfileType?
+
+    @Option(
         name: .shortAndLong,
         help: "Configuration to generate for."
     )
     var configuration: String?
 
     public func run() async throws {
+        if !binaryCache {
+            AlertController.current.warning(.alert(
+                "The \(.command("--no-binary-cache")) flag is deprecated.",
+                takeaway: "Use \(.command("--cache-profile none")) instead."
+            ))
+        }
+
         try await GenerateService(
             cacheStorageFactory: Extension.cacheStorageFactory,
             generatorFactory: Extension.generatorFactory
@@ -69,7 +77,8 @@ public struct GenerateCommand: AsyncParsableCommand, RecentPathRememberableComma
             includedTargets: Set(includedTargets),
             noOpen: !open,
             configuration: configuration,
-            ignoreBinaryCache: !binaryCache
+            ignoreBinaryCache: !binaryCache,
+            cacheProfile: cacheProfile
         )
     }
 }

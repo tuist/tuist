@@ -18,8 +18,19 @@ extension XcodeGraph.FileElement {
         fileSystem: FileSysteming,
         includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }
     ) async throws -> [XcodeGraph.FileElement] {
-        func globFiles(_ path: AbsolutePath) async throws -> [AbsolutePath] {
+        func globFiles(_ path: AbsolutePath, excluding: [String]) async throws -> [AbsolutePath] {
             if try await fileSystem.exists(path), !FileHandler.shared.isFolder(path) { return [path] }
+
+            var excluded: Set<AbsolutePath> = []
+            for path in excluding {
+                let absolute = try AbsolutePath(validating: path)
+                let globs = try await fileSystem.glob(
+                    directory: .root,
+                    include: [String(absolute.pathString.dropFirst())]
+                )
+                .collect()
+                excluded.formUnion(globs)
+            }
 
             let files: [AbsolutePath]
 
@@ -30,6 +41,7 @@ extension XcodeGraph.FileElement {
                 )
                 .collect()
                 .filter(includeFiles)
+                .filter { !excluded.contains($0) }
             } catch GlobError.nonExistentDirectory {
                 files = []
             }
@@ -65,9 +77,10 @@ extension XcodeGraph.FileElement {
         }
 
         switch manifest {
-        case let .glob(pattern: pattern):
+        case let .glob(pattern, excluding):
             let resolvedPath = try generatorPaths.resolve(path: pattern)
-            return try await globFiles(resolvedPath).map(FileElement.file)
+            let excluding: [String] = try excluding.compactMap { try generatorPaths.resolve(path: $0).pathString }
+            return try await globFiles(resolvedPath, excluding: excluding).map(FileElement.file)
         case let .folderReference(path: folderReferencePath):
             let resolvedPath = try generatorPaths.resolve(path: folderReferencePath)
             return try await folderReferences(resolvedPath).map(FileElement.folderReference)

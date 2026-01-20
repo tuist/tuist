@@ -9,6 +9,7 @@
 import VPFeature from "vitepress/dist/client/theme-default/components/VPFeature.vue";
 </script>
 
+
 # About Tuist {#about-tuist}
 
 In the world of app development, particularly for platforms like Apple's, organizations often encounter **productivity roadblocks.** These can include sluggish compilation times, unreliable tests, and intricate automation workflows that drain resources. Traditionally, companies address these issues by forming dedicated platform teams. These specialists maintain codebase health and integrity, freeing other developers to focus on feature creation. However, this approach can be expensive and risky, as the departure of key team members can severely impact productivity.

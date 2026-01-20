@@ -17,9 +17,9 @@ defmodule Tuist.OAuth.Okta do
        domain: sso_organization_id,
        client_id: okta_client_id,
        client_secret: okta_encrypted_client_secret,
-       authorize_url: "/oauth2/default/v1/authorize",
-       token_url: "/oauth2/default/v1/token",
-       user_info_url: "/oauth2/default/v1/userinfo"
+       authorize_url: "/oauth2/v1/authorize",
+       token_url: "/oauth2/v1/token",
+       user_info_url: "/oauth2/v1/userinfo"
      }}
   end
 

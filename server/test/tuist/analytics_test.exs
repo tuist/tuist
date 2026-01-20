@@ -4,6 +4,7 @@ defmodule Tuist.AnalyticsTest do
 
   import TelemetryTest
 
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Analytics
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -92,6 +93,24 @@ defmodule Tuist.AnalyticsTest do
                         metadata: ^expected_metadata
                       }}
     end
+
+    test "it sends the telemetry event with an authenticated account" do
+      # When
+      user = AccountsFixtures.user_fixture()
+      authenticated_account = %AuthenticatedAccount{account: user.account, scopes: []}
+
+      assert :ok = Analytics.preview_upload(authenticated_account)
+
+      # Then
+      expected_metadata = %{account_id: user.account.id}
+
+      assert_receive {:telemetry_event,
+                      %{
+                        event: [:analytics, :preview, :upload],
+                        measurements: %{},
+                        metadata: ^expected_metadata
+                      }}
+    end
   end
 
   describe "preview_download" do
@@ -110,50 +129,6 @@ defmodule Tuist.AnalyticsTest do
                       %{
                         event: [:analytics, :preview, :download],
                         measurements: %{},
-                        metadata: ^expected_metadata
-                      }}
-    end
-  end
-
-  describe "cache_artifact_upload" do
-    @describetag telemetry_listen: [:analytics, :cache_artifact, :upload]
-
-    test "it sends the telemetry event" do
-      # When
-      user = AccountsFixtures.user_fixture()
-
-      assert :ok = Analytics.cache_artifact_upload(%{category: "builds", size: 22}, user)
-
-      # Then
-      expected_metadata = %{user_id: user.id, category: "builds"}
-      expected_measurements = %{size: 22}
-
-      assert_receive {:telemetry_event,
-                      %{
-                        event: [:analytics, :cache_artifact, :upload],
-                        measurements: ^expected_measurements,
-                        metadata: ^expected_metadata
-                      }}
-    end
-  end
-
-  describe "cache_artifact_download" do
-    @describetag telemetry_listen: [:analytics, :cache_artifact, :download]
-
-    test "it sends the telemetry event" do
-      # When
-      user = AccountsFixtures.user_fixture()
-
-      assert :ok = Analytics.cache_artifact_download(%{category: "builds", size: 22}, user)
-
-      # Then
-      expected_metadata = %{user_id: user.id, category: "builds"}
-      expected_measurements = %{size: 22}
-
-      assert_receive {:telemetry_event,
-                      %{
-                        event: [:analytics, :cache_artifact, :download],
-                        measurements: ^expected_measurements,
                         metadata: ^expected_metadata
                       }}
     end

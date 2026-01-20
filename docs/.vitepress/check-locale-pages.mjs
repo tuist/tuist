@@ -2,7 +2,7 @@ import * as path from "node:path";
 import * as fs from "node:fs/promises";
 import fastGlob from "fast-glob";
 
-const LOCALES = ["en", "ar", "es", "ja", "ko", "pt", "ru", "zh", "pl"];
+const LOCALES = ["en", "ar", "es", "ja", "ko", "pt", "ru", "zh_Hans", "pl"];
 const BASE_LOCALE = "en";
 
 export async function checkLocalePages(outDir) {

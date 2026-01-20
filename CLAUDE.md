@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 When creating commits and pull requests, use these conventional commit scopes:
 - `app` - Changes to the Tuist iOS app
 - `server` - Changes to the Tuist server (Elixir/Phoenix)
+- `cache` - Changes to the Tuist cache service (Elixir/Phoenix)
 - `cli` - Changes to the Tuist CLI (Swift)
 - `docs` - Changes to documentation
 - `handbook` - Changes to the handbook/guides
@@ -14,6 +15,7 @@ When creating commits and pull requests, use these conventional commit scopes:
 Examples:
 - `feat(server): add new telemetry sanitizer module`
 - `fix(cli): resolve cache artifact upload issue`
+- `feat(cache): add new S3 transfer worker`
 - `docs(handbook): update project setup guide`
 
 # Tuist CLI (Swift)
@@ -96,7 +98,7 @@ mise run dev                   # Start development server
 ```
 
 **Test User Account:**
-- Email: `tuistrocks@tuist.io`
+- Email: `tuistrocks@tuist.dev`
 - Password: `tuistrocks`
 
 ## Common Development Commands
@@ -174,16 +176,37 @@ mix test test/tuist_web/live/dashboard_live_test.exs
     - Timestamps in `lib/` should be `:utc_datetime`.
 - **Comments:** Add comments for complex logic or non-obvious code. Remove `TODO` comments once addressed.
 
+## Translation Management (Gettext)
+
+**Important:** Translations are managed through Weblate. Do not manually edit translation files.
+
+**Translation File Types:**
+- `.pot` files (templates) - **CAN be modified** by developers when adding/changing translatable strings
+- `.po` files (translations) - **MUST NOT be modified** by developers
+- Only the `tuistit` bot should modify `.po` files
+
+**Workflow:**
+1. Add translatable strings using `dgettext/2` in your code
+2. Run `mix gettext.extract` to update the `.pot` template files
+3. Commit only the `.pot` files (and your code changes)
+4. Weblate will automatically sync the `.pot` changes and create translation PRs via the `tuistit` bot
+5. **Never run `mix gettext.extract --merge`** in your PRs as this modifies `.po` files
+
+**Key Principles:**
+- Currency symbols and monetary amounts should NOT be wrapped in `dgettext/2` - they must remain consistent across languages
+- Descriptive text around prices (like "and up", "per unit") SHOULD be translatable
+- Example: `"0€ " <> dgettext("marketing", "and up")` ✅
+- Anti-example: `dgettext("marketing", "0€ and up")` ❌
+
+**CI Protection:**
+The CI pipeline will fail if any `.po` files are modified by anyone other than `tuistit`.
+
 ## Deployment
 
-The application deploys to Fly.io with different environments:
+The application deploys to Render with different environments:
 - `mise run deploy:staging` - Deploy to staging
 - `mise run deploy:canary` - Deploy to canary
 - `mise run deploy:production` - Deploy to production
-
-**Remote Console Access:**
-- `mise run fly:console:staging`
-- `mise run fly:console:production`
 
 ## Important Notes
 
@@ -257,7 +280,7 @@ When creating or modifying security policies:
 3. **Key considerations**:
    - Keep policies practical for a 4-person company
    - Reference the [shared responsibility model](/security/shared-responsibility-model) when discussing infrastructure
-   - Infrastructure providers (Fly.io, Supabase, Tigris, Cloudflare) handle their own layer security
+   - Infrastructure providers (Render, Supabase, Tigris, Cloudflare) handle their own layer security
    - Focus on application-layer responsibilities
 
 ## Navigation Configuration
@@ -307,7 +330,7 @@ description: Brief description of the page content
    - Practical implementation requirements
 
 3. **Infrastructure responsibilities**: Remember that Tuist relies on:
-   - Fly.io for application hosting
+   - Render for application hosting
    - Supabase for database services
    - Tigris for data storage
    - Cloudflare for CDN and edge services
@@ -394,3 +417,4 @@ This documentation is critical for:
 - Incident response and data breach notifications
 
 **Failure to keep this documentation current could result in incomplete data exports for legal requests, potentially leading to compliance violations.**
+- Don't modify content in languages other than English (source language)

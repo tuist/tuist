@@ -12,13 +12,13 @@ defmodule TuistWeb.UserLoginLive do
 
     socket =
       socket
-      |> assign(:head_title, "#{gettext("Log in")} · Tuist")
+      |> assign(:head_title, "#{dgettext("dashboard_auth", "Log in")} · Tuist")
       |> assign(:form, form)
-      |> assign(:mail_configured?, Environment.mail_configured?())
       |> assign(:github_configured?, Environment.github_oauth_configured?())
       |> assign(:google_configured?, Environment.google_oauth_configured?())
       |> assign(:okta_configured?, Environment.okta_oauth_configured?())
       |> assign(:apple_configured?, Environment.apple_oauth_configured?())
+      |> assign(:tuist_hosted?, Environment.tuist_hosted?())
 
     {
       :ok,
@@ -32,22 +32,25 @@ defmodule TuistWeb.UserLoginLive do
     <div id="login">
       <div data-part="frame">
         <div data-part="content">
-          <img src="/images/tuist_logo_32x32@2x.png" alt={gettext("Tuist Logo")} data-part="logo" />
+          <img
+            src="/images/tuist_logo_32x32@2x.png"
+            alt={dgettext("dashboard_auth", "Tuist Logo")}
+            data-part="logo"
+          />
           <div data-part="dots">
             <.dots_light />
             <.dots_dark />
           </div>
           <div data-part="header">
-            <h1 data-part="title">{gettext("Log in to Tuist")}</h1>
-            <span data-part="subtitle">{gettext("Welcome back! Please log in to continue")}</span>
+            <h1 data-part="title">{dgettext("dashboard_auth", "Log in to Tuist")}</h1>
+            <span data-part="subtitle">
+              {dgettext("dashboard_auth", "Welcome back! Please log in to continue")}
+            </span>
           </div>
           <div
             :if={oauth_configured?()}
             data-part="oauth"
-            data-compact={
-              @github_configured? and @apple_configured? and @google_configured? and
-                @okta_configured?
-            }
+            data-compact={all_oauth_providers_configured?(assigns)}
           >
             <.button
               :if={@github_configured?}
@@ -55,7 +58,9 @@ defmodule TuistWeb.UserLoginLive do
               variant="secondary"
               size="medium"
               label="GitHub"
+              icon_only={all_oauth_providers_configured?(assigns)}
             >
+              <.brand_github />
               <:icon_left>
                 <.brand_github />
               </:icon_left>
@@ -66,20 +71,11 @@ defmodule TuistWeb.UserLoginLive do
               variant="secondary"
               size="medium"
               label="Google"
+              icon_only={all_oauth_providers_configured?(assigns)}
             >
+              <.brand_google />
               <:icon_left>
                 <.brand_google />
-              </:icon_left>
-            </.button>
-            <.button
-              :if={@okta_configured?}
-              href={~p"/users/log_in/okta"}
-              variant="secondary"
-              size="medium"
-              label="Okta"
-            >
-              <:icon_left>
-                <.brand_okta />
               </:icon_left>
             </.button>
             <.button
@@ -88,13 +84,28 @@ defmodule TuistWeb.UserLoginLive do
               variant="secondary"
               size="medium"
               label="Apple"
+              icon_only={all_oauth_providers_configured?(assigns)}
             >
+              <.brand_apple />
               <:icon_left>
                 <.brand_apple />
               </:icon_left>
             </.button>
+            <.button
+              :if={@okta_configured? or @tuist_hosted?}
+              href={if @tuist_hosted?, do: ~p"/users/log_in/sso", else: ~p"/users/log_in/okta"}
+              variant="secondary"
+              size="medium"
+              label="Okta"
+              icon_only={all_oauth_providers_configured?(assigns)}
+            >
+              <.brand_okta />
+              <:icon_left>
+                <.brand_okta />
+              </:icon_left>
+            </.button>
           </div>
-          <.line_divider :if={oauth_configured?() and @mail_configured?} text="OR" />
+          <.line_divider :if={oauth_configured?()} text="OR" />
           <.alert
             :if={Flash.get(@flash, :info)}
             id="flash"
@@ -104,7 +115,6 @@ defmodule TuistWeb.UserLoginLive do
             title={Flash.get(@flash, :info)}
           />
           <.form
-            :if={@mail_configured?}
             data-part="form"
             for={@form}
             id="login_form"
@@ -122,7 +132,7 @@ defmodule TuistWeb.UserLoginLive do
             <.text_input
               field={@form[:email]}
               id="email"
-              label={gettext("Email address")}
+              label={dgettext("dashboard_auth", "Email address")}
               type="email"
               placeholder="hello@tuist.dev"
               show_prefix={false}
@@ -133,7 +143,7 @@ defmodule TuistWeb.UserLoginLive do
             />
             <.text_input
               field={@form[:password]}
-              label={gettext("Password")}
+              label={dgettext("dashboard_auth", "Password")}
               id="password"
               input_type="password"
               show_prefix={false}
@@ -146,26 +156,31 @@ defmodule TuistWeb.UserLoginLive do
               <.checkbox
                 id="remember_me"
                 field={@form[:remember_me]}
-                label={gettext("Keep me logged in")}
+                label={dgettext("dashboard_auth", "Keep me logged in")}
                 tabindex={3}
               />
               <.link_button
                 navigate={~p"/users/reset_password"}
                 variant="primary"
                 size="large"
-                label={gettext("Forgot password?")}
+                label={dgettext("dashboard_auth", "Forgot password?")}
               />
             </div>
-            <.button variant="primary" size="large" label={gettext("Log in")} tabindex={4} />
+            <.button
+              variant="primary"
+              size="large"
+              label={dgettext("dashboard_auth", "Log in")}
+              tabindex={4}
+            />
           </.form>
         </div>
-        <div :if={@mail_configured?} data-part="bottom-link">
-          <span>{gettext("Don’t have an account?")}</span>
+        <div data-part="bottom-link">
+          <span>{dgettext("dashboard_auth", "Don't have an account?")}</span>
           <.link_button
             navigate={~p"/users/register"}
             variant="primary"
             size="large"
-            label={gettext("Sign up")}
+            label={dgettext("dashboard_auth", "Sign up")}
           />
         </div>
       </div>
@@ -180,6 +195,12 @@ defmodule TuistWeb.UserLoginLive do
 
   defp oauth_configured? do
     Environment.github_oauth_configured?() || Environment.google_oauth_configured?() ||
-      Environment.okta_oauth_configured?() || Environment.apple_oauth_configured?()
+      Environment.okta_oauth_configured?() || Environment.apple_oauth_configured?() ||
+      Environment.tuist_hosted?()
+  end
+
+  defp all_oauth_providers_configured?(assigns) do
+    assigns.github_configured? and assigns.google_configured? and
+      (assigns.okta_configured? or assigns.tuist_hosted?) and assigns.apple_configured?
   end
 end

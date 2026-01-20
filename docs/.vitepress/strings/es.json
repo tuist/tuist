@@ -89,6 +89,9 @@
                         },
                         "shell-completions": {
                             "text": "Auto-completado en shells"
+                        },
+                        "directories": {
+                            "text": "Directorios"
                         }
                     }
                 },
@@ -298,11 +301,25 @@
                                 },
                                 "best-practices": {
                                     "text": "Buenas prácticas"
+                                },
+                                "metadata-tags": {
+                                    "text": "Etiquetas de metadatos"
                                 }
                             }
                         },
                         "cache": {
-                            "text": "Cache"
+                            "text": "Cache",
+                            "items": {
+                                "generated-project": {
+                                    "text": ""
+                                },
+                                "xcode-cache": {
+                                    "text": "Caché de Xcode"
+                                },
+                                "module-cache": {
+                                    "text": "Módulo caché"
+                                }
+                            }
                         },
                         "registry": {
                             "text": "Registro",
@@ -342,10 +359,10 @@
                             }
                         },
                         "insights": {
-                            "text": "Insights"
+                            "text": "Análisis de builds"
                         },
                         "bundle-size": {
-                            "text": "Tamaño de bundle"
+                            "text": "Análisis de bundles"
                         },
                         "qa": {
                             "text": "QA"
@@ -365,6 +382,17 @@
                     "items": {
                         "continuous-integration": {
                             "text": "Integración continua"
+                        },
+                        "sso": {
+                            "text": "SSO"
+                        },
+                        "git-forges": {
+                            "items": {
+                                "github": {
+                                    "text": "GitHub"
+                                }
+                            },
+                            "text": "Forjas Git"
                         }
                     }
                 },
@@ -375,6 +403,28 @@
                             "text": "Previews"
                         }
                     }
+                },
+                "server": {
+                    "items": {
+                        "self-hosting": {
+                            "items": {
+                                "telemetry": {
+                                    "text": "Telemetría"
+                                },
+                                "installation": {
+                                    "text": "Instalación"
+                                }
+                            },
+                            "text": "Autoalojamiento"
+                        },
+                        "accounts-and-projects": {
+                            "text": "Cuentas y proyectos"
+                        },
+                        "authentication": {
+                            "text": "Autentificación"
+                        }
+                    },
+                    "text": "Servidor"
                 }
             }
         }

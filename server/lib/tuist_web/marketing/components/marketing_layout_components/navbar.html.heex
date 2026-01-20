@@ -1,0 +1,543 @@
+<% features_items = [
+  %{
+    icon: :apps,
+    title: dgettext("marketing", "Generated projects"),
+    subtitle: dgettext("marketing", "Make Xcode projects easier to manage and scale"),
+    href:
+      TuistWeb.Marketing.MarketingHTML.localized_href(
+        "https://docs.tuist.dev/guides/features/projects"
+      )
+  },
+  %{
+    icon: :database,
+    title: dgettext("marketing", "Cache"),
+    subtitle: dgettext("marketing", "Cuts build times by caching and reusing binaries"),
+    href:
+      TuistWeb.Marketing.MarketingHTML.localized_href(
+        "https://docs.tuist.dev/guides/features/cache"
+      )
+  },
+  %{
+    icon: :subtask,
+    title: dgettext("marketing", "Selective testing"),
+    subtitle: dgettext("marketing", "Test only the code impacted by the changes"),
+    href:
+      TuistWeb.Marketing.MarketingHTML.localized_href(
+        "https://docs.tuist.dev/guides/features/selective-testing"
+      )
+  },
+  %{
+    icon: :stack_2,
+    title: dgettext("marketing", "Registry"),
+    subtitle: dgettext("marketing", "Faster & more lightweight OSS packages resolution"),
+    href:
+      TuistWeb.Marketing.MarketingHTML.localized_href(
+        "https://docs.tuist.dev/guides/features/registry"
+      )
+  },
+  %{
+    icon: :versions,
+    title: dgettext("marketing", "Build insights"),
+    subtitle: dgettext("marketing", "Insights from your builds and test runs"),
+    href:
+      TuistWeb.Marketing.MarketingHTML.localized_href(
+        "https://docs.tuist.dev/guides/features/insights"
+      )
+  },
+  %{
+    icon: :chart_donut_4,
+    title: dgettext("marketing", "Bundle insights"),
+    subtitle: dgettext("marketing", "Shrink your app by cleaning up code and assets"),
+    href:
+      TuistWeb.Marketing.MarketingHTML.localized_href(
+        "https://docs.tuist.dev/guides/features/bundle-size"
+      )
+  },
+  %{
+    icon: :devices,
+    title: dgettext("marketing", "Previews"),
+    subtitle: dgettext("marketing", "Instantly share your app using a URL"),
+    href:
+      TuistWeb.Marketing.MarketingHTML.localized_href(
+        "https://docs.tuist.dev/guides/features/previews"
+      )
+  }
+]
+
+developers_items = [
+  %{
+    icon: :book,
+    title: dgettext("marketing", "Documentation"),
+    subtitle: dgettext("marketing", "Check out our documentation"),
+    href: TuistWeb.Marketing.MarketingHTML.localized_href("https://docs.tuist.dev/")
+  },
+  %{
+    icon: :api,
+    title: dgettext("marketing", "API Documentation"),
+    subtitle: dgettext("marketing", "Check out our REST API documentation"),
+    href: "/api/docs"
+  },
+  %{
+    icon: :brand_github,
+    title: dgettext("marketing", "Sources"),
+    subtitle: dgettext("marketing", "Learn & contribute to our source code"),
+    href: "https://github.com/tuist/tuist"
+  },
+  %{
+    icon: :download,
+    title: dgettext("marketing", "Download"),
+    subtitle: dgettext("marketing", "Download our iOS and macOS apps"),
+    href: "/download"
+  }
+]
+
+resources_items = [
+  %{
+    icon: :users,
+    title: dgettext("marketing", "About"),
+    subtitle: dgettext("marketing", "Learn about Tuist and meet the team"),
+    href: TuistWeb.Marketing.MarketingHTML.localized_href("/about")
+  },
+  %{
+    icon: :news,
+    title: dgettext("marketing", "Newsletter"),
+    subtitle: dgettext("marketing", "Stay updated—subscribe to our newsletter"),
+    href: TuistWeb.Marketing.MarketingHTML.localized_href("/newsletter")
+  },
+  %{
+    icon: :brand_slack,
+    title: dgettext("marketing", "Slack"),
+    subtitle: dgettext("marketing", "Join the community on Slack"),
+    href: "https://slack.tuist.dev"
+  },
+  %{
+    icon: :message_circle,
+    title: dgettext("marketing", "Community forum"),
+    subtitle: dgettext("marketing", "Join discussions and share ideas on our Discourse forum"),
+    href: "https://community.tuist.dev"
+  },
+  %{
+    icon: :brand_github,
+    title: dgettext("marketing", "GitHub"),
+    subtitle: dgettext("marketing", "Check our sources, issues, and PRs"),
+    href: "https://github.com/tuist"
+  },
+  %{
+    icon: :dashboard,
+    title: dgettext("marketing", "Public dashboard"),
+    subtitle: dgettext("marketing", "Explore Tuist's features on the public dashboard"),
+    href: "/tuist/tuist"
+  },
+  %{
+    icon: :building,
+    title: dgettext("marketing", "Customers"),
+    subtitle: dgettext("marketing", "See how leading teams scale with Tuist"),
+    href: TuistWeb.Marketing.MarketingHTML.localized_href("/customers")
+  }
+] %>
+<header id="marketing-navbar">
+  <div data-part="bar">
+    <.link href={TuistWeb.Marketing.MarketingHTML.localized_href("/")} data-part="tuist">
+      <img data-part="logo" src={~p"/marketing/images/components/navbar/logo.webp"} alt="Tuist" />
+      <h3 data-part="title">Tuist</h3>
+    </.link>
+    <nav data-part="menus" id="marketing-navbar-menus" aria-label="Main navigation">
+      <div
+        data-part="menu"
+        phx-hook="NavbarDropdown"
+        id="marketing-navbar-features-menu"
+        data-open="false"
+      >
+        <div data-part="action" data-open="false">
+          <span data-part="title">
+            {dgettext("marketing", "Features")}
+          </span>
+          <span data-part="chevron"><.chevron_down /></span>
+        </div>
+        <div data-part="dropdown" data-dropdown="features" data-open="false">
+          <.link
+            :for={item <- features_items}
+            href={item.href}
+            target={if String.starts_with?(item.href, "http"), do: "_blank", else: nil}
+            rel={if String.starts_with?(item.href, "http"), do: "noopener noreferrer", else: nil}
+            data-part="feature"
+          >
+            <div data-part="logo">
+              <Noora.Icon.icon name={Atom.to_string(item.icon)} />
+            </div>
+            <div data-part="content">
+              <h3 data-part="title">
+                {item.title}
+              </h3>
+              <p data-part="subtitle">
+                {item.subtitle}
+              </p>
+            </div>
+          </.link>
+        </div>
+      </div>
+      <div
+        data-part="menu"
+        phx-hook="NavbarDropdown"
+        id="marketing-navbar-developers-menu"
+        data-open="false"
+      >
+        <div data-part="action" data-open="false">
+          <span data-part="title">
+            {dgettext("marketing", "Developers")}
+          </span>
+          <span data-part="chevron"><.chevron_down /></span>
+        </div>
+        <div data-part="dropdown" data-dropdown="developers" data-open="false">
+          <div data-part="background">
+            <img
+              src={~p"/marketing/images/components/navbar/developers-background.webp"}
+              alt=""
+            />
+          </div>
+
+          <nav data-part="links">
+            <.link
+              :for={item <- developers_items}
+              href={item.href}
+              target={if String.starts_with?(item.href, "http"), do: "_blank", else: nil}
+              rel={
+                if String.starts_with?(item.href, "http"), do: "noopener noreferrer", else: nil
+              }
+              data-part="link"
+            >
+              <div data-part="logo">
+                <Noora.Icon.icon name={Atom.to_string(item.icon)} />
+              </div>
+              <div data-part="content">
+                <h3 data-part="title">
+                  {item.title}
+                </h3>
+                <p data-part="subtitle">
+                  {item.subtitle}
+                </p>
+              </div>
+            </.link>
+          </nav>
+          <aside data-part="changelog">
+            <header data-part="header">
+              <h3 data-part="title">{dgettext("marketing", "Changelog")}</h3>
+              <.link_button
+                label={dgettext("marketing", "View all")}
+                href={TuistWeb.Marketing.MarketingHTML.localized_href("/changelog")}
+                variant="secondary"
+              />
+            </header>
+            <ul data-part="list">
+              <li
+                :for={entry <- Tuist.Marketing.Changelog.get_entries() |> Enum.take(3)}
+                data-part="entry"
+              >
+                <.link href={
+                  TuistWeb.Marketing.MarketingHTML.localized_href("/changelog##{entry.id}")
+                }>
+                  <div data-part="content">
+                    <time data-part="date">
+                      {Timex.format!(entry.date, "{Mfull} {D}, {YYYY}")}
+                    </time>
+                    <p data-part="title">{entry.title}</p>
+                  </div>
+                  <.tag label={entry.category} />
+                </.link>
+              </li>
+            </ul>
+          </aside>
+        </div>
+      </div>
+      <div data-part="menu" phx-hook="NavbarDropdown" id="marketing-navbar-resources-menu">
+        <div data-part="action">
+          <span data-part="title">
+            {dgettext("marketing", "Resources")}
+          </span>
+          <span data-part="chevron"><.chevron_down /></span>
+        </div>
+        <div data-part="dropdown" data-dropdown="resources">
+          <.link
+            :for={item <- resources_items}
+            href={item.href}
+            target={if String.starts_with?(item.href, "http"), do: "_blank", else: nil}
+            rel={if String.starts_with?(item.href, "http"), do: "noopener noreferrer", else: nil}
+            data-part="resource"
+          >
+            <div data-part="logo">
+              <Noora.Icon.icon name={Atom.to_string(item.icon)} />
+            </div>
+            <div data-part="content">
+              <h3 data-part="title">
+                {item.title}
+              </h3>
+              <p data-part="subtitle">
+                {item.subtitle}
+              </p>
+            </div>
+          </.link>
+        </div>
+      </div>
+      <div data-part="menu">
+        <div data-part="action">
+          <.link
+            href={TuistWeb.Marketing.MarketingHTML.localized_href("/pricing")}
+            data-part="title"
+          >
+            {dgettext("marketing", "Pricing")}
+          </.link>
+        </div>
+      </div>
+      <div data-part="menu">
+        <div data-part="action">
+          <.link href={TuistWeb.Marketing.MarketingHTML.localized_href("/blog")} data-part="title">
+            {dgettext("marketing", "Blog")}
+          </.link>
+        </div>
+      </div>
+    </nav>
+    <nav data-part="actions" aria-label="Call to action">
+      <.link href="https://slack.tuist.dev" target="_blank" data-part="icon">
+        <.brand_slack />
+      </.link>
+      <.link href="https://github.com/tuist" target="_blank" data-part="icon">
+        <.brand_github />
+      </.link>
+      <div
+        data-part="menu"
+        phx-hook="NavbarDropdown"
+        id="marketing-navbar-languages-menu"
+        data-open="false"
+      >
+        <div data-part="action" data-open="false">
+          <span data-part="title">
+            <.language />
+          </span>
+          <span data-part="chevron"><.chevron_down /></span>
+        </div>
+        <div data-part="dropdown" data-dropdown="languages" data-open="false">
+          <.link
+            :for={lang <- TuistWeb.Marketing.Localization.languages()}
+            href={
+              TuistWeb.Marketing.Localization.localized_href(
+                TuistWeb.Marketing.Localization.current_path(assigns),
+                lang.code
+              )
+            }
+          >
+            {lang.native}
+            <span :if={lang.code != "en"}>({lang.label})</span>
+          </.link>
+        </div>
+      </div>
+      <.button
+        :if={is_nil(TuistWeb.Authentication.current_user(assigns))}
+        href={~p"/users/register"}
+        variant="primary"
+        size="large"
+        label={dgettext("marketing", "Sign up")}
+      >
+      </.button>
+      <.link_button
+        variant="secondary"
+        size="large"
+        href={
+          if(is_nil(TuistWeb.Authentication.current_user(assigns)),
+            do: ~p"/users/log_in",
+            else:
+              TuistWeb.Authentication.signed_in_path(
+                TuistWeb.Authentication.current_user(assigns)
+              )
+          )
+        }
+        label={
+          if(is_nil(TuistWeb.Authentication.current_user(assigns)),
+            do: dgettext("marketing", "Log in"),
+            else: dgettext("marketing", "Dashboard")
+          )
+        }
+      >
+      </.link_button>
+
+      <.neutral_button
+        size="large"
+        data-part="mobile-menu-button"
+        phx-hook="MobileMenu"
+        id="mobile-menu-button"
+      >
+        <div data-part="menu-icon">
+          <.menu />
+        </div>
+        <div data-part="close-icon">
+          <.close />
+        </div>
+      </.neutral_button>
+    </nav>
+  </div>
+  <nav data-part="mobile-menus" aria-label="Mobile navigation">
+    <div data-part="menu" phx-hook="MobileMenuDropdown" id="mobile-menu-features">
+      <div data-part="action">
+        <h3 data-part="title">{dgettext("marketing", "Features")}</h3>
+        <span data-part="chevron"><.chevron_down /></span>
+      </div>
+      <div data-part="dropdown">
+        <.link
+          :for={item <- features_items}
+          href={item.href}
+          target={if String.starts_with?(item.href, "http"), do: "_blank", else: nil}
+          rel={if String.starts_with?(item.href, "http"), do: "noopener noreferrer", else: nil}
+          data-part="item"
+        >
+          <div data-part="logo">
+            <Noora.Icon.icon name={Atom.to_string(item.icon)} />
+          </div>
+          <div data-part="content">
+            <h4 data-part="title">
+              {item.title}
+            </h4>
+            <p data-part="subtitle">
+              {item.subtitle}
+            </p>
+          </div>
+        </.link>
+      </div>
+    </div>
+    <div data-part="menu" phx-hook="MobileMenuDropdown" id="mobile-menu-developers">
+      <div data-part="action">
+        <h3 data-part="title">{dgettext("marketing", "Developers")}</h3>
+        <span data-part="chevron"><.chevron_down /></span>
+      </div>
+      <div data-part="dropdown">
+        <.link
+          :for={item <- developers_items}
+          href={item.href}
+          target={if String.starts_with?(item.href, "http"), do: "_blank", else: nil}
+          rel={if String.starts_with?(item.href, "http"), do: "noopener noreferrer", else: nil}
+          data-part="item"
+        >
+          <div data-part="logo">
+            <Noora.Icon.icon name={Atom.to_string(item.icon)} />
+          </div>
+          <div data-part="content">
+            <h4 data-part="title">
+              {item.title}
+            </h4>
+            <p data-part="subtitle">
+              {item.subtitle}
+            </p>
+          </div>
+        </.link>
+        <aside data-part="changelog">
+          <div data-part="background">
+            <img
+              src={~p"/marketing/images/components/navbar/developers-background.webp"}
+              alt=""
+            />
+          </div>
+          <header data-part="header">
+            <h4 data-part="title">{dgettext("marketing", "Changelog")}</h4>
+            <.link_button
+              label={dgettext("marketing", "View all")}
+              href={TuistWeb.Marketing.MarketingHTML.localized_href("/changelog")}
+              variant="secondary"
+            />
+          </header>
+          <ul data-part="list">
+            <li
+              :for={entry <- Tuist.Marketing.Changelog.get_entries() |> Enum.take(3)}
+              data-part="entry"
+            >
+              <.link href={
+                TuistWeb.Marketing.MarketingHTML.localized_href("/changelog##{entry.id}")
+              }>
+                <div data-part="content">
+                  <time data-part="date">
+                    {Timex.format!(entry.date, "{Mfull} {D}, {YYYY}")}
+                  </time>
+                  <p data-part="title">{entry.title}</p>
+                </div>
+                <.tag label={entry.category} />
+              </.link>
+            </li>
+          </ul>
+        </aside>
+      </div>
+    </div>
+    <div data-part="menu" phx-hook="MobileMenuDropdown" id="mobile-menu-resources">
+      <div data-part="action">
+        <h3 data-part="title">{dgettext("marketing", "Resources")}</h3>
+        <span data-part="chevron"><.chevron_down /></span>
+      </div>
+      <div data-part="dropdown">
+        <.link
+          :for={item <- resources_items}
+          href={item.href}
+          target={if String.starts_with?(item.href, "http"), do: "_blank", else: nil}
+          rel={if String.starts_with?(item.href, "http"), do: "noopener noreferrer", else: nil}
+          data-part="item"
+        >
+          <div data-part="logo">
+            <Noora.Icon.icon name={Atom.to_string(item.icon)} />
+          </div>
+          <div data-part="content">
+            <h4 data-part="title">
+              {item.title}
+            </h4>
+            <p data-part="subtitle">
+              {item.subtitle}
+            </p>
+          </div>
+        </.link>
+      </div>
+    </div>
+    <div data-part="menu-simple">
+      <.link
+        href={TuistWeb.Marketing.MarketingHTML.localized_href("/pricing")}
+        data-part="link"
+      >
+        <h3 data-part="title">{dgettext("marketing", "Pricing")}</h3>
+      </.link>
+    </div>
+    <div data-part="menu-simple">
+      <.link href={TuistWeb.Marketing.MarketingHTML.localized_href("/blog")} data-part="link">
+        <h3 data-part="title">{dgettext("marketing", "Blog")}</h3>
+      </.link>
+    </div>
+    <div data-part="menu-simple">
+      <.link href="https://slack.tuist.dev" data-part="link">
+        <.brand_slack />
+        <h3 data-part="title">Slack</h3>
+      </.link>
+    </div>
+    <div data-part="menu-simple">
+      <.link href="https://github.com/tuist" data-part="link">
+        <.brand_github />
+        <h3 data-part="title">GitHub</h3>
+      </.link>
+    </div>
+    <div data-part="menu" phx-hook="MobileMenuDropdown" id="mobile-menu-languages">
+      <div data-part="action">
+        <div data-part="title-with-icon">
+          <.language />
+          <h3 data-part="title">{dgettext("marketing", "Language")}</h3>
+        </div>
+        <span data-part="chevron"><.chevron_down /></span>
+      </div>
+      <div data-part="dropdown" data-dropdown="languages">
+        <.link
+          :for={lang <- TuistWeb.Marketing.Localization.languages()}
+          href={
+            TuistWeb.Marketing.Localization.localized_href(
+              TuistWeb.Marketing.Localization.current_path(assigns),
+              lang.code
+            )
+          }
+          data-part="language-item"
+        >
+          {lang.native}
+          <span :if={lang.code != "en"}>({lang.label})</span>
+        </.link>
+      </div>
+    </div>
+  </nav>
+</header>

@@ -206,7 +206,9 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       assert result.status == 200
     end
 
-    test "creates pending QA run when no app build exists and feature flag is enabled", %{conn: conn} do
+    test "creates pending QA run when no app build exists and feature flag is enabled", %{
+      conn: conn
+    } do
       # Given
       organization = AccountsFixtures.organization_fixture()
       account = Repo.get_by!(Account, organization_id: organization.id)
@@ -299,6 +301,26 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       assert result.status == 200
     end
 
+    test "handles installation deleted event when installation not found", %{conn: conn} do
+      # Given
+      installation_id = "99999"
+      conn = put_req_header(conn, "x-github-event", "installation")
+
+      expect(VCS, :get_github_app_installation_by_installation_id, fn ^installation_id ->
+        {:error, :not_found}
+      end)
+
+      # When
+      result =
+        GitHubController.handle(conn, %{
+          "action" => "deleted",
+          "installation" => %{"id" => installation_id}
+        })
+
+      # Then
+      assert result.status == 200
+    end
+
     test "handles installation created event successfully", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture()
@@ -330,6 +352,86 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
         })
 
       # Then
+      assert result.status == 200
+    end
+
+    test "handles installation created event when installation not found after retries",
+         %{
+           conn: conn
+         } do
+      # Given
+      installation_id = "88888"
+      html_url = "https://github.com/organizations/tuist/settings/installations/88888"
+      conn = put_req_header(conn, "x-github-event", "installation")
+
+      # Expect 3 attempts (original + 2 retries)
+      expect(VCS, :get_github_app_installation_by_installation_id, 3, fn ^installation_id ->
+        {:error, :not_found}
+      end)
+
+      # When
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          result =
+            GitHubController.handle(conn, %{
+              "action" => "created",
+              "installation" => %{"id" => installation_id, "html_url" => html_url}
+            })
+
+          # Then
+          assert result.status == 200
+        end)
+
+      # Verify final error was logged after all retries exhausted
+      assert log =~ "installation_id=#{installation_id}"
+      assert log =~ "not found after retries"
+    end
+
+    test "handles installation created event with successful retry",
+         %{
+           conn: conn
+         } do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = user.account
+      installation_id = "99999"
+      html_url = "https://github.com/organizations/tuist/settings/installations/99999"
+
+      github_app_installation =
+        VCSFixtures.github_app_installation_fixture(
+          account_id: account.id,
+          installation_id: installation_id
+        )
+
+      conn = put_req_header(conn, "x-github-event", "installation")
+
+      # Simulate race condition: first call returns not found, but installation
+      # is created by the time of the retry
+      call_count = :counters.new(1, [])
+
+      expect(VCS, :get_github_app_installation_by_installation_id, 2, fn ^installation_id ->
+        count = :counters.get(call_count, 1)
+        :counters.add(call_count, 1, 1)
+
+        if count == 0 do
+          {:error, :not_found}
+        else
+          {:ok, github_app_installation}
+        end
+      end)
+
+      expect(VCS, :update_github_app_installation, fn ^github_app_installation, %{html_url: ^html_url} ->
+        {:ok, %{github_app_installation | html_url: html_url}}
+      end)
+
+      # When
+      result =
+        GitHubController.handle(conn, %{
+          "action" => "created",
+          "installation" => %{"id" => installation_id, "html_url" => html_url}
+        })
+
+      # Then - successfully handled after retry
       assert result.status == 200
     end
 
@@ -468,7 +570,8 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       assert result.status == 200
     end
 
-    test "handles multiple projects connected to same repository with deterministic comment creation", %{conn: conn} do
+    test "handles multiple projects connected to same repository with deterministic comment creation",
+         %{conn: conn} do
       # Given
       organization = AccountsFixtures.organization_fixture()
       account = Repo.get_by!(Account, organization_id: organization.id)

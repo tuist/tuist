@@ -52,7 +52,7 @@ defmodule Tuist.QA.StepTest do
 
     test "changeset is invalid with non-existent qa_run_id", %{valid_attrs: valid_attrs} do
       # Given
-      non_existent_id = Ecto.UUID.generate()
+      non_existent_id = UUIDv7.generate()
       attrs = Map.put(valid_attrs, :qa_run_id, non_existent_id)
 
       # When

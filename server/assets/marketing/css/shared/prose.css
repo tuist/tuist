@@ -1,0 +1,101 @@
+[data-prose] {
+  display: flex;
+  flex-direction: column;
+  color: var(--noora-surface-label-primary);
+  font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+
+  & code.inline {
+    color: var(--surface-label-primary);
+    font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+
+  & blockquote {
+    margin-inline-start: 0px;
+    margin-inline-end: 0px;
+    box-shadow: var(--noora-light-border-default);
+    border-radius: var(--noora-radius-xlarge);
+    background: var(--noora-background-tertiary);
+    padding: var(--noora-spacing-7);
+
+    & > p {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-heading-small);
+    }
+  }
+
+  /* Add spacing between child elements using margin instead of gap */
+  & > * + * {
+    margin-top: var(--noora-spacing-7);
+  }
+
+  & p + p {
+    margin-top: var(--noora-spacing-7);
+  }
+
+  & img,
+  & video {
+    display: block;
+    margin-inline: auto;
+    margin: var(--noora-spacing-8) 0;
+    box-shadow: var(--noora-light-border-default);
+    border-radius: var(--noora-radius-xlarge);
+    max-width: 100%;
+    height: auto;
+    object-fit: contain;
+  }
+
+  & iframe {
+    display: block;
+    margin-inline: auto;
+    margin: var(--noora-spacing-8) 0;
+    box-shadow: var(--noora-light-border-default);
+    border-radius: var(--noora-radius-xlarge);
+    max-width: 100%;
+  }
+
+  & iframe[data-visualization] {
+    margin-top: var(--noora-spacing-8);
+    margin-bottom: var(--noora-spacing-8);
+    box-shadow: none;
+    border: none;
+    border-radius: var(--noora-radius-2xlarge);
+    width: 100%;
+    max-width: 100%;
+  }
+
+  & b,
+  strong {
+    font: var(--noora-font-weight-semibold) var(--noora-font-body-large);
+  }
+
+  & a {
+    color: var(--noora-button-primary-background);
+    text-decoration: underline;
+  }
+
+  & h1 {
+    padding-top: var(--noora-spacing-10);
+    padding-bottom: var(--noora-spacing-4);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  & h2 {
+    padding-top: var(--noora-spacing-10);
+    padding-bottom: var(--noora-spacing-4);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  & h3 {
+    padding-top: var(--noora-spacing-9);
+    padding-bottom: var(--noora-spacing-3);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+  }
+
+  & h4 {
+    padding-top: var(--noora-spacing-8);
+    padding-bottom: var(--noora-spacing-3);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
+  }
+}

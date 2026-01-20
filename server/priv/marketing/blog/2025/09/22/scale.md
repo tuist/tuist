@@ -4,6 +4,7 @@ category: "product"
 tags: ["scaling"] 
 excerpt: "Large Swift codebases hit walls: slow builds, flaky tests, complex graphs. We dive into why Apple's toolchain struggles at scale and how teams can overcome these challenges without React Native or Bazel."
 author: pepicrft
+og_image_path: /marketing/images/blog/2025/09/22/scale.jpg
 ---
 
 It's 2025, and developing Swift apps at a certain scale continues to be a challenge. If you are just getting started, or your project is just growing in code volume, number of modules, or number of developers contributing to it, you might not feel the need to make any changes to your setup. But if your codebase has a decent size, you are likely running into issues here and there that degrade your productivity and your motivation to contribute new features to an app. At Tuist, we see that every day.

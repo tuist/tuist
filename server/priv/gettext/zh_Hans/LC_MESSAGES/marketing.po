@@ -1,0 +1,913 @@
+msgid ""
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-25 14:36+0000\nPO-Revision-Date: 2025-12-24 11:49+0000\nLast-Translator: Weblate Admin <admin@cloudron.local>\nLanguage-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/projects/tuist/marketing/zh_Hans/>\nLanguage: zh_Hans\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15.1\n"
+
+# # This file is a PO Template file.
+# #
+# # "msgid"s here are often extracted from source code.
+# # Add new messages manually only if they're dynamic
+# # messages that can't be statically extracted.
+# # Run "mix gettext.extract" to bring this file up to
+# # date. Leave "msgstr"s empty as changing them here has no
+# # effect: edit them in PO (.po) files instead.
+#
+msgid "\"We could solve our immediate problems and do so while maintaining a familiar"
+msgstr "\"解决了当下面临的难题，同时保留了熟悉的开发体验"
+
+msgid "105 remote binaries pulled"
+msgstr "105 个远程二进制文件已拉取"
+
+msgid "10K+"
+msgstr "10K+"
+
+msgid "1400+"
+msgstr "1400+"
+
+msgid "300+"
+msgstr "300+"
+
+msgid "5K+"
+msgstr "5K+"
+
+msgid "8300+"
+msgstr "8300+"
+
+msgid "9+"
+msgstr "9+"
+
+msgid ""
+"<p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with \"contact sales\" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>\n"
+"<p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>\n"
+msgstr "<p>开源承诺与核心价值，成就了我们独特的定价理念。不同于其他商家用「联系销售」、限制性演示等手段牟利，我们崇尚公平透明。一视同仁，价格公道。选择我们，您不仅能获得优秀产品，更能支持开源项目发展。我们视基业长青为长期旅程，而非急功近利的短期行为。您可%{read_more}了解我们的发展理念。</p>\n<p>支持 Tuist，就是为 Swift 生态贡献更多开源力量。</p>\n"
+
+msgid "A confirmation email has been sent to your account with further details."
+msgstr "确认邮件已发送至您的账户，详情请查收。"
+
+msgid "A newsletter from the Tuist team sharing product updates, our perspective on modern app development, and what's on the horizon. Stay in the loop with where we're headed and why."
+msgstr "Tuist 团队官方通讯：产品动态、现代 iOS 开发洞察、未来规划前瞻。与我们一同洞察方向，理解选择。"
+
+msgid "API Documentation"
+msgstr "API 文档"
+
+msgid "About"
+msgstr "关于"
+
+msgid "Active community members and counting"
+msgstr "活跃社区成员持续增长中"
+
+msgid "Agentic QA"
+msgstr "智能测试"
+
+msgid "Agentic testing of your app completed"
+msgstr "应用智能测试已完成"
+
+msgid "Air"
+msgstr "Air"
+
+msgid "All"
+msgstr "全部"
+
+msgid "All features, no credit card required"
+msgstr "所有功能，无需信用卡"
+
+msgid "All systems normal"
+msgstr "所有系统正常"
+
+msgid "All the features you need,"
+msgstr "你需要的所有功能，"
+
+msgid "Analyze build times per target and file with metadata like environment, Xcode version, and commit."
+msgstr "结合环境、Xcode 版本、提交等元数据，深度分析目标、文件的构建时间。"
+
+msgid "Automate testing your apps for Apple platforms using agents."
+msgstr "运用智能体，实现 Apple 平台应用测试自动化。"
+
+msgid "Base price"
+msgstr "基础价格"
+
+msgid "Best for teams and growing startups."
+msgstr "最适合团队和发展中的初创公司。"
+
+msgid "Beyond expectations"
+msgstr "超越期待"
+
+msgid "Blog"
+msgstr "博客"
+
+msgid "Blog posts by the Tuist team."
+msgstr "Tuist 团队的博客文章。"
+
+msgid "Bluesky"
+msgstr "Bluesky"
+
+msgid "Build Insights"
+msgstr "构建洞察"
+
+msgid "Build insights"
+msgstr "构建洞察"
+
+msgid "Build times reduced by 80%"
+msgstr "构建时间减少 80%"
+
+msgid "Building the future of scalable app development"
+msgstr "构建可扩展应用开发的未来"
+
+msgid "Builds"
+msgstr "构建"
+
+msgid "Bumble solved key issues without changing the core dev experience"
+msgstr "Bumble 在不改变核心开发体验的情况下解决了关键问题"
+
+msgid "Bundle Insights"
+msgstr "应用包洞察"
+
+msgid "Bundle analysis"
+msgstr "应用包分析"
+
+msgid "Bundle insights"
+msgstr "应用包洞察"
+
+msgid "Cache"
+msgstr "缓存"
+
+msgid "Can I change or cancel my plan at any time?"
+msgstr "我可以随时更改或取消我的计划吗？"
+
+msgid "Changelog"
+msgstr "更新日志"
+
+msgid "Chat with the founders"
+msgstr "与创始人对话"
+
+msgid "Check our sources, issues, and PRs"
+msgstr "查看我们的源码、问题和 PR"
+
+msgid "Check out our GitHub to see all the action—where the magic happens and collaboration thrives."
+msgstr "查看我们的 GitHub，见证所有精彩时刻——魔法发生的地方，协作蓬勃发展的地方。"
+
+msgid "Check out our REST API documentation"
+msgstr "查看我们的 REST API 文档"
+
+msgid "Check out our documentation"
+msgstr "查看我们的文档"
+
+msgid "Close menu"
+msgstr "关闭菜单"
+
+msgid "Community"
+msgstr "社区"
+
+msgid "Community Forum"
+msgstr "社区论坛"
+
+msgid "Community forum"
+msgstr "社区论坛"
+
+msgid "Community support"
+msgstr "社区支持"
+
+msgid "Community support via forum"
+msgstr "通过论坛获得社区支持"
+
+msgid "Company"
+msgstr "公司"
+
+msgid "Compare our plans"
+msgstr "比较我们的计划"
+
+msgid "Concise Summary"
+msgstr "简洁摘要"
+
+msgid "Connect with other Tuist users, share experiences, and get help from the community."
+msgstr "结识 Tuist 用户伙伴，交流心得体会，获得社区助力。"
+
+msgid "Contact"
+msgstr "联系"
+
+msgid "Contact us"
+msgstr "联系我们"
+
+msgid "Contributors"
+msgstr "贡献者"
+
+msgid "Cookie policy"
+msgstr "Cookie 政策"
+
+msgid "Create your plan or self-host your instance."
+msgstr "创建您的计划或自托管实例。"
+
+msgid "Custom legal agreements and terms of service tailored to your organization's needs."
+msgstr "企业专属：法律条款与服务协议定制"
+
+msgid "Cuts build times by caching and reusing binaries"
+msgstr "通过缓存和重用二进制文件减少构建时间"
+
+msgid "Dashboard"
+msgstr "仪表板"
+
+msgid "Designed for large scale organizations."
+msgstr "专为大型组织设计。"
+
+msgid "Developers"
+msgstr "开发者"
+
+msgid "Discover our flexible pricing plans at Tuist. Enjoy a free tier with no time limits, and pay only for what you use. Plus, it's free forever for open source projects."
+msgstr "Tuist 灵活定价：永不过期的免费使用，按量付费，开源永远免费。"
+
+msgid "Do you offer annual billing discounts?"
+msgstr "你们提供年度计费折扣吗？"
+
+msgid "Do you offer discounts for non-profits and open-source?"
+msgstr "你们为非营利组织和开源项目提供折扣吗？"
+
+msgid "Do you support a seat-based pricing model?"
+msgstr "你们支持按座位定价模式吗？"
+
+msgid "Docs"
+msgstr "文档"
+
+msgid "Documentation"
+msgstr "文档"
+
+msgid "Download"
+msgstr "下载"
+
+msgid "Download our iOS and macOS apps"
+msgstr "下载我们的 iOS 和 macOS 应用"
+
+msgid "Effortlessly share your app with a single URL."
+msgstr "通过单一 URL 轻松分享您的应用。"
+
+msgid "Email Support"
+msgstr "邮件支持"
+
+msgid "Enhance your development environment with actionable insights."
+msgstr "用数据洞察，为开发环境赋能。"
+
+msgid "Enterprise"
+msgstr "企业版"
+
+msgid "Explore our documentation—your go-to guide for mastering all things."
+msgstr "官方文档：精通一切的必备指南。"
+
+msgid "Faster & more lightweight OSS packages resolution"
+msgstr "更快、更轻量的 OSS 包解析"
+
+msgid "Features"
+msgstr "功能"
+
+msgid "For direct assistance with technical issues or account-related questions, reach out to our support team via email."
+msgstr "遇到技术难题或账户问题？邮件支持团队随时为您服务。"
+
+msgid "Forum"
+msgstr "论坛"
+
+msgid "Free under tier limits"
+msgstr "在层级限制内免费"
+
+msgid "Frequently Asked Questions"
+msgstr "常见问题"
+
+msgid "Generated Projects"
+msgstr "生成的项目"
+
+msgid "Generated projects"
+msgstr "生成的项目"
+
+msgid "Get Support"
+msgstr "获取支持"
+
+msgid "Get early access"
+msgstr "获得早期访问"
+
+msgid "Get help when you need it through various support channels."
+msgstr "多种支持渠道，随时为您提供所需帮助。"
+
+msgid "Get started"
+msgstr "开始使用"
+
+msgid "Get started with Tuist at no cost, and only invest more when you're ready for higher limits, personalized support, or alternative billing options."
+msgstr "Tuist 零门槛入门：按需付费，升级随心。"
+
+msgid "Get started with no credit card required."
+msgstr "无需信用卡即可开始使用。"
+
+msgid "GitHub"
+msgstr "GitHub"
+
+msgid "Got ideas or questions? Join the conversation in our community forum."
+msgstr "有想法或问题？加入我们的社区论坛讨论。"
+
+msgid "Great! The email %{email} has been confirmed and subscribed to Tuist Digest."
+msgstr "太好了！邮箱 %{email} 已确认并订阅了 Tuist Digest。"
+
+msgid "Happiness"
+msgstr "幸福"
+
+msgid "Hear from our community about their experience with Tuist"
+msgstr "来自社区的声音：用户眼中的 Tuist 体验"
+
+msgid "Host Tuist server on your own infrastructure for complete control and data sovereignty."
+msgstr "本地化部署：Tuist 服务器托管，数据主权与掌控力尽在掌握。"
+
+msgid "How can I estimate the cost for my project?"
+msgstr "我如何估算我的项目成本？"
+
+msgid "How can I estimate the cost of my project?"
+msgstr "我如何估算我的项目成本？"
+
+msgid "How do we calculate units?"
+msgstr "我们如何计算单位？"
+
+msgid "Ideal for individual developers."
+msgstr "非常适合独立开发者。"
+
+msgid "Imprint"
+msgstr "版权声明"
+
+msgid "Insights"
+msgstr "洞察"
+
+msgid "Insights from your builds and test runs"
+msgstr "构建测试深度洞察"
+
+msgid "Instantly share your app using a URL"
+msgstr "使用 URL 即时分享您的应用"
+
+msgid "Invalid verification link. Please try signing up again."
+msgstr "无效的验证链接。请尝试重新注册。"
+
+msgid "Is there a free trial for paid plans?"
+msgstr "付费计划有免费试用吗？"
+
+msgid "Is there a free trial on paid plans?"
+msgstr "付费计划有免费试用吗？"
+
+msgid "Is there a minimum contract length?"
+msgstr "有最短合同期限吗？"
+
+msgid "Issue Tracking"
+msgstr "问题跟踪"
+
+msgid "Issues"
+msgstr "问题"
+
+msgid "Join discussions and share ideas on our Discourse forum"
+msgstr "在我们的 Discourse 论坛上参与讨论和分享想法"
+
+msgid "Join our Slack group for real-time conversations and to connect with the Tuist community"
+msgstr "加入我们的 Slack 群组，进行实时对话并与 Tuist 社区建立联系"
+
+msgid "Join the community on Slack"
+msgstr "在 Slack 上加入社区"
+
+msgid "Jonathan Crooke, Bumble"
+msgstr "Jonathan Crooke, Bumble"
+
+msgid "Keep up with the latest and greatest changes in Tuist."
+msgstr "关注 Tuist 的最新最大变化。"
+
+msgid "Last updated %{date}"
+msgstr "最后更新于 %{date}"
+
+msgid "Learn & contribute to our source code"
+msgstr "学习并贡献我们的源代码"
+
+msgid "Learn about Tuist and meet the team"
+msgstr "了解 Tuist 并认识团队"
+
+msgid "Legal"
+msgstr "法律"
+
+msgid "LinkedIn"
+msgstr "LinkedIn"
+
+msgid "Load more"
+msgstr "加载更多"
+
+msgid "Log in"
+msgstr "登录"
+
+msgid "Longevity"
+msgstr "持久性"
+
+msgid "Make Xcode projects easier to manage and scale"
+msgstr "让 Xcode 项目更容易管理和扩展"
+
+msgid "Make mobile"
+msgstr "让移动开发成为"
+
+msgid "Make modular Xcode projects more manageable"
+msgstr "让模块化 Xcode 项目更易于管理"
+
+msgid "Mastodon"
+msgstr "Mastodon"
+
+msgid "Module cache"
+msgstr "模块缓存"
+
+msgid "Most popular"
+msgstr "最受欢迎"
+
+msgid "Newsletter"
+msgstr "新闻通讯"
+
+msgid "Newsletter Verification Failed"
+msgstr "新闻通讯验证失败"
+
+msgid "Newsletter issues are sent every 6 weeks and you can unsubscribe at any time."
+msgstr "新闻通讯每 6 周发送一次，您可以随时取消订阅。"
+
+msgid "No, there's no minimum contract length. You're free to cancel at any time."
+msgstr "不，没有最短合同期限。您可以随时取消。"
+
+msgid "Ongoing incident"
+msgstr "进行中的事件"
+
+msgid "Open the %{feature} feature documentation"
+msgstr "打开 %{feature} 功能文档"
+
+msgid "Openness"
+msgstr "开放"
+
+msgid "Optimized app bundles"
+msgstr "优化的应用包"
+
+msgid "Our approach is rooted in curiosity and open collaboration. We share our journey, contribute tools as open source, and cultivate communities where developers learn and grow together. When we solve problems in the open, everyone wins."
+msgstr "好奇心驱动，开放协作为本。我们分享历程，开源工具，共建学习成长的开发者社区。开放解题，众志成城。"
+
+msgid "Our cache solution integrates with Xcode 26's build system cache capabilities."
+msgstr "我们的缓存解决方案与 Xcode 26 的构建系统缓存功能集成。"
+
+msgid "Pay nothing if below free tier limits"
+msgstr "低于免费层级限制时不收费"
+
+msgid "Pay only for what you use per feature"
+msgstr "仅按功能付费"
+
+msgid "People"
+msgstr "人员"
+
+msgid "Please check your email to confirm your subscription."
+msgstr "请检查您的邮件以确认订阅。"
+
+msgid "Powered by"
+msgstr "技术支持"
+
+msgid "Previews"
+msgstr "预览"
+
+msgid "Price per unit above free tier"
+msgstr "免费层级以上每单位价格"
+
+msgid "Pricing"
+msgstr "定价"
+
+msgid "Priority support"
+msgstr "优先支持"
+
+msgid "Priority support via Slack channel"
+msgstr "通过 Slack 频道获得优先支持"
+
+msgid "Privacy policy"
+msgstr "隐私政策"
+
+msgid "Pro"
+msgstr "专业版"
+
+msgid "Product"
+msgstr "产品"
+
+msgid "Pull requests merged"
+msgstr "已合并的拉取请求"
+
+msgid "QA"
+msgstr "质量保证"
+
+msgid "Read engaging stories and expert insights."
+msgstr "阅读引人入胜的故事和专家见解。"
+
+msgid "Read the Bumble customer story"
+msgstr "阅读 Bumble 客户故事"
+
+msgid "Read the Trendyol customer story"
+msgstr "阅读 Trendyol 客户故事"
+
+msgid "Registry"
+msgstr "注册表"
+
+msgid "Requires a generated project"
+msgstr "需要生成的项目"
+
+msgid "Resources"
+msgstr "资源"
+
+msgid "Right Inside Your Workflow"
+msgstr "就在您的工作流程中"
+
+msgid "Screenshots & Replays"
+msgstr "截图和回放"
+
+msgid "Security"
+msgstr "安全"
+
+msgid "Selective testing"
+msgstr "选择性测试"
+
+msgid "Self-host your instance of Tuist"
+msgstr "自托管您的 Tuist 实例"
+
+msgid "Self-hosting Tuist instance"
+msgstr "自托管 Tuist 实例"
+
+msgid "Send us an email"
+msgstr "发送邮件给我们"
+
+msgid "Share your app builds with others via URL for testing on simulators or devices."
+msgstr "一键分享应用构建链接，支持模拟器与设备测试。"
+
+msgid "Shared app preview with the team"
+msgstr "与团队共享应用预览"
+
+msgid "Shrink your app by cleaning up code and assets"
+msgstr "通过清理代码和资源来缩小应用体积"
+
+msgid "Sign up"
+msgstr "注册"
+
+msgid "Sign up to get early access to Tuist QA"
+msgstr "注册获得 Tuist QA 的早期访问权限"
+
+msgid "Since adopting Tuist in our iOS project, we've seen major improvements in scalability and productivity. Overall, it has made our development process faster and more efficient, allowing the team to focus on building features without being slowed down by tool limitations."
+msgstr "iOS 项目引入 Tuist 后，可扩展性与生产力实现质的飞跃。开发流程更加高效，团队能专注于功能构建，不再受工具限制束缚。"
+
+msgid "Skipped repetitive tests"
+msgstr "跳过了重复测试"
+
+msgid "Slack"
+msgstr "Slack"
+
+msgid "Social Media Links"
+msgstr "社交媒体链接"
+
+msgid "Socials"
+msgstr "社交媒体"
+
+msgid "Something went wrong. Please try again."
+msgstr "出现了问题。请再试一次。"
+
+msgid "Sources"
+msgstr "源代码"
+
+msgid "Speed up clean builds by caching binaries for cacheable targets and Swift tasks."
+msgstr "通过为可缓存目标和 Swift 任务缓存二进制文件来加速清洁构建。"
+
+msgid "Speed up test runs by skipping test suites whose tests are not impacted by the changes."
+msgstr "智能跳过不受代码变更影响的测试套件，显著加速测试运行。"
+
+msgid "Speed up your builds and test runs."
+msgstr "构建测试双提速，开发效率大提升。"
+
+msgid "Speeds up builds by reusing compiled binaries, cutting down build times in both local development and CI."
+msgstr "重用编译二进制文件，大幅压缩本地开发与 CI 构建耗时。"
+
+msgid "Standard support"
+msgstr "标准支持"
+
+msgid "Standard support via Slack and email"
+msgstr "通过 Slack 和邮件提供标准支持"
+
+msgid "Standards"
+msgstr "标准"
+
+msgid "Stars on GitHub"
+msgstr "GitHub 星标"
+
+msgid "Start free,"
+msgstr "免费开始，"
+
+msgid "Start free, scale as you grow"
+msgstr "免费开始，随需扩展"
+
+msgid "Stay in touch"
+msgstr "保持联系"
+
+msgid "Stay updated with the latest changes and improvements in Tuist."
+msgstr "关注 Tuist 的最新变化和改进。"
+
+msgid "Stay updated with the latest changes and improvements in Tuist. Read our changelog for detailed information about new features, bug fixes, and enhancements."
+msgstr "紧跟 Tuist 最新动态。详阅更新日志，掌握新功能、问题修复与性能提升详情。"
+
+msgid "Stay updated—subscribe to our newsletter"
+msgstr "保持更新——订阅我们的新闻通讯"
+
+msgid "Subscribe"
+msgstr "订阅"
+
+msgid "Successfully Subscribed!"
+msgstr "订阅成功！"
+
+msgid "Supercharge your app development"
+msgstr "加速你的应用开发"
+
+msgid "Support"
+msgstr "支持"
+
+msgid "Swift Stories Newsletter"
+msgstr "Swift 故事新闻通讯"
+
+msgid "Tailored agreement for specific needs"
+msgstr "为特定需求量身定制的协议"
+
+msgid "Tailored legal terms"
+msgstr "量身定制的法律条款"
+
+msgid "Talk to us"
+msgstr "与我们对话"
+
+msgid "Teams using Tuist"
+msgstr "使用 Tuist 的团队"
+
+msgid "Terms of service"
+msgstr "服务条款"
+
+msgid "Test only the code impacted by the changes"
+msgstr "精准测试：仅运行受代码变更影响的部分"
+
+msgid "That's why Tuist exists—to restore the joy of development at any scale. We enhance Apple's native tooling by bringing innovative ideas from across the development ecosystem, so teams can focus on creating exceptional apps instead of fighting their build system."
+msgstr "Tuist 诞生于此——让开发乐趣不受规模限制。我们汇聚开发生态创新，强化 Apple 原生工具，让团队专注打造卓越应用，告别构建系统困扰。"
+
+msgid "The newsletter issue %{issue_number} was not found."
+msgstr "未找到新闻通讯第 %{issue_number} 期。"
+
+msgid "The newsletter issue number %{issue_number} is not a valid number."
+msgstr "新闻通讯期号 %{issue_number} 不是有效数字。"
+
+msgid "The same iOS tooling that powers apps with millions of users, delivered as a service for your team"
+msgstr "驱动千万级用户应用的 iOS 工具，以服务形式赋能您的团队"
+
+msgid "The same iOS tooling that powers billion-user apps, delivered as a service for your team"
+msgstr "驱动十亿级用户应用的 iOS 工具，以服务形式赋能您的团队"
+
+msgid "The team"
+msgstr "团队"
+
+msgid "There was an error signing you up on the newsletter"
+msgstr "订阅新闻通讯时出现错误"
+
+msgid "Track and reduce app size by spotting duplicate assets and bloated resources."
+msgstr "智能识别重复与冗余资源，有效优化应用体积。"
+
+msgid "Trendyol reduced build times by 65% with Tuist"
+msgstr "Trendyol 使用 Tuist 将构建时间减少了 65%"
+
+msgid "Trusted by the world's best developer teams"
+msgstr "受到世界顶级开发团队信赖"
+
+msgid "Tuist"
+msgstr "Tuist"
+
+msgid "Tuist Blog"
+msgstr "Tuist 博客"
+
+msgid "Tuist Changelog"
+msgstr "Tuist 更新日志"
+
+msgid "Tuist Digest"
+msgstr "Tuist Digest"
+
+msgid "Tuist Digest Newsletter"
+msgstr "Tuist Digest 新闻通讯"
+
+msgid "Tuist Icon"
+msgstr "Tuist 图标"
+
+msgid "Tuist Pro includes support through our community forum and GitHub issues. Enterprise plans include dedicated support via Slack channels with high priority response times."
+msgstr "Tuist 专业版通过我们的社区论坛和 GitHub 问题提供支持。企业计划包括通过 Slack 频道提供专用支持，响应时间优先级高。"
+
+msgid "Tuist QA"
+msgstr "Tuist QA"
+
+msgid "Tuist QA runs AI-powered tests from your PRs, giving you summaries with issues, steps, and screenshots — so bugs are caught before they reach main."
+msgstr "Tuist QA 在 PR 中运行 AI 测试，生成包含问题、步骤、截图的摘要，让 bug 在合并主分支前无处遁形。"
+
+msgid "Tuist bridges the gaps in Apple's tooling that prevent teams from moving fast. We solve the build complexity, workflow friction, and collaboration challenges—so you can deliver exceptional apps at speed."
+msgstr "Tuist 弥补 Apple 工具短板，破解团队效率瓶颈。化解构建复杂、流程摩擦、协作难题，助您高速交付卓越应用。"
+
+msgid "Tuist has allowed us to migrate our existing monolythic codebase to a modular one. We extracted our different domains into specific modules. It allowed us to remove extra dependencies, ease testability and made our development cycles faster than ever. It even allowed us to bring up 'Test Apps' for speeding up our development on each module."
+msgstr "借助 Tuist，我们成功将单体代码库转型为模块化架构。各业务领域独立成模块，精简依赖、提升可测试性，开发周期创历史新高。更为每个模块引入测试应用，开发效率再上新台阶。"
+
+msgid "Tuist has been a game-changer for our large codebase, where multiple engineers collaborate simultaneously. I've been using it since version 1, and it's been incredible to see how the product has evolved and expanded with new features over time."
+msgstr "面对多人协作的大型代码库，Tuist 彻底改变了游戏规则。从版本 1 开始，我见证了产品的惊人进化：新功能不断涌现，产品版图持续扩张。"
+
+msgid "Tuist has revolutionized our iOS development workflow at DraftKings. Its automation capabilities have streamlined project generation, build settings, and dependency management. Highly recommended for iOS teams seeking workflow optimization."
+msgstr "在 DraftKings，Tuist 颠覆了 iOS 开发模式。强大的自动化能力让项目生成、构建设置、依赖管理如丝般顺滑。强烈推荐给追求极致开发效率的 iOS 团队。"
+
+msgid "Tuist is designed to grow with you. Only add a card if you need more than the free tier limits or dedicated support."
+msgstr "Tuist 旨在与您一起成长。只有在需要超出免费层级限制或专用支持时才需要添加信用卡。"
+
+msgid "Tuist's blog"
+msgstr "Tuist 博客"
+
+msgid "Tuist's changelog"
+msgstr "Tuist 更新日志"
+
+msgid "Turn projects defined with a Swift-DSL into Xcode workspaces and projects."
+msgstr "Swift-DSL 定义的智能项目，一键生成 Xcode 工作区与项目。"
+
+msgid "Unlimited"
+msgstr "无限"
+
+msgid "Unlock your iOS team's full potential"
+msgstr "释放您的 iOS 团队全部潜力"
+
+msgid "Updates to Tuist's features and improvements."
+msgstr "Tuist 的功能更新和改进。"
+
+msgid "Usage-based pricing after free tier."
+msgstr "免费层级后的基于使用量的定价。"
+
+msgid "Usage/seat based pricing"
+msgstr "基于使用量/座位的定价"
+
+msgid "Using Tuist in our current project has been a game-changer. It has significantly de-stressed our build times and reduced conflicts within the team, allowing us to focus more on development and less on configuration issues. We're confident that it will continue to enhance our productivity and collaboration in future projects."
+msgstr "Tuist 彻底改变了我们的项目开发方式。构建压力显著缓解，团队冲突大幅减少，让我们专注开发而非配置难题。相信在未来的项目中，它将持续提升我们的团队生产力与协作效率。"
+
+msgid "Verification failed. Please try signing up again."
+msgstr "验证失败。请尝试重新注册。"
+
+msgid "Verification link expired or invalid. Please try signing up again."
+msgstr "验证链接已过期或无效。请尝试重新注册。"
+
+msgid "Videos"
+msgstr "视频"
+
+msgid "View all"
+msgstr "查看全部"
+
+msgid "View in web browser"
+msgstr "在网页浏览器中查看"
+
+msgid "Visit the forum"
+msgstr "访问论坛"
+
+msgid "We accept credit card payments and wire transfers."
+msgstr "支持信用卡与电汇等多种支付方式。"
+
+msgid "We believe openness builds better tools, keeping only what’s needed closed for sustainable development."
+msgstr "我们深信开放成就卓越工具，仅以必要封闭为基，方得持续发展之道。"
+
+msgid "We embrace standards for long-term success while respecting freedom of choice."
+msgstr "拥抱标准成就长远，尊重选择自由。"
+
+msgid "We have a generous free tier on every paid plan so you can try out the features before paying any money."
+msgstr "每个付费计划均提供充裕的免费额度，让您先体验后付费。"
+
+msgid "We prioritize developer happiness because it's closely tied to creating better apps."
+msgstr "开发者体验至上，因为幸福感是打造卓越应用的基石。"
+
+msgid "We want to enable teams to scale with joy"
+msgstr "我们希望帮助团队快乐成长"
+
+msgid "We're a group of builders who believe scaling your app shouldn't kill your creativity. We've experienced the frustration of watching exciting Swift projects turn into build-time nightmares and tooling headaches as they grow, so we decided to build something better."
+msgstr "我们是一群建造者，坚信应用扩展不该扼杀创造力。亲历过激动人心的 Swift 项目随规模增长沦为构建噩梦、工具难题，我们决心创造更好的解决方案。"
+
+msgid "We're here to help you succeed with Tuist. Whether you need technical assistance, have questions about features or have ideas how to improve the project, we have multiple ways you can reach out to us."
+msgstr "助力 Tuist 使用成功。需要技术支持？功能有疑问？项目改进建议？多种渠道随时联系我们。"
+
+msgid "We’re a small, passionate team that cares deeply about developer experience and takes pride in crafting tools with care and attention to detail."
+msgstr "我们是一支精简而热情的团队，极度重视开发者体验，自豪地用心雕琢每一个细节，打造优质工具。"
+
+msgid "We’ve sent a confirmation email to your inbox. Please check your spam or promotions folder and confirm your subscription."
+msgstr "我们已向您的邮箱发送了确认邮件。请查看垃圾邮件或推广邮件文件夹，并完成订阅确认。"
+
+msgid "What happens if I exceed my plan limits?"
+msgstr "超出计划额度会怎样？"
+
+msgid "What payment methods do you accept?"
+msgstr "支持哪些支付方式？"
+
+msgid "What support is included with each plan?"
+msgstr "各计划包含哪些支持服务？"
+
+msgid "What we believe in"
+msgstr "我们的信念"
+
+msgid "Why is your pricing model more accessible compared to traditional enterprise models?"
+msgstr "相比传统企业模式，您的定价模型为何更加亲民？"
+
+msgid "With macros, external SDKs, and many SPM modules (fully modularized app) Xcode was constantly slow or stuck on my M1 device. SPM kept resolving, code completion didn't work, and swift-syntax compiled forever. It's not just for big teams with big apps. Tuist gave me back my productivity as indie developer for my side projects."
+msgstr "宏、外部 SDK、大量 SPM 模块（全模块化应用）让 Xcode 在我的 M1 设备上频频卡顿。SPM 解析不停、代码补全失效、swift-syntax 无尽编译。这并非大团队大应用的专利。Tuist 让我作为独立开发者在个人项目中重获生产力。"
+
+msgid "Xcode Cache"
+msgstr "Xcode 缓存"
+
+msgid "Years of building OSS Foundation"
+msgstr "多年开源基础设施打造经验"
+
+msgid "Yes, we do. Please contact us at contact@tuist.dev to discuss your team's needs and we'll set up a custom plan that works for you."
+msgstr "当然提供。欢迎联系 contact@tuist.dev 沟通团队需求，我们为您量身定制专属方案。"
+
+msgid "Yes, we do. Please reach out to contact@tuist.dev for more information."
+msgstr "当然提供。欢迎联系 contact@tuist.dev 了解详情。"
+
+msgid "Yes, we do. Please reach out to oss@tuist.io for more information."
+msgstr "当然提供。欢迎联系 oss@tuist.io 了解详情。"
+
+msgid "Yes, we offer discounts for yearly subscriptions. Please contact us at contact@tuist.dev to learn more."
+msgstr "年度订阅专享折扣，欢迎联系 contact@tuist.dev 了解详情。"
+
+msgid "Yes, you can manage your plan at any time through our management interface."
+msgstr "当然可以，随时通过管理界面灵活调整计划。"
+
+msgid "You can set up the Air plan and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
+msgstr "开通 Air 计划试用数日即可估算用量。如需更高额度，我们随时为您定制专属方案。"
+
+msgid "You can set up the Air plan, and use the features for a few days to get a usage estimate. If you need a higher limit, let us know and we can help you set up a custom plan."
+msgstr "开通 Air 计划试用数日即可估算用量。如需更高额度，我们随时为您定制专属方案。"
+
+msgid "You'll be warned before reaching your plan limits. Once reached, the plan will cap interactions to prevent unexpected charges."
+msgstr "接近额度限制前系统会发出提醒。达到限制后将自动暂停交互，避免意外扣费。"
+
+msgid "You'll receive newsletter issues every 6 weeks with the most important work happening in Tuist and our vision for the future of app development at scale."
+msgstr "每 6 周一期通讯，聚焦 Tuist 最新力作与规模化应用开发的前瞻愿景。"
+
+msgid "You're only charged for the features you use, based on your usage, and only after you exceed a free threshold."
+msgstr "按功能用量付费，免费额度用尽后才开始计费。"
+
+msgid "Your platform team, as a service"
+msgstr "您的平台团队，服务化呈现"
+
+msgid "core development experience\""
+msgstr "核心开发体验\""
+
+msgid "in one platform"
+msgstr "一个平台搞定"
+
+msgid "open source"
+msgstr "开源"
+
+msgid "pay as you go"
+msgstr "按需付费"
+
+msgid "pinpoint the exact moment of the issue during testing"
+msgstr "在测试期间精确定位问题发生的时刻"
+
+msgid "read more"
+msgstr "阅读更多"
+
+msgid "review every step the agent took with visual context"
+msgstr "通过视觉上下文审查智能体采取的每一步"
+
+msgid "see what was tested, issues found, and results at a glance"
+msgstr "一目了然地看到测试内容、发现的问题和结果"
+
+msgid "via Community Forum"
+msgstr "通过社区论坛"
+
+msgid "via dedicated Slack"
+msgstr "通过专用 Slack"
+
+msgid "your competitive advantage"
+msgstr "你的竞争优势"
+
+msgid "Custom"
+msgstr "定制"
+
+msgid "Free"
+msgstr "免费"
+
+msgid "and up"
+msgstr "及以上"
+
+msgid "per additional unit"
+msgstr "每增加单位"
+
+msgid "AI writes faster. So should your builds."
+msgstr "AI 写得更快。您的构建也应该如此。"
+
+msgid "A Tuist command execution that interacts with the server pull test result information. As an estimate, this is roughly equivalent to the number of test runs on CI."
+msgstr "Tuist 命令与服务器交互拉取测试结果。大致相当于 CI 中的测试运行次数。"
+
+msgid "A Tuist command execution that interacts with the server to pull module binaries. As an estimate, this is roughly equivalent to the number of clean builds on CI, plus local project generations that aren't cached locally."
+msgstr "Tuist 命令与服务器交互拉取模块二进制文件。大致相当于 CI 中的清洁构建次数，加上本地未缓存的项目生成次数。"
+
+msgid "About us"
+msgstr "关于我们"
+
+msgid "Hits"
+msgstr "命中次数"
+
+msgid "Read customer story"
+msgstr "阅读客户故事"
+
+msgid "Explore Tuist's features"
+msgstr "探索 Tuist 的功能"
+
+msgid "Explore features"
+msgstr "探索功能"
+
+msgid "live on our dashboard"
+msgstr "在我们的仪表板上实时显示"
+
+msgid "Language"
+msgstr "语言"

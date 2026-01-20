@@ -19,9 +19,9 @@ defmodule Tuist.OAuth.OktaTest do
       assert config.domain == "dev-example.okta.com"
       assert config.client_id == "test_client_id"
       assert config.client_secret == "test_client_secret"
-      assert config.authorize_url == "/oauth2/default/v1/authorize"
-      assert config.token_url == "/oauth2/default/v1/token"
-      assert config.user_info_url == "/oauth2/default/v1/userinfo"
+      assert config.authorize_url == "/oauth2/v1/authorize"
+      assert config.token_url == "/oauth2/v1/token"
+      assert config.user_info_url == "/oauth2/v1/userinfo"
     end
 
     test "returns error for non-Okta organization" do

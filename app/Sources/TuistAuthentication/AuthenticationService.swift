@@ -47,7 +47,7 @@ public final class AuthenticationService: ObservableObject {
     public init(
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         appStorage: AppStoring = AppStorage(),
-        deleteAccountService: DeleteAccountServicing = DeleteAccountService(),
+        deleteAccountService: DeleteAccountServicing = DeleteAccountService()
     ) {
         self.serverEnvironmentService = serverEnvironmentService
         self.appStorage = appStorage

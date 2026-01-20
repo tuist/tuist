@@ -7,7 +7,7 @@ import XCTest
 final class HashAcceptanceTestXcodeProjectiOSFramework: TuistAcceptanceTestCase {
     func test_xcode_project_ios_framework() async throws {
         try await withMockedDependencies {
-            try await setUpFixture("ios_app_with_frameworks")
+            try await setUpFixture("generated_ios_app_with_frameworks")
             try await run(HashCacheCommand.self)
             XCTAssertStandardOutput(pattern: "Framework1 -")
             XCTAssertStandardOutput(pattern: "Framework2-iOS -")

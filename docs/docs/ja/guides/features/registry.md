@@ -5,77 +5,61 @@
   "description": "Optimize your Swift package resolution times by leveraging the Tuist Registry."
 }
 ---
-# Registry {#registry}
+# レジストリ {#registry}
 
-::: warning REQUIREMENTS
-<!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
-  project</LocalizedLink>
-<!-- -->
-:::
+依存関係の数が増えると、それらを解決する時間も増えます。CocoaPods](https://cocoapods.org/)や[npm](https://www.npmjs.com/)のような他のパッケージマネージャは集中管理されていますが、Swift
+Package Managerはそうではありません。そのため、SwiftPM
+は各リポジトリのディープクローンを行うことで依存関係を解決する必要があり、集中型のアプローチよりも時間がかかり、より多くのメモリを消費します。これに対処するために、Tuistは[Package
+Registry](https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/PackageRegistryUsage.md)の実装を提供し、_実際に必要なコミットだけをダウンロードできるようにしています_
+。レジストリ内のパッケージは[Swift Package Index](https://swiftpackageindex.com/)に基づいています。-
+もしそこでパッケージを見つけることができれば、そのパッケージはTuistレジストリでも利用可能です。さらに、パッケージは、それらを解決する際の待ち時間を最小にするために、エッジストレージを使用して世界中に分散されています。
 
-As the number of dependencies grows, so does the time to resolve them. While
-other package managers like [CocoaPods](https://cocoapods.org/) or
-[npm](https://www.npmjs.com/) are centralized, Swift Package Manager is not.
-Because of that, SwiftPM needs to resolve dependencies by doing a deep clone of
-each repository, which can be time-consuming and takes up more memory than a
-centralized approach would. To address this, Tuist provides an implementation of
-the [Package
-Registry](https://github.com/swiftlang/swift-package-manager/blob/main/Documentation/PackageRegistry/PackageRegistryUsage.md),
-so you can download only the commits you _actually need_. The packages in the
-registry are based on the [Swift Package Index](https://swiftpackageindex.com/)
-– if you can find a package there, the package is also available in the Tuist
-Registry. Additionally, the packages are distributed across the globe using an
-edge storage for minimum latency when resolving them.
+## 使用法 {#usage}
 
-## Usage {#usage}
-
-To set up and log in to the registry, run the following command in your
-project's directory:
+レジストリを設定するには、プロジェクトのディレクトリで以下のコマンドを実行する：
 
 ```bash
 tuist registry setup
 ```
 
-This command generates a registry configuration files and logs you in to the
-registry. To ensure the rest of your team can access the registry, ensure the
-generated files is committed and that your team members run the following
-command to log in:
+このコマンドは、あなたのプロジェクトでレジストリを有効にするレジストリ設定ファイルを生成します。あなたのチームもレジストリの恩恵を受けられるように、このファイルがコミットされていることを確認してください。
+
+### 認証 （オプ シ ョ ナル） {#authentication} 認証。
+
+認証は**オプションである** 。認証なしでは、IPアドレスごとに**1分あたり1,000リクエスト**
+のレート制限でレジストリを使用できます。より高いレート制限**20,000リクエスト/分** を得るには、認証を実行してください：
 
 ```bash
 tuist registry login
 ```
 
-Now you can access the registry! To resolve dependencies from the registry
-instead of from source control, continue reading based on your project setup:
-- <LocalizedLink href="/guides/features/registry/xcode-project">Xcode
-  project</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/generated-project">Generated
-  project with the Xcode package integration</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">Generated
-  project with the XcodeProj-based package integration</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/swift-package">Swift
-  package</LocalizedLink>
-
-To set up the registry on the CI, follow this guide:
-<LocalizedLink href="/guides/features/registry/continuous-integration">Continuous
-integration</LocalizedLink>.
-
-### Package registry identifiers {#package-registry-identifiers}
-
-When you use package registry identifiers in a `Package.swift` or
-`Project.swift` file, you need to convert the URL of the package to the registry
-convention. The registry identifier is always in the form of
-`{organization}.{repository}`. For example, to use the registry for the
-`https://github.com/pointfreeco/swift-composable-architecture` package, the
-package registry identifier would be
-`pointfreeco.swift-composable-architecture`.
-
-::: info
+::: 情報
 <!-- -->
-The identifier can't contain more than one dot. If the repository name contains
-a dot, it's replaced with an underscore. For example, the
-`https://github.com/groue/GRDB.swift` package would have the registry identifier
-`groue.GRDB_swift`.
+認証には<LocalizedLink href="/guides/server/accounts-and-projects">Tuistアカウントとプロジェクト</LocalizedLink>が必要です。
+<!-- -->
+:::
+
+### 依存関係の解決{#resolving-dependencies}。
+
+ソース・コントロールからではなくレジストリから依存関係を解決するには、プロジェクトのセットアップに基づいて読み進めてください：
+- <LocalizedLink href="/guides/features/registry/xcode-project">Xcode project</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/generated-project">Xcode パッケージ統合で生成されたプロジェクト</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">XcodeProj ベースのパッケージ統合で生成されたプロジェクト</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/swift-package">Swift パッケージ</LocalizedLink>
+
+CI上でレジストリを設定するには、このガイドに従ってください：<LocalizedLink href="/guides/features/registry/continuous-integration">継続的インテグレーション</LocalizedLink>.
+
+### パッケージ・レジストリ識別子 {#package-registry-identifiers}.
+
+`Package.swift` または`Project.swift` ファイルでパッケージのレジストリ識別子を使用する場合は、パッケージの URL
+をレジストリの規約に変換する必要があります。レジストリ識別子は常に`{organization}.{repository}`
+の形式です。たとえば、`https://github.com/pointfreeco/swift-composable-architecture`
+パッケージのレジストリを使用する場合、パッケージのレジストリ識別子は`pointfreeco.swift-composable-architecture`
+となります。
+
+::: 情報
+<!-- -->
+識別子には複数のドットを含めることはできません。リポジトリ名にドットが含まれる場合は、アンダースコアに置き換えられます。例えば、`https://github.com/groue/GRDB.swift`
+パッケージは、レジストリ識別子`groue.GRDB_swift` を持つことになります。
 <!-- -->
 :::

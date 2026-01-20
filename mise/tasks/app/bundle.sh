@@ -3,7 +3,7 @@
 
 set -euo pipefail
 
-TMP_DIR=$(mktemp -d)
+TMP_DIR=/private$(mktemp -d)
 KEYCHAIN_PATH=$TMP_DIR/keychain.keychain
 KEYCHAIN_PASSWORD=$(uuidgen)
 BUILD_DIRECTORY=$MISE_PROJECT_ROOT/app/build
@@ -36,32 +36,39 @@ if [ "${CI:-}" = "true" ]; then
     security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 fi
 
-echo $BASE_64_DEVELOPER_ID_APPLICATION_CERTIFICATE | base64 --decode > $TMP_DIR/certificate.p12 && security import $TMP_DIR/certificate.p12 -P $CERTIFICATE_PASSWORD -A
-mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
-echo $BASE_64_MACOS_DISTRIBUTION_PROVISIONING_PROFILE | base64 --decode > "$HOME/Library/MobileDevice/Provisioning Profiles/tuist.mobileprovision"
+op read "op://tuist/Developer ID Application Certificate/certificate.p12" --out-file $TMP_DIR/certificate.p12
+print_status "Importing certificate to keychain..."
+security import $TMP_DIR/certificate.p12 -P $(op read "op://tuist/Developer ID Application Certificate/password") -A
 
 # Build
 print_status "Building the Tuist App..."
 tuist generate --no-binary-cache --no-open
-xcodebuild clean build -workspace $MISE_PROJECT_ROOT/Tuist.xcworkspace -scheme TuistApp -configuration Release -destination generic/platform=macOS -derivedDataPath $DERIVED_DATA_PATH CODE_SIGN_IDENTITY="Developer ID Application: Tuist GmbH (U6LC622NKF)" CODE_SIGN_STYLE="Manual" CODE_SIGN_INJECT_BASE_ENTITLEMENTS="NO"
+xcodebuild clean build -workspace $MISE_PROJECT_ROOT/Tuist.xcworkspace -scheme TuistApp -configuration Release -destination generic/platform=macOS -derivedDataPath $DERIVED_DATA_PATH CODE_SIGN_IDENTITY="" CODE_SIGN_ENTITLEMENTS="" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+
+# Codesign the app
+print_status "Signing the app..."
 codesign --force --timestamp --options runtime --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" "$BUILD_DIRECTORY_BINARY/Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate"
 codesign --force --timestamp --options runtime --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" "$BUILD_DIRECTORY_BINARY/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app/Contents/MacOS/Updater"
 codesign --force --timestamp --options runtime --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" "$BUILD_DIRECTORY_BINARY/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc/Contents/MacOS/Downloader"
 codesign --force --timestamp --options runtime --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" "$BUILD_DIRECTORY_BINARY/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices/Installer.xpc/Contents/MacOS/Installer"
+codesign --force --deep --timestamp --options runtime --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" "$BUILD_DIRECTORY_BINARY"
 
 # Notarize
 print_status "Submitting the Tuist App for notarization..."
 mkdir -p $BUILD_ARTIFACTS_DIRECTORY
 
 BUILD_DMG_PATH=$BUILD_ARTIFACTS_DIRECTORY/Tuist.dmg
+
+print_status "Creating DMG..."
 create-dmg --background $MISE_PROJECT_ROOT/assets/dmg-background.png --hide-extension "Tuist.app" --icon "Tuist.app" 139 161 --icon-size 95 --window-size 605 363 --app-drop-link 467 161 --volname "Tuist App" "$BUILD_DMG_PATH" "$BUILD_DIRECTORY_BINARY"
+
 codesign --force --timestamp --options runtime --sign "Developer ID Application: Tuist GmbH (U6LC622NKF)" --identifier "dev.tuist.app.tuist-app-dmg" "$BUILD_DMG_PATH"
 
 xcrun notarytool submit "${BUILD_DMG_PATH}" \
     --wait \
-    --apple-id "$APPLE_ID" \
+    --apple-id "$(op read "op://tuist/App Specific Password/username")" \
     --team-id "$TEAM_ID" \
-    --password "$APP_SPECIFIC_PASSWORD" \
+    --password "$(op read "op://tuist/App Specific Password/password")" \
     --output-format json | jq -r '.id'
 xcrun stapler staple "${BUILD_DMG_PATH}"
 

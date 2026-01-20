@@ -1,0 +1,299 @@
+<TuistWeb.Marketing.Components.BlogIframeLayout.base
+  custom_head={
+    ~s|<script nonce="#{get_csp_nonce()}" src="https://d3js.org/d3.v7.min.js"></script>|
+  }
+  custom_styles={"""
+    #viz-container {
+      width: 100%;
+      height: 500px;
+      background: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+
+    svg {
+      max-width: 100%;
+      height: auto;
+    }
+
+    .axis-label {
+      font-size: 10px;
+      font-weight: 500;
+      fill: var(--noora-surface-label-secondary);
+    }
+
+    .chart-title {
+      font-size: 12px;
+      font-weight: 600;
+      fill: var(--noora-surface-label-primary);
+    }
+
+    .tick text {
+      font-size: 9px;
+      fill: var(--noora-surface-label-tertiary);
+    }
+
+    .tick line {
+      stroke: var(--noora-border-tertiary);
+    }
+
+    .domain {
+      stroke: var(--noora-border-secondary);
+    }
+
+    .expected-line {
+      fill: none;
+      stroke: var(--noora-surface-label-tertiary);
+      stroke-width: 2;
+      stroke-dasharray: 5, 5;
+    }
+
+    .actual-line {
+      fill: none;
+      stroke: var(--noora-button-primary-background);
+      stroke-width: 3;
+    }
+
+    .gap-area {
+      fill: oklch(from var(--noora-button-primary-background) calc(l + 0.3) c h / 0.3);
+    }
+
+    .dot {
+      fill: white;
+      stroke-width: 2;
+    }
+
+    .dot.expected {
+      stroke: var(--noora-surface-label-tertiary);
+    }
+
+    .dot.actual {
+      stroke: var(--noora-button-primary-background);
+    }
+
+    .legend {
+      font-size: 12px;
+    }
+
+    .legend-line {
+      stroke-width: 2;
+    }
+
+    .legend-text {
+      font-size: 9px;
+      fill: var(--noora-surface-label-secondary);
+    }
+
+    .phase-label {
+      font-size: 8px;
+      fill: var(--noora-surface-label-tertiary);
+      text-anchor: middle;
+    }
+  """}
+  custom_script={"""
+      function drawChart() {
+        const container = document.getElementById('viz-container');
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        // Responsive margins based on container width
+        const isMobile = width < 768;
+        const margin = {
+          top: isMobile ? 75 : 60, // More space between title/legend and graph
+          right: isMobile ? 15 : 140, // Less on mobile, legend moves below title
+          bottom: isMobile ? 110 : 100, // More space for phase labels on mobile
+          left: isMobile ? 50 : 65
+        };
+
+        const chartWidth = width - margin.left - margin.right;
+        const chartHeight = height - margin.top - margin.bottom;
+
+        // Data points: [team size, expected commits/day, actual commits/day, phase label]
+        const data = [
+          { size: 1, expected: 11, actual: 11, phase: "Solo" },
+          { size: 2, expected: 18, actual: 15, phase: "Safety Nets" },
+          { size: 5, expected: 45, actual: 25, phase: "Team Multiplier" },
+          { size: 30, expected: 240, actual: 70, phase: "Complexity Wall" }
+        ];
+
+        // Clear previous chart
+        d3.select("#chart").selectAll("*").remove();
+
+        const svg = d3.select("#chart")
+          .attr("width", width)
+          .attr("height", height);
+
+        const g = svg.append("g")
+          .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        // Scales
+        const xScale = d3.scaleLinear()
+          .domain([0, 32])
+          .range([0, chartWidth]);
+
+        const yScale = d3.scaleLinear()
+          .domain([0, 260])
+          .range([chartHeight, 0]);
+
+        // Grid lines
+        const yTicks = yScale.ticks(7);
+        g.selectAll(".grid-line")
+          .data(yTicks)
+          .join("line")
+          .attr("class", "grid-line")
+          .attr("x1", 0)
+          .attr("x2", chartWidth)
+          .attr("y1", d => yScale(d))
+          .attr("y2", d => yScale(d));
+
+        // Area between lines (the gap)
+        const area = d3.area()
+          .x(d => xScale(d.size))
+          .y0(d => yScale(d.actual))
+          .y1(d => yScale(d.expected))
+          .curve(d3.curveMonotoneX);
+
+        g.append("path")
+          .datum(data)
+          .attr("class", "gap-area")
+          .attr("d", area);
+
+        // Expected line (dashed)
+        const expectedLine = d3.line()
+          .x(d => xScale(d.size))
+          .y(d => yScale(d.expected))
+          .curve(d3.curveMonotoneX);
+
+        g.append("path")
+          .datum(data)
+          .attr("class", "expected-line")
+          .attr("d", expectedLine);
+
+        // Actual line (solid)
+        const actualLine = d3.line()
+          .x(d => xScale(d.size))
+          .y(d => yScale(d.actual))
+          .curve(d3.curveMonotoneX);
+
+        g.append("path")
+          .datum(data)
+          .attr("class", "actual-line")
+          .attr("d", actualLine);
+
+        // Dots on expected line
+        g.selectAll(".dot.expected")
+          .data(data)
+          .join("circle")
+          .attr("class", "dot expected")
+          .attr("cx", d => xScale(d.size))
+          .attr("cy", d => yScale(d.expected))
+          .attr("r", 5);
+
+        // Dots on actual line
+        g.selectAll(".dot.actual")
+          .data(data)
+          .join("circle")
+          .attr("class", "dot actual")
+          .attr("cx", d => xScale(d.size))
+          .attr("cy", d => yScale(d.actual))
+          .attr("r", 5);
+
+        // Phase labels are removed - they were redundant with the legend and cluttered the chart
+
+        // Axes
+        const xAxis = d3.axisBottom(xScale)
+          .ticks(6)
+          .tickFormat(d => d === 0 ? "" : d);
+
+        const yAxis = d3.axisLeft(yScale)
+          .ticks(7);
+
+        g.append("g")
+          .attr("transform", `translate(0,${chartHeight})`)
+          .call(xAxis);
+
+        g.append("g")
+          .call(yAxis);
+
+        // Axis labels
+        g.append("text")
+          .attr("class", "axis-label")
+          .attr("text-anchor", "middle")
+          .attr("x", chartWidth / 2)
+          .attr("y", chartHeight + 55)
+          .text("Team Size (Engineers)");
+
+        g.append("text")
+          .attr("class", "axis-label")
+          .attr("text-anchor", "middle")
+          .attr("transform", "rotate(-90)")
+          .attr("x", -chartHeight / 2)
+          .attr("y", isMobile ? -40 : -50)
+          .text("Commits Merged to Main per Day");
+
+        // Title
+        svg.append("text")
+          .attr("class", "chart-title")
+          .attr("text-anchor", "middle")
+          .attr("x", width / 2)
+          .attr("y", 30)
+          .text("Expected vs. Actual Throughput");
+
+        // Legend - position responsively
+        const legendWidth = isMobile ? 100 : 120;
+        const legendX = isMobile ? margin.left : Math.max(margin.left, width - margin.right - legendWidth);
+        const legendY = isMobile ? 45 : margin.top; // Below title on mobile with more space, next to title on desktop
+        const legend = svg.append("g")
+          .attr("transform", `translate(${legendX}, ${legendY})`);
+
+        // Expected legend
+        legend.append("line")
+          .attr("class", "expected-line legend-line")
+          .attr("x1", 0)
+          .attr("x2", isMobile ? 20 : 30)
+          .attr("y1", 0)
+          .attr("y2", 0);
+
+        legend.append("text")
+          .attr("class", "legend-text")
+          .attr("x", isMobile ? 25 : 35)
+          .attr("y", 0)
+          .attr("dy", "0.35em")
+          .style("font-size", isMobile ? "8px" : null)
+          .text("Expected");
+
+        // Actual legend
+        legend.append("line")
+          .attr("class", "actual-line legend-line")
+          .attr("x1", isMobile ? 80 : 0)
+          .attr("x2", isMobile ? 100 : 30)
+          .attr("y1", isMobile ? 0 : 20)
+          .attr("y2", isMobile ? 0 : 20);
+
+        legend.append("text")
+          .attr("class", "legend-text")
+          .attr("x", isMobile ? 105 : 35)
+          .attr("y", isMobile ? 0 : 20)
+          .attr("dy", "0.35em")
+          .style("font-size", isMobile ? "8px" : null)
+          .text("Actual");
+      }
+
+      document.addEventListener('DOMContentLoaded', function() {
+        drawChart();
+
+        // Redraw on window resize
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+          clearTimeout(resizeTimeout);
+          resizeTimeout = setTimeout(drawChart, 250);
+        });
+      });
+  """}
+>
+  <div id="viz-container" phx-update="ignore">
+    <svg id="chart"></svg>
+  </div>
+</TuistWeb.Marketing.Components.BlogIframeLayout.base>

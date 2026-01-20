@@ -25,6 +25,8 @@ defmodule Tuist.AppBuilds do
           display_name: display_name
         } = attrs
       ) do
+    track = Map.get(attrs, :track) || ""
+
     preview =
       from(p in Preview)
       |> where([p], p.project_id == ^project_id)
@@ -48,11 +50,12 @@ defmodule Tuist.AppBuilds do
         )
       )
       |> then(&if(is_nil(version), do: &1, else: where(&1, [p], p.version == ^version)))
+      |> where([p], p.track == ^track)
       |> limit(1)
       |> Repo.one()
 
     if is_nil(preview) do
-      create_preview(attrs)
+      create_preview(Map.put(attrs, :track, track))
     else
       {:ok, preview}
     end
@@ -72,10 +75,72 @@ defmodule Tuist.AppBuilds do
     end
   end
 
+  @doc """
+  Finds the latest preview on the same track (bundle identifier, git branch, and track) as the app build
+  identified by the given binary ID and build version.
+
+  Only previews that have at least one app build with a matching supported platform are considered.
+
+  Returns `{:ok, preview}` if found, `{:error, :not_found}` otherwise.
+  """
+  def latest_preview_for_binary_id_and_build_version(binary_id, build_version, %Project{} = project, opts \\ []) do
+    preload = Keyword.get(opts, :preload, [])
+
+    with {:ok, app_build} <-
+           app_build_by_binary_id_and_build_version(binary_id, build_version, preload: [:preview]),
+         %Preview{bundle_identifier: bundle_identifier, git_branch: git_branch, track: track}
+         when not is_nil(bundle_identifier) <- app_build.preview do
+      normalized_track = track || ""
+
+      supported_platforms_as_integers =
+        Enum.map(
+          app_build.supported_platforms,
+          &Ecto.Enum.mappings(AppBuild, :supported_platforms)[&1]
+        )
+
+      preview =
+        Repo.one(
+          from(p in Preview,
+            join: ab in AppBuild,
+            on: ab.preview_id == p.id,
+            where: p.project_id == ^project.id,
+            where: p.bundle_identifier == ^bundle_identifier,
+            where: p.git_branch == ^git_branch,
+            where: p.track == ^normalized_track,
+            where: fragment("? && ?", ab.supported_platforms, ^supported_platforms_as_integers),
+            order_by: [desc: p.inserted_at],
+            limit: 1,
+            preload: ^preload
+          )
+        )
+
+      case preview do
+        nil -> {:error, :not_found}
+        %Preview{} -> {:ok, preview}
+      end
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  defp app_build_by_binary_id_and_build_version(binary_id, build_version, _opts)
+       when is_nil(binary_id) or is_nil(build_version) do
+    {:error, :not_found}
+  end
+
+  defp app_build_by_binary_id_and_build_version(binary_id, build_version, opts) do
+    preload = Keyword.get(opts, :preload, [])
+
+    case Repo.get_by(AppBuild, binary_id: binary_id, build_version: build_version) do
+      nil -> {:error, :not_found}
+      %AppBuild{} = app_build -> {:ok, Repo.preload(app_build, preload)}
+    end
+  end
+
   def create_app_build(attrs) do
     %AppBuild{}
     |> AppBuild.create_changeset(attrs)
-    |> Repo.insert!()
+    |> Repo.insert()
   end
 
   def update_preview_with_app_build(preview_id, app_build) do

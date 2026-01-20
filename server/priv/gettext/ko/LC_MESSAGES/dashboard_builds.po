@@ -1,0 +1,1443 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-12-24 14:30+0000\n"
+"PO-Revision-Date: 2025-12-24 20:47+0000\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
+"dashboard_builds/ko/>\n"
+"Language: ko\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Weblate 5.15.1\n"
+
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new messages manually only if they're dynamic
+## messages that can't be statically extracted.
+##
+## Run "mix gettext.extract" to bring this file up to
+## date. Leave "msgstr"s empty as changing them here has no
+## effect: edit them in PO (.po) files instead.
+#
+#: lib/tuist_web/live/build_run_live.html.heex:674
+#: lib/tuist_web/live/generate_runs_live.html.heex:63
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{hit_rate}%"
+msgstr "%{히트_율}%"
+
+#: lib/tuist_web/live/build_run_live.ex:568
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{message} in %{link}"
+msgstr "%{링크}의 %{메시지}"
+
+#: lib/tuist_web/live/builds_live.html.heex:188
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{percentage}%"
+msgstr "%{퍼센트}%"
+
+#: lib/tuist_web/live/generate_runs_live.html.heex:101
+#: lib/tuist_web/live/run_detail_live.html.heex:158
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{run_duration}s"
+msgstr "%{run_duration}s"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:693
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Additional strings"
+msgstr "추가 문자열"
+
+#: lib/tuist_web/live/builds_live.ex:333
+#: lib/tuist_web/live/builds_live.ex:341
+#: lib/tuist_web/live/builds_live.ex:344
+#: lib/tuist_web/live/builds_live.html.heex:15
+#: lib/tuist_web/live/builds_live.html.heex:39
+#: lib/tuist_web/live/builds_live.html.heex:63
+#: lib/tuist_web/live/builds_live.html.heex:93
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Any"
+msgstr "모든"
+
+#: lib/tuist_web/live/build_runs_live.ex:267
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Archive"
+msgstr "아카이브"
+
+#: lib/tuist_web/live/builds_live.html.heex:361
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Average"
+msgstr "평균"
+
+#: lib/tuist_web/live/builds_live.html.heex:221
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Avg. build duration"
+msgstr "평균 빌드 기간"
+
+#: lib/tuist_web/live/build_run_live.html.heex:840
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Avg. latency reading cache keys"
+msgstr "캐시 키 읽기 평균 지연 시간"
+
+#: lib/tuist_web/live/build_run_live.html.heex:896
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Avg. latency writing cache keys"
+msgstr "캐시 키 쓰기 평균 지연 시간"
+
+#: lib/tuist_web/live/build_runs_live.ex:253
+#: lib/tuist_web/live/build_runs_live.html.heex:71
+#: lib/tuist_web/live/generate_runs_live.ex:275
+#: lib/tuist_web/live/generate_runs_live.html.heex:84
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Branch"
+msgstr "Branch"
+
+#: lib/tuist_web/live/build_runs_live.ex:265
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Build"
+msgstr "빌드"
+
+#: lib/tuist_web/live/build_run_live.html.heex:93
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Build Details"
+msgstr "빌드 세부 정보"
+
+#: lib/tuist_web/live/build_run_live.ex:61
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Build Run"
+msgstr "빌드 실행 내역"
+
+#: lib/tuist_web/live/build_run_live.html.heex:3
+#: lib/tuist_web/live/build_runs_live.ex:23
+#: lib/tuist_web/live/build_runs_live.html.heex:3
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Build Runs"
+msgstr "빌드 실행 내역"
+
+#: lib/tuist_web/live/build_run_live.ex:816
+#: lib/tuist_web/live/build_run_live.html.heex:144
+#: lib/tuist_web/live/build_run_live.html.heex:295
+#: lib/tuist_web/live/build_run_live.html.heex:311
+#: lib/tuist_web/live/build_run_live.html.heex:353
+#: lib/tuist_web/live/builds_live.html.heex:707
+#: lib/tuist_web/live/builds_live.html.heex:757
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Build duration"
+msgstr "빌드 기간"
+
+#: lib/tuist_web/live/build_run_live.ex:22
+#: lib/tuist_web/live/build_run_live.ex:42
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Build not found."
+msgstr "빌드를 찾을 수 없습니다."
+
+#: lib/tuist_web/live/builds_live.html.heex:467
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Build runs"
+msgstr "빌드 실행"
+
+#: lib/tuist_web/live/builds_live.html.heex:184
+#: lib/tuist_web/live/builds_live.html.heex:595
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Build success rate"
+msgstr "성공률 구축"
+
+#: lib/tuist_web/live/builds_live.html.heex:59
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Build:"
+msgstr "빌드:"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:687
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Buildable folders"
+msgstr "빌드 가능한 폴더"
+
+#: lib/tuist_web/live/builds_live.ex:20
+#: lib/tuist_web/live/builds_live.html.heex:3
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Builds"
+msgstr "빌드"
+
+#: lib/tuist_web/live/build_run_live.html.heex:151
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Built at"
+msgstr "구축 장소"
+
+#: lib/tuist_web/live/build_run_live.html.heex:140
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Built by"
+msgstr "제작자"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:593
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Bundle ID"
+msgstr "번들 ID"
+
+#: lib/tuist_web/live/build_run_live.html.heex:705
+#, elixir-autogen, elixir-format, fuzzy
+msgid "CAS Outputs"
+msgstr "CAS 출력"
+
+#: lib/tuist_web/live/build_run_live.html.heex:1062
+#, elixir-autogen, elixir-format, fuzzy
+msgid "CAS output"
+msgstr "CAS 출력"
+
+#: lib/tuist_web/live/build_run_live.html.heex:1175
+#, elixir-autogen, elixir-format, fuzzy
+msgid "CAS outputs"
+msgstr "CAS 출력"
+
+#: lib/tuist_web/live/build_run_live.html.heex:1411
+#, elixir-autogen, elixir-format, fuzzy
+msgid "CAS outputs will appear here when using Tuist cache"
+msgstr "Tuist 캐시를 사용할 때 CAS 출력은 여기에 표시됩니다."
+
+#: lib/tuist_web/live/build_run_live.html.heex:1127
+#, elixir-autogen, elixir-format, fuzzy
+msgid "CAS outputs:"
+msgstr "CAS 출력:"
+
+#: lib/tuist_web/live/builds_live.ex:335
+#: lib/tuist_web/live/builds_live.html.heex:109
+#, elixir-autogen, elixir-format, fuzzy
+msgid "CI"
+msgstr "CI"
+
+#: lib/tuist_web/live/build_run_live.html.heex:59
+#, elixir-autogen, elixir-format, fuzzy
+msgid "CI Run"
+msgstr "CI 실행"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:16
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cache Runs"
+msgstr "캐시 실행 내역"
+
+#: lib/tuist_web/live/build_run_live.html.heex:632
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cache Summary"
+msgstr "캐시 요약"
+
+#: lib/tuist_web/live/build_run_live.html.heex:683
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cache downloads"
+msgstr "캐시 다운로드"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:351
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cache hit rate"
+msgstr "캐시 적중률"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:326
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cache hits"
+msgstr "캐시 히트"
+
+#: lib/tuist_web/live/build_run_live.html.heex:1027
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cache key"
+msgstr "캐시 키"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:340
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cache misses"
+msgstr "캐시 누락"
+
+#: lib/tuist_web/live/build_run_live.html.heex:691
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cache uploads"
+msgstr "캐시 업로드"
+
+#: lib/tuist_web/live/build_run_live.html.heex:700
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cacheable Tasks"
+msgstr "캐시 가능한 작업"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:442
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cacheable targets"
+msgstr "캐시 가능한 타겟"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:392
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cacheable targets:"
+msgstr "캐시 가능한 타겟:"
+
+#: lib/tuist_web/live/build_run_live.html.heex:771
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cacheable tasks"
+msgstr "캐시 가능한 작업"
+
+#: lib/tuist_web/live/build_run_live.html.heex:651
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cacheable tasks that were not found in cache."
+msgstr "캐시에서 찾을 수 없는 캐시 가능한 작업."
+
+#: lib/tuist_web/live/build_run_live.html.heex:640
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cacheable tasks that were retrieved from cache (local + remote)."
+msgstr "캐시에서 검색된 캐시 가능 작업(로컬 + 원격)."
+
+#: lib/tuist_web/live/build_run_live.html.heex:1101
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cacheable tasks will appear here when using Tuist cache"
+msgstr "Tuist 캐시를 사용할 때 캐시 가능한 작업은 여기에 표시됩니다."
+
+#: lib/tuist_web/live/build_run_live.html.heex:723
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cacheable tasks:"
+msgstr "캐시 가능한 작업:"
+
+#: lib/tuist_web/live/build_run_live.html.heex:162
+#: lib/tuist_web/live/build_runs_live.ex:261
+#: lib/tuist_web/live/build_runs_live.html.heex:98
+#: lib/tuist_web/live/builds_live.html.heex:893
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Category"
+msgstr "카테고리"
+
+#: lib/tuist_web/live/builds_live.html.heex:79
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Clean"
+msgstr "청소"
+
+#: lib/tuist_web/live/build_run_live.html.heex:101
+#: lib/tuist_web/live/generate_runs_live.ex:254
+#: lib/tuist_web/live/generate_runs_live.html.heex:58
+#: lib/tuist_web/live/run_detail_live.html.heex:102
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Command"
+msgstr "명령"
+
+#: lib/tuist_web/live/build_runs_live.html.heex:74
+#: lib/tuist_web/live/run_detail_live.html.heex:149
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Commit SHA"
+msgstr "SHA 커밋"
+
+#: lib/tuist_web/live/build_run_live.ex:787
+#: lib/tuist_web/live/build_run_live.ex:824
+#: lib/tuist_web/live/build_run_live.html.heex:296
+#: lib/tuist_web/live/build_run_live.html.heex:319
+#: lib/tuist_web/live/build_run_live.html.heex:374
+#: lib/tuist_web/live/build_run_live.html.heex:444
+#: lib/tuist_web/live/build_run_live.html.heex:451
+#: lib/tuist_web/live/build_run_live.html.heex:513
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Compilation duration"
+msgstr "컴파일 기간"
+
+#: lib/tuist_web/live/build_run_live.html.heex:1281
+#: lib/tuist_web/live/build_run_live.html.heex:1282
+#: lib/tuist_web/live/build_run_live.html.heex:1308
+#: lib/tuist_web/live/build_run_live.html.heex:1376
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Compressed Size"
+msgstr "압축 크기"
+
+#: lib/tuist_web/live/build_run_live.ex:1120
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Compressed Size (MB)"
+msgstr "압축 크기(MB)"
+
+#: lib/tuist_web/live/build_run_live.html.heex:116
+#: lib/tuist_web/live/build_runs_live.ex:230
+#: lib/tuist_web/live/build_runs_live.html.heex:61
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Configuration"
+msgstr "구성"
+
+#: lib/tuist_web/live/builds_live.html.heex:616
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Configuration Insights"
+msgstr "구성 인사이트"
+
+#: lib/tuist_web/live/builds_live.html.heex:35
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Configuration:"
+msgstr "구성:"
+
+#: lib/tuist_web/live/build_run_live.html.heex:1080
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Copy"
+msgstr "복사"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:372
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Copy as JSON"
+msgstr "JSON으로 복사"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:623
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Copy files"
+msgstr "파일 복사"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:629
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Core data models"
+msgstr "핵심 데이터 모델"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:669
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Dependencies"
+msgstr "의존성"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:651
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Deployment target"
+msgstr "배포 대상"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:599
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Destinations"
+msgstr "목적지"
+
+#: lib/tuist_web/live/build_runs_live.html.heex:124
+#: lib/tuist_web/live/builds_live.ex:339
+#: lib/tuist_web/live/builds_live.html.heex:636
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Device"
+msgstr "장치"
+
+#: lib/tuist_web/live/build_run_live.ex:1093
+#: lib/tuist_web/live/build_run_live.html.heex:1188
+#: lib/tuist_web/live/build_run_live.html.heex:1345
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Download"
+msgstr "다운로드"
+
+#: lib/tuist_web/live/build_run_live.html.heex:50
+#: lib/tuist_web/live/run_detail_live.html.heex:63
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Download result"
+msgstr "결과 다운로드"
+
+#: lib/tuist_web/live/build_run_live.html.heex:1229
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Download throughput"
+msgstr "다운로드 처리량"
+
+#: lib/tuist_web/live/build_runs_live.html.heex:13
+#: lib/tuist_web/live/build_runs_live.html.heex:21
+#: lib/tuist_web/live/build_runs_live.html.heex:82
+#: lib/tuist_web/live/builds_live.html.heex:885
+#: lib/tuist_web/live/generate_runs_live.html.heex:13
+#: lib/tuist_web/live/generate_runs_live.html.heex:21
+#: lib/tuist_web/live/generate_runs_live.html.heex:92
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Duration"
+msgstr "기간"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:663
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Entitlements"
+msgstr "자격"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:641
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Environment"
+msgstr "환경"
+
+#: lib/tuist_web/live/builds_live.html.heex:89
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Environment:"
+msgstr "환경:"
+
+#: lib/tuist_web/live/build_run_live.html.heex:86
+#: lib/tuist_web/live/build_run_live.html.heex:208
+#: lib/tuist_web/live/build_run_live.html.heex:592
+#: lib/tuist_web/live/build_run_live.html.heex:599
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Errors"
+msgstr "오류"
+
+#: lib/tuist_web/live/build_run_live.html.heex:198
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Errors and Warnings"
+msgstr "오류 및 경고"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:608
+#, elixir-autogen, elixir-format, fuzzy
+msgid "External"
+msgstr "외부"
+
+#: lib/tuist_web/live/build_run_live.ex:853
+#: lib/tuist_web/live/build_run_live.html.heex:133
+#: lib/tuist_web/live/build_run_live.html.heex:397
+#: lib/tuist_web/live/build_runs_live.ex:245
+#: lib/tuist_web/live/build_runs_live.html.heex:68
+#: lib/tuist_web/live/builds_live.html.heex:876
+#: lib/tuist_web/live/generate_runs_live.ex:267
+#: lib/tuist_web/live/generate_runs_live.html.heex:81
+#: lib/tuist_web/live/run_detail_live.html.heex:122
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed"
+msgstr "실패"
+
+#: lib/tuist_web/live/builds_live.html.heex:201
+#: lib/tuist_web/live/builds_live.html.heex:531
+#: lib/tuist_web/live/builds_live.html.heex:802
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed builds"
+msgstr "실패한 빌드"
+
+#: lib/tuist_web/live/build_run_live.ex:584
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed compiling C file %{path}"
+msgstr "C 파일 %{경로}를 컴파일하지 못했습니다."
+
+#: lib/tuist_web/live/build_run_live.ex:587
+#: lib/tuist_web/live/build_run_live.ex:623
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed compiling Swift file %{path}"
+msgstr "Swift 파일 %{경로}를 컴파일하지 못했습니다."
+
+#: lib/tuist_web/live/build_run_live.ex:620
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed compiling XIB file %{path}"
+msgstr "XIB 파일 %{경로}를 컴파일하지 못했습니다."
+
+#: lib/tuist_web/live/build_run_live.ex:602
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed compiling assets catalog %{path}"
+msgstr "자산 카탈로그 %{경로}를 컴파일하지 못했습니다."
+
+#: lib/tuist_web/live/build_run_live.ex:605
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed compiling storyboard %{path}"
+msgstr "스토리보드 %{경로}를 컴파일하지 못했습니다."
+
+#: lib/tuist_web/live/build_run_live.ex:599
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed copying Swift libraries %{path}"
+msgstr "Swift 라이브러리 %{경로}를 복사하지 못했습니다."
+
+#: lib/tuist_web/live/build_run_live.ex:614
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed copying resource file %{path}"
+msgstr "리소스 파일 %{경로}를 복사하지 못했습니다."
+
+#: lib/tuist_web/live/build_run_live.ex:593
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed creating static library %{path}"
+msgstr "정적 라이브러리 %{경로}를 만들지 못했습니다."
+
+#: lib/tuist_web/live/build_run_live.ex:590
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed executing script %{script_name}"
+msgstr "스크립트 %{스크립트_이름}을(를) 실행하지 못했습니다."
+
+#: lib/tuist_web/live/build_run_live.ex:596
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed linking %{path}"
+msgstr "경로}를 연결하지 못했습니다."
+
+#: lib/tuist_web/live/build_run_live.ex:611
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed linking storyboards %{path}"
+msgstr "스토리보드 연결에 실패했습니다 %{경로}"
+
+#: lib/tuist_web/live/build_run_live.ex:617
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed merging Swift module %{path}"
+msgstr "스위프트 모듈 %{경로}를 병합하지 못했습니다."
+
+#: lib/tuist_web/live/build_run_live.ex:626
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed precompiling bridging header %{path}"
+msgstr "브리징 헤더 %{경로}를 미리 컴파일하지 못했습니다."
+
+#: lib/tuist_web/live/build_run_live.ex:638
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed processing %{path}"
+msgstr "경로를 처리하지 못했습니다."
+
+#: lib/tuist_web/live/build_run_live.ex:632
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed validating %{path}"
+msgstr "경로의 유효성을 검사하지 못했습니다."
+
+#: lib/tuist_web/live/build_run_live.ex:629
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed validating embedded binary %{path}"
+msgstr "임베디드 바이너리 %{경로}의 유효성을 검사하지 못했습니다."
+
+#: lib/tuist_web/live/build_run_live.ex:608
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Failed writing auxiliary file %{path}"
+msgstr "보조 파일 %{경로}을(를) 쓰지 못했습니다."
+
+#: lib/tuist_web/live/build_run_live.html.heex:443
+#: lib/tuist_web/live/build_run_live.html.heex:459
+#: lib/tuist_web/live/build_run_live.html.heex:479
+#, elixir-autogen, elixir-format, fuzzy
+msgid "File"
+msgstr "파일"
+
+#: lib/tuist_web/live/build_run_live.html.heex:266
+#: lib/tuist_web/live/build_run_live.html.heex:422
+#, elixir-autogen, elixir-format, fuzzy
+msgid "File Breakdown"
+msgstr "파일 분석"
+
+#: lib/tuist_web/live/build_run_live.html.heex:328
+#: lib/tuist_web/live/build_run_live.html.heex:468
+#: lib/tuist_web/live/build_run_live.html.heex:963
+#: lib/tuist_web/live/build_run_live.html.heex:1314
+#: lib/tuist_web/live/build_runs_live.html.heex:38
+#: lib/tuist_web/live/generate_runs_live.html.heex:38
+#: lib/tuist_web/live/run_detail_live.html.heex:521
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Filter"
+msgstr "필터"
+
+#: lib/tuist_web/live/generate_runs_live.ex:19
+#: lib/tuist_web/live/generate_runs_live.html.heex:3
+#: lib/tuist_web/live/run_detail_live.html.heex:30
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Generate Runs"
+msgstr "실행 생성"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:292
+#: lib/tuist_web/live/run_detail_live.html.heex:574
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Hash"
+msgstr "해시"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:646
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Headers"
+msgstr "헤더"
+
+#: lib/tuist_web/live/build_run_live.ex:1068
+#: lib/tuist_web/live/build_run_live.html.heex:1000
+#: lib/tuist_web/live/run_detail_live.ex:357
+#: lib/tuist_web/live/run_detail_live.html.heex:270
+#: lib/tuist_web/live/run_detail_live.html.heex:552
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Hit"
+msgstr "히트"
+
+#: lib/tuist_web/live/build_run_live.html.heex:660
+#: lib/tuist_web/live/generate_runs_live.ex:283
+#: lib/tuist_web/live/generate_runs_live.html.heex:61
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Hit rate"
+msgstr "적중률"
+
+#: lib/tuist_web/live/builds_live.html.heex:71
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Incremental"
+msgstr "증분"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:657
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Info.plist"
+msgstr "Info.plist"
+
+#: lib/tuist_web/live/build_run_live.html.heex:1279
+#: lib/tuist_web/live/build_run_live.html.heex:1292
+#: lib/tuist_web/live/build_run_live.html.heex:1329
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Key"
+msgstr "키"
+
+#: lib/tuist_web/live/build_run_live.ex:1072
+#: lib/tuist_web/live/build_run_live.html.heex:788
+#: lib/tuist_web/live/build_run_live.html.heex:1004
+#: lib/tuist_web/live/builds_live.ex:334
+#: lib/tuist_web/live/builds_live.html.heex:101
+#: lib/tuist_web/live/run_detail_live.ex:362
+#: lib/tuist_web/live/run_detail_live.html.heex:280
+#: lib/tuist_web/live/run_detail_live.html.heex:456
+#: lib/tuist_web/live/run_detail_live.html.heex:562
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Local"
+msgstr "로컬"
+
+#: lib/tuist_web/live/build_run_live.html.heex:584
+#: lib/tuist_web/live/build_run_live.html.heex:623
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Looks like you're having a great day!"
+msgstr "즐거운 하루를 보내고 계신 것 같습니다!"
+
+#: lib/tuist_web/live/build_run_live.html.heex:109
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Mac device"
+msgstr "Mac 장치"
+
+#: lib/tuist_web/live/build_run_live.ex:1074
+#: lib/tuist_web/live/build_run_live.html.heex:816
+#: lib/tuist_web/live/build_run_live.html.heex:1016
+#: lib/tuist_web/live/run_detail_live.ex:363
+#: lib/tuist_web/live/run_detail_live.html.heex:286
+#: lib/tuist_web/live/run_detail_live.html.heex:484
+#: lib/tuist_web/live/run_detail_live.html.heex:568
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Missed"
+msgstr "누락됨"
+
+#: lib/tuist_web/live/build_run_live.html.heex:294
+#: lib/tuist_web/live/build_run_live.html.heex:303
+#: lib/tuist_web/live/build_run_live.html.heex:339
+#: lib/tuist_web/live/run_detail_live.html.heex:256
+#: lib/tuist_web/live/run_detail_live.html.heex:538
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Module"
+msgstr "모듈"
+
+#: lib/tuist_web/live/build_run_live.html.heex:261
+#: lib/tuist_web/live/build_run_live.html.heex:273
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Module Breakdown"
+msgstr "모듈 분석"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:86
+#: lib/tuist_web/live/run_detail_live.html.heex:364
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Module Cache"
+msgstr "모듈 캐시"
+
+#: lib/tuist_web/live/build_run_live.ex:832
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Name"
+msgstr "이름"
+
+#: lib/tuist_web/live/build_run_live.html.heex:1409
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No CAS outputs found"
+msgstr "CAS 출력을 찾을 수 없습니다."
+
+#: lib/tuist_web/live/build_run_live.html.heex:1099
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No cacheable tasks found"
+msgstr "캐시 가능한 작업을 찾을 수 없습니다."
+
+#: lib/tuist_web/live/build_run_live.html.heex:890
+#: lib/tuist_web/live/build_run_live.html.heex:946
+#: lib/tuist_web/live/build_run_live.html.heex:1243
+#: lib/tuist_web/live/build_run_live.html.heex:1260
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No data"
+msgstr "데이터 없음"
+
+#: lib/tuist_web/live/build_runs_live.html.heex:142
+#: lib/tuist_web/live/builds_live.html.heex:607
+#: lib/tuist_web/live/builds_live.html.heex:770
+#: lib/tuist_web/live/builds_live.html.heex:909
+#: lib/tuist_web/live/generate_runs_live.html.heex:131
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No data yet"
+msgstr "아직 데이터 없음"
+
+#: lib/tuist_web/live/build_run_live.html.heex:621
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No errors detected"
+msgstr "오류 감지되지 않음"
+
+#: lib/tuist_web/live/build_run_live.html.heex:535
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No files found"
+msgstr "파일을 찾을 수 없습니다."
+
+#: lib/tuist_web/live/build_run_live.html.heex:403
+#: lib/tuist_web/live/run_detail_live.html.heex:300
+#: lib/tuist_web/live/run_detail_live.html.heex:704
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No modules found"
+msgstr "모듈을 찾을 수 없습니다."
+
+#: lib/tuist_web/live/build_run_live.html.heex:582
+#, elixir-autogen, elixir-format, fuzzy
+msgid "No warnings detected"
+msgstr "경고가 감지되지 않음"
+
+#: lib/tuist_web/live/build_run_live.html.heex:176
+#: lib/tuist_web/live/run_detail_live.html.heex:145
+#: lib/tuist_web/live/run_detail_live.html.heex:151
+#, elixir-autogen, elixir-format, fuzzy
+msgid "None"
+msgstr "없음"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:193
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Optimization Summary"
+msgstr "최적화 요약"
+
+#: lib/tuist_web/live/build_run_live.html.heex:70
+#: lib/tuist_web/live/run_detail_live.html.heex:72
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Overview"
+msgstr "개요"
+
+#: lib/tuist_web/live/build_run_live.ex:852
+#: lib/tuist_web/live/build_run_live.html.heex:127
+#: lib/tuist_web/live/build_run_live.html.heex:395
+#: lib/tuist_web/live/build_runs_live.ex:244
+#: lib/tuist_web/live/build_runs_live.html.heex:66
+#: lib/tuist_web/live/builds_live.html.heex:874
+#: lib/tuist_web/live/generate_runs_live.ex:266
+#: lib/tuist_web/live/generate_runs_live.html.heex:79
+#: lib/tuist_web/live/run_detail_live.html.heex:115
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Passed"
+msgstr "합격"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:353
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Percentage of modules that were successfully retrieved from the cache."
+msgstr "캐시에서 성공적으로 검색된 모듈의 백분율입니다."
+
+#: lib/tuist_web/live/run_detail_live.html.heex:582
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Product"
+msgstr "제품"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:587
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Product name"
+msgstr "제품 이름"
+
+#: lib/tuist_web/live/build_run_live.ex:803
+#: lib/tuist_web/live/build_run_live.ex:840
+#: lib/tuist_web/live/build_run_live.html.heex:508
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Project"
+msgstr "프로젝트"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:675
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Project settings"
+msgstr "프로젝트 설정"
+
+#: lib/tuist_web/live/build_runs_live.html.heex:14
+#: lib/tuist_web/live/build_runs_live.html.heex:29
+#: lib/tuist_web/live/build_runs_live.html.heex:109
+#: lib/tuist_web/live/builds_live.html.heex:902
+#: lib/tuist_web/live/generate_runs_live.html.heex:14
+#: lib/tuist_web/live/generate_runs_live.html.heex:29
+#: lib/tuist_web/live/generate_runs_live.html.heex:111
+#: lib/tuist_web/live/run_detail_live.html.heex:134
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Ran at"
+msgstr "실행 위치"
+
+#: lib/tuist_web/live/build_runs_live.ex:299
+#: lib/tuist_web/live/build_runs_live.html.heex:77
+#: lib/tuist_web/live/builds_live.html.heex:882
+#: lib/tuist_web/live/generate_runs_live.ex:299
+#: lib/tuist_web/live/generate_runs_live.html.heex:87
+#: lib/tuist_web/live/run_detail_live.html.heex:130
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Ran by"
+msgstr "운영자"
+
+#: lib/tuist_web/live/builds_live.html.heex:780
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Recent Builds"
+msgstr "최근 빌드"
+
+#: lib/tuist_web/live/build_run_live.ex:1073
+#: lib/tuist_web/live/build_run_live.html.heex:802
+#: lib/tuist_web/live/build_run_live.html.heex:1010
+#: lib/tuist_web/live/run_detail_live.ex:361
+#: lib/tuist_web/live/run_detail_live.html.heex:274
+#: lib/tuist_web/live/run_detail_live.html.heex:470
+#: lib/tuist_web/live/run_detail_live.html.heex:556
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Remote"
+msgstr "원격"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:617
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Resources"
+msgstr "참고자료"
+
+#: lib/tuist_web/live/run_detail_live.ex:34
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Run"
+msgstr "실행"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:155
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Run duration"
+msgstr "실행 기간"
+
+#: lib/tuist_web/live/build_runs_live.ex:222
+#: lib/tuist_web/live/build_runs_live.html.heex:58
+#: lib/tuist_web/live/builds_live.html.heex:867
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Scheme"
+msgstr "계획"
+
+#: lib/tuist_web/live/builds_live.html.heex:11
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Scheme:"
+msgstr "Scheme:"
+
+#: lib/tuist_web/live/build_run_live.html.heex:284
+#: lib/tuist_web/live/build_run_live.html.heex:433
+#: lib/tuist_web/live/build_run_live.html.heex:955
+#: lib/tuist_web/live/build_run_live.html.heex:1269
+#: lib/tuist_web/live/run_detail_live.html.heex:247
+#: lib/tuist_web/live/run_detail_live.html.heex:513
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Search..."
+msgstr "검색..."
+
+#: lib/tuist_web/live/run_detail_live.html.heex:237
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective Testing"
+msgstr "선택적 테스트"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:210
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective test hits"
+msgstr "선택적 테스트 히트"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:212
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective test hits represents the number of test modules that were skipped thanks to the selective testing."
+msgstr ""
+"선택적 테스트 히트는 선택적 테스트 덕분에 건너뛴 테스트 모듈의 수를 "
+"나타냅니다."
+
+#: lib/tuist_web/live/run_detail_live.html.heex:224
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective test misses"
+msgstr "선택적 테스트 누락"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:226
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Selective test misses represents the number of test modules that were run as they were not successfully run before."
+msgstr ""
+"선택적 테스트 실패는 이전에 성공적으로 실행되지 않아 실행된 테스트 모듈의 "
+"수를 나타냅니다."
+
+#: lib/tuist_web/live/build_run_live.html.heex:1280
+#: lib/tuist_web/live/build_run_live.html.heex:1300
+#: lib/tuist_web/live/build_run_live.html.heex:1362
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Size"
+msgstr "크기"
+
+#: lib/tuist_web/live/build_run_live.ex:1112
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Size (MB)"
+msgstr "크기(MB)"
+
+#: lib/tuist_web/live/build_run_live.html.heex:299
+#: lib/tuist_web/live/build_run_live.html.heex:447
+#: lib/tuist_web/live/build_run_live.html.heex:1285
+#: lib/tuist_web/live/build_runs_live.html.heex:17
+#: lib/tuist_web/live/generate_runs_live.html.heex:17
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Sort by:"
+msgstr "정렬 기준:"
+
+#: lib/tuist_web/live/build_run_live.html.heex:173
+#: lib/tuist_web/live/run_detail_live.html.heex:142
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Source"
+msgstr "소스"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:612
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Sources"
+msgstr "소스"
+
+#: lib/tuist_web/live/build_run_live.ex:848
+#: lib/tuist_web/live/build_run_live.ex:1089
+#: lib/tuist_web/live/build_run_live.html.heex:124
+#: lib/tuist_web/live/build_run_live.html.heex:1341
+#: lib/tuist_web/live/build_runs_live.ex:240
+#: lib/tuist_web/live/generate_runs_live.ex:262
+#: lib/tuist_web/live/run_detail_live.html.heex:112
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Status"
+msgstr "상태"
+
+#: lib/tuist_web/live/builds_live.html.heex:797
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Successful builds"
+msgstr "성공적인 빌드"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:320
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Summary"
+msgstr "요약"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:173
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Swift version"
+msgstr "스위프트 버전"
+
+#: lib/tuist_web/live/build_run_live.ex:795
+#: lib/tuist_web/live/build_run_live.html.heex:505
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Target"
+msgstr "Target"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:635
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Target scripts"
+msgstr "타깃 스크립트"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:681
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Target settings"
+msgstr "대상 설정"
+
+#: lib/tuist_web/live/build_run_live.html.heex:988
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Task"
+msgstr "작업"
+
+#: lib/tuist_web/live/build_run_live.html.heex:638
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Task hits"
+msgstr "작업 조회수"
+
+#: lib/tuist_web/live/build_run_live.html.heex:649
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Task misses"
+msgstr "작업 누락"
+
+#: lib/tuist_web/live/build_runs_live.ex:266
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test"
+msgstr "테스트"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:94
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Details"
+msgstr "테스트 세부 정보"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:79
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Optimizations"
+msgstr "테스트 최적화"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:4
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test Runs"
+msgstr "테스트 실행 내역"
+
+#: lib/tuist_web/live/build_run_live.html.heex:34
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Test: %{scheme}"
+msgstr "테스트: %{체계}"
+
+#: lib/tuist_web/live/builds_live.html.heex:233
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The average build duration with individual percentile intervals."
+msgstr "개별 백분위수 간격의 평균 빌드 기간입니다."
+
+#: lib/tuist_web/live/builds_live.html.heex:203
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The number of builds that failed."
+msgstr "실패한 빌드 수입니다."
+
+#: lib/tuist_web/live/builds_live.html.heex:186
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The percentage of builds that succeeded."
+msgstr "성공한 빌드의 비율입니다."
+
+#: lib/tuist_web/live/build_run_live.html.heex:662
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The percentage of cacheable tasks that were cache hits (local + remote)."
+msgstr "캐시 히트가 된 캐시 가능 작업의 비율(로컬 + 원격)입니다."
+
+#: lib/tuist_web/live/builds_live.html.heex:172
+#, elixir-autogen, elixir-format, fuzzy
+msgid "The total number of builds."
+msgstr "총 빌드 수입니다."
+
+#: lib/tuist_web/live/build_run_live.html.heex:847
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Time to read cache keys, which uniquely identify cacheable tasks, from cache."
+msgstr "캐시에서 캐시 가능한 작업을 고유하게 식별하는 캐시 키를 읽을 시간입니다."
+
+#: lib/tuist_web/live/build_run_live.html.heex:903
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Time to write cache keys, which uniquely identify cacheable tasks, to cache."
+msgstr ""
+"캐시 가능한 작업을 고유하게 식별하는 캐시 키를 작성하여 캐시에 저장할 "
+"시간입니다."
+
+#: lib/tuist_web/live/build_run_live.html.heex:1231
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Time-weighted average download throughput in megabits per second."
+msgstr "시간 가중 평균 다운로드 처리량(초당 메가비트)입니다."
+
+#: lib/tuist_web/live/build_run_live.html.heex:1248
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Time-weighted average upload throughput in megabits per second."
+msgstr "시간 가중 평균 업로드 처리량(초당 메가비트)입니다."
+
+#: lib/tuist_web/live/builds_live.html.heex:170
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total builds"
+msgstr "총 빌드 수"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:199
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total modules"
+msgstr "총 모듈"
+
+#: lib/tuist_web/live/run_detail_live.html.heex:201
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total modules represents the total number of testable modules."
+msgstr "총 모듈은 테스트 가능한 모듈의 총 개수를 나타냅니다."
+
+#: lib/tuist_web/live/run_detail_live.html.heex:328
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total number of modules taken from either the local or the remote cache."
+msgstr "로컬 또는 원격 캐시에서 가져온 모듈의 총 개수입니다."
+
+#: lib/tuist_web/live/run_detail_live.html.heex:342
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total number of modules that could have been taken from the cache if it was fully populated."
+msgstr "캐시가 완전히 채워졌을 경우 캐시에서 가져올 수 있었던 모듈의 총 개수입니다."
+
+#: lib/tuist_web/live/build_run_live.html.heex:685
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total size of cache artifacts downloaded."
+msgstr "다운로드한 캐시 아티팩트의 총 크기입니다."
+
+#: lib/tuist_web/live/build_run_live.html.heex:692
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Total size of cache artifacts uploaded."
+msgstr "업로드된 캐시 아티팩트의 총 크기입니다."
+
+#: lib/tuist_web/live/run_detail_live.html.heex:301
+#: lib/tuist_web/live/run_detail_live.html.heex:705
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Try changing your search term"
+msgstr "검색어를 변경해 보세요"
+
+#: lib/tuist_web/live/build_run_live.html.heex:404
+#: lib/tuist_web/live/build_run_live.html.heex:536
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Try updating your search"
+msgstr "검색을 업데이트해 보세요."
+
+#: lib/tuist_web/live/run_detail_live.html.heex:166
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Tuist version"
+msgstr "Tuist 버전"
+
+#: lib/tuist_web/live/build_run_live.ex:1055
+#: lib/tuist_web/live/build_run_live.ex:1102
+#: lib/tuist_web/live/build_run_live.html.heex:491
+#: lib/tuist_web/live/build_run_live.html.heex:1022
+#: lib/tuist_web/live/build_run_live.html.heex:1357
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Type"
+msgstr "유형"
+
+#: lib/tuist_web/live/builds_live.html.heex:624
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Type:"
+msgstr "유형:"
+
+#: lib/tuist_web/live/build_run_live.html.heex:35
+#: lib/tuist_web/live/build_run_live.html.heex:118
+#: lib/tuist_web/live/build_run_live.html.heex:166
+#: lib/tuist_web/live/build_run_live.html.heex:998
+#: lib/tuist_web/live/build_runs_live.html.heex:62
+#: lib/tuist_web/live/build_runs_live.html.heex:102
+#: lib/tuist_web/live/build_runs_live.html.heex:119
+#: lib/tuist_web/live/build_runs_live.html.heex:122
+#: lib/tuist_web/live/build_runs_live.html.heex:127
+#: lib/tuist_web/live/builds_live.ex:352
+#: lib/tuist_web/live/builds_live.html.heex:869
+#: lib/tuist_web/live/builds_live.html.heex:880
+#: lib/tuist_web/live/builds_live.html.heex:897
+#: lib/tuist_web/live/run_detail_live.html.heex:294
+#: lib/tuist_web/live/run_detail_live.html.heex:576
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Unknown"
+msgstr "알 수 없음"
+
+#: lib/tuist_web/live/build_run_live.html.heex:26
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Unknown scheme"
+msgstr "알 수 없는 체계"
+
+#: lib/tuist_web/live/build_run_live.ex:1094
+#: lib/tuist_web/live/build_run_live.html.heex:1205
+#: lib/tuist_web/live/build_run_live.html.heex:1351
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Upload"
+msgstr "업로드"
+
+#: lib/tuist_web/live/build_run_live.html.heex:1246
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Upload throughput"
+msgstr "업로드 처리량"
+
+#: lib/tuist_web/live/build_run_live.html.heex:243
+#: lib/tuist_web/live/builds_live.html.heex:787
+#, elixir-autogen, elixir-format, fuzzy
+msgid "View more"
+msgstr "자세히 보기"
+
+#: lib/tuist_web/live/build_run_live.ex:642
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when compiling C file %{path}"
+msgstr "C 파일 %{경로}를 컴파일하는 동안 경고가 발생했습니다."
+
+#: lib/tuist_web/live/build_run_live.ex:645
+#: lib/tuist_web/live/build_run_live.ex:681
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when compiling Swift file %{path}"
+msgstr "Swift 파일 %{경로}를 컴파일하는 동안 경고가 발생했습니다."
+
+#: lib/tuist_web/live/build_run_live.ex:678
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when compiling XIB file %{path}"
+msgstr "XIB 파일 %{경로}를 컴파일하는 동안 경고가 발생했습니다."
+
+#: lib/tuist_web/live/build_run_live.ex:660
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when compiling assets catalog %{path}"
+msgstr "자산 카탈로그 %{경로}를 컴파일하는 동안 경고가 발생했습니다."
+
+#: lib/tuist_web/live/build_run_live.ex:663
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when compiling storyboard %{path}"
+msgstr "스토리보드 %{경로}를 컴파일하는 동안 경고가 발생했습니다."
+
+#: lib/tuist_web/live/build_run_live.ex:657
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when copying Swift libraries %{path}"
+msgstr "Swift 라이브러리 %{경로}를 복사할 때 경고가 발생했습니다."
+
+#: lib/tuist_web/live/build_run_live.ex:672
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when copying resource file %{path}"
+msgstr "리소스 파일 %{경로}를 복사하는 동안 경고가 발생했습니다."
+
+#: lib/tuist_web/live/build_run_live.ex:651
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when creating static library %{path}"
+msgstr "정적 라이브러리 %{경로}를 만드는 동안 경고가 발생했습니다."
+
+#: lib/tuist_web/live/build_run_live.ex:648
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when executing script %{script_name}"
+msgstr "스크립트 %{스크립트_이름} 실행 중 경고"
+
+#: lib/tuist_web/live/build_run_live.ex:654
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when linking %{path}"
+msgstr "경로} 연결 시 경고"
+
+#: lib/tuist_web/live/build_run_live.ex:669
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when linking storyboards %{path}"
+msgstr "스토리보드 연결 시 경고 %{경로}"
+
+#: lib/tuist_web/live/build_run_live.ex:675
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when merging Swift module %{path}"
+msgstr "Swift 모듈 %{경로}를 병합할 때 경고가 발생했습니다."
+
+#: lib/tuist_web/live/build_run_live.ex:684
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when precompiling bridging header %{path}"
+msgstr "브리징 헤더 %{경로}를 미리 컴파일할 때 경고"
+
+#: lib/tuist_web/live/build_run_live.ex:696
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when processing %{path}"
+msgstr "경로}를 처리할 때 경고"
+
+#: lib/tuist_web/live/build_run_live.ex:690
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when validating %{path}"
+msgstr "경로} 유효성 검사 시 경고"
+
+#: lib/tuist_web/live/build_run_live.ex:687
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when validating embedded binary %{path}"
+msgstr "임베디드 바이너리 %{경로} 유효성 검사 시 경고"
+
+#: lib/tuist_web/live/build_run_live.ex:666
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warning when writing auxiliary file %{path}"
+msgstr "보조 파일 %{경로} 쓰기 시 경고"
+
+#: lib/tuist_web/live/build_run_live.html.heex:81
+#: lib/tuist_web/live/build_run_live.html.heex:233
+#: lib/tuist_web/live/build_run_live.html.heex:555
+#: lib/tuist_web/live/build_run_live.html.heex:562
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Warnings"
+msgstr "경고"
+
+#: lib/tuist_web/live/build_run_live.html.heex:76
+#: lib/tuist_web/live/build_run_live.html.heex:712
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Xcode Cache"
+msgstr "Xcode 캐시"
+
+#: lib/tuist_web/live/build_run_live.html.heex:180
+#: lib/tuist_web/live/build_runs_live.ex:275
+#: lib/tuist_web/live/build_runs_live.html.heex:118
+#: lib/tuist_web/live/builds_live.ex:337
+#: lib/tuist_web/live/builds_live.html.heex:628
+#: lib/tuist_web/live/builds_live.html.heex:879
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Xcode version"
+msgstr "Xcode 버전"
+
+#: lib/tuist_web/live/build_run_live.html.heex:186
+#: lib/tuist_web/live/build_runs_live.ex:283
+#: lib/tuist_web/live/build_runs_live.html.heex:121
+#: lib/tuist_web/live/builds_live.ex:338
+#: lib/tuist_web/live/builds_live.html.heex:644
+#: lib/tuist_web/live/run_detail_live.html.heex:180
+#, elixir-autogen, elixir-format, fuzzy
+msgid "macOS version"
+msgstr "macOS 버전"
+
+#: lib/tuist_web/live/builds_live.html.heex:403
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p50"
+msgstr "p50"
+
+#: lib/tuist_web/live/builds_live.html.heex:220
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p50 build duration"
+msgstr "P50 빌드 기간"
+
+#: lib/tuist_web/live/build_run_live.html.heex:843
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p50 latency reading cache keys"
+msgstr "P50 캐시 키 읽기 지연 시간"
+
+#: lib/tuist_web/live/build_run_live.html.heex:899
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p50 latency writing cache keys"
+msgstr "P50 캐시 키 쓰기 지연 시간"
+
+#: lib/tuist_web/live/builds_live.html.heex:389
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p90"
+msgstr "p90"
+
+#: lib/tuist_web/live/builds_live.html.heex:219
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p90 build duration"
+msgstr "P90 빌드 기간"
+
+#: lib/tuist_web/live/build_run_live.html.heex:842
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p90 latency reading cache keys"
+msgstr "P90 캐시 키 읽기 지연 시간"
+
+#: lib/tuist_web/live/build_run_live.html.heex:898
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p90 latency writing cache keys"
+msgstr "P90 캐시 키 쓰기 지연 시간"
+
+#: lib/tuist_web/live/builds_live.html.heex:375
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p99"
+msgstr "p99"
+
+#: lib/tuist_web/live/builds_live.html.heex:218
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p99 build duration"
+msgstr "P99 빌드 기간"
+
+#: lib/tuist_web/live/build_run_live.html.heex:841
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p99 latency reading cache keys"
+msgstr "P99 캐시 키 읽기 지연 시간"
+
+#: lib/tuist_web/live/build_run_live.html.heex:897
+#, elixir-autogen, elixir-format, fuzzy
+msgid "p99 latency writing cache keys"
+msgstr "P99 캐시 키 쓰기 지연 시간"
+
+#: lib/tuist_web/live/builds_live.ex:331
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since last month"
+msgstr "지난달부터"
+
+#: lib/tuist_web/live/builds_live.ex:328
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since last week"
+msgstr "지난 주부터"
+
+#: lib/tuist_web/live/builds_live.ex:329
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since last year"
+msgstr "작년부터"
+
+#: lib/tuist_web/live/build_run_live.html.heex:211
+#: lib/tuist_web/live/build_run_live.html.heex:236
+#: lib/tuist_web/live/build_run_live.html.heex:565
+#: lib/tuist_web/live/build_run_live.html.heex:602
+#, elixir-autogen, elixir-format, fuzzy
+msgid "•"
+msgstr "-"
+
+#: lib/tuist_web/live/builds_live.html.heex:158
+#: lib/tuist_web/live/builds_live.html.heex:693
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Apply"
+msgstr "신청하기"
+
+#: lib/tuist_web/live/builds_live.html.heex:149
+#: lib/tuist_web/live/builds_live.html.heex:684
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Cancel"
+msgstr "취소"
+
+#: lib/tuist_web/live/builds_live.html.heex:140
+#: lib/tuist_web/live/builds_live.html.heex:675
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Custom"
+msgstr "맞춤형"
+
+#: lib/tuist_web/live/builds_live.html.heex:137
+#: lib/tuist_web/live/builds_live.html.heex:672
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 12 months"
+msgstr "지난 12개월"
+
+#: lib/tuist_web/live/builds_live.html.heex:122
+#: lib/tuist_web/live/builds_live.html.heex:657
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 24 hours"
+msgstr "지난 24시간"
+
+#: lib/tuist_web/live/builds_live.html.heex:132
+#: lib/tuist_web/live/builds_live.html.heex:667
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 30 days"
+msgstr "지난 30일"
+
+#: lib/tuist_web/live/builds_live.html.heex:127
+#: lib/tuist_web/live/builds_live.html.heex:662
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Last 7 days"
+msgstr "지난 7일"
+
+#: lib/tuist_web/live/builds_live.ex:330
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since last period"
+msgstr "지난 기간 이후"
+
+#: lib/tuist_web/live/builds_live.ex:327
+#, elixir-autogen, elixir-format, fuzzy
+msgid "since yesterday"
+msgstr "어제부터"

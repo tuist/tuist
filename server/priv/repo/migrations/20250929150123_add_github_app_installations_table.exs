@@ -1,5 +1,6 @@
 defmodule Tuist.Repo.Migrations.AddGithubAppInstallationsTable do
   use Ecto.Migration
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
 
   def change do
     create table(:github_app_installations, primary_key: false) do

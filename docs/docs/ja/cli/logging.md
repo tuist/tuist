@@ -5,37 +5,36 @@
   "description": "Learn how to enable and configure logging in Tuist."
 }
 ---
-# Logging {#logging}
+# ロギング {#logging}
 
-The CLI logs messages internally to help you diagnose issues.
+CLIは問題を診断するために内部的にメッセージを記録します。
 
-## Diagnose issues using logs {#diagnose-issues-using-logs}
+## ログを使って問題を診断する{#diagnose-issues-using-logs}。
 
-If a command invocation doesn't yield the intended results, you can diagnose the
-issue by inspecting the logs. The CLI forwards the logs to
-[OSLog](https://developer.apple.com/documentation/os/oslog) and the file-system.
+コマンドを実行しても意図した結果が得られない場合、ログを調べることで問題を診断することができます。CLIはログを[OSLog](https://developer.apple.com/documentation/os/oslog)とファイルシステムに転送します。
 
-In every run, it creates a log file at `$XDG_STATE_HOME/tuist/logs/{uuid}.log`
-where `$XDG_STATE_HOME` takes the value `~/.local/state` if the environment
-variable is not set.
+すべての実行で、`$XDG_STATE_HOME/tuist/logs/{uuid}.log` にログファイルを作成します。`$XDG_STATE_HOME`
+は、環境変数が設定されていない場合、`~/.local/state` の値を取ります。また、`$TUIST_XDG_STATE_HOME`
+を使用して、Tuist固有のステート・ディレクトリを設定することもできます。これは、`$XDG_STATE_HOME` よりも優先されます。
 
-By default, the CLI outputs the logs path when the execution exits unexpectedly.
-If it doesn't, you can find the logs in the path mentioned above (i.e., the most
-recent log file).
-
-::: warning
+::: チップ
 <!-- -->
-Sensitive information is not redacted, so be cautious when sharing logs.
+Tuistのディレクトリ構成とカスタムディレクトリの設定方法については<LocalizedLink href="/cli/directories">Directoriesドキュメント</LocalizedLink>を参照してください。
 <!-- -->
 :::
 
-### Continuous integration {#diagnose-issues-using-logs-ci}
+デフォルトでは、CLIは実行が予期せず終了したときにログのパスを出力します。出力されない場合は、上記のパス（つまり最新のログファイル）でログを見つけることができます。
 
-In CI, where environments are disposable, you might want to configure your CI
-pipeline to export Tuist logs. Exporting artifacts is a common capability across
-CI services, and the configuration depends on the service you use. For example,
-in GitHub Actions, you can use the `actions/upload-artifact` action to upload
-the logs as an artifact:
+::: 警告
+<!-- -->
+機密情報は編集されないので、ログを共有するときは慎重に。
+<!-- -->
+:::
+
+### 継続的インテグレーション{#diagnose-issues-using-logs-ci}。
+
+環境を使い捨てにするCIでは、TuistログをエクスポートするようにCIパイプラインを設定したいかもしれない。アーティファクトのエクスポートはCIサービスに共通する機能であり、設定は利用するサービスに依存する。例えば
+GitHub Actions では、`actions/upload-artifact` アクションを使ってログをアーティファクトとしてアップロードできます：
 
 ```yaml
 name: Node CI
@@ -43,7 +42,7 @@ name: Node CI
 on: [push]
 
 env:
-  XDG_STATE_HOME: /tmp
+  TUIST_XDG_STATE_HOME: /tmp
 
 jobs:
   build:
@@ -55,8 +54,21 @@ jobs:
       - run: tuist generate
       # ... do something with the project
       - name: Export Tuist logs
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: tuist-logs
           path: /tmp/tuist/logs/*.log
 ```
+
+### キャッシュ・デーモンのデバッグ{#cache-daemon-debugging}。
+
+キャッシュ関連の問題をデバッグするために、Tuistはサブシステム`dev.tuist.cache` で`os_log`
+を使用してキャッシュデーモンの操作をログに記録します。これらのログをリアルタイムでストリーミングすることができます：
+
+```bash
+log stream --predicate 'subsystem == "dev.tuist.cache"' --debug
+```
+
+これらのログは、`dev.tuist.cache` サブシステムをフィルタリングすることで、Console.app
+にも表示されます。これはキャッシュ操作に関する詳細な情報を提供し、キャッシュのアップロード、ダウンロード、および通信の問題を診断するのに役立ちます。

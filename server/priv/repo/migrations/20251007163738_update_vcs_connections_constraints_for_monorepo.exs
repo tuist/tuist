@@ -1,5 +1,6 @@
 defmodule Tuist.Repo.Migrations.UpdateVcsConnectionsConstraintsForMonorepo do
   use Ecto.Migration
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
 
   def change do
     # Drop the existing unique index on [:provider, :project_id]

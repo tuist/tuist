@@ -1,17 +1,23 @@
 defmodule Tuist.SlackTest do
-  use ExUnit.Case, async: true
+  use TuistTestSupport.Cases.DataCase
   use Mimic
 
   alias Tuist.Environment
+  alias Tuist.Projects
   alias Tuist.Slack
+  alias Tuist.Slack.Client
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.AlertsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.SlackFixtures
 
-  setup do
-    stub(Environment, :prod?, fn -> true end)
-    stub(Environment, :tuist_hosted?, fn -> true end)
-    :ok
-  end
+  describe "send_message/2" do
+    setup do
+      stub(Environment, :prod?, fn -> true end)
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      :ok
+    end
 
-  describe "send_message" do
     test "when the response is successful" do
       # Given
       token = "token"
@@ -55,6 +61,368 @@ defmodule Tuist.SlackTest do
 
       # Then
       assert response == {:error, "Request failed: \"error\""}
+    end
+  end
+
+  describe "create_installation/1" do
+    test "creates a Slack installation with valid attributes" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = user.account
+
+      attrs = %{
+        account_id: account.id,
+        team_id: "T12345",
+        team_name: "Test Workspace",
+        access_token: "xoxb-test-token",
+        bot_user_id: "U12345"
+      }
+
+      # When
+      result = Slack.create_installation(attrs)
+
+      # Then
+      assert {:ok, installation} = result
+      assert installation.account_id == account.id
+      assert installation.team_id == "T12345"
+      assert installation.team_name == "Test Workspace"
+      assert installation.bot_user_id == "U12345"
+    end
+
+    test "returns error with invalid attributes" do
+      # When
+      result = Slack.create_installation(%{})
+
+      # Then
+      assert {:error, changeset} = result
+      assert changeset.valid? == false
+    end
+  end
+
+  describe "update_installation/2" do
+    test "updates a Slack installation" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+
+      # When
+      result = Slack.update_installation(installation, %{team_name: "Updated Workspace"})
+
+      # Then
+      assert {:ok, updated} = result
+      assert updated.team_name == "Updated Workspace"
+      assert updated.team_id == installation.team_id
+    end
+  end
+
+  describe "delete_installation/1" do
+    test "deletes a Slack installation" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+
+      # When
+      result = Slack.delete_installation(installation)
+
+      # Then
+      assert {:ok, _deleted} = result
+      assert Repo.get(Tuist.Slack.Installation, installation.id) == nil
+    end
+
+    test "clears slack fields from projects when deleting installation" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+
+      project =
+        ProjectsFixtures.project_fixture(
+          account_id: user.account.id,
+          slack_channel_id: "C12345",
+          slack_channel_name: "test-channel"
+        )
+
+      # When
+      {:ok, _} = Slack.delete_installation(installation)
+
+      # Then
+      updated_project = Projects.get_project_by_id(project.id)
+      assert updated_project.slack_channel_id == nil
+      assert updated_project.slack_channel_name == nil
+    end
+
+    test "clears slack fields from alert rules when deleting installation" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts-channel"
+        )
+
+      # When
+      {:ok, _} = Slack.delete_installation(installation)
+
+      # Then
+      {:ok, updated_alert_rule} = Tuist.Alerts.get_alert_rule(alert_rule.id)
+      assert updated_alert_rule.slack_channel_id == nil
+      assert updated_alert_rule.slack_channel_name == nil
+    end
+  end
+
+  describe "generate_state_token/1" do
+    test "generates a signed token for the account ID" do
+      # Given
+      account_id = "test-account-id"
+
+      # When
+      token = Slack.generate_state_token(account_id)
+
+      # Then
+      assert is_binary(token)
+      assert String.length(token) > 0
+    end
+  end
+
+  describe "generate_channel_selection_token/2" do
+    test "generates a signed token for the project and account ID" do
+      # Given
+      project_id = 123
+      account_id = 456
+
+      # When
+      token = Slack.generate_channel_selection_token(project_id, account_id)
+
+      # Then
+      assert is_binary(token)
+      assert String.length(token) > 0
+    end
+  end
+
+  describe "verify_state_token/1" do
+    test "verifies an account installation token and returns the payload" do
+      # Given
+      account_id = "test-account-id"
+      token = Slack.generate_state_token(account_id)
+
+      # When
+      result = Slack.verify_state_token(token)
+
+      # Then
+      assert {:ok, %{type: :account_installation, account_id: ^account_id}} = result
+    end
+
+    test "verifies a channel selection token and returns the payload" do
+      # Given
+      project_id = 123
+      account_id = 456
+      token = Slack.generate_channel_selection_token(project_id, account_id)
+
+      # When
+      result = Slack.verify_state_token(token)
+
+      # Then
+      assert {:ok, %{type: :channel_selection, project_id: ^project_id, account_id: ^account_id}} = result
+    end
+
+    test "returns error for invalid token" do
+      # When
+      result = Slack.verify_state_token("invalid-token")
+
+      # Then
+      assert {:error, _reason} = result
+    end
+  end
+
+  describe "generate_alert_channel_selection_token/2" do
+    test "generates token without alert_rule_id" do
+      # Given
+      account_id = 123
+
+      # When
+      token = Slack.generate_alert_channel_selection_token(account_id)
+
+      # Then
+      assert {:ok, payload} = Slack.verify_state_token(token)
+      assert payload.type == :alert_channel_selection
+      assert payload.account_id == account_id
+      refute Map.has_key?(payload, :alert_rule_id)
+    end
+
+    test "generates token with alert_rule_id" do
+      # Given
+      account_id = 123
+      alert_rule_id = "rule-456"
+
+      # When
+      token = Slack.generate_alert_channel_selection_token(account_id, alert_rule_id: alert_rule_id)
+
+      # Then
+      assert {:ok, payload} = Slack.verify_state_token(token)
+      assert payload.type == :alert_channel_selection
+      assert payload.account_id == account_id
+      assert payload.alert_rule_id == alert_rule_id
+    end
+  end
+
+  describe "send_alert/1" do
+    test "sends alert notification to Slack" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :build_run_duration,
+          metric: :p90,
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts"
+        )
+
+      alert =
+        AlertsFixtures.alert_fixture(
+          alert_rule: alert_rule,
+          current_value: 1200.0,
+          previous_value: 1000.0
+        )
+
+      expect(Client, :post_message, fn token, channel_id, blocks ->
+        assert token == installation.access_token
+        assert channel_id == "C12345"
+        assert is_list(blocks)
+        assert length(blocks) == 5
+        :ok
+      end)
+
+      # When
+      result = Slack.send_alert(alert)
+
+      # Then
+      assert result == :ok
+    end
+  end
+
+  describe "send_flaky_test_alert/1" do
+    test "sends flaky test alert notification to Slack" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      rule =
+        AlertsFixtures.flaky_test_alert_rule_fixture(
+          project: project,
+          slack_channel_id: "C12345",
+          slack_channel_name: "flaky-alerts"
+        )
+
+      test_case_id = Ecto.UUID.generate()
+
+      alert =
+        AlertsFixtures.flaky_test_alert_fixture(
+          flaky_test_alert_rule: rule,
+          flaky_runs_count: 5,
+          test_case_id: test_case_id,
+          test_case_name: "testExample",
+          test_case_module_name: "MyTests",
+          test_case_suite_name: "TestSuite"
+        )
+
+      expect(Client, :post_message, fn token, channel_id, blocks ->
+        assert token == installation.access_token
+        assert channel_id == "C12345"
+        assert is_list(blocks)
+        assert length(blocks) == 5
+
+        header_block = Enum.find(blocks, fn b -> b.type == "header" end)
+        assert header_block.text.text =~ "New flaky test detected"
+
+        test_case_block = Enum.at(blocks, 3)
+        assert test_case_block.text.text =~ "testExample"
+        assert test_case_block.text.text =~ "MyTests"
+        assert test_case_block.text.text =~ "TestSuite"
+        assert test_case_block.text.text =~ test_case_id
+
+        metric_block = Enum.at(blocks, 4)
+        assert metric_block.text.text =~ "5 flaky runs"
+        :ok
+      end)
+
+      # When
+      result = Slack.send_flaky_test_alert(alert)
+
+      # Then
+      assert result == :ok
+    end
+
+    test "uses singular 'run' when flaky_runs_count is 1" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      rule =
+        AlertsFixtures.flaky_test_alert_rule_fixture(
+          project: project,
+          slack_channel_id: "C12345",
+          slack_channel_name: "flaky-alerts"
+        )
+
+      alert =
+        AlertsFixtures.flaky_test_alert_fixture(
+          flaky_test_alert_rule: rule,
+          flaky_runs_count: 1
+        )
+
+      expect(Client, :post_message, fn _token, _channel_id, blocks ->
+        metric_block = Enum.at(blocks, 4)
+        assert metric_block.text.text =~ "1 flaky run"
+        refute metric_block.text.text =~ "1 flaky runs"
+        :ok
+      end)
+
+      # When
+      result = Slack.send_flaky_test_alert(alert)
+
+      # Then
+      assert result == :ok
+    end
+
+    test "omits suite name when it is nil" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      rule =
+        AlertsFixtures.flaky_test_alert_rule_fixture(
+          project: project,
+          slack_channel_id: "C12345",
+          slack_channel_name: "flaky-alerts"
+        )
+
+      alert =
+        AlertsFixtures.flaky_test_alert_fixture(
+          flaky_test_alert_rule: rule,
+          test_case_suite_name: nil
+        )
+
+      expect(Client, :post_message, fn _token, _channel_id, blocks ->
+        test_case_block = Enum.at(blocks, 3)
+        refute test_case_block.text.text =~ "Suite:"
+        :ok
+      end)
+
+      # When
+      result = Slack.send_flaky_test_alert(alert)
+
+      # Then
+      assert result == :ok
     end
   end
 end

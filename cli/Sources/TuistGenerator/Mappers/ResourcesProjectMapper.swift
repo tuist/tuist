@@ -37,9 +37,16 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
     // swiftlint:disable:next function_body_length
     public func mapTarget(_ target: Target, project: Project) async throws -> ([Target], [SideEffectDescriptor]) {
+        let containsResourcesInBuildableFolders = try await buildableFolderChecker.containsResources(target.buildableFolders)
+        let containsSynthesizedResourcesInBuildableFolders = containsSynthesizedFilesInBuildableFolders(
+            target: target,
+            project: project
+        )
+        let supportsResources = target.supportsResources
         if target.resources.resources.isEmpty, target.coreDataModels.isEmpty,
            !target.sources.contains(where: { $0.path.extension == "metal" }),
-           !(try await buildableFolderChecker.containsResources(target.buildableFolders))
+           !containsResourcesInBuildableFolders,
+           !containsSynthesizedResourcesInBuildableFolders
         { return (
             [target],
             []
@@ -52,7 +59,16 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         let bundleName = "\(project.name)_\(sanitizedTargetName)"
         var modifiedTarget = target
 
-        if !target.supportsResources {
+        let shouldGenerateResourceBundle = !supportsResources &&
+            !(project.type == .local && target.product == .staticFramework)
+
+        if shouldGenerateResourceBundle {
+            // Keep resources in a separate bundle to match SwiftPM's Bundle.module expectations and avoid collisions.
+            let (resourceBuildableFolders, remainingBuildableFolders) = partitionBuildableFoldersForResources(
+                target.buildableFolders
+            )
+            var synthesizedMetadata = target.metadata
+            synthesizedMetadata.tags.insert("tuist:synthesized")
             let resourcesTarget = Target(
                 name: bundleName,
                 destinations: target.destinations,
@@ -75,11 +91,13 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                 copyFiles: target.copyFiles,
                 coreDataModels: target.coreDataModels,
                 filesGroup: target.filesGroup,
-                metadata: target.metadata
+                metadata: synthesizedMetadata,
+                buildableFolders: resourceBuildableFolders
             )
             modifiedTarget.sources = target.sources.filter { $0.path.extension != "metal" }
             modifiedTarget.resources.resources = []
             modifiedTarget.copyFiles = []
+            modifiedTarget.buildableFolders = remainingBuildableFolders
             modifiedTarget.dependencies.append(.target(
                 name: bundleName,
                 status: .required,
@@ -90,7 +108,12 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
         let containSourcesInBuildableFolders = try await buildableFolderChecker.containsSources(target.buildableFolders)
         if target.sources.containsSwiftFiles || containSourcesInBuildableFolders {
-            let (filePath, data) = synthesizedSwiftFile(bundleName: bundleName, target: target, project: project)
+            let (filePath, data) = synthesizedSwiftFile(
+                bundleName: bundleName,
+                target: target,
+                project: project,
+                supportsResources: supportsResources
+            )
 
             let hash = try data.map(contentHasher.hash)
             let sourceFile = SourceFile(path: filePath, contentHash: hash)
@@ -101,8 +124,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
         if case .external = project.type,
            target.sources.containsObjcFiles,
-           target.resources.containsBundleAccessedResources,
-           !target.supportsResources
+           target.resources.containsBundleAccessedResources || containsResourcesInBuildableFolders
         {
             let (headerFilePath, headerData) = synthesizedObjcHeaderFile(bundleName: bundleName, target: target, project: project)
 
@@ -142,7 +164,19 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         return ([modifiedTarget] + additionalTargets, sideEffects)
     }
 
-    func synthesizedSwiftFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, Data?) {
+    private func containsSynthesizedFilesInBuildableFolders(target: Target, project: Project) -> Bool {
+        let extensions = Set(project.resourceSynthesizers.flatMap(\.extensions))
+        return target.buildableFolders.contains(where: { folder in
+            folder.resolvedFiles.contains(where: { extensions.contains($0.path.extension ?? "") })
+        })
+    }
+
+    private func synthesizedSwiftFile(
+        bundleName: String,
+        target: Target,
+        project: Project,
+        supportsResources: Bool
+    ) -> (AbsolutePath, Data?) {
         let filePath = project.derivedDirectoryPath(for: target)
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "TuistBundle+\(target.name.toValidSwiftIdentifier()).swift")
@@ -151,7 +185,8 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             targetName: target.name,
             bundleName: bundleName,
             target: target,
-            in: project
+            in: project,
+            supportsResources: supportsResources
         )
         return (filePath, content.data(using: .utf8))
     }
@@ -182,24 +217,65 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         return project.derivedDirectoryPath(for: target).appending(components: Constants.DerivedDirectory.sources, filename)
     }
 
-    // swiftlint:disable:next function_body_length
-    static func fileContent(targetName _: String, bundleName: String, target: Target, in project: Project) -> String {
-        let bundleAccessor = if target.supportsResources {
+    /// Splits the incoming buildable folders into two sets:
+    ///  - folders that should stay on the original target (sources or mixed folders after excluding resources)
+    ///  - folders that should move to the generated bundle (pure resources, or the resource portion of mixed folders)
+    /// Mixed folders are duplicated with exclusion rules so the static target keeps sources while the bundle owns resources.
+    private func partitionBuildableFoldersForResources(
+        _ folders: [BuildableFolder]
+    ) -> (resourceFolders: [BuildableFolder], remainingFolders: [BuildableFolder]) {
+        folders.reduce(into: (resourceFolders: [BuildableFolder](), remainingFolders: [BuildableFolder]())) { result, folder in
+            guard let partition = folder.partitionedForResources() else {
+                result.remainingFolders.append(folder)
+                return
+            }
+
+            if let sourcesFolder = partition.sourcesFolder {
+                result.remainingFolders.append(sourcesFolder)
+            }
+
+            if let resourcesFolder = partition.resourcesFolder {
+                result.resourceFolders.append(resourcesFolder)
+            }
+        }
+    }
+
+    static func fileContent(
+        targetName _: String,
+        bundleName: String,
+        target: Target,
+        in project: Project,
+        supportsResources: Bool
+    ) -> String {
+        let bundleAccessor = if target.product == .staticFramework {
+            swiftStaticFrameworkBundleAccessorString(for: target, bundleName: bundleName)
+        } else if supportsResources {
             swiftFrameworkBundleAccessorString(for: target)
         } else {
             swiftSPMBundleAccessorString(for: target, and: bundleName)
         }
 
-        // Add public accessors only for non external projects
-        let publicBundleAccessor = switch project.type {
-        case .external:
-            ""
-        case .local:
-            if target.sourcesContainsPublicResourceClassName {
+        // External projects ship their own public API, so we only mirror SwiftPM's Bundle.module accessors here.
+        let (imports, publicBundleAccessor): (String, String) = switch project.type {
+        case .external,
+             .local where target.sourcesContainsPublicResourceClassName:
+            (
+                """
+                import Foundation
+                """,
                 ""
-            } else {
+            )
+        case .local:
+            (
+                """
+                #if hasFeature(InternalImportsByDefault)
+                public import Foundation
+                #else
+                import Foundation
+                #endif
+                """,
                 publicBundleAccessorString(for: target)
-            }
+            )
         }
 
         return """
@@ -208,11 +284,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         // swiftlint:disable all
         // swift-format-ignore-file
         // swiftformat:disable all
-        #if hasFeature(InternalImportsByDefault)
-        public import Foundation
-        #else
-        import Foundation
-        #endif
+        \(imports)
         \(bundleAccessor)
         \(publicBundleAccessor)
         // swiftformat:enable all
@@ -240,6 +312,8 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         """
     }
 
+    /// Mirrors SwiftPM's Objective-C resource bundle accessor shape.
+    /// https://github.com/swiftlang/swift-package-manager/blob/main/Sources/Build/BuildDescription/ClangModuleBuildDescription.swift
     static func objcImplementationFileContent(
         targetName: String,
         bundleName: String
@@ -300,7 +374,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         """
         // MARK: - Objective-C Bundle Accessor
         @objc
-        public class \(target.productName.toValidSwiftIdentifier())Resources: NSObject {
+        public final class \(target.productName.toValidSwiftIdentifier())Resources: NSObject {
         @objc public class var bundle: Bundle {
             return .module
         }
@@ -308,6 +382,8 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         """
     }
 
+    /// Mirrors SwiftPM's generated resource bundle accessor with Tuist-specific search paths.
+    /// https://github.com/swiftlang/swift-package-manager/blob/main/Sources/Build/BuildDescription/SwiftModuleBuildDescription.swift
     private static func swiftSPMBundleAccessorString(for target: Target, and bundleName: String) -> String {
         """
         // MARK: - Swift Bundle Accessor - for SPM
@@ -319,11 +395,16 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         ), the bundle containing the resources is copied into the final product.
             static let module: Bundle = {
                 let bundleName = "\(bundleName)"
-                let bundleFinderResourceURL = Bundle(for: BundleFinder.self).resourceURL
+                let hostBundle = Bundle(for: BundleFinder.self)
                 var candidates = [
-                    Bundle.main.resourceURL,
-                    bundleFinderResourceURL,
+                    hostBundle.privateFrameworksURL,
+                    hostBundle.bundleURL.appendingPathComponent("Frameworks"),
+                    hostBundle.bundleURL,
+                    hostBundle.resourceURL,
+                    Bundle.main.privateFrameworksURL,
+                    Bundle.main.bundleURL.appendingPathComponent("Frameworks"),
                     Bundle.main.bundleURL,
+                    Bundle.main.resourceURL,
                 ]
                 // This is a fix to make Previews work with bundled resources.
                 // Logic here is taken from SPM's generated `resource_bundle_accessors.swift` file,
@@ -345,9 +426,11 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                 // This is a fix to make unit tests work with bundled resources.
                 // Making this change allows unit tests to search one directory up for a bundle.
                 // More context can be found in this PR: https://github.com/tuist/tuist/pull/6895
-                #if canImport(XCTest)
-                candidates.append(bundleFinderResourceURL?.appendingPathComponent(".."))
-                #endif
+                if ProcessInfo.processInfo.processName == "xctest"
+                    || ProcessInfo.processInfo.processName == "swift-testing"
+                {
+                    candidates.append(hostBundle.bundleURL.appendingPathComponent(".."))
+                }
 
                 for candidate in candidates {
                     let bundlePath = candidate?.appendingPathComponent(bundleName + ".bundle")
@@ -373,6 +456,198 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             static let module = Bundle(for: BundleFinder.self)
         }
         """
+    }
+
+    /// Adapted from SwiftPM's resource bundle accessor logic to handle static frameworks.
+    /// https://github.com/swiftlang/swift-package-manager/blob/main/Sources/Build/BuildDescription/SwiftModuleBuildDescription.swift
+    private static func swiftStaticFrameworkBundleAccessorString(for target: Target, bundleName: String) -> String {
+        """
+        // MARK: - Swift Bundle Accessor for Static Frameworks
+        extension Foundation.Bundle {
+        /// Since \(target.name) is a \(target
+            .product), a cut down framework is embedded, with all the resources but only a stub Mach-O image.
+            static let module: Bundle = {
+                class BundleFinder {}
+                let hostBundle = Bundle(for: BundleFinder.self)
+                var candidates: [URL?] = [
+                    hostBundle.privateFrameworksURL,
+                    hostBundle.bundleURL.appendingPathComponent("Frameworks"),
+                    hostBundle.bundleURL,
+                    hostBundle.bundleURL.deletingLastPathComponent(),
+                    hostBundle.resourceURL,
+                    Bundle.main.privateFrameworksURL,
+                    Bundle.main.bundleURL.appendingPathComponent("Frameworks"),
+                    Bundle.main.bundleURL,
+                    Bundle.main.resourceURL,
+                ].map({ $0?.appendingPathComponent("\(target.productNameWithExtension)") })
+
+                for candidate in candidates {
+                    if let bundle = candidate.flatMap(Bundle.init(url:)) {
+                        return bundle
+                    }
+                }
+
+                var bundleCandidates: [URL?] = [
+                    hostBundle.resourceURL,
+                    hostBundle.bundleURL,
+                    hostBundle.privateFrameworksURL,
+                    hostBundle.bundleURL.appendingPathComponent("Frameworks"),
+                    hostBundle.bundleURL.deletingLastPathComponent(),
+                    Bundle.main.resourceURL,
+                    Bundle.main.bundleURL,
+                    Bundle.main.privateFrameworksURL,
+                    Bundle.main.bundleURL.appendingPathComponent("Frameworks"),
+                ]
+                if ProcessInfo.processInfo.processName == "xctest"
+                    || ProcessInfo.processInfo.processName == "swift-testing"
+                {
+                    bundleCandidates.append(hostBundle.bundleURL.appendingPathComponent(".."))
+                }
+
+                for candidate in bundleCandidates {
+                    let bundlePath = candidate?.appendingPathComponent("\(bundleName).bundle")
+                    if let bundle = bundlePath.flatMap(Bundle.init(url:)) {
+                        return bundle
+                    }
+                }
+
+                return Bundle.main
+            }()
+        }
+        """
+    }
+}
+
+/// Represents the result of splitting a buildable folder into source and resource subsets.
+private struct BuildableFolderPartition {
+    /// The view of the folder that should stay on the original target (sources/mixed minus resources).
+    let sourcesFolder: BuildableFolder?
+
+    /// The view of the folder that should move to the generated bundle target (resources only).
+    let resourcesFolder: BuildableFolder?
+}
+
+extension BuildableFolder {
+    /// Produces copies of the buildable folder suitable for source-only and resource-only targets.
+    /// - Returns: `nil` when the folder should stay untouched on the original target, otherwise a partition describing the two
+    /// views.
+    fileprivate func partitionedForResources() -> BuildableFolderPartition? {
+        if let directAssignment = folderOnlyPartition() {
+            return directAssignment
+        }
+
+        let (sourceEntries, resourceEntries) = splitFilesByKind()
+
+        if resourceEntries.isEmpty {
+            return handleSourceOnlyFolder()
+        }
+
+        if sourceEntries.isEmpty {
+            return BuildableFolderPartition(
+                sourcesFolder: nil,
+                resourcesFolder: self
+            )
+        }
+
+        return duplicateFolderWithExclusions(
+            sourceEntries: sourceEntries,
+            resourceEntries: resourceEntries
+        )
+    }
+
+    /// Handles cases where the folder path itself reveals a pure resource folder.
+    private func folderOnlyPartition() -> BuildableFolderPartition? {
+        // Xcode treats buildable folders as a single synchronized group. To attach the same folder to
+        // multiple targets we duplicate the reference and add complementary exclusion rules to each copy.
+        if path.isResourceLike, !path.isSourceLike, resolvedFiles.isEmpty {
+            return BuildableFolderPartition(sourcesFolder: nil, resourcesFolder: self)
+        }
+        return nil
+    }
+
+    /// Splits the folder contents into source-like and resource-like entries.
+    private func splitFilesByKind() -> (sources: [BuildableFolderFile], resources: [BuildableFolderFile]) {
+        let sources = resolvedFiles.filter(\.path.isSourceLike)
+        let resources = resolvedFiles.filter { !$0.path.isSourceLike }
+        return (sources, resources)
+    }
+
+    /// Retains the folder on the original target when no resources were found, duplicating it only when both
+    /// source and resource heuristics match at the folder level.
+    private func handleSourceOnlyFolder() -> BuildableFolderPartition? {
+        if path.isResourceLike, path.isSourceLike {
+            return BuildableFolderPartition(
+                sourcesFolder: BuildableFolder(
+                    path: path,
+                    exceptions: exceptions,
+                    resolvedFiles: resolvedFiles
+                ),
+                resourcesFolder: nil
+            )
+        }
+        return nil
+    }
+
+    /// Duplicates the folder reference and adds complementary exclusions to the source and resource views.
+    private func duplicateFolderWithExclusions(
+        sourceEntries: [BuildableFolderFile],
+        resourceEntries: [BuildableFolderFile]
+    ) -> BuildableFolderPartition {
+        let sourceExcludedPaths = resourceEntries.map(\.path)
+        let resourceExcludedPaths = sourceEntries.map(\.path)
+
+        let sourcesFolder = BuildableFolder(
+            path: path,
+            exceptions: exceptions.addingExcluded(paths: sourceExcludedPaths),
+            resolvedFiles: sourceEntries
+        )
+
+        let resourcesFolder = BuildableFolder(
+            path: path,
+            exceptions: exceptions.addingExcluded(paths: resourceExcludedPaths),
+            resolvedFiles: resourceEntries
+        )
+
+        return BuildableFolderPartition(
+            sourcesFolder: sourcesFolder,
+            resourcesFolder: resourcesFolder
+        )
+    }
+}
+
+extension AbsolutePath {
+    private func matchesExtension(in allowedExtensions: [String]) -> Bool {
+        guard let `extension` else { return false }
+        return allowedExtensions.contains { $0.caseInsensitiveCompare(`extension`) == .orderedSame }
+    }
+
+    fileprivate var isSourceLike: Bool {
+        let validExtensions = Target.validSourceExtensions
+            + Target.validSourceCompatibleFolderExtensions
+            + ["h", "hpp", "hh", "hxx"]
+        return matchesExtension(in: validExtensions)
+    }
+
+    fileprivate var isResourceLike: Bool {
+        let validExtensions = Target.validResourceExtensions
+            + Target.validResourceCompatibleFolderExtensions
+        return matchesExtension(in: validExtensions)
+    }
+}
+
+extension BuildableFolderExceptions {
+    fileprivate func addingExcluded(paths: [AbsolutePath]) -> BuildableFolderExceptions {
+        guard !paths.isEmpty else { return self }
+        var updated = exceptions
+        updated.append(
+            BuildableFolderException(
+                excluded: paths,
+                compilerFlags: [:],
+                publicHeaders: [],
+                privateHeaders: []
+            )
+        )
+        return BuildableFolderExceptions(exceptions: updated)
     }
 }
 

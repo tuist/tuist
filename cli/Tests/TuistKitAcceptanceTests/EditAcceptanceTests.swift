@@ -6,7 +6,7 @@ import XCTest
 
 final class EditAcceptanceTestiOSAppWithHelpers: TuistAcceptanceTestCase {
     func test_ios_app_with_helpers() async throws {
-        try await setUpFixture(.iosAppWithHelpers)
+        try await setUpFixture("generated_ios_app_with_helpers")
         try await run(EditCommand.self)
         try build(scheme: "Manifests")
     }
@@ -14,7 +14,7 @@ final class EditAcceptanceTestiOSAppWithHelpers: TuistAcceptanceTestCase {
 
 final class EditAcceptanceTestPlugin: TuistAcceptanceTestCase {
     func test_plugin() async throws {
-        try await setUpFixture(.plugin)
+        try await setUpFixture("generated_plugin")
         try await run(EditCommand.self)
         try build(scheme: "Plugins")
     }
@@ -22,7 +22,7 @@ final class EditAcceptanceTestPlugin: TuistAcceptanceTestCase {
 
 final class EditAcceptanceTestAppWithPlugins: TuistAcceptanceTestCase {
     func test_app_with_plugins() async throws {
-        try await setUpFixture(.appWithPlugins)
+        try await setUpFixture("generated_app_with_plugins")
         try await run(InstallCommand.self)
         try await run(EditCommand.self)
         try build(scheme: "Manifests")
@@ -33,7 +33,7 @@ final class EditAcceptanceTestAppWithPlugins: TuistAcceptanceTestCase {
 
 final class EditAcceptanceTestAppWithSPMDependencies: TuistAcceptanceTestCase {
     func test_app_with_spm_dependencies() async throws {
-        try await setUpFixture(.appWithSpmDependencies)
+        try await setUpFixture("generated_app_with_spm_dependencies")
         try await run(EditCommand.self)
         try build(scheme: "Manifests")
     }
@@ -41,7 +41,7 @@ final class EditAcceptanceTestAppWithSPMDependencies: TuistAcceptanceTestCase {
 
 final class EditAcceptanceTestSPMPackage: TuistAcceptanceTestCase {
     func test_spm_package() async throws {
-        try await setUpFixture(.spmPackage)
+        try await setUpFixture("generated_spm_package")
         try await run(EditCommand.self)
         try build(scheme: "Manifests")
     }

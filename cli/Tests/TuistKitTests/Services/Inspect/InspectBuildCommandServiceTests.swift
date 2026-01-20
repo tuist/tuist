@@ -11,6 +11,7 @@ import TuistServer
 import TuistSupport
 import TuistTesting
 import TuistXCActivityLog
+import TuistXcodeProjectOrWorkspacePathLocator
 import XcodeGraph
 
 @testable import TuistKit
@@ -30,6 +31,7 @@ struct InspectBuildCommandServiceTests {
     private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let gitController: MockGitControlling
     private let ciController = MockCIControlling()
+    private let xcodeProjectOrWorkspacePathLocator = MockXcodeProjectOrWorkspacePathLocating()
 
     init() throws {
         gitController = MockGitControlling()
@@ -46,7 +48,8 @@ struct InspectBuildCommandServiceTests {
             dateService: dateService,
             serverEnvironmentService: serverEnvironmentService,
             gitController: gitController,
-            ciController: ciController
+            ciController: ciController,
+            xcodeProjectOrWorkspacePathLocator: xcodeProjectOrWorkspacePathLocator
         )
         given(configLoader)
             .loadConfig(path: .any)
@@ -80,7 +83,9 @@ struct InspectBuildCommandServiceTests {
                 ciRunId: .any,
                 ciProjectHandle: .any,
                 ciHost: .any,
-                ciProvider: .any
+                ciProvider: .any,
+                cacheableTasks: .any,
+                casOutputs: .any
             )
             .willReturn(.test())
 
@@ -128,6 +133,10 @@ struct InspectBuildCommandServiceTests {
         mockedEnvironment.workspacePath = projectPath
         mockedEnvironment.variables["CONFIGURATION"] = "Debug"
 
+        given(xcodeProjectOrWorkspacePathLocator)
+            .locate(from: .any)
+            .willReturn(projectPath)
+
         let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
         given(derivedDataLocator)
             .locate(for: .any)
@@ -157,7 +166,8 @@ struct InspectBuildCommandServiceTests {
                 )
             )
         given(xcActivityLogController).mostRecentActivityLogFile(
-            projectDerivedDataDirectory: .value(derivedDataPath)
+            projectDerivedDataDirectory: .value(derivedDataPath),
+            filter: .any
         ).willReturn(
             .test(
                 path: activityLogPath,
@@ -217,7 +227,9 @@ struct InspectBuildCommandServiceTests {
                 ciRunId: .value("123"),
                 ciProjectHandle: .value("test-project"),
                 ciHost: .value("github.com"),
-                ciProvider: .value(.github)
+                ciProvider: .value(.github),
+                cacheableTasks: .value([]),
+                casOutputs: .value([])
             )
             .called(1)
     }
@@ -229,6 +241,10 @@ struct InspectBuildCommandServiceTests {
         let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
         let mockedEnvironment = try #require(Environment.mocked)
         mockedEnvironment.workspacePath = projectPath
+
+        given(xcodeProjectOrWorkspacePathLocator)
+            .locate(from: .any)
+            .willReturn(projectPath)
 
         let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
         given(derivedDataLocator)
@@ -246,8 +262,9 @@ struct InspectBuildCommandServiceTests {
             )
         var numberOfAttempts = 0
         given(xcActivityLogController).mostRecentActivityLogFile(
-            projectDerivedDataDirectory: .value(derivedDataPath)
-        ).willProduce { _ in
+            projectDerivedDataDirectory: .value(derivedDataPath),
+            filter: .any
+        ).willProduce { _, _ in
             numberOfAttempts = numberOfAttempts + 1
             if numberOfAttempts > 2 {
                 return .test(path: activityLogPath, timeStoppedRecording: Date(timeIntervalSinceReferenceDate: 20))
@@ -294,7 +311,9 @@ struct InspectBuildCommandServiceTests {
                 ciRunId: .any,
                 ciProjectHandle: .any,
                 ciHost: .any,
-                ciProvider: .any
+                ciProvider: .any,
+                cacheableTasks: .any,
+                casOutputs: .any
             )
             .called(1)
     }
@@ -332,6 +351,10 @@ struct InspectBuildCommandServiceTests {
         try await fileSystem.makeDirectory(at: projectPath)
         let mockedEnvironment = try #require(Environment.mocked)
         mockedEnvironment.workspacePath = nil
+
+        given(xcodeProjectOrWorkspacePathLocator)
+            .locate(from: .value(temporaryDirectory))
+            .willReturn(projectPath)
         let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
         given(derivedDataLocator)
             .locate(for: .any)
@@ -348,14 +371,16 @@ struct InspectBuildCommandServiceTests {
                     "id": XCLogStoreManifestPlist.ActivityLog(
                         fileName: "id.xcactivitylog",
                         timeStartedRecording: 10,
-                        timeStoppedRecording: 20
+                        timeStoppedRecording: 20,
+                        signature: "Build Tuist"
                     ),
                 ]
             ),
             at: buildLogsPath.appending(component: "LogStoreManifest.plist")
         )
         given(xcActivityLogController).mostRecentActivityLogFile(
-            projectDerivedDataDirectory: .value(derivedDataPath)
+            projectDerivedDataDirectory: .value(derivedDataPath),
+            filter: .any
         ).willReturn(.test(path: activityLogPath))
         given(xcActivityLogController)
             .parse(.value(activityLogPath))
@@ -380,6 +405,11 @@ struct InspectBuildCommandServiceTests {
             try await fileSystem.makeDirectory(at: projectPath)
             let mockedEnvironment = try #require(Environment.mocked)
             mockedEnvironment.workspacePath = nil
+
+            given(xcodeProjectOrWorkspacePathLocator)
+                .locate(from: .value(temporaryDirectory))
+                .willReturn(workspacePath)
+
             let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
             given(derivedDataLocator)
                 .locate(for: .any)
@@ -396,7 +426,8 @@ struct InspectBuildCommandServiceTests {
                         "id": XCLogStoreManifestPlist.ActivityLog(
                             fileName: "id.xcactivitylog",
                             timeStartedRecording: 10,
-                            timeStoppedRecording: 20
+                            timeStoppedRecording: 20,
+                            signature: "Build Tuist"
                         ),
                     ]
                 ),
@@ -406,7 +437,8 @@ struct InspectBuildCommandServiceTests {
                 .parse(.value(activityLogPath))
                 .willReturn(.test())
             given(xcActivityLogController).mostRecentActivityLogFile(
-                projectDerivedDataDirectory: .value(derivedDataPath)
+                projectDerivedDataDirectory: .value(derivedDataPath),
+                filter: .any
             ).willReturn(.test(path: activityLogPath))
 
             given(gitController)
@@ -424,23 +456,6 @@ struct InspectBuildCommandServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func when_no_project_exists_at_a_given_path() async throws {
-        // Given
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let mockedEnvironment = try #require(Environment.mocked)
-        mockedEnvironment.workspacePath = nil
-
-        // When / Then
-        await #expect(
-            throws: InspectBuildCommandServiceError.projectNotFound(
-                temporaryDirectory
-            )
-        ) {
-            try await subject.run(path: temporaryDirectory.pathString)
-        }
-    }
-
-    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func when_no_logs_exist() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
@@ -448,12 +463,17 @@ struct InspectBuildCommandServiceTests {
         let mockedEnvironment = try #require(Environment.mocked)
         mockedEnvironment.workspacePath = projectPath
 
+        given(xcodeProjectOrWorkspacePathLocator)
+            .locate(from: .any)
+            .willReturn(projectPath)
+
         let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
         given(derivedDataLocator)
             .locate(for: .any)
             .willReturn(derivedDataPath)
         given(xcActivityLogController).mostRecentActivityLogFile(
-            projectDerivedDataDirectory: .value(derivedDataPath)
+            projectDerivedDataDirectory: .value(derivedDataPath),
+            filter: .any
         ).willReturn(nil)
 
         given(gitController)
@@ -477,6 +497,10 @@ struct InspectBuildCommandServiceTests {
         let mockedEnvironment = try #require(Environment.mocked)
         mockedEnvironment.workspacePath = nil
 
+        given(xcodeProjectOrWorkspacePathLocator)
+            .locate(from: .value(projectPath.parentDirectory))
+            .willReturn(projectPath)
+
         let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
         given(derivedDataLocator)
             .locate(for: .any)
@@ -492,7 +516,8 @@ struct InspectBuildCommandServiceTests {
                     "id": XCLogStoreManifestPlist.ActivityLog(
                         fileName: "id.xcactivitylog",
                         timeStartedRecording: 10,
-                        timeStoppedRecording: 20
+                        timeStoppedRecording: 20,
+                        signature: "Build Tuist"
                     ),
                 ]
             ),
@@ -502,7 +527,8 @@ struct InspectBuildCommandServiceTests {
             .parse(.value(activityLogPath))
             .willReturn(.test())
         given(xcActivityLogController).mostRecentActivityLogFile(
-            projectDerivedDataDirectory: .value(derivedDataPath)
+            projectDerivedDataDirectory: .value(derivedDataPath),
+            filter: .any
         ).willReturn(.test(path: activityLogPath))
         configLoader.reset()
         given(configLoader)

@@ -1,9 +1,9 @@
 ---
-title: Security · Tuist
+title: Security
 description: This page outlines our security practices, how to report vulnerabilities, and the steps we take to safeguard our users and their projects.
+logo: /marketing/images/shared/soc2.webp
+last_updated: 2023-10-23
 ---
-
-# Security at Tuist
 
 At Tuist, we are deeply committed to ensuring the security of our tools and services. We understand that trust is fundamental, especially when it comes to tools that developers rely on to build high-quality software. This page outlines our security practices, how to report vulnerabilities, and the steps we take to safeguard our users and their projects.
 

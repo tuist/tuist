@@ -1,5 +1,5 @@
 defmodule TuistWeb.RunsControllerTest do
-  use TuistTestSupport.Cases.ConnCase, async: true
+  use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
   alias Tuist.Storage

@@ -51,7 +51,8 @@ final class ProjectManifestMapperTests: TuistUnitTestCase {
             externalDependencies: [:],
             resourceSynthesizerPathLocator: MockResourceSynthesizerPathLocator(),
             type: .local,
-            fileSystem: fileSystem
+            fileSystem: fileSystem,
+            contentHasher: MockContentHashing()
         )
 
         // Then

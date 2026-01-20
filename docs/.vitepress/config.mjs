@@ -1,4 +1,5 @@
 import { defineConfig } from "vitepress";
+import { withMermaid } from "vitepress-plugin-mermaid";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
 import {
@@ -137,134 +138,194 @@ function getSearchOptionsForLocale(locale) {
   };
 }
 
-const searchOptionsLocales = {
-  en: getSearchOptionsForLocale("en"),
-  ko: getSearchOptionsForLocale("ko"),
-  ja: getSearchOptionsForLocale("ja"),
-  ru: getSearchOptionsForLocale("ru"),
-  es: getSearchOptionsForLocale("es"),
-  ar: getSearchOptionsForLocale("ar"),
-  zh: getSearchOptionsForLocale("zh"),
-  pl: getSearchOptionsForLocale("pl"),
-};
+const allLocales = ["en", "ko", "ja", "ru", "es", "pt", "ar", "pl"];
+const enabledLocales = process.env.DOCS_LOCALES
+  ? process.env.DOCS_LOCALES.split(",")
+  : allLocales;
 
-export default defineConfig({
-  title: "Tuist",
-  titleTemplate: ":title | Tuist",
-  description: "Scale your Xcode app development",
-  srcDir: "docs",
-  lastUpdated: false,
-  experimental: {
-    metaChunk: true,
+const docsContentDir = path.join(import.meta.dirname, "..", "docs");
+const localeDirs = (await fs.readdir(docsContentDir, { withFileTypes: true }))
+  .filter(
+    (entry) =>
+      entry.isDirectory() && !["generated", "public"].includes(entry.name),
+  )
+  .map((entry) => entry.name);
+const llmsIgnore = localeDirs
+  .filter((locale) => locale !== "en")
+  .map((locale) => `docs/${locale}/**`);
+
+const searchOptionsLocales = Object.fromEntries(
+  enabledLocales.map((locale) => [locale, getSearchOptionsForLocale(locale)]),
+);
+
+function redirectToEnglishForGeneratedDocs(req, res) {
+  const localizedCliPassthrough = new Set([
+    "/cli/logging",
+    "/cli/directories",
+    "/cli/shell-completions",
+  ]);
+  const url = req.url ?? "";
+  const [pathname, search = ""] = url.split("?");
+  const match = pathname.match(/^\/([^/]+)(\/.+)$/);
+  if (!match) return false;
+  const [, locale, rest] = match;
+  if (locale === "en") return false;
+
+  const redirect = (path) => {
+    res.statusCode = 302;
+    res.setHeader("Location", search ? `${path}?${search}` : path);
+    res.end();
+  };
+
+  if (rest.startsWith("/cli/")) {
+    if (localizedCliPassthrough.has(rest)) return false;
+    redirect(`/en${rest}`);
+    return true;
+  }
+
+  if (rest.startsWith("/references/project-description/")) {
+    redirect(`/en${rest}`);
+    return true;
+  }
+
+  return false;
+}
+
+const devLocaleRedirectPlugin = () => ({
+  name: "dev-locale-redirect",
+  apply: "serve",
+  configureServer(server) {
+    server.middlewares.use((req, res, next) => {
+      if (
+        req.url === "/" ||
+        req.url === "/index.html" ||
+        req.url?.startsWith("/?")
+      ) {
+        res.statusCode = 302;
+        res.setHeader("Location", "/en/");
+        res.end();
+        return;
+      }
+      if (redirectToEnglishForGeneratedDocs(req, res)) return;
+      next();
+    });
   },
-  vite: {
-    plugins: [llmstxtPlugin()],
-    css: {
-      postcss: {
-        plugins: [
-          postcssRtlcss({
-            ltrPrefix: ':where([dir="ltr"])',
-            rtlPrefix: ':where([dir="rtl"])',
-          }),
-        ],
-      },
-    },
-  },
-  mpa: false,
-  locales: {
-    en: {
-      label: "English",
-      lang: "en",
-      themeConfig: await themeConfig("en"),
-    },
-    ko: {
-      label: "한국어 (Korean)",
-      lang: "ko",
-      themeConfig: await themeConfig("ko"),
-    },
-    ja: {
-      label: "日本語 (Japanese)",
-      lang: "ja",
-      themeConfig: await themeConfig("ja"),
-    },
-    ru: {
-      label: "Русский (Russian)",
-      lang: "ru",
-      themeConfig: await themeConfig("ru"),
-    },
-    es: {
-      label: "Castellano (Spanish)",
-      lang: "es",
-      themeConfig: await themeConfig("es"),
-    },
-    pt: {
-      label: "Português (Portuguese)",
-      lang: "pt",
-      themeConfig: await themeConfig("pt"),
-    },
-    ar: {
-      label: "العربية (Arabic)",
-      lang: "ar",
-      dir: "rtl",
-      themeConfig: await themeConfig("ar"),
-    },
-    zh: {
-      label: "中文 (Chinese)",
-      lang: "zh",
-      themeConfig: await themeConfig("zh"),
-    },
-    pl: {
-      label: "Polski (Polish)",
-      lang: "pl",
-      themeConfig: await themeConfig("pl"),
-    },
-  },
-  cleanUrls: true,
-  head: [
-    [
-      "meta",
-      {
-        "http-equiv": "Content-Security-Policy",
-        content: "frame-src 'self' https://videos.tuist.dev",
-      },
-      ``,
+});
+
+export default withMermaid(
+  defineConfig({
+    title: "Tuist",
+    titleTemplate: ":title | Tuist",
+    description: "Scale your Xcode app development",
+    srcDir: "docs",
+    lastUpdated: false,
+    ignoreDeadLinks: [
+      // Ignore localhost URLs in self-hosting documentation
+      /^http:\/\/localhost/,
+      // Ignore .env.example download link (static file served from public/)
+      /\/server\/self-host\/\.env\.example$/,
     ],
-    [
-      "style",
-      {},
-      `
+    experimental: {
+      metaChunk: true,
+    },
+    vite: {
+      plugins: [
+        llmstxtPlugin({
+          ignore: llmsIgnore,
+        }),
+        devLocaleRedirectPlugin(),
+      ],
+      css: {
+        postcss: {
+          plugins: [
+            postcssRtlcss({
+              ltrPrefix: ':where([dir="ltr"])',
+              rtlPrefix: ':where([dir="rtl"])',
+            }),
+          ],
+        },
+      },
+      build: {
+        // Disable sourcemaps to speed up builds
+        sourcemap: false,
+        // Use esbuild for minification (default, but explicit)
+        minify: "esbuild",
+        // Target modern browsers for faster builds
+        target: "esnext",
+      },
+    },
+    mpa: false,
+    locales: Object.fromEntries(
+      await Promise.all(
+        enabledLocales.map(async (locale) => {
+          const localeConfig = {
+            en: { label: "English", lang: "en" },
+            ko: { label: "한국어 (Korean)", lang: "ko" },
+            ja: { label: "日本語 (Japanese)", lang: "ja" },
+            ru: { label: "Русский (Russian)", lang: "ru" },
+            es: { label: "Castellano (Spanish)", lang: "es" },
+            pt: { label: "Português (Portuguese)", lang: "pt" },
+            ar: { label: "العربية (Arabic)", lang: "ar", dir: "rtl" },
+            zh_Hans: { label: "中文 (Chinese)", lang: "zh_Hans" },
+            pl: { label: "Polski (Polish)", lang: "pl" },
+            yue_Hant: { label: "廣東話 (Cantonese)", lang: "yue_Hant" },
+          }[locale];
+          return [
+            locale,
+            {
+              ...localeConfig,
+              themeConfig: await themeConfig(locale),
+            },
+          ];
+        }),
+      ),
+    ),
+    cleanUrls: true,
+    head: [
+      [
+        "meta",
+        {
+          "http-equiv": "Content-Security-Policy",
+          content: "frame-src 'self' https://videos.tuist.dev",
+        },
+        ``,
+      ],
+      [
+        "style",
+        {},
+        `
       @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap');
       `,
-    ],
-    [
-      "style",
-      {},
-      `
+      ],
+      [
+        "style",
+        {},
+        `
       @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap');
       `,
-    ],
-    ["meta", { property: "og:url", content: "https://docs.tuist.io" }, ""],
-    ["meta", { property: "og:type", content: "website" }, ""],
-    [
-      "meta",
-      { property: "og:image", content: "https://docs.tuist.io/images/og.jpeg" },
-      "",
-    ],
-    ["meta", { name: "twitter:card", content: "summary" }, ""],
-    ["meta", { property: "twitter:domain", content: "docs.tuist.io" }, ""],
-    ["meta", { property: "twitter:url", content: "https://docs.tuist.io" }, ""],
-    [
-      "meta",
-      {
-        name: "twitter:image",
-        content: "https://docs.tuist.io/images/og.jpeg",
-      },
-      "",
-    ],
-    [
-      "script",
-      {},
-      `
+      ],
+      ["meta", { property: "og:url", content: "https://docs.tuist.io" }, ""],
+      ["meta", { property: "og:type", content: "website" }, ""],
+      [
+        "meta",
+        { property: "og:image", content: "https://docs.tuist.io/images/og.jpeg" },
+        "",
+      ],
+      ["meta", { name: "twitter:card", content: "summary" }, ""],
+      ["meta", { property: "twitter:domain", content: "docs.tuist.io" }, ""],
+      ["meta", { property: "twitter:url", content: "https://docs.tuist.io" }, ""],
+      [
+        "meta",
+        {
+          name: "twitter:image",
+          content: "https://docs.tuist.io/images/og.jpeg",
+        },
+        "",
+      ],
+      [
+        "script",
+        {},
+        `
       (function(d, script) {
         script = d.createElement('script');
         script.async = false;
@@ -277,25 +338,28 @@ export default defineConfig({
         d.getElementsByTagName('head')[0].appendChild(script);
       }(document));
       `,
+      ],
     ],
-  ],
-  sitemap: {
-    hostname: "https://docs.tuist.io",
-  },
-  async buildEnd({ outDir }) {
-    // Run validations in parallel
-    await Promise.all([
-      validateAdmonitions(outDir),
-      checkLocalePages(outDir)
-    ]);
+    sitemap: {
+      hostname: "https://docs.tuist.io",
+    },
+    mermaid: {
+      securityLevel: "loose",
+    },
+    mermaidPlugin: {
+      class: "mermaid",
+    },
+    async buildEnd({ outDir }) {
+      // Run validations in parallel
+      await Promise.all([validateAdmonitions(outDir), checkLocalePages(outDir)]);
 
-    // Copy functions directory to dist
-    const functionsSource = path.join(path.dirname(outDir), "functions");
-    const functionsDest = path.join(outDir, "functions");
-    await fs.cp(functionsSource, functionsDest, { recursive: true });
+      // Copy functions directory to dist
+      const functionsSource = path.join(path.dirname(outDir), "functions");
+      const functionsDest = path.join(outDir, "functions");
+      await fs.cp(functionsSource, functionsDest, { recursive: true });
 
-    const redirectsPath = path.join(outDir, "_redirects");
-    const redirects = `
+      const redirectsPath = path.join(outDir, "_redirects");
+      const redirects = `
 /documentation/tuist/installation /guide/introduction/installation 301
 /documentation/tuist/project-structure /guide/project/directory-structure 301
 /documentation/tuist/command-line-interface /guide/automation/generate 301
@@ -319,11 +383,12 @@ export default defineConfig({
 /tutorials/tuist/enterprise-infrastructure-requirements /cloud/on-premise 301
 /tutorials/tuist/enterprise-environment /cloud/on-premise 301
 /tutorials/tuist/enterprise-deployment /cloud/on-premise 301
-/documentation/tuist/get-started-as-contributor /contributors/get-started 301
+/documentation/tuist/get-started-as-contributor /contributors/code 301
 /documentation/tuist/manifesto /contributors/principles 301
 /documentation/tuist/code-reviews /contributors/code-reviews 301
 /documentation/tuist/reporting-bugs /contributors/issue-reporting 301
-/documentation/tuist/championing-projects /contributors/get-started 301
+/documentation/tuist/championing-projects /contributors/code 301
+/contributors/get-started /contributors/code 301
 /guide/scale/ufeatures-architecture.html /guide/scale/tma-architecture.html 301
 /guide/scale/ufeatures-architecture /guide/scale/tma-architecture 301
 /guide/introduction/cost-of-convenience /guides/develop/projects/cost-of-convenience 301
@@ -363,7 +428,7 @@ export default defineConfig({
 /guides/develop/workflows /guides/develop/continuous-integration/workflows 301
 /guides/dashboard/on-premise/install /server/on-premise/install 301
 /guides/dashboard/on-premise/metrics /server/on-premise/metrics 301
-/:locale/references/project-description/structs/config /:locale/references/project-description/structs/tuist  301
+/:locale/references/project-description/structs/config /en/references/project-description/structs/tuist  301
 /:locale/guides/develop/test/smart-runner /:locale/guides/develop/test/selective-testing 301
 /:locale/guides/start/new-project /:locale/guides/develop/projects/adoption/new-project 301
 /:locale/guides/start/swift-package /:locale/guides/develop/projects/adoption/swift-package 301
@@ -397,135 +462,138 @@ export default defineConfig({
 /:locale/server /:locale/guides/server/accounts-and-projects 301
 /:locale/references/examples /:locale/guides/examples/generated-projects 301
 /:locale/references/examples/* /:locale/guides/examples/generated-projects/:splat 301
+/:locale/cli/* /en/cli/:splat 301
+/:locale/references/project-description/* /en/references/project-description/:splat 301
 ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
   encoding: "utf-8",
 })}
     `;
-    fs.writeFile(redirectsPath, redirects);
-  },
-  themeConfig: {
-    logo: "/logo.png",
-    search: {
-      provider: "algolia",
-      options: {
-        appId: "5A3L9HI9VQ",
-        apiKey: "cd45f515fb1fbb720d633cb0f1257e7a",
-        indexName: "tuist",
-        locales: searchOptionsLocales,
-        startUrls: ["https://tuist.dev/"],
-        renderJavaScript: false,
-        sitemaps: [],
-        exclusionPatterns: [],
-        ignoreCanonicalTo: false,
-        discoveryPatterns: ["https://tuist.dev/**"],
-        schedule: "at 05:10 on Saturday",
-        actions: [
-          {
-            indexName: "tuist",
-            pathsToMatch: ["https://tuist.dev/**"],
-            recordExtractor: ({ $, helpers }) => {
-              return helpers.docsearch({
-                recordProps: {
-                  lvl1: ".content h1",
-                  content: ".content p, .content li",
-                  lvl0: {
-                    selectors: "section.has-active div h2",
-                    defaultValue: "Documentation",
+      fs.writeFile(redirectsPath, redirects);
+    },
+    themeConfig: {
+      logo: "/logo.png",
+      search: {
+        provider: "algolia",
+        options: {
+          appId: "5A3L9HI9VQ",
+          apiKey: "cd45f515fb1fbb720d633cb0f1257e7a",
+          indexName: "tuist",
+          locales: searchOptionsLocales,
+          startUrls: ["https://tuist.dev/"],
+          renderJavaScript: false,
+          sitemaps: [],
+          exclusionPatterns: [],
+          ignoreCanonicalTo: false,
+          discoveryPatterns: ["https://tuist.dev/**"],
+          schedule: "at 05:10 on Saturday",
+          actions: [
+            {
+              indexName: "tuist",
+              pathsToMatch: ["https://tuist.dev/**"],
+              recordExtractor: ({ $, helpers }) => {
+                return helpers.docsearch({
+                  recordProps: {
+                    lvl1: ".content h1",
+                    content: ".content p, .content li",
+                    lvl0: {
+                      selectors: "section.has-active div h2",
+                      defaultValue: "Documentation",
+                    },
+                    lvl2: ".content h2",
+                    lvl3: ".content h3",
+                    lvl4: ".content h4",
+                    lvl5: ".content h5",
                   },
-                  lvl2: ".content h2",
-                  lvl3: ".content h3",
-                  lvl4: ".content h4",
-                  lvl5: ".content h5",
-                },
-                indexHeadings: true,
-              });
+                  indexHeadings: true,
+                });
+              },
             },
-          },
-        ],
-        initialIndexSettings: {
-          vitepress: {
-            attributesForFaceting: ["type", "lang"],
-            attributesToRetrieve: ["hierarchy", "content", "anchor", "url"],
-            attributesToHighlight: ["hierarchy", "hierarchy_camel", "content"],
-            attributesToSnippet: ["content:10"],
-            camelCaseAttributes: ["hierarchy", "hierarchy_radio", "content"],
-            searchableAttributes: [
-              "unordered(hierarchy_radio_camel.lvl0)",
-              "unordered(hierarchy_radio.lvl0)",
-              "unordered(hierarchy_radio_camel.lvl1)",
-              "unordered(hierarchy_radio.lvl1)",
-              "unordered(hierarchy_radio_camel.lvl2)",
-              "unordered(hierarchy_radio.lvl2)",
-              "unordered(hierarchy_radio_camel.lvl3)",
-              "unordered(hierarchy_radio.lvl3)",
-              "unordered(hierarchy_radio_camel.lvl4)",
-              "unordered(hierarchy_radio.lvl4)",
-              "unordered(hierarchy_radio_camel.lvl5)",
-              "unordered(hierarchy_radio.lvl5)",
-              "unordered(hierarchy_radio_camel.lvl6)",
-              "unordered(hierarchy_radio.lvl6)",
-              "unordered(hierarchy_camel.lvl0)",
-              "unordered(hierarchy.lvl0)",
-              "unordered(hierarchy_camel.lvl1)",
-              "unordered(hierarchy.lvl1)",
-              "unordered(hierarchy_camel.lvl2)",
-              "unordered(hierarchy.lvl2)",
-              "unordered(hierarchy_camel.lvl3)",
-              "unordered(hierarchy.lvl3)",
-              "unordered(hierarchy_camel.lvl4)",
-              "unordered(hierarchy.lvl4)",
-              "unordered(hierarchy_camel.lvl5)",
-              "unordered(hierarchy.lvl5)",
-              "unordered(hierarchy_camel.lvl6)",
-              "unordered(hierarchy.lvl6)",
-              "content",
-            ],
-            distinct: true,
-            attributeForDistinct: "url",
-            customRanking: [
-              "desc(weight.pageRank)",
-              "desc(weight.level)",
-              "asc(weight.position)",
-            ],
-            ranking: [
-              "words",
-              "filters",
-              "typo",
-              "attribute",
-              "proximity",
-              "exact",
-              "custom",
-            ],
-            highlightPreTag:
-              '<span class="algolia-docsearch-suggestion--highlight">',
-            highlightPostTag: "</span>",
-            minWordSizefor1Typo: 3,
-            minWordSizefor2Typos: 7,
-            allowTyposOnNumericTokens: false,
-            minProximity: 1,
-            ignorePlurals: true,
-            advancedSyntax: true,
-            attributeCriteriaComputedByMinProximity: true,
-            removeWordsIfNoResults: "allOptional",
+          ],
+          initialIndexSettings: {
+            vitepress: {
+              attributesForFaceting: ["type", "lang"],
+              attributesToRetrieve: ["hierarchy", "content", "anchor", "url"],
+              attributesToHighlight: ["hierarchy", "hierarchy_camel", "content"],
+              attributesToSnippet: ["content:10"],
+              camelCaseAttributes: ["hierarchy", "hierarchy_radio", "content"],
+              searchableAttributes: [
+                "unordered(hierarchy_radio_camel.lvl0)",
+                "unordered(hierarchy_radio.lvl0)",
+                "unordered(hierarchy_radio_camel.lvl1)",
+                "unordered(hierarchy_radio.lvl1)",
+                "unordered(hierarchy_radio_camel.lvl2)",
+                "unordered(hierarchy_radio.lvl2)",
+                "unordered(hierarchy_radio_camel.lvl3)",
+                "unordered(hierarchy_radio.lvl3)",
+                "unordered(hierarchy_radio_camel.lvl4)",
+                "unordered(hierarchy_radio.lvl4)",
+                "unordered(hierarchy_radio_camel.lvl5)",
+                "unordered(hierarchy_radio.lvl5)",
+                "unordered(hierarchy_radio_camel.lvl6)",
+                "unordered(hierarchy_radio.lvl6)",
+                "unordered(hierarchy_camel.lvl0)",
+                "unordered(hierarchy.lvl0)",
+                "unordered(hierarchy_camel.lvl1)",
+                "unordered(hierarchy.lvl1)",
+                "unordered(hierarchy_camel.lvl2)",
+                "unordered(hierarchy.lvl2)",
+                "unordered(hierarchy_camel.lvl3)",
+                "unordered(hierarchy.lvl3)",
+                "unordered(hierarchy_camel.lvl4)",
+                "unordered(hierarchy.lvl4)",
+                "unordered(hierarchy_camel.lvl5)",
+                "unordered(hierarchy.lvl5)",
+                "unordered(hierarchy_radio_camel.lvl6)",
+                "unordered(hierarchy_radio.lvl6)",
+                "content",
+              ],
+              distinct: true,
+              attributeForDistinct: "url",
+              customRanking: [
+                "desc(weight.pageRank)",
+                "desc(weight.level)",
+                "asc(weight.position)",
+              ],
+              ranking: [
+                "words",
+                "filters",
+                "typo",
+                "attribute",
+                "proximity",
+                "exact",
+                "custom",
+              ],
+              highlightPreTag:
+                '<span class="algolia-docsearch-suggestion--highlight">',
+              highlightPostTag: "</span>",
+              minWordSizefor1Typo: 3,
+              minWordSizefor2Typos: 7,
+              allowTyposOnNumericTokens: false,
+              minProximity: 1,
+              ignorePlurals: true,
+              advancedSyntax: true,
+              attributeCriteriaComputedByMinProximity: true,
+              removeWordsIfNoResults: "allOptional",
+            },
           },
         },
       },
-    },
-    editLink: {
-      pattern: "https://github.com/tuist/tuist/edit/main/docs/docs/:path",
-    },
-    socialLinks: [
-      { icon: "github", link: "https://github.com/tuist/tuist" },
-      { icon: "mastodon", link: "https://fosstodon.org/@tuist" },
-      { icon: "bluesky", link: "https://bsky.app/profile/tuist.dev" },
-      {
-        icon: "slack",
-        link: "https://join.slack.com/t/tuistapp/shared_invite/zt-1y667mjbk-s2LTRX1YByb9EIITjdLcLw",
+      editLink: {
+        pattern: "https://github.com/tuist/tuist/edit/main/docs/docs/:path",
       },
-    ],
-    footer: {
-      message: "Released under the MIT License.",
-      copyright: "Copyright © 2024-present Tuist GmbH",
+      socialLinks: [
+        { icon: "github", link: "https://github.com/tuist/tuist" },
+        { icon: "mastodon", link: "https://fosstodon.org/@tuist" },
+        { icon: "bluesky", link: "https://bsky.app/profile/tuist.dev" },
+        {
+          icon: "slack",
+          link: "https://join.slack.com/t/tuistapp/shared_invite/zt-1y667mjbk-s2LTRX1YByb9EIITjdLcLw",
+        },
+      ],
+      footer: {
+        message: "Released under the MIT License.",
+        copyright: "Copyright © 2024-present Tuist GmbH",
+      },
     },
-  },
-});
+  })
+);

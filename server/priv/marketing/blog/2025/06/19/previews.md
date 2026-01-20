@@ -4,6 +4,7 @@ category: "community"
 tags: ["ai", "devx", "previews", "automation", "future"]
 excerpt: "As AI transforms how we write code, we're reimagining how Tuist Previews can bridge the gap between automated development and human validation. Here's our vision for the future of mobile app development."
 author: pepicrft
+og_image_path: /marketing/images/blog/2025/06/19/previews.jpg
 ---
 
 There's no question at this point that AI will have an impact on the way we write code.
@@ -39,7 +40,7 @@ What does this mean? If you automate code review using AI tools like [Claude Cod
 which analyze code patterns and best practices,
 what remains is ensuring that the changes do what they're supposed to do.
 This requires compiling, launching, and using the app—
-and this is where [Tuist Previews](https://docs.tuist.dev/en/guides/share/previews) become essential.
+and this is where [Tuist Previews](https://docs.tuist.dev/en/guides/features/previews) become essential.
 
 ## Previews: A Tool to Manually Test Your Changes
 
@@ -85,4 +86,4 @@ Wouldn't that be revolutionary? We know the web is already moving in this direct
 
 The future of app development is being written right now, and we're thrilled to be part of shaping it. With curiosity as our compass and innovation as our engine, we're building the tools that will make tomorrow's development workflows feel like magic compared to today's.
 
-**You can start using [previews](https://docs.tuist.dev/en/guides/share/previews) today with Xcode projects or generated Tuist projects.**
+**You can start using [previews](https://docs.tuist.dev/en/guides/features/previews) today with Xcode projects or generated Tuist projects.**

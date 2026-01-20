@@ -31,6 +31,24 @@ defmodule Tuist.Accounts.UserTest do
       assert "Avoid sequences" in errors_on(got).password
       assert "Add another word or two. Uncommon words are better." in errors_on(got).password
     end
+
+    test "validates email format" do
+      # Given/When
+      got = User.create_user_changeset(%User{}, %{email: "not-an-email", token: "test-token"})
+
+      # Then
+      assert got.valid? == false
+      assert "must be a valid email address" in errors_on(got).email
+    end
+
+    test "rejects email without @ symbol" do
+      # Given/When
+      got = User.create_user_changeset(%User{}, %{email: "brew install --formula tuist", token: "test-token"})
+
+      # Then
+      assert got.valid? == false
+      assert "must be a valid email address" in errors_on(got).email
+    end
   end
 
   describe "password_changeset/2" do
@@ -49,10 +67,10 @@ defmodule Tuist.Accounts.UserTest do
   describe "gravatar_url/1" do
     test "generates the right avatar" do
       # When
-      got = [email: "tuist@tuist.io"] |> AccountsFixtures.user_fixture() |> User.gravatar_url()
+      got = [email: "tuist@tuist.dev"] |> AccountsFixtures.user_fixture() |> User.gravatar_url()
 
       # Then
-      assert got == "https://www.gravatar.com/avatar/0f3e9af754a1574f7b5fb3ab36e9b0b8?d=404"
+      assert got == "https://www.gravatar.com/avatar/20781daad983fcf18cbd592ae46aa57e?d=404"
     end
   end
 end

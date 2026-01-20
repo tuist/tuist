@@ -37,6 +37,7 @@ defmodule Tuist.Accounts.User do
     |> cast(attrs, [:token, :email, :password, :encrypted_password, :confirmed_at, :created_at])
     |> update_change(:email, &String.downcase/1)
     |> validate_required([:token, :email])
+    |> validate_format(:email, @valid_email_regex, message: "must be a valid email address")
     |> validate_password_strength()
     |> encrypt_password()
     |> unique_constraint(:token, name: "index_users_on_token")
@@ -85,7 +86,7 @@ defmodule Tuist.Accounts.User do
     |> cast(attrs, [:password])
     |> validate_required([:password])
     |> validate_password_strength()
-    |> validate_confirmation(:password, message: gettext("Passwords don't match"))
+    |> validate_confirmation(:password, message: dgettext("dashboard_account", "Passwords don't match"))
     |> encrypt_password()
   end
 

@@ -3,6 +3,7 @@ import Foundation
 import Path
 import TuistCore
 import TuistGit
+import TuistHTTP
 import TuistLoader
 import TuistScaffold
 import TuistSupport
@@ -78,7 +79,7 @@ public struct PluginService: PluginServicing {
     ///   - fileArchivingFactory: FileArchiver for unzipping plugin releases.
     ///   - fileClient: FileClient for downloading plugin releases.
     public init(
-        manifestLoader: ManifestLoading = ManifestLoader(),
+        manifestLoader: ManifestLoading = ManifestLoader.current,
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
         fileHandler: FileHandling = FileHandler.shared,
         gitController: GitControlling = GitController(),

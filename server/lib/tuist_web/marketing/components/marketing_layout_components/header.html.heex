@@ -49,7 +49,7 @@ reset_dopdowns_state_js =
         <img
           class="marketing__header__bar__title__link__logo"
           src="/images/tuist_logo_32x32@2x.png"
-          alt={gettext("Tuist Icon")}
+          alt={dgettext("marketing", "Tuist Icon")}
         />
         <h2 class="marketing__header__bar__title__link__text">
           Tuist
@@ -65,7 +65,7 @@ reset_dopdowns_state_js =
         aria-haspopup="true"
         phx-click={show_app_lifecycle_js}
       >
-        {gettext("Features")}
+        {dgettext("marketing", "Features")}
         <.icon_plus size={15} class="marketing__header__bar__links__link__open_icon" />
         <.icon_minus size={15} class="marketing__header__bar__links__link__close_icon" />
       </.link>
@@ -76,23 +76,23 @@ reset_dopdowns_state_js =
         aria-haspopup="true"
         phx-click={show_developers_js}
       >
-        {gettext("Developers")}
+        {dgettext("marketing", "Developers")}
         <.icon_plus size={15} class="marketing__header__bar__links__link__open_icon" />
         <.icon_minus size={15} class="marketing__header__bar__links__link__close_icon" />
       </.link>
       <.link href={~p"/pricing"} class="marketing__header__bar__links__link">
-        {gettext("Pricing")}
+        {dgettext("marketing", "Pricing")}
       </.link>
       <.link href={~p"/blog"} class="marketing__header__bar__links__link">
-        {gettext("Blog")}
+        {dgettext("marketing", "Blog")}
       </.link>
     </nav>
 
     <% {cta_text, cta_href} =
       if is_nil(TuistWeb.Authentication.current_user(assigns)) do
-        {gettext("Log in"), ~p"/users/log_in"}
+        {dgettext("marketing", "Log in"), ~p"/users/log_in"}
       else
-        {gettext("Dashboard"),
+        {dgettext("marketing", "Dashboard"),
          TuistWeb.Authentication.signed_in_path(TuistWeb.Authentication.current_user(assigns))}
       end %>
     <.primary_button class="marketing__header__bar__cta" size="small" href={cta_href}>
@@ -116,7 +116,7 @@ reset_dopdowns_state_js =
         <img
           class="marketing__header__bar__mobile__menu__header__title__logo"
           src="/images/tuist_logo_32x32@2x.png"
-          alt={gettext("Tuist Icon")}
+          alt={dgettext("marketing", "Tuist Icon")}
         />
         <h2 class="marketing__header__bar__mobile__menu__header__title__text">
           Tuist
@@ -124,7 +124,7 @@ reset_dopdowns_state_js =
       </div>
       <button
         class="marketing__header__bar__mobile__menu__header__close"
-        aria-label={gettext("Close menu")}
+        aria-label={dgettext("marketing", "Close menu")}
         phx-click={
           JS.toggle(to: ".marketing__header__bar__mobile__menu")
           |> JS.toggle_attribute({"data-scrollable", "true", "false"}, to: "body")
@@ -137,22 +137,22 @@ reset_dopdowns_state_js =
       <.marketing_mobile_menu_dropdown
         key="app-lifecycle"
         current_path={@current_path}
-        title={gettext("Features")}
+        title={dgettext("marketing", "Features")}
         children={[
           %{
-            title: gettext("Generated Projects"),
+            title: dgettext("marketing", "Generated Projects"),
             href: Tuist.Environment.get_url(:feature_generated_projects)
           },
           %{
-            title: gettext("Cache"),
+            title: dgettext("marketing", "Cache"),
             href: Tuist.Environment.get_url(:feature_cache)
           },
           %{
-            title: gettext("Previews"),
+            title: dgettext("marketing", "Previews"),
             href: Tuist.Environment.get_url(:feature_previews)
           },
           %{
-            title: gettext("Insights"),
+            title: dgettext("marketing", "Insights"),
             href: Tuist.Environment.get_url(:feature_insights)
           }
         ]}
@@ -160,23 +160,23 @@ reset_dopdowns_state_js =
       <.marketing_mobile_menu_dropdown
         key="developers"
         current_path={@current_path}
-        title={gettext("Developers")}
+        title={dgettext("marketing", "Developers")}
         children={[
           %{
-            title: gettext("Docs"),
+            title: dgettext("marketing", "Docs"),
             href: Tuist.Environment.get_url(:documentation)
           },
-          %{title: gettext("Changelog"), href: ~p"/changelog"},
+          %{title: dgettext("marketing", "Changelog"), href: ~p"/changelog"},
           %{
-            title: gettext("Forum"),
+            title: dgettext("marketing", "Forum"),
             href: Tuist.Environment.get_url(:forum)
           },
           %{
-            title: gettext("Slack"),
+            title: dgettext("marketing", "Slack"),
             href: Tuist.Environment.get_url(:slack)
           },
           %{
-            title: gettext("GitHub"),
+            title: dgettext("marketing", "GitHub"),
             href: Tuist.Environment.get_url(:github)
           }
         ]}
@@ -184,22 +184,22 @@ reset_dopdowns_state_js =
       <.marketing_mobile_menu_dropdown
         key="pricing"
         current_path={@current_path}
-        title={gettext("Pricing")}
+        title={dgettext("marketing", "Pricing")}
         href={~p"/pricing"}
       />
       <.marketing_mobile_menu_dropdown
         key="title"
         current_path={@current_path}
-        title={gettext("Blog")}
+        title={dgettext("marketing", "Blog")}
         href={~p"/blog"}
       />
 
       <div class="marketing__header__bar__mobile__menu__main__footer">
         <% {cta_text, _cta_href} =
           if is_nil(TuistWeb.Authentication.current_user(assigns)) do
-            {gettext("Log in"), ~p"/users/log_in"}
+            {dgettext("marketing", "Log in"), ~p"/users/log_in"}
           else
-            {gettext("Dashboard"),
+            {dgettext("marketing", "Dashboard"),
              TuistWeb.Authentication.signed_in_path(TuistWeb.Authentication.current_user(assigns))}
           end %>
 
@@ -213,12 +213,12 @@ reset_dopdowns_state_js =
 
         <div class="marketing__header__bar__mobile__menu__main__footer__links">
           <div class="marketing__header__bar__mobile__menu__main__footer__links__header">
-            {gettext("Stay in touch")}
+            {dgettext("marketing", "Stay in touch")}
           </div>
           <div class="marketing__header__bar__mobile__menu__main__footer__links__main">
             <nav
               class="marketing__header__bar__mobile__menu__main__footer__links__main__social"
-              aria-label={gettext("Social Media Links")}
+              aria-label={dgettext("marketing", "Social Media Links")}
             >
               <.link href={Tuist.Environment.get_url(:slack)} target="_blank">
                 <.icon_slack class="marketing__header__bar__mobile__menu__main__footer__links__main__social__icon" />
@@ -252,10 +252,10 @@ reset_dopdowns_state_js =
       target="_blank"
     >
       <h2 class="marketing__header__bar__features__phase__title">
-        {gettext("Generated projects")}
+        {dgettext("marketing", "Generated projects")}
       </h2>
       <p class="marketing__header__bar__features__phase__description">
-        {gettext("Make modular Xcode projects more manageable")}
+        {dgettext("marketing", "Make modular Xcode projects more manageable")}
       </p>
       <.feature_generated_projects_artwork />
     </.link>
@@ -266,10 +266,10 @@ reset_dopdowns_state_js =
       target="_blank"
     >
       <h2 class="marketing__header__bar__features__phase__title">
-        {gettext("Cache")}
+        {dgettext("marketing", "Cache")}
       </h2>
       <p class="marketing__header__bar__features__phase__description">
-        {gettext("Speed up your builds and test runs.")}
+        {dgettext("marketing", "Speed up your builds and test runs.")}
       </p>
       <.feature_cache_artwork />
     </.link>
@@ -279,10 +279,10 @@ reset_dopdowns_state_js =
       target="_blank"
     >
       <h2 class="marketing__header__bar__features__phase__title">
-        {gettext("Previews")}
+        {dgettext("marketing", "Previews")}
       </h2>
       <p class="marketing__header__bar__features__phase__description">
-        {gettext("Effortlessly share your app with a single URL.")}
+        {dgettext("marketing", "Effortlessly share your app with a single URL.")}
       </p>
       <.feature_previews_artwork />
     </.link>
@@ -293,10 +293,10 @@ reset_dopdowns_state_js =
       target="_blank"
     >
       <h2 class="marketing__header__bar__features__phase__title">
-        {gettext("Insights")}
+        {dgettext("marketing", "Insights")}
       </h2>
       <p class="marketing__header__bar__features__phase__description">
-        {gettext("Enhance your development environment with actionable insights.")}
+        {dgettext("marketing", "Enhance your development environment with actionable insights.")}
       </p>
       <.feature_insights_artwork />
     </.link>
@@ -309,10 +309,13 @@ reset_dopdowns_state_js =
       target="_blank"
     >
       <h2 class="marketing__header__bar__developers__phase__title">
-        {gettext("Docs")}
+        {dgettext("marketing", "Docs")}
       </h2>
       <p class="marketing__header__bar__developers__phase__description">
-        {gettext("Explore our documentation—your go-to guide for mastering all things.")}
+        {dgettext(
+          "marketing",
+          "Explore our documentation—your go-to guide for mastering all things."
+        )}
       </p>
 
       <.developers_docs_artwork style="grid-area: span 2;" />
@@ -320,10 +323,10 @@ reset_dopdowns_state_js =
 
     <.link class="marketing__header__bar__developers__phase" href={~p"/changelog"}>
       <h2 class="marketing__header__bar__developers__phase__title">
-        {gettext("Changelog")}
+        {dgettext("marketing", "Changelog")}
       </h2>
       <p class="marketing__header__bar__developers__phase__description">
-        {gettext("Keep up with the latest and greatest changes in Tuist.")}
+        {dgettext("marketing", "Keep up with the latest and greatest changes in Tuist.")}
       </p>
     </.link>
 
@@ -333,10 +336,13 @@ reset_dopdowns_state_js =
       target="_blank"
     >
       <h2 class="marketing__header__bar__developers__phase__title">
-        {gettext("Community")}
+        {dgettext("marketing", "Community")}
       </h2>
       <p class="marketing__header__bar__developers__phase__description">
-        {gettext("Got ideas or questions? Join the conversation in our community forum.")}
+        {dgettext(
+          "marketing",
+          "Got ideas or questions? Join the conversation in our community forum."
+        )}
       </p>
     </.link>
 
@@ -346,11 +352,12 @@ reset_dopdowns_state_js =
       target="_blank"
     >
       <h2 class="marketing__header__bar__developers__phase__title">
-        {gettext("Slack")}
+        {dgettext("marketing", "Slack")}
       </h2>
 
       <p class="marketing__header__bar__developers__phase__description">
-        {gettext(
+        {dgettext(
+          "marketing",
           "Join our Slack group for real-time conversations and to connect with the Tuist community"
         )}
       </p>
@@ -362,10 +369,11 @@ reset_dopdowns_state_js =
       target="_blank"
     >
       <h2 class="marketing__header__bar__developers__phase__title">
-        {gettext("GitHub")}
+        {dgettext("marketing", "GitHub")}
       </h2>
       <p class="marketing__header__bar__developers__phase__description">
-        {gettext(
+        {dgettext(
+          "marketing",
           "Check out our GitHub to see all the action—where the magic happens and collaboration thrives."
         )}
       </p>

@@ -37,6 +37,10 @@ defmodule TuistTestSupport.Cases.DataCase do
   setup tags do
     TuistTestSupport.Cases.DataCase.setup_sandbox(tags)
 
+    on_exit(fn ->
+      TuistTestSupport.Utilities.truncate_clickhouse_tables()
+    end)
+
     :ok
   end
 

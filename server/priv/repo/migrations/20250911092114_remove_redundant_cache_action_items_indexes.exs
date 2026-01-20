@@ -1,5 +1,6 @@
 defmodule Tuist.Repo.Migrations.RemoveRedundantCacheActionItemsIndexes do
   use Ecto.Migration
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
 
   def up do
     # Remove redundant hash-only index (composite index covers this)

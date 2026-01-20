@@ -4,6 +4,7 @@ defmodule Tuist.ProjectsTest do
   use Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.ProjectAccount
   alias Tuist.Base64
   alias Tuist.CommandEvents
@@ -77,7 +78,7 @@ defmodule Tuist.ProjectsTest do
     # Given
     organization = AccountsFixtures.organization_fixture()
     account = Accounts.get_account_from_organization(organization)
-    project = ProjectsFixtures.project_fixture(account_id: account.id, preload: [])
+    project = ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account])
     user = AccountsFixtures.user_fixture()
     Accounts.add_user_to_organization(user, organization, role: :user)
     organization_two = AccountsFixtures.organization_fixture()
@@ -113,7 +114,7 @@ defmodule Tuist.ProjectsTest do
         provider: :google,
         uid: 123,
         info: %{
-          email: "tuist@tuist.io"
+          email: "tuist@tuist.dev"
         },
         extra: %{
           raw_info: %{
@@ -200,7 +201,7 @@ defmodule Tuist.ProjectsTest do
       # Given
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)
-      project = ProjectsFixtures.project_fixture(account_id: account.id, preload: [])
+      project = ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account])
 
       # When
       got = Projects.get_all_project_accounts(account)
@@ -215,17 +216,56 @@ defmodule Tuist.ProjectsTest do
              ] == got
     end
 
+    test "get all project accounts for an authenticated account subject" do
+      account = AccountsFixtures.account_fixture()
+      project_one = ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account])
+      project_two = ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account])
+
+      got = Projects.get_all_project_accounts(%AuthenticatedAccount{account: account, scopes: []})
+
+      assert Enum.sort_by(got, & &1.handle) ==
+               Enum.sort_by(
+                 [
+                   %ProjectAccount{
+                     handle: "#{account.name}/#{project_one.name}",
+                     account: account,
+                     project: project_one
+                   },
+                   %ProjectAccount{
+                     handle: "#{account.name}/#{project_two.name}",
+                     account: account,
+                     project: project_two
+                   }
+                 ],
+                 & &1.handle
+               )
+    end
+
+    test "get all project accounts for a project subject" do
+      project = ProjectsFixtures.project_fixture()
+
+      got = Projects.get_all_project_accounts(project)
+
+      expected_handle = "#{project.account.name}/#{project.name}"
+      assert [%ProjectAccount{handle: ^expected_handle}] = got
+    end
+
+    test "returns empty list for unsupported subjects" do
+      assert [] == Projects.get_all_project_accounts(%{unexpected: :subject})
+      assert [] == Projects.get_all_project_accounts(nil)
+    end
+
     test "get all project accounts for a user" do
       # Given
       organization = AccountsFixtures.organization_fixture()
       account = Accounts.get_account_from_organization(organization)
-      project_one = ProjectsFixtures.project_fixture(account_id: account.id, preload: [])
+      project_one = ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account])
       user = AccountsFixtures.user_fixture()
       user_account = Accounts.get_account_from_user(user)
       Accounts.add_user_to_organization(user, organization, role: :user)
 
       project_two =
-        ProjectsFixtures.project_fixture(account_id: user_account.id, preload: [])
+        ProjectsFixtures.project_fixture(account_id: user_account.id, preload: [:account])
 
       # When
       got = Projects.get_all_project_accounts(user)
@@ -247,6 +287,43 @@ defmodule Tuist.ProjectsTest do
                & &1.handle
              ) == Enum.sort_by(got, & &1.handle)
     end
+
+    test "filters to most recent projects when recent option is provided" do
+      user = AccountsFixtures.user_fixture()
+      user_account = Accounts.get_account_from_user(user)
+
+      projects =
+        for i <- 1..7 do
+          ProjectsFixtures.project_fixture(account_id: user_account.id, name: "project-#{i}")
+        end
+
+      [p1, p2, p3, p4, p5, p6, p7] = projects
+
+      now = DateTime.utc_now()
+      CommandEventsFixtures.command_event_fixture(project_id: p1.id, created_at: DateTime.add(now, -6, :day))
+      CommandEventsFixtures.command_event_fixture(project_id: p2.id, created_at: DateTime.add(now, -5, :day))
+      CommandEventsFixtures.command_event_fixture(project_id: p3.id, created_at: DateTime.add(now, -4, :day))
+      CommandEventsFixtures.command_event_fixture(project_id: p4.id, created_at: DateTime.add(now, -3, :day))
+      CommandEventsFixtures.command_event_fixture(project_id: p5.id, created_at: DateTime.add(now, -2, :day))
+      CommandEventsFixtures.command_event_fixture(project_id: p6.id, created_at: DateTime.add(now, -1, :hour))
+      CommandEventsFixtures.command_event_fixture(project_id: p7.id, created_at: now)
+
+      got = Projects.get_all_project_accounts(user, recent: 5)
+
+      assert length(got) == 5
+      handles = Enum.map(got, & &1.handle)
+
+      assert "#{user_account.name}/#{p7.name}" in handles
+      assert "#{user_account.name}/#{p6.name}" in handles
+      assert "#{user_account.name}/#{p5.name}" in handles
+      assert "#{user_account.name}/#{p4.name}" in handles
+      assert "#{user_account.name}/#{p3.name}" in handles
+
+      refute "#{user_account.name}/#{p2.name}" in handles
+      refute "#{user_account.name}/#{p1.name}" in handles
+
+      assert Enum.at(got, 0).handle == "#{user_account.name}/#{p7.name}"
+    end
   end
 
   describe "get_project_by_account_and_project_handles/2" do
@@ -265,6 +342,167 @@ defmodule Tuist.ProjectsTest do
 
       # Then
       assert got == project
+    end
+  end
+
+  describe "get_projects_by_handles_for_account/2" do
+    test "returns projects when all handles are found" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      project1 = ProjectsFixtures.project_fixture(account_id: account.id, name: "project-one")
+      project2 = ProjectsFixtures.project_fixture(account_id: account.id, name: "project-two")
+
+      # When
+      {:ok, projects} =
+        Projects.get_projects_by_handles_for_account(account, ["project-one", "project-two"])
+
+      # Then
+      project_ids = projects |> Enum.map(& &1.id) |> Enum.sort()
+      assert project_ids == Enum.sort([project1.id, project2.id])
+    end
+
+    test "returns error when a handle is not found" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      ProjectsFixtures.project_fixture(account_id: account.id, name: "existing-project")
+
+      # When
+      result =
+        Projects.get_projects_by_handles_for_account(account, ["existing-project", "missing-project"])
+
+      # Then
+      assert {:error, :not_found, "missing-project"} = result
+    end
+
+    test "returns ok with empty list when no handles provided" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+
+      # When
+      {:ok, projects} = Projects.get_projects_by_handles_for_account(account, [])
+
+      # Then
+      assert projects == []
+    end
+
+    test "does not return projects from other accounts" do
+      # Given
+      organization1 = AccountsFixtures.organization_fixture()
+      organization2 = AccountsFixtures.organization_fixture()
+      account1 = Accounts.get_account_from_organization(organization1)
+      account2 = Accounts.get_account_from_organization(organization2)
+      ProjectsFixtures.project_fixture(account_id: account1.id, name: "shared-name")
+      ProjectsFixtures.project_fixture(account_id: account2.id, name: "shared-name")
+
+      # When
+      result =
+        Projects.get_projects_by_handles_for_account(account1, ["shared-name", "other-project"])
+
+      # Then
+      assert {:error, :not_found, "other-project"} = result
+    end
+  end
+
+  describe "projects_by_full_handles/1" do
+    test "returns a map of full_handle to project for multiple projects" do
+      # Given
+      organization1 = AccountsFixtures.organization_fixture()
+      organization2 = AccountsFixtures.organization_fixture()
+      account1 = Accounts.get_account_from_organization(organization1)
+      account2 = Accounts.get_account_from_organization(organization2)
+
+      project1 = ProjectsFixtures.project_fixture(account_id: account1.id, name: "project1")
+      project2 = ProjectsFixtures.project_fixture(account_id: account1.id, name: "project2")
+      project3 = ProjectsFixtures.project_fixture(account_id: account2.id, name: "project3")
+
+      full_handles = [
+        "#{account1.name}/project1",
+        "#{account1.name}/project2",
+        "#{account2.name}/project3"
+      ]
+
+      # When
+      got = Projects.projects_by_full_handles(full_handles)
+
+      # Then
+      assert map_size(got) == 3
+      assert got["#{account1.name}/project1"].id == project1.id
+      assert got["#{account1.name}/project2"].id == project2.id
+      assert got["#{account2.name}/project3"].id == project3.id
+    end
+
+    test "returns empty map when no full handles provided" do
+      # When
+      got = Projects.projects_by_full_handles([])
+
+      # Then
+      assert got == %{}
+    end
+
+    test "excludes non-existent projects from result" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      project = ProjectsFixtures.project_fixture(account_id: account.id, name: "existing-project")
+
+      full_handles = [
+        "#{account.name}/existing-project",
+        "#{account.name}/non-existent-project",
+        "non-existent-account/some-project"
+      ]
+
+      # When
+      got = Projects.projects_by_full_handles(full_handles)
+
+      # Then
+      assert map_size(got) == 1
+      assert got["#{account.name}/existing-project"].id == project.id
+      refute Map.has_key?(got, "#{account.name}/non-existent-project")
+      refute Map.has_key?(got, "non-existent-account/some-project")
+    end
+
+    test "handles duplicate full handles in input" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      full_handles = [
+        "#{account.name}/#{project.name}",
+        "#{account.name}/#{project.name}",
+        "#{account.name}/#{project.name}"
+      ]
+
+      # When
+      got = Projects.projects_by_full_handles(full_handles)
+
+      # Then
+      assert map_size(got) == 1
+      assert got["#{account.name}/#{project.name}"].id == project.id
+    end
+
+    test "handles malformed full handles gracefully" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      full_handles = [
+        "#{account.name}/#{project.name}",
+        "invalid-handle",
+        "too/many/parts",
+        ""
+      ]
+
+      # When
+      got = Projects.projects_by_full_handles(full_handles)
+
+      # Then
+      assert map_size(got) == 1
+      assert got["#{account.name}/#{project.name}"].id == project.id
     end
   end
 

@@ -1,0 +1,216 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-12-24 14:50+0000\n"
+"PO-Revision-Date: 2025-12-24 20:47+0000\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
+"Language-Team: Russian <https://translate.tuist.dev/projects/tuist/"
+"dashboard_previews/ru/>\n"
+"Language: ru\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
+"n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\n"
+"X-Generator: Weblate 5.15.1\n"
+
+## This file is a PO Template file.
+##
+## "msgid"s here are often extracted from source code.
+## Add new messages manually only if they're dynamic
+## messages that can't be statically extracted.
+##
+## Run "mix gettext.extract" to bring this file up to
+## date. Leave "msgstr"s empty as changing them here has no
+## effect: edit them in PO (.po) files instead.
+#
+#: lib/tuist_web/live/preview_live.html.heex:66
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{app_name} icon"
+msgstr "Иконка %{app_name}"
+
+#: lib/tuist_web/live/preview_live.ex:36
+#, elixir-autogen, elixir-format, fuzzy
+msgid "%{display_name} · Tuist"
+msgstr "%{display_name} - Туист"
+
+#: lib/tuist_web/live/preview_live.html.heex:141
+#: lib/tuist_web/live/previews_live.ex:171
+#: lib/tuist_web/live/previews_live.html.heex:84
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Branch"
+msgstr "Филиал"
+
+#: lib/tuist_web/live/previews_live.html.heex:93
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Built at"
+msgstr "Построен в"
+
+#: lib/tuist_web/live/preview_live.html.heex:124
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Bundle identifier"
+msgstr "Идентификатор пакета"
+
+#: lib/tuist_web/live/preview_live.html.heex:148
+#: lib/tuist_web/live/previews_live.html.heex:87
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Commit SHA"
+msgstr "Обязательство SHA"
+
+#: lib/tuist_web/live/preview_live.html.heex:118
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Created by"
+msgstr "Создано"
+
+#: lib/tuist_web/live/preview_live.html.heex:40
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Delete preview"
+msgstr "Удалить предварительный просмотр"
+
+#: lib/tuist_web/live/preview_live.html.heex:104
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Details"
+msgstr "Подробности"
+
+#: lib/tuist_web/live/preview_live.html.heex:10
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Don't have the Tuist app installed?"
+msgstr "У вас не установлено приложение Tuist?"
+
+#: lib/tuist_web/live/preview_live.html.heex:23
+#: lib/tuist_web/live/preview_live.html.heex:82
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Download"
+msgstr "Скачать"
+
+#: lib/tuist_web/live/preview_live.html.heex:168
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Install App"
+msgstr "Установите приложение"
+
+#: lib/tuist_web/live/previews_live.html.heex:24
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Latest app previews"
+msgstr "Последние предварительные просмотры приложений"
+
+#: lib/tuist_web/live/previews_live.html.heex:71
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Name"
+msgstr "Имя"
+
+#: lib/tuist_web/live/preview_live.html.heex:144
+#: lib/tuist_web/live/previews_live.ex:179
+#, elixir-autogen, elixir-format, fuzzy
+msgid "None"
+msgstr "Нет"
+
+#: lib/tuist_web/live/preview_live.html.heex:213
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Or run using CLI"
+msgstr "Или запустите с помощью CLI"
+
+#: lib/tuist_web/live/previews_live.html.heex:74
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Platforms"
+msgstr "Платформы"
+
+#: lib/tuist_web/live/preview_live.html.heex:29
+#: lib/tuist_web/live/previews_live.ex:24
+#: lib/tuist_web/live/previews_live.html.heex:19
+#: lib/tuist_web/live/previews_live.html.heex:33
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Previews"
+msgstr "Превью"
+
+#: lib/tuist_web/live/preview_live.html.heex:189
+#, elixir-autogen, elixir-format, fuzzy
+msgid "QR code"
+msgstr "QR-код"
+
+#: lib/tuist_web/live/preview_live.html.heex:130
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Ran at"
+msgstr "Бежал в"
+
+#: lib/tuist_web/live/previews_live.html.heex:90
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Ran by"
+msgstr "Пробежал"
+
+#: lib/tuist_web/live/preview_live.html.heex:93
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Run"
+msgstr "Запускайте"
+
+#: lib/tuist_web/live/previews_live.html.heex:6
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Run the following command to share app preview."
+msgstr ""
+"Выполните следующую команду, чтобы поделиться предварительным просмотром "
+"приложения."
+
+#: lib/tuist_web/live/preview_live.html.heex:176
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Scan QR code"
+msgstr "Сканирование QR-кода"
+
+#: lib/tuist_web/live/preview_live.html.heex:179
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Scan this QR code on your iOS device to install this version of the app"
+msgstr ""
+"Отсканируйте этот QR-код на своем устройстве iOS, чтобы установить эту "
+"версию приложения."
+
+#: lib/tuist_web/live/previews_live.html.heex:5
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Share app previews in one click"
+msgstr ""
+"Обменивайтесь предварительными просмотрами приложений одним щелчком мыши"
+
+#: lib/tuist_web/live/preview_live.html.heex:110
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Supported platforms"
+msgstr "Поддерживаемые платформы"
+
+#: lib/tuist_web/live/preview_live.html.heex:206
+#, elixir-autogen, elixir-format, fuzzy
+msgid "This preview is only supported on simulators and can't be installed on a physical device"
+msgstr ""
+"Эта предварительная версия поддерживается только на симуляторах и не может "
+"быть установлена на физическое устройство"
+
+#: lib/tuist_web/live/preview_live.html.heex:200
+#, elixir-autogen, elixir-format, fuzzy
+msgid "This preview isn't available for device installation"
+msgstr "Эта предварительная версия недоступна для установки на устройство"
+
+#: lib/tuist_web/live/preview_live.html.heex:12
+#, elixir-autogen, elixir-format, fuzzy
+msgid "To run the preview directly from the browser, download and install the Tuist macOS app"
+msgstr ""
+"Чтобы запустить предварительный просмотр прямо из браузера, загрузите и "
+"установите приложение Tuist для macOS."
+
+#: lib/tuist_web/live/preview_live.html.heex:76
+#, elixir-autogen, elixir-format, fuzzy
+msgid "V %{version}"
+msgstr "V %{version}"
+
+#: lib/tuist_web/live/previews_live.html.heex:52
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Filter"
+msgstr "Фильтр"
+
+#: lib/tuist_web/live/previews_live.html.heex:44
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Search..."
+msgstr "Поиск..."
+
+#: lib/tuist_web/live/preview_live.html.heex:156
+#: lib/tuist_web/live/previews_live.ex:163
+#: lib/tuist_web/live/previews_live.html.heex:81
+#, elixir-autogen, elixir-format, fuzzy
+msgid "Track"
+msgstr "Трек"

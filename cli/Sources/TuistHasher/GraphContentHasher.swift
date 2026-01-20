@@ -19,7 +19,7 @@ public protocol GraphContentHashing {
         include: @escaping (GraphTarget) -> Bool,
         destination: SimulatorDeviceAndRuntime?,
         additionalStrings: [String]
-    ) async throws -> [GraphTarget: String]
+    ) async throws -> [GraphTarget: TargetContentHash]
 }
 
 /// `GraphContentHasher`
@@ -60,17 +60,13 @@ public struct GraphContentHasher: GraphContentHashing {
         include: (GraphTarget) -> Bool,
         destination: SimulatorDeviceAndRuntime?,
         additionalStrings: [String]
-    ) async throws -> [GraphTarget: String] {
+    ) async throws -> [GraphTarget: TargetContentHash] {
         let graphTraverser = GraphTraverser(graph: graph)
         var visitedIsHasheableNodes: [GraphTarget: Bool] = [:]
         let hashedTargets: ThreadSafe<[GraphHashedTarget: String]> = ThreadSafe([:])
         let hashedPaths: ThreadSafe<[AbsolutePath: String]> = ThreadSafe([:])
 
-        var additionalStrings = additionalStrings
-
-        if let lockFileHash = try await lockFileHash(for: graph) {
-            additionalStrings.append(lockFileHash)
-        }
+        let additionalStrings = additionalStrings
 
         let sortedCacheableTargets = try graphTraverser.allTargetsTopologicalSorted()
         let hashableTargets = sortedCacheableTargets.compactMap { target -> GraphTarget? in
@@ -86,25 +82,26 @@ public struct GraphContentHasher: GraphContentHashing {
             }
         }
 
-        let hashes = try await hashableTargets.serialMap { (target: GraphTarget) async throws -> String in
-            let hash = try await targetContentHasher.contentHash(
-                for: target,
-                hashedTargets: hashedTargets.value,
-                hashedPaths: hashedPaths.value,
-                destination: destination,
-                additionalStrings: additionalStrings
-            )
-            hashedPaths.mutate { $0 = hash.hashedPaths }
-            hashedTargets.mutate {
-                $0[
-                    GraphHashedTarget(
-                        projectPath: target.path,
-                        targetName: target.target.name
-                    )
-                ] = hash.hash
+        let hashes = try await hashableTargets
+            .serialMap { (target: GraphTarget) async throws -> TargetContentHash in
+                let hash = try await targetContentHasher.contentHash(
+                    for: target,
+                    hashedTargets: hashedTargets.value,
+                    hashedPaths: hashedPaths.value,
+                    destination: destination,
+                    additionalStrings: additionalStrings
+                )
+                hashedPaths.mutate { $0 = hash.hashedPaths }
+                hashedTargets.mutate {
+                    $0[
+                        GraphHashedTarget(
+                            projectPath: target.path,
+                            targetName: target.target.name
+                        )
+                    ] = hash.hash
+                }
+                return hash
             }
-            return hash.hash
-        }
         return Dictionary(uniqueKeysWithValues: zip(hashableTargets, hashes))
     }
 
@@ -135,37 +132,5 @@ public struct GraphContentHasher: GraphContentHashing {
         }
         visited[target] = allTargetDependenciesAreHashable
         return allTargetDependenciesAreHashable
-    }
-
-    private func lockFileHash(
-        for graph: Graph
-    ) async throws -> String? {
-        if let lockFilePath = try await rootDirectoryLocator.locate(from: graph.path)
-            .map({ $0.appending(component: ".package.resolved") }),
-            try await fileSystem.exists(lockFilePath)
-        {
-            return try await contentHasher.hash(
-                path: lockFilePath
-            )
-        }
-        if let workspacePath = try await fileSystem.glob(directory: graph.path, include: ["*.xcworkspace"]).collect().first {
-            let lockFilePath = workspacePath.appending(components: "xcshareddata", "swiftpm", "Package.resolved")
-            if try await fileSystem.exists(lockFilePath) {
-                return try await contentHasher.hash(path: lockFilePath)
-            }
-        } else if let projectPath = try await fileSystem.glob(directory: graph.path, include: ["*.xcodeproj"]).collect().first {
-            let lockFilePath = projectPath.appending(
-                components: [
-                    "project.xcworkspace",
-                    "xcshareddata",
-                    "swiftpm",
-                    "Package.resolved",
-                ]
-            )
-            if try await fileSystem.exists(lockFilePath) {
-                return try await contentHasher.hash(path: lockFilePath)
-            }
-        }
-        return nil
     }
 }

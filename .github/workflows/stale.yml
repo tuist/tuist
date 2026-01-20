@@ -7,6 +7,7 @@ jobs:
   stale:
     name: Close Stale Issues & PRs
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/stale@v8
         with:

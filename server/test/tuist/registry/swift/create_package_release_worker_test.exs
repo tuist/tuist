@@ -3,6 +3,7 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
   use Mimic
 
   import Ecto.Query
+  import ExUnit.CaptureLog, only: [with_log: 1]
 
   alias Tuist.Registry.Swift.Packages
   alias Tuist.Registry.Swift.Packages.PackageRelease
@@ -13,7 +14,8 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
   alias Tuist.VCS.Repositories.Content
   alias TuistTestSupport.Fixtures.Registry.Swift.PackagesFixtures
 
-  defp setup_standard_stubs(_scope, _name, _version, directory_name) do
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
+  defp setup_standard_stubs(_scope, _name, version, directory_name) do
     directory_path = "/tmp/briefly--123-test/briefly-456-test/#{directory_name}"
     package_swift_path = "#{directory_path}/Package.swift"
 
@@ -21,6 +23,15 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
 
     stub(VCS, :get_source_archive_by_tag_and_repository_full_handle, fn _ ->
       {:ok, "/tmp/source_archive.zip"}
+    end)
+
+    # Default stub for .gitmodules check - indicates no submodules
+    stub(VCS, :get_repository_content, fn
+      _, [reference: ^version, path: ".gitmodules"] ->
+        {:error, :not_found}
+
+      _, _ ->
+        {:error, :not_found}
     end)
 
     stub(Briefly, :create, fn [type: :directory] ->
@@ -80,6 +91,9 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
       setup_standard_stubs("alamofire", "alamofire", "5.10.2", "Alamofire")
 
       stub(VCS, :get_repository_content, fn
+        _, [reference: "5.10.2", path: ".gitmodules"] ->
+          {:error, :not_found}
+
         _, [reference: "5.10.2", path: "Package.swift"] ->
           {:ok, %Content{content: "// swift-tools-version:5.9\ncontent", path: "Package.swift"}}
 
@@ -117,10 +131,14 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
       }
 
       # When
-      result = CreatePackageReleaseWorker.perform(job)
+      {result, log} =
+        with_log(fn ->
+          CreatePackageReleaseWorker.perform(job)
+        end)
 
       # Then
       assert result == {:error, :package_not_found}
+      assert log =~ "Package NonExistent/Package not found"
     end
 
     test "handles errors during package release creation" do
@@ -143,10 +161,14 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
       }
 
       # When
-      result = CreatePackageReleaseWorker.perform(job)
+      {result, log} =
+        with_log(fn ->
+          CreatePackageReleaseWorker.perform(job)
+        end)
 
       # Then
-      assert {:error, _} = result
+      assert match?({:error, _}, result)
+      assert log =~ "Failed to create package release for ErrorPackage/ErrorPackage@1.0.0"
     end
 
     test "creates package release with pre-release version" do
@@ -160,6 +182,9 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
       setup_standard_stubs("alamofire", "alamofire", "5.10.2-beta", "Alamofire")
 
       stub(VCS, :get_repository_content, fn
+        _, [reference: "5.10.2-beta", path: ".gitmodules"] ->
+          {:error, :not_found}
+
         _, [reference: "5.10.2-beta", path: "Package.swift"] ->
           {:ok, %Content{content: "content", path: "Package.swift"}}
 
@@ -197,6 +222,9 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
       setup_standard_stubs("alamofire", "alamofire", "v5.10.2", "Alamofire")
 
       stub(VCS, :get_repository_content, fn
+        _, [reference: "v5.10.2", path: ".gitmodules"] ->
+          {:error, :not_found}
+
         _, [reference: "v5.10.2", path: "Package.swift"] ->
           {:ok, %Content{content: "// swift-tools-version:5.9\ncontent", path: "Package.swift"}}
 
@@ -248,6 +276,9 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
       end)
 
       stub(VCS, :get_repository_content, fn
+        _, [reference: "5.10.2", path: ".gitmodules"] ->
+          {:error, :not_found}
+
         _, [reference: "5.10.2", path: "Package.swift"] ->
           {:ok, %Content{content: "content", path: "Package.swift"}}
 
@@ -332,6 +363,9 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
       end)
 
       stub(VCS, :get_repository_content, fn
+        _, [reference: "1.0.0", path: ".gitmodules"] ->
+          {:error, :not_found}
+
         _, [reference: "1.0.0", path: "Package.swift"] ->
           {:ok, %Content{content: package_swift_content, path: "Package.swift"}}
 
@@ -373,8 +407,12 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
         "/tmp/briefly--123-test/briefly-456-test/NoPackage" -> []
       end)
 
-      stub(VCS, :get_repository_content, fn _, [reference: "1.0.0"] ->
-        {:ok, []}
+      stub(VCS, :get_repository_content, fn
+        _, [reference: "1.0.0", path: ".gitmodules"] ->
+          {:error, :not_found}
+
+        _, [reference: "1.0.0"] ->
+          {:ok, []}
       end)
 
       job = %Oban.Job{
@@ -398,7 +436,7 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
 
       assert package_release
       assert package_release.version == "1.0.0"
-      assert Enum.count(package_release.manifests) == 0
+      assert package_release.manifests == []
     end
 
     test "handles Package.swift with String interpolation in package URLs" do
@@ -430,6 +468,9 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
       end)
 
       stub(VCS, :get_repository_content, fn
+        _, [reference: "1.0.0", path: ".gitmodules"] ->
+          {:error, :not_found}
+
         _, [reference: "1.0.0", path: "Package.swift"] ->
           {:ok, %Content{content: package_swift_content, path: "Package.swift"}}
 
@@ -530,6 +571,9 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
       end)
 
       stub(VCS, :get_repository_content, fn
+        _, [reference: "1.0.0", path: ".gitmodules"] ->
+          {:error, :not_found}
+
         _, [reference: "1.0.0", path: "Package.swift"] ->
           {:ok, %Content{content: package_swift_content, path: "Package.swift"}}
 
@@ -626,6 +670,9 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
       end)
 
       stub(VCS, :get_repository_content, fn
+        _, [reference: "1.0.0", path: ".gitmodules"] ->
+          {:error, :not_found}
+
         _, [reference: "1.0.0", path: "Package.swift"] ->
           {:ok, %Content{content: package_swift_content, path: "Package.swift"}}
 
@@ -741,6 +788,9 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
       end)
 
       stub(VCS, :get_repository_content, fn
+        _, [reference: "1.0.0", path: ".gitmodules"] ->
+          {:error, :not_found}
+
         _, [reference: "1.0.0", path: "Package.swift"] ->
           {:ok, %Content{content: package_swift_content, path: "Package.swift"}}
 

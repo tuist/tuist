@@ -146,6 +146,13 @@ extension Target {
         !resources.resources.isEmpty || !coreDataModels.isEmpty
     }
 
+    public var containsMetalFiles: Bool {
+        sources.contains(where: { $0.path.extension == "metal" }) ||
+            buildableFolders.contains(where: { folder in
+                folder.resolvedFiles.contains(where: { $0.path.extension == "metal" })
+            })
+    }
+
     /// Returns if target is a generated resources bundle.
     public var isGeneratedResourcesBundle: Bool {
         guard product == .bundle else { return false }

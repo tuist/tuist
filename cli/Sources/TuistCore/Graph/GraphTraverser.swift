@@ -187,6 +187,20 @@ public class GraphTraverser: GraphTraversing {
         return Set(convertToGraphTargetReferences(localTargetDependencies, for: target))
     }
 
+    public func directNonExternalTargetDependencies(path: Path.AbsolutePath, name: String) -> Set<
+        GraphTargetReference
+    > {
+        directTargetDependencies(path: path, name: name)
+            .filter { reference in
+                switch reference.graphTarget.project.type {
+                case .local:
+                    return true
+                case .external:
+                    return false
+                }
+            }
+    }
+
     /// Returns all direct target dependencies where the target is in another project.
     private func directNonLocalTargetDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphTargetReference> {
         let dependencies = directTargetDependencies(path: path, name: name)
@@ -367,7 +381,7 @@ public class GraphTraverser: GraphTraversing {
                         )
                     }
         }
-        references.formUnion(
+        references.formUnionPreferringRequiredStatus(
             precompiledFrameworks.lazy.compactMap {
                 self.dependencyReference(
                     to: $0,
@@ -393,10 +407,27 @@ public class GraphTraverser: GraphTraversing {
             )
         }
 
-        references.formUnion(
+        references.formUnionPreferringRequiredStatus(
             otherTargetFrameworks.lazy.compactMap {
                 self.dependencyReference(
                     to: $0,
+                    from: .target(name: name, path: path)
+                )
+            }
+        )
+
+        let directLocalStaticFrameworksWithResources = directTargetDependencies(path: path, name: name)
+            .filter { dependency in
+                let target = dependency.graphTarget.target
+                return dependency.graphTarget.project.type == .local &&
+                    target.product == .staticFramework &&
+                    (target.containsResources || target.containsMetalFiles)
+            }
+
+        references.formUnionPreferringRequiredStatus(
+            directLocalStaticFrameworksWithResources.compactMap {
+                self.dependencyReference(
+                    to: .target(name: $0.graphTarget.target.name, path: $0.graphTarget.path),
                     from: .target(name: name, path: path)
                 )
             }
@@ -1270,6 +1301,70 @@ public class GraphTraverser: GraphTraversing {
         return platforms
     }
 
+    public func externalTargetSupportedDestinations() -> [GraphTarget: Set<Destination>] {
+        let targetsWithExternalDependencies = targetsWithExternalDependencies()
+        var destinations: [GraphTarget: Set<Destination>] = [:]
+
+        func traverse(target: GraphTarget, parentDestinations: Set<Destination>) {
+            let dependencies = directTargetDependencies(path: target.path, name: target.target.name)
+
+            for dependencyTargetReference in dependencies {
+                var destinationsToInsert: Set<Destination>?
+                let dependencyTarget = dependencyTargetReference.graphTarget
+                let inheritedDestinations: Set<Destination> =
+                    dependencyTarget.target.product == .macro
+                        ? Set<Destination>([.mac]) : parentDestinations
+                if let dependencyCondition = dependencyTargetReference.condition,
+                   let platformIntersection = PlatformCondition.when(
+                       target.target.dependencyPlatformFilters
+                   )?
+                   .intersection(dependencyCondition)
+                {
+                    switch platformIntersection {
+                    case .incompatible:
+                        break
+                    case let .condition(condition):
+                        if let condition {
+                            let allowedPlatformFilters = condition.platformFilters
+                            let dependencyDestinations = inheritedDestinations.filter { destination in
+                                allowedPlatformFilters.contains(destination.platformFilter)
+                            }
+                            destinationsToInsert = dependencyDestinations.intersection(
+                                dependencyTarget.target.destinations
+                            )
+                        }
+                    }
+                } else {
+                    destinationsToInsert = inheritedDestinations.intersection(
+                        dependencyTarget.target.destinations
+                    )
+                }
+
+                if let destinationsToInsert {
+                    var existingDestinations = destinations[dependencyTarget, default: Set()]
+                    let continueTraversing = !destinationsToInsert.isSubset(of: existingDestinations)
+                    existingDestinations.formUnion(destinationsToInsert)
+                    destinations[dependencyTarget] = existingDestinations
+
+                    if continueTraversing {
+                        traverse(
+                            target: dependencyTarget,
+                            parentDestinations: destinations[dependencyTarget, default: Set()]
+                        )
+                    }
+                }
+            }
+        }
+
+        for targetsWithExternalDependency in targetsWithExternalDependencies {
+            traverse(
+                target: targetsWithExternalDependency,
+                parentDestinations: targetsWithExternalDependency.target.destinations
+            )
+        }
+        return destinations
+    }
+
     func allDependenciesSatisfy(
         from rootDependency: GraphDependency, meets: (GraphDependency) -> Bool
     ) -> Bool {
@@ -1393,9 +1488,13 @@ public class GraphTraverser: GraphTraversing {
     }
 
     private func isEmbeddableDependencyTarget(dependency: GraphDependency) -> Bool {
-        testTarget(dependency: dependency) {
-            $0.product.isDynamic || $0.product == .staticFramework && $0.containsResources
+        guard case .target = dependency, let graphTarget = target(from: dependency) else { return false }
+        let target = graphTarget.target
+        if target.product.isDynamic { return true }
+        if target.product == .staticFramework, target.containsResources || target.containsMetalFiles {
+            return graphTarget.project.type == .local
         }
+        return false
     }
 
     private func canDependencyEmbedBinaries(dependency: GraphDependency) -> Bool {
@@ -1612,5 +1711,50 @@ extension GraphDependency {
 
     private var isPrecompiledAndLinkable: Bool {
         if case .xcframework = self { true } else { isPrecompiledDynamicAndLinkable }
+    }
+}
+
+extension Set<GraphDependencyReference> {
+    /// Merges another set of references, preferring the stronger linking status (.required over .optional)
+    /// when the same dependency appears with different statuses.
+    fileprivate mutating func formUnionPreferringRequiredStatus(_ other: some Sequence<GraphDependencyReference>) {
+        for newRef in other {
+            if let existingRef = first(where: { $0.hasSamePath(as: newRef) }) {
+                if newRef.linkingStatus == .required, existingRef.linkingStatus == .optional {
+                    remove(existingRef)
+                    insert(newRef)
+                }
+            } else {
+                insert(newRef)
+            }
+        }
+    }
+}
+
+extension GraphDependencyReference {
+    fileprivate var linkingStatus: LinkingStatus? {
+        switch self {
+        case let .framework(_, _, _, _, _, _, _, status, _):
+            return status
+        case let .xcframework(_, _, _, status, _):
+            return status
+        case let .product(_, _, status, _):
+            return status
+        case let .sdk(_, status, _, _):
+            return status
+        case .library, .bundle, .macro, .packageProduct:
+            return nil
+        }
+    }
+
+    fileprivate func hasSamePath(as other: GraphDependencyReference) -> Bool {
+        switch (self, other) {
+        case let (.xcframework(path1, _, _, _, _), .xcframework(path2, _, _, _, _)):
+            return path1 == path2
+        case let (.framework(path1, _, _, _, _, _, _, _, _), .framework(path2, _, _, _, _, _, _, _, _)):
+            return path1 == path2
+        default:
+            return false
+        }
     }
 }

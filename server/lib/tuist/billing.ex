@@ -34,48 +34,55 @@ defmodule Tuist.Billing do
     [
       %{
         id: :air,
-        name: gettext("Air"),
+        name: dgettext("dashboard_account", "Air"),
         popular: true,
-        description: gettext("Get started with no credit card required—try with no commitment."),
-        price: gettext("Free"),
-        cta: {:primary, gettext("Get started"), Tuist.Environment.get_url(:get_started)},
+        description: dgettext("dashboard_account", "Get started with no credit card required—try with no commitment."),
+        price: dgettext("dashboard_account", "Free"),
+        cta: {:primary, dgettext("dashboard_account", "Get started"), Tuist.Environment.get_url(:get_started)},
         features: [
-          {gettext("Generous free monthly tier"), gettext("Usage capped at free tier limits")},
-          {gettext("Like, totally free"), gettext("All features, no credit card required")},
-          {gettext("Community support"), gettext("Support via community forum")}
+          {dgettext("dashboard_account", "Generous free monthly tier"),
+           dgettext("dashboard_account", "Usage capped at free tier limits")},
+          {dgettext("dashboard_account", "Like, totally free"),
+           dgettext("dashboard_account", "All features, no credit card required")},
+          {dgettext("dashboard_account", "Community support"),
+           dgettext("dashboard_account", "Support via community forum")}
         ],
         badges: [
-          gettext("No credit card required")
+          dgettext("dashboard_account", "No credit card required")
         ]
       },
       %{
         id: :pro,
-        name: gettext("Pro"),
+        name: dgettext("dashboard_account", "Pro"),
         popular: false,
-        description: gettext("Usage-based pricing after free tier."),
-        price: gettext("$0"),
-        price_frequency: gettext("and up"),
-        cta: {:secondary, gettext("Get started"), Tuist.Environment.get_url(:get_started)},
+        description: dgettext("dashboard_account", "Usage-based pricing after free tier."),
+        price: dgettext("dashboard_account", "$0"),
+        price_frequency: dgettext("dashboard_account", "and up"),
+        cta: {:secondary, dgettext("dashboard_account", "Get started"), Tuist.Environment.get_url(:get_started)},
         features: [
-          {gettext("Generous base price"), gettext("Pay nothing if below free tier limits")},
-          {gettext("Usage-based pricing"), gettext("Pay only for what you use per feature")},
-          {gettext("Standard support"), gettext("Via Slack and email")}
+          {dgettext("dashboard_account", "Generous base price"),
+           dgettext("dashboard_account", "Pay nothing if below free tier limits")},
+          {dgettext("dashboard_account", "Usage-based pricing"),
+           dgettext("dashboard_account", "Pay only for what you use per feature")},
+          {dgettext("dashboard_account", "Standard support"), dgettext("dashboard_account", "Via Slack and email")}
         ],
         badges: [
-          gettext("Unlimited projects")
+          dgettext("dashboard_account", "Unlimited projects")
         ]
       },
       %{
         id: :enterprise,
-        name: gettext("Enterprise"),
+        name: dgettext("dashboard_account", "Enterprise"),
         popular: false,
-        description: gettext("Create your plan or self-host your instance."),
-        price: gettext("Custom"),
-        cta: {:secondary, gettext("Contact sales"), "mailto:contact@tuist.dev"},
+        description: dgettext("dashboard_account", "Create your plan or self-host your instance."),
+        price: dgettext("dashboard_account", "Custom"),
+        cta: {:secondary, dgettext("dashboard_account", "Contact sales"), "mailto:contact@tuist.dev"},
         features: [
-          {gettext("Custom terms"), gettext("Tailored agreements to meet your specific needs")},
-          {gettext("On-premise"), gettext("Self-host your instance of Tuist")},
-          {gettext("Priority support"), gettext("Via shared Slack channel")}
+          {dgettext("dashboard_account", "Custom terms"),
+           dgettext("dashboard_account", "Tailored agreements to meet your specific needs")},
+          {dgettext("dashboard_account", "On-premise"),
+           dgettext("dashboard_account", "Self-host your instance of Tuist")},
+          {dgettext("dashboard_account", "Priority support"), dgettext("dashboard_account", "Via shared Slack channel")}
         ],
         badges: []
       }
@@ -161,8 +168,20 @@ defmodule Tuist.Billing do
   end
 
   def on_subscription_change(subscription) do
-    account = Accounts.get_account_from_customer_id(subscription.customer)
+    case Accounts.get_account_from_customer_id(subscription.customer) do
+      {:error, :not_found} ->
+        # We had a race-condition that caused multiple customers to be created on Stripe
+        # for the same account. Because of that, we were getting webhooks for customers
+        # that we couldn't look up in our database. Until we sync the customers, we'll
+        # ignore the webhooks for those customers.
+        :ok
 
+      {:ok, account} ->
+        on_subscription_change_for_account(subscription, account)
+    end
+  end
+
+  defp on_subscription_change_for_account(subscription, account) do
     plan = get_plan(subscription)
     current_subscription = Repo.get_by(Subscription, subscription_id: subscription.id)
 
@@ -174,12 +193,8 @@ defmodule Tuist.Billing do
       end
 
     cond do
-      is_nil(account) ->
-        # We had a race-condition that caused multiple customers to be created on Stripe
-        # for the same account. Because of that, we were getting webhooks for customers
-        # that we couldn't look up in our database. Until we sync the customers, we'll
-        # ignore the webhooks for those customers.
-        :ok
+      plan == :none ->
+        raise "Unable to determine plan from subscription items. Subscription ID: #{subscription.id}, Price IDs: #{inspect(Enum.map(subscription.items.data, & &1.price.id))}"
 
       is_nil(current_subscription) ->
         %Subscription{}
@@ -193,19 +208,10 @@ defmodule Tuist.Billing do
         })
         |> Repo.insert!()
 
-      plan != :none ->
+      true ->
         current_subscription
         |> Subscription.update_changeset(%{
           plan: plan,
-          status: subscription.status,
-          default_payment_method: subscription.default_payment_method,
-          trial_end: trial_end
-        })
-        |> Repo.update!()
-
-      plan == :none ->
-        current_subscription
-        |> Subscription.update_changeset(%{
           status: subscription.status,
           default_payment_method: subscription.default_payment_method,
           trial_end: trial_end
@@ -217,21 +223,16 @@ defmodule Tuist.Billing do
   end
 
   defp get_plan(subscription) do
-    active = subscription.status in ["active", "trialing"]
     subscription_prices = Enum.map(subscription.items.data, & &1.price.id)
     available_prices = Tuist.Environment.stripe_prices()
 
-    if active do
-      plan =
-        available_prices
-        |> Enum.filter(&plan_valid?(&1, subscription_prices))
-        |> Enum.map(&elem(&1, 0))
-        |> List.first()
+    plan =
+      available_prices
+      |> Enum.filter(&plan_valid?(&1, subscription_prices))
+      |> Enum.map(&elem(&1, 0))
+      |> List.first()
 
-      if plan == nil, do: :none, else: plan
-    else
-      :none
-    end
+    if plan == nil, do: :none, else: plan
   end
 
   defp plan_valid?({plan, plan_prices}, subscription_prices) do
@@ -493,7 +494,8 @@ defmodule Tuist.Billing do
       from(tu in TokenUsage,
         join: a in assoc(tu, :account),
         where:
-          a.customer_id == ^customer_id and tu.timestamp >= ^start_of_yesterday and tu.timestamp <= ^end_of_yesterday,
+          a.customer_id == ^customer_id and tu.timestamp >= ^start_of_yesterday and
+            tu.timestamp <= ^end_of_yesterday,
         select: {sum(tu.input_tokens), sum(tu.output_tokens)}
       )
     )
@@ -507,7 +509,8 @@ defmodule Tuist.Billing do
     {input_tokens, output_tokens} = get_yesterdays_customer_llm_token_usage(customer_id)
     path = Stripe.OpenApi.Path.replace_path_params("/v1/billing/meter_events", [], [])
 
-    input_identifier = "#{customer_id}-input-#{Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")}"
+    input_identifier =
+      "#{customer_id}-input-#{Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")}"
 
     {:ok, _} =
       []
@@ -524,7 +527,8 @@ defmodule Tuist.Billing do
       |> Stripe.Request.put_method(:post)
       |> Stripe.Request.make_request()
 
-    output_identifier = "#{customer_id}-output-#{Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")}"
+    output_identifier =
+      "#{customer_id}-output-#{Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")}"
 
     {:ok, _} =
       []
@@ -547,7 +551,8 @@ defmodule Tuist.Billing do
   for instance unit minutes (event name: `namespace_unit_minute`).
   """
   def update_namespace_usage_meter(customer_id, idempotency_key) do
-    with %Account{} = account when is_binary(account.namespace_tenant_id) <-
+    with {:ok, %Account{namespace_tenant_id: namespace_tenant_id} = account}
+         when is_binary(namespace_tenant_id) <-
            Accounts.get_account_from_customer_id(customer_id) do
       # Namespace compute usage is reported by day, so being more specific than `Date` is unnecessary.
       yesterday = Date.add(Date.utc_today(), -1)

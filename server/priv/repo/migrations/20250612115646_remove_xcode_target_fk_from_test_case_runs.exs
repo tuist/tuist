@@ -1,5 +1,6 @@
 defmodule Tuist.Repo.Migrations.RemoveXcodeTargetFkFromTestCaseRuns do
   use Ecto.Migration
+  # credo:disable-for-this-file ExcellentMigrations.CredoCheck.MigrationsSafety
 
   def up do
     alter table(:test_case_runs) do

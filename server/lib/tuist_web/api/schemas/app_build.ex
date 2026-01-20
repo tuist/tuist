@@ -24,6 +24,10 @@ defmodule TuistWeb.API.Schemas.AppBuild do
       supported_platforms: %Schema{
         type: :array,
         items: PreviewSupportedPlatform
+      },
+      binary_id: %Schema{
+        type: :string,
+        description: "The Mach-O UUID of the build's main binary."
       }
     },
     required: [:id, :url, :type, :supported_platforms]

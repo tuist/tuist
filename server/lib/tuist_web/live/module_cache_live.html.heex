@@ -1,0 +1,545 @@
+<div id="module-cache">
+  <.card
+    title={dgettext("dashboard_cache", "Analytics")}
+    icon="chart_arcs"
+    data-part="analytics-card"
+  >
+    <:actions>
+      <.dropdown
+        id="module-cache-analytics-environment-dropdown"
+        label={environment_label(@analytics_environment)}
+        secondary_text={dgettext("dashboard_cache", "Environment:")}
+      >
+        <.dropdown_item
+          value="any"
+          label={dgettext("dashboard_cache", "Any")}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "any")}"}
+          data-selected={@analytics_environment == "any"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="local"
+          label={dgettext("dashboard_cache", "Local")}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "local")}"}
+          data-selected={@analytics_environment == "local"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="ci"
+          label={dgettext("dashboard_cache", "CI")}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "ci")}"}
+          data-selected={@analytics_environment == "ci"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+      </.dropdown>
+      <.date_picker
+        id="module-cache-date-range-picker"
+        name="analytics-date-range"
+        presets={[
+          %{
+            id: "last-24-hours",
+            label: dgettext("dashboard_cache", "Last 24 hours"),
+            period: {24, :hour}
+          },
+          %{
+            id: "last-7-days",
+            label: dgettext("dashboard_cache", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last-30-days",
+            label: dgettext("dashboard_cache", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{
+            id: "last-12-months",
+            label: dgettext("dashboard_cache", "Last 12 months"),
+            period: {12, :month}
+          },
+          %{id: "custom", label: dgettext("dashboard_cache", "Custom")}
+        ]}
+        selected_preset={@analytics_preset}
+        period={@analytics_period}
+        on_period_change="analytics_period_changed"
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_cache", "Cancel")}
+            variant="secondary"
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel",
+                detail: %{id: "module-cache-date-range-picker"}
+              )
+            }
+          />
+          <.button
+            label={dgettext("dashboard_cache", "Apply")}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply",
+                detail: %{id: "module-cache-date-range-picker"}
+              )
+            }
+          />
+        </:actions>
+      </.date_picker>
+    </:actions>
+    <div data-part="widgets">
+      <.percentile_dropdown_widget
+        id="widget-cache-hit-rate"
+        title={
+          case {@selected_hit_rate_type, Enum.empty?(@runs)} do
+            {"avg", false} -> dgettext("dashboard_cache", "Avg. hit rate")
+            {"p99", false} -> dgettext("dashboard_cache", "p99 hit rate")
+            {"p90", false} -> dgettext("dashboard_cache", "p90 hit rate")
+            {"p50", false} -> dgettext("dashboard_cache", "p50 hit rate")
+            _ -> dgettext("dashboard_cache", "Cache hit rate")
+          end
+        }
+        legend_color={
+          case @selected_hit_rate_type do
+            "p99" -> "p99"
+            "p90" -> "p90"
+            "p50" -> "p50"
+            _ -> "primary"
+          end
+        }
+        description={
+          dgettext(
+            "dashboard_cache",
+            "Cache hit rate represents the percentage of cacheable targets that were resolved from cache (local or remote) rather than being rebuilt."
+          )
+        }
+        value={
+          dgettext("dashboard_cache", "%{hit_rate}%",
+            hit_rate:
+              case @selected_hit_rate_type do
+                "p99" -> @hit_rate_p99.avg_hit_rate
+                "p90" -> @hit_rate_p90.avg_hit_rate
+                "p50" -> @hit_rate_p50.avg_hit_rate
+                _ -> @hit_rate_analytics.avg_hit_rate
+              end
+              |> Decimal.from_float()
+              |> Decimal.round(1)
+          )
+        }
+        metrics={
+          %{
+            avg:
+              dgettext("dashboard_cache", "%{hit_rate}%",
+                hit_rate:
+                  @hit_rate_analytics.avg_hit_rate
+                  |> Decimal.from_float()
+                  |> Decimal.round(1)
+              ),
+            p99:
+              dgettext("dashboard_cache", "%{hit_rate}%",
+                hit_rate:
+                  @hit_rate_p99.avg_hit_rate
+                  |> Decimal.from_float()
+                  |> Decimal.round(1)
+              ),
+            p90:
+              dgettext("dashboard_cache", "%{hit_rate}%",
+                hit_rate:
+                  @hit_rate_p90.avg_hit_rate
+                  |> Decimal.from_float()
+                  |> Decimal.round(1)
+              ),
+            p50:
+              dgettext("dashboard_cache", "%{hit_rate}%",
+                hit_rate:
+                  @hit_rate_p50.avg_hit_rate
+                  |> Decimal.from_float()
+                  |> Decimal.round(1)
+              )
+          }
+        }
+        selected_type={@selected_hit_rate_type}
+        event_name="select_hit_rate_type"
+        phx_click="select_widget"
+        phx_value_widget="cache_hit_rate"
+        selected={@analytics_selected_widget == "cache_hit_rate"}
+        trend_value={
+          case @selected_hit_rate_type do
+            "p99" -> @hit_rate_p99.trend
+            "p90" -> @hit_rate_p90.trend
+            "p50" -> @hit_rate_p50.trend
+            _ -> @hit_rate_analytics.trend
+          end
+        }
+        trend_label={@analytics_trend_label}
+        empty={@hit_rate_analytics.avg_hit_rate == 0}
+      />
+      <.widget
+        title={dgettext("dashboard_cache", "Hits")}
+        legend_color="secondary"
+        description={
+          dgettext(
+            "dashboard_cache",
+            "Cache hits represents the total count of targets that were resolved from cache (local or remote) during the given period."
+          )
+        }
+        value={Number.Delimit.number_to_delimited(@hits_analytics.total_count, precision: 0)}
+        id="widget-cache-hits"
+        trend_value={@hits_analytics.trend}
+        trend_type={:neutral}
+        trend_label={@analytics_trend_label}
+        phx_click="select_widget"
+        phx_value_widget="cache_hits"
+        selected={@analytics_selected_widget == "cache_hits"}
+        empty={@hits_analytics.total_count == 0}
+      />
+      <.widget
+        title={dgettext("dashboard_cache", "Misses")}
+        legend_color="destructive"
+        description={
+          dgettext(
+            "dashboard_cache",
+            "Cache misses represents the total count of cacheable targets that had to be rebuilt because they were not found in cache during the given period."
+          )
+        }
+        value={Number.Delimit.number_to_delimited(@misses_analytics.total_count, precision: 0)}
+        id="widget-cache-misses"
+        trend_value={@misses_analytics.trend}
+        trend_type={:neutral}
+        trend_label={@analytics_trend_label}
+        phx_click="select_widget"
+        phx_value_widget="cache_misses"
+        selected={@analytics_selected_widget == "cache_misses"}
+        empty={@misses_analytics.total_count == 0}
+      />
+    </div>
+    <.card_section :if={
+      @hit_rate_analytics.avg_hit_rate != 0 or @hits_analytics.total_count != 0 or
+        @misses_analytics.total_count != 0
+    }>
+      <div data-part="analytics-chart">
+        <.chart
+          :if={@analytics_selected_widget != "cache_hit_rate"}
+          id="module-cache-analytics-chart"
+          type="line"
+          extra_options={
+            %{
+              grid: %{
+                width: "93%",
+                left: "0.4%",
+                right: "7%",
+                height: "88%",
+                top: "5%"
+              },
+              xAxis: %{
+                boundaryGap: false,
+                type: "category",
+                axisLabel: %{
+                  color: "var:noora-surface-label-secondary",
+                  formatter: "fn:toLocaleDate",
+                  customValues: [
+                    @analytics_chart_data.dates |> List.first(),
+                    @analytics_chart_data.dates |> List.last()
+                  ],
+                  padding: [10, 0, 0, 0]
+                }
+              },
+              yAxis: %{
+                splitLine: %{
+                  lineStyle: %{
+                    color: "var:noora-chart-lines"
+                  }
+                },
+                axisLabel: %{
+                  color: "var:noora-surface-label-secondary",
+                  formatter: @analytics_chart_data.value_formatter
+                }
+              },
+              tooltip:
+                if @analytics_preset == "last-24-hours" do
+                  %{valueFormat: @analytics_chart_data.value_formatter, dateFormat: "hour"}
+                else
+                  %{valueFormat: @analytics_chart_data.value_formatter}
+                end,
+              legend: %{
+                show: false
+              }
+            }
+          }
+          series={[
+            %{
+              data:
+                Enum.zip(
+                  @analytics_chart_data.dates,
+                  @analytics_chart_data.values
+                )
+                |> Enum.map(&Tuple.to_list/1),
+              name: @analytics_chart_data.name,
+              type: "line",
+              smooth: 0.1,
+              symbol: "none"
+            }
+          ]}
+          y_axis_min={0}
+        />
+        <.chart
+          :if={@analytics_selected_widget == "cache_hit_rate"}
+          id="module-cache-hit-rate-chart"
+          type="line"
+          extra_options={
+            %{
+              legend: %{
+                left: "left",
+                top: "bottom",
+                orient: "horizontal",
+                textStyle: %{
+                  color: "var:noora-surface-label-secondary",
+                  fontFamily: "monospace",
+                  fontWeight: 400,
+                  fontSize: 10,
+                  lineHeight: 12
+                },
+                icon:
+                  "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+                itemWidth: 8,
+                itemHeight: 4
+              },
+              grid: %{
+                width: "97%",
+                left: "0.4%",
+                height: "60%",
+                top: "10%"
+              },
+              xAxis: %{
+                boundaryGap: false,
+                type: "category",
+                axisLabel: %{
+                  color: "var:noora-surface-label-secondary",
+                  formatter: "fn:toLocaleDate",
+                  customValues: [
+                    @hit_rate_analytics.dates |> List.first(),
+                    @hit_rate_analytics.dates |> List.last()
+                  ],
+                  padding: [10, 0, 0, 0]
+                }
+              },
+              yAxis: %{
+                splitNumber: 4,
+                splitLine: %{
+                  lineStyle: %{
+                    color: "var:noora-chart-lines"
+                  }
+                },
+                axisLabel: %{
+                  color: "var:noora-surface-label-secondary",
+                  formatter: "{value}%"
+                }
+              },
+              tooltip:
+                if @analytics_preset == "last-24-hours" do
+                  %{valueFormat: "{value}%", dateFormat: "hour"}
+                else
+                  %{valueFormat: "{value}%"}
+                end
+            }
+          }
+          series={[
+            %{
+              color: "var:noora-chart-primary",
+              data:
+                Enum.zip(
+                  @hit_rate_analytics.dates,
+                  @hit_rate_analytics.values
+                )
+                |> Enum.map(&Tuple.to_list/1),
+              name: dgettext("dashboard_cache", "Average"),
+              type: "line",
+              smooth: 0.1,
+              symbol: "none"
+            },
+            %{
+              color: "var:noora-chart-p99",
+              data:
+                Enum.zip(
+                  @hit_rate_p99.dates,
+                  @hit_rate_p99.values
+                )
+                |> Enum.map(&Tuple.to_list/1),
+              name: dgettext("dashboard_cache", "p99"),
+              type: "line",
+              smooth: 0.1,
+              symbol: "none"
+            },
+            %{
+              color: "var:noora-chart-p90",
+              data:
+                Enum.zip(
+                  @hit_rate_p90.dates,
+                  @hit_rate_p90.values
+                )
+                |> Enum.map(&Tuple.to_list/1),
+              name: dgettext("dashboard_cache", "p90"),
+              type: "line",
+              smooth: 0.1,
+              symbol: "none"
+            },
+            %{
+              color: "var:noora-chart-p50",
+              data:
+                Enum.zip(
+                  @hit_rate_p50.dates,
+                  @hit_rate_p50.values
+                )
+                |> Enum.map(&Tuple.to_list/1),
+              name: dgettext("dashboard_cache", "p50"),
+              type: "line",
+              smooth: 0.1,
+              symbol: "none"
+            }
+          ]}
+          y_axis_min={0}
+          y_axis_max={100}
+        />
+      </div>
+    </.card_section>
+    <.empty_card_section
+      :if={
+        @hit_rate_analytics.avg_hit_rate == 0 and @hits_analytics.total_count == 0 and
+          @misses_analytics.total_count == 0
+      }
+      title={dgettext("dashboard_cache", "No data yet")}
+    >
+      <:image>
+        <img src="/images/empty_line_chart_light.png" data-theme="light" />
+        <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+      </:image>
+    </.empty_card_section>
+  </.card>
+  <.card title={dgettext("dashboard_cache", "Recent Runs")} icon="schema" data-part="recent-runs">
+    <.card_section :if={not Enum.empty?(@runs)} data-part="recent-runs-section">
+      <div data-part="runs-section">
+        <div data-part="runs-chart">
+          <.legend
+            title={dgettext("dashboard_cache", "Cache hit rate")}
+            value={
+              dgettext("dashboard_cache", "%{hit_rate}%",
+                hit_rate:
+                  @avg_recent_hit_rate
+                  |> Decimal.from_float()
+                  |> Decimal.round(1)
+              )
+            }
+            style="primary"
+          />
+          <.chart
+            id="recent-runs-hit-rate-chart"
+            type="bar"
+            extra_options={
+              %{
+                grid: %{
+                  width: "98%",
+                  left: "0.4%",
+                  right: "7%",
+                  height: "88%",
+                  top: "5%"
+                },
+                tooltip: %{
+                  valueFormat: "{value}%",
+                  dateFormat: "minute"
+                },
+                xAxis: %{
+                  axisLabel: %{show: false},
+                  data: @recent_runs_chart_data |> Enum.map(& &1.date)
+                },
+                yAxis: %{
+                  splitLine: %{
+                    lineStyle: %{
+                      color: "var:noora-chart-lines"
+                    }
+                  },
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "{value}%"
+                  }
+                },
+                legend: %{
+                  show: false
+                }
+              }
+            }
+            series={[
+              %{
+                data: @recent_runs_chart_data,
+                name: "Cache Hit Rate",
+                type: "bar",
+                barMinHeight: 3
+              }
+            ]}
+            y_axis_min={0}
+            y_axis_max={100}
+            grid_lines
+            bar_width={8}
+            bar_radius={2}
+          />
+        </div>
+        <.table
+          id="runs-table"
+          rows={@runs |> Enum.take(7)}
+          row_navigate={
+            fn run ->
+              url(~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{run.id}")
+            end
+          }
+        >
+          <:col :let={run} label={dgettext("dashboard_cache", "Command")}>
+            <.text_and_description_cell label={run.name || "None"} />
+          </:col>
+          <:col :let={run} label={dgettext("dashboard_cache", "Hit Rate")}>
+            <.text_cell label={
+              dgettext("dashboard_cache", "%{hit_rate}%",
+                hit_rate:
+                  cache_hit_rate(run)
+                  |> Decimal.from_float()
+                  |> Decimal.round(1)
+              )
+            } />
+          </:col>
+          <:col :let={run} label={dgettext("dashboard_cache", "Ran by")}>
+            <.run_ran_by_badge_cell
+              run={run}
+              ran_by_name={run.user_account_name}
+            />
+          </:col>
+          <:col :let={run} label={dgettext("dashboard_cache", "Duration")}>
+            <.text_cell
+              label={
+                dgettext("dashboard_cache", "%{duration}s",
+                  duration:
+                    (run.duration / 1000)
+                    |> Decimal.from_float()
+                    |> Decimal.round(1)
+                )
+              }
+              icon="history"
+            />
+          </:col>
+          <:col :let={run} label={dgettext("dashboard_cache", "Ran at")}>
+            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(run.ran_at)} />
+          </:col>
+        </.table>
+      </div>
+    </.card_section>
+    <div :if={Enum.empty?(@runs)} data-part="empty-runs">
+      <.empty_card_section
+        title={dgettext("dashboard_cache", "No data yet")}
+        get_started_href="https://docs.tuist.dev/en/guides/develop/build/cache"
+        data-part="empty-runs-table-card-section"
+      >
+        <:image>
+          <img src="/images/empty_table_light.png" data-theme="light" />
+          <img src="/images/empty_table_dark.png" data-theme="dark" />
+        </:image>
+      </.empty_card_section>
+    </div>
+  </.card>
+</div>
