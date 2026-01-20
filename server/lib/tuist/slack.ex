@@ -435,7 +435,7 @@ defmodule Tuist.Slack do
   @doc """
   Sends a simplified flaky test alert notification to Slack using project-level settings.
   """
-  def send_simplified_flaky_test_alert(project, test_case, flaky_runs_count) do
+  def send_simplified_flaky_test_alert(project, test_case, flaky_runs_count, was_auto_quarantined \\ false) do
     project = Repo.preload(project, account: :slack_installation)
 
     %Project{
@@ -444,18 +444,24 @@ defmodule Tuist.Slack do
       account: %{name: account_name, slack_installation: %Installation{access_token: access_token}}
     } = project
 
-    blocks = build_simplified_flaky_test_alert_blocks(test_case, flaky_runs_count, account_name, project_name)
+    blocks = build_simplified_flaky_test_alert_blocks(test_case, flaky_runs_count, account_name, project_name, was_auto_quarantined)
     Client.post_message(access_token, slack_channel_id, blocks)
   end
 
-  defp build_simplified_flaky_test_alert_blocks(test_case, flaky_runs_count, account_name, project_name) do
-    [
+  defp build_simplified_flaky_test_alert_blocks(test_case, flaky_runs_count, account_name, project_name, was_auto_quarantined) do
+    base_blocks = [
       flaky_test_alert_header_block(),
       simplified_flaky_test_alert_context_block(),
       alert_divider_block(),
       simplified_flaky_test_alert_test_case_block(test_case, account_name, project_name),
       simplified_flaky_test_alert_metric_block(flaky_runs_count)
     ]
+
+    if was_auto_quarantined do
+      base_blocks ++ [auto_quarantined_info_block()]
+    else
+      base_blocks
+    end
   end
 
   defp simplified_flaky_test_alert_context_block do
@@ -501,10 +507,19 @@ defmodule Tuist.Slack do
     }
   end
 
+  defp auto_quarantined_info_block do
+    %{
+      type: "context",
+      elements: [
+        %{type: "mrkdwn", text: ":no_entry_sign: _This test has been automatically quarantined_"}
+      ]
+    }
+  end
+
   @doc """
   Sends a Slack notification when a test case is manually marked as flaky by a user.
   """
-  def send_manual_flaky_test_alert(project, test_case, user) do
+  def send_manual_flaky_test_alert(project, test_case, user, was_auto_quarantined \\ false) do
     project = Repo.preload(project, account: :slack_installation)
 
     case project do
@@ -514,7 +529,7 @@ defmodule Tuist.Slack do
         account: %{name: account_name, slack_installation: %Installation{access_token: access_token}}
       }
       when not is_nil(slack_channel_id) and not is_nil(access_token) ->
-        blocks = build_manual_flaky_test_alert_blocks(test_case, user, account_name, project_name)
+        blocks = build_manual_flaky_test_alert_blocks(test_case, user, account_name, project_name, was_auto_quarantined)
         Client.post_message(access_token, slack_channel_id, blocks)
 
       _ ->
@@ -522,14 +537,20 @@ defmodule Tuist.Slack do
     end
   end
 
-  defp build_manual_flaky_test_alert_blocks(test_case, user, account_name, project_name) do
-    [
+  defp build_manual_flaky_test_alert_blocks(test_case, user, account_name, project_name, was_auto_quarantined) do
+    base_blocks = [
       flaky_test_alert_header_block(),
       manual_flaky_test_alert_context_block(user),
       alert_divider_block(),
       simplified_flaky_test_alert_test_case_block(test_case, account_name, project_name),
       manual_flaky_test_alert_info_block()
     ]
+
+    if was_auto_quarantined do
+      base_blocks ++ [auto_quarantined_info_block()]
+    else
+      base_blocks
+    end
   end
 
   defp manual_flaky_test_alert_context_block(user) do

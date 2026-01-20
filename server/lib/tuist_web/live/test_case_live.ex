@@ -193,16 +193,16 @@ defmodule TuistWeb.TestCaseLive do
 
     test_case_detail = %{test_case_detail | is_flaky: updated_test_case.is_flaky}
 
-    test_case_detail =
+    {test_case_detail, was_auto_quarantined} =
       if project.auto_quarantine_flaky_tests do
         {:ok, quarantined_test_case} = Runs.set_test_case_quarantined(test_case_id, true)
-        %{test_case_detail | is_quarantined: quarantined_test_case.is_quarantined}
+        {%{test_case_detail | is_quarantined: quarantined_test_case.is_quarantined}, true}
       else
-        test_case_detail
+        {test_case_detail, false}
       end
 
     # Send Slack notification for manual flaky marking
-    send_manual_flaky_alert(project, updated_test_case, current_user)
+    send_manual_flaky_alert(project, updated_test_case, current_user, was_auto_quarantined)
 
     {:noreply, assign(socket, :test_case_detail, test_case_detail)}
   end
@@ -358,9 +358,9 @@ defmodule TuistWeb.TestCaseLive do
     "?#{assigns.uri.query |> Query.put("sort_by", column) |> Query.put("sort_order", new_order) |> Query.drop("page")}"
   end
 
-  defp send_manual_flaky_alert(project, test_case, user) do
+  defp send_manual_flaky_alert(project, test_case, user, was_auto_quarantined) do
     if project.flaky_test_alerts_enabled and project.flaky_test_alerts_slack_channel_id do
-      Slack.send_manual_flaky_test_alert(project, test_case, user)
+      Slack.send_manual_flaky_test_alert(project, test_case, user, was_auto_quarantined)
     end
 
     :ok

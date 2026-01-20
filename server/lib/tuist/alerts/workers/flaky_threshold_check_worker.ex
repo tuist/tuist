@@ -44,12 +44,16 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorker do
         {:ok, _updated_test_case} = Runs.set_test_case_flaky(test_case.id, true)
 
         # Auto-quarantine if enabled
-        if project.auto_quarantine_flaky_tests do
-          Runs.set_test_case_quarantined(test_case.id, true)
-        end
+        was_auto_quarantined =
+          if project.auto_quarantine_flaky_tests do
+            Runs.set_test_case_quarantined(test_case.id, true)
+            true
+          else
+            false
+          end
 
         # Enqueue alert job
-        %{test_case_id: test_case.id, project_id: project.id}
+        %{test_case_id: test_case.id, project_id: project.id, was_auto_quarantined: was_auto_quarantined}
         |> FlakyTestAlertWorker.new()
         |> Oban.insert!()
       end

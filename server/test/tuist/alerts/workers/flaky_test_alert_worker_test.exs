@@ -237,10 +237,11 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorkerTest do
       stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
       stub(Runs, :get_flaky_runs_groups_count_for_test_case, fn _id -> 3 end)
 
-      expect(Slack, :send_simplified_flaky_test_alert, fn p, tc, count ->
+      expect(Slack, :send_simplified_flaky_test_alert, fn p, tc, count, was_auto_quarantined ->
         assert p.id == project.id
         assert tc.id == test_case.id
         assert count == 3
+        assert was_auto_quarantined == false
         :ok
       end)
 
@@ -268,7 +269,7 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorkerTest do
       stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
       stub(Runs, :get_flaky_runs_groups_count_for_test_case, fn _id -> 3 end)
 
-      reject(&Slack.send_simplified_flaky_test_alert/3)
+      reject(&Slack.send_simplified_flaky_test_alert/4)
 
       # When
       result =
@@ -294,7 +295,7 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorkerTest do
       stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
       stub(Runs, :get_flaky_runs_groups_count_for_test_case, fn _id -> 3 end)
 
-      reject(&Slack.send_simplified_flaky_test_alert/3)
+      reject(&Slack.send_simplified_flaky_test_alert/4)
 
       # When
       result =
@@ -323,7 +324,7 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorkerTest do
       stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
       stub(Runs, :get_flaky_runs_groups_count_for_test_case, fn _id -> 3 end)
 
-      reject(&Slack.send_simplified_flaky_test_alert/3)
+      reject(&Slack.send_simplified_flaky_test_alert/4)
 
       # When
       result =
@@ -357,7 +358,7 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorkerTest do
       stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
       stub(Runs, :get_flaky_runs_groups_count_for_test_case, fn _id -> 5 end)
 
-      expect(Slack, :send_simplified_flaky_test_alert, fn _p, _tc, _count -> :ok end)
+      expect(Slack, :send_simplified_flaky_test_alert, fn _p, _tc, _count, _was_auto_quarantined -> :ok end)
 
       expect(Slack, :send_flaky_test_alert, fn alert ->
         assert alert.flaky_test_alert_rule_id == rule.id
