@@ -34,6 +34,7 @@ import BlurOnClick from "./js/BlurOnClick.js";
 import ScrollIntoView from "./js/ScrollIntoView.js";
 import StopPropagationOnDrag from "./js/StopPropagationOnDrag.js";
 import SelectSlackChannelPopup from "./js/SelectSlackChannelPopup.js";
+import PublicProjectCTABanner from "./js/PublicProjectCTABanner.js";
 import { getUserTimezone } from "./js/UserTimezone.js";
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
@@ -50,6 +51,7 @@ Hooks.BlurOnClick = BlurOnClick;
 Hooks.ScrollIntoView = ScrollIntoView;
 Hooks.StopPropagationOnDrag = StopPropagationOnDrag;
 Hooks.SelectSlackChannelPopup = SelectSlackChannelPopup;
+Hooks.PublicProjectCTABanner = PublicProjectCTABanner;
 
 observeThemeChanges();
 Hooks.ThemeSwitcher = ThemeSwitcher;
