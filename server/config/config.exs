@@ -69,8 +69,6 @@ config :logger, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]
 
-config :tuist_common, finch_name: Tuist.Finch
-
 config :mime, :types, %{
   "application/vnd.swift.registry.v1+json" => ["swift-registry-v1-json"],
   "application/vnd.swift.registry.v1+zip" => ["swift-registry-v1-zip"],
@@ -255,6 +253,8 @@ config :tuist, :urls,
   feature_previews: "https://docs.tuist.dev/en/guides/features/previews",
   feature_insights: "https://docs.tuist.dev/en/guides/features/insights",
   shop: "https://shop.tuist.dev"
+
+config :tuist_common, finch_name: Tuist.Finch
 
 config :ueberauth, Ueberauth,
   base_path: "/users/auth",
