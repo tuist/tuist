@@ -24,7 +24,9 @@
         'uht=$upstream_header_time '
         'urt=$upstream_response_time '
         'upstream_addr=$upstream_addr '
-        'cache=$upstream_cache_status';
+        'status=$status '
+        'request_length=$request_length '
+        'method=$request_method';
 
       access_log /var/log/nginx/access.log timed_combined;
     '';
