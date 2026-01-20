@@ -19,7 +19,6 @@ defmodule Cache.Application do
     attach_appsignal_error_filter()
 
     base_children = [
-      Cache.PromEx,
       Cache.Repo,
       {Phoenix.PubSub, name: Cache.PubSub},
       Cache.Authentication,
@@ -27,7 +26,10 @@ defmodule Cache.Application do
       Cache.MultipartUploads,
       CacheWeb.Endpoint,
       Cache.SocketLinker,
-      {Finch, name: Cache.Finch, pools: finch_pools()},
+      # Cannot alias Cache.Finch to Finch or it'll conflict with the top-level library
+      # credo:disable-for-next-line Credo.Check.Design.AliasUsage
+      {Finch, name: Cache.Finch, pools: Cache.Finch.Pools.config()},
+      Cache.PromEx,
       {Oban, Application.get_env(:cache, Oban)}
     ]
 
@@ -61,27 +63,5 @@ defmodule Cache.Application do
   def config_change(changed, _new, removed) do
     CacheWeb.Endpoint.config_change(changed, removed)
     :ok
-  end
-
-  defp finch_pools do
-    server_url = Application.get_env(:cache, :server_url)
-
-    %{
-      :default => [size: 10, start_pool_metrics?: true],
-      server_url => [
-        conn_opts: [
-          log: true,
-          protocols: [:http2, :http1],
-          transport_opts: [
-            cacertfile: CAStore.file_path(),
-            verify: :verify_peer
-          ]
-        ],
-        size: 10,
-        count: 1,
-        protocols: [:http2, :http1],
-        start_pool_metrics?: true
-      ]
-    }
   end
 end
