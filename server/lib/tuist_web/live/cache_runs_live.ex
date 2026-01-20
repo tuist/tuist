@@ -202,21 +202,29 @@ defmodule TuistWeb.CacheRunsLive do
   end
 
   defp list_cache_runs(project_id, %{"after" => after_cursor}, order_by, order_direction, filters) do
-    list_cache_runs(project_id,
-      after: after_cursor,
-      order_by: order_by,
-      order_direction: order_direction,
-      filters: filters
-    )
+    if cursor_matches_order?(after_cursor, order_by) do
+      list_cache_runs(project_id,
+        after: after_cursor,
+        order_by: order_by,
+        order_direction: order_direction,
+        filters: filters
+      )
+    else
+      list_cache_runs(project_id, %{}, order_by, order_direction, filters)
+    end
   end
 
-  defp list_cache_runs(project_id, %{"before" => before}, order_by, order_direction, filters) do
-    list_cache_runs(project_id,
-      before: before,
-      order_by: order_by,
-      order_direction: order_direction,
-      filters: filters
-    )
+  defp list_cache_runs(project_id, %{"before" => before_cursor}, order_by, order_direction, filters) do
+    if cursor_matches_order?(before_cursor, order_by) do
+      list_cache_runs(project_id,
+        before: before_cursor,
+        order_by: order_by,
+        order_direction: order_direction,
+        filters: filters
+      )
+    else
+      list_cache_runs(project_id, %{}, order_by, order_direction, filters)
+    end
   end
 
   defp list_cache_runs(project_id, _params, order_by, order_direction, filters) do
@@ -225,6 +233,13 @@ defmodule TuistWeb.CacheRunsLive do
       order_direction: order_direction,
       filters: filters
     )
+  end
+
+  defp cursor_matches_order?(cursor, order_by) do
+    case Flop.Cursor.decode(cursor) do
+      {:ok, decoded} -> Map.has_key?(decoded, order_by)
+      :error -> false
+    end
   end
 
   defp list_cache_runs(project_id, attrs) do

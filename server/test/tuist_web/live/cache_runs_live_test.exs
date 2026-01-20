@@ -50,5 +50,35 @@ defmodule TuistWeb.CacheRunsLiveTest do
       assert has_element?(lv, "span", "tuist cache App")
       assert has_element?(lv, "span", "tuist cache AppTwo")
     end
+
+    test "ignores cursor that doesn't match order fields", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        user_id: user.id,
+        name: "cache",
+        command_arguments: ["cache", "App"]
+      )
+
+      # A cursor that was encoded with hit_rate order field
+      # (decoded: {:ok, %{hit_rate: 8.5}})
+      invalid_cursor = "g3QAAAABdwhoaXRfcmF0ZUZAoTAAAAAAAA=="
+
+      # When - using the cursor with a different order field (ran_at, the default)
+      # This should NOT raise an error, but ignore the invalid cursor
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/module-cache/cache-runs?before=#{invalid_cursor}"
+        )
+
+      # Then - should still render the page with results
+      assert has_element?(lv, "span", "tuist cache App")
+    end
   end
 end
