@@ -63,7 +63,7 @@ defmodule Cache.S3Test do
         }
       end)
 
-      expect(ExAws, :request, fn _head_object, _opts -> {:ok, %{status_code: 200}} end)
+      expect(ExAws, :request, fn _head_object, _opts -> {:ok, %{headers: [{"Content-Length", "1024"}]}} end)
 
       assert S3.exists?(key) == true
     end

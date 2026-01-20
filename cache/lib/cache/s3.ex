@@ -37,15 +37,41 @@ defmodule Cache.S3 do
     end
   end
 
-  def exists?(key) when is_binary(key) do
+  @doc """
+  Checks if an object exists in S3.
+
+  Returns `{:ok, size}` if the object exists (with size in bytes),
+  or `:not_found` if it doesn't exist.
+  """
+  def head(key) when is_binary(key) do
     bucket = Application.get_env(:cache, :s3)[:bucket]
 
     case bucket
          |> ExAws.S3.head_object(key)
          |> ExAws.request(http_opts: [recv_timeout: 2_000]) do
-      {:ok, _response} -> true
-      {:error, {:http_error, 404, _}} -> false
-      {:error, _reason} -> false
+      {:ok, %{headers: headers}} ->
+        size =
+          headers
+          |> Enum.find(fn {k, _} -> String.downcase(k) == "content-length" end)
+          |> case do
+            {_, value} -> String.to_integer(value)
+            nil -> 0
+          end
+
+        {:ok, size}
+
+      {:error, {:http_error, 404, _}} ->
+        :not_found
+
+      {:error, _reason} ->
+        :not_found
+    end
+  end
+
+  def exists?(key) when is_binary(key) do
+    case head(key) do
+      {:ok, _size} -> true
+      :not_found -> false
     end
   end
 

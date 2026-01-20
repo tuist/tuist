@@ -2,6 +2,7 @@ defmodule Tuist.CommandEventsTest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
+  alias Tuist.Cache.ModuleCacheEvent
   alias Tuist.CommandEvents
   alias Tuist.Repo
   alias Tuist.Storage
@@ -836,6 +837,26 @@ defmodule Tuist.CommandEventsTest do
         ran_at: ~U[2025-01-01 18:00:00Z]
       )
 
+      module_event = %ModuleCacheEvent{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        run_id: "run-1",
+        source: "disk",
+        inserted_at: ~N[2025-01-01 20:00:00]
+      }
+
+      Tuist.IngestRepo.insert(module_event)
+
+      duplicate_module_event = %ModuleCacheEvent{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        run_id: "run-1",
+        source: "s3",
+        inserted_at: ~N[2025-01-01 20:05:00]
+      }
+
+      Tuist.IngestRepo.insert(duplicate_module_event)
+
       # One event for another customer yesterday
       CommandEventsFixtures.command_event_fixture(
         name: "generate",
@@ -844,6 +865,17 @@ defmodule Tuist.CommandEventsTest do
         remote_cache_target_hits: ["C"],
         ran_at: ~U[2025-01-01 09:00:00Z]
       )
+
+      # Module cache hit for another customer yesterday
+      other_module_event = %ModuleCacheEvent{
+        id: UUIDv7.generate(),
+        project_id: other_project.id,
+        run_id: "run-other",
+        source: "s3",
+        inserted_at: ~N[2025-01-01 11:00:00]
+      }
+
+      Tuist.IngestRepo.insert(other_module_event)
 
       # Event outside of yesterday window for our project
       CommandEventsFixtures.command_event_fixture(
@@ -854,12 +886,23 @@ defmodule Tuist.CommandEventsTest do
         ran_at: ~U[2024-12-31 23:59:59Z]
       )
 
+      # Module cache hit outside yesterday window for our project
+      old_module_event = %ModuleCacheEvent{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        run_id: "run-old",
+        source: "disk",
+        inserted_at: ~N[2024-12-31 23:59:59]
+      }
+
+      Tuist.IngestRepo.insert(old_module_event)
+
       # When
       customer_id = Repo.get!(Tuist.Accounts.Account, account_id).customer_id
       count = CommandEvents.get_yesterdays_remote_cache_hits_count_for_customer(customer_id)
 
       # Then
-      assert count == 2
+      assert count == 3
     end
   end
 

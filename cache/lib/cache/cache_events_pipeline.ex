@@ -1,6 +1,6 @@
-defmodule Cache.CASEventsPipeline do
+defmodule Cache.CacheEventsPipeline do
   @moduledoc """
-  Broadway pipeline for batching and sending CAS events to the server.
+  Broadway pipeline for batching and sending cache events to the server.
 
   Events are sent to the cache webhook endpoint.
   """
@@ -10,6 +10,8 @@ defmodule Cache.CASEventsPipeline do
 
   require Logger
 
+  @buffer :cache_events_buffer
+
   def start_link(_opts) do
     batch_size = Application.get_env(:cache, :events_batch_size, 100)
     batch_timeout = Application.get_env(:cache, :events_batch_timeout, 5_000)
@@ -17,7 +19,7 @@ defmodule Cache.CASEventsPipeline do
     Broadway.start_link(__MODULE__,
       name: __MODULE__,
       producer: [
-        module: {OffBroadwayMemory.Producer, buffer: :cas_events_buffer},
+        module: {OffBroadwayMemory.Producer, buffer: @buffer},
         concurrency: 1
       ],
       processors: [
@@ -34,10 +36,10 @@ defmodule Cache.CASEventsPipeline do
   end
 
   @doc """
-  Pushes a CAS event to the pipeline asynchronously.
+  Pushes a cache event to the pipeline asynchronously.
   """
   def async_push(event) do
-    OffBroadwayMemory.Buffer.async_push(:cas_events_buffer, event)
+    OffBroadwayMemory.Buffer.async_push(@buffer, event)
   end
 
   @impl true
@@ -65,16 +67,7 @@ defmodule Cache.CASEventsPipeline do
     server_url = Cache.Authentication.server_url()
     url = "#{server_url}/webhooks/cache"
 
-    api_events =
-      Enum.map(events, fn event ->
-        %{
-          account_handle: event.account_handle,
-          project_handle: event.project_handle,
-          action: event.action,
-          size: event.size,
-          cas_id: event.cas_id
-        }
-      end)
+    api_events = Enum.map(events, &to_api_event/1)
 
     body = Jason.encode!(%{events: api_events})
 
@@ -109,13 +102,33 @@ defmodule Cache.CASEventsPipeline do
         :ok
 
       {:ok, %{status: status, body: body}} ->
-        Logger.error("Failed to send CAS analytics (status #{status}): #{inspect(body)}")
+        Logger.error("Failed to send cache analytics (status #{status}): #{inspect(body)}")
 
         :ok
 
       {:error, reason} ->
-        Logger.error("Failed to send CAS analytics: #{inspect(reason)}")
+        Logger.error("Failed to send cache analytics: #{inspect(reason)}")
         :ok
     end
+  end
+
+  defp to_api_event(%{event_type: "module_cache_hit"} = event) do
+    %{
+      account_handle: event.account_handle,
+      project_handle: event.project_handle,
+      event_type: event.event_type,
+      run_id: event.run_id,
+      source: event.source
+    }
+  end
+
+  defp to_api_event(event) do
+    %{
+      account_handle: event.account_handle,
+      project_handle: event.project_handle,
+      action: event.action,
+      size: event.size,
+      cas_id: event.cas_id
+    }
   end
 end

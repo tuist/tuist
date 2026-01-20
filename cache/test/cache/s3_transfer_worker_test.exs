@@ -18,51 +18,9 @@ defmodule Cache.S3TransferWorkerTest do
   end
 
   describe "perform/1" do
-    test "processes pending uploads and deletes them" do
+    test "processes pending uploads and downloads and deletes them" do
       {:ok, _} = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact1")
-      {:ok, _} = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact2")
-
-      expect(Cache.S3, :upload, 2, fn _key ->
-        :ok
-      end)
-
-      capture_log(fn ->
-        assert :ok = S3TransferWorker.perform(%Oban.Job{})
-      end)
-
-      count = Repo.aggregate(S3Transfer, :count, :id)
-      assert count == 0
-    end
-
-    test "processes pending downloads and deletes them" do
-      {:ok, _} = S3Transfers.enqueue_cas_download("account", "project", "account/project/cas/ar/ti/artifact1")
-      {:ok, _} = S3Transfers.enqueue_cas_download("account", "project", "account/project/cas/ar/ti/artifact2")
-
-      {:ok, tmp_dir} = Briefly.create(directory: true)
-      tmp_file = Path.join(tmp_dir, "test_artifact")
-      File.write!(tmp_file, "test content")
-
-      expect(Cache.S3, :download, 2, fn _key ->
-        {:ok, :hit}
-      end)
-
-      expect(Cache.Disk, :artifact_path, 2, fn _key -> tmp_file end)
-
-      capture_log(fn ->
-        assert :ok = S3TransferWorker.perform(%Oban.Job{})
-      end)
-
-      count = Repo.aggregate(S3Transfer, :count, :id)
-      assert count == 0
-    end
-
-    test "processes both uploads and downloads" do
-      {:ok, _} = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact1")
-      {:ok, _} = S3Transfers.enqueue_cas_download("account", "project", "account/project/cas/ar/ti/artifact2")
-
-      {:ok, tmp_dir} = Briefly.create(directory: true)
-      tmp_file = Path.join(tmp_dir, "test_artifact")
-      File.write!(tmp_file, "test content")
+      {:ok, _} = S3Transfers.enqueue_module_download("account", "project", "account/project/module/ar/ti/artifact2")
 
       expect(Cache.S3, :upload, fn _key ->
         :ok
@@ -71,8 +29,6 @@ defmodule Cache.S3TransferWorkerTest do
       expect(Cache.S3, :download, fn _key ->
         {:ok, :hit}
       end)
-
-      expect(Cache.Disk, :artifact_path, fn _key -> tmp_file end)
 
       capture_log(fn ->
         assert :ok = S3TransferWorker.perform(%Oban.Job{})

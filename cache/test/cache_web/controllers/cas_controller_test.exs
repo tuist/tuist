@@ -277,7 +277,11 @@ defmodule CacheWeb.CASControllerTest do
         :ok
       end)
 
-      # Stub presign to return a deterministic URL
+      expect(Cache.S3, :head, fn key ->
+        assert key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
+        {:ok, 2048}
+      end)
+
       expect(Cache.S3, :presign_download_url, fn key ->
         assert key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
         {:ok, "https://example.com/prefix/#{account_handle}/#{project_handle}/cas/ab/c1/#{id}?token=abc"}
@@ -315,9 +319,14 @@ defmodule CacheWeb.CASControllerTest do
         :ok
       end)
 
+      expect(Cache.S3, :head, fn key ->
+        assert key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
+        {:ok, 2048}
+      end)
+
       expect(Cache.S3, :presign_download_url, fn key ->
         assert key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
-        {:ok, "https://example.com/prefix/#{account_handle}/#{project_handle}/cas/ab/c1/#{id}?token=abc"}
+        {:error, "S3 error"}
       end)
 
       capture_log(fn ->
@@ -326,14 +335,73 @@ defmodule CacheWeb.CASControllerTest do
           |> put_req_header("authorization", "Bearer valid-token")
           |> get("/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}")
 
-        assert conn.status == 200
-
-        assert get_resp_header(conn, "x-accel-redirect") == [
-                 "/internal/remote/https/example.com/prefix/#{account_handle}/#{project_handle}/cas/ab/c1/#{id}?token=abc"
-               ]
-
-        assert conn.resp_body == ""
+        assert conn.status == 404
       end)
+    end
+
+    test "returns 404 when artifact not in S3", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      id = "abc123"
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      expect(Disk, :cas_stat, fn ^account_handle, ^project_handle, ^id ->
+        {:error, :enoent}
+      end)
+
+      expect(CacheArtifacts, :track_artifact_access, fn key ->
+        assert key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
+        :ok
+      end)
+
+      expect(Cache.S3, :head, fn _key ->
+        :not_found
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> get("/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}")
+
+      assert conn.status == 404
+    end
+
+    test "enqueues S3 download when serving from S3", %{conn: conn} do
+      account_handle = "test-account"
+      project_handle = "test-project"
+      id = "abc123"
+
+      expect(Authentication, :ensure_project_accessible, fn _conn, ^account_handle, ^project_handle ->
+        {:ok, "Bearer valid-token"}
+      end)
+
+      expect(Disk, :cas_stat, fn ^account_handle, ^project_handle, ^id ->
+        {:error, :enoent}
+      end)
+
+      expect(CacheArtifacts, :track_artifact_access, fn key ->
+        assert key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
+        :ok
+      end)
+
+      expect(Cache.S3, :head, fn _key ->
+        {:ok, 2048}
+      end)
+
+      expect(Cache.S3, :presign_download_url, fn key ->
+        assert key == "#{account_handle}/#{project_handle}/cas/ab/c1/#{id}"
+        {:ok, "https://example.com/prefix/#{account_handle}/#{project_handle}/cas/ab/c1/#{id}?token=abc"}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> get("/api/cache/cas/#{id}?account_handle=#{account_handle}&project_handle=#{project_handle}")
+
+      assert conn.status == 200
 
       downloads = S3Transfers.pending(:download, 10)
       assert length(downloads) == 1

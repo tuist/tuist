@@ -5,6 +5,7 @@ defmodule Credo.Checks.UnusedReturnValue do
   Certain operations can fail, and their return values should be checked
   to ensure errors are properly handled.
   """
+  use Boundary
   use Credo.Check,
     base_priority: :high,
     category: :warning,

@@ -44,6 +44,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
       conn =
         conn
         |> put_req_header("authorization", "Bearer valid-token")
+        |> put_req_header("x-tuist-run-id", "run-id")
         |> get(
           "/api/cache/module/#{artifact_id}?account_handle=#{account_handle}&project_handle=#{project_handle}&hash=#{hash}&name=#{name}"
         )
@@ -76,9 +77,9 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         :ok
       end)
 
-      expect(S3, :exists?, fn key ->
+      expect(S3, :head, fn key ->
         assert key == "test-account/test-project/module/builds/ab/c1/#{hash}/#{name}"
-        true
+        {:ok, 4096}
       end)
 
       expect(S3, :presign_download_url, fn key ->
@@ -89,6 +90,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
       conn =
         conn
         |> put_req_header("authorization", "Bearer valid-token")
+        |> put_req_header("x-tuist-run-id", "run-id")
         |> get(
           "/api/cache/module/#{artifact_id}?account_handle=#{account_handle}&project_handle=#{project_handle}&hash=#{hash}&name=#{name}"
         )
@@ -127,8 +129,8 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         :ok
       end)
 
-      expect(S3, :exists?, fn _key ->
-        true
+      expect(S3, :head, fn _key ->
+        {:ok, 4096}
       end)
 
       expect(S3, :presign_download_url, fn _key ->
@@ -139,6 +141,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         conn =
           conn
           |> put_req_header("authorization", "Bearer valid-token")
+          |> put_req_header("x-tuist-run-id", "run-id")
           |> get(
             "/api/cache/module/#{artifact_id}?account_handle=#{account_handle}&project_handle=#{project_handle}&hash=#{hash}&name=#{name}"
           )
@@ -306,6 +309,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
       conn =
         conn
         |> put_req_header("authorization", "Bearer valid-token")
+        |> put_req_header("x-tuist-run-id", "run-id")
         |> post(
           "/api/cache/module/start?account_handle=#{account_handle}&project_handle=#{project_handle}&hash=#{hash}&name=#{name}&cache_category=#{category}"
         )
@@ -385,6 +389,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         conn
         |> put_req_header("authorization", "Bearer valid-token")
         |> put_req_header("content-type", "application/json")
+        |> put_req_header("x-tuist-run-id", "run-id")
         |> post(
           "/api/cache/module/complete?account_handle=test-account&project_handle=test-project&upload_id=#{upload_id}",
           Jason.encode!(%{parts: [1]})

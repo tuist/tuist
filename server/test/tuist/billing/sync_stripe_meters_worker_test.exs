@@ -4,6 +4,7 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
 
   alias Tuist.Billing.Workers.SyncCustomerStripeMetersWorker
   alias Tuist.Billing.Workers.SyncStripeMetersWorker
+  alias Tuist.Cache.ModuleCacheEvent
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -46,6 +47,16 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
       ran_at: ~U[2024-04-29 10:20:31Z],
       remote_test_target_hits: ["target1", "target2"]
     )
+
+    module_event = %ModuleCacheEvent{
+      id: UUIDv7.generate(),
+      project_id: first_account_project.id,
+      run_id: "run-123",
+      source: "disk",
+      inserted_at: ~N[2024-04-29 11:00:00]
+    }
+
+    Tuist.IngestRepo.insert(module_event)
 
     # When
     SyncStripeMetersWorker.perform(%Oban.Job{args: %{}})
@@ -118,6 +129,16 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
       ran_at: ~U[2024-04-29 09:00:00Z],
       remote_cache_target_hits: ["t1"]
     )
+
+    module_event = %ModuleCacheEvent{
+      id: UUIDv7.generate(),
+      project_id: project.id,
+      run_id: "run-456",
+      source: "s3",
+      inserted_at: ~N[2024-04-29 11:00:00]
+    }
+
+    Tuist.IngestRepo.insert(module_event)
 
     {:ok, _} =
       Tuist.Billing.create_token_usage(%{

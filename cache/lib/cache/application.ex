@@ -35,7 +35,7 @@ defmodule Cache.Application do
 
     children =
       if Cache.Config.analytics_enabled?() do
-        base_children ++ [Cache.CASEventsPipeline]
+        base_children ++ [Cache.CacheEventsPipeline]
       else
         base_children
       end

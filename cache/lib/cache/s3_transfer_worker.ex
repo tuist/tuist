@@ -12,7 +12,6 @@ defmodule Cache.S3TransferWorker do
 
   use Oban.Worker, queue: :s3_transfers
 
-  alias Cache.Disk
   alias Cache.S3
   alias Cache.S3Transfers
 
@@ -54,27 +53,6 @@ defmodule Cache.S3TransferWorker do
   end
 
   defp handle_result(_type, {:ok, {transfer, :ok}}), do: transfer.id
-
-  defp handle_result(:download, {:ok, {transfer, {:ok, :hit}}}) do
-    {:ok, %{size: size}} = transfer.key |> Disk.artifact_path() |> File.stat()
-
-    :telemetry.execute([:cache, transfer.artifact_type, :download, :s3_hit], %{size: size}, %{
-      account_handle: transfer.account_handle,
-      project_handle: transfer.project_handle
-    })
-
-    transfer.id
-  end
-
-  defp handle_result(:download, {:ok, {transfer, {:ok, :miss}}}) do
-    :telemetry.execute([:cache, transfer.artifact_type, :download, :s3_miss], %{}, %{
-      account_handle: transfer.account_handle,
-      project_handle: transfer.project_handle
-    })
-
-    transfer.id
-  end
-
   defp handle_result(_type, {:ok, {transfer, {:ok, _}}}), do: transfer.id
 
   defp handle_result(type, {:ok, {_transfer, {:error, :rate_limited}}}) do

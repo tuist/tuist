@@ -5,6 +5,7 @@ defmodule TuistWeb.Webhooks.CacheControllerTest do
   import Ecto.Query
 
   alias Tuist.Cache.CASEvent
+  alias Tuist.Cache.ModuleCacheEvent
   alias Tuist.ClickHouseRepo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -56,6 +57,13 @@ defmodule TuistWeb.Webhooks.CacheControllerTest do
             "action" => "upload",
             "size" => 512,
             "cas_id" => "ghi789"
+          },
+          %{
+            "account_handle" => project.account.name,
+            "project_handle" => project.name,
+            "event_type" => "module_cache_hit",
+            "run_id" => "run-123",
+            "source" => "disk"
           }
         ]
       }
@@ -94,6 +102,13 @@ defmodule TuistWeb.Webhooks.CacheControllerTest do
       assert event3.size == 2048
       assert event3.cas_id == "def456"
       assert event3.project_id == project.id
+
+      module_events =
+        ClickHouseRepo.all(from e in ModuleCacheEvent, where: e.project_id == ^project.id)
+
+      assert [%ModuleCacheEvent{} = module_event] = module_events
+      assert module_event.run_id == "run-123"
+      assert module_event.source == "disk"
     end
 
     test "rejects requests with invalid signature", %{conn: conn, project: project} do
@@ -106,6 +121,13 @@ defmodule TuistWeb.Webhooks.CacheControllerTest do
             "action" => "upload",
             "size" => 1024,
             "cas_id" => "abc123"
+          },
+          %{
+            "account_handle" => project.account.name,
+            "project_handle" => project.name,
+            "event_type" => "module_cache_hit",
+            "run_id" => "run-456",
+            "source" => "s3"
           }
         ]
       }
@@ -127,6 +149,11 @@ defmodule TuistWeb.Webhooks.CacheControllerTest do
       # Verify no events were created
       events = ClickHouseRepo.all(from e in CASEvent, where: e.project_id == ^project.id)
       assert events == []
+
+      module_events =
+        ClickHouseRepo.all(from e in ModuleCacheEvent, where: e.project_id == ^project.id)
+
+      assert module_events == []
     end
   end
 end

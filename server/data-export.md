@@ -42,6 +42,7 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - Build issues and compilation data
 - QA testing logs and results
 - Build runs with cache hit/miss statistics (cacheable_task_remote_hits_count, cacheable_task_local_hits_count, cacheable_tasks_count)
+- Module cache events (per-project run_id, source of hit, timestamps)
 
 ### Non-Exportable Data
 - Swift package registry data (shared community resources)
