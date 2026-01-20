@@ -254,6 +254,8 @@ config :tuist, :urls,
   feature_insights: "https://docs.tuist.dev/en/guides/features/insights",
   shop: "https://shop.tuist.dev"
 
+config :tuist_common, finch_name: Tuist.Finch
+
 config :ueberauth, Ueberauth,
   base_path: "/users/auth",
   providers: [

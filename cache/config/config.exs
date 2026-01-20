@@ -56,10 +56,14 @@ config :cache,
   events_batch_size: 100,
   events_batch_timeout: 5_000
 
+config :ex_aws, http_client: TuistCommon.AWS.Client
+
 config :logger, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]
 
 config :phoenix, :json_library, Jason
+
+config :tuist_common, finch_name: Cache.Finch
 
 import_config "#{config_env()}.exs"

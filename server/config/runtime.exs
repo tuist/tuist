@@ -269,7 +269,9 @@ if Tuist.Environment.env() not in [:test] do
   config :ex_aws, :s3, s3_config
 
   config :ex_aws,
-    http_client: Tuist.AWS.Client
+    http_client: TuistCommon.AWS.Client
+
+  config :tuist_common, finch_name: Tuist.Finch
 
   case Tuist.Environment.s3_authentication_method(secrets) do
     :env_access_key_id_and_secret_access_key ->
