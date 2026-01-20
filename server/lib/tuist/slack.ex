@@ -483,7 +483,10 @@ defmodule Tuist.Slack do
     %{
       type: "context",
       elements: [
-        %{type: "mrkdwn", text: "Manually marked as flaky by *#{user.email}* at <!date^#{ts}^{date_short} {time}|#{fallback}>"}
+        %{
+          type: "mrkdwn",
+          text: "Manually marked as flaky by *#{user.email}* at <!date^#{ts}^{date_short} {time}|#{fallback}>"
+        }
       ]
     }
   end

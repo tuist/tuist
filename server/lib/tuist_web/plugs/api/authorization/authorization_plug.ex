@@ -16,6 +16,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
   def init(:qa_run), do: :qa_run
   def init(:qa_step), do: :qa_step
   def init(:qa_screenshot), do: :qa_screenshot
+  def init(:test), do: :test
 
   def init(opts) when is_list(opts) do
     opts
@@ -46,6 +47,9 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
 
       :qa_screenshot ->
         authorize_project(conn, :qa_screenshot)
+
+      :test ->
+        authorize_project(conn, :test)
     end
   end
 

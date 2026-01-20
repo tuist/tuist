@@ -314,7 +314,8 @@ defmodule Tuist.SlackTest do
       installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
 
       {:ok, project} =
-        ProjectsFixtures.project_fixture(account_id: user.account.id)
+        [account_id: user.account.id]
+        |> ProjectsFixtures.project_fixture()
         |> Projects.update_project(%{
           flaky_test_alerts_slack_channel_id: "C12345",
           flaky_test_alerts_slack_channel_name: "flaky-alerts"
@@ -360,7 +361,8 @@ defmodule Tuist.SlackTest do
       _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
 
       {:ok, project} =
-        ProjectsFixtures.project_fixture(account_id: user.account.id)
+        [account_id: user.account.id]
+        |> ProjectsFixtures.project_fixture()
         |> Projects.update_project(%{
           flaky_test_alerts_slack_channel_id: "C12345",
           flaky_test_alerts_slack_channel_name: "flaky-alerts"
@@ -393,7 +395,8 @@ defmodule Tuist.SlackTest do
       _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
 
       {:ok, project} =
-        ProjectsFixtures.project_fixture(account_id: user.account.id)
+        [account_id: user.account.id]
+        |> ProjectsFixtures.project_fixture()
         |> Projects.update_project(%{
           flaky_test_alerts_slack_channel_id: "C12345",
           flaky_test_alerts_slack_channel_name: "flaky-alerts"
@@ -425,7 +428,8 @@ defmodule Tuist.SlackTest do
       _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
 
       {:ok, project} =
-        ProjectsFixtures.project_fixture(account_id: user.account.id)
+        [account_id: user.account.id]
+        |> ProjectsFixtures.project_fixture()
         |> Projects.update_project(%{
           flaky_test_alerts_slack_channel_id: "C12345",
           flaky_test_alerts_slack_channel_name: "flaky-alerts"

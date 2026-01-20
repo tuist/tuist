@@ -34,9 +34,7 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorker do
 
   defp check_and_mark_flaky(project, test_case) do
     # Skip if auto-mark is disabled
-    if not project.auto_mark_flaky_tests do
-      :ok
-    else
+    if project.auto_mark_flaky_tests do
       flaky_runs_count = Runs.get_flaky_runs_groups_count_for_test_case(test_case.id)
 
       if flaky_runs_count >= project.auto_mark_flaky_threshold do
@@ -58,6 +56,8 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorker do
         |> Oban.insert!()
       end
 
+      :ok
+    else
       :ok
     end
   end

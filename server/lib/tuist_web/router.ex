@@ -355,6 +355,12 @@ defmodule TuistWeb.Router do
               :complete_artifacts_uploads_project
         end
 
+        scope "/tests" do
+          scope "/test-cases" do
+            get "/", TestCasesController, :index
+          end
+        end
+
         scope "/previews" do
           post "/start", PreviewsController, :multipart_start
           post "/generate-url", PreviewsController, :multipart_generate_url
