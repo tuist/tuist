@@ -500,4 +500,58 @@ defmodule Tuist.Slack do
       }
     }
   end
+
+  @doc """
+  Sends a Slack notification when a test case is manually marked as flaky by a user.
+  """
+  def send_manual_flaky_test_alert(project, test_case, user) do
+    project = Repo.preload(project, account: :slack_installation)
+
+    case project do
+      %Project{
+        flaky_test_alerts_slack_channel_id: slack_channel_id,
+        name: project_name,
+        account: %{name: account_name, slack_installation: %Installation{access_token: access_token}}
+      }
+      when not is_nil(slack_channel_id) and not is_nil(access_token) ->
+        blocks = build_manual_flaky_test_alert_blocks(test_case, user, account_name, project_name)
+        Client.post_message(access_token, slack_channel_id, blocks)
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp build_manual_flaky_test_alert_blocks(test_case, user, account_name, project_name) do
+    [
+      flaky_test_alert_header_block(),
+      manual_flaky_test_alert_context_block(user),
+      alert_divider_block(),
+      simplified_flaky_test_alert_test_case_block(test_case, account_name, project_name),
+      manual_flaky_test_alert_info_block()
+    ]
+  end
+
+  defp manual_flaky_test_alert_context_block(user) do
+    now = DateTime.utc_now()
+    ts = DateTime.to_unix(now)
+    fallback = Calendar.strftime(now, "%b %d, %H:%M")
+
+    %{
+      type: "context",
+      elements: [
+        %{type: "mrkdwn", text: "Manually marked as flaky by *#{user.email}* at <!date^#{ts}^{date_short} {time}|#{fallback}>"}
+      ]
+    }
+  end
+
+  defp manual_flaky_test_alert_info_block do
+    %{
+      type: "section",
+      text: %{
+        type: "mrkdwn",
+        text: "_This test was manually marked as flaky by a team member_"
+      }
+    }
+  end
 end

@@ -19,7 +19,7 @@ defmodule Tuist.Runs do
 
   import Ecto.Query
 
-  alias Tuist.Alerts.Workers.FlakyTestAlertWorker
+  alias Tuist.Alerts.Workers.FlakyThresholdCheckWorker
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
@@ -559,7 +559,8 @@ defmodule Tuist.Runs do
 
     existing_data = get_project_test_cases(project_id, test_case_ids)
 
-    {test_cases, newly_flaky_test_case_ids} =
+    # Track test cases that had a flaky run but aren't already marked as flaky
+    {test_cases, test_cases_with_flaky_run} =
       Enum.map_reduce(test_case_ids_with_data, [], fn {id, data}, acc ->
         existing = Map.get(existing_data, id, %{recent_durations: []})
         new_durations = Enum.take([data.duration | existing.recent_durations], 50)
@@ -569,10 +570,11 @@ defmodule Tuist.Runs do
             do: 0,
             else: div(Enum.sum(new_durations), length(new_durations))
 
-        current_is_flaky = Map.get(data, :is_flaky, false)
+        current_run_is_flaky = Map.get(data, :is_flaky, false)
         existing_is_flaky = Map.get(existing, :is_flaky, false)
-        newly_flaky = current_is_flaky and not existing_is_flaky
 
+        # Don't mark as flaky yet - we'll check threshold after test case runs are created
+        # Preserve existing flaky status
         test_case = %{
           id: id,
           name: data.name,
@@ -582,46 +584,35 @@ defmodule Tuist.Runs do
           last_status: data.status,
           last_duration: data.duration,
           last_ran_at: data.ran_at,
-          is_flaky: current_is_flaky or existing_is_flaky,
+          is_flaky: existing_is_flaky,
           inserted_at: now,
           recent_durations: new_durations,
           avg_duration: new_avg
         }
 
-        acc = if newly_flaky, do: [id | acc], else: acc
+        # Track test cases that had a flaky run and aren't already marked as flaky
+        acc = if current_run_is_flaky and not existing_is_flaky, do: [id | acc], else: acc
         {test_case, acc}
       end)
 
     IngestRepo.insert_all(TestCase, test_cases)
 
-    enqueue_flaky_test_alert_jobs(project_id, newly_flaky_test_case_ids)
+    # Schedule a job to check thresholds after test case runs are created
+    schedule_flaky_threshold_check(project_id, test_cases_with_flaky_run)
 
     Map.new(test_cases, fn tc ->
       {{tc.name, tc.module_name, tc.suite_name}, tc.id}
     end)
   end
 
-  defp enqueue_flaky_test_alert_jobs(_project_id, []), do: :ok
+  defp schedule_flaky_threshold_check(_project_id, []), do: :ok
 
-  defp enqueue_flaky_test_alert_jobs(project_id, test_case_ids) do
-    project = Tuist.Projects.get_project_by_id(project_id)
-
-    if project && project.auto_quarantine_flaky_tests do
-      auto_quarantine_test_cases(test_case_ids)
-    end
-
+  defp schedule_flaky_threshold_check(project_id, test_case_ids) do
+    # Schedule to run after a short delay to ensure test case runs are inserted
     for test_case_id <- test_case_ids do
       %{test_case_id: test_case_id, project_id: project_id}
-      |> FlakyTestAlertWorker.new()
+      |> FlakyThresholdCheckWorker.new(schedule_in: 5)
       |> Oban.insert!()
-    end
-
-    :ok
-  end
-
-  defp auto_quarantine_test_cases(test_case_ids) do
-    for test_case_id <- test_case_ids do
-      set_test_case_quarantined(test_case_id, true)
     end
 
     :ok
