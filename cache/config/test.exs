@@ -22,13 +22,13 @@ config :cache, Oban,
   plugins: false,
   testing: :manual
 
+config :cache, :req_options, plug: {Req.Test, Cache.Authentication}
+config :cache, :s3, bucket: "test-bucket"
+
 config :cache,
   server_url: "http://localhost:8080",
   storage_dir: "/tmp/test_cas",
   api_key: "test-secret-key"
-
-config :cache, :req_options, plug: {Req.Test, Cache.Authentication}
-config :cache, :s3, bucket: "test-bucket"
 
 config :logger, level: :warning
 

@@ -44,17 +44,17 @@ config :cache, Oban,
      ]}
   ]
 
+config :cache, ecto_repos: [Cache.Repo]
+
+config :cache,
+  namespace: Cache
+
 config :cache,
   storage_dir: "tmp/cas",
   disk_usage_high_watermark_percent: 85.0,
   disk_usage_target_percent: 70.0,
   events_batch_size: 100,
   events_batch_timeout: 5_000
-
-config :cache, ecto_repos: [Cache.Repo]
-
-config :cache,
-  namespace: Cache
 
 config :logger, :console,
   format: "$time $metadata[$level] $message\n",
