@@ -72,13 +72,22 @@ defmodule TuistWeb.ProjectAutomationsLive do
     {:noreply, assign(socket, selected_project: updated_project)}
   end
 
-  def handle_event("toggle_flaky_alerts", _params, %{assigns: %{selected_project: selected_project}} = socket) do
-    new_value = not selected_project.flaky_test_alerts_enabled
+  def handle_event(
+        "toggle_flaky_alerts",
+        _params,
+        %{assigns: %{selected_project: selected_project, slack_installation: slack_installation}} = socket
+      ) do
+    # Don't allow toggling if no slack installation or no channel configured
+    if is_nil(slack_installation) || is_nil(selected_project.flaky_test_alerts_slack_channel_id) do
+      {:noreply, socket}
+    else
+      new_value = not selected_project.flaky_test_alerts_enabled
 
-    {:ok, updated_project} =
-      Projects.update_project(selected_project, %{flaky_test_alerts_enabled: new_value})
+      {:ok, updated_project} =
+        Projects.update_project(selected_project, %{flaky_test_alerts_enabled: new_value})
 
-    {:noreply, assign(socket, selected_project: updated_project)}
+      {:noreply, assign(socket, selected_project: updated_project)}
+    end
   end
 
   def handle_event(
