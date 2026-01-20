@@ -2,7 +2,7 @@ defmodule Tuist.Runs do
   @moduledoc """
     Module for interacting with runs.
 
-    ## ClickHouse and the FINAL hint
+    ## ClickHouse and deduplication
 
     This module uses ClickHouse with ReplacingMergeTree tables to store test data.
     ClickHouse doesn't support in-place updates - to "update" a row (e.g., setting `is_flaky`),
@@ -10,9 +10,11 @@ defmodule Tuist.Runs do
     the same primary key by keeping the most recent one (based on `inserted_at`).
 
     However, until ClickHouse runs its background merge process, duplicate rows may exist.
-    The `hints: ["FINAL"]` query hint forces ClickHouse to deduplicate on read, ensuring
-    we always get the latest version of each row. This is essential for correctness but
-    has a performance cost, so it should only be used where up-to-date data is required.
+    To ensure we always get the latest version of each row, we use one of these strategies:
+
+    - For single-row queries: `ORDER BY inserted_at DESC LIMIT 1`
+    - For multi-row queries: a subquery with `GROUP BY id` and `max(inserted_at)` to identify
+      the latest version of each row, then join back to get the full row data
   """
 
   import Ecto.Query
@@ -48,8 +50,8 @@ defmodule Tuist.Runs do
 
     query =
       from(t in Test,
-        hints: ["FINAL"],
         where: t.id == ^id,
+        order_by: [desc: t.inserted_at],
         limit: 1
       )
 
@@ -62,9 +64,8 @@ defmodule Tuist.Runs do
   def get_latest_test_by_build_run_id(build_run_id) do
     query =
       from(t in Test,
-        hints: ["FINAL"],
         where: t.build_run_id == ^build_run_id,
-        order_by: [desc: t.ran_at],
+        order_by: [desc: t.ran_at, desc: t.inserted_at],
         limit: 1
       )
 
@@ -615,11 +616,18 @@ defmodule Tuist.Runs do
   defp get_project_test_cases(_project_id, []), do: %{}
 
   defp get_project_test_cases(project_id, test_case_ids) do
-    query =
+    latest_subquery =
       from(tc in TestCase,
-        hints: ["FINAL"],
         where: tc.project_id == ^project_id,
         where: tc.id in ^test_case_ids,
+        group_by: tc.id,
+        select: %{id: tc.id, max_inserted_at: max(tc.inserted_at)}
+      )
+
+    query =
+      from(tc in TestCase,
+        join: latest in subquery(latest_subquery),
+        on: tc.id == latest.id and tc.inserted_at == latest.max_inserted_at,
         select: %{id: tc.id, recent_durations: tc.recent_durations, is_flaky: tc.is_flaky}
       )
 
@@ -647,8 +655,8 @@ defmodule Tuist.Runs do
   def get_test_case_by_id(id) do
     query =
       from(tc in TestCase,
-        hints: ["FINAL"],
         where: tc.id == ^id,
+        order_by: [desc: tc.inserted_at],
         limit: 1
       )
 
@@ -998,11 +1006,18 @@ defmodule Tuist.Runs do
   def list_test_cases(project_id, attrs) do
     two_weeks_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -14, :day)
 
+    latest_subquery =
+      from(tc in TestCase,
+        where: tc.project_id == ^project_id,
+        where: tc.last_ran_at >= ^two_weeks_ago,
+        group_by: tc.id,
+        select: %{id: tc.id, max_inserted_at: max(tc.inserted_at)}
+      )
+
     base_query =
       from(tc in TestCase,
-        hints: ["FINAL"],
-        where: tc.project_id == ^project_id,
-        where: tc.last_ran_at >= ^two_weeks_ago
+        join: latest in subquery(latest_subquery),
+        on: tc.id == latest.id and tc.inserted_at == latest.max_inserted_at
       )
 
     Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCase)
@@ -1066,12 +1081,20 @@ defmodule Tuist.Runs do
         }
       )
 
+    latest_tc_subquery =
+      from(tc in TestCase,
+        where: tc.project_id == ^project_id,
+        group_by: tc.id,
+        select: %{id: tc.id, max_inserted_at: max(tc.inserted_at)}
+      )
+
     base_query =
       from(tc in TestCase,
-        hints: ["FINAL"],
+        join: latest in subquery(latest_tc_subquery),
+        on: tc.id == latest.id and tc.inserted_at == latest.max_inserted_at,
         left_join: stats in subquery(stats_subquery),
         on: tc.id == stats.test_case_id,
-        where: tc.project_id == ^project_id and tc.is_flaky == true,
+        where: tc.is_flaky == true,
         select: %{
           id: tc.id,
           name: tc.name,
@@ -1087,33 +1110,41 @@ defmodule Tuist.Runs do
   end
 
   defp build_flaky_test_cases_count_query(project_id, search_term) do
-    apply_name_search(
+    latest_tc_subquery =
       from(tc in TestCase,
-        hints: ["FINAL"],
-        where: tc.project_id == ^project_id and tc.is_flaky == true,
+        where: tc.project_id == ^project_id,
+        group_by: tc.id,
+        select: %{id: tc.id, max_inserted_at: max(tc.inserted_at)}
+      )
+
+    base_query =
+      from(tc in TestCase,
+        join: latest in subquery(latest_tc_subquery),
+        on: tc.id == latest.id and tc.inserted_at == latest.max_inserted_at,
+        where: tc.is_flaky == true,
         select: count(tc.id)
-      ),
-      search_term
-    )
+      )
+
+    apply_name_search(base_query, search_term)
   end
 
   defp apply_name_search(query, nil), do: query
   defp apply_name_search(query, term), do: from(q in query, where: ilike(q.name, ^"%#{term}%"))
 
   defp apply_flaky_order(query, :flaky_runs_count, :asc),
-    do: from([tc, stats] in query, order_by: [asc: coalesce(stats.flaky_runs_count, 0)])
+    do: from([tc, _latest, stats] in query, order_by: [asc: coalesce(stats.flaky_runs_count, 0)])
 
   defp apply_flaky_order(query, :last_flaky_at, :desc),
-    do: from([tc, stats] in query, order_by: [desc: stats.last_flaky_at])
+    do: from([tc, _latest, stats] in query, order_by: [desc: stats.last_flaky_at])
 
   defp apply_flaky_order(query, :last_flaky_at, :asc),
-    do: from([tc, stats] in query, order_by: [asc: stats.last_flaky_at])
+    do: from([tc, _latest, stats] in query, order_by: [asc: stats.last_flaky_at])
 
-  defp apply_flaky_order(query, :name, :desc), do: from([tc, stats] in query, order_by: [desc: tc.name])
-  defp apply_flaky_order(query, :name, :asc), do: from([tc, stats] in query, order_by: [asc: tc.name])
+  defp apply_flaky_order(query, :name, :desc), do: from([tc, _latest, _stats] in query, order_by: [desc: tc.name])
+  defp apply_flaky_order(query, :name, :asc), do: from([tc, _latest, _stats] in query, order_by: [asc: tc.name])
 
   defp apply_flaky_order(query, _, _),
-    do: from([tc, stats] in query, order_by: [desc: coalesce(stats.flaky_runs_count, 0)])
+    do: from([tc, _latest, stats] in query, order_by: [desc: coalesce(stats.flaky_runs_count, 0)])
 
   defp row_to_flaky_test_case(row) do
     %FlakyTestCase{
@@ -1388,9 +1419,16 @@ defmodule Tuist.Runs do
         select: tcr.test_case_id
       )
 
+    latest_tc_subquery =
+      from(tc in TestCase,
+        group_by: tc.id,
+        select: %{id: tc.id, max_inserted_at: max(tc.inserted_at)}
+      )
+
     query =
       from(tc in TestCase,
-        hints: ["FINAL"],
+        join: latest in subquery(latest_tc_subquery),
+        on: tc.id == latest.id and tc.inserted_at == latest.max_inserted_at,
         where: tc.is_flaky == true,
         where: tc.id not in subquery(recent_flaky_subquery)
       )
