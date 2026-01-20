@@ -1,7 +1,6 @@
 import Foundation
 import HTTPTypes
 import OpenAPIRuntime
-import TuistCore
 import TuistHTTP
 import TuistServer
 
@@ -32,10 +31,6 @@ struct CacheClientAuthenticationMiddleware: ClientMiddleware {
                 name: .authorization, value: "Bearer \(token.value)"
             )
         )
-
-        if let runIdFieldName = HTTPField.Name("x-tuist-run-id") {
-            request.headerFields.append(.init(name: runIdFieldName, value: RunMetadataStorage.current.runId))
-        }
 
         return try await next(request, body, baseURL)
     }
