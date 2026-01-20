@@ -103,14 +103,47 @@
     loki.source.file "nginx_error" {
       targets    = [
         {
-          __path__ = "/var/log/nginx/error.log",
-          labels   = {
-            job     = "nginx",
-            stream   = "error",
-            instance = "${config.networking.hostName}",
-          },
+          __path__  = "/var/log/nginx/error.log",
+          job       = "nginx",
+          stream    = "error",
+          instance  = "${config.networking.hostName}",
         },
       ]
+      forward_to = [loki.write.grafana_cloud.receiver]
+    }
+
+    loki.source.file "nginx_access" {
+      targets    = [
+        {
+          __path__  = "/var/log/nginx/access.log",
+          job       = "nginx",
+          stream    = "access",
+          instance  = "${config.networking.hostName}",
+        },
+      ]
+      forward_to = [loki.process.nginx_access.receiver]
+    }
+
+    loki.process "nginx_access" {
+      // Extract status code from log line
+      stage.regex {
+        expression = "\" (?P<status>\\d{3}) "
+      }
+
+      // Sample 2xx responses - keep 10%
+      stage.match {
+        selector = "{status=~\"2..\"}"
+
+        stage.sampling {
+          rate = 0.1
+        }
+      }
+
+      // Drop status label to avoid high cardinality
+      stage.label_drop {
+        values = ["status"]
+      }
+
       forward_to = [loki.write.grafana_cloud.receiver]
     }
 
