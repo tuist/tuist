@@ -129,8 +129,8 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         :ok
       end)
 
-      expect(S3, :exists?, fn _key ->
-        true
+      expect(S3, :head, fn _key ->
+        {:ok, 4096}
       end)
 
       expect(S3, :presign_download_url, fn _key ->
