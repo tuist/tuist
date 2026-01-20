@@ -22,7 +22,7 @@ builder:
 
 env:
   clear:
-    DATA_DIR: /data
+    STORAGE_DIR: /storage
     PHX_SOCKET_PATH: /run/cache/cache.sock
     PHX_SOCKET_LINK: /run/cache/current.sock
 
@@ -41,7 +41,7 @@ env:
     - OBAN_WEB_PASSWORD
 
 volumes:
-  - /cas:/data:rw
+  - /cas:/storage:rw
   - /var/lib/cache:/data:rw
   - /run/cache:/run/cache:rw
   - /etc/hostname:/etc/host_hostname:ro

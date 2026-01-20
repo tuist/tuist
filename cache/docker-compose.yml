@@ -5,14 +5,14 @@ services:
     command: ["/app/bin/cache", "start"]
     volumes:
       - cache_socket:/run/cache:rw
-      - data:/cas:rw
+      - storage:/storage:rw
       - sqlite_data:/data:rw
     environment:
       PUBLIC_HOST: ${PUBLIC_HOST}
       PHX_SERVER: "true"
       SECRET_KEY_BASE: ${SECRET_KEY_BASE}
       SERVER_URL: ${SERVER_URL}
-      DATA_DIR: /data
+      STORAGE_DIR: /storage
       PHX_SOCKET_PATH: /run/cache/cache.sock
       PHX_SOCKET_LINK: /run/cache/current.sock
       S3_BUCKET: ${S3_BUCKET}
@@ -32,7 +32,7 @@ services:
     volumes:
       - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
       - cache_socket:/run/cache:ro
-      - data:/cas:ro
+      - storage:/storage:ro
     depends_on:
       - cache
     networks:
@@ -40,7 +40,7 @@ services:
     restart: unless-stopped
 
 volumes:
-  data:
+  storage:
   sqlite_data:
   cache_socket:
 
