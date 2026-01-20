@@ -36,7 +36,7 @@ This service provides:
    - `PUBLIC_HOST` - Hostname for the service (release entrypoint sets `$(cat /etc/host_hostname).tuist.dev`)
    - `PORT` - Port to run on (default: 4000)
    - `SERVER_URL` - URL of the main Tuist server for authentication
-   - `CAS_STORAGE_DIR` - Directory for CAS artifact storage (default: `/cas`)
+   - `DATA_DIR` - Directory for CAS artifact storage (default: `/data`)
    - `CAS_DISK_HIGH_WATERMARK_PERCENT` - Optional high watermark (%) that triggers disk eviction (default: `85`)
    - `CAS_DISK_TARGET_PERCENT` - Optional target usage (%) the eviction job aims for after cleanup (default: `70`)
 

@@ -73,7 +73,7 @@ S3_SECRET_ACCESS_KEY=your-secret-key
 S3_REGION=us-east-1
 
 # CAS storage (required for non-compose deployments)
-CAS_STORAGE_DIR=/cas
+DATA_DIR=/data
 ```
 
 | Variable | Required | Default | Description |
@@ -81,7 +81,7 @@ CAS_STORAGE_DIR=/cas
 | `SECRET_KEY_BASE` | Yes | | Secret key used to sign and encrypt data (minimum 64 characters). |
 | `PUBLIC_HOST` | Yes | | Public hostname or IP address of your cache service. Used to generate absolute URLs. |
 | `SERVER_URL` | Yes | | URL of your Tuist server for authentication. Defaults to `https://tuist.dev` |
-| `CAS_STORAGE_DIR` | Yes | | Directory where CAS artifacts are stored on disk. The provided Docker Compose setup uses `/cas`. |
+| `DATA_DIR` | Yes | | Directory where CAS artifacts are stored on disk. The provided Docker Compose setup uses `/data`. |
 | `S3_BUCKET` | Yes | | S3 bucket name. |
 | `S3_HOST` | Yes | | S3 endpoint hostname. |
 | `S3_ACCESS_KEY_ID` | Yes | | S3 access key. |
