@@ -617,18 +617,22 @@ defmodule Tuist.Runs do
 
   defp get_project_test_cases(project_id, test_case_ids) do
     latest_subquery =
-      from(tc in TestCase,
-        where: tc.project_id == ^project_id,
-        where: tc.id in ^test_case_ids,
-        group_by: tc.id,
-        select: %{id: tc.id, max_inserted_at: max(tc.inserted_at)}
+      from(test_case in TestCase,
+        where: test_case.project_id == ^project_id,
+        where: test_case.id in ^test_case_ids,
+        group_by: test_case.id,
+        select: %{id: test_case.id, max_inserted_at: max(test_case.inserted_at)}
       )
 
     query =
-      from(tc in TestCase,
+      from(test_case in TestCase,
         join: latest in subquery(latest_subquery),
-        on: tc.id == latest.id and tc.inserted_at == latest.max_inserted_at,
-        select: %{id: tc.id, recent_durations: tc.recent_durations, is_flaky: tc.is_flaky}
+        on: test_case.id == latest.id and test_case.inserted_at == latest.max_inserted_at,
+        select: %{
+          id: test_case.id,
+          recent_durations: test_case.recent_durations,
+          is_flaky: test_case.is_flaky
+        }
       )
 
     query
@@ -1007,17 +1011,17 @@ defmodule Tuist.Runs do
     two_weeks_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -14, :day)
 
     latest_subquery =
-      from(tc in TestCase,
-        where: tc.project_id == ^project_id,
-        where: tc.last_ran_at >= ^two_weeks_ago,
-        group_by: tc.id,
-        select: %{id: tc.id, max_inserted_at: max(tc.inserted_at)}
+      from(test_case in TestCase,
+        where: test_case.project_id == ^project_id,
+        where: test_case.last_ran_at >= ^two_weeks_ago,
+        group_by: test_case.id,
+        select: %{id: test_case.id, max_inserted_at: max(test_case.inserted_at)}
       )
 
     base_query =
-      from(tc in TestCase,
+      from(test_case in TestCase,
         join: latest in subquery(latest_subquery),
-        on: tc.id == latest.id and tc.inserted_at == latest.max_inserted_at
+        on: test_case.id == latest.id and test_case.inserted_at == latest.max_inserted_at
       )
 
     Tuist.ClickHouseFlop.validate_and_run!(base_query, attrs, for: TestCase)
@@ -1070,36 +1074,36 @@ defmodule Tuist.Runs do
 
   defp build_flaky_test_cases_query(project_id, search_term) do
     stats_subquery =
-      from(tcr in TestCaseRun,
-        where: tcr.project_id == ^project_id and tcr.is_flaky == true,
-        group_by: tcr.test_case_id,
+      from(test_case_run in TestCaseRun,
+        where: test_case_run.project_id == ^project_id and test_case_run.is_flaky == true,
+        group_by: test_case_run.test_case_id,
         select: %{
-          test_case_id: tcr.test_case_id,
-          flaky_runs_count: count(tcr.id),
-          last_flaky_at: max(tcr.inserted_at),
+          test_case_id: test_case_run.test_case_id,
+          flaky_runs_count: count(test_case_run.id),
+          last_flaky_at: max(test_case_run.inserted_at),
           last_flaky_run_id: fragment("argMax(test_run_id, inserted_at)")
         }
       )
 
-    latest_tc_subquery =
-      from(tc in TestCase,
-        where: tc.project_id == ^project_id,
-        group_by: tc.id,
-        select: %{id: tc.id, max_inserted_at: max(tc.inserted_at)}
+    latest_test_case_subquery =
+      from(test_case in TestCase,
+        where: test_case.project_id == ^project_id,
+        group_by: test_case.id,
+        select: %{id: test_case.id, max_inserted_at: max(test_case.inserted_at)}
       )
 
     base_query =
-      from(tc in TestCase,
-        join: latest in subquery(latest_tc_subquery),
-        on: tc.id == latest.id and tc.inserted_at == latest.max_inserted_at,
+      from(test_case in TestCase,
+        join: latest in subquery(latest_test_case_subquery),
+        on: test_case.id == latest.id and test_case.inserted_at == latest.max_inserted_at,
         left_join: stats in subquery(stats_subquery),
-        on: tc.id == stats.test_case_id,
-        where: tc.is_flaky == true,
+        on: test_case.id == stats.test_case_id,
+        where: test_case.is_flaky == true,
         select: %{
-          id: tc.id,
-          name: tc.name,
-          module_name: tc.module_name,
-          suite_name: tc.suite_name,
+          id: test_case.id,
+          name: test_case.name,
+          module_name: test_case.module_name,
+          suite_name: test_case.suite_name,
           flaky_runs_count: coalesce(stats.flaky_runs_count, 0),
           last_flaky_at: stats.last_flaky_at,
           last_flaky_run_id: stats.last_flaky_run_id
@@ -1110,19 +1114,19 @@ defmodule Tuist.Runs do
   end
 
   defp build_flaky_test_cases_count_query(project_id, search_term) do
-    latest_tc_subquery =
-      from(tc in TestCase,
-        where: tc.project_id == ^project_id,
-        group_by: tc.id,
-        select: %{id: tc.id, max_inserted_at: max(tc.inserted_at)}
+    latest_test_case_subquery =
+      from(test_case in TestCase,
+        where: test_case.project_id == ^project_id,
+        group_by: test_case.id,
+        select: %{id: test_case.id, max_inserted_at: max(test_case.inserted_at)}
       )
 
     base_query =
-      from(tc in TestCase,
-        join: latest in subquery(latest_tc_subquery),
-        on: tc.id == latest.id and tc.inserted_at == latest.max_inserted_at,
-        where: tc.is_flaky == true,
-        select: count(tc.id)
+      from(test_case in TestCase,
+        join: latest in subquery(latest_test_case_subquery),
+        on: test_case.id == latest.id and test_case.inserted_at == latest.max_inserted_at,
+        where: test_case.is_flaky == true,
+        select: count(test_case.id)
       )
 
     apply_name_search(base_query, search_term)
@@ -1413,24 +1417,24 @@ defmodule Tuist.Runs do
     fourteen_days_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -14, :day)
 
     recent_flaky_subquery =
-      from(tcr in TestCaseRun,
-        where: tcr.is_flaky == true and tcr.inserted_at >= ^fourteen_days_ago,
-        group_by: tcr.test_case_id,
-        select: tcr.test_case_id
+      from(test_case_run in TestCaseRun,
+        where: test_case_run.is_flaky == true and test_case_run.inserted_at >= ^fourteen_days_ago,
+        group_by: test_case_run.test_case_id,
+        select: test_case_run.test_case_id
       )
 
-    latest_tc_subquery =
-      from(tc in TestCase,
-        group_by: tc.id,
-        select: %{id: tc.id, max_inserted_at: max(tc.inserted_at)}
+    latest_test_case_subquery =
+      from(test_case in TestCase,
+        group_by: test_case.id,
+        select: %{id: test_case.id, max_inserted_at: max(test_case.inserted_at)}
       )
 
     query =
-      from(tc in TestCase,
-        join: latest in subquery(latest_tc_subquery),
-        on: tc.id == latest.id and tc.inserted_at == latest.max_inserted_at,
-        where: tc.is_flaky == true,
-        where: tc.id not in subquery(recent_flaky_subquery)
+      from(test_case in TestCase,
+        join: latest in subquery(latest_test_case_subquery),
+        on: test_case.id == latest.id and test_case.inserted_at == latest.max_inserted_at,
+        where: test_case.is_flaky == true,
+        where: test_case.id not in subquery(recent_flaky_subquery)
       )
 
     stale_test_cases = ClickHouseRepo.all(query)
