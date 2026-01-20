@@ -26,6 +26,8 @@ defmodule Cache.Application do
       Cache.MultipartUploads,
       CacheWeb.Endpoint,
       Cache.SocketLinker,
+      # Cannot alias Cache.Finch to Finch or it'll conflict with the top-level library
+      # credo:disable-for-next-line Credo.Check.Design.AliasUsage
       {Finch, name: Cache.Finch, pools: Cache.Finch.Pools.config()},
       Cache.PromEx,
       {Oban, Application.get_env(:cache, Oban)}

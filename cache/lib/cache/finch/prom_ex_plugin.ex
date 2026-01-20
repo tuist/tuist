@@ -5,6 +5,8 @@ defmodule Cache.Finch.PromExPlugin do
 
   use PromEx.Plugin
 
+  alias Cache.Finch.Pools
+
   @impl true
   def polling_metrics(opts) do
     poll_rate = Keyword.get(opts, :poll_rate, 15_000)
@@ -44,7 +46,7 @@ defmodule Cache.Finch.PromExPlugin do
 
   @doc false
   def execute_pool_metrics do
-    Enum.each(Cache.Finch.Pools.urls(), &emit_pool_metrics/1)
+    Enum.each(Pools.urls(), &emit_pool_metrics/1)
   end
 
   defp emit_pool_metrics(url) do
