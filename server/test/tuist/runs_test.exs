@@ -3352,6 +3352,81 @@ defmodule Tuist.RunsTest do
     end
   end
 
+  describe "set_test_case_quarantined/2" do
+    test "marks a test case as quarantined" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "testOne", status: "success", duration: 100}
+              ]
+            }
+          ]
+        )
+
+      {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
+      assert test_case.is_quarantined == false
+
+      result = Runs.set_test_case_quarantined(test_case.id, true)
+
+      assert {:ok, updated_test_case} = result
+      assert updated_test_case.is_quarantined == true
+      assert updated_test_case.id == test_case.id
+
+      {:ok, fetched_test_case} = Runs.get_test_case_by_id(test_case.id)
+      assert fetched_test_case.is_quarantined == true
+    end
+
+    test "returns error when test case does not exist" do
+      non_existent_id = UUIDv7.generate()
+
+      result = Runs.set_test_case_quarantined(non_existent_id, true)
+
+      assert result == {:error, :not_found}
+    end
+
+    test "unquarantines a test case" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "testOne", status: "success", duration: 100}
+              ]
+            }
+          ]
+        )
+
+      {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
+
+      {:ok, _} = Runs.set_test_case_quarantined(test_case.id, true)
+      {:ok, quarantined_test_case} = Runs.get_test_case_by_id(test_case.id)
+      assert quarantined_test_case.is_quarantined == true
+
+      result = Runs.set_test_case_quarantined(test_case.id, false)
+
+      assert {:ok, updated_test_case} = result
+      assert updated_test_case.is_quarantined == false
+      assert updated_test_case.id == test_case.id
+
+      {:ok, fetched_test_case} = Runs.get_test_case_by_id(test_case.id)
+      assert fetched_test_case.is_quarantined == false
+    end
+  end
+
   describe "list_flaky_test_cases/2" do
     test "returns empty list when no flaky test cases exist" do
       project = ProjectsFixtures.project_fixture()

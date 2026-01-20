@@ -604,10 +604,24 @@ defmodule Tuist.Runs do
   defp enqueue_flaky_test_alert_jobs(_project_id, []), do: :ok
 
   defp enqueue_flaky_test_alert_jobs(project_id, test_case_ids) do
+    project = Tuist.Projects.get_project_by_id(project_id)
+
+    if project && project.auto_quarantine_flaky_tests do
+      auto_quarantine_test_cases(test_case_ids)
+    end
+
     for test_case_id <- test_case_ids do
       %{test_case_id: test_case_id, project_id: project_id}
       |> FlakyTestAlertWorker.new()
       |> Oban.insert!()
+    end
+
+    :ok
+  end
+
+  defp auto_quarantine_test_cases(test_case_ids) do
+    for test_case_id <- test_case_ids do
+      set_test_case_quarantined(test_case_id, true)
     end
 
     :ok
@@ -685,6 +699,24 @@ defmodule Tuist.Runs do
       {1, nil} = IngestRepo.insert_all(TestCase, [attrs])
 
       {:ok, %{test_case | is_flaky: is_flaky}}
+    end
+  end
+
+  @doc """
+  Sets the quarantined status of a test case by inserting a new row with the given is_quarantined value.
+  ClickHouse ReplacingMergeTree will keep the most recent row.
+  """
+  def set_test_case_quarantined(test_case_id, is_quarantined) when is_boolean(is_quarantined) do
+    with {:ok, test_case} <- get_test_case_by_id(test_case_id) do
+      attrs =
+        test_case
+        |> Map.from_struct()
+        |> Map.delete(:__meta__)
+        |> Map.merge(%{is_quarantined: is_quarantined, inserted_at: NaiveDateTime.utc_now()})
+
+      {1, nil} = IngestRepo.insert_all(TestCase, [attrs])
+
+      {:ok, %{test_case | is_quarantined: is_quarantined}}
     end
   end
 

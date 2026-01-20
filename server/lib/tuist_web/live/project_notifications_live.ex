@@ -64,21 +64,14 @@ defmodule TuistWeb.ProjectNotificationsLive do
 
   defp assign_alert_defaults(socket, project) do
     alert_rules = Alerts.get_project_alert_rules(project)
-    flaky_test_alert_rules = Alerts.get_project_flaky_test_alert_rules(project)
 
     edit_alert_forms =
       Map.new(alert_rules, fn rule ->
         {rule.id, alert_rule_to_form(rule)}
       end)
 
-    edit_flaky_test_alert_forms =
-      Map.new(flaky_test_alert_rules, fn rule ->
-        {rule.id, flaky_test_alert_rule_to_form(rule)}
-      end)
-
     socket
     |> assign(alert_rules: alert_rules)
-    |> assign(flaky_test_alert_rules: flaky_test_alert_rules)
     # Metric alert create form defaults
     |> assign(create_alert_form_name: "")
     |> assign(create_alert_form_category: :build_run_duration)
@@ -89,13 +82,6 @@ defmodule TuistWeb.ProjectNotificationsLive do
     |> assign(create_alert_form_channel_name: nil)
     # Metric alert edit forms - one per alert rule
     |> assign(edit_alert_forms: edit_alert_forms)
-    # Flaky test alert create form defaults
-    |> assign(create_flaky_test_alert_form_name: "")
-    |> assign(create_flaky_test_alert_form_trigger_threshold: 1)
-    |> assign(create_flaky_test_alert_form_channel_id: nil)
-    |> assign(create_flaky_test_alert_form_channel_name: nil)
-    # Flaky test alert edit forms - one per rule
-    |> assign(edit_flaky_test_alert_forms: edit_flaky_test_alert_forms)
   end
 
   defp alert_rule_to_form(rule) do
@@ -105,15 +91,6 @@ defmodule TuistWeb.ProjectNotificationsLive do
       metric: rule.metric,
       deviation: rule.deviation_percentage,
       rolling_window_size: rule.rolling_window_size,
-      channel_id: rule.slack_channel_id,
-      channel_name: rule.slack_channel_name
-    }
-  end
-
-  defp flaky_test_alert_rule_to_form(rule) do
-    %{
-      name: rule.name,
-      trigger_threshold: rule.trigger_threshold,
       channel_id: rule.slack_channel_id,
       channel_name: rule.slack_channel_name
     }
@@ -443,161 +420,11 @@ defmodule TuistWeb.ProjectNotificationsLive do
     {:noreply, socket}
   end
 
-  # Flaky test alert rule event handlers
-
-  def handle_event("open_create_flaky_test_alert_modal", _params, socket) do
-    socket =
-      socket
-      |> assign(create_flaky_test_alert_form_name: "")
-      |> assign(create_flaky_test_alert_form_trigger_threshold: 1)
-      |> assign(create_flaky_test_alert_form_channel_id: nil)
-      |> assign(create_flaky_test_alert_form_channel_name: nil)
-
-    {:noreply, socket}
-  end
-
-  def handle_event("update_create_flaky_test_alert_form_name", %{"value" => name}, socket) do
-    {:noreply, assign(socket, create_flaky_test_alert_form_name: name)}
-  end
-
-  def handle_event("update_create_flaky_test_alert_form_trigger_threshold", %{"value" => threshold_str}, socket) do
-    case Integer.parse(threshold_str) do
-      {threshold, _} -> {:noreply, assign(socket, create_flaky_test_alert_form_trigger_threshold: threshold)}
-      :error -> {:noreply, socket}
-    end
-  end
-
-  def handle_event("create_flaky_test_alert_rule", _params, %{assigns: assigns} = socket) do
-    attrs = %{
-      project_id: assigns.selected_project.id,
-      name: assigns.create_flaky_test_alert_form_name,
-      trigger_threshold: assigns.create_flaky_test_alert_form_trigger_threshold,
-      slack_channel_id: assigns.create_flaky_test_alert_form_channel_id,
-      slack_channel_name: assigns.create_flaky_test_alert_form_channel_name
-    }
-
-    {:ok, _rule} = Alerts.create_flaky_test_alert_rule(attrs)
-
-    socket =
-      socket
-      |> assign_alert_defaults(assigns.selected_project)
-      |> push_event("close-modal", %{id: "create-flaky-test-alert-modal"})
-
-    {:noreply, socket}
-  end
-
-  def handle_event("update_edit_flaky_test_alert_form_name", %{"id" => id, "value" => name}, socket) do
-    {:noreply, update_edit_flaky_test_alert_form(socket, id, :name, name)}
-  end
-
-  def handle_event("update_edit_flaky_test_alert_form_trigger_threshold", %{"id" => id, "value" => threshold_str}, socket) do
-    case Integer.parse(threshold_str) do
-      {threshold, _} -> {:noreply, update_edit_flaky_test_alert_form(socket, id, :trigger_threshold, threshold)}
-      :error -> {:noreply, socket}
-    end
-  end
-
-  def handle_event("update_flaky_test_alert_rule", %{"id" => id}, %{assigns: assigns} = socket) do
-    form = Map.get(assigns.edit_flaky_test_alert_forms, id)
-    {:ok, rule} = Alerts.get_flaky_test_alert_rule(id)
-
-    attrs = %{
-      name: form.name,
-      trigger_threshold: form.trigger_threshold,
-      slack_channel_id: form.channel_id,
-      slack_channel_name: form.channel_name
-    }
-
-    {:ok, _rule} = Alerts.update_flaky_test_alert_rule(rule, attrs)
-
-    socket =
-      socket
-      |> assign_alert_defaults(assigns.selected_project)
-      |> push_event("close-modal", %{id: "update-flaky-test-alert-modal-#{id}"})
-
-    {:noreply, socket}
-  end
-
-  def handle_event("delete_flaky_test_alert_rule", %{"rule_id" => rule_id}, socket) do
-    {:ok, rule} = Alerts.get_flaky_test_alert_rule(rule_id)
-    {:ok, _} = Alerts.delete_flaky_test_alert_rule(rule)
-
-    {:noreply,
-     assign(socket, flaky_test_alert_rules: Alerts.get_project_flaky_test_alert_rules(socket.assigns.selected_project))}
-  end
-
-  def handle_event(
-        "close_create_flaky_test_alert_modal",
-        _params,
-        %{assigns: %{selected_project: selected_project}} = socket
-      ) do
-    socket =
-      socket
-      |> push_event("close-modal", %{id: "create-flaky-test-alert-modal"})
-      |> assign_alert_defaults(selected_project)
-
-    {:noreply, socket}
-  end
-
-  def handle_event(
-        "close_edit_flaky_test_alert_modal",
-        %{"id" => id},
-        %{assigns: %{selected_project: selected_project}} = socket
-      ) do
-    socket =
-      socket
-      |> push_event("close-modal", %{id: "update-flaky-test-alert-modal-#{id}"})
-      |> assign_alert_defaults(selected_project)
-
-    {:noreply, socket}
-  end
-
-  def handle_event(
-        "create_flaky_test_alert_form_channel_selected",
-        %{"channel_id" => channel_id, "channel_name" => channel_name},
-        socket
-      ) do
-    socket =
-      socket
-      |> assign(create_flaky_test_alert_form_channel_id: channel_id)
-      |> assign(create_flaky_test_alert_form_channel_name: channel_name)
-
-    {:noreply, socket}
-  end
-
-  def handle_event("create_flaky_test_alert_form_channel_selected", _params, socket) do
-    {:noreply, socket}
-  end
-
-  def handle_event(
-        "edit_flaky_test_alert_form_channel_selected",
-        %{"id" => id, "channel_id" => channel_id, "channel_name" => channel_name},
-        socket
-      ) do
-    socket =
-      socket
-      |> update_edit_flaky_test_alert_form(id, :channel_id, channel_id)
-      |> update_edit_flaky_test_alert_form(id, :channel_name, channel_name)
-
-    {:noreply, socket}
-  end
-
-  def handle_event("edit_flaky_test_alert_form_channel_selected", _params, socket) do
-    {:noreply, socket}
-  end
-
   defp update_edit_alert_form(socket, id, key, value) do
     edit_alert_forms = socket.assigns.edit_alert_forms
     form = Map.get(edit_alert_forms, id, %{})
     updated_form = Map.put(form, key, value)
     assign(socket, edit_alert_forms: Map.put(edit_alert_forms, id, updated_form))
-  end
-
-  defp update_edit_flaky_test_alert_form(socket, id, key, value) do
-    edit_forms = socket.assigns.edit_flaky_test_alert_forms
-    form = Map.get(edit_forms, id, %{})
-    updated_form = Map.put(form, key, value)
-    assign(socket, edit_flaky_test_alert_forms: Map.put(edit_forms, id, updated_form))
   end
 
   defp alert_channel_selection_url(account_id) do
@@ -728,16 +555,4 @@ defmodule TuistWeb.ProjectNotificationsLive do
   defp metric_label_lowercase(:p99), do: "p99"
   defp metric_label_lowercase(:average), do: dgettext("dashboard_projects", "average")
   defp metric_label_lowercase(nil), do: ""
-
-  defp flaky_test_alert_rule_description(trigger_threshold) do
-    text =
-      dngettext(
-        "dashboard_projects",
-        "Alert when flaky runs occur in at least <strong>%{count} run</strong> in the last 30 days.",
-        "Alert when flaky runs occur in at least <strong>%{count} runs</strong> in the last 30 days.",
-        trigger_threshold
-      )
-
-    raw(text)
-  end
 end

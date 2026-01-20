@@ -83,7 +83,9 @@ defmodule Tuist.Slack do
       update: [
         set: [
           slack_channel_id: nil,
-          slack_channel_name: nil
+          slack_channel_name: nil,
+          flaky_test_alerts_slack_channel_id: nil,
+          flaky_test_alerts_slack_channel_name: nil
         ]
       ]
     )
@@ -145,6 +147,14 @@ defmodule Tuist.Slack do
       end
 
     Phoenix.Token.sign(TuistWeb.Endpoint, "slack_state", payload)
+  end
+
+  def generate_flaky_alert_channel_selection_token(project_id, account_id) do
+    Phoenix.Token.sign(TuistWeb.Endpoint, "slack_state", %{
+      type: :flaky_alert_channel_selection,
+      project_id: project_id,
+      account_id: account_id
+    })
   end
 
   def verify_state_token(token) do
@@ -411,6 +421,75 @@ defmodule Tuist.Slack do
   defp maybe_add_suite(details, suite_name), do: details ++ ["*Suite:* #{suite_name}"]
 
   defp flaky_test_alert_metric_block(%FlakyTestAlert{flaky_runs_count: flaky_runs_count}) do
+    runs_label = if flaky_runs_count == 1, do: "run", else: "runs"
+
+    %{
+      type: "section",
+      text: %{
+        type: "mrkdwn",
+        text: "*#{flaky_runs_count} flaky #{runs_label} detected in the last 30 days*"
+      }
+    }
+  end
+
+  @doc """
+  Sends a simplified flaky test alert notification to Slack using project-level settings.
+  """
+  def send_simplified_flaky_test_alert(project, test_case, flaky_runs_count) do
+    project = Repo.preload(project, account: :slack_installation)
+
+    %Project{
+      flaky_test_alerts_slack_channel_id: slack_channel_id,
+      name: project_name,
+      account: %{name: account_name, slack_installation: %Installation{access_token: access_token}}
+    } = project
+
+    blocks = build_simplified_flaky_test_alert_blocks(test_case, flaky_runs_count, account_name, project_name)
+    Client.post_message(access_token, slack_channel_id, blocks)
+  end
+
+  defp build_simplified_flaky_test_alert_blocks(test_case, flaky_runs_count, account_name, project_name) do
+    [
+      flaky_test_alert_header_block(),
+      simplified_flaky_test_alert_context_block(),
+      alert_divider_block(),
+      simplified_flaky_test_alert_test_case_block(test_case, account_name, project_name),
+      simplified_flaky_test_alert_metric_block(flaky_runs_count)
+    ]
+  end
+
+  defp simplified_flaky_test_alert_context_block do
+    now = DateTime.utc_now()
+    ts = DateTime.to_unix(now)
+    fallback = Calendar.strftime(now, "%b %d, %H:%M")
+
+    %{
+      type: "context",
+      elements: [
+        %{type: "mrkdwn", text: "Triggered at <!date^#{ts}^{date_short} {time}|#{fallback}>"}
+      ]
+    }
+  end
+
+  defp simplified_flaky_test_alert_test_case_block(test_case, account_name, project_name) do
+    base_url = Environment.app_url()
+    test_case_url = "#{base_url}/#{account_name}/#{project_name}/tests/test-cases/#{test_case.id}"
+
+    details =
+      ["*Test:* <#{test_case_url}|#{test_case.name}>", "*Module:* #{test_case.module_name}"]
+      |> maybe_add_suite(test_case.suite_name)
+      |> Enum.join("\n")
+
+    %{
+      type: "section",
+      text: %{
+        type: "mrkdwn",
+        text: details
+      }
+    }
+  end
+
+  defp simplified_flaky_test_alert_metric_block(flaky_runs_count) do
     runs_label = if flaky_runs_count == 1, do: "run", else: "runs"
 
     %{

@@ -175,11 +175,41 @@ defmodule TuistWeb.TestCaseLive do
   def handle_event(
         "mark-as-flaky",
         _params,
-        %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail}} = socket
+        %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, selected_project: project}} = socket
       ) do
     {:ok, updated_test_case} = Runs.set_test_case_flaky(test_case_id, true)
 
-    {:noreply, assign(socket, :test_case_detail, %{test_case_detail | is_flaky: updated_test_case.is_flaky})}
+    test_case_detail = %{test_case_detail | is_flaky: updated_test_case.is_flaky}
+
+    test_case_detail =
+      if project.auto_quarantine_flaky_tests do
+        {:ok, quarantined_test_case} = Runs.set_test_case_quarantined(test_case_id, true)
+        %{test_case_detail | is_quarantined: quarantined_test_case.is_quarantined}
+      else
+        test_case_detail
+      end
+
+    {:noreply, assign(socket, :test_case_detail, test_case_detail)}
+  end
+
+  def handle_event(
+        "quarantine",
+        _params,
+        %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail}} = socket
+      ) do
+    {:ok, updated_test_case} = Runs.set_test_case_quarantined(test_case_id, true)
+
+    {:noreply, assign(socket, :test_case_detail, %{test_case_detail | is_quarantined: updated_test_case.is_quarantined})}
+  end
+
+  def handle_event(
+        "unquarantine",
+        _params,
+        %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail}} = socket
+      ) do
+    {:ok, updated_test_case} = Runs.set_test_case_quarantined(test_case_id, false)
+
+    {:noreply, assign(socket, :test_case_detail, %{test_case_detail | is_quarantined: updated_test_case.is_quarantined})}
   end
 
   def handle_info({:test_created, %{name: "test"}}, socket) do

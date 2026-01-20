@@ -26,6 +26,9 @@ defmodule TuistWeb.SlackOAuthController do
       {:ok, %{type: :alert_channel_selection}} ->
         render_popup_close(conn, nil, nil)
 
+      {:ok, %{type: :flaky_alert_channel_selection}} ->
+        render_popup_close(conn, nil, nil)
+
       {:ok, %{type: :channel_selection, account_id: account_id, project_id: project_id}} ->
         redirect_after_channel_cancel(conn, account_id, project_id)
 
@@ -46,6 +49,9 @@ defmodule TuistWeb.SlackOAuthController do
     case verify_state_token(state_token) do
       {:ok, %{type: :alert_channel_selection} = payload} ->
         handle_alert_channel_selection(conn, code, payload)
+
+      {:ok, %{type: :flaky_alert_channel_selection}} ->
+        handle_flaky_alert_channel_selection(conn, code)
 
       {:ok, %{type: :channel_selection}} ->
         handle_channel_selection(conn, code)
@@ -79,6 +85,11 @@ defmodule TuistWeb.SlackOAuthController do
 
   def alert_channel_selection_url(account_id, opts \\ []) do
     state_token = Slack.generate_alert_channel_selection_token(account_id, opts)
+    build_oauth_url(state_token, @channel_selection_scopes)
+  end
+
+  def flaky_alert_channel_selection_url(project_id, account_id) do
+    state_token = Slack.generate_flaky_alert_channel_selection_token(project_id, account_id)
     build_oauth_url(state_token, @channel_selection_scopes)
   end
 
@@ -149,6 +160,20 @@ defmodule TuistWeb.SlackOAuthController do
   end
 
   defp handle_alert_channel_selection(conn, code, _payload) do
+    case SlackClient.exchange_code_for_token(code, slack_redirect_uri()) do
+      {:ok, token_data} ->
+        incoming_webhook = token_data.incoming_webhook
+        channel_id = incoming_webhook.channel_id
+        channel_name = String.trim_leading(incoming_webhook.channel, "#")
+        render_popup_close(conn, channel_id, channel_name)
+
+      {:error, reason} when is_binary(reason) ->
+        raise BadRequestError,
+              dgettext("dashboard_slack", "Slack authorization failed: %{reason}", reason: reason)
+    end
+  end
+
+  defp handle_flaky_alert_channel_selection(conn, code) do
     case SlackClient.exchange_code_for_token(code, slack_redirect_uri()) do
       {:ok, token_data} ->
         incoming_webhook = token_data.incoming_webhook

@@ -3,8 +3,9 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorker do
   A job that sends Slack notifications when a test case becomes flaky.
 
   This worker is enqueued when a test case transitions from non-flaky to flaky.
-  It checks all flaky test alert rules for the project and sends notifications
-  if the test case's flaky runs count exceeds the rule's threshold.
+  It supports two modes:
+  1. Simplified alerts - uses project-level flaky_test_alerts_enabled flag
+  2. Rule-based alerts - checks all flaky test alert rules for the project
 
   The job is unique per test_case_id only while being processed - once completed,
   a new job can be inserted for the same test case.
@@ -24,6 +25,9 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorker do
     with {:ok, test_case} <- Runs.get_test_case_by_id(test_case_id),
          %Projects.Project{} = project <- Projects.get_project_by_id(project_id) do
       flaky_runs_count = Runs.get_flaky_runs_groups_count_for_test_case(test_case_id)
+
+      send_simplified_alert(project, test_case, flaky_runs_count)
+
       rules = Alerts.get_project_flaky_test_alert_rules(project)
 
       for rule <- rules do
@@ -31,6 +35,24 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorker do
       end
 
       :ok
+    end
+  end
+
+  defp send_simplified_alert(project, test_case, flaky_runs_count) do
+    project = Repo.preload(project, account: :slack_installation)
+
+    cond do
+      not project.flaky_test_alerts_enabled ->
+        :ok
+
+      is_nil(project.flaky_test_alerts_slack_channel_id) ->
+        :ok
+
+      is_nil(project.account.slack_installation) ->
+        :ok
+
+      true ->
+        Slack.send_simplified_flaky_test_alert(project, test_case, flaky_runs_count)
     end
   end
 
