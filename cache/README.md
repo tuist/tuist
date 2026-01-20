@@ -108,7 +108,7 @@ The cache service is optimized for the **read path**, specifically for handling 
 ### Storage Design
 - **Local disk**: CAS artifacts stored on local filesystem for minimal latency
 - **Project isolation**: Artifacts organized by `account/project/cas/` structure
-- **Volume mount**: `/cas` directory mounted for persistent storage
+- **Volume mount**: `/storage` directory mounted for persistent storage
 - **Atomic operations**: Proper handling of concurrent writes and race conditions
 - **Automatic eviction**: Background worker uses SQLite-tracked access metadata to free least-recently-used artifacts when disk usage crosses the configured watermark, while retaining authoritative copies in S3
 
@@ -120,7 +120,7 @@ The service is deployed via Kamal to NixOS servers:
   - nginx configured via `platform/nginx.nix`
   - Docker runtime for the Phoenix container
   - ACME/Let's Encrypt for TLS certificates
-  - `/cas` directory for persistent artifact storage
+  - `/storage` directory for persistent artifact storage
   - Optimized kernel and network settings
 
 Deploy with:
