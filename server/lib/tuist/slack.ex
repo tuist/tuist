@@ -7,7 +7,6 @@ defmodule Tuist.Slack do
 
   alias Tuist.Alerts.Alert
   alias Tuist.Alerts.AlertRule
-  alias Tuist.Alerts.FlakyTestAlert
   alias Tuist.Alerts.FlakyTestAlertRule
   alias Tuist.Environment
   alias Tuist.Projects.Project
@@ -341,32 +340,40 @@ defmodule Tuist.Slack do
     "#{Float.round(rate * 100, 1)}%"
   end
 
-  @doc """
-  Sends a flaky test alert notification to Slack.
-  """
-  def send_flaky_test_alert(%FlakyTestAlert{} = alert) do
-    %FlakyTestAlert{
-      flaky_test_alert_rule: %{
-        slack_channel_id: slack_channel_id,
-        project: %{
-          name: project_name,
-          account: %{name: account_name, slack_installation: %Installation{access_token: access_token}}
-        }
-      }
-    } = alert = Repo.preload(alert, flaky_test_alert_rule: [project: [account: :slack_installation]])
+  defp maybe_add_suite(details, nil), do: details
+  defp maybe_add_suite(details, ""), do: details
+  defp maybe_add_suite(details, suite_name), do: details ++ ["*Suite:* #{suite_name}"]
 
-    blocks = build_flaky_test_alert_blocks(alert, account_name, project_name)
+  @doc """
+  Sends a flaky test alert notification to Slack using project-level settings.
+  """
+  def send_flaky_test_alert(project, test_case, flaky_runs_count, was_auto_quarantined \\ false) do
+    project = Repo.preload(project, account: :slack_installation)
+
+    %Project{
+      flaky_test_alerts_slack_channel_id: slack_channel_id,
+      name: project_name,
+      account: %{name: account_name, slack_installation: %Installation{access_token: access_token}}
+    } = project
+
+    blocks = build_flaky_test_alert_blocks(test_case, flaky_runs_count, account_name, project_name, was_auto_quarantined)
     Client.post_message(access_token, slack_channel_id, blocks)
   end
 
-  defp build_flaky_test_alert_blocks(alert, account_name, project_name) do
-    [
+  defp build_flaky_test_alert_blocks(test_case, flaky_runs_count, account_name, project_name, was_auto_quarantined) do
+    base_blocks = [
       flaky_test_alert_header_block(),
-      flaky_test_alert_context_block(alert),
+      flaky_test_alert_context_block(),
       alert_divider_block(),
-      flaky_test_alert_test_case_block(alert, account_name, project_name),
-      flaky_test_alert_metric_block(alert)
+      flaky_test_alert_test_case_block(test_case, account_name, project_name),
+      flaky_test_alert_metric_block(flaky_runs_count)
     ]
+
+    if was_auto_quarantined do
+      base_blocks ++ [auto_quarantined_info_block()]
+    else
+      base_blocks
+    end
   end
 
   defp flaky_test_alert_header_block do
@@ -379,92 +386,7 @@ defmodule Tuist.Slack do
     }
   end
 
-  defp flaky_test_alert_context_block(%FlakyTestAlert{inserted_at: triggered_at}) do
-    ts = DateTime.to_unix(triggered_at)
-    fallback = Calendar.strftime(triggered_at, "%b %d, %H:%M")
-
-    %{
-      type: "context",
-      elements: [
-        %{type: "mrkdwn", text: "Triggered at <!date^#{ts}^{date_short} {time}|#{fallback}>"}
-      ]
-    }
-  end
-
-  defp flaky_test_alert_test_case_block(alert, account_name, project_name) do
-    %FlakyTestAlert{
-      test_case_id: test_case_id,
-      test_case_name: name,
-      test_case_module_name: module_name,
-      test_case_suite_name: suite_name
-    } = alert
-
-    base_url = Environment.app_url()
-    test_case_url = "#{base_url}/#{account_name}/#{project_name}/tests/test-cases/#{test_case_id}"
-
-    details =
-      ["*Test:* <#{test_case_url}|#{name}>", "*Module:* #{module_name}"]
-      |> maybe_add_suite(suite_name)
-      |> Enum.join("\n")
-
-    %{
-      type: "section",
-      text: %{
-        type: "mrkdwn",
-        text: details
-      }
-    }
-  end
-
-  defp maybe_add_suite(details, nil), do: details
-  defp maybe_add_suite(details, ""), do: details
-  defp maybe_add_suite(details, suite_name), do: details ++ ["*Suite:* #{suite_name}"]
-
-  defp flaky_test_alert_metric_block(%FlakyTestAlert{flaky_runs_count: flaky_runs_count}) do
-    runs_label = if flaky_runs_count == 1, do: "run", else: "runs"
-
-    %{
-      type: "section",
-      text: %{
-        type: "mrkdwn",
-        text: "*#{flaky_runs_count} flaky #{runs_label} detected in the last 30 days*"
-      }
-    }
-  end
-
-  @doc """
-  Sends a simplified flaky test alert notification to Slack using project-level settings.
-  """
-  def send_simplified_flaky_test_alert(project, test_case, flaky_runs_count, was_auto_quarantined \\ false) do
-    project = Repo.preload(project, account: :slack_installation)
-
-    %Project{
-      flaky_test_alerts_slack_channel_id: slack_channel_id,
-      name: project_name,
-      account: %{name: account_name, slack_installation: %Installation{access_token: access_token}}
-    } = project
-
-    blocks = build_simplified_flaky_test_alert_blocks(test_case, flaky_runs_count, account_name, project_name, was_auto_quarantined)
-    Client.post_message(access_token, slack_channel_id, blocks)
-  end
-
-  defp build_simplified_flaky_test_alert_blocks(test_case, flaky_runs_count, account_name, project_name, was_auto_quarantined) do
-    base_blocks = [
-      flaky_test_alert_header_block(),
-      simplified_flaky_test_alert_context_block(),
-      alert_divider_block(),
-      simplified_flaky_test_alert_test_case_block(test_case, account_name, project_name),
-      simplified_flaky_test_alert_metric_block(flaky_runs_count)
-    ]
-
-    if was_auto_quarantined do
-      base_blocks ++ [auto_quarantined_info_block()]
-    else
-      base_blocks
-    end
-  end
-
-  defp simplified_flaky_test_alert_context_block do
+  defp flaky_test_alert_context_block do
     now = DateTime.utc_now()
     ts = DateTime.to_unix(now)
     fallback = Calendar.strftime(now, "%b %d, %H:%M")
@@ -477,7 +399,7 @@ defmodule Tuist.Slack do
     }
   end
 
-  defp simplified_flaky_test_alert_test_case_block(test_case, account_name, project_name) do
+  defp flaky_test_alert_test_case_block(test_case, account_name, project_name) do
     base_url = Environment.app_url()
     test_case_url = "#{base_url}/#{account_name}/#{project_name}/tests/test-cases/#{test_case.id}"
 
@@ -495,7 +417,7 @@ defmodule Tuist.Slack do
     }
   end
 
-  defp simplified_flaky_test_alert_metric_block(flaky_runs_count) do
+  defp flaky_test_alert_metric_block(flaky_runs_count) do
     runs_label = if flaky_runs_count == 1, do: "run", else: "runs"
 
     %{
@@ -542,7 +464,7 @@ defmodule Tuist.Slack do
       flaky_test_alert_header_block(),
       manual_flaky_test_alert_context_block(user),
       alert_divider_block(),
-      simplified_flaky_test_alert_test_case_block(test_case, account_name, project_name),
+      flaky_test_alert_test_case_block(test_case, account_name, project_name),
       manual_flaky_test_alert_info_block()
     ]
 
