@@ -616,10 +616,11 @@ defmodule Tuist.Runs do
   defp get_project_test_cases(_project_id, []), do: %{}
 
   defp get_project_test_cases(project_id, test_case_ids) do
+    test_case_id_set = MapSet.new(test_case_ids)
+
     latest_subquery =
       from(test_case in TestCase,
         where: test_case.project_id == ^project_id,
-        where: test_case.id in ^test_case_ids,
         group_by: test_case.id,
         select: %{id: test_case.id, max_inserted_at: max(test_case.inserted_at)}
       )
@@ -637,6 +638,7 @@ defmodule Tuist.Runs do
 
     query
     |> IngestRepo.all()
+    |> Enum.filter(&(&1.id in test_case_id_set))
     |> Map.new(fn row -> {row.id, row} end)
   end
 
@@ -826,10 +828,13 @@ defmodule Tuist.Runs do
     end
   end
 
+  defp get_existing_ci_runs_for_commit([], _git_commit_sha), do: %{}
+
   defp get_existing_ci_runs_for_commit(test_case_ids, git_commit_sha) do
+    test_case_id_set = MapSet.new(test_case_ids)
+
     query =
       from(tcr in TestCaseRun,
-        where: tcr.test_case_id in ^test_case_ids,
         where: tcr.git_commit_sha == ^git_commit_sha,
         where: tcr.is_ci == true,
         where: tcr.status in ["success", "failure"],
@@ -838,6 +843,7 @@ defmodule Tuist.Runs do
 
     query
     |> ClickHouseRepo.all()
+    |> Enum.filter(&(&1.test_case_id in test_case_id_set))
     |> Enum.group_by(& &1.test_case_id)
   end
 
@@ -858,12 +864,14 @@ defmodule Tuist.Runs do
     end
   end
 
+  defp get_test_case_ids_with_ci_runs_on_branch([], _branch), do: MapSet.new()
+
   defp get_test_case_ids_with_ci_runs_on_branch(test_case_ids, branch) do
+    test_case_id_set = MapSet.new(test_case_ids)
     ninety_days_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -90, :day)
 
     query =
       from(tcr in TestCaseRun,
-        where: tcr.test_case_id in ^test_case_ids,
         where: tcr.git_branch == ^branch,
         where: tcr.is_ci == true,
         where: tcr.ran_at >= ^ninety_days_ago,
@@ -873,6 +881,7 @@ defmodule Tuist.Runs do
 
     query
     |> ClickHouseRepo.all()
+    |> Enum.filter(&(&1 in test_case_id_set))
     |> MapSet.new()
   end
 

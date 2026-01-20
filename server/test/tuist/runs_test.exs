@@ -845,6 +845,81 @@ defmodule Tuist.RunsTest do
       assert integration_test_case.test_suite_run_id
     end
 
+    test "creates a CI test with empty test cases" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1000,
+        status: "success",
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "main",
+        git_commit_sha: "abc123def456",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [
+          %{
+            name: "EmptyModule",
+            status: "success",
+            duration: 0,
+            test_cases: []
+          }
+        ]
+      }
+
+      # When / Then
+      {:ok, test} = Runs.create_test(test_attrs)
+      assert test.id == test_attrs.id
+    end
+
+    test "creates a CI test with a very large number of test cases" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      test_cases =
+        for i <- 1..50_000 do
+          %{
+            name: "testCase#{i}",
+            status: "success",
+            duration: 100
+          }
+        end
+
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 5_000_000,
+        status: "success",
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "main",
+        git_commit_sha: "abc123def456",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [
+          %{
+            name: "LargeTestModule",
+            status: "success",
+            duration: 5_000_000,
+            test_cases: test_cases
+          }
+        ]
+      }
+
+      # When / Then
+      {:ok, test} = Runs.create_test(test_attrs)
+      assert test.id == test_attrs.id
+    end
+
     test "creates a test with failures" do
       # Given
       project = ProjectsFixtures.project_fixture()
