@@ -73,5 +73,8 @@ if config_env() == :prod do
   config :ex_aws,
     access_key_id: System.get_env("S3_ACCESS_KEY_ID"),
     secret_access_key: System.get_env("S3_SECRET_ACCESS_KEY"),
-    region: System.get_env("S3_REGION")
+    region: System.get_env("S3_REGION"),
+    http_client: TuistCommon.AWS.Client
+
+  config :tuist_common, finch_name: Cache.Finch
 end

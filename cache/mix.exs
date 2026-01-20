@@ -38,7 +38,6 @@ defmodule Cache.MixProject do
       {:ex_aws, "~> 2.0"},
       {:ex_aws_s3, "~> 2.0"},
       {:guardian, "~> 2.3"},
-      {:hackney, "~> 1.20"},
       {:jason, "~> 1.4"},
       {:jose, git: "https://github.com/jtdowney/erlang-jose.git", branch: "fix-otp28-compatibility", override: true},
       {:mimic, "~> 1.7", only: :test},

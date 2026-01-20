@@ -56,6 +56,8 @@ config :cache,
   events_batch_size: 100,
   events_batch_timeout: 5_000
 
+config :ex_aws, http_client: TuistCommon.AWS.Client
+
 config :logger, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]

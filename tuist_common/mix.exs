@@ -25,7 +25,9 @@ defmodule TuistCommon.MixProject do
     [
       {:appsignal, "~> 2.8"},
       {:bandit, "~> 1.0"},
+      {:ex_aws, "~> 2.0"},
       {:plug, "~> 1.14"},
+      {:req, "~> 0.5"},
       {:mimic, "~> 1.7", only: :test}
     ]
   end
