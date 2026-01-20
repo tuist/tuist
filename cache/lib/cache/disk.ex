@@ -108,7 +108,7 @@ defmodule Cache.Disk do
   Defaults to "tmp/cas" if not configured.
   """
   def storage_dir do
-    Application.get_env(:cache, :cas)[:storage_dir]
+    Application.get_env(:cache, :storage_dir)
   end
 
   @doc """

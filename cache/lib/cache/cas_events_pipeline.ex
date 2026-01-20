@@ -11,9 +11,8 @@ defmodule Cache.CASEventsPipeline do
   require Logger
 
   def start_link(_opts) do
-    cas_config = Application.get_env(:cache, :cas, [])
-    batch_size = Keyword.get(cas_config, :events_batch_size, 100)
-    batch_timeout = Keyword.get(cas_config, :events_batch_timeout, 5_000)
+    batch_size = Application.get_env(:cache, :events_batch_size, 100)
+    batch_timeout = Application.get_env(:cache, :events_batch_timeout, 5_000)
 
     Broadway.start_link(__MODULE__,
       name: __MODULE__,
