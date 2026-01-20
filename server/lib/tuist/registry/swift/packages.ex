@@ -296,26 +296,92 @@ defmodule Tuist.Registry.Swift.Packages do
              "1",
              "--branch",
              tag,
-             "--recurse-submodules",
-             "--shallow-submodules",
              clone_url,
              destination
            ],
            stderr_to_stdout: true
          ) do
       {_output, 0} ->
-        remove_git_metadata(destination)
-        {:ok, destination}
+        case update_submodules(%{
+               destination: destination,
+               repository_full_handle: repository_full_handle,
+               tag: tag
+             }) do
+          :ok ->
+            remove_git_metadata(destination)
+            {:ok, destination}
+
+          {:error, reason} ->
+            {:error, reason}
+        end
 
       {output, code} ->
         Logger.warning("Git clone failed for #{repository_full_handle}@#{tag} (exit #{code}): #{output}")
-
-        if String.contains?(output, "fatal: could not read Username for") do
-          {:error, :private_submodule}
-        else
-          {:error, "Git clone failed (exit #{code}): #{output}"}
-        end
+        {:error, "Git clone failed (exit #{code}): #{output}"}
     end
+  end
+
+  defp update_submodules(%{
+         destination: destination,
+         repository_full_handle: repository_full_handle,
+         tag: tag
+       }) do
+    destination
+    |> submodule_paths()
+    |> Enum.reduce_while(:ok, fn submodule_path, :ok ->
+      case System.cmd(
+             "git",
+             [
+               "-c",
+               "url.https://github.com/.insteadOf=git@github.com:",
+               "-C",
+               destination,
+               "submodule",
+               "update",
+               "--init",
+               "--recursive",
+               "--depth",
+               "1",
+               submodule_path
+             ],
+             stderr_to_stdout: true
+           ) do
+        {_output, 0} ->
+          {:cont, :ok}
+
+        {output, code} ->
+          if private_submodule_error?(output) do
+            Logger.info(
+              "Skipping private submodule #{submodule_path} for #{repository_full_handle}@#{tag}"
+            )
+
+            {:cont, :ok}
+          else
+            Logger.warning(
+              "Git submodule update failed for #{repository_full_handle}@#{tag} (exit #{code}): #{output}"
+            )
+
+            {:halt, {:error, "Git submodule update failed (exit #{code}): #{output}"}}
+          end
+      end
+    end)
+  end
+
+  defp submodule_paths(destination) do
+    gitmodules_path = Path.join(destination, ".gitmodules")
+
+    if File.exists?(gitmodules_path) do
+      gitmodules_path
+      |> File.read!()
+      |> Regex.scan(~r/^\s*path\s*=\s*(.+)\s*$/m)
+      |> Enum.map(fn [_, path] -> String.trim(path) end)
+    else
+      []
+    end
+  end
+
+  defp private_submodule_error?(output) do
+    String.contains?(output, "fatal: could not read Username for")
   end
 
   defp remove_git_metadata(directory) do
