@@ -22,7 +22,6 @@ defmodule Tuist.AccountsTest do
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
-
   setup do
     stub(JOSE.JWT, :peek_payload, fn _ ->
       %JOSE.JWT{

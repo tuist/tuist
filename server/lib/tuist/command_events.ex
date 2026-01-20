@@ -6,13 +6,13 @@ defmodule Tuist.CommandEvents do
 
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.User
+  alias Tuist.Cache
+  alias Tuist.Cache.ModuleCacheEvent
   alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents.Event
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
-  alias Tuist.Cache
-  alias Tuist.Cache.ModuleCacheEvent
   alias Tuist.Repo
   alias Tuist.Storage
   alias Tuist.Time
@@ -253,21 +253,23 @@ defmodule Tuist.CommandEvents do
     end_of_yesterday = now |> Timex.shift(days: -1) |> Timex.end_of_day()
 
     command_event_project_ids =
-      from(e in Event,
-        where: e.ran_at >= ^start_of_yesterday and e.ran_at <= ^end_of_yesterday,
-        group_by: e.project_id,
-        select: e.project_id
+      ClickHouseRepo.all(
+        from(e in Event,
+          where: e.ran_at >= ^start_of_yesterday and e.ran_at <= ^end_of_yesterday,
+          group_by: e.project_id,
+          select: e.project_id
+        )
       )
-      |> ClickHouseRepo.all()
 
     module_cache_project_ids =
-      from(m in ModuleCacheEvent,
-        where: m.inserted_at >= ^DateTime.to_naive(start_of_yesterday),
-        where: m.inserted_at <= ^DateTime.to_naive(end_of_yesterday),
-        group_by: m.project_id,
-        select: m.project_id
+      ClickHouseRepo.all(
+        from(m in ModuleCacheEvent,
+          where: m.inserted_at >= ^DateTime.to_naive(start_of_yesterday),
+          where: m.inserted_at <= ^DateTime.to_naive(end_of_yesterday),
+          group_by: m.project_id,
+          select: m.project_id
+        )
       )
-      |> ClickHouseRepo.all()
 
     project_ids = Enum.uniq(command_event_project_ids ++ module_cache_project_ids)
 

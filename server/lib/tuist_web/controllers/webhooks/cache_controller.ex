@@ -17,8 +17,7 @@ defmodule TuistWeb.Webhooks.CacheController do
     projects_map = Projects.projects_by_full_handles(full_handles)
 
     {cas_events, module_cache_events} =
-      events
-      |> Enum.reduce({[], []}, fn event, {cas_acc, module_acc} ->
+      Enum.reduce(events, {[], []}, fn event, {cas_acc, module_acc} ->
         case cache_event_from_payload(event, projects_map) do
           {:cas, cas_event} ->
             {[cas_event | cas_acc], module_acc}
@@ -113,5 +112,4 @@ defmodule TuistWeb.Webhooks.CacheController do
     Logger.warning("Invalid cache event payload: #{inspect(event)}")
     :skip
   end
-
 end
