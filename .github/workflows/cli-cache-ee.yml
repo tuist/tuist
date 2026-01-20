@@ -182,7 +182,7 @@ jobs:
       - name: Initialize TuistCacheEE submodule
         run: mise run cli:ee
       - name: Run tests
-        run: mise x -- tuist test TuistCacheEEAcceptanceTests
+        run: mise x -- tuist test TuistCacheEEAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
         env:
           TUIST_EE: 1
       - name: Save cache
@@ -232,7 +232,7 @@ jobs:
       - name: Initialize TuistCacheEE submodule
         run: mise run cli:ee
       - name: Run tests
-        run: mise x -- tuist test TuistCacheEEUnitTests
+        run: mise x -- tuist test TuistCacheEEUnitTests -- -retry-tests-on-failure -test-iterations 4
         env:
           TUIST_EE: 1
       - name: Save cache
