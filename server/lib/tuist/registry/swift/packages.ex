@@ -363,9 +363,9 @@ defmodule Tuist.Registry.Swift.Packages do
     gitmodules_path = Path.join(destination, ".gitmodules")
 
     if File.exists?(gitmodules_path) do
-      gitmodules_path
-      |> File.read!()
-      |> Regex.scan(~r/^\s*path\s*=\s*(.+)\s*$/m)
+      gitmodules_content = File.read!(gitmodules_path)
+
+      Regex.scan(~r/^\s*path\s*=\s*(.+)\s*$/m, gitmodules_content)
       |> Enum.map(fn [_, path] -> String.trim(path) end)
     else
       []
