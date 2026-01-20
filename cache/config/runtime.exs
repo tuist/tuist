@@ -55,8 +55,8 @@ if config_env() == :prod do
   config :cache, :cas,
     server_url: System.get_env("SERVER_URL") || "https://tuist.dev",
     storage_dir: System.get_env("DATA_DIR") || raise("environment variable DATA_DIR is missing"),
-    disk_usage_high_watermark_percent: Cache.Config.float_env("CAS_DISK_HIGH_WATERMARK_PERCENT", 85.0),
-    disk_usage_target_percent: Cache.Config.float_env("CAS_DISK_TARGET_PERCENT", 70.0),
+    disk_usage_high_watermark_percent: Cache.Config.float_env("DISK_HIGH_WATERMARK_PERCENT", 85.0),
+    disk_usage_target_percent: Cache.Config.float_env("DISK_TARGET_PERCENT", 70.0),
     api_key: System.get_env("TUIST_CACHE_API_KEY")
 
   config :cache, :oban_web_basic_auth,
