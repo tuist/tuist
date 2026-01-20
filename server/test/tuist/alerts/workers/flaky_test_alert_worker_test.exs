@@ -336,8 +336,8 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorkerTest do
       assert result == :ok
     end
 
-    test "sends both simplified and rule-based alerts when both configured", %{project: project} do
-      # Given
+    test "simplified alerts take precedence over rule-based alerts", %{project: project} do
+      # Given - both simplified and rule-based alerts are configured
       {:ok, project} =
         Tuist.Projects.update_project(project, %{
           flaky_test_alerts_enabled: true,
@@ -345,7 +345,7 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorkerTest do
           flaky_test_alerts_slack_channel_name: "simplified-alerts"
         })
 
-      rule =
+      _rule =
         AlertsFixtures.flaky_test_alert_rule_fixture(
           project: project,
           trigger_threshold: 1,
@@ -358,12 +358,9 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorkerTest do
       stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
       stub(Runs, :get_flaky_runs_groups_count_for_test_case, fn _id -> 5 end)
 
+      # Only simplified alert should be sent, rule-based alert should NOT be sent
       expect(Slack, :send_simplified_flaky_test_alert, fn _p, _tc, _count, _was_auto_quarantined -> :ok end)
-
-      expect(Slack, :send_flaky_test_alert, fn alert ->
-        assert alert.flaky_test_alert_rule_id == rule.id
-        :ok
-      end)
+      reject(&Slack.send_flaky_test_alert/1)
 
       # When
       result =

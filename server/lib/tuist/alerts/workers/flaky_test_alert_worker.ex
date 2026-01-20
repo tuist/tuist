@@ -29,12 +29,16 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorker do
          %Projects.Project{} = project <- Projects.get_project_by_id(project_id) do
       flaky_runs_count = Runs.get_flaky_runs_groups_count_for_test_case(test_case_id)
 
-      send_simplified_alert(project, test_case, flaky_runs_count, was_auto_quarantined)
+      # If simplified alerts are enabled, use them exclusively (they replace rule-based alerts)
+      if project.flaky_test_alerts_enabled do
+        send_simplified_alert(project, test_case, flaky_runs_count, was_auto_quarantined)
+      else
+        # Fall back to rule-based alerts only if simplified alerts are not enabled
+        rules = Alerts.get_project_flaky_test_alert_rules(project)
 
-      rules = Alerts.get_project_flaky_test_alert_rules(project)
-
-      for rule <- rules do
-        check_and_notify(rule, test_case, flaky_runs_count)
+        for rule <- rules do
+          check_and_notify(rule, test_case, flaky_runs_count)
+        end
       end
 
       :ok
