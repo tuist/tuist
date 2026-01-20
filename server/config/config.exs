@@ -69,6 +69,8 @@ config :logger, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]
 
+config :tuist_common, finch_name: Tuist.Finch
+
 config :mime, :types, %{
   "application/vnd.swift.registry.v1+json" => ["swift-registry-v1-json"],
   "application/vnd.swift.registry.v1+zip" => ["swift-registry-v1-zip"],

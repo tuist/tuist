@@ -58,6 +58,8 @@ config :cache,
 
 config :ex_aws, http_client: TuistCommon.AWS.Client
 
+config :tuist_common, finch_name: Cache.Finch
+
 config :logger, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]

@@ -51,7 +51,7 @@ defmodule Cache.MixProject do
       {:plug, "~> 1.18"},
       {:plug_cowboy, "~> 2.7"},
       {:prom_ex, "~> 1.10"},
-      {:req, "~> 0.1"},
+      {:req, "~> 0.5"},
       {:styler, "~> 1.0", only: [:dev, :test], runtime: false},
       {:sweet_xml, "~> 0.7"},
       {:uuid_v7, "~> 0.6"},
