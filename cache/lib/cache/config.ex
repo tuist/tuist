@@ -18,7 +18,7 @@ defmodule Cache.Config do
   Returns the API key for server communication, or nil if not configured.
   """
   def api_key do
-    case :cache |> Application.get_env(:cas, []) |> Keyword.get(:api_key) do
+    case Application.get_env(:cache, :api_key) do
       key when is_binary(key) and key != "" -> key
       _ -> nil
     end

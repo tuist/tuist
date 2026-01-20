@@ -34,16 +34,14 @@ defmodule Cache.DiskEvictionWorker do
   end
 
   defp eviction_config do
-    cas_config = Application.get_env(:cache, :cas, [])
-
     high_watermark =
-      cas_config
-      |> Keyword.get(:disk_usage_high_watermark_percent, 85.0)
+      :cache
+      |> Application.get_env(:disk_usage_high_watermark_percent, 85.0)
       |> max(0.0)
 
     target =
-      cas_config
-      |> Keyword.get(:disk_usage_target_percent, high_watermark * 0.85)
+      :cache
+      |> Application.get_env(:disk_usage_target_percent, high_watermark * 0.85)
       |> max(0.0)
 
     target_percent =

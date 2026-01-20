@@ -44,7 +44,7 @@ config :cache, Oban,
      ]}
   ]
 
-config :cache, :cas,
+config :cache,
   storage_dir: "tmp/cas",
   disk_usage_high_watermark_percent: 85.0,
   disk_usage_target_percent: 70.0,

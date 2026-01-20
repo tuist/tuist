@@ -17,7 +17,7 @@ config :cache, CacheWeb.Endpoint,
   secret_key_base: "development_secret_key_base_at_least_64_characters_long_for_security",
   watchers: []
 
-config :cache, :cas,
+config :cache,
   server_url: "http://localhost:8080",
   storage_dir: "tmp/cas",
   api_key: System.get_env("TUIST_CACHE_API_KEY")

@@ -163,10 +163,7 @@ defmodule Cache.Authentication do
   end
 
   def server_url do
-    case Application.get_env(:cache, :cas, []) do
-      cas_config when is_list(cas_config) -> Keyword.get(cas_config, :server_url)
-      _ -> nil
-    end
+    Application.get_env(:cache, :server_url)
   end
 
   defp success_ttl do

@@ -52,7 +52,7 @@ if config_env() == :prod do
     http: http_config,
     secret_key_base: secret_key_base
 
-  config :cache, :cas,
+  config :cache,
     server_url: System.get_env("SERVER_URL") || "https://tuist.dev",
     storage_dir: System.get_env("DATA_DIR") || raise("environment variable DATA_DIR is missing"),
     disk_usage_high_watermark_percent: Cache.Config.float_env("DISK_HIGH_WATERMARK_PERCENT", 85.0),

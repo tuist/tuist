@@ -22,7 +22,7 @@ config :cache, Oban,
   plugins: false,
   testing: :manual
 
-config :cache, :cas,
+config :cache,
   server_url: "http://localhost:8080",
   storage_dir: "/tmp/test_cas",
   api_key: "test-secret-key"
