@@ -8,6 +8,8 @@ defmodule TuistWeb.FlakyTestsLive do
 
   alias Noora.Filter
   alias Tuist.Runs
+  alias Tuist.Runs.Analytics
+  alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
@@ -56,6 +58,7 @@ defmodule TuistWeb.FlakyTestsLive do
       socket
       |> assign(:current_params, params)
       |> assign(:uri, uri)
+      |> assign_analytics(params)
       |> assign_flaky_tests(params)
     }
   end
@@ -106,11 +109,33 @@ defmodule TuistWeb.FlakyTestsLive do
     {:noreply, socket}
   end
 
+  def handle_event(
+        "analytics_period_changed",
+        %{"value" => %{"start" => start_date, "end" => end_date}, "preset" => preset},
+        %{assigns: %{selected_account: selected_account, selected_project: selected_project}} = socket
+      ) do
+    query_params =
+      if preset == "custom" do
+        socket.assigns.uri.query
+        |> Query.put("analytics-date-range", "custom")
+        |> Query.put("analytics-start-date", start_date)
+        |> Query.put("analytics-end-date", end_date)
+      else
+        Query.put(socket.assigns.uri.query, "analytics-date-range", preset)
+      end
+
+    {:noreply,
+     push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/tests/flaky-tests?#{query_params}")}
+  end
+
   def handle_info({:test_created, %{name: "test"}}, socket) do
     if Query.has_pagination_params?(socket.assigns.uri.query) do
       {:noreply, socket}
     else
-      {:noreply, assign_flaky_tests(socket, socket.assigns.current_params)}
+      {:noreply,
+       socket
+       |> assign_analytics(socket.assigns.current_params)
+       |> assign_flaky_tests(socket.assigns.current_params)}
     end
   end
 
@@ -172,6 +197,35 @@ defmodule TuistWeb.FlakyTestsLive do
       flop_filters ++ [%{field: :name, op: :ilike_and, value: search}]
     end
   end
+
+  defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
+    analytics_environment = params["analytics-environment"] || "any"
+
+    %{preset: preset, period: {start_datetime, end_datetime} = period} =
+      DatePicker.date_picker_params(params, "analytics")
+
+    opts = [start_datetime: start_datetime, end_datetime: end_datetime]
+
+    opts =
+      case analytics_environment do
+        "ci" -> Keyword.put(opts, :is_ci, true)
+        "local" -> Keyword.put(opts, :is_ci, false)
+        _ -> opts
+      end
+
+    flaky_runs_analytics = Analytics.test_run_analytics(project.id, Keyword.put(opts, :is_flaky, true))
+
+    socket
+    |> assign(:flaky_runs_analytics, flaky_runs_analytics)
+    |> assign(:analytics_environment, analytics_environment)
+    |> assign(:analytics_environment_label, environment_label(analytics_environment))
+    |> assign(:analytics_preset, preset)
+    |> assign(:analytics_period, period)
+  end
+
+  defp environment_label("any"), do: dgettext("dashboard_tests", "Any")
+  defp environment_label("local"), do: dgettext("dashboard_tests", "Local")
+  defp environment_label("ci"), do: dgettext("dashboard_tests", "CI")
 
   defp sort_icon("asc"), do: "square_rounded_arrow_up"
   defp sort_icon("desc"), do: "square_rounded_arrow_down"

@@ -1,4 +1,171 @@
 <div id="flaky-tests">
+  <.card title={dgettext("dashboard_tests", "Analytics")} icon="chart_arcs" data-part="analytics">
+    <:actions>
+      <.dropdown
+        id="flaky-tests-analytics-environment-dropdown"
+        label={@analytics_environment_label}
+        secondary_text={dgettext("dashboard_tests", "Environment:")}
+      >
+        <.dropdown_item
+          value="any"
+          label={dgettext("dashboard_tests", "Any")}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "any")}"}
+          data-selected={@analytics_environment == "any"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="local"
+          label={dgettext("dashboard_tests", "Local")}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "local")}"}
+          data-selected={@analytics_environment == "local"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="ci"
+          label={dgettext("dashboard_tests", "CI")}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "ci")}"}
+          data-selected={@analytics_environment == "ci"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+      </.dropdown>
+      <.date_picker
+        id="flaky-tests-analytics-date-range-picker"
+        name="analytics-date-range"
+        presets={[
+          %{
+            id: "last-24-hours",
+            label: dgettext("dashboard_tests", "Last 24 hours"),
+            period: {24, :hour}
+          },
+          %{
+            id: "last-7-days",
+            label: dgettext("dashboard_tests", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last-30-days",
+            label: dgettext("dashboard_tests", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{
+            id: "last-12-months",
+            label: dgettext("dashboard_tests", "Last 12 months"),
+            period: {12, :month}
+          },
+          %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
+        ]}
+        selected_preset={@analytics_preset}
+        period={@analytics_period}
+        on_period_change="analytics_period_changed"
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_tests", "Cancel")}
+            variant="secondary"
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel",
+                detail: %{id: "flaky-tests-analytics-date-range-picker"}
+              )
+            }
+          />
+          <.button
+            label={dgettext("dashboard_tests", "Apply")}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply",
+                detail: %{id: "flaky-tests-analytics-date-range-picker"}
+              )
+            }
+          />
+        </:actions>
+      </.date_picker>
+    </:actions>
+    <.card_section :if={@flaky_runs_analytics.count != 0} data-part="analytics-chart-section">
+      <div data-part="legends">
+        <.legend
+          title={dgettext("dashboard_tests", "Flaky Runs")}
+          value={@flaky_runs_analytics.count}
+          style="flaky"
+        />
+      </div>
+      <.chart
+        id="flaky-runs-chart"
+        type="line"
+        extra_options={
+          %{
+            grid: %{
+              width: "97%",
+              left: "0.4%",
+              height: "88%",
+              top: "5%"
+            },
+            xAxis: %{
+              boundaryGap: false,
+              type: "category",
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary",
+                formatter: "fn:toLocaleDate",
+                customValues: [
+                  @flaky_runs_analytics.dates |> List.first(),
+                  @flaky_runs_analytics.dates |> List.last()
+                ],
+                padding: [10, 0, 0, 0]
+              }
+            },
+            yAxis: %{
+              splitNumber: 4,
+              splitLine: %{
+                lineStyle: %{
+                  color: "var:noora-chart-lines"
+                }
+              },
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary"
+              }
+            },
+            legend: %{
+              show: false
+            },
+            tooltip:
+              if @analytics_preset == "last-24-hours" do
+                %{dateFormat: "hour"}
+              else
+                %{}
+              end
+          }
+        }
+        series={[
+          %{
+            color: "var:noora-chart-flaky",
+            data:
+              Enum.zip(
+                @flaky_runs_analytics.dates,
+                @flaky_runs_analytics.values
+              )
+              |> Enum.map(&Tuple.to_list/1),
+            name: dgettext("dashboard_tests", "Flaky runs"),
+            type: "line",
+            smooth: 0.1,
+            symbol: "none"
+          }
+        ]}
+        y_axis_min={0}
+      />
+    </.card_section>
+    <.empty_card_section
+      :if={@flaky_runs_analytics.count == 0}
+      title={dgettext("dashboard_tests", "No data yet")}
+    >
+      <:image>
+        <img src="/images/empty_line_chart_light.png" data-theme="light" />
+        <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+      </:image>
+    </.empty_card_section>
+  </.card>
+
   <.card
     title={dgettext("dashboard_tests", "Flaky Tests")}
     icon="progress_x"
