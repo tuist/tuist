@@ -68,32 +68,30 @@ defmodule Cache.S3TransfersTest do
     end
   end
 
-  describe "enqueue_module_upload/4" do
+  describe "enqueue_module_upload/3" do
     test "creates a new upload transfer" do
       {:ok, transfer} =
-        S3Transfers.enqueue_module_upload("account", "project", "account/project/module/builds/AB/CD/hash/name.zip", "run-id")
+        S3Transfers.enqueue_module_upload("account", "project", "account/project/module/builds/AB/CD/hash/name.zip")
 
       assert transfer.type == :upload
       assert transfer.account_handle == "account"
       assert transfer.project_handle == "project"
       assert transfer.artifact_type == :module
       assert transfer.key == "account/project/module/builds/AB/CD/hash/name.zip"
-      assert transfer.run_id == "run-id"
       assert transfer.inserted_at
     end
   end
 
-  describe "enqueue_module_download/4" do
+  describe "enqueue_module_download/3" do
     test "creates a new download transfer" do
       {:ok, transfer} =
-        S3Transfers.enqueue_module_download("account", "project", "account/project/module/builds/AB/CD/hash/name.zip", "run-id")
+        S3Transfers.enqueue_module_download("account", "project", "account/project/module/builds/AB/CD/hash/name.zip")
 
       assert transfer.type == :download
       assert transfer.account_handle == "account"
       assert transfer.project_handle == "project"
       assert transfer.artifact_type == :module
       assert transfer.key == "account/project/module/builds/AB/CD/hash/name.zip"
-      assert transfer.run_id == "run-id"
       assert transfer.inserted_at
     end
   end

@@ -82,8 +82,7 @@ defmodule CacheWeb.ModuleCacheController do
     :telemetry.execute([:cache, :module, :download, :hit], %{}, %{})
     :ok = CacheArtifacts.track_artifact_access(key)
 
-      run_id = get_req_header(conn, "x-tuist-run-id") |> List.first()
-
+    run_id = conn |> get_req_header("x-tuist-run-id") |> List.first()
 
     case Disk.module_stat(account_handle, project_handle, category, hash, name) do
       {:ok, %File.Stat{size: size}} ->
@@ -107,24 +106,33 @@ defmodule CacheWeb.ModuleCacheController do
       {:error, _} ->
         :telemetry.execute([:cache, :module, :download, :disk_miss], %{}, %{})
 
-        if S3.exists?(key) do
-          S3Transfers.enqueue_module_download(account_handle, project_handle, key, run_id)
+        case S3.head(key) do
+          {:ok, size} ->
+            :telemetry.execute([:cache, :module, :download, :s3_hit], %{size: size}, %{
+              account_handle: account_handle,
+              project_handle: project_handle,
+              run_id: run_id,
+              remote_ip: conn.remote_ip
+            })
 
-          case S3.presign_download_url(key) do
-            {:ok, url} ->
-              conn
-              |> put_resp_content_type("application/octet-stream")
-              |> put_resp_header("x-accel-redirect", S3.remote_accel_path(url))
-              |> send_resp(:ok, "")
+            S3Transfers.enqueue_module_download(account_handle, project_handle, key)
 
-            {:error, reason} ->
-              Logger.error("Failed to presign S3 URL for module artifact: #{inspect(reason)}")
-              :telemetry.execute([:cache, :module, :download, :error], %{}, %{reason: inspect(reason)})
-              {:error, :not_found}
-          end
-        else
-          :telemetry.execute([:cache, :module, :download, :s3_miss], %{}, %{})
-          {:error, :not_found}
+            case S3.presign_download_url(key) do
+              {:ok, url} ->
+                conn
+                |> put_resp_content_type("application/octet-stream")
+                |> put_resp_header("x-accel-redirect", S3.remote_accel_path(url))
+                |> send_resp(:ok, "")
+
+              {:error, reason} ->
+                Logger.error("Failed to presign S3 URL for module artifact: #{inspect(reason)}")
+                :telemetry.execute([:cache, :module, :download, :error], %{}, %{reason: inspect(reason)})
+                {:error, :not_found}
+            end
+
+          :not_found ->
+            :telemetry.execute([:cache, :module, :download, :s3_miss], %{}, %{})
+            {:error, :not_found}
         end
     end
   end
@@ -376,10 +384,8 @@ defmodule CacheWeb.ModuleCacheController do
       Enum.each(part_paths, &File.rm/1)
 
       key = Disk.module_key(upload.account_handle, upload.project_handle, upload.category, upload.hash, upload.name)
-    run_id = get_req_header(conn, "x-tuist-run-id") |> List.first()
-
       :ok = CacheArtifacts.track_artifact_access(key)
-      S3Transfers.enqueue_module_upload(upload.account_handle, upload.project_handle, key, run_id)
+      S3Transfers.enqueue_module_upload(upload.account_handle, upload.project_handle, key)
 
       :telemetry.execute(
         [:cache, :module, :multipart, :complete],

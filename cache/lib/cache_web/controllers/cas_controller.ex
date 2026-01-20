@@ -70,22 +70,35 @@ defmodule CacheWeb.CASController do
       {:error, _} ->
         :telemetry.execute([:cache, :cas, :download, :disk_miss], %{}, %{})
 
-        S3Transfers.enqueue_cas_download(account_handle, project_handle, key)
-
-        case S3.presign_download_url(key) do
-          {:ok, url} ->
-            conn
-            |> put_resp_header("x-accel-redirect", S3.remote_accel_path(url))
-            |> send_resp(:ok, "")
-
-          {:error, reason} ->
-            Appsignal.send_error(%RuntimeError{message: "Failed to presign S3 url"}, %{
-              key: key,
-              reason: reason
+        case S3.head(key) do
+          {:ok, size} ->
+            :telemetry.execute([:cache, :cas, :download, :s3_hit], %{size: size}, %{
+              cas_id: id,
+              account_handle: account_handle,
+              project_handle: project_handle
             })
 
-            :telemetry.execute([:cache, :cas, :download, :error], %{}, %{reason: inspect(reason)})
+            S3Transfers.enqueue_cas_download(account_handle, project_handle, key)
 
+            case S3.presign_download_url(key) do
+              {:ok, url} ->
+                conn
+                |> put_resp_header("x-accel-redirect", S3.remote_accel_path(url))
+                |> send_resp(:ok, "")
+
+              {:error, reason} ->
+                Appsignal.send_error(%RuntimeError{message: "Failed to presign S3 url"}, %{
+                  key: key,
+                  reason: reason
+                })
+
+                :telemetry.execute([:cache, :cas, :download, :error], %{}, %{reason: inspect(reason)})
+
+                send_resp(conn, :not_found, "")
+            end
+
+          :not_found ->
+            :telemetry.execute([:cache, :cas, :download, :s3_miss], %{}, %{})
             send_resp(conn, :not_found, "")
         end
     end

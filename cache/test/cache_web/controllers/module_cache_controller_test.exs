@@ -77,9 +77,9 @@ defmodule CacheWeb.ModuleCacheControllerTest do
         :ok
       end)
 
-      expect(S3, :exists?, fn key ->
+      expect(S3, :head, fn key ->
         assert key == "test-account/test-project/module/builds/ab/c1/#{hash}/#{name}"
-        true
+        {:ok, 4096}
       end)
 
       expect(S3, :presign_download_url, fn key ->
@@ -108,7 +108,6 @@ defmodule CacheWeb.ModuleCacheControllerTest do
       assert transfer.project_handle == "test-project"
       assert transfer.artifact_type == :module
       assert transfer.key == "test-account/test-project/module/builds/ab/c1/#{hash}/#{name}"
-      assert transfer.run_id == "run-id"
     end
 
     test "returns 404 when S3 presign fails", %{conn: conn} do
@@ -139,14 +138,13 @@ defmodule CacheWeb.ModuleCacheControllerTest do
       end)
 
       capture_log(fn ->
-      conn =
-        conn
-        |> put_req_header("authorization", "Bearer valid-token")
-        |> put_req_header("x-tuist-run-id", "run-id")
-        |> get(
-          "/api/cache/module/#{artifact_id}?account_handle=#{account_handle}&project_handle=#{project_handle}&hash=#{hash}&name=#{name}"
-        )
-
+        conn =
+          conn
+          |> put_req_header("authorization", "Bearer valid-token")
+          |> put_req_header("x-tuist-run-id", "run-id")
+          |> get(
+            "/api/cache/module/#{artifact_id}?account_handle=#{account_handle}&project_handle=#{project_handle}&hash=#{hash}&name=#{name}"
+          )
 
         assert conn.status == 404
       end)
@@ -409,7 +407,6 @@ defmodule CacheWeb.ModuleCacheControllerTest do
       assert transfer.project_handle == "test-project"
       assert transfer.artifact_type == :module
       assert transfer.key == "test-account/test-project/module/builds/ab/c1/abc123/test.zip"
-      assert transfer.run_id == "run-id"
     end
 
     test "returns 404 for unknown upload_id", %{conn: conn} do
