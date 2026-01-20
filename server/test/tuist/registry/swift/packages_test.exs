@@ -617,6 +617,7 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       clone_dir = Path.join(temp_dir, "swift-protobuf-1.0.0")
       File.mkdir_p!(clone_dir)
       File.write!(Path.join(clone_dir, "Package.swift"), "// swift-tools-version:5.9\ncontent")
+
       File.write!(
         Path.join(clone_dir, ".gitmodules"),
         "[submodule \"protobuf\"]\n\tpath = protobuf\n\turl = ../protobuf.git"
@@ -713,6 +714,7 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       clone_dir = Path.join(temp_dir, "tuist-4.59.0")
       File.mkdir_p!(clone_dir)
       File.write!(Path.join(clone_dir, "Package.swift"), "// swift-tools-version:5.9\ncontent")
+
       File.write!(
         Path.join(clone_dir, ".gitmodules"),
         "[submodule \"cli/TuistCacheEE\"]\n\tpath = cli/TuistCacheEE\n\turl = https://github.com/tuist/TuistCacheEE/"
@@ -739,8 +741,7 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       end)
 
       stub(System, :cmd, fn
-        "git", ["-c", "url.https://github.com/.insteadOf=git@github.com:", "clone" | _],
-        [stderr_to_stdout: true] ->
+        "git", ["-c", "url.https://github.com/.insteadOf=git@github.com:", "clone" | _], [stderr_to_stdout: true] ->
           {"Cloning...", 0}
 
         "git",

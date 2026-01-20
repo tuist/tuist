@@ -321,11 +321,7 @@ defmodule Tuist.Registry.Swift.Packages do
     end
   end
 
-  defp update_submodules(%{
-         destination: destination,
-         repository_full_handle: repository_full_handle,
-         tag: tag
-       }) do
+  defp update_submodules(%{destination: destination, repository_full_handle: repository_full_handle, tag: tag}) do
     destination
     |> submodule_paths()
     |> Enum.reduce_while(:ok, fn submodule_path, :ok ->
@@ -351,15 +347,11 @@ defmodule Tuist.Registry.Swift.Packages do
 
         {output, code} ->
           if private_submodule_error?(output) do
-            Logger.info(
-              "Skipping private submodule #{submodule_path} for #{repository_full_handle}@#{tag}"
-            )
+            Logger.info("Skipping private submodule #{submodule_path} for #{repository_full_handle}@#{tag}")
 
             {:cont, :ok}
           else
-            Logger.warning(
-              "Git submodule update failed for #{repository_full_handle}@#{tag} (exit #{code}): #{output}"
-            )
+            Logger.warning("Git submodule update failed for #{repository_full_handle}@#{tag} (exit #{code}): #{output}")
 
             {:halt, {:error, "Git submodule update failed (exit #{code}): #{output}"}}
           end
