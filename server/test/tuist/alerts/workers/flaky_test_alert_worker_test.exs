@@ -221,4 +221,157 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorkerTest do
       assert result == :ok
     end
   end
+
+  describe "simplified alerts" do
+    test "sends simplified alert when flaky_test_alerts_enabled and channel configured", %{project: project} do
+      # Given
+      {:ok, project} =
+        Tuist.Projects.update_project(project, %{
+          flaky_test_alerts_enabled: true,
+          flaky_test_alerts_slack_channel_id: "C12345",
+          flaky_test_alerts_slack_channel_name: "alerts"
+        })
+
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: true)
+
+      stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+      stub(Runs, :get_flaky_runs_groups_count_for_test_case, fn _id -> 3 end)
+
+      expect(Slack, :send_simplified_flaky_test_alert, fn p, tc, count ->
+        assert p.id == project.id
+        assert tc.id == test_case.id
+        assert count == 3
+        :ok
+      end)
+
+      # When
+      result =
+        FlakyTestAlertWorker.perform(%Oban.Job{
+          args: %{"test_case_id" => test_case.id, "project_id" => project.id}
+        })
+
+      # Then
+      assert result == :ok
+    end
+
+    test "does not send simplified alert when flaky_test_alerts_enabled is false", %{project: project} do
+      # Given
+      {:ok, project} =
+        Tuist.Projects.update_project(project, %{
+          flaky_test_alerts_enabled: false,
+          flaky_test_alerts_slack_channel_id: "C12345",
+          flaky_test_alerts_slack_channel_name: "alerts"
+        })
+
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: true)
+
+      stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+      stub(Runs, :get_flaky_runs_groups_count_for_test_case, fn _id -> 3 end)
+
+      reject(&Slack.send_simplified_flaky_test_alert/3)
+
+      # When
+      result =
+        FlakyTestAlertWorker.perform(%Oban.Job{
+          args: %{"test_case_id" => test_case.id, "project_id" => project.id}
+        })
+
+      # Then
+      assert result == :ok
+    end
+
+    test "does not send simplified alert when channel is not configured", %{project: project} do
+      # Given
+      {:ok, project} =
+        Tuist.Projects.update_project(project, %{
+          flaky_test_alerts_enabled: true,
+          flaky_test_alerts_slack_channel_id: nil,
+          flaky_test_alerts_slack_channel_name: nil
+        })
+
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: true)
+
+      stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+      stub(Runs, :get_flaky_runs_groups_count_for_test_case, fn _id -> 3 end)
+
+      reject(&Slack.send_simplified_flaky_test_alert/3)
+
+      # When
+      result =
+        FlakyTestAlertWorker.perform(%Oban.Job{
+          args: %{"test_case_id" => test_case.id, "project_id" => project.id}
+        })
+
+      # Then
+      assert result == :ok
+    end
+
+    test "does not send simplified alert when no slack installation" do
+      # Given - create a project without slack installation
+      other_user = AccountsFixtures.user_fixture()
+      project = ProjectsFixtures.project_fixture(account_id: other_user.account.id)
+
+      {:ok, project} =
+        Tuist.Projects.update_project(project, %{
+          flaky_test_alerts_enabled: true,
+          flaky_test_alerts_slack_channel_id: "C12345",
+          flaky_test_alerts_slack_channel_name: "alerts"
+        })
+
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: true)
+
+      stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+      stub(Runs, :get_flaky_runs_groups_count_for_test_case, fn _id -> 3 end)
+
+      reject(&Slack.send_simplified_flaky_test_alert/3)
+
+      # When
+      result =
+        FlakyTestAlertWorker.perform(%Oban.Job{
+          args: %{"test_case_id" => test_case.id, "project_id" => project.id}
+        })
+
+      # Then
+      assert result == :ok
+    end
+
+    test "sends both simplified and rule-based alerts when both configured", %{project: project} do
+      # Given
+      {:ok, project} =
+        Tuist.Projects.update_project(project, %{
+          flaky_test_alerts_enabled: true,
+          flaky_test_alerts_slack_channel_id: "C_SIMPLIFIED",
+          flaky_test_alerts_slack_channel_name: "simplified-alerts"
+        })
+
+      rule =
+        AlertsFixtures.flaky_test_alert_rule_fixture(
+          project: project,
+          trigger_threshold: 1,
+          slack_channel_id: "C_RULE",
+          slack_channel_name: "rule-alerts"
+        )
+
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: true)
+
+      stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+      stub(Runs, :get_flaky_runs_groups_count_for_test_case, fn _id -> 5 end)
+
+      expect(Slack, :send_simplified_flaky_test_alert, fn _p, _tc, _count -> :ok end)
+
+      expect(Slack, :send_flaky_test_alert, fn alert ->
+        assert alert.flaky_test_alert_rule_id == rule.id
+        :ok
+      end)
+
+      # When
+      result =
+        FlakyTestAlertWorker.perform(%Oban.Job{
+          args: %{"test_case_id" => test_case.id, "project_id" => project.id}
+        })
+
+      # Then
+      assert result == :ok
+    end
+  end
 end
