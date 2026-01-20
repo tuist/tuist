@@ -4687,4 +4687,303 @@ defmodule Tuist.RunsTest do
       assert length(all_enqueued(worker: FlakyTestAlertWorker)) == 2
     end
   end
+
+  describe "is_new detection for test case runs" do
+    test "marks test_case_run as new when no prior CI run exists on default branch" do
+      # Given - a project with default_branch "main"
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      # When - create a test run on a feature branch
+      test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1000,
+        status: "success",
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "feature-branch",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [
+          %{
+            name: "NewTestModule",
+            status: "success",
+            duration: 1000,
+            test_cases: [
+              %{
+                name: "testNewFeature",
+                status: "success",
+                duration: 500
+              }
+            ]
+          }
+        ]
+      }
+
+      {:ok, test} = Runs.create_test(test_attrs)
+
+      # Then - the test case run should be marked as new
+      {test_case_runs, _meta} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: test.id}]
+        })
+
+      assert length(test_case_runs) == 1
+      test_case_run = hd(test_case_runs)
+      assert test_case_run.is_new == true
+    end
+
+    test "marks test_case_run as not new when prior CI run exists on default branch" do
+      # Given - a project with a test case that has been run on main
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      # First, create a CI test run on main (default branch)
+      main_test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1000,
+        status: "success",
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "main",
+        git_commit_sha: "main123",
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+        is_ci: true,
+        test_modules: [
+          %{
+            name: "ExistingTestModule",
+            status: "success",
+            duration: 1000,
+            test_cases: [
+              %{
+                name: "testExistingFeature",
+                status: "success",
+                duration: 500
+              }
+            ]
+          }
+        ]
+      }
+
+      {:ok, _main_test} = Runs.create_test(main_test_attrs)
+
+      # When - create another test run on a feature branch with the same test case
+      feature_test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1000,
+        status: "success",
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "feature-branch",
+        git_commit_sha: "feature123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [
+          %{
+            name: "ExistingTestModule",
+            status: "success",
+            duration: 1000,
+            test_cases: [
+              %{
+                name: "testExistingFeature",
+                status: "success",
+                duration: 500
+              }
+            ]
+          }
+        ]
+      }
+
+      {:ok, feature_test} = Runs.create_test(feature_test_attrs)
+
+      # Then - the test case run should NOT be marked as new
+      {test_case_runs, _meta} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: feature_test.id}]
+        })
+
+      assert length(test_case_runs) == 1
+      test_case_run = hd(test_case_runs)
+      assert test_case_run.is_new == false
+    end
+
+    test "non-CI runs on default branch do not affect is_new detection" do
+      # Given - a project with a non-CI test run on main
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      # Create a non-CI test run on main
+      non_ci_main_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1000,
+        status: "success",
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "main",
+        git_commit_sha: "main123",
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+        is_ci: false,
+        test_modules: [
+          %{
+            name: "LocalTestModule",
+            status: "success",
+            duration: 1000,
+            test_cases: [
+              %{
+                name: "testLocalOnly",
+                status: "success",
+                duration: 500
+              }
+            ]
+          }
+        ]
+      }
+
+      {:ok, _non_ci_test} = Runs.create_test(non_ci_main_attrs)
+
+      # When - create a CI test run on feature branch with the same test case
+      ci_feature_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1000,
+        status: "success",
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "feature-branch",
+        git_commit_sha: "feature123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [
+          %{
+            name: "LocalTestModule",
+            status: "success",
+            duration: 1000,
+            test_cases: [
+              %{
+                name: "testLocalOnly",
+                status: "success",
+                duration: 500
+              }
+            ]
+          }
+        ]
+      }
+
+      {:ok, ci_test} = Runs.create_test(ci_feature_attrs)
+
+      # Then - the test case run should still be marked as new (non-CI runs don't count)
+      {test_case_runs, _meta} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: ci_test.id}]
+        })
+
+      assert length(test_case_runs) == 1
+      test_case_run = hd(test_case_runs)
+      assert test_case_run.is_new == true
+    end
+
+    test "mixed new and existing test cases in same run" do
+      # Given - a project with one test case already on main
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      # Create a CI test run on main with one test case
+      main_test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 1000,
+        status: "success",
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "main",
+        git_commit_sha: "main123",
+        ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+        is_ci: true,
+        test_modules: [
+          %{
+            name: "MixedTestModule",
+            status: "success",
+            duration: 1000,
+            test_cases: [
+              %{
+                name: "testExisting",
+                status: "success",
+                duration: 500
+              }
+            ]
+          }
+        ]
+      }
+
+      {:ok, _main_test} = Runs.create_test(main_test_attrs)
+
+      # When - create a test run on feature branch with both existing and new test cases
+      feature_test_attrs = %{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: account.id,
+        duration: 2000,
+        status: "success",
+        model_identifier: "Mac15,6",
+        macos_version: "14.0",
+        xcode_version: "15.0",
+        git_branch: "feature-branch",
+        git_commit_sha: "feature123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [
+          %{
+            name: "MixedTestModule",
+            status: "success",
+            duration: 2000,
+            test_cases: [
+              %{
+                name: "testExisting",
+                status: "success",
+                duration: 500
+              },
+              %{
+                name: "testBrandNew",
+                status: "success",
+                duration: 500
+              }
+            ]
+          }
+        ]
+      }
+
+      {:ok, feature_test} = Runs.create_test(feature_test_attrs)
+
+      # Then - one should be new, one should not
+      {test_case_runs, _meta} =
+        Runs.list_test_case_runs(%{
+          filters: [%{field: :test_run_id, op: :==, value: feature_test.id}]
+        })
+
+      assert length(test_case_runs) == 2
+
+      existing_run = Enum.find(test_case_runs, &(&1.name == "testExisting"))
+      new_run = Enum.find(test_case_runs, &(&1.name == "testBrandNew"))
+
+      assert existing_run.is_new == false
+      assert new_run.is_new == true
+    end
+  end
 end

@@ -789,8 +789,10 @@ defmodule Tuist.Runs do
 
     mark_test_case_runs_as_flaky(historical_flaky_ids)
 
+    test_case_data = check_new_test_cases(test, test_case_data)
+
     Map.new(test_case_data, fn data ->
-      {data.identity_key, %{status: data.status, is_flaky: data.is_flaky}}
+      {data.identity_key, %{status: data.status, is_flaky: data.is_flaky, is_new: data.is_new}}
     end)
   end
 
@@ -837,6 +839,41 @@ defmodule Tuist.Runs do
     query
     |> ClickHouseRepo.all()
     |> Enum.group_by(& &1.test_case_id)
+  end
+
+  defp check_new_test_cases(test, test_case_data) do
+    project = Tuist.Projects.get_project_by_id(test.project_id)
+    default_branch = project && project.default_branch
+
+    if is_nil(default_branch) do
+      Enum.map(test_case_data, &Map.put(&1, :is_new, false))
+    else
+      test_case_ids = Enum.map(test_case_data, & &1.test_case_id)
+      existing_on_default_branch = get_test_case_ids_with_ci_runs_on_branch(test_case_ids, default_branch)
+
+      Enum.map(test_case_data, fn data ->
+        is_new = data.test_case_id not in existing_on_default_branch
+        Map.put(data, :is_new, is_new)
+      end)
+    end
+  end
+
+  defp get_test_case_ids_with_ci_runs_on_branch(test_case_ids, branch) do
+    ninety_days_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -90, :day)
+
+    query =
+      from(tcr in TestCaseRun,
+        where: tcr.test_case_id in ^test_case_ids,
+        where: tcr.git_branch == ^branch,
+        where: tcr.is_ci == true,
+        where: tcr.ran_at >= ^ninety_days_ago,
+        distinct: true,
+        select: tcr.test_case_id
+      )
+
+    query
+    |> ClickHouseRepo.all()
+    |> MapSet.new()
   end
 
   defp create_test_suites(test, module_id, test_suites, test_cases, test_case_run_data) do
@@ -924,7 +961,7 @@ defmodule Tuist.Runs do
 
         repetitions = Map.get(case_attrs, :repetitions, [])
 
-        %{status: status, is_flaky: is_flaky} = Map.get(test_case_run_data, identity_key)
+        %{status: status, is_flaky: is_flaky, is_new: is_new} = Map.get(test_case_run_data, identity_key)
 
         test_case_run = %{
           id: test_case_run_id,
@@ -942,6 +979,7 @@ defmodule Tuist.Runs do
           git_commit_sha: test.git_commit_sha || "",
           status: status,
           is_flaky: is_flaky,
+          is_new: is_new,
           duration: Map.get(case_attrs, :duration, 0),
           inserted_at: NaiveDateTime.utc_now(),
           module_name: module_name,

@@ -174,7 +174,9 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       name: Keyword.get(attrs, :name, "testExample"),
       status: Keyword.get(attrs, :status, 0),
       is_flaky: Keyword.get(attrs, :is_flaky, false),
+      is_new: Keyword.get(attrs, :is_new, false),
       duration: Keyword.get(attrs, :duration, 100),
+      ran_at: Keyword.get(attrs, :ran_at, NaiveDateTime.utc_now()),
       inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now())
     }
 

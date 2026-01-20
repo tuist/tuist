@@ -682,6 +682,13 @@
                     style="light-fill"
                     size="large"
                   />
+                  <.badge
+                    :if={test_case.is_new}
+                    label={dgettext("dashboard_tests", "New")}
+                    color="primary"
+                    style="light-fill"
+                    size="large"
+                  />
                 </span>
                 <span data-part="description">
                   {case {test_case.module_name, test_case.suite_name} do

@@ -723,6 +723,13 @@ defmodule TuistWeb.TestRunLive do
 
   defp remap_test_case_filter_fields(%{field: :test_case_duration} = filter), do: %{filter | field: :duration}
   defp remap_test_case_filter_fields(%{field: :test_case_status} = filter), do: %{filter | field: :status}
+
+  defp remap_test_case_filter_fields(%{field: :test_case_trait, value: :new} = filter),
+    do: %{filter | field: :is_new, value: true}
+
+  defp remap_test_case_filter_fields(%{field: :test_case_trait, value: :flaky} = filter),
+    do: %{filter | field: :is_flaky, value: true}
+
   defp remap_test_case_filter_fields(filter), do: filter
 
   defp remap_test_suite_filter_fields(%{field: :test_suite_test_case_count} = filter),
@@ -768,6 +775,19 @@ defmodule TuistWeb.TestRunLive do
           "success" => dgettext("dashboard_tests", "Passed"),
           "failure" => dgettext("dashboard_tests", "Failed"),
           "skipped" => dgettext("dashboard_tests", "Skipped")
+        },
+        operator: :==,
+        value: nil
+      },
+      %Filter.Filter{
+        id: "test_case_trait",
+        field: :test_case_trait,
+        display_name: dgettext("dashboard_tests", "Test Case"),
+        type: :option,
+        options: [:new, :flaky],
+        options_display_names: %{
+          :new => dgettext("dashboard_tests", "New"),
+          :flaky => dgettext("dashboard_tests", "Flaky")
         },
         operator: :==,
         value: nil
