@@ -27,7 +27,7 @@ defmodule Cache.Application do
       Cache.MultipartUploads,
       CacheWeb.Endpoint,
       Cache.SocketLinker,
-      {Finch, name: Cache.Finch},
+      {Finch, name: Cache.Finch, pools: finch_pools()},
       {Oban, Application.get_env(:cache, Oban)}
     ]
 
@@ -61,5 +61,27 @@ defmodule Cache.Application do
   def config_change(changed, _new, removed) do
     CacheWeb.Endpoint.config_change(changed, removed)
     :ok
+  end
+
+  defp finch_pools do
+    server_url = Application.get_env(:cache, :server_url)
+
+    %{
+      :default => [size: 10, start_pool_metrics?: true],
+      server_url => [
+        conn_opts: [
+          log: true,
+          protocols: [:http2, :http1],
+          transport_opts: [
+            cacertfile: CAStore.file_path(),
+            verify: :verify_peer
+          ]
+        ],
+        size: 10,
+        count: 1,
+        protocols: [:http2, :http1],
+        start_pool_metrics?: true
+      ]
+    }
   end
 end
