@@ -309,7 +309,12 @@ defmodule Tuist.Registry.Swift.Packages do
 
       {output, code} ->
         Logger.warning("Git clone failed for #{repository_full_handle}@#{tag} (exit #{code}): #{output}")
-        {:error, "Git clone failed (exit #{code}): #{output}"}
+
+        if String.contains?(output, "fatal: could not read Username for") do
+          {:error, :private_submodule}
+        else
+          {:error, "Git clone failed (exit #{code}): #{output}"}
+        end
     end
   end
 

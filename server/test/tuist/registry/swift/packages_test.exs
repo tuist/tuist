@@ -696,5 +696,45 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       # Then
       assert {:error, "Git clone failed (exit 128): fatal: repository not found"} = result
     end
+
+    test "returns :private_submodule error when submodule requires authentication", %{temp_dir: temp_dir} do
+      # Given
+      package =
+        PackagesFixtures.package_fixture(
+          scope: "tuist",
+          name: "tuist",
+          repository_full_handle: "tuist/tuist"
+        )
+
+      stub(VCS, :get_repository_content, fn _, [reference: "4.59.0", path: ".gitmodules"] ->
+        {:ok,
+         %Content{
+           content:
+             "[submodule \"cli/TuistCacheEE\"]\n\tpath = cli/TuistCacheEE\n\turl = https://github.com/tuist/TuistCacheEE/",
+           path: ".gitmodules"
+         }}
+      end)
+
+      stub(Briefly, :create, fn [type: :directory] ->
+        {:ok, temp_dir}
+      end)
+
+      stub(System, :cmd, fn
+        "git", _, [stderr_to_stdout: true] ->
+          {"fatal: could not read Username for 'https://github.com': No such device or address\nfatal: clone of 'https://github.com/tuist/TuistCacheEE/' failed",
+           1}
+      end)
+
+      # When
+      result =
+        Packages.create_package_release(%{
+          package: package,
+          version: "4.59.0",
+          token: "test_token"
+        })
+
+      # Then
+      assert {:error, :private_submodule} = result
+    end
   end
 end

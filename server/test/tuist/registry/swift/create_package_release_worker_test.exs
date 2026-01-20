@@ -171,6 +171,36 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorkerTest do
       assert log =~ "Failed to create package release for ErrorPackage/ErrorPackage@1.0.0"
     end
 
+    test "skips packages with private submodules" do
+      # Given
+      PackagesFixtures.package_fixture(
+        scope: "PrivateSubmodule",
+        name: "Package"
+      )
+
+      stub(Packages, :create_package_release, fn _ ->
+        {:error, :private_submodule}
+      end)
+
+      job = %Oban.Job{
+        args: %{
+          "scope" => "PrivateSubmodule",
+          "name" => "Package",
+          "version" => "1.0.0"
+        }
+      }
+
+      # When
+      {result, log} =
+        with_log(fn ->
+          CreatePackageReleaseWorker.perform(job)
+        end)
+
+      # Then
+      assert result == :ok
+      assert log =~ "Skipping package release for PrivateSubmodule/Package@1.0.0: contains private submodules"
+    end
+
     test "creates package release with pre-release version" do
       # Given
       package =

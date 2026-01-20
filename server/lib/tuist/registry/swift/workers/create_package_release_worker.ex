@@ -46,6 +46,11 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorker do
                    version: version,
                    token: Environment.github_token_update_package_releases()
                  }) do
+              {:error, :private_submodule} ->
+                Logger.info("Skipping package release for #{scope}/#{name}@#{version}: contains private submodules")
+
+                :ok
+
               {:error, reason} ->
                 Logger.error("Failed to create package release for #{scope}/#{name}@#{version}: #{reason}")
                 {:error, reason}
