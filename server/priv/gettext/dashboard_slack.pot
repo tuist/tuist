@@ -11,48 +11,54 @@
 msgid ""
 msgstr ""
 
-#: lib/tuist_web/controllers/slack_oauth_controller.ex:105
-#: lib/tuist_web/controllers/slack_oauth_controller.ex:182
-#: lib/tuist_web/controllers/slack_oauth_controller.ex:197
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:119
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:196
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:211
 #, elixir-autogen, elixir-format
 msgid "Account not found. Please try again."
 msgstr ""
 
-#: lib/tuist_web/controllers/slack_oauth_controller.ex:113
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:127
 #, elixir-autogen, elixir-format
 msgid "Failed to save Slack installation. Please try again."
 msgstr ""
 
-#: lib/tuist_web/controllers/slack_oauth_controller.ex:67
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:81
 #, elixir-autogen, elixir-format
 msgid "Invalid Slack authorization. Please try again."
 msgstr ""
 
-#: lib/tuist_web/controllers/slack_oauth_controller.ex:40
-#: lib/tuist_web/controllers/slack_oauth_controller.ex:61
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:47
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:75
 #, elixir-autogen, elixir-format
 msgid "Invalid authorization request. Please try again."
 msgstr ""
 
-#: lib/tuist_web/controllers/slack_oauth_controller.ex:109
-#: lib/tuist_web/controllers/slack_oauth_controller.ex:127
-#: lib/tuist_web/controllers/slack_oauth_controller.ex:143
-#: lib/tuist_web/controllers/slack_oauth_controller.ex:161
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:123
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:141
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:157
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:175
 #, elixir-autogen, elixir-format
 msgid "Slack authorization failed: %{reason}"
 msgstr ""
 
-#: lib/tuist_web/controllers/slack_oauth_controller.ex:147
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:161
 #, elixir-autogen, elixir-format
 msgid "Failed to save channel selection. Please try again."
 msgstr ""
 
-#: lib/tuist_web/controllers/slack_oauth_controller.ex:193
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:207
 #, elixir-autogen, elixir-format
 msgid "Project not found. Please try again."
 msgstr ""
 
-#: lib/tuist_web/controllers/slack_oauth_controller.ex:139
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:153
 #, elixir-autogen, elixir-format
 msgid "Alert rule not found. Please try again."
+msgstr ""
+
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:40
+#: lib/tuist_web/controllers/slack_oauth_controller.ex:68
+#, elixir-autogen, elixir-format
+msgid "Authorization request expired. Please start the Slack connection process again."
 msgstr ""
