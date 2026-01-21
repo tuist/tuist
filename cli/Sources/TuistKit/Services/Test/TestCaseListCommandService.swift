@@ -13,7 +13,7 @@ protocol TestCaseListCommandServicing {
         flaky: Bool,
         identifiersOnly: Bool,
         page: Int?,
-        pageSize: Int,
+        pageSize: Int?,
         json: Bool
     ) async throws
 }
@@ -51,7 +51,7 @@ struct TestCaseListCommandService: TestCaseListCommandServicing {
         flaky: Bool,
         identifiersOnly: Bool,
         page: Int?,
-        pageSize: Int,
+        pageSize: Int?,
         json: Bool
     ) async throws {
         let directoryPath: AbsolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
@@ -64,6 +64,7 @@ struct TestCaseListCommandService: TestCaseListCommandServicing {
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         let startPage = (page ?? 1) - 1 // Convert to 0-indexed for Noora
+        let pageSize = pageSize ?? (identifiersOnly ? 500 : 10)
 
         let initialTestCasesPage = try await listTestCasesService.listTestCases(
             fullHandle: resolvedFullHandle,

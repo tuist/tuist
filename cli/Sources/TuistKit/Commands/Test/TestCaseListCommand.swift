@@ -59,7 +59,7 @@ struct TestCaseListCommand: AsyncParsableCommand, NooraReadyCommand {
         help: "The number of test cases per page. Defaults to 10.",
         envKey: .testCaseListPageSize
     )
-    var pageSize: Int = 10
+    var pageSize: Int?
 
     @Flag(
         help: "The output in JSON format.",
