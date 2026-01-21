@@ -78,13 +78,16 @@ struct TestCaseListCommandService: TestCaseListCommandServicing {
 
         if identifiersOnly {
             let identifiers = initialTestCases.map { testCase in
+                let name = testCase.name.hasSuffix("()")
+                    ? String(testCase.name.dropLast(2))
+                    : testCase.name
                 if let suiteName = testCase.suite?.name {
-                    return "\(testCase.module.name)/\(suiteName)/\(testCase.name)"
+                    return "\(testCase.module.name)/\(suiteName)/\(name)"
                 } else {
-                    return "\(testCase.module.name)/\(testCase.name)"
+                    return "\(testCase.module.name)/\(name)"
                 }
             }.joined(separator: ",")
-            Logger.current.info("\(identifiers)")
+            Noora.current.passthrough("\(identifiers)")
             return
         }
 
