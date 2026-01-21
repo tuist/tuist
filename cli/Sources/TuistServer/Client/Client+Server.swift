@@ -1,6 +1,5 @@
 import Foundation
 import OpenAPIRuntime
-import OpenAPIURLSession
 import TuistHTTP
 
 extension Client {
@@ -10,7 +9,7 @@ extension Client {
     public static func authenticated(serverURL: URL, authenticationURL: URL? = nil) -> Client {
         .init(
             serverURL: serverURL,
-            transport: URLSessionTransport(configuration: .init(session: .tuistShared)),
+            transport: TuistURLSessionTransport(),
             middlewares: [
                 HARRecordingMiddleware(),
                 RequestIdMiddleware(),
@@ -26,7 +25,7 @@ extension Client {
     public static func unauthenticated(serverURL: URL) -> Client {
         .init(
             serverURL: serverURL,
-            transport: URLSessionTransport(configuration: .init(session: .tuistShared)),
+            transport: TuistURLSessionTransport(),
             middlewares: [
                 HARRecordingMiddleware(),
                 RequestIdMiddleware(),
