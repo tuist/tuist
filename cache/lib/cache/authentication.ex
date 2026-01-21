@@ -122,23 +122,39 @@ defmodule Cache.Authentication do
     headers = build_headers(auth_header, conn)
     options = request_options(headers)
 
+    cache_name()
+    |> Cachex.fetch(cache_key, fn -> fetch_projects(cache_key, options) end)
+    |> unwrap_fetch_result()
+  end
+
+  defp fetch_projects(cache_key, options) do
     case Req.get(options) do
       {:ok, %{status: 200, body: %{"projects" => projects}}} ->
-        cache_projects(cache_key, projects)
+        {:commit, project_access_result(cache_key, projects), expire: success_ttl()}
 
       {:ok, %{status: 403}} ->
-        cache_result(cache_key, {:error, 403, "You don't have access to this project"}, failure_ttl())
+        {:commit, {:error, 403, "You don't have access to this project"}, expire: failure_ttl()}
 
       {:ok, %{status: 401}} ->
-        cache_result(cache_key, {:error, 401, "Unauthorized"}, failure_ttl())
+        {:commit, {:error, 401, "Unauthorized"}, expire: failure_ttl()}
 
       {:ok, %{status: status}} ->
-        {:error, status, "Server responded with status #{status}"}
+        {:ignore, {:error, status, "Server responded with status #{status}"}}
 
       {:error, reason} ->
         Logger.warning("Failed to fetch accessible projects: #{inspect(reason)}")
-        {:error, 500, "Failed to fetch accessible projects"}
+        {:ignore, {:error, 500, "Failed to fetch accessible projects"}}
     end
+  end
+
+  defp unwrap_fetch_result({:ok, result}), do: result
+  defp unwrap_fetch_result({:commit, result}), do: result
+  defp unwrap_fetch_result({:commit, result, _options}), do: result
+  defp unwrap_fetch_result({:ignore, result}), do: result
+
+  defp unwrap_fetch_result({:error, reason}) do
+    Logger.warning("Failed to fetch accessible projects: #{inspect(reason)}")
+    {:error, 500, "Failed to fetch accessible projects"}
   end
 
   defp build_headers(auth_header, conn) do
@@ -180,9 +196,7 @@ defmodule Cache.Authentication do
     |> Base.encode16(case: :lower)
   end
 
-  defp cache_projects({auth_key, requested_handle}, projects) do
-    ttl = success_ttl()
-
+  defp project_access_result({_auth_key, requested_handle}, projects) do
     project_handles =
       projects
       |> Enum.map(fn
@@ -192,14 +206,11 @@ defmodule Cache.Authentication do
       |> Enum.reject(&is_nil/1)
       |> MapSet.new()
 
-    result =
-      if MapSet.member?(project_handles, requested_handle) do
-        :ok
-      else
-        {:error, 403, "You don't have access to this project"}
-      end
-
-    cache_result({auth_key, requested_handle}, result, ttl)
+    if MapSet.member?(project_handles, requested_handle) do
+      :ok
+    else
+      {:error, 403, "You don't have access to this project"}
+    end
   end
 
   defp cache_result(cache_key, result, ttl) do
