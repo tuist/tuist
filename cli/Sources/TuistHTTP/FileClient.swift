@@ -78,17 +78,27 @@ import Path
 
         public func download(url: URL) async throws -> AbsolutePath {
             let request = URLRequest(url: url)
+            let startTime = Date()
             do {
                 let (localUrl, response) = try await session.download(for: request)
-                guard let response = response as? HTTPURLResponse else {
+                let endTime = Date()
+                guard let httpResponse = response as? HTTPURLResponse else {
                     throw FileClientError.invalidResponse(request, nil)
                 }
-                if successStatusCodeRange.contains(response.statusCode) {
+                await recordDownload(
+                    request: request,
+                    response: httpResponse,
+                    startTime: startTime,
+                    endTime: endTime
+                )
+                if successStatusCodeRange.contains(httpResponse.statusCode) {
                     return try AbsolutePath(validating: localUrl.path)
                 } else {
                     throw FileClientError.invalidResponse(request, nil)
                 }
             } catch {
+                let endTime = Date()
+                await recordDownloadError(request: request, error: error, startTime: startTime, endTime: endTime)
                 if error is FileClientError {
                     throw error
                 } else {
@@ -101,17 +111,34 @@ import Path
             let fileSize = try FileHandler.shared.fileSize(path: file)
             let fileData = try Data(contentsOf: file.url)
             let request = uploadRequest(url: url, fileSize: fileSize, data: fileData)
+            let startTime = Date()
             do {
                 let (_, response) = try await session.data(for: request)
-                guard let response = response as? HTTPURLResponse else {
+                let endTime = Date()
+                guard let httpResponse = response as? HTTPURLResponse else {
                     throw FileClientError.invalidResponse(request, file)
                 }
-                if successStatusCodeRange.contains(response.statusCode) {
+                await recordUpload(
+                    request: request,
+                    response: httpResponse,
+                    requestBodySize: Int(fileSize),
+                    startTime: startTime,
+                    endTime: endTime
+                )
+                if successStatusCodeRange.contains(httpResponse.statusCode) {
                     return true
                 } else {
-                    throw FileClientError.serverSideError(request, response, file)
+                    throw FileClientError.serverSideError(request, httpResponse, file)
                 }
             } catch {
+                let endTime = Date()
+                await recordUploadError(
+                    request: request,
+                    error: error,
+                    requestBodySize: Int(fileSize),
+                    startTime: startTime,
+                    endTime: endTime
+                )
                 if error is FileClientError {
                     throw error
                 } else {
@@ -130,6 +157,202 @@ import Path
             request.setValue("zip", forHTTPHeaderField: "Content-Encoding")
             request.httpBody = data
             return request
+        }
+
+        // MARK: - HAR Recording
+
+        private func recordDownload(
+            request: URLRequest,
+            response: HTTPURLResponse,
+            startTime: Date,
+            endTime: Date
+        ) async {
+            guard let recorder = HARRecorder.current else { return }
+            let entry = createHAREntry(
+                request: request,
+                response: response,
+                requestBodySize: 0,
+                responseBodySize: nil,
+                startTime: startTime,
+                endTime: endTime
+            )
+            await recorder.record(entry)
+        }
+
+        private func recordDownloadError(
+            request: URLRequest,
+            error: Error,
+            startTime: Date,
+            endTime: Date
+        ) async {
+            guard let recorder = HARRecorder.current else { return }
+            let entry = createHARErrorEntry(
+                request: request,
+                error: error,
+                requestBodySize: 0,
+                startTime: startTime,
+                endTime: endTime
+            )
+            await recorder.record(entry)
+        }
+
+        private func recordUpload(
+            request: URLRequest,
+            response: HTTPURLResponse,
+            requestBodySize: Int,
+            startTime: Date,
+            endTime: Date
+        ) async {
+            guard let recorder = HARRecorder.current else { return }
+            let entry = createHAREntry(
+                request: request,
+                response: response,
+                requestBodySize: requestBodySize,
+                responseBodySize: nil,
+                startTime: startTime,
+                endTime: endTime
+            )
+            await recorder.record(entry)
+        }
+
+        private func recordUploadError(
+            request: URLRequest,
+            error: Error,
+            requestBodySize: Int,
+            startTime: Date,
+            endTime: Date
+        ) async {
+            guard let recorder = HARRecorder.current else { return }
+            let entry = createHARErrorEntry(
+                request: request,
+                error: error,
+                requestBodySize: requestBodySize,
+                startTime: startTime,
+                endTime: endTime
+            )
+            await recorder.record(entry)
+        }
+
+        private func createHAREntry(
+            request: URLRequest,
+            response: HTTPURLResponse,
+            requestBodySize: Int,
+            responseBodySize: Int?,
+            startTime: Date,
+            endTime: Date
+        ) -> HAR.Entry {
+            let durationMs = Int((endTime.timeIntervalSince(startTime)) * 1000)
+            let url = request.url?.absoluteString ?? ""
+
+            let requestHeaders = HARRecorder.filterSensitiveHeaders(
+                (request.allHTTPHeaderFields ?? [:]).map { HAR.Header(name: $0.key, value: $0.value) }
+            )
+
+            let responseHeaders = HARRecorder.filterSensitiveHeaders(
+                (response.allHeaderFields as? [String: String] ?? [:]).map { HAR.Header(name: $0.key, value: $0.value) }
+            )
+
+            let queryParameters = extractQueryParameters(from: url)
+            let mimeType = response.mimeType ?? "application/octet-stream"
+
+            return HAR.Entry(
+                startedDateTime: startTime,
+                time: durationMs,
+                request: HAR.Request(
+                    method: request.httpMethod ?? "GET",
+                    url: url,
+                    httpVersion: "HTTP/1.1",
+                    cookies: [],
+                    headers: requestHeaders,
+                    queryString: queryParameters,
+                    postData: nil,
+                    headersSize: -1,
+                    bodySize: requestBodySize
+                ),
+                response: HAR.Response(
+                    status: response.statusCode,
+                    statusText: HTTPURLResponse.localizedString(forStatusCode: response.statusCode),
+                    httpVersion: "HTTP/1.1",
+                    cookies: [],
+                    headers: responseHeaders,
+                    content: HAR.Content(
+                        size: responseBodySize ?? Int(response.expectedContentLength),
+                        mimeType: mimeType
+                    ),
+                    redirectURL: "",
+                    headersSize: -1,
+                    bodySize: responseBodySize ?? Int(response.expectedContentLength)
+                ),
+                timings: HAR.Timings(
+                    send: 0,
+                    wait: durationMs,
+                    receive: 0
+                )
+            )
+        }
+
+        private func createHARErrorEntry(
+            request: URLRequest,
+            error: Error,
+            requestBodySize: Int,
+            startTime: Date,
+            endTime: Date
+        ) -> HAR.Entry {
+            let durationMs = Int((endTime.timeIntervalSince(startTime)) * 1000)
+            let url = request.url?.absoluteString ?? ""
+
+            let requestHeaders = HARRecorder.filterSensitiveHeaders(
+                (request.allHTTPHeaderFields ?? [:]).map { HAR.Header(name: $0.key, value: $0.value) }
+            )
+
+            let queryParameters = extractQueryParameters(from: url)
+            let errorMessage = String(describing: error)
+
+            return HAR.Entry(
+                startedDateTime: startTime,
+                time: durationMs,
+                request: HAR.Request(
+                    method: request.httpMethod ?? "GET",
+                    url: url,
+                    httpVersion: "HTTP/1.1",
+                    cookies: [],
+                    headers: requestHeaders,
+                    queryString: queryParameters,
+                    postData: nil,
+                    headersSize: -1,
+                    bodySize: requestBodySize
+                ),
+                response: HAR.Response(
+                    status: 0,
+                    statusText: "Error",
+                    httpVersion: "HTTP/1.1",
+                    cookies: [],
+                    headers: [],
+                    content: HAR.Content(
+                        size: errorMessage.utf8.count,
+                        mimeType: "text/plain",
+                        text: errorMessage
+                    ),
+                    redirectURL: "",
+                    headersSize: -1,
+                    bodySize: errorMessage.utf8.count
+                ),
+                timings: HAR.Timings(
+                    send: 0,
+                    wait: durationMs,
+                    receive: 0
+                )
+            )
+        }
+
+        private func extractQueryParameters(from urlString: String) -> [HAR.QueryParameter] {
+            guard let url = URL(string: urlString),
+                  let components = URLComponents(url: url, resolvingAgainstBaseURL: true),
+                  let queryItems = components.queryItems
+            else {
+                return []
+            }
+            return queryItems.map { HAR.QueryParameter(name: $0.name, value: $0.value ?? "") }
         }
     }
 #endif

@@ -12,6 +12,7 @@ extension Client {
             serverURL: serverURL,
             transport: URLSessionTransport(configuration: .init(session: .tuistShared)),
             middlewares: [
+                HARRecordingMiddleware(),
                 RequestIdMiddleware(),
                 ServerClientCLIMetadataHeadersMiddleware(),
                 ServerClientAuthenticationMiddleware(authenticationURL: authenticationURL),
@@ -27,6 +28,7 @@ extension Client {
             serverURL: serverURL,
             transport: URLSessionTransport(configuration: .init(session: .tuistShared)),
             middlewares: [
+                HARRecordingMiddleware(),
                 RequestIdMiddleware(),
                 VerboseLoggingMiddleware(),
                 OutputWarningsMiddleware(),

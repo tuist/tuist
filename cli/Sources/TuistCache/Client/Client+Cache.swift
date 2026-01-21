@@ -20,6 +20,7 @@ extension Client {
             serverURL: cacheURL,
             transport: URLSessionTransport(configuration: .init(session: .tuistShared)),
             middlewares: [
+                HARRecordingMiddleware(),
                 RequestIdMiddleware(),
                 CacheClientAuthenticationMiddleware(
                     authenticationURL: authenticationURL,
