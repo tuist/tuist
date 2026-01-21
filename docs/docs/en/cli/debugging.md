@@ -10,7 +10,9 @@
 Tuist provides several tools to help you diagnose issues when commands don't behave as expected.
 
 ::: warning
+<!-- -->
 Session data may contain sensitive information such as file paths, project names, and request/response bodies. While sensitive headers (like Authorization) are redacted, be mindful when sharing session data with others.
+<!-- -->
 :::
 
 ## Session data {#session-data}
