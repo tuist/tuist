@@ -9,9 +9,8 @@ private actor AsyncLock {
     }
 }
 
-private let logsDirectoryLock = AsyncLock()
-
 public struct LogsController {
+    private static let logsDirectoryLock = AsyncLock()
     private let fileSystem: FileSystem
 
     public init(fileSystem: FileSystem = FileSystem()) {
@@ -68,7 +67,7 @@ public struct LogsController {
         let logFilePath = stateDirectory.appending(components: [
             "logs", "\(UUID().uuidString).log",
         ])
-        try await logsDirectoryLock.withLock {
+        try await Self.logsDirectoryLock.withLock {
             if try await !fileSystem.exists(logFilePath.parentDirectory) {
                 try await fileSystem.makeDirectory(at: logFilePath.parentDirectory)
             }
