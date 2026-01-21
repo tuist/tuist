@@ -33,17 +33,21 @@
         targetHost = "${hostname}.tuist.dev";
         buildOnTarget = true;
       };
-      imports = sharedModules ++ [
-        {
-          networking.hostName = hostname;
-        }
-      ];
+      imports =
+        sharedModules
+        ++ [
+          {
+            networking.hostName = hostname;
+          }
+        ];
     };
   in {
-    colmena = {
-      meta = {
-        nixpkgs = import nixpkgs {system = "x86_64-linux";};
-      };
-    } // nixpkgs.lib.genAttrs machines mkColmenaNode;
+    colmena =
+      {
+        meta = {
+          nixpkgs = import nixpkgs {system = "x86_64-linux";};
+        };
+      }
+      // nixpkgs.lib.genAttrs machines mkColmenaNode;
   };
 }
