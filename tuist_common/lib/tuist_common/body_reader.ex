@@ -5,9 +5,27 @@ defmodule TuistCommon.BodyReader do
   This module provides functions to calculate appropriate read timeouts based on
   the expected content length, allowing slower connections to complete uploads
   while still timing out stalled transfers.
+
+  ## Timeout Strategy
+
+  The timeout calculation is inspired by Apache's `mod_reqtimeout` module which
+  uses a `MinRate` parameter to extend timeouts based on data throughput:
+  https://httpd.apache.org/docs/current/mod/mod_reqtimeout.html
+
+  Key features:
+  - **Dynamic initial timeout**: Calculated based on Content-Length and minimum throughput
+  - **Maximum timeout cap**: Prevents abuse from spoofed Content-Length headers
+  - **Progressive extension**: Timeout resets on each successful chunk read
+
+  ## Security Considerations
+
+  The maximum timeout cap protects against Slow Loris-style attacks where an
+  attacker could send a large Content-Length but trickle data very slowly:
+  https://www.cloudflare.com/learning/ddos/ddos-attack-tools/slowloris/
   """
 
   @default_read_timeout 60_000
+  @default_max_timeout 600_000
   @default_read_length 262_144
   @default_min_throughput_bytes_per_sec 50 * 1024
 
@@ -15,11 +33,13 @@ defmodule TuistCommon.BodyReader do
   Calculates a dynamic read timeout based on content length.
 
   The timeout is calculated to allow a minimum throughput rate, with a floor
-  to prevent extremely short timeouts for small uploads.
+  to prevent extremely short timeouts for small uploads and a ceiling to
+  prevent abuse from spoofed Content-Length headers.
 
   ## Options
 
-    * `:min_timeout` - Minimum timeout in milliseconds (default: 60_000)
+    * `:min_timeout` - Minimum timeout in milliseconds (default: 60_000 = 1 minute)
+    * `:max_timeout` - Maximum timeout in milliseconds (default: 600_000 = 10 minutes)
     * `:min_throughput` - Minimum expected throughput in bytes/second (default: 51_200 = 50KB/s)
 
   ## Examples
@@ -30,14 +50,22 @@ defmodule TuistCommon.BodyReader do
       iex> TuistCommon.BodyReader.calculate_timeout(25_000_000)
       500_000
 
+      # Capped at max_timeout for very large content
+      iex> TuistCommon.BodyReader.calculate_timeout(100_000_000_000)
+      600_000
+
   """
   @spec calculate_timeout(non_neg_integer(), keyword()) :: non_neg_integer()
   def calculate_timeout(content_length, opts \\ []) do
     min_timeout = Keyword.get(opts, :min_timeout, @default_read_timeout)
+    max_timeout = Keyword.get(opts, :max_timeout, @default_max_timeout)
     min_throughput = Keyword.get(opts, :min_throughput, @default_min_throughput_bytes_per_sec)
 
     calculated_timeout = div(content_length * 1000, min_throughput)
-    max(min_timeout, calculated_timeout)
+
+    calculated_timeout
+    |> max(min_timeout)
+    |> min(max_timeout)
   end
 
   @doc """
@@ -51,6 +79,7 @@ defmodule TuistCommon.BodyReader do
     * `:read_length` - Bytes to read per chunk (default: 262_144 = 256KB)
     * `:read_timeout` - Base timeout, will be overridden by dynamic calculation
     * `:min_timeout` - Minimum timeout in milliseconds (default: 60_000)
+    * `:max_timeout` - Maximum timeout in milliseconds (default: 600_000)
     * `:min_throughput` - Minimum expected throughput in bytes/second (default: 51_200)
 
   ## Examples
@@ -70,17 +99,66 @@ defmodule TuistCommon.BodyReader do
 
     case get_content_length(conn) do
       nil ->
-        base_opts
+        cleanup_internal_opts(base_opts)
 
       content_length ->
-        timeout_opts = Keyword.take(base_opts, [:min_timeout, :min_throughput])
+        timeout_opts = Keyword.take(base_opts, [:min_timeout, :max_timeout, :min_throughput])
         dynamic_timeout = calculate_timeout(content_length, timeout_opts)
 
         base_opts
-        |> Keyword.delete(:min_timeout)
-        |> Keyword.delete(:min_throughput)
+        |> cleanup_internal_opts()
         |> Keyword.put(:read_timeout, dynamic_timeout)
     end
+  end
+
+  defp cleanup_internal_opts(opts) do
+    opts
+    |> Keyword.delete(:min_timeout)
+    |> Keyword.delete(:max_timeout)
+    |> Keyword.delete(:min_throughput)
+  end
+
+  @doc """
+  Calculates a progressive timeout for the next chunk read.
+
+  This implements a strategy similar to Apache's `mod_reqtimeout` MinRate:
+  the timeout for each chunk is based on the chunk size and minimum throughput,
+  with floor and ceiling values.
+
+  This is useful when reading in a loop where each chunk read should have
+  its own timeout based on expected data rate, rather than a single large
+  timeout for the entire body.
+
+  ## Options
+
+    * `:read_length` - Expected chunk size in bytes (default: 262_144 = 256KB)
+    * `:min_timeout` - Minimum timeout per chunk in milliseconds (default: 15_000 = 15s)
+    * `:max_timeout` - Maximum timeout per chunk in milliseconds (default: 60_000 = 1 minute)
+    * `:min_throughput` - Minimum expected throughput in bytes/second (default: 51_200 = 50KB/s)
+
+  ## Examples
+
+      # For a 256KB chunk at 50KB/s = ~5 seconds, but min is 15s
+      iex> TuistCommon.BodyReader.chunk_timeout()
+      15_000
+
+      # For a 1MB chunk at 50KB/s = ~20 seconds
+      iex> TuistCommon.BodyReader.chunk_timeout(read_length: 1_000_000)
+      20_000
+
+  """
+  @spec chunk_timeout(keyword()) :: non_neg_integer()
+  def chunk_timeout(opts \\ []) do
+    read_length = Keyword.get(opts, :read_length, @default_read_length)
+    min_timeout = Keyword.get(opts, :min_timeout, 15_000)
+    max_timeout = Keyword.get(opts, :max_timeout, @default_read_timeout)
+    min_throughput = Keyword.get(opts, :min_throughput, @default_min_throughput_bytes_per_sec)
+
+    calculated_timeout = div(read_length * 1000, min_throughput)
+
+    calculated_timeout
+    |> max(min_timeout)
+    |> min(max_timeout)
   end
 
   @doc """
