@@ -1,0 +1,108 @@
+import FileSystem
+import FileSystemTesting
+import Foundation
+import Path
+import Testing
+import TuistSupport
+
+struct HARRecorderTests {
+    @Test(.inTemporaryDirectory)
+    func record_appendsEntryToLog() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let harFilePath = temporaryDirectory.appending(component: "network.har")
+
+        // Given
+        let recorder = HARRecorder(filePath: harFilePath)
+        let entry = makeTestEntry()
+
+        // When
+        await recorder.record(entry)
+
+        // Then
+        let entries = await recorder.getEntries()
+        #expect(entries.count == 1)
+        #expect(entries[0].request.url == "https://api.example.com/test")
+    }
+
+    @Test(.inTemporaryDirectory)
+    func record_persistsToFile() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let harFilePath = temporaryDirectory.appending(component: "network.har")
+
+        // Given
+        let recorder = HARRecorder(filePath: harFilePath)
+        let entry = makeTestEntry()
+
+        // When
+        await recorder.record(entry)
+
+        // Then
+        let fileSystem = FileSystem()
+        #expect(try await fileSystem.exists(harFilePath))
+
+        let data = try Data(contentsOf: harFilePath.url)
+        let log = try HAR.decode(from: data)
+        #expect(log.entries.count == 1)
+    }
+
+    @Test
+    func record_withoutFilePath_doesNotPersist() async throws {
+        // Given
+        let recorder = HARRecorder(filePath: nil)
+        let entry = makeTestEntry()
+
+        // When
+        await recorder.record(entry)
+
+        // Then
+        let entries = await recorder.getEntries()
+        #expect(entries.count == 1)
+    }
+
+    @Test
+    func filterSensitiveHeaders_redactsSensitiveHeaders() {
+        // Given
+        let headers = [
+            HAR.Header(name: "Authorization", value: "Bearer secret-token"),
+            HAR.Header(name: "Content-Type", value: "application/json"),
+            HAR.Header(name: "Cookie", value: "session=abc123"),
+            HAR.Header(name: "Accept", value: "*/*"),
+            HAR.Header(name: "X-Api-Key", value: "my-api-key"),
+        ]
+
+        // When
+        let filtered = HARRecorder.filterSensitiveHeaders(headers)
+
+        // Then
+        #expect(filtered[0].value == "[REDACTED]")
+        #expect(filtered[1].value == "application/json")
+        #expect(filtered[2].value == "[REDACTED]")
+        #expect(filtered[3].value == "*/*")
+        #expect(filtered[4].value == "[REDACTED]")
+    }
+
+    private func makeTestEntry() -> HAR.Entry {
+        HAR.Entry(
+            startedDateTime: Date(),
+            time: 100,
+            request: HAR.Request(
+                method: "GET",
+                url: "https://api.example.com/test"
+            ),
+            response: HAR.Response(
+                status: 200,
+                statusText: "OK",
+                content: HAR.Content(
+                    size: 10,
+                    mimeType: "application/json",
+                    text: "{}"
+                )
+            ),
+            timings: HAR.Timings(
+                send: 0,
+                wait: 100,
+                receive: 0
+            )
+        )
+    }
+}
