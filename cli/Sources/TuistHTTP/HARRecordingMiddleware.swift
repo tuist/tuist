@@ -25,14 +25,16 @@ public struct HARRecordingMiddleware: ClientMiddleware {
             let startTime = Date()
             let (requestBodyData, requestBodyForNext) = try await collectBody(body)
 
+            let entryBuilder = HAREntryBuilder()
+
             do {
                 let (response, responseBody) = try await next(request, requestBodyForNext, baseURL)
 
                 let endTime = Date()
                 let (responseBodyData, responseBodyForNext) = try await collectBody(responseBody)
 
-                let entry = HAREntryBuilder().buildEntry(
-                    url: buildFullURL(baseURL: baseURL, path: request.path),
+                let entry = entryBuilder.buildEntry(
+                    url: entryBuilder.buildURL(baseURL: baseURL, path: request.path),
                     method: request.method.rawValue,
                     requestHeaders: request.headerFields.map { HAR.Header(name: $0.name.rawName, value: $0.value) },
                     requestBody: requestBodyData,
@@ -49,8 +51,8 @@ public struct HARRecordingMiddleware: ClientMiddleware {
                 return (response, responseBodyForNext)
             } catch {
                 let endTime = Date()
-                let entry = HAREntryBuilder().buildErrorEntry(
-                    url: buildFullURL(baseURL: baseURL, path: request.path),
+                let entry = entryBuilder.buildErrorEntry(
+                    url: entryBuilder.buildURL(baseURL: baseURL, path: request.path),
                     method: request.method.rawValue,
                     requestHeaders: request.headerFields.map { HAR.Header(name: $0.name.rawName, value: $0.value) },
                     requestBody: requestBodyData,
@@ -79,24 +81,5 @@ public struct HARRecordingMiddleware: ClientMiddleware {
             }
         }
 
-        private func buildFullURL(baseURL: URL, path: String?) -> URL {
-            guard let path, !path.isEmpty else {
-                return baseURL
-            }
-
-            guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: true) else {
-                return baseURL
-            }
-
-            let pathAndQuery = path.split(separator: "?", maxSplits: 1)
-            let pathPart = String(pathAndQuery[0])
-            components.path = pathPart.hasPrefix("/") ? pathPart : "/" + pathPart
-
-            if pathAndQuery.count > 1 {
-                components.query = String(pathAndQuery[1])
-            }
-
-            return components.url ?? baseURL
-        }
     #endif
 }

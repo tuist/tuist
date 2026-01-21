@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 
+@testable import TuistHTTP
 @testable import TuistSupport
 
 struct HAREntryBuilderTests {
@@ -169,5 +170,29 @@ struct HAREntryBuilderTests {
 
         // Then
         #expect(result.absoluteString == "https://api.example.com")
+    }
+
+    @Test
+    func buildURL_handlesPathWithQueryParameters() {
+        // Given
+        let baseURL = URL(string: "https://api.example.com")!
+
+        // When
+        let result = subject.buildURL(baseURL: baseURL, path: "/v1/test?foo=bar&baz=qux")
+
+        // Then
+        #expect(result.absoluteString == "https://api.example.com/v1/test?foo=bar&baz=qux")
+    }
+
+    @Test
+    func buildURL_handlesPathWithoutLeadingSlash() {
+        // Given
+        let baseURL = URL(string: "https://api.example.com")!
+
+        // When
+        let result = subject.buildURL(baseURL: baseURL, path: "v1/test")
+
+        // Then
+        #expect(result.absoluteString == "https://api.example.com/v1/test")
     }
 }
