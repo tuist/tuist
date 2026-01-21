@@ -3,7 +3,14 @@ import Foundation
 import Path
 import TuistSupport
 
+private actor AsyncLock {
+    func withLock<T>(_ operation: @Sendable () async throws -> T) async rethrows -> T {
+        try await operation()
+    }
+}
+
 public struct LogsController {
+    private static let logsDirectoryLock = AsyncLock()
     private let fileSystem: FileSystem
 
     public init(fileSystem: FileSystem = FileSystem()) {
@@ -60,8 +67,10 @@ public struct LogsController {
         let logFilePath = stateDirectory.appending(components: [
             "logs", "\(UUID().uuidString).log",
         ])
-        if !(try await fileSystem.exists(logFilePath.parentDirectory)) {
-            try await fileSystem.makeDirectory(at: logFilePath.parentDirectory)
+        try await Self.logsDirectoryLock.withLock {
+            if try await !fileSystem.exists(logFilePath.parentDirectory) {
+                try await fileSystem.makeDirectory(at: logFilePath.parentDirectory)
+            }
         }
         try await fileSystem.touch(logFilePath)
         return logFilePath
