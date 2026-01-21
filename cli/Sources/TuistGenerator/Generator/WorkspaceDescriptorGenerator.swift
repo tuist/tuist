@@ -93,12 +93,16 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         Logger.current.notice("Generating workspace \(workspaceName)", metadata: .section)
 
         // Projects
+        let projectCount = graphTraverser.projects.values.count
+        Logger.current.debug("Starting concurrent generation of \(projectCount) projects")
         let projects = try await Array(graphTraverser.projects.values)
             .concurrentCompactMap { project -> ProjectDescriptor? in
                 try await self.projectDescriptorGenerator.generate(project: project, graphTraverser: graphTraverser)
             }
             .sorted(by: { $0.path < $1.path })
+        Logger.current.debug("Finished concurrent generation of \(projects.count) projects")
 
+        Logger.current.debug("Creating generated projects dictionary")
         let generatedProjects: [AbsolutePath: GeneratedProject] = Dictionary(uniqueKeysWithValues: projects.map { project in
             let pbxproj = project.xcodeProj.pbxproj
             let targets = pbxproj.nativeTargets.map {
@@ -116,6 +120,7 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         })
 
         // Workspace structure
+        Logger.current.debug("Generating workspace structure")
         let structure = workspaceStructureGenerator.generateStructure(
             path: graphTraverser.workspace.xcWorkspacePath.parentDirectory,
             workspace: graphTraverser.workspace,
@@ -123,6 +128,7 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
             fileHandler: FileHandler.shared
         )
 
+        Logger.current.debug("Creating workspace data and children elements")
         let workspaceData = XCWorkspaceData(children: [])
         let xcWorkspace = XCWorkspace(data: workspaceData)
         try workspaceData.children = structure.contents.map {
@@ -134,12 +140,14 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         }
 
         // Schemes
+        Logger.current.debug("Generating workspace schemes")
         let schemes = try schemeDescriptorsGenerator.generateWorkspaceSchemes(
             workspace: graphTraverser.workspace,
             generatedProjects: generatedProjects,
             graphTraverser: graphTraverser
         )
 
+        Logger.current.debug("Creating and returning WorkspaceDescriptor")
         return WorkspaceDescriptor(
             path: graphTraverser.workspace.path,
             xcworkspacePath: graphTraverser.workspace.xcWorkspacePath,

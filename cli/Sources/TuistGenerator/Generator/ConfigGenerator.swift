@@ -45,6 +45,7 @@ final class ConfigGenerator: ConfigGenerating {
         pbxproj: PBXProj,
         fileElements: ProjectFileElements
     ) async throws -> XCConfigurationList {
+        Logger.current.debug("Generating project config for \(project.name)")
         // Configuration list
         let defaultConfiguration = project.settings.defaultReleaseBuildConfiguration()
             ?? project.settings.defaultDebugBuildConfiguration()
@@ -54,7 +55,9 @@ final class ConfigGenerator: ConfigGenerating {
         )
         pbxproj.add(object: configurationList)
 
-        for item in project.settings.configurations.sortedByBuildConfigurationName() {
+        let configurations = project.settings.configurations.sortedByBuildConfigurationName()
+        Logger.current.debug("Generating \(configurations.count) build configurations for project \(project.name)")
+        for item in configurations {
             try await generateProjectSettingsFor(
                 buildConfiguration: item.key,
                 configuration: item.value,
@@ -65,6 +68,7 @@ final class ConfigGenerator: ConfigGenerating {
             )
         }
 
+        Logger.current.debug("Finished generating project config for \(project.name)")
         return configurationList
     }
 
@@ -78,6 +82,7 @@ final class ConfigGenerator: ConfigGenerating {
         graphTraverser: GraphTraversing,
         sourceRootPath: AbsolutePath
     ) async throws {
+        Logger.current.debug("Generating target config for \(target.name) in project \(project.name)")
         let defaultConfiguration = projectSettings.defaultReleaseBuildConfiguration()
             ?? projectSettings.defaultDebugBuildConfiguration()
         let configurationList = XCConfigurationList(
@@ -101,6 +106,7 @@ final class ConfigGenerator: ConfigGenerating {
         let configurations = Dictionary(uniqueKeysWithValues: configurationsTuples)
         let nonEmptyConfigurations = !configurations.isEmpty ? configurations : Settings.default.configurations
         let orderedConfigurations = nonEmptyConfigurations.sortedByBuildConfigurationName()
+        Logger.current.debug("Generating \(orderedConfigurations.count) build configurations for target \(target.name)")
         for orderedConfiguration in orderedConfigurations {
             try await generateTargetSettingsFor(
                 target: target,
@@ -114,6 +120,7 @@ final class ConfigGenerator: ConfigGenerating {
                 sourceRootPath: sourceRootPath
             )
         }
+        Logger.current.debug("Finished generating target config for \(target.name)")
     }
 
     // MARK: - Fileprivate
