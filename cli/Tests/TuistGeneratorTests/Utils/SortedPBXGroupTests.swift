@@ -64,18 +64,18 @@ class SortedPBXGroupTests: TuistTestCase {
         assertGroupsEqual(subject.wrappedValue, group("project", [
             file("somefile1.swift"),
             group("somegroup2", [
+                file("somefile1.swift"),
+                file("somefile2.swift"),
                 group("somegroup4", [
                     file("somefile7.swift"),
                 ]),
-                file("somefile1.swift"),
-                file("somefile2.swift"),
             ]),
             group("somegroup1", [
+                file("somefile3.swift"),
+                file("somefile4.swift"),
                 group("somegroup3", [
                     file("somefile6.swift"),
                 ]),
-                file("somefile3.swift"),
-                file("somefile4.swift"),
             ]),
         ]))
     }
@@ -151,14 +151,14 @@ class SortedPBXGroupTests: TuistTestCase {
         assertGroupsEqual(subject.wrappedValue, group("project", [
             file("somerootfile.md"),
             group("rootfolder", [
-                group("zzzgroup", [ // groups before files at second level
-                    file("aa.swift"),
-                    file("zz.swift"),
-                ]),
-                file("file1"), // folder references
+                file("file1"), // sorted alphabetically, files and groups together
                 file("file2"),
                 file("file3"),
                 file("file4.swift"),
+                group("zzzgroup", [ // groups are sorted by name along with files
+                    file("aa.swift"),
+                    file("zz.swift"),
+                ]),
             ]),
         ]))
     }
