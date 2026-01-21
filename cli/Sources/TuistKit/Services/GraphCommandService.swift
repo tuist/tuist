@@ -63,11 +63,6 @@ final class GraphCommandService {
         open: Bool,
         platformToFilter: Platform?,
         targetsToFilter: [String],
-        sourceTargets: [String],
-        sinkTargets: [String],
-        directOnly: Bool,
-        typeFilter: Set<String>,
-        outputFields _: Set<GraphOutputField>?,
         path: AbsolutePath,
         outputPath: AbsolutePath,
         stdout: Bool
@@ -95,11 +90,7 @@ final class GraphCommandService {
             skipTestTargets: skipTestTargets,
             skipExternalDependencies: skipExternalDependencies,
             platformToFilter: platformToFilter,
-            targetsToFilter: targetsToFilter,
-            sourceTargets: sourceTargets,
-            sinkTargets: sinkTargets,
-            directOnly: directOnly,
-            typeFilter: typeFilter
+            targetsToFilter: targetsToFilter
         )
 
         if stdout {
