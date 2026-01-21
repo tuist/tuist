@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.129.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* prevent race condition when creating logs directory by [@pepicrft](https://github.com/pepicrft) in [#9191](https://github.com/tuist/tuist/pull/9191)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.129.0...4.129.1
+
 ## What's Changed in 4.129.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
