@@ -1,5 +1,5 @@
 defmodule Cache.AuthenticationTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
   use Mimic
 
   import Cache.Authentication
@@ -13,7 +13,11 @@ defmodule Cache.AuthenticationTest do
   setup do
     Cachex.clear(@cache_name)
 
+    Req.Test.set_req_test_to_shared()
+    on_exit(fn -> Req.Test.set_req_test_to_private() end)
+
     stub(Authentication, :server_url, fn -> @test_server_url end)
+
     :ok
   end
 
@@ -129,6 +133,28 @@ defmodule Cache.AuthenticationTest do
 
       {:ok, _} = Authentication.ensure_project_accessible(conn, "account", "project")
       {:ok, _} = Authentication.ensure_project_accessible(conn, "account", "project")
+    end
+
+    test "deduplicates in-flight server requests" do
+      projects = [%{"full_name" => "account/project"}]
+      conn = build_conn([{"authorization", @test_auth_header}])
+      counter = start_supervised!({Agent, fn -> 0 end})
+
+      Req.Test.stub(Authentication, fn conn ->
+        Agent.update(counter, &(&1 + 1))
+        Process.sleep(50)
+        Req.Test.json(conn, %{"projects" => projects})
+      end)
+
+      tasks =
+        Enum.map(1..15, fn _ ->
+          Task.async(fn -> Authentication.ensure_project_accessible(conn, "account", "project") end)
+        end)
+
+      results = Enum.map(tasks, &Task.await(&1, 5_000))
+
+      assert Enum.all?(results, &(&1 == {:ok, @test_auth_header}))
+      assert Agent.get(counter, & &1) == 1
     end
 
     test "caches 401 errors with shorter TTL" do
