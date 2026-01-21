@@ -304,21 +304,21 @@ export default withMermaid(
       @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap');
       `,
       ],
-      ["meta", { property: "og:url", content: "https://docs.tuist.io" }, ""],
+      ["meta", { property: "og:url", content: "https://docs.tuist.dev" }, ""],
       ["meta", { property: "og:type", content: "website" }, ""],
       [
         "meta",
-        { property: "og:image", content: "https://docs.tuist.io/images/og.jpeg" },
+        { property: "og:image", content: "https://docs.tuist.dev/images/og.jpeg" },
         "",
       ],
       ["meta", { name: "twitter:card", content: "summary" }, ""],
-      ["meta", { property: "twitter:domain", content: "docs.tuist.io" }, ""],
-      ["meta", { property: "twitter:url", content: "https://docs.tuist.io" }, ""],
+      ["meta", { property: "twitter:domain", content: "docs.tuist.dev" }, ""],
+      ["meta", { property: "twitter:url", content: "https://docs.tuist.dev" }, ""],
       [
         "meta",
         {
           name: "twitter:image",
-          content: "https://docs.tuist.io/images/og.jpeg",
+          content: "https://docs.tuist.dev/images/og.jpeg",
         },
         "",
       ],
@@ -341,7 +341,7 @@ export default withMermaid(
       ],
     ],
     sitemap: {
-      hostname: "https://docs.tuist.io",
+      hostname: "https://docs.tuist.dev",
     },
     mermaid: {
       securityLevel: "loose",
