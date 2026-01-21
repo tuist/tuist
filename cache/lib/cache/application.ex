@@ -3,8 +3,6 @@ defmodule Cache.Application do
 
   use Application
 
-  alias TuistCommon.Appsignal.ErrorFilter
-
   @impl true
   def start(_type, _args) do
     if System.get_env("SKIP_MIGRATIONS") != "true" do
@@ -16,7 +14,6 @@ defmodule Cache.Application do
     end
 
     Oban.Telemetry.attach_default_logger()
-    attach_appsignal_error_filter()
 
     base_children = [
       Cache.Repo,
@@ -50,13 +47,6 @@ defmodule Cache.Application do
     for repo <- repos do
       {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :up, all: true))
     end
-  end
-
-  defp attach_appsignal_error_filter do
-    :logger.add_primary_filter(
-      :appsignal_error_filter,
-      {&ErrorFilter.filter/2, []}
-    )
   end
 
   @impl true
