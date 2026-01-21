@@ -68,8 +68,19 @@ public struct LogsController {
             "logs", "\(UUID().uuidString).log",
         ])
         try await Self.logsDirectoryLock.withLock {
-            if try await !fileSystem.exists(logFilePath.parentDirectory) {
-                try await fileSystem.makeDirectory(at: logFilePath.parentDirectory)
+            if try await !fileSystem.exists(logFilePath.parentDirectory, isDirectory: true) {
+                do {
+                    try await fileSystem.makeDirectory(at: logFilePath.parentDirectory)
+                } catch let error as NSError where error.domain == "NIOFileSystemErrorDomain"
+                    && error.userInfo["code"] as? String == "fileAlreadyExists"
+                {
+                    // Directory was created by another process between our check and creation attempt
+                } catch {
+                    // Check if the directory now exists (race condition with another process)
+                    if try await !fileSystem.exists(logFilePath.parentDirectory, isDirectory: true) {
+                        throw error
+                    }
+                }
             }
         }
         try await fileSystem.touch(logFilePath)
