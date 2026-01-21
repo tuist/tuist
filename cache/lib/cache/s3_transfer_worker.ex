@@ -19,7 +19,7 @@ defmodule Cache.S3TransferWorker do
   require Logger
 
   @batch_size 5000
-  @concurrency 75
+  @concurrency 50
 
   @impl Oban.Worker
   def perform(_job) do
