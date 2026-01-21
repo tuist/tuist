@@ -42,6 +42,22 @@ defmodule TuistWeb.API.CacheControllerTest do
       assert response["endpoints"] == expected_endpoints
     end
 
+    test "returns empty list when self-hosted without endpoints configured", %{conn: conn} do
+      # Given
+      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+      stub(Tuist.Environment, :cache_endpoints, fn -> [] end)
+      user = AccountsFixtures.user_fixture()
+
+      conn = Authentication.put_current_user(conn, user)
+
+      # When
+      conn = get(conn, ~p"/api/cache/endpoints")
+
+      # Then
+      response = json_response(conn, 200)
+      assert response["endpoints"] == []
+    end
+
     test "returns default endpoints when account_handle is provided but account has no custom endpoints",
          %{conn: conn} do
       # Given
