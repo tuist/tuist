@@ -618,15 +618,33 @@ public class GraphTraverser: GraphTraversing {
         path: Path.AbsolutePath,
         name: String
     ) -> [GraphDependency] {
-        // Precompiled libraries and frameworks
-        let precompiled = graph.dependencies[.target(name: name, path: path), default: []]
+        // Precompiled libraries and frameworks from direct dependencies
+        let directDependencies = graph.dependencies[.target(name: name, path: path), default: []]
+
+        let precompiled = directDependencies
             .lazy
             .filter(\.isPrecompiled)
 
         let precompiledDependencies = precompiled
             .flatMap { filterDependencies(from: $0) }
 
-        return Set(precompiled + precompiledDependencies)
+        // Also include precompiled dynamic dependencies from target dependencies
+        // This ensures we find xcframeworks that are dependencies of target dependencies
+        let targetDependencies = directDependencies.compactMap { dependency -> GraphDependency? in
+            if case let GraphDependency.target(targetName, targetPath, _) = dependency {
+                return GraphDependency.target(name: targetName, path: targetPath)
+            }
+            return nil
+        }
+
+        let precompiledFromTargets = targetDependencies.flatMap { targetDep -> [GraphDependency] in
+            if case let GraphDependency.target(targetName, targetPath, _) = targetDep {
+                return Array(precompiledDynamicLibrariesAndFrameworks(path: targetPath, name: targetName))
+            }
+            return []
+        }
+
+        return Set(precompiled + precompiledDependencies + precompiledFromTargets)
             .filter(\.isPrecompiledDynamicAndLinkable)
     }
 

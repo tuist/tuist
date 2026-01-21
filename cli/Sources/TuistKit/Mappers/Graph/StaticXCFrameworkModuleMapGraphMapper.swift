@@ -200,6 +200,13 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
             let targetDependency: GraphDependency = .target(name: target.target.name, path: target.path)
             settings[targetDependency] = try await targetSettings(target)
             for dependency in dependencies {
+                if case let GraphDependency.target(_, dependencyPath, _) = dependency, dependencyPath != target.path {
+                    // Skip combining settings from targets at different project paths.
+                    // Path-based settings (HEADER_SEARCH_PATHS, FRAMEWORK_SEARCH_PATHS, etc.)
+                    // are calculated relative to the project path, so they would be incorrect
+                    // for targets in different projects.
+                    continue
+                }
                 settings[targetDependency] = (settings[targetDependency] ?? [:])
                     .combine(with: settings[dependency] ?? [:])
                     .removeDuplicates()
