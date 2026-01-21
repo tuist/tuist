@@ -8,6 +8,18 @@ import Foundation
         public init() {}
 
         /// Creates a HAR entry from request and response data.
+        /// - Parameters:
+        ///   - url: The request URL
+        ///   - method: HTTP method
+        ///   - requestHeaders: Request headers
+        ///   - requestBody: Request body data
+        ///   - responseStatusCode: HTTP status code
+        ///   - responseStatusText: HTTP status text
+        ///   - responseHeaders: Response headers
+        ///   - responseBody: Response body data
+        ///   - startTime: When the request started
+        ///   - endTime: When the response was fully received
+        ///   - timings: Optional detailed timing metrics. If nil, total duration is used as wait time.
         public func buildEntry(
             url: URL,
             method: String,
@@ -18,11 +30,18 @@ import Foundation
             responseHeaders: [HAR.Header],
             responseBody: Data?,
             startTime: Date,
-            endTime: Date
+            endTime: Date,
+            timings: HAR.Timings? = nil
         ) -> HAR.Entry {
             let durationMs = Int((endTime.timeIntervalSince(startTime)) * 1000)
             let filteredRequestHeaders = HARRecorder.filterSensitiveHeaders(requestHeaders)
             let filteredResponseHeaders = HARRecorder.filterSensitiveHeaders(responseHeaders)
+
+            let entryTimings = timings ?? HAR.Timings(
+                send: 0,
+                wait: durationMs,
+                receive: 0
+            )
 
             return HAR.Entry(
                 startedDateTime: startTime,
@@ -49,15 +68,20 @@ import Foundation
                     headersSize: -1,
                     bodySize: responseBody?.count ?? 0
                 ),
-                timings: HAR.Timings(
-                    send: 0,
-                    wait: durationMs,
-                    receive: 0
-                )
+                timings: entryTimings
             )
         }
 
         /// Creates a HAR entry for a failed request.
+        /// - Parameters:
+        ///   - url: The request URL
+        ///   - method: HTTP method
+        ///   - requestHeaders: Request headers
+        ///   - requestBody: Request body data
+        ///   - error: The error that occurred
+        ///   - startTime: When the request started
+        ///   - endTime: When the error occurred
+        ///   - timings: Optional detailed timing metrics. If nil, total duration is used as wait time.
         public func buildErrorEntry(
             url: URL,
             method: String,
@@ -65,11 +89,18 @@ import Foundation
             requestBody: Data?,
             error: Error,
             startTime: Date,
-            endTime: Date
+            endTime: Date,
+            timings: HAR.Timings? = nil
         ) -> HAR.Entry {
             let durationMs = Int((endTime.timeIntervalSince(startTime)) * 1000)
             let filteredRequestHeaders = HARRecorder.filterSensitiveHeaders(requestHeaders)
             let errorMessage = String(describing: error)
+
+            let entryTimings = timings ?? HAR.Timings(
+                send: 0,
+                wait: durationMs,
+                receive: 0
+            )
 
             return HAR.Entry(
                 startedDateTime: startTime,
@@ -100,11 +131,7 @@ import Foundation
                     headersSize: -1,
                     bodySize: errorMessage.utf8.count
                 ),
-                timings: HAR.Timings(
-                    send: 0,
-                    wait: durationMs,
-                    receive: 0
-                )
+                timings: entryTimings
             )
         }
 

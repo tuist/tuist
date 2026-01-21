@@ -60,18 +60,11 @@ import Path
         // MARK: - Init
 
         public convenience init() {
-            self.init(session: FileClient.defaultSession())
+            self.init(session: .tuistShared)
         }
 
         private init(session: URLSession) {
             self.session = session
-        }
-
-        private static func defaultSession() -> URLSession {
-            let configuration = URLSessionConfiguration.default
-            configuration.timeoutIntervalForRequest = 30
-            configuration.timeoutIntervalForResource = 180
-            return URLSession(configuration: configuration)
         }
 
         // MARK: - Public
@@ -168,6 +161,7 @@ import Path
             endTime: Date
         ) async {
             guard let recorder = HARRecorder.current, let url = request.url else { return }
+            let timings = retrieveTimings(for: url)
             let entry = HAREntryBuilder().buildEntry(
                 url: url,
                 method: request.httpMethod ?? "GET",
@@ -179,7 +173,8 @@ import Path
                     .map { HAR.Header(name: $0.key, value: $0.value) },
                 responseBody: nil,
                 startTime: startTime,
-                endTime: endTime
+                endTime: endTime,
+                timings: timings
             )
             await recorder.record(entry)
         }
@@ -191,6 +186,7 @@ import Path
             endTime: Date
         ) async {
             guard let recorder = HARRecorder.current, let url = request.url else { return }
+            let timings = retrieveTimings(for: url)
             let entry = HAREntryBuilder().buildErrorEntry(
                 url: url,
                 method: request.httpMethod ?? "GET",
@@ -198,7 +194,8 @@ import Path
                 requestBody: nil,
                 error: error,
                 startTime: startTime,
-                endTime: endTime
+                endTime: endTime,
+                timings: timings
             )
             await recorder.record(entry)
         }
@@ -211,6 +208,7 @@ import Path
             endTime: Date
         ) async {
             guard let recorder = HARRecorder.current, let url = request.url else { return }
+            let timings = retrieveTimings(for: url)
             let entry = HAREntryBuilder().buildEntry(
                 url: url,
                 method: request.httpMethod ?? "PUT",
@@ -222,7 +220,8 @@ import Path
                     .map { HAR.Header(name: $0.key, value: $0.value) },
                 responseBody: nil,
                 startTime: startTime,
-                endTime: endTime
+                endTime: endTime,
+                timings: timings
             )
             await recorder.record(entry)
         }
@@ -235,6 +234,7 @@ import Path
             endTime: Date
         ) async {
             guard let recorder = HARRecorder.current, let url = request.url else { return }
+            let timings = retrieveTimings(for: url)
             let entry = HAREntryBuilder().buildErrorEntry(
                 url: url,
                 method: request.httpMethod ?? "PUT",
@@ -242,9 +242,17 @@ import Path
                 requestBody: Data(count: requestBodySize),
                 error: error,
                 startTime: startTime,
-                endTime: endTime
+                endTime: endTime,
+                timings: timings
             )
             await recorder.record(entry)
+        }
+
+        private func retrieveTimings(for url: URL) -> HAR.Timings? {
+            guard let metrics = URLSessionMetricsDelegate.shared.retrieveMetrics(for: url) else {
+                return nil
+            }
+            return URLSessionMetricsDelegate.convertToHARTimings(metrics)
         }
     }
 #endif

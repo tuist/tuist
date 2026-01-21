@@ -27,14 +27,18 @@ public struct HARRecordingMiddleware: ClientMiddleware {
 
             let entryBuilder = HAREntryBuilder()
 
+            let fullURL = entryBuilder.buildURL(baseURL: baseURL, path: request.path)
+
             do {
                 let (response, responseBody) = try await next(request, requestBodyForNext, baseURL)
 
                 let endTime = Date()
                 let (responseBodyData, responseBodyForNext) = try await collectBody(responseBody)
 
+                let timings = retrieveTimings(for: fullURL)
+
                 let entry = entryBuilder.buildEntry(
-                    url: entryBuilder.buildURL(baseURL: baseURL, path: request.path),
+                    url: fullURL,
                     method: request.method.rawValue,
                     requestHeaders: request.headerFields.map { HAR.Header(name: $0.name.rawName, value: $0.value) },
                     requestBody: requestBodyData,
@@ -43,7 +47,8 @@ public struct HARRecordingMiddleware: ClientMiddleware {
                     responseHeaders: response.headerFields.map { HAR.Header(name: $0.name.rawName, value: $0.value) },
                     responseBody: responseBodyData,
                     startTime: startTime,
-                    endTime: endTime
+                    endTime: endTime,
+                    timings: timings
                 )
 
                 await recorder.record(entry)
@@ -51,14 +56,17 @@ public struct HARRecordingMiddleware: ClientMiddleware {
                 return (response, responseBodyForNext)
             } catch {
                 let endTime = Date()
+                let timings = retrieveTimings(for: fullURL)
+
                 let entry = entryBuilder.buildErrorEntry(
-                    url: entryBuilder.buildURL(baseURL: baseURL, path: request.path),
+                    url: fullURL,
                     method: request.method.rawValue,
                     requestHeaders: request.headerFields.map { HAR.Header(name: $0.name.rawName, value: $0.value) },
                     requestBody: requestBodyData,
                     error: error,
                     startTime: startTime,
-                    endTime: endTime
+                    endTime: endTime,
+                    timings: timings
                 )
 
                 await recorder.record(entry)
@@ -81,5 +89,11 @@ public struct HARRecordingMiddleware: ClientMiddleware {
             }
         }
 
+        private func retrieveTimings(for url: URL) -> HAR.Timings? {
+            guard let metrics = URLSessionMetricsDelegate.shared.retrieveMetrics(for: url) else {
+                return nil
+            }
+            return URLSessionMetricsDelegate.convertToHARTimings(metrics)
+        }
     #endif
 }
