@@ -448,6 +448,42 @@
       }
     }
 
+    &[data-animation-mode="desktop"] > [data-part="logo-group"] {
+      @media (min-width: 1024px) {
+        &[data-state="active"] {
+          opacity: 1;
+        }
+
+        &[data-state="hidden"] {
+          opacity: 0;
+        }
+
+        & [data-part="org-logo"] {
+          transition: transform 0.5s ease-out, opacity 0.5s ease-out, filter 0.5s ease-out;
+          will-change: transform, opacity, filter;
+
+          &[data-state="visible"] {
+            transform: translateY(0);
+            opacity: 1;
+            filter: blur(0px);
+          }
+
+          &[data-state="hidden"] {
+            transition: none;
+            transform: translateY(20px);
+            opacity: 0;
+            filter: blur(4px);
+          }
+
+          &[data-state="exiting"] {
+            transform: translateY(-20px);
+            opacity: 0;
+            filter: blur(4px);
+          }
+        }
+      }
+    }
+
     & [data-part="rows"] {
       display: flex;
       flex-shrink: 0;
