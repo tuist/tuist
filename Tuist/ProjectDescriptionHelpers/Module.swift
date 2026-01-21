@@ -997,6 +997,7 @@ public enum Module: String, CaseIterable {
             case .http:
                 [
                     .target(name: Module.testing.targetName),
+                    .target(name: Module.support.targetName),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "HTTPTypes"),
                 ]
