@@ -99,7 +99,7 @@ let targets: [Target] = [
             "TuistCI",
             "TuistCAS",
             "TuistLaunchctl",
-            .product(name: "Noora", package: "tuist.Noora"),
+            .product(name: "Noora", package: "Noora"),
             .product(name: "Command", package: "tuist.Command"),
             .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
             .product(name: "XcodeGraphMapper", package: "tuist.XcodeGraph"),
@@ -122,7 +122,7 @@ let targets: [Target] = [
             "TuistLoader",
             "ProjectDescription",
             "ProjectAutomation",
-            .product(name: "Noora", package: "tuist.Noora"),
+            .product(name: "Noora", package: "Noora"),
             pathDependency,
             swiftToolsSupportDependency,
         ],
@@ -147,7 +147,7 @@ let targets: [Target] = [
             mockableDependency,
             fileSystemDependency,
             commandDependency,
-            .product(name: "Noora", package: "tuist.Noora"),
+            .product(name: "Noora", package: "Noora"),
             .product(name: "LoggingOSLog", package: "chrisaljoudi.swift-log-oslog"),
             .product(name: "FileLogging", package: "crspybits.swift-log-file"),
             .product(name: "XCLogParser", package: "MobileNativeFoundation.XCLogParser"),
@@ -710,7 +710,7 @@ let package = Package(
             id: "MobileNativeFoundation.XCLogParser",
             .upToNextMajor(from: "0.2.45")
         ),
-        .package(id: "tuist.Noora", .upToNextMajor(from: "0.51.2")),
+        .package(url: "https://github.com/tuist/Noora.git", revision: "e88d68882877288bb7e1abc6c4e117549649ac18"),
         .package(
             id: "frazer-rbsn.OrderedSet", .upToNextMajor(from: "2.0.0")
         ),

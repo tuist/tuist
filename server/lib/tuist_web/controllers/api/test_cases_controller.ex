@@ -5,6 +5,7 @@ defmodule TuistWeb.API.TestCasesController do
   alias OpenApiSpex.Schema
   alias Tuist.Runs
   alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.API.Schemas.PaginationMetadata
   alias TuistWeb.API.Schemas.TestCase
 
   plug(OpenApiSpex.Plug.CastAndValidate,
@@ -74,9 +75,10 @@ defmodule TuistWeb.API.TestCasesController do
              test_cases: %Schema{
                type: :array,
                items: TestCase
-             }
+             },
+             pagination_metadata: PaginationMetadata
            },
-           required: [:test_cases]
+           required: [:test_cases, :pagination_metadata]
          }},
       forbidden: {"You don't have permission to access this resource", "application/json", Error}
     }
@@ -96,7 +98,7 @@ defmodule TuistWeb.API.TestCasesController do
       page_size: page_size
     }
 
-    {test_cases, _meta} = Runs.list_test_cases(selected_project.id, options)
+    {test_cases, meta} = Runs.list_test_cases(selected_project.id, options)
 
     json(conn, %{
       test_cases:
@@ -114,7 +116,15 @@ defmodule TuistWeb.API.TestCasesController do
             is_quarantined: test_case.is_quarantined,
             url: ~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-cases/#{test_case.id}"
           }
-        end)
+        end),
+      pagination_metadata: %{
+        has_next_page: meta.has_next_page?,
+        has_previous_page: meta.has_previous_page?,
+        current_page: meta.current_page,
+        page_size: meta.page_size,
+        total_count: meta.total_count,
+        total_pages: meta.total_pages
+      }
     })
   end
 

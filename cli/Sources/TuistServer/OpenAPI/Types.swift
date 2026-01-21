@@ -273,6 +273,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /api/organizations/{organization_name}/invitations`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/invitations/delete(cancelInvitation)`.
     func cancelInvitation(_ input: Operations.cancelInvitation.Input) async throws -> Operations.cancelInvitation.Output
+    /// List test cases associated with a given project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/get(listTestCases)`.
+    func listTestCases(_ input: Operations.listTestCases.Input) async throws -> Operations.listTestCases.Output
     /// Download a CAS artifact.
     ///
     /// - Remark: HTTP `GET /api/cache/cas/{id}`.
@@ -1049,6 +1054,21 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// List test cases associated with a given project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/get(listTestCases)`.
+    public func listTestCases(
+        path: Operations.listTestCases.Input.Path,
+        query: Operations.listTestCases.Input.Query = .init(),
+        headers: Operations.listTestCases.Input.Headers = .init()
+    ) async throws -> Operations.listTestCases.Output {
+        try await listTestCases(Operations.listTestCases.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
     /// Download a CAS artifact.
     ///
     /// - Remark: HTTP `GET /api/cache/cas/{id}`.
@@ -1529,6 +1549,10 @@ public enum Components {
                 case organizations
             }
         }
+        /// The page number to return.
+        ///
+        /// - Remark: Generated from `#/components/schemas/TestCasesIndexPage`.
+        public typealias TestCasesIndexPage = Swift.Int
         /// Request schema for bundle creation
         ///
         /// - Remark: Generated from `#/components/schemas/BundleRequest`.
@@ -1703,6 +1727,10 @@ public enum Components {
                 case status
             }
         }
+        /// The maximum number of test cases to return in a single page.
+        ///
+        /// - Remark: Generated from `#/components/schemas/TestCasesIndexPageSize`.
+        public typealias TestCasesIndexPageSize = Swift.Int
         /// The category of the cache.
         ///
         /// - Remark: Generated from `#/components/schemas/CacheCategory`.
@@ -2506,6 +2534,141 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case name
                 case _type = "type"
+            }
+        }
+        /// The schema for a test case.
+        ///
+        /// - Remark: Generated from `#/components/schemas/TestCase`.
+        public struct TestCase: Codable, Hashable, Sendable {
+            /// Average duration of recent runs in milliseconds
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestCase/avg_duration`.
+            public var avg_duration: Swift.Int
+            /// ID of the test case
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestCase/id`.
+            public var id: Swift.String
+            /// Whether the test case is marked as flaky
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestCase/is_flaky`.
+            public var is_flaky: Swift.Bool
+            /// Whether the test case is quarantined
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestCase/is_quarantined`.
+            public var is_quarantined: Swift.Bool
+            /// The module containing the test case
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestCase/module`.
+            public struct modulePayload: Codable, Hashable, Sendable {
+                /// ID of the module
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestCase/module/id`.
+                public var id: Swift.String
+                /// Name of the module
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestCase/module/name`.
+                public var name: Swift.String
+                /// Creates a new `modulePayload`.
+                ///
+                /// - Parameters:
+                ///   - id: ID of the module
+                ///   - name: Name of the module
+                public init(
+                    id: Swift.String,
+                    name: Swift.String
+                ) {
+                    self.id = id
+                    self.name = name
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case id
+                    case name
+                }
+            }
+            /// The module containing the test case
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestCase/module`.
+            public var module: Components.Schemas.TestCase.modulePayload
+            /// Name of the test case
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestCase/name`.
+            public var name: Swift.String
+            /// The test suite containing the test case (optional)
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestCase/suite`.
+            public struct suitePayload: Codable, Hashable, Sendable {
+                /// ID of the suite
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestCase/suite/id`.
+                public var id: Swift.String
+                /// Name of the suite
+                ///
+                /// - Remark: Generated from `#/components/schemas/TestCase/suite/name`.
+                public var name: Swift.String
+                /// Creates a new `suitePayload`.
+                ///
+                /// - Parameters:
+                ///   - id: ID of the suite
+                ///   - name: Name of the suite
+                public init(
+                    id: Swift.String,
+                    name: Swift.String
+                ) {
+                    self.id = id
+                    self.name = name
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case id
+                    case name
+                }
+            }
+            /// The test suite containing the test case (optional)
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestCase/suite`.
+            public var suite: Components.Schemas.TestCase.suitePayload?
+            /// URL to the test case detail page
+            ///
+            /// - Remark: Generated from `#/components/schemas/TestCase/url`.
+            public var url: Swift.String
+            /// Creates a new `TestCase`.
+            ///
+            /// - Parameters:
+            ///   - avg_duration: Average duration of recent runs in milliseconds
+            ///   - id: ID of the test case
+            ///   - is_flaky: Whether the test case is marked as flaky
+            ///   - is_quarantined: Whether the test case is quarantined
+            ///   - module: The module containing the test case
+            ///   - name: Name of the test case
+            ///   - suite: The test suite containing the test case (optional)
+            ///   - url: URL to the test case detail page
+            public init(
+                avg_duration: Swift.Int,
+                id: Swift.String,
+                is_flaky: Swift.Bool,
+                is_quarantined: Swift.Bool,
+                module: Components.Schemas.TestCase.modulePayload,
+                name: Swift.String,
+                suite: Components.Schemas.TestCase.suitePayload? = nil,
+                url: Swift.String
+            ) {
+                self.avg_duration = avg_duration
+                self.id = id
+                self.is_flaky = is_flaky
+                self.is_quarantined = is_quarantined
+                self.module = module
+                self.name = name
+                self.suite = suite
+                self.url = url
+            }
+            public enum CodingKeys: String, CodingKey {
+                case avg_duration
+                case id
+                case is_flaky
+                case is_quarantined
+                case module
+                case name
+                case suite
+                case url
             }
         }
         /// - Remark: Generated from `#/components/schemas/Preview`.
@@ -3652,7 +3815,6 @@ public enum Components {
                             case success = "success"
                             case failure = "failure"
                             case skipped = "skipped"
-                            case flaky = "flaky"
                         }
                         /// The status of the test case.
                         ///
@@ -4528,7 +4690,6 @@ public enum Components {
                         case success = "success"
                         case failure = "failure"
                         case skipped = "skipped"
-                        case flaky = "flaky"
                     }
                     /// The status of the test case.
                     ///
@@ -9149,28 +9310,28 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
                 public var page: Swift.Int?
-                /// Number of items per page.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
-                public var page_size: Swift.Int?
                 /// Filter bundles by git branch.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
                 public var git_branch: Swift.String?
+                /// Number of items per page.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
+                public var page_size: Swift.Int?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
                 ///   - page: Page number for pagination.
-                ///   - page_size: Number of items per page.
                 ///   - git_branch: Filter bundles by git branch.
+                ///   - page_size: Number of items per page.
                 public init(
                     page: Swift.Int? = nil,
-                    page_size: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil
+                    git_branch: Swift.String? = nil,
+                    page_size: Swift.Int? = nil
                 ) {
                     self.page = page
-                    self.page_size = page_size
                     self.git_branch = git_branch
+                    self.page_size = page_size
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -17154,28 +17315,28 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/account_handle`.
                 public var account_handle: Swift.String
-                /// The handle of the project.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/project_handle`.
-                public var project_handle: Swift.String
                 /// The ID of the bundle.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/bundle_id`.
                 public var bundle_id: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}/GET/path/project_handle`.
+                public var project_handle: Swift.String
                 /// Creates a new `Path`.
                 ///
                 /// - Parameters:
                 ///   - account_handle: The handle of the account.
-                ///   - project_handle: The handle of the project.
                 ///   - bundle_id: The ID of the bundle.
+                ///   - project_handle: The handle of the project.
                 public init(
                     account_handle: Swift.String,
-                    project_handle: Swift.String,
-                    bundle_id: Swift.String
+                    bundle_id: Swift.String,
+                    project_handle: Swift.String
                 ) {
                     self.account_handle = account_handle
-                    self.project_handle = project_handle
                     self.bundle_id = bundle_id
+                    self.project_handle = project_handle
                 }
             }
             public var path: Operations.getBundle.Input.Path
@@ -19868,6 +20029,260 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// List test cases associated with a given project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/get(listTestCases)`.
+    public enum listTestCases {
+        public static let id: Swift.String = "listTestCases"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.listTestCases.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// Filter by flaky status. When true, only returns flaky test cases.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/GET/query/flaky`.
+                public var flaky: Swift.Bool?
+                /// Filter by quarantined status. When true, only returns quarantined test cases.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/GET/query/quarantined`.
+                public var quarantined: Swift.Bool?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/GET/query/page_size`.
+                public var page_size: Swift.Int?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/GET/query/page`.
+                public var page: Swift.Int?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - flaky: Filter by flaky status. When true, only returns flaky test cases.
+                ///   - quarantined: Filter by quarantined status. When true, only returns quarantined test cases.
+                ///   - page_size:
+                ///   - page:
+                public init(
+                    flaky: Swift.Bool? = nil,
+                    quarantined: Swift.Bool? = nil,
+                    page_size: Swift.Int? = nil,
+                    page: Swift.Int? = nil
+                ) {
+                    self.flaky = flaky
+                    self.quarantined = quarantined
+                    self.page_size = page_size
+                    self.page = page
+                }
+            }
+            public var query: Operations.listTestCases.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listTestCases.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listTestCases.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listTestCases.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.listTestCases.Input.Path,
+                query: Operations.listTestCases.Input.Query = .init(),
+                headers: Operations.listTestCases.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/GET/responses/200/content/json/pagination_metadata`.
+                        public var pagination_metadata: Components.Schemas.PaginationMetadata
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/GET/responses/200/content/json/test_cases`.
+                        public var test_cases: [Components.Schemas.TestCase]
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - pagination_metadata:
+                        ///   - test_cases:
+                        public init(
+                            pagination_metadata: Components.Schemas.PaginationMetadata,
+                            test_cases: [Components.Schemas.TestCase]
+                        ) {
+                            self.pagination_metadata = pagination_metadata
+                            self.test_cases = test_cases
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case pagination_metadata
+                            case test_cases
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/GET/responses/200/content/application\/json`.
+                    case json(Operations.listTestCases.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listTestCases.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listTestCases.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listTestCases.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// List of test cases
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/get(listTestCases)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listTestCases.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listTestCases.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/test-cases/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listTestCases.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listTestCases.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You don't have permission to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/get(listTestCases)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listTestCases.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listTestCases.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
                             response: self
                         )
                     }
@@ -25977,7 +26392,6 @@ public enum Operations {
                                     case success = "success"
                                     case failure = "failure"
                                     case skipped = "skipped"
-                                    case flaky = "flaky"
                                 }
                                 /// The status of the test case.
                                 ///

@@ -40,7 +40,15 @@ defmodule TuistWeb.API.TestCasesControllerTest do
         )
 
       stub(Runs, :list_test_cases, fn _project_id, _options ->
-        {[test_case_one, test_case_two], %{}}
+        {[test_case_one, test_case_two],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 2,
+           total_pages: 1
+         }}
       end)
 
       # When
@@ -66,7 +74,15 @@ defmodule TuistWeb.API.TestCasesControllerTest do
     test "lists no test cases when there are none", %{conn: conn, user: user, project: project} do
       # Given
       stub(Runs, :list_test_cases, fn _project_id, _options ->
-        {[], %{}}
+        {[],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 0,
+           total_pages: 0
+         }}
       end)
 
       # When
@@ -92,7 +108,16 @@ defmodule TuistWeb.API.TestCasesControllerTest do
 
       expect(Runs, :list_test_cases, fn _project_id, options ->
         assert %{field: :is_flaky, op: :==, value: true} in options.filters
-        {[flaky_test_case], %{}}
+
+        {[flaky_test_case],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 1,
+           total_pages: 1
+         }}
       end)
 
       # When
@@ -120,7 +145,16 @@ defmodule TuistWeb.API.TestCasesControllerTest do
 
       expect(Runs, :list_test_cases, fn _project_id, options ->
         assert %{field: :is_quarantined, op: :==, value: true} in options.filters
-        {[quarantined_test_case], %{}}
+
+        {[quarantined_test_case],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 1,
+           total_pages: 1
+         }}
       end)
 
       # When
@@ -148,7 +182,16 @@ defmodule TuistWeb.API.TestCasesControllerTest do
       expect(Runs, :list_test_cases, fn _project_id, options ->
         assert options.page == 2
         assert options.page_size == 10
-        {[test_case], %{}}
+
+        {[test_case],
+         %{
+           has_next_page?: false,
+           has_previous_page?: true,
+           current_page: 2,
+           page_size: 10,
+           total_count: 11,
+           total_pages: 2
+         }}
       end)
 
       # When
@@ -158,6 +201,12 @@ defmodule TuistWeb.API.TestCasesControllerTest do
       response = json_response(conn, :ok)
 
       assert length(response["test_cases"]) == 1
+      assert response["pagination_metadata"]["current_page"] == 2
+      assert response["pagination_metadata"]["page_size"] == 10
+      assert response["pagination_metadata"]["total_count"] == 11
+      assert response["pagination_metadata"]["total_pages"] == 2
+      assert response["pagination_metadata"]["has_next_page"] == false
+      assert response["pagination_metadata"]["has_previous_page"] == true
     end
 
     test "returns 403 when user is not authorized", %{conn: conn, project: project} do

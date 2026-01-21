@@ -1,5 +1,5 @@
 {
-  "originHash" : "ee407103684b9f1921a92aa4f163fd1c499ae09cac6f519191fbb6c01ff3e17c",
+  "originHash" : "e71c6ea51779d0dadcd5482b5fa89e5dbcc83bce0f3be34197b5dcca1d7eb467",
   "pins" : [
     {
       "identity" : "1024jp.GzipSwift",
@@ -22,7 +22,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.6.2"
+        "version" : "1.7.0"
       }
     },
     {
@@ -94,7 +94,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.8.0"
+        "version" : "1.9.1"
       }
     },
     {
@@ -580,10 +580,10 @@
     },
     {
       "identity" : "tuist.Noora",
-      "kind" : "registry",
-      "location" : "",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tuist/Noora.git",
       "state" : {
-        "version" : "0.51.2"
+        "revision" : "e88d68882877288bb7e1abc6c4e117549649ac18"
       }
     },
     {

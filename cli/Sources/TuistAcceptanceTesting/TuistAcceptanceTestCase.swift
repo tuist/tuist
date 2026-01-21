@@ -125,7 +125,7 @@ open class TuistAcceptanceTestCase: XCTestCase {
             "--path", fixturePath.pathString,
         ] + arguments
 
-        let parsedCommand = try command.parse(arguments)
+        let parsedCommand = try TestRunCommand.parse(arguments)
         try await parsedCommand.run()
     }
 
