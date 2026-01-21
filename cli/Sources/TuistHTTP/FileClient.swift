@@ -167,12 +167,17 @@ import Path
             startTime: Date,
             endTime: Date
         ) async {
-            guard let recorder = HARRecorder.current else { return }
-            let entry = createHAREntry(
-                request: request,
-                response: response,
-                requestBodySize: 0,
-                responseBodySize: nil,
+            guard let recorder = HARRecorder.current, let url = request.url else { return }
+            let entry = HAREntryBuilder().buildEntry(
+                url: url,
+                method: request.httpMethod ?? "GET",
+                requestHeaders: (request.allHTTPHeaderFields ?? [:]).map { HAR.Header(name: $0.key, value: $0.value) },
+                requestBody: nil,
+                responseStatusCode: response.statusCode,
+                responseStatusText: HTTPURLResponse.localizedString(forStatusCode: response.statusCode),
+                responseHeaders: (response.allHeaderFields as? [String: String] ?? [:])
+                    .map { HAR.Header(name: $0.key, value: $0.value) },
+                responseBody: nil,
                 startTime: startTime,
                 endTime: endTime
             )
@@ -185,11 +190,13 @@ import Path
             startTime: Date,
             endTime: Date
         ) async {
-            guard let recorder = HARRecorder.current else { return }
-            let entry = createHARErrorEntry(
-                request: request,
+            guard let recorder = HARRecorder.current, let url = request.url else { return }
+            let entry = HAREntryBuilder().buildErrorEntry(
+                url: url,
+                method: request.httpMethod ?? "GET",
+                requestHeaders: (request.allHTTPHeaderFields ?? [:]).map { HAR.Header(name: $0.key, value: $0.value) },
+                requestBody: nil,
                 error: error,
-                requestBodySize: 0,
                 startTime: startTime,
                 endTime: endTime
             )
@@ -203,12 +210,17 @@ import Path
             startTime: Date,
             endTime: Date
         ) async {
-            guard let recorder = HARRecorder.current else { return }
-            let entry = createHAREntry(
-                request: request,
-                response: response,
-                requestBodySize: requestBodySize,
-                responseBodySize: nil,
+            guard let recorder = HARRecorder.current, let url = request.url else { return }
+            let entry = HAREntryBuilder().buildEntry(
+                url: url,
+                method: request.httpMethod ?? "PUT",
+                requestHeaders: (request.allHTTPHeaderFields ?? [:]).map { HAR.Header(name: $0.key, value: $0.value) },
+                requestBody: Data(count: requestBodySize),
+                responseStatusCode: response.statusCode,
+                responseStatusText: HTTPURLResponse.localizedString(forStatusCode: response.statusCode),
+                responseHeaders: (response.allHeaderFields as? [String: String] ?? [:])
+                    .map { HAR.Header(name: $0.key, value: $0.value) },
+                responseBody: nil,
                 startTime: startTime,
                 endTime: endTime
             )
@@ -222,137 +234,17 @@ import Path
             startTime: Date,
             endTime: Date
         ) async {
-            guard let recorder = HARRecorder.current else { return }
-            let entry = createHARErrorEntry(
-                request: request,
+            guard let recorder = HARRecorder.current, let url = request.url else { return }
+            let entry = HAREntryBuilder().buildErrorEntry(
+                url: url,
+                method: request.httpMethod ?? "PUT",
+                requestHeaders: (request.allHTTPHeaderFields ?? [:]).map { HAR.Header(name: $0.key, value: $0.value) },
+                requestBody: Data(count: requestBodySize),
                 error: error,
-                requestBodySize: requestBodySize,
                 startTime: startTime,
                 endTime: endTime
             )
             await recorder.record(entry)
-        }
-
-        private func createHAREntry(
-            request: URLRequest,
-            response: HTTPURLResponse,
-            requestBodySize: Int,
-            responseBodySize: Int?,
-            startTime: Date,
-            endTime: Date
-        ) -> HAR.Entry {
-            let durationMs = Int((endTime.timeIntervalSince(startTime)) * 1000)
-            let url = request.url?.absoluteString ?? ""
-
-            let requestHeaders = HARRecorder.filterSensitiveHeaders(
-                (request.allHTTPHeaderFields ?? [:]).map { HAR.Header(name: $0.key, value: $0.value) }
-            )
-
-            let responseHeaders = HARRecorder.filterSensitiveHeaders(
-                (response.allHeaderFields as? [String: String] ?? [:]).map { HAR.Header(name: $0.key, value: $0.value) }
-            )
-
-            let queryParameters = extractQueryParameters(from: url)
-            let mimeType = response.mimeType ?? "application/octet-stream"
-
-            return HAR.Entry(
-                startedDateTime: startTime,
-                time: durationMs,
-                request: HAR.Request(
-                    method: request.httpMethod ?? "GET",
-                    url: url,
-                    httpVersion: "HTTP/1.1",
-                    cookies: [],
-                    headers: requestHeaders,
-                    queryString: queryParameters,
-                    postData: nil,
-                    headersSize: -1,
-                    bodySize: requestBodySize
-                ),
-                response: HAR.Response(
-                    status: response.statusCode,
-                    statusText: HTTPURLResponse.localizedString(forStatusCode: response.statusCode),
-                    httpVersion: "HTTP/1.1",
-                    cookies: [],
-                    headers: responseHeaders,
-                    content: HAR.Content(
-                        size: responseBodySize ?? Int(response.expectedContentLength),
-                        mimeType: mimeType
-                    ),
-                    redirectURL: "",
-                    headersSize: -1,
-                    bodySize: responseBodySize ?? Int(response.expectedContentLength)
-                ),
-                timings: HAR.Timings(
-                    send: 0,
-                    wait: durationMs,
-                    receive: 0
-                )
-            )
-        }
-
-        private func createHARErrorEntry(
-            request: URLRequest,
-            error: Error,
-            requestBodySize: Int,
-            startTime: Date,
-            endTime: Date
-        ) -> HAR.Entry {
-            let durationMs = Int((endTime.timeIntervalSince(startTime)) * 1000)
-            let url = request.url?.absoluteString ?? ""
-
-            let requestHeaders = HARRecorder.filterSensitiveHeaders(
-                (request.allHTTPHeaderFields ?? [:]).map { HAR.Header(name: $0.key, value: $0.value) }
-            )
-
-            let queryParameters = extractQueryParameters(from: url)
-            let errorMessage = String(describing: error)
-
-            return HAR.Entry(
-                startedDateTime: startTime,
-                time: durationMs,
-                request: HAR.Request(
-                    method: request.httpMethod ?? "GET",
-                    url: url,
-                    httpVersion: "HTTP/1.1",
-                    cookies: [],
-                    headers: requestHeaders,
-                    queryString: queryParameters,
-                    postData: nil,
-                    headersSize: -1,
-                    bodySize: requestBodySize
-                ),
-                response: HAR.Response(
-                    status: 0,
-                    statusText: "Error",
-                    httpVersion: "HTTP/1.1",
-                    cookies: [],
-                    headers: [],
-                    content: HAR.Content(
-                        size: errorMessage.utf8.count,
-                        mimeType: "text/plain",
-                        text: errorMessage
-                    ),
-                    redirectURL: "",
-                    headersSize: -1,
-                    bodySize: errorMessage.utf8.count
-                ),
-                timings: HAR.Timings(
-                    send: 0,
-                    wait: durationMs,
-                    receive: 0
-                )
-            )
-        }
-
-        private func extractQueryParameters(from urlString: String) -> [HAR.QueryParameter] {
-            guard let url = URL(string: urlString),
-                  let components = URLComponents(url: url, resolvingAgainstBaseURL: true),
-                  let queryItems = components.queryItems
-            else {
-                return []
-            }
-            return queryItems.map { HAR.QueryParameter(name: $0.name, value: $0.value ?? "") }
         }
     }
 #endif
