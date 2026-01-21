@@ -39,7 +39,7 @@ By default, when Tuist commands necessitate project generation, they automatical
 tuist generate # Only dependencies
 tuist generate Search # Dependencies + Search dependencies
 tuist generate Search Settings # Dependencies, and Search and Settings dependencies
-tuist generate --no-binary-cache # No cache at all
+tuist generate --cache-profile none # No cache at all
 ```
 
 ```bash [Testing]
@@ -50,7 +50,7 @@ tuist test
 
 ::: warning
 <!-- -->
-Binary caching is a feature designed for development workflows such as running the app on a simulator or device, or running tests. It is not intended for release builds. When archiving the app, generate a project with the sources by using the `--no-binary-cache` flag.
+Binary caching is a feature designed for development workflows such as running the app on a simulator or device, or running tests. It is not intended for release builds. When archiving the app, generate a project with the sources by using `--cache-profile none`.
 <!-- -->
 :::
 
@@ -78,13 +78,19 @@ tuist generate
 # Focus on specific targets (implies all-possible)
 tuist generate MyModule AnotherTarget
 
-# Disable binary replacement entirely (backwards compatible)
-tuist generate --no-binary-cache  # equivalent to --cache-profile none
+# Disable binary replacement entirely
+tuist generate --cache-profile none
 ```
+
+::: info DEPRECATED FLAG
+<!-- -->
+The `--no-binary-cache` flag is deprecated. Use `--cache-profile none` instead. The deprecated flag still works for backwards compatibility.
+<!-- -->
+:::
 
 Precedence when resolving the effective behavior (highest to lowest):
 
-1. `--no-binary-cache` → profile `none`
+1. `--cache-profile none`
 2. Target focus (passing targets to `generate`) → profile `all-possible`
 3. `--cache-profile <value>`
 4. Config default (if set)
