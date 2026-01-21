@@ -114,7 +114,8 @@ defmodule TuistWeb.API.CASController do
 
   def save(%{assigns: %{selected_project: project, selected_account: account}} = conn, %{id: id} = _params) do
     current_subject = Authentication.authenticated_subject(conn)
-    {:ok, body, conn} = Plug.Conn.read_body(conn, length: 100_000_000)
+    read_opts = TuistCommon.BodyReader.read_opts(conn, length: 100_000_000)
+    {:ok, body, conn} = Plug.Conn.read_body(conn, read_opts)
     key = cas_key(account, project, id)
 
     if Storage.object_exists?(key, current_subject) do

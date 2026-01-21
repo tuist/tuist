@@ -4,10 +4,13 @@ defmodule Cache.BodyReader do
 
   Small bodies are read into memory, large bodies are streamed to temporary files
   to avoid memory pressure.
+
+  Timeouts are calculated dynamically based on Content-Length to support slower
+  connections while still timing out stalled transfers.
   """
 
   @max_upload_bytes 25 * 1024 * 1024
-  @default_opts [length: @max_upload_bytes, read_length: 262_144, read_timeout: 60_000]
+  @default_opts [length: @max_upload_bytes, read_length: 262_144]
 
   @doc """
   Reads the request body from the connection.
@@ -150,6 +153,7 @@ defmodule Cache.BodyReader do
   end
 
   defp read_opts(conn) do
-    Map.get(conn.private, :body_read_opts, @default_opts)
+    base_opts = Map.get(conn.private, :body_read_opts, @default_opts)
+    TuistCommon.BodyReader.read_opts(conn, base_opts)
   end
 end
