@@ -213,12 +213,15 @@ defmodule Cache.Disk do
          false <- File.exists?(dest_path) do
       tmp_dest = dest_path <> ".tmp.#{:erlang.unique_integer([:positive])}"
 
-      with {:ok, dest_file} <- File.open(tmp_dest, [:write, :append, :binary]),
-           :ok <- copy_parts_to_file(part_paths, dest_file),
-           :ok <- File.close(dest_file),
+      with {:ok, :ok} <- File.open(tmp_dest, [:write, :append, :binary], &copy_parts_to_file(part_paths, &1)),
            :ok <- File.rename(tmp_dest, dest_path) do
         :ok
       else
+        {:ok, {:error, reason}} ->
+          Logger.error("Failed to assemble artifact to #{dest_path}: #{inspect(reason)}")
+          File.rm(tmp_dest)
+          {:error, reason}
+
         {:error, :eexist} ->
           File.rm(tmp_dest)
           {:error, :exists}
@@ -236,12 +239,18 @@ defmodule Cache.Disk do
 
   defp copy_parts_to_file(part_paths, dest_file) do
     Enum.reduce_while(part_paths, :ok, fn part_path, :ok ->
-      with {:ok, source} <- File.open(part_path, [:read, :binary, :raw]),
-           {:ok, _bytes_copied} <- :file.copy(source, dest_file),
-           :ok <- File.close(source) do
-        {:cont, :ok}
-      else
-        {:error, reason} -> {:halt, {:error, reason}}
+      case File.open(part_path, [:read, :binary, :raw]) do
+        {:ok, source} ->
+          result = :file.copy(source, dest_file)
+          File.close(source)
+
+          case result do
+            {:ok, _bytes_copied} -> {:cont, :ok}
+            {:error, reason} -> {:halt, {:error, reason}}
+          end
+
+        {:error, reason} ->
+          {:halt, {:error, reason}}
       end
     end)
   end
