@@ -87,27 +87,6 @@
       forward_to = [prometheus.remote_write.grafana_cloud.receiver]
     }
 
-    prometheus.exporter.nginx "default" {
-      nginx_addr = "http://127.0.0.1:80/nginx_status"
-    }
-
-    prometheus.scrape "nginx_exporter" {
-      targets = prometheus.exporter.nginx.default.targets
-
-      scrape_interval = "15s"
-
-      forward_to = [prometheus.relabel.nginx_exporter.receiver]
-    }
-
-    prometheus.relabel "nginx_exporter" {
-      rule {
-        target_label = "instance"
-        replacement  = "${config.networking.hostName}"
-      }
-
-      forward_to = [prometheus.remote_write.grafana_cloud.receiver]
-    }
-
     prometheus.scrape "cache_promex" {
       targets = [
         {

@@ -57,13 +57,6 @@
             proxy_set_header X-Forwarded-Port $server_port;
           '';
         };
-
-        locations."= /nginx_status" = {
-          extraConfig = ''
-            stub_status on;
-            access_log off;
-          '';
-        };
       };
 
       # Main HTTPS server
