@@ -27,7 +27,9 @@ defmodule Cache.MixProject do
     [
       {:appsignal, "~> 2.8"},
       {:appsignal_phoenix, "~> 2.7.0"},
-      {:bandit, "~> 1.8"},
+      # Using fork with client disconnect detection during body read timeouts
+      # PR: https://github.com/mtrudel/bandit/pull/564
+      {:bandit, git: "https://github.com/tuist/bandit", branch: "detect-client-disconnect-on-timeout", override: true},
       {:briefly, "~> 0.5", only: :test},
       {:broadway, "~> 1.0"},
       {:cachex, "~> 3.6"},

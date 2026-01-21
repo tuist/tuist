@@ -4,37 +4,14 @@ defmodule TuistCommon.Appsignal.ErrorFilterTest do
   alias TuistCommon.Appsignal.ErrorFilter
 
   describe "filter/2" do
-    test "stops Bandit.HTTPError with 'Body read timeout' message" do
+    test "ignores all log events (no filtering needed with modified Bandit)" do
+      # With the modified Bandit, client disconnects during body reads now raise
+      # Bandit.TransportError (ignored via AppSignal config) instead of HTTPError.
+      # This filter no longer needs to filter anything.
       log_event = %{
         meta: %{
           crash_reason: {
             %Bandit.HTTPError{message: "Body read timeout", plug_status: 408},
-            []
-          }
-        }
-      }
-
-      assert ErrorFilter.filter(log_event, []) == :stop
-    end
-
-    test "stops Bandit.HTTPError with message containing 'Body read timeout'" do
-      log_event = %{
-        meta: %{
-          crash_reason: {
-            %Bandit.HTTPError{message: "Body read timeout after 30s", plug_status: 408},
-            [{:some_module, :some_function, 1, []}]
-          }
-        }
-      }
-
-      assert ErrorFilter.filter(log_event, []) == :stop
-    end
-
-    test "ignores Bandit.HTTPError with other messages" do
-      log_event = %{
-        meta: %{
-          crash_reason: {
-            %Bandit.HTTPError{message: "Connection reset by peer", plug_status: 500},
             []
           }
         }
@@ -55,29 +32,6 @@ defmodule TuistCommon.Appsignal.ErrorFilterTest do
 
     test "ignores log events with empty meta" do
       log_event = %{meta: %{}}
-
-      assert ErrorFilter.filter(log_event, []) == :ignore
-    end
-
-    test "ignores log events with non-Bandit crash reasons" do
-      log_event = %{
-        meta: %{
-          crash_reason: {
-            %RuntimeError{message: "some error"},
-            []
-          }
-        }
-      }
-
-      assert ErrorFilter.filter(log_event, []) == :ignore
-    end
-
-    test "ignores log events with atom crash reasons" do
-      log_event = %{
-        meta: %{
-          crash_reason: {:some_atom, []}
-        }
-      }
 
       assert ErrorFilter.filter(log_event, []) == :ignore
     end
