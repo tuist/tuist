@@ -78,7 +78,9 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         generatedProjects: [AbsolutePath: GeneratedProject],
         graphTraverser: GraphTraversing
     ) throws -> [SchemeDescriptor] {
+        Logger.current.debug("SchemeDescriptorsGenerator: Generating \(workspace.schemes.count) workspace schemes")
         let schemes = try workspace.schemes.map { scheme in
+            Logger.current.debug("SchemeDescriptorsGenerator: Generating workspace scheme \(scheme.name)")
             return try generateScheme(
                 scheme: scheme,
                 path: workspace.xcWorkspacePath.parentDirectory,
@@ -87,7 +89,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                 lastUpgradeCheck: workspace.generationOptions.lastXcodeUpgradeCheck
             )
         }
-
+        Logger.current.debug("SchemeDescriptorsGenerator: Finished generating workspace schemes")
         return schemes
     }
 
@@ -96,8 +98,10 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         generatedProject: GeneratedProject,
         graphTraverser: GraphTraversing
     ) throws -> [SchemeDescriptor] {
-        try project.schemes.map { scheme in
-            try generateScheme(
+        Logger.current.debug("SchemeDescriptorsGenerator: Generating \(project.schemes.count) project schemes for \(project.name)")
+        let result = try project.schemes.map { scheme in
+            Logger.current.debug("SchemeDescriptorsGenerator: Generating project scheme \(scheme.name)")
+            return try generateScheme(
                 scheme: scheme,
                 path: project.xcodeProjPath.parentDirectory,
                 graphTraverser: graphTraverser,
@@ -105,6 +109,8 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                 lastUpgradeCheck: project.lastUpgradeCheck
             )
         }
+        Logger.current.debug("SchemeDescriptorsGenerator: Finished generating project schemes for \(project.name)")
+        return result
     }
 
     // swiftlint:disable function_body_length
