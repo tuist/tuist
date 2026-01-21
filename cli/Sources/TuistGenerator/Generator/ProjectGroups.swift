@@ -53,10 +53,9 @@ class ProjectGroups {
         products: PBXGroup,
         frameworks: PBXGroup,
         cachedFrameworks: PBXGroup,
-        pbxproj: PBXProj,
-        folderSortingStrategy: FolderSortingStrategy = .groupsBeforeFolderReferences
+        pbxproj: PBXProj
     ) {
-        _sortedMain = SortedPBXGroup(wrappedValue: main, folderSortingStrategy: folderSortingStrategy)
+        sortedMain = main
         self.projectGroups = Dictionary(uniqueKeysWithValues: projectGroups)
         self.products = products
         self.frameworks = frameworks
@@ -139,8 +138,7 @@ class ProjectGroups {
             products: productsGroup,
             frameworks: frameworksGroup,
             cachedFrameworks: cacheGroup,
-            pbxproj: pbxproj,
-            folderSortingStrategy: project.options.folderSortingStrategy
+            pbxproj: pbxproj
         )
     }
 

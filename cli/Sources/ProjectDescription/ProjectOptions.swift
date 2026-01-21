@@ -25,8 +25,6 @@ extension Project {
         /// Configures the name of the generated .xcodeproj.
         public var xcodeProjectName: String?
 
-        public var folderSortingStrategy: FolderSortingStrategy
-
         public static func options(
             automaticSchemesOptions: AutomaticSchemesOptions = .enabled(),
             defaultKnownRegions: [String]? = nil,
@@ -35,8 +33,7 @@ extension Project {
             disableShowEnvironmentVarsInScriptPhases: Bool = false,
             disableSynthesizedResourceAccessors: Bool = false,
             textSettings: TextSettings = .textSettings(),
-            xcodeProjectName: String? = nil,
-            folderSortingStrategy: FolderSortingStrategy = .groupsBeforeFolderReferences
+            xcodeProjectName: String? = nil
         ) -> Self {
             self.init(
                 automaticSchemesOptions: automaticSchemesOptions,
@@ -46,8 +43,7 @@ extension Project {
                 disableShowEnvironmentVarsInScriptPhases: disableShowEnvironmentVarsInScriptPhases,
                 disableSynthesizedResourceAccessors: disableSynthesizedResourceAccessors,
                 textSettings: textSettings,
-                xcodeProjectName: xcodeProjectName,
-                folderSortingStrategy: folderSortingStrategy
+                xcodeProjectName: xcodeProjectName
             )
         }
     }
@@ -112,13 +108,5 @@ extension Project.Options {
         ) -> Self {
             self.init(usesTabs: usesTabs, indentWidth: indentWidth, tabWidth: tabWidth, wrapsLines: wrapsLines)
         }
-    }
-
-    public enum FolderSortingStrategy: Codable, Equatable, Sendable {
-        /// Group folders are sorted before folder references
-        case groupsBeforeFolderReferences
-
-        /// Group folders and folder references are sorted together alphabetically
-        case alphabetical
     }
 }
