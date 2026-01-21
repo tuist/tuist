@@ -27,7 +27,90 @@ defmodule TuistCommon.BodyReader do
   @default_read_timeout 60_000
   @default_max_timeout 600_000
   @default_read_length 262_144
+  @default_max_bytes 100_000_000
   @default_min_throughput_bytes_per_sec 50 * 1024
+
+  @doc """
+  Reads the request body from the connection with progressive timeouts.
+
+  Uses dynamic timeouts based on Content-Length for the initial read, then
+  progressive chunk-based timeouts for subsequent reads (like Apache's MinRate).
+
+  Returns:
+  - `{:ok, body, conn}` - Body read successfully
+  - `{:error, :timeout, conn}` - Read timed out
+  - `{:error, :too_large, conn}` - Body exceeds max_bytes
+  - `{:error, :cancelled, conn}` - Client disconnected
+  - `{:error, reason, conn}` - Other error
+
+  ## Options
+
+    * `:length` - Maximum bytes to read (default: 100MB)
+    * `:read_length` - Bytes to read per chunk (default: 256KB)
+    * `:max_bytes` - Maximum allowed body size (default: 100MB)
+
+  """
+  @spec read(Plug.Conn.t(), keyword()) :: {:ok, binary(), Plug.Conn.t()} | {:error, atom(), Plug.Conn.t()}
+  def read(conn, opts \\ []) do
+    base_opts = [length: @default_max_bytes, read_length: @default_read_length]
+    merged_opts = Keyword.merge(read_opts(conn, base_opts), opts)
+    max_bytes = Keyword.get(opts, :max_bytes, @default_max_bytes)
+
+    conn
+    |> Plug.Conn.read_body(merged_opts)
+    |> handle_read_result(conn, merged_opts, max_bytes, <<>>)
+  rescue
+    e in [Bandit.TransportError] ->
+      case e do
+        %{error: :timeout} -> {:error, :timeout, conn}
+        _ -> {:error, :cancelled, conn}
+      end
+  end
+
+  defp handle_read_result(result, conn, opts, max_bytes, acc) do
+    case result do
+      {:ok, body, conn_after} ->
+        full_body = acc <> body
+
+        if byte_size(full_body) > max_bytes do
+          {:error, :too_large, conn_after}
+        else
+          {:ok, full_body, conn_after}
+        end
+
+      {:more, chunk, conn_after} ->
+        new_acc = acc <> chunk
+
+        if byte_size(new_acc) > max_bytes do
+          {:error, :too_large, conn_after}
+        else
+          read_next_chunk(conn_after, opts, max_bytes, new_acc)
+        end
+
+      {:error, :too_large} ->
+        {:error, :too_large, conn}
+
+      {:error, reason} when reason in [:timeout, :econnaborted] ->
+        {:error, :timeout, conn}
+
+      {:error, reason} ->
+        {:error, reason, conn}
+    end
+  end
+
+  defp read_next_chunk(conn, opts, max_bytes, acc) do
+    chunk_opts = Keyword.put(opts, :read_timeout, chunk_timeout(opts))
+
+    conn
+    |> Plug.Conn.read_body(chunk_opts)
+    |> handle_read_result(conn, opts, max_bytes, acc)
+  rescue
+    e in [Bandit.TransportError] ->
+      case e do
+        %{error: :timeout} -> {:error, :timeout, conn}
+        _ -> {:error, :cancelled, conn}
+      end
+  end
 
   @doc """
   Calculates a dynamic read timeout based on content length.

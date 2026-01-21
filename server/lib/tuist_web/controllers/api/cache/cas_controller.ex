@@ -114,17 +114,34 @@ defmodule TuistWeb.API.CASController do
 
   def save(%{assigns: %{selected_project: project, selected_account: account}} = conn, %{id: id} = _params) do
     current_subject = Authentication.authenticated_subject(conn)
-    read_opts = TuistCommon.BodyReader.read_opts(conn, length: 100_000_000)
-    {:ok, body, conn} = Plug.Conn.read_body(conn, read_opts)
     key = cas_key(account, project, id)
 
-    if Storage.object_exists?(key, current_subject) do
-      send_resp(conn, :no_content, "")
-    else
-      # Stream the upload from the request body to S3
-      Storage.put_object(key, body, current_subject)
+    case TuistCommon.BodyReader.read(conn, length: 100_000_000) do
+      {:ok, body, conn} ->
+        if Storage.object_exists?(key, current_subject) do
+          send_resp(conn, :no_content, "")
+        else
+          Storage.put_object(key, body, current_subject)
+          send_resp(conn, :no_content, "")
+        end
 
-      send_resp(conn, :no_content, "")
+      {:error, :timeout, conn} ->
+        conn
+        |> put_status(:request_timeout)
+        |> json(%{message: "Request body read timed out"})
+
+      {:error, :too_large, conn} ->
+        conn
+        |> put_status(:payload_too_large)
+        |> json(%{message: "Request body too large"})
+
+      {:error, :cancelled, conn} ->
+        send_resp(conn, :no_content, "")
+
+      {:error, _reason, conn} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: "Failed to read request body"})
     end
   end
 end
