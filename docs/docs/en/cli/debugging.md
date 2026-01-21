@@ -9,6 +9,10 @@
 
 Tuist provides several tools to help you diagnose issues when commands don't behave as expected.
 
+::: warning
+Session data may contain sensitive information such as file paths, project names, and request/response bodies. While sensitive headers (like Authorization) are redacted, be mindful when sharing session data with others.
+:::
+
 ## Session data {#session-data}
 
 If a command invocation doesn't yield the intended results, you can diagnose the issue by inspecting the session data. The CLI forwards the logs to [OSLog](https://developer.apple.com/documentation/os/oslog) and the file-system.
@@ -34,12 +38,6 @@ Learn more about Tuist's directory organization and how to configure custom dire
 :::
 
 By default, the CLI outputs the session path when the execution exits unexpectedly. If it doesn't, you can find the session data in the path mentioned above (i.e., the most recent session directory).
-
-::: warning
-<!-- -->
-Sensitive headers (such as Authorization, Cookie, and API keys) are redacted in HAR files, but other information may not be redacted. Be cautious when sharing session data.
-<!-- -->
-:::
 
 Session directories older than 5 days are automatically cleaned up.
 

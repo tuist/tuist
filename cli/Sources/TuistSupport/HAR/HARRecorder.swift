@@ -6,6 +6,20 @@ public actor HARRecorder {
     /// The current HAR recorder instance for the session.
     @TaskLocal public static var current: HARRecorder?
 
+    /// Headers that should be redacted for security reasons.
+    public static let sensitiveHeaders: Set<String> = [
+        "authorization",
+        "cookie",
+        "set-cookie",
+        "x-api-key",
+        "x-auth-token",
+        "x-access-token",
+        "proxy-authorization",
+        "www-authenticate",
+        "x-amz-security-token",
+        "x-amz-credential",
+    ]
+
     private var log: HAR.Log
     private let filePath: AbsolutePath?
 
@@ -42,6 +56,18 @@ public actor HARRecorder {
         log.entries
     }
 
+    /// Filters sensitive headers from a list of headers.
+    /// - Parameter headers: The headers to filter.
+    /// - Returns: Headers with sensitive values redacted.
+    public static func filterSensitiveHeaders(_ headers: [HAR.Header]) -> [HAR.Header] {
+        headers.map { header in
+            if sensitiveHeaders.contains(header.name.lowercased()) {
+                return HAR.Header(name: header.name, value: "[REDACTED]", comment: header.comment)
+            }
+            return header
+        }
+    }
+
     /// Persists the current HAR log to disk if a file path was provided.
     private func persist() async {
         guard let filePath else { return }
@@ -52,36 +78,6 @@ public actor HARRecorder {
             #if os(macOS)
                 Logger.current.debug("Failed to persist HAR file: \(error)")
             #endif
-        }
-    }
-}
-
-// MARK: - Sensitive Header Filtering
-
-extension HARRecorder {
-    /// Headers that should be redacted for security reasons.
-    public static let sensitiveHeaders: Set<String> = [
-        "authorization",
-        "cookie",
-        "set-cookie",
-        "x-api-key",
-        "x-auth-token",
-        "x-access-token",
-        "proxy-authorization",
-        "www-authenticate",
-        "x-amz-security-token",
-        "x-amz-credential",
-    ]
-
-    /// Filters sensitive headers from a list of headers.
-    /// - Parameter headers: The headers to filter.
-    /// - Returns: Headers with sensitive values redacted.
-    public static func filterSensitiveHeaders(_ headers: [HAR.Header]) -> [HAR.Header] {
-        headers.map { header in
-            if sensitiveHeaders.contains(header.name.lowercased()) {
-                return HAR.Header(name: header.name, value: "[REDACTED]", comment: header.comment)
-            }
-            return header
         }
     }
 }
