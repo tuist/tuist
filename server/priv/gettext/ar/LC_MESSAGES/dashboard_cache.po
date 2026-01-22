@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
-"PO-Revision-Date: 2026-01-22 13:03+0000\n"
+"PO-Revision-Date: 2026-01-23 07:32+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Arabic <https://translate.tuist.dev/projects/tuist/"
 "dashboard_cache/ar/>\n"
@@ -590,20 +590,26 @@ msgstr "منذ النقطة الأخيرة"
 msgid "since yesterday"
 msgstr "منذ أمس"
 
+#, fuzzy
 msgid "Cache Endpoint"
-msgstr ""
+msgstr "نقطة نهاية ذاكرة التخزين المؤقت"
 
+#, fuzzy
 msgid "Set up Xcode cache for your project"
-msgstr ""
+msgstr "قم بإعداد ذاكرة التخزين المؤقتة لـ Xcode لمشروعك"
 
+#, fuzzy
 msgid "You can set up the Xcode cache for your project by running:"
-msgstr ""
+msgstr "يمكنك إعداد ذاكرة التخزين المؤقتة لـ Xcode لمشروعك عن طريق تشغيل:"
 
+#, fuzzy
 msgid "Tuist documentation"
-msgstr ""
+msgstr "وثائق Tuist"
 
+#, fuzzy
 msgid "Size (KB)"
-msgstr ""
+msgstr "الحجم (كيلوبايت)"
 
+#, fuzzy
 msgid "Space usage (%)"
-msgstr ""
+msgstr "استخدام المسافات (٪)"
