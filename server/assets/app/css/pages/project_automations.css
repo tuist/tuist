@@ -70,6 +70,10 @@
       align-items: flex-start;
       gap: var(--noora-spacing-4);
 
+      & > .noora-tag {
+        margin-top: var(--noora-spacing-4);
+      }
+
       & > [data-part="toggle"] {
         display: flex;
         flex-direction: row;
@@ -105,6 +109,22 @@
 
       & .noora-text-input {
         width: 80px;
+      }
+    }
+
+    & > [data-part="stacked-row-content"] {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--noora-spacing-2);
+
+      & > [data-part="label"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+
+      & .noora-text-input {
+        width: 280px;
       }
     }
   }
