@@ -26,7 +26,7 @@ Xcode と XcodeProj
 
 依存関係グラフは、**明示的であるべきであり、** 、**静的であるべきである、** そうであってこそ、**検証されたものであるべきであり、**
 、**最適化されたものであるべきである、**
-と私たちは強く信じている。Tuistを使えば、あなたは何が何に依存するかを記述することに集中し、残りは私たちが引き受ける。複雑さや実装の詳細は抽象化されます。
+と私たちは強く信じている。Tuistを使えば、あなたは何が何に依存するかを記述することに集中し、残りは私たちが引き受ける。複雑で実装の詳細は抽象化されます。
 
 以下のセクションでは、プロジェクトで依存関係を宣言する方法を学びます。
 
@@ -62,8 +62,8 @@ Tuistでは、プロジェクト内で外部依存関係を宣言することも
 
 ### スイフト・パッケージ{#swift-packages}
 
-Swift
-Packagesは、あなたのプロジェクトで依存関係を宣言する私たちの推奨する方法です。あなたは、Xcodeのデフォルトの統合メカニズムを使用するか、TuistのXcodeProjベースの統合を使用してそれらを統合することができます。
+Swift Packages
+は、あなたのプロジェクトで依存関係を宣言する私たちの推奨する方法です。あなたは、Xcodeのデフォルトの統合メカニズムを使用するか、TuistのXcodeProjベースの統合を使用してそれらを統合することができます。
 
 #### TuistのXcodeProjベースの統合{#tuists-xcodeprojbased-integration}
 
@@ -119,7 +119,7 @@ let package = Package(
 :::
 
 > [!IMPORTANT] CUSTOM BUILD CONFIGURATIONS プロジェクトでカスタムビルド設定（標準の`Debug`
-> と`Release` 以外の設定）を使用する場合は、`baseSettings` を使用して`PackageSettings`
+> と`Release` 以外の設定）を使用する場合、`baseSettings` を使用して`PackageSettings`
 > で指定する必要があります。外部依存関係は、正しくビルドするために、プロジェクトの設定を知る必要があります。例えば
 > 
 > ```swift
@@ -148,7 +148,7 @@ tuist install
 # Installing Swift Package Manager dependencies. {#installing-swift-package-manager-dependencies}
 ```
 
-お気づきかもしれませんが、私たちは[CocoaPods](https://cocoapods.org)のようなアプローチをとっています。これにより、依存関係を解決して更新するタイミングをユーザーがコントロールすることができ、プロジェクトでXcodeを開いてコンパイルする準備ができます。これは、AppleのSwiftパッケージマネージャとの統合によって提供される開発者の体験が、プロジェクトが成長するにつれて低下すると私たちが考えている領域です。
+お気づきかもしれませんが、私たちは[CocoaPods](https://cocoapods.org)のようなアプローチをとっています。これにより、依存関係を解決して更新するタイミングをユーザーがコントロールすることができ、プロジェクトでXcodeを開いてコンパイルする準備ができます。これは、AppleのSwiftパッケージマネージャとの統合によって提供される開発者の体験が、プロジェクトが成長するにつれて、時間とともに低下すると私たちが考えている領域です。
 
 プロジェクトのターゲットから、`TargetDependency.external` 依存関係タイプを使用して、これらの依存関係を参照できます：
 
@@ -309,12 +309,12 @@ CocoaPodsの依存関係は、`build` や`test` のような、プロジェク�
 **一般的な経験則**
 高速な起動時間を実現するために、リリースビルドではできるだけ多くのものを静的にリンクし、高速な反復時間を実現するために、デバッグビルドではできるだけ多くのものを動的にリンクしたい。
 
-プロジェクトグラフで静的リンクと動的リンクの間を変更することの課題は、変更がグラフ全体に連鎖的な影響を及ぼすため、Xcodeでは些細なことではありません（例えば、ライブラリはリソースを含むことができず、静的フレームワークは埋め込まれる必要はありません）。Appleは、Swift
+プロジェクトグラフで静的リンクと動的リンクの間を変更することの課題は、変更がグラフ全体に連鎖的な影響を与えるため、Xcodeでは些細なことではありません（例えば、ライブラリはリソースを含むことができず、静的フレームワークは埋め込まれる必要はありません）。Appleは、Swift
 Package Managerの静的リンクと動的リンクの自動決定や、[Mergeable
 Libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries)のようなコンパイル時のソリューションで問題を解決しようとしました。しかし、これはコンパイルグラフに新しい動的変数を追加し、非決定性の新しいソースを追加し、コンパイルグラフに依存する
 Swift プレビューのようないくつかの機能が信頼できなくなる可能性があります。
 
-幸運なことに、Tuistは静的と動的の間の変更に関連する複雑さを概念的に圧縮し、リンクタイプ間で標準的な<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">バンドルアクセサ</LocalizedLink>を合成します。環境変数による動的設定と組み合わせることで、呼び出し時にリンクタイプを渡し、マニフェストでその値を使用してターゲットのプロダクトタイプを設定することができます。
+幸運なことに、Tuistは静的と動的の間の変更に関連する複雑さを概念的に圧縮し、リンクタイプ間で標準的な<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">バンドルアクセサ</LocalizedLink>を合成します。3}環境変数による動的設定</LocalizedLink>と組み合わせることで、呼び出し時にリンクタイプを渡し、マニフェストでその値を使用してターゲットのプロダクトタイプを設定することができます。
 
 ```swift
 // Use the value returned by this function to set the product type of your targets.
@@ -345,7 +345,7 @@ Architecture](https://github.com/pointfreeco/swift-composable-architecture)で�
 - **拡張機能を持つアプリ：**
   アプリとその拡張機能はコードを共有する必要があるため、それらのターゲットをダイナミックにする必要があるかもしれない。そうしないと、アプリとエクステンションの両方で同じコードが重複することになり、バイナリ・サイズが大きくなってしまう。
 - **コンパイル済みの外部依存関係：**
-  静的または動的なコンパイル済みバイナリが提供されることがある。静的バイナリは、動的フレームワークやライブラリにラップして動的にリンクすることができます。
+  静的または動的なコンパイル済みバイナリが提供されることもある。静的バイナリは、動的フレームワークやライブラリにラップして動的にリンクすることができます。
 
 グラフに変更を加える際、Tuistはグラフを分析し、「静的副作用」を検出した場合には警告を表示する。この警告は、動的ターゲットを介して静的ターゲットに過渡的に依存するターゲットを静的にリンクすることで発生する可能性のある問題を特定するためのものです。これらの副作用は、しばしばバイナリサイズの増大や、最悪の場合にはランタイムクラッシュとして現れます。
 
@@ -360,7 +360,7 @@ QA1490](https://developer.apple.com/library/archive/qa/qa1490/_index.html)に詳
 が`.unsafeFlag` を介して含まれるとみなすので、ほとんどのパッケージは必要なときにデフォルトのリンク設定の一部としてこれを含めることができません。
 
 Objective-Cの依存関係（または内部Objective-Cターゲット）の消費者は、`-ObjC` または`-force_load`
-フラグを適用する必要があります。このフラグは、`OTHER_LDFLAGS` を消費ターゲットに設定することによって設定されます。
+フラグを、`OTHER_LDFLAGS` を消費ターゲットに設定することにより、必要に応じて適用する必要があります。
 
 ### Firebaseとその他のGoogleライブラリ{#firebase-other-google-libraries}
 
@@ -490,7 +490,7 @@ let packageSettings = PackageSettings(
 ### `.swiftmodule から漏れる推移的静的依存関係` {#transitive-static-dependencies-leaking-through-swiftmodule}
 
 動的なフレームワークやライブラリーが`import StaticSwiftModule`
-を通して静的なものに依存する場合、そのシンボルは動的なフレームワークやライブラリーの`.swiftmodule`
+を通じて静的なものに依存する場合、そのシンボルは動的なフレームワークやライブラリーの`.swiftmodule`
 に含まれ、<LocalizedLink href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1">コンパイルに失敗</LocalizedLink>する可能性があります。これを防ぐには、<LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal
 import`</LocalizedLink>を使用して静的依存関係をインポートする必要があります：
 
