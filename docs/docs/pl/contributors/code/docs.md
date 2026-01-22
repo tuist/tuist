@@ -5,19 +5,19 @@
   "description": "Contribute to the Tuist documentation site."
 }
 ---
-# Docs {#docs}
+# Dokumenty {#docs}
 
-Source:
+Źródło:
 [github.com/tuist/tuist/tree/main/docs](https://github.com/tuist/tuist/tree/main/docs)
 
-## What it is for {#what-it-is-for}
+## Do czego służy {#what-it-is-for}
 
-The docs site hosts Tuist’s product and contributor documentation. It is built
-with VitePress.
+Witryna dokumentacji zawiera dokumentację produktów i współpracowników Tuist.
+Została ona stworzona przy użyciu VitePress.
 
-## How to contribute {#how-to-contribute}
+## Jak wnieść swój wkład {#how-to-contribute}
 
-### Set up locally {#set-up-locally}
+### Skonfiguruj lokalnie {#set-up-locally}
 
 ```bash
 cd docs
@@ -25,12 +25,12 @@ mise install
 mise run dev
 ```
 
-### Optional generated data {#optional-generated-data}
+### Opcjonalne dane generowane {#optional-generated-data}
 
-We embed some generated data in the docs:
+W dokumentacji umieszczamy niektóre wygenerowane dane:
 
-- CLI reference data: `mise run generate-cli-docs`
-- Project manifest reference data: `mise run generate-manifests-docs`
+- Dane referencyjne CLI: `mise run generate-cli-docs`
+- Dane referencyjne manifestu projektu: `mise run generate-manifests-docs`
 
-These are optional. The docs render without them, so only run them when you need
-to refresh the generated content.
+Są one opcjonalne. Dokumenty są renderowane bez nich, więc uruchamiaj je tylko
+wtedy, gdy chcesz odświeżyć wygenerowaną treść.
