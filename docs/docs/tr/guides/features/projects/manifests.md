@@ -12,8 +12,8 @@ yapılandırmanın birincil yolu olarak Swift dosyalarını varsayılan olarak
 kullanır. Bu dosyalar, dokümantasyon boyunca **manifest dosyaları** olarak
 adlandırılır.
 
-Swift kullanma kararı, Swift paketi tanımlamak için Swift dosyalarını da
-kullanan [Swift Paket
+Swift kullanma kararı, paketleri tanımlamak için Swift dosyalarını da kullanan
+[Swift Paket
 Yöneticisi](https://www.swift.org/documentation/package-manager/)'nden
 esinlenilmiştir. Swift kullanımı sayesinde, içeriğin doğruluğunu doğrulamak ve
 farklı manifesto dosyalarında kodu yeniden kullanmak için derleyiciden ve
@@ -31,7 +31,7 @@ sürebileceğini fark edeceksiniz. Sonraki çalıştırmalar daha hızlı olacak
 
 ## Proje.swift {#projectswift}
 
-<LocalizedLink href="/references/project-description/project">`Project.swift`</LocalizedLink> manifestosu bir Xcode projesi bildirir. Proje,
+1}`Project.swift`</LocalizedLink> manifestosu bir Xcode projesi bildirir. Proje,
 manifesto dosyasının bulunduğu dizinde `name` özelliğinde belirtilen adla
 oluşturulur.
 
@@ -56,9 +56,9 @@ fonksiyonlarını kullanabilirsiniz.
 
 ## Çalışma Alanı.swift {#workspaceswift}
 
-Tuist varsayılan olarak, oluşturulan projeyi ve bağımlılıklarının projelerini
-içeren bir [Xcode
-Workspace](https://developer.apple.com/documentation/xcode/projects-and-workspaces)
+Varsayılan olarak Tuist, oluşturulmakta olan projeyi ve bağımlılıklarının
+projelerini içeren bir [Xcode Çalışma
+Alanı](https://developer.apple.com/documentation/xcode/projects-and-workspaces)
 oluşturur. Herhangi bir nedenle çalışma alanını ek projeler eklemek veya dosya
 ve grupları dahil etmek için özelleştirmek isterseniz, bunu bir
 <LocalizedLink href="/references/project-description/structs/workspace">`Workspace.swift`</LocalizedLink>
@@ -90,13 +90,14 @@ Sıklıkla gündeme gelen bir soru, bir çalışma alanında tek bir proje mi yo
 birden fazla proje mi kullanılacağıdır. Tek proje kurulumunun sık sık Git
 çakışmalarına yol açacağı Tuist'in olmadığı bir dünyada, çalışma alanlarının
 kullanımı teşvik edilir. Ancak, Tuist tarafından oluşturulan Xcode projelerinin
-Git deposuna dahil edilmesini önermediğimiz için, Git çakışmaları bir sorun
-değildir. Bu nedenle, bir çalışma alanında tek bir proje veya birden fazla proje
-kullanma kararı size kalmıştır.
+Git deposuna dahil edilmesini önermediğimiz için Git çakışmaları bir sorun
+teşkil etmemektedir. Bu nedenle, bir çalışma alanında tek bir proje veya birden
+fazla proje kullanma kararı size kalmıştır.
 
 Tuist projesinde, soğuk üretim süresi daha hızlı olduğu için (derlenecek daha az
 manifesto dosyası) ve bir kapsülleme birimi olarak
-<LocalizedLink href="/guides/features/projects/code-sharing">proje açıklama yardımcılarından</LocalizedLink> yararlandığımız için mono-projelere
+<LocalizedLink href="/guides/features/projects/code-sharing">proje açıklama
+yardımcılarından</LocalizedLink> yararlandığımız için mono-projelere
 dayanıyoruz. Bununla birlikte, uygulamanızın farklı alanlarını temsil etmek için
 Xcode projelerini bir kapsülleme birimi olarak kullanmak isteyebilirsiniz, bu da
 Xcode'un önerilen proje yapısıyla daha yakından uyumludur.
@@ -104,7 +105,8 @@ Xcode'un önerilen proje yapısıyla daha yakından uyumludur.
 ## Tuist.swift {#tuistswift}
 
 Tuist, proje yapılandırmasını basitleştirmek için
-<LocalizedLink href="/contributors/principles.html#default-to-conventions">uygun varsayılanlar</LocalizedLink> sağlar. Ancak, projenin kökünde Tuist tarafından
+<LocalizedLink href="/contributors/principles.html#default-to-conventions">uygun
+varsayılanlar</LocalizedLink> sağlar. Ancak, projenin kökünde Tuist tarafından
 projenin kökünü belirlemek için kullanılan bir
 <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>
 tanımlayarak yapılandırmayı özelleştirebilirsiniz.
