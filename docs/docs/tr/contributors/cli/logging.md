@@ -7,7 +7,7 @@
 ---
 # Loglama {#logging}
 
-CLI, günlük kaydı için [swift-log](https://github.com/apple/swift-log) arayüzünü
+CLI, loglama için [swift-log](https://github.com/apple/swift-log) arayüzünü
 benimser. Paket, loglama uygulamanın ayrıntılarını soyutlayarak CLI'nin loglama
 arka ucundan bağımsız olmasını sağlar. Kaydedici, görev yerelleri kullanılarak
 bağımlılık enjekte edilir ve kullanılarak herhangi bir yerden erişilebilir:
