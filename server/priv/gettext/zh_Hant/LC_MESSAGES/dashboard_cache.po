@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
-"PO-Revision-Date: 2026-01-22 13:04+0000\n"
+"PO-Revision-Date: 2026-01-23 07:32+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_cache/zh_Hant/>\n"
@@ -205,7 +205,7 @@ msgstr "指令"
 
 #, fuzzy
 msgid "Commit SHA"
-msgstr "承諾 SHA"
+msgstr "提交 SHA"
 
 #, fuzzy
 msgid "Created at"
@@ -213,7 +213,7 @@ msgstr "建立於"
 
 #, fuzzy
 msgid "Delete bundle"
-msgstr "刪除綑綁"
+msgstr "刪除組合包"
 
 #, fuzzy
 msgid "Directory"
@@ -233,11 +233,11 @@ msgstr "下載大小 (MB)"
 
 #, fuzzy
 msgid "Duplicates"
-msgstr "重複"
+msgstr "重複項目"
 
 #, fuzzy
 msgid "Duration"
-msgstr "時間長度"
+msgstr "持續時間"
 
 #, fuzzy
 msgid "Environment:"
@@ -245,7 +245,7 @@ msgstr "環境："
 
 #, fuzzy
 msgid "Explore bundle analysis"
-msgstr "探索捆包分析"
+msgstr "探索組合分析"
 
 #, fuzzy
 msgid "Failed"
@@ -257,7 +257,7 @@ msgstr "檔案"
 
 #, fuzzy
 msgid "File Breakdown"
-msgstr "檔案明細"
+msgstr "檔案細目"
 
 #, fuzzy
 msgid "Filter"
@@ -269,7 +269,7 @@ msgstr "字型"
 
 #, fuzzy
 msgid "Fonts"
-msgstr "字體"
+msgstr "字型"
 
 #, fuzzy
 msgid "Hit Rate"
@@ -573,20 +573,26 @@ msgstr "自上次句點以來"
 msgid "since yesterday"
 msgstr "自昨日起"
 
+#, fuzzy
 msgid "Cache Endpoint"
-msgstr ""
+msgstr "快取端點"
 
+#, fuzzy
 msgid "Set up Xcode cache for your project"
-msgstr ""
+msgstr "為您的專案設定 Xcode 快取"
 
+#, fuzzy
 msgid "You can set up the Xcode cache for your project by running:"
-msgstr ""
+msgstr "您可透過執行以下指令為專案設定 Xcode 快取："
 
+#, fuzzy
 msgid "Tuist documentation"
-msgstr ""
+msgstr "Tuist 文件"
 
+#, fuzzy
 msgid "Size (KB)"
-msgstr ""
+msgstr "大小 (KB)"
 
+#, fuzzy
 msgid "Space usage (%)"
-msgstr ""
+msgstr "空格使用率 (%)"
