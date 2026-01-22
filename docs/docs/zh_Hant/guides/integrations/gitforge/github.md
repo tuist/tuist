@@ -7,44 +7,41 @@
 ---
 # GitHub 整合{#github}
 
-Git 倉庫是大多數軟體專案的核心。我們與 GitHub 整合，直接在您的拉取請求中提供 Tuist 的深入分析，並為您省下一些設定，例如同步預設分支。
+Git 儲存庫是絕大多數軟體專案的核心。我們與 GitHub 整合，讓您能在拉取請求中直接查看 Tuist 洞察，並省去同步預設分支等設定步驟。
 
 ## 設定{#setup}
 
-您需要在組織的`Integrations` 標籤中安裝 Tuist GitHub 應用程式：
-![顯示整合標籤的圖片](/images/guides/integrations/gitforge/github/integrations.png)。
+您需在組織的「`整合」` 標籤頁中安裝 Tuist GitHub
+應用程式：![顯示整合標籤頁的圖片](/images/guides/integrations/gitforge/github/integrations.png)
 
-之後，您就可以在 GitHub 倉庫和 Tuist 專案之間新增專案連線：
+之後，您即可在 GitHub 儲存庫與 Tuist 專案之間建立專案連結：
 
-![顯示新增專案連線的影像](/images/guides/integrations/gitforge/github/add-project-connection.png)。
+![示意新增專案連結的圖片](/images/guides/integrations/gitforge/github/add-project-connection.png)
 
 ## 拉取/合併請求註解{#pullmerge-request-comments}
 
-GitHub 應用程式會發佈 Tuist 執行報告，其中包含 PR 的摘要，包括最新
-<LocalizedLink href="/guides/features/previews#pullmerge-request-comments">previews</LocalizedLink>
+GitHub 應用程式會發佈 Tuist 執行報告，其中包含拉取請求摘要，並附上最新
+<LocalizedLink href="/guides/features/previews#pullmerge-request-comments">預覽</LocalizedLink>
 或
-<LocalizedLink href="/guides/features/selective-testing#pullmerge-request-comments">tests</LocalizedLink>
+<LocalizedLink href="/guides/features/selective-testing#pullmerge-request-comments">測試</LocalizedLink>
 的連結：
 
-![顯示 pull request
-註解的圖片](/images/guides/integrations/gitforge/github/pull-request-comment.png)。
+![顯示拉取請求評論的圖片](/images/guides/integrations/gitforge/github/pull-request-comment.png)
 
 ::: info REQUIREMENTS
 <!-- -->
-只有當您的 CI 執行為
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>
-時，才會張貼註解。
+註解僅在您的 CI 執行完成
+<LocalizedLink href="/guides/integrations/continuous-integration#authentication">驗證</LocalizedLink>後才會發布。
 <!-- -->
 :::
 
 ::: info GITHUB_REF
 <!-- -->
-如果您的自訂工作流程不是由 PR commit 觸發，而是例如由 GitHub 的註解觸發，您可能需要確保`GITHUB_REF`
-變數設定為`refs/pull/<pr_number>/merge` 或`refs/pull/<pr_number>/head`
-。</pr_number></pr_number>
+` 若您使用自訂工作流程，且該流程並非在拉取請求提交時觸發（例如針對 GitHub 評論），則需確保變數 ```
+的 `GITHUB_REF` 參數設定為以下任一值：``refs/pull/<pr_number>/merge``` `或``refs/pull/<pr_number>/head````</pr_number></pr_number>
 
-您可以執行相關指令，例如`tuist share` ，前綴為`GITHUB_REF`
-環境變數：<code v-pre>GITHUB_REF="refs/pull/${{ github.event.issue.number }}/head"
-tuist share</code>
+可執行相關指令，例如：`tuist share` ，並預先設定環境變數：`GITHUB_REF`
+：<code v-pre>GITHUB_REF="refs/pull/${{ github.event.issue.number }}/head" tuist
+share</code>
 <!-- -->
 :::
