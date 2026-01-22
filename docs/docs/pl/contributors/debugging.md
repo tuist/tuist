@@ -5,39 +5,42 @@
   "description": "Use coding agents and local runs to debug issues in Tuist."
 }
 ---
-# Debugging {#debugging}
+# Debugowanie {#debugging}
 
-Being open is a practical advantage: the code is available, you can run it
-locally, and you can use coding agents to answer questions faster and debug
-potential bugs in the codebase.
+Otwartość ma praktyczną zaletę: kod jest dostępny, można go uruchomić lokalnie i
+można używać agentów kodujących, aby szybciej odpowiadać na pytania i debugować
+potencjalne błędy w kodzie źródłowym.
 
-If you find missing or incomplete documentation while debugging, update the
-English docs under `docs/` and open a PR.
+Jeśli podczas debugowania znajdziesz brakującą lub niekompletną dokumentację,
+zaktualizuj angielską dokumentację pod adresem `docs/` i otwórz PR.
 
-## Use coding agents {#use-coding-agents}
+## Używaj agentów kodujących. {#use-coding-agents}
 
-Coding agents are useful for:
+Agenci kodujący są przydatni w następujących przypadkach:
 
-- Scanning the codebase for where a behavior is implemented.
-- Reproducing issues locally and iterating quickly.
-- Tracing how inputs flow through Tuist to find the root cause.
+- Skanowanie kodu źródłowego w celu znalezienia miejsca, w którym
+  zaimplementowano dane zachowanie.
+- Odtwarzanie problemów lokalnie i szybkie powtarzanie.
+- Śledzenie przepływu danych wejściowych przez Tuist w celu znalezienia
+  przyczyny źródłowej.
 
-Share the smallest reproduction you can, and point the agent at the specific
-component (CLI, server, cache, docs, or handbook). The more focused the scope,
-the faster and more accurate the debugging process is.
+Podaj jak najmniejszy fragment kodu i wskaż agentowi konkretny komponent (CLI,
+serwer, pamięć podręczna, dokumentacja lub podręcznik). Im bardziej konkretny
+zakres, tym szybszy i dokładniejszy proces debugowania.
 
-### Frequently Needed Prompts (FNP) {#frequently-needed-prompts}
+### Często potrzebne podpowiedzi (FNP) {#frequently-needed-prompts}
 
-#### Unexpected project generation {#unexpected-project-generation}
+#### Nieoczekiwane generowanie projektu {#unexpected-project-generation}
 
-The project generation is giving me something I do not expect. Run the Tuist CLI
-against my project at `/path/to/project` to understand why this is happening.
-Trace the generator pipeline and point to the code paths responsible for the
-output.
+Generowanie projektu daje mi coś, czego się nie spodziewałem. Uruchom Tuist CLI
+dla mojego projektu pod adresem `/path/to/project`, aby zrozumieć, dlaczego tak
+się dzieje. Prześledź potok generatora i wskaż ścieżki kodu odpowiedzialne za
+wynik.
 
-#### Reproducible bug in generated projects {#reproducible-bug-in-generated-projects}
+#### Powtarzalny błąd w wygenerowanych projektach {#reproducible-bug-in-generated-projects}
 
-This looks like a bug in generated projects. Create a reproducible project under
-`examples/`, using existing examples as a reference. Add an acceptance test that
-fails, run it via `xcodebuild` with only that test selected, fix the issue,
-re-run the test to confirm it passes, and open a PR.
+Wygląda to na błąd w generowanych projektach. Utwórz projekt, który można
+odtworzyć, w folderze `examples/`, korzystając z istniejących przykładów jako
+odniesienia. Dodaj test akceptacyjny, który zakończy się niepowodzeniem, uruchom
+go za pomocą `xcodebuild`, wybierając tylko ten test, napraw problem, ponownie
+uruchom test, aby potwierdzić, że zakończył się powodzeniem, i otwórz PR.
