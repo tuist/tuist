@@ -13,7 +13,8 @@ sürer. Ancak bu çözüm, ekibinizin sahip olabileceği binlerce teste ölçekl
 
 CI üzerindeki her test çalışmasında, değişikliklerden bağımsız olarak büyük
 olasılıkla tüm testleri yeniden çalıştırırsınız. Tuist'in seçmeli testi,
-<LocalizedLink href="/guides/features/projects/hashing">hashing algoritmamıza</LocalizedLink> dayalı olarak yalnızca son başarılı test
+<LocalizedLink href="/guides/features/projects/hashing">hashing
+algoritmamıza</LocalizedLink> dayalı olarak yalnızca son başarılı test
 çalışmasından bu yana değişen testleri çalıştırarak testlerin çalıştırılmasını
 büyük ölçüde hızlandırmanıza yardımcı olur.
 
@@ -25,7 +26,8 @@ kullanabilirsiniz. Seçmeli teste başlamak için proje kurulumunuza göre
 talimatları izleyin:
 
 - <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
-- <LocalizedLink href="/guides/features/selective-testing/generated-project">Oluşturulmuş proje</LocalizedLink>
+- <LocalizedLink href="/guides/features/selective-testing/generated-project">Oluşturulmuş
+  proje</LocalizedLink>
 
 ::: warning MODULE VS FILE-LEVEL GRANULARITY
 <!-- -->
@@ -54,8 +56,10 @@ düşünmeye teşvik ediyoruz ve eğer öyleyse, kapsamın gelecekte seçici
 ::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
 Otomatik çekme/birleştirme isteği yorumları almak için
-<LocalizedLink href="/guides/server/accounts-and-projects">Tuist projenizi</LocalizedLink> bir
-<LocalizedLink href="/guides/server/authentication">Git platformuyla</LocalizedLink> entegre edin.
+<LocalizedLink href="/guides/server/accounts-and-projects">Tuist
+projenizi</LocalizedLink> bir
+<LocalizedLink href="/guides/server/authentication">Git
+platformu</LocalizedLink> ile entegre edin.
 <!-- -->
 :::
 
