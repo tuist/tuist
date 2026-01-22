@@ -390,7 +390,7 @@
                         "test-insights": {
                             "items": {
                                 "flaky-tests": {
-                                    "text": "不稳定的测试"
+                                    "text": "不规则测试"
                                 }
                             },
                             "text": "测试洞察"
