@@ -20,7 +20,7 @@
 - 插件不能依赖第三方 Swift 软件包
 - 插件不能使用使用该插件的项目中的项目描述助手。
 
-如果您需要更多灵活性，可以考虑为工具提出功能建议，或者在 Tuist 的生成框架
+如果您需要更多灵活性，可以考虑为工具提出功能建议，或在 Tuist 的生成框架
 [`TuistGenerator`](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator)
 上构建自己的解决方案。
 
@@ -29,7 +29,7 @@
 ### 项目描述辅助插件{#project-description-helper-plugin}
 
 项目描述辅助插件由一个目录表示，该目录包含一个`Plugin.swift` manifest
-文件，其中声明了插件的名称，以及一个`ProjectDescriptionHelpers` 目录，其中包含辅助 Swift 文件。
+文件（声明插件名称）和一个`ProjectDescriptionHelpers` 目录（包含辅助 Swift 文件）。
 
 代码组
 ```bash [Plugin.swift]
@@ -103,7 +103,7 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 任务是`$PATH`-exposed executables（暴露的可执行文件），如果它们遵循命名规范`tuist-<task-name>`
 ，则可通过`tuist` 命令调用。在早期版本中，Tuist 在`tuist plugin`
 下提供了一些弱约定和工具，用于`build`,`run`,`test` 和`archive` 任务，这些任务由 Swift
-包中的可执行文件表示，但我们已弃用这一功能，因为它增加了工具的维护负担和复杂性。
+包中的可执行文件表示，但我们已弃用这一功能，因为它增加了工具的维护负担和复杂性。</task-name>
 
 如果您使用 Tuist 来分发任务，我们建议您构建自己的
 - 您可以继续使用随每个 Tuist 版本发布的`ProjectAutomation.xcframework` ，通过`let graph = try
