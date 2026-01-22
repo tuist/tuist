@@ -16,14 +16,16 @@ Tuist поддерживает использование `Package.swift` в к�
 внедрения Tuist в их Swift-пакеты. Поэтому мы не планируем поддерживать весь
 спектр возможностей Swift Package Manager, а также переносить в область Swift
 Package Manager все уникальные возможности Tuist, такие как
-<LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink>.
+<LocalizedLink href="/guides/features/projects/code-sharing">project description
+helpers</LocalizedLink>.
 <!-- -->
 :::
 
 ::: info КОРНЕВОЙ КАТАЛОГ
 <!-- -->
 Команды Tuist ожидают наличия определенной
-<LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects">структуры папок</LocalizedLink>, корень которой определяется папкой `Tuist` или `.git`.
+<LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects">структуры
+папок</LocalizedLink>, корень которой определяется папкой `Tuist` или `.git`.
 <!-- -->
 :::
 
