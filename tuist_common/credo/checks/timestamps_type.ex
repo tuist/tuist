@@ -2,7 +2,6 @@ defmodule Credo.Checks.TimestampsType do
   @moduledoc """
   Ensure that Ecto schemas use `utc_datetime` for timestamps.
   """
-  use Boundary
   use Credo.Check,
     param_defaults: [allowed_type: :utc_datetime],
     category: :warning,
