@@ -5,54 +5,56 @@
   "description": "Learn how to leverage selective testing to run only the tests that have changed."
 }
 ---
-# Selective testing {#selective-testing}
+# Testowanie wybiórcze {#selective-testing}
 
-::: warning REQUIREMENTS
+::: ostrzeżenie WYMAGANIA
 <!-- -->
-- A <LocalizedLink href="/guides/features/projects">generated
-  project</LocalizedLink>
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
-  project</LocalizedLink>
+- Projekt
+  <LocalizedLink href="/guides/features/projects">wygenerowany</LocalizedLink>
+- Konto <LocalizedLink href="/guides/server/accounts-and-projects">Tuist i
+  projekt</LocalizedLink>
 <!-- -->
 :::
 
-To run tests selectively with your generated project, use the `tuist test`
-command. The command
-<LocalizedLink href="/guides/features/projects/hashing">hashes</LocalizedLink>
-your Xcode project the same way it does for
-<LocalizedLink href="/guides/features/cache#cache-warming">warming the
-cache</LocalizedLink>, and on success, it persists the hashes on to determine
-what has changed in future runs.
+Aby uruchomić testy selektywnie z wygenerowanym projektem, użyj polecenia `tuist
+test`. Polecenie to
+<LocalizedLink href="/guides/features/projects/hashing">haszuje</LocalizedLink>
+projekt Xcode w taki sam sposób, jak
+<LocalizedLink href="/guides/features/cache#cache-warming">rozgrzewanie pamięci
+podręcznej</LocalizedLink>, a po pomyślnym zakończeniu zachowuje skróty, aby
+określić, co uległo zmianie w przyszłych uruchomieniach.
 
-In future runs `tuist test` transparently uses the hashes to filter down the
-tests to run only the ones that have changed since the last successful test run.
+W przyszłych uruchomieniach `tuist test` w przejrzysty sposób wykorzystuje znaki
+hash do filtrowania testów, aby uruchamiać tylko te, które uległy zmianie od
+ostatniego pomyślnego uruchomienia testów.
 
-For example, assuming the following dependency graph:
+Na przykład, zakładając następujący wykres zależności:
 
-- `FeatureA` has tests `FeatureATests`, and depends on `Core`
-- `FeatureB` has tests `FeatureBTests`, and depends on `Core`
-- `Core` has tests `CoreTests`
+- `Funkcja „` ” ma testy `Funkcja „ATests”` i zależy od `Core`
+- `FunkcjaB` zawiera testy `FunkcjaBTesty` i zależy od `Core`
+- `Core` zawiera testy `CoreTests`
 
-`tuist test` will behave as such:
+`tuist test` będzie działać w następujący sposób:
 
-| Action                  | Description                                                         | Internal state                                                                 |
-| ----------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `tuist test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The hashes of `FeatureATests`, `FeatureBTests` and `CoreTests` are persisted   |
-| `FeatureA` is updated   | The developer modifies the code of a target                         | Same as before                                                                 |
-| `tuist test` invocation | Runs the tests in `FeatureATests` because it hash has changed       | The new hash of `FeatureATests` is persisted                                   |
-| `Core` is updated       | The developer modifies the code of a target                         | Same as before                                                                 |
-| `tuist test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The new hash of `FeatureATests` `FeatureBTests`, and `CoreTests` are persisted |
+| Działanie                             | Opis                                                                | Stan wewnętrzny                                                         |
+| ------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `tuist test` invocation               | Uruchamia testy w `CoreTests`, `FeatureATests` oraz `FeatureBTests` | Hashy `FeatureATests`, `FeatureBTests` i `CoreTests` są zachowywane.    |
+| `Funkcja „` ” została zaktualizowana. | Programista modyfikuje kod docelowy.                                | Tak samo jak poprzednio.                                                |
+| `tuist test` invocation               | Uruchamia testy w `FeatureATests`, ponieważ zmienił się hash.       | Nowy hash `FeatureATests` jest zachowywany.                             |
+| `Zaktualizowano rdzeń`                | Programista modyfikuje kod docelowy.                                | Tak samo jak poprzednio.                                                |
+| `tuist test` invocation               | Uruchamia testy w `CoreTests`, `FeatureATests` oraz `FeatureBTests` | Nowy hash `FeatureATests` `FeatureBTests` oraz `CoreTests` jest trwały. |
 
-`tuist test` integrates directly with binary caching to use as many binaries
-from your local or remote storage to improve the build time when running your
-test suite. The combination of selective testing with binary caching can
-dramatically reduce the time it takes to run tests on your CI.
+`tuist test` integruje się bezpośrednio z buforowaniem plików binarnych, aby
+wykorzystać jak najwięcej plików binarnych z lokalnej lub zdalnej pamięci
+masowej w celu skrócenia czasu kompilacji podczas uruchamiania zestawu testów.
+Połączenie selektywnego testowania z buforowaniem plików binarnych może znacznie
+skrócić czas potrzebny do przeprowadzenia testów w ramach ciągłej integracji.
 
-## UI Tests {#ui-tests}
+## Testy interfejsu użytkownika {#ui-tests}
 
-Tuist supports selective testing of UI tests. However, Tuist needs to know the
-destination in advance. Only if you specify the `destination` parameter, Tuist
-will run the UI tests selectively, such as:
+Tuist obsługuje selektywne testowanie interfejsu użytkownika. Jednak Tuist musi
+znać miejsce docelowe z wyprzedzeniem. Tylko po określeniu miejsca docelowego ``
+parametr, Tuist uruchomi testy interfejsu użytkownika selektywnie, na przykład:
 ```sh
 tuist test --device 'iPhone 14 Pro'
 # or
