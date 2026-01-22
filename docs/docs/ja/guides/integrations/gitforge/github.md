@@ -18,7 +18,7 @@ Gitリポジトリは、世の中の大半のソフトウェアプロジェク�
 
 プロジェクト接続を追加するイメージ](/images/guides/integrations/gitforge/github/add-project-connection.png)。
 
-## プル/マージリクエストのコメント{#pull-merge-request-comments}
+## プル/マージリクエストのコメント{#pullmerge-request-comments}
 
 GitHubアプリは、最新の<LocalizedLink href="/guides/features/previews#pullmerge-request-comments">previews</LocalizedLink>や<LocalizedLink href="/guides/features/selective-testing#pullmerge-request-comments">tests</LocalizedLink>へのリンクを含むPRの要約を含むTuist実行レポートを投稿します：
 
