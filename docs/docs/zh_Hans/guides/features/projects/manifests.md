@@ -9,8 +9,8 @@
 
 Tuist 默认将 Swift 文件作为定义项目和工作区以及配置生成流程的主要方式。这些文件在整个文档中被称为**manifest files** 。
 
-决定使用 Swift 的灵感来自[Swift
-包管理器](https://www.swift.org/documentation/package-manager/)，它也使用 Swift
+我们之所以决定使用 Swift，是受到[Swift
+包管理器](https://www.swift.org/documentation/package-manager/)的启发，它也使用 Swift
 文件来定义包。由于使用了 Swift，我们可以利用编译器来验证内容的正确性，并在不同的清单文件中重复使用代码，还可以利用 Xcode
 的语法高亮显示、自动完成和验证功能来提供一流的编辑体验。
 
@@ -75,15 +75,17 @@ Tuist 将解析依赖关系图，并将依赖关系的项目包含在工作区�
 冲突并不是问题。因此，您可以自行决定在工作区中使用单个项目还是多个项目。
 
 在 Tuist 项目中，我们倾向于使用单项目，因为冷生成时间更快（需要编译的清单文件更少），而且我们利用
-<LocalizedLink href="/guides/features/projects/code-sharing"> 项目描述助手 </LocalizedLink> 作为封装单元。不过，您可能希望使用 Xcode 项目作为封装单元，以代表应用程序的不同领域，这与 Xcode
+<LocalizedLink href="/guides/features/projects/code-sharing"> 项目描述助手
+</LocalizedLink> 作为封装单元。不过，您可能希望使用 Xcode 项目作为封装单元，以代表应用程序的不同领域，这与 Xcode
 推荐的项目结构更为接近。
 
 ## Tuist.swift{#tuistswift}
 
 Tuist 提供了
-<LocalizedLink href="/contributors/principles.html#default-to-conventions"> 合理的默认值</LocalizedLink>，以简化项目配置。不过，您也可以通过在项目根目录下定义一个
+<LocalizedLink href="/contributors/principles.html#default-to-conventions">
+合理的默认值</LocalizedLink>，以简化项目配置。不过，您也可以通过在项目根目录下定义一个
 <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>
-来自定义配置，Tuist 会使用它来确定项目的根目录。
+来定制配置，Tuist 会使用它来确定项目的根目录。
 
 ```swift
 import ProjectDescription
