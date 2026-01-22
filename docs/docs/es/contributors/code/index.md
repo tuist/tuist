@@ -5,16 +5,17 @@
   "description": "Pick a Tuist component and learn how to work on it locally."
 }
 ---
-# Code {#code}
+# Código {#code}
 
-Tuist is a monorepo. Each component has its own tooling, dependencies, and local
-run steps. Choose the area you want to contribute to:
+Tuist es un monorepo. Cada componente tiene sus propias herramientas,
+dependencias y pasos de ejecución locales. Elige el área en la que deseas
+contribuir:
 
 - <LocalizedLink href="/contributors/code/cli">CLI</LocalizedLink>
-- <LocalizedLink href="/contributors/code/server">Server</LocalizedLink>
-- <LocalizedLink href="/contributors/code/handbook">Handbook</LocalizedLink>
+- <LocalizedLink href="/contributors/code/server">Servidor</LocalizedLink>
+- <LocalizedLink href="/contributors/code/handbook">Manual</LocalizedLink>
 - <LocalizedLink href="/contributors/code/docs">Docs</LocalizedLink>
 
-All components use
+Todos los componentes utilizan
 <LocalizedLink href="https://mise.jdx.dev/getting-started.html">Mise</LocalizedLink>
-for dependency management.
+para la gestión de dependencias.
