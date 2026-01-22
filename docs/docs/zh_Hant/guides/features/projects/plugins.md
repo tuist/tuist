@@ -7,28 +7,28 @@
 ---
 # 外掛程式{#plugins}
 
-外掛是在多個專案中分享和重複使用 Tuist 工件的工具。支援下列工件：
+外掛程式是跨專案共享與重複使用 Tuist 成果的工具。目前支援以下成果類型：
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">橫跨多個專案的專案描述輔助工具</LocalizedLink>。
+- <LocalizedLink href="/guides/features/projects/code-sharing">專案說明協助者</LocalizedLink>橫跨多個專案。
 - <LocalizedLink href="/guides/features/projects/templates">跨多個專案的範本</LocalizedLink>。
-- 橫跨多個專案的任務。
-- <LocalizedLink href="/guides/features/projects/synthesized-files">跨專案的資源存取器</LocalizedLink>範本
+- 跨專案任務。
+- <LocalizedLink href="/guides/features/projects/synthesized-files">跨專案資源存取器</LocalizedLink>範本
 
-請注意，外掛被設計成擴展 Tuist 功能的簡單方式。因此**有一些限制需要考慮** ：
+請注意，插件旨在作為擴展 Tuist 功能的簡易途徑。因此需考量若干限制，詳見**及** ：
 
-- 外掛程式不能依賴於其他外掛程式。
-- 外掛無法依賴第三方 Swift 套件
-- 外掛無法使用使用外掛的專案中的專案描述輔助程式。
+- 一個外掛程式不能依賴另一個外掛程式。
+- 外掛程式不得依賴第三方 Swift 套件
+- 外掛程式不得使用其宿主專案的專案描述輔助函式。
 
-如果您需要更多的彈性，請考慮建議工具的功能，或在 Tuist
-的產生框架上建立您自己的解決方案，[`TuistGenerator`](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator).
+若需更靈活的處理方式，可考慮為工具建議新增功能，或基於 Tuist
+的生成框架自行開發解決方案：[`TuistGenerator`](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator)。
 
-## 外掛程式類型{#plugin-types}
+## 外掛類型{#plugin-types}
 
 ### 專案描述輔助外掛程式{#project-description-helper-plugin}
 
-專案描述輔助外掛程式由一個目錄表示，該目錄包含一個`Plugin.swift` 宣稱外掛程式名稱的 manifest
-檔案，以及一個`ProjectDescriptionHelpers` 目錄，該目錄包含輔助 Swift 檔案。
+`專案描述輔助程式插件由以下目錄構成：- 包含插件名稱宣告的 ``` 目錄- 內含 `Plugin.swift` 及 `` ` 清單檔案的
+`ProjectDescriptionHelpers` 目錄- 存放輔助 Swift 檔案的 `` ` 目錄
 
 ::: code-group
 ```bash [Plugin.swift]
@@ -46,12 +46,12 @@ let plugin = Plugin(name: "MyPlugin")
 <!-- -->
 :::
 
-### 資源存取器模板外掛程式{#resource-accessor-templates-plugin}
+### 資源存取器範本外掛程式{#resource-accessor-templates-plugin}
 
-如果您需要共用
-<LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">
-合成的資源存取器</LocalizedLink>，您可以使用此類型的外掛。該外掛由一個包含`Plugin.swift` manifest
-檔案（宣告外掛名稱）和`ResourceSynthesizers` 目錄（包含資源存取器模板檔案）的目錄來表示。
+`若需共享<LocalizedLink
+href="/guides/features/projects/synthesized-files#resource-accessors">合成資源存取器</LocalizedLink>，可採用此類外掛程式。該外掛程式由以下目錄構成：-
+包含宣告外掛名稱的 `Plugin.swift` 及 `` ` 清單檔案的 ``` 目錄- 存放資源存取器範本檔案的
+`ResourceSynthesizers` 目錄（路徑：`` `）
 
 
 ::: code-group
@@ -73,20 +73,20 @@ let plugin = Plugin(name: "MyPlugin")
 <!-- -->
 :::
 
-範本的名稱是資源類型的 [camel case](https://en.wikipedia.org/wiki/Camel_case) 版本：
+範本名稱採用資源類型的駝峰式命名法：
 
-| 資源類型   | 範本檔案名稱                   |
-| ------ | ------------------------ |
-| 弦線     | Strings.stencil          |
-| 資產     | Assets.stencil           |
-| 財產清單   | Plists.stencil           |
-| 字體     | 字體模板                     |
-| 核心資料   | CoreData.stencil         |
-| 介面建立程式 | InterfaceBuilder.stencil |
-| JSON   | JSON.stencil             |
-| YAML   | YAML.stencil             |
+| 資源類型  | 範本檔案名稱                   |
+| ----- | ------------------------ |
+| 字串    | 字串.模板                    |
+| 資產    | Assets.stencil           |
+| 屬性清單  | Plists.stencil           |
+| 字型    | 字體.模板                    |
+| 核心資料  | CoreData.stencil         |
+| 介面建構器 | InterfaceBuilder.stencil |
+| JSON  | JSON.stencil             |
+| YAML  | YAML.stencil             |
 
-在專案中定義資源合成器時，可以指定外掛程式名稱，以使用外掛程式中的範本：
+在專案中定義資源合成器時，可指定外掛名稱以使用該外掛的範本：
 
 ```swift
 let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
@@ -96,38 +96,34 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 
 ::: warning DEPRECATED
 <!-- -->
-任務外掛已經過時。如果您正在為專案尋找自動化解決方案，請參閱
-[本篇部落格文章](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects)。
+任務外掛程式已廢棄。若您正在為專案尋找自動化解決方案，請參閱[這篇部落格文章](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects)。
 <!-- -->
 :::
 
-任務是`$PATH`-exposed 的可執行檔，如果遵循命名慣例`tuist-<task-name>` ，則可透過`tuist`
-指令來啟用。在早期版本中，Tuist 在`tuist plugin` 下提供了一些弱化的慣例和工具，以`build`,`run`,`test`
-和`archive` 任務，這些任務由 Swift Packages
-中的可執行檔代表，但是我們已經棄用此功能，因為它增加了維護負擔和工具的複雜性。</task-name>
+任務是符合命名規範的`$PATH`-exposed 可執行檔，可透過`tuist` 指令呼叫。其命名規則為`tuist-&lt;任務名稱&gt;`
+。早期版本中，Tuist 曾在`tuist plugin` 下提供部分弱規範與工具，用於處理`build` 、`run` 、`test` 及`archive`
+等由 Swift Packages 可執行檔所代表的任務，但因該功能增加工具維護負擔與複雜度，現已廢棄此特性。
 
-如果您使用 Tuist 來分發任務，我們建議您建立您的
-- 您可以繼續使用`ProjectAutomation.xcframework` 與每個 Tuist 發行版本一起發佈，從您的邏輯中存取專案圖形，`let
-  graph = try Tuist.graph()` 。該命令使用系統進程執行`tuist` 命令，並傳回專案圖形的記憶體表示。
-- 若要發佈任務，我們建議在 GitHub 發佈的版本中，包含支援`arm64` 和`x86_64` 的 fat binary，並使用
-  [Mise](https://mise.jdx.dev) 作為安裝工具。要指示 Mise 如何安裝您的工具，您需要一個外掛程式庫。您可以使用
-  [Tuist's](https://github.com/asdf-community/asdf-tuist) 作為參考。
-- 如果您將您的工具命名為`tuist-{xxx}` ，使用者可以執行`mise install` 來安裝它，他們可以直接呼叫它，或透過`tuist xxx`
-  來執行它。
+若您曾使用 Tuist 分配任務，我們建議您建立您的
+- 您可繼續使用隨每個 Tuist 發行版附帶的`ProjectAutomation.xcframework` ，透過以下邏輯存取專案圖：`let graph
+  = try Tuist.graph()` 。此指令使用系統進程執行`tuist` 命令，並返回專案圖的記憶體表示形式。
+- 為分配任務，建議在 GitHub 發行版中包含支援以下架構的胖二進位檔：`(arm64)` ` (x86_64)` 並使用
+  [Mise](https://mise.jdx.dev) 作為安裝工具。若要指示 Mise 如何安裝您的工具，需建立外掛程式儲存庫。可參考
+  [Tuist's](https://github.com/asdf-community/asdf-tuist) 作為範例。
+- 若將工具命名為`tuist-{xxx}` ，使用者可透過執行`mise install` 安裝。安裝後可直接執行，或透過`tuist xxx` 間接調用。
 
 ::: info THE FUTURE OF PROJECTAUTOMATION
 <!-- -->
-我們計劃將`ProjectAutomation` 和`XcodeGraph`
-的模型整合為一個單一的向後相容的框架，將專案圖形的完整性暴露給用戶。此外，我們將提取生成邏輯到一個新的層，`XcodeGraph` ，您也可以從您自己的 CLI
-中使用它。將其視為建立您自己的 Tuist。
+我們計劃將以下模型整合為單一向下相容框架，該框架將完整呈現專案圖譜供使用者使用：`ProjectAutomation` ` XcodeGraph`
+此外，我們將提取生成邏輯至新層級：`XcodeGraph` 此層級亦可供您在自建命令列介面中使用。可視其為打造專屬 Tuist 的基礎架構。
 <!-- -->
 :::
 
 ## 使用外掛程式{#using-plugins}
 
-若要使用外掛程式，您必須將其加入專案的
+若要使用外掛程式，您必須將其新增至專案的
 <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>
-manifest 檔案：
+清單檔案中：
 
 ```swift
 import ProjectDescription
@@ -140,7 +136,7 @@ let tuist = Tuist(
 )
 ```
 
-如果您想在不同儲存庫的專案中重複使用外掛程式，您可以將外掛程式推送到 Git 儲存庫，並在`Tuist.swift` 檔案中引用它：
+若需在不同儲存庫的專案間重複使用外掛程式，可將外掛程式推送至 Git 儲存庫，並於 Tuist.swift 檔案（位於` ）的 ``` 區塊中引用：
 
 ```swift
 import ProjectDescription
@@ -154,17 +150,17 @@ let tuist = Tuist(
 )
 ```
 
-新增外掛程式後，`tuist install` 會在全域快取目錄中取得外掛程式。
+安裝完畢後，執行 ``tuist install` ` 將把插件存入全域快取目錄。
 
 ::: info NO VERSION RESOLUTION
 <!-- -->
-您可能已經注意到，我們不提供外掛程式的版本解析。我們建議使用 Git 標籤或 SHA 以確保可重複性。
+如您所知，我們不提供外掛程式版本解析功能。建議使用 Git 標籤或 SHA 值以確保可重現性。
 <!-- -->
 :::
 
 ::: tip PROJECT DESCRIPTION HELPERS PLUGINS
 <!-- -->
-使用專案描述輔助外掛程式時，包含輔助程式的模組名稱即為外掛程式的名稱
+使用專案描述輔助程式外掛時，包含輔助程式的模組名稱即為外掛名稱
 ```swift
 import ProjectDescription
 import MyTuistPlugin
