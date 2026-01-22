@@ -20,7 +20,7 @@ Git 리포지토리는 대부분의 소프트웨어 프로젝트의 중심입니
 ![프로젝트 연결 추가를 보여주는
 이미지](/images/guides/integrations/gitforge/github/add-project-connection.png)
 
-## 요청 댓글 풀/병합 {#pull-merge-request-comments}
+## Pull/병합 요청 댓글 {#pullmerge-request-comments}
 
 GitHub 앱은 최신
 <LocalizedLink href="/guides/features/previews#pullmerge-request-comments">previews</LocalizedLink>
