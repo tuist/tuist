@@ -7,23 +7,22 @@
 ---
 # 元数据标签{#metadata-tags}
 
-随着项目规模和复杂性的增加，一次性处理整个代码库可能会变得效率低下。Tuist 提供了**元数据标签**
-作为一种方法，将目标组织成逻辑组，并在开发过程中专注于项目的特定部分。
+随着项目规模和复杂度的增长，同时处理整个代码库可能变得低效。Tuist提供**元数据标签** ，可将目标组织成逻辑分组，在开发过程中聚焦项目特定部分。
 
 ## 什么是元数据标签？{#what-are-metadata-tags}
 
-元数据标签是可以附加到项目目标上的字符串标签。作为标记，它们可以让你
+元数据标签是可附加于项目目标的字符串标记，其作为标识符可实现以下功能：
 
-- **对相关目标进行分组** - 标记属于同一功能、团队或架构层的目标
-- **集中工作区** - 生成仅包含特定标记目标的项目
-- **优化工作流程** - 无需加载代码库中不相关的部分即可处理特定功能
-- **选择要保留为源的目标** - 选择缓存时要保留为源的目标组
+- **将相关目标分组** - 为属于同一功能、团队或架构层的目标添加标签
+- **聚焦工作区** - 生成仅包含特定标签目标的项目
+- **优化工作流程** - 专注开发特定功能，无需加载代码库中无关部分
+- **选择要保留为源的目标** - 选择缓存时希望保留为源的目标组
 
-标签是使用`metadata` 属性在目标上定义的，并以字符串数组的形式存储。
+标签通过目标对象的`元数据` 属性定义，并以字符串数组形式存储。
 
-## 定义元数据标记{#defining-metadata-tags}
+## 元数据标签定义{#defining-metadata-tags}
 
-您可以为项目清单中的任何目标添加标记：
+您可以在项目清单中的任何目标添加标签：
 
 ```swift
 import ProjectDescription
@@ -62,13 +61,13 @@ let project = Project(
 )
 ```
 
-## 关注标记目标{#focusing-on-tagged-targets}
+## 专注于标记目标{#focusing-on-tagged-targets}
 
-标记目标后，就可以使用`tuist generate` 命令创建只包含特定目标的重点项目：
+完成目标标记后，可使用`tuist generate` 命令创建仅包含特定目标的聚焦项目：
 
 ### 按标签聚焦
 
-使用`tag:` 前缀，生成一个包含所有匹配特定标记的目标的项目：
+使用`标签：` 前缀可生成包含所有匹配特定标签目标的项目：
 
 ```bash
 # Generate project with all authentication-related targets
@@ -80,27 +79,27 @@ tuist generate tag:team:identity
 
 ### 按名称聚焦
 
-您还可以按名称关注特定目标：
+您也可通过名称指定特定翻译目标：
 
 ```bash
 # Generate project with the Authentication target
 tuist generate Authentication
 ```
 
-### 聚焦如何发挥作用
+### 焦点机制原理
 
-当你专注于目标时：
+当你聚焦目标时：
 
-1. **包含的目标** - 生成的项目中包含与您的查询相匹配的目标
-2. **依赖关系** - 自动包含重点目标的所有依赖关系
-3. **测试目标** - 包括重点目标的测试目标
-4. **排除** - 将所有其他目标排除在工作区之外
+1. **包含的目标** - 与您的查询匹配的目标已包含在生成的项目中
+2. **依赖项** - 所有聚焦目标的依赖项均自动包含
+3. **测试目标** - 包含当前聚焦目标的测试目标
+4. **排除项** - 工作区中排除所有其他目标
 
-这意味着您可以获得一个更小、更易于管理的工作空间，其中只包含您在制作功能时所需的内容。
+这意味着您将获得更小巧、更易管理的操作空间，其中仅包含您开发功能所需的内容。
 
-## 标签命名规则{#tag-naming-conventions}
+## 标签命名规范{#tag-naming-conventions}
 
-虽然可以使用任何字符串作为标签，但遵循统一的命名规范有助于保持标签的条理性：
+虽然可使用任意字符串作为标签，但遵循统一命名规范有助于保持标签条理清晰：
 
 ```swift
 // Organize by feature
@@ -119,21 +118,21 @@ metadata: .metadata(tags: ["platform:ios", "platform:macos"])
 metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 ```
 
-使用`feature:`,`team:`, 或`layer:` 这样的前缀更容易理解每个标签的目的，并避免命名冲突。
+使用前缀如：`（功能）:`,`（团队）:`, 或`（层级）:` ，可清晰传达各标签用途并避免命名冲突。
 
 ## 系统标签{#system-tags}
 
-Tuist 对系统管理的标签使用`tuist:` 前缀。这些标签由 Tuist 自动应用，可在缓存配置文件中用于针对特定类型的生成内容。
+Tuist使用`tuist:` 前缀作为系统管理标签。这些标签由Tuist自动添加，可在缓存配置文件中用于定位特定类型的生成内容。
 
-### 可用的系统标记
+### 可用系统标签
 
-| 标签      | 描述                                                           |
-| ------- | ------------------------------------------------------------ |
-| `图示：合成` | 适用于 Tuist 为静态库和静态框架中的资源处理而创建的合成捆绑目标。由于历史原因，这些捆绑包提供了资源访问 API。 |
+| 标签                  | 描述                                                            |
+| ------------------- | ------------------------------------------------------------- |
+| `tuist:synthesized` | 适用于 Tuist 为静态库和静态框架资源处理创建的合成资源包目标。这些资源包因历史原因而存在，旨在提供资源访问 API。 |
 
-### 使用缓存配置文件的系统标记
+### 使用带缓存配置文件的系统标签
 
-您可以在缓存配置文件中使用系统标记来包含或排除合成目标：
+您可在缓存配置文件中使用系统标签来包含或排除合成的目标：
 
 ```swift
 import ProjectDescription
@@ -157,14 +156,16 @@ let tuist = Tuist(
 
 ::: tip SYNTHESIZED BUNDLES INHERIT PARENT TAGS
 <!-- -->
-合成资源包目标除了接收`tuist:synthesized` 标记外，还继承其父目标的所有标记。这意味着，如果用`feature:auth`
-标记静态库，其合成资源包将同时具有`feature:auth` 和`tuist:synthesized` 标记。
+合成资源包目标除继承父目标的所有标签外，还会附加`tuist:synthesized` 标签。这意味着若为静态库添加`feature:auth`
+标签，其合成资源包将同时包含`feature:auth` 标签与`tuist:synthesized` 标签。
 <!-- -->
 :::
 
-## 使用项目描述助手的标记{#using-tags-with-helpers}
+## 使用项目描述辅助工具中的标签{#using-tags-with-helpers}
 
-您可以利用<LocalizedLink href="/guides/features/projects/code-sharing">项目描述助手</LocalizedLink>来规范在整个项目中应用标记的方式：
+可利用
+<LocalizedLink href="/guides/features/projects/code-sharing">项目描述辅助工具</LocalizedLink>
+统一项目中标签的添加规范：
 
 ```swift
 // Tuist/ProjectDescriptionHelpers/Project+Templates.swift
@@ -192,7 +193,7 @@ extension Target {
 }
 ```
 
-然后在你的清单中使用它：
+然后在清单文件中使用它：
 
 ```swift
 import ProjectDescription
@@ -207,29 +208,28 @@ let project = Project(
 )
 ```
 
-## 使用元数据标记的好处{#benefits}
+## 使用元数据标签的优势{#benefits}
 
-### 改善开发体验
+### 优化开发体验
 
-通过专注于项目的特定部分，您可以
+通过聚焦项目中的特定部分，您可以：
 
-- **缩小 Xcode 项目大小** - 使用更小的项目工作，打开和浏览速度更快
-- **加快构建速度** - 仅构建当前工作所需的内容
-- **提高专注度** - 避免无关代码分散注意力
-- **优化索引** - Xcode 索引的代码更少，自动完成速度更快
+- **缩减Xcode项目体积** - 使用更小巧的项目，实现更快的打开与导航速度
+- **加速构建** - 仅构建当前工作所需内容
+- **提升专注度** - 避免无关代码造成的干扰
+- **优化索引功能** - Xcode索引更少代码，加速自动完成功能
 
-### 更好地组织项目
+### 更优的项目组织
 
-标签为组织代码库提供了一种灵活的方式：
+标签为组织代码库提供了灵活的方式：
 
-- **多个维度** - 按功能、团队、层、平台或任何其他维度标记目标
-- **不改变结构** - 添加组织结构而不改变目录布局
-- **交叉问题** - 一个目标可属于多个逻辑组别
+- **多维度** - 按功能、团队、层级、平台或其他维度标记目标
+- **不改变结构** - 在不改变目录布局的前提下添加组织结构
+- **横切关注点** - 单个目标可属于多个逻辑组
 
-### 与缓存集成
+### 与缓存的集成
 
-元数据标签可与<LocalizedLink href="/guides/features/cache">Tuist
-的缓存功能</LocalizedLink>完美配合：
+元数据标签与<LocalizedLink href="/guides/features/cache">Tuist的缓存功能</LocalizedLink>无缝兼容：
 
 ```bash
 # Cache all targets
@@ -241,16 +241,17 @@ tuist generate tag:feature:payment
 
 ## 最佳做法 {#best-practices}
 
-1. **从简单的** 开始 - 从单一标记维度（如特征）开始，然后根据需要进行扩展
-2. **** - 在所有清单中使用相同的命名规范
-3. **记录你的标记** - 在项目文档中保存可用标记及其含义的列表
-4. **使用帮助程序** - 利用项目描述帮助程序使标签应用标准化
-5. **定期审查** - 随着项目的发展，审查并更新您的标记策略
+1. **从简单开始** - 先从单一标注维度（如特征）着手，再根据需要扩展
+2. **保持一致性** - 在所有清单文件中使用相同的命名规范
+3. **文档化标签** - 在项目文档中维护可用标签及其含义的列表
+4. **使用辅助工具** - 利用项目描述辅助工具规范标签应用
+5. **定期审查** - 随着项目发展，请定期审查并更新标记策略
 
 ## 相关功能{#related-features}
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">代码共享{1｝-
-  使用项目描述助手来规范标记的使用
-- <LocalizedLink href="/guides/features/cache">缓存{1｝- 将标记与缓存相结合，优化构建性能
-- <LocalizedLink href="/guides/features/selective-testing">选择性测试{1｝-
-  仅对已更改的目标运行测试
+- <LocalizedLink href="/guides/features/projects/code-sharing">代码共享</LocalizedLink>
+  - 使用项目描述辅助工具规范标签使用
+- <LocalizedLink href="/guides/features/cache">Cache</LocalizedLink> -
+  结合缓存功能优化构建性能
+- <LocalizedLink href="/guides/features/selective-testing">选择性测试</LocalizedLink>
+  - 仅对变更的目标运行测试
