@@ -24,7 +24,13 @@
 
 ## تعريف القالب {#defining-a-template}
 
-ولتعريف القوالب، يمكنك تشغيل <LocalizedLink href="/guides/features/projects/editing">`tuist تحرير`</LocalizedLink> ثم إنشاء دليل يسمى `name_of_of_template` ضمن `Tuist/Templates` الذي يمثل القالب الخاص بك. تحتاج القوالب إلى ملف بيان، `name_of_of_template.swift.` الذي يصف القالب. لذلك إذا كنت تقوم بإنشاء قالب يسمى `إطار العمل` ، يجب عليك إنشاء دليل جديد `إطار العمل` في `Tuist/Templates` مع ملف بيان يسمى `framework.swift` والذي يمكن أن يبدو هكذا:
+ولتعريف القوالب، يمكنك تشغيل
+<LocalizedLink href="/guides/features/projects/editing">`tuist
+تحرير`</LocalizedLink> ثم إنشاء دليل يسمى `name_of_of_template` ضمن
+`Tuist/Templates` الذي يمثل القالب الخاص بك. تحتاج القوالب إلى ملف بيان،
+`name_of_of_template.swift.` الذي يصف القالب. لذلك إذا كنت تقوم بإنشاء قالب يسمى
+`إطار العمل` ، يجب عليك إنشاء دليل جديد `إطار العمل` في `Tuist/Templates` مع ملف
+بيان يسمى `framework.swift` والذي يمكن أن يبدو هكذا:
 
 
 ```swift
@@ -63,8 +69,11 @@ let template = Template(
 tuist scaffold name_of_template --name Name --platform macos
 ```
 
-::: info
-نظرًا لأن النظام الأساسي هو وسيطة اختيارية، يمكننا أيضًا استدعاء الأمر بدون الوسيطة `-- النظام الأساسي macos`.
+:::: المعلومات
+<!-- -->
+نظرًا لأن النظام الأساسي هو وسيطة اختيارية، يمكننا أيضًا استدعاء الأمر بدون
+الوسيطة `-- النظام الأساسي macos`.
+<!-- -->
 :::
 
 إذا لم يوفر لك `.string` و `.files` مرونة كافية، يمكنك الاستفادة من لغة النمذجة
@@ -81,5 +90,9 @@ tuist scaffold name_of_template --name Name --platform macos
 معين.
 
 ::: tip PROJECT DESCRIPTION HELPERS
-تدعم القوالب استخدام <LocalizedLink href="/guides/features/projects/code-sharing">مساعدي وصف المشروع</LocalizedLink> لإعادة استخدام الشيفرة عبر القوالب.
+<!-- -->
+تدعم القوالب استخدام
+<LocalizedLink href="/guides/features/projects/code-sharing"> مساعدي وصف
+المشروع</LocalizedLink> لإعادة استخدام الشيفرة عبر القوالب.
+<!-- -->
 :::
