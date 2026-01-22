@@ -442,7 +442,7 @@ TuistのHTTP経由での他のサービスとの相互作用に関連するメ�
 
 ### `tuist_http_connection_duration_nanoseconds_bucket` (配布){#tuist_http_connection_duration_nanoseconds_bucket-distribution}
 
-ホストに対して接続を確立するのにかかる時間の分布。
+ホストとの接続確立にかかる時間の分布。
 
 ### `tuist_http_send_count` (counter){#tuist_http_send_count-counter}
 
