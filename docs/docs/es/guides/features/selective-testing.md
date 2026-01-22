@@ -19,16 +19,23 @@ solo se ejecutan aquellas que han cambiado desde la última ejecución
 satisfactoria, basándose en nuestro algoritmo de hash
 <LocalizedLink href="/guides/features/projects/hashing">.
 
-Las pruebas selectivas funcionan con `xcodebuild`, que es compatible con
-cualquier proyecto Xcode, o si generas tus proyectos con Tuist, puedes utilizar
-el comando `tuist test`, que ofrece algunas ventajas adicionales, como la
-integración con la <LocalizedLink href="/guides/features/cache">caché
-binaria</LocalizedLink>. Para empezar con las pruebas selectivas, sigue las
-instrucciones según la configuración de tu proyecto:
+To run tests selectively with your
+<LocalizedLink href="/guides/features/projects">generated
+project</LocalizedLink>, use the `tuist test` command. The command
+<LocalizedLink href="/guides/features/projects/hashing">hashes</LocalizedLink>
+your Xcode project the same way it does for the
+<LocalizedLink href="/guides/features/cache/module-cache">module
+cache</LocalizedLink>, and on success, it persists the hashes to determine what
+has changed in future runs. In future runs, `tuist test` transparently uses the
+hashes to filter down the tests and run only the ones that have changed since
+the last successful test run.
 
-- <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
-- <LocalizedLink href="/guides/features/selective-testing/generated-project">Generated
-  project</LocalizedLink>
+`tuist test` integrates directly with the
+<LocalizedLink href="/guides/features/cache/module-cache">module
+cache</LocalizedLink> to use as many binaries from your local or remote storage
+to improve the build time when running your test suite. The combination of
+selective testing with module caching can dramatically reduce the time it takes
+to run tests on your CI.
 
 ::: warning MODULE VS FILE-LEVEL GRANULARITY
 <!-- -->
@@ -67,10 +74,9 @@ Git</LocalizedLink>.
 <!-- -->
 :::
 
-Una vez que tu proyecto Tuist esté conectado con tu plataforma Git, como
-[GitHub](https://github.com), y comiences a utilizar `tuist xcodebuild test` o
-`tuist test` como parte de tu flujo de trabajo de CI, Tuist publicará un
-comentario directamente en tus solicitudes de extracción/fusión, incluyendo qué
-pruebas se ejecutaron y cuáles se omitieron: ![Comentario de la aplicación
-GitHub con un enlace de vista previa de
-Tuist](/images/guides/features/selective-testing/github-app-comment.png)
+Once your Tuist project is connected with your Git platform such as
+[GitHub](https://github.com), and you start using `tuist test` as part of your
+CI workflow, Tuist will post a comment directly in your pull/merge requests,
+including which tests were run and which skipped: ![GitHub app comment with a
+Tuist Preview
+link](/images/guides/features/selective-testing/github-app-comment.png)

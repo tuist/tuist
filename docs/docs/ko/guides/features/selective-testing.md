@@ -14,14 +14,23 @@ CI에서 테스트를 실행할 때마다 변경 사항과 상관없이 모든 �
 <LocalizedLink href="/guides/features/projects/hashing">해싱 알고리즘</LocalizedLink>을
 기반으로 마지막 성공적인 테스트 실행 이후 변경된 테스트만 실행함으로써 테스트 실행 속도를 획기적으로 높여줍니다.
 
-선택적 테스트는 모든 Xcode 프로젝트를 지원하는 `xcodebuild` 를 사용하거나, Tuist로 프로젝트를 생성한 경우
-<LocalizedLink href="/guides/features/cache">바이너리 캐시</LocalizedLink>와의 통합 등 추가
-편의 기능을 제공하는 `tuist test` 명령어를 대신 사용할 수 있습니다. 선택적 테스트를 시작하려면 프로젝트 설정에 따라 다음 지침을
-따르세요:
+To run tests selectively with your
+<LocalizedLink href="/guides/features/projects">generated
+project</LocalizedLink>, use the `tuist test` command. The command
+<LocalizedLink href="/guides/features/projects/hashing">hashes</LocalizedLink>
+your Xcode project the same way it does for the
+<LocalizedLink href="/guides/features/cache/module-cache">module
+cache</LocalizedLink>, and on success, it persists the hashes to determine what
+has changed in future runs. In future runs, `tuist test` transparently uses the
+hashes to filter down the tests and run only the ones that have changed since
+the last successful test run.
 
-- <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
-- <LocalizedLink href="/guides/features/selective-testing/generated-project">Generated
-  project</LocalizedLink>
+`tuist test` integrates directly with the
+<LocalizedLink href="/guides/features/cache/module-cache">module
+cache</LocalizedLink> to use as many binaries from your local or remote storage
+to improve the build time when running your test suite. The combination of
+selective testing with module caching can dramatically reduce the time it takes
+to run tests on your CI.
 
 ::: warning MODULE VS FILE-LEVEL GRANULARITY
 <!-- -->
@@ -51,7 +60,9 @@ CI에서 테스트를 실행할 때마다 변경 사항과 상관없이 모든 �
 <!-- -->
 :::
 
-Tuist 프로젝트를 [GitHub](https://github.com)과 같은 Git 플랫폼에 연결하고 CI 워크플로우의 일환으로 `tuist
-xcodebuild test` 또는 `tuist test` 를 사용하기 시작하면, Tuist는 실행된 테스트와 건너뛴 테스트를 포함하여 풀/병합
-요청에 직접 코멘트를 게시합니다: ![GitHub 앱 코멘트 (Tuist Preview 링크
-포함)(/images/guides/features/selective-testing/github-app-comment.png)
+Once your Tuist project is connected with your Git platform such as
+[GitHub](https://github.com), and you start using `tuist test` as part of your
+CI workflow, Tuist will post a comment directly in your pull/merge requests,
+including which tests were run and which skipped: ![GitHub app comment with a
+Tuist Preview
+link](/images/guides/features/selective-testing/github-app-comment.png)

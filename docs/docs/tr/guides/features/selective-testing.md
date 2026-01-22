@@ -19,15 +19,23 @@ algoritmamız</LocalizedLink> temelinde son başarılı test çalıştırmasınd
 yana değişen testleri çalıştırarak testlerin çalıştırılma hızını önemli ölçüde
 artırmanıza yardımcı olur.
 
-Seçmeli testler, tüm Xcode projelerini destekleyen `xcodebuild` ile çalışır.
-Projelerinizi Tuist ile oluşturuyorsanız, bunun yerine `tuist test` komutunu
-kullanabilirsiniz. Bu komut, <LocalizedLink href="/guides/features/cache">binary
-cache</LocalizedLink> ile entegrasyon gibi bazı ekstra kolaylıklar sağlar.
-Seçmeli testlere başlamak için, proje kurulumunuza göre talimatları izleyin:
+To run tests selectively with your
+<LocalizedLink href="/guides/features/projects">generated
+project</LocalizedLink>, use the `tuist test` command. The command
+<LocalizedLink href="/guides/features/projects/hashing">hashes</LocalizedLink>
+your Xcode project the same way it does for the
+<LocalizedLink href="/guides/features/cache/module-cache">module
+cache</LocalizedLink>, and on success, it persists the hashes to determine what
+has changed in future runs. In future runs, `tuist test` transparently uses the
+hashes to filter down the tests and run only the ones that have changed since
+the last successful test run.
 
-- <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
-- <LocalizedLink href="/guides/features/selective-testing/generated-project">Oluşturulmuş
-  proje</LocalizedLink>
+`tuist test` integrates directly with the
+<LocalizedLink href="/guides/features/cache/module-cache">module
+cache</LocalizedLink> to use as many binaries from your local or remote storage
+to improve the build time when running your test suite. The combination of
+selective testing with module caching can dramatically reduce the time it takes
+to run tests on your CI.
 
 ::: warning MODULE VS FILE-LEVEL GRANULARITY
 <!-- -->
@@ -64,9 +72,9 @@ platformuyla</LocalizedLink> entegre edin.
 <!-- -->
 :::
 
-Tuist projeniz [GitHub](https://github.com) gibi Git platformunuzla bağlandıktan
-ve CI iş akışınızın bir parçası olarak `tuist xcodebuild test` veya `tuist test`
-komutlarını kullanmaya başladıktan sonra, Tuist hangi testlerin çalıştırıldığını
-ve hangilerinin atlandığını içeren bir yorumu doğrudan pull/merge isteklerinize
-ekleyecektir: ![Tuist Önizleme bağlantısı içeren GitHub uygulaması
-yorumu](/images/guides/features/selective-testing/github-app-comment.png)
+Once your Tuist project is connected with your Git platform such as
+[GitHub](https://github.com), and you start using `tuist test` as part of your
+CI workflow, Tuist will post a comment directly in your pull/merge requests,
+including which tests were run and which skipped: ![GitHub app comment with a
+Tuist Preview
+link](/images/guides/features/selective-testing/github-app-comment.png)
