@@ -359,7 +359,7 @@ extension String {
         let newRelativePath = absolutePath.relative(to: destinationPath).pathString
 
         return replacingCharacters(
-            in: range.lowerBound..<index(range.upperBound, offsetBy: relativePath.count),
+            in: range.lowerBound ..< index(range.upperBound, offsetBy: relativePath.count),
             with: "\(srcRootPrefix)\(newRelativePath)"
         )
     }

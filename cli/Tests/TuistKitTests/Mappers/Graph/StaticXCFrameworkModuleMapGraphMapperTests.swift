@@ -512,7 +512,13 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         // the cached xcframework's path instead of relative to the App project's path.
         let basePath = try temporaryPath()
         let appProjectPath = basePath.appending(component: "AllInOneTests")
-        let cachedXCFrameworkPath = basePath.appending(components: ".cache", "tuist", "Binaries", "HASH", "CachedFramework.xcframework")
+        let cachedXCFrameworkPath = basePath.appending(
+            components: ".cache",
+            "tuist",
+            "Binaries",
+            "HASH",
+            "CachedFramework.xcframework"
+        )
         let googleMapsPath = basePath.appending(components: "BuiltFrameworks", "GoogleMaps.xcframework")
         let googleMapsHeadersPath = googleMapsPath.appending(components: "ios-arm64", "Headers")
 
@@ -610,7 +616,9 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                                 "OTHER_C_FLAGS": [
                                     "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/GoogleMaps/Headers/module.modulemap\"",
                                 ],
-                                "HEADER_SEARCH_PATHS": ["\"$(SRCROOT)/../BuiltFrameworks/GoogleMaps.xcframework/ios-arm64/Headers\""],
+                                "HEADER_SEARCH_PATHS": [
+                                    "\"$(SRCROOT)/../BuiltFrameworks/GoogleMaps.xcframework/ios-arm64/Headers\"",
+                                ],
                             ]
                         )
                     ),
@@ -656,7 +664,13 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         // Same scenario but with a .framework bundle (FRAMEWORK_SEARCH_PATHS) instead of .a library
         let basePath = try temporaryPath()
         let appProjectPath = basePath.appending(component: "AllInOneTests")
-        let cachedXCFrameworkPath = basePath.appending(components: ".cache", "tuist", "Binaries", "HASH", "CachedFramework.xcframework")
+        let cachedXCFrameworkPath = basePath.appending(
+            components: ".cache",
+            "tuist",
+            "Binaries",
+            "HASH",
+            "CachedFramework.xcframework"
+        )
         let googleMapsPath = basePath.appending(components: "BuiltFrameworks", "GoogleMaps.xcframework")
         let googleMapsHeadersPath = googleMapsPath.appending(components: "ios-arm64", "Headers")
 
@@ -749,7 +763,8 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         XCTAssertEmpty(gotSideEffects)
     }
 
-    func test_map_when_static_xcframework_linked_via_dynamic_xcframework_with_multiple_app_targets_in_different_projects() async throws {
+    func test_map_when_static_xcframework_linked_via_dynamic_xcframework_with_multiple_app_targets_in_different_projects(
+    ) async throws {
         // Given
         // This test verifies that when multiple app targets in different projects depend on the same
         // dynamic xcframework chain, each target gets paths calculated relative to its own project.
@@ -762,7 +777,13 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
         let basePath = try temporaryPath()
         let project1Path = basePath.appending(component: "Project1")
         let project2Path = basePath.appending(components: "deeply", "nested", "Project2")
-        let cachedXCFrameworkPath = basePath.appending(components: ".cache", "tuist", "Binaries", "HASH", "CachedFramework.xcframework")
+        let cachedXCFrameworkPath = basePath.appending(
+            components: ".cache",
+            "tuist",
+            "Binaries",
+            "HASH",
+            "CachedFramework.xcframework"
+        )
         let googleMapsPath = basePath.appending(components: "BuiltFrameworks", "GoogleMaps.xcframework")
         let googleMapsHeadersPath = googleMapsPath.appending(components: "ios-arm64", "Headers")
 
@@ -863,7 +884,9 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                                 "OTHER_C_FLAGS": [
                                     "-fmodule-map-file=\"$(SRCROOT)/Tuist/.build/tuist-derived/GoogleMaps/Headers/module.modulemap\"",
                                 ],
-                                "HEADER_SEARCH_PATHS": ["\"$(SRCROOT)/../BuiltFrameworks/GoogleMaps.xcframework/ios-arm64/Headers\""],
+                                "HEADER_SEARCH_PATHS": [
+                                    "\"$(SRCROOT)/../BuiltFrameworks/GoogleMaps.xcframework/ios-arm64/Headers\"",
+                                ],
                             ]
                         )
                     ),
@@ -883,7 +906,9 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                                 "OTHER_C_FLAGS": [
                                     "-fmodule-map-file=\"$(SRCROOT)/../../../Project1/Tuist/.build/tuist-derived/GoogleMaps/Headers/module.modulemap\"",
                                 ],
-                                "HEADER_SEARCH_PATHS": ["\"$(SRCROOT)/../../../BuiltFrameworks/GoogleMaps.xcframework/ios-arm64/Headers\""],
+                                "HEADER_SEARCH_PATHS": [
+                                    "\"$(SRCROOT)/../../../BuiltFrameworks/GoogleMaps.xcframework/ios-arm64/Headers\"",
+                                ],
                             ]
                         )
                     ),
