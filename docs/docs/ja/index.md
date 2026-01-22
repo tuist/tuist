@@ -8,10 +8,10 @@
 import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeatures.vue"
 </script>
 
-# 出荷する開発者のための仮想プラットフォームチーム
+# 開発者向け仮想プラットフォームチーム
 
-**TuistはAppleのツールチェーンを拡張し、チームがスケールアップしてアプリの構築に集中できるよう支援します。** -
-Appleプラットフォーム開発を、フラストレーションのたまる複雑なものから、チームとともに成長するスムーズで生産的な体験へと変えます。
+**TuistはAppleのツールチェーンを拡張し、チームの拡大とアプリ開発への集中を支援します** –
+Appleプラットフォーム開発を煩わしい複雑さから、チームと共に成長するスムーズで生産的な体験へと変革します。
 
 <br/>
 
@@ -64,16 +64,16 @@ Appleプラットフォーム開発を、フラストレーションのたまる
         link="/guides/features/registry"/>
 </HomeCards>
 
-## 何千人もの開発者の仲間入りをしよう
+## 数千人の開発者が移行したように、あなたも今すぐ参加しましょう
 
-**Trendyol](https://www.trendyol.com/)、[Etsy](https://www.etsy.com/)、[Bumble](https://bumble.com/)、[Monzo](https://monzo.com/)、[Bending
-Spoons](https://bendingspoons.com/)、その他100社以上の企業**
-、Tuistを使ってAppleプラットフォーム開発を変革している。彼らが体験していることを紹介しよう：
+**[Trendyol](https://www.trendyol.com/)、[Etsy](https://www.etsy.com/)、[Bumble](https://bumble.com/)、[Monzo](https://monzo.com/)、[Bending
+Spoons](https://bendingspoons.com/)をはじめ、100社以上の企業**
+がTuistでAppleプラットフォーム開発を変革しています。彼らが実感している効果は以下の通りです：
 
-- **インテリジェント・キャッシュにより、ビルドが65%高速化**
-- **Xcodeプロジェクトにおけるマージ競合ゼロ**
-- **分～秒** パッケージ解像度
-- **機能構築に専念できる幸せな開発者**
+- **インテリジェントなキャッシュ機能によりビルドが65%高速化**
+- **Xcodeプロジェクトにおける** のゼロマージ競合
+- **分から秒への変換** パッケージの解像度
+- **機能開発に集中できる開発者たち**
 
 <HomeCards type="carousel">
     <HomeCard icon="🚀"
@@ -96,16 +96,16 @@ Spoons](https://bendingspoons.com/)、その他100社以上の企業**
 </HomeCards>
 
 
-## トゥイストの活躍を見る
+## Tuistの動作を確認する
 
-**** 実際の導入事例から学び、ツールチェインが機能することで何が可能になるのか、インスピレーションを得てください。
+**実際の実装例** から学び、ツールチェーンが正常に動作する際に実現可能なことに触発されましょう。
 
 <HomeVideos/>
 
-## 活気あるコミュニティに参加する
+## 活気あるコミュニティに参加しましょう
 
-**Tuistを使ってより良いアプリを出荷している何千人ものAppleプラットフォーム開発者**
-とつながりましょう。助けを得て、勝利を分かち合い、Appleプラットフォーム開発の未来を切り開きましょう。
+**数千人のAppleプラットフォーム開発者とつながりましょう**
+Tuistでより優れたアプリをリリースしている開発者たちです。助けを求め、成功を共有し、Appleプラットフォーム開発の未来を形作りましょう。
 
 <HomeCommunity>
     <HomeCommunityItem title="Forum" description="Interact with other community members in a synchronous manner" href="https://community.tuist.dev">
