@@ -5,35 +5,36 @@
   "description": "Automatically detect and track flaky tests in your CI pipelines."
 }
 ---
-# Flaky Tests {#flaky-tests}
+# اختبارات Flaky {#flaky-tests}
 
-::: warning REQUIREMENTS
+:::: متطلبات التحذير
 <!-- -->
-- <LocalizedLink href="/guides/features/test-insights">Test
-  Insights</LocalizedLink> must be configured
+- <LocalizedLink href="/guides/features/test-insights">يجب تكوين Test
+  Insights</LocalizedLink>
 <!-- -->
 :::
 
-Flaky tests are tests that produce different results (pass or fail) when run
-multiple times with the same code. They erode trust in your test suite and waste
-developer time investigating false failures. Tuist automatically detects flaky
-tests and helps you track them over time.
+الاختبارات غير المستقرة هي الاختبارات التي تنتج نتائج مختلفة (نجاح أو فشل) عند
+تشغيلها عدة مرات باستخدام نفس الكود. وهي تقوض الثقة في مجموعة الاختبارات الخاصة
+بك وتضيع وقت المطورين في التحقيق في حالات الفشل الخاطئة. يكتشف Tuist الاختبارات
+غير المستقرة تلقائيًا ويساعدك على تتبعها بمرور الوقت.
 
-![Flaky Tests page](/images/guides/features/test-insights/flaky-tests-page.png)
+![صفحة الاختبارات غير
+الموثوقة](/images/guides/features/test-insights/flaky-tests-page.png)
 
-## How flaky detection works {#how-it-works}
+## كيف يعمل الكشف عن التقلبات {#how-it-works}
 
-Tuist detects flaky tests in two ways:
+يكتشف Tuist الاختبارات غير الدقيقة بطريقتين:
 
-### Test retries {#test-retries}
+### إعادة محاولة الاختبار {#test-retries}
 
-When you run tests with Xcode's retry functionality (using
-`-retry-tests-on-failure` or `-test-iterations`), Tuist analyzes the results of
-each attempt. If a test fails on some attempts but passes on others, it's marked
-as flaky.
+عند إجراء الاختبارات باستخدام وظيفة إعادة المحاولة في Xcode (باستخدام
+`-retry-tests-on-failure` أو `-test-iterations`)، يقوم Tuist بتحليل نتائج كل
+محاولة. إذا فشل الاختبار في بعض المحاولات ونجح في محاولات أخرى، يتم وضع علامة
+عليه على أنه غير مستقر.
 
-For example, if a test fails on the first attempt but passes on the retry, Tuist
-records this as a flaky test.
+على سبيل المثال، إذا فشل الاختبار في المحاولة الأولى ولكن نجح في المحاولة
+الثانية، يسجل Tuist هذا على أنه اختبار غير موثوق.
 
 ```sh
 tuist xcodebuild test \
@@ -42,36 +43,37 @@ tuist xcodebuild test \
   -test-iterations 3
 ```
 
-![Flaky test case
-detail](/images/guides/features/test-insights/flaky-test-case-detail.png)
+![تفاصيل حالة الاختبار غير
+الموثوقة](/images/guides/features/test-insights/flaky-test-case-detail.png)
 
-### Cross-run detection {#cross-run-detection}
+### الكشف عن التداخل {#cross-run-detection}
 
-Even without test retries, Tuist can detect flaky tests by comparing results
-across different CI runs on the same commit. If a test passes in one CI run but
-fails in another run for the same commit, both runs are marked as flaky.
+حتى بدون إعادة الاختبار، يمكن لـ Tuist اكتشاف الاختبارات غير المستقرة من خلال
+مقارنة النتائج عبر عمليات CI مختلفة على نفس الالتزام. إذا نجح الاختبار في عملية
+CI واحدة ولكنه فشل في عملية أخرى لنفس الالتزام، يتم وضع علامة على كلتا العمليتين
+على أنهما غير مستقرتين.
 
-This is particularly useful for catching flaky tests that don't fail
-consistently enough to be caught by retries, but still cause intermittent CI
-failures.
+هذا مفيد بشكل خاص للكشف عن الاختبارات غير المستقرة التي لا تفشل بشكل متسق بما
+يكفي ليتم اكتشافها من خلال إعادة المحاولة، ولكنها لا تزال تسبب فشلًا متقطعًا في
+التكامل المستمر.
 
-## Managing flaky tests {#managing-flaky-tests}
+## إدارة الاختبارات غير الموثوقة {#managing-flaky-tests}
 
-### Automatic clearing
+### المسح التلقائي
 
-Tuist automatically clears the flaky flag from tests that haven't been flaky for
-14 days. This ensures that tests that have been fixed don't remain marked as
-flaky indefinitely.
+يقوم Tuist تلقائيًا بمسح علامة عدم الاستقرار من الاختبارات التي لم تكن غير
+مستقرة لمدة 14 يومًا. وهذا يضمن أن الاختبارات التي تم إصلاحها لا تظل مميزة على
+أنها غير مستقرة إلى أجل غير مسمى.
 
-### Manual management
+### الإدارة اليدوية
 
-You can also manually mark or unmark tests as flaky from the test case detail
-page. This is useful when:
-- You want to acknowledge a known flaky test while working on a fix
-- A test was incorrectly flagged due to infrastructure issues
+يمكنك أيضًا وضع علامة أو إزالة علامة يدويًا على الاختبارات على أنها غير موثوقة
+من صفحة تفاصيل حالة الاختبار. وهذا مفيد في الحالات التالية:
+- تريد الإقرار باختبار غير موثوق به أثناء العمل على إصلاحه
+- تم وضع علامة خاطئة على اختبار بسبب مشكلات في البنية التحتية
 
-## Slack notifications {#slack-notifications}
+## إشعارات Slack {#slack-notifications}
 
-Get notified instantly when a test becomes flaky by setting up
-<LocalizedLink href="/guides/integrations/slack#flaky-test-alerts">flaky test
-alerts</LocalizedLink> in your Slack integration.
+احصل على إشعار فوري عندما يصبح الاختبار غير مستقر عن طريق إعداد
+<LocalizedLink href="/guides/integrations/slack#flaky-test-alerts">تنبيهات
+الاختبار غير المستقر</LocalizedLink> في تكامل Slack الخاص بك.
