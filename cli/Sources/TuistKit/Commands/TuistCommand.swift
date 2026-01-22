@@ -39,6 +39,7 @@ public struct TuistCommand: AsyncParsableCommand {
                         InstallCommand.self,
                         MigrationCommand.self,
                         PluginCommand.self,
+                        QueryCommand.self,
                         RegistryCommand.self,
                         RunCommand.self,
                         ScaffoldCommand.self,
@@ -52,12 +53,6 @@ public struct TuistCommand: AsyncParsableCommand {
                     name: "Share",
                     subcommands: [
                         ShareCommand.self,
-                    ]
-                ),
-                CommandGroup(
-                    name: "AI",
-                    subcommands: [
-                        MCPCommand.self,
                     ]
                 ),
                 CommandGroup(

@@ -5,6 +5,7 @@ import GraphViz
 import Path
 import ProjectAutomation
 import Tools
+import ToonFormat
 import TuistCore
 import TuistGenerator
 import TuistLoader
@@ -13,7 +14,7 @@ import TuistSupport
 import XcodeGraph
 import XcodeGraphMapper
 
-final class GraphService {
+final class GraphCommandService {
     private let graphVizMapper: GraphToGraphVizMapping
     private let manifestGraphLoader: ManifestGraphLoading
     private let fileSystem: FileSystem
@@ -63,8 +64,17 @@ final class GraphService {
         platformToFilter: Platform?,
         targetsToFilter: [String],
         path: AbsolutePath,
-        outputPath: AbsolutePath
+        outputPath: AbsolutePath,
+        stdout: Bool
     ) async throws {
+        if stdout {
+            switch format {
+            case .png, .svg:
+                throw GraphServiceError.stdoutNotSupportedForFormat(format)
+            case .dot, .json, .toon, .legacyJSON:
+                break
+            }
+        }
         let config = try await configLoader.loadConfig(path: path)
         let graph: XcodeGraph.Graph
         if try await manifestLoader.hasRootManifest(at: path) {
@@ -74,6 +84,23 @@ final class GraphService {
             )
         } else {
             graph = try await xcodeGraphMapper.map(at: path)
+        }
+
+        let filteredTargetsAndDependencies = graph.filter(
+            skipTestTargets: skipTestTargets,
+            skipExternalDependencies: skipExternalDependencies,
+            platformToFilter: platformToFilter,
+            targetsToFilter: targetsToFilter
+        )
+
+        if stdout {
+            let output = try await generateOutput(
+                format: format,
+                graph: graph,
+                filteredTargetsAndDependencies: filteredTargetsAndDependencies
+            )
+            print(output)
+            return
         }
 
         let fileExtension = switch format {
@@ -88,19 +115,14 @@ final class GraphService {
             try await fileSystem.remove(filePath)
         }
 
-        let filteredTargetsAndDependencies = graph.filter(
-            skipTestTargets: skipTestTargets,
-            skipExternalDependencies: skipExternalDependencies,
-            platformToFilter: platformToFilter,
-            targetsToFilter: targetsToFilter
-        )
-
         switch format {
         case .dot, .png, .svg:
             let graphVizGraph = graphVizMapper.map(graph: graph, targetsAndDependencies: filteredTargetsAndDependencies)
             try export(graph: graphVizGraph, at: filePath, withFormat: format, layoutAlgorithm: layoutAlgorithm, open: open)
         case .json:
-            try await export(graph: graph, at: filePath)
+            try await jsonExport(graph: graph, at: filePath)
+        case .toon:
+            try await toonExport(graph: graph, at: filePath)
         case .legacyJSON:
             let outputGraph = ProjectAutomation.Graph.from(graph: graph, targetsAndDependencies: filteredTargetsAndDependencies)
             try outputGraph.export(to: filePath)
@@ -125,12 +147,14 @@ final class GraphService {
             try exportImageRepresentation(from: graph, at: filePath, layoutAlgorithm: layoutAlgorithm, format: .svg, open: open)
         case .json:
             throw GraphServiceError.jsonNotValidForVisualExport
+        case .toon:
+            throw GraphServiceError.toonNotValidForVisualExport
         case .legacyJSON:
             throw GraphServiceError.jsonNotValidForVisualExport
         }
     }
 
-    private func export(
+    private func jsonExport(
         graph: XcodeGraph.Graph,
         at path: AbsolutePath
     ) async throws {
@@ -142,6 +166,19 @@ final class GraphService {
             throw GraphServiceError.encodingError(GraphFormat.json.rawValue)
         }
 
+        try await fileSystem.writeText(jsonString, at: path)
+    }
+
+    private func toonExport(
+        graph: XcodeGraph.Graph,
+        at path: AbsolutePath
+    ) async throws {
+        let encoder = TOONEncoder()
+        let jsonData = try encoder.encode(graph)
+        let jsonString = String(data: jsonData, encoding: .utf8)
+        guard let jsonString else {
+            throw GraphServiceError.encodingError(GraphFormat.json.rawValue)
+        }
         try await fileSystem.writeText(jsonString, at: path)
     }
 
@@ -165,6 +202,44 @@ final class GraphService {
         FileManager.default.createFile(atPath: filePath.pathString, contents: data, attributes: nil)
         if open {
             try System.shared.async(["open", filePath.pathString])
+        }
+    }
+
+    private func generateOutput(
+        format: GraphFormat,
+        graph: XcodeGraph.Graph,
+        filteredTargetsAndDependencies: [GraphTarget: Set<GraphDependency>]
+    ) async throws -> String {
+        switch format {
+        case .dot:
+            let graphVizGraph = graphVizMapper.map(graph: graph, targetsAndDependencies: filteredTargetsAndDependencies)
+            return DOTEncoder().encode(graphVizGraph)
+        case .json:
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys, .prettyPrinted, .withoutEscapingSlashes]
+            let jsonData = try encoder.encode(graph)
+            guard let jsonString = String(data: jsonData, encoding: .utf8) else {
+                throw GraphServiceError.encodingError(GraphFormat.json.rawValue)
+            }
+            return jsonString
+        case .toon:
+            let encoder = TOONEncoder()
+            let jsonData = try encoder.encode(graph)
+            guard let jsonString = String(data: jsonData, encoding: .utf8) else {
+                throw GraphServiceError.encodingError(GraphFormat.toon.rawValue)
+            }
+            return jsonString
+        case .legacyJSON:
+            let outputGraph = ProjectAutomation.Graph.from(graph: graph, targetsAndDependencies: filteredTargetsAndDependencies)
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted]
+            let jsonData = try encoder.encode(outputGraph)
+            guard let jsonString = String(data: jsonData, encoding: .utf8) else {
+                throw GraphServiceError.encodingError(GraphFormat.legacyJSON.rawValue)
+            }
+            return jsonString
+        case .png, .svg:
+            throw GraphServiceError.stdoutNotSupportedForFormat(format)
         }
     }
 

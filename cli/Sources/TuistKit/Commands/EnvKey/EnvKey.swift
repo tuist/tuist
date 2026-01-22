@@ -64,6 +64,7 @@ public enum EnvKey: String, CaseIterable {
     case graphTargets = "TUIST_GRAPH_TARGETS"
     case graphPath = "TUIST_GRAPH_PATH"
     case graphOutputPath = "TUIST_GRAPH_OUTPUT_PATH"
+    case graphStdout = "TUIST_GRAPH_STDOUT"
 
     // INIT
 
@@ -358,6 +359,15 @@ public enum EnvKey: String, CaseIterable {
 
     /// CACHE START
     case cacheStartPath = "TUIST_CACHE_START_PATH"
+
+    // QUERY DEPS
+
+    case queryDepsPath = "TUIST_QUERY_DEPS_PATH"
+    case queryDepsSource = "TUIST_QUERY_DEPS_SOURCE"
+    case queryDepsSink = "TUIST_QUERY_DEPS_SINK"
+    case queryDepsDirect = "TUIST_QUERY_DEPS_DIRECT"
+    case queryDepsType = "TUIST_QUERY_DEPS_TYPE"
+    case queryDepsFormat = "TUIST_QUERY_DEPS_FORMAT"
 }
 
 extension EnvKey {

@@ -487,6 +487,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.launchctl.targetName),
                     .target(name: Module.oidc.targetName),
                     .target(name: Module.http.targetName),
+                    .external(name: "ToonFormat"),
                     .external(name: "MCP"),
                     .external(name: "FileSystem"),
                     .external(name: "SwiftToolsSupport"),

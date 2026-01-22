@@ -380,14 +380,6 @@
             }
           }
         },
-        "agentic-coding": {
-          "text": "Agentic Coding",
-          "items": {
-            "mcp": {
-              "text": "MCP"
-            }
-          }
-        },
         "integrations": {
           "text": "Integrations",
           "items": {
