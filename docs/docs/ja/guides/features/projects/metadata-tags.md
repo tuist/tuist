@@ -121,9 +121,52 @@ metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 
 `feature:`,`team:`,`layer:` のような接頭辞を使うことで、各タグの目的を理解しやすくなり、名前の衝突を避けることができる。
 
+## システムタグ{#system-tags}
+
+Tuistはシステム管理タグに`tuist:`
+プレフィックスを使用します。これらのタグはTuistによって自動的に適用され、生成されたコンテンツの特定のタイプをターゲットにするためにキャッシュプロファイルで使用することができます。
+
+### 利用可能なシステムタグ
+
+| タグ         | 説明                                                                                                                |
+| ---------- | ----------------------------------------------------------------------------------------------------------------- |
+| `tuist:合成` | スタティック・ライブラリやスタティック・フレームワークでリソースを扱うためにTuistが作成する、合成されたバンドル・ターゲットに適用される。これらのバンドルは、リソースアクセッサAPIを提供するために歴史的な理由で存在する。 |
+
+### キャッシュ・プロファイルでシステム・タグを使用する
+
+キャッシュ・プロファイルでシステム・タグを使用して、合成されたターゲットを含めたり除外したりできる：
+
+```swift
+import ProjectDescription
+
+let tuist = Tuist(
+    project: .tuist(
+        cacheOptions: .options(
+            profiles: .profiles(
+                [
+                    "development": .profile(
+                        .onlyExternal,
+                        and: ["tag:tuist:synthesized"]  // Also cache synthesized bundles
+                    )
+                ],
+                default: .onlyExternal
+            )
+        )
+    )
+)
+```
+
+::: tip SYNTHESIZED BUNDLES INHERIT PARENT TAGS
+<!-- -->
+合成されたバンドルターゲットは、`tuist:synthesized`
+タグを受け取ることに加えて、親ターゲットからすべてのタグを継承します。つまり、静的ライブラリに`feature:auth`
+というタグをつけると、合成されたリソースバンドルは`feature:auth` と`tuist:synthesized` の両方のタグを持つことになります。
+<!-- -->
+:::
+
 ## プロジェクト記述ヘルパーでタグを使う{#using-tags-with-helpers}
 
-プロジェクト記述ヘルパーを活用することで、プロジェクト全体でタグの適用方法を標準化することができます：
+1}プロジェクト記述ヘルパー</LocalizedLink>を活用することで、プロジェクト全体でタグの適用方法を標準化することができます：
 
 ```swift
 // Tuist/ProjectDescriptionHelpers/Project+Templates.swift
@@ -207,6 +250,9 @@ tuist generate tag:feature:payment
 
 ## 関連機能{#related-features}
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">コードの共有</LocalizedLink> - プロジェクト記述ヘルパーを使用してタグの使用を標準化する
-- <LocalizedLink href="/guides/features/cache">キャッシュ</LocalizedLink> - タグとキャッシングを組み合わせて最適なビルドパフォーマンスを実現する
-- <LocalizedLink href="/guides/features/selective-testing">選択的テスト</LocalizedLink> - 変更されたターゲットのみのテストを実行する
+- <LocalizedLink href="/guides/features/projects/code-sharing">コードの共有{1｝-
+  プロジェクト記述ヘルパーを使ってタグの使い方を標準化する
+- <LocalizedLink href="/guides/features/cache">キャッシュ{1｝-
+  最適なビルドパフォーマンスのためにタグとキャッシュを組み合わせる
+- <LocalizedLink href="/guides/features/selective-testing">選択的テスト{1｝-
+  変更されたターゲットに対してのみテストを実行する
