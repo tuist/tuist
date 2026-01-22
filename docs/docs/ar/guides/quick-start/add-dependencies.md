@@ -5,17 +5,16 @@
   "description": "Learn how to add dependencies to your first Swift project"
 }
 ---
-# إضافة التبعيات {#add-dependencies}
+# أضف التبعيات {#add-dependencies}
 
-من الشائع أن تعتمد المشاريع على مكتبات الطرف الثالث لتوفير وظائف إضافية. للقيام
+من الشائع أن تعتمد المشاريع على مكتبات طرف ثالث لتوفير وظائف إضافية. للقيام
 بذلك، قم بتشغيل الأمر التالي للحصول على أفضل تجربة لتحرير مشروعك:
 
 ```bash
 tuist edit
 ```
 
-سيتم فتح مشروع Xcode يحتوي على ملفات مشروعك. قم بتحرير ملف `Package.swift.swift`
-وأضف
+سيتم فتح مشروع Xcode يحتوي على ملفات مشروعك. قم بتحرير `Package.swift` وأضف
 
 ```swift
 // swift-tools-version: 5.9
@@ -43,7 +42,7 @@ let package = Package(
 )
 ```
 
-ثم قم بتحرير هدف التطبيق في مشروعك للإعلان عن `Kingfisher` كتبعية:
+ثم قم بتحرير هدف التطبيق في مشروعك لإعلان `Kingfisher` كاعتمادية:
 
 ```swift
 import ProjectDescription
@@ -83,33 +82,32 @@ let project = Project(
 )
 ```
 
-ثم قم بتشغيل `tuist install` لحل وسحب التبعيات باستخدام [Swift Package Manager]
-(https://www.swift.org/documentation/package-manager/).
+ثم قم بتشغيل `tuist install` لحل المشكلة وسحب التبعيات باستخدام [Swift Package
+Manager](https://www.swift.org/documentation/package-manager/).
 
 ::: info SPM AS A DEPENDENCY RESOLVER
 <!-- -->
-النهج الموصى به من تويست للتبعيات يستخدم مدير حزم سويفت (SPM) فقط لحل التبعيات.
-ثم يقوم تويست بتحويلها إلى مشاريع وأهداف Xcode لتحقيق أقصى قدر من التهيئة
-والتحكم.
+توصي Tuist باستخدام Swift Package Manager (SPM) فقط لحل التبعيات. ثم تقوم Tuist
+بتحويلها إلى مشاريع Xcode وأهداف لتحقيق أقصى قدر من قابلية التكوين والتحكم.
 <!-- -->
 :::
 
 ## تصور المشروع {#visualize-the-project}
 
-يمكنك تصور بنية المشروع من خلال تشغيل:
+يمكنك تصور هيكل المشروع عن طريق تشغيل:
 
 ```bash
 tuist graph
 ```
 
-سيقوم الأمر بإخراج وفتح ملف `graph.png.png` في دليل المشروع:
+سيؤدي الأمر إلى إخراج وفتح ملف `graph.png` في دليل المشروع:
 
-![الرسم البياني للمشروع] (/images/guides/quick-start/graph.png)
+![مخطط المشروع](/images/guides/quick-start/graph.png)
 
-## استخدام التبعية {#use-the-dependency}
+## استخدم التبعية {#use-the-dependency}
 
-قم بتشغيل `tuist توليد` لفتح المشروع في Xcode، وقم بإجراء التغييرات التالية على
-ملف `ContentView.swift.swift`
+قم بتشغيل `tuist generate` لفتح المشروع في Xcode، وقم بإجراء التغييرات التالية
+على ملف `ContentView.swift`:
 
 ```swift
 import SwiftUI
@@ -133,4 +131,4 @@ struct ContentView_Previews: PreviewProvider {
 }
 ```
 
-شغِّل التطبيق من Xcode، وسترى الصورة محمَّلة من عنوان URL.
+قم بتشغيل التطبيق من Xcode، وسترى الصورة محملة من عنوان URL.
