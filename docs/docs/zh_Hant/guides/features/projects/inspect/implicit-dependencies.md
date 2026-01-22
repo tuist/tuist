@@ -14,7 +14,7 @@
 的用武之地。Tuist 提供了一個命令，透過靜態分析專案中的程式碼來檢查隱含相依性。以下命令將輸出專案的隱含相依性：
 
 ```bash
-tuist inspect implicit-imports
+tuist inspect dependencies --only implicit
 ```
 
 如果指令偵測到任何隱含的匯入，它會以 0 以外的退出代碼退出。
@@ -22,7 +22,8 @@ tuist inspect implicit-imports
 ::: tip VALIDATE IN CI
 <!-- -->
 我們強烈建議每次有新程式碼推送到上游時，就執行這個指令，作為
-<LocalizedLink href="/guides/features/automate/continuous-integration">continuous integration</LocalizedLink> 指令的一部分。
+<LocalizedLink href="/guides/features/automate/continuous-integration">continuous
+integration</LocalizedLink> 指令的一部分。
 <!-- -->
 :::
 
