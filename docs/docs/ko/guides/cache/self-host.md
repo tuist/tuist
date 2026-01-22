@@ -6,49 +6,43 @@
 }
 ---
 
-# Self-host Cache {#self-host-cache}
+# 셀프 호스트 캐시 {#self-host-cache}
 
-The Tuist cache service can be self-hosted to provide a private binary cache for
-your team. This is most useful for organizations with large artifacts and
-frequent builds, where placing the cache closer to your CI infrastructure
-reduces latency and improves cache efficiency. By minimizing the distance
-between your build agents and the cache, you ensure that network overhead
-doesn't negate the speed benefits of caching.
+Tuist 캐시 서비스는 자체 호스팅하여 팀에 비공개 바이너리 캐시를 제공할 수 있습니다. 이는 아티팩트가 크고 빌드가 빈번한 조직에 가장
+유용하며, 캐시를 CI 인프라에 더 가깝게 배치하면 지연 시간을 줄이고 캐시 효율성을 개선할 수 있습니다. 빌드 에이전트와 캐시 사이의 거리를
+최소화하면 네트워크 과부하가 캐싱의 속도 이점을 무효화하지 않도록 할 수 있습니다.
 
-::: info
+::: info Mise란?
 <!-- -->
-Self-hosting cache nodes requires an **Enterprise plan**.
+자체 구축한 캐시 노드를 사용하려면 **엔터프라이즈 요금제**가 필요합니다.
 
-You can connect self-hosted cache nodes to either the hosted Tuist server
-(`https://tuist.dev`) or a self-hosted Tuist server. Self-hosting the Tuist
-server itself requires a separate server license. See the
-<LocalizedLink href="/guides/server/self-host/install">server self-hosting
-guide</LocalizedLink>.
+자체 구축한 캐시 노드를 호스팅된 Tuist 서버(`https://tuist.dev`) 또는 자체 호스팅된 Tuist 서버에 연결할 수
+있습니다. Tuist 서버 자체를 자체 구축하려면 별도의 서버 라이선스가 필요합니다.
+<LocalizedLink href="/guides/server/self-host/install">서버 셀프 호스팅
+가이드</LocalizedLink>를 참조하세요.
 <!-- -->
 :::
 
-## Prerequisites {#prerequisites}
+## 필수 조건 {#prerequisites}
 
-- Docker and Docker Compose
-- S3-compatible storage bucket
-- A running Tuist server instance (hosted or self-hosted)
+- 도커 및 도커 컴포즈
+- S3 호환 스토리지 버킷
+- 실행 중인 Tuist 서버 인스턴스(호스팅 또는 자체 호스팅)
 
-## Deployment {#deployment}
+## 배포 {#deployment}
 
-The cache service is distributed as a Docker image at
-[ghcr.io/tuist/cache](https://ghcr.io/tuist/cache). We provide reference
-configuration files in the [cache
-directory](https://github.com/tuist/tuist/tree/main/cache).
+캐시 서비스는 [ghcr.io/tuist/cache](https://ghcr.io/tuist/cache)에서 Docker 이미지로 배포되기
+때문에 [cache 디렉터리](https://github.com/tuist/tuist/tree/main/cache)에 참조 구성 파일을 제공해
+드립니다.
 
 ::: tip
 <!-- -->
-We provide a Docker Compose setup because it's a convenient baseline for
-evaluation and small deployments. You can use it as a reference and adapt it to
-your preferred deployment model (Kubernetes, raw Docker, etc.).
+평가 및 소규모 배포를 위한 편리한 기준이 되는 Docker Compose 설정을 제공합니다. 이를 참조로 사용하여 선호하는 배포
+모델(Kubernetes, 원시 Docker 등)에 맞게 적용할 수 있습니다.
 <!-- -->
 :::
 
-### Configuration files {#config-files}
+### 구성 파일 {#config-files}
 
 ```bash
 curl -O https://raw.githubusercontent.com/tuist/tuist/main/cache/docker-compose.yml
@@ -56,14 +50,14 @@ mkdir -p docker
 curl -o docker/nginx.conf https://raw.githubusercontent.com/tuist/tuist/main/cache/docker/nginx.conf
 ```
 
-### Environment variables {#environment-variables}
+### 환경 변수 {#environment-variables}
 
-Create a `.env` file with your configuration.
+설정이 포함된 `.env` 파일을 생성하세요.
 
 ::: tip
 <!-- -->
-The service is built with Elixir/Phoenix, so some variables use the `PHX_`
-prefix. You can treat these as standard service configuration.
+이 서비스는 Elixir/Phoenix로 빌드 되었으므로 일부 변수는 `PHX_` 접두사를 사용합니다. 이를 표준 서비스 설정으로 취급할 수
+있습니다.
 <!-- -->
 :::
 
@@ -91,42 +85,41 @@ S3_REGION=us-east-1
 DATA_DIR=/data
 ```
 
-| Variable                          | Required | Default                   | Description                                                                                       |
-| --------------------------------- | -------- | ------------------------- | ------------------------------------------------------------------------------------------------- |
-| `SECRET_KEY_BASE`                 | Yes      |                           | Secret key used to sign and encrypt data (minimum 64 characters).                                 |
-| `PUBLIC_HOST`                     | Yes      |                           | Public hostname or IP address of your cache service. Used to generate absolute URLs.              |
-| `SERVER_URL`                      | Yes      |                           | URL of your Tuist server for authentication. Defaults to `https://tuist.dev`                      |
-| `DATA_DIR`                        | Yes      |                           | Directory where CAS artifacts are stored on disk. The provided Docker Compose setup uses `/data`. |
-| `S3_BUCKET`                       | Yes      |                           | S3 bucket name.                                                                                   |
-| `S3_HOST`                         | Yes      |                           | S3 endpoint hostname.                                                                             |
-| `S3_ACCESS_KEY_ID`                | Yes      |                           | S3 access key.                                                                                    |
-| `S3_SECRET_ACCESS_KEY`            | Yes      |                           | S3 secret key.                                                                                    |
-| `S3_REGION`                       | Yes      |                           | S3 region.                                                                                        |
-| `CAS_DISK_HIGH_WATERMARK_PERCENT` | No       | `85`                      | Disk usage percentage that triggers LRU eviction.                                                 |
-| `CAS_DISK_TARGET_PERCENT`         | No       | `70`                      | Target disk usage after eviction.                                                                 |
-| `PHX_SOCKET_PATH`                 | No       | `/run/cache/cache.sock`   | Path where the service creates its Unix socket (when enabled).                                    |
-| `PHX_SOCKET_LINK`                 | No       | `/run/cache/current.sock` | Symlink path that Nginx uses to connect to the service.                                           |
+| 변수                                | 필수  | 기본 값                      | 설명                                                                 |
+| --------------------------------- | --- | ------------------------- | ------------------------------------------------------------------ |
+| `SECRET_KEY_BASE`                 | 예   |                           | 데이터 서명 및 암호화에 사용되는 비밀 키(최소 64자)입니다.                                |
+| `PUBLIC_HOST`                     | 예   |                           | 캐시 서비스의 공개 호스트명 또는 IP 주소입니다. 절대 URL을 생성하는 데 사용됩니다.                 |
+| `SERVER_URL`                      | 예   |                           | 인증을 위한 Tuist 서버의 URL입니다. 기본 값은 `https://tuist.dev`                 |
+| `DATA_DIR`                        | 예   |                           | CAS 아티팩트가 디스크에 저장되는 디렉터리입니다. 제공된 Docker Compose 설정은 `/cas`를 사용합니다. |
+| `S3_BUCKET`                       | 예   |                           | S3 버킷 이름.                                                          |
+| `S3_HOST`                         | 예   |                           | S3 주소의 호스트 이름.                                                     |
+| `S3_ACCESS_KEY_ID`                | 예   |                           | S3 접근 키.                                                           |
+| `S3_SECRET_ACCESS_KEY`            | 예   |                           | S3 비밀 키.                                                           |
+| `S3_REGION`                       | 예   |                           | S3 지역.                                                             |
+| `CAS_DISK_HIGH_WATERMARK_PERCENT` | 아니요 | `85`                      | LRU 축출을 실행하는 디스크 사용량 비율입니다.                                        |
+| `CAS_DISK_TARGET_PERCENT`         | 아니요 | `70`                      | 축출 후 대상 디스크 사용량 입니다.                                               |
+| `PHX_SOCKET_PATH`                 | 아니요 | `/run/cache/cache.sock`   | 서비스가 유닉스 소켓을 생성하는 경로(활성화된 경우)입니다.                                  |
+| `PHX_SOCKET_LINK`                 | 아니요 | `/run/cache/current.sock` | Nginx가 서비스에 연결하는 데 사용하는 심볼릭 링크 경로입니다.                              |
 
-### Start the service {#start-service}
+### 서비스 시작 {#start-service}
 
 ```bash
 docker compose up -d
 ```
 
-### Verify the deployment {#verify}
+### 배포 확인 {#verify}
 
 ```bash
 curl http://localhost/up
 ```
 
-## Configure the cache endpoint {#configure-endpoint}
+## 캐시 주소 설정 {#configure-endpoint}
 
-After deploying the cache service, register it in your Tuist server organization
-settings:
+캐시 서비스를 배포한 후 Tuist 서버 조직 설정에 등록하세요:
 
-1. Navigate to your organization's **Settings** page
-2. Find the **Custom cache endpoints** section
-3. Add your cache service URL (for example, `https://cache.example.com`)
+1. 조직의 **설정** 페이지로 이동하세요
+2. **사용자 지정 캐시 주소** 섹션 찾기
+3. 캐시 서비스 URL을 추가하세요(예: `https://cache.example.com`)
 
 <!-- TODO: Add screenshot of organization settings page showing Custom cache endpoints section -->
 
@@ -136,58 +129,57 @@ graph TD
   B --> C[Tuist CLI uses your endpoint]
 ```
 
-Once configured, the Tuist CLI will use your self-hosted cache.
+설정이 완료되면 Tuist CLI는 자체 구축한 캐시를 사용합니다.
 
-## Volumes {#volumes}
+## 볼륨 {#volumes}
 
-The Docker Compose configuration uses three volumes:
+Docker Compose 설정은 세 개의 볼륨을 사용합니다:
 
-| Volume         | Purpose                                     |
-| -------------- | ------------------------------------------- |
-| `cas_data`     | Binary artifact storage                     |
-| `sqlite_data`  | Access metadata for LRU eviction            |
-| `cache_socket` | Unix socket for Nginx-service communication |
+| 볼륨             | 목적                       |
+| -------------- | ------------------------ |
+| `cas_data`     | 바이너리 아티팩트 스토리지           |
+| `sqlite_data`  | LRU 축출를 위한 메타데이터에 접근하세요  |
+| `cache_socket` | Nginx 서비스 통신을 위한 Unix 소켓 |
 
-## Health checks {#health-checks}
+## 서비스 상태 확인 {#health-checks}
 
-- `GET /up` — Returns 200 when healthy
-- `GET /metrics` — Prometheus metrics
+- `GET /up` - 정상일 때 200을 반환합니다
+- `GET /metrics` - 모니터링 지표
 
-## Monitoring {#monitoring}
+## 모니터링 {#monitoring}
 
-The cache service exposes Prometheus-compatible metrics at `/metrics`.
+캐시 서비스는 `/metrics`에서 프로메테우스 호환 지표을 내보냅니다.
 
-If you use Grafana, you can import the [reference
-dashboard](https://raw.githubusercontent.com/tuist/tuist/refs/heads/main/cache/priv/grafana_dashboards/cache_service.json).
+Grafana를 사용하는 경우 [참조
+대시보드](https://raw.githubusercontent.com/tuist/tuist/refs/heads/main/cache/priv/grafana_dashboards/cache_service.json)를
+가져올 수 있습니다.
 
-## Upgrading {#upgrading}
+## 업그레이드 {#upgrading}
 
 ```bash
 docker compose pull
 docker compose up -d
 ```
 
-The service runs database migrations automatically on startup.
+이 서비스는 시작 시 데이터베이스 마이그레이션을 자동으로 실행합니다.
 
-## Troubleshooting {#troubleshooting}
+## 문제 해결 {#troubleshooting}
 
-### Cache not being used {#troubleshooting-caching}
+### 사용되지 않고 있는 캐시 {#troubleshooting-caching}
 
-If you expect caching but are seeing consistent cache misses (for example, the
-CLI is repeatedly uploading the same artifacts, or downloads never happen),
-follow these steps:
+캐싱이 예상되지만 캐시가 지속적으로 누락되는 경우(예: CLI가 동일한 아티팩트를 반복적으로 업로드하거나 다운로드가 전혀 이루어지지 않는
+경우), 다음 단계를 따라하세요:
 
-1. Verify the custom cache endpoint is correctly configured in your organization
-   settings.
-2. Ensure your Tuist CLI is authenticated by running `tuist auth login`.
-3. Check the cache service logs for any errors: `docker compose logs cache`.
+1. 조직 설정에서 사용자 지정 캐시 주소가 올바르게 구성되었는지 확인하세요.
+2. `tuist auth login`을 실행하여 Tuist CLI가 인증되었는지 확인하세요.
+3. 다음 명령어로 캐시 서비스 로그에서 오류가 있는지 확인하세요: `docker compose logs cache`.
 
-### Socket path mismatch {#troubleshooting-socket}
+### 소켓 경로 불일치 {#troubleshooting-socket}
 
-If you see connection refused errors:
+연결이 거부된 오류가 표시되는 경우:
 
-- Ensure `PHX_SOCKET_LINK` points to the socket path configured in nginx.conf
-  (default: `/run/cache/current.sock`)
-- Verify `PHX_SOCKET_PATH` and `PHX_SOCKET_LINK` are both set correctly in
-  docker-compose.yml
-- Verify the `cache_socket` volume is mounted in both containers
+- `PHX_SOCKET_LINK`가 nginx.conf에 구성된 소켓 경로를 가리키는지 확인합니다(기본 값:
+  `/run/cache/current.sock`)
+- `PHX_SOCKET_PATH` 및 `PHX_SOCKET_LINK` 가 모두 docker-compose.yml에서 올바르게 설정되었는지
+  확인하세요
+- `cache_socket` 볼륨이 두 컨테이너에 모두 마운트 되었는지 확인하세요
