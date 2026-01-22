@@ -30,7 +30,6 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorkerTest do
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: true)
 
       stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
-      stub(Runs, :get_flaky_runs_groups_count_for_test_case, fn _id -> 3 end)
 
       expect(Slack, :send_flaky_test_alert, fn p, tc, count, auto_quarantined ->
         assert p.id == project.id
@@ -43,7 +42,7 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorkerTest do
       # When
       result =
         FlakyTestAlertWorker.perform(%Oban.Job{
-          args: %{"test_case_id" => test_case.id, "project_id" => project.id}
+          args: %{"test_case_id" => test_case.id, "project_id" => project.id, "flaky_runs_count" => 3}
         })
 
       # Then
@@ -62,7 +61,6 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorkerTest do
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: true)
 
       stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
-      stub(Runs, :get_flaky_runs_groups_count_for_test_case, fn _id -> 3 end)
 
       expect(Slack, :send_flaky_test_alert, fn _p, _tc, _count, auto_quarantined ->
         assert auto_quarantined == true
@@ -72,7 +70,7 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorkerTest do
       # When
       result =
         FlakyTestAlertWorker.perform(%Oban.Job{
-          args: %{"test_case_id" => test_case.id, "project_id" => project.id, "auto_quarantined" => true}
+          args: %{"test_case_id" => test_case.id, "project_id" => project.id, "auto_quarantined" => true, "flaky_runs_count" => 3}
         })
 
       # Then
@@ -91,14 +89,13 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorkerTest do
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: true)
 
       stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
-      stub(Runs, :get_flaky_runs_groups_count_for_test_case, fn _id -> 3 end)
 
       reject(&Slack.send_flaky_test_alert/4)
 
       # When
       result =
         FlakyTestAlertWorker.perform(%Oban.Job{
-          args: %{"test_case_id" => test_case.id, "project_id" => project.id}
+          args: %{"test_case_id" => test_case.id, "project_id" => project.id, "flaky_runs_count" => 3}
         })
 
       # Then
@@ -117,14 +114,13 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorkerTest do
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: true)
 
       stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
-      stub(Runs, :get_flaky_runs_groups_count_for_test_case, fn _id -> 3 end)
 
       reject(&Slack.send_flaky_test_alert/4)
 
       # When
       result =
         FlakyTestAlertWorker.perform(%Oban.Job{
-          args: %{"test_case_id" => test_case.id, "project_id" => project.id}
+          args: %{"test_case_id" => test_case.id, "project_id" => project.id, "flaky_runs_count" => 3}
         })
 
       # Then
@@ -146,14 +142,13 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorkerTest do
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: true)
 
       stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
-      stub(Runs, :get_flaky_runs_groups_count_for_test_case, fn _id -> 3 end)
 
       reject(&Slack.send_flaky_test_alert/4)
 
       # When
       result =
         FlakyTestAlertWorker.perform(%Oban.Job{
-          args: %{"test_case_id" => test_case.id, "project_id" => project.id}
+          args: %{"test_case_id" => test_case.id, "project_id" => project.id, "flaky_runs_count" => 3}
         })
 
       # Then
@@ -171,7 +166,7 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorkerTest do
       # When
       result =
         FlakyTestAlertWorker.perform(%Oban.Job{
-          args: %{"test_case_id" => test_case_id, "project_id" => project.id}
+          args: %{"test_case_id" => test_case_id, "project_id" => project.id, "flaky_runs_count" => 3}
         })
 
       # Then

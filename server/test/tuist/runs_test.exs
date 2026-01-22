@@ -2,7 +2,7 @@ defmodule Tuist.RunsTest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
-  alias Tuist.Alerts.Workers.FlakyTestAlertWorker
+  alias Tuist.Alerts.Workers.FlakyThresholdCheckWorker
   alias Tuist.IngestRepo
   alias Tuist.Runs
   alias Tuist.Runs.TestCase
@@ -4656,7 +4656,7 @@ defmodule Tuist.RunsTest do
     end
   end
 
-  describe "create_test_cases/2 enqueuing flaky test alert jobs" do
+  describe "create_test_cases/2 enqueuing flaky threshold check jobs" do
     test "enqueues job when test case becomes newly flaky" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -4675,7 +4675,7 @@ defmodule Tuist.RunsTest do
       ])
 
       # Then
-      assert_enqueued(worker: FlakyTestAlertWorker, args: %{project_id: project.id})
+      assert_enqueued(worker: FlakyThresholdCheckWorker, args: %{project_id: project.id})
     end
 
     test "does not enqueue job when test case is not flaky" do
@@ -4696,7 +4696,7 @@ defmodule Tuist.RunsTest do
       ])
 
       # Then
-      refute_enqueued(worker: FlakyTestAlertWorker)
+      refute_enqueued(worker: FlakyThresholdCheckWorker)
     end
 
     test "does not enqueue job when test case was already flaky" do
@@ -4729,7 +4729,7 @@ defmodule Tuist.RunsTest do
       ])
 
       # Then - only one job should be enqueued (from first creation)
-      assert length(all_enqueued(worker: FlakyTestAlertWorker)) == 1
+      assert length(all_enqueued(worker: FlakyThresholdCheckWorker)) == 1
     end
 
     test "enqueues jobs for multiple newly flaky test cases" do
@@ -4759,7 +4759,7 @@ defmodule Tuist.RunsTest do
       ])
 
       # Then
-      assert length(all_enqueued(worker: FlakyTestAlertWorker)) == 2
+      assert length(all_enqueued(worker: FlakyThresholdCheckWorker)) == 2
     end
   end
 

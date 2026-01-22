@@ -676,39 +676,41 @@ defmodule Tuist.Runs do
   end
 
   @doc """
-  Sets the flaky status of a test case by inserting a new row with the given is_flaky value.
+  Updates a test case by inserting a new row with the given attributes.
   ClickHouse ReplacingMergeTree will keep the most recent row.
+
+  Only `is_flaky` and `is_quarantined` are valid update attributes.
   """
-  def set_test_case_flaky(test_case_id, is_flaky) when is_boolean(is_flaky) do
+  def update_test_case(test_case_id, update_attrs) when is_map(update_attrs) do
+    valid_keys = [:is_flaky, :is_quarantined]
+    filtered_attrs = Map.take(update_attrs, valid_keys)
+
     with {:ok, test_case} <- get_test_case_by_id(test_case_id) do
       attrs =
         test_case
         |> Map.from_struct()
         |> Map.delete(:__meta__)
-        |> Map.merge(%{is_flaky: is_flaky, inserted_at: NaiveDateTime.utc_now()})
+        |> Map.merge(filtered_attrs)
+        |> Map.put(:inserted_at, NaiveDateTime.utc_now())
 
       {1, nil} = IngestRepo.insert_all(TestCase, [attrs])
 
-      {:ok, %{test_case | is_flaky: is_flaky}}
+      {:ok, Map.merge(test_case, filtered_attrs)}
     end
   end
 
   @doc """
-  Sets the quarantined status of a test case by inserting a new row with the given is_quarantined value.
-  ClickHouse ReplacingMergeTree will keep the most recent row.
+  Sets the flaky status of a test case.
+  """
+  def set_test_case_flaky(test_case_id, is_flaky) when is_boolean(is_flaky) do
+    update_test_case(test_case_id, %{is_flaky: is_flaky})
+  end
+
+  @doc """
+  Sets the quarantined status of a test case.
   """
   def set_test_case_quarantined(test_case_id, is_quarantined) when is_boolean(is_quarantined) do
-    with {:ok, test_case} <- get_test_case_by_id(test_case_id) do
-      attrs =
-        test_case
-        |> Map.from_struct()
-        |> Map.delete(:__meta__)
-        |> Map.merge(%{is_quarantined: is_quarantined, inserted_at: NaiveDateTime.utc_now()})
-
-      {1, nil} = IngestRepo.insert_all(TestCase, [attrs])
-
-      {:ok, %{test_case | is_quarantined: is_quarantined}}
-    end
+    update_test_case(test_case_id, %{is_quarantined: is_quarantined})
   end
 
   @doc """
