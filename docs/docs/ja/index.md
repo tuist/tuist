@@ -8,9 +8,10 @@
 import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeatures.vue"
 </script>
 
-# A virtual platform team for developers who ship
+# 出荷する開発者のための仮想プラットフォームチーム
 
-**Tuist extends Apple's toolchain to help teams scale and focus on building apps** – transforming Apple platform development from frustrating complexity into a smooth, productive experience that grows with your team.
+**TuistはAppleのツールチェーンを拡張し、チームがスケールアップしてアプリの構築に集中できるよう支援します。** -
+Appleプラットフォーム開発を、フラストレーションのたまる複雑なものから、チームとともに成長するスムーズで生産的な体験へと変えます。
 
 <br/>
 
@@ -63,14 +64,16 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
         link="/guides/features/registry"/>
 </HomeCards>
 
-## Join thousands of developers who've made the switch
+## 何千人もの開発者の仲間入りをしよう
 
-**Teams at [Trendyol](https://www.trendyol.com/), [Etsy](https://www.etsy.com/), [Bumble](https://bumble.com/), [Monzo](https://monzo.com/), [Bending Spoons](https://bendingspoons.com/), and 100+ other companies** have already transformed their Apple platform development with Tuist. Here's what they're experiencing:
+**Trendyol](https://www.trendyol.com/)、[Etsy](https://www.etsy.com/)、[Bumble](https://bumble.com/)、[Monzo](https://monzo.com/)、[Bending
+Spoons](https://bendingspoons.com/)、その他100社以上の企業**
+、Tuistを使ってAppleプラットフォーム開発を変革している。彼らが体験していることを紹介しよう：
 
-- **65% faster builds** with intelligent caching
-- **Zero merge conflicts** in Xcode projects
-- **Minutes to seconds** package resolution
-- **Happy developers** who can focus on building features
+- **インテリジェント・キャッシュにより、ビルドが65%高速化**
+- **Xcodeプロジェクトにおけるマージ競合ゼロ**
+- **分～秒** パッケージ解像度
+- **機能構築に専念できる幸せな開発者**
 
 <HomeCards type="carousel">
     <HomeCard icon="🚀"
@@ -93,15 +96,16 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
 </HomeCards>
 
 
-## See Tuist in action
+## トゥイストの活躍を見る
 
-**Learn from real implementations** and get inspired by what's possible when your toolchain just works.
+**** 実際の導入事例から学び、ツールチェインが機能することで何が可能になるのか、インスピレーションを得てください。
 
 <HomeVideos/>
 
-## Join a thriving community
+## 活気あるコミュニティに参加する
 
-**Connect with thousands of Apple platform developers** who are shipping better apps with Tuist. Get help, share wins, and shape the future of Apple platform development.
+**Tuistを使ってより良いアプリを出荷している何千人ものAppleプラットフォーム開発者**
+とつながりましょう。助けを得て、勝利を分かち合い、Appleプラットフォーム開発の未来を切り開きましょう。
 
 <HomeCommunity>
     <HomeCommunityItem title="Forum" description="Interact with other community members in a synchronous manner" href="https://community.tuist.dev">
