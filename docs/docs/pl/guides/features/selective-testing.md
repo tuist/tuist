@@ -18,23 +18,25 @@ przyspieszyć samo uruchamianie testów, uruchamiając tylko te testy, które ul
 zmianie od ostatniego pomyślnego uruchomienia testu w oparciu o nasz algorytm
 haszujący <LocalizedLink href="/guides/features/projects/hashing">.
 
-To run tests selectively with your
-<LocalizedLink href="/guides/features/projects">generated
-project</LocalizedLink>, use the `tuist test` command. The command
-<LocalizedLink href="/guides/features/projects/hashing">hashes</LocalizedLink>
-your Xcode project the same way it does for the
-<LocalizedLink href="/guides/features/cache/module-cache">module
-cache</LocalizedLink>, and on success, it persists the hashes to determine what
-has changed in future runs. In future runs, `tuist test` transparently uses the
-hashes to filter down the tests and run only the ones that have changed since
-the last successful test run.
+Aby uruchomić testy selektywnie z
+<LocalizedLink href="/guides/features/projects">wygenerowanym
+projektem</LocalizedLink>, użyj polecenia `tuist test`. Polecenie to
+<LocalizedLink href="/guides/features/projects/hashing">haszuje</LocalizedLink>
+projekt Xcode w taki sam sposób, jak
+<LocalizedLink href="/guides/features/cache/module-cache">pamięć podręczną
+modułu</LocalizedLink>, a po pomyślnym zakończeniu zachowuje skróty, aby
+określić, co uległo zmianie w przyszłych uruchomieniach. W przyszłych
+uruchomieniach `tuist test` w sposób przejrzysty wykorzystuje skróty do
+filtrowania testów i uruchamiania tylko tych, które uległy zmianie od ostatniego
+pomyślnego uruchomienia testów.
 
-`tuist test` integrates directly with the
-<LocalizedLink href="/guides/features/cache/module-cache">module
-cache</LocalizedLink> to use as many binaries from your local or remote storage
-to improve the build time when running your test suite. The combination of
-selective testing with module caching can dramatically reduce the time it takes
-to run tests on your CI.
+`tuist test` integruje się bezpośrednio z
+<LocalizedLink href="/guides/features/cache/module-cache">modułową pamięcią
+podręczną</LocalizedLink>, aby wykorzystać jak najwięcej plików binarnych z
+lokalnej lub zdalnej pamięci masowej w celu skrócenia czasu kompilacji podczas
+uruchamiania zestawu testów. Połączenie selektywnego testowania z buforowaniem
+modułów może znacznie skrócić czas potrzebny do przeprowadzenia testów w ramach
+ciągłej integracji.
 
 ::: warning MODULE VS FILE-LEVEL GRANULARITY
 <!-- -->
@@ -71,9 +73,9 @@ Git</LocalizedLink>.
 <!-- -->
 :::
 
-Once your Tuist project is connected with your Git platform such as
-[GitHub](https://github.com), and you start using `tuist test` as part of your
-CI workflow, Tuist will post a comment directly in your pull/merge requests,
-including which tests were run and which skipped: ![GitHub app comment with a
-Tuist Preview
-link](/images/guides/features/selective-testing/github-app-comment.png)
+Gdy projekt Tuist zostanie połączony z platformą Git, taką jak
+[GitHub](https://github.com), i zaczniesz używać `tuist test` w ramach przepływu
+pracy CI, Tuist opublikuje komentarz bezpośrednio w żądaniach pull/merge,
+zawierający informacje o tym, które testy zostały przeprowadzone, a które
+pominięte: ![Komentarz w aplikacji GitHub z linkiem do podglądu
+Tuist](/images/guides/features/selective-testing/github-app-comment.png)
