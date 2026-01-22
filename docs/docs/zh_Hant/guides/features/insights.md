@@ -5,7 +5,7 @@
   "description": "Get insights into your builds to maintain a productive developer environment."
 }
 ---
-# 建立洞察力{#build-insights}
+# 建構洞察{#build-insights}
 
 ::: warning REQUIREMENTS
 <!-- -->
@@ -13,34 +13,35 @@
 <!-- -->
 :::
 
-處理大型專案不應該覺得是件苦差事。事實上，它應該和兩星期前才開始的專案一樣令人愉快。之所以不是這樣，其中一個原因是隨著專案的成長，開發人員的經驗會受到影響。建立時間增加，測試變得緩慢且不穩定。我們通常很容易忽略這些問題，直到這些問題變得難以忍受為止
-- 然而，到了那個時候，我們就很難解決這些問題了。Tuist Insights 可為您提供工具來監控專案的健康狀況，並在專案擴充時維持富有成效的開發人員環境。
+處理大型專案不該像完成苦差事。事實上，它應該像處理兩週前才啟動的專案般令人愉悅。
+之所以未能如此，部分原因在於專案規模擴大時，開發者體驗往往隨之惡化。建置時間延長，測試變得遲緩且不穩定。這些問題通常容易被忽視，直到難以忍受的程度——然而屆時要解決已相當困難。Tuist
+Insights 提供監控專案健康狀態的工具，助您在專案擴展時維持高效的開發者環境。
 
-換言之，Tuist Insights 可協助您回答下列問題：
-- 過去一週的建置時間有顯著增加嗎？
-- 與本機開發相比，我在 CI 上的建置速度是否較慢？
+換言之，Tuist Insights 協助您解答諸如：
+- 過去一週的建置時間是否顯著增加？
+- 我的 CI 編譯速度是否比本地開發慢？
 
-雖然您可能對 CI 工作流程的效能有一些指標，但對於本機開發環境，您可能沒有相同的能見度。然而，本機建立時間是影響開發人員經驗的最重要因素之一。
+儘管您可能已建立持續整合工作流的效能指標，但對本地開發環境的監控程度可能有所不足。然而，本地建置時間正是影響開發者體驗的核心要素之一。
 
-若要開始追蹤本地的建立時間，您可以利用`tuist inspect build` 指令，將它加入您的方案後動作中：
+要開始追蹤本地建置時間，可將以下指令加入方案的後置操作中：`tuist inspect build`
 
-![檢查建置的後續動作](/images/guides/features/insights/inspect-build-scheme-post-action.png)。
+![檢查建置後的後續動作](/images/guides/features/insights/inspect-build-scheme-post-action.png)
 
 ::: info
 <!-- -->
-我們建議將「Provide build settings from」設為可執行檔或您的主要建立目標，以便 Tuist 追蹤建立設定。
+建議將「提供建置設定來源」設定為可執行檔或主要建置目標，以便 Tuist 追蹤建置配置。
 <!-- -->
 :::
 
 ::: info
 <!-- -->
-如果您沒有使用 <LocalizedLink href="/guides/features/projects">
-產生的專案</LocalizedLink>，在建立失敗的情況下，post-scheme 動作不會被執行。
+若未使用
+<LocalizedLink href="/guides/features/projects">自動生成專案</LocalizedLink>，當建置失敗時，後置方案動作將不會執行。
 <!-- -->
 :::
 > 
-> 即使在這種情況下，Xcode 中一個未記錄的功能也允許您執行它。設定屬性`runPostActionsOnFailure` 為`YES`
-> 在您的方案的`BuildAction` 在相關的`project.pbxproj` 檔案中，如下所示：
+> `` Xcode 的某項未公開功能允許您在此情況下仍可執行。請於相關專案的`project.pbxproj 檔案中，將方案的`BuildAction
+> 設定如下：`runPostActionsOnFailure` 設定為`YES`
 > 
 > ```diff
 > <BuildAction
@@ -49,7 +50,7 @@
 > +  runPostActionsOnFailure="YES">
 > ```
 
-如果您使用 [Mise](https://mise.jdx.dev/)，您的腳本需要在動作後的環境中啟動`tuist` ：
+若您使用的是 [Mise](https://mise.jdx.dev/)，您的腳本需在後處理環境中啟用`tuist` ：
 ```sh
 # -C ensures that Mise loads the configuration from the Mise configuration
 # file in the project's root directory.
@@ -58,36 +59,36 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 
 ::: tip MISE & PROJECT PATHS
 <!-- -->
-您的環境的`PATH` 環境變數不會被 scheme post 動作繼承，因此您必須使用 Mise 的絕對路徑，這將取決於您如何安裝
-Mise。此外，別忘了從專案中的目標繼承建立設定，如此您才能從 $SRCROOT 指向的目錄執行 Mise。
+您的環境變數 ``` PATH `` ` 不會被 scheme post action 繼承，因此必須使用 Mise
+的絕對路徑（取決於您的安裝方式）。此外，請記得從專案目標繼承建置設定，以便能從 $SRCROOT 所指向的目錄執行 Mise。
 <!-- -->
 :::
 
 
-只要您登入 Tuist 帳戶，您的本機建立時間就會被追蹤。現在您可以在 Tuist 面板中存取您的建立時間，並查看它們如何隨著時間演進：
+只要您登入 Tuist 帳戶，您的本地建置現已自動追蹤。您現在可於 Tuist 儀表板查看建置時間，並觀察其隨時間演變的趨勢：
 
 
 ::: tip
 <!-- -->
-若要快速存取儀表板，請從 CLI 執行`tuist project show --web` 。
+欲快速存取儀表板，請於命令列介面執行：`tuist project show --web`
 <!-- -->
 :::
 
-![儀表板與建立洞察力](/images/guides/features/insights/builds-dashboard.png)。
+![建置洞察儀表板](/images/guides/features/insights/builds-dashboard.png)
 
 ## 產生的專案{#generated-projects}
 
 ::: info
 <!-- -->
-自動產生的方案會自動包含`tuist 檢查建立` 後的動作。
+自動生成方案會自動包含`tuist inspect build` 後續操作。
 <!-- -->
 :::
 > 
-> 如果您對在自動產生的方案中追蹤洞察力不感興趣，請使用
+> 若您無意追蹤自動生成架構中的洞察資訊，請使用
 > <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink>
-> 產生選項停用它們。
+> 生成選項停用此功能。
 
-如果您使用的是具有自訂方案的已產生專案，您可以設定建立洞察的後動作：
+若您使用自訂方案的生成專案，可為建置洞察設定後置動作：
 
 ```swift
 let project = Project(
@@ -120,7 +121,7 @@ let project = Project(
 )
 ```
 
-如果您沒有使用 Mise，您的腳本可以簡化為
+若未使用 Mise，您的腳本可簡化為：
 
 ```swift
 buildAction: .buildAction(
@@ -138,14 +139,14 @@ buildAction: .buildAction(
 
 ## 持續整合{#continuous-integration}
 
-若要追蹤 CI 上的建立洞察，您需要確保 CI 已經
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication">驗證</LocalizedLink>。
+若要在持續整合環境中追蹤建置洞察，您需確保您的持續整合系統已完成<LocalizedLink href="/guides/integrations/continuous-integration#authentication">驗證</LocalizedLink>。
 
-此外，您還需要：
-- 調用`xcodebuild` 動作時，請使用
+此外，您還需執行以下任一操作：
+- 執行`xcodebuild` 操作時，請使用
   <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
   xcodebuild`</LocalizedLink> 指令。
-- 將`-resultBundlePath` 加入您的`xcodebuild` 調用。
+- `在您的 ``` 中加入 `xcodebuild` ` 指令，並添加參數 `-resultBundlePath` `。
 
-當`xcodebuild` 在沒有`-resultBundlePath` 的情況下建立您的專案時，不會產生所需的 activity log 和 result
-bundle 檔案。`tuist inspect build` 後動作需要這些檔案來分析您的建立。
+當執行 ``` 並使用 `xcodebuild` ` 編譯專案時，若未指定 ``` 及
+`-resultBundlePath``，所需的活動日誌與結果封裝檔將不會產生。而 ``` 中的 `tuist inspect build` `
+後置操作需依賴這些檔案來分析建置結果。
