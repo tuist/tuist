@@ -3,8 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2025-12-24 20:49+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"PO-Revision-Date: 2026-01-22 12:39+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Russian <https://translate.tuist.dev/projects/tuist/"
 "dashboard_builds/ru/>\n"
 "Language: ru\n"
@@ -13,7 +13,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
 "n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\n"
-"X-Generator: Weblate 5.15.1\n"
+"X-Generator: Weblate 5.15.2\n"
 
 ## This file is a PO Template file.
 ##
@@ -86,7 +86,7 @@ msgstr "Средняя задержка чтения ключей кэша"
 #: lib/tuist_web/live/build_run_live.html.heex:896
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Avg. latency writing cache keys"
-msgstr "Средняя задержка при записи ключей кэша"
+msgstr "Средняя задержка записи ключей кэша"
 
 #: lib/tuist_web/live/build_runs_live.ex:253
 #: lib/tuist_web/live/build_runs_live.html.heex:71
