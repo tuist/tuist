@@ -12,7 +12,8 @@
 <!-- -->
 - Projekt wygenerowany przez
   <LocalizedLink href="/guides/features/projects"></LocalizedLink>
-- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects"> Tuist</LocalizedLink>
+- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects">
+  Tuist</LocalizedLink>
 <!-- -->
 :::
 
@@ -24,7 +25,8 @@ przyspieszając proces rozwoju.
 
 ## Ocieplenie {#warming}
 
-Tuist efektywnie <LocalizedLink href="/guides/features/projects/hashing"> wykorzystuje skróty </LocalizedLink> dla każdego celu w grafie zależności w celu
+Tuist efektywnie <LocalizedLink href="/guides/features/projects/hashing">
+wykorzystuje skróty </LocalizedLink> dla każdego celu w grafie zależności w celu
 wykrycia zmian. Wykorzystując te dane, tworzy i przypisuje unikalne
 identyfikatory do plików binarnych pochodzących z tych celów. W czasie
 generowania grafu Tuist płynnie zastępuje oryginalne cele ich odpowiednimi
@@ -57,7 +59,7 @@ określonej flagi:
 tuist generate # Only dependencies
 tuist generate Search # Dependencies + Search dependencies
 tuist generate Search Settings # Dependencies, and Search and Settings dependencies
-tuist generate --no-binary-cache # No cache at all
+tuist generate --cache-profile none # No cache at all
 ```
 
 ```bash [Testing]
@@ -71,8 +73,8 @@ tuist test
 Buforowanie binarne to funkcja przeznaczona dla przepływów pracy deweloperskiej,
 takich jak uruchamianie aplikacji na symulatorze lub urządzeniu lub uruchamianie
 testów. Nie jest przeznaczona do kompilacji wersji. Podczas archiwizacji
-aplikacji należy wygenerować projekt ze źródłami przy użyciu flagi
-`--no-binary-cache`.
+aplikacji należy wygenerować projekt ze źródłami za pomocą `--cache-profile
+none`.
 <!-- -->
 :::
 
@@ -102,14 +104,22 @@ tuist generate
 # Focus on specific targets (implies all-possible)
 tuist generate MyModule AnotherTarget
 
-# Disable binary replacement entirely (backwards compatible)
-tuist generate --no-binary-cache  # equivalent to --cache-profile none
+# Disable binary replacement entirely
+tuist generate --cache-profile none
 ```
+
+::: info DEPRECATED FLAG
+<!-- -->
+Flaga `--no-binary-cache` jest przestarzała. Zamiast niej należy użyć
+`--cache-profile none`. Przestarzała flaga nadal działa ze względu na
+kompatybilność wsteczną.
+<!-- -->
+:::
 
 Pierwszeństwo podczas rozwiązywania skutecznego zachowania (od najwyższego do
 najniższego):
 
-1. `--no-binary-cache` → profil `none`
+1. `--cache-profile none`
 2. Skupienie na celu (przekazywanie celów do `generuje`) → profil
    `wszystko-możliwe`
 3. `--cache-profile `
@@ -149,7 +159,8 @@ następujące rozwiązania:
    zmiany jest niższe.
 
 Powyższe sugestie są częścią
-<LocalizedLink href="/guides/features/projects/tma-architecture"> Architektury Modułowej</LocalizedLink>, którą proponujemy jako sposób na ustrukturyzowanie
+<LocalizedLink href="/guides/features/projects/tma-architecture"> Architektury
+Modułowej</LocalizedLink>, którą proponujemy jako sposób na ustrukturyzowanie
 projektów w celu zmaksymalizowania korzyści nie tylko z buforowania binarnego,
 ale także z możliwości Xcode.
 
@@ -209,7 +220,8 @@ celu zmniejszenia obciążenia systemu podczas operacji pamięci podręcznej.
 ### Nie używa binariów dla moich celów {#it-doesnt-use-binaries-for-my-targets}
 
 Upewnij się, że skróty
-<LocalizedLink href="/guides/features/projects/hashing#debugging"> są deterministyczne</LocalizedLink> w różnych środowiskach i uruchomieniach. Może
+<LocalizedLink href="/guides/features/projects/hashing#debugging"> są
+deterministyczne</LocalizedLink> w różnych środowiskach i uruchomieniach. Może
 się tak zdarzyć, jeśli projekt zawiera odniesienia do środowiska, na przykład
 poprzez ścieżki bezwzględne. Można użyć polecenia `diff`, aby porównać projekty
 wygenerowane przez dwa kolejne wywołania `tuist generate` lub między
@@ -225,5 +237,22 @@ może rozwiązywać zależności, które nie zostały jawnie zadeklarowane. Jeś
 jednak polegasz na binarnej pamięci podręcznej, zależności muszą być jawnie
 zadeklarowane; w przeciwnym razie prawdopodobnie zobaczysz błędy kompilacji, gdy
 nie można znaleźć symboli. Aby to debugować, zalecamy użycie polecenia
-<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist inspect implicit-imports`</LocalizedLink> i skonfigurowanie go w CI, aby
-zapobiec regresjom w niejawnym łączeniu.
+<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist
+inspect dependencies --only implicit`</LocalizedLink> i skonfigurowanie go w CI,
+aby zapobiec regresjom w niejawnym łączeniu.
+
+### Pamięć podręczna starszych modułów {#legacy-module-cache}
+
+W Tuist `4.128.0`, nasza nowa infrastruktura pamięci podręcznej modułów stała
+się domyślna. Jeśli wystąpią problemy z nową wersją, można przywrócić starsze
+zachowanie pamięci podręcznej, ustawiając zmienną środowiskową
+`TUIST_LEGACY_MODULE_CACHE`.
+
+Ten starszy moduł pamięci podręcznej jest tymczasowym rozwiązaniem awaryjnym i
+zostanie usunięty po stronie serwera w przyszłej aktualizacji. Należy zaplanować
+migrację z niego.
+
+```bash
+export TUIST_LEGACY_MODULE_CACHE=1
+tuist generate
+```
