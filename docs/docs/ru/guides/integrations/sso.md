@@ -16,7 +16,7 @@
 tuist organization update sso my-organization --provider google --organization-id my-google-domain.com
 ```
 
-::: ПРЕДУПРЕЖДЕНИЕ
+::: warning
 <!-- -->
 Вы должны быть авторизованы в Google с помощью электронной почты, привязанной к
 организации, домен которой вы настраиваете.
@@ -64,7 +64,7 @@ Tuist:
 tuist organization update sso my-organization --provider okta --organization-id my-okta-domain.com
 ```
 
-::: ПРЕДУПРЕЖДЕНИЕ
+::: warning
 <!-- -->
 Пользователи должны первоначально войти в систему через свою панель Okta,
 поскольку в настоящее время Tuist не поддерживает автоматическое предоставление
