@@ -16,10 +16,10 @@ Package ManagerとネイティブのXcodeプロジェクトのパフォーマン
 <img style="max-width: 400px;" alt="A table that compares the regression in performance when using SPM over native Xcode projects" src="/images/guides/start/migrate/performance-table.webp">
 
 Swift Package
-Managerが同じようなプロジェクト管理の役割を果たせることを考えると、Tuistの必要性に異議を唱える開発者や組織にしばしば出くわす。ある者は移行を敢行し、後になって開発者のエクスペリエンスが著しく低下していることに気づく。例えば、ファイル名の変更に再インデックスに最大15秒かかるかもしれない。15秒だ！
+Managerが同じようなプロジェクト管理の役割を担えることを考えると、Tuistの必要性に異議を唱える開発者や組織にしばしば出くわす。ある者は移行を敢行し、後になって開発者のエクスペリエンスが著しく低下していることに気づく。例えば、ファイル名の変更に再インデックスに最大15秒かかるかもしれない。15秒だ！
 
 **AppleがSwift Package Managerをビルドフォースケールのプロジェクトマネージャーにするかどうかは不明だ。**
-しかし、そうなる兆候は見られない。実際、私たちは全く逆のことを見ている。彼らはXcodeに触発された決定をしており、暗黙的なコンフィギュレーションを通して利便性を達成しているようなものです。私たちは、Appleが第一原則に立ち返り、例えばプロジェクトを定義するインターフェイスとしてコンパイル言語を使用するなど、依存関係マネージャーとしては意味があってもプロジェクトマネージャーとしては意味がなかったいくつかの決定を見直す必要があると考えている。
+しかし、そうなる兆候は見られない。実際、私たちは全く逆のことを見ている。彼らはXcodeに触発された決定をしており、暗黙的なコンフィギュレーションを通して利便性を達成しているようなものです。私たちは、Appleが第一原則に立ち返り、例えばプロジェクトを定義するインターフェースとしてコンパイル言語を使用するなど、依存関係マネージャーとしては意味があってもプロジェクトマネージャーとしては意味がなかったいくつかの決定を見直す必要があると考えている。
 
 ::: tip SPM AS JUST A DEPENDENCY MANAGER
 <!-- -->
@@ -70,12 +70,12 @@ let tuist = Tuist()
 ```
 
 `Tuist.swift`
-にはプロジェクトの設定が含まれており、そのパスはプロジェクトのルートを決定するリファレンスとして機能します。Tuistプロジェクトの構造については<LocalizedLink href="/guides/features/projects/directory-structure">ディレクトリ構造</LocalizedLink>ドキュメントを参照してください。
+にはプロジェクトの設定が含まれており、そのパスはプロジェクトのルートを決定するリファレンスとして機能します。Tuistプロジェクトの構造については<LocalizedLink href="/guides/features/projects/directory-structure">ディレクトリ構造</LocalizedLink>のドキュメントを参照してください。
 
 ## プロジェクトの編集{#editing-the-project}
 
 1}`tuist
-edit`を使って、Xcodeでプロジェクトを編集することができます。コマンドは、開いて作業を開始できるXcodeプロジェクトを生成します。
+edit`</LocalizedLink>を使って、Xcodeでプロジェクトを編集することができます。コマンドは、開いて作業を開始できるXcodeプロジェクトを生成します。
 
 ```bash
 tuist edit
