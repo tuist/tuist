@@ -5,31 +5,29 @@
   "description": "Contribute to the Tuist Server."
 }
 ---
-# Server {#server}
+# 서버 {#server}
 
 Source:
 [github.com/tuist/tuist/tree/main/server](https://github.com/tuist/tuist/tree/main/server)
 
-## What it is for {#what-it-is-for}
+## 용도 {#what-it-is-for}
 
-The server powers Tuist’s server-side features like authentication, accounts and
-projects, cache storage, insights, previews, registry, and integrations (GitHub,
-Slack, and SSO). It is a Phoenix/Elixir application with Postgres and
-ClickHouse.
+서버는 Tuist의 인증, 계정 및 프로젝트, 캐시 저장소, 인사이트, 미리보기, 레지스트리, 통합(GitHub, Slack, SSO)과 같은
+서버 측 기능을 지원합니다. 이는 Postgres와 ClickHouse를 사용하는 Phoenix/Elixir 애플리케이션입니다.
 
 ::: warning TIMESCALEDB DEPRECATION
 <!-- -->
-TimescaleDB is deprecated and will be removed. For now, if you need it for local
-setup or migrations, use the [TimescaleDB installation
-docs](https://docs.timescale.com/self-hosted/latest/install/installation-macos/).
+TimescaleDB는 더 이상 사용되지 않으며 제거될 예정입니다. 현재 로컬 설정이나 마이그레이션에 필요한 경우 [TimescaleDB 설치
+문서](https://docs.timescale.com/self-hosted/latest/install/installation-macos/)을
+참조하십시오.
 <!-- -->
 :::
 
-## How to contribute {#how-to-contribute}
+## 기여 방법 {#how-to-contribute}
 
-Contributions to the server require signing the CLA (`server/CLA.md`).
+서버에 기여하려면 CLA(`server/CLA.md`)에 서명해야 합니다.
 
-### Set up locally {#set-up-locally}
+### 로컬 환경 설정 {#set-up-locally}
 
 ```bash
 cd server
@@ -49,12 +47,11 @@ mise run install
 mise run dev
 ```
 
-> [!NOTE] First-party developers load encrypted secrets from
-> `priv/secrets/dev.key`. External contributors won't have that key, and that's
-> fine. The server still runs locally with `TUIST_SECRET_KEY_BASE`, but OAuth,
-> Stripe, and other integrations remain disabled.
+> [!NOTE] 자체 개발자는 `priv/secrets/dev.key` 에서 암호화된 비밀 키를 로드합니다. 외부 기여자는 해당 키를 보유하지
+> 않으며, 이는 정상입니다. 서버는 여전히 `TUIST_SECRET_KEY_BASE` 로 로컬에서 실행되지만, OAuth, Stripe 및
+> 기타 통합 기능은 비활성화된 상태로 유지됩니다.
 
-### Tests and formatting {#tests-and-formatting}
+### 테스트 및 서식 {#tests-and-formatting}
 
-- Tests: `mix test`
-- Format: `mise run format`
+- 테스트: `mix test`
+- 포맷: `mise run format`
