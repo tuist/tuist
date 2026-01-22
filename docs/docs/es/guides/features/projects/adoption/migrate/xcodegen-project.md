@@ -17,9 +17,8 @@ muchos problemas que experimentan las organizaciones. Xcode expone a los
 desarrolladores a un montón de complejidades y configuraciones implícitas que
 dificultan el mantenimiento y la optimización de proyectos a escala. XcodeGen se
 queda corto ahí por diseño, porque es una herramienta que genera proyectos
-Xcode, no un gestor de proyectos. Si necesitas una herramienta que te ayude más
-allá de la generación de proyectos Xcode, es posible que desees considerar
-Tuist.
+Xcode, no un gestor de proyectos. Si necesita una herramienta que le ayude más
+allá de la generación de proyectos Xcode, es posible que desee considerar Tuist.
 
 ::: tip SWIFT OVER YAML
 <!-- -->
@@ -97,7 +96,8 @@ es que no permite la reutilización de archivos YAML. Esta es una necesidad com�
 al describir proyectos, que XcodeGen tuvo que resolver con su propia solución
 propietaria llamada *"templates"*. Con Tuist la reutilización está integrada en
 el propio lenguaje, Swift, y a través de un módulo Swift llamado
-<LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink>, que permite la reutilización de código en todos los
+<LocalizedLink href="/guides/features/projects/code-sharing">project description
+helpers</LocalizedLink>, que permite la reutilización de código en todos los
 archivos de manifiesto.
 
 ::: grupo de códigos
