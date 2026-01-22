@@ -5,64 +5,63 @@
   "description": "AI-powered testing agent that tests your iOS apps automatically with comprehensive QA coverage."
 }
 ---
-# 品質保証{#qa}
+# QA{#qa}
 
 ::: warning EARLY PREVIEW
 <!-- -->
-Tuist QAは現在早期プレビュー中です。アクセスするには[tuist.dev/qa](https://tuist.dev/qa)にサインアップしてください。
+Tuist QAは現在早期プレビュー中です。アクセスするには[tuist.dev/qa](https://tuist.dev/qa)で登録してください。
 <!-- -->
 :::
 
-高品質のモバイルアプリ開発は包括的なテストに依存しているが、従来のアプローチには限界がある。ユニットテストは高速でコスト効率に優れていますが、実際のユーザーシナリオを見逃してしまいます。受け入れテストと手動QAは、これらのギャップを捉えることができますが、リソースを大量に消費し、うまく拡張できません。
+高品質なモバイルアプリ開発には包括的なテストが不可欠ですが、従来の手法には限界があります。ユニットテストは高速かつ費用対効果が高いものの、実際のユーザーシナリオを捕捉できません。受け入れテストや手動QAではこれらのギャップを補えますが、リソースを大量に消費し、拡張性に欠けます。
 
-TuistのQAエージェントは、本物のユーザー行動をシミュレートすることで、この課題を解決します。アプリを自律的に探索し、インターフェース要素を認識し、現実的なインタラクションを実行し、潜在的な問題にフラグを立てます。このアプローチにより、従来の受け入れテストやQAテストのオーバーヘッドやメンテナンスの負担を回避しながら、開発の早い段階でバグやユーザビリティの問題を特定することができます。
+TuistのQAエージェントは、本物のユーザー行動をシミュレートすることでこの課題を解決します。アプリを自律的に探索し、インターフェース要素を認識し、現実的な操作を実行し、潜在的な問題を指摘します。このアプローチにより、従来型の受け入れテストやQAテストに伴うオーバーヘッドや保守負担を回避しつつ、開発の早い段階でバグやユーザビリティの問題を特定できます。
 
 ## 前提条件{#prerequisites}
 
-Tuist QAを使い始めるには、以下のことが必要です：
+Tuist QAの利用を開始するには、以下の手順が必要です：
 - PR
-  CIワークフローから<LocalizedLink href="/guides/features/previews">プレビュー</LocalizedLink>をアップロードするように設定します。
-- <LocalizedLink href="/guides/integrations/gitforge/github">GitHubとの統合</LocalizedLink>により、PRから直接エージェントを起動することができます。
+  CIワークフローから<LocalizedLink href="/guides/features/previews">プレビュー</LocalizedLink>のアップロードを設定し、エージェントがテストに使用できるようにする
+- <LocalizedLink href="/guides/integrations/gitforge/github">Integrate</LocalizedLink>をGitHubと連携させ、プルリクエストから直接エージェントを起動できるようにする
 
 ## 使用法 {#usage}
 
-Tuist QAは現在、PRから直接トリガーされます。PRにプレビューを関連付けたら、`/qa test I want to test feature A`
-とPRにコメントすることで、QAエージェントを起動することができます：
+Tuist
+QAは現在、プルリクエスト（PR）から直接起動されます。PRにプレビューが関連付けられたら、以下のコメントをPRに投稿することでQAエージェントを起動できます：`/qa
+test I want to test feature A`
 
-QAトリガーコメント](/images/guides/features/qa/qa-trigger-comment.png)。
+![QA trigger comment](/images/guides/features/qa/qa-trigger-comment.png)
 
-コメントにはライブセッションへのリンクが含まれており、QAエージェントの進行状況や発見された問題をリアルタイムで確認することができます。エージェントが実行を完了すると、結果の概要をPRに投稿します：
+このコメントには、QAエージェントの進捗状況や検出された問題をリアルタイムで確認できるライブセッションへのリンクが含まれています。エージェントの実行が完了すると、結果の概要がプルリクエストに投稿されます：
 
-QAテストの概要](/images/guides/features/qa/qa-test-summary.png)。
+![QAテスト概要](/images/guides/features/qa/qa-test-summary.png)
 
-PRコメントがリンクしているダッシュボードのレポートの一部として、問題のリストとタイムラインが表示されます：
+ダッシュボード内のレポート（PRコメントからリンクされているもの）では、問題の一覧とタイムラインが表示されるため、問題が具体的にどのように発生したかを確認できます：
 
-QAタイムライン](/images/guides/features/qa/qa-timeline.png)。
+![QAタイムライン](/images/guides/features/qa/qa-timeline.png)
 
-1}iOSアプリ</LocalizedLink>のすべてのQA実行は、公開ダッシュボードでご覧いただけます:
-https://tuist.dev/tuist/tuist/qa
+当社の<LocalizedLink href="/guides/features/previews#tuist-ios-app">iOSアプリ</LocalizedLink>向けに実施する全QA実行内容は、公開ダッシュボードでご確認いただけます：https://tuist.dev/tuist/tuist/qa
 
 ::: info
 <!-- -->
-QAエージェントは自律的に実行され、一度開始すると追加のプロンプトで中断することはできません。エージェントがあなたのアプリとどのように相互作用したかを理解するのを助けるために、実行を通して詳細なログを提供します。これらのログは、アプリのコンテキストを反復し、エージェントの動作をよりよくガイドするためにプロンプトをテストするのに役立ちます。エージェントの動作に関するフィードバックがありましたら、[GitHub
-Issues](https://github.com/tuist/tuist/issues)、[Slack
-コミュニティ](https://slack.tuist.dev) または [コミュニティフォーラム](https://community.tuist.dev)
-までお知らせください。
+QAエージェントは自律的に動作し、開始後は追加のプロンプトで中断できません。
+実行中の詳細なログを提供し、エージェントがアプリとどのようにやり取りしたかを理解する手助けをします。これらのログは、アプリのコンテキストを改善し、プロンプトをテストしてエージェントの動作をより適切に導くために役立ちます。エージェントのアプリでの動作に関するフィードバックがございましたら、[GitHub
+Issues](https://github.com/tuist/tuist/issues)、[Slackコミュニティ](https://slack.tuist.dev)、または[コミュニティフォーラム](https://community.tuist.dev)を通じてお知らせください。
 <!-- -->
 :::
 
-### アプリのコンテキスト{#app-context}
+### アプリコンテキスト{#app-context}
 
-エージェントは、アプリをうまくナビゲートするために、アプリに関するより多くのコンテキストを必要とするかもしれません。アプリコンテキストには3つのタイプがあります：
+エージェントがアプリを適切に操作するには、アプリに関する追加のコンテキストが必要になる場合があります。アプリコンテキストには以下の3種類があります：
 - アプリの説明
-- 資格証明書
-- 引数グループを立ち上げる
+- 認証情報
+- 起動引数グループ
 
-これらはすべて、プロジェクトのダッシュボード設定で設定できます (`設定` >`QA`)。
+これらすべては、プロジェクトのダッシュボード設定で構成できます（`設定` >`QA` ）。
 
 #### アプリの説明{#app-description}
 
-アプリの説明は、アプリが何をするのか、どのように動作するのかについての追加コンテキストを提供するためのものです。これは、エージェントをキックオフするときに、プロンプトの一部として渡される長文のテキストフィールドです。例として、次のようなものがあります：
+アプリの説明文は、アプリの機能や動作について追加のコンテキストを提供するものです。これはエージェント起動時にプロンプトの一部として渡される長文テキストフィールドです。例としては以下のようなものがあります：
 
 ```
 Tuist iOS app is an app that gives users easy access to previews, which are specific builds of apps. The app contains metadata about the previews, such as the version and build number, and allows users to run previews directly on their device.
@@ -70,17 +69,17 @@ Tuist iOS app is an app that gives users easy access to previews, which are spec
 The app additionally includes a profile tab to surface about information about the currently signed-in profile and includes capabilities like signing out.
 ```
 
-#### 資格証明書{#credentials}
+#### 認証情報{#credentials}
 
-エージェントがいくつかの機能をテストするためにアプリにサインインする必要がある場合、エージェントが使用する認証情報を提供することができます。エージェントは、サインインが必要であると認識した場合、これらの認証情報を入力します。
+エージェントがアプリの機能をテストするためにログインが必要な場合、エージェントが使用できる認証情報を提供できます。エージェントはログインが必要と判断した場合、これらの認証情報を入力します。
 
-#### 引数グループを立ち上げる{#launch-argument-groups}
+#### 起動引数グループ{#launch-argument-groups}
 
-起動引数グループは、エージェントを実行する前のテストプロンプトに基づいて選択されます。例えば、エージェントにサインインを繰り返させ、トークンとランナー分を浪費させたくない場合、代わりに認証情報をここで指定することができます。エージェントがサインインしてセッションを開始すべきであると認識した場合、アプリを起動するときに認証情報の起動引数グループを使用します。
+エージェント実行前のテストプロンプトに基づき、起動引数グループが選択されます。例えば、エージェントが繰り返しサインインしてトークンやランナー分数を無駄にしないよう、ここで認証情報を指定できます。エージェントがサインイン状態でセッションを開始すべきと認識した場合、アプリ起動時に認証情報起動引数グループを使用します。
 
-起動引数グループ](/images/guides/features/qa/launch-argument-groups.png)。
+![起動引数グループ](/images/guides/features/qa/launch-argument-groups.png)
 
-これらの起動引数は、標準的な Xcode の起動引数です。以下は、自動的にサインインするための使用例です：
+これらの起動引数は標準的なXcode起動引数です。自動サインインに使用する例を以下に示します：
 
 ```swift
 import ArgumentParser
