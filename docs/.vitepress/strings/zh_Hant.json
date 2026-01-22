@@ -158,6 +158,9 @@
                         },
                         "handbook": {
                             "text": "手冊"
+                        },
+                        "docs": {
+                            "text": "文件"
                         }
                     },
                     "text": "代碼"
@@ -415,6 +418,9 @@
                                     "text": "GitHub"
                                 }
                             }
+                        },
+                        "slack": {
+                            "text": "Slack"
                         }
                     }
                 },
