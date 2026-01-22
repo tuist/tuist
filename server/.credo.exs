@@ -1,4 +1,5 @@
-alias Credo.Checks.{DisallowSpec, TimestampsType}
+alias Credo.Checks.DisallowSpec
+alias Credo.Checks.TimestampsType
 
 %{
   configs: [
