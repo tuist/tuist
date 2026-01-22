@@ -136,13 +136,15 @@ wykres zależności. Jednak dzięki Tuist Projects nie stanowi to już problemu.
 
 Zalecamy korzystanie z dynamicznych bibliotek lub frameworków podczas
 programowania przy użyciu
-<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle accessors</LocalizedLink>, aby oddzielić logikę dostępu do pakietów od
-biblioteki lub frameworka docelowego. Ma to kluczowe znaczenie dla szybkiego
-czasu kompilacji i zapewnienia niezawodnego działania [SwiftUI
+<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle
+accessors</LocalizedLink>, aby oddzielić logikę dostępu do pakietów od
+biblioteki lub frameworka docelowego. Jest to kluczowe dla szybkiego czasu
+kompilacji i zapewnienia niezawodnego działania [SwiftUI
 Previews](https://developer.apple.com/documentation/swiftui/previews-in-xcode).
 A statyczne biblioteki lub frameworki dla kompilacji wydania, aby zapewnić
 szybkie uruchamianie aplikacji. Możesz wykorzystać
-<LocalizedLink href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables"> konfigurację dynamiczną</LocalizedLink>, aby zmienić typ produktu w czasie
+<LocalizedLink href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables">
+konfigurację dynamiczną</LocalizedLink>, aby zmienić typ produktu w czasie
 generowania:
 
 ```bash
