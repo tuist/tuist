@@ -7,7 +7,7 @@
 ---
 # Hashing {#hashing}
 
-<LocalizedLink href="/guides/features/cache">caching</LocalizedLink> veya seçici test yürütme gibi özellikler, bir hedefin
+1}caching</LocalizedLink> veya seçici test yürütme gibi özellikler, bir hedefin
 değişip değişmediğini belirlemenin bir yolunu gerektirir. Tuist, bir hedefin
 değişip değişmediğini belirlemek için bağımlılık grafiğindeki her hedef için bir
 hash hesaplar. Hash, aşağıdaki özniteliklere göre hesaplanır:
@@ -56,7 +56,8 @@ aşağıdaki adımları izlemenizi öneririz:
 
 1. `tuist hash cache` veya `tuist hash selective-testing`
    (<LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink>
-   veya <LocalizedLink href="/guides/features/selective-testing">seçmeli test</LocalizedLink> için hashler) komutunu çalıştırın, hashleri kopyalayın,
+   veya <LocalizedLink href="/guides/features/selective-testing">seçmeli
+   test</LocalizedLink> için hashler) komutunu çalıştırın, hashleri kopyalayın,
    proje dizinini yeniden adlandırın ve komutu tekrar çalıştırın. Hash'ler
    eşleşmelidir.
 2. Hash'ler eşleşmiyorsa, oluşturulmuş projele'nin ortama bağlı olması
