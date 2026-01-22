@@ -5,10 +5,10 @@
   "description": "Learn how to use the Tuist Registry in a generated Xcode project with the Xcode package integration."
 }
 ---
-# Xcode パッケージ統合で生成されたプロジェクト{#generated-project-with-xcode-based-integration}
+# Xcodeパッケージ統合によるプロジェクト生成{#generated-project-with-xcode-based-integration}
 
-1}XcodeのデフォルトのTuist
-Projectsとのパッケージの統合</LocalizedLink>を使用している場合、パッケージを追加する際にURLの代わりにレジストリ識別子を使用する必要があります：
+<LocalizedLink href="/guides/features/projects/dependencies#xcodes-default-integration">Xcodeのデフォルト統合</LocalizedLink>でTuist
+Projectsとパッケージを連携している場合、パッケージ追加時にはURLではなくレジストリ識別子を使用する必要があります：
 ```swift
 import ProjectDescription
 
