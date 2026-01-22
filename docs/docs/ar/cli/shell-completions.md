@@ -7,29 +7,30 @@
 ---
 # Shell completions
 
-إذا كان لديك تويست **مثبتًا عالميًا** (على سبيل المثال، عبر Homebrew)، يمكنك
-تثبيت إكمال الصدفة لباش و Zsh للإكمال التلقائي للأوامر والخيارات.
+إذا كان لديك Tuist **مثبتًا بشكل عام** (على سبيل المثال، عبر Homebrew)، فيمكنك
+تثبيت إكمالات shell لـ Bash و Zsh لإكمال الأوامر والخيارات تلقائيًا.
 
 ::: warning WHAT IS A GLOBAL INSTALLATION
 <!-- -->
-التثبيت العام هو تثبيت متاح في متغير البيئة `$PATH` الخاص بالصدفة الخاصة بك. هذا
-يعني أنه يمكنك تشغيل `tuist` من أي دليل في جهازك الطرفي. هذه هي طريقة التثبيت
-الافتراضية لـ Homebrew.
+التثبيت الشامل هو تثبيت متاح في متغير بيئة $PATH` في شل `. هذا يعني أنه يمكنك
+تشغيل `tuist` من أي دليل في محطتك الطرفية. هذه هي طريقة التثبيت الافتراضية لـ
+Homebrew.
 <!-- -->
 :::
 
-#### زش {#zsh}
+#### Zsh {#zsh}
 
-إذا كان لديك [oh-my-zsh] (https://ohmyz.sh/) مثبتًا لديك، فلديك بالفعل دليل
-لنصوص الإكمال النصية التي يتم تحميلها تلقائيًا - `.oh-my-zsh/completions`. انسخ
-نص الإكمال الجديد إلى ملف جديد في هذا الدليل يسمى `_tuist`:
+إذا كان لديك [oh-my-zsh](https://ohmyz.sh/) مثبتًا، فأنت تمتلك بالفعل دليلًا
+لبرامج النصوص النهائية التي يتم تحميلها تلقائيًا — `.oh-my-zsh/completions`.
+انسخ برنامج النص النهائي الجديد إلى ملف جديد في هذا الدليل يسمى `_tuist`:
 
 ```bash
 tuist --generate-completion-script > ~/.oh-my-zsh/completions/_tuist
 ```
 
-بدون `oh-my-zsh` ، ستحتاج إلى إضافة مسار لنصوص الإكمال إلى مسار الوظيفة لديك،
-وتشغيل التحميل التلقائي لنصوص الإكمال. أولاً، أضف هذه الأسطر إلى `~/.zshrc`:
+بدون `oh-my-zsh` ، ستحتاج إلى إضافة مسار لبرامج إكمال النصوص إلى مسار الوظيفة
+الخاص بك، وتشغيل التحميل التلقائي لبرامج إكمال النصوص. أولاً، أضف هذه الأسطر إلى
+`~/.zshrc`:
 
 ```bash
 fpath=(~/.zsh/completion $fpath)
@@ -37,35 +38,35 @@ autoload -U compinit
 compinit
 ```
 
-بعد ذلك، أنشئ دليلاً في `~/.zsh/completion` وانسخ نص الإكمال وانسخ نص الإكمال
-إلى الدليل الجديد، مرة أخرى في ملف يسمى `_tuist`.
+بعد ذلك، أنشئ دليلًا في `~/.zsh/completion` وانسخ البرنامج النصي للإكمال إلى
+الدليل الجديد، مرة أخرى في ملف يسمى `_tuist`.
 
 ```bash
 tuist --generate-completion-script > ~/.zsh/completion/_tuist
 ```
 
-#### باش {#bash}
+#### Bash {#bash}
 
-إذا كان لديك [bash-completion] (https://github.com/scop/bash-completion) مثبتًا
-لديك، يمكنك فقط نسخ نص الإكمال الجديد إلى الملف
-`/usr/local/etc/bash_completion.d/tuist`:
+إذا كان لديك [bash-completion](https://github.com/scop/bash-completion) مثبتًا،
+فيمكنك فقط نسخ البرنامج النصي الجديد لإكمال الكلمات إلى الملف
+`/usr/local/etc/bash_completion.d/_tuist`:
 
 ```bash
 tuist --generate-completion-script > /usr/local/etc/bash_completion.d/_tuist
 ```
 
-بدون إكمال bash-completion، ستحتاج إلى مصدر البرنامج النصي للإكمال مباشرةً.
-انسخه إلى دليل مثل `~/.bash_completions/` ، ثم أضف السطر التالي إلى
-`~/.bash_profile` أو `~/.bashrc`:
+بدون ميزة إكمال bash، ستحتاج إلى الحصول على البرنامج النصي للإكمال مباشرة. انسخه
+إلى دليل مثل `~/.bash_completions/` ، ثم أضف السطر التالي إلى `~/.bash_profile`
+أو `~/.bashrc`:
 
 ```bash
 source ~/.bash_completions/example.bash
 ```
 
-#### السمك {#fish}
+#### سمك {#fish}
 
-إذا كنت تستخدم [صدفة السمك] (https://fishshell.com)، يمكنك نسخ نص الإكمال الجديد
-إلى `~/.config/fish/completions/tuist.fish`:
+إذا كنت تستخدم [fish shell](https://fishshell.com)، يمكنك نسخ البرنامج النصي
+الجديد لإكمال الكلمات إلى `~/.config/fish/completions/tuist.fish`:
 
 ```bash
 mkdir -p ~/.config/fish/completions
