@@ -25,7 +25,8 @@
 <!-- -->
 :::
 
-您可以透過 <LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink> 下的子指令管理組織。若要建立新的組織帳戶，請執行
+您可以透過 <LocalizedLink href="/cli/organization">`tuist
+organization`</LocalizedLink> 下的子指令管理組織。若要建立新的組織帳戶，請執行
 ```bash
 tuist organization create {account-handle}
 ```
