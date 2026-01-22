@@ -8,25 +8,25 @@
 # ディレクトリ{#directories}
 
 Tuistは、[XDG Base Directory
-Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html)に従って、システム上の複数のディレクトリにわたってファイルを整理します。これにより、設定ファイル、キャッシュファイル、ステートファイルを管理するためのクリーンで標準的な方法が提供されます。
+Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html)に従い、システム上の複数のディレクトリにファイルを整理します。これにより、設定ファイル、キャッシュファイル、状態ファイルを管理するためのクリーンで標準的な方法が提供されます。
 
 ## サポートされている環境変数{#supported-environment-variables}
 
-Tuist は標準的な XDG 変数と、Tuist 固有の接頭辞付き変数の両方をサポートしています。Tuist 固有の変種 (`TUIST_`
-のプレフィックス付き) が優先されるため、Tuist を他のアプリケーションとは別に設定することができます。
+Tuistは標準のXDG変数とTuist固有の接頭辞付き変数の両方をサポートします。Tuist固有の変数（`TUIST_`
+で始まるもの）が優先され、他のアプリケーションとは別にTuistを設定できます。
 
 ### 設定ディレクトリ{#configuration-directory}
 
-**環境変数：**
-- `TUIST_XDG_CONFIG_HOME` (優先)
-- `xdg_config_home`
+**環境変数:**
+- `TUIST_XDG_CONFIG_HOME` (優先される)
+- `XDG_CONFIG_HOME`
 
-**デフォルト：** `~/.config/tuist`
+**デフォルト:** `~/.config/tuist`
 
-**に使用される：**
+**用途:**
 - サーバー認証情報 (`credentials/{host}.json`)
 
-**例**
+**例:**
 ```bash
 # Set Tuist-specific config directory
 export TUIST_XDG_CONFIG_HOME=/custom/config
@@ -37,25 +37,25 @@ export XDG_CONFIG_HOME=/custom/config
 tuist auth login
 ```
 
-### キャッシュ・ディレクトリ{#cache-directory}
+### キャッシュディレクトリ{#cache-directory}
 
-**環境変数：**
-- `TUIST_XDG_CACHE_HOME` (優先)
+**環境変数:**
+- `TUIST_XDG_CACHE_HOME` (優先される)
 - `XDG_CACHE_HOME`
 
-**デフォルト：** `~/.cache/tuist`
+**デフォルト:** `~/.cache/tuist`
 
-**に使用される：**
-- **プラグイン** ：ダウンロードしてコンパイルしたプラグインキャッシュ
-- **ProjectDescriptionHelpers** ：コンパイルされたプロジェクト説明ヘルパー
-- **マニフェスト** ：マニフェストファイルのキャッシュ
-- **プロジェクト** ：生成されたオートメーション・プロジェクトのキャッシュ
-- **EditProjects** ：編集コマンドのキャッシュ
-- **Runs**: 分析データのテストと構築
-- **バイナリ** ：ビルド・アーティファクト・バイナリ（環境間で共有不可）
-- **SelectiveTests** ：選択テスト・キャッシュ
+**用途:**
+- **プラグイン**: ダウンロード済みおよびコンパイル済みプラグインキャッシュ
+- **ProjectDescriptionHelpers**: コンパイル済みプロジェクト説明ヘルパー
+- **マニフェスト**: キャッシュされたマニフェストファイル
+- **プロジェクト**: 自動生成プロジェクトキャッシュ
+- **EditProjects**: 編集コマンド用キャッシュ
+- **** を実行：テストおよびビルド実行の分析データを収集
+- **バイナリ**: ビルド成果物バイナリ（環境間で共有不可）
+- **SelectiveTests**: 選択的テストキャッシュ
 
-**例**
+**例:**
 ```bash
 # Set Tuist-specific cache directory
 export TUIST_XDG_CACHE_HOME=/tmp/tuist-cache
@@ -68,17 +68,17 @@ tuist cache
 
 ### 州ディレクトリ{#state-directory}
 
-**環境変数：**
-- `TUIST_XDG_STATE_HOME` (優先)
+**環境変数:**
+- `TUIST_XDG_STATE_HOME` (優先度が高い)
 - `XDG_STATE_HOME`
 
-**デフォルト：** `~/.local/state/tuist`
+**デフォルト:** `~/.local/state/tuist`
 
-**に使用される：**
-- **ログ** ：ログファイル (`logs/{uuid}.log`)
-- **ロック** ：認証ロックファイル (`{handle}.sock`)
+**用途:**
+- **ログ**: ログファイル (`logs/{uuid}.log`)
+- **ロック**: 認証ロックファイル (`{handle}.sock`)
 
-**例**
+**例:**
 ```bash
 # Set Tuist-specific state directory
 export TUIST_XDG_STATE_HOME=/var/log/tuist
@@ -91,22 +91,22 @@ tuist generate
 
 ## 優先順位{#precedence-order}
 
-どのディレクトリを使うかを決めるとき、Tuistは次の順序で環境変数をチェックする：
+使用するディレクトリを決定する際、Tuistは以下の順序で環境変数をチェックします：
 
 1. **Tuist固有の変数** (例:`TUIST_XDG_CONFIG_HOME`)
-2. **XDG 標準変数** (例:`XDG_CONFIG_HOME`)
+2. **標準XDG変数** （例：`XDG_CONFIG_HOME` ）
 3. **デフォルトの場所** (例:`~/.config/tuist`)
 
-これにより、次のことが可能になる：
-- 標準の XDG 変数を使用して、すべてのアプリケーションを一貫して整理します。
-- Tuistに異なる場所が必要な場合、Tuist固有の変数でオーバーライドする。
-- 設定なしで賢明なデフォルトに頼る
+これにより、以下のことが可能になります：
+- すべてのアプリケーションを一貫して整理するには、標準のXDG変数を使用してください
+- Tuist用に異なる位置が必要な場合は、Tuist固有の変数で上書きしてください
+- 設定なしで合理的なデフォルトに依存する
 
 ## 一般的な使用例{#common-use-cases}
 
-### プロジェクトごとにTuistを分離{#isolating-tuist-per-project}
+### プロジェクトごとにTuistを分離する{#isolating-tuist-per-project}
 
-Tuistのキャッシュと状態をプロジェクトごとに分離したいかもしれない：
+プロジェクトごとにTuistのキャッシュと状態を分離することを検討してください：
 
 ```bash
 # In your project's .envrc (using direnv)
@@ -117,7 +117,7 @@ export TUIST_XDG_CONFIG_HOME="$PWD/.tuist/config"
 
 ### CI/CD環境{#ci-cd-environments}
 
-CI環境では、テンポラリ・ディレクトリを使いたいかもしれない：
+CI環境では、一時ディレクトリの使用が推奨されます：
 
 ```yaml
 # GitHub Actions example
@@ -139,9 +139,9 @@ jobs:
           path: /tmp/tuist-state/logs/*.log
 ```
 
-### 隔離されたディレクトリでのデバッグ{#debugging-with-isolated-directories}
+### 分離されたディレクトリでのデバッグ{#debugging-with-isolated-directories}
 
-問題をデバッグするときには、まっさらな状態にしておきたいものだ：
+問題のデバッグ時には、白紙の状態から始めたい場合があります：
 
 ```bash
 # Create temporary directories for debugging
