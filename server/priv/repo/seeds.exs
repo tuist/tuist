@@ -1756,11 +1756,15 @@ if slack_installation do
     report_frequency: :daily,
     report_days_of_week: [1, 2, 3, 4, 5],
     report_schedule_time: ~U[2024-01-01 09:00:00Z],
-    report_timezone: "Europe/Berlin"
+    report_timezone: "Europe/Berlin",
+    # Flaky test alert settings
+    flaky_test_alerts_enabled: true,
+    flaky_test_alerts_slack_channel_id: "C0A598PACRG",
+    flaky_test_alerts_slack_channel_name: "test"
   })
   |> Repo.update!()
 
-  IO.puts("Updated tuist project with Slack report settings")
+  IO.puts("Updated tuist project with Slack report and flaky test alert settings")
 end
 
 # Create alert rules for the tuist project (only if Slack is configured)
