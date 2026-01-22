@@ -78,7 +78,10 @@ defmodule TuistWeb.RunDetailLive do
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
-    updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
+    updated_params =
+      filter_id
+      |> Filter.Operations.add_filter_to_query(socket)
+      |> Map.put("binary-cache-page", "1")
 
     {:noreply,
      socket
@@ -91,7 +94,10 @@ defmodule TuistWeb.RunDetailLive do
   end
 
   def handle_event("update_filter", params, socket) do
-    updated_query_params = Filter.Operations.update_filters_in_query(params, socket)
+    updated_query_params =
+      params
+      |> Filter.Operations.update_filters_in_query(socket)
+      |> Map.put("binary-cache-page", "1")
 
     {:noreply,
      socket
