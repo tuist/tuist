@@ -319,6 +319,11 @@
           visibility: hidden;
         }
       }
+
+      & > [data-part="active-filters"] {
+        display: flex;
+        gap: var(--noora-spacing-4);
+      }
     }
   }
 

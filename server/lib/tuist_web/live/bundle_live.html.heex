@@ -483,87 +483,6 @@
           />
         </.form>
         <.dropdown
-          id="file-breakdown-type-filter"
-          label={
-            case @file_breakdown_type_filter do
-              "binary" -> dgettext("dashboard_cache", "Binary")
-              "localization" -> dgettext("dashboard_cache", "Localization")
-              "asset" -> dgettext("dashboard_cache", "Asset")
-              "font" -> dgettext("dashboard_cache", "Font")
-              "file" -> dgettext("dashboard_cache", "File")
-              "directory" -> dgettext("dashboard_cache", "Directory")
-              "unknown" -> dgettext("dashboard_cache", "Other")
-              _ -> dgettext("dashboard_cache", "All types")
-            end
-          }
-          secondary_text={dgettext("dashboard_cache", "Type:")}
-        >
-          <.dropdown_item
-            value="all"
-            label={dgettext("dashboard_cache", "All types")}
-            patch={file_breakdown_dropdown_item_patch_type_filter("all", @uri)}
-            data-selected={is_nil(@file_breakdown_type_filter) || @file_breakdown_type_filter == "all"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-          <.dropdown_item
-            value="binary"
-            label={dgettext("dashboard_cache", "Binary")}
-            patch={file_breakdown_dropdown_item_patch_type_filter("binary", @uri)}
-            data-selected={@file_breakdown_type_filter == "binary"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-          <.dropdown_item
-            value="localization"
-            label={dgettext("dashboard_cache", "Localization")}
-            patch={file_breakdown_dropdown_item_patch_type_filter("localization", @uri)}
-            data-selected={@file_breakdown_type_filter == "localization"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-          <.dropdown_item
-            value="asset"
-            label={dgettext("dashboard_cache", "Asset")}
-            patch={file_breakdown_dropdown_item_patch_type_filter("asset", @uri)}
-            data-selected={@file_breakdown_type_filter == "asset"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-          <.dropdown_item
-            value="font"
-            label={dgettext("dashboard_cache", "Font")}
-            patch={file_breakdown_dropdown_item_patch_type_filter("font", @uri)}
-            data-selected={@file_breakdown_type_filter == "font"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-          <.dropdown_item
-            value="file"
-            label={dgettext("dashboard_cache", "File")}
-            patch={file_breakdown_dropdown_item_patch_type_filter("file", @uri)}
-            data-selected={@file_breakdown_type_filter == "file"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-          <.dropdown_item
-            value="directory"
-            label={dgettext("dashboard_cache", "Directory")}
-            patch={file_breakdown_dropdown_item_patch_type_filter("directory", @uri)}
-            data-selected={@file_breakdown_type_filter == "directory"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-          <.dropdown_item
-            value="unknown"
-            label={dgettext("dashboard_cache", "Other")}
-            patch={file_breakdown_dropdown_item_patch_type_filter("unknown", @uri)}
-            data-selected={@file_breakdown_type_filter == "unknown"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-        </.dropdown>
-        <.dropdown
           id="file-breakdown-sort-by"
           label={
             case @file_breakdown_sort_by do
@@ -590,6 +509,15 @@
             <:right_icon><.check /></:right_icon>
           </.dropdown_item>
         </.dropdown>
+        <.filter_dropdown
+          id="file-breakdown-filter-dropdown"
+          label={dgettext("dashboard_cache", "Filter")}
+          available_filters={@file_breakdown_available_filters}
+          active_filters={@file_breakdown_active_filters}
+        />
+      </div>
+      <div :if={Enum.any?(@file_breakdown_active_filters)} data-part="active-filters">
+        <.active_filter :for={filter <- @file_breakdown_active_filters} filter={filter} />
       </div>
       <.table id="file-breakdown-table" rows={@file_breakdown_current_page_artifacts}>
         <:col
