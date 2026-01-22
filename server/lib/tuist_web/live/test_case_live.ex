@@ -166,7 +166,7 @@ defmodule TuistWeb.TestCaseLive do
         _params,
         %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail}} = socket
       ) do
-    {:ok, updated_test_case} = Runs.set_test_case_flaky(test_case_id, false)
+    {:ok, updated_test_case} = Runs.update_test_case(test_case_id, %{is_flaky: false})
 
     {:noreply,
      socket
@@ -189,13 +189,13 @@ defmodule TuistWeb.TestCaseLive do
     # Reload project to get fresh settings
     project = Projects.get_project_by_id(selected_project.id)
 
-    {:ok, updated_test_case} = Runs.set_test_case_flaky(test_case_id, true)
+    {:ok, updated_test_case} = Runs.update_test_case(test_case_id, %{is_flaky: true})
 
     test_case_detail = %{test_case_detail | is_flaky: updated_test_case.is_flaky}
 
     {test_case_detail, was_auto_quarantined} =
       if project.auto_quarantine_flaky_tests do
-        {:ok, quarantined_test_case} = Runs.set_test_case_quarantined(test_case_id, true)
+        {:ok, quarantined_test_case} = Runs.update_test_case(test_case_id, %{is_quarantined: true})
         {%{test_case_detail | is_quarantined: quarantined_test_case.is_quarantined}, true}
       else
         {test_case_detail, false}
@@ -212,7 +212,7 @@ defmodule TuistWeb.TestCaseLive do
         _params,
         %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail}} = socket
       ) do
-    {:ok, updated_test_case} = Runs.set_test_case_quarantined(test_case_id, true)
+    {:ok, updated_test_case} = Runs.update_test_case(test_case_id, %{is_quarantined: true})
 
     {:noreply, assign(socket, :test_case_detail, %{test_case_detail | is_quarantined: updated_test_case.is_quarantined})}
   end
@@ -222,7 +222,7 @@ defmodule TuistWeb.TestCaseLive do
         _params,
         %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail}} = socket
       ) do
-    {:ok, updated_test_case} = Runs.set_test_case_quarantined(test_case_id, false)
+    {:ok, updated_test_case} = Runs.update_test_case(test_case_id, %{is_quarantined: false})
 
     {:noreply, assign(socket, :test_case_detail, %{test_case_detail | is_quarantined: updated_test_case.is_quarantined})}
   end

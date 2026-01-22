@@ -3192,7 +3192,7 @@ defmodule Tuist.RunsTest do
     end
   end
 
-  describe "set_test_case_flaky/2" do
+  describe "update_test_case/2" do
     test "marks a test case as flaky" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -3216,7 +3216,7 @@ defmodule Tuist.RunsTest do
       assert test_case.is_flaky == false
 
       # When
-      result = Runs.set_test_case_flaky(test_case.id, true)
+      result = Runs.update_test_case(test_case.id, %{is_flaky: true})
 
       # Then
       assert {:ok, updated_test_case} = result
@@ -3233,7 +3233,7 @@ defmodule Tuist.RunsTest do
       non_existent_id = UUIDv7.generate()
 
       # When
-      result = Runs.set_test_case_flaky(non_existent_id, true)
+      result = Runs.update_test_case(non_existent_id, %{is_flaky: true})
 
       # Then
       assert result == {:error, :not_found}
@@ -3261,10 +3261,10 @@ defmodule Tuist.RunsTest do
       {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
 
       # Mark as flaky first
-      {:ok, _} = Runs.set_test_case_flaky(test_case.id, true)
+      {:ok, _} = Runs.update_test_case(test_case.id, %{is_flaky: true})
 
       # When - mark as flaky again
-      result = Runs.set_test_case_flaky(test_case.id, true)
+      result = Runs.update_test_case(test_case.id, %{is_flaky: true})
 
       # Then
       assert {:ok, updated_test_case} = result
@@ -3293,12 +3293,12 @@ defmodule Tuist.RunsTest do
       {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
 
       # Mark as flaky first
-      {:ok, _} = Runs.set_test_case_flaky(test_case.id, true)
+      {:ok, _} = Runs.update_test_case(test_case.id, %{is_flaky: true})
       {:ok, flaky_test_case} = Runs.get_test_case_by_id(test_case.id)
       assert flaky_test_case.is_flaky == true
 
       # When
-      result = Runs.set_test_case_flaky(test_case.id, false)
+      result = Runs.update_test_case(test_case.id, %{is_flaky: false})
 
       # Then
       assert {:ok, updated_test_case} = result
@@ -3315,7 +3315,7 @@ defmodule Tuist.RunsTest do
       non_existent_id = UUIDv7.generate()
 
       # When
-      result = Runs.set_test_case_flaky(non_existent_id, false)
+      result = Runs.update_test_case(non_existent_id, %{is_flaky: false})
 
       # Then
       assert result == {:error, :not_found}
@@ -3344,7 +3344,7 @@ defmodule Tuist.RunsTest do
       assert test_case.is_flaky == false
 
       # When - unmark when already not flaky
-      result = Runs.set_test_case_flaky(test_case.id, false)
+      result = Runs.update_test_case(test_case.id, %{is_flaky: false})
 
       # Then
       assert {:ok, updated_test_case} = result
@@ -3352,7 +3352,7 @@ defmodule Tuist.RunsTest do
     end
   end
 
-  describe "set_test_case_quarantined/2" do
+  describe "update_test_case/2 quarantine" do
     test "marks a test case as quarantined" do
       project = ProjectsFixtures.project_fixture()
 
@@ -3374,7 +3374,7 @@ defmodule Tuist.RunsTest do
       {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
       assert test_case.is_quarantined == false
 
-      result = Runs.set_test_case_quarantined(test_case.id, true)
+      result = Runs.update_test_case(test_case.id, %{is_quarantined: true})
 
       assert {:ok, updated_test_case} = result
       assert updated_test_case.is_quarantined == true
@@ -3387,7 +3387,7 @@ defmodule Tuist.RunsTest do
     test "returns error when test case does not exist" do
       non_existent_id = UUIDv7.generate()
 
-      result = Runs.set_test_case_quarantined(non_existent_id, true)
+      result = Runs.update_test_case(non_existent_id, %{is_quarantined: true})
 
       assert result == {:error, :not_found}
     end
@@ -3412,11 +3412,11 @@ defmodule Tuist.RunsTest do
 
       {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
 
-      {:ok, _} = Runs.set_test_case_quarantined(test_case.id, true)
+      {:ok, _} = Runs.update_test_case(test_case.id, %{is_quarantined: true})
       {:ok, quarantined_test_case} = Runs.get_test_case_by_id(test_case.id)
       assert quarantined_test_case.is_quarantined == true
 
-      result = Runs.set_test_case_quarantined(test_case.id, false)
+      result = Runs.update_test_case(test_case.id, %{is_quarantined: false})
 
       assert {:ok, updated_test_case} = result
       assert updated_test_case.is_quarantined == false

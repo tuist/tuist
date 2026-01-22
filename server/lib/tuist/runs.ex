@@ -699,19 +699,6 @@ defmodule Tuist.Runs do
     end
   end
 
-  @doc """
-  Sets the flaky status of a test case.
-  """
-  def set_test_case_flaky(test_case_id, is_flaky) when is_boolean(is_flaky) do
-    update_test_case(test_case_id, %{is_flaky: is_flaky})
-  end
-
-  @doc """
-  Sets the quarantined status of a test case.
-  """
-  def set_test_case_quarantined(test_case_id, is_quarantined) when is_boolean(is_quarantined) do
-    update_test_case(test_case_id, %{is_quarantined: is_quarantined})
-  end
 
   @doc """
   Lists test case runs for a specific test case by its UUID.

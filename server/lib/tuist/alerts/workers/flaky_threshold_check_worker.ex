@@ -36,11 +36,11 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorker do
     flaky_runs_count = Runs.get_flaky_runs_groups_count_for_test_case(test_case.id)
 
     if flaky_runs_count >= project.auto_mark_flaky_threshold do
-      {:ok, _updated_test_case} = Runs.set_test_case_flaky(test_case.id, true)
+      {:ok, _updated_test_case} = Runs.update_test_case(test_case.id, %{is_flaky: true})
 
       auto_quarantined =
         if project.auto_quarantine_flaky_tests do
-          {:ok, _} = Runs.set_test_case_quarantined(test_case.id, true)
+          {:ok, _} = Runs.update_test_case(test_case.id, %{is_quarantined: true})
           true
         else
           false

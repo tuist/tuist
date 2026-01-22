@@ -30,12 +30,10 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorkerTest do
       stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
       stub(Runs, :get_flaky_runs_groups_count_for_test_case, fn _id -> 3 end)
 
-      expect(Runs, :set_test_case_flaky, fn id, true ->
+      expect(Runs, :update_test_case, fn id, %{is_flaky: true} ->
         assert id == test_case.id
         {:ok, %{test_case | is_flaky: true}}
       end)
-
-      reject(&Runs.set_test_case_quarantined/2)
 
       expect(Oban, :insert!, fn changeset ->
         assert changeset.changes.args[:test_case_id] == test_case.id
@@ -67,12 +65,12 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorkerTest do
       stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
       stub(Runs, :get_flaky_runs_groups_count_for_test_case, fn _id -> 2 end)
 
-      expect(Runs, :set_test_case_flaky, fn id, true ->
+      expect(Runs, :update_test_case, fn id, %{is_flaky: true} ->
         assert id == test_case.id
         {:ok, %{test_case | is_flaky: true}}
       end)
 
-      expect(Runs, :set_test_case_quarantined, fn id, true ->
+      expect(Runs, :update_test_case, fn id, %{is_quarantined: true} ->
         assert id == test_case.id
         {:ok, %{test_case | is_quarantined: true}}
       end)
@@ -102,8 +100,7 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorkerTest do
       stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
 
       reject(&Runs.get_flaky_runs_groups_count_for_test_case/1)
-      reject(&Runs.set_test_case_flaky/2)
-      reject(&Runs.set_test_case_quarantined/2)
+      reject(&Runs.update_test_case/2)
       reject(&Oban.insert!/1)
 
       # When
@@ -129,8 +126,7 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorkerTest do
       stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
 
       reject(&Runs.get_flaky_runs_groups_count_for_test_case/1)
-      reject(&Runs.set_test_case_flaky/2)
-      reject(&Runs.set_test_case_quarantined/2)
+      reject(&Runs.update_test_case/2)
       reject(&Oban.insert!/1)
 
       # When
@@ -156,8 +152,7 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorkerTest do
       stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
       stub(Runs, :get_flaky_runs_groups_count_for_test_case, fn _id -> 3 end)
 
-      reject(&Runs.set_test_case_flaky/2)
-      reject(&Runs.set_test_case_quarantined/2)
+      reject(&Runs.update_test_case/2)
       reject(&Oban.insert!/1)
 
       # When
@@ -177,7 +172,7 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorkerTest do
       stub(Runs, :get_test_case_by_id, fn _id -> {:error, :not_found} end)
 
       reject(&Runs.get_flaky_runs_groups_count_for_test_case/1)
-      reject(&Runs.set_test_case_flaky/2)
+      reject(&Runs.update_test_case/2)
       reject(&Oban.insert!/1)
 
       # When
@@ -206,7 +201,7 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorkerTest do
       stub(Projects, :get_project_by_id, fn _id -> nil end)
 
       reject(&Runs.get_flaky_runs_groups_count_for_test_case/1)
-      reject(&Runs.set_test_case_flaky/2)
+      reject(&Runs.update_test_case/2)
       reject(&Oban.insert!/1)
 
       # When
@@ -233,7 +228,7 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorkerTest do
       stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
       stub(Runs, :get_flaky_runs_groups_count_for_test_case, fn _id -> 2 end)
 
-      expect(Runs, :set_test_case_flaky, fn _id, true ->
+      expect(Runs, :update_test_case, fn _id, %{is_flaky: true} ->
         {:ok, %{test_case | is_flaky: true}}
       end)
 
@@ -263,8 +258,7 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorkerTest do
       stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
       stub(Runs, :get_flaky_runs_groups_count_for_test_case, fn _id -> 2 end)
 
-      reject(&Runs.set_test_case_flaky/2)
-      reject(&Runs.set_test_case_quarantined/2)
+      reject(&Runs.update_test_case/2)
       reject(&Oban.insert!/1)
 
       # When
