@@ -47,7 +47,6 @@ priv/secrets/*.key
 ~/.pnpm/store
 
 # ClickHouse
-.clickhouse.pid
 metadata
 store
 data

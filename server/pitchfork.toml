@@ -1,0 +1,3 @@
+[daemons.clickhouse]
+run = "mise run clickhouse:start"
+ready_port = 9000
