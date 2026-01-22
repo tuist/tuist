@@ -3,8 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
-"PO-Revision-Date: 2025-12-24 20:50+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"PO-Revision-Date: 2026-01-22 12:40+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Russian <https://translate.tuist.dev/projects/tuist/"
 "dashboard_cache/ru/>\n"
 "Language: ru\n"
@@ -13,7 +13,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
 "n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\n"
-"X-Generator: Weblate 5.15.1\n"
+"X-Generator: Weblate 5.15.2\n"
 
 ## This file is a PO Template file.
 ##
@@ -717,7 +717,7 @@ msgstr "Кэш Xcode"
 #: lib/tuist_web/live/bundle_live.html.heex:43
 #, elixir-autogen, elixir-format, fuzzy
 msgid "compared to last bundle"
-msgstr "по сравнению с предыдущей связкой"
+msgstr "по сравнению с предыдущим пучком"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:394
 #: lib/tuist_web/live/xcode_cache_live.html.heex:298
