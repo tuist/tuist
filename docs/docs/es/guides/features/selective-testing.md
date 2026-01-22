@@ -22,11 +22,13 @@ satisfactoria basada en nuestro algoritmo
 Las pruebas selectivas funcionan con `xcodebuild`, que soporta cualquier
 proyecto Xcode, o si generas tus proyectos con Tuist, puedes usar en su lugar el
 comando `tuist test` que proporciona algunas comodidades extra como la
-integración con la <LocalizedLink href="/guides/features/cache">cache binaria</LocalizedLink>. Para empezar con las pruebas selectivas, siga las
+integración con la <LocalizedLink href="/guides/features/cache">cache
+binaria</LocalizedLink>. Para empezar con las pruebas selectivas, siga las
 instrucciones basadas en la configuración de su proyecto:
 
 - <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
-- <LocalizedLink href="/guides/features/selective-testing/generated-project">Generated project</LocalizedLink>
+- <LocalizedLink href="/guides/features/selective-testing/generated-project">Generated
+  project</LocalizedLink>
 
 ::: warning MODULE VS FILE-LEVEL GRANULARITY
 <!-- -->
@@ -43,8 +45,8 @@ Las herramientas de cobertura de pruebas asumen que todo el conjunto de pruebas
 se ejecuta a la vez, lo que las hace incompatibles con las ejecuciones de
 pruebas selectivas; esto significa que los datos de cobertura podrían no
 reflejar la realidad cuando se utiliza la selección de pruebas. Se trata de una
-limitación conocida y no significa que se esté haciendo nada mal. Animamos a los
-equipos a reflexionar sobre si la cobertura sigue aportando información
+limitación conocida, y no significa que se esté haciendo nada mal. Animamos a
+los equipos a reflexionar sobre si la cobertura sigue aportando información
 significativa en este contexto y, si es así, ten por seguro que ya estamos
 pensando en cómo hacer que la cobertura funcione correctamente con ejecuciones
 selectivas en el futuro.
@@ -63,9 +65,9 @@ con una plataforma
 <!-- -->
 :::
 
-Una vez que tu proyecto Tuist esté conectado con tu plataforma Git como
+Una vez que tu proyecto Tuist esté conectado con tu plataforma Git, como
 [GitHub](https://github.com), y empieces a usar `tuist xcodebuild test` o `tuist
 test` como parte de tu flujo de trabajo CI, Tuist publicará un comentario
-directamente en tus pull/merge requests, incluyendo qué pruebas se ejecutaron y
-cuáles se saltaron: ![GitHub app comment with a Tuist Preview
+directamente en tus pull/merge requests, incluyendo qué pruebas se han ejecutado
+y cuáles se han omitido: ![GitHub app comment with a Tuist Preview
 link](/images/guides/features/selective-testing/github-app-comment.png)
