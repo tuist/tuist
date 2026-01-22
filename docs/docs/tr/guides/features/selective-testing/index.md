@@ -5,54 +5,55 @@
   "description": "Learn how to leverage selective testing to run only the tests that have changed."
 }
 ---
-# Selective testing {#selective-testing}
+# Seçmeli test {#selective-testing}
 
 ::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/features/projects">generated
-  project</LocalizedLink>
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
-  project</LocalizedLink>
+- 1} tarafından oluşturulan bir projele</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve
+  projesi</LocalizedLink>
 <!-- -->
 :::
 
-To run tests selectively with your generated project, use the `tuist test`
-command. The command
-<LocalizedLink href="/guides/features/projects/hashing">hashes</LocalizedLink>
-your Xcode project the same way it does for
-<LocalizedLink href="/guides/features/cache#cache-warming">warming the
-cache</LocalizedLink>, and on success, it persists the hashes on to determine
-what has changed in future runs.
+Oluşturulmuş projele ile testleri seçerek çalıştırmak için `tuist test` komutunu
+kullanın. Bu komut <LocalizedLink href="/guides/features/projects/hashing">
+Xcode projenizi </LocalizedLink> önbelleği
+<LocalizedLink href="/guides/features/cache#cache-warming">
+ısıtmak</LocalizedLink> için yaptığı gibi hashler ve başarılı olduğunda,
+gelecekteki çalıştırmalarda nelerin değiştiğini belirlemek için hashleri kalıcı
+hale getirir.
 
-In future runs `tuist test` transparently uses the hashes to filter down the
-tests to run only the ones that have changed since the last successful test run.
+Gelecekteki çalıştırmalarda `tuist test`, son başarılı test çalıştırmasından bu
+yana yalnızca değişenleri çalıştırmak üzere testleri filtrelemek için hash'leri
+şeffaf bir şekilde kullanır.
 
-For example, assuming the following dependency graph:
+Örneğin, aşağıdaki bağımlılık grafiğini varsayalım:
 
-- `FeatureA` has tests `FeatureATests`, and depends on `Core`
-- `FeatureB` has tests `FeatureBTests`, and depends on `Core`
-- `Core` has tests `CoreTests`
+- `FeatureA` testlere sahiptir `FeatureATests`, ve `Core'a bağlıdır`
+- `FeatureB` testlere sahiptir `FeatureBTests`, ve `Core'a bağlıdır`
+- `Core` testlere sahiptir `CoreTests`
 
-`tuist test` will behave as such:
+`tuist test` bu şekilde davranacaktır:
 
-| Action                  | Description                                                         | Internal state                                                                 |
-| ----------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `tuist test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The hashes of `FeatureATests`, `FeatureBTests` and `CoreTests` are persisted   |
-| `FeatureA` is updated   | The developer modifies the code of a target                         | Same as before                                                                 |
-| `tuist test` invocation | Runs the tests in `FeatureATests` because it hash has changed       | The new hash of `FeatureATests` is persisted                                   |
-| `Core` is updated       | The developer modifies the code of a target                         | Same as before                                                                 |
-| `tuist test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The new hash of `FeatureATests` `FeatureBTests`, and `CoreTests` are persisted |
+| Eylem                  | Açıklama                                                            | Dahili durum                                                                                     |
+| ---------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `tuist testi` çağrısı  | `CoreTests`, `FeatureATests` ve `FeatureBTests`                     | `FeatureATests`, `FeatureBTests` ve `CoreTests` hash'leri kalıcı hale getirilir                  |
+| `ÖzellikA` güncellendi | Geliştirici, hedefin kodunu değiştirir.                             | Öncekiyle aynı                                                                                   |
+| `tuist testi` çağrısı  | Hash değiştiği için `FeatureATests` adresindeki testleri çalıştırır | `FeatureATests` adresinin yeni hash'i kalıcı hale getirilir                                      |
+| `Core` güncellendi     | Geliştirici, hedefin kodunu değiştirir.                             | Öncekiyle aynı                                                                                   |
+| `tuist testi` çağrısı  | `CoreTests`, `FeatureATests` ve `FeatureBTests`                     | `FeatureATests` `FeatureBTests` ve `CoreTests` adreslerinin yeni hash'leri kalıcı hale getirilir |
 
-`tuist test` integrates directly with binary caching to use as many binaries
-from your local or remote storage to improve the build time when running your
-test suite. The combination of selective testing with binary caching can
-dramatically reduce the time it takes to run tests on your CI.
+`tuist test`, test paketinizi çalıştırırken derleme süresini iyileştirmek için
+yerel veya uzak depolama alanınızdan çok sayıda ikili dosyayı kullanmak üzere
+doğrudan ikili önbelleğe alma ile entegre olur. İkili önbellekleme ile seçmeli
+test kombinasyonu, CI'nızda testleri çalıştırmak için gereken süreyi önemli
+ölçüde azaltabilir.
 
-## UI Tests {#ui-tests}
+## Kullanıcı Arayüzü Testleri {#ui-tests}
 
-Tuist supports selective testing of UI tests. However, Tuist needs to know the
-destination in advance. Only if you specify the `destination` parameter, Tuist
-will run the UI tests selectively, such as:
+Tuist, UI testlerinin seçmeli test edilmesini destekler. Ancak, Tuist'in hedefi
+önceden bilmesi gerekir. Yalnızca `hedef` parametresini belirtirseniz, Tuist UI
+testlerini seçici olarak çalıştıracaktır, örneğin:
 ```sh
 tuist test --device 'iPhone 14 Pro'
 # or
