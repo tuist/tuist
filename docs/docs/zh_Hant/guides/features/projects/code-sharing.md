@@ -5,31 +5,31 @@
   "description": "Learn how to share code across manifest files to reduce duplications and ensure consistency"
 }
 ---
-# 代碼分享{#code-sharing}
+# 程式碼共享{#code-sharing}
 
-當我們在大型專案中使用 Xcode 時，其中一個不便之處就是它不允許透過`.xcconfig`
-檔重複使用專案中除建立設定以外的元素。能夠重複使用專案定義非常有用，原因如下：
+在大型專案中使用 Xcode 時，其不便之處在於無法透過 ``.xcconfig` 與 `` `
+檔案重複使用專案元素（建置設定除外）。重複使用專案定義具有以下實用價值：
 
-- 它可以簡化**維護** ，因為變更可以在一個地方套用，而且所有專案都會自動取得變更。
-- 它可以定義**慣例** ，讓新專案符合這些慣例。
-- 專案的一致性更高**** ，因此因不一致而造成建置破損的可能性大幅降低。
-- 新增專案變得很容易，因為我們可以重複使用現有的邏輯。
+- 這能簡化**的維護工作** ，因為變更只需在單一位置進行，所有專案便會自動獲得更新。
+- 這使得定義**規範** 成為可能，新專案可遵循此規範。
+- 專案採用更一致的格式規範（**），因此因格式不一致導致建置失敗的機率大幅降低（** ）。
+- 新增專案變得輕而易舉，因為我們能重複使用現有邏輯。
 
-透過**專案描述輔助工具** 的概念，Tuist 可以在不同的清單檔案中重複使用程式碼。
+Tuist 透過「專案描述輔助函式」概念實現跨清單檔案的程式碼重用功能，詳見：**project-description-helpers**
 
 ::: tip A TUIST UNIQUE ASSET
 <!-- -->
-許多組織喜歡 Tuist，因為他們在專案描述輔助工具中看到了一個平台，讓平台團隊可以編纂他們自己的慣例，並提出他們自己的專案描述語言。例如，基於 YAML
-的專案產生器必須提出他們自己的基於 YAML 的專利模板解決方案，或強迫組織建立他們的工具。
+許多組織青睞 Tuist，因為他們在專案描述輔助工具中看見了平台團隊制定自身規範、發展專屬專案描述語言的契機。舉例而言，基於 YAML
+的專案生成器必須開發專屬的 YAML 模板解決方案，否則將迫使組織依賴其工具進行建置。
 <!-- -->
 :::
 
-## 專案描述協助{#project-description-helpers}
+## 專案說明輔助工具{#project-description-helpers}
 
-專案描述輔助程式是 Swift 檔案，會被編譯成一個模組，`ProjectDescriptionHelpers`
-，而艙單檔案可以匯入這個模組。該模組是透過收集`Tuist/ProjectDescriptionHelpers` 目錄中的所有檔案來編譯。
+專案描述輔助程式是 Swift 檔案，編譯後會形成模組`ProjectDescriptionHelpers`
+，供清單檔案匯入。該模組透過彙整`Tuist/ProjectDescriptionHelpers` 目錄下的所有檔案進行編譯。
 
-您可以在檔案頂端加入匯入語句，將它們匯入您的艙單檔案：
+您可在檔案頂端加入 import 陳述式，將其匯入您的清單檔案：
 
 ```swift
 // Project.swift
@@ -37,14 +37,14 @@ import ProjectDescription
 import ProjectDescriptionHelpers
 ```
 
-`ProjectDescriptionHelpers` 可在下列艙單中找到：
+`ProjectDescriptionHelpers` 可於下列清單中取得：
 - `Project.swift`
-- `Package.swift` (僅在`#TUIST` 編譯器旗號之後)
+- `Package.swift` (僅在啟用`#TUIST` 編譯器標記時生效)
 - `工作區.swift`
 
 ## 範例{#example}
 
-以下片段包含一個範例，說明我們如何擴充`Project` 模型，以加入靜態構造程式，以及如何從`Project.swift` 檔案使用這些構造程式：
+以下程式碼片段示範如何擴展`專案` 的模型以新增靜態建構函式，以及如何從`Project.swift` 檔案中使用這些函式：
 
 ::: code-group
 ```swift [Tuist/Project+Templates.swift]
@@ -92,6 +92,6 @@ let project = Project.featureFramework(name: "MyFeature")
 
 ::: tip A TOOL TO ESTABLISH CONVENTIONS
 <!-- -->
-請注意我們如何透過函式定義目標名稱、bundle 識別符和資料夾結構的慣例。
+請注意，我們透過此函式定義了目標名稱、套件識別碼及資料夾結構的規範。
 <!-- -->
 :::
