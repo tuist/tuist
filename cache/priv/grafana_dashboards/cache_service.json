@@ -4671,6 +4671,420 @@
         }
       ],
       "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 164
+      },
+      "id": 76,
+      "panels": [],
+      "title": "File Descriptors & Connections",
+      "type": "row"
+    },
+    {
+      "datasource": "$datasource",
+      "description": "System-wide file descriptor usage vs maximum limit. High usage can cause EMFILE errors.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "line+area"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "percentage",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/Max.*/"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "dash": [10, 10],
+                  "fill": "dash"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 165
+      },
+      "id": 77,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "node_filefd_allocated{instance=~\"$instance\"}",
+          "legendFormat": "Allocated - {{instance}}",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "node_filefd_maximum{instance=~\"$instance\"}",
+          "legendFormat": "Max - {{instance}}",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "OS File Descriptors",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "$datasource",
+      "description": "Percentage of system file descriptors in use. Alert threshold at 90%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 165
+      },
+      "id": 78,
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "sizing": "auto"
+      },
+      "pluginVersion": "11.0.0",
+      "targets": [
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "100 * node_filefd_allocated{instance=~\"$instance\"} / node_filefd_maximum{instance=~\"$instance\"}",
+          "legendFormat": "{{instance}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "FD Usage %",
+      "type": "gauge"
+    },
+    {
+      "datasource": "$datasource",
+      "description": "Network socket states from the OS - TCP connections in various states",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 173
+      },
+      "id": 82,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "node_sockstat_TCP_alloc{instance=~\"$instance\"}",
+          "legendFormat": "TCP Allocated - {{instance}}",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "node_sockstat_TCP_inuse{instance=~\"$instance\"}",
+          "legendFormat": "TCP In Use - {{instance}}",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "node_sockstat_TCP_tw{instance=~\"$instance\"}",
+          "legendFormat": "TCP TIME_WAIT - {{instance}}",
+          "range": true,
+          "refId": "C"
+        },
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "node_sockstat_sockets_used{instance=~\"$instance\"}",
+          "legendFormat": "Total Sockets - {{instance}}",
+          "range": true,
+          "refId": "D"
+        }
+      ],
+      "title": "TCP Socket States",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "$datasource",
+      "description": "Open file descriptors per process - useful for identifying which process is consuming FDs",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 181
+      },
+      "id": 83,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": "$datasource",
+          "editorMode": "code",
+          "expr": "namedprocess_namegroup_open_filedesc{instance=~\"$instance\"}",
+          "legendFormat": "{{groupname}} - {{instance}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Open FDs by Process",
+      "type": "timeseries"
     }
   ],
   "refresh": "30s",

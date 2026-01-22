@@ -52,6 +52,39 @@
     prometheus.exporter.unix "default" {
       include_exporter_metrics = true
       disable_collectors = []
+      enable_collectors = ["filefd"]
+    }
+
+    prometheus.exporter.process "default" {
+      track_children = false
+      procfs_path = "/proc"
+      track_threads = false
+
+      matcher {
+        comm = ["nginx"]
+      }
+
+      matcher {
+        comm = ["beam.smp"]
+        name = "cache"
+      }
+    }
+
+    prometheus.scrape "process_exporter" {
+      targets = prometheus.exporter.process.default.targets
+
+      scrape_interval = "15s"
+
+      forward_to = [prometheus.relabel.process_exporter.receiver]
+    }
+
+    prometheus.relabel "process_exporter" {
+      rule {
+        target_label = "instance"
+        replacement  = "${config.networking.hostName}"
+      }
+
+      forward_to = [prometheus.remote_write.grafana_cloud.receiver]
     }
 
     prometheus.scrape "cache_promex" {
