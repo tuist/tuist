@@ -47,7 +47,8 @@ tuist organization create {account-handle}
 Twoje projekty, zarówno Tuist, jak i surowy Xcode, muszą być zintegrowane z
 Twoim kontem za pośrednictwem zdalnego projektu. Kontynuując porównanie z
 GitHubem, jest to jak posiadanie lokalnego i zdalnego repozytorium, do którego
-przesyłasz swoje zmiany. Możesz użyć <LocalizedLink href="/cli/project">`tuist project`</LocalizedLink> do tworzenia projektów i zarządzania nimi.
+przesyłasz swoje zmiany. Możesz użyć <LocalizedLink href="/cli/project">`tuist
+project`</LocalizedLink> do tworzenia projektów i zarządzania nimi.
 
 Projekty są identyfikowane przez pełny uchwyt, który jest wynikiem konkatenacji
 uchwytu organizacji i uchwytu projektu. Na przykład, jeśli masz organizację z
