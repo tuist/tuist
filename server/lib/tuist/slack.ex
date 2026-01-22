@@ -7,7 +7,6 @@ defmodule Tuist.Slack do
 
   alias Tuist.Alerts.Alert
   alias Tuist.Alerts.AlertRule
-  alias Tuist.Alerts.FlakyTestAlertRule
   alias Tuist.Environment
   alias Tuist.Projects.Project
   alias Tuist.Repo
@@ -46,11 +45,6 @@ defmodule Tuist.Slack do
       |> Ecto.Multi.update_all(
         :clear_alert_rule_slack_fields,
         clear_alert_rule_slack_fields_query(account_id),
-        []
-      )
-      |> Ecto.Multi.update_all(
-        :clear_flaky_test_alert_rule_slack_fields,
-        clear_flaky_test_alert_rule_slack_fields_query(account_id),
         []
       )
       |> Ecto.Multi.delete(:delete_installation, installation)
@@ -94,20 +88,6 @@ defmodule Tuist.Slack do
     from(ar in AlertRule,
       join: p in Project,
       on: ar.project_id == p.id,
-      where: p.account_id == ^account_id,
-      update: [
-        set: [
-          slack_channel_id: nil,
-          slack_channel_name: nil
-        ]
-      ]
-    )
-  end
-
-  defp clear_flaky_test_alert_rule_slack_fields_query(account_id) do
-    from(ftar in FlakyTestAlertRule,
-      join: p in Project,
-      on: ftar.project_id == p.id,
       where: p.account_id == ^account_id,
       update: [
         set: [

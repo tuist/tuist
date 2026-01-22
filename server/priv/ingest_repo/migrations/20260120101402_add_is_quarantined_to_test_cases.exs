@@ -1,17 +1,9 @@
 defmodule Tuist.IngestRepo.Migrations.AddIsQuarantinedToTestCases do
   use Ecto.Migration
 
-  def up do
-    execute("""
-    ALTER TABLE test_cases
-    ADD COLUMN IF NOT EXISTS is_quarantined Bool DEFAULT false
-    """)
-  end
-
-  def down do
-    execute("""
-    ALTER TABLE test_cases
-    DROP COLUMN IF EXISTS is_quarantined
-    """)
+  def change do
+    alter table(:test_cases) do
+      add :is_quarantined, :boolean, default: false
+    end
   end
 end
