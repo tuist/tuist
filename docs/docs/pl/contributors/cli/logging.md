@@ -7,11 +7,11 @@
 ---
 # Rejestrowanie {#logging}
 
-CLI obejmuje interfejs [swift-log](https://github.com/apple/swift-log) dla
-logowania. Pakiet abstrahuje od szczegółów implementacji logowania, pozwalając
-CLI być niezależnym od backendu logowania. Rejestrator jest wstrzykiwany w
-zależności przy użyciu lokalnych zadań i może być dostępny w dowolnym miejscu
-przy użyciu:
+CLI wykorzystuje interfejs [swift-log](https://github.com/apple/swift-log) do
+rejestrowania. Pakiet abstrahuje szczegóły implementacji rejestrowania, dzięki
+czemu CLI jest niezależne od zaplecza rejestrowania. Rejestrator jest
+wstrzykiwany jako zależność przy użyciu zmiennych lokalnych zadania i można
+uzyskać do niego dostęp z dowolnego miejsca za pomocą:
 
 ```bash
 Logger.current
@@ -19,18 +19,18 @@ Logger.current
 
 :: info
 <!-- -->
-Lokalne zadania nie propagują wartości podczas korzystania z `Dispatch` lub
-odłączonych zadań, więc jeśli ich używasz, musisz je pobrać i przekazać do
+Lokalizacje zadań nie propagują wartości podczas korzystania z `Dispatch` lub
+zadań odłączonych, więc jeśli z nich korzystasz, musisz je pobrać i przekazać do
 operacji asynchronicznej.
 <!-- -->
 :::
 
-## Co rejestrować {#what-to-log}
+## Co należy rejestrować {#what-to-log}
 
-Dzienniki nie są interfejsem użytkownika CLI. Są narzędziem do diagnozowania
-problemów, gdy się pojawią. Dlatego im więcej informacji dostarczysz, tym
-lepiej. Tworząc nowe funkcje, postaw się w sytuacji dewelopera napotykającego
-nieoczekiwane zachowanie i zastanów się, jakie informacje byłyby dla niego
-pomocne. Upewnij się, że używasz właściwego [poziomu
-logów](https://www.swift.org/documentation/server/guides/libraries/log-levels.html).
-W przeciwnym razie deweloperzy nie będą w stanie odfiltrować szumu.
+Logi nie są interfejsem użytkownika CLI. Są narzędziem służącym do diagnozowania
+problemów, gdy się pojawią. Dlatego im więcej informacji podasz, tym lepiej.
+Tworząc nowe funkcje, postaw się w sytuacji programisty, który napotyka
+nieoczekiwane zachowanie, i zastanów się, jakie informacje byłyby dla niego
+pomocne. Upewnij się, że używasz odpowiedniego [poziomu
+logowania](https://www.swift.org/documentation/server/guides/libraries/log-levels.html).
+W przeciwnym razie programiści nie będą w stanie odfiltrować szumu.
