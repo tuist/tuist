@@ -153,6 +153,7 @@ const localeDirs = (await fs.readdir(docsContentDir, { withFileTypes: true }))
 const llmsIgnore = localeDirs
   .filter((locale) => locale !== "en")
   .map((locale) => `docs/${locale}/**`);
+const nonEnglishLocales = localeDirs.filter((locale) => locale !== "en");
 
 const searchOptionsLocales = Object.fromEntries(
   enabledLocales.map((locale) => [locale, getSearchOptionsForLocale(locale)]),
@@ -359,6 +360,15 @@ export default withMermaid(
       await fs.cp(functionsSource, functionsDest, { recursive: true });
 
       const redirectsPath = path.join(outDir, "_redirects");
+      const cliLocaleRedirects = nonEnglishLocales
+        .map((locale) => `/${locale}/cli/* /en/cli/:splat 301`)
+        .join("\n");
+      const projectDescriptionLocaleRedirects = nonEnglishLocales
+        .map(
+          (locale) =>
+            `/${locale}/references/project-description/* /en/references/project-description/:splat 301`,
+        )
+        .join("\n");
       const redirects = `
 /documentation/tuist/installation /guide/introduction/installation 301
 /documentation/tuist/project-structure /guide/project/directory-structure 301
@@ -462,8 +472,8 @@ export default withMermaid(
 /:locale/server /:locale/guides/server/accounts-and-projects 301
 /:locale/references/examples /:locale/guides/examples/generated-projects 301
 /:locale/references/examples/* /:locale/guides/examples/generated-projects/:splat 301
-/:locale/cli/* /en/cli/:splat 301
-/:locale/references/project-description/* /en/references/project-description/:splat 301
+${cliLocaleRedirects}
+${projectDescriptionLocaleRedirects}
 ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
   encoding: "utf-8",
 })}
