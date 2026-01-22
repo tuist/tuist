@@ -80,5 +80,38 @@ defmodule TuistWeb.CacheRunsLiveTest do
       # Then - should still render the page with results
       assert has_element?(lv, "span", "tuist cache App")
     end
+
+    test "filters cache runs by user with ran_by filter", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      project: project
+    } do
+      other_user = TuistTestSupport.Fixtures.AccountsFixtures.user_fixture()
+      :ok = Tuist.Accounts.add_user_to_organization(other_user, organization)
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        user_id: user.id,
+        name: "cache",
+        command_arguments: ["cache", "UserApp"]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        user_id: other_user.id,
+        name: "cache",
+        command_arguments: ["cache", "OtherUserApp"]
+      )
+
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/module-cache/cache-runs?filter_ran_by_op===&filter_ran_by_val=#{user.id}"
+        )
+
+      assert has_element?(lv, "span", "tuist cache UserApp")
+      refute has_element?(lv, "span", "tuist cache OtherUserApp")
+    end
   end
 end

@@ -104,5 +104,38 @@ defmodule TuistWeb.GenerateRunsLiveTest do
 
       assert has_element?(lv, "span", "generate App-1")
     end
+
+    test "filters generate runs by user with ran_by filter", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      project: project
+    } do
+      other_user = TuistTestSupport.Fixtures.AccountsFixtures.user_fixture()
+      :ok = Tuist.Accounts.add_user_to_organization(other_user, organization)
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        user_id: user.id,
+        name: "generate",
+        command_arguments: ["generate", "UserApp"]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        user_id: other_user.id,
+        name: "generate",
+        command_arguments: ["generate", "OtherUserApp"]
+      )
+
+      {:ok, lv, _html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/module-cache/generate-runs?filter_ran_by_op===&filter_ran_by_val=#{user.id}"
+        )
+
+      assert has_element?(lv, "span", "generate UserApp")
+      refute has_element?(lv, "span", "generate OtherUserApp")
+    end
   end
 end
