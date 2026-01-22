@@ -10,7 +10,6 @@ defmodule TuistWeb.TestCaseLive do
 
   alias Noora.Filter
   alias Tuist.Accounts
-  alias Tuist.Projects
   alias Tuist.Runs
   alias Tuist.Runs.Analytics
   alias Tuist.Slack
@@ -181,14 +180,11 @@ defmodule TuistWeb.TestCaseLive do
           assigns: %{
             test_case_id: test_case_id,
             test_case_detail: test_case_detail,
-            selected_project: selected_project,
+            selected_project: project,
             current_user: current_user
           }
         } = socket
       ) do
-    # Reload project to get fresh settings
-    project = Projects.get_project_by_id(selected_project.id)
-
     {:ok, updated_test_case} = Runs.update_test_case(test_case_id, %{is_flaky: true})
 
     test_case_detail = %{test_case_detail | is_flaky: updated_test_case.is_flaky}
