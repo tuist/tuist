@@ -137,6 +137,18 @@ migrations before starting the service.
 You’ll also need a solution to store files (e.g. framework and library
 binaries). Currently we support any storage that's S3-compliant.
 
+::: tip OPTIMIZED CACHING
+<!-- -->
+If your goal is primarily to bring your own bucket for storing binaries and
+reduce cache latency, you might not need to self-host the whole server. You can
+self-host cache nodes and connect them to the hosted Tuist server or your
+self-hosted server.
+
+See the <LocalizedLink href="/guides/cache/self-host">cache self-hosting
+guide</LocalizedLink>.
+<!-- -->
+:::
+
 ## Configuration {#configuration}
 
 The configuration of the service is done at runtime through environment
@@ -273,7 +285,8 @@ You might need to create a consent screen. When you do so, make sure to add the
 You can enable authentication with Okta through the [OAuth
 2.0](https://oauth.net/2/) protocol. You'll have to [create an
 app](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta)
-on Okta following <LocalizedLink href="/guides/integrations/sso#okta">these instructions</LocalizedLink>.
+on Okta following <LocalizedLink href="/guides/integrations/sso#okta">these
+instructions</LocalizedLink>.
 
 You will need to set the following environment variables once you obtain the
 client id and secret during the set up of the Okta application:
@@ -369,7 +382,8 @@ email confirmation when email is configured, set
 
 ### Git platform configuration {#git-platform-configuration}
 
-Tuist can <LocalizedLink href="/guides/server/authentication">integrate with Git platforms</LocalizedLink> to provide extra features such as automatically
+Tuist can <LocalizedLink href="/guides/server/authentication">integrate with Git
+platforms</LocalizedLink> to provide extra features such as automatically
 posting comments in your pull requests.
 
 #### GitHub {#platform-github}
