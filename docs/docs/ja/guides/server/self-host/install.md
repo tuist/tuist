@@ -103,6 +103,14 @@ Dockerイメージのエントリーポイントは、サービスを開始す�
 
 また、ファイル（フレームワークやライブラリのバイナリなど）を保存するソリューションも必要です。現在、私たちはS3に準拠したストレージをサポートしています。
 
+::: tip OPTIMIZED CACHING
+<!-- -->
+バイナリを格納するバケットを自分で用意し、キャッシュの待ち時間を減らすことが主な目的であれば、サーバー全体をセルフホストする必要はないかもしれません。キャッシュノードをセルフホストし、それらをホストされたTuistサーバーまたはセルフホストされたサーバーに接続することができます。
+
+1}キャッシュセルフホスティングガイド</LocalizedLink>を参照してください。
+<!-- -->
+:::
+
 ## コンフィギュレーション {#configuration}
 
 サービスのコンフィギュレーションは、環境変数を通して実行時に行われます。これらの変数は機密性が高いため、暗号化して安全なパスワード管理ソリューションに保存することをお勧めします。ご安心ください、Tuistはこれらの変数を細心の注意を払って扱い、ログに表示されることがないようにしています。
@@ -212,7 +220,7 @@ OAuth
 
 #### Okta {#okta}
 
-[OAuth2.0](https://oauth.net/2/)プロトコルにより、Oktaで認証を有効にすることができます。<LocalizedLink href="/guides/integrations/sso#okta">以下の手順</LocalizedLink>に従って、Okta上で[アプリを作成](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta)する必要があります。
+OAuth2.0](https://oauth.net/2/)プロトコルにより、Oktaで認証を有効にすることができます。3}以下の手順に従って、Okta上で[アプリを作成](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta)する必要があります</LocalizedLink>。
 
 Oktaアプリケーションのセットアップ時にクライアントIDとシークレットを取得したら、以下の環境変数を設定する必要があります：
 
@@ -510,7 +518,7 @@ TuistはHTTPクライアントとして[Finch](https://github.com/sneako/finch)�
 - `tuist_prom_ex_finch_queue_duration_milliseconds` - 接続プールのキューで待機していた時間
   (ヒストグラム)
   - ラベル：`フィンチ名` 、`スキーム` 、`ホスト` 、`ポート` 、`プール`
-  - バケット1ms、5ms、10ms、25ms、50ms、100ms、250ms、500ms、1s
+  - バケット1ms、5ms、10ms、25ms、50ms、100ms、250ms、500ms
 - `tuist_prom_ex_finch_queue_idle_time_milliseconds` -
   接続が使用される前にアイドル状態であった時間（ヒストグラム）。
   - ラベル：`フィンチ名` 、`スキーム` 、`ホスト` 、`ポート` 、`プール`
@@ -528,7 +536,7 @@ TuistはHTTPクライアントとして[Finch](https://github.com/sneako/finch)�
 #### メトリクスの送信
 - `tuist_prom_ex_finch_send_duration_milliseconds` - リクエスト送信に要した時間（ヒストグラム）。
   - ラベル：`フィンチ名`,`方法`,`スキーム`,`ホスト`,`ポート`,`エラー`
-  - バケット1ms、5ms、10ms、25ms、50ms、100ms、250ms、500ms、1s
+  - バケット1ms、5ms、10ms、25ms、50ms、100ms、250ms、500ms
 - `tuist_prom_ex_finch_send_idle_time_milliseconds` -
   接続が送信前にアイドル状態であった時間（ヒストグラム）。
   - ラベル：`フィンチ名`,`方法`,`スキーム`,`ホスト`,`ポート`,`エラー`
