@@ -81,56 +81,56 @@ NSBundle *bundle = [MyFeatureResources bundle];
 
 ::: tip SUPPORTING RESOURCES IN LIBRARIES THROUGH BUNDLES
 <!-- -->
-예를 들어 라이브러리와 같은 대상 제품이 리소스를 지원하지 않는 경우, 튜이스트는 리소스가 최종 제품에 포함되고 인터페이스가 올바른 번들을
-가리키도록 하기 위해 제품 유형 `번들` 의 대상에 해당 리소스를 포함시킵니다. 이렇게 합성된 번들은 자동으로
-`tuist:synthesized` 태그가 지정되고 상위 타깃의 모든 태그를 상속하므로
-<LocalizedLink href="/guides/features/projects/metadata-tags#system-tags">cache
-프로필</LocalizedLink>에서 타깃팅할 수 있습니다.
+대상 제품(예: 라이브러리)이 리소스를 지원하지 않는 경우, Tuist는 해당 리소스를 제품 유형 `bundle` 의 타깃에 포함시킵니다. 이를
+통해 최종 제품에 포함되고 인터페이스가 올바른 번들을 가리키도록 보장합니다. 이러한 합성된 번들은 자동으로 `tuist:synthesized`
+태그가 지정되며, 부모 타깃의 모든 태그를 상속받습니다. 이를 통해
+<LocalizedLink href="/guides/features/projects/metadata-tags#system-tags">캐시
+프로파일</LocalizedLink>에서 타깃팅할 수 있습니다.
 <!-- -->
 :::
 
-## 리소스 접근자 {#resource-accessors}
+## 리소스 액세서 {#resource-accessors}
 
-리소스는 문자열을 사용하여 이름과 확장자로 식별됩니다. 이는 컴파일 시 포착되지 않고 릴리스 시 충돌을 일으킬 수 있으므로 이상적이지 않습니다.
-이를 방지하기 위해 Tuist는 프로젝트 생성 프로세스에
-[SwiftGen](https://github.com/SwiftGen/SwiftGen)을 통합하여 리소스에 액세스할 수 있는 인터페이스를
-합성합니다. 덕분에 컴파일러를 활용하여 리소스에 자신 있게 액세스하여 문제를 포착할 수 있습니다.
+리소스는 문자열을 통해 이름과 확장자로 식별됩니다. 이는 컴파일 시점에 발견되지 않아 출시 버전의 충돌로 이어질 수 있으므로 이상적이지
+않습니다. 이를 방지하기 위해 Tuist는 프로젝트 생성 과정에
+[SwiftGen](https://github.com/SwiftGen/SwiftGen)을 통합하여 리소스 접근 인터페이스를 생성합니다. 이를
+통해 컴파일러가 문제를 포착하도록 활용하여 리소스에 안전하게 접근할 수 있습니다.
 
-Tuist에는 기본적으로 다음 리소스 유형에 대한 접근자를 합성하는
-[템플릿](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator/Templates)이
-포함되어 있습니다:
+Tuist는 기본적으로 다음 리소스 유형에 대한 액세서리를 생성하기 위해
+[템플릿](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator/Templates)을
+포함합니다:
 
-| 리소스 유형   | 합성된 파일                  |
-| -------- | ----------------------- |
-| 이미지 및 색상 | `Assets+{Target}.swift` |
-| 문자열      | `문자열+{Target}.swift`    |
-| 목록       | `{NameOfPlist}.swift`   |
-| 글꼴       | `Fonts+{Target}.swift`  |
-| 파일       | `Files+{Target}.swift`  |
+| 리소스 유형  | 합성된 파일                   |
+| ------- | ------------------------ |
+| 이미지와 색상 | `Assets+{Target}.swift`  |
+| 문자열     | `Strings+{Target}.swift` |
+| Plists  | `{NameOfPlist}.swift`    |
+| 글꼴      | `Fonts+{Target}.swift`   |
+| 파일      | `Files+{Target}.swift`   |
 
-> 참고: 프로젝트별 리소스 접근자 합성을 비활성화하려면 프로젝트 옵션에 `disableSynthesizedResourceAccessors`
-> 옵션을 전달하여 프로젝트별로 리소스 접근자 합성을 비활성화할 수 있습니다.
+> 참고: 프로젝트 옵션에 ` `` `disableSynthesizedResourceAccessors` `` ` 옵션을 전달하여 프로젝트별로
+> 리소스 액세서리 합성 기능을 비활성화할 수 있습니다.
 
 #### 사용자 지정 템플릿 {#custom-templates}
 
-SwiftGen](https://github.com/SwiftGen/SwiftGen)에서 지원해야 하는 다른 리소스 유형에 대한 접근자를
-합성하기 위해 자체 템플릿을 제공하려는 경우 `Tuist/ResourceSynthesizers/{name}.stencil` 에서 만들 수
-있으며, 여기서 이름은 리소스의 대소문자 버전입니다.
+다른 리소스 유형에 대한 액세서리를 합성하기 위해 자체 템플릿을 제공하려면,
+[SwiftGen](https://github.com/SwiftGen/SwiftGen)에서 지원해야 하며, 다음 위치에 생성할 수 있습니다:
+`Tuist/ResourceSynthesizers/{name}.stencil` 여기서 name은 리소스의 카멜 케이스 버전입니다.
 
-| 리소스      | 템플릿 이름             |
-| -------- | ------------------ |
-| 문자열      | `문자열.스텐실`          |
-| 자산       | `Assets.stencil`   |
-| 목록       | `Plists.stencil`   |
-| 글꼴       | `Fonts.stencil`    |
-| 핵심 데이터   | `CoreData.stencil` |
-| 인터페이스 빌더 | `인터페이스 빌더 스텐실`     |
-| json     | `JSON.stencil`     |
-| yaml     | `YAML.stencil`     |
-| 파일       | `Files.stencil`    |
+| 리소스              | 템플릿 이름                     |
+| ---------------- | -------------------------- |
+| strings          | `Strings.stencil`          |
+| assets           | `Assets.stencil`           |
+| plists           | `Plists.stencil`           |
+| fonts            | `Fonts.stencil`            |
+| coreData         | `CoreData.stencil`         |
+| interfaceBuilder | `InterfaceBuilder.stencil` |
+| json             | `JSON.stencil`             |
+| yaml             | `YAML.stencil`             |
+| files            | `Files.stencil`            |
 
-접근자를 합성할 리소스 유형 목록을 구성하려면 `Project.resourceSynthesizers` 프로퍼티에 사용하려는 리소스 합성기 목록을
-전달하면 됩니다:
+` 액세서 합성 대상 리소스 유형 목록을 구성하려면 ` ``의 `Project.resourceSynthesizers` 속성에 사용하려는 리소스
+합성기 목록을 전달하세요:
 
 ```swift
 let project = Project(resourceSynthesizers: [.string(), .fonts()])
@@ -138,8 +138,8 @@ let project = Project(resourceSynthesizers: [.string(), .fonts()])
 
 ::: info REFERENCE
 <!-- -->
-사용자 지정 템플릿을 사용하여 리소스에 대한 액세스 권한을 합성하는 방법에 대한 예는 [이
-예](https://github.com/tuist/tuist/tree/main/examples/xcode/generated_ios_app_with_templates)에서
-확인할 수 있습니다.
+리소스에 대한 액세서를 합성하기 위해 사용자 정의 템플릿을 사용하는 방법의 예시는 [이
+예시](https://github.com/tuist/tuist/tree/main/examples/xcode/generated_ios_app_with_templates)을
+참고하세요.
 <!-- -->
 :::
