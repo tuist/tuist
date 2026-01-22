@@ -7,32 +7,31 @@
 ---
 # Meta veri etiketleri {#metadata-tags}
 
-Projelerin boyutu ve karmaşıklığı arttıkça, tüm kod tabanı ile aynı anda
-çalışmak verimsiz hale gelebilir. Tuist, hedefleri mantıksal gruplar halinde
-düzenlemenin ve geliştirme sırasında projenizin belirli bölümlerine odaklanmanın
-bir yolu olarak **meta veri etiketlerini** sağlar.
+Projeler büyüdükçe ve karmaşıklaştıkça, tüm kod tabanını aynı anda çalışmak
+verimsiz hale gelebilir. Tuist, hedefleri mantıksal gruplar halinde düzenlemek
+ve geliştirme sırasında projenizin belirli kısımlarına odaklanmak için **meta
+veri etiketleri** sağlar.
 
 ## Meta veri etiketleri nedir? {#what-are-metadata-tags}
 
 Meta veri etiketleri, projenizdeki hedeflere ekleyebileceğiniz dize
-etiketleridir. Aşağıdakileri yapmanıza olanak tanıyan işaretleyiciler olarak
-hizmet ederler:
+etiketleridir. Aşağıdakileri yapmanızı sağlayan işaretler görevi görürler:
 
-- **İlgili hedefleri gruplayın** - Aynı özelliğe, ekibe veya mimari katmana ait
-  hedefleri etiketleyin
+- **İlgili hedefleri gruplandırın** - Aynı özelliğe, ekibe veya mimari katmana
+  ait hedefleri etiketleyin
 - **Çalışma alanınıza odaklanın** - Yalnızca belirli etiketlere sahip hedefleri
   içeren projeler oluşturun
-- **İş akışınızı optimize edin** - Kod tabanınızın ilgisiz bölümlerini
+- **** ile iş akışınızı optimize edin - Kod tabanınızın ilgisiz kısımlarını
   yüklemeden belirli özellikler üzerinde çalışın
-- **Kaynak olarak tutulacak hedefleri seçin** - Önbelleğe alırken hangi hedef
-  grubunu kaynak olarak tutmak istediğinizi seçin
+- **Kaynak olarak saklanacak hedefleri seçin** - Önbelleğe alırken kaynak olarak
+  saklamak istediğiniz hedef grubunu seçin
 
-Etiketler, hedeflerde `metadata` özelliği kullanılarak tanımlanır ve bir dizeler
-dizisi olarak saklanır.
+Etiketler, hedeflerdeki `meta verisi` özelliği kullanılarak tanımlanır ve bir
+dizi dizesi olarak saklanır.
 
 ## Meta veri etiketlerini tanımlama {#defining-metadata-tags}
 
-Proje bildiriminizdeki herhangi bir hedefe etiket ekleyebilirsiniz:
+Proje manifestosundaki herhangi bir hedefe etiket ekleyebilirsiniz:
 
 ```swift
 import ProjectDescription
@@ -71,15 +70,15 @@ let project = Project(
 )
 ```
 
-## Etiketlenmiş hedeflere odaklanma {#focusing-on-tagged-targets}
+## Etiketli hedeflere odaklanma {#focusing-on-tagged-targets}
 
-Hedeflerinizi etiketledikten sonra, yalnızca belirli hedefleri içeren odaklanmış
-bir proje oluşturmak için `tuist generate` komutunu kullanabilirsiniz:
+Hedeflerinizi etiketledikten sonra, `tuist generate` komutunu kullanarak
+yalnızca belirli hedefleri içeren odaklanmış bir proje oluşturabilirsiniz:
 
-### Etikete göre odaklanın
+### Etikete göre odaklanma
 
-Belirli bir etiketle eşleşen tüm hedefleri içeren bir proje oluşturmak için
-`tag:` önekini kullanın:
+`etiketini kullanın:` önekini kullanarak belirli bir etiketle eşleşen tüm
+hedefleri içeren bir proje oluşturun:
 
 ```bash
 # Generate project with all authentication-related targets
@@ -89,34 +88,33 @@ tuist generate tag:feature:auth
 tuist generate tag:team:identity
 ```
 
-### İsme göre odaklanma
+### Adına göre odaklan
 
-Ayrıca isme göre belirli hedeflere de odaklanabilirsiniz:
+Ayrıca, isme göre belirli hedeflere odaklanabilirsiniz:
 
 ```bash
 # Generate project with the Authentication target
 tuist generate Authentication
 ```
 
-### Odaklanma nasıl çalışır?
+### Odaklama nasıl çalışır?
 
 Hedeflere odaklandığınızda:
 
-1. **Dahil edilen hedefler** - Sorgunuzla eşleşen hedefler oluşturulmuş projede
-   yer alır
+1. **Dahil edilen hedefler** - Sorgunuzla eşleşen hedefler, oluşturulmuş projede
+   yer almaktadır.
 2. **Bağımlılıklar** - Odaklanılan hedeflerin tüm bağımlılıkları otomatik olarak
-   dahil edilir
-3. **Test hedefleri** - Odaklanılan hedefler için test hedefleri dahildir
-4. **Dışlama** - Diğer tüm hedefler çalışma alanından çıkarılır
+   dahil edilir.
+3. **Test hedefleri** - Odaklanan hedefler için test hedefleri dahil edilmiştir
+4. **Hariç tutma** - Diğer tüm hedefler çalışma alanından hariç tutulur.
 
-Bu, yalnızca özelliğiniz üzerinde çalışmak için ihtiyacınız olan şeyleri içeren
-daha küçük, daha yönetilebilir bir çalışma alanına sahip olacağınız anlamına
-gelir.
+Bu, yalnızca özelliğiniz üzerinde çalışmak için ihtiyacınız olanları içeren daha
+küçük ve daha yönetilebilir bir çalışma alanı elde edeceğiniz anlamına gelir.
 
 ## Etiket adlandırma kuralları {#tag-naming-conventions}
 
-Herhangi bir dizeyi etiket olarak kullanabilseniz de, tutarlı bir adlandırma
-kuralını takip etmek etiketlerinizin düzenli kalmasına yardımcı olur:
+Herhangi bir dizeyi etiket olarak kullanabilirsiniz, ancak tutarlı bir
+adlandırma kuralı izlemek etiketlerinizi düzenli tutmanıza yardımcı olur:
 
 ```swift
 // Organize by feature
@@ -135,25 +133,25 @@ metadata: .metadata(tags: ["platform:ios", "platform:macos"])
 metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 ```
 
-`feature:`, `team:`, veya `layer:` gibi ön ekler kullanmak her bir etiketin
+`özelliği:`, `ekibi:` veya `katman:` gibi önekler kullanmak, her bir etiketin
 amacını anlamayı kolaylaştırır ve adlandırma çakışmalarını önler.
 
 ## Sistem etiketleri {#system-tags}
 
 Tuist, sistem tarafından yönetilen etiketler için `tuist:` önekini kullanır. Bu
-etiketler Tuist tarafından otomatik olarak uygulanır ve oluşturulan belirli
-içerik türlerini hedeflemek için önbellek profillerinde kullanılabilir.
+etiketler Tuist tarafından otomatik olarak uygulanır ve belirli türde
+oluşturulan içeriği hedeflemek için önbellek profillerinde kullanılabilir.
 
-### Mevcut sistem etiketleri
+### Kullanılabilir sistem etiketleri
 
-| Etiket               | Açıklama                                                                                                                                                                                                           |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `tuist:sentezlenmiş` | Tuist'in statik kütüphanelerde ve statik çerçevelerde kaynak kullanımı için oluşturduğu sentezlenmiş paket hedeflerine uygulanır. Bu paketler, kaynak erişim API'leri sağlamak için tarihsel nedenlerle mevcuttur. |
+| Etiket              | Açıklama                                                                                                                                                                                                          |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tuist:synthesized` | Tuist'in statik kütüphanelerde ve statik çerçevelerde kaynak yönetimi için oluşturduğu sentezlenmiş paket hedeflerine uygulanır. Bu paketler, kaynak erişim API'leri sağlamak için tarihsel nedenlerle mevcuttur. |
 
-### Sistem etiketlerini önbellek profilleri ile kullanma
+### Önbellek profilleriyle sistem etiketlerini kullanma
 
-Sentezlenmiş hedefleri dahil etmek veya hariç tutmak için önbellek profillerinde
-sistem etiketlerini kullanabilirsiniz:
+Önbellek profillerinde sistem etiketlerini kullanarak sentezlenmiş hedefleri
+dahil edebilir veya hariç tutabilirsiniz:
 
 ```swift
 import ProjectDescription
@@ -177,19 +175,19 @@ let tuist = Tuist(
 
 ::: tip SYNTHESIZED BUNDLES INHERIT PARENT TAGS
 <!-- -->
-Sentezlenmiş paket hedefleri, `tuist:synthesized` etiketini almanın yanı sıra
-tüm etiketleri ana hedeflerinden devralır. Bu, statik bir kütüphaneyi
+Sentezlenmiş paket hedefleri, `tuist:synthesized` etiketini almanın yanı sıra,
+üst hedeflerinden tüm etiketleri devralır. Bu, bir statik kütüphaneyi
 `feature:auth` ile etiketlerseniz, sentezlenmiş kaynak paketinin hem
 `feature:auth` hem de `tuist:synthesized` etiketlerine sahip olacağı anlamına
 gelir.
 <!-- -->
 :::
 
-## Etiketleri proje açıklama yardımcıları ile kullanma {#using-tags-with-helpers}
+## Proje açıklaması yardımcılarıyla etiketleri kullanma {#using-tags-with-helpers}
 
-Projenizde etiketlerin nasıl uygulanacağını standartlaştırmak için
-<LocalizedLink href="/guides/features/projects/code-sharing">proje açıklama
-yardımcılarından</LocalizedLink> yararlanabilirsiniz:
+<LocalizedLink href="/guides/features/projects/code-sharing">proje açıklaması
+yardımcıları</LocalizedLink> kullanarak, projenizde etiketlerin nasıl
+uygulanacağını standart hale getirebilirsiniz:
 
 ```swift
 // Tuist/ProjectDescriptionHelpers/Project+Templates.swift
@@ -217,7 +215,7 @@ extension Target {
 }
 ```
 
-Sonra bunu manifestolarınızda kullanın:
+Ardından bunu manifestolarınızda kullanın:
 
 ```swift
 import ProjectDescription
@@ -232,34 +230,36 @@ let project = Project(
 )
 ```
 
-## Meta veri etiketlerini kullanmanın faydaları {#benefits}
+## Meta veri etiketlerini kullanmanın avantajları {#benefits}
 
-### Geliştirilmiş geliştirme deneyimi
+### Geliştirme deneyimi iyileştirildi
 
-Projenizin belirli bölümlerine odaklanarak şunları yapabilirsiniz:
+Projenizin belirli kısımlarına odaklanarak şunları yapabilirsiniz:
 
 - **Xcode proje boyutunu azaltın** - Açılması ve gezinmesi daha hızlı olan daha
   küçük projelerle çalışın
-- **Yapıları hızlandırın** - Yalnızca mevcut işiniz için ihtiyacınız olanı
-  oluşturun
-- **Odaklanmayı iyileştirin** - İlgisiz kodların dikkatinizi dağıtmasını önleyin
-- **İndekslemeyi optimize edin** - Xcode daha az kod indeksleyerek otomatik
-  tamamlamayı daha hızlı hale getirir
+- **** 'da derlemeleri hızlandırın - Yalnızca mevcut çalışmanız için gerekli
+  olanları derleyin
+- **** 'da odaklanmayı geliştirin - İlgisiz kodlardan kaynaklanan dikkat
+  dağınıklığını önleyin
+- **** 'da indekslemeyi optimize edin - Xcode daha az kod indeksler, böylece
+  otomatik tamamlama daha hızlı olur
 
 ### Daha iyi proje organizasyonu
 
-Etiketler kod tabanınızı düzenlemek için esnek bir yol sağlar:
+Etiketler, kod tabanınızı düzenlemek için esnek bir yol sağlar:
 
-- **Birden fazla boyut** - Hedefleri özellik, ekip, katman, platform veya başka
-  bir boyuta göre etiketleyin
-- **Yapısal değişiklik yok** - Dizin düzenini değiştirmeden organizasyonel yapı
-  ekleyin
-- **Kesişen kaygılar** - Tek bir hedef birden fazla mantıksal gruba ait olabilir
+- **Çoklu boyutlar** - Hedefleri özellik, ekip, katman, platform veya başka
+  herhangi bir boyuta göre etiketleyin.
+- **Yapısal değişiklik yok** - Dizin düzenini değiştirmeden organizasyon
+  yapısını ekleyin
+- **Çapraz kesen konular** - Tek bir hedef birden fazla mantıksal gruba ait
+  olabilir
 
 ### Önbellekleme ile entegrasyon
 
-Meta veri etiketleri <LocalizedLink href="/guides/features/cache">Tuist'in
-önbelleğe alma özellikleriyle</LocalizedLink> sorunsuz bir şekilde çalışır:
+Meta veri etiketleri, <LocalizedLink href="/guides/features/cache">Tuist'in
+önbellek özellikleriyle</LocalizedLink> sorunsuz bir şekilde çalışır:
 
 ```bash
 # Cache all targets
@@ -271,23 +271,23 @@ tuist generate tag:feature:payment
 
 ## En iyi uygulamalar {#best-practices}
 
-1. **Basit başlayın** - Tek bir etiketleme boyutuyla başlayın (ör. özellikler)
-   ve gerektiğinde genişletin
+1. **Basit başlayın** - Tek bir etiketleme boyutu (ör. özellikler) ile başlayın
+   ve gerektiğinde genişletin.
 2. **Tutarlı olun** - Tüm manifestolarınızda aynı adlandırma kurallarını
    kullanın
-3. **Etiketlerinizi belgeleyin** - Projenizin belgelerinde mevcut etiketlerin ve
-   anlamlarının bir listesini tutun
+3. **Etiketlerinizi belgelendirin** - Projenizin belgelerinde kullanılabilir
+   etiketlerin ve anlamlarının bir listesini tutun.
 4. **Yardımcıları kullanın** - Etiket uygulamasını standartlaştırmak için proje
-   açıklama yardımcılarından yararlanın
-5. **Periyodik olarak gözden geçirin** - Projeniz geliştikçe etiketleme
+   açıklaması yardımcılarını kullanın
+5. **** 'yi düzenli olarak gözden geçirin - Projeniz geliştikçe, etiketleme
    stratejinizi gözden geçirin ve güncelleyin
 
 ## İlgili özellikler {#related-features}
 
 - <LocalizedLink href="/guides/features/projects/code-sharing">Kod
   paylaşımı</LocalizedLink> - Etiket kullanımını standartlaştırmak için proje
-  açıklama yardımcılarını kullanın
-- <LocalizedLink href="/guides/features/cache">Önbellek</LocalizedLink> -
-  Optimum derleme performansı için etiketleri önbelleğe alma ile birleştirin
+  açıklaması yardımcılarını kullanın.
+- <LocalizedLink href="/guides/features/cache">Önbellek</LocalizedLink> - En iyi
+  derleme performansı için etiketleri önbellekleme ile birleştirin
 - <LocalizedLink href="/guides/features/selective-testing">Seçmeli
-  test</LocalizedLink> - Testleri yalnızca değiştirilen hedefler için çalıştırın
+  test</LocalizedLink> - Yalnızca değiştirilen hedefler için testler çalıştırın
