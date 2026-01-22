@@ -5,28 +5,28 @@
   "description": "Learn how to configure your shell to auto-complete Tuist commands."
 }
 ---
-# 蜆殼完工
+# Shell 自動補全
 
-如果您有 Tuist**全局安裝** (例如透過 Homebrew)，您可以為 Bash 和 Zsh 安裝 shell
-completions，以自動完成指令和選項。
+** 若您已透過 Homebrew 等管道全域安裝 Tuist 工具（指令：`**`），可進一步安裝 Bash 與 Zsh
+的殼層補全功能，實現指令與選項的自動完成。
 
 ::: warning WHAT IS A GLOBAL INSTALLATION
 <!-- -->
-全局安裝是指在您 shell 的`$PATH` 環境變數中可用的安裝。這表示您可以從終端機的任何目錄執行`tuist` 。這是 Homebrew
-的預設安裝方式。
+全域安裝是指安裝後會出現在您的殼層環境變數中：`$PATH` 這意味著您可在終端機的任何目錄執行：`tuist` 此為 Homebrew 的預設安裝方式。
 <!-- -->
 :::
 
 #### Zsh{#zsh}
 
-如果您已經安裝 [oh-my-zsh](https://ohmyz.sh/) ，您已經有一個自動載入完成指令碼的目錄
--`.oh-my-zsh/completions` 。將您的新完成指令碼複製到該目錄中的新檔案，名稱為`_tuist` ：
+若已安裝 [oh-my-zsh](https://ohmyz.sh/)，系統會自動建立載入補全腳本的目錄：`.oh-my-zsh/completions`
+請將新補全腳本複製至該目錄下的新檔案：`_tuist`
 
 ```bash
 tuist --generate-completion-script > ~/.oh-my-zsh/completions/_tuist
 ```
 
-如果沒有`oh-my-zsh` ，您需要在函式路徑中加入完成指令碼路徑，並開啟完成指令碼自動載入。首先，將這些行加入`~/.zshrc` ：
+若未安裝 ``` 或 `oh-my-zsh`（參見` ），您需將補全腳本路徑加入函數路徑，並啟用補全腳本自動載入功能。首先在 ``` 或
+`~/.zshrc`（參見` ）加入以下設定：
 
 ```bash
 fpath=(~/.zsh/completion $fpath)
@@ -34,34 +34,31 @@ autoload -U compinit
 compinit
 ```
 
-接下來，在`~/.zsh/completion` 建立一個目錄，然後將完成指令碼複製到新目錄，同樣複製到名為`_tuist` 的檔案中。
+接著在以下路徑建立目錄：`~/.zsh/completion` 將補全腳本複製至新目錄，並命名為：`_tuist`
 
 ```bash
 tuist --generate-completion-script > ~/.zsh/completion/_tuist
 ```
 
-#### 巴什{#bash}
+#### Bash{#bash}
 
-如果您已經安裝
-[bash-completion](https://github.com/scop/bash-completion)，您可以直接將新的完成腳本複製到檔案`/usr/local/etc/bash_completion.d/_tuist`
-：
+若已安裝
+[bash-completion](https://github.com/scop/bash-completion)，可直接將新完成腳本複製至檔案：`/usr/local/etc/bash_completion.d/_tuist`
 
 ```bash
 tuist --generate-completion-script > /usr/local/etc/bash_completion.d/_tuist
 ```
 
-如果沒有 bash-completion，您需要直接取得完成腳本的原始碼。將它複製到一個目錄，例如`~/.bash_completions/`
-，然後將下列一行加入`~/.bash_profile` 或`~/.bashrc` ：
+若未啟用 bash 自動補全功能，需直接載入補全腳本。請將腳本複製至指定目錄（例如：`~/.bash_completions/`
+），並在以下檔案新增下列行：`~/.bash_profile` 或`~/.bashrc` ：
 
 ```bash
 source ~/.bash_completions/example.bash
 ```
 
-#### 魚類{#fish}
+#### 魚{#fish}
 
-如果您使用 [fish
-shell](https://fishshell.com)，您可以將新的完成腳本複製到`~/.config/fish/completions/tuist.fish`
-：
+若使用 [fish shell]{1]，可將新完成腳本複製至：`~/.config/fish/completions/tuist.fish`:
 
 ```bash
 mkdir -p ~/.config/fish/completions
