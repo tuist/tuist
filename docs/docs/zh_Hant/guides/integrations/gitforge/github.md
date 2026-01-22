@@ -18,7 +18,7 @@ Git 倉庫是大多數軟體專案的核心。我們與 GitHub 整合，直接�
 
 ![顯示新增專案連線的影像](/images/guides/integrations/gitforge/github/add-project-connection.png)。
 
-## 拉取/合併請求註解{#pull-merge-request-comments}
+## 拉取/合併請求註解{#pullmerge-request-comments}
 
 GitHub 應用程式會發佈 Tuist 執行報告，其中包含 PR 的摘要，包括最新
 <LocalizedLink href="/guides/features/previews#pullmerge-request-comments">previews</LocalizedLink>
