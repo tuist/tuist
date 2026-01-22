@@ -7,9 +7,10 @@
 ---
 # المعاينات {#previews}
 
-::: warning REQUIREMENTS
+:::: متطلبات التحذير
 <!-- -->
-- <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع تويست</LocalizedLink>
+- أ <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع تويست
+  <LocalizedLink href="/guides/server/accounts-and-projects">تويست</LocalizedLink>
 <!-- -->
 :::
 
@@ -24,12 +25,12 @@
 
 ::: warning DEVICE BUILDS NEED TO BE SIGNED
 <!-- -->
-عند الإنشاء للجهاز، تقع على عاتقك حاليًا مسؤولية ضمان توقيع التطبيق بشكل صحيح.
-نخطط لتبسيط هذا الأمر في المستقبل.
+عند الإنشاء للجهاز، تقع على عاتقك حاليًا مسؤولية التأكد من توقيع التطبيق بشكل
+صحيح. نخطط لتبسيط هذا الأمر في المستقبل.
 <!-- -->
 :::
 
-:::: code-group
+:::: مجموعة الرموز
 ```bash [Tuist Project]
 tuist generate App
 xcodebuild build -scheme App -workspace App.xcworkspace -configuration Debug -sdk iphonesimulator # Build the app for the simulator
@@ -43,7 +44,7 @@ tuist share App --configuration Debug --platforms iOS
 tuist share App.ipa # Share an existing .ipa file
 ```
 <!-- -->
-::::
+:::
 
 سينشئ الأمر رابطًا يمكنك مشاركته مع أي شخص لتشغيل التطبيق - إما على جهاز محاكاة
 أو جهاز فعلي. كل ما عليهم فعله هو تشغيل الأمر أدناه:
@@ -54,9 +55,9 @@ tuist run --device "My iPhone" {url} # Run the app on a specific device
 ```
 
 عند مشاركة ملف `.ipa` ، يمكنك تنزيل التطبيق مباشرة من الجهاز المحمول باستخدام
-رابط المعاينة. تكون الروابط إلى `.ipa` معاينات بشكل افتراضي _عام_. في المستقبل،
-سيكون لديك خيار لجعلها خاصة، بحيث يحتاج مستلم الرابط إلى المصادقة باستخدام حساب
-Tuist الخاص به لتنزيل التطبيق.
+رابط المعاينة. الروابط إلى معاينات `.ipa` تكون افتراضيًا _خاص_ ، مما يعني أن
+المستلم يحتاج إلى المصادقة باستخدام حساب تويست الخاص به لتنزيل التطبيق. يمكنك
+تغيير هذا إلى عام في إعدادات المشروع إذا كنت تريد مشاركة التطبيق مع أي شخص.
 
 `يمكّنك tuist run` أيضًا من تشغيل أحدث معاينة استنادًا إلى محدد مثل `أحدث` أو
 اسم الفرع أو تجزئة التزام معين:
@@ -69,7 +70,9 @@ tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview
 
 ::: warning UNIQUE BUILD NUMBERS IN CI
 <!-- -->
-تأكد من أن `CFBundleVersion` (إصدار الإنشاء) فريد من نوعه من خلال الاستفادة من رقم تشغيل CI الذي يعرضه معظم موفري CI. على سبيل المثال، في GitHub Actions، يمكنك تعيين `CFBundleVersion` إلى المتغير <code v-pre>${{ github.run_number }}</code>.
+تأكد من أن `CFBundleVersion` (إصدار الإنشاء) فريد من نوعه من خلال الاستفادة من
+رقم تشغيل CI الذي يعرضه معظم موفري CI. على سبيل المثال، في GitHub Actions، يمكنك
+تعيين `CFBundleVersion` إلى المتغير {1${{{ github.run_number}}}</code>.
 
 سيفشل تحميل معاينة بنفس الإصدار الثنائي (البناء) ونفس `CFBundleVersion`.
 <!-- -->
@@ -121,7 +124,7 @@ macOS. بدلاً من تشغيل المعاينات عبر Tuist CLI، يمكن
 عندما تنقر الآن على "تشغيل" في صفحة المعاينة، سيقوم تطبيق macOS بتشغيله تلقائيًا
 على الجهاز المحدد حاليًا.
 
-::: warning REQUIREMENTS
+:::: متطلبات التحذير
 <!-- -->
 يجب أن يكون لديك Xcode مثبتًا محليًا وأن يكون مثبتًا على نظام macOS 14 أو أحدث.
 <!-- -->
@@ -143,9 +146,12 @@ macOS. بدلاً من تشغيل المعاينات عبر Tuist CLI، يمكن
 
 ## تعليقات طلب السحب/الدمج {#pullmerge-request-comments}
 
-::: warning GIT PLATFORM INTEGRATION REQUIRED
+:::: تحذير التكامل مع منصة GIT مطلوب
 <!-- -->
-للحصول على تعليقات طلبات السحب/الدمج التلقائية، ادمج <LocalizedLink href="/guides/server/accounts-and-projects">مشروعك Tuist</LocalizedLink> مع <LocalizedLink href="/guides/server/authentication">منصة Git</LocalizedLink>.
+للحصول على تعليقات طلبات السحب/الدمج التلقائية، ادمج مشروعك
+<LocalizedLink href="/guides/server/accounts-and-projects">Tuist</LocalizedLink>
+مع <LocalizedLink href="/guides/server/authentication">Git</LocalizedLink>منصة
+<LocalizedLink href="/guides/server/authentication">Git.
 <!-- -->
 :::
 
@@ -164,16 +170,16 @@ Tuist](/images/guides/features/github-app-with-preview.png)
 
 ## إشعارات التحديثات داخل التطبيق {#in-app-update-notifications}
 
-تُمكِّن [Tuist SDK] (https://github.com/tuist/sdk) تطبيقك من اكتشاف وقت توفر
-إصدار معاينة أحدث وإعلام المستخدمين. هذا مفيد لإبقاء المختبرين على أحدث إصدار.
+يمكّن [Tuist SDK] (https://github.com/tuist/sdk) تطبيقك من اكتشاف وقت توفر إصدار
+معاينة أحدث وإعلام المستخدمين. هذا مفيد لإبقاء المختبرين على أحدث إصدار.
 
-تتحقق SDK من التحديثات داخل نفس **معاينة المسار**. عند مشاركة معاينة مع مسار
-صريح باستخدام `- المسار` ، ستبحث SDK عن التحديثات على هذا المسار. إذا لم يتم
-تحديد أي مسار، فسيتم استخدام فرع git كمسار - لذا فإن المعاينة التي تم إنشاؤها من
-الفرع الرئيسي `` الرئيسي ستُعلم فقط بالمعاينات الأحدث التي تم إنشاؤها أيضًا من
-`الرئيسي`.
+تتحقق SDK من التحديثات داخل نفس **معاينة المسار**. عندما تقوم بمشاركة معاينة مع
+مسار صريح باستخدام `- المسار` ، ستبحث SDK عن التحديثات على هذا المسار. إذا لم
+يتم تحديد أي مسار، فسيتم استخدام فرع git كمسار - لذا فإن المعاينة التي تم
+إنشاؤها من الفرع الرئيسي `` الرئيسي ستُعلم فقط بالمعاينات الأحدث التي تم إنشاؤها
+أيضًا من `الرئيسي`.
 
-### التركيب {#installation}
+### التركيب {#sdk-installation}
 
 أضف Tuist SDK كجزء تابع لحزمة سويفت:
 
@@ -181,7 +187,7 @@ Tuist](/images/guides/features/github-app-with-preview.png)
 .package(url: "https://github.com/tuist/sdk", .upToNextMajor(from: "0.1.0"))
 ```
 
-### مراقبة التحديثات {#monitor-updates}
+### مراقبة التحديثات {#sdk-monitor-updates}
 
 استخدم `monitorPreviewUpdates` للتحقق بشكل دوري من إصدارات المعاينة الجديدة:
 
@@ -204,7 +210,7 @@ struct MyApp: App {
 }
 ```
 
-### التحقق من تحديث واحد {#single-check}
+### التحقق من تحديث واحد {#sdk-single-check}
 
 للتحقق من التحديث اليدوي:
 
@@ -219,7 +225,7 @@ if let preview = try await sdk.checkForUpdate() {
 }
 ```
 
-### إيقاف مراقبة التحديثات {#stop-monitoring}
+### إيقاف مراقبة التحديثات {#sdk-stop-monitoring}
 
 `يُرجِع موقع MonitorPreviewUpdates` مهمة `مهمة` يمكن إلغاؤها:
 
@@ -232,7 +238,7 @@ let task = sdk.monitorPreviewUpdates { preview in
 task.cancel()
 ```
 
-::: info
+:::: المعلومات
 <!-- -->
 يتم تعطيل التحقق من التحديث تلقائياً على أجهزة المحاكاة وإصدارات App Store.
 <!-- -->
