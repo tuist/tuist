@@ -20,7 +20,8 @@ CLI 會在內部記錄訊息，以協助您診斷問題。
 
 ::: tip
 <!-- -->
-瞭解更多關於 Tuist 目錄組織的資訊，以及如何在 <LocalizedLink href="/cli/directories">Directories 文件</LocalizedLink>中設定自訂目錄。
+瞭解更多關於 Tuist 目錄組織的資訊，以及如何在 <LocalizedLink href="/cli/directories">Directories
+文件</LocalizedLink>中設定自訂目錄。
 <!-- -->
 :::
 
