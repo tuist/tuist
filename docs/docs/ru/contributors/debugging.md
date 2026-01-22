@@ -5,39 +5,39 @@
   "description": "Use coding agents and local runs to debug issues in Tuist."
 }
 ---
-# Debugging {#debugging}
+# Отладка {#debugging}
 
-Being open is a practical advantage: the code is available, you can run it
-locally, and you can use coding agents to answer questions faster and debug
-potential bugs in the codebase.
+Открытость дает практические преимущества: код доступен, его можно запустить
+локально, а с помощью кодирующих агентов можно быстрее отвечать на вопросы и
+отлаживать потенциальные ошибки в коде.
 
-If you find missing or incomplete documentation while debugging, update the
-English docs under `docs/` and open a PR.
+Если во время отладки вы обнаружите отсутствующую или неполную документацию,
+обновите английскую документацию по адресу `docs/` и откройте PR.
 
-## Use coding agents {#use-coding-agents}
+## Используйте кодирующие агенты {#use-coding-agents}
 
-Coding agents are useful for:
+Агенты кодирования полезны для:
 
-- Scanning the codebase for where a behavior is implemented.
-- Reproducing issues locally and iterating quickly.
-- Tracing how inputs flow through Tuist to find the root cause.
+- Сканирование кодовой базы для поиска места реализации поведения.
+- Воспроизведение проблем локально и быстрое повторение.
+- Отслеживание потока входных данных через Tuist для поиска первопричины.
 
-Share the smallest reproduction you can, and point the agent at the specific
-component (CLI, server, cache, docs, or handbook). The more focused the scope,
-the faster and more accurate the debugging process is.
+Поделитесь самым маленьким воспроизведением, которое можете, и укажите агенту
+конкретный компонент (CLI, сервер, кэш, документация или руководство). Чем более
+сфокусированный объем, тем быстрее и точнее будет процесс отладки.
 
-### Frequently Needed Prompts (FNP) {#frequently-needed-prompts}
+### Часто используемые подсказки (FNP) {#frequently-needed-prompts}
 
-#### Unexpected project generation {#unexpected-project-generation}
+#### Неожиданное создание проекта {#unexpected-project-generation}
 
-The project generation is giving me something I do not expect. Run the Tuist CLI
-against my project at `/path/to/project` to understand why this is happening.
-Trace the generator pipeline and point to the code paths responsible for the
-output.
+Генерация проекта дает мне неточный результат. Запустите Tuist CLI для моего
+проекта по адресу `/path/to/project`, чтобы понять, почему это происходит.
+Проследите цепочку генератора и укажите пути кода, ответственные за вывод.
 
-#### Reproducible bug in generated projects {#reproducible-bug-in-generated-projects}
+#### Воспроизводимая ошибка в сгенерированных проектах {#reproducible-bug-in-generated-projects}
 
-This looks like a bug in generated projects. Create a reproducible project under
-`examples/`, using existing examples as a reference. Add an acceptance test that
-fails, run it via `xcodebuild` with only that test selected, fix the issue,
-re-run the test to confirm it passes, and open a PR.
+Это похоже на ошибку в сгенерированных проектах. Создайте воспроизводимый проект
+в `examples/`, используя существующие примеры в качестве справочного материала.
+Добавьте тест приемлемости, который завершается с ошибкой, запустите его через
+`xcodebuild`, выбрав только этот тест, исправьте проблему, запустите тест еще
+раз, чтобы убедиться, что он прошел успешно, и откройте PR.
