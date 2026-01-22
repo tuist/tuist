@@ -15,7 +15,8 @@ almacenamiento en caché del sistema de compilación.
 
 ::: advertencia REQUISITOS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y proyecto</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y
+  proyecto</LocalizedLink>
 - Xcode 26.0 o posterior
 <!-- -->
 :::
@@ -105,24 +106,33 @@ let tuist = Tuist(
 Para habilitar el almacenamiento en caché en su entorno CI, debe ejecutar el
 mismo comando que en los entornos locales: `tuist setup cache`.
 
-Además, debe asegurarse de que la variable de entorno `TUIST_TOKEN` está
-configurada. Puede crear una siguiendo la documentación
-<LocalizedLink href="/guides/server/authentication#as-a-project">aquí</LocalizedLink>.
-La variable de entorno `TUIST_TOKEN` _ debe_ estar presente para su paso de
-compilación, pero recomendamos establecerla para todo el flujo de trabajo de CI.
+Para la autenticación, puede utilizar
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">la autenticación
+OIDC</LocalizedLink> (recomendada para los proveedores de CI compatibles) o un
+<LocalizedLink href="/guides/server/authentication#account-tokens">token de
+cuenta</LocalizedLink> a través de la variable de entorno `TUIST_TOKEN`.
 
-Un ejemplo de flujo de trabajo para GitHub Actions podría ser el siguiente:
+Un ejemplo de flujo de trabajo para Acciones de GitHub utilizando autenticación
+OIDC:
 ```yaml
 name: Build
 
-env:
-  TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   build:
+    runs-on: macos-latest
     steps:
-      - # Your set up steps...
-      - name: Set up Tuist Cache
-        run: tuist setup cache
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: tuist auth login
+      - run: tuist setup cache
       - # Your build steps
 ```
+
+Consulte la guía
+<LocalizedLink href="/guides/integrations/continuous-integration">Integración
+continua</LocalizedLink> para ver más ejemplos, incluida la autenticación basada
+en token y otras plataformas CI como Xcode Cloud, CircleCI, Bitrise y Codemagic.
