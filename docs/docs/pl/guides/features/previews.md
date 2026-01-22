@@ -9,7 +9,8 @@
 
 ::: ostrzeżenie WYMAGANIA
 <!-- -->
-- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects"> Tuist</LocalizedLink>
+- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects">
+  Tuist</LocalizedLink>
 <!-- -->
 :::
 
@@ -55,11 +56,11 @@ tuist run {url}
 tuist run --device "My iPhone" {url} # Run the app on a specific device
 ```
 
-Podczas udostępniania pliku `.ipa` można pobrać aplikację bezpośrednio z
-urządzenia mobilnego za pomocą łącza Podgląd. Łącza do podglądów `.ipa` są
-domyślnie _publiczne_. W przyszłości będzie można ustawić je jako prywatne, tak
-aby odbiorca linku musiał uwierzytelnić się za pomocą swojego konta Tuist, aby
-pobrać aplikację.
+Udostępniając plik `.ipa`, można pobrać aplikację bezpośrednio z urządzenia
+mobilnego za pomocą łącza Podgląd. Łącza do podglądów `.ipa` są domyślnie
+_prywatne_, co oznacza, że odbiorca musi uwierzytelnić się za pomocą swojego
+konta Tuist, aby pobrać aplikację. Możesz zmienić tę opcję na publiczną w
+ustawieniach projektu, jeśli chcesz udostępnić aplikację każdemu.
 
 `tuist run` umożliwia również uruchomienie najnowszego podglądu na podstawie
 specyfikatora, takiego jak `latest`, nazwy gałęzi lub określonego skrótu
@@ -157,7 +158,8 @@ podglądów i ich uruchamianie.
 ::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
 Aby uzyskać automatyczne komentarze do pull/merge requestów, zintegruj swój
-<LocalizedLink href="/guides/server/accounts-and-projects"> zdalny projekt</LocalizedLink> z platformą
+<LocalizedLink href="/guides/server/accounts-and-projects"> zdalny
+projekt</LocalizedLink> z platformą
 <LocalizedLink href="/guides/server/authentication">Git</LocalizedLink>.
 <!-- -->
 :::
@@ -165,12 +167,13 @@ Aby uzyskać automatyczne komentarze do pull/merge requestów, zintegruj swój
 Testowanie nowych funkcji powinno być częścią każdego przeglądu kodu. Jednak
 konieczność tworzenia aplikacji lokalnie zwiększa niepotrzebne tarcia, często
 prowadząc do tego, że programiści w ogóle pomijają testowanie funkcjonalności na
-swoich urządzeniach. Ale *co by było, gdyby każde żądanie ściągnięcia zawierało
+swoim urządzeniu. Ale *co by było, gdyby każde żądanie ściągnięcia zawierało
 link do kompilacji, która automatycznie uruchamiałaby aplikację na urządzeniu
 wybranym w aplikacji Tuist macOS?*
 
 Po połączeniu projektu Tuist z platformą Git, taką jak
-[GitHub](https://github.com), dodaj <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink> do przepływu pracy CI. Następnie Tuist opublikuje
+[GitHub](https://github.com), dodaj <LocalizedLink href="/cli/share">`tuist
+share MyApp`</LocalizedLink> do przepływu pracy CI. Następnie Tuist opublikuje
 link do podglądu bezpośrednio w żądaniach ściągnięcia: ![Komentarz do aplikacji
 GitHub z linkiem do podglądu
 Tuist](/images/guides/features/github-app-with-preview.png)
