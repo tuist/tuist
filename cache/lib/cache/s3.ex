@@ -82,7 +82,7 @@ defmodule Cache.S3 do
 
       case local_path
            |> Upload.stream_file()
-           |> ExAws.S3.upload(bucket, key)
+           |> ExAws.S3.upload(bucket, key, timeout: 120_000)
            |> ExAws.request() do
         {:ok, _response} ->
           :ok
