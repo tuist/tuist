@@ -6,49 +6,51 @@
 }
 ---
 
-# Self-host Cache {#self-host-cache}
+# Kendi sunucunuzda önbellek barındırma {#self-host-cache}
 
-The Tuist cache service can be self-hosted to provide a private binary cache for
-your team. This is most useful for organizations with large artifacts and
-frequent builds, where placing the cache closer to your CI infrastructure
-reduces latency and improves cache efficiency. By minimizing the distance
-between your build agents and the cache, you ensure that network overhead
-doesn't negate the speed benefits of caching.
+Tuist önbellek hizmeti, ekibiniz için özel bir ikili önbellek sağlamak üzere
+kendi sunucunuzda barındırılabilir. Bu, büyük yapıtlara ve sık sık derlemelere
+sahip kuruluşlar için çok yararlıdır. Bu tür kuruluşlarda, önbelleği CI
+altyapınıza daha yakın bir yere yerleştirmek gecikmeyi azaltır ve önbellek
+verimliliğini artırır. Derleme aracıları ile önbellek arasındaki mesafeyi en aza
+indirerek, ağ yükünün önbelleklemenin hız avantajlarını ortadan kaldırmamasını
+sağlarsınız.
 
 ::: info
 <!-- -->
-Self-hosting cache nodes requires an **Enterprise plan**.
+Önbellek düğümlerini kendi sunucunuzda barındırmak için **Enterprise planı**
+gereklidir.
 
-You can connect self-hosted cache nodes to either the hosted Tuist server
-(`https://tuist.dev`) or a self-hosted Tuist server. Self-hosting the Tuist
-server itself requires a separate server license. See the
-<LocalizedLink href="/guides/server/self-host/install">server self-hosting
-guide</LocalizedLink>.
+Kendi barındırdığınız önbellek düğümlerini, barındırılan Tuist sunucusuna
+(`https://tuist.dev`) veya kendi barındırdığınız Tuist sunucusuna
+bağlayabilirsiniz. Tuist sunucusunu kendi barındırmanız için ayrı bir sunucu
+lisansı gerekir. <LocalizedLink href="/guides/server/self-host/install">sunucu
+kendi barındırma kılavuzuna</LocalizedLink> bakın.
 <!-- -->
 :::
 
-## Prerequisites {#prerequisites}
+## Ön Koşullar {#prerequisites}
 
-- Docker and Docker Compose
-- S3-compatible storage bucket
-- A running Tuist server instance (hosted or self-hosted)
+- Docker ve Docker Compose
+- S3 uyumlu depolama kovası
+- Çalışan bir Tuist sunucu örneği (barındırılan veya kendi kendine barındırılan)
 
-## Deployment {#deployment}
+## Dağıtım {#deployment}
 
-The cache service is distributed as a Docker image at
-[ghcr.io/tuist/cache](https://ghcr.io/tuist/cache). We provide reference
-configuration files in the [cache
-directory](https://github.com/tuist/tuist/tree/main/cache).
+Önbellek hizmeti, [ghcr.io/tuist/cache](https://ghcr.io/tuist/cache) adresinde
+Docker görüntüsü olarak dağıtılmaktadır. [cache
+dizini](https://github.com/tuist/tuist/tree/main/cache) içinde referans
+yapılandırma dosyaları sunuyoruz.
 
 ::: tip
 <!-- -->
-We provide a Docker Compose setup because it's a convenient baseline for
-evaluation and small deployments. You can use it as a reference and adapt it to
-your preferred deployment model (Kubernetes, raw Docker, etc.).
+Değerlendirme ve küçük dağıtımlar için uygun bir temel olduğu için Docker
+Compose kurulumu sağlıyoruz. Bunu referans olarak kullanabilir ve tercih
+ettiğiniz dağıtım modeline (Kubernetes, ham Docker vb.) uyarlayabilirsiniz.
 <!-- -->
 :::
 
-### Configuration files {#config-files}
+### Yapılandırma dosyaları {#config-files}
 
 ```bash
 curl -O https://raw.githubusercontent.com/tuist/tuist/main/cache/docker-compose.yml
@@ -56,14 +58,15 @@ mkdir -p docker
 curl -o docker/nginx.conf https://raw.githubusercontent.com/tuist/tuist/main/cache/docker/nginx.conf
 ```
 
-### Environment variables {#environment-variables}
+### Ortam değişkenleri {#environment-variables}
 
-Create a `.env` file with your configuration.
+`.env` dosyasını yapılandırmanızla birlikte oluşturun.
 
 ::: tip
 <!-- -->
-The service is built with Elixir/Phoenix, so some variables use the `PHX_`
-prefix. You can treat these as standard service configuration.
+Hizmet Elixir/Phoenix ile oluşturulmuştur, bu nedenle bazı değişkenler `PHX_`
+önekini kullanır. Bunları standart hizmet yapılandırması olarak kabul
+edebilirsiniz.
 <!-- -->
 :::
 
@@ -91,42 +94,42 @@ S3_REGION=us-east-1
 DATA_DIR=/data
 ```
 
-| Variable                          | Required | Default                   | Description                                                                                       |
-| --------------------------------- | -------- | ------------------------- | ------------------------------------------------------------------------------------------------- |
-| `SECRET_KEY_BASE`                 | Yes      |                           | Secret key used to sign and encrypt data (minimum 64 characters).                                 |
-| `PUBLIC_HOST`                     | Yes      |                           | Public hostname or IP address of your cache service. Used to generate absolute URLs.              |
-| `SERVER_URL`                      | Yes      |                           | URL of your Tuist server for authentication. Defaults to `https://tuist.dev`                      |
-| `DATA_DIR`                        | Yes      |                           | Directory where CAS artifacts are stored on disk. The provided Docker Compose setup uses `/data`. |
-| `S3_BUCKET`                       | Yes      |                           | S3 bucket name.                                                                                   |
-| `S3_HOST`                         | Yes      |                           | S3 endpoint hostname.                                                                             |
-| `S3_ACCESS_KEY_ID`                | Yes      |                           | S3 access key.                                                                                    |
-| `S3_SECRET_ACCESS_KEY`            | Yes      |                           | S3 secret key.                                                                                    |
-| `S3_REGION`                       | Yes      |                           | S3 region.                                                                                        |
-| `CAS_DISK_HIGH_WATERMARK_PERCENT` | No       | `85`                      | Disk usage percentage that triggers LRU eviction.                                                 |
-| `CAS_DISK_TARGET_PERCENT`         | No       | `70`                      | Target disk usage after eviction.                                                                 |
-| `PHX_SOCKET_PATH`                 | No       | `/run/cache/cache.sock`   | Path where the service creates its Unix socket (when enabled).                                    |
-| `PHX_SOCKET_LINK`                 | No       | `/run/cache/current.sock` | Symlink path that Nginx uses to connect to the service.                                           |
+| Değişken                          | Gerekli | Varsayılan                | Açıklama                                                                                                  |
+| --------------------------------- | ------- | ------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `SECRET_KEY_BASE`                 | Evet    |                           | Verileri imzalamak ve şifrelemek için kullanılan gizli anahtar (en az 64 karakter).                       |
+| `PUBLIC_HOST`                     | Evet    |                           | Önbellek hizmetinizin genel ana bilgisayar adı veya IP adresi. Mutlak URL'ler oluşturmak için kullanılır. |
+| `SERVER_URL`                      | Evet    |                           | Kimlik doğrulama için Tuist sunucunuzun URL'si. Varsayılan değer `https://tuist.dev`                      |
+| `DATA_DIR`                        | Evet    |                           | CAS artefaktlarının diskte depolandığı dizin. Sağlanan Docker Compose kurulumu `/data` kullanır.          |
+| `S3_BUCKET`                       | Evet    |                           | S3 kova adı.                                                                                              |
+| `S3_HOST`                         | Evet    |                           | S3 uç noktası ana bilgisayar adı.                                                                         |
+| `S3_ACCESS_KEY_ID`                | Evet    |                           | S3 erişim anahtarı.                                                                                       |
+| `S3_SECRET_ACCESS_KEY`            | Evet    |                           | S3 gizli anahtarı.                                                                                        |
+| `S3_REGION`                       | Evet    |                           | S3 bölgesi.                                                                                               |
+| `CAS_DISK_HIGH_WATERMARK_PERCENT` | Hayır   | `85`                      | LRU tahliyesini tetikleyen disk kullanım yüzdesi.                                                         |
+| `CAS_DISK_TARGET_PERCENT`         | Hayır   | `70`                      | Tahliye sonrası hedef disk kullanımı.                                                                     |
+| `PHX_SOCKET_PATH`                 | Hayır   | `/run/cache/cache.sock`   | Hizmetin Unix soketini oluşturduğu yol (etkinleştirildiğinde).                                            |
+| `PHX_SOCKET_LINK`                 | Hayır   | `/run/cache/current.sock` | Nginx'in hizmete bağlanmak için kullandığı sembolik bağlantı yolu.                                        |
 
-### Start the service {#start-service}
+### Hizmeti başlatın {#start-service}
 
 ```bash
 docker compose up -d
 ```
 
-### Verify the deployment {#verify}
+### Dağıtımı doğrulayın {#verify}
 
 ```bash
 curl http://localhost/up
 ```
 
-## Configure the cache endpoint {#configure-endpoint}
+## Önbellek uç noktasını yapılandırın {#configure-endpoint}
 
-After deploying the cache service, register it in your Tuist server organization
-settings:
+Önbellek hizmetini dağıttıktan sonra, Tuist sunucu organizasyon ayarlarınızda
+kaydettirin:
 
-1. Navigate to your organization's **Settings** page
-2. Find the **Custom cache endpoints** section
-3. Add your cache service URL (for example, `https://cache.example.com`)
+1. Kuruluşunuzun **Ayarlar** sayfasına gidin.
+2. **'yi bulun Özel önbellek uç noktaları** bölümü
+3. Önbellek hizmeti URL'nizi ekleyin (örneğin, `https://cache.example.com`)
 
 <!-- TODO: Add screenshot of organization settings page showing Custom cache endpoints section -->
 
@@ -136,58 +139,62 @@ graph TD
   B --> C[Tuist CLI uses your endpoint]
 ```
 
-Once configured, the Tuist CLI will use your self-hosted cache.
+Yapılandırıldıktan sonra, Tuist CLI kendi barındırdığınız önbelleği
+kullanacaktır.
 
-## Volumes {#volumes}
+## Ciltler {#volumes}
 
-The Docker Compose configuration uses three volumes:
+Docker Compose yapılandırması üç birim kullanır:
 
-| Volume         | Purpose                                     |
-| -------------- | ------------------------------------------- |
-| `cas_data`     | Binary artifact storage                     |
-| `sqlite_data`  | Access metadata for LRU eviction            |
-| `cache_socket` | Unix socket for Nginx-service communication |
+| Cilt           | Amaç                                     |
+| -------------- | ---------------------------------------- |
+| `cas_data`     | İkili yapay nesne depolama               |
+| `sqlite_data`  | LRU tahliyesi için meta verilere erişin  |
+| `cache_socket` | Nginx hizmeti iletişimi için Unix soketi |
 
-## Health checks {#health-checks}
+## Sağlık kontrolleri {#health-checks}
 
-- `GET /up` — Returns 200 when healthy
-- `GET /metrics` — Prometheus metrics
+- `GET /up` — Sorunsuz olduğunda 200 döndürür
+- `GET /metrics` — Prometheus metrikleri
 
-## Monitoring {#monitoring}
+## İzleme {#monitoring}
 
-The cache service exposes Prometheus-compatible metrics at `/metrics`.
+Önbellek hizmeti, Prometheus uyumlu metrikleri `/metrics` adresinde gösterir.
 
-If you use Grafana, you can import the [reference
-dashboard](https://raw.githubusercontent.com/tuist/tuist/refs/heads/main/cache/priv/grafana_dashboards/cache_service.json).
+Grafana kullanıyorsanız, [referans
+panosunu](https://raw.githubusercontent.com/tuist/tuist/refs/heads/main/cache/priv/grafana_dashboards/cache_service.json)
+içe aktarabilirsiniz.
 
-## Upgrading {#upgrading}
+## Yükseltme {#upgrading}
 
 ```bash
 docker compose pull
 docker compose up -d
 ```
 
-The service runs database migrations automatically on startup.
+Hizmet, başlangıçta veritabanı geçişleri otomatik olarak çalıştırır.
 
-## Troubleshooting {#troubleshooting}
+## Sorun Giderme {#troubleshooting}
 
-### Cache not being used {#troubleshooting-caching}
+### Önbellek kullanılmıyor {#troubleshooting-caching}
 
-If you expect caching but are seeing consistent cache misses (for example, the
-CLI is repeatedly uploading the same artifacts, or downloads never happen),
-follow these steps:
+Önbellekleme bekliyorsanız ancak sürekli önbellek hataları görüyorsanız
+(örneğin, CLI aynı öğeleri tekrar tekrar yüklüyor veya indirme hiç
+gerçekleşmiyor), şu adımları izleyin:
 
-1. Verify the custom cache endpoint is correctly configured in your organization
-   settings.
-2. Ensure your Tuist CLI is authenticated by running `tuist auth login`.
-3. Check the cache service logs for any errors: `docker compose logs cache`.
+1. Özel önbellek uç noktasının kuruluş ayarlarınızda doğru şekilde
+   yapılandırıldığını doğrulayın.
+2. `tuist auth login` komutunu çalıştırarak Tuist CLI'nizin kimlik
+   doğrulamasının yapıldığından emin olun.
+3. Önbellek hizmeti günlüklerinde hata olup olmadığını kontrol edin: `docker
+   compose logs cache`.
 
-### Socket path mismatch {#troubleshooting-socket}
+### Soket yolu uyuşmazlığı {#troubleshooting-socket}
 
-If you see connection refused errors:
+Bağlantı reddedildi hatası görürseniz:
 
-- Ensure `PHX_SOCKET_LINK` points to the socket path configured in nginx.conf
-  (default: `/run/cache/current.sock`)
-- Verify `PHX_SOCKET_PATH` and `PHX_SOCKET_LINK` are both set correctly in
-  docker-compose.yml
-- Verify the `cache_socket` volume is mounted in both containers
+- `PHX_SOCKET_LINK` nginx.conf dosyasında yapılandırılan soket yolunu işaret
+  ettiğinden emin olun (varsayılan: `/run/cache/current.sock`)
+- `'nin PHX_SOCKET_PATH` ve `'nin PHX_SOCKET_LINK` docker-compose.yml dosyasında
+  doğru şekilde ayarlandığını doğrulayın.
+- `cache_socket` biriminin her iki konteynere de takılı olduğunu doğrulayın.
