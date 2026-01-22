@@ -10,11 +10,13 @@
 Плагины - это инструмент для совместного и повторного использования артефактов
 Tuist в нескольких проектах. Поддерживаются следующие артефакты:
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">Помощники по описанию проектов</LocalizedLink> в нескольких проектах.
+- <LocalizedLink href="/guides/features/projects/code-sharing">Помощники по
+  описанию проектов</LocalizedLink> в нескольких проектах.
 - <LocalizedLink href="/guides/features/projects/templates">Шаблоны</LocalizedLink>
   для нескольких проектов.
 - Выполнение задач в рамках нескольких проектов.
-- <LocalizedLink href="/guides/features/projects/synthesized-files">Шаблон ресурса accessor</LocalizedLink> для нескольких проектов
+- <LocalizedLink href="/guides/features/projects/synthesized-files">Шаблон
+  ресурса accessor</LocalizedLink> для нескольких проектов
 
 Обратите внимание, что плагины - это простой способ расширить функциональность
 Tuist. Поэтому есть **некоторые ограничения, которые следует учитывать**:
@@ -54,8 +56,9 @@ let plugin = Plugin(name: "MyPlugin")
 
 ### Плагин шаблонов доступа к ресурсам {#resource-accessor-templates-plugin}
 
-Если вам необходимо совместно использовать
-<LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">синтезированные аксессоры ресурсов</LocalizedLink>, вы можете использовать этот тип плагина.
+Если вам нужно совместно использовать
+<LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">синтезированные
+аксессоры ресурсов</LocalizedLink>, вы можете использовать этот тип плагина.
 Плагин представлен директорией, содержащей файл манифеста `Plugin.swift`, в
 котором объявляется имя плагина, и директорию `ResourceSynthesizers`, содержащую
 файлы шаблонов аксессоров ресурсов.
@@ -94,8 +97,8 @@ let plugin = Plugin(name: "MyPlugin")
 | JSON                    | `JSON.stencil`             |
 | YAML                    | `YAML.stencil`             |
 
-При определении синтезаторов ресурсов в проекте можно указать имя плагина, чтобы
-использовать шаблоны из этого плагина:
+При определении синтезаторов ресурсов в проекте вы можете указать имя плагина,
+чтобы использовать шаблоны из этого плагина:
 
 ```swift
 let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
@@ -117,7 +120,7 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 инструменты под `tuist plugin` для `build`, `run`, `test` и `archive` задач,
 представленных исполняемыми файлами в Swift-пакетах, но мы отказались от этой
 возможности, поскольку она увеличивает нагрузку на поддержку и сложность
-инструмента.
+инструмента.</task-name>
 
 Если вы использовали Tuist для распределения задач, мы рекомендуем создать свой
 - Вы можете продолжать использовать `ProjectAutomation.xcframework`,
