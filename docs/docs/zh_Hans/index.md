@@ -63,15 +63,15 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
         link="/guides/features/registry"/>
 </HomeCards>
 
-## 加入数千名已完成转换的开发者行列
+## 加入成千上万已经做出转变的开发者行列
 
 **[Trendyol](https://www.trendyol.com/)、[Etsy](https://www.etsy.com/)、[Bumble](https://bumble.com/)、[Monzo](https://monzo.com/)、[Bending
 Spoons](https://bendingspoons.com/)等100余家企业** 已通过Tuist重塑其苹果平台开发模式。以下是他们的实践成果：
 
-- **** 智能缓存技术，构建速度提升65%
-- **Xcode项目中零合并冲突**
-- **分钟转秒** 包解析
-- **专注于功能开发的快乐开发者们**
+- 智能缓存使**构建速度提升65%** ，
+- Xcode项目中**零合并冲突**
+- **精确到秒** 的包解析
+- **快乐开的发者们**可以专注于构建功能
 
 <HomeCards type="carousel">
     <HomeCard icon="🚀"
@@ -96,13 +96,13 @@ Spoons](https://bendingspoons.com/)等100余家企业** 已通过Tuist重塑其�
 
 ## 查看 Tuist 的实际应用效果
 
-**从真实实现中学习** ，当工具链完美运行时，您将领略无限可能。
+**从实际应用中学习**，并从工具链正常运行时所能实现的各种可能性中汲取灵感。
 
 <HomeVideos/>
 
 ## 加入蓬勃发展的社区
 
-**与数千名使用 Tuist 打造更优质应用的苹果平台开发者建立联系** 。获取帮助、分享成功经验，共同塑造苹果平台开发的未来。
+**与数千名使用 Tuist 开发更优质应用的 Apple 平台开发者交流互动**。获取帮助，分享成功经验，共同塑造 Apple 平台开发的未来。
 
 <HomeCommunity>
     <HomeCommunityItem title="Forum" description="Interact with other community members in a synchronous manner" href="https://community.tuist.dev">
