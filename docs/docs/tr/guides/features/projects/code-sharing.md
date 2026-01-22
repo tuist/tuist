@@ -7,41 +7,41 @@
 ---
 # Kod paylaşımı {#code-sharing}
 
-Xcode'u büyük projelerle kullandığımızda karşılaştığımız sorunlardan biri,
-`.xcconfig` dosyaları aracılığıyla derleme ayarları dışında projelerin
-öğelerinin yeniden kullanılmasına izin vermemesidir. Proje tanımlarını yeniden
+Xcode'u büyük projelerde kullanırken karşılaştığımız zorluklardan biri,
+`.xcconfig` dosyaları aracılığıyla yapı ayarları dışındaki proje öğelerinin
+yeniden kullanılmasına izin vermemesidir. Proje tanımlarını yeniden
 kullanabilmek aşağıdaki nedenlerden dolayı yararlıdır:
 
 - Değişiklikler tek bir yerde uygulanabildiği ve tüm projeler değişiklikleri
   otomatik olarak aldığı için **bakımını** kolaylaştırır.
-- Yeni projelerin uyabileceği **sözleşmelerinin** tanımlanmasını mümkün kılar.
-- Projeler daha **tutarlı** ve bu nedenle tutarsızlıklar nedeniyle bozuk derleme
-  olasılığı önemli ölçüde daha az.
-- Mevcut mantığı yeniden kullanabildiğimiz için yeni bir proje eklemek kolay bir
+- Bu, yeni projelerin uyum sağlayabileceği **kuralları** tanımlamayı mümkün
+  kılar.
+- Projeler daha tutarlıdır **** ve bu nedenle tutarsızlıklar nedeniyle bozuk
+  derlemeler olasılığı önemli ölçüde azalır.
+- Mevcut mantığı yeniden kullanabileceğimiz için yeni projeler eklemek kolay bir
   iş haline gelir.
 
-Tuist'te **proje açıklama yardımcıları** kavramı sayesinde manifesto dosyaları
-arasında kodun yeniden kullanılması mümkündür.
+Tuist'te, **proje açıklaması yardımcıları** kavramı sayesinde, manifest
+dosyalarında kodların yeniden kullanılması mümkündür.
 
 ::: tip A TUIST UNIQUE ASSET
 <!-- -->
-Birçok kuruluş Tuist'i seviyor çünkü proje tanımlama yardımcılarında, platform
-ekiplerinin kendi kurallarını kodlamaları ve projelerini tanımlamak için kendi
-dillerini bulmaları için bir platform görüyorlar. Örneğin, YAML tabanlı proje
-oluşturucuların kendi YAML tabanlı özel şablonlama çözümlerini bulmaları ya da
-kuruluşları araçlarını bunun üzerine inşa etmeye zorlamaları gerekiyor.
+Birçok kuruluş, proje açıklaması yardımcılarını platform ekiplerinin kendi
+kurallarını kodlamak ve projelerini açıklamak için kendi dillerini oluşturmak
+için bir platform olarak gördükleri için Tuist'i seviyor. Örneğin, YAML tabanlı
+proje oluşturucular, kendi YAML tabanlı özel şablon çözümlerini geliştirmek veya
+kuruluşları kendi araçlarını oluşturmaya zorlamak zorundadır.
 <!-- -->
 :::
 
-## Proje açıklama yardımcıları {#project-description-helpers}
+## Proje açıklaması yardımcıları {#project-description-helpers}
 
-Proje açıklama yardımcıları, manifesto dosyalarının içe aktarabileceği bir modül
-olan `ProjectDescriptionHelpers` içinde derlenen Swift dosyalarıdır. Modül,
-`Tuist/ProjectDescriptionHelpers` dizinindeki tüm dosyalar bir araya getirilerek
-derlenir.
+Proje açıklaması yardımcıları, manifest dosyalarının içe aktarabileceği bir
+modüle derlenen Swift dosyalarıdır: `ProjectDescriptionHelpers`. Modül,
+`Tuist/ProjectDescriptionHelpers` dizinindeki tüm dosyalar toplanarak derlenir.
 
-Dosyanın üst kısmına bir içe aktarma ifadesi ekleyerek bunları manifesto
-dosyanıza aktarabilirsiniz:
+Dosyanın başına bir import ifadesi ekleyerek bunları manifest dosyanıza
+aktarabilirsiniz:
 
 ```swift
 // Project.swift
@@ -50,15 +50,15 @@ import ProjectDescriptionHelpers
 ```
 
 `ProjectDescriptionHelpers` aşağıdaki manifestolarda mevcuttur:
-- `Proje.swift`
-- `Package.swift` (sadece `#TUIST` derleyici bayrağının arkasında)
-- `Çalışma Alanı.swift`
+- `Project.swift`
+- `Package.swift` (yalnızca `#TUIST` derleyici bayrağının arkasında)
+- `Workspace.swift`
 
 ## Örnek {#example}
 
-Aşağıdaki parçacıklar, statik kurucular eklemek için `Project` modelini nasıl
-genişlettiğimizi ve bunları bir `Project.swift` dosyasından nasıl kullandığımızı
-gösteren bir örnek içerir:
+Aşağıdaki kod parçacıkları, `Project` modelini statik yapıcılar eklemek için
+nasıl genişlettiğimize ve bunları `Project.swift` dosyasından nasıl
+kullandığımıza dair bir örnek içerir:
 
 ::: code-group
 ```swift [Tuist/Project+Templates.swift]
@@ -106,7 +106,7 @@ let project = Project.featureFramework(name: "MyFeature")
 
 ::: tip A TOOL TO ESTABLISH CONVENTIONS
 <!-- -->
-İşlev aracılığıyla hedeflerin adı, paket tanımlayıcısı ve klasör yapısı hakkında
-nasıl kurallar tanımladığımıza dikkat edin.
+Bu işlev aracılığıyla hedeflerin adı, paket tanımlayıcı ve klasör yapısı
+hakkında kurallar tanımladığımızı unutmayın.
 <!-- -->
 :::
