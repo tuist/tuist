@@ -44,7 +44,8 @@ OpenID Connect
 2. **tuist auth login`** を実行してください：CI ワークフローでは、認証が必要なコマンドの前に`tuist auth login`
    を実行してください。CLIは自動的にCI環境を検出し、OIDCを使って認証します。
 
-プロバイダー固有の設定例については、<LocalizedLink href="/guides/integrations/continuous-integration">Continuous Integrationガイド</LocalizedLink>を参照してください。
+プロバイダー固有の設定例については、<LocalizedLink href="/guides/integrations/continuous-integration">Continuous
+Integrationガイド</LocalizedLink>を参照してください。
 
 ### OIDCトークンのスコープ{#oidc-token-scopes}
 
