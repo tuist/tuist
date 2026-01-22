@@ -9,14 +9,15 @@
 
 ::: advertencia REQUISITOS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y proyecto</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y
+  proyecto</LocalizedLink>
 <!-- -->
 :::
 
 A medida que añades más funciones a tu aplicación, el tamaño del paquete sigue
 creciendo. Aunque parte del crecimiento del tamaño del paquete es inevitable a
 medida que envías más código y activos, hay muchas formas de minimizar ese
-crecimiento, como asegurarte de que los activos no se duplican en los paquetes o
+crecimiento, como asegurarte de que tus activos no se duplican en los paquetes o
 eliminar los símbolos binarios no utilizados. Tuist te proporciona herramientas
 y conocimientos para ayudar a que el tamaño de tu aplicación siga siendo
 pequeño, y también controlamos el tamaño de tu aplicación a lo largo del tiempo.
@@ -47,8 +48,8 @@ del bundle o un desglose de los módulos:
 ## Integración continua (CI) {#continuous-integration-ci}
 
 Para realizar un seguimiento del tamaño del paquete a lo largo del tiempo,
-deberá analizar el paquete en el CI. En primer lugar, tendrá que asegurarse de
-que su CI está
+tendrá que analizar el paquete en el CI. En primer lugar, tendrá que asegurarse
+de que su CI está
 <LocalizedLink href="/guides/integrations/continuous-integration#authentication">autenticado</LocalizedLink>:
 
 Un ejemplo de flujo de trabajo para GitHub Actions podría ser el siguiente:
