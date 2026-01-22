@@ -3,8 +3,9 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
-"PO-Revision-Date: 2026-01-22 12:41+0000\n"
-"Last-Translator: 이영준 <kofggm@gmail.com>\n"
+"PO-Revision-Date: 2026-01-23 07:32+0000\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_cache/ko/>\n"
 "Language: ko\n"
@@ -456,8 +457,9 @@ msgstr "지난 기간 이후"
 msgid "since yesterday"
 msgstr "어제부터"
 
+#, fuzzy
 msgid "Cache Endpoint"
-msgstr ""
+msgstr "캐시 주소"
 
 msgid "Set up Xcode cache for your project"
 msgstr ""
@@ -465,8 +467,9 @@ msgstr ""
 msgid "You can set up the Xcode cache for your project by running:"
 msgstr ""
 
+#, fuzzy
 msgid "Tuist documentation"
-msgstr ""
+msgstr "Tuist 문서"
 
 msgid "Size (KB)"
 msgstr ""
