@@ -3,9 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-22 12:37+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"PO-Revision-Date: 2026-01-22 13:03+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_previews/zh_Hans/>\n"
 "Language: zh_Hans\n"
@@ -33,35 +32,35 @@ msgstr "%{app_name} 图标"
 #: lib/tuist_web/live/preview_live.ex:36
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{display_name} · Tuist"
-msgstr "%{display_name}- Tuist"
+msgstr "%{display_name} · Tuist"
 
 #: lib/tuist_web/live/preview_live.html.heex:141
 #: lib/tuist_web/live/previews_live.ex:171
 #: lib/tuist_web/live/previews_live.html.heex:84
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Branch"
-msgstr "分支机构"
+msgstr "分支"
 
 #: lib/tuist_web/live/previews_live.html.heex:93
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Built at"
-msgstr "建于"
+msgstr "构建于"
 
 #: lib/tuist_web/live/preview_live.html.heex:124
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Bundle identifier"
-msgstr "捆绑标识符"
+msgstr "包标识符"
 
 #: lib/tuist_web/live/preview_live.html.heex:148
 #: lib/tuist_web/live/previews_live.html.heex:87
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Commit SHA"
-msgstr "承诺 SHA"
+msgstr "提交 SHA"
 
 #: lib/tuist_web/live/preview_live.html.heex:118
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Created by"
-msgstr "创建者"
+msgstr "创建者："
 
 #: lib/tuist_web/live/preview_live.html.heex:40
 #, elixir-autogen, elixir-format, fuzzy
@@ -71,12 +70,12 @@ msgstr "删除预览"
 #: lib/tuist_web/live/preview_live.html.heex:104
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Details"
-msgstr "详细信息"
+msgstr "详细说明"
 
 #: lib/tuist_web/live/preview_live.html.heex:10
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Don't have the Tuist app installed?"
-msgstr "没有安装 Tuist 应用程序？"
+msgstr "尚未安装 Tuist 应用程序？"
 
 #: lib/tuist_web/live/preview_live.html.heex:23
 #: lib/tuist_web/live/preview_live.html.heex:82
@@ -87,17 +86,17 @@ msgstr "下载"
 #: lib/tuist_web/live/preview_live.html.heex:168
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Install App"
-msgstr "安装应用程序"
+msgstr "安装应用"
 
 #: lib/tuist_web/live/previews_live.html.heex:24
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Latest app previews"
-msgstr "最新应用程序预览"
+msgstr "最新应用预览"
 
 #: lib/tuist_web/live/previews_live.html.heex:71
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Name"
-msgstr "名称"
+msgstr "姓名"
 
 #: lib/tuist_web/live/preview_live.html.heex:144
 #: lib/tuist_web/live/previews_live.ex:179
@@ -108,7 +107,7 @@ msgstr "无"
 #: lib/tuist_web/live/preview_live.html.heex:213
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Or run using CLI"
-msgstr "或使用 CLI 运行"
+msgstr "或通过命令行界面运行"
 
 #: lib/tuist_web/live/previews_live.html.heex:74
 #, elixir-autogen, elixir-format, fuzzy
@@ -126,12 +125,12 @@ msgstr "预览"
 #: lib/tuist_web/live/preview_live.html.heex:189
 #, elixir-autogen, elixir-format, fuzzy
 msgid "QR code"
-msgstr "二维码"
+msgstr "QR码"
 
 #: lib/tuist_web/live/preview_live.html.heex:130
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Ran at"
-msgstr "在"
+msgstr "Ran at"
 
 #: lib/tuist_web/live/previews_live.html.heex:90
 #, elixir-autogen, elixir-format, fuzzy
@@ -146,22 +145,22 @@ msgstr "运行"
 #: lib/tuist_web/live/previews_live.html.heex:6
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Run the following command to share app preview."
-msgstr "运行以下命令共享应用程序预览。"
+msgstr "运行以下命令以共享应用预览。"
 
 #: lib/tuist_web/live/preview_live.html.heex:176
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Scan QR code"
-msgstr "扫描 QR 码"
+msgstr "扫描二维码"
 
 #: lib/tuist_web/live/preview_live.html.heex:179
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Scan this QR code on your iOS device to install this version of the app"
-msgstr "在 iOS 设备上扫描此 QR 码，安装此版本的应用程序"
+msgstr "请在您的iOS设备上扫描此二维码以安装此版本的应用程序"
 
 #: lib/tuist_web/live/previews_live.html.heex:5
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Share app previews in one click"
-msgstr "一键分享应用程序预览"
+msgstr "一键分享应用预览"
 
 #: lib/tuist_web/live/preview_live.html.heex:110
 #, elixir-autogen, elixir-format, fuzzy
@@ -171,22 +170,22 @@ msgstr "支持的平台"
 #: lib/tuist_web/live/preview_live.html.heex:206
 #, elixir-autogen, elixir-format, fuzzy
 msgid "This preview is only supported on simulators and can't be installed on a physical device"
-msgstr "该预览版仅支持模拟器，无法安装到实体设备上"
+msgstr "此预览功能仅支持模拟器，无法安装在实体设备上"
 
 #: lib/tuist_web/live/preview_live.html.heex:200
 #, elixir-autogen, elixir-format, fuzzy
 msgid "This preview isn't available for device installation"
-msgstr "此预览版不适用于设备安装"
+msgstr "此预览功能不适用于设备安装"
 
 #: lib/tuist_web/live/preview_live.html.heex:12
 #, elixir-autogen, elixir-format, fuzzy
 msgid "To run the preview directly from the browser, download and install the Tuist macOS app"
-msgstr "要直接从浏览器运行预览，请下载并安装 Tuist macOS 应用程序"
+msgstr "要在浏览器中直接运行预览功能，请下载并安装 Tuist macOS 应用程序"
 
 #: lib/tuist_web/live/preview_live.html.heex:76
 #, elixir-autogen, elixir-format, fuzzy
 msgid "V %{version}"
-msgstr "V %{version｝"
+msgstr "V %{version}"
 
 #: lib/tuist_web/live/previews_live.html.heex:52
 #, elixir-autogen, elixir-format, fuzzy
@@ -203,4 +202,4 @@ msgstr "搜索..."
 #: lib/tuist_web/live/previews_live.html.heex:81
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Track"
-msgstr "轨道"
+msgstr "Track"
