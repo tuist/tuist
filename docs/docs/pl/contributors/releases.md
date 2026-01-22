@@ -38,7 +38,7 @@ Format: `typ(zakres): opis`
 
 | Typ              | Opis                       | Wersja Impact                     | Przykłady                                                   |
 | ---------------- | -------------------------- | --------------------------------- | ----------------------------------------------------------- |
-| `wyczyn`         | Nowa funkcja lub możliwość | Drobna zmiana wersji (x.Y.z)      | `feat(cli): dodanie wsparcia dla Swift 6`                   |
+| `wyczyn`         | Nowa funkcja lub możliwość | Drobne ulepszenie wersji (x.Y.z)  | `feat(cli): dodanie wsparcia dla Swift 6`                   |
 | `poprawka`       | Poprawka błędu             | Uderzenie wersji poprawki (x.y.Z) | `fix(app): usunięcie awarii podczas otwierania projektów`   |
 | `dokumenty`      | Zmiany w dokumentacji      | Brak wydania                      | `dokumenty: instrukcja instalacji aktualizacji`             |
 | `styl`           | Zmiany w stylu kodu        | Brak wydania                      | `style: formatowanie kodu za pomocą swiftformat`            |
@@ -90,8 +90,8 @@ Każdy komponent jest wydawany tylko wtedy, gdy wprowadzi odpowiednie zmiany:
 
 ## Pisanie dobrych wiadomości commit
 
-Ponieważ komunikaty o zatwierdzeniach mają bezpośredni wpływ na informacje o
-wydaniu, ważne jest, aby pisać jasne, opisowe komunikaty:
+Ponieważ komunikaty o zatwierdzeniach mają bezpośredni wpływ na noty wydania,
+ważne jest, aby pisać jasne, opisowe komunikaty:
 
 ### Do:
 - Używaj czasu teraźniejszego: "dodaj funkcję", a nie "dodano funkcję".
@@ -103,7 +103,7 @@ wydaniu, ważne jest, aby pisać jasne, opisowe komunikaty:
 ### Nie rób tego:
 - Używaj niejasnych komunikatów, takich jak "napraw błąd" lub "zaktualizuj kod".
 - Łączenie wielu niepowiązanych zmian w jednym zatwierdzeniu
-- Zapomnij dołączyć informacje o zmianach awaryjnych
+- Zapomnij dołączyć informacje o zmianach przełomowych
 
 ### Przełomowe zmiany
 
