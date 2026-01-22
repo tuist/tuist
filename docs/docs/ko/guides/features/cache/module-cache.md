@@ -94,14 +94,14 @@ tuist generate --cache-profile none
 
 ::: info DEPRECATED FLAG
 <!-- -->
-`--no-binary-cache` 플래그는 더 이상 사용되지 않습니다. 대신 `--cache-profile none` 을 사용하세요. 더 이상
-사용되지 않는 플래그는 이전 버전과의 호환성을 위해 계속 작동합니다.
+` `--no-binary-cache`` 플래그는 더 이상 사용되지 않습니다. 대신 ` `--cache-profile none`` 를
+사용하십시오. 하위 호환성을 위해 더 이상 사용되지 않는 플래그는 여전히 작동합니다.
 <!-- -->
 :::
 
 효과적인 동작을 해결할 때의 우선 순위(가장 높은 것부터 가장 낮은 것까지):
 
-1. `--캐시-프로필 없음`
+1. `--cache-profile none`
 2. Target 집중 (Target들을 `generate`에 넘기기) → 프로파일 `all-possible`
 3. `--cache-profile <value>`</value>
 4. 환경 설정 기본값(설정된 경우)
