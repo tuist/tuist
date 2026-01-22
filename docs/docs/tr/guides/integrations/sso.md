@@ -43,12 +43,13 @@ yapılandırmanız gerekir:
 5. Şimdilik oturum açma yönlendirme URI'lerini olduğu gibi bırakın.
 6. "Görevler" altında, SSO Uygulamasına istediğiniz erişim kontrolünü seçin ve
    kaydedin.
-7. After saving, the general settings for the application will be available.
-   Copy the "Client ID" and "Client Secret". Also note your Okta organization
-   URL (e.g., `https://your-company.okta.com`) – you will need to safely share
-   all of these with your point of contact.
-8. Once the Tuist team has configured the SSO, click on General Settings "Edit"
-   button.
+7. Kaydettikten sonra, uygulamanın genel ayarları kullanılabilir hale
+   gelecektir. "Müşteri Kimliği" ve "Müşteri Gizli Anahtarı"nı kopyalayın.
+   Ayrıca Okta kuruluşunuzun URL'sini de not edin (ör.
+   `https://your-company.okta.com`) – tüm bunları irtibat kişinizle güvenli bir
+   şekilde paylaşmanız gerekecektir.
+8. Tuist ekibi SSO'yu yapılandırdıktan sonra, Genel Ayarlar "Düzenle" düğmesine
+   tıklayın.
 9. Aşağıdaki yönlendirme URL'sini yapıştırın:
    `https://tuist.dev/users/auth/okta/callback`
 10. "Giriş başlatıldı" ifadesini "Okta veya Uygulama" olarak değiştirin.
