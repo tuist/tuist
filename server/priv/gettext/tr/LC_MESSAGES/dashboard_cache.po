@@ -3,9 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
-"PO-Revision-Date: 2026-01-22 12:38+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"PO-Revision-Date: 2026-01-22 13:05+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_cache/tr/>\n"
 "Language: tr\n"
@@ -28,13 +27,13 @@ msgstr ""
 #: lib/tuist_web/live/bundle_live.html.heex:421
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{duplicates_count} duplicates"
-msgstr "duplicates_count} %{duplicates_count} duplicates"
+msgstr "%{duplicates_count} kopya"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:516
 #: lib/tuist_web/live/xcode_cache_live.html.heex:501
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{duration}s"
-msgstr "%{süre}s"
+msgstr "%{duration}s"
 
 #: lib/tuist_web/live/cache_runs_live.html.heex:77
 #: lib/tuist_web/live/module_cache_live.html.heex:117
@@ -53,7 +52,7 @@ msgstr "%{süre}s"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:484
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{hit_rate}%"
-msgstr "isabet_oranı}%"
+msgstr "%{hit_rate}%"
 
 #: lib/tuist_web/live/cache_runs_live.html.heex:113
 #, elixir-autogen, elixir-format, fuzzy
@@ -63,7 +62,7 @@ msgstr "%{run_duration}s"
 #: lib/tuist_web/live/bundle_live.html.heex:367
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{savings} %"
-msgstr "%{tasarruf} %"
+msgstr "%{savings} %"
 
 #: lib/tuist_web/live/bundle_live.ex:769
 #, elixir-autogen, elixir-format, fuzzy
@@ -78,7 +77,7 @@ msgstr "0 MB"
 #: lib/tuist_web/live/bundle_live.ex:767
 #, elixir-autogen, elixir-format, fuzzy
 msgid "< 0.1 %"
-msgstr "< 0.1 %"
+msgstr "< %0,1"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:3
 #: lib/tuist_web/live/xcode_cache_live.html.heex:3
@@ -129,7 +128,7 @@ msgstr "Ortalama"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:63
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Avg. cache hit rate"
-msgstr "Avg. önbellek isabet oranı"
+msgstr "Ort. önbellek isabet oranı"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:95
 #, elixir-autogen, elixir-format, fuzzy
@@ -153,12 +152,12 @@ msgstr "İkili"
 #: lib/tuist_web/live/cache_runs_live.html.heex:96
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Branch"
-msgstr "Şube"
+msgstr "Dal"
 
 #: lib/tuist_web/live/bundles_live.html.heex:48
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Branch:"
-msgstr "Şube:"
+msgstr "Dal:"
 
 #: lib/tuist_web/live/bundle_live.ex:52
 #, elixir-autogen, elixir-format, fuzzy
@@ -201,7 +200,7 @@ msgstr "CI"
 #: lib/tuist_web/live/cache_runs_live.html.heex:2
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cache Runs"
-msgstr "Önbellek Çalışmaları"
+msgstr "Önbellek Çalıştırmaları"
 
 #: lib/tuist_web/live/xcode_cache_live.ex:136
 #: lib/tuist_web/live/xcode_cache_live.html.heex:146
@@ -213,8 +212,8 @@ msgstr "Önbellek indirmeleri"
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cache downloads represents the total size of cache artifacts downloaded from remote storage during the given period."
 msgstr ""
-"Önbellek indirmeleri, verilen süre boyunca uzak depolamadan indirilen "
-"önbellek eserlerinin toplam boyutunu temsil eder."
+"Önbellek indirmeleri, belirli bir süre içinde uzak depolama alanından "
+"indirilen önbellek öğelerinin toplam boyutunu temsil eder."
 
 #: lib/tuist_web/live/module_cache_live.ex:160
 #: lib/tuist_web/live/module_cache_live.html.heex:99
@@ -231,39 +230,39 @@ msgstr "Önbellek isabet oranı"
 msgid "Cache hit rate represents the percentage of cacheable targets that were resolved from cache (local or remote) rather than being rebuilt."
 msgstr ""
 "Önbellek isabet oranı, yeniden oluşturulmak yerine önbellekten (yerel veya "
-"uzak) çözümlenen önbelleklenebilir hedeflerin yüzdesini temsil eder."
+"uzak) çözülen önbelleğe alınabilir hedeflerin yüzdesini temsil eder."
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:79
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cache hit rate represents the percentage of cacheable tasks that were resolved from cache (local or remote) rather than being rebuilt."
 msgstr ""
 "Önbellek isabet oranı, yeniden oluşturulmak yerine önbellekten (yerel veya "
-"uzak) çözümlenen önbelleğe alınabilir görevlerin yüzdesini temsil eder."
+"uzak) çözülen önbelleğe alınabilir görevlerin yüzdesini temsil eder."
 
 #: lib/tuist_web/live/module_cache_live.ex:144
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cache hits"
-msgstr "Önbellek vuruşları"
+msgstr "Önbellek isabetleri"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:181
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cache hits represents the total count of targets that were resolved from cache (local or remote) during the given period."
 msgstr ""
-"Önbellek isabetleri, verilen süre boyunca önbellekten (yerel veya uzak) "
-"çözümlenen hedeflerin toplam sayısını temsil eder."
+"Önbellek isabetleri, belirli bir süre içinde önbellekten (yerel veya uzak) "
+"çözülen hedeflerin toplam sayısını temsil eder."
 
 #: lib/tuist_web/live/module_cache_live.ex:152
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cache misses"
-msgstr "Önbellek ıskalıyor"
+msgstr "Önbellek hataları"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:200
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cache misses represents the total count of cacheable targets that had to be rebuilt because they were not found in cache during the given period."
 msgstr ""
-"Önbellek ıskalamaları, verilen süre boyunca önbellekte bulunmadıkları için "
-"yeniden oluşturulması gereken önbelleklenebilir hedeflerin toplam sayısını "
-"temsil eder."
+"Önbellek kaçırmaları, belirli bir süre içinde önbellekte bulunamadıkları "
+"için yeniden oluşturulması gereken önbelleğe alınabilir hedeflerin toplam "
+"sayısını temsil eder."
 
 #: lib/tuist_web/live/xcode_cache_live.ex:128
 #: lib/tuist_web/live/xcode_cache_live.html.heex:165
@@ -275,8 +274,8 @@ msgstr "Önbellek yüklemeleri"
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cache uploads represents the total size of cache artifacts uploaded to remote storage during the given period."
 msgstr ""
-"Önbellek yüklemeleri, verilen süre boyunca uzak depolama alanına yüklenen "
-"önbellek eserlerinin toplam boyutunu temsil eder."
+"Önbellek yüklemeleri, belirli bir süre içinde uzak depolama alanına yüklenen "
+"önbellek öğelerinin toplam boyutunu temsil eder."
 
 #: lib/tuist_web/live/cache_runs_live.ex:35
 #: lib/tuist_web/live/cache_runs_live.html.heex:64
@@ -289,7 +288,7 @@ msgstr "Komutlar"
 #: lib/tuist_web/live/bundles_live.html.heex:384
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Commit SHA"
-msgstr "SHA'yı taahhüt edin"
+msgstr "SHA'yı kaydedin"
 
 #: lib/tuist_web/live/bundle_live.html.heex:82
 #: lib/tuist_web/live/bundles_live.html.heex:293
@@ -297,7 +296,7 @@ msgstr "SHA'yı taahhüt edin"
 #: lib/tuist_web/live/bundles_live.html.heex:395
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Created at"
-msgstr "Şu adreste oluşturuldu"
+msgstr "Oluşturuldu"
 
 #: lib/tuist_web/live/bundle_live.html.heex:14
 #, elixir-autogen, elixir-format, fuzzy
@@ -308,12 +307,12 @@ msgstr "Paketi sil"
 #: lib/tuist_web/live/bundle_live.html.heex:539
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Directory"
-msgstr "Rehber"
+msgstr "Dizin"
 
 #: lib/tuist_web/live/bundles_live.html.heex:260
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Donwload size"
-msgstr "Donwload boyutu"
+msgstr "İndirme boyutu"
 
 #: lib/tuist_web/live/bundle_live.html.heex:100
 #: lib/tuist_web/live/bundle_live.html.heex:103
@@ -334,7 +333,7 @@ msgstr "İndirme boyutu (MB)"
 #: lib/tuist_web/live/bundle_live.html.heex:217
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Duplicates"
-msgstr "Kopyalar"
+msgstr "Yinelenenler"
 
 #: lib/tuist_web/live/cache_runs_live.html.heex:9
 #: lib/tuist_web/live/cache_runs_live.html.heex:26
@@ -348,7 +347,7 @@ msgstr "Süre"
 #: lib/tuist_web/live/module_cache_live.html.heex:11
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Environment:"
-msgstr "Çevre:"
+msgstr "Ortam:"
 
 #: lib/tuist_web/live/bundles_live.html.heex:5
 #, elixir-autogen, elixir-format, fuzzy
@@ -371,7 +370,7 @@ msgstr "Dosya"
 #: lib/tuist_web/live/bundle_live.html.heex:468
 #, elixir-autogen, elixir-format, fuzzy
 msgid "File Breakdown"
-msgstr "Dosya Dökümü"
+msgstr "Dosya Dağılımı"
 
 #: lib/tuist_web/live/bundles_live.html.heex:325
 #: lib/tuist_web/live/cache_runs_live.html.heex:43
@@ -382,18 +381,18 @@ msgstr "Filtre"
 #: lib/tuist_web/live/bundle_live.html.heex:537
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Font"
-msgstr "Yazı Tipi"
+msgstr "Yazı tipi"
 
 #: lib/tuist_web/live/bundle_live.html.heex:209
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Fonts"
-msgstr "Yazı Tipleri"
+msgstr "Yazı tipleri"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:497
 #: lib/tuist_web/live/xcode_cache_live.html.heex:482
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Hit Rate"
-msgstr "İsabet Oranı"
+msgstr "Isabet Oranı"
 
 #: lib/tuist_web/live/cache_runs_live.ex:64
 #: lib/tuist_web/live/cache_runs_live.html.heex:10
@@ -401,7 +400,7 @@ msgstr "İsabet Oranı"
 #: lib/tuist_web/live/cache_runs_live.html.heex:69
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Hit rate"
-msgstr "İsabet oranı"
+msgstr "Isabet oranı"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:178
 #, elixir-autogen, elixir-format, fuzzy
@@ -423,7 +422,7 @@ msgstr "IPA"
 #: lib/tuist_web/live/bundles_live.html.heex:356
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Install size"
-msgstr "Kurulum boyutu"
+msgstr "Yükleme boyutu"
 
 #: lib/tuist_web/live/bundles_live.ex:931
 #: lib/tuist_web/live/bundles_live.html.heex:150
@@ -437,7 +436,7 @@ msgstr "Yükleme boyutu (MB)"
 #: lib/tuist_web/live/bundle_live.html.heex:31
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Install size deviation"
-msgstr "Kurulum boyutu sapması"
+msgstr "Yükleme boyutu sapması"
 
 #: lib/tuist_web/live/module_cache_live.ex:253
 #: lib/tuist_web/live/module_cache_live.html.heex:23
@@ -458,7 +457,7 @@ msgstr "Yerelleştirmeler"
 #: lib/tuist_web/live/module_cache_live.html.heex:197
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Misses"
-msgstr "Bayanlar"
+msgstr "Eksiklikler"
 
 #: lib/tuist_web/live/bundle_live.html.heex:180
 #: lib/tuist_web/live/bundle_live.html.heex:595
@@ -479,7 +478,7 @@ msgstr "Modül önbelleği"
 #: lib/tuist_web/live/bundles_live.html.heex:345
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Name"
-msgstr "İsim"
+msgstr "Ad"
 
 #: lib/tuist_web/live/bundles_live.html.heex:272
 #, elixir-autogen, elixir-format, fuzzy
@@ -504,7 +503,7 @@ msgstr "Dosya bulunamadı"
 #: lib/tuist_web/live/bundle_live.html.heex:336
 #, elixir-autogen, elixir-format, fuzzy
 msgid "No insights yet"
-msgstr "Henüz içgörü yok"
+msgstr "Henüz hiçbir içgörü yok"
 
 #: lib/tuist_web/live/bundle_live.html.heex:675
 #, elixir-autogen, elixir-format, fuzzy
@@ -515,7 +514,7 @@ msgstr "Modül bulunamadı"
 #: lib/tuist_web/live/bundles_live.html.heex:381
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Not available"
-msgstr "Mevcut değil"
+msgstr "Kullanılamıyor"
 
 #: lib/tuist_web/live/bundle_live.html.heex:540
 #, elixir-autogen, elixir-format, fuzzy
@@ -525,7 +524,7 @@ msgstr "Diğer"
 #: lib/tuist_web/live/bundle_live.html.heex:168
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Overview"
-msgstr "Genel Bakış"
+msgstr "Genel bakış"
 
 #: lib/tuist_web/live/cache_runs_live.ex:47
 #: lib/tuist_web/live/cache_runs_live.html.heex:91
@@ -559,7 +558,7 @@ msgstr "Potansiyel tasarruflar"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:511
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Ran at"
-msgstr "Koştu"
+msgstr "Ran at"
 
 #: lib/tuist_web/live/cache_runs_live.ex:80
 #: lib/tuist_web/live/cache_runs_live.html.heex:99
@@ -567,7 +566,7 @@ msgstr "Koştu"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:492
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Ran by"
-msgstr "Tarafından yönetildi"
+msgstr "Ran tarafından"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:387
 #, elixir-autogen, elixir-format, fuzzy
@@ -582,21 +581,21 @@ msgstr "Son Çalışmalar"
 #: lib/tuist_web/live/bundle_live.html.heex:355
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Remove duplicate files"
-msgstr "Yinelenen dosyaları kaldırma"
+msgstr "Yinelenen dosyaları kaldırın"
 
 #: lib/tuist_web/live/bundle_live.html.heex:105
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Represents the size of the compressed app bundle that gets downloaded by a user over the network."
 msgstr ""
-"Bir kullanıcı tarafından ağ üzerinden indirilen sıkıştırılmış uygulama "
-"paketinin boyutunu temsil eder."
+"Kullanıcı tarafından ağ üzerinden indirilen sıkıştırılmış uygulama paketinin "
+"boyutunu temsil eder."
 
 #: lib/tuist_web/live/bundle_live.html.heex:132
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Represents the size of the uncompressed app bundle that gets installed by a user. This is the number that gets shown in the App Store."
 msgstr ""
-"Bir kullanıcı tarafından yüklenen sıkıştırılmamış uygulama paketinin "
-"boyutunu temsil eder. Bu, App Store'da gösterilen sayıdır."
+"Kullanıcı tarafından yüklenen sıkıştırılmamış uygulama paketinin boyutunu "
+"temsil eder. Bu, App Store'da gösterilen sayıdır."
 
 #: lib/tuist_web/live/bundles_live.html.heex:6
 #, elixir-autogen, elixir-format, fuzzy
@@ -612,7 +611,7 @@ msgstr "Şema"
 #: lib/tuist_web/live/bundle_live.html.heex:606
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Search..."
-msgstr "Arama..."
+msgstr "Ara..."
 
 #: lib/tuist_web/live/bundle_live.html.heex:489
 #: lib/tuist_web/live/bundle_live.html.heex:505
@@ -630,13 +629,13 @@ msgstr "Boyut"
 #: lib/tuist_web/live/cache_runs_live.html.heex:14
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Sort by:"
-msgstr "Sırala:"
+msgstr "Sıralama:"
 
 #: lib/tuist_web/live/bundle_live.html.heex:570
 #: lib/tuist_web/live/bundle_live.html.heex:669
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Space usage"
-msgstr "Alan kullanımı"
+msgstr "Boşluk kullanımı"
 
 #: lib/tuist_web/live/cache_runs_live.ex:43
 #, elixir-autogen, elixir-format, fuzzy
@@ -661,7 +660,7 @@ msgstr ""
 #: lib/tuist_web/live/bundle_live.html.heex:676
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Try changing your search term"
-msgstr "Arama teriminizi değiştirmeyi deneyin"
+msgstr "Arama teriminizi değiştirmeyi deneyin."
 
 #: lib/tuist_web/live/bundle_live.html.heex:52
 #: lib/tuist_web/live/bundle_live.html.heex:530
@@ -669,12 +668,12 @@ msgstr "Arama teriminizi değiştirmeyi deneyin"
 #: lib/tuist_web/live/bundles_live.html.heex:351
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Type"
-msgstr "Tip"
+msgstr "Yazın"
 
 #: lib/tuist_web/live/bundles_live.html.heex:70
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Type:"
-msgstr "Tip:"
+msgstr "Tür:"
 
 #: lib/tuist_web/live/bundle_live.ex:886
 #: lib/tuist_web/live/bundle_live.html.heex:78
@@ -688,17 +687,17 @@ msgstr "Bilinmiyor"
 #: lib/tuist_web/live/bundle_live.html.heex:151
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Uploaded by"
-msgstr "Tarafından yüklendi"
+msgstr "Yüklendi"
 
 #: lib/tuist_web/live/bundle_live.html.heex:93
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Version"
-msgstr "Versiyon"
+msgstr "Sürüm"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:394
 #, elixir-autogen, elixir-format, fuzzy
 msgid "View more"
-msgstr "Daha fazla görüntüle"
+msgstr "Daha fazlasını görüntüle"
 
 #: lib/tuist_web/live/bundle_live.ex:885
 #: lib/tuist_web/live/bundles_live.ex:381
@@ -707,7 +706,7 @@ msgstr "Daha fazla görüntüle"
 #: lib/tuist_web/live/bundles_live.html.heex:98
 #, elixir-autogen, elixir-format, fuzzy
 msgid "XCArchive"
-msgstr "XCArşiv"
+msgstr "XCArchive"
 
 #: lib/tuist_web/live/xcode_cache_live.ex:20
 #, elixir-autogen, elixir-format, fuzzy
@@ -717,7 +716,7 @@ msgstr "Xcode Önbelleği"
 #: lib/tuist_web/live/bundle_live.html.heex:43
 #, elixir-autogen, elixir-format, fuzzy
 msgid "compared to last bundle"
-msgstr "son paketle karşılaştırıldığında"
+msgstr "son pakete kıyasla"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:394
 #: lib/tuist_web/live/xcode_cache_live.html.heex:298
@@ -749,7 +748,7 @@ msgstr "p90 önbellek isabet oranı"
 #: lib/tuist_web/live/module_cache_live.html.heex:97
 #, elixir-autogen, elixir-format, fuzzy
 msgid "p90 hit rate"
-msgstr "p90 vuruş oranı"
+msgstr "p90 isabet oranı"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:368
 #: lib/tuist_web/live/xcode_cache_live.html.heex:272
@@ -765,7 +764,7 @@ msgstr "p99 önbellek isabet oranı"
 #: lib/tuist_web/live/module_cache_live.html.heex:96
 #, elixir-autogen, elixir-format, fuzzy
 msgid "p99 hit rate"
-msgstr "p99 vuruş oranı"
+msgstr "p99 isabet oranı"
 
 #: lib/tuist_web/live/bundles_live.ex:257
 #: lib/tuist_web/live/module_cache_live.ex:250
@@ -793,7 +792,7 @@ msgstr "geçen yıldan beri"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:50
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Apply"
-msgstr "Başvurmak"
+msgstr "Uygula"
 
 #: lib/tuist_web/live/bundles_live.html.heex:133
 #: lib/tuist_web/live/module_cache_live.html.heex:71
@@ -841,7 +840,7 @@ msgstr "Son 7 gün"
 #: lib/tuist_web/live/xcode_cache_live.ex:198
 #, elixir-autogen, elixir-format, fuzzy
 msgid "since last period"
-msgstr "son dönemden beri"
+msgstr "son nokta"
 
 #: lib/tuist_web/live/module_cache_live.ex:246
 #: lib/tuist_web/live/xcode_cache_live.ex:195
