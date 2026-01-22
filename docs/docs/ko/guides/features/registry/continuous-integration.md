@@ -7,17 +7,18 @@
 ---
 # 지속 통합 {#continuous-integration}
 
-CI에서 레지스트리를 사용하려면 워크플로우의 일부로 `tuist 레지스트리 로그인` 을 실행하여 레지스트리에 로그인했는지 확인해야 합니다.
+CI에서 레지스트리를 사용하려면 워크플로 일환으로 `tuist registry login` 를 실행하여 레지스트리에 로그인했는지 확인해야
+합니다.
 
 ::: info ONLY XCODE INTEGRATION
 <!-- -->
-사전 잠금 해제된 새 키체인을 생성하는 것은 Xcode 통합 패키지를 사용하는 경우에만 필요합니다.
+패키지의 Xcode 통합을 사용하는 경우에만 사전 잠금 해제된 키체인 생성が必要です.
 <!-- -->
 :::
 
-레지스트리 자격 증명이 키 체인에 저장되므로 CI 환경에서 키 체인에 액세스할 수 있는지 확인해야 합니다.
-Fastlane](https://fastlane.tools/)과 같은 일부 CI 공급자 또는 자동화 도구는 이미 임시 키체인을 만들거나 기본
-제공 방법으로 키체인을 만드는 방법을 제공합니다. 그러나 다음 코드를 사용하여 사용자 지정 단계를 만들어 임시 키체인을 만들 수도 있습니다:
+레지스트리 자격 증명이 키체인에 저장되므로 CI 환경에서 키체인에 접근할 수 있는지 확인해야 합니다. 일부 CI 제공업체나
+[Fastlane](https://fastlane.tools/)과 같은 자동화 도구는 이미 임시 키체인을 생성하거나 키체인 생성 방법을 내장하고
+있습니다. 그러나 다음 코드로 커스텀 단계를 생성하여 직접 키체인을 만들 수도 있습니다:
 ```bash
 TMP_DIRECTORY=$(mktemp -d)
 KEYCHAIN_PATH=$TMP_DIRECTORY/keychain.keychain
@@ -28,12 +29,12 @@ security default-keychain -s $KEYCHAIN_PATH
 security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 ```
 
-`tuist 레지스트리 로그인` 은 기본 키체인에 자격 증명을 저장합니다. 기본 키체인을 생성하고 _잠금을 해제했는지 확인한 후_ `tuist
-registry login` 을 실행합니다.
+`_ `tuist 레지스트리 로그인` 은 이후 기본 키체인에 자격 증명을 저장합니다. tuist 레지스트리 로그인` 을 실행하기 전에 기본
+키체인이 생성되고 잠금 해제되었는지 확인하십시오. _
 
-또한 `TUIST_TOKEN` 환경 변수가 설정되어 있는지 확인해야 합니다. 환경 변수는
-<LocalizedLink href="/guides/server/authentication#as-a-project">here</LocalizedLink>
-문서를 참조하여 만들 수 있습니다.
+추가로, 환경 변수 ` `` 또는 `TUIST_TOKEN`(` )이 설정되어 있는지 확인해야 합니다.
+<LocalizedLink href="/guides/server/authentication#as-a-project">여기</LocalizedLink>의
+문서를 따라 생성할 수 있습니다.
 
 GitHub Action의 Workflow 예시는 다음과 같을 수 있습니다:
 ```yaml
@@ -61,11 +62,11 @@ jobs:
 
 ### 환경 전반에 걸친 점진적 해상도 향상 {#incremental-resolution-across-environments}
 
-레지스트리를 사용하면 클린/콜드 해결이 약간 더 빨라지며, 해결된 종속성을 CI 빌드 전체에 유지하면 훨씬 더 큰 개선을 경험할 수 있습니다.
-레지스트리 덕분에 저장 및 복원해야 하는 디렉터리의 크기가 레지스트리가 없을 때보다 훨씬 작아지므로 시간이 훨씬 적게 걸립니다. 기본 Xcode
-패키지 통합을 사용할 때 종속성을 캐시하려면 `xcodebuild` 를 통해 종속성을 해결할 때 사용자 지정
-`clonedSourcePackagesDirPath` 를 지정하는 것이 가장 좋은 방법입니다. 이는 `Config.swift` 파일에 다음을
-추가하여 수행할 수 있습니다:
+레지스트리를 사용하면 클린/콜드 해결 속도가 약간 빨라지며, CI 빌드 간에 해결된 종속성을 유지하면 더 큰 개선 효과를 경험할 수 있습니다.
+레지스트리 덕분에 저장 및 복원해야 하는 디렉터리 크기가 레지스트리 미사용 시보다 훨씬 작아져 시간이 크게 단축됩니다. 기본 Xcode 패키지
+통합을 사용할 때 종속성을 캐시하는 가장 좋은 방법은 `xcodebuild` 를 통해 종속성을 해결할 때 커스텀
+`clonedSourcePackagesDirPath` 를 지정하는 것입니다. 이는 `Config.swift` 파일에 다음을 추가하여 수행할 수
+있습니다:
 
 ```swift
 import ProjectDescription
@@ -77,15 +78,14 @@ let config = Config(
 )
 ```
 
-또한 `Package.resolved` 의 경로를 찾아야 합니다. ` ls **/Package.resolved` 을 실행하여 경로를 가져올 수
-있습니다. 경로는
-`App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved` 와 같이
-표시되어야 합니다.
+추가로, `Package.resolved` 의 경로를 찾아야 합니다. `ls **/Package.resolved` 를 실행하여 경로를 확인할 수
+있습니다. 경로는 대략 다음과 같아야 합니다:
+`App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`.
 
-Swift 패키지와 XcodeProj 기반 통합의 경우 프로젝트의 루트 또는 `Tuist` 디렉터리에 있는 기본 `.build` 디렉터리를
-사용할 수 있습니다. 파이프라인을 설정할 때 경로가 올바른지 확인하세요.
+Swift 패키지 및 XcodeProj 기반 통합의 경우, 프로젝트 루트 또는 `Tuist` 디렉토리 내에 위치한 기본 `.build`
+디렉토리를 사용할 수 있습니다. 파이프라인 설정 시 경로가 정확한지 확인하십시오.
 
-다음은 기본 Xcode 패키지 통합을 사용할 때 종속성을 해결하고 캐싱하기 위한 GitHub 액션의 워크플로 예시입니다:
+기본 Xcode 패키지 통합을 사용할 때 종속성을 해결하고 캐싱하기 위한 GitHub Actions의 예시 워크플로는 다음과 같습니다:
 ```yaml
 - name: Restore cache
   id: cache-restore
