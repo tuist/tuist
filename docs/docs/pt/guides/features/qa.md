@@ -12,7 +12,6 @@
 Tuist QA is currently in early preview. Sign up at
 [tuist.dev/qa](https://tuist.dev/qa) to get access.
 <!-- -->
-:::
 
 Quality mobile app development relies on comprehensive testing, but traditional
 approaches have limitations. Unit tests are fast and cost-effective, yet they
@@ -55,7 +54,8 @@ happened:
 ![QA timeline](/images/guides/features/qa/qa-timeline.png)
 
 You can see all QA runs that we do for our
-<LocalizedLink href="/guides/features/previews#tuist-ios-app">iOS app</LocalizedLink> in our public dashboard: https://tuist.dev/tuist/tuist/qa
+<LocalizedLink href="/guides/features/previews#tuist-ios-app">iOS
+app</LocalizedLink> in our public dashboard: https://tuist.dev/tuist/tuist/qa
 
 ::: info
 <!-- -->
@@ -69,7 +69,6 @@ Issues](https://github.com/tuist/tuist/issues), our [Slack
 community](https://slack.tuist.dev) or our [community
 forum](https://community.tuist.dev).
 <!-- -->
-:::
 
 ### App context {#app-context}
 
