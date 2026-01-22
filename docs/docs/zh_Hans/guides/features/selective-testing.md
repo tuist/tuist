@@ -11,23 +11,13 @@
 
 在持续集成环境的每次测试运行中，您很可能无论变更与否都会重新运行所有测试。Tuist的自适应测试机制通过基于<LocalizedLink href="/guides/features/projects/hashing">哈希算法</LocalizedLink>，仅运行自上次成功测试后发生变更的测试项，可大幅提升测试执行效率。
 
-To run tests selectively with your
-<LocalizedLink href="/guides/features/projects">generated
-project</LocalizedLink>, use the `tuist test` command. The command
-<LocalizedLink href="/guides/features/projects/hashing">hashes</LocalizedLink>
-your Xcode project the same way it does for the
-<LocalizedLink href="/guides/features/cache/module-cache">module
-cache</LocalizedLink>, and on success, it persists the hashes to determine what
-has changed in future runs. In future runs, `tuist test` transparently uses the
-hashes to filter down the tests and run only the ones that have changed since
-the last successful test run.
+要使用<LocalizedLink href="/guides/features/projects">生成的项目</LocalizedLink>选择性运行测试，请执行`tuist
+test`
+命令。该命令会像处理<LocalizedLink href="/guides/features/cache/module-cache">模块缓存</LocalizedLink>那样对Xcode项目进行<LocalizedLink href="/guides/features/projects/hashing">哈希处理</LocalizedLink>，成功后将持久化哈希值，以便在后续运行中判断变更内容。
+后续运行时，`tuist test` 将透明地使用这些哈希值筛选测试，仅执行自上次成功测试以来发生变更的测试项。
 
-`tuist test` integrates directly with the
-<LocalizedLink href="/guides/features/cache/module-cache">module
-cache</LocalizedLink> to use as many binaries from your local or remote storage
-to improve the build time when running your test suite. The combination of
-selective testing with module caching can dramatically reduce the time it takes
-to run tests on your CI.
+`tuist test` 直接集成
+<LocalizedLink href="/guides/features/cache/module-cache">模块缓存</LocalizedLink>，利用本地或远程存储中的二进制文件，显著缩短测试套件的构建时间。选择性测试与模块缓存的结合，能大幅减少持续集成环境中的测试运行时长。
 
 ::: warning MODULE VS FILE-LEVEL GRANULARITY
 <!-- -->
@@ -51,9 +41,5 @@ to run tests on your CI.
 <!-- -->
 :::
 
-Once your Tuist project is connected with your Git platform such as
-[GitHub](https://github.com), and you start using `tuist test` as part of your
-CI workflow, Tuist will post a comment directly in your pull/merge requests,
-including which tests were run and which skipped: ![GitHub app comment with a
-Tuist Preview
-link](/images/guides/features/selective-testing/github-app-comment.png)
+当您的Tuist项目与Git平台（如[GitHub](https://github.com)）连接后，若在持续集成流程中使用`tuist test`
+命令，Tuist将直接在拉取请求/合并请求中添加评论，包含已运行测试与跳过测试的详情：![GitHub应用评论含Tuist预览链接](/images/guides/features/selective-testing/github-app-comment.png)

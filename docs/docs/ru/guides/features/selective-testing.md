@@ -19,23 +19,23 @@
 <LocalizedLink href="/guides/features/projects/hashing">алгоритма
 хеширования</LocalizedLink>.
 
-To run tests selectively with your
-<LocalizedLink href="/guides/features/projects">generated
-project</LocalizedLink>, use the `tuist test` command. The command
-<LocalizedLink href="/guides/features/projects/hashing">hashes</LocalizedLink>
-your Xcode project the same way it does for the
-<LocalizedLink href="/guides/features/cache/module-cache">module
-cache</LocalizedLink>, and on success, it persists the hashes to determine what
-has changed in future runs. In future runs, `tuist test` transparently uses the
-hashes to filter down the tests and run only the ones that have changed since
-the last successful test run.
+Чтобы выборочно запускать тесты с помощью
+<LocalizedLink href="/guides/features/projects">созданного
+проекта</LocalizedLink>, используйте команду `tuist test`. Команда
+<LocalizedLink href="/guides/features/projects/hashing">хеширует</LocalizedLink>
+ваш проект Xcode так же, как и
+<LocalizedLink href="/guides/features/cache/module-cache">кэш
+модулей</LocalizedLink>, и в случае успеха сохраняет хэши, чтобы определить, что
+изменилось в будущих запусках. В будущих запусках `tuist test` прозрачно
+использует хэши для фильтрации тестов и запускает только те, которые изменились
+с момента последнего успешного запуска тестов.
 
-`tuist test` integrates directly with the
-<LocalizedLink href="/guides/features/cache/module-cache">module
-cache</LocalizedLink> to use as many binaries from your local or remote storage
-to improve the build time when running your test suite. The combination of
-selective testing with module caching can dramatically reduce the time it takes
-to run tests on your CI.
+`tuist test` напрямую интегрируется с
+<LocalizedLink href="/guides/features/cache/module-cache">кэшем
+модулей</LocalizedLink>, чтобы использовать как можно больше бинарных файлов из
+локального или удаленного хранилища для сокращения времени сборки при запуске
+набора тестов. Сочетание выборочного тестирования с кэшированием модулей может
+значительно сократить время, необходимое для запуска тестов в вашей CI.
 
 ::: warning MODULE VS FILE-LEVEL GRANULARITY
 <!-- -->
@@ -72,9 +72,9 @@ to run tests on your CI.
 <!-- -->
 :::
 
-Once your Tuist project is connected with your Git platform such as
-[GitHub](https://github.com), and you start using `tuist test` as part of your
-CI workflow, Tuist will post a comment directly in your pull/merge requests,
-including which tests were run and which skipped: ![GitHub app comment with a
-Tuist Preview
-link](/images/guides/features/selective-testing/github-app-comment.png)
+Как только ваш проект Tuist будет подключен к платформе Git, такой как
+[GitHub](https://github.com), и вы начнете использовать `tuist test` в рамках
+вашего рабочего процесса CI, Tuist будет публиковать комментарий непосредственно
+в ваших запросах на вытягивание/слияние, включая информацию о том, какие тесты
+были запущены, а какие пропущены: ![Комментарий в приложении GitHub со ссылкой
+Tuist Preview](/images/guides/features/selective-testing/github-app-comment.png)

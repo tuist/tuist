@@ -12,23 +12,14 @@
 
 CIでのテスト実行時には、変更の有無に関わらず全テストを再実行している可能性が高いです。Tuistの選択的テスト機能は、<LocalizedLink href="/guides/features/projects/hashing">ハッシュアルゴリズム</LocalizedLink>に基づき前回の成功実行以降に変更されたテストのみを実行することで、テスト実行自体を大幅に高速化します。
 
-To run tests selectively with your
-<LocalizedLink href="/guides/features/projects">generated
-project</LocalizedLink>, use the `tuist test` command. The command
-<LocalizedLink href="/guides/features/projects/hashing">hashes</LocalizedLink>
-your Xcode project the same way it does for the
-<LocalizedLink href="/guides/features/cache/module-cache">module
-cache</LocalizedLink>, and on success, it persists the hashes to determine what
-has changed in future runs. In future runs, `tuist test` transparently uses the
-hashes to filter down the tests and run only the ones that have changed since
-the last successful test run.
+<LocalizedLink href="/guides/features/projects">生成されたプロジェクト</LocalizedLink>でテストを選択的に実行するには、`tuist
+test`
+コマンドを使用します。このコマンドは、<LocalizedLink href="/guides/features/cache/module-cache">モジュールキャッシュ</LocalizedLink>と同様の方法でXcodeプロジェクトを<LocalizedLink href="/guides/features/projects/hashing">ハッシュ化</LocalizedLink>し、成功時にはハッシュを永続化して、将来の実行時に変更箇所を特定します。
+次回のテスト実行時には、`tuist test`
+がハッシュ値を透過的に使用し、前回の正常なテスト実行以降に変更があったテストのみをフィルタリングして実行します。
 
-`tuist test` integrates directly with the
-<LocalizedLink href="/guides/features/cache/module-cache">module
-cache</LocalizedLink> to use as many binaries from your local or remote storage
-to improve the build time when running your test suite. The combination of
-selective testing with module caching can dramatically reduce the time it takes
-to run tests on your CI.
+`tuist test` は
+<LocalizedLink href="/guides/features/cache/module-cache">モジュールキャッシュ</LocalizedLink>と直接連携し、ローカルまたはリモートストレージから可能な限り多くのバイナリを利用することで、テストスイート実行時のビルド時間を短縮します。選択的テストとモジュールキャッシュの組み合わせにより、CI環境でのテスト実行時間を大幅に削減できます。
 
 ::: warning MODULE VS FILE-LEVEL GRANULARITY
 <!-- -->
@@ -52,9 +43,6 @@ to run tests on your CI.
 <!-- -->
 :::
 
-Once your Tuist project is connected with your Git platform such as
-[GitHub](https://github.com), and you start using `tuist test` as part of your
-CI workflow, Tuist will post a comment directly in your pull/merge requests,
-including which tests were run and which skipped: ![GitHub app comment with a
-Tuist Preview
-link](/images/guides/features/selective-testing/github-app-comment.png)
+Tuistプロジェクトを[GitHub](https://github.com)などのGitプラットフォームと連携し、CIワークフローの一環として`tuist
+test`
+の使用を開始すると、Tuistはプルリクエスト/マージリクエストに直接コメントを投稿します。実行されたテストとスキップされたテストが含まれます：![GitHubアプリコメント（Tuistプレビューリンク付き）](/images/guides/features/selective-testing/github-app-comment.png)

@@ -13,23 +13,14 @@
 <LocalizedLink href="/guides/features/projects/hashing">hashing
 演算法</LocalizedLink>，只執行上次成功執行測試之後有變更的測試，幫助您大幅加快執行測試的速度。
 
-To run tests selectively with your
-<LocalizedLink href="/guides/features/projects">generated
-project</LocalizedLink>, use the `tuist test` command. The command
-<LocalizedLink href="/guides/features/projects/hashing">hashes</LocalizedLink>
-your Xcode project the same way it does for the
-<LocalizedLink href="/guides/features/cache/module-cache">module
-cache</LocalizedLink>, and on success, it persists the hashes to determine what
-has changed in future runs. In future runs, `tuist test` transparently uses the
-hashes to filter down the tests and run only the ones that have changed since
-the last successful test run.
+要使用您<LocalizedLink href="/guides/features/projects">生成的專案</LocalizedLink>選擇性執行測試，請使用`tuist
+test`
+指令。此指令會以與處理<LocalizedLink href="/guides/features/cache/module-cache">模組快取</LocalizedLink>相同的方式對您的Xcode專案進行<LocalizedLink href="/guides/features/projects/hashing">雜湊值計算</LocalizedLink>，成功後將儲存雜湊值，以便在未來執行時判斷變更內容。
+後續執行時，`tuist test` 會自動運用雜湊值篩選測試項目，僅執行自上次成功測試後變更的測試。
 
-`tuist test` integrates directly with the
-<LocalizedLink href="/guides/features/cache/module-cache">module
-cache</LocalizedLink> to use as many binaries from your local or remote storage
-to improve the build time when running your test suite. The combination of
-selective testing with module caching can dramatically reduce the time it takes
-to run tests on your CI.
+`tuist test`
+直接與二進位快取整合，可從您的本機或遠端儲存中使用盡可能多的二進位檔案，以改善執行測試套件時的建立時間。選擇性測試與二進位快取的結合，可以大幅縮短在 CI
+上執行測試的時間。
 
 ::: warning MODULE VS FILE-LEVEL GRANULARITY
 <!-- -->
@@ -56,9 +47,7 @@ to run tests on your CI.
 <!-- -->
 :::
 
-Once your Tuist project is connected with your Git platform such as
-[GitHub](https://github.com), and you start using `tuist test` as part of your
-CI workflow, Tuist will post a comment directly in your pull/merge requests,
-including which tests were run and which skipped: ![GitHub app comment with a
-Tuist Preview
-link](/images/guides/features/selective-testing/github-app-comment.png)
+一旦您的 Tuist 專案與 Git 平台 (例如 [GitHub](https://github.com)) 連線，並開始使用`tuist
+xcodebuild test` 或`tuist test` 作為 CI 流程的一部分，Tuist 會直接在您的 pull/merge
+請求中張貼註解，包括哪些測試已執行，哪些跳過： ![GitHub 應用程式註解與 Tuist
+預覽連結](/images/guides/features/selective-testing/github-app-comment.png)。

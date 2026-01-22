@@ -19,23 +19,22 @@ algoritmamız</LocalizedLink> temelinde son başarılı test çalıştırmasınd
 yana değişen testleri çalıştırarak testlerin çalıştırılma hızını önemli ölçüde
 artırmanıza yardımcı olur.
 
-To run tests selectively with your
-<LocalizedLink href="/guides/features/projects">generated
-project</LocalizedLink>, use the `tuist test` command. The command
+<LocalizedLink href="/guides/features/projects">Oluşturulmuş
+proje</LocalizedLink> ile testleri seçici olarak çalıştırmak için, `tuist test`
+komutunu kullanın. Komut,
 <LocalizedLink href="/guides/features/projects/hashing">hashes</LocalizedLink>
-your Xcode project the same way it does for the
-<LocalizedLink href="/guides/features/cache/module-cache">module
-cache</LocalizedLink>, and on success, it persists the hashes to determine what
-has changed in future runs. In future runs, `tuist test` transparently uses the
-hashes to filter down the tests and run only the ones that have changed since
-the last successful test run.
+Xcode projenizi <LocalizedLink href="/guides/features/cache/module-cache">modül
+önbelleği</LocalizedLink> için yaptığı gibi aynı şekilde hashler ve başarılı
+olursa, gelecekteki çalışmalarda neyin değiştiğini belirlemek için hashleri
+kalıcı hale getirir. Gelecekteki çalışmalarda, `tuist test` komutu, testleri
+filtrelemek ve son başarılı test çalışmasından bu yana değişenleri çalıştırmak
+için hash'leri şeffaf bir şekilde kullanır.
 
-`tuist test` integrates directly with the
-<LocalizedLink href="/guides/features/cache/module-cache">module
-cache</LocalizedLink> to use as many binaries from your local or remote storage
-to improve the build time when running your test suite. The combination of
-selective testing with module caching can dramatically reduce the time it takes
-to run tests on your CI.
+`tuist test`, test paketinizi çalıştırırken derleme süresini iyileştirmek için
+yerel veya uzak depolama alanınızdan çok sayıda ikili dosyayı kullanmak üzere
+doğrudan ikili önbelleğe alma ile entegre olur. İkili önbellekleme ile seçmeli
+test kombinasyonu, CI'nızda testleri çalıştırmak için gereken süreyi önemli
+ölçüde azaltabilir.
 
 ::: warning MODULE VS FILE-LEVEL GRANULARITY
 <!-- -->
@@ -72,9 +71,9 @@ platformuyla</LocalizedLink> entegre edin.
 <!-- -->
 :::
 
-Once your Tuist project is connected with your Git platform such as
-[GitHub](https://github.com), and you start using `tuist test` as part of your
-CI workflow, Tuist will post a comment directly in your pull/merge requests,
-including which tests were run and which skipped: ![GitHub app comment with a
-Tuist Preview
-link](/images/guides/features/selective-testing/github-app-comment.png)
+Tuist projeniz [GitHub](https://github.com) gibi Git platformunuzla bağlandıktan
+ve CI iş akışınızın bir parçası olarak `tuist test` kullanmaya başladıktan
+sonra, Tuist hangi testlerin çalıştırıldığını ve hangilerinin atlandığını içeren
+bir yorumunuzu doğrudan çekme/birleştirme isteklerinize ekleyecektir: ![Tuist
+Önizleme bağlantısı içeren GitHub uygulaması
+yorumu](/images/guides/features/selective-testing/github-app-comment.png)
