@@ -48,8 +48,8 @@ tuist run {url}
 tuist run --device "My iPhone" {url} # Run the app on a specific device
 ```
 
-共享`.ipa` 文件时，可以使用预览链接直接从移动设备下载应用程序。`.ipa` 预览链接默认为_公共_
-。将来，您可以选择将其设置为私有，这样链接的接收者就需要使用 Tuist 帐户进行身份验证才能下载应用程序。
+共享`.ipa` 文件时，您可以使用预览链接直接从移动设备下载应用程序。`.ipa` 预览链接默认为_私人_ ，这意味着接收者需要使用 Tuist
+帐户进行身份验证才能下载应用程序。如果您想与任何人共享应用程序，可以在项目设置中将其更改为公开。
 
 `tuist run` 还能根据指定符运行最新预览，如`latest` 、分支名称或特定提交哈希值：
 
@@ -129,7 +129,7 @@ install --cask tuist/tuist/tuist` 来安装该应用。
 
 ::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
-要获得自动拉取/合并请求注释，请将<LocalizedLink href="/guides/server/accounts-and-projects">远程项目</LocalizedLink>与<LocalizedLink href="/guides/server/authentication">Git
+要自动获取拉取/合并请求注释，请将<LocalizedLink href="/guides/server/accounts-and-projects">远程项目</LocalizedLink>与<LocalizedLink href="/guides/server/authentication">Git
 平台</LocalizedLink>集成。
 <!-- -->
 :::
