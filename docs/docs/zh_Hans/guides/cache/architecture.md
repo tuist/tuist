@@ -6,28 +6,23 @@
 }
 ---
 
-# Cache Architecture {#cache-architecture}
+# 缓存架构{#cache-architecture}
 
-::: info
+信息
 <!-- -->
-This page provides a technical overview of the Tuist cache service architecture.
-It is primarily intended for **self-hosting users** and **contributors** who
-need to understand the internal workings of the service. General users who only
-want to use the cache do not need to read this.
+本页面提供 Tuist 缓存服务架构的技术概述。主要面向需要理解服务内部运作机制的**自托管用户** 及**贡献者**
+。仅需使用缓存功能的普通用户无需阅读此内容。
 <!-- -->
 :::
 
-The Tuist cache service is a standalone service that provides Content
-Addressable Storage (CAS) for build artifacts and a key-value store for cache
-metadata.
+Tuist缓存服务是一个独立服务，为构建工件提供内容可寻址存储（CAS），并为缓存元数据提供键值存储。
 
-## Overview {#overview}
+## 概述{#overview}
 
-The service uses a two-tier storage architecture:
+该服务采用两级存储架构：
 
-- **Local disk**: Primary storage for low-latency cache hits
-- **S3**: Durable storage that persists artifacts and allows recovery after
-  eviction
+- **本地磁盘**: 低延迟缓存命中的一级存储
+- **S3 持久化存储（** ）：持久化存储数据，支持在数据被清除后恢复
 
 ```mermaid
 flowchart LR
@@ -38,55 +33,44 @@ flowchart LR
     APP -->|auth| SERVER[Tuist Server]
 ```
 
-## Components {#components}
+## 组件{#components}
 
-### Nginx {#nginx}
+### Nginx{#nginx}
 
-Nginx serves as the entry point and handles efficient file delivery using
-`X-Accel-Redirect`:
+Nginx作为入口点，通过`X-Accel-Redirect` 实现高效文件交付：
 
-- **Downloads**: The cache service validates authentication, then returns an
-  `X-Accel-Redirect` header. Nginx serves the file directly from disk or proxies
-  from S3.
-- **Uploads**: Nginx proxies requests to the cache service, which streams data
-  to disk.
+- **下载** ：缓存服务验证身份认证后，返回`的X-Accel-Redirect` 标头。Nginx直接从磁盘提供文件或从S3代理。
+- **上传**: Nginx 将请求代理至缓存服务，该服务将数据流式传输至磁盘。
 
-### Content Addressable Storage {#cas}
+### 内容可寻址存储{#cas}
 
-Artifacts are stored on local disk in a sharded directory structure:
+工件存储在本地磁盘的分片目录结构中：
 
-- **Path**: `{account}/{project}/cas/{shard1}/{shard2}/{artifact_id}`
-- **Sharding**: First four characters of the artifact ID create a two-level
-  shard (e.g., `ABCD1234` → `AB/CD/ABCD1234`)
+- **路径**:`{account}/{project}/cas/{shard1}/{shard2}/{artifact_id}`
+- **分片规则：**- 取工件ID前四位字符生成两级分片（例如：`→` ，ABCD1234 →`，AB/CD/ABCD1234 →` ）
 
-### S3 Integration {#s3}
+### S3 集成{#s3}
 
-S3 provides durable storage:
+S3提供持久化存储：
 
-- **Background uploads**: After writing to disk, artifacts are queued for upload
-  to S3 via a background worker that runs every minute
-- **On-demand hydration**: When a local artifact is missing, the request is
-  served immediately via a presigned S3 URL while the artifact is queued for
-  background download to local disk
+- **后台上传**: 写入磁盘后，数据将通过每分钟运行的后台进程排队上传至S3
+- **按需加载** ：当本地工件缺失时，请求将立即通过预签名的S3 URL响应，同时该工件会被排队至后台下载至本地磁盘
 
-### Disk Eviction {#eviction}
+### 磁盘驱逐{#eviction}
 
-The service manages disk space using LRU eviction:
+该服务采用最近最少使用（LRU）策略管理磁盘空间：
 
-- Access times are tracked in SQLite
-- When disk usage exceeds 85%, the oldest artifacts are deleted until usage
-  drops to 70%
-- Artifacts remain in S3 after local eviction
+- 访问时间通过SQLite进行追踪
+- 当磁盘使用率超过85%时，将删除最旧的工件直至使用率降至70%
+- 本地清除后，S3中仍保留的残留数据
 
-### Authentication {#authentication}
+### 认证{#authentication}
 
-The cache delegates authentication to the Tuist server by calling the
-`/api/projects` endpoint and caching results (10 minutes for success, 3 seconds
-for failure).
+缓存通过调用`/api/projects` 接口将认证委托给Tuist服务器，并将结果缓存（成功缓存10分钟，失败缓存3秒）。
 
-## Request Flows {#request-flows}
+## 请求流程{#request-flows}
 
-### Download {#download-flow}
+### 下载{#download-flow}
 
 ```mermaid
 sequenceDiagram
@@ -107,7 +91,7 @@ sequenceDiagram
     N-->>CLI: File bytes
 ```
 
-### Upload {#upload-flow}
+### 上传{#upload-flow}
 
 ```mermaid
 sequenceDiagram
@@ -124,18 +108,18 @@ sequenceDiagram
     A->>S: Background upload
 ```
 
-## API Endpoints {#api-endpoints}
+## API 端点{#api-endpoints}
 
-| Endpoint                      | Method | Description                     |
-| ----------------------------- | ------ | ------------------------------- |
-| `/up`                         | GET    | Health check                    |
-| `/metrics`                    | GET    | Prometheus metrics              |
-| `/api/cache/cas/:id`          | GET    | Download CAS artifact           |
-| `/api/cache/cas/:id`          | POST   | Upload CAS artifact             |
-| `/api/cache/keyvalue/:cas_id` | GET    | Get key-value entry             |
-| `/api/cache/keyvalue`         | PUT    | Store key-value entry           |
-| `/api/cache/module/:id`       | HEAD   | Check if module artifact exists |
-| `/api/cache/module/:id`       | GET    | Download module artifact        |
-| `/api/cache/module/start`     | POST   | Start multipart upload          |
-| `/api/cache/module/part`      | POST   | Upload part                     |
-| `/api/cache/module/complete`  | POST   | Complete multipart upload       |
+| 终端点                           | 方法   | 描述         |
+| ----------------------------- | ---- | ---------- |
+| `/up`                         | GET  | 健康检查       |
+| `/metrics`                    | GET  | 普罗米修斯指标    |
+| `/api/cache/cas/:id`          | GET  | 下载CAS工件    |
+| `/api/cache/cas/:id`          | POST | 上传CAS成果    |
+| `/api/cache/keyvalue/:cas_id` | GET  | 获取键值条目     |
+| `/api/cache/keyvalue`         | PUT  | 存储键值对      |
+| `/api/cache/module/:id`       | HEAD | 检查模块工件是否存在 |
+| `/api/cache/module/:id`       | GET  | 下载模块工件     |
+| `/api/cache/module/start`     | POST | 开始多部分上传    |
+| `/api/cache/module/part`      | POST | 上传部分       |
+| `/api/cache/module/complete`  | POST | 完成多部分上传    |
