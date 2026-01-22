@@ -29,7 +29,7 @@ PostHog integration is optional and can be enabled by setting the appropriate
 environment variables. When configured, Tuist will automatically track user
 events, page views, and user journeys.
 
-| Environment variable    | Descrição                    | Required | Default | Exemplos                                          |
+| Environment variable    | Descrição                    | Required | Default | Examples                                          |
 | ----------------------- | ---------------------------- | -------- | ------- | ------------------------------------------------- |
 | `TUIST_POSTHOG_API_KEY` | Your PostHog project API key | No       |         | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
 | `TUIST_POSTHOG_URL`     | The PostHog API endpoint URL | No       |         | `https://eu.i.posthog.com`                        |
@@ -40,7 +40,6 @@ Analytics are only enabled when both `TUIST_POSTHOG_API_KEY` and
 `TUIST_POSTHOG_URL` are configured. If either variable is missing, no analytics
 events will be sent.
 <!-- -->
-:::
 
 ### Features {#posthog-features}
 
@@ -99,11 +98,11 @@ The total number of Tuist Runs.
 
 #### Tags {#tuist-runs-total-tags}
 
-| Etiqueta | Descrição                                                                   |
-| -------- | --------------------------------------------------------------------------- |
-| `name`   | The name of the `tuist` command that was run, such as `build`, `test`, etc. |
-| `is_ci`  | A boolean indicating if the executor was a CI or a developer's machine.     |
-| `status` | `0` in case of `success`, `1` in case of `failure`.                         |
+| Etiqueta | Descrição |
+| -------- | --------- |
+|          |           |
+|          |           |
+|          |           |
 
 ### `tuist_runs_duration_milliseconds` (histogram) {#tuist_runs_duration_milliseconds-histogram}
 
@@ -111,11 +110,11 @@ The total duration of each tuist run in milliseconds.
 
 #### Tags {#tuist-runs-duration-miliseconds-tags}
 
-| Etiqueta | Descrição                                                                   |
-| -------- | --------------------------------------------------------------------------- |
-| `name`   | The name of the `tuist` command that was run, such as `build`, `test`, etc. |
-| `is_ci`  | A boolean indicating if the executor was a CI or a developer's machine.     |
-| `status` | `0` in case of `success`, `1` in case of `failure`.                         |
+| Etiqueta | Descrição |
+| -------- | --------- |
+|          |           |
+|          |           |
+|          |           |
 
 ## Cache metrics {#cache-metrics}
 
@@ -173,7 +172,6 @@ s3).
 These metrics are useful to understand the performance of the storage operations
 and to identify potential bottlenecks.
 <!-- -->
-:::
 
 ### `tuist_storage_get_object_size_size_bytes` (histogram) {#tuist_storage_get_object_size_size_bytes-histogram}
 
@@ -214,9 +212,9 @@ The duration (in milliseconds) of deleting all objects from the remote storage.
 
 #### Tags {#tuist-storage-delete-all-objects-duration-milliseconds-tags}
 
-| Etiqueta       | Descrição                                                        |
-| -------------- | ---------------------------------------------------------------- |
-| `project_slug` | The project slug of the project whose objects are being deleted. |
+| Etiqueta | Descrição |
+| -------- | --------- |
+|          |           |
 
 
 ### `tuist_storage_delete_all_objects_count` (counter) {#tuist_storage_delete_all_objects_count-counter}
@@ -225,9 +223,9 @@ The number of times all project objects were deleted from the remote storage.
 
 #### Tags {#tuist-storage-delete-all-objects-count-tags}
 
-| Etiqueta       | Descrição                                                        |
-| -------------- | ---------------------------------------------------------------- |
-| `project_slug` | The project slug of the project whose objects are being deleted. |
+| Etiqueta | Descrição |
+| -------- | --------- |
+|          |           |
 
 
 ### `tuist_storage_multipart_start_upload_duration_milliseconds` (histogram) {#tuist_storage_multipart_start_upload_duration_milliseconds-histogram}
@@ -328,8 +326,8 @@ object in the remote storage.
 | Etiqueta        | Descrição                                              |
 | --------------- | ------------------------------------------------------ |
 | `chave_objecto` | A chave de pesquisa do objeto no armazenamento remoto. |
-| `part_number`   | The part number of the object being uploaded.          |
-| `upload_id`     | The upload ID of the multipart upload.                 |
+|                 |                                                        |
+|                 |                                                        |
 
 ### `tuist_storage_multipart_generate_upload_part_presigned_url_count` (count) {#tuist_storage_multipart_generate_upload_part_presigned_url_count-count}
 
@@ -341,8 +339,8 @@ the remote storage.
 | Etiqueta        | Descrição                                              |
 | --------------- | ------------------------------------------------------ |
 | `chave_objecto` | A chave de pesquisa do objeto no armazenamento remoto. |
-| `part_number`   | The part number of the object being uploaded.          |
-| `upload_id`     | The upload ID of the multipart upload.                 |
+|                 |                                                        |
+|                 |                                                        |
 
 ### `tuist_storage_multipart_complete_upload_duration_milliseconds` (histogram) {#tuist_storage_multipart_complete_upload_duration_milliseconds-histogram}
 
@@ -353,7 +351,7 @@ The duration (in milliseconds) of completing an upload to the remote storage.
 | Etiqueta        | Descrição                                              |
 | --------------- | ------------------------------------------------------ |
 | `chave_objecto` | A chave de pesquisa do objeto no armazenamento remoto. |
-| `upload_id`     | The upload ID of the multipart upload.                 |
+|                 |                                                        |
 
 
 ### `tuist_storage_multipart_complete_upload_count` (count) {#tuist_storage_multipart_complete_upload_count-count}
@@ -365,7 +363,7 @@ The total number of times an upload was completed to the remote storage.
 | Etiqueta        | Descrição                                              |
 | --------------- | ------------------------------------------------------ |
 | `chave_objecto` | A chave de pesquisa do objeto no armazenamento remoto. |
-| `upload_id`     | The upload ID of the multipart upload.                 |
+|                 |                                                        |
 
 ---
 
@@ -455,19 +453,15 @@ The number of requests that have been retrieved from the pool.
 
 ### `tuist_http_queue_duration_nanoseconds_sum` (sum) {#tuist_http_queue_duration_nanoseconds_sum-sum}
 
-The time it takes to retrieve a connection from the pool.
 
 ### `tuist_http_queue_idle_time_nanoseconds_sum` (sum) {#tuist_http_queue_idle_time_nanoseconds_sum-sum}
 
-The time a connection has been idle waiting to be retrieved.
 
 ### `tuist_http_queue_duration_nanoseconds_bucket` (distribution) {#tuist_http_queue_duration_nanoseconds_bucket-distribution}
 
-The time it takes to retrieve a connection from the pool.
 
 ### `tuist_http_queue_idle_time_nanoseconds_bucket` (distribution) {#tuist_http_queue_idle_time_nanoseconds_bucket-distribution}
 
-The time a connection has been idle waiting to be retrieved.
 
 ### `tuist_http_connection_count` (counter) {#tuist_http_connection_count-counter}
 
