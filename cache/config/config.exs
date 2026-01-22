@@ -14,7 +14,11 @@ config :cache, Cache.PromEx,
   drop_metrics_groups: [],
   grafana: :disabled
 
-config :cache, Cache.Repo, busy_timeout: 10_000
+config :cache, Cache.Repo,
+  busy_timeout: 30_000,
+  journal_mode: :wal,
+  synchronous: :normal,
+  temp_store: :memory
 
 config :cache, CacheWeb.Endpoint,
   url: [host: "localhost"],
