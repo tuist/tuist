@@ -3838,6 +3838,224 @@ defmodule Tuist.RunsTest do
     end
   end
 
+  describe "get_flaky_runs_groups_counts_for_test_cases/1" do
+    test "returns empty map for empty list" do
+      result = Runs.get_flaky_runs_groups_counts_for_test_cases([])
+      assert result == %{}
+    end
+
+    test "returns empty map when no flaky runs exist for given test_case_ids" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          status: "success",
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 500,
+              test_cases: [%{name: "testSomething", status: "success", duration: 250}]
+            }
+          ]
+        )
+
+      {[test_case_run | _], _} =
+        Runs.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: test.id}]})
+
+      result = Runs.get_flaky_runs_groups_counts_for_test_cases([test_case_run.test_case_id])
+      assert result == %{}
+    end
+
+    test "returns correct counts for multiple test cases" do
+      project = ProjectsFixtures.project_fixture()
+
+      # Create flaky runs for test_case_1 on 2 commits
+      test_modules_1 = fn status ->
+        [
+          %{
+            name: "TestModule",
+            status: status,
+            duration: 500,
+            test_cases: [%{name: "flakyTest1", status: status, duration: 250}]
+          }
+        ]
+      end
+
+      {:ok, test1} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "commit1",
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -7200),
+          test_modules: test_modules_1.("success")
+        )
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "commit1",
+          is_ci: true,
+          status: "failure",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          test_modules: test_modules_1.("failure")
+        )
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "commit2",
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -1800),
+          test_modules: test_modules_1.("success")
+        )
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "commit2",
+          is_ci: true,
+          status: "failure",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -900),
+          test_modules: test_modules_1.("failure")
+        )
+
+      # Create flaky runs for test_case_2 on 1 commit
+      test_modules_2 = fn status ->
+        [
+          %{
+            name: "TestModule",
+            status: status,
+            duration: 500,
+            test_cases: [%{name: "flakyTest2", status: status, duration: 250}]
+          }
+        ]
+      end
+
+      {:ok, test2} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "commit3",
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -600),
+          test_modules: test_modules_2.("success")
+        )
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "commit3",
+          is_ci: true,
+          status: "failure",
+          ran_at: NaiveDateTime.utc_now(),
+          test_modules: test_modules_2.("failure")
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {[test_case_run_1 | _], _} =
+        Runs.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: test1.id}]})
+
+      {[test_case_run_2 | _], _} =
+        Runs.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: test2.id}]})
+
+      result =
+        Runs.get_flaky_runs_groups_counts_for_test_cases([
+          test_case_run_1.test_case_id,
+          test_case_run_2.test_case_id
+        ])
+
+      assert result[test_case_run_1.test_case_id] == 2
+      assert result[test_case_run_2.test_case_id] == 1
+    end
+
+    test "only includes test_case_ids that have flaky runs" do
+      project = ProjectsFixtures.project_fixture()
+
+      # Create flaky test case
+      test_modules_flaky = fn status ->
+        [
+          %{
+            name: "TestModule",
+            status: status,
+            duration: 500,
+            test_cases: [%{name: "flakyTest", status: status, duration: 250}]
+          }
+        ]
+      end
+
+      {:ok, flaky_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "commit1",
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          test_modules: test_modules_flaky.("success")
+        )
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "commit1",
+          is_ci: true,
+          status: "failure",
+          ran_at: NaiveDateTime.utc_now(),
+          test_modules: test_modules_flaky.("failure")
+        )
+
+      # Create non-flaky test case (all runs succeed)
+      {:ok, non_flaky_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "commit2",
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.utc_now(),
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 500,
+              test_cases: [%{name: "stableTest", status: "success", duration: 250}]
+            }
+          ]
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {[flaky_run | _], _} =
+        Runs.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: flaky_test.id}]})
+
+      {[non_flaky_run | _], _} =
+        Runs.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: non_flaky_test.id}]})
+
+      result =
+        Runs.get_flaky_runs_groups_counts_for_test_cases([
+          flaky_run.test_case_id,
+          non_flaky_run.test_case_id
+        ])
+
+      assert Map.has_key?(result, flaky_run.test_case_id)
+      refute Map.has_key?(result, non_flaky_run.test_case_id)
+      assert result[flaky_run.test_case_id] == 1
+    end
+  end
+
   describe "list_flaky_runs_for_test_case/2" do
     test "returns empty list with meta when no flaky runs exist" do
       project = ProjectsFixtures.project_fixture()
