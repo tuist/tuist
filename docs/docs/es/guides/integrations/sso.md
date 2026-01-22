@@ -43,12 +43,13 @@ funcione con Tuist:
 5. Por ahora, deje los URI de redirección de inicio de sesión como están
 6. En "Asignaciones" elija el control de acceso deseado a la Aplicación SSO y
    guarde.
-7. After saving, the general settings for the application will be available.
-   Copy the "Client ID" and "Client Secret". Also note your Okta organization
-   URL (e.g., `https://your-company.okta.com`) – you will need to safely share
-   all of these with your point of contact.
-8. Once the Tuist team has configured the SSO, click on General Settings "Edit"
-   button.
+7. Después de guardar, estarán disponibles los ajustes generales de la
+   aplicación. Copie el «ID de cliente» y el «Secreto de cliente». Anote también
+   la URL de su organización Okta (por ejemplo,
+   `https://your-company.okta.com`). Deberá compartir toda esta información de
+   forma segura con su persona de contacto.
+8. Una vez que el equipo de Tuist haya configurado el SSO, haz clic en el botón
+   «Editar» de Configuración general.
 9. Pegue la siguiente URL de redirección:
    `https://tuist.dev/users/auth/okta/callback`
 10. Cambie "Inicio de sesión iniciado por" a "Okta o aplicación".
