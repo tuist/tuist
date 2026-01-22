@@ -8,10 +8,10 @@
 
 # モジュール・キャッシュ {#module-cache}
 
-::: warning 要件
+警告 要件
 <!-- -->
-- <LocalizedLink href="/guides/features/projects">生成プロジェクト</LocalizedLink>
-- <LocalizedLink href="/guides/server/accounts-and-projects">トゥイストのアカウントとプロジェクト</LocalizedLink>
+- 1}生成プロジェクト</LocalizedLink>
+- A<LocalizedLink href="/guides/server/accounts-and-projects">トゥイストのアカウントとプロジェクト</LocalizedLink>
 <!-- -->
 :::
 
@@ -40,7 +40,7 @@ tuist cache
 tuist generate # Only dependencies
 tuist generate Search # Dependencies + Search dependencies
 tuist generate Search Settings # Dependencies, and Search and Settings dependencies
-tuist generate --no-binary-cache # No cache at all
+tuist generate --cache-profile none # No cache at all
 ```
 
 ```bash [Testing]
@@ -51,8 +51,8 @@ tuist test
 
 ::: 警告
 <!-- -->
-バイナリ・キャッシングは、シミュレータやデバイス上でのアプリの実行、テストの実行など、開発ワークフローのために設計された機能です。リリースのビルドを意図したものではありません。アプリをアーカイブする場合は、`--no-binary-cache`
-フラグを使用して、ソースを含むプロジェクトを生成してください。
+バイナリ・キャッシングは、シミュレータやデバイス上でのアプリの実行、テストの実行といった開発ワークフローのために設計された機能です。リリース・ビルド向けではありません。アプリをアーカイブする場合は、`--cache-profile
+none` を使用して、ソースを含むプロジェクトを生成してください。
 <!-- -->
 :::
 
@@ -80,13 +80,20 @@ tuist generate
 # Focus on specific targets (implies all-possible)
 tuist generate MyModule AnotherTarget
 
-# Disable binary replacement entirely (backwards compatible)
-tuist generate --no-binary-cache  # equivalent to --cache-profile none
+# Disable binary replacement entirely
+tuist generate --cache-profile none
 ```
+
+::: info DEPRECATED FLAG
+<!-- -->
+`--no-binary-cache` フラグは非推奨です。代わりに`--cache-profile none`
+を使用してください。非推奨フラグは後方互換性のためにまだ動作します。
+<!-- -->
+:::
 
 有効な行動を解決する際の優先順位（高いものから低いものへ）：
 
-1. `--no-binary-cache` → profile`none`
+1. `--キャッシュ・プロファイル none`
 2. ターゲット・フォーカス（ターゲットを`に渡す` を生成） → プロファイル`すべて可能`
 3. `--キャッシュ・プロファイル &lt;値`
 4. 設定デフォルト（設定されている場合）
@@ -117,7 +124,9 @@ XCTestに依存するライブラリやターゲットのサポートに取り�
 2. 実装の代わりにプロトコル/インターフェースのターゲットで依存関係を定義し、一番上のターゲットから実装を依存関係インジェクトする。
 3. 頻繁に変更されるターゲットを、変更の可能性が低い小さなターゲットに分割する。
 
-上記の提案は、<LocalizedLink href="/guides/features/projects/tma-architecture">The Modular Architecture</LocalizedLink>の一部であり、バイナリー・キャッシングだけでなく、Xcodeの機能の利点を最大化するためにプロジェクトを構成する方法として提案します。
+上記の提案は、<LocalizedLink href="/guides/features/projects/tma-architecture">The
+Modular
+Architecture</LocalizedLink>の一部であり、バイナリー・キャッシングだけでなく、Xcodeの機能の利点を最大化するためにプロジェクトを構成する方法として提案します。
 
 ## 推奨セットアップ{#recommended-setup}
 
@@ -168,7 +177,7 @@ tuist generate
 
 ### 私のターゲットにはバイナリーを使わない{#it-doesnt-use-binaries-for-my-targets}
 
-<LocalizedLink href="/guides/features/projects/hashing#debugging">ハッシュが環境とランにまたがって決定性</LocalizedLink>であることを確認する。これは、プロジェクトが絶対パスなどで環境を参照している場合に発生する可能性があります。`diff`
+1}ハッシュが環境とランにまたがって決定性</LocalizedLink>であることを確認する。これは、プロジェクトが絶対パスなどで環境を参照している場合に発生する可能性があります。`diff`
 コマンドを使用すると、`tuist generate`
 の2つの連続した呼び出しによって生成されたプロジェクトを比較したり、環境や実行にまたがって比較することができます。
 
@@ -176,5 +185,19 @@ tuist generate
 
 ### 記号の欠落{#missing-symbols}
 
-ソースを使用する場合、Xcode のビルドシステムは、Derived Data
-を通じて、明示的に宣言されていない依存関係を解決することができます。しかし、バイナリキャッシュに依存する場合、依存関係は明示的に宣言されなければなりません。そうしないと、シンボルが見つからないときにコンパイルエラーが発生する可能性が高い。これをデバッグするには、暗黙リンクのリグレッションを防ぐために、<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist inspect implicit-imports`</LocalizedLink>コマンドを使い、CIで設定することを推奨する。
+ソースを使用するとき、Xcode のビルドシステムは、Derived Data
+を通じて、明示的に宣言されていない依存関係を解決することができます。しかし、バイナリキャッシュに依存する場合、依存関係は明示的に宣言されなければなりません。そうでなければ、シンボルが見つからないときにコンパイルエラーが発生する可能性が高い。これをデバッグするには、暗黙リンクのリグレッションを防ぐために、<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist
+inspect dependencies --only implicit`</LocalizedLink>コマンドを使い、CIで設定することを推奨する。
+
+### レガシー・モジュールキャッシュ{#legacy-module-cache}
+
+Tuist`4.128.0`
+では、モジュールキャッシュのための新しいインフラをデフォルトにしました。この新しいバージョンで問題が発生した場合、`TUIST_LEGACY_MODULE_CACHE`
+環境変数を設定することで、従来のキャッシュ動作に戻すことができます。
+
+このレガシーモジュールキャッシュは一時的なフォールバックであり、将来のアップデートでサーバー側で削除される予定です。このキャッシュからの移行を計画してください。
+
+```bash
+export TUIST_LEGACY_MODULE_CACHE=1
+tuist generate
+```
