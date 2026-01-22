@@ -13,15 +13,15 @@
 <!-- -->
 :::
 
-在建立應用程式時，您可能想要與他人分享以獲得回饋。傳統上，團隊會透過建立、簽署並將應用程式推送至 Apple 的
+開發應用程式時，您可能需要與他人分享以獲取反饋。傳統做法是團隊透過建置、簽署應用程式，並將其推送至如 Apple 的
 [TestFlight](https://developer.apple.com/testflight/)
-等平台來達成這個目的。然而，這個過程可能既麻煩又緩慢，尤其是當您只想從同事或朋友那裡快速獲得回饋時。
+等平台。然而此流程可能繁瑣且耗時，尤其當您僅需從同事或朋友處快速獲取意見時。
 
-為了讓這個過程更為精簡，Tuist 提供了一種方法來產生您的應用程式並與任何人分享預覽。
+為使流程更流暢，Tuist 提供生成應用程式預覽並與任何人共享的功能。
 
 ::: warning DEVICE BUILDS NEED TO BE SIGNED
 <!-- -->
-為裝置建置時，目前由您負責確保應用程式已正確簽署。我們計劃在未來簡化這項工作。
+當為裝置進行建置時，目前需由您自行確保應用程式簽署正確。我們計劃在未來簡化此流程。
 <!-- -->
 :::
 
@@ -41,17 +41,17 @@ tuist share App.ipa # Share an existing .ipa file
 <!-- -->
 :::
 
-此指令會產生一個連結，您可以分享給任何人，讓他們在模擬器或實際裝置上執行應用程式。他們只需執行以下指令即可：
+此指令將產生可供任何人分享的應用程式執行連結——無論在模擬器或實體裝置上皆可運行。使用者僅需執行以下指令：
 
 ```bash
 tuist run {url}
 tuist run --device "My iPhone" {url} # Run the app on a specific device
 ```
 
-分享`.ipa` 檔案時，您可以使用預覽連結直接從行動裝置下載應用程式。`.ipa` 預覽的連結預設為_private_ ，意即接收者需要用他們的 Tuist
-帳戶驗證才能下載應用程式。如果您想與任何人分享應用程式，可以在專案設定中將其變更為公開。
+`` 分享`.ipa` 檔案時，可透過預覽連結直接從行動裝置下載應用程式。預覽連結預設為_private_ ，意即接收者需使用 Tuist
+帳戶驗證方能下載。若需公開分享，可於專案設定中將權限改為公開。
 
-`tuist run` 也可讓您根據指定符號執行最新預覽，例如`latest` 、分支名稱或特定的提交雜湊：
+`執行 tuist run` 亦可根據指定參數運行最新預覽，例如：`latest` 、分支名稱或特定提交雜湊值：
 
 ```bash
 tuist run App@latest # Runs latest App preview associated with the project's default branch
@@ -61,33 +61,34 @@ tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview
 
 ::: warning UNIQUE BUILD NUMBERS IN CI
 <!-- -->
-確保`CFBundleVersion` (建置版本) 是唯一的，方法是利用大多數 CI 供應商揭露的 CI run 編號。例如，在 GitHub Actions
-中，您可以將`CFBundleVersion` 設定為 <code v-pre>${{ github.run_number }}</code> 變數。
+請透過運用多數 CI 供應商公開的 CI 執行編號，確保 ``` 的 `CFBundleVersion`（` ，即建置版本）具有唯一性。例如在 GitHub
+Actions 中，可將 ``` 的 `CFBundleVersion`（` ）設定為 `<code v-pre>${{ github.run_number
+}}</code>` 變數。
 
-上傳具有相同二進位 (build) 和相同`CFBundleVersion` 的預覽將會失敗。
+上傳預覽檔時，若使用相同二進位檔（建置版本）且`的CFBundleVersion為` ，系統將判定為失敗。
 <!-- -->
 :::
 
 ## 曲目{#tracks}
 
-軌道可讓您將預覽組織為已命名的群組。例如，您可以為內部測試人員設定`beta` 軌道，為自動化建置設定`nightly` 軌道。軌道可輕鬆建立 -
-只需在分享時指定軌道名稱，如果不存在，就會自動建立。
+軌道功能可讓您將預覽版本組織成命名群組。例如：您可為內部測試人員建立「`beta」` 軌道，並為自動化建置建立「`nightly」`
+軌道。軌道採延遲建立機制——分享時僅需指定軌道名稱，若該名稱不存在則會自動建立。
 
-若要在特定音軌上分享預覽，請使用`--track` 選項：
+若要分享特定音軌的預覽，請使用 ``--track` ` 選項：
 
 ```bash
 tuist share App --track beta
 tuist share App --track nightly
 ```
 
-這對以下方面很有用
-- **組織預覽** ：依目的將預覽分組 (例如`beta`,`nightly`,`internal`)
-- **應用程式內更新** ：Tuist SDK 使用軌跡來決定通知使用者哪些更新
-- **篩選** ：在 Tuist 面板中輕鬆地按音軌尋找和管理預覽
+此規則適用於：
+- **預覽組織方式**: 依用途分組預覽（例如：`beta`,`nightly`,`internal` ）
+- **應用程式內更新**: Tuist SDK 透過追蹤機制決定需通知用戶的更新項目
+- **篩選**: 在 Tuist 儀表板中輕鬆按曲目查找與管理預覽
 
 ::: warning PREVIEWS' VISIBILITY
 <!-- -->
-只有擁有專案所屬組織存取權限的人才能存取預覽。我們計劃新增對過期連結的支援。
+僅限具備專案所屬組織存取權限者可預覽內容。我們計劃新增連結失效功能。
 <!-- -->
 :::
 
@@ -100,15 +101,14 @@ tuist share App --track nightly
     <img src="/images/guides/features/menu-bar-app.png" style="width: 300px;" />
 </div>
 
-為了讓執行 Tuist 預覽更加容易，我們開發了一個 Tuist macOS 功能表應用程式。與其透過 Tuist CLI 執行預覽，您可以
-[下載](https://tuist.dev/download) macOS 應用程式。您也可以執行`brew install --cask
-tuist/tuist/tuist` 來安裝應用程式。
+為使執行 Tuist 預覽更為簡便，我們開發了 Tuist macOS 選單列應用程式。您可透過下載 macOS 應用程式取代使用 Tuist CLI
+執行預覽功能。亦可執行以下指令安裝應用程式：`brew install --cask tuist/tuist/tuist`
 
-當您現在點選預覽頁面中的「執行」時，macOS 應用程式會自動在您目前選取的裝置上啟動。
+當您在預覽頁面點擊「執行」按鈕時，macOS 應用程式將自動在您當前選定的裝置上啟動該功能。
 
 ::: warning REQUIREMENTS
 <!-- -->
-您需要在本機安裝 Xcode，並使用 macOS 14 或更新版本。
+您需在本地安裝 Xcode 並使用 macOS 14 或更新版本。
 <!-- -->
 :::
 
@@ -123,7 +123,7 @@ tuist/tuist/tuist` 來安裝應用程式。
     </a>
 </div>
 
-與 macOS 應用程式類似，Tuist iOS 應用程式可簡化存取和執行預覽的程序。
+與 macOS 應用程式類似，Tuist iOS 應用程式能簡化預覽的存取與執行流程。
 
 ## 拉取/合併請求註解{#pullmerge-request-comments}
 
@@ -136,26 +136,27 @@ tuist/tuist/tuist` 來安裝應用程式。
 <!-- -->
 :::
 
-測試新功能應該是任何程式碼檢閱的一部分。但必須在本機建立應用程式會增加不必要的摩擦，通常會導致開發人員完全跳過在裝置上測試功能。但是*如果每個拉取請求都包含一個連結，可以讓您在
-Tuist macOS 應用程式中選擇的裝置上自動執行應用程式的建立呢？*
+測試新功能應是程式碼審查的必備環節。然而，必須在本地端建置應用程式會增加不必要的摩擦，導致開發者往往完全跳過在裝置上測試功能的步驟。但*，如果每個拉取請求都包含一個連結，能自動在您於Tuist
+macOS應用程式中選定的裝置上執行應用程式，會如何呢？*
 
-一旦您的 Tuist 專案與 [GitHub](https://github.com) 等 Git 平台連線，請在 CI 工作流程中加入
-<LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink>。之後，Tuist
-會直接在您的拉取請求中發佈預覽連結： ![帶有 Tuist 預覽連結的 GitHub
-應用程式註解](/images/guides/features/github-app-with-preview.png)。
+當您的 Tuist 專案與 Git 平台（如 [GitHub](https://github.com)）完成連結後，請在 CI 工作流程中加入
+<LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink>。Tuist
+將自動在您的拉取請求中嵌入預覽連結：![GitHub app comment with a Tuist Preview
+link](/images/guides/features/github-app-with-preview.png)
 
 
 ## 應用程式內更新通知{#in-app-update-notifications}
 
-Tuist SDK](https://github.com/tuist/sdk)
-可讓您的應用程式偵測更新的預覽版本，並通知使用者。這對於讓測試人員使用最新版本非常有用。
+[Tuist SDK](https://github.com/tuist/sdk)
+可讓您的應用程式偵測更新的預覽版本是否可用，並通知使用者。此功能有助於讓測試人員保持在最新版本。
 
-SDK 會檢查同一**預覽軌** 內的更新。當您使用`--track` 與明確的軌道分享預覽時，SDK 會在該軌道上尋找更新。如果沒有指定軌道，則會使用 git
-分支作為軌道 - 因此從`main` 分支建立的預覽，只會通知同樣從`main` 建立的更新預覽。
+SDK會在同一預覽分支內檢查更新：**預覽分支** 當您透過`--track`
+明確指定分支分享預覽時，SDK將僅檢查該分支的更新。若未指定分支，則以git分支作為預覽分支——因此從`主分支` 建立的預覽，僅會通知來自`主分支`
+的更新預覽。
 
 ### 安裝{#sdk-installation}
 
-新增 Tuist SDK 為 Swift 套件相依性：
+將 Tuist SDK 添加為 Swift Package 依賴項：
 
 ```swift
 .package(url: "https://github.com/tuist/sdk", .upToNextMajor(from: "0.1.0"))
@@ -163,7 +164,7 @@ SDK 會檢查同一**預覽軌** 內的更新。當您使用`--track` 與明確�
 
 ### 監控更新{#sdk-monitor-updates}
 
-使用`monitorPreviewUpdates` 來定期檢查新的預覽版本：
+使用 ``` 並啟用 `monitorPreviewUpdates` (` ) 設定，即可定期檢查新預覽版本：
 
 ```swift
 import TuistSDK
@@ -186,7 +187,7 @@ struct MyApp: App {
 
 ### 單次更新檢查{#sdk-single-check}
 
-用於手動更新檢查：
+手動檢查更新時：
 
 ```swift
 let sdk = TuistSDK(
@@ -201,7 +202,7 @@ if let preview = try await sdk.checkForUpdate() {
 
 ### 停止更新監控{#sdk-stop-monitoring}
 
-`monitorPreviewUpdates` 會傳回`任務` ，該任務可以取消：
+`monitorPreviewUpdates` 會回傳一個可取消的`任務` ：
 
 ```swift
 let task = sdk.monitorPreviewUpdates { preview in
@@ -214,36 +215,36 @@ task.cancel()
 
 ::: info
 <!-- -->
-在模擬器和 App Store 版本上，更新檢查會自動停用。
+更新檢查功能在模擬器及 App Store 版本中會自動停用。
 <!-- -->
 :::
 
 ## README 徽章{#readme-badge}
 
-為了讓 Tuist 預覽在您的儲存庫中更顯眼，您可以在`README` 檔案中加入徽章，指向最新的 Tuist 預覽：
+為使 Tuist Previews 在您的儲存庫中更顯眼，您可在`README 文件中添加徽章，該徽章將指向最新的 Tuist Preview：`
 
-[！[Tuist
-預覽](https://tuist.dev/Dimillian/IcySky/previews/latest/badge.svg)](https://tuist.dev/Dimillian/IcySky/previews/latest)
+[![Tuist
+Preview](https://tuist.dev/Dimillian/IcySky/previews/latest/badge.svg)](https://tuist.dev/Dimillian/IcySky/previews/latest)
 
-若要在`README` 中加入徽章，請使用下列 markdown，並將帳號和專案句柄換成您自己的：
+若要在您的`README` 中添加徽章，請使用以下 Markdown 並將帳戶與專案名稱替換為您的實際資訊：
 ```
 [![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest)
 ```
 
-如果您的專案包含多個具有不同 bundle 識別碼的應用程式，您可以透過新增`bundle-id` 查詢參數，指定要連結到哪個應用程式的預覽：
+若您的專案包含多個具有不同套件識別碼的應用程式，可透過添加`bundle-id` 查詢參數來指定連結至哪個應用程式的預覽：
 ```
 [![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest?bundle-id=com.example.app)
 ```
 
 ## 自動化{#automations}
 
-您可以使用`--json` 標記，從`tuist share` 指令取得 JSON 輸出：
+` 您可使用 ``--json` 旗標，透過 `` ` 指令從 ``` 取得 JSON 輸出：
 ```
 tuist share --json
 ```
 
-JSON 輸出對於建立自訂自動化非常有用，例如使用您的 CI 提供者張貼 Slack 訊息。JSON 包含一個`url`
-key，內含完整的預覽連結，以及`qrCodeURL` key，內含 QR 碼影像的 URL，以便更輕鬆地從實體裝置下載預覽。以下是 JSON 輸出的範例：
+JSON輸出格式可協助建立自訂自動化流程，例如透過持續整合服務商發佈Slack訊息。此JSON包含：- 完整預覽連結的`url` 鍵值-
+含QR碼圖片網址的`qrCodeURL` 鍵值便於從實體裝置下載預覽內容。JSON輸出範例如下：
 ```json
 {
   "id": 1234567890,
