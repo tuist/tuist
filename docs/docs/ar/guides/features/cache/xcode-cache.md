@@ -12,9 +12,10 @@
 
 ## الإعداد {#setup}
 
-::: warning REQUIREMENTS
+:::: متطلبات التحذير
 <!-- -->
-- <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع Tuist</LocalizedLink>
+- أ <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع تويست
+  <LocalizedLink href="/guides/server/accounts-and-projects">تويست</LocalizedLink>
 - Xcode 26.0 أو أحدث
 <!-- -->
 :::
@@ -39,7 +40,9 @@ tuist setup cache
 (https://github.com/swiftlang/swift-build) Swift لمشاركة القطع الأثرية للتجميع.
 يجب تشغيل هذا الأمر مرة واحدة في كل من البيئات المحلية وبيئة التخزين المؤقت.
 
-لإعداد ذاكرة التخزين المؤقت على CI، تأكد من أنك <LocalizedLink href="/guides/integrations/continuous-integration#authentication">مصادق</LocalizedLink>.
+لإعداد ذاكرة التخزين المؤقت على CI، تأكد من أنك
+<LocalizedLink href="/guides/integrations/continuous-integration#authentication">مصادق
+</LocalizedLink>.
 
 ### تهيئة إعدادات إنشاء Xcode {#configure-xcode-build-settings}
 
@@ -101,20 +104,33 @@ let tuist = Tuist(
 لتمكين التخزين المؤقت في بيئة CI الخاصة بك، تحتاج إلى تشغيل نفس الأمر كما هو
 الحال في البيئات المحلية: `tuist إعداد ذاكرة التخزين المؤقت`.
 
-بالإضافة إلى ذلك، تحتاج إلى التأكد من تعيين متغير البيئة `TUIST_TOKEN`. يمكنك إنشاء واحد باتباع الوثائق <LocalizedLink href="/guides/server/authentication#as-a-project">هنا</LocalizedLink>. يجب أن يكون متغير البيئة `TUIST_TOKEN` موجودًا لخطوة الإنشاء الخاصة بك، لكننا نوصي بتعيينه لسير عمل CI بأكمله.
+للمصادقة، يمكنك استخدام إما
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">
+مصادقةOIDC</LocalizedLink> (موصى به لموفري CI المدعومين) أو
+<LocalizedLink href="/guides/server/authentication#account-tokens"> رمز حساب
+مميز</LocalizedLink> عبر متغير البيئة `TUIST_TOKEN`.
 
-مثال على سير العمل لإجراءات GitHub يمكن أن يبدو بعد ذلك على النحو التالي:
+مثال على سير عمل إجراءات GitHub باستخدام مصادقة OIDC:
 ```yaml
 name: Build
 
-env:
-  TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   build:
+    runs-on: macos-latest
     steps:
-      - # Your set up steps...
-      - name: Set up Tuist Cache
-        run: tuist setup cache
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: tuist auth login
+      - run: tuist setup cache
       - # Your build steps
 ```
+
+راجع دليل
+<LocalizedLink href="/guides/integrations/continuous-integration">التكامل
+المستمر</LocalizedLink> للاطلاع على المزيد من الأمثلة، بما في ذلك المصادقة
+المستندة إلى الرمز المميز ومنصات CI الأخرى مثل Xcode Cloud و CircleCI و Bitrise
+و Codemagic.
