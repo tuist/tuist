@@ -9,28 +9,28 @@
 
 W projektach o ustalonej architekturze programiści mogą chcieć uruchomić nowe
 komponenty lub funkcje, które są spójne z projektem. Dzięki `tuist scaffold`
-można generować pliki z szablonu. Możesz zdefiniować własne szablony lub użyć
-tych, które są dostarczane z Tuist. Oto kilka scenariuszy, w których rusztowanie
-może być przydatne:
+można generować pliki na podstawie szablonu. Można zdefiniować własne szablony
+lub skorzystać z tych, które są dostarczane wraz z Tuist. Oto kilka scenariuszy,
+w których szkielet może być przydatny:
 
-- Utwórz nową funkcję o określonej architekturze: `tuist scaffold viper --name
+- Utwórz nową funkcję zgodną z podaną architekturą: `tuist scaffold viper --name
   MyFeature`.
-- Tworzenie nowych projektów: `tuist scaffold feature-project --name Home`
+- Utwórz nowe projekty: `tuist scaffold feature-project --name Home`
 
 ::: info NON-OPINIONATED
 <!-- -->
-Tuist nie ma zdania na temat zawartości szablonów i tego, do czego ich używasz.
-Wymagane jest jedynie, aby znajdowały się one w określonym katalogu.
+Tuist nie ma zdania na temat zawartości szablonów i tego, do czego są one
+używane. Wymagane jest jedynie umieszczenie ich w określonym katalogu.
 <!-- -->
 :::
 
 ## Definiowanie szablonu {#defining-a-template}
 
-Aby zdefiniować szablony, można uruchomić
+Aby zdefiniować szablony, możesz uruchomić
 <LocalizedLink href="/guides/features/projects/editing">`tuist
-edit`</LocalizedLink>, a następnie utworzyć katalog o nazwie `name_of_template`
-w `Tuist/Templates`, który reprezentuje szablon. Szablony wymagają pliku
-manifestu, `name_of_template.swift` który opisuje szablon. Jeśli więc tworzysz
+edit`</LocalizedLink>, a następnie utworzyć katalog o nazwie `nazwa_szablonu` w
+`Tuist/Templates`, który reprezentuje Twój szablon. Szablony wymagają pliku
+manifestu, `name_of_template.swift`, który opisuje szablon. Jeśli więc tworzysz
 szablon o nazwie `framework`, powinieneś utworzyć nowy katalog `framework` w
 `Tuist/Templates` z plikiem manifestu o nazwie `framework.swift`, który może
 wyglądać następująco:
@@ -66,7 +66,7 @@ let template = Template(
 
 ## Korzystanie z szablonu {#using-a-template}
 
-Po zdefiniowaniu szablonu możemy go użyć z poziomu polecenia `scaffold`:
+Po zdefiniowaniu szablonu możemy go użyć za pomocą polecenia `scaffold`:
 
 ```bash
 tuist scaffold name_of_template --name Name --platform macos
@@ -74,29 +74,30 @@ tuist scaffold name_of_template --name Name --platform macos
 
 :: info
 <!-- -->
-Ponieważ platforma jest opcjonalnym argumentem, możemy również wywołać polecenie
+Ponieważ platforma jest argumentem opcjonalnym, możemy również wywołać polecenie
 bez argumentu `--platform macos`.
 <!-- -->
 :::
 
-Jeśli `.string` i `.files` nie zapewniają wystarczającej elastyczności, można
-wykorzystać język szablonów [Stencil](https://stencil.fuller.li/en/latest/)
-poprzez przypadek `.file`. Oprócz tego można również użyć dodatkowych filtrów
+Jeśli `.string` i `.files` nie zapewniają wystarczającej elastyczności, możesz
+skorzystać z języka szablonów [Stencil](https://stencil.fuller.li/en/latest/)
+poprzez `.file`. Oprócz tego możesz również użyć dodatkowych filtrów
 zdefiniowanych tutaj.
 
-Używając interpolacji ciągów znaków, `\(nameAttribute)` powyżej zostałoby
-rozwiązane jako `{{ name }}`. Jeśli chcesz użyć filtrów Stencil w definicji
-szablonu, możesz użyć tej interpolacji ręcznie i dodać dowolne filtry. Na
-przykład, można użyć `{ { nazwa | małe litery } }` zamiast `\(nameAttribute)`,
-aby uzyskać wartość atrybutu name pisaną małymi literami.
+Korzystając z interpolacji ciągów znaków, `\(nameAttribute)` powyżej zostanie
+zamienione na `{{ name }}`. Jeśli chcesz użyć filtrów Stencil w definicji
+szablonu, możesz ręcznie zastosować tę interpolację i dodać dowolne filtry. Na
+przykład, zamiast `\(nameAttribute)` możesz użyć `{ { name | lowercase } }`, aby
+uzyskać wartość atrybutu name w małych literach.
 
-Możesz także użyć `.directory`, który daje możliwość kopiowania całych folderów
-do podanej ścieżki.
+Możesz również użyć `.directory`, co daje możliwość skopiowania całych folderów
+do określonej ścieżki.
 
 ::: tip PROJECT DESCRIPTION HELPERS
 <!-- -->
 Szablony obsługują użycie
-<LocalizedLink href="/guides/features/projects/code-sharing"> pomocników opisu
-projektu</LocalizedLink> w celu ponownego wykorzystania kodu między szablonami.
+<LocalizedLink href="/guides/features/projects/code-sharing">pomocników opisu
+projektu</LocalizedLink> w celu ponownego wykorzystania kodu w różnych
+szablonach.
 <!-- -->
 :::
