@@ -144,6 +144,20 @@
                 },
                 "releases": {
                     "text": ""
+                },
+                "debugging": {
+                    "text": ""
+                },
+                "code": {
+                    "items": {
+                        "docs": {
+                            "text": ""
+                        },
+                        "handbook": {
+                            "text": ""
+                        }
+                    },
+                    "text": ""
                 }
             }
         },
@@ -366,6 +380,14 @@
                         },
                         "qa": {
                             "text": ""
+                        },
+                        "test-insights": {
+                            "items": {
+                                "flaky-tests": {
+                                    "text": ""
+                                }
+                            },
+                            "text": ""
                         }
                     }
                 },
@@ -392,6 +414,9 @@
                                     "text": ""
                                 }
                             },
+                            "text": ""
+                        },
+                        "slack": {
                             "text": ""
                         }
                     }
