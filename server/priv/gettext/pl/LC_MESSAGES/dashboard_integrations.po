@@ -3,8 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
-"PO-Revision-Date: 2026-01-22 12:42+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"PO-Revision-Date: 2026-01-22 13:03+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Polish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_integrations/pl/>\n"
 "Language: pl\n"
@@ -48,22 +48,22 @@ msgstr "Wybierz repozytorium"
 #: lib/tuist_web/live/integrations_live.html.heex:43
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Choose repository to connect to"
-msgstr "Wybierz repozytorium, z którym chcesz się połączyć"
+msgstr "Wybierz repozytorium, z którym chcesz się połączyć."
 
 #: lib/tuist_web/live/integrations_live.html.heex:9
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Connect any of your GitHub repositories to a project"
-msgstr "Podłącz dowolne repozytoria GitHub do projektu"
+msgstr "Połącz dowolne repozytorium GitHub z projektem."
 
 #: lib/tuist_web/live/integrations_live.ex:147
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Connected %{time_ago}"
-msgstr "Połączono %{time_ago}"
+msgstr "Połączone %{time_ago}"
 
 #: lib/tuist_web/live/integrations_live.ex:149
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Connected %{time_ago} by %{name}"
-msgstr "Połączony %{time_ago} przez %{name}"
+msgstr "Połączone %{time_ago} przez %{name}"
 
 #: lib/tuist_web/live/integrations_live.html.heex:120
 #, elixir-autogen, elixir-format, fuzzy
@@ -89,12 +89,12 @@ msgstr "Integracje"
 #: lib/tuist_web/live/integrations_live.html.heex:159
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Manage"
-msgstr "Zarządzanie"
+msgstr "Zarządzaj"
 
 #: lib/tuist_web/live/integrations_live.html.heex:27
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Manage integration"
-msgstr "Zarządzanie integracją"
+msgstr "Zarządzaj integracją"
 
 #: lib/tuist_web/live/integrations_live.html.heex:162
 #, elixir-autogen, elixir-format, fuzzy
@@ -104,7 +104,7 @@ msgstr "Usuń połączenie"
 #: lib/tuist_web/live/integrations_live.ex:15
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You are not authorized to perform this action."
-msgstr "Nie jesteś upoważniony do wykonania tej czynności."
+msgstr "Nie masz uprawnień do wykonania tej czynności."
 
 #: lib/tuist_web/live/integrations_live.html.heex:38
 #, elixir-autogen, elixir-format, fuzzy
