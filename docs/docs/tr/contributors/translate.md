@@ -7,7 +7,7 @@
 ---
 # Tercüme et {#translate}
 
-Diller anlamanın önünde engel olabilir. Tuist'in mümkün olduğunca çok kişi
+Diller anlamanın önünde engel olabilir. Tuist'in mümkün olduğunca çok insan
 tarafından erişilebilir olmasını sağlamak istiyoruz. Tuist'in desteklemediği bir
 dil konuşuyorsanız, Tuist'in çeşitli yüzeylerini tercüme ederek bize yardımcı
 olabilirsiniz.
