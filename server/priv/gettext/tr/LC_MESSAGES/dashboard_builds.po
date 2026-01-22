@@ -3,8 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2025-12-24 20:51+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"PO-Revision-Date: 2026-01-22 12:39+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_builds/tr/>\n"
 "Language: tr\n"
@@ -12,7 +12,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=n != 1;\n"
-"X-Generator: Weblate 5.15.1\n"
+"X-Generator: Weblate 5.15.2\n"
 
 ## This file is a PO Template file.
 ##
@@ -313,7 +313,7 @@ msgstr "Temiz"
 #: lib/tuist_web/live/run_detail_live.html.heex:102
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Command"
-msgstr "Komutlar"
+msgstr "Komuta"
 
 #: lib/tuist_web/live/build_runs_live.html.heex:74
 #: lib/tuist_web/live/run_detail_live.html.heex:149
@@ -490,7 +490,7 @@ msgstr "Başarısız yapılar"
 #: lib/tuist_web/live/build_run_live.ex:584
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed compiling C file %{path}"
-msgstr "C dosyası %{path} derlenemedi"
+msgstr "C dosyası derlenemedi %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:587
 #: lib/tuist_web/live/build_run_live.ex:623
@@ -516,7 +516,7 @@ msgstr "Öykü panosu %{path} derlenemedi"
 #: lib/tuist_web/live/build_run_live.ex:599
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed copying Swift libraries %{path}"
-msgstr "Swift kütüphaneleri kopyalanamadı %{path}"
+msgstr "Swift kütüphaneleri %{path} kopyalanamadı"
 
 #: lib/tuist_web/live/build_run_live.ex:614
 #, elixir-autogen, elixir-format, fuzzy
@@ -1245,7 +1245,7 @@ msgstr "Betik %{script_name} çalıştırılırken uyarı"
 #: lib/tuist_web/live/build_run_live.ex:654
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when linking %{path}"
-msgstr "Bağlantı kurulurken uyarı %{path}"
+msgstr "Bağlantı %{path} yapılırken uyarı"
 
 #: lib/tuist_web/live/build_run_live.ex:669
 #, elixir-autogen, elixir-format, fuzzy
@@ -1444,7 +1444,7 @@ msgstr "Son 7 gün"
 #: lib/tuist_web/live/builds_live.ex:330
 #, elixir-autogen, elixir-format, fuzzy
 msgid "since last period"
-msgstr "son dönemden bu yana"
+msgstr "son dönemden beri"
 
 #: lib/tuist_web/live/builds_live.ex:327
 #, elixir-autogen, elixir-format, fuzzy
