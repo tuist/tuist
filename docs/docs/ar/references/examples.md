@@ -7,8 +7,9 @@
 ---
 # الأمثلة
 
-في هذا القسم ستجد أمثلة على <LocalizedLink to="/guides/features/projects">
-المشاريع التي تم إنشاؤها </LocalizedLink> والتي نستخدمها [كأمثلة]
-(https://github.com/tuist/tuist/tree/main/examples/xcode) لتشغيل اختبارات القبول
-مقابلها. قد تجدها مفيدة عند إنشاء مشروع جديد تم إنشاؤه، أو ترحيل مشروع Xcode
-موجود ليتم إنشاؤه بواسطة Tuist.
+في هذا القسم، ستجد أمثلة على
+<LocalizedLink to="/guides/features/projects">المشاريع التي تم
+إنشاؤها</LocalizedLink> والتي نستخدمها كـ
+[أمثلة](https://github.com/tuist/tuist/tree/main/examples/xcode) لإجراء اختبارات
+القبول عليها. قد تجدها مفيدة عند إنشاء مشروع جديد تم إنشاؤه، أو ترحيل مشروع
+Xcode موجود ليتم إنشاؤه بواسطة Tuist.
