@@ -6,49 +6,50 @@
 }
 ---
 
-# Self-host Cache {#self-host-cache}
+# Самостоятельное размещение кэша {#self-host-cache}
 
-The Tuist cache service can be self-hosted to provide a private binary cache for
-your team. This is most useful for organizations with large artifacts and
-frequent builds, where placing the cache closer to your CI infrastructure
-reduces latency and improves cache efficiency. By minimizing the distance
-between your build agents and the cache, you ensure that network overhead
-doesn't negate the speed benefits of caching.
+Служба кэширования Tuist может быть размещена на собственном хостинге, чтобы
+обеспечить частный бинарный кэш для вашей команды. Это наиболее полезно для
+организаций с большими артефактами и частыми сборками, где размещение кэша ближе
+к вашей инфраструктуре CI снижает задержку и повышает эффективность кэширования.
+Минимизируя расстояние между вашими агентами сборки и кэшем, вы гарантируете,
+что сетевые накладные расходы не нивелируют преимущества кэширования в скорости.
 
 ::: info
 <!-- -->
-Self-hosting cache nodes requires an **Enterprise plan**.
+Для самостоятельного хостинга кеш-узлов требуется план **Enterprise**.
 
-You can connect self-hosted cache nodes to either the hosted Tuist server
-(`https://tuist.dev`) or a self-hosted Tuist server. Self-hosting the Tuist
-server itself requires a separate server license. See the
-<LocalizedLink href="/guides/server/self-host/install">server self-hosting
-guide</LocalizedLink>.
+Вы можете подключить самостоятельно размещенные узлы кэша к хостируемому серверу
+Tuist (`https://tuist.dev`) или к самостоятельно размещенному серверу Tuist. Для
+самостоятельного размещения сервера Tuist требуется отдельная серверная
+лицензия. См. <LocalizedLink href="/guides/server/self-host/install">руководство
+по самостоятельному размещению сервера</LocalizedLink>.
 <!-- -->
 :::
 
-## Prerequisites {#prerequisites}
+## Необходимые условия {#prerequisites}
 
-- Docker and Docker Compose
-- S3-compatible storage bucket
-- A running Tuist server instance (hosted or self-hosted)
+- Docker и Docker Compose
+- Хранилище, совместимое с S3
+- Работающий экземпляр сервера Tuist (хостинг или самохостинг)
 
-## Deployment {#deployment}
+## Развертывание {#deployment}
 
-The cache service is distributed as a Docker image at
-[ghcr.io/tuist/cache](https://ghcr.io/tuist/cache). We provide reference
-configuration files in the [cache
-directory](https://github.com/tuist/tuist/tree/main/cache).
+Служба кэширования распространяется в виде образа Docker по адресу
+[ghcr.io/tuist/cache](https://ghcr.io/tuist/cache). Мы предоставляем справочные
+файлы конфигурации в [каталоге
+cache](https://github.com/tuist/tuist/tree/main/cache).
 
 ::: tip
 <!-- -->
-We provide a Docker Compose setup because it's a convenient baseline for
-evaluation and small deployments. You can use it as a reference and adapt it to
-your preferred deployment model (Kubernetes, raw Docker, etc.).
+Мы предоставляем настройку Docker Compose, поскольку она является удобной базой
+для оценки и небольших развертываний. Вы можете использовать ее в качестве
+ориентира и адаптировать к предпочитаемой модели развертывания (Kubernetes, raw
+Docker и т. д.).
 <!-- -->
 :::
 
-### Configuration files {#config-files}
+### Файлы конфигурации {#config-files}
 
 ```bash
 curl -O https://raw.githubusercontent.com/tuist/tuist/main/cache/docker-compose.yml
@@ -56,14 +57,14 @@ mkdir -p docker
 curl -o docker/nginx.conf https://raw.githubusercontent.com/tuist/tuist/main/cache/docker/nginx.conf
 ```
 
-### Environment variables {#environment-variables}
+### Переменные окружения {#environment-variables}
 
-Create a `.env` file with your configuration.
+Создайте файл `.env` с вашей конфигурацией.
 
 ::: tip
 <!-- -->
-The service is built with Elixir/Phoenix, so some variables use the `PHX_`
-prefix. You can treat these as standard service configuration.
+Сервис построен на Elixir/Phoenix, поэтому некоторые переменные используют
+префикс `PHX_`. Вы можете рассматривать их как стандартную конфигурацию сервиса.
 <!-- -->
 :::
 
@@ -91,42 +92,44 @@ S3_REGION=us-east-1
 DATA_DIR=/data
 ```
 
-| Variable                          | Required | Default                   | Description                                                                                       |
-| --------------------------------- | -------- | ------------------------- | ------------------------------------------------------------------------------------------------- |
-| `SECRET_KEY_BASE`                 | Yes      |                           | Secret key used to sign and encrypt data (minimum 64 characters).                                 |
-| `PUBLIC_HOST`                     | Yes      |                           | Public hostname or IP address of your cache service. Used to generate absolute URLs.              |
-| `SERVER_URL`                      | Yes      |                           | URL of your Tuist server for authentication. Defaults to `https://tuist.dev`                      |
-| `DATA_DIR`                        | Yes      |                           | Directory where CAS artifacts are stored on disk. The provided Docker Compose setup uses `/data`. |
-| `S3_BUCKET`                       | Yes      |                           | S3 bucket name.                                                                                   |
-| `S3_HOST`                         | Yes      |                           | S3 endpoint hostname.                                                                             |
-| `S3_ACCESS_KEY_ID`                | Yes      |                           | S3 access key.                                                                                    |
-| `S3_SECRET_ACCESS_KEY`            | Yes      |                           | S3 secret key.                                                                                    |
-| `S3_REGION`                       | Yes      |                           | S3 region.                                                                                        |
-| `CAS_DISK_HIGH_WATERMARK_PERCENT` | No       | `85`                      | Disk usage percentage that triggers LRU eviction.                                                 |
-| `CAS_DISK_TARGET_PERCENT`         | No       | `70`                      | Target disk usage after eviction.                                                                 |
-| `PHX_SOCKET_PATH`                 | No       | `/run/cache/cache.sock`   | Path where the service creates its Unix socket (when enabled).                                    |
-| `PHX_SOCKET_LINK`                 | No       | `/run/cache/current.sock` | Symlink path that Nginx uses to connect to the service.                                           |
+| Переменная                        | Обязательно | По умолчанию              | Описание                                                                                                             |
+| --------------------------------- | ----------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `SECRET_KEY_BASE`                 | Да          |                           | Секретный ключ, используемый для подписи и шифрования данных (минимум 64 символа).                                   |
+| `PUBLIC_HOST`                     | Да          |                           | Публичное имя хоста или IP-адрес вашего кэш-сервиса. Используется для генерации абсолютных URL-адресов.              |
+| `SERVER_URL`                      | Да          |                           | URL вашего сервера Tuist для аутентификации. По умолчанию: `https://tuist.dev`                                       |
+| `DATA_DIR`                        | Да          |                           | Каталог, в котором артефакты CAS хранятся на диске. В предоставленной настройке Docker Compose используется `/data`. |
+| `S3_BUCKET`                       | Да          |                           | Имя корзины S3.                                                                                                      |
+| `S3_HOST`                         | Да          |                           | Имя хоста конечной точки S3.                                                                                         |
+| `S3_ACCESS_KEY_ID`                | Да          |                           | Ключ доступа S3.                                                                                                     |
+| `S3_SECRET_ACCESS_KEY`            | Да          |                           | Секретный ключ S3.                                                                                                   |
+| `S3_REGION`                       | Да          |                           | Регион S3.                                                                                                           |
+| `CAS_DISK_HIGH_WATERMARK_PERCENT` | Нет         | `85`                      | Процент использования диска, при котором запускается вытеснение LRU.                                                 |
+| `CAS_DISK_TARGET_PERCENT`         | Нет         | `70`                      | Использование целевого диска после выселения.                                                                        |
+| `PHX_SOCKET_PATH`                 | Нет         | `/run/cache/cache.sock`   | Путь, по которому служба создает свой сокет Unix (если он включен).                                                  |
+| `PHX_SOCKET_LINK`                 | Нет         | `/run/cache/current.sock` | Символьный путь, который Nginx использует для подключения к сервису.                                                 |
 
-### Start the service {#start-service}
+### Запустите службу {#start-service}
 
 ```bash
 docker compose up -d
 ```
 
-### Verify the deployment {#verify}
+### Проверьте развертывание {#verify}
 
 ```bash
 curl http://localhost/up
 ```
 
-## Configure the cache endpoint {#configure-endpoint}
+## Настройте конечную точку кэша {#configure-endpoint}
 
-After deploying the cache service, register it in your Tuist server organization
-settings:
+После развертывания службы кэширования зарегистрируйте ее в настройках
+организации сервера Tuist:
 
-1. Navigate to your organization's **Settings** page
-2. Find the **Custom cache endpoints** section
-3. Add your cache service URL (for example, `https://cache.example.com`)
+1. Перейдите на страницу «Настройки» ( **) вашей организации**.
+2. Найдите раздел « **» (Настройки конфигурации) «Custom cache endpoints»
+   (Пользовательские конечные точки кэша) «** » (Пользовательские конечные точки
+   кэша
+3. Добавьте URL-адрес вашего кэш-сервиса (например, `https://cache.example.com`)
 
 <!-- TODO: Add screenshot of organization settings page showing Custom cache endpoints section -->
 
@@ -136,58 +139,60 @@ graph TD
   B --> C[Tuist CLI uses your endpoint]
 ```
 
-Once configured, the Tuist CLI will use your self-hosted cache.
+После настройки Tuist CLI будет использовать ваш самостоятельно размещенный кэш.
 
-## Volumes {#volumes}
+## Том {#volumes}
 
-The Docker Compose configuration uses three volumes:
+Конфигурация Docker Compose использует три тома:
 
-| Volume         | Purpose                                     |
-| -------------- | ------------------------------------------- |
-| `cas_data`     | Binary artifact storage                     |
-| `sqlite_data`  | Access metadata for LRU eviction            |
-| `cache_socket` | Unix socket for Nginx-service communication |
+| Объем          | Цель                                 |
+| -------------- | ------------------------------------ |
+| `cas_data`     | Хранение двоичных артефактов         |
+| `sqlite_data`  | Доступ к метаданным для удаления LRU |
+| `cache_socket` | Сокет Unix для связи Nginx-service   |
 
-## Health checks {#health-checks}
+## Проверка работоспособности {#health-checks}
 
-- `GET /up` — Returns 200 when healthy
-- `GET /metrics` — Prometheus metrics
+- `GET /up` — Возвращает 200, если все в порядке
+- `GET /metrics` — метрики Prometheus
 
-## Monitoring {#monitoring}
+## Мониторинг {#monitoring}
 
-The cache service exposes Prometheus-compatible metrics at `/metrics`.
+Служба кэша предоставляет метрики, совместимые с Prometheus, по адресу
+`/metrics`.
 
-If you use Grafana, you can import the [reference
-dashboard](https://raw.githubusercontent.com/tuist/tuist/refs/heads/main/cache/priv/grafana_dashboards/cache_service.json).
+Если вы используете Grafana, вы можете импортировать [справочную панель
+инструментов](https://raw.githubusercontent.com/tuist/tuist/refs/heads/main/cache/priv/grafana_dashboards/cache_service.json).
 
-## Upgrading {#upgrading}
+## Обновление {#upgrading}
 
 ```bash
 docker compose pull
 docker compose up -d
 ```
 
-The service runs database migrations automatically on startup.
+Сервис автоматически запускает миграцию базы данных при запуске.
 
-## Troubleshooting {#troubleshooting}
+## Устранение неполадок {#troubleshooting}
 
-### Cache not being used {#troubleshooting-caching}
+### Кэш не используется {#troubleshooting-caching}
 
-If you expect caching but are seeing consistent cache misses (for example, the
-CLI is repeatedly uploading the same artifacts, or downloads never happen),
-follow these steps:
+Если вы ожидаете кэширования, но наблюдаете постоянные промахи кэша (например,
+CLI повторно загружает одни и те же артефакты или загрузки никогда не
+происходят), выполните следующие действия:
 
-1. Verify the custom cache endpoint is correctly configured in your organization
-   settings.
-2. Ensure your Tuist CLI is authenticated by running `tuist auth login`.
-3. Check the cache service logs for any errors: `docker compose logs cache`.
+1. Убедитесь, что пользовательская конечная точка кэша правильно настроена в
+   параметрах вашей организации.
+2. Убедитесь, что ваш Tuist CLI прошел аутентификацию, запустив `tuist auth
+   login`.
+3. Проверьте журналы службы кэша на наличие ошибок: `docker compose logs cache`.
 
-### Socket path mismatch {#troubleshooting-socket}
+### Несоответствие пути сокета {#troubleshooting-socket}
 
-If you see connection refused errors:
+Если вы видите ошибки «Соединение отказано»:
 
-- Ensure `PHX_SOCKET_LINK` points to the socket path configured in nginx.conf
-  (default: `/run/cache/current.sock`)
-- Verify `PHX_SOCKET_PATH` and `PHX_SOCKET_LINK` are both set correctly in
-  docker-compose.yml
-- Verify the `cache_socket` volume is mounted in both containers
+- Убедитесь, что `PHX_SOCKET_LINK` указывает на путь к сокету, настроенный в
+  nginx.conf (по умолчанию: `/run/cache/current.sock`)
+- Убедитесь, что `PHX_SOCKET_PATH` и `PHX_SOCKET_LINK` правильно указаны в файле
+  docker-compose.yml.
+- Убедитесь, что том `cache_socket` смонтирован в обоих контейнерах.
