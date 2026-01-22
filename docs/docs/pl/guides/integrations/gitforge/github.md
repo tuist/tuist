@@ -8,7 +8,7 @@
 # Integracja z serwisem GitHub {#github}
 
 Repozytoria Git stanowią centralny element większości projektów
-programistycznych. Zintegrowaliśmy się z GitHub, aby zapewnić wgląd w Tuist
+programistycznych. Integrujemy się z GitHub, aby zapewnić wgląd w Tuist
 bezpośrednio w żądaniach ściągnięcia i zaoszczędzić trochę konfiguracji, takich
 jak synchronizacja domyślnej gałęzi.
 
@@ -24,7 +24,7 @@ Tuist:
 ![Obraz przedstawiający dodawanie połączenia
 projektu](/images/guides/integrations/gitforge/github/add-project-connection.png)
 
-## Komentarze do żądań ściągnięcia/łączenia {#pull-merge-request-comments}
+## Komentarze do żądań ściągnięcia/łączenia {#pullmerge-request-comments}
 
 Aplikacja GitHub publikuje raport z uruchomienia Tuist, który zawiera
 podsumowanie PR, w tym linki do najnowszych
