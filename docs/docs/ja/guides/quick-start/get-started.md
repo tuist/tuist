@@ -21,9 +21,9 @@ tuist init
 <!-- -->
 :::
 
-このコマンドは、<LocalizedLink href="/guides/features/projects">生成されたプロジェクトを作成</LocalizedLink>したり、既存の
+このコマンドは、<LocalizedLink href="/guides/features/projects">生成されたプロジェクトを作成したり、</LocalizedLink>既存の
 Xcode
-プロジェクトやワークスペースを統合するための手順を説明します。<LocalizedLink href="/guides/features/selective-testing">選択的テスト</LocalizedLink>、<LocalizedLink href="/guides/features/previews">プレビュー</LocalizedLink>、<LocalizedLink href="/guides/features/registry">レジストリ</LocalizedLink>のような機能にアクセスできるように、リモートサーバにセットアップを接続するのに役立ちます。
+プロジェクトやワークスペースを統合するための手順を説明します。3}選択的テスト</LocalizedLink>、<LocalizedLink href="/guides/features/previews">プレビュー</LocalizedLink>、<LocalizedLink href="/guides/features/registry">レジストリ</LocalizedLink>のような機能にアクセスできるように、リモートサーバにセットアップを接続するのに役立ちます。
 
 ::: info MIGRATE AN EXISTING PROJECT
 <!-- -->
