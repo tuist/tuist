@@ -6,49 +6,52 @@
 }
 ---
 
-# Self-host Cache {#self-host-cache}
+# Własny serwer pamięci podręcznej {#self-host-cache}
 
-The Tuist cache service can be self-hosted to provide a private binary cache for
-your team. This is most useful for organizations with large artifacts and
-frequent builds, where placing the cache closer to your CI infrastructure
-reduces latency and improves cache efficiency. By minimizing the distance
-between your build agents and the cache, you ensure that network overhead
-doesn't negate the speed benefits of caching.
+Usługa pamięci podręcznej Tuist może być hostowana samodzielnie, aby zapewnić
+prywatną pamięć podręczną plików binarnych dla Twojego zespołu. Jest to
+najbardziej przydatne w przypadku organizacji posiadających duże artefakty i
+często tworzących kompilacje, gdzie umieszczenie pamięci podręcznej bliżej
+infrastruktury CI zmniejsza opóźnienia i poprawia wydajność pamięci podręcznej.
+Minimalizując odległość między agentami kompilacji a pamięcią podręczną,
+zapewniasz, że obciążenie sieci nie zniweluje korzyści płynących z szybkości
+buforowania.
 
-::: info
+:: info
 <!-- -->
-Self-hosting cache nodes requires an **Enterprise plan**.
+Samodzielne hostowanie węzłów pamięci podręcznej wymaga planu **Enterprise**.
 
-You can connect self-hosted cache nodes to either the hosted Tuist server
-(`https://tuist.dev`) or a self-hosted Tuist server. Self-hosting the Tuist
-server itself requires a separate server license. See the
-<LocalizedLink href="/guides/server/self-host/install">server self-hosting
-guide</LocalizedLink>.
-<!-- -->
-:::
-
-## Prerequisites {#prerequisites}
-
-- Docker and Docker Compose
-- S3-compatible storage bucket
-- A running Tuist server instance (hosted or self-hosted)
-
-## Deployment {#deployment}
-
-The cache service is distributed as a Docker image at
-[ghcr.io/tuist/cache](https://ghcr.io/tuist/cache). We provide reference
-configuration files in the [cache
-directory](https://github.com/tuist/tuist/tree/main/cache).
-
-::: tip
-<!-- -->
-We provide a Docker Compose setup because it's a convenient baseline for
-evaluation and small deployments. You can use it as a reference and adapt it to
-your preferred deployment model (Kubernetes, raw Docker, etc.).
+Możesz połączyć samodzielnie hostowane węzły pamięci podręcznej z hostowanym
+serwerem Tuist (`https://tuist.dev`) lub samodzielnie hostowanym serwerem Tuist.
+Samodzielne hostowanie serwera Tuist wymaga oddzielnej licencji serwerowej.
+Zapoznaj się z
+<LocalizedLink href="/guides/server/self-host/install">przewodnikiem dotyczącym
+samodzielnego hostowania serwera</LocalizedLink>.
 <!-- -->
 :::
 
-### Configuration files {#config-files}
+## Wymagania wstępne {#prerequisites}
+
+- Docker i Docker Compose
+- Bucket pamięci masowej zgodny z S3
+- Działająca instancja serwera Tuist (hostowana lub samodzielnie hostowana)
+
+## Wdrożenie {#deployment}
+
+Usługa pamięci podręcznej jest dystrybuowana jako obraz Docker pod adresem
+[ghcr.io/tuist/cache](https://ghcr.io/tuist/cache). Pliki konfiguracyjne
+referencyjne udostępniamy w [katalogu
+cache](https://github.com/tuist/tuist/tree/main/cache).
+
+::: napiwek
+<!-- -->
+Zapewniamy konfigurację Docker Compose, ponieważ stanowi ona wygodną podstawę do
+oceny i niewielkich wdrożeń. Możesz ją wykorzystać jako punkt odniesienia i
+dostosować do preferowanego modelu wdrożenia (Kubernetes, surowy Docker itp.).
+<!-- -->
+:::
+
+### Pliki konfiguracyjne {#config-files}
 
 ```bash
 curl -O https://raw.githubusercontent.com/tuist/tuist/main/cache/docker-compose.yml
@@ -56,14 +59,15 @@ mkdir -p docker
 curl -o docker/nginx.conf https://raw.githubusercontent.com/tuist/tuist/main/cache/docker/nginx.conf
 ```
 
-### Environment variables {#environment-variables}
+### Zmienne środowiskowe {#environment-variables}
 
-Create a `.env` file with your configuration.
+Utwórz plik `.env` z własną konfiguracją.
 
-::: tip
+::: napiwek
 <!-- -->
-The service is built with Elixir/Phoenix, so some variables use the `PHX_`
-prefix. You can treat these as standard service configuration.
+Usługa została zbudowana przy użyciu Elixir/Phoenix, więc niektóre zmienne
+używają przedrostka `PHX_`. Można je traktować jako standardową konfigurację
+usługi.
 <!-- -->
 :::
 
@@ -91,42 +95,44 @@ S3_REGION=us-east-1
 DATA_DIR=/data
 ```
 
-| Variable                          | Required | Default                   | Description                                                                                       |
-| --------------------------------- | -------- | ------------------------- | ------------------------------------------------------------------------------------------------- |
-| `SECRET_KEY_BASE`                 | Yes      |                           | Secret key used to sign and encrypt data (minimum 64 characters).                                 |
-| `PUBLIC_HOST`                     | Yes      |                           | Public hostname or IP address of your cache service. Used to generate absolute URLs.              |
-| `SERVER_URL`                      | Yes      |                           | URL of your Tuist server for authentication. Defaults to `https://tuist.dev`                      |
-| `DATA_DIR`                        | Yes      |                           | Directory where CAS artifacts are stored on disk. The provided Docker Compose setup uses `/data`. |
-| `S3_BUCKET`                       | Yes      |                           | S3 bucket name.                                                                                   |
-| `S3_HOST`                         | Yes      |                           | S3 endpoint hostname.                                                                             |
-| `S3_ACCESS_KEY_ID`                | Yes      |                           | S3 access key.                                                                                    |
-| `S3_SECRET_ACCESS_KEY`            | Yes      |                           | S3 secret key.                                                                                    |
-| `S3_REGION`                       | Yes      |                           | S3 region.                                                                                        |
-| `CAS_DISK_HIGH_WATERMARK_PERCENT` | No       | `85`                      | Disk usage percentage that triggers LRU eviction.                                                 |
-| `CAS_DISK_TARGET_PERCENT`         | No       | `70`                      | Target disk usage after eviction.                                                                 |
-| `PHX_SOCKET_PATH`                 | No       | `/run/cache/cache.sock`   | Path where the service creates its Unix socket (when enabled).                                    |
-| `PHX_SOCKET_LINK`                 | No       | `/run/cache/current.sock` | Symlink path that Nginx uses to connect to the service.                                           |
+| Zmienna                           | Wymagane | Domyślne                  | Opis                                                                                                                     |
+| --------------------------------- | -------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `SECRET_KEY_BASE`                 | Tak      |                           | Tajny klucz używany do podpisywania i szyfrowania danych (minimum 64 znaki).                                             |
+| `PUBLIC_HOST`                     | Tak      |                           | Publiczna nazwa hosta lub adres IP usługi pamięci podręcznej. Służy do generowania bezwzględnych adresów URL.            |
+| `SERVER_URL`                      | Tak      |                           | Adres URL serwera Tuist do uwierzytelniania. Domyślnie `https://tuist.dev`                                               |
+| `DATA_DIR`                        | Tak      |                           | Katalog, w którym artefakty CAS są przechowywane na dysku. Dostarczona konfiguracja Docker Compose wykorzystuje `/data`. |
+| `S3_BUCKET`                       | Tak      |                           | Nazwa zasobnika S3.                                                                                                      |
+| `S3_HOST`                         | Tak      |                           | Nazwa hosta punktu końcowego S3.                                                                                         |
+| `S3_ACCESS_KEY_ID`                | Tak      |                           | Klucz dostępu S3.                                                                                                        |
+| `S3_SECRET_ACCESS_KEY`            | Tak      |                           | Sekretny klucz S3.                                                                                                       |
+| `S3_REGION`                       | Tak      |                           | Region S3.                                                                                                               |
+| `CAS_DISK_HIGH_WATERMARK_PERCENT` | Nie      | `85`                      | Procent wykorzystania dysku, który powoduje usunięcie LRU.                                                               |
+| `CAS_DISK_TARGET_PERCENT`         | Nie      | `70`                      | Docelowe wykorzystanie dysku po usunięciu.                                                                               |
+| `PHX_SOCKET_PATH`                 | Nie      | `/run/cache/cache.sock`   | Ścieżka, w której usługa tworzy gniazdo Unix (jeśli jest włączone).                                                      |
+| `PHX_SOCKET_LINK`                 | Nie      | `/run/cache/current.sock` | Ścieżka dowiązania symbolicznego używana przez Nginx do połączenia się z usługą.                                         |
 
-### Start the service {#start-service}
+### Rozpocznij usługę {#start-service}
 
 ```bash
 docker compose up -d
 ```
 
-### Verify the deployment {#verify}
+### Sprawdź wdrożenie. {#verify}
 
 ```bash
 curl http://localhost/up
 ```
 
-## Configure the cache endpoint {#configure-endpoint}
+## Skonfiguruj punkt końcowy pamięci podręcznej {#configure-endpoint}
 
-After deploying the cache service, register it in your Tuist server organization
-settings:
+Po wdrożeniu usługi pamięci podręcznej zarejestruj ją w ustawieniach organizacji
+serwera Tuist:
 
-1. Navigate to your organization's **Settings** page
-2. Find the **Custom cache endpoints** section
-3. Add your cache service URL (for example, `https://cache.example.com`)
+1. Przejdź do strony ustawień **organizacji**.
+2. Znajdź sekcję „ **” (Punkty końcowe niestandardowej pamięci podręcznej) „** ”
+   (Punkty końcowe niestandardowej pamięci podręcznej).
+3. Dodaj adres URL swojej usługi pamięci podręcznej (na przykład
+   `https://cache.example.com`)
 
 <!-- TODO: Add screenshot of organization settings page showing Custom cache endpoints section -->
 
@@ -136,58 +142,61 @@ graph TD
   B --> C[Tuist CLI uses your endpoint]
 ```
 
-Once configured, the Tuist CLI will use your self-hosted cache.
+Po skonfigurowaniu Tuist CLI będzie korzystać z Twojej własnej pamięci
+podręcznej.
 
-## Volumes {#volumes}
+## Tom {#volumes}
 
-The Docker Compose configuration uses three volumes:
+Konfiguracja Docker Compose wykorzystuje trzy woluminy:
 
-| Volume         | Purpose                                     |
-| -------------- | ------------------------------------------- |
-| `cas_data`     | Binary artifact storage                     |
-| `sqlite_data`  | Access metadata for LRU eviction            |
-| `cache_socket` | Unix socket for Nginx-service communication |
+| Tom            | Cel                                               |
+| -------------- | ------------------------------------------------- |
+| `cas_data`     | Binarne przechowywanie artefaktów                 |
+| `sqlite_data`  | Dostęp do metadanych dotyczących usuwania LRU     |
+| `cache_socket` | Gniazdo Unix do komunikacji między usługami Nginx |
 
-## Health checks {#health-checks}
+## Kontrole stanu zdrowia {#health-checks}
 
-- `GET /up` — Returns 200 when healthy
-- `GET /metrics` — Prometheus metrics
+- `GET /up` — zwraca 200, gdy wszystko działa poprawnie
+- `GET /metrics` — Metryki Prometheus
 
-## Monitoring {#monitoring}
+## Monitorowanie {#monitoring}
 
-The cache service exposes Prometheus-compatible metrics at `/metrics`.
+Usługa pamięci podręcznej udostępnia metryki zgodne z Prometheusem pod adresem
+`/metrics`.
 
-If you use Grafana, you can import the [reference
-dashboard](https://raw.githubusercontent.com/tuist/tuist/refs/heads/main/cache/priv/grafana_dashboards/cache_service.json).
+Jeśli korzystasz z Grafana, możesz zaimportować [pulpit
+referencyjny](https://raw.githubusercontent.com/tuist/tuist/refs/heads/main/cache/priv/grafana_dashboards/cache_service.json).
 
-## Upgrading {#upgrading}
+## Aktualizacja {#upgrading}
 
 ```bash
 docker compose pull
 docker compose up -d
 ```
 
-The service runs database migrations automatically on startup.
+Usługa automatycznie uruchamia migracje baz danych podczas startu.
 
-## Troubleshooting {#troubleshooting}
+## Rozwiązywanie problemów {#troubleshooting}
 
-### Cache not being used {#troubleshooting-caching}
+### Pamięć podręczna nie jest używana {#troubleshooting-caching}
 
-If you expect caching but are seeing consistent cache misses (for example, the
-CLI is repeatedly uploading the same artifacts, or downloads never happen),
-follow these steps:
+Jeśli spodziewasz się buforowania, ale obserwujesz ciągłe braki w pamięci
+podręcznej (na przykład CLI wielokrotnie przesyła te same artefakty lub
+pobieranie nigdy nie następuje), wykonaj następujące czynności:
 
-1. Verify the custom cache endpoint is correctly configured in your organization
-   settings.
-2. Ensure your Tuist CLI is authenticated by running `tuist auth login`.
-3. Check the cache service logs for any errors: `docker compose logs cache`.
+1. Sprawdź, czy niestandardowy punkt końcowy pamięci podręcznej jest poprawnie
+   skonfigurowany w ustawieniach organizacji.
+2. Upewnij się, że Twoje Tuist CLI jest uwierzytelnione, uruchamiając `tuist
+   auth login`.
+3. Sprawdź logi usługi cache pod kątem błędów: `docker compose logs cache`.
 
-### Socket path mismatch {#troubleshooting-socket}
+### Niezgodność ścieżki gniazda {#troubleshooting-socket}
 
-If you see connection refused errors:
+Jeśli widzisz błędy odmowy połączenia:
 
-- Ensure `PHX_SOCKET_LINK` points to the socket path configured in nginx.conf
-  (default: `/run/cache/current.sock`)
-- Verify `PHX_SOCKET_PATH` and `PHX_SOCKET_LINK` are both set correctly in
-  docker-compose.yml
-- Verify the `cache_socket` volume is mounted in both containers
+- Upewnij się, że `PHX_SOCKET_LINK` wskazuje ścieżkę gniazda skonfigurowaną w
+  nginx.conf (domyślnie: `/run/cache/current.sock`)
+- Sprawdź, czy `PHX_SOCKET_PATH` oraz `PHX_SOCKET_LINK` są poprawnie ustawione w
+  pliku docker-compose.yml.
+- Sprawdź, czy wolumin `cache_socket` jest zamontowany w obu kontenerach.
