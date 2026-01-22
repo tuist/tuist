@@ -147,13 +147,13 @@ compatible con S3.
 
 ::: tip OPTIMIZED CACHING
 <!-- -->
-Si tu objetivo es principalmente llevar tu propio cubo para almacenar binarios y
-reducir la latencia de la caché, puede que no necesites autoalojar todo el
-servidor. Puedes autoalojar nodos de caché y conectarlos al servidor Tuist
-alojado o a tu servidor autoalojado.
+Si tu objetivo principal es traer tu propio depósito para almacenar binarios y
+reducir la latencia de la caché, es posible que no necesites autohospedar todo
+el servidor. Puedes autohospedar nodos de caché y conectarlos al servidor Tuist
+alojado o a tu servidor autohospedado.
 
-Consulte la guía de autoalojamiento de
-<LocalizedLink href="/guides/cache/self-host">cache</LocalizedLink>.
+Consulte la <LocalizedLink href="/guides/cache/self-host">guía de
+autoalojamiento de caché</LocalizedLink>.
 <!-- -->
 :::
 

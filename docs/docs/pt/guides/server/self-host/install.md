@@ -170,7 +170,7 @@ As an on-premise user, you'll receive a license key that you'll need to expose
 as an environment variable. This key is used to validate the license and ensure
 that the service is running within the terms of the agreement.
 
-| Environment variable               | Descrição                                                                                                                                                                                                                                   | Required | Default | Examples                                  |
+| Environment variable               | Descrição                                                                                                                                                                                                                                   | Required | Default | Exemplos                                  |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------- | ----------------------------------------- |
 | `TUIST_LICENSE`                    | The license provided after signing the service level agreement                                                                                                                                                                              | Yes*     |         | `******`                                  |
 | `TUIST_LICENSE_CERTIFICATE_BASE64` | **Exceptional alternative to `TUIST_LICENSE`**. Base64-encoded public certificate for offline license validation in air-gapped environments where the server cannot contact external services. Only use when `TUIST_LICENSE` cannot be used | Yes*     |         | `LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t...` |
@@ -189,7 +189,7 @@ days. If you are interested in renewing your license, please reach out to
 
 ### Base environment configuration {#base-environment-configuration}
 
-| Environment variable                  | Descrição                                                                                                                                                                                                      | Required | Default                            | Examples                                                                 |                                                                                                                                    |
+| Environment variable                  | Descrição                                                                                                                                                                                                      | Required | Default                            | Exemplos                                                                 |                                                                                                                                    |
 | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `TUIST_APP_URL`                       | The base URL to access the instance from the Internet                                                                                                                                                          | Yes      |                                    | https://tuist.dev                                                        |                                                                                                                                    |
 | `TUIST_SECRET_KEY_BASE`               | The key to use to encrypt information (e.g. sessions in a cookie)                                                                                                                                              | Yes      |                                    |                                                                          | `c5786d9f869239cbddeca645575349a570ffebb332b64400c37256e1c9cb7ec831345d03dc0188edd129d09580d8cbf3ceaf17768e2048c037d9c31da5dcacfa` |
@@ -209,7 +209,7 @@ days. If you are interested in renewing your license, please reach out to
 The following environment variables are used to configure the database
 connection:
 
-| Environment variable                 | Descrição                                                                                                                                                                                                                        | Required | Default   | Examples                                                               |
+| Environment variable                 | Descrição                                                                                                                                                                                                                        | Required | Default   | Exemplos                                                               |
 | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --------- | ---------------------------------------------------------------------- |
 | `DATABASE_URL`                       | The URL to access the Postgres database. Note that the URL should contain the authentication information                                                                                                                         | Yes      |           | `postgres://username:password@cloud.us-east-2.aws.test.com/production` |
 | `TUIST_CLICKHOUSE_URL`               | The URL to access the ClickHouse database. Note that the URL should contain the authentication information                                                                                                                       | No       |           | `http://username:password@cloud.us-east-2.aws.test.com/production`     |
@@ -257,7 +257,7 @@ addresses` permission to `Read-only`.
 You'll then need to expose the following environment variables in the
 environment where the Tuist server runs:
 
-| Environment variable             | Descrição                               | Required | Default | Examples                                   |
+| Environment variable             | Descrição                               | Required | Default | Exemplos                                   |
 | -------------------------------- | --------------------------------------- | -------- | ------- | ------------------------------------------ |
 | `TUIST_GITHUB_APP_CLIENT_ID`     | The client ID of the GitHub application | Yes      |         | `Iv1.a629723000043722`                     |
 | `TUIST_GITHUB_APP_CLIENT_SECRET` | The client secret of the application    | Yes      |         | `232f972951033b89799b0fd24566a04d83f44ccc` |
@@ -291,7 +291,7 @@ instructions</LocalizedLink>.
 You will need to set the following environment variables once you obtain the
 client id and secret during the set up of the Okta application:
 
-| Environment variable         | Descrição                                                                             | Required | Default | Examples |
+| Environment variable         | Descrição                                                                             | Required | Default | Exemplos |
 | ---------------------------- | ------------------------------------------------------------------------------------- | -------- | ------- | -------- |
 | `TUIST_OKTA_1_CLIENT_ID`     | The client ID to authenticate against Okta. The number should be your organization ID | Yes      |         |          |
 | `TUIST_OKTA_1_CLIENT_SECRET` | The client secret to authenticate against Okta                                        | Yes      |         |          |
@@ -311,7 +311,7 @@ You can use any S3-compliant storage provider to store artifacts. The following
 environment variables are required to authenticate and configure the integration
 with the storage provider:
 
-| Environment variable                                    | Descrição                                                                                                                                                            | Required | Default                     | Examples                                                      |
+| Environment variable                                    | Descrição                                                                                                                                                            | Required | Default                     | Exemplos                                                      |
 | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------- | ------------------------------------------------------------- |
 | `TUIST_S3_ACCESS_KEY_ID` or `AWS_ACCESS_KEY_ID`         | The access key ID to authenticate against the storage provider                                                                                                       | Yes      |                             | `AKIAIOSFOD`                                                  |
 | `TUIST_S3_SECRET_ACCESS_KEY` or `AWS_SECRET_ACCESS_KEY` | The secret access key to authenticate against the storage provider                                                                                                   | Yes      |                             | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`                    |
@@ -350,7 +350,7 @@ Tuist requires email functionality for user authentication and transactional
 notifications (e.g., password resets, account notifications). Currently, **only
 Mailgun is supported** as the email provider.
 
-| Environment variable             | Descrição                                                                                                                                         | Required | Default                                                        | Examples                  |
+| Environment variable             | Descrição                                                                                                                                         | Required | Default                                                        | Exemplos                  |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------------------------------------------------------------- | ------------------------- |
 | `TUIST_MAILGUN_API_KEY`          | The API key for authenticating with Mailgun                                                                                                       | Yes*     |                                                                | `key-1234567890abcdef`    |
 | `TUIST_MAILING_DOMAIN`           | The domain from which emails will be sent                                                                                                         | Yes*     |                                                                | `mg.tuist.io`             |
@@ -398,7 +398,7 @@ section, you will need to additionally set the `Pull requests` permission to
 On top of the `TUIST_GITHUB_APP_CLIENT_ID` and `TUIST_GITHUB_APP_CLIENT_SECRET`,
 you will need the following environment variables:
 
-| Environment variable           | Descrição                                 | Required | Default | Examples                             |
+| Environment variable           | Descrição                                 | Required | Default | Exemplos                             |
 | ------------------------------ | ----------------------------------------- | -------- | ------- | ------------------------------------ |
 | `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key of the GitHub application | Yes      |         | `-----BEGIN RSA PRIVATE KEY-----...` |
 
