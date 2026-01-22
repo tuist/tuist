@@ -5,36 +5,36 @@
   "description": "Get insights into your tests to identify slow and flaky tests."
 }
 ---
-# Test Insights {#test-insights}
+# Test Öngörüleri {#test-insights}
 
 ::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
-  project</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve
+  projesi</LocalizedLink>
 <!-- -->
 :::
 
-Test insights help you monitor your test suite's health by identifying slow
-tests or quickly understanding failed CI runs. As your test suite grows, it
-becomes increasingly difficult to spot trends like gradually slowing tests or
-intermittent failures. Tuist Test Insights provides you with the visibility you
-need to maintain a fast and reliable test suite.
+Test içgörüleri, yavaş testleri belirleyerek veya başarısız CI çalıştırmalarını
+hızlı bir şekilde anlayarak test paketinizin durumunu izlemenize yardımcı olur.
+Test paketiniz büyüdükçe, testlerin giderek yavaşlaması veya aralıklı arızalar
+gibi eğilimleri tespit etmek giderek zorlaşır. Tuist Test Insights, hızlı ve
+güvenilir bir test paketi sürdürmek için ihtiyacınız olan görünürlüğü sağlar.
 
-With Test Insights, you can answer questions such as:
-- Have my tests become slower? Which ones?
-- Which tests are flaky and need attention?
-- Why did my CI run fail?
+Test Insights ile şu gibi soruları yanıtlayabilirsiniz:
+- Testlerim yavaşladı mı? Hangileri?
+- Hangi testler güvenilmez ve dikkat gerektiriyor?
+- CI çalışmam neden başarısız oldu?
 
-## Setup {#setup}
+## Kurulum {#setup}
 
-To start tracking your tests, you can leverage the `tuist inspect test` command
-by adding it to your scheme's test post-action:
+Testlerinizi izlemeye başlamak için, şemanızın test sonrası eylemine `tuist
+inspect test` komutunu ekleyerek bu komuttan yararlanabilirsiniz:
 
-![Post-action for inspecting
-tests](/images/guides/features/insights/inspect-test-scheme-post-action.png)
+![Testleri incelemek için sonradan yapılacak
+işlemler](/images/guides/features/insights/inspect-test-scheme-post-action.png)
 
-In case you're using [Mise](https://mise.jdx.dev/), your script will need to
-activate `tuist` in the post-action environment:
+[Mise](https://mise.jdx.dev/) kullanıyorsanız, komut dosyanızın `tuist` komutunu
+post-action ortamında etkinleştirmesi gerekir:
 ```sh
 # -C ensures that Mise loads the configuration from the Mise configuration
 # file in the project's root directory.
@@ -43,42 +43,41 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 
 ::: tip MISE & PROJECT PATHS
 <!-- -->
-Your environment's `PATH` environment variable is not inherited by the scheme
-post action, and therefore you have to use Mise's absolute path, which will
-depend on how you installed Mise. Moreover, don't forget to inherit the build
-settings from a target in your project such that you can run Mise from the
-directory pointed to by $SRCROOT.
+Ortamınızın `PATH` ortam değişkeni, şema sonrası eylemi tarafından devralınmaz
+ve bu nedenle, Mise'yi nasıl yüklediğinize bağlı olarak Mise'nin mutlak yolunu
+kullanmanız gerekir. Ayrıca, Mise'yi $SRCROOT tarafından gösterilen dizinden
+çalıştırabilmeniz için, projenizdeki bir hedeften derleme ayarlarını devralmayı
+unutmayın.
 <!-- -->
 :::
 
-Your test runs are now tracked as long as you are logged in to your Tuist
-account. You can access your test insights in the Tuist dashboard and see how
-they evolve over time:
+Tuist hesabınıza giriş yaptığınız sürece testleriniz takip edilir. Tuist kontrol
+panelinden testlerinize ilişkin bilgilere erişebilir ve zaman içinde nasıl
+geliştiğini görebilirsiniz:
 
-![Dashboard with test
-insights](/images/guides/features/insights/tests-dashboard.png)
+![Test bilgilerini içeren gösterge
+paneli](/images/guides/features/insights/tests-dashboard.png)
 
-Apart from overall trends, you can also dive deep into each individual test,
-such as when debugging failures or slow tests on the CI:
+Genel eğilimlerin yanı sıra, CI'da hata ayıklama veya yavaş testler gibi her bir
+testi ayrı ayrı derinlemesine inceleyebilirsiniz:
 
-![Test detail](/images/guides/features/insights/test-detail.png)
+![Test detayı](/images/guides/features/insights/test-detail.png)
 
-## Generated projects {#generated-projects}
+## Oluşturulmuş projele {#generated-projects}
 
 ::: info
 <!-- -->
-Auto-generated schemes automatically include the `tuist inspect test`
-post-action.
+Otomatik olarak oluşturulan şemalar, `tuist inspect test` post-action'ı otomatik
+olarak içerir.
 <!-- -->
 :::
 > 
-> If you are not interested in tracking test insights in your auto-generated
-> schemes, disable them using the
+> Otomatik olarak oluşturulan şemalarda test bilgilerini izlemek istemiyorsanız,
 > <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#testinsightsdisabled">testInsightsDisabled</LocalizedLink>
-> generation option.
+> oluşturma seçeneğini kullanarak bunları devre dışı bırakın.
 
-If you are using generated projects with custom schemes, you can set up
-post-actions for test insights:
+Özel şemalarla oluşturulmuş projeler kullanıyorsanız, hem derleme hem de test
+içgörüleri için son eylemler ayarlayabilirsiniz:
 
 ```swift
 let project = Project(
@@ -110,7 +109,7 @@ let project = Project(
 )
 ```
 
-If you're not using Mise, your scripts can be simplified to:
+Mise kullanmıyorsanız, komut dosyalarınızı şu şekilde basitleştirebilirsiniz:
 
 ```swift
 testAction: .testAction(
@@ -124,16 +123,18 @@ testAction: .testAction(
 )
 ```
 
-## Continuous integration {#continuous-integration}
+## Sürekli entegrasyon {#continuous-integration}
 
-To track test insights on CI, you will need to ensure that your CI is
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>.
+CI'daki test bilgilerini takip etmek için, CI'nızın
+<LocalizedLink href="/guides/integrations/continuous-integration#authentication">doğrulanmış</LocalizedLink>
+olduğundan emin olmanız gerekir.
 
-Additionally, you will either need to:
-- Use the <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
-  xcodebuild`</LocalizedLink> command when invoking `xcodebuild` actions.
-- Add `-resultBundlePath` to your `xcodebuild` invocation.
+Ayrıca, şunlardan birini yapmanız gerekecektir:
+- `xcodebuild` eylemlerini çağırırken
+  <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
+  xcodebuild`</LocalizedLink> komutunu kullanın.
+- `-resultBundlePath` ekleyin. `xcodebuild` çağrısına.
 
-When `xcodebuild` tests your project without `-resultBundlePath`, the required
-result bundle files are not generated. The `tuist inspect test` post-action
-requires these files to analyze your tests.
+`xcodebuild` komutları, `-resultBundlePath` olmadan projenizi test ettiğinde,
+gerekli sonuç paketi dosyaları oluşturulmaz. `tuist inspect test` post-action,
+testlerinizi analiz etmek için bu dosyalara ihtiyaç duyar.
