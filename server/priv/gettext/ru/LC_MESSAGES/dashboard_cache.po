@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
-"PO-Revision-Date: 2026-01-22 13:05+0000\n"
+"PO-Revision-Date: 2026-01-23 07:32+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Russian <https://translate.tuist.dev/projects/tuist/"
 "dashboard_cache/ru/>\n"
@@ -590,20 +590,26 @@ msgstr "с последней точкой"
 msgid "since yesterday"
 msgstr "с вчерашнего дня"
 
+#, fuzzy
 msgid "Cache Endpoint"
-msgstr ""
+msgstr "Конечная точка кэша"
 
+#, fuzzy
 msgid "Set up Xcode cache for your project"
-msgstr ""
+msgstr "Настройте кэш Xcode для вашего проекта"
 
+#, fuzzy
 msgid "You can set up the Xcode cache for your project by running:"
-msgstr ""
+msgstr "Вы можете настроить кэш Xcode для вашего проекта, запустив:"
 
+#, fuzzy
 msgid "Tuist documentation"
-msgstr ""
+msgstr "Документация Tuist"
 
+#, fuzzy
 msgid "Size (KB)"
-msgstr ""
+msgstr "Размер (КБ)"
 
+#, fuzzy
 msgid "Space usage (%)"
-msgstr ""
+msgstr "Использование пробелов (%)"
