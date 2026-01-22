@@ -89,7 +89,7 @@ tuist generate tag:feature:auth
 tuist generate tag:team:identity
 ```
 
-### İsme göre odaklanın
+### İsme göre odaklanma
 
 Ayrıca isme göre belirli hedeflere de odaklanabilirsiniz:
 
@@ -102,8 +102,8 @@ tuist generate Authentication
 
 Hedeflere odaklandığınızda:
 
-1. **Dahil edilen hedefler** - Sorgunuzla eşleşen hedefler oluşturulmuş projele
-   dahil edilir
+1. **Dahil edilen hedefler** - Sorgunuzla eşleşen hedefler oluşturulmuş projede
+   yer alır
 2. **Bağımlılıklar** - Odaklanılan hedeflerin tüm bağımlılıkları otomatik olarak
    dahil edilir
 3. **Test hedefleri** - Odaklanılan hedefler için test hedefleri dahildir
@@ -138,10 +138,58 @@ metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 `feature:`, `team:`, veya `layer:` gibi ön ekler kullanmak her bir etiketin
 amacını anlamayı kolaylaştırır ve adlandırma çakışmalarını önler.
 
+## Sistem etiketleri {#system-tags}
+
+Tuist, sistem tarafından yönetilen etiketler için `tuist:` önekini kullanır. Bu
+etiketler Tuist tarafından otomatik olarak uygulanır ve oluşturulan belirli
+içerik türlerini hedeflemek için önbellek profillerinde kullanılabilir.
+
+### Mevcut sistem etiketleri
+
+| Etiket               | Açıklama                                                                                                                                                                                                           |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `tuist:sentezlenmiş` | Tuist'in statik kütüphanelerde ve statik çerçevelerde kaynak kullanımı için oluşturduğu sentezlenmiş paket hedeflerine uygulanır. Bu paketler, kaynak erişim API'leri sağlamak için tarihsel nedenlerle mevcuttur. |
+
+### Sistem etiketlerini önbellek profilleri ile kullanma
+
+Sentezlenmiş hedefleri dahil etmek veya hariç tutmak için önbellek profillerinde
+sistem etiketlerini kullanabilirsiniz:
+
+```swift
+import ProjectDescription
+
+let tuist = Tuist(
+    project: .tuist(
+        cacheOptions: .options(
+            profiles: .profiles(
+                [
+                    "development": .profile(
+                        .onlyExternal,
+                        and: ["tag:tuist:synthesized"]  // Also cache synthesized bundles
+                    )
+                ],
+                default: .onlyExternal
+            )
+        )
+    )
+)
+```
+
+::: tip SYNTHESIZED BUNDLES INHERIT PARENT TAGS
+<!-- -->
+Sentezlenmiş paket hedefleri, `tuist:synthesized` etiketini almanın yanı sıra
+tüm etiketleri ana hedeflerinden devralır. Bu, statik bir kütüphaneyi
+`feature:auth` ile etiketlerseniz, sentezlenmiş kaynak paketinin hem
+`feature:auth` hem de `tuist:synthesized` etiketlerine sahip olacağı anlamına
+gelir.
+<!-- -->
+:::
+
 ## Etiketleri proje açıklama yardımcıları ile kullanma {#using-tags-with-helpers}
 
 Projenizde etiketlerin nasıl uygulanacağını standartlaştırmak için
-<LocalizedLink href="/guides/features/projects/code-sharing">proje açıklama yardımcılarından</LocalizedLink> yararlanabilirsiniz:
+<LocalizedLink href="/guides/features/projects/code-sharing">proje açıklama
+yardımcılarından</LocalizedLink> yararlanabilirsiniz:
 
 ```swift
 // Tuist/ProjectDescriptionHelpers/Project+Templates.swift
@@ -210,7 +258,8 @@ Etiketler kod tabanınızı düzenlemek için esnek bir yol sağlar:
 
 ### Önbellekleme ile entegrasyon
 
-Meta veri etiketleri <LocalizedLink href="/guides/features/cache">Tuist'in önbelleğe alma özellikleriyle</LocalizedLink> sorunsuz bir şekilde çalışır:
+Meta veri etiketleri <LocalizedLink href="/guides/features/cache">Tuist'in
+önbelleğe alma özellikleriyle</LocalizedLink> sorunsuz bir şekilde çalışır:
 
 ```bash
 # Cache all targets
@@ -235,8 +284,10 @@ tuist generate tag:feature:payment
 
 ## İlgili özellikler {#related-features}
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">Kod paylaşımı</LocalizedLink> - Etiket kullanımını standartlaştırmak için proje
+- <LocalizedLink href="/guides/features/projects/code-sharing">Kod
+  paylaşımı</LocalizedLink> - Etiket kullanımını standartlaştırmak için proje
   açıklama yardımcılarını kullanın
 - <LocalizedLink href="/guides/features/cache">Önbellek</LocalizedLink> -
   Optimum derleme performansı için etiketleri önbelleğe alma ile birleştirin
-- <LocalizedLink href="/guides/features/selective-testing">Seçmeli test</LocalizedLink> - Testleri yalnızca değiştirilen hedefler için çalıştırın
+- <LocalizedLink href="/guides/features/selective-testing">Seçmeli
+  test</LocalizedLink> - Testleri yalnızca değiştirilen hedefler için çalıştırın
