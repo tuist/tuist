@@ -8,8 +8,8 @@
 # Ciągła integracja (CI) {#continuous-integration-ci}
 
 Aby uruchamiać polecenia Tuist w przepływach pracy [ciągłej
-integracji](https://en.wikipedia.org/wiki/Continuous_integration), należy
-zainstalować je w środowisku CI.
+integracji](https://en.wikipedia.org/wiki/Continuous_integration), musisz
+zainstalować je w swoim środowisku CI.
 
 Uwierzytelnianie jest opcjonalne, ale wymagane, jeśli chcesz korzystać z funkcji
 po stronie serwera, takich jak
@@ -19,12 +19,12 @@ Poniższe sekcje zawierają przykłady, jak to zrobić na różnych platformach 
 
 ## Przykłady {#examples}
 
-### Działania GitHub {#github-actions}
+### GitHub Actions {#github-actions}
 
-W [GitHub Actions](https://docs.github.com/en/actions) możesz użyć
-<LocalizedLink href="/guides/server/authentication#oidc-tokens">
-uwierzytelniania OIDC</LocalizedLink> do bezpiecznego, niejawnego
-uwierzytelniania:
+W [GitHub Actions](https://docs.github.com/en/actions) można używać
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">uwierzytelniania
+OIDC</LocalizedLink> w celu zapewnienia bezpiecznego uwierzytelniania bez użycia
+kluczy tajnych:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -121,26 +121,26 @@ jobs:
 ::: info OIDC SETUP
 <!-- -->
 Przed użyciem uwierzytelniania OIDC należy
-<LocalizedLink href="/guides/integrations/gitforge/github"> połączyć
-repozytorium GitHub</LocalizedLink> z projektem Tuist. Uprawnienia `: id-token:
-write` są wymagane do działania OIDC. Alternatywnie, można użyć
-<LocalizedLink href="/guides/server/authentication#account-tokens"> tokena
-konta</LocalizedLink> z `TUIST_TOKEN` secret.
+<LocalizedLink href="/guides/integrations/gitforge/github">połączyć repozytorium
+GitHub</LocalizedLink> z projektem Tuist. Aby OIDC działało, wymagane są
+uprawnienia `: id-token: write`. Alternatywnie można użyć
+<LocalizedLink href="/guides/server/authentication#account-tokens">tokenu
+konta</LocalizedLink> z sekretem `TUIST_TOKEN`.
 <!-- -->
 :::
 
 ::: napiwek
 <!-- -->
-Zalecamy użycie `mise use --pin` w projektach Tuist, aby przypiąć wersję Tuist w
-różnych środowiskach. Polecenie utworzy plik `.tool-versions` zawierający wersję
-Tuist.
+` Zalecamy użycie polecenia ` `` w projektach Tuist, aby przypisać wersję Tuist
+do różnych środowisk. Polecenie to utworzy plik ` ``. Plik `.tool-versions` `` `
+zawiera wersję Tuist.
 <!-- -->
 :::
 
 ### Xcode Cloud {#xcode-cloud}
 
-W [Xcode Cloud](https://developer.apple.com/xcode-cloud/), który używa projektów
-Xcode jako źródła prawdy, musisz dodać skrypt
+W [Xcode Cloud](https://developer.apple.com/xcode-cloud/), który wykorzystuje
+projekty Xcode jako źródło prawdy, należy dodać skrypt
 [post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script),
 aby zainstalować Tuist i uruchomić potrzebne polecenia, na przykład `tuist
 generate`:
@@ -181,9 +181,9 @@ Xcode Cloud.
 ### CircleCI {#circleci}
 
 W [CircleCI](https://circleci.com) można używać
-<LocalizedLink href="/guides/server/authentication#oidc-tokens">
-uwierzytelniania OIDC</LocalizedLink> do bezpiecznego, niejawnego
-uwierzytelniania:
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">uwierzytelniania
+OIDC</LocalizedLink> w celu zapewnienia bezpiecznego uwierzytelniania bez użycia
+tajnych kluczy:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -249,9 +249,9 @@ ze zmienną środowiskową `TUIST_TOKEN`.
 ### Bitrise {#bitrise}
 
 W [Bitrise](https://bitrise.io) można używać
-<LocalizedLink href="/guides/server/authentication#oidc-tokens">
-uwierzytelniania OIDC</LocalizedLink> do bezpiecznego, niejawnego
-uwierzytelniania:
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">uwierzytelniania
+OIDC</LocalizedLink> w celu zapewnienia bezpiecznego uwierzytelniania bez
+ujawniania tajnych danych:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -318,8 +318,8 @@ ze zmienną środowiskową `TUIST_TOKEN`.
 
 ### Codemagic {#codemagic}
 
-W [Codemagic](https://codemagic.io) można dodać dodatkowy krok do przepływu
-pracy, aby zainstalować Tuist:
+W [Codemagic](https://codemagic.io) możesz dodać dodatkowy krok do swojego
+przepływu pracy, aby zainstalować Tuist:
 
 ::: code-group
 ```yaml [Mise]
