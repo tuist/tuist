@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-25 14:36+0000\nPO-Revision-Date: 2026-01-22 12:36+0000\nLast-Translator: Weblate Admin <admin@cloudron.local>\nLanguage-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/projects/tuist/marketing/zh_Hans/>\nLanguage: zh_Hans\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15.2\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-25 14:36+0000\nPO-Revision-Date: 2026-01-22 19:13+0000\nLast-Translator: Huanlin Zou <chandlerzou@gmail.com>\nLanguage-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/projects/tuist/marketing/zh_Hans/>\nLanguage: zh_Hans\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -11,7 +11,7 @@ msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creatio
 # # effect: edit them in PO (.po) files instead.
 #
 msgid "\"We could solve our immediate problems and do so while maintaining a familiar"
-msgstr "\"解决了当下面临的难题，同时保留了熟悉的开发体验"
+msgstr "“我们可以在解决眼前难题的同时，保持熟悉感。”"
 
 msgid "105 remote binaries pulled"
 msgstr "105 个远程二进制文件已拉取"
@@ -37,7 +37,7 @@ msgstr "9+"
 msgid ""
 "<p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with \"contact sales\" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>\n"
 "<p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>\n"
-msgstr "<p>开源承诺与核心价值，成就了我们独特的定价理念。不同于其他商家用「联系销售」、限制性演示等手段牟利，我们崇尚公平透明。一视同仁，价格公道。选择我们，您不仅能获得优秀产品，更能支持开源项目发展。我们视基业长青为长期旅程，而非急功近利的短期行为。您可%{read_more}了解我们的发展理念。</p>\n<p>支持 Tuist，就是为 Swift 生态贡献更多开源力量。</p>\n"
+msgstr "<p>我们对开源的承诺和核心价值观塑造了我们独特的定价方式。与许多试图通过“联系销售”电话、有限的演示和其他销售手段榨取您每一分钱的模式不同，我们秉持公平和透明的原则。我们平等对待每一位客户，并制定对所有人都公平的价格。选择我们的服务，您不仅能获得优质的产品，还能支持更多开源项目的开发。我们认为，打造一个蓬勃发展的企业是一个长期的过程，而不是充斥着不正当手段的短期冲刺。您可以点击 %{read_more} 了解更多关于我们理念的信息。</p>\n\n<p>支持 Tuist，您也支持更多面向 Swift 生态系统的开源软件的开发。</p>\n"
 
 msgid "A confirmation email has been sent to your account with further details."
 msgstr "确认邮件已发送至您的账户，详情请查收。"
