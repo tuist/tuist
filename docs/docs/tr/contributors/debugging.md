@@ -5,39 +5,39 @@
   "description": "Use coding agents and local runs to debug issues in Tuist."
 }
 ---
-# Debugging {#debugging}
+# Hata Ayıklama {#debugging}
 
-Being open is a practical advantage: the code is available, you can run it
-locally, and you can use coding agents to answer questions faster and debug
-potential bugs in the codebase.
+Açık olmak pratik bir avantajdır: kod mevcuttur, yerel olarak
+çalıştırabilirsiniz ve kodlama ajanlarını kullanarak soruları daha hızlı
+yanıtlayabilir ve kod tabanındaki olası hataları giderebilirsiniz.
 
-If you find missing or incomplete documentation while debugging, update the
-English docs under `docs/` and open a PR.
+Hata ayıklama sırasında eksik veya tamamlanmamış belgeler bulursanız, `docs/`
+adresindeki İngilizce belgeleri güncelleyin ve bir PR açın.
 
-## Use coding agents {#use-coding-agents}
+## Kodlama ajanları kullanın {#use-coding-agents}
 
-Coding agents are useful for:
+Kodlama ajanları şunlar için kullanışlıdır:
 
-- Scanning the codebase for where a behavior is implemented.
-- Reproducing issues locally and iterating quickly.
-- Tracing how inputs flow through Tuist to find the root cause.
+- Kod tabanını tarayarak davranışın uygulandığı yeri bulun.
+- Sorunları yerel olarak yeniden üretin ve hızlı bir şekilde yineleyin.
+- Tuist'te girdilerin nasıl aktığını izleyerek sorunun temel nedenini bulun.
 
-Share the smallest reproduction you can, and point the agent at the specific
-component (CLI, server, cache, docs, or handbook). The more focused the scope,
-the faster and more accurate the debugging process is.
+Mümkün olduğunca küçük bir yeniden üretim paylaşın ve temsilciye belirli
+bileşeni (CLI, sunucu, önbellek, belgeler veya el kitabı) gösterin. Kapsam ne
+kadar odaklanmışsa, hata ayıklama süreci o kadar hızlı ve doğru olur.
 
-### Frequently Needed Prompts (FNP) {#frequently-needed-prompts}
+### Sık Kullanılan İpuçları (FNP) {#frequently-needed-prompts}
 
-#### Unexpected project generation {#unexpected-project-generation}
+#### Beklenmeyen proje oluşturma {#unexpected-project-generation}
 
-The project generation is giving me something I do not expect. Run the Tuist CLI
-against my project at `/path/to/project` to understand why this is happening.
-Trace the generator pipeline and point to the code paths responsible for the
-output.
+Proje oluşturma işlemi beklediğimden farklı bir sonuç veriyor. Bunun nedenini
+anlamak için Tuist CLI'yi `/path/to/project` adresindeki projemde çalıştırın.
+Oluşturucu boru hattını izleyin ve çıktıyı oluşturan kod yollarını belirleyin.
 
-#### Reproducible bug in generated projects {#reproducible-bug-in-generated-projects}
+#### Oluşturulmuş projelerde tekrarlanabilir hata {#reproducible-bug-in-generated-projects}
 
-This looks like a bug in generated projects. Create a reproducible project under
-`examples/`, using existing examples as a reference. Add an acceptance test that
-fails, run it via `xcodebuild` with only that test selected, fix the issue,
-re-run the test to confirm it passes, and open a PR.
+Bu, oluşturulmuş projelerde bir hata gibi görünüyor. `examples/` altında, mevcut
+örnekleri referans olarak kullanarak tekrarlanabilir bir proje oluşturun.
+Başarısız olan bir kabul testi ekleyin, `xcodebuild` komutunu çalıştırın ve
+yalnızca bu testi seçin, sorunu düzeltin, testi yeniden çalıştırarak başarılı
+olduğunu doğrulayın ve bir PR açın.
