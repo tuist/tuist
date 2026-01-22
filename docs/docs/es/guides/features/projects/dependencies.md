@@ -101,7 +101,8 @@ integrar paquetes Swift en tu proyecto utilizando los objetivos de XcodeProj.
 Gracias a ello, no sólo podemos darte más control sobre la integración, sino
 también hacerla compatible con flujos de trabajo como
 <LocalizedLink href="/guides/features/cache">caching</LocalizedLink> y
-<LocalizedLink href="/guides/features/test/selective-testing">ejecuciones de prueba selectivas</LocalizedLink>.
+<LocalizedLink href="/guides/features/test/selective-testing">ejecuciones de
+prueba selectivas</LocalizedLink>.
 
 Es más probable que la integración de XcodeProj lleve más tiempo para soportar
 nuevas características de Swift Package o manejar más configuraciones de
@@ -269,8 +270,8 @@ de tu proyecto.
 :::
 
 Una aplicación práctica de un plugin de herramientas de compilación SPM es
-realizar la limpieza de código durante la fase de compilación de Xcode "Ejecutar
-plugins de herramientas de compilación". En un manifiesto de paquete esto se
+realizar la limpieza de código durante la fase de compilación "Ejecutar plugins
+de herramientas de compilación" de Xcode. En un manifiesto de paquete esto se
 define de la siguiente manera:
 
 ```swift
@@ -394,11 +395,13 @@ añadiendo nuevas fuentes de no-determinismo, y potencialmente causando que
 algunas características como Swift Previews que dependen del grafo de
 compilación se vuelvan poco fiables.
 
-Por suerte, Tuist comprime conceptualmente la complejidad asociada al cambio
+Por suerte, Tuist comprime conceptualmente la complejidad asociada con el cambio
 entre estático y dinámico y sintetiza
-<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">accesores de paquete</LocalizedLink> que son estándar en todos los tipos de vinculación.
+<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">accesores
+de paquete</LocalizedLink> que son estándar en todos los tipos de vinculación.
 En combinación con
-<LocalizedLink href="/guides/features/projects/dynamic-configuration">configuraciones dinámicas a través de variables de entorno</LocalizedLink>, puedes pasar el tipo
+<LocalizedLink href="/guides/features/projects/dynamic-configuration">configuraciones
+dinámicas a través de variables de entorno</LocalizedLink>, puedes pasar el tipo
 de enlace en el momento de la invocación, y utilizar el valor en tus manifiestos
 para establecer el tipo de producto de tus objetivos.
 
@@ -414,7 +417,9 @@ func productType() -> Product {
 ```
 
 Tenga en cuenta que Tuist
-<LocalizedLink href="/guides/features/projects/cost-of-convenience">no es conveniente por defecto a través de la configuración implícita debido a sus costes</LocalizedLink>. Lo que esto significa es que dependemos de que
+<LocalizedLink href="/guides/features/projects/cost-of-convenience">no es
+conveniente por defecto a través de la configuración implícita debido a sus
+costes</LocalizedLink>. Lo que esto significa es que dependemos de que
 establezcas el tipo de enlazado y cualquier otra configuración de compilación
 adicional que a veces se requiera, como [`-ObjC` linker
 flag](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184),
@@ -482,7 +487,7 @@ difíciles de integrar en Tuist, ya que a menudo utilizan arquitecturas y
 técnicas no estándar en su construcción.
 
 Estos son algunos consejos que puede ser necesario seguir para integrar Firebase
-y otras librerías de Google para la plataforma de Apple:
+y las otras librerías de Google para la plataforma de Apple:
 
 #### Asegúrese de que `-ObjC` se añade a `OTHER_LDFLAGS` {#ensure-objc-is-added-to-other_ldflags}
 
@@ -507,8 +512,8 @@ anterior para obtener más información.
 
 #### Establezca el tipo de producto para `FBLPromises` en marco dinámico {#set-the-product-type-for-fblpromises-to-dynamic-framework}
 
-Ciertas bibliotecas de Google dependen de `FBLPromises`, otra de las bibliotecas
-de Google. Es posible que te encuentres con un fallo que menciona `FBLPromises`,
+Algunas bibliotecas de Google dependen de `FBLPromises`, otra de las bibliotecas
+de Google. Es posible que te encuentres con un fallo que mencione `FBLPromises`,
 con un aspecto similar a este:
 
 ```
@@ -624,9 +629,11 @@ En lugar de `import Sharing` tendrás que `import SwiftSharing`.
 Cuando un framework o librería dinámicos dependen de otros estáticos a través de
 `import StaticSwiftModule`, los símbolos se incluyen en el `.swiftmodule` del
 framework o librería dinámicos, pudiendo
-<LocalizedLink href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1">causar el fallo de compilación</LocalizedLink>. Para evitarlo, tendrá que importar la
+<LocalizedLink href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1">causar
+el fallo de compilación</LocalizedLink>. Para evitarlo, tendrá que importar la
 dependencia estática utilizando
-<LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal import`</LocalizedLink>:
+<LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal
+import`</LocalizedLink>:
 
 ```swift
 internal import StaticModule
