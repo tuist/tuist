@@ -7,21 +7,21 @@
 ---
 # 지속 통합 {#continuous-integration}
 
-지속적 통합](https://en.wikipedia.org/wiki/Continuous_integration) 워크플로에서 Tuist 명령을
+[지속적 통합](https://en.wikipedia.org/wiki/Continuous_integration) 워크플로에서 Tuist 명령어를
 실행하려면 CI 환경에 설치해야 합니다.
 
-인증은 선택 사항이지만 <LocalizedLink href="/guides/features/cache">cache</LocalizedLink>와
-같은 서버 측 기능을 사용하려는 경우 필수입니다.
+인증은 선택 사항이지만 <LocalizedLink href="/guides/features/cache">캐시</LocalizedLink>와 같은
+서버 측 기능을 사용하려면 필수입니다.
 
-다음 섹션에서는 다양한 CI 플랫폼에서 이 작업을 수행하는 방법에 대한 예를 제공합니다.
+다음 섹션에서는 다양한 CI 플랫폼에서 이를 수행하는 방법에 대한 예시를 제공합니다.
 
 ## 예제 {#example}
 
-### GitHub 작업 {#github-actions}
+### GitHub Actions {#github-actions}
 
-GitHub 작업](https://docs.github.com/en/actions)에서
+[GitHub Actions](https://docs.github.com/en/actions)에서는
 <LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
-인증</LocalizedLink>을 사용하여 안전하고 비밀 없는 인증을 할 수 있습니다:
+인증</LocalizedLink>을 사용하여 안전하고 비밀번호 없는 인증을 수행할 수 있습니다:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -117,26 +117,28 @@ jobs:
 
 ::: info OIDC SETUP
 <!-- -->
-OIDC 인증을 사용하기 전에
-<LocalizedLink href="/guides/integrations/gitforge/github">GitHub
-저장소</LocalizedLink>를 Tuist 프로젝트에 연결해야 합니다. OIDC가 작동하려면 `권한: id 토큰:` 쓰기 권한이
-필요합니다. 또는 <LocalizedLink href="/guides/server/authentication#account-tokens">계정
-토큰</LocalizedLink>과 `TUIST_TOKEN` 비밀 번호를 사용할 수 있습니다.
+OIDC 인증을 사용하기 전에 GitHub 저장소를 Tuist 프로젝트에
+<LocalizedLink href="/guides/integrations/gitforge/github">연결</LocalizedLink>해야
+합니다. OIDC 작동에는 `권한: id-token: write` 이 필요합니다. 또는 `TUIST_TOKEN` 비밀번호로
+<LocalizedLink href="/guides/server/authentication#account-tokens">계정
+토큰</LocalizedLink>을 사용할 수 있습니다.
 <!-- -->
 :::
 
 ::: tip
 <!-- -->
-여러 환경에 걸쳐 Tuist 버전을 고정하려면 Tuist 프로젝트에서 `mise use --pin` 을 사용하는 것이 좋습니다. 이 명령은
-Tuist의 버전이 포함된 `.tool-versions` 파일을 생성합니다.
+Tuist 프로젝트에서 환경 간 Tuist 버전을 고정하려면 ` `` 명령을 사용하세요. `--pin` 옵션(`` `)을 추가하면 Tuist
+버전을 고정할 수 있습니다. 이 명령은 ` `` 디렉터리에 `.tool-versions` 파일(`` `)을 생성하며, 해당 파일에 Tuist
+버전이 기록됩니다.
 <!-- -->
 :::
 
-### Xcode 클라우드 {#xcode-cloud}
+### Xcode Cloud {#xcode-cloud}
 
-Xcode 프로젝트를 소스로 사용하는 [Xcode Cloud](https://developer.apple.com/xcode-cloud/)에서
+Xcode 프로젝트를 진실의 근원으로 사용하는 [Xcode
+Cloud](https://developer.apple.com/xcode-cloud/)에서는 Tuist를 설치하고 필요한 명령어를 실행하기 위해
 [post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script)
-스크립트를 추가하여 Tuist를 설치하고 필요한 명령(예: `tuist generate`)을 실행해야 합니다:
+스크립트를 추가해야 합니다. 예를 들어: `tuist generate`
 
 ::: code-group
 
@@ -164,15 +166,17 @@ tuist generate
 
 ::: info AUTHENTICATION
 <!-- -->
-1}계정 토큰</LocalizedLink>을 사용하려면 Xcode 클라우드 워크플로 설정에서 `TUIST_TOKEN` 환경 변수를 설정합니다.
+Xcode Cloud 워크플로 설정에서 `TUIST_TOKEN` 환경 변수를 설정하여
+<LocalizedLink href="/guides/server/authentication#account-tokens">계정
+토큰</LocalizedLink>을 사용하십시오.
 <!-- -->
 :::
 
 ### CircleCI {#circleci}
 
-CircleCI](https://circleci.com)에서는
+[CircleCI](https://circleci.com)에서는
 <LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
-인증</LocalizedLink>을 사용하여 비밀 없는 안전한 인증을 할 수 있습니다:
+인증</LocalizedLink>을 사용하여 안전하고 비밀 정보가 필요 없는 인증을 수행할 수 있습니다:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -225,20 +229,20 @@ jobs:
 
 ::: info AUTHENTICATION
 <!-- -->
-OIDC 인증을 사용하기 전에
-<LocalizedLink href="/guides/integrations/gitforge/github">GitHub 저장소를 Tuist
-프로젝트에 연결</LocalizedLink>해야 합니다. CircleCI OIDC 토큰에는 연결된 GitHub 저장소가 포함되며, 이 저장소는
-Tuist에서 프로젝트에 대한 접근 권한을 부여하는 데 사용됩니다. 또는
+OIDC 인증을 사용하기 전에 GitHub 저장소를 Tuist 프로젝트에
+<LocalizedLink href="/guides/integrations/gitforge/github">연결</LocalizedLink>해야
+합니다. CircleCI OIDC 토큰에는 연결된 GitHub 저장소가 포함되며, Tuist는 이를 통해 프로젝트 접근 권한을 인증합니다. 또는
+`TUIST_TOKEN 환경 변수` 와 함께
 <LocalizedLink href="/guides/server/authentication#account-tokens">계정
-토큰</LocalizedLink>을 `TUIST_TOKEN` 환경 변수와 함께 사용할 수 있습니다.
+토큰</LocalizedLink>을 사용할 수도 있습니다.
 <!-- -->
 :::
 
 ### Bitrise {#bitrise}
 
-Bitrise](https://bitrise.io)에서는
+[Bitrise](https://bitrise.io)에서는
 <LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
-인증</LocalizedLink>을 사용하여 비밀 없는 안전한 인증을 할 수 있습니다:
+인증</LocalizedLink>을 사용하여 안전하고 비밀번호 없는 인증을 할 수 있습니다:
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -294,17 +298,17 @@ workflows:
 ::: info AUTHENTICATION
 <!-- -->
 OIDC 인증을 사용하기 전에
-<LocalizedLink href="/guides/integrations/gitforge/github">GitHub 저장소를 Tuist
-프로젝트에 연결</LocalizedLink>해야 합니다. Bitrise OIDC 토큰에는 연결된 GitHub 리포지토리가 포함되며, 이
-리포지토리는 Tuist에서 프로젝트에 대한 접근 권한을 부여하는 데 사용됩니다. 또는
+<LocalizedLink href="/guides/integrations/gitforge/github">GitHub
+저장소</LocalizedLink>를 Tuist 프로젝트에 </LocalizedLink>연결해야 합니다. Bitrise OIDC 토큰에는 연결된
+GitHub 저장소가 포함되며, Tuist는 이를 사용하여 프로젝트 접근 권한을 인증합니다. 또는 `TUIST_TOKEN` 환경 변수와 함께
 <LocalizedLink href="/guides/server/authentication#account-tokens">계정
-토큰</LocalizedLink>을 `TUIST_TOKEN` 환경 변수와 함께 사용할 수 있습니다.
+토큰</LocalizedLink>을 사용할 수도 있습니다.
 <!-- -->
 :::
 
-### 코드매직 {#codemagic}
+### Codemagic {#codemagic}
 
-코드매직](https://codemagic.io)에서 워크플로에 추가 단계를 추가하여 Tuist를 설치할 수 있습니다:
+[Codemagic](https://codemagic.io)에서 Tuist 설치를 위한 추가 단계를 워크플로에 추가할 수 있습니다:
 
 ::: code-group
 ```yaml [Mise]
@@ -345,6 +349,7 @@ workflows:
 
 ::: info AUTHENTICATION
 <!-- -->
-1}계정 토큰</LocalizedLink>을 만들고 `TUIST_TOKEN` 이라는 이름의 비밀 환경 변수로 추가합니다.
+<LocalizedLink href="/guides/server/authentication#account-tokens">계정
+토큰</LocalizedLink>을 생성하고 `TUIST_TOKEN` 에 명시된 비밀 환경 변수로 추가하십시오.
 <!-- -->
 :::
