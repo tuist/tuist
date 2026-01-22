@@ -425,13 +425,13 @@ s3).
 
 ### `tuist_repo_pool_ready_conn_count` (last_value) {#tuist_repo_pool_ready_conn_count-last_value}
 
-Количество соединений с базой данных, готовых к назначению на запрос базы
+Количество соединений с базой данных, готовых к назначению для запроса базы
 данных.
 
 
 ### `tuist_repo_pool_db_connection_connected` (счетчик) {#tuist_repo_pool_db_connection_connected-counter}
 
-Количество установленных соединений с базой данных.
+Количество соединений, установленных с базой данных.
 
 ### `tuist_repo_pool_db_connection_disconnected` (счетчик) {#tuist_repo_pool_db_connection_disconnected-counter}
 
@@ -447,8 +447,8 @@ s3).
 
 ### `tuist_http_request_duration_nanosecond_sum` (sum) {#tuist_http_request_duration_nanosecond_sum-last_value}
 
-Сумма длительностей исходящих запросов (включая время ожидания назначения
-соединения).
+Сумма длительностей исходящих запросов (включая время, которое они провели в
+ожидании назначения на соединение).
 
 ### `tuist_http_request_duration_nanosecond_bucket` (распределение) {#tuist_http_request_duration_nanosecond_bucket-distribution}
 Распределение длительности исходящих запросов (включая время, которое они
