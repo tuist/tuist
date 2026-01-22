@@ -279,7 +279,7 @@ final class DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources: T
         // Verify the app is still running by checking if the process exists
         let listOutput = try await commandRunner.run(
             arguments: ["/usr/bin/xcrun", "simctl", "spawn", simulatorId, "launchctl", "list"]
-        ).concatenatedOutput()
+        ).concatenatedString()
 
         XCTAssertTrue(
             listOutput.contains("UIKitApplication:dev.tuist.app"),
@@ -292,7 +292,7 @@ final class DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources: T
         // Check again that the app is still running
         let finalListOutput = try await commandRunner.run(
             arguments: ["/usr/bin/xcrun", "simctl", "spawn", simulatorId, "launchctl", "list"]
-        ).concatenatedOutput()
+        ).concatenatedString()
 
         XCTAssertTrue(
             finalListOutput.contains("UIKitApplication:dev.tuist.app"),
