@@ -7,9 +7,8 @@
 ---
 # Swift paketi {#swift-package}
 
-Bir Swift paketi üzerinde çalışıyorsanız, mevcutsa bağımlılıkları kayıt
-defterinden çözmek için `--replace-scm-with-registry` bayrağını
-kullanabilirsiniz:
+Bir Swift paketi üzerinde çalışıyorsanız, mevcutsa bağımlılıkları Kayıt’tan
+çözmek için `--replace-scm-with-registry` bayrağını kullanabilirsiniz:
 
 ```bash
 swift package --replace-scm-with-registry resolve
@@ -19,8 +18,8 @@ Bağımlılıkları her çözümlediğinizde kayıt defterinin kullanıldığın
 istiyorsanız, `Package.swift` dosyanızdaki `dependencies` adresini URL yerine
 kayıt defteri tanımlayıcısını kullanacak şekilde güncellemeniz gerekir. Kayıt
 tanımlayıcısı her zaman `{organization}.{repository}` biçimindedir. Örneğin,
-`swift-composable-architecture` Swift paketi'nin kayıt defterini kullanmak için
-aşağıdakileri yapın:
+`swift-composable-architecture` paketinin Kayıtını kullanmak için aşağıdakileri
+yapın:
 ```diff
 dependencies: [
 -   .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "0.1.0")
