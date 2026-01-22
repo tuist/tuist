@@ -152,6 +152,12 @@
                         },
                         "handbook": {
                             "text": "El Kitabı"
+                        },
+                        "cli": {
+                            "text": "CLI"
+                        },
+                        "server": {
+                            "text": "Sunucu"
                         }
                     },
                     "text": "Kod"
