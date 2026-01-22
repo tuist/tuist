@@ -3,9 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-22 12:38+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"PO-Revision-Date: 2026-01-22 13:04+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Arabic <https://translate.tuist.dev/projects/tuist/"
 "dashboard_builds/ar/>\n"
 "Language: ar\n"
@@ -30,28 +29,28 @@ msgstr ""
 #: lib/tuist_web/live/generate_runs_live.html.heex:63
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{hit_rate}%"
-msgstr "%{معدل الإصابة}%"
+msgstr "%{hit_rate}%"
 
 #: lib/tuist_web/live/build_run_live.ex:568
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{message} in %{link}"
-msgstr "%{الرسالة} في %{الرابط}"
+msgstr "%{message} في %{link}"
 
 #: lib/tuist_web/live/builds_live.html.heex:188
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{percentage}%"
-msgstr "%{بالنسبة المئوية}%"
+msgstr "%{percentage}%"
 
 #: lib/tuist_web/live/generate_runs_live.html.heex:101
 #: lib/tuist_web/live/run_detail_live.html.heex:158
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{run_duration}s"
-msgstr "%{مدّة_التشغيل}s"
+msgstr "%{run_duration}s"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:693
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Additional strings"
-msgstr "الأوتار الإضافية"
+msgstr "سلاسل إضافية"
 
 #: lib/tuist_web/live/builds_live.ex:333
 #: lib/tuist_web/live/builds_live.ex:341
@@ -77,12 +76,12 @@ msgstr "المتوسط"
 #: lib/tuist_web/live/builds_live.html.heex:221
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Avg. build duration"
-msgstr "متوسط مدة البناء"
+msgstr "متوسط مدة الإنشاء"
 
 #: lib/tuist_web/live/build_run_live.html.heex:840
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Avg. latency reading cache keys"
-msgstr "متوسط زمن الاستجابة لقراءة مفاتيح ذاكرة التخزين المؤقت"
+msgstr "متوسط زمن استجابة قراءة مفاتيح ذاكرة التخزين المؤقت"
 
 #: lib/tuist_web/live/build_run_live.html.heex:896
 #, elixir-autogen, elixir-format, fuzzy
@@ -95,12 +94,12 @@ msgstr "متوسط زمن الاستجابة لكتابة مفاتيح ذاكر�
 #: lib/tuist_web/live/generate_runs_live.html.heex:84
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Branch"
-msgstr "الفرع"
+msgstr "فرع"
 
 #: lib/tuist_web/live/build_runs_live.ex:265
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Build"
-msgstr "البناء"
+msgstr "بناء"
 
 #: lib/tuist_web/live/build_run_live.html.heex:93
 #, elixir-autogen, elixir-format, fuzzy
@@ -110,14 +109,14 @@ msgstr "تفاصيل البناء"
 #: lib/tuist_web/live/build_run_live.ex:61
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Build Run"
-msgstr "تشغيل البناء"
+msgstr "بناء تشغيل"
 
 #: lib/tuist_web/live/build_run_live.html.heex:3
 #: lib/tuist_web/live/build_runs_live.ex:23
 #: lib/tuist_web/live/build_runs_live.html.heex:3
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Build Runs"
-msgstr "عمليات تشغيل البناء"
+msgstr "عمليات البناء"
 
 #: lib/tuist_web/live/build_run_live.ex:816
 #: lib/tuist_web/live/build_run_live.html.heex:144
@@ -134,18 +133,18 @@ msgstr "مدة البناء"
 #: lib/tuist_web/live/build_run_live.ex:42
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Build not found."
-msgstr "البناء غير موجود."
+msgstr "لم يتم العثور على البنية."
 
 #: lib/tuist_web/live/builds_live.html.heex:467
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Build runs"
-msgstr "بناء الأشواط"
+msgstr "تشغيل البناء"
 
 #: lib/tuist_web/live/builds_live.html.heex:184
 #: lib/tuist_web/live/builds_live.html.heex:595
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Build success rate"
-msgstr "معدل نجاح البناء"
+msgstr "معدل النجاح في البناء"
 
 #: lib/tuist_web/live/builds_live.html.heex:59
 #, elixir-autogen, elixir-format, fuzzy
@@ -155,28 +154,28 @@ msgstr "البناء:"
 #: lib/tuist_web/live/run_detail_live.html.heex:687
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Buildable folders"
-msgstr "المجلدات القابلة للبناء"
+msgstr "مجلدات قابلة للبناء"
 
 #: lib/tuist_web/live/builds_live.ex:20
 #: lib/tuist_web/live/builds_live.html.heex:3
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Builds"
-msgstr "يبني"
+msgstr "البناء"
 
 #: lib/tuist_web/live/build_run_live.html.heex:151
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Built at"
-msgstr "بُنيت في"
+msgstr "تم إنشاؤه في"
 
 #: lib/tuist_web/live/build_run_live.html.heex:140
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Built by"
-msgstr "بُنيت بواسطة"
+msgstr "تم إنشاؤه بواسطة"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:593
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Bundle ID"
-msgstr "معرّف الحزمة"
+msgstr "معرف الحزمة"
 
 #: lib/tuist_web/live/build_run_live.html.heex:705
 #, elixir-autogen, elixir-format, fuzzy
@@ -186,7 +185,7 @@ msgstr "مخرجات CAS"
 #: lib/tuist_web/live/build_run_live.html.heex:1062
 #, elixir-autogen, elixir-format, fuzzy
 msgid "CAS output"
-msgstr "مخرجات CAS"
+msgstr "إخراج CAS"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1175
 #, elixir-autogen, elixir-format, fuzzy
@@ -196,7 +195,7 @@ msgstr "مخرجات CAS"
 #: lib/tuist_web/live/build_run_live.html.heex:1411
 #, elixir-autogen, elixir-format, fuzzy
 msgid "CAS outputs will appear here when using Tuist cache"
-msgstr "ستظهر مخرجات CAS هنا عند استخدام ذاكرة التخزين المؤقت لـ Tuist"
+msgstr "ستظهر مخرجات CAS هنا عند استخدام ذاكرة التخزين المؤقت Tuist"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1127
 #, elixir-autogen, elixir-format, fuzzy
@@ -237,7 +236,7 @@ msgstr "معدل الوصول إلى ذاكرة التخزين المؤقت"
 #: lib/tuist_web/live/run_detail_live.html.heex:326
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cache hits"
-msgstr "ضربات ذاكرة التخزين المؤقت"
+msgstr "نتائج البحث في ذاكرة التخزين المؤقت"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1027
 #, elixir-autogen, elixir-format, fuzzy
@@ -247,7 +246,7 @@ msgstr "مفتاح ذاكرة التخزين المؤقت"
 #: lib/tuist_web/live/run_detail_live.html.heex:340
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cache misses"
-msgstr "أخطاء في ذاكرة التخزين المؤقت"
+msgstr "أخطاء ذاكرة التخزين المؤقت"
 
 #: lib/tuist_web/live/build_run_live.html.heex:691
 #, elixir-autogen, elixir-format, fuzzy
@@ -262,12 +261,12 @@ msgstr "المهام القابلة للتخزين المؤقت"
 #: lib/tuist_web/live/run_detail_live.html.heex:442
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cacheable targets"
-msgstr "أهداف قابلة للتخزين المؤقت"
+msgstr "الأهداف القابلة للتخزين المؤقت"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:392
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cacheable targets:"
-msgstr "أهداف قابلة للتخزين المؤقت:"
+msgstr "الأهداف القابلة للتخزين المؤقت:"
 
 #: lib/tuist_web/live/build_run_live.html.heex:771
 #, elixir-autogen, elixir-format, fuzzy
@@ -286,13 +285,13 @@ msgstr ""
 msgid "Cacheable tasks that were retrieved from cache (local + remote)."
 msgstr ""
 "المهام القابلة للتخزين المؤقت التي تم استردادها من ذاكرة التخزين المؤقت "
-"(محلي + بعيد)."
+"(المحلية + البعيدة)."
 
 #: lib/tuist_web/live/build_run_live.html.heex:1101
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cacheable tasks will appear here when using Tuist cache"
 msgstr ""
-"ستظهر المهام القابلة للتخزين المؤقت هنا عند استخدام ذاكرة التخزين المؤقت لـ "
+"ستظهر المهام القابلة للتخزين المؤقت هنا عند استخدام ذاكرة التخزين المؤقت "
 "Tuist"
 
 #: lib/tuist_web/live/build_run_live.html.heex:723
@@ -311,7 +310,7 @@ msgstr "الفئة"
 #: lib/tuist_web/live/builds_live.html.heex:79
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Clean"
-msgstr "نظيفة"
+msgstr "نظيف"
 
 #: lib/tuist_web/live/build_run_live.html.heex:101
 #: lib/tuist_web/live/generate_runs_live.ex:254
@@ -325,7 +324,7 @@ msgstr "الأمر"
 #: lib/tuist_web/live/run_detail_live.html.heex:149
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Commit SHA"
-msgstr "التزام SHA"
+msgstr "تأكيد SHA"
 
 #: lib/tuist_web/live/build_run_live.ex:787
 #: lib/tuist_web/live/build_run_live.ex:824
@@ -350,7 +349,7 @@ msgstr "الحجم المضغوط"
 #: lib/tuist_web/live/build_run_live.ex:1120
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Compressed Size (MB)"
-msgstr "الحجم المضغوط (ميغابايت)"
+msgstr "الحجم المضغوط (ميجابايت)"
 
 #: lib/tuist_web/live/build_run_live.html.heex:116
 #: lib/tuist_web/live/build_runs_live.ex:230
@@ -362,7 +361,7 @@ msgstr "التكوين"
 #: lib/tuist_web/live/builds_live.html.heex:616
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Configuration Insights"
-msgstr "رؤى التهيئة"
+msgstr "رؤى التكوين"
 
 #: lib/tuist_web/live/builds_live.html.heex:35
 #, elixir-autogen, elixir-format, fuzzy
@@ -377,7 +376,7 @@ msgstr "نسخ"
 #: lib/tuist_web/live/run_detail_live.html.heex:372
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Copy as JSON"
-msgstr "نسخ بصيغة JSON"
+msgstr "نسخ كملف JSON"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:623
 #, elixir-autogen, elixir-format, fuzzy
@@ -422,12 +421,12 @@ msgstr "تنزيل"
 #: lib/tuist_web/live/run_detail_live.html.heex:63
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Download result"
-msgstr "نتيجة التحميل"
+msgstr "تنزيل النتيجة"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1229
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Download throughput"
-msgstr "إنتاجية التنزيل"
+msgstr "تنزيل الإنتاجية"
 
 #: lib/tuist_web/live/build_runs_live.html.heex:13
 #: lib/tuist_web/live/build_runs_live.html.heex:21
@@ -491,93 +490,93 @@ msgstr "فشل"
 #: lib/tuist_web/live/builds_live.html.heex:802
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed builds"
-msgstr "الإنشاءات الفاشلة"
+msgstr "عمليات إنشاء فاشلة"
 
 #: lib/tuist_web/live/build_run_live.ex:584
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed compiling C file %{path}"
-msgstr "فشل في تجميع ملف C %{path}"
+msgstr "فشل ترجمة ملف C %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:587
 #: lib/tuist_web/live/build_run_live.ex:623
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed compiling Swift file %{path}"
-msgstr "فشل في تجميع ملف Swift %{path}"
+msgstr "فشل تجميع ملف Swift %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:620
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed compiling XIB file %{path}"
-msgstr "فشل في تجميع ملف XIB %{path}"
+msgstr "فشل تجميع ملف XIB %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:602
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed compiling assets catalog %{path}"
-msgstr "فشل في تجميع كتالوج الأصول %{path}"
+msgstr "فشل تجميع كتالوج الأصول %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:605
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed compiling storyboard %{path}"
-msgstr "فشل في تجميع %{مسار} لوحة القصة المصورة"
+msgstr "فشل تجميع القصة المصورة %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:599
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed copying Swift libraries %{path}"
-msgstr "فشل في نسخ مكتبات Swift %{path}"
+msgstr "فشل نسخ مكتبات Swift %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:614
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed copying resource file %{path}"
-msgstr "فشل في نسخ ملف المورد %{path}"
+msgstr "فشل نسخ ملف الموارد %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:593
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed creating static library %{path}"
-msgstr "فشل في إنشاء مكتبة ثابتة %{مسار}"
+msgstr "فشل إنشاء مكتبة ثابتة %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:590
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed executing script %{script_name}"
-msgstr "فشل في تنفيذ البرنامج النصي %{script_name}"
+msgstr "فشل تنفيذ البرنامج النصي %{script_name}"
 
 #: lib/tuist_web/live/build_run_live.ex:596
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed linking %{path}"
-msgstr "فشل ربط %{المسار}"
+msgstr "فشل الربط %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:611
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed linking storyboards %{path}"
-msgstr "فشل ربط لوحات القصص المصورة %{المسار}"
+msgstr "فشل ربط القصص المصورة %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:617
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed merging Swift module %{path}"
-msgstr "فشل في دمج الوحدة النمطية Swift %{path}"
+msgstr "فشل دمج وحدة Swift %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:626
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed precompiling bridging header %{path}"
-msgstr "فشل في التجميع المسبق لرأس الجسر %{المسار}"
+msgstr "فشل التجميع المسبق لرأس الجسر %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:638
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed processing %{path}"
-msgstr "فشلت معالجة %{المسار}"
+msgstr "فشل معالجة %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:632
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed validating %{path}"
-msgstr "فشل التحقق من صحة %{المسار}"
+msgstr "فشل التحقق من صحة %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:629
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed validating embedded binary %{path}"
-msgstr "فشل في التحقق من صحة %{المسار} الثنائي المضمن"
+msgstr "فشل التحقق من صحة الثنائي المضمن %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:608
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed writing auxiliary file %{path}"
-msgstr "فشل في كتابة الملف المساعد %{المسار}"
+msgstr "فشل كتابة الملف المساعد %{path}"
 
 #: lib/tuist_web/live/build_run_live.html.heex:443
 #: lib/tuist_web/live/build_run_live.html.heex:459
@@ -590,7 +589,7 @@ msgstr "ملف"
 #: lib/tuist_web/live/build_run_live.html.heex:422
 #, elixir-autogen, elixir-format, fuzzy
 msgid "File Breakdown"
-msgstr "تقسيم الملفات"
+msgstr "تفصيل الملف"
 
 #: lib/tuist_web/live/build_run_live.html.heex:328
 #: lib/tuist_web/live/build_run_live.html.heex:468
@@ -601,25 +600,25 @@ msgstr "تقسيم الملفات"
 #: lib/tuist_web/live/run_detail_live.html.heex:521
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Filter"
-msgstr "التصفية"
+msgstr "تصفية"
 
 #: lib/tuist_web/live/generate_runs_live.ex:19
 #: lib/tuist_web/live/generate_runs_live.html.heex:3
 #: lib/tuist_web/live/run_detail_live.html.heex:30
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Generate Runs"
-msgstr "إنشاء عمليات التشغيل"
+msgstr "إنشاء عمليات تشغيل"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:292
 #: lib/tuist_web/live/run_detail_live.html.heex:574
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Hash"
-msgstr "تجزئة"
+msgstr "هاش"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:646
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Headers"
-msgstr "الرؤوس"
+msgstr "العناوين"
 
 #: lib/tuist_web/live/build_run_live.ex:1068
 #: lib/tuist_web/live/build_run_live.html.heex:1000
@@ -628,31 +627,31 @@ msgstr "الرؤوس"
 #: lib/tuist_web/live/run_detail_live.html.heex:552
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Hit"
-msgstr "ضرب"
+msgstr "اضغط"
 
 #: lib/tuist_web/live/build_run_live.html.heex:660
 #: lib/tuist_web/live/generate_runs_live.ex:283
 #: lib/tuist_web/live/generate_runs_live.html.heex:61
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Hit rate"
-msgstr "معدل الإصابة"
+msgstr "معدل النجاح"
 
 #: lib/tuist_web/live/builds_live.html.heex:71
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Incremental"
-msgstr "تزايدي"
+msgstr "تدريجي"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:657
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Info.plist"
-msgstr "معلومات.plist"
+msgstr "Info.plist"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1279
 #: lib/tuist_web/live/build_run_live.html.heex:1292
 #: lib/tuist_web/live/build_run_live.html.heex:1329
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Key"
-msgstr "المفتاح"
+msgstr "مفتاح"
 
 #: lib/tuist_web/live/build_run_live.ex:1072
 #: lib/tuist_web/live/build_run_live.html.heex:788
@@ -671,7 +670,7 @@ msgstr "محلي"
 #: lib/tuist_web/live/build_run_live.html.heex:623
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Looks like you're having a great day!"
-msgstr "يبدو أنك تقضي يوماً رائعاً!"
+msgstr "يبدو أنك تقضي يومًا رائعًا!"
 
 #: lib/tuist_web/live/build_run_live.html.heex:109
 #, elixir-autogen, elixir-format, fuzzy
@@ -687,7 +686,7 @@ msgstr "جهاز Mac"
 #: lib/tuist_web/live/run_detail_live.html.heex:568
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Missed"
-msgstr "فائتة"
+msgstr "فات"
 
 #: lib/tuist_web/live/build_run_live.html.heex:294
 #: lib/tuist_web/live/build_run_live.html.heex:303
@@ -696,13 +695,13 @@ msgstr "فائتة"
 #: lib/tuist_web/live/run_detail_live.html.heex:538
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Module"
-msgstr "الوحدة النمطية"
+msgstr "الوحدة"
 
 #: lib/tuist_web/live/build_run_live.html.heex:261
 #: lib/tuist_web/live/build_run_live.html.heex:273
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Module Breakdown"
-msgstr "تفاصيل الوحدة النمطية"
+msgstr "تفصيل الوحدة"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:86
 #: lib/tuist_web/live/run_detail_live.html.heex:364
@@ -740,7 +739,7 @@ msgstr "لا توجد بيانات"
 #: lib/tuist_web/live/generate_runs_live.html.heex:131
 #, elixir-autogen, elixir-format, fuzzy
 msgid "No data yet"
-msgstr "لا توجد بيانات بعد"
+msgstr "لا توجد بيانات حتى الآن"
 
 #: lib/tuist_web/live/build_run_live.html.heex:621
 #, elixir-autogen, elixir-format, fuzzy
@@ -769,7 +768,7 @@ msgstr "لم يتم اكتشاف أي تحذيرات"
 #: lib/tuist_web/live/run_detail_live.html.heex:151
 #, elixir-autogen, elixir-format, fuzzy
 msgid "None"
-msgstr "لا يوجد"
+msgstr "لا شيء"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:193
 #, elixir-autogen, elixir-format, fuzzy
@@ -780,7 +779,7 @@ msgstr "ملخص التحسين"
 #: lib/tuist_web/live/run_detail_live.html.heex:72
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Overview"
-msgstr "لمحة عامة"
+msgstr "نظرة عامة"
 
 #: lib/tuist_web/live/build_run_live.ex:852
 #: lib/tuist_web/live/build_run_live.html.heex:127
@@ -793,14 +792,12 @@ msgstr "لمحة عامة"
 #: lib/tuist_web/live/run_detail_live.html.heex:115
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Passed"
-msgstr "نجحت"
+msgstr "تمت الموافقة"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:353
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Percentage of modules that were successfully retrieved from the cache."
-msgstr ""
-"النسبة المئوية للوحدات النمطية التي تم استرجاعها بنجاح من ذاكرة التخزين "
-"المؤقت."
+msgstr "النسبة المئوية للوحدات التي تم استردادها بنجاح من ذاكرة التخزين المؤقت."
 
 #: lib/tuist_web/live/run_detail_live.html.heex:582
 #, elixir-autogen, elixir-format, fuzzy
@@ -834,7 +831,7 @@ msgstr "إعدادات المشروع"
 #: lib/tuist_web/live/run_detail_live.html.heex:134
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Ran at"
-msgstr "ركض في"
+msgstr "تم تشغيله في"
 
 #: lib/tuist_web/live/build_runs_live.ex:299
 #: lib/tuist_web/live/build_runs_live.html.heex:77
@@ -844,12 +841,12 @@ msgstr "ركض في"
 #: lib/tuist_web/live/run_detail_live.html.heex:130
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Ran by"
-msgstr "تم تشغيله بواسطة"
+msgstr "تشغيل بواسطة"
 
 #: lib/tuist_web/live/builds_live.html.heex:780
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Recent Builds"
-msgstr "الإنشاءات الأخيرة"
+msgstr "الإصدارات الحديثة"
 
 #: lib/tuist_web/live/build_run_live.ex:1073
 #: lib/tuist_web/live/build_run_live.html.heex:802
@@ -860,7 +857,7 @@ msgstr "الإنشاءات الأخيرة"
 #: lib/tuist_web/live/run_detail_live.html.heex:556
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Remote"
-msgstr "جهاز التحكم عن بُعد"
+msgstr "عن بُعد"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:617
 #, elixir-autogen, elixir-format, fuzzy
@@ -902,19 +899,19 @@ msgstr "بحث..."
 #: lib/tuist_web/live/run_detail_live.html.heex:237
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Selective Testing"
-msgstr "الاختبار الانتقائي"
+msgstr "اختبار انتقائي"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:210
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Selective test hits"
-msgstr "ضربات الاختبار الانتقائية"
+msgstr "نتائج الاختبار الانتقائية"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:212
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Selective test hits represents the number of test modules that were skipped thanks to the selective testing."
 msgstr ""
-"تمثل نتائج الاختبار الانتقائي عدد وحدات الاختبار التي تم تخطيها بفضل الاختبار "
-"الانتقائي."
+"تمثل النتائج الاختيارية للاختبار عدد وحدات الاختبار التي تم تخطيها بفضل الاختبار "
+"الاختياري."
 
 #: lib/tuist_web/live/run_detail_live.html.heex:224
 #, elixir-autogen, elixir-format, fuzzy
@@ -925,8 +922,8 @@ msgstr "أخطاء الاختبار الانتقائي"
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Selective test misses represents the number of test modules that were run as they were not successfully run before."
 msgstr ""
-"تمثل حالات فشل الاختبار الانتقائي عدد وحدات الاختبار التي تم تشغيلها حيث لم يتم "
-"تشغيلها بنجاح من قبل."
+"تمثل الاختبارات المفقودة الانتقائية عدد وحدات الاختبار التي تم تشغيلها لأنها لم "
+"يتم تشغيلها بنجاح من قبل."
 
 #: lib/tuist_web/live/build_run_live.html.heex:1280
 #: lib/tuist_web/live/build_run_live.html.heex:1300
@@ -938,7 +935,7 @@ msgstr "الحجم"
 #: lib/tuist_web/live/build_run_live.ex:1112
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Size (MB)"
-msgstr "الحجم (ميغابايت)"
+msgstr "الحجم (ميجابايت)"
 
 #: lib/tuist_web/live/build_run_live.html.heex:299
 #: lib/tuist_web/live/build_run_live.html.heex:447
@@ -947,7 +944,7 @@ msgstr "الحجم (ميغابايت)"
 #: lib/tuist_web/live/generate_runs_live.html.heex:17
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Sort by:"
-msgstr "فرز حسب:"
+msgstr "ترتيب حسب:"
 
 #: lib/tuist_web/live/build_run_live.html.heex:173
 #: lib/tuist_web/live/run_detail_live.html.heex:142
@@ -974,17 +971,17 @@ msgstr "الحالة"
 #: lib/tuist_web/live/builds_live.html.heex:797
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Successful builds"
-msgstr "الإنشاءات الناجحة"
+msgstr "عمليات إنشاء ناجحة"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:320
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Summary"
-msgstr "الملخص"
+msgstr "ملخص"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:173
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Swift version"
-msgstr "الإصدار السريع"
+msgstr "إصدار Swift"
 
 #: lib/tuist_web/live/build_run_live.ex:795
 #: lib/tuist_web/live/build_run_live.html.heex:505
@@ -995,7 +992,7 @@ msgstr "الهدف"
 #: lib/tuist_web/live/run_detail_live.html.heex:635
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Target scripts"
-msgstr "البرامج النصية المستهدفة"
+msgstr "النصوص المستهدفة"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:681
 #, elixir-autogen, elixir-format, fuzzy
@@ -1010,17 +1007,17 @@ msgstr "المهمة"
 #: lib/tuist_web/live/build_run_live.html.heex:638
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Task hits"
-msgstr "ضربات المهام"
+msgstr "عدد مرات ظهور المهمة"
 
 #: lib/tuist_web/live/build_run_live.html.heex:649
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Task misses"
-msgstr "أخطاء المهام"
+msgstr "أخطاء في المهام"
 
 #: lib/tuist_web/live/build_runs_live.ex:266
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Test"
-msgstr "الاختبار"
+msgstr "اختبار"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:94
 #, elixir-autogen, elixir-format, fuzzy
@@ -1030,73 +1027,73 @@ msgstr "تفاصيل الاختبار"
 #: lib/tuist_web/live/run_detail_live.html.heex:79
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Test Optimizations"
-msgstr "تحسينات الاختبار"
+msgstr "اختبار التحسينات"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:4
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Test Runs"
-msgstr "عمليات التشغيل التجريبية"
+msgstr "تجارب الاختبار"
 
 #: lib/tuist_web/live/build_run_live.html.heex:34
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Test: %{scheme}"
-msgstr "اختبار: %{موضوع}"
+msgstr "اختبار: %{scheme}"
 
 #: lib/tuist_web/live/builds_live.html.heex:233
 #, elixir-autogen, elixir-format, fuzzy
 msgid "The average build duration with individual percentile intervals."
-msgstr "متوسط مدة البناء مع الفترات المئوية الفردية."
+msgstr "متوسط مدة البناء مع فترات مئوية فردية."
 
 #: lib/tuist_web/live/builds_live.html.heex:203
 #, elixir-autogen, elixir-format, fuzzy
 msgid "The number of builds that failed."
-msgstr "عدد عمليات الإنشاء التي فشلت."
+msgstr "عدد عمليات البناء التي فشلت."
 
 #: lib/tuist_web/live/builds_live.html.heex:186
 #, elixir-autogen, elixir-format, fuzzy
 msgid "The percentage of builds that succeeded."
-msgstr "النسبة المئوية لعمليات البناء التي نجحت."
+msgstr "النسبة المئوية للبنيات التي نجحت."
 
 #: lib/tuist_web/live/build_run_live.html.heex:662
 #, elixir-autogen, elixir-format, fuzzy
 msgid "The percentage of cacheable tasks that were cache hits (local + remote)."
 msgstr ""
-"النسبة المئوية للمهام القابلة للتخزين المؤقت التي كانت عبارة عن زيارات ذاكرة "
-"التخزين المؤقت (محلي + بعيد)."
+"النسبة المئوية للمهام القابلة للتخزين المؤقت التي كانت نجاحات للتخزين المؤقت "
+"(محلي + بعيد)."
 
 #: lib/tuist_web/live/builds_live.html.heex:172
 #, elixir-autogen, elixir-format, fuzzy
 msgid "The total number of builds."
-msgstr "العدد الإجمالي للبناءات."
+msgstr "العدد الإجمالي للبنيات."
 
 #: lib/tuist_web/live/build_run_live.html.heex:847
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Time to read cache keys, which uniquely identify cacheable tasks, from cache."
 msgstr ""
-"وقت قراءة مفاتيح ذاكرة التخزين المؤقت، التي تحدد المهام القابلة للتخزين "
-"المؤقت بشكل فريد، من ذاكرة التخزين المؤقت."
+"حان الوقت لقراءة مفاتيح ذاكرة التخزين المؤقت، التي تحدد بشكل فريد المهام "
+"القابلة للتخزين المؤقت، من ذاكرة التخزين المؤقت."
 
 #: lib/tuist_web/live/build_run_live.html.heex:903
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Time to write cache keys, which uniquely identify cacheable tasks, to cache."
 msgstr ""
-"حان الوقت لكتابة مفاتيح ذاكرة التخزين المؤقت، التي تحدد المهام القابلة "
-"للتخزين المؤقت بشكل فريد، في ذاكرة التخزين المؤقت."
+"حان الوقت لكتابة مفاتيح ذاكرة التخزين المؤقت، التي تحدد بشكل فريد المهام "
+"القابلة للتخزين المؤقت، في ذاكرة التخزين المؤقت."
 
 #: lib/tuist_web/live/build_run_live.html.heex:1231
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Time-weighted average download throughput in megabits per second."
-msgstr "متوسط إنتاجية التنزيل المرجح زمنياً بالميغابت في الثانية."
+msgstr "متوسط سرعة التنزيل المرجح بالوقت بالميغابت في الثانية."
 
 #: lib/tuist_web/live/build_run_live.html.heex:1248
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Time-weighted average upload throughput in megabits per second."
-msgstr "متوسط إنتاجية التحميل المرجحة زمنياً بالميغابت في الثانية."
+msgstr "متوسط سرعة التحميل المرجح بالوقت بالميغابت في الثانية."
 
 #: lib/tuist_web/live/builds_live.html.heex:170
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Total builds"
-msgstr "إجمالي الإنشاءات"
+msgstr "إجمالي عمليات البناء"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:199
 #, elixir-autogen, elixir-format, fuzzy
@@ -1106,29 +1103,31 @@ msgstr "إجمالي الوحدات"
 #: lib/tuist_web/live/run_detail_live.html.heex:201
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Total modules represents the total number of testable modules."
-msgstr "يمثل إجمالي الوحدات النمطية إجمالي عدد الوحدات القابلة للاختبار."
+msgstr ""
+"يمثل إجمالي الوحدات النمطية العدد الإجمالي للوحدات النمطية القابلة للاختبار."
 
 #: lib/tuist_web/live/run_detail_live.html.heex:328
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Total number of modules taken from either the local or the remote cache."
-msgstr "إجمالي عدد الوحدات المأخوذة من ذاكرة التخزين المؤقت المحلية أو البعيدة."
+msgstr ""
+"العدد الإجمالي للوحدات المأخوذة من ذاكرة التخزين المؤقتة المحلية أو البعيدة."
 
 #: lib/tuist_web/live/run_detail_live.html.heex:342
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Total number of modules that could have been taken from the cache if it was fully populated."
 msgstr ""
-"إجمالي عدد الوحدات التي يمكن أخذها من ذاكرة التخزين المؤقت إذا كانت ممتلئة "
-"بالكامل."
+"العدد الإجمالي للوحدات النمطية التي كان من الممكن أخذها من ذاكرة التخزين "
+"المؤقتة إذا كانت ممتلئة بالكامل."
 
 #: lib/tuist_web/live/build_run_live.html.heex:685
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Total size of cache artifacts downloaded."
-msgstr "إجمالي حجم القطع الأثرية التي تم تنزيلها من ذاكرة التخزين المؤقت."
+msgstr "الحجم الإجمالي لملفات ذاكرة التخزين المؤقت التي تم تنزيلها."
 
 #: lib/tuist_web/live/build_run_live.html.heex:692
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Total size of cache artifacts uploaded."
-msgstr "إجمالي حجم القطع الأثرية التي تم تحميلها من ذاكرة التخزين المؤقت."
+msgstr "الحجم الإجمالي للملفات المؤقتة التي تم تحميلها."
 
 #: lib/tuist_web/live/run_detail_live.html.heex:301
 #: lib/tuist_web/live/run_detail_live.html.heex:705
@@ -1145,7 +1144,7 @@ msgstr "حاول تحديث بحثك"
 #: lib/tuist_web/live/run_detail_live.html.heex:166
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Tuist version"
-msgstr "إصدار تويست"
+msgstr "إصدار Tuist"
 
 #: lib/tuist_web/live/build_run_live.ex:1055
 #: lib/tuist_web/live/build_run_live.ex:1102
@@ -1154,12 +1153,12 @@ msgstr "إصدار تويست"
 #: lib/tuist_web/live/build_run_live.html.heex:1357
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Type"
-msgstr "النوع"
+msgstr "اكتب"
 
 #: lib/tuist_web/live/builds_live.html.heex:624
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Type:"
-msgstr "النوع:"
+msgstr "اكتب:"
 
 #: lib/tuist_web/live/build_run_live.html.heex:35
 #: lib/tuist_web/live/build_run_live.html.heex:118
@@ -1183,14 +1182,14 @@ msgstr "غير معروف"
 #: lib/tuist_web/live/build_run_live.html.heex:26
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Unknown scheme"
-msgstr "مخطط غير معروف"
+msgstr "نظام غير معروف"
 
 #: lib/tuist_web/live/build_run_live.ex:1094
 #: lib/tuist_web/live/build_run_live.html.heex:1205
 #: lib/tuist_web/live/build_run_live.html.heex:1351
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Upload"
-msgstr "التحميل"
+msgstr "تحميل"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1246
 #, elixir-autogen, elixir-format, fuzzy
@@ -1206,88 +1205,88 @@ msgstr "عرض المزيد"
 #: lib/tuist_web/live/build_run_live.ex:642
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when compiling C file %{path}"
-msgstr "تنبيه عند تجميع ملف C %{path}"
+msgstr "تحذير عند ترجمة ملف C %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:645
 #: lib/tuist_web/live/build_run_live.ex:681
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when compiling Swift file %{path}"
-msgstr "تنبيه عند تجميع ملف Swift %{path}"
+msgstr "تحذير عند ترجمة ملف Swift %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:678
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when compiling XIB file %{path}"
-msgstr "تنبيه عند تجميع ملف XIB %{path}"
+msgstr "تحذير عند تجميع ملف XIB %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:660
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when compiling assets catalog %{path}"
-msgstr "تنبيه عند تجميع كتالوج الأصول %{path}"
+msgstr "تحذير عند تجميع كتالوج الأصول %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:663
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when compiling storyboard %{path}"
-msgstr "تحذير عند تجميع لوحة القصة المصورة %{مسار}"
+msgstr "تحذير عند تجميع القصة المصورة %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:657
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when copying Swift libraries %{path}"
-msgstr "تنبيه عند نسخ مكتبات Swift %{path}"
+msgstr "تحذير عند نسخ مكتبات Swift %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:672
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when copying resource file %{path}"
-msgstr "تنبيه عند نسخ ملف المورد %{path}"
+msgstr "تحذير عند نسخ ملف الموارد %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:651
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when creating static library %{path}"
-msgstr "تحذير عند إنشاء مكتبة ثابتة %{المسار}"
+msgstr "تحذير عند إنشاء مكتبة ثابتة %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:648
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when executing script %{script_name}"
-msgstr "تنبيه عند تنفيذ البرنامج النصي %{script_name}"
+msgstr "تحذير عند تنفيذ البرنامج النصي %{script_name}"
 
 #: lib/tuist_web/live/build_run_live.ex:654
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when linking %{path}"
-msgstr "تحذير عند ربط %{المسار}"
+msgstr "تحذير عند ربط %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:669
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when linking storyboards %{path}"
-msgstr "تحذير عند ربط لوحات القصص المصورة %{مسار}"
+msgstr "تحذير عند ربط القصص المصورة %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:675
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when merging Swift module %{path}"
-msgstr "تحذير عند دمج وحدة Swift النمطية %{path}"
+msgstr "تحذير عند دمج وحدة Swift %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:684
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when precompiling bridging header %{path}"
-msgstr "تنبيه عند التجميع المسبق لرأس الجسر %{path}"
+msgstr "تحذير عند الترجمة المسبقة لرأس الجسر %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:696
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when processing %{path}"
-msgstr "تحذير عند معالجة %{المسار}"
+msgstr "تحذير عند معالجة %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:690
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when validating %{path}"
-msgstr "تحذير عند التحقق من صحة %{المسار}"
+msgstr "تحذير عند التحقق من صحة %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:687
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when validating embedded binary %{path}"
-msgstr "تحذير عند التحقق من صحة %{المسار} الثنائي المضمن"
+msgstr "تحذير عند التحقق من صحة الثنائي المضمن %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:666
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when writing auxiliary file %{path}"
-msgstr "تحذير عند كتابة ملف إضافي %{path} ملف مساعد"
+msgstr "تحذير عند كتابة الملف الإضافي %{path}"
 
 #: lib/tuist_web/live/build_run_live.html.heex:81
 #: lib/tuist_web/live/build_run_live.html.heex:233
@@ -1295,7 +1294,7 @@ msgstr "تحذير عند كتابة ملف إضافي %{path} ملف مساعد
 #: lib/tuist_web/live/build_run_live.html.heex:562
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warnings"
-msgstr "التحذيرات"
+msgstr "تحذيرات"
 
 #: lib/tuist_web/live/build_run_live.html.heex:76
 #: lib/tuist_web/live/build_run_live.html.heex:712
@@ -1326,62 +1325,62 @@ msgstr "إصدار macOS"
 #: lib/tuist_web/live/builds_live.html.heex:403
 #, elixir-autogen, elixir-format, fuzzy
 msgid "p50"
-msgstr "p50"
+msgstr "ص 50"
 
 #: lib/tuist_web/live/builds_live.html.heex:220
 #, elixir-autogen, elixir-format, fuzzy
 msgid "p50 build duration"
-msgstr "p50 مدة البناء p50"
+msgstr "مدة إنشاء p50"
 
 #: lib/tuist_web/live/build_run_live.html.heex:843
 #, elixir-autogen, elixir-format, fuzzy
 msgid "p50 latency reading cache keys"
-msgstr "p50 وقت الاستجابة لقراءة مفاتيح ذاكرة التخزين المؤقت"
+msgstr "p50 زمن انتقال قراءة مفاتيح ذاكرة التخزين المؤقت"
 
 #: lib/tuist_web/live/build_run_live.html.heex:899
 #, elixir-autogen, elixir-format, fuzzy
 msgid "p50 latency writing cache keys"
-msgstr "p50 وقت استجابة كتابة مفاتيح ذاكرة التخزين المؤقت"
+msgstr "p50 مفاتيح ذاكرة التخزين المؤقت للكتابة"
 
 #: lib/tuist_web/live/builds_live.html.heex:389
 #, elixir-autogen, elixir-format, fuzzy
 msgid "p90"
-msgstr "p90"
+msgstr "ص 90"
 
 #: lib/tuist_web/live/builds_live.html.heex:219
 #, elixir-autogen, elixir-format, fuzzy
 msgid "p90 build duration"
-msgstr "مدة بناء P90"
+msgstr "مدة إنشاء p90"
 
 #: lib/tuist_web/live/build_run_live.html.heex:842
 #, elixir-autogen, elixir-format, fuzzy
 msgid "p90 latency reading cache keys"
-msgstr "زمن استجابة p90 لقراءة مفاتيح ذاكرة التخزين المؤقت"
+msgstr "p90 زمن انتقال قراءة مفاتيح ذاكرة التخزين المؤقت"
 
 #: lib/tuist_web/live/build_run_live.html.heex:898
 #, elixir-autogen, elixir-format, fuzzy
 msgid "p90 latency writing cache keys"
-msgstr "p90 وقت استجابة كتابة مفاتيح ذاكرة التخزين المؤقت"
+msgstr "p90 زمن انتقال كتابة مفاتيح ذاكرة التخزين المؤقت"
 
 #: lib/tuist_web/live/builds_live.html.heex:375
 #, elixir-autogen, elixir-format, fuzzy
 msgid "p99"
-msgstr "p99"
+msgstr "ص 99"
 
 #: lib/tuist_web/live/builds_live.html.heex:218
 #, elixir-autogen, elixir-format, fuzzy
 msgid "p99 build duration"
-msgstr "مدة بناء P99"
+msgstr "p99 مدة البناء"
 
 #: lib/tuist_web/live/build_run_live.html.heex:841
 #, elixir-autogen, elixir-format, fuzzy
 msgid "p99 latency reading cache keys"
-msgstr "زمن الاستجابة لقراءة مفاتيح ذاكرة التخزين المؤقت p99"
+msgstr "p99 زمن انتقال قراءة مفاتيح ذاكرة التخزين المؤقت"
 
 #: lib/tuist_web/live/build_run_live.html.heex:897
 #, elixir-autogen, elixir-format, fuzzy
 msgid "p99 latency writing cache keys"
-msgstr "زمن الاستجابة لكتابة مفاتيح ذاكرة التخزين المؤقت p99"
+msgstr "p99 زمن انتقال كتابة مفاتيح ذاكرة التخزين المؤقت"
 
 #: lib/tuist_web/live/builds_live.ex:331
 #, elixir-autogen, elixir-format, fuzzy
@@ -1404,13 +1403,13 @@ msgstr "منذ العام الماضي"
 #: lib/tuist_web/live/build_run_live.html.heex:602
 #, elixir-autogen, elixir-format, fuzzy
 msgid "•"
-msgstr "-"
+msgstr "•"
 
 #: lib/tuist_web/live/builds_live.html.heex:158
 #: lib/tuist_web/live/builds_live.html.heex:693
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Apply"
-msgstr "قدم طلبك"
+msgstr "تطبيق"
 
 #: lib/tuist_web/live/builds_live.html.heex:149
 #: lib/tuist_web/live/builds_live.html.heex:684
@@ -1428,7 +1427,7 @@ msgstr "مخصص"
 #: lib/tuist_web/live/builds_live.html.heex:672
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Last 12 months"
-msgstr "آخر 12 شهراً"
+msgstr "آخر 12 شهرًا"
 
 #: lib/tuist_web/live/builds_live.html.heex:122
 #: lib/tuist_web/live/builds_live.html.heex:657
@@ -1440,7 +1439,7 @@ msgstr "آخر 24 ساعة"
 #: lib/tuist_web/live/builds_live.html.heex:667
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Last 30 days"
-msgstr "آخر 30 يوماً"
+msgstr "آخر 30 يومًا"
 
 #: lib/tuist_web/live/builds_live.html.heex:127
 #: lib/tuist_web/live/builds_live.html.heex:662
@@ -1451,9 +1450,9 @@ msgstr "آخر 7 أيام"
 #: lib/tuist_web/live/builds_live.ex:330
 #, elixir-autogen, elixir-format, fuzzy
 msgid "since last period"
-msgstr "منذ الفترة الماضية"
+msgstr "منذ النقطة الأخيرة"
 
 #: lib/tuist_web/live/builds_live.ex:327
 #, elixir-autogen, elixir-format, fuzzy
 msgid "since yesterday"
-msgstr "منذ الأمس"
+msgstr "منذ أمس"
