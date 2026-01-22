@@ -390,10 +390,10 @@
                         "test-insights": {
                             "items": {
                                 "flaky-tests": {
-                                    "text": "Pruebas defectuosas"
+                                    "text": "Pruebas poco fiables"
                                 }
                             },
-                            "text": "Ideas de prueba"
+                            "text": "Información sobre la prueba"
                         }
                     }
                 },
@@ -420,7 +420,7 @@
                                     "text": "GitHub"
                                 }
                             },
-                            "text": "Forjas Git"
+                            "text": "Git forges"
                         },
                         "slack": {
                             "text": "Slack"
