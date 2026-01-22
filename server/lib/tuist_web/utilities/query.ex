@@ -26,7 +26,6 @@ defmodule TuistWeb.Utilities.Query do
       iex> TuistWeb.Utilities.Query.put(%{"foo" => "bar"}, "baz", "qux")
       "foo=bar&baz=qux"
   """
-  @spec put(String.t() | map() | nil, String.t(), String.t()) :: String.t()
   def put(query, key, value) when is_binary(query) or is_nil(query) do
     (query || "")
     |> URI.decode_query()
@@ -59,7 +58,6 @@ defmodule TuistWeb.Utilities.Query do
       iex> TuistWeb.Utilities.Query.drop(%{"foo" => "bar", "baz" => "qux"}, "baz")
       "foo=bar"
   """
-  @spec drop(String.t() | map() | nil, String.t()) :: String.t()
   def drop(query, key) when is_binary(query) or is_nil(query) do
     (query || "")
     |> URI.decode_query()
@@ -96,7 +94,6 @@ defmodule TuistWeb.Utilities.Query do
       iex> TuistWeb.Utilities.Query.has_pagination_params?(%{"foo" => "bar", "offset" => "20"})
       true
   """
-  @spec has_pagination_params?(String.t() | map() | nil) :: boolean()
   def has_pagination_params?(query) when is_binary(query) do
     decoded_query = URI.decode_query(query)
     has_cursor_pagination?(decoded_query) or has_limit_offset_pagination?(decoded_query)
