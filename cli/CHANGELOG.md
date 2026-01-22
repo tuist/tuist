@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.130.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* correct static xcframework paths when depending on cached targets by [@fortmarek](https://github.com/fortmarek) in [#9203](https://github.com/tuist/tuist/pull/9203)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.130.0...4.130.1
+
 ## What's Changed in 4.130.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
