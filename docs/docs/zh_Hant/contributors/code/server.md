@@ -5,31 +5,27 @@
   "description": "Contribute to the Tuist Server."
 }
 ---
-# Server {#server}
+# 伺服器{#server}
 
-Source:
-[github.com/tuist/tuist/tree/main/server](https://github.com/tuist/tuist/tree/main/server)
+來源：[github.com/tuist/tuist/tree/main/server](https://github.com/tuist/tuist/tree/main/server)
 
-## What it is for {#what-it-is-for}
+## 用途說明{#what-it-is-for}
 
-The server powers Tuist’s server-side features like authentication, accounts and
-projects, cache storage, insights, previews, registry, and integrations (GitHub,
-Slack, and SSO). It is a Phoenix/Elixir application with Postgres and
-ClickHouse.
+此伺服器驅動 Tuist 的伺服器端功能，包含驗證、帳戶與專案管理、快取儲存、分析洞察、預覽功能、註冊表及整合服務（GitHub、Slack 與
+SSO）。其架構為 Phoenix/Elixir 應用程式，搭配 Postgres 與 ClickHouse 資料庫。
 
 ::: warning TIMESCALEDB DEPRECATION
 <!-- -->
-TimescaleDB is deprecated and will be removed. For now, if you need it for local
-setup or migrations, use the [TimescaleDB installation
-docs](https://docs.timescale.com/self-hosted/latest/install/installation-macos/).
+TimescaleDB 已被廢棄並將被移除。若您目前仍需使用它進行本地設定或資料遷移，請參閱 [TimescaleDB
+安裝文件](https://docs.timescale.com/self-hosted/latest/install/installation-macos/)。
 <!-- -->
 :::
 
-## How to contribute {#how-to-contribute}
+## 如何貢獻{#how-to-contribute}
 
-Contributions to the server require signing the CLA (`server/CLA.md`).
+對伺服器的貢獻需簽署貢獻者協議 (CLA) (`server/CLA.md`)。
 
-### Set up locally {#set-up-locally}
+### 在本地端設定{#set-up-locally}
 
 ```bash
 cd server
@@ -49,12 +45,11 @@ mise run install
 mise run dev
 ```
 
-> [!NOTE] First-party developers load encrypted secrets from
-> `priv/secrets/dev.key`. External contributors won't have that key, and that's
-> fine. The server still runs locally with `TUIST_SECRET_KEY_BASE`, but OAuth,
-> Stripe, and other integrations remain disabled.
+> [!注意] 第一方開發者會從`priv/secrets/dev.key 載入加密密鑰`
+> 。外部貢獻者不會擁有該密鑰，這沒問題。伺服器仍可透過`TUIST_SECRET_KEY_BASE` 本地運行，但 OAuth、Stripe
+> 及其他整合功能將保持停用狀態。
 
-### Tests and formatting {#tests-and-formatting}
+### 測試與格式設定{#tests-and-formatting}
 
-- Tests: `mix test`
-- Format: `mise run format`
+- 測試：`混合測試`
+- 格式：`mise run format`
