@@ -43,7 +43,7 @@ if config_env() == :prod do
 
   config :cache, Cache.Repo,
     database: "/data/repo.sqlite",
-    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
+    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "2"),
     show_sensitive_data_on_connection_error: false
 
   config :cache, CacheWeb.Endpoint,

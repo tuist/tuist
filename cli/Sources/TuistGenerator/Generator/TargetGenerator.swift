@@ -60,10 +60,13 @@ final class TargetGenerator: TargetGenerating {
         path: AbsolutePath,
         graphTraverser: GraphTraversing
     ) async throws -> PBXNativeTarget {
+        Logger.current.debug("TargetGenerator: Starting generation for target \(target.name)")
+
         // Products reference.
         let productFileReference = fileElements.products[target.name]!
 
         // Target
+        Logger.current.debug("TargetGenerator: Creating PBXNativeTarget for \(target.name)")
         let pbxTarget = PBXNativeTarget(
             name: target.name,
             buildConfigurationList: nil,
@@ -79,9 +82,11 @@ final class TargetGenerator: TargetGenerating {
         pbxProject.targets.append(pbxTarget)
 
         // Buildable folders
+        Logger.current.debug("TargetGenerator: Generating synchronized groups for \(target.name)")
         generateSynchronizedGroups(target: target, fileElements: fileElements, pbxTarget: pbxTarget, pbxproj: pbxproj)
 
         // Pre actions
+        Logger.current.debug("TargetGenerator: Generating pre-scripts for \(target.name)")
         try buildPhaseGenerator.generateScripts(
             target.scripts.preScripts,
             pbxTarget: pbxTarget,
@@ -90,6 +95,7 @@ final class TargetGenerator: TargetGenerating {
         )
 
         // Build configuration
+        Logger.current.debug("TargetGenerator: Generating target config for \(target.name)")
         try await configGenerator.generateTargetConfig(
             target,
             project: project,
@@ -102,6 +108,7 @@ final class TargetGenerator: TargetGenerating {
         )
 
         // Build phases
+        Logger.current.debug("TargetGenerator: Generating build phases for \(target.name)")
         try await buildPhaseGenerator.generateBuildPhases(
             path: path,
             target: target,
@@ -112,6 +119,7 @@ final class TargetGenerator: TargetGenerating {
         )
 
         // Links
+        Logger.current.debug("TargetGenerator: Generating links for \(target.name)")
         try linkGenerator.generateLinks(
             target: target,
             pbxTarget: pbxTarget,
@@ -123,6 +131,7 @@ final class TargetGenerator: TargetGenerating {
         )
 
         // Post actions
+        Logger.current.debug("TargetGenerator: Generating post-scripts for \(target.name)")
         try buildPhaseGenerator.generateScripts(
             target.scripts.postScripts,
             pbxTarget: pbxTarget,
@@ -130,12 +139,14 @@ final class TargetGenerator: TargetGenerating {
             sourceRootPath: project.sourceRootPath
         )
 
+        Logger.current.debug("TargetGenerator: Generating build rules for \(target.name)")
         try buildRulesGenerator.generateBuildRules(
             target: target,
             pbxTarget: pbxTarget,
             pbxproj: pbxproj
         )
 
+        Logger.current.debug("TargetGenerator: Finished generation for target \(target.name)")
         return pbxTarget
     }
 
@@ -187,12 +198,14 @@ final class TargetGenerator: TargetGenerating {
         nativeTargets: [String: PBXNativeTarget],
         graphTraverser: GraphTraversing
     ) throws {
+        Logger.current.debug("TargetGenerator: Generating dependencies for \(targets.count) targets")
         for targetSpec in targets {
             let dependenciesAndConditions = graphTraverser.directLocalTargetDependencies(
                 path: path,
                 name: targetSpec.name
             ).sorted()
 
+            Logger.current.debug("TargetGenerator: Target \(targetSpec.name) has \(dependenciesAndConditions.count) dependencies")
             for dependency in dependenciesAndConditions {
                 let nativeTarget = nativeTargets[targetSpec.name]!
                 let nativeDependency = nativeTargets[dependency.target.name]!
@@ -200,5 +213,6 @@ final class TargetGenerator: TargetGenerating {
                 pbxTargetDependency?.applyCondition(dependency.condition, applicableTo: targetSpec)
             }
         }
+        Logger.current.debug("TargetGenerator: Finished generating target dependencies")
     }
 }

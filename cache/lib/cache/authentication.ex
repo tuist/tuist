@@ -37,8 +37,11 @@ defmodule Cache.Authentication do
       requested_handle = full_handle(account_handle, project_handle)
 
       case authorize(auth_header, requested_handle, conn) do
-        :ok -> {:ok, auth_header}
-        {:error, status, message} -> {:error, status, message}
+        :ok ->
+          {:ok, auth_header}
+
+        {:error, status, message} ->
+          {:error, status, message}
       end
     end
   end
@@ -47,9 +50,18 @@ defmodule Cache.Authentication do
     cache_key = {generate_cache_key(auth_header), requested_handle}
 
     case Cachex.get(cache_name(), cache_key) do
-      {:ok, nil} -> authorize_with_jwt_or_api(auth_header, cache_key, requested_handle, conn)
-      {:ok, result} -> result
-      _ -> authorize_with_jwt_or_api(auth_header, cache_key, requested_handle, conn)
+      {:ok, nil} ->
+        :telemetry.execute([:cache, :auth, :cache, :miss], %{}, %{})
+        authorize_with_jwt_or_api(auth_header, cache_key, requested_handle, conn)
+
+      {:ok, result} ->
+        :telemetry.execute([:cache, :auth, :cache, :hit], %{}, %{})
+        if result == :ok, do: :telemetry.execute([:cache, :auth, :authorized], %{}, %{method: :cache})
+        result
+
+      _ ->
+        :telemetry.execute([:cache, :auth, :cache, :miss], %{}, %{})
+        authorize_with_jwt_or_api(auth_header, cache_key, requested_handle, conn)
     end
   end
 
@@ -58,6 +70,7 @@ defmodule Cache.Authentication do
 
     case verify_jwt(token, requested_handle) do
       {:ok, ttl} ->
+        :telemetry.execute([:cache, :auth, :authorized], %{}, %{method: :jwt})
         cache_result(cache_key, :ok, ttl)
 
       {:error, :not_jwt} ->
@@ -122,23 +135,51 @@ defmodule Cache.Authentication do
     headers = build_headers(auth_header, conn)
     options = request_options(headers)
 
-    case Req.get(options) do
+    cache_name()
+    |> Cachex.fetch(cache_key, fn -> fetch_projects(cache_key, options) end)
+    |> unwrap_fetch_result()
+  end
+
+  defp fetch_projects(cache_key, options) do
+    start_time = System.monotonic_time()
+    :telemetry.execute([:cache, :auth, :server, :request], %{}, %{})
+
+    result = Req.get(options)
+
+    duration = System.monotonic_time() - start_time
+    :telemetry.execute([:cache, :auth, :server, :response], %{duration: duration}, %{})
+
+    case result do
       {:ok, %{status: 200, body: %{"projects" => projects}}} ->
-        cache_projects(cache_key, projects)
+        {:commit, project_access_result(cache_key, projects), expire: success_ttl()}
 
       {:ok, %{status: 403}} ->
-        cache_result(cache_key, {:error, 403, "You don't have access to this project"}, failure_ttl())
+        :telemetry.execute([:cache, :auth, :server, :error], %{}, %{reason: :forbidden})
+        {:commit, {:error, 403, "You don't have access to this project"}, expire: failure_ttl()}
 
       {:ok, %{status: 401}} ->
-        cache_result(cache_key, {:error, 401, "Unauthorized"}, failure_ttl())
+        :telemetry.execute([:cache, :auth, :server, :error], %{}, %{reason: :unauthorized})
+        {:commit, {:error, 401, "Unauthorized"}, expire: failure_ttl()}
 
       {:ok, %{status: status}} ->
-        {:error, status, "Server responded with status #{status}"}
+        :telemetry.execute([:cache, :auth, :server, :error], %{}, %{reason: "status_#{status}"})
+        {:ignore, {:error, status, "Server responded with status #{status}"}}
 
       {:error, reason} ->
+        :telemetry.execute([:cache, :auth, :server, :error], %{}, %{reason: :network_error})
         Logger.warning("Failed to fetch accessible projects: #{inspect(reason)}")
-        {:error, 500, "Failed to fetch accessible projects"}
+        {:ignore, {:error, 500, "Failed to fetch accessible projects"}}
     end
+  end
+
+  defp unwrap_fetch_result({:ok, result}), do: result
+  defp unwrap_fetch_result({:commit, result}), do: result
+  defp unwrap_fetch_result({:commit, result, _options}), do: result
+  defp unwrap_fetch_result({:ignore, result}), do: result
+
+  defp unwrap_fetch_result({:error, reason}) do
+    Logger.warning("Failed to fetch accessible projects: #{inspect(reason)}")
+    {:error, 500, "Failed to fetch accessible projects"}
   end
 
   defp build_headers(auth_header, conn) do
@@ -180,9 +221,7 @@ defmodule Cache.Authentication do
     |> Base.encode16(case: :lower)
   end
 
-  defp cache_projects({auth_key, requested_handle}, projects) do
-    ttl = success_ttl()
-
+  defp project_access_result({_auth_key, requested_handle}, projects) do
     project_handles =
       projects
       |> Enum.map(fn
@@ -192,14 +231,12 @@ defmodule Cache.Authentication do
       |> Enum.reject(&is_nil/1)
       |> MapSet.new()
 
-    result =
-      if MapSet.member?(project_handles, requested_handle) do
-        :ok
-      else
-        {:error, 403, "You don't have access to this project"}
-      end
-
-    cache_result({auth_key, requested_handle}, result, ttl)
+    if MapSet.member?(project_handles, requested_handle) do
+      :telemetry.execute([:cache, :auth, :authorized], %{}, %{method: :server})
+      :ok
+    else
+      {:error, 403, "You don't have access to this project"}
+    end
   end
 
   defp cache_result(cache_key, result, ttl) do
