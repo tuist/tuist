@@ -9,17 +9,17 @@
 
 警告 要件
 <!-- -->
-- A<LocalizedLink href="/guides/server/accounts-and-projects">トゥイストのアカウントとプロジェクト</LocalizedLink>
+- <LocalizedLink href="/guides/server/accounts-and-projects">Tuistアカウントとプロジェクト</LocalizedLink>
 <!-- -->
 :::
 
-アプリを作るとき、他の人と共有してフィードバックを得たいと思うかもしれません。伝統的に、これはAppleの[TestFlight](https://developer.apple.com/testflight/)のようなプラットフォームにアプリをビルドし、署名し、プッシュすることによってチームが行うことです。しかし、このプロセスは面倒で時間がかかることがあり、特に同僚や友人からの素早いフィードバックを求めている場合はなおさらです。
+アプリを構築する際、フィードバックを得るために他者と共有したい場合があります。従来、チームはアプリをビルドし、署名し、Appleの[TestFlight](https://developer.apple.com/testflight/)などのプラットフォームにプッシュすることでこれを実現してきました。しかし、このプロセスは煩雑で時間がかかり、特に同僚や友人から迅速なフィードバックを得たい場合には不便です。
 
-このプロセスをより合理化するために、Tuistはアプリのプレビューを生成し、誰とでも共有する方法を提供する。
+このプロセスをより効率化するため、Tuistではアプリのプレビューを生成し、誰でも共有できる機能を提供しています。
 
 ::: warning DEVICE BUILDS NEED TO BE SIGNED
 <!-- -->
-デバイス用にビルドする場合、アプリが正しく署名されていることを確認するのは、現在のところお客様の責任です。将来的にはこれを合理化する予定です。
+デバイス向けにビルドする際、アプリが正しく署名されていることを確認するのは現時点ではあなたの責任です。将来的にはこのプロセスを簡素化する予定です。
 <!-- -->
 :::
 
@@ -39,18 +39,18 @@ tuist share App.ipa # Share an existing .ipa file
 <!-- -->
 :::
 
-このコマンドを実行すると、シミュレーターでも実機でも、アプリを実行するためのリンクが生成される。必要なのは、以下のコマンドを実行することだけだ：
+このコマンドは、シミュレータまたは実機でアプリを実行するための共有リンクを生成します。リンクを受け取った人は、以下のコマンドを実行するだけでアプリを実行できます：
 
 ```bash
 tuist run {url}
 tuist run --device "My iPhone" {url} # Run the app on a specific device
 ```
 
-`.ipa` ファイルを共有する場合、プレビューリンクを使用してモバイルデバイスからアプリを直接ダウンロードできます。`.ipa`
-プレビューへのリンクはデフォルトで_プライベート_ になっています。つまり、受信者はアプリをダウンロードするために Tuist
-アカウントで認証する必要があります。アプリを誰とでも共有したい場合は、プロジェクト設定で公開に変更できます。
+`.ipa` ファイルを共有する場合、プレビューリンクからモバイルデバイスに直接アプリをダウンロードできます。`.ipa`
+プレビューへのリンクはデフォルトで_private_
+となっており、受信者はTuistアカウントで認証してアプリをダウンロードする必要があります。誰でもアプリを共有したい場合は、プロジェクト設定でこれを公開に変更できます。
 
-`tuist run` は、`latest` 、ブランチ名、特定のコミットハッシュなどの指定子に基づいて最新のプレビューを実行することもできます：
+`tuist run` は、`latest` などの指定子、ブランチ名、または特定のコミットハッシュに基づいて最新プレビューを実行することも可能です：
 
 ```bash
 tuist run App@latest # Runs latest App preview associated with the project's default branch
@@ -60,39 +60,40 @@ tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview
 
 ::: warning UNIQUE BUILD NUMBERS IN CI
 <!-- -->
-`CFBundleVersion` (ビルドバージョン) が一意であることを確認するには、ほとんどの CI プロバイダが公開している CI run number
-を利用します。例えば、GitHub Actions では、`CFBundleVersion` を <code v-pre>${{
-github.run_number }}</code> 変数に設定できます。
+`CFBundleVersion` (ビルドバージョン)
+が一意であることを保証するため、ほとんどのCIプロバイダーが公開しているCI実行番号を活用してください。例えばGitHub
+Actionsでは、`CFBundleVersion` を <code v-pre>${{ github.run_number }}</code>
+変数に設定できます。
 
-同じバイナリ（ビルド）と同じ`CFBundleVersion` を持つプレビューのアップロードは失敗します。
+同じバイナリ（ビルド）と同一の`CFBundleVersion` を持つプレビューのアップロードは失敗します。
 <!-- -->
 :::
 
 ## トラック{#tracks}
 
-トラックによって、プレビューを名前付きのグループに整理することができます。例えば、社内テスター用に`beta`
-トラックを用意し、自動ビルド用に`nightly`
-トラックを用意することができます。トラックは簡単に作成できます。共有時にトラック名を指定するだけで、存在しない場合は自動的に作成されます。
+トラック機能により、プレビューを名前付きグループに整理できます。例えば、内部テスター向けには「`」ベータ版（`
+）トラックを、自動ビルド向けには「`」ナイトリー版（`
+）トラックを設定できます。トラックは遅延作成されます。共有時にトラック名を指定するだけで、存在しない場合は自動的に作成されます。
 
-特定のトラックでプレビューを共有するには、`--track` オプションを使用します：
+特定のトラックのプレビューを共有するには、`--track` オプションを使用してください：
 
 ```bash
 tuist share App --track beta
 tuist share App --track nightly
 ```
 
-これは次のような場合に役立つ：
-- **プレビューの整理** ：目的別にプレビューをグループ化（例：`ベータ版：` 、`夜間版：` 、`内部版：` ）。
-- **アプリ内アップデート** ：Tuist SDKは、どのアップデートをユーザーに通知するかを決定するためにトラックを使用します。
-- **フィルタリング** ：Tuistのダッシュボードでトラックごとのプレビューを簡単に検索・管理できる
+これは以下の場合に有用です：
+- **プレビューの整理**: プレビューを目的別にグループ化（例：`beta`,`nightly`,`internal` ）
+- **アプリ内更新**: Tuist SDKは、ユーザーに通知する更新内容を決定するためにトラックを使用します
+- **** のフィルタリング：Tuistダッシュボードでトラック別にプレビューを簡単に検索・管理
 
 ::: warning PREVIEWS' VISIBILITY
 <!-- -->
-プレビューにアクセスできるのは、プロジェクトが所属する組織にアクセスできる人だけです。期限切れリンクのサポートを追加する予定です。
+プロジェクトが属する組織へのアクセス権を持つ者のみがプレビューにアクセスできます。リンクの有効期限設定機能の追加を予定しています。
 <!-- -->
 :::
 
-## TuistのmacOSアプリ{#tuist-macos-app}
+## Tuist macOS アプリ{#tuist-macos-app}
 
 <div style="display: flex; flex-direction: column; align-items: center;">
     <img src="/logo.png" style="height: 100px;" />
@@ -101,11 +102,11 @@ tuist share App --track nightly
     <img src="/images/guides/features/menu-bar-app.png" style="width: 300px;" />
 </div>
 
-Tuist Previewsの実行をさらに簡単にするために、我々はTuist macOSメニューバーアプリを開発した。Tuist
-CLI経由でPreviewsを実行する代わりに、macOSアプリを[ダウンロード](https://tuist.dev/download)することができる。`brew
-install --cask tuist/tuist/tuist` を実行してアプリをインストールすることもできます。
+Tuistプレビューの実行をさらに簡単にするため、Tuist macOSメニューバーアプリを開発しました。Tuist
+CLI経由でプレビューを実行する代わりに、macOSアプリを[ダウンロード](https://tuist.dev/download)できます。また、以下のコマンドを実行してアプリをインストールすることも可能です：`brew
+install --cask tuist/tuist/tuist`
 
-プレビューページで「実行」をクリックすると、macOSアプリが現在選択されているデバイス上で自動的に起動します。
+プレビューページで「実行」をクリックすると、macOSアプリが自動的に選択中のデバイスで起動します。
 
 警告 要件
 <!-- -->
@@ -124,45 +125,44 @@ Xcodeをローカルにインストールし、macOS 14以降を使用してい�
     </a>
 </div>
 
-macOSアプリと同様に、Tuist iOSアプリはプレビューへのアクセスと実行を効率化します。
+macOSアプリと同様に、Tuist iOSアプリではプレビューへのアクセスと実行が効率化されています。
 
 ## プル/マージリクエストのコメント{#pullmerge-request-comments}
 
 ::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
-プル/マージリクエストのコメントを自動的に取得するには、<LocalizedLink href="/guides/server/accounts-and-projects">リモートプロジェクト</LocalizedLink>と<LocalizedLink href="/guides/server/authentication">Gitプラットフォーム</LocalizedLink>を統合します。
+自動プルリクエスト/マージリクエストコメントを取得するには、<LocalizedLink href="/guides/server/accounts-and-projects">リモートプロジェクト</LocalizedLink>を<LocalizedLink href="/guides/server/authentication">Gitプラットフォーム</LocalizedLink>と連携させてください。
 <!-- -->
 :::
 
-新しい機能のテストは、あらゆるコードレビューの一部であるべきだ。しかし、アプリをローカルでビルドしなければならないことは、不必要な摩擦を増やし、開発者が自分のデバイスで機能をテストすることをスキップしてしまうことになりがちだ。しかし、*、各プルリクエストに、Tuist
-macOSアプリで選択したデバイス上でアプリを自動的に実行するビルドへのリンクが含まれていたらどうだろう？*
+新機能のテストはコードレビューの一部であるべきです。しかし、アプリをローカルでビルドする必要性は不要な摩擦を生み、開発者がデバイス上での機能テストを完全に省略する原因となることが多々あります。*もし各プルリクエストに、Tuist
+macOSアプリで選択したデバイス上でアプリを自動実行するビルドへのリンクが含まれていたらどうでしょうか？*
 
-Tuistプロジェクトが[GitHub](https://github.com)などのGitプラットフォームと接続されたら、CIワークフローに<LocalizedLink href="/cli/share">`tuist
-share MyApp`</LocalizedLink>を追加します。するとTuistはプルリクエストに直接プレビューリンクを投稿します: ![GitHub
-app comment with a Tuist Preview
-link](/images/guides/features/github-app-with-preview.png).
+Tuistプロジェクトを[GitHub](https://github.com)などのGitプラットフォームと連携させたら、CIワークフローに<LocalizedLink href="/cli/share">`tuist
+share
+MyApp`</LocalizedLink>を追加してください。これによりTuistがプルリクエスト内にプレビューリンクを直接投稿します：![GitHubアプリへのTuistプレビューリンク付きコメント](/images/guides/features/github-app-with-preview.png)
 
 
-## アプリ内アップデート通知{#in-app-update-notifications}
+## アプリ内更新通知{#in-app-update-notifications}
 
-Tuist
-SDK](https://github.com/tuist/sdk)を使用すると、新しいプレビュー版が利用可能になったことをアプリが検出し、ユーザーに通知することができます。これはテスターを最新ビルドに保つのに便利です。
+[Tuist
+SDK](https://github.com/tuist/sdk)を使用すると、アプリは新しいプレビュー版が利用可能になったことを検出し、ユーザーに通知できます。これにより、テスターを最新のビルドに維持するのに役立ちます。
 
-SDKは、同じ**プレビュートラック** 内の更新をチェックします。`--track` を使ってプレビューを明示的なトラックと共有すると、SDK
-はそのトラックの更新を探します。トラックが指定されていない場合は、git ブランチがトラックとして使用されます。そのため、`main`
-ブランチからビルドされたプレビューは、`main` からビルドされた新しいプレビューについてのみ通知されます。
+SDKは同じ**プレビュートラック内での更新を確認します** 。`--track`
+で明示的なトラックを指定してプレビューを共有すると、SDKはそのトラックの更新を検索します。トラックが指定されていない場合、gitブランチがトラックとして使用されます。したがって、`main`
+ブランチからビルドされたプレビューは、`main` からビルドされた新しいプレビューについてのみ通知します。
 
 ### インストール{#sdk-installation}
 
-Swift Packageの依存関係としてTuist SDKを追加する：
+Tuist SDKをSwift Packageの依存関係として追加:
 
 ```swift
 .package(url: "https://github.com/tuist/sdk", .upToNextMajor(from: "0.1.0"))
 ```
 
-### アップデートを監視する{#sdk-monitor-updates}
+### 更新を確認する{#sdk-monitor-updates}
 
-`monitorPreviewUpdates` を使用して、新しいプレビュー・バージョンを定期的にチェックしてください：
+`monitorPreviewUpdates` を定期的にチェックして新しいプレビュー版を確認してください:
 
 ```swift
 import TuistSDK
@@ -183,9 +183,9 @@ struct MyApp: App {
 }
 ```
 
-### シングル・アップデート・チェック{#sdk-single-check}
+### 単一更新チェック{#sdk-single-check}
 
-手動更新チェック用：
+手動での更新確認について：
 
 ```swift
 let sdk = TuistSDK(
@@ -198,9 +198,9 @@ if let preview = try await sdk.checkForUpdate() {
 }
 ```
 
-### アップデート監視の停止{#sdk-stop-monitoring}
+### 更新監視の停止{#sdk-stop-monitoring}
 
-`monitorPreviewUpdates` ` キャンセル可能なタスク` を返す：
+`monitorPreviewUpdates` は、キャンセル可能な`タスク` を返します:
 
 ```swift
 let task = sdk.monitorPreviewUpdates { preview in
@@ -213,37 +213,38 @@ task.cancel()
 
 ::: info
 <!-- -->
-アップデートチェックは、シミュレータおよびApp Storeビルドでは自動的に無効になります。
+シミュレータおよびApp Store向けビルドでは、更新チェックが自動的に無効化されます。
 <!-- -->
 :::
 
-## READMEバッジ{#readme-badge}
+## README バッジ{#readme-badge}
 
-Tuistプレビューをリポジトリでより見やすくするために、`README` ファイルに最新のTuistプレビューを指すバッジを追加することができます：
+リポジトリでTuist Previewsをより目立たせるには、`のREADMEファイルに、最新のTuist Previewを指すバッジを追加できます。`
 
-[トゥイスト・プレビュー](https://tuist.dev/Dimillian/IcySky/previews/latest/badge.svg)](https://tuist.dev/Dimillian/IcySky/previews/latest)。
+[![Tuist
+Preview](https://tuist.dev/Dimillian/IcySky/previews/latest/badge.svg)](https://tuist.dev/Dimillian/IcySky/previews/latest)
 
-`README` にバッジを追加するには、以下のマークダウンを使用し、アカウントとプロジェクトのハンドルを独自のものに置き換えてください：
+`のREADMEにバッジを追加するには、` の以下のマークダウンを使用し、アカウント名とプロジェクト名を自身のものに変更してください：
 ```
 [![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest)
 ```
 
-プロジェクトに異なるバンドル識別子を持つ複数のアプリが含まれている場合、`bundle-id`
-クエリパラメータを追加することで、どのアプリのプレビューにリンクするかを指定できます：
+プロジェクトに異なるバンドルIDを持つ複数のアプリが含まれる場合、`bundle-id`
+クエリパラメータを追加することで、リンク先のプレビュー対象アプリを指定できます:
 ```
 [![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest?bundle-id=com.example.app)
 ```
 
-## オートメーション{#automations}
+## 自動化{#automations}
 
-`--json` フラグを使えば、`tuist share` コマンドからJSON出力を得ることができる：
+`tuist share` コマンドから JSON 出力を取得するには、`--json` フラグを使用できます:
 ```
 tuist share --json
 ```
 
-JSON出力は、CIプロバイダを使用してSlackメッセージを投稿するなどのカスタム自動化を作成するのに便利です。JSONには、`url`
-キーにプレビューのフルリンク、`qrCodeURL`
-キーにQRコード画像のURLが含まれており、実際のデバイスからプレビューをダウンロードしやすくなっています。JSON出力の例を以下に示す：
+JSON出力は、CIプロバイダーを使用したSlackメッセージ投稿など、カスタム自動化を作成するのに便利です。JSONには、プレビューリンク全体を含む```
+URL（` キー）と、実機からプレビューを簡単にダウンロードできるようにするQRコード画像のURLを含む``` QRコードURL（`
+キー）が含まれます。JSON出力の例は以下の通りです：
 ```json
 {
   "id": 1234567890,
