@@ -8,6 +8,7 @@ defmodule Cache.CacheArtifacts do
   alias Cache.CacheArtifact
   alias Cache.Disk
   alias Cache.Repo
+  alias Cache.SQLiteWriter
 
   @default_batch_size 500
 
@@ -16,6 +17,8 @@ defmodule Cache.CacheArtifacts do
   """
 
   def oldest(limit \\ @default_batch_size) do
+    _ = SQLiteWriter.flush(:cas_artifacts)
+
     CacheArtifact
     |> order_by([a], asc: a.last_accessed_at)
     |> limit(^limit)
@@ -27,7 +30,8 @@ defmodule Cache.CacheArtifacts do
   """
 
   def delete_by_key(key) do
-    key |> by_key_query() |> Repo.delete_all()
+    _ = SQLiteWriter.enqueue_cas_deletes([key])
+    _ = SQLiteWriter.flush(:cas_artifacts)
     :ok
   end
 
@@ -36,7 +40,8 @@ defmodule Cache.CacheArtifacts do
   """
 
   def delete_by_keys(keys) when is_list(keys) do
-    Repo.delete_all(from(a in CacheArtifact, where: a.key in ^keys))
+    _ = SQLiteWriter.enqueue_cas_deletes(keys)
+    _ = SQLiteWriter.flush(:cas_artifacts)
     :ok
   end
 
@@ -48,22 +53,10 @@ defmodule Cache.CacheArtifacts do
   """
   def track_artifact_access(key) do
     size_bytes = file_size_for(key)
+    last_accessed_at = DateTime.utc_now()
 
-    attrs = %{
-      key: key,
-      size_bytes: size_bytes,
-      last_accessed_at: DateTime.utc_now()
-    }
-
-    changeset = CacheArtifact.changeset(%CacheArtifact{}, attrs)
-
-    case Repo.insert(changeset,
-           conflict_target: :key,
-           on_conflict: {:replace, [:size_bytes, :last_accessed_at, :updated_at]}
-         ) do
-      {:ok, _} -> :ok
-      {:error, reason} -> {:error, reason}
-    end
+    _ = SQLiteWriter.enqueue_cas_access(key, size_bytes, last_accessed_at)
+    :ok
   end
 
   defp file_size_for(key) do
@@ -76,7 +69,4 @@ defmodule Cache.CacheArtifacts do
     end
   end
 
-  defp by_key_query(key) do
-    from(a in CacheArtifact, where: a.key == ^key)
-  end
 end

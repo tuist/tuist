@@ -15,6 +15,7 @@ defmodule Cache.S3TransferWorker do
   alias Cache.Disk
   alias Cache.S3
   alias Cache.S3Transfers
+  alias Cache.SQLiteWriter
 
   require Logger
 
@@ -23,6 +24,7 @@ defmodule Cache.S3TransferWorker do
 
   @impl Oban.Worker
   def perform(_job) do
+    SQLiteWriter.flush(:s3_transfers)
     process_batch(:upload, &S3.upload/1)
     process_batch(:download, &S3.download/1)
     :ok

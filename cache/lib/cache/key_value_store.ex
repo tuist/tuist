@@ -8,6 +8,7 @@ defmodule Cache.KeyValueStore do
 
   alias Cache.KeyValueEntry
   alias Cache.Repo
+  alias Cache.SQLiteWriter
 
   @cache_name :cache_keyvalue_store
   # 1 week
@@ -82,19 +83,8 @@ defmodule Cache.KeyValueStore do
   end
 
   defp persist_entry(key, json) do
-    attrs = %{
-      key: key,
-      json_payload: json
-    }
-
-    %KeyValueEntry{}
-    |> KeyValueEntry.changeset(attrs)
-    |> Repo.insert(
-      conflict_target: :key,
-      on_conflict: {:replace, [:json_payload, :updated_at]}
-    )
-    |> case do
-      {:ok, _record} -> :ok
+    case SQLiteWriter.enqueue_key_value(key, json) do
+      :ok -> :ok
       {:error, reason} -> {:error, reason}
     end
   end
