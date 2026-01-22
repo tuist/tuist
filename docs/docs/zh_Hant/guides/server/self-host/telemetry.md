@@ -7,358 +7,357 @@
 ---
 # 遙測{#telemetry}
 
-您可以使用 [Prometheus](https://prometheus.io/) 和可視化工具（如
-[Grafana](https://grafana.com/) ）攝取 Tuist 伺服器收集的度量指標，以建立符合您需求的自訂儀表板。Prometheus
-metrics 透過`/metrics` 端點提供，連接埠為 9091。Prometheus 的
+您可透過 [Prometheus](https://prometheus.io/) 及 [Grafana](https://grafana.com/)
+等視覺化工具匯入 Tuist 伺服器收集的指標，建立符合需求的自訂儀表板。 Prometheus 指標透過`/metrics` 端點於 9091
+埠提供服務。Prometheus 的
 [scrape_interval](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus)
-應設為小於 10_000 秒（我們建議保持預設為 15 秒）。
+應設定為低於 10_000 秒（建議維持預設值 15 秒）。
 
-## Post Hog 分析{#posthog-analytics}
+## PostHog 分析{#posthog-analytics}
 
-Tuist 整合了 [PostHog](https://posthog.com/) 用於用戶行為分析和事件追蹤。這可讓您瞭解使用者如何與 Tuist
-伺服器互動、追蹤功能使用情況，並深入瞭解行銷網站、儀表板和 API 文件中的使用者行為。
+Tuist 整合 [PostHog](https://posthog.com/) 進行使用者行為分析與事件追蹤。此功能可協助您理解使用者與 Tuist
+伺服器的互動模式、追蹤功能使用狀況，並深入掌握行銷網站、儀表板及 API 文件中的使用者行為。
 
-### 組態{#posthog-configuration}
+### 設定{#posthog-configuration}
 
-PostHog 整合是可選的，可透過設定適當的環境變數來啟用。設定完成後，Tuist 會自動追蹤使用者事件、頁面檢視和使用者旅程。
+PostHog 整合為可選功能，可透過設定相應環境變數啟用。配置完成後，Tuist 將自動追蹤使用者事件、頁面瀏覽次數及使用者旅程。
 
-| 環境變數                    | 說明                   | 必須  | 預設  | 範例                                                |
+| 環境變數                    | 說明                   | 必填  | 預設  | 範例                                                |
 | ----------------------- | -------------------- | --- | --- | ------------------------------------------------- |
-| `tuist_posthog_api_key` | 您的 PostHog 專案 API 金鑰 | 沒有  |     | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
-| `tuist_posthog_url`     | PostHog API 端點 URL   | 沒有  |     | `https://eu.i.posthog.com`                        |
+| `TUIST_POSTHOG_API_KEY` | 您的 PostHog 專案 API 金鑰 | 不   |     | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
+| `TUIST_POSTHOG_URL`     | PostHog API 端點網址     | 不   |     | `https://eu.i.posthog.com`                        |
 
 ::: info ANALYTICS ENABLEMENT
 <!-- -->
-只有同時設定`TUIST_POSTHOG_API_KEY` 和`TUIST_POSTHOG_URL`
-時，才會啟用分析功能。如果缺少其中一個變數，就不會傳送分析事件。
+分析功能僅在同時配置以下兩項時啟用：`TUIST_POSTHOG_API_KEY` 及`TUIST_POSTHOG_URL`
+若任一變數缺失，將不會發送分析事件。
 <!-- -->
 :::
 
-### 特點{#posthog-features}
+### 功能{#posthog-features}
 
 啟用 PostHog 時，Tuist 會自動追蹤：
 
-- **使用者識別** ：使用者以其獨特的 ID 和電子郵件地址進行識別
-- **使用者別名** ：使用者以帳號名稱別名，以便識別
-- **群組分析** ：使用者依其所選的專案和組織分組，以進行區隔分析
-- **頁面區段** ：事件包含超級屬性，指出是應用程式的哪個部分產生這些事件：
-  - `行銷` - 來自行銷頁面和公開內容的活動
-  - `儀表板` - 主應用程式儀表板和認證區域的事件
+- **使用者識別碼** ：使用者透過其唯一識別碼與電子郵件地址進行識別
+- **使用者別名設定**: 使用者將以帳號名稱作為別名，以便更容易辨識
+- **群組分析**: 用戶將依據其選定的專案與組織進行分組，以實現分段分析
+- **頁面區段**: Events 包含指示應用程式哪個區段產生事件的超級屬性：
+  - `行銷` - 來自行銷頁面與公開內容的活動
+  - `儀表板` - 來自主應用程式儀表板及驗證區域的事件
   - `api-docs` - 來自 API 文件頁面的事件
-- **頁面檢視** ：使用 Phoenix LiveView 自動追蹤頁面導航
-- **自訂事件** ：特定於應用程式的事件，用於功能使用和使用者互動
+- **頁面瀏覽量**: 透過 Phoenix LiveView 自動追蹤頁面導覽
+- **自訂事件**: 功能使用與使用者互動的應用程式專屬事件
 
-### 隱私權考量{#posthog-privacy}
+### 隱私考量{#posthog-privacy}
 
-- 對於已認證的使用者，PostHog 使用使用者的唯一 ID 作為獨特的識別碼，並包含他們的電子郵件地址
-- 對於匿名使用者，PostHog 使用僅記憶體的持久性，以避免在本機儲存資料。
-- 所有分析都尊重使用者隱私權，並遵循資料保護最佳實務
-- PostHog的資料將依照PostHog的隱私權政策和您的設定來處理。
+- 對於已驗證的使用者，PostHog 會使用使用者唯一識別碼作為區別標識，並包含其電子郵件地址
+- 對於匿名使用者，PostHog採用純記憶體持久化機制，避免在本地儲存資料
+- 所有分析工具均尊重用戶隱私，並遵循資料保護最佳實踐
+- PostHog 數據將依據 PostHog 隱私權政策及您的設定進行處理
 
-## Elixir 度量{#elixir-metrics}
+## Elixir 指標{#elixir-metrics}
 
-預設情況下，我們會包含 Elixir runtime、BEAM、Elixir 和一些我們使用的函式庫的度量指標。以下是您可以預期看到的一些指標：
+預設情況下，我們會包含 Elixir 執行階段、BEAM、Elixir 以及部分使用函式庫的計量數據。以下是您可能看到的計量項目：
 
-- [Application](https://hexdocs.pm/prom_ex/PromEx.Plugins.Application.html)
+- [應用程式](https://hexdocs.pm/prom_ex/PromEx.Plugins.Application.html)
 - [BEAM](https://hexdocs.pm/prom_ex/PromEx.Plugins.Beam.html)
-- [Phoenix](https://hexdocs.pm/prom_ex/PromEx.Plugins.Phoenix.html)
-- [Phoenix
-  LiveView](https://hexdocs.pm/prom_ex/PromEx.Plugins.PhoenixLiveView.html)
+- [鳳凰](https://hexdocs.pm/prom_ex/PromEx.Plugins.Phoenix.html)
+- [鳳凰直播](https://hexdocs.pm/prom_ex/PromEx.Plugins.PhoenixLiveView.html)
 - [Ecto](https://hexdocs.pm/prom_ex/PromEx.Plugins.Ecto.html)
 - [Oban](https://hexdocs.pm/prom_ex/PromEx.Plugins.Oban.html)
 
-我們建議您查看這些頁面，以瞭解哪些指標可用以及如何使用。
+建議查閱相關頁面以了解可用指標及其使用方式。
 
 ## 運行指標{#runs-metrics}
 
-一套與 Tuist Runs 相關的指標。
+一組與 Tuist Runs 相關的指標。
 
 ### `tuist_runs_total` (計數器){#tuist_runs_total-counter}
 
-Tuist Runs 的總數。
+總計的 Tuist Runs 數。
 
 #### 標籤{#tuist-runs-total-tags}
 
-| 標籤      | 說明                                  |
-| ------- | ----------------------------------- |
-| `姓名`    | 執行`tuist` 指令的名稱，例如`build`,`test` 等。 |
-| `is_ci` | 一個布林值，表示執行者是 CI 或開發人員的機器。           |
-| `狀態`    | `0` 在`成功的情況下`,`1` 在`失敗的情況下` 。       |
+| 標籤      | 說明                                      |
+| ------- | --------------------------------------- |
+| `name`  | ` 執行過的`tuist 指令名稱，例如：`build` ` test` 等。 |
+| `is_ci` | 一個布林值，用於標示執行者是 CI 還是開發者的機器。             |
+| `狀態`    | `` 0 當`成功時為`` ,`1 當`失敗時為 ` .            |
 
 ### `tuist_runs_duration_milliseconds` (直方圖){#tuist_runs_duration_milliseconds-histogram}
 
-每個 tuist 執行的總時間，以毫秒為單位。
+每次 tuist 運行的總持續時間（單位：毫秒）。
 
 #### 標籤{#tuist-runs-duration-miliseconds-tags}
 
-| 標籤      | 說明                                  |
-| ------- | ----------------------------------- |
-| `姓名`    | 執行`tuist` 指令的名稱，例如`build`,`test` 等。 |
-| `is_ci` | 一個布林值，表示執行者是 CI 或開發人員的機器。           |
-| `狀態`    | `0` 在`成功的情況下`,`1` 在`失敗的情況下` 。       |
+| 標籤      | 說明                                      |
+| ------- | --------------------------------------- |
+| `name`  | ` 執行過的`tuist 指令名稱，例如：`build` ` test` 等。 |
+| `is_ci` | 一個布林值，用於標示執行者是 CI 還是開發者的機器。             |
+| `狀態`    | `` 0 當`成功時為`` ,`1 當`失敗時為 ` .            |
 
-## 快取記憶體指標{#cache-metrics}
+## 快取指標{#cache-metrics}
 
-一套與 Tuist 快取相關的指標。
+一組與 Tuist 快取相關的指標。
 
 ### `tuist_cache_events_total` (計數器){#tuist_cache_events_total-counter}
 
-二進位快取記憶體事件的總數。
+二進位快取事件的總數。
 
 #### 標籤{#tuist-cache-events-total-tags}
 
-| 標籤     | 說明                                         |
-| ------ | ------------------------------------------ |
-| `事件類型` | 可以是`local_hit`,`remote_hit`, 或`miss` 其中之一。 |
+| 標籤           | 說明                                           |
+| ------------ | -------------------------------------------- |
+| `event_type` | 可為以下任一形式：`local_hit`,`remote_hit`, 或`miss` 。 |
 
 ### `tuist_cache_uploads_total` (計數器){#tuist_cache_uploads_total-counter}
 
-上傳至二進位快取記憶體的次數。
+上傳至二進位快取的次數。
 
 ### `tuist_cache_uploaded_bytes` (sum){#tuist_cache_uploaded_bytes-sum}
 
-上傳至二進位快取記憶體的位元組數量。
+上傳至二進位快取的位元組數量。
 
 ### `tuist_cache_downloads_total` (計數器){#tuist_cache_downloads_total-counter}
 
-下載到二進位快取記憶體的次數。
+下載至二進位快取的次數。
 
 ### `tuist_cache_downloaded_bytes` (sum){#tuist_cache_downloaded_bytes-sum}
 
-從二進位快取記憶體下載的位元組數量。
+從二進位快取下載的位元組數。
 
 ---
 
 ## 預覽指標{#previews-metrics}
 
-一套與預覽功能相關的度量指標。
+一組與預覽功能相關的指標。
 
 ### `tuist_previews_uploads_total` (sum){#tuist_previews_uploads_total-counter}
 
-上傳的預覽總數。
+已上傳的預覽總數。
 
 ### `tuist_previews_downloads_total` (sum){#tuist_previews_downloads_total-counter}
 
-下載的預覽總數。
+已下載的預覽總數。
 
 ---
 
 ## 儲存指標{#storage-metrics}
 
-一套與遠端儲存（例如 s3）中工件儲存相關的指標。
+一組與遠端儲存（例如 S3）中儲存工件相關的指標。
 
 ::: tip
 <!-- -->
-這些指標有助於瞭解儲存作業的效能，並找出潛在的瓶頸。
+這些指標有助於理解儲存操作的效能表現，並識別潛在的瓶頸。
 <!-- -->
 :::
 
-### `tuist_storage_get_object_size_size_bytes` (histogram){#tuist_storage_get_object_size_size_bytes-histogram}
+### `tuist_storage_get_object_size_size_bytes` (直方圖){#tuist_storage_get_object_size_size_bytes-histogram}
 
-從遠端儲存取得物件的大小 (位元組)。
+從遠端儲存空間擷取物件的大小（以位元組為單位）。
 
 #### 標籤{#tuist-storage-get-object-size-size-bytes-tags}
 
-| 標籤           | 說明            |
-| ------------ | ------------- |
-| `object_key` | 遠端儲存中物件的查詢金鑰。 |
+| 標籤           | 說明             |
+| ------------ | -------------- |
+| `object_key` | 遠端儲存空間中物件的查詢鍵。 |
 
 
-### `tuist_storage_get_object_size_duration_miliseconds` (histogram){#tuist_storage_get_object_size_duration_miliseconds-histogram}
+### `tuist_storage_get_object_size_duration_miliseconds` (直方圖){#tuist_storage_get_object_size_duration_miliseconds-histogram}
 
-從遠端儲存取得物件大小的持續時間（以毫秒為單位）。
+從遠端儲存空間擷取物件大小所需的時間（單位：毫秒）。
 
 #### 標籤{#tuist-storage-get-object-size-duration-miliseconds-tags}
 
-| 標籤           | 說明            |
-| ------------ | ------------- |
-| `object_key` | 遠端儲存中物件的查詢金鑰。 |
+| 標籤           | 說明             |
+| ------------ | -------------- |
+| `object_key` | 遠端儲存空間中物件的查詢鍵。 |
 
 
-### `tuist_storage_get_object_size_count` (counter){#tuist_storage_get_object_size_count-counter}
+### `tuist_storage_get_object_size_count` (計數器){#tuist_storage_get_object_size_count-counter}
 
-從遠端儲存取得物件大小的次數。
+從遠端儲存空間擷取物件大小的次數。
 
 #### 標籤{#tuist-storage-get-object-size-count-tags}
 
-| 標籤           | 說明            |
-| ------------ | ------------- |
-| `object_key` | 遠端儲存中物件的查詢金鑰。 |
+| 標籤           | 說明             |
+| ------------ | -------------- |
+| `object_key` | 遠端儲存空間中物件的查詢鍵。 |
 
 ### `tuist_storage_delete_all_objects_duration_milliseconds` (直方圖){#tuist_storage_delete_all_objects_duration_milliseconds-histogram}
 
-從遠端儲存中刪除所有物件的持續時間（以毫秒為單位）。
+從遠端儲存空間刪除所有物件所需的時間（單位：毫秒）。
 
 #### 標籤{#tuist-storage-delete-all-objects-duration-milliseconds-tags}
 
-| 標籤     | 說明             |
-| ------ | -------------- |
-| `專案標題` | 要刪除物件的專案的專案標號。 |
+| 標籤             | 說明              |
+| -------------- | --------------- |
+| `project_slug` | 正在刪除物件之專案的專案別名。 |
 
 
-### `tuist_storage_delete_all_objects_count` (counter){#tuist_storage_delete_all_objects_count-counter}
+### `tuist_storage_delete_all_objects_count` (計數器){#tuist_storage_delete_all_objects_count-counter}
 
-所有專案物件從遠端儲存中刪除的次數。
+從遠端儲存空間刪除所有專案物件的次數。
 
 #### 標籤{#tuist-storage-delete-all-objects-count-tags}
 
-| 標籤     | 說明             |
-| ------ | -------------- |
-| `專案標題` | 要刪除物件的專案的專案標號。 |
+| 標籤             | 說明              |
+| -------------- | --------------- |
+| `project_slug` | 正在刪除物件之專案的專案別名。 |
 
 
-### `tuist_storage_multipart_start_upload_duration_milliseconds` (直方圖){#tuist_storage_multipart_start_upload_duration_milliseconds-histogram}
+### `tuist_storage_multipart_start_upload_duration_milliseconds` （直方圖）{#tuist_storage_multipart_start_upload_duration_milliseconds-histogram}
 
-開始上傳至遠端儲存的持續時間（以毫秒為單位）。
+啟動上傳至遠端儲存空間的持續時間（單位：毫秒）。
 
 #### 標籤{#tuist-storage-multipart-start-upload-duration-milliseconds-tags}
 
-| 標籤           | 說明            |
-| ------------ | ------------- |
-| `object_key` | 遠端儲存中物件的查詢金鑰。 |
+| 標籤           | 說明             |
+| ------------ | -------------- |
+| `object_key` | 遠端儲存空間中物件的查詢鍵。 |
 
-### `tuist_storage_multipart_start_upload_duration_count` (counter){#tuist_storage_multipart_start_upload_duration_count-counter}
+### `tuist_storage_multipart_start_upload_duration_count` (計數器){#tuist_storage_multipart_start_upload_duration_count-counter}
 
-開始上傳至遠端儲存的次數。
+上傳至遠端儲存空間的啟動次數。
 
 #### 標籤{#tuist-storage-multipart-start-upload-duration-count-tags}
 
-| 標籤           | 說明            |
-| ------------ | ------------- |
-| `object_key` | 遠端儲存中物件的查詢金鑰。 |
+| 標籤           | 說明             |
+| ------------ | -------------- |
+| `object_key` | 遠端儲存空間中物件的查詢鍵。 |
 
 
-### `tuist_storage_get_object_as_string_duration_milliseconds` (histogram){#tuist_storage_get_object_as_string_duration_milliseconds-histogram}
+### `tuist_storage_get_object_as_string_duration_milliseconds` (直方圖){#tuist_storage_get_object_as_string_duration_milliseconds-histogram}
 
-從遠端存放區擷取物件為字串的持續時間（以毫秒為單位）。
+從遠端儲存空間以字串形式擷取物件所需的時間（單位：毫秒）。
 
 #### 標籤{#tuist-storage-get-object-as-string-duration-milliseconds-tags}
 
-| 標籤           | 說明            |
-| ------------ | ------------- |
-| `object_key` | 遠端儲存中物件的查詢金鑰。 |
+| 標籤           | 說明             |
+| ------------ | -------------- |
+| `object_key` | 遠端儲存空間中物件的查詢鍵。 |
 
 ### `tuist_storage_get_object_as_string_count` (count){#tuist_storage_get_object_as_string_count-count}
 
-以字串形式從遠端儲存取得物件的次數。
+從遠端儲存空間以字串形式擷取物件的次數。
 
 #### 標籤{#tuist-storage-get-object-as-string-count-tags}
 
-| 標籤           | 說明            |
-| ------------ | ------------- |
-| `object_key` | 遠端儲存中物件的查詢金鑰。 |
+| 標籤           | 說明             |
+| ------------ | -------------- |
+| `object_key` | 遠端儲存空間中物件的查詢鍵。 |
 
 
 ### `tuist_storage_check_object_existence_duration_milliseconds` (直方圖){#tuist_storage_check_object_existence_duration_milliseconds-histogram}
 
-檢查遠端儲存中是否存在物件的持續時間（以毫秒為單位）。
+檢查物件在遠端儲存空間中是否存在的持續時間（單位：毫秒）。
 
 #### 標籤{#tuist-storage-check-object-existence-duration-milliseconds-tags}
 
-| 標籤           | 說明            |
-| ------------ | ------------- |
-| `object_key` | 遠端儲存中物件的查詢金鑰。 |
+| 標籤           | 說明             |
+| ------------ | -------------- |
+| `object_key` | 遠端儲存空間中物件的查詢鍵。 |
 
-### `tuist_storage_check_object_existence_count` (count){#tuist_storage_check_object_existence_count-count}
+### `tuist_storage_check_object_existence_count` (計數){#tuist_storage_check_object_existence_count-count}
 
-在遠端儲存中檢查物件存在的次數。
+在遠端儲存空間中檢查物件存在次數的頻率。
 
 #### 標籤{#tuist-storage-check-object-existence-count-tags}
 
-| 標籤           | 說明            |
-| ------------ | ------------- |
-| `object_key` | 遠端儲存中物件的查詢金鑰。 |
+| 標籤           | 說明             |
+| ------------ | -------------- |
+| `object_key` | 遠端儲存空間中物件的查詢鍵。 |
 
 ### `tuist_storage_generate_download_presigned_url_duration_milliseconds` (直方圖){#tuist_storage_generate_download_presigned_url_duration_milliseconds-histogram}
 
-為遠端儲存中的物件產生下載預先指定 URL 的持續時間（以毫秒為單位）。
+為遠端儲存物件生成預簽署下載網址所需的時間（單位：毫秒）。
 
 #### 標籤{#tuist-storage-generate-download-presigned-url-duration-milliseconds-tags}
 
-| 標籤           | 說明            |
-| ------------ | ------------- |
-| `object_key` | 遠端儲存中物件的查詢金鑰。 |
+| 標籤           | 說明             |
+| ------------ | -------------- |
+| `object_key` | 遠端儲存空間中物件的查詢鍵。 |
 
 
-### `tuist_storage_generate_download_presigned_url_count` (count){#tuist_storage_generate_download_presigned_url_count-count}
+### `tuist_storage_generate_download_presigned_url_count` (計數){#tuist_storage_generate_download_presigned_url_count-count}
 
-為遠端儲存中的物件產生下載預先指定 URL 的次數。
+遠端儲存空間中物件的預簽名下載網址生成次數。
 
 #### 標籤{#tuist-storage-generate-download-presigned-url-count-tags}
 
-| 標籤           | 說明            |
-| ------------ | ------------- |
-| `object_key` | 遠端儲存中物件的查詢金鑰。 |
+| 標籤           | 說明             |
+| ------------ | -------------- |
+| `object_key` | 遠端儲存空間中物件的查詢鍵。 |
 
 ### `tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds` (直方圖){#tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds-histogram}
 
-為遠端儲存中的物件產生部分上傳預先指定 URL 的持續時間（以毫秒為單位）。
+生成遠端儲存物件之部分上傳預簽署網址所需時間（單位：毫秒）。
 
 #### 標籤{#tuist-storage-multipart-generate-upload-part-presigned-url-duration-milliseconds-tags}
 
-| 標籤           | 說明            |
-| ------------ | ------------- |
-| `object_key` | 遠端儲存中物件的查詢金鑰。 |
-| `零件編號`       | 上傳物件的零件編號。    |
-| `upload_id`  | 多部分上傳的上傳 ID。  |
+| 標籤           | 說明             |
+| ------------ | -------------- |
+| `object_key` | 遠端儲存空間中物件的查詢鍵。 |
+| `零件編號`       | 上傳物件的零件編號。     |
+| `上傳編號`       | 多部分上傳的傳輸標識碼。   |
 
-### `tuist_storage_multipart_generate_upload_part_presigned_url_count` (count){#tuist_storage_multipart_generate_upload_part_presigned_url_count-count}
+### `tuist_storage_multipart_generate_upload_part_presigned_url_count` (計數){#tuist_storage_multipart_generate_upload_part_presigned_url_count-count}
 
-為遠端儲存中的物件產生部分上傳預先指定 URL 的次數。
+遠端儲存空間中物件的預簽名部分上傳網址生成次數。
 
 #### 標籤{#tuist-storage-multipart-generate-upload-part-presigned-url-count-tags}
 
-| 標籤           | 說明            |
-| ------------ | ------------- |
-| `object_key` | 遠端儲存中物件的查詢金鑰。 |
-| `零件編號`       | 上傳物件的零件編號。    |
-| `upload_id`  | 多部分上傳的上傳 ID。  |
+| 標籤           | 說明             |
+| ------------ | -------------- |
+| `object_key` | 遠端儲存空間中物件的查詢鍵。 |
+| `零件編號`       | 上傳物件的零件編號。     |
+| `上傳編號`       | 多部分上傳的傳輸標識碼。   |
 
 ### `tuist_storage_multipart_complete_upload_duration_milliseconds` (直方圖){#tuist_storage_multipart_complete_upload_duration_milliseconds-histogram}
 
-完成上傳至遠端儲存的持續時間（以毫秒為單位）。
+完成上傳至遠端儲存空間所需的時間（單位：毫秒）。
 
 #### 標籤{#tuist-storage-multipart-complete-upload-duration-milliseconds-tags}
 
-| 標籤           | 說明            |
-| ------------ | ------------- |
-| `object_key` | 遠端儲存中物件的查詢金鑰。 |
-| `upload_id`  | 多部分上傳的上傳 ID。  |
+| 標籤           | 說明             |
+| ------------ | -------------- |
+| `object_key` | 遠端儲存空間中物件的查詢鍵。 |
+| `上傳編號`       | 多部分上傳的傳輸標識碼。   |
 
 
-### `tuist_storage_multipart_complete_upload_count` (count){#tuist_storage_multipart_complete_upload_count-count}
+### `tuist_storage_multipart_complete_upload_count` (計數){#tuist_storage_multipart_complete_upload_count-count}
 
-完成上傳至遠端儲存的總次數。
+上傳至遠端儲存空間的總完成次數。
 
 #### 標籤{#tuist-storage-multipart-complete-upload-count-tags}
 
-| 標籤           | 說明            |
-| ------------ | ------------- |
-| `object_key` | 遠端儲存中物件的查詢金鑰。 |
-| `upload_id`  | 多部分上傳的上傳 ID。  |
+| 標籤           | 說明             |
+| ------------ | -------------- |
+| `object_key` | 遠端儲存空間中物件的查詢鍵。 |
+| `上傳編號`       | 多部分上傳的傳輸標識碼。   |
 
 ---
 
 ## 驗證指標{#authentication-metrics}
 
-一套與認證相關的指標。
+一組與驗證相關的指標。
 
 ### `tuist_authentication_token_refresh_error_total` (計數器){#tuist_authentication_token_refresh_error_total-counter}
 
-令牌刷新錯誤的總數。
+總共發生多少次標記刷新錯誤。
 
 #### 標籤{#tuist-authentication-token-refresh-error-total-tags}
 
-| 標籤            | 說明                                                  |
-| ------------- | --------------------------------------------------- |
-| `cli_version` | 遇到錯誤的 Tuist CLI 版本。                                 |
-| `理由`          | 令牌刷新錯誤的原因，例如`invalid_token_type` 或`invalid_token` 。 |
+| 標籤            | 說明                                                   |
+| ------------- | ---------------------------------------------------- |
+| `cli_version` | 發生錯誤的 Tuist CLI 版本。                                  |
+| `原因`          | 令牌刷新錯誤的原因，例如：`invalid_token_type` 或`invalid_token` 。 |
 
 ---
 
 ## 專案指標{#projects-metrics}
 
-一套與專案相關的衡量標準。
+一組與專案相關的指標。
 
 ### `tuist_projects_total` (last_value){#tuist_projects_total-last_value}
 
@@ -368,7 +367,7 @@ Tuist Runs 的總數。
 
 ## 帳戶指標{#accounts-metrics}
 
-一套與帳戶（使用者和組織）相關的度量指標。
+一組與帳戶（使用者及組織）相關的指標。
 
 ### `tuist_accounts_organizations_total` (last_value){#tuist_accounts_organizations_total-last_value}
 
@@ -376,7 +375,7 @@ Tuist Runs 的總數。
 
 ### `tuist_accounts_users_total` (last_value){#tuist_accounts_users_total-last_value}
 
-使用者總數。
+總用戶數。
 
 
 ## 資料庫指標{#database-metrics}
@@ -385,96 +384,96 @@ Tuist Runs 的總數。
 
 ### `tuist_repo_pool_checkout_queue_length` (last_value){#tuist_repo_pool_checkout_queue_length-last_value}
 
-在佇列中等待指派給資料庫連線的資料庫查詢數目。
+佇列中等待分配至資料庫連線的資料庫查詢數量。
 
 ### `tuist_repo_pool_ready_conn_count` (last_value){#tuist_repo_pool_ready_conn_count-last_value}
 
-準備指派給資料庫查詢的資料庫連線數目。
+可分配至資料庫查詢的資料庫連線數量。
 
 
-### `tuist_repo_pool_db_connection_connected` (counter){#tuist_repo_pool_db_connection_connected-counter}
+### `tuist_repo_pool_db_connection_connected` (計數器){#tuist_repo_pool_db_connection_connected-counter}
 
-已建立的資料庫連線數。
+已建立至資料庫的連線數量。
 
-### `tuist_repo_pool_db_connection_disconnected` (counter){#tuist_repo_pool_db_connection_disconnected-counter}
+### `tuist_repo_pool_db_connection_disconnected` (計數器){#tuist_repo_pool_db_connection_disconnected-counter}
 
-已從資料庫斷線的連線數目。
+已從資料庫斷開連接的連線數量。
 
-## HTTP 量測{#http-metrics}
+## HTTP 指標{#http-metrics}
 
-一套與 Tuist 透過 HTTP 與其他服務互動相關的指標。
+一組與 Tuist 透過 HTTP 與其他服務互動相關的指標。
 
-### `tuist_http_request_count` (counter){#tuist_http_request_count-last_value}
+### `tuist_http_request_count` (計數器){#tuist_http_request_count-last_value}
 
-傳出 HTTP 請求的數目。
+外發的 HTTP 請求數量。
 
 ### `tuist_http_request_duration_nanosecond_sum` (sum){#tuist_http_request_duration_nanosecond_sum-last_value}
 
-傳出請求的持續時間總和（包括等待指派給連線的時間）。
+外發請求的總耗時（包含等待分配至連線所耗費的時間）。
 
 ### `tuist_http_request_duration_nanosecond_bucket` (distribution){#tuist_http_request_duration_nanosecond_bucket-distribution}
-傳出請求的持續時間分佈 (包括等待指派給連線的時間)。
+外發請求的持續時間分佈（包含等待分配至連線所耗費的時間）。
 
-### `tuist_http_queue_count` (counter){#tuist_http_queue_count-counter}
+### `tuist_http_queue_count` (計數器){#tuist_http_queue_count-counter}
 
-已從資料池中擷取的請求數目。
+從資源池中檢索到的請求數量。
 
 ### `tuist_http_queue_duration_nanoseconds_sum` (sum){#tuist_http_queue_duration_nanoseconds_sum-sum}
 
-從連線池擷取連線所需的時間。
+從連接池中檢索連接所需的時間。
 
 ### `tuist_http_queue_idle_time_nanoseconds_sum` (sum){#tuist_http_queue_idle_time_nanoseconds_sum-sum}
 
-連線等待擷取的閒置時間。
+連接處於閒置狀態等待被檢索的時間長度。
 
 ### `tuist_http_queue_duration_nanoseconds_bucket` (distribution){#tuist_http_queue_duration_nanoseconds_bucket-distribution}
 
-從連線池擷取連線所需的時間。
+從連接池中檢索連接所需的時間。
 
 ### `tuist_http_queue_idle_time_nanoseconds_bucket` (distribution){#tuist_http_queue_idle_time_nanoseconds_bucket-distribution}
 
-連線等待擷取的閒置時間。
+連接處於閒置狀態等待被檢索的時間長度。
 
-### `tuist_http_connection_count` (counter){#tuist_http_connection_count-counter}
+### `tuist_http_connection_count` (計數器){#tuist_http_connection_count-counter}
 
-已建立的連線數目。
+已建立的連接數量。
 
 ### `tuist_http_connection_duration_nanoseconds_sum` (sum){#tuist_http_connection_duration_nanoseconds_sum-sum}
 
-與主機建立連線所需的時間。
+建立與主機連線所需的時間。
 
 ### `tuist_http_connection_duration_nanoseconds_bucket` (distribution){#tuist_http_connection_duration_nanoseconds_bucket-distribution}
 
-針對主機建立連線所需時間的分佈。
+建立連線至主機所需時間的分佈情況。
 
-### `tuist_http_send_count` (counter){#tuist_http_send_count-counter}
+### `tuist_http_send_count` (計數器){#tuist_http_send_count-counter}
 
-分配給池中連線後，已傳送的要求數目。
+從連接池分配後已發送的請求數量。
 
 ### `tuist_http_send_duration_nanoseconds_sum` (sum){#tuist_http_send_duration_nanoseconds_sum-sum}
 
-將要求指派給池中的連線後，要求完成所需的時間。
+從連接池分配連接後，請求完成所需的時間。
 
 ### `tuist_http_send_duration_nanoseconds_bucket` (distribution){#tuist_http_send_duration_nanoseconds_bucket-distribution}
 
-將請求指派給池中的連線後，其完成所需時間的分佈。
+請求從連接池分配至連接後，完成所需時間的分佈情況。
 
-### `tuist_http_receive_count` (counter){#tuist_http_receive_count-counter}
+### `tuist_http_receive_count` (計數器){#tuist_http_receive_count-counter}
 
-從已傳送的要求中收到的回應數目。
+已從發送請求中接收到的回應數量。
 
 ### `tuist_http_receive_duration_nanoseconds_sum` (sum){#tuist_http_receive_duration_nanoseconds_sum-sum}
 
-接收回覆的時間。
+接收回應所耗費的時間。
 
 ### `tuist_http_receive_duration_nanoseconds_bucket` (distribution){#tuist_http_receive_duration_nanoseconds_bucket-distribution}
 
-接收回覆的時間分佈。
+接收回應所耗費時間的分佈情況。
 
 ### `tuist_http_queue_available_connections` (last_value){#tuist_http_queue_available_connections-last_value}
 
-佇列中可用的連線數。
+佇列中可用的連接數。
 
 ### `tuist_http_queue_in_use_connections` (last_value){#tuist_http_queue_in_use_connections-last_value}
 
-使用中的佇列連線數。
+正在使用的佇列連接數。
