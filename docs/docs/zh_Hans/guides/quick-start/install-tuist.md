@@ -5,21 +5,20 @@
   "description": "Learn how to install Tuist in your environment."
 }
 ---
-# 安装图易斯特{#install-tuist}
+# 安装 Tuist{#install-tuist}
 
-Tuist CLI
-由可执行文件、动态框架和一组资源（例如模板）组成。尽管您可以从[源代码](https://github.com/tuist/tuist)手动构建
-Tuist，**，但我们建议您使用以下安装方法之一，以确保安装有效。**
+Tuist CLI 包含可执行文件、动态框架及资源集（例如模板）。虽然可手动从 [源代码](https://github.com/tuist/tuist) 构建
+Tuist（**），但为确保安装有效，建议采用以下安装方式之一。**
 
-### <a href="https://github.com/jdx/mise"></a>导出{#recommended-mise}
+### <a href="https://github.com/jdx/mise">Mise</a>{#recommended-mise}
 
 信息
 <!-- -->
-如果你是一个团队或组织，需要确保不同环境下工具版本的确定性，那么 Mise 是[Homebrew](https://brew.sh)的推荐替代方案。
+若您是需要确保不同环境下工具版本确定性的团队或组织，Mise 是替代 [Homebrew](https://brew.sh) 的推荐方案。
 <!-- -->
 :::
 
-您可以通过以下任意命令安装 Tuist：
+可通过以下任意命令安装 Tuist：
 
 ```bash
 mise install tuist            # Install the current version specified in .tool-versions/.mise.toml
@@ -27,8 +26,7 @@ mise install tuist@x.y.z      # Install a specific version number
 mise install tuist@3          # Install a fuzzy version number
 ```
 
-请注意，与 Homebrew 等在全局范围内安装和激活单个版本的工具不同，**Mise 需要在全局范围内或在项目范围内激活一个版本**
-。具体方法是运行`mise use` ：
+请注意，与Homebrew等工具（全局安装并激活单一版本）不同，**Mise需通过** 命令全局或项目范围激活特定版本。具体操作如下：`mise use`:
 
 ```bash
 mise use tuist@x.y.z          # Use tuist-x.y.z in the current project
@@ -37,10 +35,9 @@ mise use -g tuist@x.y.z       # Use tuist-x.y.z as the global default
 mise use -g tuist@system      # Use the system's tuist as the global default
 ```
 
-### <a href="https://brew.sh">自制{1｝{#recommended-homebrew}
+### <a href="https://brew.sh">Homebrew</a>{#recommended-homebrew}
 
-您可以使用 [自制程序](https://brew.sh)和
-[我们的公式](https://github.com/tuist/homebrew-tuist)安装 Tuist：
+可通过[Homebrew](https://brew.sh)和[我们的公式集](https://github.com/tuist/homebrew-tuist)安装Tuist：
 
 ```bash
 brew tap tuist/tuist
@@ -50,7 +47,7 @@ brew install --formula tuist@x.y.z
 
 ::: tip VERIFYING THE AUTHENTICITY OF THE BINARIES
 <!-- -->
-您可以运行以下命令来验证您的安装二进制文件是否已由我们构建，该命令将检查证书团队是否为`U6LC622NKF` ：
+可通过执行以下命令验证安装的二进制文件是否由我们构建：该命令将检查证书团队是否为`U6LC622NKF`:
 
 ```bash
 curl -fsSL "https://docs.tuist.dev/verify.sh" | bash
