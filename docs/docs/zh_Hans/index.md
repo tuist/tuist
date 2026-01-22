@@ -8,10 +8,9 @@
 import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeatures.vue"
 </script>
 
-# 为开发人员提供虚拟平台团队
+# 面向开发者的虚拟平台团队
 
-**Tuist 扩展了 Apple 的工具链，帮助团队扩大规模并专注于构建应用程序** - 将 Apple
-平台开发从令人沮丧的复杂性转变为流畅、高效的体验，并与团队共同成长。
+**Tuist 扩展苹果工具链，助力团队扩展规模并专注应用开发** —— 将苹果平台开发从令人沮丧的复杂性转变为顺畅高效的体验，随团队成长而不断进化。
 
 <br/>
 
@@ -64,16 +63,15 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
         link="/guides/features/registry"/>
 </HomeCards>
 
-## 加入数以千计的开发人员的行列
+## 加入数千名已完成转换的开发者行列
 
-**Trendyol](https://www.trendyol.com/)、[Etsy](https://www.etsy.com/)、[Bumble](https://bumble.com/)、[Monzo](https://monzo.com/)、[Bending
-Spoons](https://bendingspoons.com/)以及其他 100 多家公司** 的团队已经使用 Tuist
-改变了他们的苹果平台开发。以下是他们的经验之谈：
+**[Trendyol](https://www.trendyol.com/)、[Etsy](https://www.etsy.com/)、[Bumble](https://bumble.com/)、[Monzo](https://monzo.com/)、[Bending
+Spoons](https://bendingspoons.com/)等100余家企业** 已通过Tuist重塑其苹果平台开发模式。以下是他们的实践成果：
 
-- **通过智能缓存，构建速度提高 65%**
-- **Xcode 项目中的零合并冲突**
-- **分至秒** 包裹分辨率
-- **快乐的开发人员** ，他们可以专注于构建功能
+- **** 智能缓存技术，构建速度提升65%
+- **Xcode项目中零合并冲突**
+- **分钟转秒** 包解析
+- **专注于功能开发的快乐开发者们**
 
 <HomeCards type="carousel">
     <HomeCard icon="🚀"
@@ -96,15 +94,15 @@ Spoons](https://bendingspoons.com/)以及其他 100 多家公司** 的团队已�
 </HomeCards>
 
 
-## 观看 Tuist 的实际操作
+## 查看 Tuist 的实际应用效果
 
-**从实际实施中学习** ，并从工具链的运行中获得灵感。
+**从真实实现中学习** ，当工具链完美运行时，您将领略无限可能。
 
 <HomeVideos/>
 
 ## 加入蓬勃发展的社区
 
-**与成千上万的 Apple 平台开发者联系** ，他们正在使用 Tuist 发布更好的应用程序。获取帮助，分享成功，共同塑造 Apple 平台开发的未来。
+**与数千名使用 Tuist 打造更优质应用的苹果平台开发者建立联系** 。获取帮助、分享成功经验，共同塑造苹果平台开发的未来。
 
 <HomeCommunity>
     <HomeCommunityItem title="Forum" description="Interact with other community members in a synchronous manner" href="https://community.tuist.dev">
