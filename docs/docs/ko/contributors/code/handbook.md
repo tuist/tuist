@@ -5,19 +5,18 @@
   "description": "Contribute to the Tuist Handbook."
 }
 ---
-# Handbook {#handbook}
+# 핸드북 {#handbook}
 
 Source:
 [github.com/tuist/tuist/tree/main/handbook](https://github.com/tuist/tuist/tree/main/handbook)
 
-## What it is for {#what-it-is-for}
+## 용도 {#what-it-is-for}
 
-The handbook documents how Tuist works as a company: values, policies, and
-engineering practices. It is a VitePress site.
+이 핸드북은 Tuist의 기업 운영 방식(가치관, 정책, 엔지니어링 관행)을 기록한 문서입니다. VitePress 사이트로 제작되었습니다.
 
-## How to contribute {#how-to-contribute}
+## 기여 방법 {#how-to-contribute}
 
-### Set up locally {#set-up-locally}
+### 로컬 환경 설정 {#set-up-locally}
 
 ```bash
 cd handbook
