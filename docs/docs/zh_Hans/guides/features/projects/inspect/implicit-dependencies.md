@@ -14,7 +14,7 @@
 的作用所在。Tuist 提供了一条命令，可通过静态分析项目中的代码来检查隐式依赖关系。以下命令将输出项目的隐式依赖关系：
 
 ```bash
-tuist inspect implicit-imports
+tuist inspect dependencies --only implicit
 ```
 
 如果命令检测到任何隐式导入，它将以 0 以外的退出代码退出。
