@@ -24,8 +24,8 @@ PostHog 集成是可选的，可以通过设置相应的环境变量来启用。
 
 | 环境变量                    | 描述                   | 必需  | 默认值 | 示例                                                |
 | ----------------------- | -------------------- | --- | --- | ------------------------------------------------- |
-| `TUIST_POSTHOG_API_KEY` | 您的 PostHog 项目 API 密钥 | 没有  |     | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
-| `TUIST_POSTHOG_URL`     | PostHog API 端点 URL   | 没有  |     | `https://eu.i.posthog.com`                        |
+| `TUIST_POSTHOG_API_KEY` | 您的 PostHog 项目 API 密钥 | 不   |     | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
+| `TUIST_POSTHOG_URL`     | PostHog API 端点 URL   | 不   |     | `https://eu.i.posthog.com`                        |
 
 ::: info 分析功能启用
 <!-- -->
@@ -79,11 +79,11 @@ Tuist 运行的总次数。
 
 #### 标签 {#tuist-runs-total-tags}
 
-| 标签      | 描述                                  |
-| ------- | ----------------------------------- |
-| `名字`    | 运行的`tuist` 命令的名称，如`build`,`test` 等。 |
-| `is_ci` | 布尔值，表示执行器是 CI 机器还是开发者机器。            |
-| `地位`    | `0` （如果`成功）`,`1` （如果`失败）` 。         |
+| 标签      | 描述                                     |
+| ------- | -------------------------------------- |
+| `name`  | ` 已执行的`tuist命令名称，例如：`build` 、`test` 等。 |
+| `is_ci` | 一个布尔值，用于标识执行者是持续集成系统还是开发者的机器。          |
+| `状态`    | `0` 在`成功时`,`1` 在`失败时`.                 |
 
 ### `tuist_runs_duration_milliseconds` (直方图) {#tuist_runs_duration_milliseconds-histogram}
 
@@ -91,11 +91,11 @@ Tuist 运行的总次数。
 
 #### 标签 {#tuist-runs-duration-miliseconds-tags}
 
-| 标签      | 描述                                  |
-| ------- | ----------------------------------- |
-| `名字`    | 运行的`tuist` 命令的名称，如`build`,`test` 等。 |
-| `is_ci` | 布尔值，表示执行器是 CI 机器还是开发者机器。            |
-| `地位`    | `0` （如果`成功）`,`1` （如果`失败）` 。         |
+| 标签      | 描述                                     |
+| ------- | -------------------------------------- |
+| `name`  | ` 已执行的`tuist命令名称，例如：`build` 、`test` 等。 |
+| `is_ci` | 一个布尔值，用于标识执行者是持续集成系统还是开发者的机器。          |
+| `状态`    | `0` 在`成功时`,`1` 在`失败时`.                 |
 
 ## 缓存指标 {#cache-metrics}
 
@@ -191,9 +191,9 @@ Tuist 运行的总次数。
 
 #### 标签 {#tuist-storage-delete-all-objects-duration-milliseconds-tags}
 
-| 标签     | 描述            |
-| ------ | ------------- |
-| `项目标题` | 删除对象的项目的项目标号。 |
+| 标签             | 描述             |
+| -------------- | -------------- |
+| `project_slug` | 正在删除对象的项目项目别名。 |
 
 
 ### `tuist_storage_delete_all_objects_count` (计数器) {#tuist_storage_delete_all_objects_count-counter}
@@ -202,9 +202,9 @@ Tuist 运行的总次数。
 
 #### 标签 {#tuist-storage-delete-all-objects-count-tags}
 
-| 标签     | 描述            |
-| ------ | ------------- |
-| `项目标题` | 删除对象的项目的项目标号。 |
+| 标签             | 描述             |
+| -------------- | -------------- |
+| `project_slug` | 正在删除对象的项目项目别名。 |
 
 
 ### `tuist_storage_multipart_start_upload_duration_milliseconds` (直方图) {#tuist_storage_multipart_start_upload_duration_milliseconds-histogram}
@@ -296,11 +296,11 @@ Tuist 运行的总次数。
 
 #### 标签 {#tuist-storage-multipart-generate-upload-part-presigned-url-duration-milliseconds-tags}
 
-| 标签           | 描述            |
-| ------------ | ------------- |
-| `object_key` | 对象在远程存储中的查找键。 |
-| `零件编号`       | 上传对象的部件编号。    |
-| `upload_id`  | 多部分上传的上传 ID。  |
+| 标签            | 描述            |
+| ------------- | ------------- |
+| `object_key`  | 对象在远程存储中的查找键。 |
+| `part_number` | 上传对象的部件编号。    |
+| `upload_id`   | 多部分上传的上传 ID。  |
 
 ### `tuist_storage_multipart_generate_upload_part_presigned_url_count` (计数) {#tuist_storage_multipart_generate_upload_part_presigned_url_count-count}
 
@@ -308,11 +308,11 @@ Tuist 运行的总次数。
 
 #### 标签 {#tuist-storage-multipart-generate-upload-part-presigned-url-count-tags}
 
-| 标签           | 描述            |
-| ------------ | ------------- |
-| `object_key` | 对象在远程存储中的查找键。 |
-| `零件编号`       | 上传对象的部件编号。    |
-| `upload_id`  | 多部分上传的上传 ID。  |
+| 标签            | 描述            |
+| ------------- | ------------- |
+| `object_key`  | 对象在远程存储中的查找键。 |
+| `part_number` | 上传对象的部件编号。    |
+| `upload_id`   | 多部分上传的上传 ID。  |
 
 ### `tuist_storage_multipart_complete_upload_duration_milliseconds` (直方图) {#tuist_storage_multipart_complete_upload_duration_milliseconds-histogram}
 
@@ -421,19 +421,19 @@ Tuist 运行的总次数。
 
 ### `tuist_http_queue_duration_nanoseconds_sum` (求和) {#tuist_http_queue_duration_nanoseconds_sum-sum}
 
-从连接池检索连接所需的时间。
+从连接池中检索连接所需的时间。
 
 ### `tuist_http_queue_idle_time_nanoseconds_sum` (求和) {#tuist_http_queue_idle_time_nanoseconds_sum-sum}
 
-连接空闲等待检索的时间。
+连接处于空闲状态等待被检索的时间。
 
 ### `tuist_http_queue_duration_nanoseconds_bucket` (分布) {#tuist_http_queue_duration_nanoseconds_bucket-distribution}
 
-从连接池检索连接所需的时间。
+从连接池中检索连接所需的时间。
 
 ### `tuist_http_queue_idle_time_nanoseconds_bucket` (分布) {#tuist_http_queue_idle_time_nanoseconds_bucket-distribution}
 
-连接空闲等待检索的时间。
+连接处于空闲状态等待被检索的时间。
 
 ### `tuist_http_connection_count` (计数器) {#tuist_http_connection_count-counter}
 
