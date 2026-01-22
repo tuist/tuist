@@ -57,8 +57,9 @@ dokładnie doszło do problemu:
 
 ![Oś czasu QA](/images/guides/features/qa/qa-timeline.png)
 
-Możesz zobaczyć wszystkie testy QA, które wykonujemy dla naszej
-<LocalizedLink href="/guides/features/previews#tuist-ios-app"> aplikacji iOS</LocalizedLink> w naszym publicznym dashboardzie:
+Wszystkie testy QA przeprowadzane dla naszej aplikacji
+<LocalizedLink href="/guides/features/previews#tuist-ios-app">iOS</LocalizedLink>
+można zobaczyć na naszym publicznym pulpicie nawigacyjnym:
 https://tuist.dev/tuist/tuist/qa.
 
 :: info
