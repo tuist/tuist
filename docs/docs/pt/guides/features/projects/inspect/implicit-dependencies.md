@@ -35,6 +35,7 @@ We strongly recommend to run this command as part of your
 <LocalizedLink href="/guides/features/automate/continuous-integration">continuous
 integration</LocalizedLink> command every time new code is pushed upstream.
 <!-- -->
+:::
 
 ::: warning NOT ALL IMPLICIT CASES ARE DETECTED
 <!-- -->
@@ -42,3 +43,4 @@ Since Tuist relies on static code analysis to detect implicit dependencies, it
 might not catch all cases. For example, Tuist is unable to understand
 conditional imports through compiler directives in code.
 <!-- -->
+:::
