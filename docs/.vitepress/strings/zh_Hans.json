@@ -144,6 +144,17 @@
                 },
                 "releases": {
                     "text": "运行"
+                },
+                "debugging": {
+                    "text": "调试"
+                },
+                "code": {
+                    "text": "代码",
+                    "items": {
+                        "handbook": {
+                            "text": "手册"
+                        }
+                    }
                 }
             }
         },
@@ -366,6 +377,14 @@
                         },
                         "qa": {
                             "text": "质量保证"
+                        },
+                        "test-insights": {
+                            "items": {
+                                "flaky-tests": {
+                                    "text": "测试缺陷"
+                                }
+                            },
+                            "text": "测试见解"
                         }
                     }
                 },
