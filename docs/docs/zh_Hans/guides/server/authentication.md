@@ -8,8 +8,8 @@
 # 认证{#authentication}
 
 要与服务器交互，CLI
-需要使用[承载验证](https://swagger.io/docs/specification/authentication/bearer-authentication/)对请求进行验证。CLI
-支持以用户身份、账户身份或使用 OIDC 令牌进行身份验证。
+需要使用[承载验证](https://swagger.io/docs/specification/authentication/bearer-authentication/)
+对请求进行验证。CLI 支持以用户身份、账户身份或使用 OIDC 令牌进行身份验证。
 
 ## 作为用户{#as-a-user}
 
@@ -39,7 +39,8 @@ CLI 在向服务器发出请求时会自动查找凭据。如果访问令牌已�
 ### 设置 OIDC 身份验证{#setting-up-oidc-authentication}
 
 1. **将仓库连接到 Tuist**
-   ：按照<LocalizedLink href="/guides/integrations/gitforge/github">GitHub 集成指南</LocalizedLink>，将 GitHub 仓库连接到 Tuist 项目。
+   ：按照<LocalizedLink href="/guides/integrations/gitforge/github">GitHub
+   集成指南</LocalizedLink>，将 GitHub 仓库连接到 Tuist 项目。
 
 2. **运行 `tuist auth login`** ：在您的 CI 工作流程中，在任何需要身份验证的命令之前运行`tuist auth login`
    。CLI 将自动检测 CI 环境并使用 OIDC 进行身份验证。
@@ -88,7 +89,7 @@ tuist account tokens create my-account \
 | `帐户：成员：已读`              | 阅读账户成员            |
 | `帐户：成员：写`               | 管理账户成员            |
 | `账户：注册表：读取`             | 从 Swift 软件包注册表中读取 |
-| `账户：登记：写`               | 发布到 Swift 软件包注册表  |
+| `账户：登记册：写`              | 发布到 Swift 软件包注册表  |
 | `项目：预览：阅读`              | 下载预览              |
 | `项目：预览：写`               | 上传预览              |
 | `项目：管理：阅读`              | 读取项目设置            |
