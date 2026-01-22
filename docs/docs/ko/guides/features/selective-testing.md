@@ -8,7 +8,7 @@
 # 선택적 테스트 {#selective-testing}
 
 프로젝트가 성장함에 따라 테스트의 양도 늘어납니다. 오랫동안 모든 PR 또는 푸시에서 모든 테스트를 실행하거나 `메인` 으로 푸시하는 데 수십
-초가 걸렸습니다. 하지만 이 솔루션은 팀에서 수행할 수 있는 수천 개의 테스트에 맞게 확장되지 않습니다.
+초가 걸렸습니다. 하지만 이 솔루션은 팀에서 수행할 수 있는 수천 개의 테스트까지 확장할 수 없습니다.
 
 CI에서 테스트를 실행할 때마다 변경 사항에 관계없이 모든 테스트를 다시 실행하는 경우가 대부분입니다. 튜이스트의 선택적 테스트는
 <LocalizedLink href="/guides/features/projects/hashing">해싱 알고리즘</LocalizedLink>을
@@ -20,7 +20,8 @@ CI에서 테스트를 실행할 때마다 변경 사항에 관계없이 모든 �
 따르세요:
 
 - <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
-- <LocalizedLink href="/guides/features/selective-testing/generated-project">Generated project</LocalizedLink>
+- <LocalizedLink href="/guides/features/selective-testing/generated-project">Generated
+  project</LocalizedLink>
 
 ::: warning MODULE VS FILE-LEVEL GRANULARITY
 <!-- -->
@@ -39,12 +40,14 @@ CI에서 테스트를 실행할 때마다 변경 사항에 관계없이 모든 �
 :::
 
 
-## 요청 댓글 풀/병합 {#pullmerge-request-comments}
+## Pull/병합 요청 댓글 {#pullmerge-request-comments}
 
 ::: warning Git과 통합 필요
 <!-- -->
-자동 풀/병합 요청 코멘트를 받으려면
-<LocalizedLink href="/guides/server/accounts-and-projects">Tuist 프로젝트</LocalizedLink>를 <LocalizedLink href="/guides/server/authentication">Git 플랫폼</LocalizedLink>과 통합하세요.
+자동으로 Pull/병합 요청 댓글을 받으려면
+<LocalizedLink href="/guides/server/accounts-and-projects">Tuist
+프로젝트</LocalizedLink>를 <LocalizedLink href="/guides/server/authentication">Git
+플랫폼</LocalizedLink>과 통합하세요.
 <!-- -->
 :::
 
