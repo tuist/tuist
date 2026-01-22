@@ -51,7 +51,7 @@ Formato: `tipo(ámbito): descripción`
 
 #### Cambios de última hora
 
-Los cambios de ruptura provocan un salto de versión mayor (X.0.0) y deben
+Los cambios de última hora provocan un salto de versión mayor (X.0.0) y deben
 indicarse en el cuerpo de la confirmación:
 
 ```
@@ -87,7 +87,7 @@ Cuando se detectan cambios liberables:
 Cada componente sólo se libera cuando tiene cambios relevantes:
 
 - **CLI**: Commits con alcance `(cli)` o sin alcance
-- **App**: Commits con `(app)` scope
+- **Aplicación**: Commits con `(app)` scope
 - **Servidor**: Commits con `(servidor)` ámbito
 
 ## Redactar buenos mensajes de confirmación
@@ -163,7 +163,7 @@ Si falla una liberación:
 3. Verificar que todas las pruebas se superan
 4. Compruebe que el componente se compila correctamente
 
-Para correcciones urgentes que requieren una liberación inmediata:
+Para correcciones urgentes que necesitan una liberación inmediata:
 1. Asegúrese de que su compromiso tiene un alcance claro
 2. Tras la fusión, supervise el flujo de trabajo de liberación
 3. Si es necesario, activa un desbloqueo manual
