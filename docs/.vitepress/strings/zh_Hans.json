@@ -390,10 +390,10 @@
                         "test-insights": {
                             "items": {
                                 "flaky-tests": {
-                                    "text": "测试缺陷"
+                                    "text": "不稳定的测试"
                                 }
                             },
-                            "text": "测试见解"
+                            "text": "测试洞察"
                         }
                     }
                 },
@@ -415,7 +415,7 @@
                             "text": "SSO"
                         },
                         "git-forges": {
-                            "text": "Git 锻造",
+                            "text": "Git 代码仓库",
                             "items": {
                                 "github": {
                                     "text": "GitHub"
