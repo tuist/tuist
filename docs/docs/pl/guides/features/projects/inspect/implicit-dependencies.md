@@ -23,7 +23,7 @@ analizę kodu w projekcie. Poniższe polecenie wyświetli niejawne zależności
 projektu:
 
 ```bash
-tuist inspect implicit-imports
+tuist inspect dependencies --only implicit
 ```
 
 Jeśli polecenie wykryje jakikolwiek niejawny import, zakończy działanie z kodem
@@ -32,7 +32,8 @@ wyjścia innym niż zero.
 ::: tip VALIDATE IN CI
 <!-- -->
 Zdecydowanie zalecamy uruchamianie tego polecenia jako części polecenia
-<LocalizedLink href="/guides/features/automate/continuous-integration">ciągłej integracji</LocalizedLink> za każdym razem, gdy nowy kod jest przesyłany w górę
+<LocalizedLink href="/guides/features/automate/continuous-integration">ciągłej
+integracji</LocalizedLink> za każdym razem, gdy nowy kod jest przesyłany w górę
 strumienia.
 <!-- -->
 :::
@@ -41,7 +42,7 @@ strumienia.
 <!-- -->
 Ponieważ Tuist opiera się na statycznej analizie kodu w celu wykrycia ukrytych
 zależności, może nie wychwycić wszystkich przypadków. Na przykład, Tuist nie
-jest w stanie zrozumieć importu warunkowego poprzez dyrektywy kompilatora w
+jest w stanie zrozumieć warunkowego importu poprzez dyrektywy kompilatora w
 kodzie.
 <!-- -->
 :::
