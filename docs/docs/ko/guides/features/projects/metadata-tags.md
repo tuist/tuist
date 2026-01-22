@@ -122,9 +122,52 @@ metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 `feature:`, `team:`, `layer:` 와 같은 접두사를 사용하면 각 태그의 목적을 더 쉽게 이해하고 이름 충돌을 피할 수
 있습니다.
 
+## 시스템 태그 {#system-tags}
+
+시스템 관리 태그에는 `tuist:` 접두사를 사용합니다. 이러한 태그는 Tuist에서 자동으로 적용되며 캐시 프로필에서 특정 유형의 생성된
+콘텐츠를 타겟팅하는 데 사용할 수 있습니다.
+
+### 사용 가능한 시스템 태그
+
+| 태그        | 설명                                                                                                          |
+| --------- | ----------------------------------------------------------------------------------------------------------- |
+| `튜이스트:합성` | 정적 라이브러리 및 정적 프레임워크에서 리소스 처리를 위해 Tuist가 생성하는 합성된 번들 타깃에 적용됩니다. 이러한 번들은 리소스 접근자 API를 제공하기 위한 역사적인 이유로 존재합니다. |
+
+### 캐시 프로필과 함께 시스템 태그 사용
+
+캐시 프로필에서 시스템 태그를 사용하여 합성된 대상을 포함하거나 제외할 수 있습니다:
+
+```swift
+import ProjectDescription
+
+let tuist = Tuist(
+    project: .tuist(
+        cacheOptions: .options(
+            profiles: .profiles(
+                [
+                    "development": .profile(
+                        .onlyExternal,
+                        and: ["tag:tuist:synthesized"]  // Also cache synthesized bundles
+                    )
+                ],
+                default: .onlyExternal
+            )
+        )
+    )
+)
+```
+
+::: tip SYNTHESIZED BUNDLES INHERIT PARENT TAGS
+<!-- -->
+합성된 번들 대상은 `tuist:synthesized` 태그를 받는 것 외에도 부모 대상의 모든 태그를 상속받습니다. 즉, 정적 라이브러리에
+`feature:auth` 태그를 지정하면 해당 합성된 리소스 번들에는 `feature:auth` 및 `tuist:synthesized` 태그가
+모두 포함됩니다.
+<!-- -->
+:::
+
 ## 프로젝트 설명 도우미와 함께 태그 사용 {#using-tags-with-helpers}
 
-<LocalizedLink href="/guides/features/projects/code-sharing">프로젝트 설명 도우미</LocalizedLink>를 활용하여 프로젝트 전체에 태그가 적용되는 방식을 표준화할 수 있습니다:
+1}프로젝트 설명 도우미</LocalizedLink>를 활용하여 프로젝트 전체에 태그가 적용되는 방식을 표준화할 수 있습니다:
 
 ```swift
 // Tuist/ProjectDescriptionHelpers/Project+Templates.swift
@@ -188,7 +231,8 @@ let project = Project(
 
 ### 캐싱과 통합
 
-메타데이터 태그는 <LocalizedLink href="/guides/features/cache">Tuist의 캐싱 기능</LocalizedLink>과 원활하게 작동합니다:
+메타데이터 태그는 <LocalizedLink href="/guides/features/cache">Tuist의 캐싱
+기능</LocalizedLink>과 원활하게 작동합니다:
 
 ```bash
 # Cache all targets
@@ -208,7 +252,9 @@ tuist generate tag:feature:payment
 
 ## 관련 기능 {#related-features}
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">코드 공유</LocalizedLink> - 프로젝트 설명 도우미를 사용하여 태그 사용 표준화하기
+- <LocalizedLink href="/guides/features/projects/code-sharing">코드
+  공유</LocalizedLink> - 프로젝트 설명 도우미를 사용하여 태그 사용 표준화하기
 - <LocalizedLink href="/guides/features/cache">캐시</LocalizedLink> - 최적의 빌드 성능을
   위해 태그와 캐싱을 결합하세요.
-- <LocalizedLink href="/guides/features/selective-testing">선택적 테스트</LocalizedLink> - 변경된 대상에 대해서만 테스트 실행
+- <LocalizedLink href="/guides/features/selective-testing">선택적
+  테스트</LocalizedLink> - 변경된 대상에 대해서만 테스트 실행
