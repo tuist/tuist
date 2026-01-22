@@ -10,10 +10,13 @@
 Eklentiler, Tuist eserlerini birden fazla proje arasında paylaşmak ve yeniden
 kullanmak için bir araçtır. Aşağıdaki eserler desteklenmektedir:
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">Birden fazla projede proje açıklama yardımcıları</LocalizedLink>.
-- <LocalizedLink href="/guides/features/projects/templates">Birden fazla projedeki şablonlar</LocalizedLink>.
+- <LocalizedLink href="/guides/features/projects/code-sharing">Birden fazla
+  projede proje açıklama yardımcıları</LocalizedLink>.
+- <LocalizedLink href="/guides/features/projects/templates">Birden fazla
+  projedeki şablonlar</LocalizedLink>.
 - Birden fazla projedeki görevler.
-- <LocalizedLink href="/guides/features/projects/synthesized-files">Birden fazla projede kaynak erişimcisi</LocalizedLink> şablonu
+- <LocalizedLink href="/guides/features/projects/synthesized-files">Birden fazla
+  projede kaynak erişimcisi</LocalizedLink> şablonu
 
 Eklentilerin Tuist'in işlevselliğini genişletmek için basit bir yol olarak
 tasarlandığını unutmayın. Bu nedenle **dikkate alınması gereken bazı
@@ -54,7 +57,7 @@ let plugin = Plugin(name: "MyPlugin")
 
 ### Kaynak erişimci şablonları eklentisi {#resource-accessor-templates-plugin}
 
-sentezlenmiş kaynak erişimcilerini paylaşmanız gerekiyorsa bu
+1}sentezlenmiş kaynak erişimcilerini</LocalizedLink> paylaşmanız gerekiyorsa bu
 tür bir eklenti kullanabilirsiniz. Eklenti, eklentinin adını bildiren bir
 `Plugin.swift` manifest dosyası ve kaynak erişimcisi şablon dosyalarını içeren
 bir `ResourceSynthesizers` dizini içeren bir dizin ile temsil edilir.
@@ -112,11 +115,11 @@ atın.
 :::
 
 Görevler, `tuist-` adlandırma kuralına uymaları halinde `tuist` komutu
-aracılığıyla çağrılabilen `$PATH`-açık yürütülebilir dosyalarıdır. Önceki
-sürümlerde Tuist, `tuist plugin` altında `build`, `run`, `test` ve `archive`
-görevleri için Swift paketi içindeki yürütülebilir dosyalar tarafından temsil
-edilen bazı zayıf kurallar ve araçlar sağladı, ancak aracın bakım yükünü ve
-karmaşıklığını artırdığı için bu özelliği kullanımdan kaldırdık.
+aracılığıyla çağrılabilen `$PATH`-açık yürütülebilirlerdir. Önceki sürümlerde
+Tuist, `tuist plugin` altında `build`, `run`, `test` ve `archive` görevleri için
+Swift paketi içindeki yürütülebilir dosyalar tarafından temsil edilen bazı zayıf
+kurallar ve araçlar sağladı, ancak aracın bakım yükünü ve karmaşıklığını
+artırdığı için bu özelliği kullanımdan kaldırdık.
 
 Görevleri dağıtmak için Tuist kullanıyorsanız
 - Mantığınızdan proje grafiğine erişmek için her Tuist sürümü ile dağıtılan
@@ -124,7 +127,7 @@ Görevleri dağıtmak için Tuist kullanıyorsanız
   try Tuist.graph()`. Komut, `tuist` komutunu çalıştırmak ve proje grafiğinin
   bellek içi gösterimini döndürmek için sistem sürecini kullanır.
 - Görevleri dağıtmak için, GitHub sürümlerine `arm64` ve `x86_64` destekleyen
-  bir yağ ikilisi eklemenizi ve bir yükleme aracı olarak
+  bir fat binary eklemenizi ve bir kurulum aracı olarak
   [Mise](https://mise.jdx.dev) kullanmanızı öneririz. Mise'e aracınızı nasıl
   yükleyeceği konusunda talimat vermek için bir eklenti deposuna ihtiyacınız
   olacaktır. Referans olarak
@@ -137,7 +140,7 @@ Görevleri dağıtmak için Tuist kullanıyorsanız
 <!-- -->
 `ProjectAutomation` ve `XcodeGraph` modellerini, proje grafiğinin tamamını
 kullanıcıya sunan geriye dönük uyumlu tek bir çerçevede birleştirmeyi
-planlıyoruz. Dahası, oluşturma mantığını kendi CLI'nizden de kullanabileceğiniz
+planlıyoruz. Dahası, oluşturma mantığını kendi CLI'nızdan da kullanabileceğiniz
 yeni bir katmana, `XcodeGraph` çıkaracağız. Bunu kendi Tuist'inizi oluşturmak
 gibi düşünün.
 <!-- -->
