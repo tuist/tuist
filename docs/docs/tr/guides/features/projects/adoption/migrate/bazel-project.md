@@ -8,7 +8,7 @@
 # Bazel projesini taşıma {#migrate-a-bazel-project}
 
 [Bazel](https://bazel.build) Google'ın 2015 yılında açık kaynak olarak sunduğu
-bir derleme sistemidir. Her boyuttaki yazılımı hızlı ve güvenilir bir şekilde
+bir derleme sistemidir. Her boyutta yazılımı hızlı ve güvenilir bir şekilde
 oluşturmanıza ve test etmenize olanak tanıyan güçlü bir araçtır.
 Spotify](https://engineering.atspotify.com/2023/10/switching-build-systems-seamlessly/),
 [Tinder](https://medium.com/tinder/bazel-hermetic-toolchain-and-tooling-migration-c244dc0d3ae)
@@ -20,8 +20,8 @@ konu olarak ele alan bazı kuruluşlar için uygun olsa da, ürün geliştirmeye
 odaklanmak isteyen diğer kuruluşlar için uygun olmayabilir. Örneğin, iOS
 platform ekibi Bazel'i tanıtan ve bu çabaya öncülük eden mühendisler şirketten
 ayrıldıktan sonra Bazel'i bırakmak zorunda kalan kuruluşlar gördük. Apple'ın
-Xcode ve yapı sistemi arasındaki güçlü bağlantı konusundaki tutumu da Bazel
-projelerinin zaman içinde sürdürülmesini zorlaştıran bir başka faktördür.
+Xcode ile yapı sistemi arasındaki güçlü bağlantı konusundaki tutumu da Bazel
+projelerinin zaman içinde sürdürülmesini zorlaştıran bir diğer faktördür.
 
 ::: tip TUIST UNIQUENESS LIES IN ITS FINESSE
 <!-- -->
@@ -101,7 +101,7 @@ let project = Project(
 
 Bazel'de
 [`rules_swift_package_manager`](https://github.com/cgrindel/rules_swift_package_manager)
-kullanabilirsiniz. Swift paketi bağımlılıkları olarak kullanmak için
+kullanabilirsiniz. Swift paketlerini bağımlılıklar olarak kullanmak için
 [Gazelle](https://github.com/bazelbuild/bazel-gazelle/blob/master/extend.md)
 eklentisi. Eklenti, bağımlılıklar için bir doğruluk kaynağı olarak bir
 `Package.swift` gerektirir. Tuist'in arayüzü bu anlamda Bazel'inkine benzer.
