@@ -34,7 +34,8 @@ Workspace.swift
   - **ProjectDescriptionHelpers：** 此目錄包含所有清單檔案共用的 Swift 程式碼。Manifest 檔案可以`import
     ProjectDescriptionHelpers` 來使用此目錄定義的程式碼。共用程式碼有助於避免重複，並確保各專案間的一致性。
   - **Package.swift：** 此檔案包含 Swift 套件的相依性，供 Tuist 使用 Xcode 專案與目標 (如
-    [CocoaPods](https://cococapods))進行整合，這些專案與目標是可設定與最佳化的。瞭解更多資訊<LocalizedLink href="/guides/features/projects/dependencies"> 這裡</LocalizedLink>。
+    [CocoaPods](https://cococapods))進行整合，這些專案與目標是可設定與最佳化的。瞭解更多資訊<LocalizedLink href="/guides/features/projects/dependencies">
+    這裡</LocalizedLink>。
 
 - **根目錄** ：您專案的根目錄，其中也包含`Tuist` 目錄。
   - <LocalizedLink href="/guides/features/projects/manifests#tuistswift"><bold>Tuist.swift:</bold></LocalizedLink>此檔案包含
