@@ -13,7 +13,7 @@ konfiguracji](https://github.com/yonaskolb/XcodeGen/blob/master/Docs/ProjectSpec
 do definiowania projektów Xcode. Wiele organizacji **zaadoptowało je, próbując
 uciec od częstych konfliktów Git, które pojawiają się podczas pracy z projektami
 Xcode.** Jednak częste konflikty Git to tylko jeden z wielu problemów, których
-doświadczają organizacje. Xcode naraża programistów na wiele zawiłości i
+doświadczają organizacje. Xcode naraża deweloperów na wiele zawiłości i
 niejawnych konfiguracji, które utrudniają utrzymanie i optymalizację projektów
 na dużą skalę. XcodeGen nie spełnia tego zadania, ponieważ jest to narzędzie do
 generowania projektów Xcode, a nie menedżer projektów. Jeśli potrzebujesz
@@ -94,7 +94,8 @@ możliwości ponownego wykorzystania plików YAML po wyjęciu z pudełka. Jest t
 powszechna potrzeba przy opisywaniu projektów, którą XcodeGen musiał rozwiązać
 za pomocą własnego rozwiązania o nazwie *"templates"*. W Tuist możliwość
 ponownego użycia jest wbudowana w sam język Swift i poprzez moduł Swift o nazwie
-<LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink>, który umożliwia ponowne użycie kodu we wszystkich
+<LocalizedLink href="/guides/features/projects/code-sharing">project description
+helpers</LocalizedLink>, który umożliwia ponowne użycie kodu we wszystkich
 plikach manifestu.
 
 ::: code-group
