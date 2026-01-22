@@ -153,6 +153,15 @@
                     "items": {
                         "handbook": {
                             "text": "Manual"
+                        },
+                        "cli": {
+                            "text": "CLI"
+                        },
+                        "server": {
+                            "text": "Servidor"
+                        },
+                        "docs": {
+                            "text": "Docs"
                         }
                     }
                 }
@@ -412,6 +421,9 @@
                                 }
                             },
                             "text": "Forjas Git"
+                        },
+                        "slack": {
+                            "text": "Slack"
                         }
                     }
                 },
