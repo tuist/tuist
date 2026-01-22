@@ -107,7 +107,7 @@ tuist generate
 
 ### 프로젝트별로 Tuist 격리하기 {#isolating-tuist-per-project}
 
-프로젝트별로 Tuist의 캐시와 상태를 분리하고 싶을 수도 있습니다:
+프로젝트별로 Tuist의 캐시와 상태를 분리하고 싶을 수 있습니다:
 
 ```bash
 # In your project's .envrc (using direnv)
