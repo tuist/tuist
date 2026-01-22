@@ -10,49 +10,51 @@
 
 ::: advertencia REQUISITOS
 <!-- -->
-- Un proyecto generado por
-  <LocalizedLink href="/guides/features/projects"></LocalizedLink>
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y
-  proyecto</LocalizedLink>
+- Un proyecto
+  <LocalizedLink href="/guides/features/projects">generado.</LocalizedLink>
+- Una cuenta y un proyecto
+  <LocalizedLink href="/guides/server/accounts-and-projects">Tuist.</LocalizedLink>
 <!-- -->
 :::
 
-Tuist Module cache proporciona una potente forma de optimizar tus tiempos de
-compilación almacenando en caché tus módulos como binarios (`.xcframework`s) y
-compartiéndolos a través de diferentes entornos. Esta capacidad te permite
-aprovechar los binarios generados previamente, reduciendo la necesidad de
-repetir la compilación y acelerando el proceso de desarrollo.
+La caché del módulo Tuist proporciona una forma eficaz de optimizar los tiempos
+de compilación al almacenar los módulos como binarios (`.xcframework`s) y
+compartirlos entre diferentes entornos. Esta capacidad le permite aprovechar los
+binarios generados anteriormente, lo que reduce la necesidad de compilaciones
+repetidas y acelera el proceso de desarrollo.
 
-## Calentamiento {#warming}
+## Advertencia {#warming}
 
-Tuist <LocalizedLink href="/guides/features/projects/hashing">utiliza
-eficientemente hashes</LocalizedLink> para cada objetivo en el grafo de
-dependencia para detectar cambios. Utilizando estos datos, construye y asigna
-identificadores únicos a los binarios derivados de estos objetivos. En el
-momento de generar el grafo, Tuist sustituye sin problemas los objetivos
-originales por sus correspondientes versiones binarias.
+Tuist utiliza de manera eficiente
+<LocalizedLink href="/guides/features/projects/hashing">hash</LocalizedLink>
+para cada objetivo en el gráfico de dependencia con el fin de detectar cambios.
+Utilizando estos datos, crea y asigna identificadores únicos a los binarios
+derivados de estos objetivos. En el momento de la generación del gráfico, Tuist
+sustituye de forma fluida los objetivos originales por sus versiones binarias
+correspondientes.
 
-Esta operación, conocida como *"warming",* produce binarios para uso local o
-para compartir con compañeros de equipo y entornos CI a través de Tuist. El
-proceso de calentamiento de la caché es sencillo y puede iniciarse con un simple
-comando:
+Esta operación, conocida como «calentamiento» de la caché ( *),* produce
+binarios para uso local o para compartir con compañeros de equipo y entornos de
+CI a través de Tuist. El proceso de calentamiento de la caché es sencillo y se
+puede iniciar con un simple comando:
 
 
 ```bash
 tuist cache
 ```
 
-El comando reutiliza binarios para acelerar el proceso.
+El comando reutiliza los binarios para acelerar el proceso.
 
 ## Uso {#usage}
 
-Por defecto, cuando los comandos de Tuist necesitan generar un proyecto,
-sustituyen automáticamente las dependencias por sus equivalentes binarios de la
-caché, si están disponibles. Además, si especificas una lista de objetivos en
-los que centrarte, Tuist también sustituirá cualquier objetivo dependiente por
-sus binarios de la caché, siempre que estén disponibles. Para aquellos que
-prefieren un enfoque diferente, hay una opción para optar por este
-comportamiento por completo mediante el uso de una bandera específica:
+De forma predeterminada, cuando los comandos de Tuist requieren la generación de
+proyectos, sustituyen automáticamente las dependencias por sus equivalentes
+binarios de la caché, si están disponibles. Además, si se especifica una lista
+de objetivos en los que centrarse, Tuist también sustituirá cualquier objetivo
+dependiente por sus binarios almacenados en caché, siempre que estén
+disponibles. Para aquellos que prefieran un enfoque diferente, existe la opción
+de desactivar completamente este comportamiento mediante el uso de un indicador
+específico:
 
 ::: grupo de códigos
 ```bash [Project generation]
@@ -70,26 +72,27 @@ tuist test
 
 ::: advertencia
 <!-- -->
-La caché binaria es una función diseñada para flujos de trabajo de desarrollo,
-como la ejecución de la aplicación en un simulador o dispositivo, o la ejecución
-de pruebas. No está pensada para compilaciones de lanzamiento. Al archivar la
-aplicación, genera un proyecto con los fuentes mediante `--cache-profile none`.
+El almacenamiento en caché binario es una función diseñada para flujos de
+trabajo de desarrollo, como ejecutar la aplicación en un simulador o
+dispositivo, o realizar pruebas. No está pensada para compilaciones de
+lanzamiento. Al archivar la aplicación, genere un proyecto con las fuentes
+utilizando `--cache-profile none`.
 <!-- -->
 :::
 
 ## Perfiles de caché {#cache-profiles}
 
 Tuist admite perfiles de caché para controlar la agresividad con la que se
-sustituyen los objetivos por binarios en caché al generar proyectos.
+sustituyen los objetivos por binarios almacenados en caché al generar proyectos.
 
-- Empotrados:
-  - `only-external`: reemplaza sólo las dependencias externas (por defecto del
-    sistema)
+- Elementos integrados:
+  - `only-external`: reemplazar solo las dependencias externas (predeterminado
+    del sistema)
   - `all-possible`: reemplazar tantos objetivos como sea posible (incluidos los
-    objetivos internos)
-  - `none`: nunca reemplazar con binarios en caché
+    objetivos internos).
+  - `none`: nunca sustituir por binarios almacenados en caché.
 
-Seleccione un perfil con `--cache-profile` en `tuist generate`:
+Selecciona un perfil con `--cache-profile` en `tuist generate`:
 
 ```bash
 # Built-in profiles
@@ -110,97 +113,101 @@ tuist generate --cache-profile none
 
 ::: info DEPRECATED FLAG
 <!-- -->
-La opción `--no-binary-cache` está obsoleta. Utilice `--cache-profile none` en
-su lugar. La opción obsoleta sigue siendo compatible con versiones anteriores.
+La bandera `--no-binary-cache` está obsoleta. Utilice `--cache-profile none` en
+su lugar. La bandera obsoleta sigue funcionando por motivos de compatibilidad
+con versiones anteriores.
 <!-- -->
 :::
 
-Precedencia a la hora de resolver la conducta efectiva (de mayor a menor):
+Precedencia a la hora de resolver el comportamiento efectivo (de mayor a menor):
 
 1. `--cache-profile none`
-2. Enfoque de objetivos (pasar objetivos a `generar`) → perfil `todo-posible`
-3. `--perfil de caché `
-4. Configuración por defecto (si está configurada)
-5. Sistema por defecto (`only-external`)
+2. Enfoque objetivo (pasar objetivos a `generar`) → perfil `todas las
+   posibilidades`
+3. `--cache-profile `
+4. Configuración predeterminada (si está establecida)
+5. Predeterminado del sistema (`only-external`)
 
 ## Productos compatibles {#supported-products}
 
-Tuist sólo puede almacenar en caché los siguientes productos de destino:
+Tuist solo puede almacenar en caché los siguientes productos de destino:
 
 - Frameworks (estáticos y dinámicos) que no dependen de
   [XCTest](https://developer.apple.com/documentation/xctest)
 - Paquetes
-- Macros Swift
+- Macros de Swift
 
-Estamos trabajando para dar soporte a las librerías y objetivos que dependen de
+Estamos trabajando para dar soporte a bibliotecas y objetivos que dependen de
 XCTest.
 
 ::: info UPSTREAM DEPENDENCIES
 <!-- -->
-Cuando un objetivo no es almacenable en caché, hace que los objetivos anteriores
-tampoco lo sean. Por ejemplo, si tienes el gráfico de dependencias `A &gt; B`,
-donde A depende de B, si B no es almacenable en caché, A tampoco lo será.
+Cuando un objetivo no se puede almacenar en caché, los objetivos ascendentes
+tampoco se pueden almacenar en caché. Por ejemplo, si tienes el gráfico de
+dependencias `A &gt; B`, donde A depende de B, si B no se puede almacenar en
+caché, A tampoco se podrá almacenar en caché.
 <!-- -->
 :::
 
-## Eficacia {#efficiency}
+## Eficiencia {#efficiency}
 
-El nivel de eficacia que puede alcanzarse con la caché binaria depende en gran
-medida de la estructura del grafo. Para obtener los mejores resultados,
-recomendamos lo siguiente:
+El nivel de eficiencia que se puede alcanzar con el almacenamiento en caché
+binario depende en gran medida de la estructura del gráfico. Para obtener los
+mejores resultados, recomendamos lo siguiente:
 
-1. Evite los gráficos de dependencia muy anidados. Cuanto menos profundo sea el
+1. Evita los gráficos de dependencia muy anidados. Cuanto menos complejo sea el
    gráfico, mejor.
-2. Define las dependencias con objetivos de protocolo/interfaz en lugar de
-   objetivos de implementación, e inyecta las implementaciones de dependencias
-   desde los objetivos superiores.
-3. Dividir los objetivos modificados con frecuencia en otros más pequeños cuya
-   probabilidad de cambio sea menor.
+2. Defina las dependencias con objetivos de protocolo/interfaz en lugar de con
+   objetivos de implementación, e inyecte las implementaciones de dependencia
+   desde los objetivos más altos.
+3. Divida los objetivos que se modifican con frecuencia en otros más pequeños
+   cuya probabilidad de cambio sea menor.
 
 Las sugerencias anteriores forman parte de
 <LocalizedLink href="/guides/features/projects/tma-architecture">La arquitectura
 modular</LocalizedLink>, que proponemos como una forma de estructurar sus
-proyectos para maximizar los beneficios no sólo de la caché binaria, sino
-también de las capacidades de Xcode.
+proyectos para maximizar los beneficios no solo del almacenamiento en caché
+binario, sino también de las capacidades de Xcode.
 
 ## Configuración recomendada {#recommended-setup}
 
-Recomendamos tener un trabajo CI que **ejecute en cada commit en la rama
-principal** para calentar la caché. Esto asegurará que la caché siempre contenga
-binarios para los cambios en `main` para que la rama local y CI construyan
-incrementalmente sobre ellos.
+Recomendamos tener un trabajo de CI que **se ejecute en cada confirmación en la
+rama principal** para calentar la caché. Esto garantizará que la caché siempre
+contenga binarios para los cambios en `main`, de modo que la rama local y la
+rama de CI se construyan incrementalmente sobre ellos.
 
 ::: tip CACHE WARMING USES BINARIES
 <!-- -->
-El comando `tuist cache` también hace uso de la caché binaria para acelerar el
+El comando `tuist cache` también utiliza la caché binaria para acelerar el
 calentamiento.
 <!-- -->
 :::
 
-A continuación se ofrecen algunos ejemplos de flujos de trabajo habituales:
+A continuación se muestran algunos ejemplos de flujos de trabajo habituales:
 
-### Un desarrollador empieza a trabajar en una nueva función {#a-developer-starts-to-work-on-a-new-feature}
+### Un desarrollador comienza a trabajar en una nueva función. {#a-developer-starts-to-work-on-a-new-feature}
 
-1. Crean una nueva rama a partir de `principal`.
-2. Ejecutan `tuist generan`.
+1. Crean una nueva rama desde `main`.
+2. They run `tuist generate`.
 3. Tuist extrae los binarios más recientes de `main` y genera el proyecto con
    ellos.
 
-### Un desarrollador introduce cambios {#a-developer-pushes-changes-upstream}
+### Un desarrollador envía los cambios al upstream. {#a-developer-pushes-changes-upstream}
 
-1. El proceso CI ejecutará `xcodebuild build` o `tuist test` para construir o
+1. El proceso de CI ejecutará `xcodebuild build` o `tuist test` para compilar o
    probar el proyecto.
 2. El flujo de trabajo extraerá los binarios más recientes de `main` y generará
    el proyecto con ellos.
-3. A continuación, construirá o probará el proyecto de forma incremental.
+3. A continuación, compilará o probará el proyecto de forma incremental.
 
 ## Configuración {#configuration}
 
 ### Límite de concurrencia de la caché {#cache-concurrency-limit}
 
-Por defecto, Tuist descarga y sube artefactos de caché sin ningún límite de
-concurrencia, maximizando el rendimiento. Puedes controlar este comportamiento
-utilizando la variable de entorno `TUIST_CACHE_CONCURRENCY_LIMIT`:
+De forma predeterminada, Tuist descarga y carga artefactos de caché sin ningún
+límite de concurrencia, lo que maximiza el rendimiento. Puede controlar este
+comportamiento utilizando la variable de entorno
+`TUIST_CACHE_CONCURRENCY_LIMIT`:
 
 ```bash
 # Set a specific concurrency limit
@@ -212,46 +219,46 @@ export TUIST_CACHE_CONCURRENCY_LIMIT=none
 tuist generate
 ```
 
-Esto puede ser útil en entornos con un ancho de banda de red limitado o para
-reducir la carga del sistema durante las operaciones de caché.
+Esto puede resultar útil en entornos con un ancho de banda de red limitado o
+para reducir la carga del sistema durante las operaciones de caché.
 
 ## Solución de problemas {#troubleshooting}
 
-### No utiliza binarios para mis objetivos {#it-doesnt-use-binaries-for-my-targets}
+### No utiliza binarios para mis objetivos. {#it-doesnt-use-binaries-for-my-targets}
 
-Asegúrese de que los
-<LocalizedLink href="/guides/features/projects/hashing#debugging">hashes son
-deterministas</LocalizedLink> entre entornos y ejecuciones. Esto puede ocurrir
-si el proyecto tiene referencias al entorno, por ejemplo a través de rutas
-absolutas. Puede utilizar el comando `diff` para comparar los proyectos
-generados por dos invocaciones consecutivas de `tuist generate` o a través de
-entornos o ejecuciones.
+Asegúrate de que los hash
+<LocalizedLink href="/guides/features/projects/hashing#debugging"> sean
+deterministas</LocalizedLink> en todos los entornos y ejecuciones. Esto puede
+ocurrir si el proyecto tiene referencias al entorno, por ejemplo, a través de
+rutas absolutas. Puedes utilizar el comando `diff` para comparar los proyectos
+generados por dos invocaciones consecutivas de `tuist generate` o entre entornos
+o ejecuciones.
 
-Asegúrese también de que el objetivo no depende directa o indirectamente de un
-<LocalizedLink href="/guides/features/cache/generated-project#supported-products">objetivo
+Asegúrate también de que el destino no dependa directa o indirectamente de un
+<LocalizedLink href="/guides/features/cache/generated-project#supported-products">destino
 no almacenable en caché</LocalizedLink>.
 
 ### Símbolos que faltan {#missing-symbols}
 
-Cuando se utilizan fuentes, el sistema de compilación de Xcode, a través de los
-datos derivados, puede resolver las dependencias que no se declaran
-explícitamente. Sin embargo, cuando se confía en la caché binaria, las
-dependencias deben declararse explícitamente; de lo contrario, es probable que
-se produzcan errores de compilación cuando no se encuentren los símbolos. Para
-depurar esto, recomendamos usar el comando
+Al utilizar fuentes, el sistema de compilación de Xcode, a través de Derived
+Data, puede resolver dependencias que no se declaran explícitamente. Sin
+embargo, cuando se utiliza la caché binaria, las dependencias deben declararse
+explícitamente; de lo contrario, es probable que se produzcan errores de
+compilación cuando no se encuentren los símbolos. Para depurar esto,
+recomendamos utilizar el comando
 <LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist
 inspect dependencies --only implicit`</LocalizedLink> y configurarlo en CI para
-prevenir regresiones en el enlazado implícito.
+evitar regresiones en los enlaces implícitos.
 
-### Caché de módulos heredados {#legacy-module-cache}
+### Caché del módulo heredado {#legacy-module-cache}
 
-En Tuist `4.128.0`, hemos hecho que nuestra nueva infraestructura para la caché
-de módulos sea la predeterminada. Si experimentas problemas con esta nueva
-versión, puedes volver al comportamiento anterior de la caché configurando la
+En Tuist `4.128.0`, hemos establecido nuestra nueva infraestructura para la
+caché del módulo como predeterminada. Si experimenta problemas con esta nueva
+versión, puede volver al comportamiento de la caché heredada configurando la
 variable de entorno `TUIST_LEGACY_MODULE_CACHE`.
 
-Esta caché de módulo heredada es un recurso temporal y se eliminará en el lado
-del servidor en una futura actualización. Planifique su migración.
+Esta caché del módulo heredado es una solución temporal y se eliminará del
+servidor en una futura actualización. Planifica su migración.
 
 ```bash
 export TUIST_LEGACY_MODULE_CACHE=1
