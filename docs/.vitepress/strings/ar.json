@@ -196,6 +196,12 @@
                         },
                         "handbook": {
                             "text": "الكتيب"
+                        },
+                        "cli": {
+                            "text": "CLI"
+                        },
+                        "server": {
+                            "text": "السيرڤر"
                         }
                     },
                     "text": "الكود"
