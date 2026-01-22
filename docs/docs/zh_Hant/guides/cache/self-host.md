@@ -6,49 +6,40 @@
 }
 ---
 
-# Self-host Cache {#self-host-cache}
+# 自建伺服器快取{#self-host-cache}
 
-The Tuist cache service can be self-hosted to provide a private binary cache for
-your team. This is most useful for organizations with large artifacts and
-frequent builds, where placing the cache closer to your CI infrastructure
-reduces latency and improves cache efficiency. By minimizing the distance
-between your build agents and the cache, you ensure that network overhead
-doesn't negate the speed benefits of caching.
+Tuist 快取服務可自行架設，為團隊提供專屬二進位快取。此功能對擁有大型建置產物且頻繁建置的組織尤為實用，將快取部署於 CI
+基礎架構附近可降低延遲並提升快取效能。透過縮短建置代理程式與快取之間的距離，可確保網路開銷不會抵銷快取帶來的速度優勢。
 
 ::: info
 <!-- -->
-Self-hosting cache nodes requires an **Enterprise plan**.
+自行託管快取節點需具備**企業方案** 。
 
-You can connect self-hosted cache nodes to either the hosted Tuist server
-(`https://tuist.dev`) or a self-hosted Tuist server. Self-hosting the Tuist
-server itself requires a separate server license. See the
-<LocalizedLink href="/guides/server/self-host/install">server self-hosting
-guide</LocalizedLink>.
+您可將自建快取節點連接至託管式 Tuist 伺服器（`https://tuist.dev` ）或自建的 Tuist 伺服器。若需自行架設 Tuist
+伺服器，則需另行取得伺服器授權。詳見
+<LocalizedLink href="/guides/server/self-host/install">伺服器自建指南</LocalizedLink>。
 <!-- -->
 :::
 
-## Prerequisites {#prerequisites}
+## 先決條件{#prerequisites}
 
-- Docker and Docker Compose
-- S3-compatible storage bucket
-- A running Tuist server instance (hosted or self-hosted)
+- Docker 與 Docker Compose
+- S3相容儲存桶
+- 一個正在運行的 Tuist 伺服器實例（託管或自託管）
 
-## Deployment {#deployment}
+## 部署{#deployment}
 
-The cache service is distributed as a Docker image at
-[ghcr.io/tuist/cache](https://ghcr.io/tuist/cache). We provide reference
-configuration files in the [cache
-directory](https://github.com/tuist/tuist/tree/main/cache).
+快取服務以 Docker 映像檔形式發佈於 [ghcr.io/tuist/cache](https://ghcr.io/tuist/cache)。我們在
+[快取目錄](https://github.com/tuist/tuist/tree/main/cache) 提供參考設定檔。
 
 ::: tip
 <!-- -->
-We provide a Docker Compose setup because it's a convenient baseline for
-evaluation and small deployments. You can use it as a reference and adapt it to
-your preferred deployment model (Kubernetes, raw Docker, etc.).
+我們提供 Docker Compose 設定檔，因其作為評估與小型部署的便捷基準。您可參照此設定並調整為偏好的部署模式（如 Kubernetes、原始
+Docker 等）。
 <!-- -->
 :::
 
-### Configuration files {#config-files}
+### 設定檔{#config-files}
 
 ```bash
 curl -O https://raw.githubusercontent.com/tuist/tuist/main/cache/docker-compose.yml
@@ -56,14 +47,13 @@ mkdir -p docker
 curl -o docker/nginx.conf https://raw.githubusercontent.com/tuist/tuist/main/cache/docker/nginx.conf
 ```
 
-### Environment variables {#environment-variables}
+### 環境變數{#environment-variables}
 
-Create a `.env` file with your configuration.
+建立`.env` 檔案並輸入您的設定。
 
 ::: tip
 <!-- -->
-The service is built with Elixir/Phoenix, so some variables use the `PHX_`
-prefix. You can treat these as standard service configuration.
+本服務採用Elixir/Phoenix架構，部分變數使用`前綴（如PHX_` ）。此類設定可視為標準服務配置處理。
 <!-- -->
 :::
 
@@ -91,42 +81,41 @@ S3_REGION=us-east-1
 DATA_DIR=/data
 ```
 
-| Variable                          | Required | Default                   | Description                                                                                       |
-| --------------------------------- | -------- | ------------------------- | ------------------------------------------------------------------------------------------------- |
-| `SECRET_KEY_BASE`                 | Yes      |                           | Secret key used to sign and encrypt data (minimum 64 characters).                                 |
-| `PUBLIC_HOST`                     | Yes      |                           | Public hostname or IP address of your cache service. Used to generate absolute URLs.              |
-| `SERVER_URL`                      | Yes      |                           | URL of your Tuist server for authentication. Defaults to `https://tuist.dev`                      |
-| `DATA_DIR`                        | Yes      |                           | Directory where CAS artifacts are stored on disk. The provided Docker Compose setup uses `/data`. |
-| `S3_BUCKET`                       | Yes      |                           | S3 bucket name.                                                                                   |
-| `S3_HOST`                         | Yes      |                           | S3 endpoint hostname.                                                                             |
-| `S3_ACCESS_KEY_ID`                | Yes      |                           | S3 access key.                                                                                    |
-| `S3_SECRET_ACCESS_KEY`            | Yes      |                           | S3 secret key.                                                                                    |
-| `S3_REGION`                       | Yes      |                           | S3 region.                                                                                        |
-| `CAS_DISK_HIGH_WATERMARK_PERCENT` | No       | `85`                      | Disk usage percentage that triggers LRU eviction.                                                 |
-| `CAS_DISK_TARGET_PERCENT`         | No       | `70`                      | Target disk usage after eviction.                                                                 |
-| `PHX_SOCKET_PATH`                 | No       | `/run/cache/cache.sock`   | Path where the service creates its Unix socket (when enabled).                                    |
-| `PHX_SOCKET_LINK`                 | No       | `/run/cache/current.sock` | Symlink path that Nginx uses to connect to the service.                                           |
+| 變數                                | 必填  | 預設                        | 說明                                              |
+| --------------------------------- | --- | ------------------------- | ----------------------------------------------- |
+| `SECRET_KEY_BASE`                 | 是   |                           | 用於簽署及加密資料的密鑰（至少 64 個字元）。                        |
+| `PUBLIC_HOST`                     | 是   |                           | 快取服務的公開主機名稱或 IP 位址。用於產生絕對網址。                    |
+| `SERVER_URL`                      | 是   |                           | 用於驗證的 Tuist 伺服器網址。預設為`https://tuist.dev`        |
+| `DATA_DIR`                        | 是   |                           | 儲存 CAS 成果的磁碟目錄。提供的 Docker Compose 設定使用`/data` 。 |
+| `S3_BUCKET`                       | 是   |                           | S3儲存桶名稱。                                        |
+| `S3_HOST`                         | 是   |                           | S3 端點主機名稱。                                      |
+| `S3_ACCESS_KEY_ID`                | 是   |                           | S3 存取金鑰。                                        |
+| `S3_SECRET_ACCESS_KEY`            | 是   |                           | S3 密鑰。                                          |
+| `S3_REGION`                       | 是   |                           | S3 區域。                                          |
+| `CAS_DISK_HIGH_WATERMARK_PERCENT` | 不   | `85`                      | 觸發 LRU 淘汰的磁碟使用百分比。                              |
+| `CAS_DISK_TARGET_PERCENT`         | 不   | `70`                      | 驅逐後目標磁碟使用量。                                     |
+| `PHX_SOCKET_PATH`                 | 不   | `/run/cache/cache.sock`   | 服務建立其 Unix 套接字的路徑（當啟用時）。                        |
+| `PHX_SOCKET_LINK`                 | 不   | `/run/cache/current.sock` | Nginx 用於連接服務的符號連結路徑。                            |
 
-### Start the service {#start-service}
+### 啟動服務{#start-service}
 
 ```bash
 docker compose up -d
 ```
 
-### Verify the deployment {#verify}
+### 驗證部署{#verify}
 
 ```bash
 curl http://localhost/up
 ```
 
-## Configure the cache endpoint {#configure-endpoint}
+## 設定快取端點{#configure-endpoint}
 
-After deploying the cache service, register it in your Tuist server organization
-settings:
+部署快取服務後，請於 Tuist 伺服器組織設定中註冊該服務：
 
-1. Navigate to your organization's **Settings** page
-2. Find the **Custom cache endpoints** section
-3. Add your cache service URL (for example, `https://cache.example.com`)
+1. 前往您組織的**設定頁面**
+2. 請參閱**自訂快取端點** 區段
+3. 請添加您的快取服務網址（例如：`https://cache.example.com` ）
 
 <!-- TODO: Add screenshot of organization settings page showing Custom cache endpoints section -->
 
@@ -136,58 +125,54 @@ graph TD
   B --> C[Tuist CLI uses your endpoint]
 ```
 
-Once configured, the Tuist CLI will use your self-hosted cache.
+設定完成後，Tuist CLI 將使用您自行架設的快取服務。
 
-## Volumes {#volumes}
+## 卷數{#volumes}
 
-The Docker Compose configuration uses three volumes:
+Docker Compose 配置使用三個卷宗：
 
-| Volume         | Purpose                                     |
-| -------------- | ------------------------------------------- |
-| `cas_data`     | Binary artifact storage                     |
-| `sqlite_data`  | Access metadata for LRU eviction            |
-| `cache_socket` | Unix socket for Nginx-service communication |
+| 卷              | 目的                   |
+| -------------- | -------------------- |
+| `cas_data`     | 二進位工件儲存              |
+| `sqlite_data`  | 存取 LRU 淘汰的元資料        |
+| `cache_socket` | Nginx 服務通訊的 Unix 套接字 |
 
-## Health checks {#health-checks}
+## 健康檢查{#health-checks}
 
-- `GET /up` — Returns 200 when healthy
-- `GET /metrics` — Prometheus metrics
+- `GET /up` — 系統正常時返回 200 狀態碼
+- `GET /metrics` — Prometheus 指標
 
-## Monitoring {#monitoring}
+## 監控{#monitoring}
 
-The cache service exposes Prometheus-compatible metrics at `/metrics`.
+快取服務於`/metrics 及` 提供 Prometheus 相容的計量資料。
 
-If you use Grafana, you can import the [reference
-dashboard](https://raw.githubusercontent.com/tuist/tuist/refs/heads/main/cache/priv/grafana_dashboards/cache_service.json).
+若您使用 Grafana，可匯入
+[參考儀表板](https://raw.githubusercontent.com/tuist/tuist/refs/heads/main/cache/priv/grafana_dashboards/cache_service.json)。
 
-## Upgrading {#upgrading}
+## 升級{#upgrading}
 
 ```bash
 docker compose pull
 docker compose up -d
 ```
 
-The service runs database migrations automatically on startup.
+此服務在啟動時會自動執行資料庫遷移。
 
-## Troubleshooting {#troubleshooting}
+## 疑難排解{#troubleshooting}
 
-### Cache not being used {#troubleshooting-caching}
+### 快取未被使用{#troubleshooting-caching}
 
-If you expect caching but are seeing consistent cache misses (for example, the
-CLI is repeatedly uploading the same artifacts, or downloads never happen),
-follow these steps:
+若預期會產生快取卻持續發生快取未命中（例如：命令列介面反覆上傳相同工件，或下載從未發生），請依循以下步驟：
 
-1. Verify the custom cache endpoint is correctly configured in your organization
-   settings.
-2. Ensure your Tuist CLI is authenticated by running `tuist auth login`.
-3. Check the cache service logs for any errors: `docker compose logs cache`.
+1. 請確認自訂快取端點已在您的組織設定中正確配置。
+2. 請執行以下指令確保您的 Tuist CLI 已完成認證：`tuist auth login`
+3. 檢查快取服務日誌是否有錯誤：`docker compose logs cache`
 
-### Socket path mismatch {#troubleshooting-socket}
+### 插座路徑不匹配{#troubleshooting-socket}
 
-If you see connection refused errors:
+若出現連線遭拒錯誤：
 
-- Ensure `PHX_SOCKET_LINK` points to the socket path configured in nginx.conf
-  (default: `/run/cache/current.sock`)
-- Verify `PHX_SOCKET_PATH` and `PHX_SOCKET_LINK` are both set correctly in
-  docker-compose.yml
-- Verify the `cache_socket` volume is mounted in both containers
+- 請確保以下路徑設定正確：`PHX_SOCKET_LINK` 需指向 nginx.conf
+  中設定的套接字路徑（預設值：`/run/cache/current.sock` ）
+- 請確認 docker-compose.yml 檔案中：`PHX_SOCKET_PATH` 以及`PHX_SOCKET_LINK` 皆已正確設定。
+- 請確認`cache_socket` 卷宗已掛載於兩個容器中
