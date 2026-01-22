@@ -9,7 +9,8 @@
 
 ::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve projesi</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve
+  projesi</LocalizedLink>
 <!-- -->
 :::
 
@@ -47,7 +48,7 @@ görmeniz için size bir bağlantı sağlar:
 ## Sürekli entegrasyon {#continuous-integration}
 
 Zaman içinde paket boyutunu izlemek için CI üzerindeki paketi analiz etmeniz
-gerekecektir. Öncelikle, CI'nızın
+gerekecektir. İlk olarak, CI'nızın
 <LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>
 olduğundan emin olmanız gerekir:
 
@@ -77,8 +78,10 @@ grafiği](/images/guides/features/bundle-size/bundle-size-graph.png)
 ::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
 Otomatik çekme/birleştirme isteği yorumları almak için
-<LocalizedLink href="/guides/server/accounts-and-projects">Tuist projenizi</LocalizedLink> bir
-<LocalizedLink href="/guides/server/authentication">Git platformuyla</LocalizedLink> entegre edin.
+<LocalizedLink href="/guides/server/accounts-and-projects">Tuist
+projenizi</LocalizedLink> bir
+<LocalizedLink href="/guides/server/authentication">Git
+platformu</LocalizedLink> ile entegre edin.
 <!-- -->
 :::
 
