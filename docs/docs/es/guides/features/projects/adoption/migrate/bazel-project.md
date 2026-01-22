@@ -16,7 +16,7 @@ organizaciones como
 o [Lyft](https://semaphoreci.com/blog/keith-smiley-bazel) lo utilizan, sin
 embargo, requiere una inversión inicial (es decir, aprender la tecnología) y
 continua (es decir, mantenerse al día con las actualizaciones de Xcode) para
-introducir y mantener. Si bien esto funciona para algunas organizaciones que lo
+introducir y mantener. Aunque esto funciona para algunas organizaciones que lo
 tratan como una preocupación transversal, puede que no sea lo más adecuado para
 otras que quieren centrarse en el desarrollo de sus productos. Por ejemplo,
 hemos visto organizaciones cuyo equipo de plataforma iOS introdujo Bazel y tuvo
