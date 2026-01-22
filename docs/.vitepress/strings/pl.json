@@ -390,10 +390,10 @@
                         "test-insights": {
                             "items": {
                                 "flaky-tests": {
-                                    "text": "Niesprawne testy"
+                                    "text": "Nierzetelne testy"
                                 }
                             },
-                            "text": "Wgląd w testy"
+                            "text": "Wnioski z testów"
                         }
                     }
                 },
@@ -420,7 +420,7 @@
                                     "text": "GitHub"
                                 }
                             },
-                            "text": "Kuźnie Git"
+                            "text": "Git forges"
                         },
                         "slack": {
                             "text": "Slack"
@@ -446,7 +446,7 @@
                                     "text": "Instalacja"
                                 }
                             },
-                            "text": "Hosting własny"
+                            "text": "Samodzielne hostowanie"
                         },
                         "accounts-and-projects": {
                             "text": "Konta i projekty"
