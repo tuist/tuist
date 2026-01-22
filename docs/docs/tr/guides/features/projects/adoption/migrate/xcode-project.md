@@ -7,7 +7,8 @@
 ---
 # Bir Xcode projesini taşıma {#migrate-an-xcode-project}
 
-Tuist<LocalizedLink href="/guides/features/projects/adoption/new-project"> kullanarak yeni bir proje oluşturmadığınız sürece</LocalizedLink>, bu durumda
+Tuist<LocalizedLink href="/guides/features/projects/adoption/new-project">
+kullanarak yeni bir proje oluşturmadığınız sürece</LocalizedLink>, bu durumda
 her şey otomatik olarak yapılandırılır, Xcode projelerinizi Tuist'in ilkellerini
 kullanarak tanımlamanız gerekir. Bu sürecin ne kadar sıkıcı olduğu,
 projelerinizin ne kadar karmaşık olduğuna bağlıdır.
@@ -85,8 +86,8 @@ tanımlayabileceğiniz yerdir.
 ::: tip PROJECT NAME WITH -TUIST SUFFIX
 <!-- -->
 Mevcut Xcode projesiyle çakışmaları önlemek için, proje adına `-Tuist` son ekini
-eklemenizi öneririz. Projenizi Tuist'e tam olarak geçirdikten sonra bunu
-bırakabilirsiniz.
+eklemenizi öneririz. Projenizi Tuist'e tamamen geçirdikten sonra bu eki
+kaldırabilirsiniz.
 <!-- -->
 :::
 
@@ -133,7 +134,7 @@ let project = Project(
 )
 ```
 
-Ardından, derleme ayarlarında yapılan değişikliklerin doğrudan `.xcconfig`
+Ardından, derleme ayarlarındaki değişikliklerin doğrudan `.xcconfig`
 dosyalarında yapılmasını sağlamak için aşağıdaki komutu çalıştırmak üzere
 sürekli entegrasyon işlem hattınızı genişletin:
 
@@ -256,7 +257,7 @@ Hedefin ilişkili bir test hedefi varsa, aynı adımları tekrarlayarak bunu
 
 Projenin derlendiğinden emin olmak için `tuist generate` ardından `xcodebuild
 build` ve testlerin geçtiğinden emin olmak için `tuist test` çalıştırın. Ek
-olarak, değişikliklerin doğru olduğundan emin olmak için oluşturulan Xcode
+olarak, değişikliklerin doğru olduğundan emin olmak için oluşturulmuş Xcode
 projesini mevcut projeyle karşılaştırmak için
 [xcdiff](https://github.com/bloomberg/xcdiff) kullanabilirsiniz.
 
