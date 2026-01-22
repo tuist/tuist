@@ -163,7 +163,7 @@
                     "text": "Kod"
                 },
                 "debugging": {
-                    "text": "Hata Ayıklama"
+                    "text": "Hata ayıklama"
                 }
             }
         },
@@ -387,10 +387,10 @@
                         "test-insights": {
                             "items": {
                                 "flaky-tests": {
-                                    "text": "Berbat testler"
+                                    "text": "Kararsız testler"
                                 }
                             },
-                            "text": "Test içgörüleri"
+                            "text": "Test bilgileri"
                         }
                     }
                 },
