@@ -7,52 +7,52 @@
 ---
 # Releases
 
-Tuist utiliza un sistema de publicación continua que publica automáticamente
-nuevas versiones cada vez que se incorporan cambios significativos a la rama
+Tuist utiliza un sistema de lanzamiento continuo que publica automáticamente
+nuevas versiones cada vez que se fusionan cambios significativos en la rama
 principal. Este enfoque garantiza que las mejoras lleguen rápidamente a los
-usuarios sin intervención manual de los mantenedores.
+usuarios sin la intervención manual de los mantenedores.
 
-## Visión general
+## Resumen
 
-Lanzamos continuamente tres componentes principales:
-- **Tuist CLI** - La herramienta de línea de comandos
-- **Tuist Server** - Los servicios backend
-- **Tuist App** - Las aplicaciones macOS e iOS (la aplicación iOS sólo se
-  despliega continuamente en TestFlight, más información
+Publicamos continuamente tres componentes principales:
+- **Tuist CLI** - La herramienta de línea de comandos.
+- **Servidor Tuist** - Los servicios de backend
+- **Aplicación Tuist** - Las aplicaciones para macOS e iOS (la aplicación para
+  iOS solo se implementa de forma continua en TestFlight, más información
   [aquí](#app-store-release)
 
-Cada componente tiene su propio proceso de publicación que se ejecuta
-automáticamente cada vez que se envía a la rama principal.
+Cada componente tiene su propio canal de lanzamiento que se ejecuta
+automáticamente cada vez que se envía algo a la rama principal.
 
 ## Cómo funciona
 
-### 1. Comprometer convenios
+### 1. Convenciones de confirmación
 
 Utilizamos [Conventional Commits](https://www.conventionalcommits.org/) para
-estructurar nuestros mensajes de confirmación. Esto permite a nuestras
-herramientas comprender la naturaleza de los cambios, determinar los saltos de
-versión y generar los registros de cambios adecuados.
+estructurar nuestros mensajes de confirmación. Esto permite que nuestras
+herramientas comprendan la naturaleza de los cambios, determinen los aumentos de
+versión y generen registros de cambios adecuados.
 
-Formato: `tipo(ámbito): descripción`
+Formato: `tipo(alcance): descripción`
 
-#### Tipos de compromiso y su impacto
+#### Tipos de confirmación y su impacto
 
-| Tipo           | Descripción                     | Versión Impacto                   | Ejemplo                                                    |
-| -------------- | ------------------------------- | --------------------------------- | ---------------------------------------------------------- |
-| `feat`         | Nueva función o capacidad       | Pequeño cambio de versión (x.Y.z) | `feat(cli): añadir compatibilidad con Swift 6`             |
-| `fije`         | Corrección de errores           | Parche versión bump (x.y.Z)       | `fix(app): resolver el bloqueo al abrir proyectos`         |
-| `docs`         | Cambios en la documentación     | Ningún comunicado                 | `docs: guía de instalación de actualizaciones`             |
-| `estilo`       | Cambios en el estilo del código | Ningún comunicado                 | `estilo: formatear código con swiftformat`                 |
-| `refactorizar` | Refactorización del código      | Ningún comunicado                 | `refactor(server): simplificar la lógica de autenticación` |
-| `perf`         | Mejoras de rendimiento          | Aumento de la versión del parche  | `perf(cli): optimizar la resolución de dependencias`       |
-| `prueba`       | Pruebas adiciones/cambios       | Ningún comunicado                 | `test: añadir pruebas unitarias para la caché`             |
-| `tarea`        | Tareas de mantenimiento         | Ningún comunicado                 | `tarea: actualizar dependencias`                           |
-| `ci`           | Cambios CI/CD                   | Ningún comunicado                 | `ci: añadir flujo de trabajo para liberaciones`            |
+| Escribir       | Descripción                     | Impacto de la versión                    | Ejemplo                                                            |
+| -------------- | ------------------------------- | ---------------------------------------- | ------------------------------------------------------------------ |
+| `feat`         | Nueva función o capacidad.      | Aumento menor de la versión (x.Y.z)      | `feat(cli): añadir compatibilidad con Swift 6.`                    |
+| `corregir`     | Corrección de errores.          | Aumento de la versión del parche (x.y.Z) | `fix(app): se ha solucionado el bloqueo al abrir proyectos.`       |
+| `docs`         | Cambios en la documentación     | Sin publicación.                         | `docs: actualizar la guía de instalación`                          |
+| `estilo`       | Cambios en el estilo del código | Sin publicación.                         | `Estilo: formatear el código con swiftformat.`                     |
+| `refactorizar` | Reestructuración del código.    | Sin publicación.                         | `refactorizar (servidor): simplificar la lógica de autenticación.` |
+| `perf`         | Mejoras en el rendimiento       | Aumento de la versión del parche.        | `perf(cli): optimizar la resolución de dependencias`               |
+| `prueba`       | Prueba de adiciones/cambios.    | Sin publicación.                         | `Prueba: añadir pruebas unitarias para la caché.`                  |
+| `tarea`        | Tareas de mantenimiento         | Sin publicación.                         | `Tarea: actualizar dependencias.`                                  |
+| `ci`           | Cambios en CI/CD                | Sin publicación.                         | `ci: añadir flujo de trabajo para lanzamientos`                    |
 
-#### Cambios de última hora
+#### Cambios importantes
 
-Los cambios de última hora provocan un salto de versión mayor (X.0.0) y deben
-indicarse en el cuerpo de la confirmación:
+Los cambios importantes provocan un aumento significativo de la versión (X.0.0)
+y deben indicarse en el cuerpo del commit:
 
 ```
 feat(cli): change default cache location
@@ -64,54 +64,52 @@ Users will need to clear their old cache directory.
 ### 2. Detección de cambios
 
 Cada componente utiliza [git cliff](https://git-cliff.org/) para:
-- Analizar los commits desde la última versión
-- Filtrar commits por ámbito (cli, app, servidor)
-- Determinar si hay cambios liberables
-- Generación automática de registros de cambios
+- Analizar las confirmaciones desde la última versión.
+- Filtrar las confirmaciones por ámbito (cli, app, server).
+- Determina si hay cambios que se puedan publicar.
+- Genera registros de cambios automáticamente.
 
-### 3. Liberación de tuberías
+### 3. Canalización de lanzamiento
 
-Cuando se detectan cambios liberables:
+Cuando se detectan cambios publicables:
 
-1. **Cálculo de la versión**: El pipeline determina el siguiente número de
-   versión
-2. **Changelog generation**: git cliff crea un changelog a partir de los
-   mensajes de commit
-3. **Proceso de construcción**: El componente se construye y se prueba
-4. **Creación de versiones**: Se crea una versión GitHub con artefactos
+1. **Cálculo de la versión**: El proceso determina el siguiente número de
+   versión.
+2. **Generación del registro de cambios**: git cliff crea un registro de cambios
+   a partir de los mensajes de confirmación.
+3. **Proceso de compilación**: El componente se compila y se prueba.
+4. **Creación de la versión**: Se crea una versión de GitHub con artefactos.
 5. **Distribución**: Las actualizaciones se envían a los gestores de paquetes
-   (por ejemplo, Homebrew para CLI)
+   (por ejemplo, Homebrew para CLI).
 
-### 4. Filtrado de alcance
+### 4. Filtrado de ámbito
 
-Cada componente sólo se libera cuando tiene cambios relevantes:
+Cada componente solo se publica cuando tiene cambios relevantes:
 
-- **CLI**: Commits con alcance `(cli)` o sin alcance
-- **Aplicación**: Commits con `(app)` scope
-- **Servidor**: Commits con `(servidor)` ámbito
+- **CLI**: Confirmaciones con `(cli)` scope o sin scope.
+- **App**: Commits con `(app)` scope
+- **Servidor**: Confirmaciones con `(servidor)` ámbito
 
-## Redactar buenos mensajes de confirmación
+## Escribir buenos mensajes de confirmación
 
-Dado que los mensajes de confirmación influyen directamente en las notas de
-publicación, es importante escribir mensajes claros y descriptivos:
+Dado que los mensajes de confirmación influyen directamente en las notas de la
+versión, es importante escribir mensajes claros y descriptivos:
 
-### Hazlo:
-- Utiliza el presente: "añade una función", no "añade una función".
-- Sea conciso pero descriptivo
-- Incluir el ámbito de aplicación cuando los cambios sean específicos de un
-  componente
-- Cuestiones de referencia cuando proceda: `fix(cli): resolver el problema de la
-  caché de compilación (#1234)`
+### Qué hacer:
+- Utilice el tiempo presente: «añadir función» en lugar de «función añadida».
+- Sé conciso pero descriptivo.
+- Incluye el ámbito cuando los cambios sean específicos de un componente.
+- Problemas de referencia cuando sea aplicable: `fix(cli): resolver el problema
+  de la caché de compilación (#1234)`
 
-### No lo hagas:
-- Utilizar mensajes vagos como "corregir error" o "actualizar código".
-- Mezclar varios cambios no relacionados en una sola confirmación
-- Olvidar incluir la información sobre los cambios de última hora
+### No hagas lo siguiente:
+- Utiliza mensajes vagos como «corregir error» o «actualizar código».
+- Mezcla varios cambios no relacionados en una sola confirmación.
+- Olvidar incluir información sobre cambios importantes.
 
-### Cambios de última hora
+### Cambios importantes
 
-Para cambios de última hora, incluya `BREAKING CHANGE:` en el cuerpo de la
-confirmación:
+Para cambios importantes, incluye `BREAKING CHANGE:` en el cuerpo del commit:
 
 ```
 feat(cli): change cache directory structure
@@ -120,71 +118,72 @@ BREAKING CHANGE: Cache files are now stored in a new directory structure.
 Users need to clear their cache after updating.
 ```
 
-## Flujos de trabajo de liberación
+## Flujos de trabajo de publicación
 
-Los flujos de trabajo de liberación se definen en:
-- `.github/workflows/cli-release.yml` - Versiones CLI
+Los flujos de trabajo de publicación se definen en:
+- `.github/workflows/cli-release.yml` - Lanzamientos de CLI
 - `.github/workflows/app-release.yml` - Lanzamientos de aplicaciones
-- `.github/workflows/server-release.yml` - Versiones del servidor
+- `.github/workflows/server-release.yml` - Lanzamientos del servidor
 
 Cada flujo de trabajo:
-- Se ejecuta en empuja a la principal
-- Puede activarse manualmente
-- Utiliza git cliff para la detección de cambios
-- Gestiona todo el proceso de liberación
+- Se ejecuta en los envíos al principal.
+- Se puede activar manualmente.
+- Utiliza git cliff para la detección de cambios.
+- Se encarga de todo el proceso de lanzamiento.
 
-## Seguimiento de las liberaciones
+## Supervisión de lanzamientos
 
-Puede supervisar las liberaciones a través de:
-- [Página de versiones de GitHub](https://github.com/tuist/tuist/releases)
-- Pestaña Acciones de GitHub para las ejecuciones del flujo de trabajo
-- Archivos Changelog en cada directorio de componentes
+Puedes supervisar los lanzamientos a través de:
+- [Página de lanzamientos de GitHub](https://github.com/tuist/tuist/releases)
+- Pestaña GitHub Actions para ejecuciones de flujos de trabajo
+- Archivos de registro de cambios en cada directorio de componentes.
 
-## Beneficios
+## Ventajas
 
-Este enfoque de liberación continua proporciona:
+Este enfoque de lanzamiento continuo proporciona:
 
 - **Entrega rápida**: Los cambios llegan a los usuarios inmediatamente después
-  de la fusión
-- **Reducción de los cuellos de botella**: No hay que esperar a las
-  publicaciones manuales
+  de la fusión.
+- **Reducción de los cuellos de botella**: sin esperas para las liberaciones
+  manuales.
 - **Comunicación clara**: Registros de cambios automatizados a partir de
-  mensajes de confirmación
-- **Proceso coherente**: El mismo flujo de liberación para todos los componentes
-- **Garantía de calidad**: Sólo se publican los cambios probados
+  mensajes de confirmación.
+- **Proceso coherente**: El mismo flujo de lanzamiento para todos los
+  componentes.
+- **Control de calidad**: solo se publican los cambios probados.
 
 ## Solución de problemas
 
-Si falla una liberación:
+Si falla una publicación:
 
-1. Comprueba los registros de acciones de GitHub para el flujo de trabajo
-   fallido
-2. Asegúrese de que sus mensajes de confirmación siguen el formato convencional
-3. Verificar que todas las pruebas se superan
-4. Compruebe que el componente se compila correctamente
+1. Comprueba los registros de GitHub Actions para ver el flujo de trabajo
+   fallido.
+2. Asegúrate de que tus mensajes de confirmación sigan el formato convencional.
+3. Comprueba que todas las pruebas se superan.
+4. Comprueba que el componente se compila correctamente.
 
-Para correcciones urgentes que necesitan una liberación inmediata:
-1. Asegúrese de que su compromiso tiene un alcance claro
-2. Tras la fusión, supervise el flujo de trabajo de liberación
-3. Si es necesario, activa un desbloqueo manual
+Para correcciones urgentes que requieren una publicación inmediata:
+1. Asegúrate de que tu commit tenga un alcance claro.
+2. Después de la fusión, supervisa el flujo de trabajo de lanzamiento.
+3. Si es necesario, activa una publicación manual.
 
-## Lanzamiento en App Store
+## Lanzamiento en la App Store.
 
-Mientras que la CLI y el servidor siguen el proceso de publicación continua
-descrito anteriormente, la aplicación **iOS** es una excepción debido al proceso
-de revisión de la App Store de Apple:
+Mientras que la CLI y el servidor siguen el proceso de lanzamiento continuo
+descrito anteriormente, la aplicación para iOS **** es una excepción debido al
+proceso de revisión de la App Store de Apple:
 
-- **Lanzamientos manuales**: Los lanzamientos de aplicaciones iOS requieren un
+- **Lanzamientos manuales**: los lanzamientos de aplicaciones iOS requieren el
   envío manual a la App Store.
-- **Retrasos en la revisión**: Cada versión debe pasar por el proceso de
+- **Retrasos en la revisión**: cada lanzamiento debe pasar por el proceso de
   revisión de Apple, que puede tardar entre 1 y 7 días.
-- **Cambios agrupados**: Los cambios múltiples suelen agruparse en cada versión
-  de iOS
+- **Cambios por lotes**: Los cambios múltiples suelen agruparse en cada versión
+  de iOS.
 - **TestFlight**: Las versiones beta pueden distribuirse a través de TestFlight
-  antes de su lanzamiento en el App Store.
-- **Notas de la versión**: Debe estar escrito específicamente para las
-  directrices de la App Store
+  antes del lanzamiento en la App Store.
+- **Notas de la versión**: deben redactarse específicamente para las directrices
+  de la App Store.
 
-La aplicación para iOS sigue las mismas convenciones de confirmación y utiliza
-git cliff para generar el registro de cambios, pero la publicación real para los
-usuarios se realiza de forma menos frecuente y manual.
+La aplicación para iOS sigue las mismas convenciones de compromiso y utiliza git
+cliff para generar el registro de cambios, pero el lanzamiento real a los
+usuarios se realiza con menos frecuencia, de forma manual.
