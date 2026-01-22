@@ -10,45 +10,45 @@
 CLI, sorunları teşhis etmenize yardımcı olmak için mesajları dahili olarak
 günlüğe kaydeder.
 
-## Günlükleri kullanarak sorunları teşhis etme {#diagnose-issues-using-logs}
+## Günlükleri kullanarak sorunları teşhis edin {#diagnose-issues-using-logs}
 
 Bir komut çağrısı istenen sonuçları vermezse, günlükleri inceleyerek sorunu
-teşhis edebilirsiniz. CLI günlükleri
+teşhis edebilirsiniz. CLI, günlükleri
 [OSLog](https://developer.apple.com/documentation/os/oslog) ve dosya sistemine
 iletir.
 
 Her çalıştırmada, `$XDG_STATE_HOME/tuist/logs/{uuid}.log` adresinde bir günlük
-dosyası oluşturur; burada `$XDG_STATE_HOME`, ortam değişkeni ayarlanmamışsa
-`~/.local/state` değerini alır. Tuist'e özgü bir durum dizini ayarlamak için
-`$TUIST_XDG_STATE_HOME` adresini de kullanabilirsiniz; bu, `$XDG_STATE_HOME`
-adresinden önceliklidir.
+dosyası oluşturur. Burada `$XDG_STATE_HOME`, ortam değişkeni ayarlanmamışsa
+`~/.local/state` değerini alır. Ayrıca, `$TUIST_XDG_STATE_HOME` kullanarak
+Tuist'e özgü bir durum dizini ayarlayabilirsiniz. Bu dizin, `$XDG_STATE_HOME`
+dizininden önceliklidir.
 
 ::: tip
 <!-- -->
-Tuist'in dizin organizasyonu ve özel dizinlerin nasıl yapılandırılacağı hakkında
-daha fazla bilgiyi <LocalizedLink href="/cli/directories">Directories
-belgesinde</LocalizedLink> bulabilirsiniz.
+Tuist'in dizin düzenlemesi ve <LocalizedLink href="/cli/directories">Dizinler
+belgelerinde</LocalizedLink> özel dizinleri nasıl yapılandıracağınız hakkında
+daha fazla bilgi edinin.
 <!-- -->
 :::
 
-Varsayılan olarak CLI, yürütme beklenmedik bir şekilde sona erdiğinde günlük
-yolunun çıktısını verir. Çıkmazsa, günlükleri yukarıda belirtilen yolda
-bulabilirsiniz (yani, en son günlük dosyası).
+Varsayılan olarak, CLI, yürütme beklenmedik bir şekilde sonlandığında günlük
+dosyalarının yolunu görüntüler. Aksi takdirde, günlükleri yukarıda belirtilen
+yolda (yani en son günlük dosyasında) bulabilirsiniz.
 
 ::: warning
 <!-- -->
-Hassas bilgiler redakte edilmez, bu nedenle günlükleri paylaşırken dikkatli
-olun.
+Hassas bilgiler sansürlenmez, bu nedenle günlükleri paylaşırken dikkatli olun.
 <!-- -->
 :::
 
 ### Sürekli entegrasyon {#diagnose-issues-using-logs-ci}
 
-Ortamların tek kullanımlık olduğu CI'da, CI işlem hattınızı Tuist günlüklerini
-dışa aktaracak şekilde yapılandırmak isteyebilirsiniz. Yapıtların dışa
-aktarılması CI hizmetlerinde ortak bir özelliktir ve yapılandırma kullandığınız
-hizmete bağlıdır. Örneğin, GitHub Actions'ta günlükleri bir eser olarak yüklemek
-için `actions/upload-artifact` eylemini kullanabilirsiniz:
+Ortamların tek kullanımlık olduğu CI'da, CI ardışık düzeninizi Tuist
+günlüklerini dışa aktarmak için yapılandırmak isteyebilirsiniz. Artefaktları
+dışa aktarma, CI hizmetlerinde yaygın bir özelliktir ve yapılandırma,
+kullandığınız hizmete bağlıdır. Örneğin, GitHub Actions'ta, günlükleri bir
+artefakt olarak yüklemek için `actions/upload-artifact` eylemini
+kullanabilirsiniz:
 
 ```yaml
 name: Node CI
@@ -77,15 +77,15 @@ jobs:
 
 ### Önbellek daemon hata ayıklama {#cache-daemon-debugging}
 
-Önbellekle ilgili sorunları ayıklamak için Tuist, `dev.tuist.cache` alt sistemi
-ile `os_log` kullanarak önbellek daemon işlemlerini günlüğe kaydeder. Bu
-günlükleri kullanarak gerçek zamanlı olarak yayınlayabilirsiniz:
+Önbellek ile ilgili sorunları gidermek için Tuist, `os_log` alt sistemi
+`dev.tuist.cache` kullanarak önbellek daemon işlemlerini günlüğe kaydeder. Bu
+günlükleri şu komutla gerçek zamanlı olarak aktarabilirsiniz:
 
 ```bash
 log stream --predicate 'subsystem == "dev.tuist.cache"' --debug
 ```
 
 Bu günlükler, `dev.tuist.cache` alt sistemi için filtreleme yapılarak
-Console.app'de de görülebilir. Bu, önbellek yükleme, indirme ve iletişim
-sorunlarını teşhis etmeye yardımcı olabilecek önbellek işlemleri hakkında
-ayrıntılı bilgi sağlar.
+Console.app'te de görüntülenebilir. Bu, önbellek işlemleri hakkında ayrıntılı
+bilgi sağlar ve önbellek yükleme, indirme ve iletişim sorunlarının teşhis
+edilmesine yardımcı olabilir.
