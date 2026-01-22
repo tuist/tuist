@@ -144,6 +144,20 @@
                             "text": "Logowanie"
                         }
                     }
+                },
+                "debugging": {
+                    "text": "Debugowanie"
+                },
+                "code": {
+                    "items": {
+                        "docs": {
+                            "text": "Dokumenty"
+                        },
+                        "handbook": {
+                            "text": "Podręcznik"
+                        }
+                    },
+                    "text": "Kod"
                 }
             }
         },
@@ -366,6 +380,14 @@
                         },
                         "qa": {
                             "text": "QA"
+                        },
+                        "test-insights": {
+                            "items": {
+                                "flaky-tests": {
+                                    "text": "Niesprawne testy"
+                                }
+                            },
+                            "text": "Wgląd w testy"
                         }
                     }
                 },
@@ -393,6 +415,9 @@
                                 }
                             },
                             "text": "Kuźnie Git"
+                        },
+                        "slack": {
+                            "text": "Slack"
                         }
                     }
                 },
