@@ -15,7 +15,8 @@ buforowania systemu kompilacji.
 
 ::: ostrzeżenie WYMAGANIA
 <!-- -->
-- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects"> Tuist</LocalizedLink>
+- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects">
+  Tuist</LocalizedLink>
 - Xcode 26.0 lub nowszy
 <!-- -->
 :::
@@ -104,23 +105,33 @@ let tuist = Tuist(
 Aby włączyć buforowanie w środowisku CI, należy uruchomić to samo polecenie, co
 w środowisku lokalnym: `tuist setup cache`.
 
-Dodatkowo należy upewnić się, że ustawiona jest zmienna środowiskowa
-`TUIST_TOKEN`. Można ją utworzyć, postępując zgodnie z dokumentacją
-<LocalizedLink href="/guides/server/authentication#as-a-project"> tutaj</LocalizedLink>. Zmienna środowiskowa `TUIST_TOKEN` _ musi_ być obecna w
-kroku kompilacji, ale zalecamy ustawienie jej dla całego przepływu pracy CI.
+Do uwierzytelniania można użyć uwierzytelniania
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC</LocalizedLink>
+(zalecane dla obsługiwanych dostawców CI) lub tokenu
+<LocalizedLink href="/guides/server/authentication#account-tokens">konta</LocalizedLink>
+za pośrednictwem zmiennej środowiskowej `TUIST_TOKEN`.
 
-Przykładowy przepływ pracy dla GitHub Actions mógłby wyglądać następująco:
+Przykładowy przepływ pracy dla GitHub Actions przy użyciu uwierzytelniania OIDC:
 ```yaml
 name: Build
 
-env:
-  TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   build:
+    runs-on: macos-latest
     steps:
-      - # Your set up steps...
-      - name: Set up Tuist Cache
-        run: tuist setup cache
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: tuist auth login
+      - run: tuist setup cache
       - # Your build steps
 ```
+
+Więcej przykładów, w tym uwierzytelnianie oparte na tokenach i inne platformy
+CI, takie jak Xcode Cloud, CircleCI, Bitrise i Codemagic, można znaleźć w
+przewodniku
+<LocalizedLink href="/guides/integrations/continuous-integration">Continuous
+Integration</LocalizedLink>.
