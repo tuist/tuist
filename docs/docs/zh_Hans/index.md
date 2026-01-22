@@ -63,7 +63,7 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
         link="/guides/features/registry"/>
 </HomeCards>
 
-## 加入成千上万已经做出转变的开发者行列
+## 加入数千名已完成转换的开发者行列
 
 **[Trendyol](https://www.trendyol.com/)、[Etsy](https://www.etsy.com/)、[Bumble](https://bumble.com/)、[Monzo](https://monzo.com/)、[Bending
 Spoons](https://bendingspoons.com/)等100余家企业** 已通过Tuist重塑其苹果平台开发模式。以下是他们的实践成果：
