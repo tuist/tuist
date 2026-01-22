@@ -3,9 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-22 12:39+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"PO-Revision-Date: 2026-01-22 13:05+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Russian <https://translate.tuist.dev/projects/tuist/"
 "dashboard_builds/ru/>\n"
 "Language: ru\n"
@@ -35,7 +34,7 @@ msgstr "%{hit_rate}%"
 #: lib/tuist_web/live/build_run_live.ex:568
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{message} in %{link}"
-msgstr "%{сообщение} в %{ссылка}"
+msgstr "%{message} в %{link}"
 
 #: lib/tuist_web/live/builds_live.html.heex:188
 #, elixir-autogen, elixir-format, fuzzy
@@ -46,12 +45,12 @@ msgstr "%{процент}%"
 #: lib/tuist_web/live/run_detail_live.html.heex:158
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{run_duration}s"
-msgstr "%{продолжительность_пробега}с"
+msgstr "%{run_duration}s"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:693
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Additional strings"
-msgstr "Дополнительные струны"
+msgstr "Дополнительные строки"
 
 #: lib/tuist_web/live/builds_live.ex:333
 #: lib/tuist_web/live/builds_live.ex:341
@@ -95,17 +94,17 @@ msgstr "Средняя задержка записи ключей кэша"
 #: lib/tuist_web/live/generate_runs_live.html.heex:84
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Branch"
-msgstr "Филиал"
+msgstr "Ветвь"
 
 #: lib/tuist_web/live/build_runs_live.ex:265
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Build"
-msgstr "Построить"
+msgstr "Сборка"
 
 #: lib/tuist_web/live/build_run_live.html.heex:93
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Build Details"
-msgstr "Подробности строительства"
+msgstr "Сведения о сборке"
 
 #: lib/tuist_web/live/build_run_live.ex:61
 #, elixir-autogen, elixir-format, fuzzy
@@ -128,7 +127,7 @@ msgstr "Запуски сборки"
 #: lib/tuist_web/live/builds_live.html.heex:757
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Build duration"
-msgstr "Продолжительность строительства"
+msgstr "Продолжительность сборки"
 
 #: lib/tuist_web/live/build_run_live.ex:22
 #: lib/tuist_web/live/build_run_live.ex:42
@@ -139,18 +138,18 @@ msgstr "Сборка не найдена."
 #: lib/tuist_web/live/builds_live.html.heex:467
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Build runs"
-msgstr "Прогоны для сборки"
+msgstr "Сборка запущена"
 
 #: lib/tuist_web/live/builds_live.html.heex:184
 #: lib/tuist_web/live/builds_live.html.heex:595
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Build success rate"
-msgstr "Построение коэффициента успешности"
+msgstr "Успешность сборки"
 
 #: lib/tuist_web/live/builds_live.html.heex:59
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Build:"
-msgstr "Строить:"
+msgstr "Сборка:"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:687
 #, elixir-autogen, elixir-format, fuzzy
@@ -166,42 +165,42 @@ msgstr "Сборки"
 #: lib/tuist_web/live/build_run_live.html.heex:151
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Built at"
-msgstr "Построен в"
+msgstr "Создано на"
 
 #: lib/tuist_web/live/build_run_live.html.heex:140
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Built by"
-msgstr "Построен"
+msgstr "Создано"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:593
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Bundle ID"
-msgstr "Идентификатор комплекта"
+msgstr "Идентификатор пакета"
 
 #: lib/tuist_web/live/build_run_live.html.heex:705
 #, elixir-autogen, elixir-format, fuzzy
 msgid "CAS Outputs"
-msgstr "Выходы CAS"
+msgstr "Вывод CAS"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1062
 #, elixir-autogen, elixir-format, fuzzy
 msgid "CAS output"
-msgstr "Выход CAS"
+msgstr "Вывод CAS"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1175
 #, elixir-autogen, elixir-format, fuzzy
 msgid "CAS outputs"
-msgstr "Выходы CAS"
+msgstr "Вывод CAS"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1411
 #, elixir-autogen, elixir-format, fuzzy
 msgid "CAS outputs will appear here when using Tuist cache"
-msgstr "При использовании кэш-памяти Tuist здесь будут отображаться выходы CAS."
+msgstr "Результаты CAS появятся здесь при использовании кэша Tuist."
 
 #: lib/tuist_web/live/build_run_live.html.heex:1127
 #, elixir-autogen, elixir-format, fuzzy
 msgid "CAS outputs:"
-msgstr "Выходы CAS:"
+msgstr "Вывод CAS:"
 
 #: lib/tuist_web/live/builds_live.ex:335
 #: lib/tuist_web/live/builds_live.html.heex:109
@@ -222,12 +221,12 @@ msgstr "Запуски кэша"
 #: lib/tuist_web/live/build_run_live.html.heex:632
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cache Summary"
-msgstr "Сводка по кэшу"
+msgstr "Кэш-сводка"
 
 #: lib/tuist_web/live/build_run_live.html.heex:683
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cache downloads"
-msgstr "Загрузка кэша"
+msgstr "Кэширование загрузок"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:351
 #, elixir-autogen, elixir-format, fuzzy
@@ -237,7 +236,7 @@ msgstr "Коэффициент попадания в кэш"
 #: lib/tuist_web/live/run_detail_live.html.heex:326
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cache hits"
-msgstr "Хиты кэша"
+msgstr "Попадания в кэш"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1027
 #, elixir-autogen, elixir-format, fuzzy
@@ -247,7 +246,7 @@ msgstr "Ключ кэша"
 #: lib/tuist_web/live/run_detail_live.html.heex:340
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cache misses"
-msgstr "Пропуски кэша"
+msgstr "Промахи кэша"
 
 #: lib/tuist_web/live/build_run_live.html.heex:691
 #, elixir-autogen, elixir-format, fuzzy
@@ -257,45 +256,45 @@ msgstr "Загрузка кэша"
 #: lib/tuist_web/live/build_run_live.html.heex:700
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cacheable Tasks"
-msgstr "Задачи с возможностью кэширования"
+msgstr "Задачи, которые можно кэшировать"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:442
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cacheable targets"
-msgstr "Цели с возможностью кэширования"
+msgstr "Кэшируемые цели"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:392
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cacheable targets:"
-msgstr "Цели, доступные для кэширования:"
+msgstr "Кэшируемые цели:"
 
 #: lib/tuist_web/live/build_run_live.html.heex:771
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cacheable tasks"
-msgstr "Задачи, которые можно кэшировать"
+msgstr "Кэшируемые задачи"
 
 #: lib/tuist_web/live/build_run_live.html.heex:651
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cacheable tasks that were not found in cache."
-msgstr "Кэшируемые задания, которые не были найдены в кэше."
+msgstr "Кэшируемые задачи, которые не были найдены в кэше."
 
 #: lib/tuist_web/live/build_run_live.html.heex:640
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cacheable tasks that were retrieved from cache (local + remote)."
 msgstr ""
-"Кэшируемые задачи, которые были получены из кэша (локальные + удаленные)."
+"Кэшируемые задачи, которые были извлечены из кэша (локального + удаленного)."
 
 #: lib/tuist_web/live/build_run_live.html.heex:1101
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cacheable tasks will appear here when using Tuist cache"
 msgstr ""
-"При использовании кэша Tuist здесь будут отображаться задания, которые можно "
-"кэшировать."
+"Задачи, которые можно кэшировать, появятся здесь при использовании кэша "
+"Tuist."
 
 #: lib/tuist_web/live/build_run_live.html.heex:723
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cacheable tasks:"
-msgstr "Задачи, доступные для кэширования:"
+msgstr "Задачи, которые можно кэшировать:"
 
 #: lib/tuist_web/live/build_run_live.html.heex:162
 #: lib/tuist_web/live/build_runs_live.ex:261
@@ -308,7 +307,7 @@ msgstr "Категория"
 #: lib/tuist_web/live/builds_live.html.heex:79
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Clean"
-msgstr "Чистый"
+msgstr "Очистить"
 
 #: lib/tuist_web/live/build_run_live.html.heex:101
 #: lib/tuist_web/live/generate_runs_live.ex:254
@@ -322,7 +321,7 @@ msgstr "Команды"
 #: lib/tuist_web/live/run_detail_live.html.heex:149
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Commit SHA"
-msgstr "Обязательство SHA"
+msgstr "Commit SHA"
 
 #: lib/tuist_web/live/build_run_live.ex:787
 #: lib/tuist_web/live/build_run_live.ex:824
@@ -342,19 +341,19 @@ msgstr "Продолжительность компиляции"
 #: lib/tuist_web/live/build_run_live.html.heex:1376
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Compressed Size"
-msgstr "Сжатый размер"
+msgstr "Размер сжатого файла"
 
 #: lib/tuist_web/live/build_run_live.ex:1120
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Compressed Size (MB)"
-msgstr "Размер в сжатом виде (МБ)"
+msgstr "Размер после сжатия (МБ)"
 
 #: lib/tuist_web/live/build_run_live.html.heex:116
 #: lib/tuist_web/live/build_runs_live.ex:230
 #: lib/tuist_web/live/build_runs_live.html.heex:61
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Configuration"
-msgstr "Конфигурация"
+msgstr "Настройка"
 
 #: lib/tuist_web/live/builds_live.html.heex:616
 #, elixir-autogen, elixir-format, fuzzy
@@ -364,7 +363,7 @@ msgstr "Информация о конфигурации"
 #: lib/tuist_web/live/builds_live.html.heex:35
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Configuration:"
-msgstr "Конфигурация:"
+msgstr "Настройки:"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1080
 #, elixir-autogen, elixir-format, fuzzy
@@ -374,7 +373,7 @@ msgstr "Копировать"
 #: lib/tuist_web/live/run_detail_live.html.heex:372
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Copy as JSON"
-msgstr "Копирование в формате JSON"
+msgstr "Копировать как JSON"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:623
 #, elixir-autogen, elixir-format, fuzzy
@@ -419,12 +418,12 @@ msgstr "Скачать"
 #: lib/tuist_web/live/run_detail_live.html.heex:63
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Download result"
-msgstr "Результат загрузки"
+msgstr "Скачать результат"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1229
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Download throughput"
-msgstr "Пропускная способность загрузки"
+msgstr "Скачать пропускную способность"
 
 #: lib/tuist_web/live/build_runs_live.html.heex:13
 #: lib/tuist_web/live/build_runs_live.html.heex:21
@@ -440,17 +439,17 @@ msgstr "Продолжительность"
 #: lib/tuist_web/live/run_detail_live.html.heex:663
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Entitlements"
-msgstr "Пособия"
+msgstr "Права"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:641
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Environment"
-msgstr "Окружающая среда"
+msgstr "Среда"
 
 #: lib/tuist_web/live/builds_live.html.heex:89
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Environment:"
-msgstr "Окружающая среда:"
+msgstr "Среда:"
 
 #: lib/tuist_web/live/build_run_live.html.heex:86
 #: lib/tuist_web/live/build_run_live.html.heex:208
@@ -481,7 +480,7 @@ msgstr "Внешний"
 #: lib/tuist_web/live/run_detail_live.html.heex:122
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed"
-msgstr "Не удалось"
+msgstr "Неудача"
 
 #: lib/tuist_web/live/builds_live.html.heex:201
 #: lib/tuist_web/live/builds_live.html.heex:531
@@ -493,7 +492,7 @@ msgstr "Неудачные сборки"
 #: lib/tuist_web/live/build_run_live.ex:584
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed compiling C file %{path}"
-msgstr "Не удалось скомпилировать C-файл %{path}"
+msgstr "Не удалось скомпилировать файл C %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:587
 #: lib/tuist_web/live/build_run_live.ex:623
@@ -504,17 +503,17 @@ msgstr "Не удалось скомпилировать файл Swift %{path}"
 #: lib/tuist_web/live/build_run_live.ex:620
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed compiling XIB file %{path}"
-msgstr "Не удалось скомпилировать XIB-файл %{путь}"
+msgstr "Не удалось скомпилировать файл XIB %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:602
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed compiling assets catalog %{path}"
-msgstr "Не удалось скомпилировать каталог активов %{путь}"
+msgstr "Не удалось скомпилировать каталог ресурсов %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:605
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed compiling storyboard %{path}"
-msgstr "Не удалось скомпилировать раскадровку %{путь}"
+msgstr "Не удалось скомпилировать сценарий %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:599
 #, elixir-autogen, elixir-format, fuzzy
@@ -524,7 +523,7 @@ msgstr "Не удалось скопировать библиотеки Swift %{
 #: lib/tuist_web/live/build_run_live.ex:614
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed copying resource file %{path}"
-msgstr "Не удалось скопировать файл ресурсов %{путь}"
+msgstr "Не удалось скопировать файл ресурсов %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:593
 #, elixir-autogen, elixir-format, fuzzy
@@ -534,48 +533,47 @@ msgstr "Не удалось создать статическую библиот
 #: lib/tuist_web/live/build_run_live.ex:590
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed executing script %{script_name}"
-msgstr "Не удалось выполнить сценарий %{имя_скрипта}"
+msgstr "Не удалось выполнить скрипт %{script_name}"
 
 #: lib/tuist_web/live/build_run_live.ex:596
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed linking %{path}"
-msgstr "Не удалось связать %{путь}"
+msgstr "Не удалось установить связь %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:611
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed linking storyboards %{path}"
-msgstr "Не удалось связать раскадровки %{путь}"
+msgstr "Не удалось связать раскадровки %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:617
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed merging Swift module %{path}"
-msgstr "Не удалось объединить модуль Swift %{path}"
+msgstr "Сбой слияния модуля Swift %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:626
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed precompiling bridging header %{path}"
-msgstr ""
-"Не удалось выполнить предварительную компиляцию мостового заголовка %{path}"
+msgstr "Не удалось предварительно скомпилировать переходный заголовок %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:638
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed processing %{path}"
-msgstr "Не удалось обработать %{путь}"
+msgstr "Не удалось обработать %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:632
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed validating %{path}"
-msgstr "Не удалось проверить %{путь}"
+msgstr "Не удалось проверить %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:629
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed validating embedded binary %{path}"
-msgstr "Не удалось проверить встроенный двоичный файл %{путь}"
+msgstr "Не удалось проверить встроенный двоичный файл %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:608
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed writing auxiliary file %{path}"
-msgstr "Не удалось записать вспомогательный файл %{путь}"
+msgstr "Не удалось создать вспомогательный файл %{path}"
 
 #: lib/tuist_web/live/build_run_live.html.heex:443
 #: lib/tuist_web/live/build_run_live.html.heex:459
@@ -588,7 +586,7 @@ msgstr "Файл"
 #: lib/tuist_web/live/build_run_live.html.heex:422
 #, elixir-autogen, elixir-format, fuzzy
 msgid "File Breakdown"
-msgstr "Разбивка файлов"
+msgstr "Разбивка файла"
 
 #: lib/tuist_web/live/build_run_live.html.heex:328
 #: lib/tuist_web/live/build_run_live.html.heex:468
@@ -612,7 +610,7 @@ msgstr "Запуски генерации"
 #: lib/tuist_web/live/run_detail_live.html.heex:574
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Hash"
-msgstr "Хаш"
+msgstr "Хеш"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:646
 #, elixir-autogen, elixir-format, fuzzy
@@ -626,14 +624,14 @@ msgstr "Заголовки"
 #: lib/tuist_web/live/run_detail_live.html.heex:552
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Hit"
-msgstr "Хит"
+msgstr "Нажмите"
 
 #: lib/tuist_web/live/build_run_live.html.heex:660
 #: lib/tuist_web/live/generate_runs_live.ex:283
 #: lib/tuist_web/live/generate_runs_live.html.heex:61
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Hit rate"
-msgstr "Скорость попадания"
+msgstr "Показатель точности"
 
 #: lib/tuist_web/live/builds_live.html.heex:71
 #, elixir-autogen, elixir-format, fuzzy
@@ -663,7 +661,7 @@ msgstr "Ключ"
 #: lib/tuist_web/live/run_detail_live.html.heex:562
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Local"
-msgstr "Местный"
+msgstr "Локальный"
 
 #: lib/tuist_web/live/build_run_live.html.heex:584
 #: lib/tuist_web/live/build_run_live.html.heex:623
@@ -685,7 +683,7 @@ msgstr "Устройство Mac"
 #: lib/tuist_web/live/run_detail_live.html.heex:568
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Missed"
-msgstr "Пропущенный"
+msgstr "Пропущено"
 
 #: lib/tuist_web/live/build_run_live.html.heex:294
 #: lib/tuist_web/live/build_run_live.html.heex:303
@@ -716,12 +714,12 @@ msgstr "Имя"
 #: lib/tuist_web/live/build_run_live.html.heex:1409
 #, elixir-autogen, elixir-format, fuzzy
 msgid "No CAS outputs found"
-msgstr "Выходы CAS не найдены"
+msgstr "CAS-выводы не найдены"
 
 #: lib/tuist_web/live/build_run_live.html.heex:1099
 #, elixir-autogen, elixir-format, fuzzy
 msgid "No cacheable tasks found"
-msgstr "Не найдено ни одного задания, доступного для кэширования"
+msgstr "Не найдено задач, подходящих для кэширования"
 
 #: lib/tuist_web/live/build_run_live.html.heex:890
 #: lib/tuist_web/live/build_run_live.html.heex:946
@@ -743,7 +741,7 @@ msgstr "Пока нет данных"
 #: lib/tuist_web/live/build_run_live.html.heex:621
 #, elixir-autogen, elixir-format, fuzzy
 msgid "No errors detected"
-msgstr "Ошибки не обнаружены"
+msgstr "Ошибок не обнаружено"
 
 #: lib/tuist_web/live/build_run_live.html.heex:535
 #, elixir-autogen, elixir-format, fuzzy
@@ -772,7 +770,7 @@ msgstr "Нет"
 #: lib/tuist_web/live/run_detail_live.html.heex:193
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Optimization Summary"
-msgstr "Резюме по оптимизации"
+msgstr "Резюме оптимизации"
 
 #: lib/tuist_web/live/build_run_live.html.heex:70
 #: lib/tuist_web/live/run_detail_live.html.heex:72
@@ -791,7 +789,7 @@ msgstr "Обзор"
 #: lib/tuist_web/live/run_detail_live.html.heex:115
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Passed"
-msgstr "Передано"
+msgstr "Пройден"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:353
 #, elixir-autogen, elixir-format, fuzzy
@@ -830,7 +828,7 @@ msgstr "Настройки проекта"
 #: lib/tuist_web/live/run_detail_live.html.heex:134
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Ran at"
-msgstr "Бежал в"
+msgstr "Запустить"
 
 #: lib/tuist_web/live/build_runs_live.ex:299
 #: lib/tuist_web/live/build_runs_live.html.heex:77
@@ -840,12 +838,12 @@ msgstr "Бежал в"
 #: lib/tuist_web/live/run_detail_live.html.heex:130
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Ran by"
-msgstr "Пробежал"
+msgstr "Управляется"
 
 #: lib/tuist_web/live/builds_live.html.heex:780
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Recent Builds"
-msgstr "Последние постройки"
+msgstr "Последние сборки"
 
 #: lib/tuist_web/live/build_run_live.ex:1073
 #: lib/tuist_web/live/build_run_live.html.heex:802
@@ -866,12 +864,12 @@ msgstr "Ресурсы"
 #: lib/tuist_web/live/run_detail_live.ex:34
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Run"
-msgstr "Запускайте"
+msgstr "Запустить"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:155
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Run duration"
-msgstr "Продолжительность выполнения"
+msgstr "Продолжительность запуска"
 
 #: lib/tuist_web/live/build_runs_live.ex:222
 #: lib/tuist_web/live/build_runs_live.html.heex:58
@@ -903,26 +901,26 @@ msgstr "Выборочное тестирование"
 #: lib/tuist_web/live/run_detail_live.html.heex:210
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Selective test hits"
-msgstr "Выборочные испытания"
+msgstr "Выборочные тестовые результаты"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:212
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Selective test hits represents the number of test modules that were skipped thanks to the selective testing."
 msgstr ""
-"Selective test hits представляет собой количество тестовых модулей, которые "
-"были пропущены благодаря выборочному тестированию."
+"Выборочные тестовые результаты представляют количество тестовых модулей, "
+"которые были пропущены благодаря выборочному тестированию."
 
 #: lib/tuist_web/live/run_detail_live.html.heex:224
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Selective test misses"
-msgstr "Выборочные пропуски испытаний"
+msgstr "Выборочные пропуски в тесте"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:226
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Selective test misses represents the number of test modules that were run as they were not successfully run before."
 msgstr ""
-"Выборочные пропуски тестов представляют собой количество тестовых модулей, "
-"которые были запущены, поскольку ранее они не были успешно выполнены."
+"Выборочные пропущенные тесты представляют собой количество тестовых модулей, "
+"которые были запущены, поскольку ранее они не были успешно запущены."
 
 #: lib/tuist_web/live/build_run_live.html.heex:1280
 #: lib/tuist_web/live/build_run_live.html.heex:1300
@@ -970,7 +968,7 @@ msgstr "Статус"
 #: lib/tuist_web/live/builds_live.html.heex:797
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Successful builds"
-msgstr "Успешные постройки"
+msgstr "Успешные сборки"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:320
 #, elixir-autogen, elixir-format, fuzzy
@@ -980,7 +978,7 @@ msgstr "Резюме"
 #: lib/tuist_web/live/run_detail_live.html.heex:173
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Swift version"
-msgstr "Swift-версия"
+msgstr "Версия Swift"
 
 #: lib/tuist_web/live/build_run_live.ex:795
 #: lib/tuist_web/live/build_run_live.html.heex:505
@@ -991,12 +989,12 @@ msgstr "Цель"
 #: lib/tuist_web/live/run_detail_live.html.heex:635
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Target scripts"
-msgstr "Целевые сценарии"
+msgstr "Целевые шрифты"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:681
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Target settings"
-msgstr "Целевые установки"
+msgstr "Настройки цели"
 
 #: lib/tuist_web/live/build_run_live.html.heex:988
 #, elixir-autogen, elixir-format, fuzzy
@@ -1006,12 +1004,12 @@ msgstr "Задание"
 #: lib/tuist_web/live/build_run_live.html.heex:638
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Task hits"
-msgstr "Удары по задачам"
+msgstr "Попадания задания"
 
 #: lib/tuist_web/live/build_run_live.html.heex:649
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Task misses"
-msgstr "Промахи в заданиях"
+msgstr "Пропуски в задании"
 
 #: lib/tuist_web/live/build_runs_live.ex:266
 #, elixir-autogen, elixir-format, fuzzy
@@ -1021,12 +1019,12 @@ msgstr "Тест"
 #: lib/tuist_web/live/run_detail_live.html.heex:94
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Test Details"
-msgstr "Подробности теста"
+msgstr "Детали теста"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:79
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Test Optimizations"
-msgstr "Оптимизация тестирования"
+msgstr "Оптимизация тестов"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:4
 #, elixir-autogen, elixir-format, fuzzy
@@ -1036,14 +1034,12 @@ msgstr "Тестовые запуски"
 #: lib/tuist_web/live/build_run_live.html.heex:34
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Test: %{scheme}"
-msgstr "Тест: %{схема}"
+msgstr "Тест: %{scheme}"
 
 #: lib/tuist_web/live/builds_live.html.heex:233
 #, elixir-autogen, elixir-format, fuzzy
 msgid "The average build duration with individual percentile intervals."
-msgstr ""
-"Средняя продолжительность строительства с отдельными процентильными "
-"интервалами."
+msgstr "Средняя продолжительность сборки с интервалами отдельных процентилей."
 
 #: lib/tuist_web/live/builds_live.html.heex:203
 #, elixir-autogen, elixir-format, fuzzy
@@ -1058,45 +1054,43 @@ msgstr "Процент успешных сборок."
 #: lib/tuist_web/live/build_run_live.html.heex:662
 #, elixir-autogen, elixir-format, fuzzy
 msgid "The percentage of cacheable tasks that were cache hits (local + remote)."
-msgstr "Процент кэшируемых задач, которые попали в кэш (локальные + удаленные)."
+msgstr ""
+"Процент кэшируемых задач, которые были кэш-попаданиями (локальные + "
+"удаленные)."
 
 #: lib/tuist_web/live/builds_live.html.heex:172
 #, elixir-autogen, elixir-format, fuzzy
 msgid "The total number of builds."
-msgstr "Общее количество построек."
+msgstr "Общее количество сборок."
 
 #: lib/tuist_web/live/build_run_live.html.heex:847
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Time to read cache keys, which uniquely identify cacheable tasks, from cache."
 msgstr ""
-"Время считывания из кэша ключей, которые однозначно идентифицируют задачи, "
-"доступные для кэширования."
+"Время для чтения ключей кэша, которые однозначно идентифицируют задачи, "
+"подлежащие кэшированию, из кэша."
 
 #: lib/tuist_web/live/build_run_live.html.heex:903
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Time to write cache keys, which uniquely identify cacheable tasks, to cache."
 msgstr ""
-"Время записи в кэш ключей, которые однозначно идентифицируют задачи, "
-"доступные для кэширования."
+"Время записывать в кэш ключи кэша, которые однозначно идентифицируют "
+"кэшируемые задачи."
 
 #: lib/tuist_web/live/build_run_live.html.heex:1231
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Time-weighted average download throughput in megabits per second."
-msgstr ""
-"Средневзвешенная по времени средняя пропускная способность загрузки в "
-"мегабитах в секунду."
+msgstr "Средневзвешенная пропускная способность загрузки в мегабитах в секунду."
 
 #: lib/tuist_web/live/build_run_live.html.heex:1248
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Time-weighted average upload throughput in megabits per second."
-msgstr ""
-"Средневзвешенная по времени средняя пропускная способность загрузки в "
-"мегабитах в секунду."
+msgstr "Средневзвешенная пропускная способность загрузки в мегабитах в секунду."
 
 #: lib/tuist_web/live/builds_live.html.heex:170
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Total builds"
-msgstr "Всего построек"
+msgstr "Общее количество сборок"
 
 #: lib/tuist_web/live/run_detail_live.html.heex:199
 #, elixir-autogen, elixir-format, fuzzy
@@ -1107,8 +1101,8 @@ msgstr "Всего модулей"
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Total modules represents the total number of testable modules."
 msgstr ""
-"Общее количество модулей представляет собой общее количество тестируемых "
-"модулей."
+"Общее количество модулей представляет собой общее количество модулей, "
+"подлежащих тестированию."
 
 #: lib/tuist_web/live/run_detail_live.html.heex:328
 #, elixir-autogen, elixir-format, fuzzy
@@ -1119,7 +1113,7 @@ msgstr "Общее количество модулей, взятых из лок
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Total number of modules that could have been taken from the cache if it was fully populated."
 msgstr ""
-"Общее количество модулей, которые можно было бы взять из кэша, если бы он "
+"Общее количество модулей, которые могли бы быть взяты из кэша, если бы он "
 "был полностью заполнен."
 
 #: lib/tuist_web/live/build_run_live.html.heex:685
@@ -1147,7 +1141,7 @@ msgstr "Попробуйте обновить поиск"
 #: lib/tuist_web/live/run_detail_live.html.heex:166
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Tuist version"
-msgstr "Туистская версия"
+msgstr "Версия Tuist"
 
 #: lib/tuist_web/live/build_run_live.ex:1055
 #: lib/tuist_web/live/build_run_live.ex:1102
@@ -1203,7 +1197,7 @@ msgstr "Пропускная способность загрузки"
 #: lib/tuist_web/live/builds_live.html.heex:787
 #, elixir-autogen, elixir-format, fuzzy
 msgid "View more"
-msgstr "Смотреть подробнее"
+msgstr "Показать больше"
 
 #: lib/tuist_web/live/build_run_live.ex:642
 #, elixir-autogen, elixir-format, fuzzy
@@ -1214,22 +1208,22 @@ msgstr "Предупреждение при компиляции C-файла %{
 #: lib/tuist_web/live/build_run_live.ex:681
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when compiling Swift file %{path}"
-msgstr "Предупреждение при компиляции Swift-файла %{path}"
+msgstr "Предупреждение при компиляции файла Swift %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:678
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when compiling XIB file %{path}"
-msgstr "Предупреждение при компиляции XIB-файла %{путь}"
+msgstr "Предупреждение при компиляции файла XIB %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:660
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when compiling assets catalog %{path}"
-msgstr "Предупреждение при компиляции каталога активов %{путь}"
+msgstr "Предупреждение при компиляции каталога ресурсов %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:663
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when compiling storyboard %{path}"
-msgstr "Предупреждение при компиляции раскадровки %{путь}"
+msgstr "Предупреждение при компиляции сценария %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:657
 #, elixir-autogen, elixir-format, fuzzy
@@ -1249,47 +1243,48 @@ msgstr "Предупреждение при создании статическ�
 #: lib/tuist_web/live/build_run_live.ex:648
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when executing script %{script_name}"
-msgstr "Предупреждение при выполнении сценария %{имя_скрипта}"
+msgstr "Предупреждение при выполнении скрипта %{script_name}"
 
 #: lib/tuist_web/live/build_run_live.ex:654
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when linking %{path}"
-msgstr "Предупреждение при связывании %{путь}"
+msgstr "Предупреждение при связывании %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:669
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when linking storyboards %{path}"
-msgstr "Предупреждение при связывании раскадровок %{path}"
+msgstr "Предупреждение при связывании сценариев %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:675
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when merging Swift module %{path}"
-msgstr "Предупреждение при объединении модуля Swift %{path}"
+msgstr "Предупреждение при слиянии модуля Swift %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:684
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when precompiling bridging header %{path}"
-msgstr "Предупреждение при прекомпиляции мостового заголовка %{path}"
+msgstr ""
+"Предупреждение при предварительной компиляции переходного заголовка %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:696
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when processing %{path}"
-msgstr "Предупреждение при обработке %{путь}"
+msgstr "Предупреждение при обработке %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:690
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when validating %{path}"
-msgstr "Предупреждение при проверке %{путь}"
+msgstr "Предупреждение при проверке %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:687
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when validating embedded binary %{path}"
-msgstr "Предупреждение при проверке встроенного двоичного файла %{path}"
+msgstr "Предупреждение при проверке встроенного двоичного кода %{path}"
 
 #: lib/tuist_web/live/build_run_live.ex:666
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Warning when writing auxiliary file %{path}"
-msgstr "Предупреждение при записи вспомогательного файла %{path}"
+msgstr "Предупреждение при написании вспомогательного файла %{path}"
 
 #: lib/tuist_web/live/build_run_live.html.heex:81
 #: lib/tuist_web/live/build_run_live.html.heex:233
@@ -1323,7 +1318,7 @@ msgstr "Версия Xcode"
 #: lib/tuist_web/live/run_detail_live.html.heex:180
 #, elixir-autogen, elixir-format, fuzzy
 msgid "macOS version"
-msgstr "версия macOS"
+msgstr "Версия для macOS"
 
 #: lib/tuist_web/live/builds_live.html.heex:403
 #, elixir-autogen, elixir-format, fuzzy
@@ -1333,7 +1328,7 @@ msgstr "p50"
 #: lib/tuist_web/live/builds_live.html.heex:220
 #, elixir-autogen, elixir-format, fuzzy
 msgid "p50 build duration"
-msgstr "продолжительность сборки p50"
+msgstr "p50 продолжительность сборки"
 
 #: lib/tuist_web/live/build_run_live.html.heex:843
 #, elixir-autogen, elixir-format, fuzzy
@@ -1353,17 +1348,17 @@ msgstr "p90"
 #: lib/tuist_web/live/builds_live.html.heex:219
 #, elixir-autogen, elixir-format, fuzzy
 msgid "p90 build duration"
-msgstr "продолжительность сборки p90"
+msgstr "p90 продолжительность сборки"
 
 #: lib/tuist_web/live/build_run_live.html.heex:842
 #, elixir-autogen, elixir-format, fuzzy
 msgid "p90 latency reading cache keys"
-msgstr "p90 Задержка чтения ключей кэша"
+msgstr "p90 задержка чтения ключей кэша"
 
 #: lib/tuist_web/live/build_run_live.html.heex:898
 #, elixir-autogen, elixir-format, fuzzy
 msgid "p90 latency writing cache keys"
-msgstr "p90 Задержка записи ключей кэша"
+msgstr "p90 задержка записи ключей кэша"
 
 #: lib/tuist_web/live/builds_live.html.heex:375
 #, elixir-autogen, elixir-format, fuzzy
@@ -1373,12 +1368,12 @@ msgstr "p99"
 #: lib/tuist_web/live/builds_live.html.heex:218
 #, elixir-autogen, elixir-format, fuzzy
 msgid "p99 build duration"
-msgstr "продолжительность сборки p99"
+msgstr "p99 продолжительность сборки"
 
 #: lib/tuist_web/live/build_run_live.html.heex:841
 #, elixir-autogen, elixir-format, fuzzy
 msgid "p99 latency reading cache keys"
-msgstr "p99 Задержка чтения ключей кэша"
+msgstr "p99 задержка чтения ключей кэша"
 
 #: lib/tuist_web/live/build_run_live.html.heex:897
 #, elixir-autogen, elixir-format, fuzzy
@@ -1406,7 +1401,7 @@ msgstr "с прошлого года"
 #: lib/tuist_web/live/build_run_live.html.heex:602
 #, elixir-autogen, elixir-format, fuzzy
 msgid "•"
-msgstr "-"
+msgstr "•"
 
 #: lib/tuist_web/live/builds_live.html.heex:158
 #: lib/tuist_web/live/builds_live.html.heex:693
@@ -1453,9 +1448,9 @@ msgstr "Последние 7 дней"
 #: lib/tuist_web/live/builds_live.ex:330
 #, elixir-autogen, elixir-format, fuzzy
 msgid "since last period"
-msgstr "с прошлого периода"
+msgstr "с последней точкой"
 
 #: lib/tuist_web/live/builds_live.ex:327
 #, elixir-autogen, elixir-format, fuzzy
 msgid "since yesterday"
-msgstr "со вчерашнего дня"
+msgstr "с вчерашнего дня"
