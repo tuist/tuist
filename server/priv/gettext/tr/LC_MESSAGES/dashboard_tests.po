@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-22 13:05+0000\n"
+"PO-Revision-Date: 2026-01-22 18:01+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/tr/>\n"
@@ -700,50 +700,66 @@ msgstr "son nokta"
 msgid "since yesterday"
 msgstr "dünden beri"
 
+#, fuzzy
 msgid "Flakiness rate"
-msgstr ""
+msgstr "Kararsızlık oranı"
 
+#, fuzzy
 msgid "Flaky"
-msgstr ""
+msgstr "Flaky"
 
+#, fuzzy
 msgid "Flaky Runs"
-msgstr ""
+msgstr "Düzensiz Çalışmalar"
 
+#, fuzzy
 msgid "Flaky Tests"
-msgstr ""
+msgstr "Kararsız Testler"
 
+#, fuzzy
 msgid "Flaky runs"
-msgstr ""
+msgstr "Düzensiz çalışır"
 
+#, fuzzy
 msgid "Flaky test cases"
-msgstr ""
+msgstr "Kararsız test durumları"
 
+#, fuzzy
 msgid "Flaky test runs"
-msgstr ""
+msgstr "Kararsız test çalıştırmaları"
 
+#, fuzzy
 msgid "Last flaky run"
-msgstr ""
+msgstr "Son kararsız çalıştırma"
 
+#, fuzzy
 msgid "Mark as flaky"
-msgstr ""
+msgstr "Kararsız olarak işaretleyin"
 
+#, fuzzy
 msgid "Most occurring flaky tests"
-msgstr ""
+msgstr "En sık görülen hatalı testler"
 
+#, fuzzy
 msgid "No flaky tests"
-msgstr ""
+msgstr "Güvenilmez testler yapmayın"
 
+#, fuzzy
 msgid "Number of test cases that passed after retry."
-msgstr ""
+msgstr "Yeniden denemeden sonra geçen test vakalarının sayısı."
 
+#, fuzzy
 msgid "Percentage of test runs that were flaky in the last 30 days."
-msgstr ""
+msgstr "Son 30 gün içinde hatalı çalışan testlerin yüzdesi."
 
+#, fuzzy
 msgid "The number of test runs with flaky tests."
-msgstr ""
+msgstr "Kararsız testlerle yapılan test çalıştırma sayısı."
 
+#, fuzzy
 msgid "Unmark as flaky"
-msgstr ""
+msgstr "Kararsız olarak işaretlemeyi kaldır"
 
+#, fuzzy
 msgid "New"
-msgstr ""
+msgstr "Yeni"
