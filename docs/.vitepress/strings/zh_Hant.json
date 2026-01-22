@@ -144,6 +144,23 @@
                             "text": "記錄"
                         }
                     }
+                },
+                "debugging": {
+                    "text": "除錯"
+                },
+                "code": {
+                    "items": {
+                        "cli": {
+                            "text": "CLI"
+                        },
+                        "server": {
+                            "text": "伺服器"
+                        },
+                        "handbook": {
+                            "text": "手冊"
+                        }
+                    },
+                    "text": "代碼"
                 }
             }
         },
@@ -283,7 +300,7 @@
                                     "text": "外掛程式"
                                 },
                                 "hashing": {
-                                    "text": "散列"
+                                    "text": "雜湊"
                                 },
                                 "inspect": {
                                     "text": "檢查",
@@ -363,6 +380,14 @@
                         },
                         "qa": {
                             "text": "QA"
+                        },
+                        "test-insights": {
+                            "items": {
+                                "flaky-tests": {
+                                    "text": "故障測試"
+                                }
+                            },
+                            "text": "測試心得"
                         }
                     }
                 },
