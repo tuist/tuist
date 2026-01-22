@@ -10,11 +10,13 @@
 Wtyczki są narzędziem do udostępniania i ponownego wykorzystywania artefaktów
 Tuist w wielu projektach. Obsługiwane są następujące artefakty:
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">Pomocnicy opisu projektu</LocalizedLink> w wielu projektach.
+- <LocalizedLink href="/guides/features/projects/code-sharing">Pomocnicy opisu
+  projektu</LocalizedLink> w wielu projektach.
 - <LocalizedLink href="/guides/features/projects/templates">Szablony</LocalizedLink>
   w wielu projektach.
 - Zadania w wielu projektach.
-- <LocalizedLink href="/guides/features/projects/synthesized-files">Szablon Resource Accessor</LocalizedLink> w wielu projektach
+- <LocalizedLink href="/guides/features/projects/synthesized-files">Szablon
+  Resource Accessor</LocalizedLink> w wielu projektach
 
 Należy pamiętać, że wtyczki zostały zaprojektowane jako prosty sposób na
 rozszerzenie funkcjonalności Tuist. W związku z tym istnieją **pewne
@@ -57,7 +59,8 @@ let plugin = Plugin(name: "MyPlugin")
 ### Wtyczka szablonów akcesorów zasobów {#resource-accessor-templates-plugin}
 
 Jeśli potrzebujesz udostępnić
-<LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">syntetyzowane akcesory zasobów</LocalizedLink>, możesz użyć tego typu wtyczki. Wtyczka jest
+<LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">syntetyzowane
+akcesory zasobów</LocalizedLink>, możesz użyć tego typu wtyczki. Wtyczka jest
 reprezentowana przez katalog zawierający plik manifestu `Plugin.swift`, który
 deklaruje nazwę wtyczki oraz katalog `ResourceSynthesizers` zawierający pliki
 szablonów akcesorów zasobów.
