@@ -7,16 +7,16 @@
 ---
 # Añadir dependencias {#add-dependencies}
 
-Es común que los proyectos dependan de bibliotecas de terceros para proporcionar
-funcionalidad adicional. Para ello, ejecuta el siguiente comando para tener la
-mejor experiencia editando tu proyecto:
+Es habitual que los proyectos dependan de bibliotecas de terceros para
+proporcionar funcionalidades adicionales. Para ello, ejecuta el siguiente
+comando y disfruta de la mejor experiencia al editar tu proyecto:
 
 ```bash
 tuist edit
 ```
 
-Se abrirá un proyecto Xcode que contendrá los archivos de tu proyecto. Edite el
-archivo `Package.swift` y añada el archivo
+Se abrirá un proyecto Xcode que contiene los archivos de tu proyecto. Edita el
+paquete `Package.swift` y añade el
 
 ```swift
 // swift-tools-version: 5.9
@@ -44,7 +44,7 @@ let package = Package(
 )
 ```
 
-A continuación, edite el objetivo de la aplicación en su proyecto para declarar
+A continuación, edita el objetivo de la aplicación en tu proyecto para declarar
 `Kingfisher` como dependencia:
 
 ```swift
@@ -85,20 +85,20 @@ let project = Project(
 )
 ```
 
-A continuación, ejecute `tuist install` para resolver y extraer las dependencias
-mediante el [Gestor de paquetes
-Swift](https://www.swift.org/documentation/package-manager/).
+A continuación, ejecuta `tuist install` para resolver y extraer las dependencias
+utilizando el [Swift Package
+Manager](https://www.swift.org/documentation/package-manager/).
 
 ::: info SPM AS A DEPENDENCY RESOLVER
 <!-- -->
-El enfoque recomendado por Tuist para las dependencias utiliza el Gestor de
-Paquetes Swift (SPM) sólo para resolver las dependencias. A continuación, Tuist
-las convierte en proyectos y objetivos de Xcode para ofrecer la máxima
+El enfoque recomendado por Tuist para las dependencias utiliza Swift Package
+Manager (SPM) únicamente para resolver las dependencias. A continuación, Tuist
+las convierte en proyectos y objetivos de Xcode para obtener la máxima
 configurabilidad y control.
 <!-- -->
 :::
 
-## Visualizar el proyecto {#visualize-the-project}
+## Visualiza el proyecto. {#visualize-the-project}
 
 Puede visualizar la estructura del proyecto ejecutando:
 
@@ -109,11 +109,11 @@ tuist graph
 El comando generará y abrirá un archivo `graph.png` en el directorio del
 proyecto:
 
-[Gráfico del proyecto](/images/guides/quick-start/graph.png)
+![Gráfico del proyecto](/images/guides/quick-start/graph.png)
 
-## Utilizar la dependencia {#use-the-dependency}
+## Utiliza la dependencia. {#use-the-dependency}
 
-Ejecute `tuist generate` para abrir el proyecto en Xcode, y realice los
+Ejecute `tuist generate` para abrir el proyecto en Xcode y realice los
 siguientes cambios en el archivo `ContentView.swift`:
 
 ```swift
@@ -138,4 +138,4 @@ struct ContentView_Previews: PreviewProvider {
 }
 ```
 
-Ejecute la aplicación desde Xcode, y debería ver la imagen cargada desde la URL.
+Ejecute la aplicación desde Xcode y debería ver la imagen cargada desde la URL.
