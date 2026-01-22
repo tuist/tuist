@@ -232,6 +232,15 @@ final class DependenciesAcceptanceTestAppAlamofire: TuistAcceptanceTestCase {
     }
 }
 
+final class DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources: TuistAcceptanceTestCase {
+    func test_app_with_objc_static_framework_with_resources() async throws {
+        try await setUpFixture("generated_app_with_objc_static_framework_with_resources")
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "App")
+    }
+}
+
 final class DependenciesAcceptanceTestAppPocketSVG: TuistAcceptanceTestCase {
     func test_app_with_pocket_svg() async throws {
         try await setUpFixture("generated_app_with_pocket_svg")

@@ -1059,7 +1059,8 @@ struct ResourcesProjectMapperTests {
                     contents: ResourcesProjectMapper
                         .objcImplementationFileContent(
                             targetName: target.name,
-                            bundleName: "\(project.name)_\(target.name)"
+                            bundleName: "\(project.name)_\(target.name)",
+                            target: target
                         )
                         .data(using: .utf8)
                 ),

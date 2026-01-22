@@ -1492,7 +1492,7 @@ public class GraphTraverser: GraphTraversing {
         let target = graphTarget.target
         if target.product.isDynamic { return true }
         if target.product == .staticFramework, target.containsResources || target.containsMetalFiles {
-            return graphTarget.project.type == .local
+            return true
         }
         return false
     }
