@@ -21,13 +21,16 @@ approach not only accelerates feedback loops but also minimizes the need for
 context switching, ultimately boosting productivity.
 
 We offer two types of caching:
-- <LocalizedLink href="/guides/features/cache/module-cache">Module cache</LocalizedLink>
-- <LocalizedLink href="/guides/features/cache/xcode-cache">Xcode cache</LocalizedLink>
+- <LocalizedLink href="/guides/features/cache/module-cache">Module
+  cache</LocalizedLink>
+- <LocalizedLink href="/guides/features/cache/xcode-cache">Xcode
+  cache</LocalizedLink>
 
 ## Module cache {#module-cache}
 
 For projects that use Tuist's
-<LocalizedLink href="/guides/features/projects">project generation</LocalizedLink> capabilities, we provide a powerful caching system,
+<LocalizedLink href="/guides/features/projects">project
+generation</LocalizedLink> capabilities, we provide a powerful caching system,
 which caches individual modules as binaries and shares them across your team and
 CI environments.
 
@@ -37,7 +40,8 @@ generated project caching. However, the decision for which caching solution to
 use depends on your specific needs and preferences. You may also combine both
 caching solutions to achieve the best results.
 
-<LocalizedLink href="/guides/features/cache/module-cache">Learn more about Module cache →</LocalizedLink>
+<LocalizedLink href="/guides/features/cache/module-cache">Learn more about
+Module cache →</LocalizedLink>
 
 ## Xcode cache {#xcode-cache}
 
@@ -54,6 +58,8 @@ Apple has been working on a new caching solution at the build level, similar to
 other build systems like Bazel and Buck. The new caching capability is available
 since Xcode 26 and Tuist now seamlessly integrates with it – regardless of
 whether you are using Tuist's
-<LocalizedLink href="/guides/features/projects">project generation</LocalizedLink> capabilities or not.
+<LocalizedLink href="/guides/features/projects">project
+generation</LocalizedLink> capabilities or not.
 
-<LocalizedLink href="/guides/features/cache/xcode-cache">Learn more about Xcode cache →</LocalizedLink>
+<LocalizedLink href="/guides/features/cache/xcode-cache">Learn more about Xcode
+cache →</LocalizedLink>
