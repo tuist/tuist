@@ -9,10 +9,11 @@
 
 Tuist ile yeni bir proje başlatmanın en kolay yolu `tuist init` komutunu
 kullanmaktır. Bu komut, projenizi kurarken size rehberlik eden etkileşimli bir
-CLI başlatır. Sorulduğunda, "oluşturulmuş projele" oluşturma seçeneğini
+CLI başlatır. Sorulduğunda, "Oluşturulmuş projele" oluşturma seçeneğini
 seçtiğinizden emin olun.
 
-Daha sonra <LocalizedLink href="/guides/features/projects/editing"> projeyi düzenleyebilir</LocalizedLink> `tuist edit` çalıştırabilirsiniz ve Xcode projeyi
+Daha sonra <LocalizedLink href="/guides/features/projects/editing"> projeyi
+düzenleyebilir</LocalizedLink> `tuist edit` çalıştırabilirsiniz ve Xcode projeyi
 düzenleyebileceğiniz bir proje açacaktır. Oluşturulan dosyalardan biri,
 projenizin tanımını içeren `Project.swift` dosyasıdır. Swift paketi Yöneticisine
 aşinaysanız, bunu `Package.swift` gibi düşünün, ancak Xcode projelerinin
@@ -63,7 +64,7 @@ let project = Project(
 Bakım yükünü en aza indirmek için mevcut şablonların listesini kasıtlı olarak
 kısa tutuyoruz. Bir uygulamayı temsil etmeyen bir proje, örneğin bir çerçeve
 oluşturmak istiyorsanız, başlangıç noktası olarak `tuist init` adresini
-kullanabilir ve ardından oluşturulmuş projele ihtiyaçlarınıza uyacak şekilde
+kullanabilir ve ardından oluşturulmuş projeyi ihtiyaçlarınıza uyacak şekilde
 değiştirebilirsiniz.
 <!-- -->
 :::
