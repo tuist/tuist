@@ -7,8 +7,6 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorker do
   - Marks test cases as flaky when they reach the threshold
   - Optionally auto-quarantines them if the project has that setting enabled
   - Enqueues FlakyTestAlertWorker to send notifications
-
-  The job is scheduled with a delay to ensure ClickHouse has merged the new data.
   """
   use Oban.Worker, max_attempts: 3
 
