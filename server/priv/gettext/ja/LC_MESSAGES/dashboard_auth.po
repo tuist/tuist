@@ -3,8 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:51+0000\n"
-"PO-Revision-Date: 2026-01-22 12:35+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"PO-Revision-Date: 2026-01-22 13:05+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Japanese <https://translate.tuist.dev/projects/tuist/"
 "dashboard_auth/ja/>\n"
 "Language: ja\n"
@@ -27,17 +27,17 @@ msgstr ""
 #: lib/tuist_web/live/user_confirmation_live.ex:25
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Account confirmed!"
-msgstr "アカウントが確認された！"
+msgstr "アカウント確認済み！"
 
 #: lib/tuist_web/live/user_registration_live.ex:292
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Account created successfully! Please log in."
-msgstr "アカウントは正常に作成されました！ログインしてください。"
+msgstr "アカウントの作成に成功しました！ログインしてください。"
 
 #: lib/tuist_web/live/user_registration_live.ex:304
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Account name is already taken"
-msgstr "アカウント名はすでに使用されています"
+msgstr "アカウント名は既に使用されています"
 
 #: lib/tuist_web/live/user_registration_live.ex:187
 #, elixir-autogen, elixir-format, fuzzy
@@ -48,8 +48,8 @@ msgstr "すでにアカウントをお持ちですか？"
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Already set up your Tuist project? Skip setup and go to the dashboard."
 msgstr ""
-"すでにTuistプロジェクトを設定済みですか？セットアップをスキップして"
-"ダッシュボードへ。"
+"Tuistプロジェクトは既に設定済みですか？ 設定をスキップしてダッシュボードへ進"
+"む。"
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:72
 #, elixir-autogen, elixir-format, fuzzy
@@ -59,32 +59,34 @@ msgstr "ログインに戻る"
 #: lib/tuist_web/live/user_registration_live.ex:39
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Binary caching"
-msgstr "バイナリー・キャッシング"
+msgstr "バイナリキャッシュ"
 
 #: lib/tuist_web/live/user_reset_password_live.ex:30
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Change your password"
-msgstr "パスワードの変更"
+msgstr "パスワードを変更してください"
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:40
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Check your email"
-msgstr "メールをチェックする"
+msgstr "メールを確認してください"
 
 #: lib/tuist_web/live/user_registration_live.ex:219
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Check your inbox for a confirmation email and click the link to continue."
-msgstr "受信トレイに確認メールが届いているか確認し、リンクをクリックして続行する。"
+msgstr ""
+"確認メールが届いているか受信箱を確認し、リンクをクリックして続行してください"
+"。"
 
 #: lib/tuist_web/live/choose_username_live.ex:48
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Choose a username"
-msgstr "ユーザー名を選択する"
+msgstr "ユーザー名を選択してください"
 
 #: lib/tuist_web/live/choose_username_live.ex:50
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Choose a username for your personal account"
-msgstr "個人アカウントのユーザー名を選択する"
+msgstr "個人アカウント用のユーザー名を選択してください"
 
 #: lib/tuist_web/live/user_reset_password_live.ex:50
 #, elixir-autogen, elixir-format, fuzzy
@@ -94,22 +96,22 @@ msgstr "パスワードの確認"
 #: lib/tuist_web/live/user_registration_live.ex:217
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Confirm your account"
-msgstr "アカウントの確認"
+msgstr "アカウントを確認してください"
 
 #: lib/tuist_web/live/user_confirmation_live.ex:44
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Confirmation failed"
-msgstr "確認に失敗"
+msgstr "確認に失敗しました"
 
 #: lib/tuist_web/live/connect_live.ex:12
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Connect"
-msgstr "接続"
+msgstr "Connect"
 
 #: lib/tuist_web/live/connect_live.ex:55
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Connect your project"
-msgstr "プロジェクトをつなぐ"
+msgstr "プロジェクトを接続する"
 
 #: lib/tuist_web/live/connect_live.ex:37
 #, elixir-autogen, elixir-format, fuzzy
@@ -119,7 +121,7 @@ msgstr "プロジェクトをダッシュボードに接続する"
 #: lib/tuist_web/live/connect_live.ex:33
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Connection successful"
-msgstr "接続成功"
+msgstr "接続に成功しました"
 
 #: lib/tuist_web/live/sso_login_live.ex:86
 #: lib/tuist_web/live/user_okta_login_live.ex:90
@@ -130,7 +132,7 @@ msgstr "お問い合わせ"
 #: lib/tuist_web/live/choose_username_live.ex:73
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Continue"
-msgstr "続ける"
+msgstr "Continue"
 
 #: lib/tuist_web/live/device_codes_success_live.ex:59
 #, elixir-autogen, elixir-format, fuzzy
@@ -140,7 +142,7 @@ msgstr "ダッシュボード"
 #: lib/tuist_web/live/user_registration_live.ex:30
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Discover how selective testing is reducing your test time."
-msgstr "選択的テストがいかにテスト時間を短縮するかをご覧ください。"
+msgstr "選択的テストが試験時間を短縮する仕組みをご覧ください。"
 
 #: lib/tuist_web/live/user_login_live.ex:178
 #, elixir-autogen, elixir-format, fuzzy
@@ -159,19 +161,19 @@ msgstr "メールアドレス"
 #: lib/tuist_web/live/user_registration_live.ex:307
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Email is already taken"
-msgstr "電子メールはすでに利用されている"
+msgstr "メールアドレスは既に使用されています"
 
 #: lib/tuist_web/live/connect_live.ex:75
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Explore Tuist features like binary caching and selective testing to speed up your development."
 msgstr ""
-"バイナリー・キャッシングや選択的テストといったTuistの機能を探求し、開発を"
-"スピードアップしましょう。"
+"バイナリキャッシュや選択的テストといったTuistの機能を活用して、開発を高速化し"
+"ましょう。"
 
 #: lib/tuist_web/live/user_registration_live.ex:42
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Explore how binary caching is enhancing your build times."
-msgstr "バイナリー・キャッシングがビルド時間をどのように向上させるかをご覧ください。"
+msgstr "バイナリキャッシュがビルド時間をどのように短縮しているかを探る。"
 
 #: lib/tuist_web/live/user_login_live.ex:166
 #, elixir-autogen, elixir-format, fuzzy
@@ -187,13 +189,13 @@ msgstr "パスワードをお忘れですか？"
 #, elixir-autogen, elixir-format, fuzzy
 msgid "If your email exists in our records, you'll receive reset instructions shortly."
 msgstr ""
-"お客様のEメールが当社の記録に残っている場合は、すぐにリセットの指示をお送りし"
-"ます。"
+"当社にメールアドレスが登録されている場合、まもなく再設定の手順をお送りします"
+"。"
 
 #: lib/tuist_web/live/connect_live.ex:41
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Install Tuist CLI"
-msgstr "Tuist CLIのインストール"
+msgstr "Tuist CLIをインストールする"
 
 #: lib/tuist_web/live/user_registration_live.ex:54
 #, elixir-autogen, elixir-format, fuzzy
@@ -204,7 +206,7 @@ msgstr "URLでアプリを即座に共有"
 #: lib/tuist_web/live/user_okta_login_live.ex:84
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Interested in SSO?"
-msgstr "SSOに興味がありますか？"
+msgstr "SSOにご興味がありますか？"
 
 #: lib/tuist_web/live/user_login_live.ex:159
 #, elixir-autogen, elixir-format, fuzzy
@@ -231,12 +233,12 @@ msgstr "Tuistにログイン"
 #: lib/tuist_web/live/user_okta_login_live.ex:57
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Log in to your enterprise account via Okta"
-msgstr "Okta経由で企業アカウントにログインする"
+msgstr "Okta経由でエンタープライズアカウントにログインしてください"
 
 #: lib/tuist_web/live/user_okta_login_live.ex:34
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Logging in via Okta failed"
-msgstr "Okta経由でのログインに失敗しました。"
+msgstr "Okta経由でのログインに失敗しました"
 
 #: lib/tuist_web/live/user_reset_password_live.ex:42
 #, elixir-autogen, elixir-format, fuzzy
@@ -246,12 +248,12 @@ msgstr "新しいパスワード"
 #: lib/tuist_web/live/connect_live.ex:73
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Next steps"
-msgstr "次のステップ"
+msgstr "次の手順"
 
 #: lib/tuist_web/live/sso_login_live.ex:32
 #, elixir-autogen, elixir-format, fuzzy
 msgid "No SSO organization found for this email"
-msgstr "このEメールにSSO組織は見つかりませんでした"
+msgstr "このメールアドレスに対応するSSO組織が見つかりませんでした"
 
 #: lib/tuist_web/live/connect_live.ex:91
 #, elixir-autogen, elixir-format, fuzzy
@@ -261,7 +263,7 @@ msgstr "または"
 #: lib/tuist_web/live/user_okta_login_live.ex:15
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Okta log in"
-msgstr "Oktaログイン"
+msgstr "Okta ログイン"
 
 #: lib/tuist_web/live/user_login_live.ex:146
 #: lib/tuist_web/live/user_registration_live.ex:158
@@ -272,7 +274,7 @@ msgstr "パスワード"
 #: lib/tuist_web/live/user_reset_password_live.ex:94
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Password reset successfully."
-msgstr "パスワードのリセットに成功しました。"
+msgstr "パスワードのリセットが完了しました。"
 
 #: lib/tuist_web/live/user_registration_live.ex:51
 #, elixir-autogen, elixir-format, fuzzy
@@ -282,23 +284,25 @@ msgstr "プレビュー"
 #: lib/tuist_web/live/connect_live.ex:94
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Project Ready? Proceed to dashboard"
-msgstr "プロジェクトの準備はできましたか？ダッシュボードに進む"
+msgstr "プロジェクトの準備はできましたか？ダッシュボードに進みます"
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:61
 #: lib/tuist_web/live/user_reset_password_live.ex:58
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Reset password"
-msgstr "パスワードのリセット"
+msgstr "パスワードをリセット"
 
 #: lib/tuist_web/live/connect_live.ex:43
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Run the following command to install Tuist CLI."
-msgstr "以下のコマンドを実行してTuist CLIをインストールする。"
+msgstr "Tuist CLIをインストールするには、次のコマンドを実行してください。"
 
 #: lib/tuist_web/live/connect_live.ex:57
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Run this command to link your project to the dashboard."
-msgstr "このコマンドを実行して、プロジェクトをダッシュボードにリンクさせます。"
+msgstr ""
+"プロジェクトをダッシュボードにリンクするには、このコマンドを実行してください"
+"。"
 
 #: lib/tuist_web/live/user_registration_live.ex:27
 #, elixir-autogen, elixir-format, fuzzy
@@ -320,12 +324,12 @@ msgstr "Tuistに登録する"
 #: lib/tuist_web/live/choose_username_live.ex:114
 #, elixir-autogen, elixir-format, fuzzy
 msgid "This username has already been taken"
-msgstr "このユーザー名はすでに使われています"
+msgstr "このユーザー名は既に使用されています"
 
 #: lib/tuist_web/live/device_codes_success_live.ex:39
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Tuist CLI is connected!"
-msgstr "Tuist CLIに接続！"
+msgstr "Tuist CLI が接続されました！"
 
 #: lib/tuist_web/live/choose_username_live.ex:40
 #: lib/tuist_web/live/device_codes_success_live.ex:26
@@ -339,32 +343,32 @@ msgstr "Tuist CLIに接続！"
 #: lib/tuist_web/live/user_reset_password_live.ex:22
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Tuist Logo"
-msgstr "Tuistロゴ"
+msgstr "Tuist Logo"
 
 #: lib/tuist_web/live/device_codes_success_live.ex:37
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Tuist app is connected!"
-msgstr "Tuistアプリが接続されている！"
+msgstr "Tuistアプリが接続されました！"
 
 #: lib/tuist_web/live/connect_live.ex:104
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Tuist dashboard"
-msgstr "ダッシュボード"
+msgstr "Tuistダッシュボード"
 
 #: lib/tuist_web/live/connect_live.ex:82
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Tuist documentation"
-msgstr "トゥイスト・ドキュメンテーション"
+msgstr "Tuist ドキュメント"
 
 #: lib/tuist_web/live/device_codes_success_live.ex:41
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Tuist is connected!"
-msgstr "トゥイストはつながっている！"
+msgstr "Tuist が接続されました！"
 
 #: lib/tuist_web/live/user_confirmation_live.ex:55
 #, elixir-autogen, elixir-format, fuzzy
 msgid "User confirmation link is invalid or it has expired."
-msgstr "ユーザー確認リンクが無効であるか、有効期限が切れています。"
+msgstr "ユーザー確認リンクが無効か期限切れです。"
 
 #: lib/tuist_web/live/choose_username_live.ex:63
 #: lib/tuist_web/live/user_registration_live.ex:169
@@ -376,7 +380,7 @@ msgstr "ユーザー名"
 #: lib/tuist_web/live/user_registration_live.ex:172
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Username may only contain alphanumeric characters"
-msgstr "ユーザー名には英数字のみを使用できます。"
+msgstr "ユーザー名は英数字のみ使用可"
 
 #: lib/tuist_web/live/connect_live.ex:28
 #, elixir-autogen, elixir-format, fuzzy
@@ -386,68 +390,66 @@ msgstr "接続待ち"
 #: lib/tuist_web/live/user_forgot_password_live.ex:31
 #, elixir-autogen, elixir-format, fuzzy
 msgid "We'll send a password reset link to your inbox"
-msgstr "受信トレイにパスワード再設定リンクをお送りします。"
+msgstr "パスワード再設定リンクをメールボックスにお送りします"
 
 #: lib/tuist_web/live/user_login_live.ex:47
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Welcome back! Please log in to continue"
-msgstr "おかえりなさい続けるにはログインしてください"
+msgstr "お帰りなさい！ 続行するにはログインしてください"
 
 #: lib/tuist_web/live/user_registration_live.ex:77
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Welcome! Create an account to continue"
-msgstr "ようこそアカウントを作成する"
+msgstr "ようこそ！ 続行するにはアカウントを作成してください"
 
 #: lib/tuist_web/live/device_codes_success_live.ex:51
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You can close the tab and continue"
-msgstr "タブを閉じて続けることができます。"
+msgstr "タブを閉じて続行できます"
 
 #: lib/tuist_web/live/device_codes_success_live.ex:47
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You can close the tab and continue in the app"
-msgstr "タブを閉じて、アプリを続けることができます。"
+msgstr "タブを閉じてアプリで続行できます"
 
 #: lib/tuist_web/live/device_codes_success_live.ex:49
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You can close the tab and continue in the terminal"
-msgstr "タブを閉じてターミナルで続けることができます。"
+msgstr "タブを閉じてターミナルで続行できます"
 
 #: lib/tuist_web/live/user_confirmation_live.ex:46
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Your account could not be confirmed."
-msgstr "アカウントが確認できませんでした。"
+msgstr "アカウントの確認ができませんでした。"
 
 #: lib/tuist_web/live/user_confirmation_live.ex:27
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Your account has been confirmed."
-msgstr "アカウントが確認されました。"
+msgstr "アカウントの確認が完了しました。"
 
 #: lib/tuist_web/live/user_confirmation_live.ex:36
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Your account has been confirmed. You will be redirected shortly..."
-msgstr "アカウントが確認されました。すぐにリダイレクトされます..."
+msgstr "アカウントの確認が完了しました。まもなくリダイレクトされます..."
 
 #: lib/tuist_web/live/user_reset_password_live.ex:32
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Your new password must be different to previously used passwords."
-msgstr ""
-"新しいパスワードは、以前に使用したパスワードとは異なるものでなければなりませ"
-"ん。"
+msgstr "新しいパスワードは、以前に使用したパスワードとは異なるものにしてください。"
 
 #: lib/tuist_web/live/connect_live.ex:49
 #: lib/tuist_web/live/connect_live.ex:67
 #, elixir-autogen, elixir-format, fuzzy
 msgid "homebrew"
-msgstr "自家醸"
+msgstr "homebrew"
 
 #: lib/tuist_web/live/connect_live.ex:46
 #: lib/tuist_web/live/connect_live.ex:62
 #, elixir-autogen, elixir-format, fuzzy
 msgid "mise"
-msgstr "ミセ"
+msgstr "mise"
 
 #: lib/tuist_web/live/connect_live.ex:37
 #, elixir-autogen, elixir-format, fuzzy
 msgid "using CLI"
-msgstr "CLIを使用して"
+msgstr "CLIを使用"
