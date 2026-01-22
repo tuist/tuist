@@ -47,7 +47,7 @@ let plugin = Plugin(name: "MyPlugin")
 
 ### リソース・アクセッサ・テンプレート・プラグイン{#resource-accessor-templates-plugin}
 
-<LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">合成されたリソース・アクセッサ</LocalizedLink>を共有する必要がある場合、このタイプのプラグインを使用できます。プラグインは、プラグインの名前を宣言する`Plugin.swift`
+1}合成されたリソースアクセサ</LocalizedLink>を共有する必要がある場合、このタイプのプラグインを使用できます。プラグインは、プラグインの名前を宣言する`Plugin.swift`
 マニフェスト ファイルと、リソース アクセッサ テンプレート ファイルを含む`ResourceSynthesizers`
 ディレクトリを含むディレクトリで表されます。
 
@@ -101,7 +101,7 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 タスクは`$PATH`-公開された実行可能ファイルであり、命名規則`tuist-<task-name>` に従っていれば`tuist`
 コマンドを通して呼び出すことができる。以前のバージョンでは、Tuistは`build`,`run`,`test` and`archive` tasks
 represented by executables in Swift Packagesのために、`tuist plugin`
-の下でいくつかの弱い規約とツールを提供していましたが、ツールのメンテナンス負担と複雑さを増加させるので、この機能は非推奨としました。
+の下でいくつかの弱い規約とツールを提供していましたが、ツールのメンテナンス負担と複雑さを増加させるので、この機能は非推奨としました。</task-name>
 
 タスクの分散にTuistを使用していた場合は、次のように構築することをお勧めします。
 - Tuistリリースごとに配布される`ProjectAutomation.xcframework` を使い続けることで、`let graph = try
@@ -111,7 +111,7 @@ represented by executables in Swift Packagesのために、`tuist plugin`
   [Mise](https://mise.jdx.dev)
   を使用することをお勧めします。あなたのツールのインストール方法をMiseに指示するには、プラグインリポジトリが必要です。Tuistの](https://github.com/asdf-community/asdf-tuist)を参考にしてください。
 - ツールの名前を`tuist-{xxx}` とし、ユーザが`mise install`
-  を実行することでインストールできるようにした場合、ユーザはそれを直接呼び出すか、`tuist xxx` を通して実行することができます。
+  を実行することでインストールできるようにした場合、ユーザはツールを直接呼び出すか、`tuist xxx` を通して実行することができます。
 
 ::: info THE FUTURE OF PROJECTAUTOMATION
 <!-- -->
@@ -163,7 +163,7 @@ let tuist = Tuist(
 
 ::: tip PROJECT DESCRIPTION HELPERS PLUGINS
 <!-- -->
-プロジェクト記述ヘルパーのプラグインを使うとき、ヘルパーを含むモジュールの名前がプラグインの名前になる
+プロジェクト記述ヘルパーのプラグインを使うとき、ヘルパーを含むモジュールの名前はプラグインの名前になる
 ```swift
 import ProjectDescription
 import MyTuistPlugin
