@@ -5,39 +5,31 @@
   "description": "Use coding agents and local runs to debug issues in Tuist."
 }
 ---
-# Debugging {#debugging}
+# デバッグ {#debugging}
 
-Being open is a practical advantage: the code is available, you can run it
-locally, and you can use coding agents to answer questions faster and debug
-potential bugs in the codebase.
+オープンであることは実用的な利点です：コードは公開されており、ローカルで実行でき、コーディングエージェントを使って質問に素早く答え、コードベースの潜在的なバグをデバッグできます。
 
-If you find missing or incomplete documentation while debugging, update the
-English docs under `docs/` and open a PR.
+デバッグ中に不足または不完全なドキュメントを発見した場合は、`docs/` の英語版ドキュメントを更新し、プルリクエストを開いてください。
 
-## Use coding agents {#use-coding-agents}
+## コーディングエージェントを使用する{#use-coding-agents}
 
-Coding agents are useful for:
+コーディングエージェントは以下に有用です：
 
-- Scanning the codebase for where a behavior is implemented.
-- Reproducing issues locally and iterating quickly.
-- Tracing how inputs flow through Tuist to find the root cause.
+- コードベースをスキャンして、ある動作が実装されている箇所を探す。
+- 問題をローカルで再現し、迅速に反復する。
+- 入力がTuist内でどのように流れるかを追跡し、根本原因を特定する。
 
-Share the smallest reproduction you can, and point the agent at the specific
-component (CLI, server, cache, docs, or handbook). The more focused the scope,
-the faster and more accurate the debugging process is.
+可能な限り最小限の再現環境を共有し、エージェントに具体的なコンポーネント（CLI、サーバー、キャッシュ、ドキュメント、またはハンドブック）を指定してください。範囲が絞られているほど、デバッグプロセスは迅速かつ正確になります。
 
-### Frequently Needed Prompts (FNP) {#frequently-needed-prompts}
+### 頻繁に必要なプロンプト (FNP){#frequently-needed-prompts}
 
-#### Unexpected project generation {#unexpected-project-generation}
+#### 予期しないプロジェクト生成{#unexpected-project-generation}
 
-The project generation is giving me something I do not expect. Run the Tuist CLI
-against my project at `/path/to/project` to understand why this is happening.
-Trace the generator pipeline and point to the code paths responsible for the
-output.
+プロジェクト生成で予期しない結果が発生しています。原因を特定するため、Tuist CLIを以下のパスで実行してください：`/path/to/project`
+ジェネレータのパイプラインを追跡し、出力に責任を持つコードパスを特定してください。
 
-#### Reproducible bug in generated projects {#reproducible-bug-in-generated-projects}
+#### 生成プロジェクトにおける再現可能なバグ{#reproducible-bug-in-generated-projects}
 
-This looks like a bug in generated projects. Create a reproducible project under
-`examples/`, using existing examples as a reference. Add an acceptance test that
-fails, run it via `xcodebuild` with only that test selected, fix the issue,
-re-run the test to confirm it passes, and open a PR.
+これは生成プロジェクトのバグのようです。既存の例を参考に、`examples/`
+配下に再現可能なプロジェクトを作成してください。失敗する受け入れテストを追加し、`xcodebuild`
+でそのテストのみを選択して実行し、問題を修正し、テストを再実行して合格を確認し、プルリクエストを開いてください。
