@@ -1,0 +1,7 @@
+.build
+.swiftpm
+Derived
+*.xcodeproj
+*.xcworkspace
+Tuist/.build
+Tuist/Package.resolved

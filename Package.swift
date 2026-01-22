@@ -692,7 +692,7 @@ let package = Package(
             id: "apple.swift-openapi-urlsession", .upToNextMajor(from: "1.0.2")
         ),
         .package(id: "tuist.Path", .upToNextMajor(from: "0.3.0")),
-        .package(id: "tuist.XcodeGraph", .upToNextMajor(from: "1.30.10")),
+        .package(id: "tuist.XcodeGraph", .upToNextMajor(from: "1.31.0")),
         .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.11.0")),
         .package(id: "tuist.Command", .upToNextMajor(from: "0.8.0")),
         .package(id: "sparkle-project.Sparkle", from: "2.6.4"),
