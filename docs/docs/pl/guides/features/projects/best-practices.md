@@ -94,7 +94,7 @@ let target = Target(
 
 ### Zależności
 
-#### Wymuszanie rozwiązanych wersji na CI
+#### Wymuś wersje rozwiązane w CI
 
 Podczas instalowania zależności Swift Package Manager w CI zalecamy użycie flagi
 `--force-resolved-versions`, aby zapewnić deterministyczne kompilacje:
@@ -103,7 +103,7 @@ Podczas instalowania zależności Swift Package Manager w CI zalecamy użycie fl
 tuist install --force-resolved-versions
 ```
 
-Flaga ta zapewnia, że zależności są rozwiązywane przy użyciu dokładnych wersji
-przypiętych w `Package.resolved`, eliminując problemy spowodowane
-niedeterminizmem w rozwiązywaniu zależności. Jest to szczególnie ważne w CI,
-gdzie powtarzalne kompilacje są krytyczne.
+Ta flaga zapewnia, że zależności są rozwiązywane przy użyciu dokładnych wersji
+przypisanych w `Package.resolved`, eliminując problemy spowodowane
+niedeterminizmem w rozwiązywaniu zależności. Jest to szczególnie ważne w
+przypadku CI, gdzie krytyczne znaczenie mają powtarzalne kompilacje.
