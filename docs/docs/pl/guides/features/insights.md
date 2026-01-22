@@ -9,54 +9,55 @@
 
 ::: ostrzeżenie WYMAGANIA
 <!-- -->
-- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects">
-  Tuist</LocalizedLink>
+- Konto <LocalizedLink href="/guides/server/accounts-and-projects">Tuist i
+  projekt</LocalizedLink>
 <!-- -->
 :::
 
-Praca nad dużymi projektami nie powinna być przykrym obowiązkiem. W
-rzeczywistości powinna być tak przyjemna, jak praca nad projektem rozpoczętym
-zaledwie dwa tygodnie temu. Jednym z powodów, dla których tak nie jest, jest to,
-że wraz z rozwojem projektu cierpi na tym doświadczenie programisty. Czasy
-kompilacji wydłużają się, a testy stają się powolne i zawodne. Często łatwo jest
-przeoczyć te kwestie, dopóki nie dojdzie do punktu, w którym stają się nie do
-zniesienia - jednak w tym momencie trudno jest się nimi zająć. Tuist Insights
-zapewnia narzędzia do monitorowania kondycji projektu i utrzymania produktywnego
-środowiska programistycznego w miarę skalowania projektu.
+Praca nad dużymi projektami nie powinna być uciążliwa. W rzeczywistości powinna
+być tak samo przyjemna, jak praca nad projektem, który rozpocząłeś zaledwie dwa
+tygodnie temu. Jednym z powodów, dla których tak nie jest, jest to, że wraz z
+rozwojem projektu pogarsza się komfort pracy programistów. Czas kompilacji
+wydłuża się, a testy stają się powolne i zawodne. Często łatwo jest przeoczyć te
+problemy, dopóki nie osiągną one punktu, w którym stają się nie do zniesienia —
+jednak w tym momencie trudno jest je rozwiązać. Tuist Insights zapewnia
+narzędzia do monitorowania stanu projektu i utrzymania produktywnego środowiska
+programistycznego w miarę jego rozwoju.
 
-Innymi słowy, Tuist Insights pomaga odpowiedzieć na pytania takie jak:
-- Czy czas kompilacji znacznie się wydłużył w ciągu ostatniego tygodnia?
+Innymi słowy, Tuist Insights pomaga odpowiedzieć na takie pytania, jak:
+- Czy czas kompilacji znacznie wzrósł w ciągu ostatniego tygodnia?
 - Czy moje kompilacje są wolniejsze na CI w porównaniu do rozwoju lokalnego?
 
-Chociaż prawdopodobnie masz pewne dane dotyczące wydajności przepływów pracy CI,
+Chociaż prawdopodobnie dysponujesz pewnymi wskaźnikami wydajności procesów CI,
 możesz nie mieć takiego samego wglądu w lokalne środowisko programistyczne.
-Czasy kompilacji lokalnych są jednak jednym z najważniejszych czynników
-wpływających na wrażenia deweloperów.
+Jednak czas lokalnej kompilacji jest jednym z najważniejszych czynników
+wpływających na komfort pracy programistów.
 
-Aby rozpocząć śledzenie lokalnego czasu kompilacji, można wykorzystać polecenie
-`tuist inspect build`, dodając je do postakcji schematu:
+Aby rozpocząć śledzenie lokalnych czasów kompilacji, możesz skorzystać z
+polecenia `tuist inspect build`, dodając je do akcji po zakończeniu schematu:
 
-![Działanie po inspekcji
+![Czynności po zakończeniu inspekcji
 kompilacji](/images/guides/features/insights/inspect-build-scheme-post-action.png)
 
 :: info
 <!-- -->
-Zalecamy ustawienie opcji "Provide build settings from" na plik wykonywalny lub
-główny cel kompilacji, aby umożliwić Tuist śledzenie konfiguracji kompilacji.
+Zalecamy ustawienie opcji „Provide build settings from” (Podaj ustawienia
+kompilacji z) na plik wykonywalny lub główny cel kompilacji, aby umożliwić Tuist
+śledzenie konfiguracji kompilacji.
 <!-- -->
 :::
 
 :: info
 <!-- -->
-Jeśli nie używasz <LocalizedLink href="/guides/features/projects">
-wygenerowanych projektów</LocalizedLink>, akcja po schemacie nie zostanie
-wykonana w przypadku niepowodzenia kompilacji.
+Jeśli nie używasz <LocalizedLink href="/guides/features/projects">wygenerowanych
+projektów</LocalizedLink>, akcja po schemacie nie zostanie wykonana w przypadku
+niepowodzenia kompilacji.
 <!-- -->
 :::
 > 
-> Nieudokumentowana funkcja w Xcode pozwala na wykonanie go nawet w tym
+> Nieudokumentowana funkcja w Xcode pozwala na wykonanie tego nawet w tym
 > przypadku. Ustaw atrybut `runPostActionsOnFailure` na `YES` w schemacie
-> `BuildAction` w odpowiednim pliku `project.pbxproj` w następujący sposób:
+> `BuildAction` w odpowiednim `project.pbxproj` pliku w następujący sposób:
 > 
 > ```diff
 > <BuildAction
@@ -84,15 +85,15 @@ $SRCROOT.
 :::
 
 
-Lokalne kompilacje są teraz śledzone tak długo, jak długo jesteś zalogowany na
-swoje konto Tuist. Możesz teraz uzyskać dostęp do czasów kompilacji na pulpicie
-nawigacyjnym Tuist i zobaczyć, jak zmieniają się one w czasie:
+Twoje lokalne kompilacje są teraz śledzone, o ile jesteś zalogowany na swoje
+konto Tuist. Możesz teraz uzyskać dostęp do czasów kompilacji w panelu Tuist i
+zobaczyć, jak zmieniają się one w czasie:
 
 
 ::: napiwek
 <!-- -->
 Aby szybko uzyskać dostęp do pulpitu nawigacyjnego, uruchom `tuist project show
---web` z CLI.
+--web` z poziomu CLI.
 <!-- -->
 :::
 
@@ -146,7 +147,7 @@ let project = Project(
 )
 ```
 
-Jeśli nie używasz Mise, twoje skrypty można uprościć do:
+Jeśli nie korzystasz z Mise, skrypty można uprościć do:
 
 ```swift
 buildAction: .buildAction(
@@ -167,7 +168,7 @@ buildAction: .buildAction(
 Aby śledzić informacje o kompilacji w CI, należy upewnić się, że CI jest
 <LocalizedLink href="/guides/integrations/continuous-integration#authentication">uwierzytelniony</LocalizedLink>.
 
-Dodatkowo będziesz musiał
+Dodatkowo należy:
 - Użyj polecenia <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
   xcodebuild`</LocalizedLink> podczas wywoływania akcji `xcodebuild`.
 - Dodaj `-resultBundlePath` do wywołania `xcodebuild`.
