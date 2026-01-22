@@ -28,13 +28,11 @@ the installation method of your choice. We strongly recommend the usage of Mise
 because it's able to install and activate versions deterministically across
 environments.
 
-::: code-group
 
 ```bash [Uninstall tuistenv]
 curl -Ls https://uninstall.tuist.io | bash
 ```
 <!-- -->
-:::
 
 ::: warning MISE IN CI ENVIRONMENTS AND XCODE PROJECTS
 <!-- -->
@@ -43,16 +41,15 @@ recommend checking out the documentation for how to use Mise in [CI
 environments](https://mise.jdx.dev/continuous-integration.html) and [Xcode
 projects](https://mise.jdx.dev/ide-integration.html#xcode).
 <!-- -->
-:::
 
 ::: info HOMEBREW IS SUPPORTED
 <!-- -->
 Note that you can still install Tuist using Homebrew, which is a popular package
 manager for macOS. You can find the instructions on how to install Tuist using
 Homebrew in the
-<LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">installation guide</LocalizedLink>.
+<LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">installation
+guide</LocalizedLink>.
 <!-- -->
-:::
 
 ### Dropped `init` constructors from `ProjectDescription` models {#dropped-init-constructors-from-projectdescription-models}
 
@@ -68,7 +65,6 @@ The naming convention that we follow is to use the name of the model as the name
 of the static constructor. For example, the static constructor for the `Target`
 model is `Target.target`.
 <!-- -->
-:::
 
 ### Renamed `--no-cache` to `--no-binary-cache` {#renamed-nocache-to-nobinarycache}
 
@@ -130,7 +126,6 @@ controlling for which targets the binary cache should be skipped by using the
 arguments. If you were using the `--skip-cache` flag, you'll have to update your
 project to use the arguments instead.
 
-::: code-group
 
 ```bash [Before]
 tuist generate --skip-cache Foo
@@ -140,7 +135,6 @@ tuist generate --skip-cache Foo
 tuist generate Foo
 ```
 <!-- -->
-:::
 
 ### [Dropped signing capabilities](https://github.com/tuist/tuist/pull/5716) {#dropped-signing-capabilitieshttpsgithubcomtuisttuistpull5716}
 
@@ -167,7 +161,6 @@ provisioning profiles to be present in the directory
 command-line tool to install certificates in the keychain and the `cp` command
 to copy the provisioning profiles to the right directory.
 <!-- -->
-:::
 
 ### Dropped Carthage integration via `Dependencies.swift` {#dropped-carthage-integration-via-dependenciesswift}
 
@@ -187,7 +180,6 @@ between Tuist and Carthage's output is to system-stored frameworks and
 XCFrameworks. The only thing that changed is who is responsible for fetching the
 dependencies. It used to be Tuist through Carthage, now it's Carthage.
 <!-- -->
-:::
 
 ### Dropped the `TargetDependency.packagePlugin` API {#dropped-the-targetdependencypackageplugin-api}
 
