@@ -8,8 +8,8 @@
 # Hesaplar ve projeler {#accounts-and-projects}
 
 Bazı Tuist özellikleri, verilerin kalıcılığını sağlayan ve diğer hizmetlerle
-etkileşime girebilen bir sunucu gerektirir. Sunucu ile etkileşime geçmek için
-bir hesaba ve yerel projenize bağladığınız bir projeye ihtiyacınız vardır.
+etkileşime girebilen bir sunucu gerektirir. Sunucu ile etkileşim kurmak için bir
+hesaba ve yerel projenize bağladığınız bir projeye ihtiyacınız vardır.
 
 ## Hesaplar {#accounts}
 
@@ -34,7 +34,8 @@ Hesapları ve projeleri yönetmeyi kolaylaştıracak bir web arayüzü üzerinde
 <!-- -->
 :::
 
-Organizasyonu <LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink> altındaki alt komutlar aracılığıyla
+Organizasyonu <LocalizedLink href="/cli/organization">`tuist
+organization`</LocalizedLink> altındaki alt komutlar aracılığıyla
 yönetebilirsiniz. Yeni bir organizasyon hesabı oluşturmak için çalıştırın:
 ```bash
 tuist organization create {account-handle}
@@ -49,8 +50,8 @@ sahip olmak gibidir. Projeleri oluşturmak ve yönetmek için
 <LocalizedLink href="/cli/project">`tuist project`</LocalizedLink> adresini
 kullanabilirsiniz.
 
-Projeler, kuruluş tanıtıcısı ve proje tanıtıcısının birleştirilmesinin sonucu
-olan tam tanıtıcı ile tanımlanır. Örneğin, `tuist` tanıtıcısına sahip bir
+Projeler, kuruluş tanıtıcısı ile proje tanıtıcısının birleştirilmesinin sonucu
+olan bir tam tanıtıcı ile tanımlanır. Örneğin, `tuist` tanıtıcısına sahip bir
 kuruluşunuz ve `tuist` tanıtıcısına sahip bir projeniz varsa, tam tanıtıcı
 `tuist/tuist` olacaktır.
 
