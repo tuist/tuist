@@ -15,7 +15,8 @@ On every test run on the CI, you most likely re-run all the tests, regardless of
 the changes. Tuist's selective testing helps you to drastically speed up running
 the tests themselves by running only the tests that have changed since the last
 successful test run based on our
-<LocalizedLink href="/guides/features/projects/hashing">hashing algorithm</LocalizedLink>.
+<LocalizedLink href="/guides/features/projects/hashing">hashing
+algorithm</LocalizedLink>.
 
 Selective testing works with `xcodebuild`, which supports any Xcode project, or
 if you generate your projects with Tuist, you can use the `tuist test` command
@@ -25,7 +26,8 @@ get started with selective testing, follow the instructions based on your
 project setup:
 
 - <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
-- <LocalizedLink href="/guides/features/selective-testing/generated-project">Generated project</LocalizedLink>
+- <LocalizedLink href="/guides/features/selective-testing/generated-project">Generated
+  project</LocalizedLink>
 
 ::: warning MODULE VS FILE-LEVEL GRANULARITY
 <!-- -->
@@ -34,7 +36,6 @@ sources, the maximum granularity of selective testing is at the target level.
 Therefore, we recommend keeping your targets small and focused to maximize the
 benefits of selective testing.
 <!-- -->
-:::
 
 ::: warning TEST COVERAGE
 <!-- -->
@@ -46,7 +47,6 @@ whether coverage is still bringing meaningful insights in this context, and if
 it is, rest assured that we’re already thinking about how to make coverage work
 properly with selective runs in the future.
 <!-- -->
-:::
 
 
 ## Pull/merge request comments {#pullmerge-request-comments}
@@ -54,10 +54,11 @@ properly with selective runs in the future.
 ::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
 To get automatic pull/merge request comments, integrate your
-<LocalizedLink href="/guides/server/accounts-and-projects">Tuist project</LocalizedLink> with a
-<LocalizedLink href="/guides/server/authentication">Git platform</LocalizedLink>.
+<LocalizedLink href="/guides/server/accounts-and-projects">Tuist
+project</LocalizedLink> with a
+<LocalizedLink href="/guides/server/authentication">Git
+platform</LocalizedLink>.
 <!-- -->
-:::
 
 Once your Tuist project is connected with your Git platform such as
 [GitHub](https://github.com), and you start using `tuist xcodebuild test` or
