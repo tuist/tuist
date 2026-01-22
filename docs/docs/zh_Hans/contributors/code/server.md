@@ -5,31 +5,26 @@
   "description": "Contribute to the Tuist Server."
 }
 ---
-# Server {#server}
+# 服务器{#server}
 
-Source:
-[github.com/tuist/tuist/tree/main/server](https://github.com/tuist/tuist/tree/main/server)
+来源：[github.com/tuist/tuist/tree/main/server](https://github.com/tuist/tuist/tree/main/server)
 
-## What it is for {#what-it-is-for}
+## 用途说明{#what-it-is-for}
 
-The server powers Tuist’s server-side features like authentication, accounts and
-projects, cache storage, insights, previews, registry, and integrations (GitHub,
-Slack, and SSO). It is a Phoenix/Elixir application with Postgres and
-ClickHouse.
+该服务器为Tuist提供服务器端功能支持，包括身份验证、账户与项目管理、缓存存储、数据洞察、预览功能、注册表及集成服务（GitHub、Slack和单点登录）。该应用基于Phoenix/Elixir框架构建，采用Postgres和ClickHouse数据库。
 
 ::: warning TIMESCALEDB DEPRECATION
 <!-- -->
-TimescaleDB is deprecated and will be removed. For now, if you need it for local
-setup or migrations, use the [TimescaleDB installation
-docs](https://docs.timescale.com/self-hosted/latest/install/installation-macos/).
+TimescaleDB 已弃用并将被移除。若当前仍需用于本地部署或数据迁移，请参照[TimescaleDB
+安装文档](https://docs.timescale.com/self-hosted/latest/install/installation-macos/)进行操作。
 <!-- -->
 :::
 
-## How to contribute {#how-to-contribute}
+## 如何贡献{#how-to-contribute}
 
-Contributions to the server require signing the CLA (`server/CLA.md`).
+向服务器提交贡献需签署CLA（`server/CLA.md` ）。
 
-### Set up locally {#set-up-locally}
+### 本地设置{#set-up-locally}
 
 ```bash
 cd server
@@ -49,12 +44,11 @@ mise run install
 mise run dev
 ```
 
-> [!NOTE] First-party developers load encrypted secrets from
-> `priv/secrets/dev.key`. External contributors won't have that key, and that's
-> fine. The server still runs locally with `TUIST_SECRET_KEY_BASE`, but OAuth,
-> Stripe, and other integrations remain disabled.
+> [!NOTE] 第一方开发者从`priv/secrets/dev.key`
+> 加载加密密钥。外部贡献者无需该密钥，系统仍可通过`TUIST_SECRET_KEY_BASE` 本地运行，但 OAuth、Stripe
+> 等集成功能将保持禁用状态。
 
-### Tests and formatting {#tests-and-formatting}
+### 测试与格式{#tests-and-formatting}
 
-- Tests: `mix test`
-- Format: `mise run format`
+- 测试：`混合测试`
+- 格式：`mise run format`
