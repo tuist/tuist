@@ -7,43 +7,44 @@
 ---
 # SwiftパッケージでTuistを使う<Badge type="warning" text="beta" />.{#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}
 
-Tuistは、`Package.swift`
-をプロジェクトのDSLとして使用することをサポートしており、パッケージターゲットをネイティブのXcodeプロジェクトとターゲットに変換します。
+Tuistは、プロジェクトのDSLとして`Package.swift`
+の使用をサポートし、パッケージターゲットをネイティブのXcodeプロジェクトおよびターゲットに変換します。
 
 ::: 警告
 <!-- -->
-この機能の目的は、開発者がSwiftパッケージにTuistを採用することの影響を評価する簡単な方法を提供することです。そのため、Swiftパッケージマネージャの全機能をサポートする予定はありませんし、<LocalizedLink href="/guides/features/projects/code-sharing">プロジェクト記述ヘルパー</LocalizedLink>のようなTuist独自の機能をパッケージの世界にすべて持ち込む予定もありません。
+この機能の目的は、開発者がSwiftパッケージにTuistを採用した場合の影響を簡単に評価できるようにすることです。したがって、Swift Package
+Managerの全機能をサポートしたり、<LocalizedLink href="/guides/features/projects/code-sharing">プロジェクト説明ヘルパー</LocalizedLink>のようなTuist固有の機能をすべてパッケージの世界に導入したりする予定はありません。
 <!-- -->
 :::
 
 ::: info ROOT DIRECTORY
 <!-- -->
-Tuistコマンドは、ルートが`Tuist` または`.git`
-ディレクトリで識別される特定の<LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects">ディレクトリ構造</LocalizedLink>を期待します。
+Tuistコマンドは特定の<LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects">ディレクトリ構造</LocalizedLink>を前提としており、そのルートは`Tuist`
+または`.git` ディレクトリで識別されます。
 <!-- -->
 :::
 
 ## SwiftパッケージでTuistを使う{#using-tuist-with-a-swift-package}
 
-Swiftパッケージを含む[TootSDK
-Package](https://github.com/TootSDK/TootSDK)リポジトリでTuistを使用するつもりです。最初にすべきことは、リポジトリをクローンすることです：
+Tuistを[TootSDK
+Package](https://github.com/TootSDK/TootSDK)リポジトリと共に使用します。このリポジトリにはSwiftパッケージが含まれています。最初に行うべきことは、リポジトリをクローンすることです：
 
 ```bash
 git clone https://github.com/TootSDK/TootSDK
 cd TootSDK
 ```
 
-リポジトリのディレクトリに入ったら、Swift Package Managerの依存関係をインストールする必要があります：
+リポジトリのディレクトリに移動したら、Swift Package Managerの依存関係をインストールする必要があります：
 
 ```bash
 tuist install
 ```
 
-フードの下で`tuist install` はパッケージの依存関係を解決して引き出すために Swift Package Manager
-を使います。解決完了後、プロジェクトを生成できます：
+内部処理では、`tuist install` はSwift Package
+Managerを使用してパッケージの依存関係を解決・取得します。解決が完了したら、プロジェクトを生成できます:
 
 ```bash
 tuist generate
 ```
 
-ほら！ネイティブのXcodeプロジェクトを開いて作業を開始できます。
+さあ、これでネイティブのXcodeプロジェクトが完成しました。開いて作業を開始できます。
