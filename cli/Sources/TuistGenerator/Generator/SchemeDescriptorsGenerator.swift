@@ -98,7 +98,8 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         generatedProject: GeneratedProject,
         graphTraverser: GraphTraversing
     ) throws -> [SchemeDescriptor] {
-        Logger.current.debug("SchemeDescriptorsGenerator: Generating \(project.schemes.count) project schemes for \(project.name)")
+        Logger.current
+            .debug("SchemeDescriptorsGenerator: Generating \(project.schemes.count) project schemes for \(project.name)")
         let result = try project.schemes.map { scheme in
             Logger.current.debug("SchemeDescriptorsGenerator: Generating project scheme \(scheme.name)")
             return try generateScheme(
