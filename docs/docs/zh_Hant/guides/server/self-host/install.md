@@ -109,6 +109,15 @@ Docker 映像的入口點會在啟動服務之前自動執行任何待定的 Cli
 
 您還需要一個解決方案來儲存檔案 (例如框架和函式庫的二進檔)。目前我們支援任何符合 S3 標準的儲存空間。
 
+::: tip OPTIMIZED CACHING
+<!-- -->
+如果您的目標主要是自備儲存 binaries 的 bucket 並降低快取延遲，您可能不需要自託整個伺服器。您可以自行託管快取節點，並將其連接到託管的
+Tuist 伺服器或您自行託管的伺服器。
+
+請參閱 <LocalizedLink href="/guides/cache/self-host">cache 自助託管指南</LocalizedLink>。
+<!-- -->
+:::
+
 ## 組態{#configuration}
 
 服務的設定是在執行時透過環境變數完成。鑒於這些變數的敏感性，我們建議將它們加密並儲存到安全的密碼管理解決方案中。請放心，Tuist
@@ -304,7 +313,8 @@ Tuist 需要電子郵件功能來進行使用者驗證和交易通知 (例如密
 
 ### Git 平台設定{#git-platform-configuration}
 
-Tuist 可以 <LocalizedLink href="/guides/server/authentication"> 整合 Git 平台</LocalizedLink>，提供額外的功能，例如自動在您的 pull request 中發佈註解。
+Tuist 可以 <LocalizedLink href="/guides/server/authentication"> 整合 Git
+平台</LocalizedLink>，提供額外的功能，例如自動在您的 pull request 中發佈註解。
 
 #### GitHub{#platform-github}
 
