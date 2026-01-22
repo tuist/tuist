@@ -43,7 +43,7 @@ tuist cache
 tuist generate # Only dependencies
 tuist generate Search # Dependencies + Search dependencies
 tuist generate Search Settings # Dependencies, and Search and Settings dependencies
-tuist generate --no-binary-cache # No cache at all
+tuist generate --cache-profile none # No cache at all
 ```
 
 ```bash [Testing]
@@ -54,8 +54,8 @@ tuist test
 
 :: 警告
 <!-- -->
-二进制缓存是专为开发工作流（如在模拟器或设备上运行应用程序或运行测试）而设计的功能。它不适用于发布版本。在归档应用程序时，请使用`--no-binary-cache`
-标志生成包含源代码的项目。
+二进制缓存是专为开发工作流（如在模拟器或设备上运行应用程序或运行测试）而设计的功能。它不适用于发布版本。归档应用程序时，使用`--cache-profile
+none` 生成一个包含源代码的项目。
 <!-- -->
 :::
 
@@ -83,13 +83,19 @@ tuist generate
 # Focus on specific targets (implies all-possible)
 tuist generate MyModule AnotherTarget
 
-# Disable binary replacement entirely (backwards compatible)
-tuist generate --no-binary-cache  # equivalent to --cache-profile none
+# Disable binary replacement entirely
+tuist generate --cache-profile none
 ```
+
+::: info DEPRECATED FLAG
+<!-- -->
+`--no-binary-cache` 标志已被弃用。请使用`--cache-profile none` 代替。为了向后兼容，已废弃的标记仍然有效。
+<!-- -->
+:::
 
 解决有效行为时的优先级（从高到低）：
 
-1. `--无二进制缓存` → 配置文件`无`
+1. `--缓存配置文件 无`
 2. 目标聚焦（将目标传递给`，生成` ） → 配置文件`所有可能的`
 3. `--缓存配置文件 &lt;值`
 4. 配置默认值（如果已设置）
@@ -180,4 +186,18 @@ tuist generate
 
 使用源代码时，Xcode 的构建系统可以通过衍生数据（Derived
 Data）解决未明确声明的依赖关系。但是，当您依赖二进制缓存时，必须明确声明依赖关系；否则，当找不到符号时，您很可能会看到编译错误。要调试这种情况，我们建议使用
-<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist inspect implicit-imports`</LocalizedLink> 命令，并在 CI 中进行设置，以防止隐式链接中的回归。
+<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist
+inspect dependencies --only implicit`</LocalizedLink> 命令，并在 CI 中进行设置，以防止隐式链接的回归。
+
+### 传统模块缓存{#legacy-module-cache}
+
+在 Tuist`4.128.0`
+中，我们已将模块缓存的新基础架构设为默认设置。如果您在使用新版本时遇到问题，可以通过设置`TUIST_LEGACY_MODULE_CACHE`
+环境变量来恢复传统的缓存行为。
+
+该传统模块缓存是一个临时的备用缓存，将在未来的更新中从服务器端移除。请做好迁移计划。
+
+```bash
+export TUIST_LEGACY_MODULE_CACHE=1
+tuist generate
+```
