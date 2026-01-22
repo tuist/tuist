@@ -22,11 +22,12 @@ Tuistはテンプレートの内容や使用目的については一切関知し
 
 ## テンプレートの定義{#defining-a-template}
 
-テンプレートを定義するには、<LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink>を実行し、`Tuist/Templates` の下に、`name_of_template`
+テンプレートを定義するには、<LocalizedLink href="/guides/features/projects/editing">`tuist
+edit`</LocalizedLink>を実行し、`Tuist/Templates` の下に、`name_of_template`
 という、テンプレートを表すディレクトリを作成します。テンプレートには、`name_of_template.swift`
 という、テンプレートを説明するマニフェスト・ファイルが必要です。したがって、`framework`
-というテンプレートを作成する場合、`Tuist/Templates` に新しいディレクトリ`framework` を作成し、`framework.swift`
-というマニフェスト・ファイルを作成する必要があります：
+というテンプレートを作成する場合、`Tuist/Templates` に`framework`
+という新しいディレクトリを作成し、`framework.swift` というマニフェスト・ファイルを作成する必要があります：
 
 
 ```swift
