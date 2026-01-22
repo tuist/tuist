@@ -9,8 +9,8 @@
 
 Xcode projenizde kayıt defterini kullanarak paket eklemek için varsayılan Xcode
 kullanıcı arayüzünü kullanın. Xcode'da `Paket Bağımlılıkları` sekmesindeki `+`
-düğmesine tıklayarak kayıt defterinde paketleri arayabilirsiniz. Paket kayıt
-defterinde mevcutsa, sağ üstte `tuist.dev` kayıt defterini göreceksiniz:
+düğmesine tıklayarak Kayıt'ta paketleri arayabilirsiniz. Paket kayıt defterinde
+mevcutsa, sağ üstte `tuist.dev` kayıt defterini göreceksiniz:
 
 ![Paket bağımlılıkları
 ekleniyor](/images/guides/features/build/registry/registry-add-package.png)
@@ -19,6 +19,6 @@ ekleniyor](/images/guides/features/build/registry/registry-add-package.png)
 <!-- -->
 Xcode şu anda kaynak kontrol paketlerini kayıt defteri eşdeğerleriyle otomatik
 olarak değiştirmeyi desteklemiyor. Çözümü hızlandırmak için kaynak kontrol
-paketini manuel olarak kaldırmanız ve kayıt paketini eklemeniz gerekecektir.
+paketini manuel olarak kaldırmanız ve Kayıt paketini eklemeniz gerekecektir.
 <!-- -->
 :::
