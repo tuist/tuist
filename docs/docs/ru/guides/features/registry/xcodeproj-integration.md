@@ -5,7 +5,7 @@
   "description": "Learn how to use the Tuist Registry in a generated Xcode project with the XcodeProj-based package integration."
 }
 ---
-# Сгенерированный проект с интеграцией пакетов на основе XcodeProj {#generated-project-with-xcodeproj-based-integration}
+# Сгенерированный проект с интеграцией пакета Xcode {#generated-project-with-xcode-based-integration}
 
 При использовании интеграции на основе
 <LocalizedLink href="/guides/features/projects/dependencies#tuists-xcodeprojbased-integration">XcodeProj</LocalizedLink>
@@ -23,11 +23,11 @@ let tuist = Tuist(
 )
 ```
 
-Если вы хотите, чтобы реестр использовался каждый раз при разрешении
-зависимостей, вам нужно обновить `зависимостей` в файле `Tuist/Package.swift`,
-чтобы использовать идентификатор реестра вместо URL. Идентификатор реестра
-всегда имеет вид `{organization}.{repository}`. Например, чтобы использовать
-реестр для пакета `swift-composable-architecture`, сделайте следующее:
+Если вы хотите, чтобы реестр использовался при каждом разрешении зависимостей,
+вам нужно обновить раздел `dependencies`в файле `Package.swift`, указав
+идентификатор реестра вместо URL. Идентификатор реестра всегда имеет формат
+`{organization}.{repository}`. Например, чтобы использовать реестр для пакета
+`swift-composable-architecture`, выполните следующие шаги:
 ```diff
 dependencies: [
 -   .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "0.1.0")
