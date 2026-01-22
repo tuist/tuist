@@ -20,7 +20,8 @@ Tuist 模組快取提供了一種強大的方式，可將模組快取為二進�
 
 ## 暖化{#warming}
 
-Tuist 可以有效地 <LocalizedLink href="/guides/features/projects/hashing"> 利用依賴圖表中每個目標的哈希值 </LocalizedLink> 來偵測變更。利用這些資料，Tuist
+Tuist 可以有效地 <LocalizedLink href="/guides/features/projects/hashing">
+利用依賴圖表中每個目標的哈希值 </LocalizedLink> 來偵測變更。利用這些資料，Tuist
 會建立並為這些目標衍生的二進位檔案指定獨特的識別碼。在生成圖形時，Tuist 會以相應的二進位版本無縫取代原始目標。
 
 此操作稱為* 「暖身」，* 製作二進位檔供本端使用，或透過 Tuist 與隊友和 CI 環境分享。暖化快取記憶體的過程很直接，只要一個簡單的指令就可以啟動：
@@ -43,7 +44,7 @@ tuist cache
 tuist generate # Only dependencies
 tuist generate Search # Dependencies + Search dependencies
 tuist generate Search Settings # Dependencies, and Search and Settings dependencies
-tuist generate --no-binary-cache # No cache at all
+tuist generate --cache-profile none # No cache at all
 ```
 
 ```bash [Testing]
@@ -54,8 +55,8 @@ tuist test
 
 ::: warning
 <!-- -->
-二進位快取是專為開發工作流程設計的功能，例如在模擬器或裝置上執行應用程式，或執行測試。它不適用於發行版的建立。歸檔應用程式時，請使用`--no-binary-cache`
-旗標，產生包含原始碼的專案。
+二進位快取是專為開發工作流程設計的功能，例如在模擬器或裝置上執行應用程式，或執行測試。它不適用於釋出建置。當歸檔應用程式時，請使用`--cache-profile
+none` 與原始碼一起產生專案。
 <!-- -->
 :::
 
@@ -83,15 +84,21 @@ tuist generate
 # Focus on specific targets (implies all-possible)
 tuist generate MyModule AnotherTarget
 
-# Disable binary replacement entirely (backwards compatible)
-tuist generate --no-binary-cache  # equivalent to --cache-profile none
+# Disable binary replacement entirely
+tuist generate --cache-profile none
 ```
+
+::: info DEPRECATED FLAG
+<!-- -->
+`--no-binary-cache` 標誌已被廢棄。請使用`--cache-profile none` 代替。為了向後相容，已廢棄的標記仍然有效。
+<!-- -->
+:::
 
 解決有效行為時的優先順序（由高至低）：
 
-1. `--no-binary-cache` → 設定檔`無`
+1. `--快取設定檔 無`
 2. 目標焦點 (將目標傳送至`產生`) → 檔案`all-possible`
-3. `--cache-profile <value> 快取設定檔`
+3. `--cache-profile <value> 快取設定檔`</value>
 4. 組態預設值 (如果已設定)
 5. 系統預設值 (`only-external`)
 
@@ -119,7 +126,8 @@ tuist generate --no-binary-cache  # equivalent to --cache-profile none
 2. 使用通訊協定/介面目標定義依賴關係，而非實作目標，並從最上層的目標依賴注入實作。
 3. 將經常修改的目標分割成變更可能性較低的小目標。
 
-上述建議是 <LocalizedLink href="/guides/features/projects/tma-architecture">The Modular Architecture</LocalizedLink> 的一部分，我們提出這種方式來架構您的專案，不僅讓二進位快取的效益最大化，也讓
+上述建議是 <LocalizedLink href="/guides/features/projects/tma-architecture">The
+Modular Architecture</LocalizedLink> 的一部分，我們提出這種方式來架構您的專案，不僅讓二進位快取的效益最大化，也讓
 Xcode 的功能最大化。
 
 ## 建議設定{#recommended-setup}
@@ -170,14 +178,30 @@ tuist generate
 
 ### 我的目標不使用二進位檔案{#it-doesnt-use-binaries-for-my-targets}
 
-確保<LocalizedLink href="/guides/features/projects/hashing#debugging">hash 在不同的環境和執行中都是確定的</LocalizedLink>。如果專案有對環境的參照，例如透過絕對路徑，可能會發生這種情況。您可以使用`diff`
+確保<LocalizedLink href="/guides/features/projects/hashing#debugging">hash
+在不同的環境和執行中都是確定的</LocalizedLink>。如果專案有對環境的參照，例如透過絕對路徑，可能會發生這種情況。您可以使用`diff`
 指令比較連續兩次調用`tuist generate` 所產生的專案，或跨環境或跨執行。
 
 此外，請確定目標不會直接或間接依賴於
-<LocalizedLink href="/guides/features/cache/generated-project#supported-products"> 不可快取的目標</LocalizedLink>。
+<LocalizedLink href="/guides/features/cache/generated-project#supported-products">
+不可快取的目標</LocalizedLink>。
 
 ### 遺失的符號{#missing-symbols}
 
 當使用原始碼時，Xcode 的建立系統透過 Derived Data
 可以解決未明確宣告的依賴關係。但是，當您依賴二進位緩存時，必須明確宣告依賴關係；否則，當找不到符號時，您很可能會看到編譯錯誤。若要除錯，建議使用
-<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist inspect implicit-imports`</LocalizedLink> 指令，並在 CI 中設定，以防止隱式連結的退步。
+<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist
+inspect dependencies --only implicit`</LocalizedLink> 指令，並在 CI 中設定，以防止隱式連結的退步。
+
+### 傳統模組快取{#legacy-module-cache}
+
+在 Tuist`4.128.0`
+中，我們已將模組快取的新架構設為預設值。如果您在使用這個新版本時遇到問題，您可以透過設定`TUIST_LEGACY_MODULE_CACHE`
+環境變數，回復到傳統的快取記憶體行為。
+
+此傳統模組快取只是暫時的備用功能，將於未來更新時在伺服器端移除。計劃遷離它。
+
+```bash
+export TUIST_LEGACY_MODULE_CACHE=1
+tuist generate
+```
