@@ -95,6 +95,7 @@ defmodule TuistWeb.Router do
   pipeline :browser_marketing do
     plug :accepts, ["html"]
     plug :enable_robot_indexing
+    plug TuistWeb.Plugs.LegacyRedirectsPlug
     plug :fetch_session
     plug :fetch_live_flash
     plug :put_root_layout, html: {TuistWeb.Marketing.Layouts, :root}

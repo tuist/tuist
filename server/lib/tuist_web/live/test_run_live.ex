@@ -157,7 +157,10 @@ defmodule TuistWeb.TestRunLive do
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
-    updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
+    updated_params =
+      filter_id
+      |> Filter.Operations.add_filter_to_query(socket)
+      |> reset_test_tab_page(socket)
 
     {:noreply,
      socket
@@ -170,7 +173,10 @@ defmodule TuistWeb.TestRunLive do
   end
 
   def handle_event("update_filter", params, socket) do
-    updated_query_params = Filter.Operations.update_filters_in_query(params, socket)
+    updated_query_params =
+      params
+      |> Filter.Operations.update_filters_in_query(socket)
+      |> reset_test_tab_page(socket)
 
     {:noreply,
      socket
@@ -265,6 +271,20 @@ defmodule TuistWeb.TestRunLive do
 
   defp build_uri(params) do
     URI.new!("?" <> URI.encode_query(params))
+  end
+
+  defp reset_test_tab_page(params, socket) do
+    test_tab = URI.decode_query(socket.assigns.uri.query)["test-tab"] || "test-cases"
+
+    page_param =
+      case test_tab do
+        "test-cases" -> "test-cases-page"
+        "test-suites" -> "test-suites-page"
+        "test-modules" -> "test-modules-page"
+        _ -> "test-cases-page"
+      end
+
+    Map.put(params, page_param, "1")
   end
 
   defp assign_tab_data(socket, "test-optimizations", params) do

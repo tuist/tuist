@@ -10,6 +10,10 @@ on:
       - tuist_common/**
       - .github/workflows/cache-deploy.yml
 
+concurrency:
+  group: cache-deploy
+  cancel-in-progress: false
+
 permissions:
   contents: read
 

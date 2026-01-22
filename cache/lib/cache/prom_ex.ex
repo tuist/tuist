@@ -21,7 +21,9 @@ defmodule Cache.PromEx do
       Cache.CAS.PromExPlugin,
       Cache.KeyValue.PromExPlugin,
       Cache.Module.PromExPlugin,
-      Cache.S3Transfers.PromExPlugin
+      Cache.Finch.PromExPlugin,
+      Cache.S3Transfers.PromExPlugin,
+      Cache.Authentication.PromExPlugin
     ]
   end
 end

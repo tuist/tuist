@@ -1310,7 +1310,15 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: project.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [])
+        // External static frameworks with resources should be embedded so the resources are accessible at runtime
+        XCTAssertEqual(got, [
+            GraphDependencyReference
+                .product(
+                    target: "ExternalResourcesFramework",
+                    productName: "ExternalResourcesFramework.framework",
+                    condition: nil
+                ),
+        ])
     }
 
     func test_embeddableFrameworks_when_appIsMergeableAndDependencyIsATarget() throws {

@@ -21,10 +21,14 @@ defmodule TuistWeb.QAController do
         screenshot_id: screenshot.id
       })
 
-    conn
-    |> put_resp_content_type("image/png", nil)
-    |> send_chunked(:ok)
-    |> stream_object(object_key, selected_project.account)
+    if Storage.object_exists?(object_key, selected_project.account) do
+      conn
+      |> put_resp_content_type("image/png", nil)
+      |> send_chunked(:ok)
+      |> stream_object(object_key, selected_project.account)
+    else
+      send_resp(conn, 404, "")
+    end
   end
 
   defp stream_object(conn, object_key, account) do

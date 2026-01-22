@@ -10,3 +10,4 @@ env:
   clear:
     SERVER_URL: https://tuist.dev
     APPSIGNAL_ENV: prod
+    POOL_SIZE: "10"

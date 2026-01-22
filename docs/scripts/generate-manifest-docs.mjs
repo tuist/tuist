@@ -40,7 +40,7 @@ fs.rmSync(path.join(docsDirectory, "docs/generated/manifest/README.md"));
 
 fg.sync(path.join(docsDirectory, "docs/generated/manifest/**/*.md")).forEach(
   (file) => {
-    const renamedPath = file.replace(/\[(.*?)\]/g, "Array<$1>");
+    const renamedPath = file.replace(/\[(.*?)\]/g, "Array($1)");
     fs.renameSync(file, renamedPath);
   },
 );

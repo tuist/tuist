@@ -49,6 +49,16 @@ defmodule TuistWeb.SlackOAuthControllerTest do
       end
     end
 
+    test "raises BadRequestError with expiration message when state token is expired", %{conn: conn} do
+      # Given
+      stub(Slack, :verify_state_token, fn _token -> {:error, :expired} end)
+
+      # When/Then
+      assert_raise BadRequestError, ~r/Authorization request expired/, fn ->
+        get(conn, "/integrations/slack/callback", %{"code" => "valid_code", "state" => "expired_token"})
+      end
+    end
+
     test "raises BadRequestError when account is not found", %{conn: conn} do
       # Given
       non_existent_account_id = 999_999_999

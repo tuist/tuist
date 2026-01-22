@@ -1,6 +1,38 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.130.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* correct static xcframework paths when depending on cached targets by [@fortmarek](https://github.com/fortmarek) in [#9203](https://github.com/tuist/tuist/pull/9203)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.130.0...4.130.1
+
+## What's Changed in 4.130.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add debug logs to project generation by [@fortmarek](https://github.com/fortmarek) in [#9199](https://github.com/tuist/tuist/pull/9199)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.129.2...4.130.0
+
+## What's Changed in 4.129.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* handle race condition when creating logs directory by [@pepicrft](https://github.com/pepicrft)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.129.1...4.129.2
+
+## What's Changed in 4.129.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* prevent race condition when creating logs directory by [@pepicrft](https://github.com/pepicrft) in [#9191](https://github.com/tuist/tuist/pull/9191)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.129.0...4.129.1
+
 ## What's Changed in 4.129.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features

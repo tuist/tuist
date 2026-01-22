@@ -1,0 +1,11 @@
+# Generated
+*.xcodeproj
+*.xcworkspace
+Derived/
+DerivedData/
+
+# Tuist
+Tuist/.build/
+
+# SPM
+.build/

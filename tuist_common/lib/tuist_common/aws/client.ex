@@ -1,8 +1,9 @@
-defmodule Tuist.AWS.Client do
-  # This shouldn't be necessary, but there's a bug in the client
-  # provided by ExAWS that causes the request to blow up.
+defmodule TuistCommon.AWS.Client do
   @moduledoc """
-  Configuration for `m:Req`.
+  Custom HTTP client for ExAws using Req.
+
+  This shouldn't be necessary, but there's a bug in the client
+  provided by ExAws that causes the request to blow up.
 
   Options can be set for `m:Req` with the following config:
 
@@ -16,11 +17,11 @@ defmodule Tuist.AWS.Client do
 
   @impl true
   def request(method, url, body \\ "", headers \\ [], http_opts \\ []) do
-    # Get req_opts from config
     req_opts = Application.get_env(:ex_aws, :req_opts, [])
 
-    # Convert http_opts to keyword list if it's a map
     http_opts_list = if is_map(http_opts), do: Map.to_list(http_opts), else: http_opts
+
+    finch_name = Application.get_env(:tuist_common, :finch_name)
 
     [
       method: method,
@@ -28,7 +29,7 @@ defmodule Tuist.AWS.Client do
       body: body,
       headers: headers,
       decode_body: false,
-      finch: Tuist.Finch
+      finch: finch_name
     ]
     |> Keyword.merge(req_opts)
     |> Keyword.merge(http_opts_list)

@@ -52,6 +52,39 @@
     prometheus.exporter.unix "default" {
       include_exporter_metrics = true
       disable_collectors = []
+      enable_collectors = ["filefd"]
+    }
+
+    prometheus.exporter.process "default" {
+      track_children = false
+      procfs_path = "/proc"
+      track_threads = false
+
+      matcher {
+        comm = ["nginx"]
+      }
+
+      matcher {
+        comm = ["beam.smp"]
+        name = "cache"
+      }
+    }
+
+    prometheus.scrape "process_exporter" {
+      targets = prometheus.exporter.process.default.targets
+
+      scrape_interval = "15s"
+
+      forward_to = [prometheus.relabel.process_exporter.receiver]
+    }
+
+    prometheus.relabel "process_exporter" {
+      rule {
+        target_label = "instance"
+        replacement  = "${config.networking.hostName}"
+      }
+
+      forward_to = [prometheus.remote_write.grafana_cloud.receiver]
     }
 
     prometheus.scrape "cache_promex" {
@@ -103,14 +136,47 @@
     loki.source.file "nginx_error" {
       targets    = [
         {
-          __path__ = "/var/log/nginx/error.log",
-          labels   = {
-            job     = "nginx",
-            stream   = "error",
-            instance = "${config.networking.hostName}",
-          },
+          __path__  = "/var/log/nginx/error.log",
+          job       = "nginx",
+          stream    = "error",
+          instance  = "${config.networking.hostName}",
         },
       ]
+      forward_to = [loki.write.grafana_cloud.receiver]
+    }
+
+    loki.source.file "nginx_access" {
+      targets    = [
+        {
+          __path__  = "/var/log/nginx/access.log",
+          job       = "nginx",
+          stream    = "access",
+          instance  = "${config.networking.hostName}",
+        },
+      ]
+      forward_to = [loki.process.nginx_access.receiver]
+    }
+
+    loki.process "nginx_access" {
+      // Extract status code from log line
+      stage.regex {
+        expression = "\" (?P<status>\\d{3}) "
+      }
+
+      // Sample 2xx responses - keep 10%
+      stage.match {
+        selector = "{status=~\"2..\"}"
+
+        stage.sampling {
+          rate = 0.1
+        }
+      }
+
+      // Drop status label to avoid high cardinality
+      stage.label_drop {
+        values = ["status"]
+      }
+
       forward_to = [loki.write.grafana_cloud.receiver]
     }
 

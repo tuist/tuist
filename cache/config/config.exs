@@ -14,7 +14,13 @@ config :cache, Cache.PromEx,
   drop_metrics_groups: [],
   grafana: :disabled
 
-config :cache, Cache.Repo, busy_timeout: 10_000
+config :cache, Cache.Repo,
+  busy_timeout: 30_000,
+  journal_mode: :wal,
+  synchronous: :normal,
+  temp_store: :memory,
+  queue_target: 1_000,
+  queue_interval: 1_000
 
 config :cache, CacheWeb.Endpoint,
   url: [host: "localhost"],
@@ -56,10 +62,14 @@ config :cache,
   events_batch_size: 100,
   events_batch_timeout: 5_000
 
+config :ex_aws, http_client: TuistCommon.AWS.Client
+
 config :logger, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]
 
 config :phoenix, :json_library, Jason
+
+config :tuist_common, finch_name: Cache.Finch
 
 import_config "#{config_env()}.exs"

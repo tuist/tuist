@@ -11,10 +11,9 @@ As your project grows, so does the amount of your tests. For a long time, runnin
 
 On every test run on the CI, you most likely re-run all the tests, regardless of the changes. Tuist's selective testing helps you to drastically speed up running the tests themselves by running only the tests that have changed since the last successful test run based on our <LocalizedLink href="/guides/features/projects/hashing">hashing algorithm</LocalizedLink>.
 
-Selective testing works with `xcodebuild`, which supports any Xcode project, or if you generate your projects with Tuist, you can use the `tuist test` command instead that provides some extra convenience such as integration with the <LocalizedLink href="/guides/features/cache">binary cache</LocalizedLink>. To get started with selective testing, follow the instructions based on your project setup:
+To run tests selectively with your <LocalizedLink href="/guides/features/projects">generated project</LocalizedLink>, use the `tuist test` command. The command <LocalizedLink href="/guides/features/projects/hashing">hashes</LocalizedLink> your Xcode project the same way it does for the <LocalizedLink href="/guides/features/cache/module-cache">module cache</LocalizedLink>, and on success, it persists the hashes to determine what has changed in future runs. In future runs, `tuist test` transparently uses the hashes to filter down the tests and run only the ones that have changed since the last successful test run.
 
-- <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
-- <LocalizedLink href="/guides/features/selective-testing/generated-project">Generated project</LocalizedLink>
+`tuist test` integrates directly with the <LocalizedLink href="/guides/features/cache/module-cache">module cache</LocalizedLink> to use as many binaries from your local or remote storage to improve the build time when running your test suite. The combination of selective testing with module caching can dramatically reduce the time it takes to run tests on your CI.
 
 ::: warning MODULE VS FILE-LEVEL GRANULARITY
 <!-- -->
@@ -37,5 +36,5 @@ To get automatic pull/merge request comments, integrate your <LocalizedLink href
 <!-- -->
 :::
 
-Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), and you start using `tuist xcodebuild test` or `tuist test` as part of your CI wortkflow, Tuist will post a comment directly in your pull/merge requests, including which tests were run and which skipped:
+Once your Tuist project is connected with your Git platform such as [GitHub](https://github.com), and you start using `tuist test` as part of your CI workflow, Tuist will post a comment directly in your pull/merge requests, including which tests were run and which skipped:
 ![GitHub app comment with a Tuist Preview link](/images/guides/features/selective-testing/github-app-comment.png)

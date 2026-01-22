@@ -22,7 +22,7 @@ defmodule TuistWeb.SlackOAuthController do
   @channel_selection_scopes "incoming-webhook"
 
   def callback(conn, %{"error" => "access_denied", "state" => state_token}) do
-    case verify_state_token(state_token) do
+    case Slack.verify_state_token(state_token) do
       {:ok, %{type: :alert_channel_selection}} ->
         render_popup_close(conn, nil, nil)
 
@@ -38,7 +38,14 @@ defmodule TuistWeb.SlackOAuthController do
       {:ok, account_id} when is_integer(account_id) ->
         redirect_after_account_cancel(conn, account_id)
 
-      {:error, :invalid_state_token} ->
+      {:error, :expired} ->
+        raise BadRequestError,
+              dgettext(
+                "dashboard_slack",
+                "Authorization request expired. Please start the Slack connection process again."
+              )
+
+      {:error, :invalid} ->
         raise BadRequestError,
               dgettext("dashboard_slack", "Invalid authorization request. Please try again.")
     end
@@ -46,7 +53,7 @@ defmodule TuistWeb.SlackOAuthController do
 
   def callback(conn, %{"code" => code, "state" => state_token})
       when is_binary(code) and code != "" and is_binary(state_token) do
-    case verify_state_token(state_token) do
+    case Slack.verify_state_token(state_token) do
       {:ok, %{type: :alert_channel_selection} = payload} ->
         handle_alert_channel_selection(conn, code, payload)
 
@@ -62,7 +69,14 @@ defmodule TuistWeb.SlackOAuthController do
       {:ok, account_id} when is_integer(account_id) ->
         handle_account_installation(conn, code, account_id)
 
-      {:error, :invalid_state_token} ->
+      {:error, :expired} ->
+        raise BadRequestError,
+              dgettext(
+                "dashboard_slack",
+                "Authorization request expired. Please start the Slack connection process again."
+              )
+
+      {:error, :invalid} ->
         raise BadRequestError,
               dgettext("dashboard_slack", "Invalid authorization request. Please try again.")
     end
@@ -220,13 +234,6 @@ defmodule TuistWeb.SlackOAuthController do
       {:error, :not_found} ->
         raise BadRequestError,
               dgettext("dashboard_slack", "Account not found. Please try again.")
-    end
-  end
-
-  defp verify_state_token(state_token) do
-    case Slack.verify_state_token(state_token) do
-      {:ok, payload} -> {:ok, payload}
-      {:error, _reason} -> {:error, :invalid_state_token}
     end
   end
 

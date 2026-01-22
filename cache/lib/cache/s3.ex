@@ -42,7 +42,7 @@ defmodule Cache.S3 do
 
     case bucket
          |> ExAws.S3.head_object(key)
-         |> ExAws.request(http_opts: [recv_timeout: 2_000]) do
+         |> ExAws.request(http_opts: [receive_timeout: 2_000]) do
       {:ok, _response} -> true
       {:error, {:http_error, 404, _}} -> false
       {:error, _reason} -> false
@@ -82,7 +82,7 @@ defmodule Cache.S3 do
 
       case local_path
            |> Upload.stream_file()
-           |> ExAws.S3.upload(bucket, key)
+           |> ExAws.S3.upload(bucket, key, timeout: 120_000)
            |> ExAws.request() do
         {:ok, _response} ->
           :ok

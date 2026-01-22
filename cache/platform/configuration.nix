@@ -28,6 +28,8 @@
       "net.core.wmem_max" = 134217728;
       "net.ipv4.tcp_rmem" = "4096 87380 67108864";
       "net.ipv4.tcp_wmem" = "4096 65536 67108864";
+      "fs.file-max" = 1048576;
+      "fs.nr_open" = 1048576;
     };
   };
 
@@ -70,6 +72,21 @@
   virtualisation.docker = {
     enable = true;
     logDriver = "json-file";
+    daemon.settings = {
+      "default-ulimits" = {
+        nofile = {
+          Name = "nofile";
+          Soft = 65535;
+          Hard = 65535;
+        };
+      };
+    };
+  };
+
+  systemd.settings = {
+    Manager = {
+      DefaultLimitNOFILE = "65535";
+    };
   };
 
   environment.systemPackages = map lib.lowPrio [

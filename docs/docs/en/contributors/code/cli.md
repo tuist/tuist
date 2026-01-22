@@ -23,7 +23,7 @@ The CLI is the heart of Tuist. It handles project generation, automation workflo
 ### Set up locally {#set-up-locally}
 
 - Clone the repository: `git clone git@github.com:tuist/tuist.git`
-- Install Mise and run `mise install`
+- Install Mise using [their official install script](https://mise.jdx.dev/getting-started.html) (not Homebrew) and run `mise install`
 - Install Tuist dependencies: `tuist install`
 - Generate the workspace: `tuist generate`
 

@@ -602,7 +602,7 @@ msgstr ""
 
 #: lib/tuist_web/live/build_run_live.ex:1070
 #: lib/tuist_web/live/build_run_live.html.heex:1000
-#: lib/tuist_web/live/run_detail_live.ex:358
+#: lib/tuist_web/live/run_detail_live.ex:364
 #: lib/tuist_web/live/run_detail_live.html.heex:279
 #: lib/tuist_web/live/run_detail_live.html.heex:561
 #, elixir-autogen, elixir-format
@@ -638,7 +638,7 @@ msgstr ""
 #: lib/tuist_web/live/build_run_live.html.heex:1004
 #: lib/tuist_web/live/builds_live.ex:337
 #: lib/tuist_web/live/builds_live.html.heex:101
-#: lib/tuist_web/live/run_detail_live.ex:363
+#: lib/tuist_web/live/run_detail_live.ex:369
 #: lib/tuist_web/live/run_detail_live.html.heex:289
 #: lib/tuist_web/live/run_detail_live.html.heex:465
 #: lib/tuist_web/live/run_detail_live.html.heex:571
@@ -660,7 +660,7 @@ msgstr ""
 #: lib/tuist_web/live/build_run_live.ex:1076
 #: lib/tuist_web/live/build_run_live.html.heex:816
 #: lib/tuist_web/live/build_run_live.html.heex:1016
-#: lib/tuist_web/live/run_detail_live.ex:364
+#: lib/tuist_web/live/run_detail_live.ex:370
 #: lib/tuist_web/live/run_detail_live.html.heex:295
 #: lib/tuist_web/live/run_detail_live.html.heex:493
 #: lib/tuist_web/live/run_detail_live.html.heex:577
@@ -831,7 +831,7 @@ msgstr ""
 #: lib/tuist_web/live/build_run_live.ex:1075
 #: lib/tuist_web/live/build_run_live.html.heex:802
 #: lib/tuist_web/live/build_run_live.html.heex:1010
-#: lib/tuist_web/live/run_detail_live.ex:362
+#: lib/tuist_web/live/run_detail_live.ex:368
 #: lib/tuist_web/live/run_detail_live.html.heex:283
 #: lib/tuist_web/live/run_detail_live.html.heex:479
 #: lib/tuist_web/live/run_detail_live.html.heex:565

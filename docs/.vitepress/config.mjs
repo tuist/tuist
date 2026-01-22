@@ -2,6 +2,7 @@ import { defineConfig } from "vitepress";
 import { withMermaid } from "vitepress-plugin-mermaid";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import {
   guidesSidebar,
   contributorsSidebar,
@@ -14,6 +15,8 @@ import llmstxtPlugin from "vitepress-plugin-llmstxt";
 import postcssRtlcss from "postcss-rtlcss";
 import { validateAdmonitions } from "./validate-admonitions.mjs";
 import { checkLocalePages } from "./check-locale-pages.mjs";
+
+const vitepressDir = path.dirname(fileURLToPath(import.meta.url));
 
 async function themeConfig(locale) {
   const sidebar = {};
@@ -153,6 +156,7 @@ const localeDirs = (await fs.readdir(docsContentDir, { withFileTypes: true }))
 const llmsIgnore = localeDirs
   .filter((locale) => locale !== "en")
   .map((locale) => `docs/${locale}/**`);
+const nonEnglishLocales = localeDirs.filter((locale) => locale !== "en");
 
 const searchOptionsLocales = Object.fromEntries(
   enabledLocales.map((locale) => [locale, getSearchOptionsForLocale(locale)]),
@@ -229,6 +233,7 @@ export default withMermaid(
       metaChunk: true,
     },
     vite: {
+      cacheDir: path.join(vitepressDir, "cache"),
       plugins: [
         llmstxtPlugin({
           ignore: llmsIgnore,
@@ -304,21 +309,21 @@ export default withMermaid(
       @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap');
       `,
       ],
-      ["meta", { property: "og:url", content: "https://docs.tuist.io" }, ""],
+      ["meta", { property: "og:url", content: "https://docs.tuist.dev" }, ""],
       ["meta", { property: "og:type", content: "website" }, ""],
       [
         "meta",
-        { property: "og:image", content: "https://docs.tuist.io/images/og.jpeg" },
+        { property: "og:image", content: "https://docs.tuist.dev/images/og.jpeg" },
         "",
       ],
       ["meta", { name: "twitter:card", content: "summary" }, ""],
-      ["meta", { property: "twitter:domain", content: "docs.tuist.io" }, ""],
-      ["meta", { property: "twitter:url", content: "https://docs.tuist.io" }, ""],
+      ["meta", { property: "twitter:domain", content: "docs.tuist.dev" }, ""],
+      ["meta", { property: "twitter:url", content: "https://docs.tuist.dev" }, ""],
       [
         "meta",
         {
           name: "twitter:image",
-          content: "https://docs.tuist.io/images/og.jpeg",
+          content: "https://docs.tuist.dev/images/og.jpeg",
         },
         "",
       ],
@@ -341,7 +346,7 @@ export default withMermaid(
       ],
     ],
     sitemap: {
-      hostname: "https://docs.tuist.io",
+      hostname: "https://docs.tuist.dev",
     },
     mermaid: {
       securityLevel: "loose",
@@ -359,6 +364,15 @@ export default withMermaid(
       await fs.cp(functionsSource, functionsDest, { recursive: true });
 
       const redirectsPath = path.join(outDir, "_redirects");
+      const cliLocaleRedirects = nonEnglishLocales
+        .map((locale) => `/${locale}/cli/* /en/cli/:splat 301`)
+        .join("\n");
+      const projectDescriptionLocaleRedirects = nonEnglishLocales
+        .map(
+          (locale) =>
+            `/${locale}/references/project-description/* /en/references/project-description/:splat 301`,
+        )
+        .join("\n");
       const redirects = `
 /documentation/tuist/installation /guide/introduction/installation 301
 /documentation/tuist/project-structure /guide/project/directory-structure 301
@@ -462,8 +476,8 @@ export default withMermaid(
 /:locale/server /:locale/guides/server/accounts-and-projects 301
 /:locale/references/examples /:locale/guides/examples/generated-projects 301
 /:locale/references/examples/* /:locale/guides/examples/generated-projects/:splat 301
-/:locale/cli/* /en/cli/:splat 301
-/:locale/references/project-description/* /en/references/project-description/:splat 301
+${cliLocaleRedirects}
+${projectDescriptionLocaleRedirects}
 ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
   encoding: "utf-8",
 })}
