@@ -312,17 +312,16 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         """
     }
 
-    /// Generates an Objective-C resource bundle accessor that mirrors SwiftPM's approach.
+    /// Generates an Objective-C resource bundle accessor that mirrors SwiftPM's approach,
+    /// extended for Tuist's static framework handling where resources live inside the framework.
     /// https://github.com/swiftlang/swift-package-manager/blob/main/Sources/Build/BuildDescription/ClangModuleBuildDescription.swift
     static func objcImplementationFileContent(
         targetName: String,
         bundleName: String,
         target: Target
     ) -> String {
-        let resourceBundleName = "\(target.name).bundle"
         return """
         #import <Foundation/Foundation.h>
-        #import "TuistBundle+\(targetName).h"
 
         @interface \(targetName)BundleFinder : NSObject
         @end
@@ -332,18 +331,61 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
         NSBundle* \(targetName)_SWIFTPM_MODULE_BUNDLE(void) {
             NSString *bundleName = @"\(bundleName)";
-            NSString *resourceBundleName = @"\(resourceBundleName)";
 
-            // The bundle finder class is compiled into the framework, so its bundle is the framework itself.
-            // The resource bundle is located inside the framework at <Framework.framework>/<Target.bundle>
-            NSBundle *frameworkBundle = [NSBundle bundleForClass:\(targetName)BundleFinder.self];
-            NSURL *resourceBundleURL = [[frameworkBundle bundleURL] URLByAppendingPathComponent:resourceBundleName];
-            NSBundle *resourceBundle = [NSBundle bundleWithURL:resourceBundleURL];
-            if (resourceBundle) {
-                return resourceBundle;
+            NSURL *bundleURL = [[NSBundle bundleForClass:\(targetName)BundleFinder.self] resourceURL];
+            NSMutableArray<NSURL *> *candidates = [NSMutableArray arrayWithObjects:
+                                          [[NSBundle mainBundle] resourceURL],
+                                          bundleURL,
+                                          [[NSBundle mainBundle] bundleURL],
+                                          nil];
+
+            // Tuist: For static frameworks, resources are inside the embedded framework bundle.
+            // Add framework locations to search for the framework bundle itself.
+            NSString *frameworkName = @"\(target.productNameWithExtension)";
+            if ([NSBundle mainBundle].privateFrameworksURL) {
+                [candidates addObject:[[NSBundle mainBundle].privateFrameworksURL URLByAppendingPathComponent:frameworkName]];
+            }
+            [candidates addObject:[[[NSBundle mainBundle] bundleURL] URLByAppendingPathComponent:[@"Frameworks/" stringByAppendingString:frameworkName]]];
+
+            NSString* override = [[[NSProcessInfo processInfo] environment] objectForKey:@"PACKAGE_RESOURCE_BUNDLE_PATH"];
+            if (override) {
+                [candidates addObject:[NSURL fileURLWithPath:override]];
+
+                NSArray<NSString *> *subpaths = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:override error:nil];
+                if (subpaths) {
+                    for (NSString *subpath in subpaths) {
+                        if ([subpath hasSuffix:@".framework"]) {
+                            [candidates addObject:[NSURL fileURLWithPath:[NSString stringWithFormat:@"%@/%@", override, subpath]]];
+                        }
+                    }
+                }
             }
 
-            [NSException raise:@"BundleNotFound" format:@"Unable to find bundle named %@", resourceBundleName];
+            #if __has_include(<XCTest/XCTest.h>)
+            [candidates addObject:[bundleURL URLByAppendingPathComponent:@".."]];
+            #endif
+
+            // Tuist: First check if any candidate is the framework bundle itself (for static frameworks with embedded resources)
+            for (NSURL *candidate in candidates) {
+                if ([candidate.path hasSuffix:@".framework"]) {
+                    NSBundle *bundle = [NSBundle bundleWithURL:candidate];
+                    if (bundle) {
+                        return bundle;
+                    }
+                }
+            }
+
+            // SwiftPM: Then look for the resource bundle in each candidate location
+            for (NSURL *candidate in candidates) {
+                NSURL *bundlePath = [candidate URLByAppendingPathComponent:[NSString stringWithFormat:@"%@%@", bundleName, @".bundle"]];
+                NSBundle *bundle = [NSBundle bundleWithURL:bundlePath];
+
+                if (bundle) {
+                    return bundle;
+                }
+            }
+
+            [NSException raise:@"BundleNotFound" format:@"Unable to find bundle named %@", bundleName];
             return nil;
         }
         """
