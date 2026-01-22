@@ -7,11 +7,11 @@
 ---
 # Сгенерированный проект с интеграцией пакета Xcode {#generated-project-with-xcode-based-integration}
 
-При использовании интеграции на основе
-<LocalizedLink href="/guides/features/projects/dependencies#tuists-xcodeprojbased-integration">XcodeProj</LocalizedLink>
-вы можете использовать флаг ``--replace-scm-with-registry`` для разрешения
-зависимостей из реестра, если они доступны. Добавьте его в `installOptions` в
-ваш файл `Tuist.swift`:
+При использовании
+<LocalizedLink href="/guides/features/projects/dependencies#tuists-xcodeprojbased-integration">интеграции
+на основе XcodeProj</LocalizedLink> вы можете использовать флаг
+``--replace-scm-with-registry`` для разрешения зависимостей из реестра, если они
+доступны. Добавьте его в `installOptions` в файле `Tuist.swift`:
 ```swift
 import ProjectDescription
 
