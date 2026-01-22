@@ -81,8 +81,11 @@ NSBundle *bundle = [MyFeatureResources bundle];
 
 ::: tip SUPPORTING RESOURCES IN LIBRARIES THROUGH BUNDLES
 <!-- -->
-예를 들어 라이브러리와 같은 대상 제품이 리소스를 지원하지 않는 경우, Tuist는 리소스가 최종 제품에 포함되고 인터페이스가 올바른 번들을
-가리키도록 하기 위해 `번들` 제품 유형의 대상에 리소스를 포함시킵니다.
+예를 들어 라이브러리와 같은 대상 제품이 리소스를 지원하지 않는 경우, 튜이스트는 리소스가 최종 제품에 포함되고 인터페이스가 올바른 번들을
+가리키도록 하기 위해 제품 유형 `번들` 의 대상에 해당 리소스를 포함시킵니다. 이렇게 합성된 번들은 자동으로
+`tuist:synthesized` 태그가 지정되고 상위 타깃의 모든 태그를 상속하므로
+<LocalizedLink href="/guides/features/projects/metadata-tags#system-tags">cache
+프로필</LocalizedLink>에서 타깃팅할 수 있습니다.
 <!-- -->
 :::
 
@@ -135,8 +138,8 @@ let project = Project(resourceSynthesizers: [.string(), .fonts()])
 
 ::: info REFERENCE
 <!-- -->
-사용자 지정 템플릿을 사용하여 리소스에 대한 액세스자를 합성하는 방법의 예는 [이 수정
-사항](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates)에서
+사용자 지정 템플릿을 사용하여 리소스에 대한 액세스 권한을 합성하는 방법에 대한 예는 [이
+예](https://github.com/tuist/tuist/tree/main/examples/xcode/generated_ios_app_with_templates)에서
 확인할 수 있습니다.
 <!-- -->
 :::
