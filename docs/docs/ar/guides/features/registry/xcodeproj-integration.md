@@ -5,7 +5,7 @@
   "description": "Learn how to use the Tuist Registry in a generated Xcode project with the XcodeProj-based package integration."
 }
 ---
-# مشروع تم إنشاؤه مع تكامل الحزمة المستندة إلى XcodeProj {#generated-project-with-the-xcodeprojbased-package-integration}
+# مشروع تم إنشاؤه مع تكامل الحزمة المستندة إلى XcodeProj {#مشروع تم إنشاؤه مع تكامل الحزمة المستندة إلى XcodeProj}
 
 عند استخدام التكامل المستند إلى
 <LocalizedLink href="/guides/features/projects/dependencies#tuists-xcodeprojbased-integration">
