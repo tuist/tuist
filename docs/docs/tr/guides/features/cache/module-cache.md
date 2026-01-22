@@ -17,22 +17,22 @@
 :::
 
 Tuist Modül önbelleği, modüllerinizi ikili dosyalar (`.xcframework`s) olarak
-önbelleğe alarak ve bunları farklı ortamlarda paylaşarak derleme sürelerinizi
-optimize etmek için güçlü bir yol sağlar. Bu özellik, önceden oluşturulmuş ikili
-dosyaları kullanmanıza olanak tanıyarak tekrarlanan derleme ihtiyacını azaltır
+önbelleğe alarak ve farklı ortamlarda paylaşarak derleme sürelerinizi optimize
+etmenin güçlü bir yolunu sunar. Bu özellik, önceden oluşturulmuş ikili
+dosyalardan yararlanmanıza olanak tanıyarak, tekrarlı derleme ihtiyacını azaltır
 ve geliştirme sürecini hızlandırır.
 
 ## Isınma {#warming}
 
-Tuist, değişiklikleri tespit etmek için bağımlılık grafiğindeki her hedef için
-verimli bir şekilde <LocalizedLink href="/guides/features/projects/hashing">
-hash</LocalizedLink> kullanır. Bu verileri kullanarak, bu hedeflerden türetilen
-ikililere benzersiz tanımlayıcılar oluşturur ve atar. Tuist, grafik oluşturma
-sırasında, orijinal hedefleri karşılık gelen ikili sürümleriyle sorunsuz bir
-şekilde değiştirir.
+Tuist, bağımlılık grafiğindeki her hedef için değişiklikleri tespit etmek üzere
+<LocalizedLink href="/guides/features/projects/hashing">hash'leri</LocalizedLink>
+verimli bir şekilde kullanır. Bu verileri kullanarak, bu hedeflerden türetilen
+ikili dosyalara benzersiz tanımlayıcılar oluşturur ve atar. Grafik
+oluşturulurken Tuist, orijinal hedefleri karşılık gelen ikili sürümleriyle
+sorunsuz bir şekilde değiştirir.
 
-*"ısıtma" olarak bilinen bu işlem,* yerel kullanım için veya Tuist aracılığıyla
-ekip arkadaşları ve CI ortamlarıyla paylaşmak için ikili dosyalar üretir.
+*"warming" olarak bilinen bu işlem,* yerel kullanım veya Tuist aracılığıyla
+takım arkadaşları ve CI ortamlarıyla paylaşım için ikili dosyalar üretir.
 Önbelleği ısıtma işlemi basittir ve basit bir komutla başlatılabilir:
 
 
@@ -40,16 +40,16 @@ ekip arkadaşları ve CI ortamlarıyla paylaşmak için ikili dosyalar üretir.
 tuist cache
 ```
 
-Komut, süreci hızlandırmak için ikili dosyaları yeniden kullanır.
+Komut, işlemi hızlandırmak için ikili dosyaları yeniden kullanır.
 
 ## Kullanım {#usage}
 
-Varsayılan olarak, Tuist komutları proje oluşturmayı gerektirdiğinde, varsa,
-bağımlılıkları otomatik olarak önbellekteki ikili eşdeğerleriyle değiştirir. Ek
-olarak, odaklanılacak hedeflerin bir listesini belirtirseniz, Tuist, mevcut
-olmaları koşuluyla, bağımlı hedefleri önbellekteki ikili dosyalarıyla da
-değiştirecektir. Farklı bir yaklaşımı tercih edenler için, belirli bir bayrak
-kullanarak bu davranışı tamamen devre dışı bırakma seçeneği vardır:
+Varsayılan olarak, Tuist komutları proje oluşturmayı gerektirdiğinde, varsa
+bağımlılıkları otomatik olarak önbellekten ikili eşdeğerleriyle değiştirir.
+Ayrıca, odaklanılacak hedeflerin bir listesini belirtirseniz, Tuist, varsa
+bağımlı hedefleri de önbellekteki ikili dosyalarla değiştirir. Farklı bir
+yaklaşımı tercih edenler için, belirli bir bayrak kullanarak bu davranışı
+tamamen devre dışı bırakma seçeneği vardır:
 
 ::: code-group
 ```bash [Project generation]
@@ -67,25 +67,27 @@ tuist test
 
 ::: warning
 <!-- -->
-İkili önbelleğe alma, uygulamayı bir simülatörde veya cihazda çalıştırmak ya da
-testler yapmak gibi geliştirme iş akışları için tasarlanmış bir özelliktir.
-Sürüm derlemeleri için tasarlanmamıştır. Uygulamayı arşivlerken,
-`--cache-profile none` kullanarak kaynakları içeren bir proje oluşturun.
+İkili önbellekleme, uygulamayı simülatörde veya cihazda çalıştırma ya da testler
+yapma gibi geliştirme iş akışları için tasarlanmış bir özelliktir. Sürüm
+derlemeleri için tasarlanmamıştır. Uygulamayı arşivlerken, `--cache-profile
+none` komutunu kullanarak kaynaklarla bir proje oluşturun.
 <!-- -->
 :::
 
 ## Önbellek profilleri {#cache-profiles}
 
-Tuist, proje oluştururken agresif hedeflerin önbelleğe alınmış ikili dosyalarla
-nasıl değiştirileceğini kontrol etmek için önbellek profillerini destekler.
+Tuist, projeler oluşturulurken hedeflerin önbelleğe alınmış ikili dosyalarla ne
+kadar agresif bir şekilde değiştirileceğini kontrol etmek için önbellek
+profillerini destekler.
 
-- Ankastre:
-  - `only-external`: sadece harici bağımlılıkları değiştir (sistem varsayılanı)
-  - `all-possible`: mümkün olduğunca çok hedefi değiştirin (dahili hedefler
-    dahil)
-  - `none`: asla önbelleğe alınmış ikili dosyalarla değiştirmeyin
+- Yerleşik öğeler:
+  - `only-external`: yalnızca harici bağımlılıkları değiştir (sistem
+    varsayılanı)
+  - `all-possible`: mümkün olduğunca çok sayıda hedefi (dahili hedefler dahil)
+    değiştirin.
+  - `yok`: önbelleğe alınmış ikili dosyalarla asla değiştirmeyin
 
-`--cache-profile` ile `tuist generate` üzerinde bir profil seçin:
+`--cache-profile` ile bir profil seçin `tuist generate`:
 
 ```bash
 # Built-in profiles
@@ -107,93 +109,93 @@ tuist generate --cache-profile none
 ::: info DEPRECATED FLAG
 <!-- -->
 `--no-binary-cache` bayrağı kullanımdan kaldırılmıştır. Bunun yerine
-`--cache-profile none` kullanın. Kullanımdan kaldırılan bayrak geriye dönük
+`--cache-profile none` kullanın. Kullanımdan kaldırılan bayrak, geriye dönük
 uyumluluk için hala çalışmaktadır.
 <!-- -->
 :::
 
-Etkili davranışı çözerken öncelik (en yüksekten en düşüğe):
+Etkili davranışı belirlerken öncelik sırası (en yüksekten en düşüğe):
 
 1. `--cache-profile none`
-2. Hedef odağı (hedefleri `'a geçirmek` oluşturur) → profil `mümkün olan her
-   şey`
+2. Hedef odak ( `'e hedefleri aktararak` oluşturmak) → profil `tüm olasılıklar`
 3. `--cache-profile `
 4. Varsayılan yapılandırma (ayarlanmışsa)
 5. Sistem varsayılanı (`only-external`)
 
 ## Desteklenen ürünler {#supported-products}
 
-Sadece aşağıdaki hedef ürünler Tuist tarafından önbelleğe alınabilir:
+Tuist tarafından yalnızca aşağıdaki hedef ürünler önbelleğe alınabilir:
 
-- XCTest](https://developer.apple.com/documentation/xctest)'e bağlı olmayan
+- [XCTest](https://developer.apple.com/documentation/xctest)'e bağlı olmayan
   çerçeveler (statik ve dinamik)
 - Paketler
 - Swift Makroları
 
-XCTest'e bağlı olan kütüphaneleri ve hedefleri desteklemek için çalışıyoruz.
+XCTest'e bağlı kütüphaneleri ve hedefleri desteklemek için çalışıyoruz.
 
 ::: info UPSTREAM DEPENDENCIES
 <!-- -->
-Bir hedef önbelleklenemez olduğunda, yukarı akış hedefleri de önbelleklenemez
-hale gelir. Örneğin, A'nın B'ye bağlı olduğu `A &gt; B` bağımlılık grafiğine
-sahipseniz, B önbelleğe alınamazsa, A da önbelleğe alınamaz olacaktır.
+Hedef önbelleğe alınamıyorsa, yukarı akış hedefleri de önbelleğe alınamaz hale
+gelir. Örneğin, bağımlılık grafiği `A &gt; B` şeklindeyse ve A, B'ye bağımlıysa,
+B önbelleğe alınamıyorsa A da önbelleğe alınamaz.
 <!-- -->
 :::
 
 ## Verimlilik {#efficiency}
 
-İkili önbellekleme ile elde edilebilecek verimlilik seviyesi büyük ölçüde grafik
-yapısına bağlıdır. En iyi sonuçları elde etmek için aşağıdakileri öneriyoruz:
+İkili önbellekleme ile elde edilebilecek verimlilik düzeyi, grafik yapısına
+büyük ölçüde bağlıdır. En iyi sonuçları elde etmek için aşağıdakileri öneririz:
 
 1. Çok iç içe geçmiş bağımlılık grafiklerinden kaçının. Grafik ne kadar sığ
    olursa o kadar iyidir.
-2. Uygulama hedefleri yerine protokol/arayüz hedefleri ile bağımlılıkları
-   tanımlayın ve en üst hedeflerden bağımlılık enjekte uygulamalarını kullanın.
-3. Sık değiştirilen hedefleri, değişme olasılığı daha düşük olan daha küçük
-   hedeflere bölün.
+2. Bağımlılıkları, uygulama hedefleri yerine protokol/arayüz hedefleriyle
+   tanımlayın ve en üstteki hedeflerden bağımlılık enjeksiyonu uygulamaları
+   yapın.
+3. Sık sık değiştirilen hedefleri, değiştirilme olasılığı daha düşük olan daha
+   küçük hedeflere bölün.
 
-Yukarıdaki öneriler, yalnızca ikili önbelleğe almanın değil, aynı zamanda
-Xcode'un yeteneklerinin de faydalarını en üst düzeye çıkarmak için projelerinizi
-yapılandırmanın bir yolu olarak önerdiğimiz
-<LocalizedLink href="/guides/features/projects/tma-architecture"> Modüler
-Mimarinin</LocalizedLink> bir parçasıdır.
+Yukarıdaki öneriler, projelerinizi yapılandırarak ikili önbelleklemenin yanı
+sıra Xcode'un yeteneklerinden de en iyi şekilde yararlanmanızı sağlamak için
+önerdiğimiz
+<LocalizedLink href="/guides/features/projects/tma-architecture">Modüler
+Mimari</LocalizedLink>nin bir parçasıdır.
 
-## Önerilen kurulum {#recommended-setup}
+## Önerilen ayar {#recommended-setup}
 
-Önbelleği ısıtmak için **ana** dalındaki her işlemde çalışan bir CI işine sahip
-olmanızı öneririz. Bu, önbelleğin her zaman `ana` 'daki değişiklikler için ikili
-dosyalar içermesini sağlayacaktır, böylece yerel ve CI şubesi bunlar üzerinde
-artımlı olarak derlenir.
+Önbelleği ısıtmak için, ana dalda** her commit'te **tarafından çalıştırılan bir
+CI işi olmasını öneririz. Bu, önbelleğin her zaman `ana` değişiklikleri için
+ikili dosyaları içermesini sağlayarak, yerel ve CI dalının bunlara göre aşamalı
+olarak derlenmesini sağlar.
 
 ::: tip CACHE WARMING USES BINARIES
 <!-- -->
-`tuist cache` komutu da ısınmayı hızlandırmak için ikili önbellekten yararlanır.
+`tuist cache` komutu da ısınmayı hızlandırmak için ikili önbelleği kullanır.
 <!-- -->
 :::
 
-Aşağıda yaygın iş akışlarına bazı örnekler verilmiştir:
+Aşağıda, yaygın iş akışlarına ilişkin bazı örnekler verilmiştir:
 
-### Bir geliştirici yeni bir özellik üzerinde çalışmaya başlar {#a-developer-starts-to-work-on-a-new-feature}
+### Bir geliştirici yeni bir özellik üzerinde çalışmaya başlar. {#a-developer-starts-to-work-on-a-new-feature}
 
-1. `ana` adresinden yeni bir şube oluştururlar.
-2. `tuist'i çalıştırarak` adresini oluştururlar.
-3. Tuist, `ana` adresinden en son ikili dosyaları çeker ve projeyi bunlarla
-   oluşturur.
+1. `ana` adresinden yeni bir dal oluştururlar.
+2. `tuist generate`.
+3. Tuist, `ana` adresinden en son ikili dosyaları alır ve bunları kullanarak
+   projeyi oluşturur.
 
 ### Bir geliştirici değişiklikleri yukarı akışa gönderir {#a-developer-pushes-changes-upstream}
 
-1. CI boru hattı, projeyi derlemek veya test etmek için `xcodebuild build` veya
-   `tuist test` çalıştıracaktır.
-2. İş akışı, `ana` adresinden en son ikili dosyaları çekecek ve projeyi bunlarla
-   oluşturacaktır.
-3. Daha sonra projeyi aşamalı olarak oluşturacak veya test edecektir.
+1. CI boru hattı, projeyi derlemek veya test etmek iç `xcodebuild build` veya
+   `tuist test` komutlarını çalıştıracaktır.
+2. İş akışı, `main` adresinden en son ikili dosyaları alır ve bunları kullanarak
+   projeyi oluşturur.
+3. Ardından projeyi aşamalı olarak derler veya test eder.
 
 ## Konfigürasyon {#configuration}
 
 ### Önbellek eşzamanlılık sınırı {#cache-concurrency-limit}
 
-Varsayılan olarak, Tuist önbellek eserlerini herhangi bir eşzamanlılık sınırı
-olmadan indirir ve yükler, böylece verimi en üst düzeye çıkarır. Bu davranışı
+Varsayılan olarak, Tuist herhangi bir eşzamanlılık sınırı olmaksızın önbellek
+öğelerini indirir ve yükler, böylece verimi en üst düzeye çıkarır. Bu davranışı,
 `TUIST_CACHE_CONCURRENCY_LIMIT` ortam değişkenini kullanarak kontrol
 edebilirsiniz:
 
@@ -207,43 +209,43 @@ export TUIST_CACHE_CONCURRENCY_LIMIT=none
 tuist generate
 ```
 
-Bu, sınırlı ağ bant genişliğine sahip ortamlarda veya önbellek işlemleri
+Bu, ağ bant genişliğinin sınırlı olduğu ortamlarda veya önbellek işlemleri
 sırasında sistem yükünü azaltmak için yararlı olabilir.
 
 ## Sorun Giderme {#troubleshooting}
 
 ### Hedeflerim için ikili dosyalar kullanmıyor {#it-doesnt-use-binaries-for-my-targets}
 
-1}hash'lerin ortamlar ve çalıştırmalar arasında deterministik</LocalizedLink>
-olduğundan emin olun. Bu durum, örneğin mutlak yollar aracılığıyla projenin
-ortama referansları varsa ortaya çıkabilir. ` tuist generate` komutunun iki
-ardışık çağrısı tarafından veya ortamlar ya da çalıştırmalar arasında
-oluşturulan projeleri karşılaştırmak için `diff` komutunu kullanabilirsiniz.
+<LocalizedLink href="/guides/features/projects/hashing#debugging">hash'lerin tüm
+ortamlarda ve çalışmalarda deterministik</LocalizedLink> olduğundan emin olun.
+Bu, projenin örneğin mutlak yollar aracılığıyla ortama referanslar içermesi
+durumunda meydana gelebilir. `diff` komutunu kullanarak, `tuist generate`
+komutunun iki ardışık çağrısıyla oluşturulmuş projeleri karşılaştırabilirsiniz.
 
-Ayrıca hedefin doğrudan ya da dolaylı olarak
+Ayrıca, hedefin doğrudan veya dolaylı olarak
 <LocalizedLink href="/guides/features/cache/generated-project#supported-products">önbelleğe
-alınamayan hedefe</LocalizedLink> bağlı olmadığından emin olun.
+alınamayan hedef</LocalizedLink>'ye bağlı olmadığından emin olun.
 
 ### Eksik semboller {#missing-symbols}
 
 Kaynakları kullanırken, Xcode'un derleme sistemi, Türetilmiş Veriler
-aracılığıyla, açıkça bildirilmeyen bağımlılıkları çözebilir. Ancak, ikili
-önbelleğe güvendiğinizde, bağımlılıklar açıkça bildirilmelidir; aksi takdirde,
-semboller bulunamadığında derleme hataları görmeniz muhtemeldir. Bu hatayı
-ayıklamak için
+aracılığıyla, açıkça belirtilmeyen bağımlılıkları çözebilir. Ancak, ikili
+önbelleğe güvendiğinizde, bağımlılıklar açıkça belirtilmelidir; aksi takdirde,
+semboller bulunamadığında derleme hatalarıyla karşılaşabilirsiniz. Bu hatayı
+gidermek için,
 <LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist
 inspect dependencies --only implicit`</LocalizedLink> komutunu kullanmanızı ve
-örtük bağlamadaki gerilemeleri önlemek için CI'da ayarlamanızı öneririz.
+örtük bağlamada gerilemeleri önlemek için CI'da bunu ayarlamanızı öneririz.
 
 ### Eski modül önbelleği {#legacy-module-cache}
 
-Tuist `4.128.0` sürümünde, modül önbelleği için yeni altyapımızı varsayılan hale
-getirdik. Bu yeni sürümle ilgili sorunlar yaşarsanız,
-`TUIST_LEGACY_MODULE_CACHE` ortam değişkenini ayarlayarak eski önbellek
-davranışına geri dönebilirsiniz.
+Tuist `4.128.0` sürümünde, modül önbelleği için yeni altyapımızı varsayılan
+olarak belirledik. Bu yeni sürümde sorun yaşarsanız, `TUIST_LEGACY_MODULE_CACHE`
+ortam değişkenini ayarlayarak eski önbellek davranışına geri dönebilirsiniz.
 
-Bu eski modül önbelleği geçici bir yedektir ve gelecekteki bir güncellemede
-sunucu tarafında kaldırılacaktır. Bundan uzaklaşmayı planlayın.
+Bu eski modül önbelleği geçici bir yedekleme aracıdır ve gelecekteki bir
+güncellemede sunucu tarafında kaldırılacaktır. Bu modülden uzaklaşmayı
+planlayın.
 
 ```bash
 export TUIST_LEGACY_MODULE_CACHE=1
