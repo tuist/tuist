@@ -8,7 +8,8 @@
 # Migrar un proyecto Xcode {#migrate-an-xcode-project}
 
 A menos que
-<LocalizedLink href="/guides/features/projects/adoption/new-project">crees un nuevo proyecto usando Tuist</LocalizedLink>, en cuyo caso se te configura todo
+<LocalizedLink href="/guides/features/projects/adoption/new-project">crees un
+nuevo proyecto usando Tuist</LocalizedLink>, en cuyo caso se te configura todo
 automáticamente, tendrás que definir tus proyectos de Xcode usando las
 primitivas de Tuist. Lo tedioso de este proceso depende de la complejidad de tus
 proyectos.
@@ -26,7 +27,7 @@ también Xcode, que los procesará e indexará más rápidamente. Una vez que ha
 adoptado por completo Tuist, te asegurarás de que los proyectos se definan de
 forma coherente y de que sigan siendo sencillos.
 
-Con el objetivo de facilitarle esa labor, le damos algunas pautas basadas en los
+Con el fin de facilitarle esa labor, le damos algunas pautas basadas en los
 comentarios que hemos recibido de los usuarios.
 
 ## Crear un andamiaje de proyectos {#create-project-scaffold}
@@ -280,5 +281,5 @@ Si los archivos asociados a los objetivos de tu proyecto Xcode no estuvieran
 todos contenidos en un directorio del sistema de archivos que representara al
 objetivo, podrías acabar con un proyecto que no compilara. Asegúrese de que la
 lista de archivos después de generar el proyecto con Tuist coincide con la lista
-de archivos en el proyecto de Xcode, y aprovechar la oportunidad para alinear la
+de archivos del proyecto de Xcode, y aproveche la oportunidad para alinear la
 estructura de archivos con la estructura de destino.
