@@ -146,7 +146,7 @@ Tuist Önbelleği ile ilgili bir dizi metrik.
 
 İkili önbelleğe yapılan indirme sayısı.
 
-### `tuist_cache_downloaded_bytes` (toplam) {#tuist_cache_downloaded_bytes-sum}
+### `tuist_cache_downloaded_bytes` (sum) {#tuist_cache_downloaded_bytes-sum}
 
 İkili önbellekten indirilen bayt sayısı.
 
