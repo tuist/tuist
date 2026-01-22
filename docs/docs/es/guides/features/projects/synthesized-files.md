@@ -31,8 +31,8 @@ frecuencia:
   ejemplo frameworks, que pueden añadir algo de sobrecarga a tu proyecto o
   aplicación. Por ejemplo, los frameworks estáticos se enlazarán estáticamente
   al producto final, y será necesaria una fase de compilación para copiar
-  únicamente los recursos al producto final. O frameworks dinámicos, donde Xcode
-  copiará tanto el binario como los recursos en el producto final, pero
+  únicamente los recursos al producto final. O frameworks dinámicos, en los que
+  Xcode copiará tanto el binario como los recursos en el producto final, pero
   aumentará el tiempo de arranque de tu aplicación porque el framework necesita
   cargarse dinámicamente.
 - **Propenso a errores de ejecución**: Los recursos se identifican por su nombre
@@ -105,9 +105,13 @@ conocida de la que se hace un seguimiento en [issue
 ::: tip SUPPORTING RESOURCES IN LIBRARIES THROUGH BUNDLES
 <!-- -->
 Si un producto de destino, por ejemplo una biblioteca, no admite recursos, Tuist
-incluirá los recursos en un destino del tipo de producto `bundle` asegurándose
-de que acaba en el producto final y de que la interfaz apunta al bundle
-correcto.
+incluirá los recursos en un destino de tipo de producto `bundle` asegurándose de
+que acaba en el producto final y de que la interfaz apunta al bundle correcto.
+Estos bundles sintetizados se etiquetan automáticamente con `tuist:synthesized`
+y heredan todas las etiquetas de su objetivo padre, lo que permite etiquetarlos
+en
+<LocalizedLink href="/guides/features/projects/metadata-tags#system-tags">perfiles
+de caché</LocalizedLink>.
 <!-- -->
 :::
 
@@ -167,8 +171,8 @@ let project = Project(resourceSynthesizers: [.string(), .fonts()])
 
 ::: info REFERENCE
 <!-- -->
-Puedes consultar [this
-fixture](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates)
+Puedes consultar [este
+ejemplo](https://github.com/tuist/tuist/tree/main/examples/xcode/generated_ios_app_with_templates)
 para ver un ejemplo de cómo utilizar plantillas personalizadas para sintetizar
 accesores a recursos.
 <!-- -->
