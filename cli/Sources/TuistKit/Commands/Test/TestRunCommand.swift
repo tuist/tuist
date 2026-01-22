@@ -16,6 +16,7 @@ public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand,
             _superCommandName: "test",
             abstract: "Tests a project",
             usage: "tuist test [<options>] [<scheme>] -- [<passthrough-xcode-build-arguments> ...]",
+            discussion: "Use 'tuist test case' to manage test cases.",
             shouldDisplay: false
         )
     }
