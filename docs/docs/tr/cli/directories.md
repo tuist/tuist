@@ -53,7 +53,7 @@ tuist auth login
 - **Eklentiler**: İndirilen ve derlenen eklenti önbelleği
 - **ProjectDescriptionHelpers**: Derlenmiş proje açıklama yardımcıları
 - **Manifestolar**: Önbelleğe alınmış manifesto dosyaları
-- **Projeler**: Oluşturulan otomasyon proje önbelleği
+- **Projeler**: Oluşturulmuş otomasyon proje önbelleği
 - **EditProjects**: Düzenleme komutu için önbellek
 - **Runs**: Run analitik verilerini test edin ve oluşturun
 - **İkililer**: Yapı ikili dosyaları (ortamlar arasında paylaşılamaz)
@@ -105,7 +105,7 @@ değişkenlerini kontrol eder:
 Bu size şunları sağlar:
 - Tüm uygulamalarınızı tutarlı bir şekilde düzenlemek için standart XDG
   değişkenlerini kullanın
-- Tuist için farklı konumlara ihtiyacınız olduğunda Tuist'e özgü değişkenlerle
+- Tuist için farklı konumlara ihtiyaç duyduğunuzda Tuist'e özgü değişkenlerle
   geçersiz kılın
 - Herhangi bir yapılandırma olmadan mantıklı varsayılanlara güvenin
 
