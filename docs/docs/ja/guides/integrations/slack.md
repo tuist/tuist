@@ -5,127 +5,97 @@
   "description": "Learn how to integrate Tuist with Slack."
 }
 ---
-# Slack integration {#slack}
+# Slack 統合{#slack}
 
-If your organization uses Slack, you can integrate Tuist to surface insights
-directly in your channels. This turns monitoring from something your team has to
-remember to do into something that just happens. For example, your team can
-receive daily summaries of build performance, cache hit rates, or bundle size
-trends.
+組織でSlackを利用している場合、Tuistを統合してチャネル内で直接インサイトを可視化できます。これにより、チームが意識的に行う必要があった監視が、自動的に行われるようになります。例えば、ビルドのパフォーマンス、キャッシュヒット率、バンドルサイズの傾向に関する日次サマリーをチームが受け取ることが可能です。
 
-## Setup {#setup}
+## 設定{#setup}
 
-### Connect your Slack workspace {#connect-workspace}
+### Slackワークスペースを接続する{#connect-workspace}
 
-First, connect your Slack workspace to your Tuist account in the `Integrations`
-tab:
+まず、`の「Integrations」タブにある「` 」で、SlackワークスペースをTuistアカウントに接続してください：
 
-![An image that shows the integrations tab with Slack
-connection](/images/guides/integrations/slack/integrations.png)
+![Slack接続の統合タブを表示した画像](/images/guides/integrations/slack/integrations.png)
 
-Click **Connect Slack** to authorize Tuist to post messages to your workspace.
-This will redirect you to Slack's authorization page where you can approve the
-connection.
+**をクリックし、** を接続して、Tuist がワークスペースにメッセージを投稿することを許可してください。これにより、接続を承認できる Slack
+の認証ページにリダイレクトされます。
 
-> [!NOTE] SLACK ADMIN APPROVAL
+> [!NOTE] SLACK 管理者承認
 > <!-- -->
-> If your Slack workspace restricts app installations, you may need to request
-> approval from a Slack administrator. Slack will guide you through the approval
-> request process during authorization.
+> Slackワークスペースでアプリのインストールが制限されている場合、Slack管理者への承認申請が必要になる可能性があります。承認リクエストの手順は、権限付与時にSlackが案内します。
 > <!-- -->
 
-### Project reports {#project-reports}
+### プロジェクト報告書{#project-reports}
 
-After connecting Slack, configure reports for each project in the project
-settings' notifications tab:
+Slackを接続後、プロジェクト設定の通知タブで各プロジェクトのレポートを設定してください：
 
-![An image that shows the notifications settings with Slack report
-configuration](/images/guides/integrations/slack/notifications-settings.png)
+![Slackレポート設定を含む通知設定画面のイメージ](/images/guides/integrations/slack/notifications-settings.png)
 
-You can configure:
-- **Channel**: Select which Slack channel receives the reports
-- **Schedule**: Choose which days of the week to receive reports
-- **Time**: Set the time of day
+設定可能です：
+- **** チャンネル：レポートを受信するSlackチャンネルを選択
+- **** のスケジュール設定：レポートを受け取る曜日を選択してください
+- **時間**: 時刻を設定する
 
-> [!WARNING] PRIVATE CHANNELS
+> [!WARNING] プライベートチャンネル
 > <!-- -->
-> For the Tuist Slack app to post messages in a private channel, you must first
-> add the Tuist bot to that channel. In Slack, open the private channel, click
-> the channel name to open settings, select "Integrations", then "Add apps" and
-> search for Tuist.
+> Tuist
+> Slackアプリがプライベートチャンネルにメッセージを投稿するには、まずそのチャンネルにTuistボットを追加する必要があります。Slackでプライベートチャンネルを開き、チャンネル名をクリックして設定を開き、「統合」を選択し、「アプリを追加」からTuistを検索してください。
 > <!-- -->
 
-Once configured, Tuist sends automated daily reports to your selected Slack
-channel:
+設定が完了すると、Tuistは選択したSlackチャンネルに自動で日次レポートを送信します：
 
 <img src="/images/guides/integrations/slack/report.png" alt="An image that shows a Slack report message" style="max-width: 500px;" />
 
-### Alert rules {#alert-rules}
+### アラートルール{#alert-rules}
 
-Get notified in Slack with alert rules when key metrics significantly regress to
-help you catch slower builds, cache degradation, or test slowdowns as soon as
-possible, minimizing the impact on your team's productivity.
+主要メトリクスが大幅に低下した際にアラートルールでSlack通知を受け取り、ビルドの遅延、キャッシュ劣化、テストの遅延を可能な限り早期に検知し、チームの生産性への影響を最小限に抑えましょう。
 
-To create an alert rule, go to your project's notification settings and click
-**Add alert rule**:
+アラートルールを作成するには、プロジェクトの通知設定に移動し、[**] をクリックします。アラートルールを追加**:
 
-You can configure:
-- **Name**: A descriptive name for the alert
-- **Category**: What to measure (build duration, test duration, or cache hit
-  rate)
-- **Metric**: How to aggregate the data (p50, p90, p99, or average)
-- **Deviation**: The percentage change that triggers an alert
-- **Rolling window**: How many recent runs to compare against
-- **Slack channel**: Where to send the alert
+設定可能です：
+- **** 名：アラートの説明的な名前
+- **カテゴリ** ：測定対象（ビルド時間、テスト時間、またはキャッシュヒット率）
+- **メトリック** ：データの集計方法（p50、p90、p99、または平均）
+- **偏差** ：アラートをトリガーする変化率
+- **ローリングウィンドウ**: 比較対象とする直近の実行回数を指定
+- **Slackチャンネル**: アラート送信先
 
-For example, you might create an alert that triggers when the p90 build duration
-increases by more than 20% compared to the previous 100 builds.
+例：p90ビルドの所要時間が過去100回のビルドと比較して20%以上増加した場合にトリガーされるアラートを作成できます。
 
-When an alert triggers, you'll receive a message like this in your Slack
-channel:
+アラートがトリガーされると、Slackチャンネルに次のようなメッセージが届きます：
 
 <img src="/images/guides/integrations/slack/alert.png" alt="An image that shows a Slack alert message" style="max-width: 500px;" />
 
-> [!NOTE] COOLDOWN PERIOD
+> [!NOTE] クールダウン期間
 > <!-- -->
-> After an alert triggers, it won't fire again for the same rule for 24 hours.
-> This prevents notification fatigue when a metric stays elevated.
+> アラートがトリガーされた後、同じルールでは24時間以内に再度発火しません。これにより、メトリックが上昇したままの場合でも通知疲れを防ぎます。
 > <!-- -->
 
-### Flaky test alerts {#flaky-test-alerts}
+### 不安定なテストアラート{#flaky-test-alerts}
 
-Get notified instantly when a test becomes flaky. Unlike metric-based alert
-rules that compare rolling windows, flaky test alerts trigger the moment Tuist
-detects a new flaky test, helping you catch test instability before it impacts
-your team.
+テストが不安定になった瞬間に通知を受け取れます。移動平均を比較するメトリックベースのアラートルールとは異なり、不安定テストアラートはTuistが新たな不安定テストを検知した瞬間に発動します。これにより、チームに影響が出る前にテストの不具合を早期に発見できます。
 
-To create a flaky test alert rule, go to your project's notification settings
-and click **Add flaky test alert rule**:
+フラッキーテストアラートルールを作成するには、プロジェクトの通知設定に移動し、[**]をクリックします。フラッキーテストアラートルールを追加**:
 
-You can configure:
-- **Name**: A descriptive name for the alert
-- **Trigger threshold**: The minimum number of flaky runs in the last 30 days
-  required to trigger an alert
-- **Slack channel**: Where to send the alert
+設定可能です：
+- **** 名：アラートの説明的な名前
+- **トリガー閾値**: アラートをトリガーするために必要な、過去30日間の不安定な実行の最小回数
+- **Slackチャンネル**: アラート送信先
 
-When a test becomes flaky and meets your threshold, you'll receive a
-notification with a direct link to investigate the test case:
+テストが不安定になり、設定した閾値を超えた場合、テストケースを調査するための直接リンク付き通知が届きます：
 
 <img src="/images/guides/integrations/slack/flaky-test-alert.png" alt="An image that shows a Slack flaky test alert message" style="max-width: 500px;" />
 
-## On-premise installations {#on-premise}
+## オンプレミスインストール{#on-premise}
 
-For on-premise Tuist installations, you'll need to create your own Slack app and
-configure the necessary environment variables.
+オンプレミス版のTuistを導入する場合、独自のSlackアプリを作成し、必要な環境変数を設定する必要があります。
 
-### Create a Slack app {#create-slack-app}
+### Slackアプリを作成する{#create-slack-app}
 
-1. Go to the [Slack API Apps page](https://api.slack.com/apps) and click
-   **Create New App**
-2. Choose **From an app manifest** and select the workspace where you want to
-   install the app
-3. Paste the following manifest, replacing the redirect URL with your Tuist
-   server URL:
+1. [Slack API
+   Appsページ](https://api.slack.com/apps)に移動し、[**]をクリックして新規アプリを作成してください**
+2. アプリマニフェストから「**」を選択し、アプリをインストールするワークスペースを選択してください。**
+3. 以下のマニフェストを貼り付け、リダイレクトURLをTuistサーバーのURLに置き換えてください：
 
 ```json
 {
@@ -159,12 +129,11 @@ configure the necessary environment variables.
 }
 ```
 
-4. Review and create the app
+4. アプリを確認して作成する
 
-### Configure environment variables {#configure-environment}
+### 環境変数を設定する{#configure-environment}
 
-Set the following environment variables on your Tuist server:
+Tuistサーバーで以下の環境変数を設定してください：
 
-- `SLACK_CLIENT_ID` - The Client ID from your Slack app's Basic Information page
-- `SLACK_CLIENT_SECRET` - The Client Secret from your Slack app's Basic
-  Information page
+- `SLACK_CLIENT_ID` - Slackアプリの「基本情報」ページにあるクライアントID
+- `SLACK_CLIENT_SECRET` - Slackアプリの「基本情報」ページにあるクライアントシークレット
