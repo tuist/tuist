@@ -153,6 +153,15 @@
                     "items": {
                         "handbook": {
                             "text": "手册"
+                        },
+                        "cli": {
+                            "text": "CLI"
+                        },
+                        "server": {
+                            "text": "Server"
+                        },
+                        "docs": {
+                            "text": "文档"
                         }
                     }
                 }
@@ -412,6 +421,9 @@
                                     "text": "GitHub"
                                 }
                             }
+                        },
+                        "slack": {
+                            "text": "Slack"
                         }
                     }
                 },
