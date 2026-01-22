@@ -27,7 +27,8 @@
 с настройками вашего проекта:
 
 - <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
-- <LocalizedLink href="/guides/features/selective-testing/generated-project">Сгенерированный проект</LocalizedLink>
+- <LocalizedLink href="/guides/features/selective-testing/generated-project">Сгенерированный
+  проект</LocalizedLink>
 
 ::: warning MODULE VS FILE-LEVEL GRANULARITY
 <!-- -->
@@ -52,9 +53,9 @@
 :::
 
 
-## Комментарии к запросам на перетяжку/слияние {#pullmerge-request-comments}
+## Комментарии к pull/merge request {#pullmerge-request-comments}
 
-::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
+::: warning ТРЕБУЕТСЯ ИНТЕГРАЦИЯ С GIT
 <!-- -->
 Чтобы получить автоматические комментарии к запросам pull/merge, интегрируйте
 ваш
