@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-22 13:04+0000\n"
+"PO-Revision-Date: 2026-01-22 18:01+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_tests/zh_Hant/>\n"
@@ -686,50 +686,66 @@ msgstr "自上次句點以來"
 msgid "since yesterday"
 msgstr "自昨日起"
 
+#, fuzzy
 msgid "Flakiness rate"
-msgstr ""
+msgstr "不穩定率"
 
+#, fuzzy
 msgid "Flaky"
-msgstr ""
+msgstr "Flaky"
 
+#, fuzzy
 msgid "Flaky Runs"
-msgstr ""
+msgstr "不穩定運行"
 
+#, fuzzy
 msgid "Flaky Tests"
-msgstr ""
+msgstr "不穩定測試"
 
+#, fuzzy
 msgid "Flaky runs"
-msgstr ""
+msgstr "不穩定運行"
 
+#, fuzzy
 msgid "Flaky test cases"
-msgstr ""
+msgstr "不穩定的測試案例"
 
+#, fuzzy
 msgid "Flaky test runs"
-msgstr ""
+msgstr "不穩定的測試執行"
 
+#, fuzzy
 msgid "Last flaky run"
-msgstr ""
+msgstr "最後一次不穩定運行"
 
+#, fuzzy
 msgid "Mark as flaky"
-msgstr ""
+msgstr "標記為不穩定"
 
+#, fuzzy
 msgid "Most occurring flaky tests"
-msgstr ""
+msgstr "最常出現的測試異常"
 
+#, fuzzy
 msgid "No flaky tests"
-msgstr ""
+msgstr "無不穩定的測試"
 
+#, fuzzy
 msgid "Number of test cases that passed after retry."
-msgstr ""
+msgstr "重試後通過的測試案例數量。"
 
+#, fuzzy
 msgid "Percentage of test runs that were flaky in the last 30 days."
-msgstr ""
+msgstr "過去30天內出現不穩定測試執行次數的百分比。"
 
+#, fuzzy
 msgid "The number of test runs with flaky tests."
-msgstr ""
+msgstr "包含不穩定測試的測試執行次數。"
 
+#, fuzzy
 msgid "Unmark as flaky"
-msgstr ""
+msgstr "取消標記為不穩定"
 
+#, fuzzy
 msgid "New"
-msgstr ""
+msgstr "新"
