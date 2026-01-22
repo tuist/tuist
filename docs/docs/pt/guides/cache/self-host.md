@@ -91,7 +91,7 @@ S3_REGION=us-east-1
 DATA_DIR=/data
 ```
 
-| Variable                          | Required | Default                   | Description                                                                                       |
+| Variable                          | Required | Default                   | Descrição                                                                                         |
 | --------------------------------- | -------- | ------------------------- | ------------------------------------------------------------------------------------------------- |
 | `SECRET_KEY_BASE`                 | Yes      |                           | Secret key used to sign and encrypt data (minimum 64 characters).                                 |
 | `PUBLIC_HOST`                     | Yes      |                           | Public hostname or IP address of your cache service. Used to generate absolute URLs.              |
