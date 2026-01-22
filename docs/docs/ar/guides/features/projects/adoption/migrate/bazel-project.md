@@ -109,8 +109,8 @@ tuist generate # Generate an Xcode project
 
 ## توليد المشاريع {#project-generation}
 
-يوفّر المجتمع مجموعة من القواعد،
-[rules_xcodeproj](https://github.com/MobileNativeFoundation/rules_xcodeproj)،
-لتوليد مشاريع Xcode من مشاريع بازل المعلنة. على عكس Bazel، حيث تحتاج إلى إضافة
-بعض التهيئة إلى ملف `BUILD` ، لا يتطلب Tuist أي تهيئة على الإطلاق. يمكنك تشغيل
-`tuist gener` في الدليل الجذر لمشروعك، وسيقوم Tuist بإنشاء مشروع Xcode لك.
+يوفّر المجتمع مجموعة من القواعد، [rules_xcodeproj]
+(https://github.com/MobileNativeFoundation/rules_xcodeproj)، لتوليد مشاريع Xcode
+من مشاريع بازل المعلنة. على عكس Bazel، حيث تحتاج إلى إضافة بعض التهيئة إلى ملف
+`BUILD` ، لا يتطلب Tuist أي تهيئة على الإطلاق. يمكنك تشغيل `tuist gener` في
+الدليل الجذر لمشروعك، وسيقوم Tuist بإنشاء مشروع Xcode لك.
