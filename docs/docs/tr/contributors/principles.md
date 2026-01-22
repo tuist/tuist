@@ -112,8 +112,8 @@ kısıtlamasına izin vermemeliyiz.
 
 Tom Preston](https://tom.preston-werner.com/)'ın [bu
 podcast](https://tom.preston-werner.com/)'de belirttiği gibi düşünmeyi
-seviyoruz: *"Çoğu şey başarılabilir, kafanızda ne varsa muhtemelen evrenin
-kısıtlamaları dahilinde mümkün olduğu sürece kodla başarabilirsiniz".* Eğer
+seviyoruz: *"Çoğu şey başarılabilir, kafanızda ne varsa, evrenin kısıtlamaları
+dahilinde mümkün olduğu sürece muhtemelen kodla başarabilirsiniz".* Eğer
 **geliştirici deneyiminin nasıl olmasını istediğimizi hayal edersek**, bunu
 başarmak sadece zaman meselesidir - sorunları geliştirici deneyiminden analiz
 etmeye başlamak bize kullanıcıların severek kullanacağı çözümlere götürecek
