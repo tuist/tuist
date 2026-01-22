@@ -51,7 +51,7 @@ Xcode 在每個產品的派生資料目錄內使用一個目錄。在這個目�
 ::: tip TUIST DETECTION OF IMPLICIT DEPENDENCIES
 <!-- -->
 Tuist 提供了
-<LocalizedLink href="/guides/features/inspect/implicit-dependencies">command</LocalizedLink>
+<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">command</LocalizedLink>
 來偵測隱含的相依性。您可以使用該命令在 CI 中驗證所有的依賴關係都是顯式的。
 <!-- -->
 :::

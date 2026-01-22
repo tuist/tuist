@@ -68,7 +68,7 @@ Packagesは、あなたのプロジェクトで依存関係を宣言する私た
 #### TuistのXcodeProjベースの統合{#tuists-xcodeprojbased-integration}
 
 Xcodeのデフォルトの統合は最も便利なものではあるが、中規模や大規模のプロジェクトに必要な柔軟性とコントロールに欠けている。これを克服するために、TuistはXcodeProjベースの統合を提供しており、XcodeProjのターゲットを使用してプロジェクトにSwift
-Packagesを統合することができます。そのおかげで、統合をよりコントロールできるだけでなく、<LocalizedLink href="/guides/features/cache">キャッシュ</LocalizedLink>や<LocalizedLink href="/guides/features/test/selective-testing">選択的テスト実行</LocalizedLink>のようなワークフローと互換性を持たせることができます。
+Packagesを統合することができます。そのおかげで、統合をよりコントロールできるだけでなく、<LocalizedLink href="/guides/features/cache">キャッシュ</LocalizedLink>や<LocalizedLink href="/guides/features/selective-testing">選択的テスト実行</LocalizedLink>のようなワークフローと互換性を持たせることができます。
 
 XcodeProjの統合は、新しいSwift
 Packageの機能をサポートしたり、より多くのパッケージ構成を扱うために、より多くの時間がかかる可能性があります。しかし、Swift パッケージと

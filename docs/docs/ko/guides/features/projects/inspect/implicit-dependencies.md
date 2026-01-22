@@ -24,7 +24,7 @@ tuist inspect implicit-imports
 ::: tip VALIDATE IN CI
 <!-- -->
 새 코드가 업스트림에 푸시될 때마다 이 명령을
-<LocalizedLink href="/guides/features/automate/continuous-integration">연속 통합</LocalizedLink> 명령의 일부로 실행하는 것을 강력히 권장합니다.
+<LocalizedLink href="/guides/integrations/continuous-integration">연속 통합</LocalizedLink> 명령의 일부로 실행하는 것을 강력히 권장합니다.
 <!-- -->
 :::
 

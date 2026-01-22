@@ -32,7 +32,7 @@ koduyla çıkar.
 ::: tip VALIDATE IN CI
 <!-- -->
 Bu komutu, her yeni kod yayınlandığında
-<LocalizedLink href="/guides/features/automate/continuous-integration">sürekli entegrasyon</LocalizedLink> komutunuzun bir parçası olarak çalıştırmanızı
+<LocalizedLink href="/guides/integrations/continuous-integration">sürekli entegrasyon</LocalizedLink> komutunuzun bir parçası olarak çalıştırmanızı
 şiddetle tavsiye ederiz.
 <!-- -->
 :::

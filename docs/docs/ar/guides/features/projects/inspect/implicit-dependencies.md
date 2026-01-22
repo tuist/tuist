@@ -26,7 +26,7 @@ tuist inspect implicit-imports
 إذا اكتشف الأمر أي واردات ضمنية، فإنه يخرج برمز خروج غير الصفر.
 
 ::: tip VALIDATE IN CI
-نوصي بشدة بتشغيل هذا الأمر كجزء من أمر <LocalizedLink href="/guides/features/automate/continuous-integration">التكامل المستمر</LocalizedLink> في كل مرة يتم فيها دفع شيفرة جديدة إلى المنبع.
+نوصي بشدة بتشغيل هذا الأمر كجزء من أمر <LocalizedLink href="/guides/integrations/continuous-integration">التكامل المستمر</LocalizedLink> في كل مرة يتم فيها دفع شيفرة جديدة إلى المنبع.
 :::
 
 ::: warning NOT ALL IMPLICIT CASES ARE DETECTED

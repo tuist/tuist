@@ -108,7 +108,7 @@ estrechamente con la estructura de proyecto recomendada por Xcode.
 ## Tuist.swift {#tuistswift}
 
 Tuist proporciona
-<LocalizedLink href="/contributors/principles.html#default-to-conventions">sensibles valores por defecto</LocalizedLink> para simplificar la configuración del
+<LocalizedLink href="/contributors/principles#default-to-conventions">sensibles valores por defecto</LocalizedLink> para simplificar la configuración del
 proyecto. Sin embargo, puedes personalizar la configuración definiendo un
 <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>
 en la raíz del proyecto, que es utilizado por Tuist para determinar la raíz del

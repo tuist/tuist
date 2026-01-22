@@ -87,7 +87,7 @@ Tuist 프로젝트에서 우리는 단일 프로젝트에 기댑니다, 짧은 �
 ## Tuist.swift {#tuistswift}
 
 Tuist는 프로젝트 환경 설정을 단순화 하기 위해
-<LocalizedLink href="/contributors/principles.html#default-to-conventions">적절한 기본 값</LocalizedLink>를 제공합니다. 하지만
+<LocalizedLink href="/contributors/principles#default-to-conventions">적절한 기본 값</LocalizedLink>를 제공합니다. 하지만
 <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>를
 최상위에 정의해서 프로젝트가 최상위 프로젝트를 결정하는데 사용하도록 설정하실 수도 있습니다.
 

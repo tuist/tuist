@@ -172,7 +172,7 @@ tuist generate
 コマンドを使用すると、`tuist generate`
 の2つの連続した呼び出しによって生成されたプロジェクトを比較したり、環境や実行にまたがって比較することができます。
 
-また、ターゲットが<LocalizedLink href="/guides/features/cache/generated-project#supported-products">キャッシュ不可能なターゲット</LocalizedLink>に直接的にも間接的にも依存していないことを確認してください。
+また、ターゲットが<LocalizedLink href="/guides/features/cache/module-cache#supported-products">キャッシュ不可能なターゲット</LocalizedLink>に直接的にも間接的にも依存していないことを確認してください。
 
 ### 記号の欠落{#missing-symbols}
 

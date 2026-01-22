@@ -174,7 +174,7 @@ tuist generate
 指令比較連續兩次調用`tuist generate` 所產生的專案，或跨環境或跨執行。
 
 此外，請確定目標不會直接或間接依賴於
-<LocalizedLink href="/guides/features/cache/generated-project#supported-products"> 不可快取的目標</LocalizedLink>。
+<LocalizedLink href="/guides/features/cache/module-cache#supported-products"> 不可快取的目標</LocalizedLink>。
 
 ### 遺失的符號{#missing-symbols}
 

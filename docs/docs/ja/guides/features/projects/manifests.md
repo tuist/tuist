@@ -76,7 +76,7 @@ Tuistプロジェクトでは、コールド生成時間がより速く（コン
 
 ## Tuist.swift{#tuistswift}
 
-Tuistは<LocalizedLink href="/contributors/principles.html#default-to-conventions">分かりやすいデフォルト</LocalizedLink>を提供し、プロジェクト構成を簡素化します。しかし、<LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>をプロジェクトのルートに定義することで設定をカスタマイズすることができます。
+Tuistは<LocalizedLink href="/contributors/principles#default-to-conventions">分かりやすいデフォルト</LocalizedLink>を提供し、プロジェクト構成を簡素化します。しかし、<LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>をプロジェクトのルートに定義することで設定をカスタマイズすることができます。
 
 ```swift
 import ProjectDescription

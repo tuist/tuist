@@ -30,10 +30,10 @@ gestionarlo e interactuar con él:
 
 - **Generar:** Este es un flujo de trabajo fundamental. Utilízalo para crear un
   proyecto Xcode compatible con Xcode.
-- **<LocalizedLink href="/guides/features/build">Build</LocalizedLink>:** Este
+- **<LocalizedLink href="/cli/build">Build</LocalizedLink>:** Este
   flujo de trabajo no sólo genera el proyecto Xcode, sino que también emplea
   `xcodebuild` para compilarlo.
-- **<LocalizedLink href="/guides/features/test">Prueba</LocalizedLink>:** Al
+- **<LocalizedLink href="/cli/test">Prueba</LocalizedLink>:** Al
   igual que el flujo de trabajo de compilación, no sólo genera el proyecto de
   Xcode, sino que utiliza `xcodebuild` para probarlo.
 

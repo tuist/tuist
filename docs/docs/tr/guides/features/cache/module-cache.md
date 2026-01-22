@@ -211,7 +211,7 @@ ardışık çağrısı tarafından veya ortamlar ya da çalıştırmalar arasın
 oluşturulan projeleri karşılaştırmak için `diff` komutunu kullanabilirsiniz.
 
 Ayrıca hedefin doğrudan ya da dolaylı olarak
-<LocalizedLink href="/guides/features/cache/generated-project#supported-products">önbelleğe alınamayan hedefe</LocalizedLink> bağlı olmadığından emin olun.
+<LocalizedLink href="/guides/features/cache/module-cache#supported-products">önbelleğe alınamayan hedefe</LocalizedLink> bağlı olmadığından emin olun.
 
 ### Eksik semboller {#missing-symbols}
 

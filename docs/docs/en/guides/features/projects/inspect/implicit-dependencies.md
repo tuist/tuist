@@ -19,7 +19,7 @@ If the command detects any implicit imports, it exits with an exit code other th
 
 ::: tip VALIDATE IN CI
 <!-- -->
-We strongly recommend to run this command as part of your <LocalizedLink href="/guides/features/automate/continuous-integration">continuous integration</LocalizedLink> command every time new code is pushed upstream.
+We strongly recommend to run this command as part of your <LocalizedLink href="/guides/integrations/continuous-integration">continuous integration</LocalizedLink> command every time new code is pushed upstream.
 <!-- -->
 :::
 

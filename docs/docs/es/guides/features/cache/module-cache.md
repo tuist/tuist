@@ -218,7 +218,7 @@ generados por dos invocaciones consecutivas de `tuist generate` o a través de
 entornos o ejecuciones.
 
 Asegúrese también de que el objetivo no depende directa o indirectamente de un
-<LocalizedLink href="/guides/features/cache/generated-project#supported-products">objetivo no almacenable en caché</LocalizedLink>.
+<LocalizedLink href="/guides/features/cache/module-cache#supported-products">objetivo no almacenable en caché</LocalizedLink>.
 
 ### Símbolos que faltan {#missing-symbols}
 

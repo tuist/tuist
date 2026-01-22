@@ -81,7 +81,7 @@ grafikle derlenmesidir.
 ::: tip TUIST DETECTION OF IMPLICIT DEPENDENCIES
 <!-- -->
 Tuist, örtük bağımlılıkları tespit etmek için bir
-<LocalizedLink href="/guides/features/inspect/implicit-dependencies">komut</LocalizedLink>
+<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">komut</LocalizedLink>
 sağlar. CI'da tüm bağımlılıklarınızın açık olduğunu doğrulamak için bu komutu
 kullanabilirsiniz.
 <!-- -->

@@ -216,7 +216,7 @@ wygenerowane przez dwa kolejne wywołania `tuist generate` lub między
 środowiskami lub uruchomieniami.
 
 Upewnij się również, że cel nie zależy bezpośrednio lub pośrednio od celu
-<LocalizedLink href="/guides/features/cache/generated-project#supported-products">non-cacheable</LocalizedLink>.
+<LocalizedLink href="/guides/features/cache/module-cache#supported-products">non-cacheable</LocalizedLink>.
 
 ### Brakujące symbole {#missing-symbols}
 

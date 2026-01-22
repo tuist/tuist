@@ -21,9 +21,9 @@ Package Manager를 사용해본 적이 있다면 이 방식과 유사합니다.
 프로젝트를 정의하면 Tuist는 이를 관리하고 다룰 수 있는 다양한 워크플로를 제공합니다:
 
 - **Generate:** 이것은 기본적인 워크플로입니다. Xcode와 호환되는 Xcode 프로젝트를 생성할 때 사용합니다.
-- **<LocalizedLink href="/guides/features/build">Build</LocalizedLink>:** 이
+- **<LocalizedLink href="/cli/build">Build</LocalizedLink>:** 이
   워크플로는 Xcode 프로젝트를 생성할 뿐만 아니라 `xcodebuild`를 통해 컴파일도 진행합니다.
-- **<LocalizedLink href="/guides/features/test">Test</LocalizedLink>:** 빌드 워크플로와
+- **<LocalizedLink href="/cli/test">Test</LocalizedLink>:** 빌드 워크플로와
   유사하게 동작하고, Xcode 프로젝트를 생성할 뿐만 아니라 `xcodebuild`를 통해 테스트도 수행합니다.
 
 ## Xcode 프로젝트의 과제 {#challenges-with-xcode-projects}

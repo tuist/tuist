@@ -84,7 +84,7 @@ XcodeProj الخاص بـ Tuist.
 تكاملًا قائمًا على XcodeProj يسمح لك بدمج حزم Swift في مشروعك باستخدام أهداف
 XcodeProj. وبفضل ذلك، لا يمكننا فقط منحك مزيدًا من التحكم في التكامل، بل يمكننا
 أيضًا جعله متوافقًا مع عمليات سير العمل مثل
-<LocalizedLink href="/guides/features/cache">التخزين المؤقت</LocalizedLink> و <LocalizedLink href="/guides/features/test/selective-testing">عمليات التشغيل الاختبار الانتقائي</LocalizedLink>.
+<LocalizedLink href="/guides/features/cache">التخزين المؤقت</LocalizedLink> و <LocalizedLink href="/guides/features/selective-testing">عمليات التشغيل الاختبار الانتقائي</LocalizedLink>.
 
 من المرجح أن يستغرق تكامل XcodeProj المزيد من الوقت لدعم ميزات Swift Package
 الجديدة أو التعامل مع المزيد من تكوينات الحزمة. ومع ذلك، فإن منطق التعيين بين

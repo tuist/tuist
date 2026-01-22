@@ -83,7 +83,7 @@ Tuist 會解析相依性圖形，並將相依性的專案包含在工作區中�
 ## Tuist.swift{#tuistswift}
 
 Tuist 提供了
-<LocalizedLink href="/contributors/principles.html#default-to-conventions">合理的預設值</LocalizedLink>來簡化專案配置。不過，您可以透過在專案根目錄定義
+<LocalizedLink href="/contributors/principles#default-to-conventions">合理的預設值</LocalizedLink>來簡化專案配置。不過，您可以透過在專案根目錄定義
 <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>
 來自訂配置，Tuist 會使用它來判斷專案的根目錄。
 
