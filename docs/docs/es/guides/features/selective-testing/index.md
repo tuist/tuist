@@ -5,54 +5,58 @@
   "description": "Learn how to leverage selective testing to run only the tests that have changed."
 }
 ---
-# Selective testing {#selective-testing}
+# Pruebas selectivas {#selective-testing}
 
-::: warning REQUIREMENTS
+::: advertencia REQUISITOS
 <!-- -->
-- A <LocalizedLink href="/guides/features/projects">generated
-  project</LocalizedLink>
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
-  project</LocalizedLink>
+- Un proyecto
+  <LocalizedLink href="/guides/features/projects">generado.</LocalizedLink>
+- Una cuenta y un proyecto
+  <LocalizedLink href="/guides/server/accounts-and-projects">Tuist.</LocalizedLink>
 <!-- -->
 :::
 
-To run tests selectively with your generated project, use the `tuist test`
-command. The command
-<LocalizedLink href="/guides/features/projects/hashing">hashes</LocalizedLink>
-your Xcode project the same way it does for
-<LocalizedLink href="/guides/features/cache#cache-warming">warming the
-cache</LocalizedLink>, and on success, it persists the hashes on to determine
-what has changed in future runs.
+Para ejecutar pruebas de forma selectiva con tu proyecto generado, utiliza el
+comando `tuist test`. El comando
+<LocalizedLink href="/guides/features/projects/hashing">hash</LocalizedLink> tu
+proyecto Xcode de la misma manera que lo hace para
+<LocalizedLink href="/guides/features/cache#cache-warming">calentar la
+caché</LocalizedLink>, y si tiene éxito, persiste los hash para determinar qué
+ha cambiado en futuras ejecuciones.
 
-In future runs `tuist test` transparently uses the hashes to filter down the
-tests to run only the ones that have changed since the last successful test run.
+En futuras ejecuciones, `tuist test` utiliza de forma transparente los hash para
+filtrar las pruebas y ejecutar solo aquellas que han cambiado desde la última
+ejecución exitosa.
 
-For example, assuming the following dependency graph:
+Por ejemplo, supongamos el siguiente gráfico de dependencias:
 
-- `FeatureA` has tests `FeatureATests`, and depends on `Core`
-- `FeatureB` has tests `FeatureBTests`, and depends on `Core`
-- `Core` has tests `CoreTests`
+- `FeatureA` tiene pruebas `FeatureATests` y depende de `Core`
+- `FeatureB` tiene pruebas `FeatureBTests` y depende de `Core`
+- `Core` tiene pruebas `CoreTests`
 
-`tuist test` will behave as such:
+`La prueba tuist` se comportará de la siguiente manera:
 
-| Action                  | Description                                                         | Internal state                                                                 |
-| ----------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `tuist test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The hashes of `FeatureATests`, `FeatureBTests` and `CoreTests` are persisted   |
-| `FeatureA` is updated   | The developer modifies the code of a target                         | Same as before                                                                 |
-| `tuist test` invocation | Runs the tests in `FeatureATests` because it hash has changed       | The new hash of `FeatureATests` is persisted                                   |
-| `Core` is updated       | The developer modifies the code of a target                         | Same as before                                                                 |
-| `tuist test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The new hash of `FeatureATests` `FeatureBTests`, and `CoreTests` are persisted |
+| Acción                               | Descripción                                                           | Estado interno                                                              |
+| ------------------------------------ | --------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `Prueba tuist invocación`            | Ejecuta las pruebas en `CoreTests`, `FeatureATests` y `FeatureBTests` | Los hash de `FeatureATests`, `FeatureBTests` y `CoreTests` se mantienen.    |
+| `Característica: se ha actualizado`. | El desarrollador modifica el código de un objetivo.                   | Igual que antes.                                                            |
+| `Prueba tuist invocación`            | Ejecuta las pruebas en `FeatureATests` porque el hash ha cambiado.    | El nuevo hash de `FeatureATests` se mantiene.                               |
+| `Se ha actualizado el núcleo`.       | El desarrollador modifica el código de un objetivo.                   | Igual que antes.                                                            |
+| `Prueba tuist invocación`            | Ejecuta las pruebas en `CoreTests`, `FeatureATests` y `FeatureBTests` | El nuevo hash de `FeatureATests` `FeatureBTests` y `CoreTests` se mantiene. |
 
-`tuist test` integrates directly with binary caching to use as many binaries
-from your local or remote storage to improve the build time when running your
-test suite. The combination of selective testing with binary caching can
-dramatically reduce the time it takes to run tests on your CI.
+`La prueba tuist` se integra directamente con el almacenamiento en caché binario
+para utilizar tantos binarios como sea posible de su almacenamiento local o
+remoto y mejorar así el tiempo de compilación al ejecutar su conjunto de
+pruebas. La combinación de pruebas selectivas con almacenamiento en caché
+binario puede reducir drásticamente el tiempo que se tarda en ejecutar las
+pruebas en su CI.
 
-## UI Tests {#ui-tests}
+## Pruebas de interfaz de usuario {#ui-tests}
 
-Tuist supports selective testing of UI tests. However, Tuist needs to know the
-destination in advance. Only if you specify the `destination` parameter, Tuist
-will run the UI tests selectively, such as:
+Tuist admite pruebas selectivas de pruebas de interfaz de usuario. Sin embargo,
+Tuist necesita conocer el destino por adelantado. Solo si especificas el destino
+`` , Tuist ejecutará las pruebas de interfaz de usuario de forma selectiva, como
+por ejemplo:
 ```sh
 tuist test --device 'iPhone 14 Pro'
 # or
