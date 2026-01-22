@@ -13,7 +13,7 @@ On every test run on the CI, you most likely re-run all the tests, regardless of
 
 To run tests selectively with your <LocalizedLink href="/guides/features/projects">generated project</LocalizedLink>, use the `tuist test` command. The command <LocalizedLink href="/guides/features/projects/hashing">hashes</LocalizedLink> your Xcode project the same way it does for the <LocalizedLink href="/guides/features/cache/module-cache">module cache</LocalizedLink>, and on success, it persists the hashes to determine what has changed in future runs. In future runs, `tuist test` transparently uses the hashes to filter down the tests and run only the ones that have changed since the last successful test run.
 
-`tuist test` integrates directly with <LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink> to use as many binaries from your local or remote storage to improve the build time when running your test suite. The combination of selective testing with binary caching can dramatically reduce the time it takes to run tests on your CI.
+`tuist test` integrates directly with the <LocalizedLink href="/guides/features/cache/module-cache">module cache</LocalizedLink> to use as many binaries from your local or remote storage to improve the build time when running your test suite. The combination of selective testing with module caching can dramatically reduce the time it takes to run tests on your CI.
 
 ::: warning MODULE VS FILE-LEVEL GRANULARITY
 <!-- -->
