@@ -7,28 +7,28 @@
 ---
 # 選択的検査{#selective-testing}
 
-プロジェクトが大きくなるにつれて、テストの量も増えていきます。長い間、PR や`main`
-へのプッシュのたびにすべてのテストを実行すると、数十秒かかっていました。しかし、この方法では何千ものテストに対応できません。
+プロジェクトが成長するにつれて、テストの数も増加します。長らく、`main へのすべてのプルリクエストやプッシュに対して全テストを実行するには、`
+で数十秒を要していました。しかしこの解決策は、チームが抱える数千ものテストには対応できません。
 
-CI上でテストを実行するたびに、ほとんどの場合、変更点に関係なくすべてのテストを再実行することになる。Tuistの選択的テストは、私たちの<LocalizedLink href="/guides/features/projects/hashing">ハッシングアルゴリズム</LocalizedLink>に基づいて、最後に成功したテスト実行以降に変更されたテストのみを実行することで、テストの実行自体を劇的に高速化するのに役立ちます。
+CIでのテスト実行時には、変更の有無に関わらず全テストを再実行している可能性が高いです。Tuistの選択的テスト機能は、<LocalizedLink href="/guides/features/projects/hashing">ハッシュアルゴリズム</LocalizedLink>に基づき前回の成功実行以降に変更されたテストのみを実行することで、テスト実行自体を大幅に高速化します。
 
 選択的テストは、`xcodebuild`
-で動作します。これはあらゆるXcodeプロジェクトをサポートし、Tuistでプロジェクトを生成する場合は、代わりに`tuist test`
-コマンドを使用することができます。選択テストを始めるには、プロジェクトのセットアップに基づいた指示に従ってください：
+で動作します。これはあらゆるXcodeプロジェクトをサポートします。Tuistでプロジェクトを生成している場合は、代わりに`tuist test`
+コマンドを使用できます。これは<LocalizedLink href="/guides/features/cache">バイナリキャッシュ</LocalizedLink>との統合など、追加の利便性を提供します。選択的テストを開始するには、プロジェクト設定に基づいて以下の手順に従ってください：
 
-- <LocalizedLink href="/guides/features/selective-testing/xcode-project">エックスコードビルド</LocalizedLink>
+- <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
 - <LocalizedLink href="/guides/features/selective-testing/generated-project">生成されたプロジェクト</LocalizedLink>
 
 ::: warning MODULE VS FILE-LEVEL GRANULARITY
 <!-- -->
-テストとソース間のコード内依存性を検出することは不可能であるため、選択的テストの最大粒度は、ターゲット
-レベルになります。従って、選択的テストの利点を最大化するために、ターゲットを小さくし、焦点を絞ることを推奨します。
+テストとソース間のコード内依存関係を検出できないため、選択的テストの最大粒度はターゲットレベルとなります。したがって、選択的テストの効果を最大化するため、ターゲットを小さく焦点を絞った状態に保つことを推奨します。
 <!-- -->
 :::
 
 ::: warning TEST COVERAGE
 <!-- -->
-テストカバレッジツールはテストスイート全体が一度に実行されることを前提にしているので、選択的なテスト実行とは相性が悪いのです。これは、カバレッジデータがテスト選択時に現実を反映していない可能性があることを意味する。これは既知の限界であり、あなたが何か間違ったことをしているという意味ではない。カバレッジがこのような状況でも意味のある洞察をもたらすかどうか、チームの皆さんに考えていただくことをお勧めします。もしそうであれば、私たちは将来、カバレッジを選択的実行で適切に機能させる方法をすでに考えていますので、ご安心ください。
+テストカバレッジツールはテストスイート全体が一括実行されることを前提としているため、選択的テスト実行とは互換性がありません。つまり、テスト選択時にカバレッジデータが実態を反映しない可能性があります。これは既知の制限事項であり、操作ミスを意味するものではありません。
+この状況下でカバレッジが依然として有意義な知見をもたらしているか、チームで検討することを推奨します。もしそうであれば、将来的に選択的実行とカバレッジを適切に連携させる方法を既に検討中ですのでご安心ください。
 <!-- -->
 :::
 
@@ -37,12 +37,11 @@ CI上でテストを実行するたびに、ほとんどの場合、変更点に
 
 ::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
-プル/マージリクエストのコメントを自動的に取得するには、<LocalizedLink href="/guides/server/accounts-and-projects">Tuistプロジェクト</LocalizedLink>を<LocalizedLink href="/guides/server/authentication">Gitプラットフォーム</LocalizedLink>と統合してください。
+自動プルリクエスト/マージリクエストコメントを取得するには、<LocalizedLink href="/guides/server/accounts-and-projects">Tuistプロジェクト</LocalizedLink>を<LocalizedLink href="/guides/server/authentication">Gitプラットフォーム</LocalizedLink>と連携させてください。
 <!-- -->
 :::
 
-Tuistプロジェクトが[GitHub](https://github.com)のようなGitプラットフォームと接続され、`tuist xcodebuild
-test` または`tuist test` をCI
-wortkflowの一部として使い始めると、Tuistはどのテストが実行され、どのテストがスキップされたかを含むコメントをプル/マージリクエストに直接投稿します:
-![GitHub app comment with a Tuist Preview
-link](/images/guides/features/selective-testing/github-app-comment.png).
+Tuistプロジェクトを[GitHub](https://github.com)などのGitプラットフォームと連携し、CIワークフローの一環として`tuist
+xcodebuild test` または`tuist test`
+を実行すると、Tuistはプルリクエスト/マージリクエストに直接コメントを投稿します。実行されたテストとスキップされたテストが含まれます:
+![GitHubアプリへのTuistプレビューリンク付きコメント](/images/guides/features/selective-testing/github-app-comment.png)
