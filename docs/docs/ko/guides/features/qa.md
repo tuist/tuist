@@ -27,7 +27,7 @@ Tuist QA를 사용하려면 다음을 수행해야 합니다:
 - PR CI 워크플로우에서
   <LocalizedLink href="/guides/features/previews">Previews</LocalizedLink> 업로드를
   설정하면 상담원이 테스트에 사용할 수 있습니다.
-- <LocalizedLink href="/guides/integrations/gitforge/github">GitHub와 통합</LocalizedLink>하여
+- <LocalizedLink href="/guides/integrations/gitforge/github">1}을 GitHub와 통합하여
   PR에서 직접 에이전트를 트리거할 수 있습니다.
 
 ## 사용량 {#usage}
@@ -47,7 +47,8 @@ PR 댓글이 링크되는 대시보드의 보고서에는 이슈 목록과 타�
 ![QA 타임라인](/images/guides/features/qa/qa-timeline.png)
 
 공개 대시보드(https://tuist.dev/tuist/tuist/qa)에서
-<LocalizedLink href="/guides/features/previews#tuist-ios-app">iOS 앱</LocalizedLink>에 대해 수행한 모든 QA 실행을 확인할 수 있습니다.
+<LocalizedLink href="/guides/features/previews#tuist-ios-app">iOS
+앱</LocalizedLink>에 대해 수행한 모든 QA 실행을 확인할 수 있습니다.
 
 ::: info Mise란?
 <!-- -->
@@ -93,7 +94,7 @@ The app additionally includes a profile tab to surface about information about t
 
 ![인수 그룹 시작](/images/guides/features/qa/launch-argument-groups.png)
 
-이러한 실행 인수는 표준 Xcode 실행 인수입니다. 다음은 이 인수를 사용하여 자동으로 로그인하는 방법에 대한 예제입니다:
+이러한 실행 인수는 표준 Xcode 실행 인수입니다. 다음은 이를 사용하여 자동으로 로그인하는 방법에 대한 예제입니다:
 
 ```swift
 import ArgumentParser
