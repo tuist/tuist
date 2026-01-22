@@ -1,4 +1,4 @@
-alias Credo.Checks.TimestampsType
+alias Credo.Checks.{DisallowSpec, TimestampsType}
 
 %{
   configs: [
@@ -17,6 +17,7 @@ alias Credo.Checks.TimestampsType
         extra: [
           {Credo.Check.Refactor.Nesting, [max_nesting: 3]},
           {TimestampsType, files: %{included: ["lib/"]}, allowed_type: :utc_datetime},
+          {DisallowSpec, []},
           {Credo.Checks.UnusedReturnValue,
            [
              files: %{excluded: ["priv/repo/migrations/"]},
