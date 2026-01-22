@@ -695,7 +695,7 @@ test_case_definitions =
     }
   end
 
-test_case_id_map = Tuist.Runs.create_test_cases(tuist_project.id, test_case_definitions)
+{test_case_id_map, _test_cases_with_flaky_run} = Tuist.Runs.create_test_cases(tuist_project.id, test_case_definitions)
 
 # Convert to a list of test cases grouped by module/suite for fast lookup
 _test_cases_by_module_suite =
