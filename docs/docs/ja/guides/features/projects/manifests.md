@@ -7,24 +7,23 @@
 ---
 # マニフェスト{#manifests}
 
-Tuistは、プロジェクトとワークスペースを定義し、生成プロセスを設定する主な方法として、Swiftファイルをデフォルトとしています。これらのファイルはドキュメント全体を通して**マニフェストファイル**
+Tuistは、プロジェクトとワークスペースの定義、および生成プロセスの設定を主にSwiftファイルで行うことをデフォルトとしています。これらのファイルは、ドキュメント全体で**マニフェストファイル**
 と呼ばれています。
 
-Swiftを使用するという決定は、パッケージを定義するためにSwiftファイルも使用する[Swift Package
-Manager](https://www.swift.org/documentation/package-manager/)に触発されました。Swiftを使用するおかげで、内容の正しさを検証し、異なるマニフェストファイル間でコードを再利用するためにコンパイラを活用することができ、構文のハイライト、オートコンプリート、および検証のおかげでファーストクラスの編集エクスペリエンスを提供するためにXcodeを活用することができます。
+Swiftの採用は、パッケージ定義にSwiftファイルを使用する[Swift Package
+Manager](https://www.swift.org/documentation/package-manager/)に触発されたものです。Swiftの採用により、コンパイラを活用した内容の正確性検証や異なるマニフェストファイル間でのコード再利用が可能となり、Xcodeの構文ハイライト・自動補完・検証機能による優れた編集環境を実現しています。
 
 ::: info CACHING
 <!-- -->
-マニフェストファイルはコンパイルが必要な Swift ファイルであるため、Tuist
-はコンパイル結果をキャッシュして解析処理を高速化します。そのため、Tuist
-を最初に実行したときは、プロジェクトの生成に少し時間がかかるかもしれません。その後の実行は速くなる。
+マニフェストファイルはコンパイルが必要なSwiftファイルであるため、Tuistは解析処理を高速化するためにコンパイル結果をキャッシュします。そのため、Tuistを初めて実行する際はプロジェクト生成に少し時間がかかる場合があります。以降の実行は高速化されます。
 <!-- -->
 :::
 
-## プロジェクト.swift{#projectswift}
+## Project.swift{#projectswift}
 
-1}`Project.swift`</LocalizedLink> マニフェストは Xcode プロジェクトを宣言します。プロジェクトは、`name`
-プロパティに示された名前で、マニフェストファイルがあるのと同じディレクトリに生成されます。
+<LocalizedLink href="/references/project-description/structs/project">`Project.swift`</LocalizedLink>
+マニフェストはXcodeプロジェクトを宣言します。プロジェクトはマニフェストファイルが存在するディレクトリ内に、`name`
+プロパティで指定された名前で生成されます。
 
 ```swift
 // Project.swift
@@ -39,16 +38,16 @@ let project = Project(
 
 ::: warning ROOT VARIABLES
 <!-- -->
-マニフェストのルートにあるべき唯一の変数は`let project = Project(...)`
-です。マニフェストのさまざまな部分でコードを再利用する必要がある場合、Swift 関数を使用することができます。
+マニフェストのルートに置くべき唯一の変数は`let project = Project(...)`
+です。マニフェストの複数箇所でコードを再利用する必要がある場合は、Swift関数を使用できます。
 <!-- -->
 :::
 
-## ワークスペース.swift{#workspaceswift}
+## Workspace.swift{#workspaceswift}
 
-デフォルトでは、Tuist は生成されるプロジェクトとその依存関係のプロジェクトを含む [Xcode
-ワークスペース](https://developer.apple.com/documentation/xcode/projects-and-workspaces)
-を生成します。何らかの理由でワークスペースをカスタマイズしてプロジェクトを追加したり、ファイルやグループをインクルードしたい場合は、<LocalizedLink href="/references/project-description/structs/workspace">`Workspace.swift`</LocalizedLink>マニフェストを定義することで可能です。
+デフォルトでは、Tuistは生成対象プロジェクトとその依存プロジェクトを含む[Xcode
+Workspace](https://developer.apple.com/documentation/xcode/projects-and-workspaces)を生成します。何らかの理由でワークスペースをカスタマイズし、追加プロジェクトやファイル・グループを含めたい場合は、<LocalizedLink href="/references/project-description/structs/workspace">`Workspace.swift`</LocalizedLink>
+マニフェストを定義することで実現できます。
 
 ```swift
 // Workspace.swift
@@ -64,19 +63,19 @@ let workspace = Workspace(
 
 ::: info
 <!-- -->
-Tuistは依存関係グラフを解決し、依存関係のプロジェクトをワークスペースに含めます。それらを手動でインクルードする必要はない。これはビルドシステムが依存関係を正しく解決するために必要なことである。
+Tuistは依存関係グラフを解決し、ワークスペースに依存関係のプロジェクトを含めます。手動で追加する必要はありません。これはビルドシステムが依存関係を正しく解決するために必要です。
 <!-- -->
 :::
 
-### マルチまたはモノ・プロジェクト{#multi-or-monoproject}
+### マルチプロジェクトまたは単一プロジェクト{#multi-or-monoproject}
 
-よく出てくる疑問は、ワークスペースで単一のプロジェクトを使うか、複数のプロジェクトを使うかということだ。Tuistのない世界では、単一プロジェクトのセットアップは頻繁なGitコンフリクトにつながるため、ワークスペースの使用が推奨されます。しかし、私たちはTuistが生成したXcodeプロジェクトをGitリポジトリに含めることを推奨していないので、Gitの衝突は問題ではない。したがって、ワークスペースに単一のプロジェクトを使うか、複数のプロジェクトを使うかは、あなた次第です。
+よくある質問として、ワークスペース内で単一プロジェクトを使用するか複数プロジェクトを使用するかが挙げられます。Tuistが存在しない環境では、単一プロジェクト構成は頻繁なGitコンフリクトを引き起こすため、ワークスペースの使用が推奨されます。しかし、Tuistが生成したXcodeプロジェクトをGitリポジトリに含めることは推奨していないため、Gitコンフリクトは問題になりません。したがって、ワークスペース内で単一プロジェクトを使用するか複数プロジェクトを使用するかは、ご自身の判断に委ねられます。
 
-Tuistプロジェクトでは、コールド生成時間がより速く（コンパイルするマニフェストファイルがより少ない）、カプセル化の単位として<LocalizedLink href="/guides/features/projects/code-sharing">プロジェクト記述ヘルパー</LocalizedLink>を活用するため、モノプロジェクトに傾いています。しかし、アプリケーションの異なるドメインを表すカプセル化の単位としてXcodeプロジェクトを使用したいかもしれません。
+Tuistプロジェクトでは、初期生成時間が短縮される（コンパイル対象のマニフェストファイルが少なくなる）ため単一プロジェクトを採用し、カプセル化の単位として<LocalizedLink href="/guides/features/projects/code-sharing">プロジェクト記述ヘルパー</LocalizedLink>を活用しています。ただし、アプリケーションの異なるドメインを表現するカプセル化の単位としてXcodeプロジェクトを使用することも可能です。これはXcodeが推奨するプロジェクト構造により適合します。
 
 ## Tuist.swift{#tuistswift}
 
-Tuistは<LocalizedLink href="/contributors/principles.html#default-to-conventions">分かりやすいデフォルト</LocalizedLink>を提供し、プロジェクト構成を簡素化します。しかし、<LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>をプロジェクトのルートに定義することで設定をカスタマイズすることができます。
+Tuistはプロジェクト設定を簡素化するため、<LocalizedLink href="/contributors/principles.html#default-to-conventions">合理的なデフォルト設定</LocalizedLink>を提供します。ただし、プロジェクトルートに<LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>を定義することで設定をカスタマイズ可能です。Tuistはこの設定ファイルを用いてプロジェクトのルートを判定します。
 
 ```swift
 import ProjectDescription
