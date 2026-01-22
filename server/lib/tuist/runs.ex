@@ -19,7 +19,7 @@ defmodule Tuist.Runs do
 
   import Ecto.Query
 
-  alias Tuist.Alerts.Workers.FlakyTestAlertWorker
+  alias Tuist.Alerts.Workers.FlakyThresholdCheckWorker
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
@@ -509,9 +509,9 @@ defmodule Tuist.Runs do
       {:ok, test} ->
         test_case_ids_with_flaky_run = create_test_modules(test, test_modules)
 
-        project = Tuist.Projects.get_project_by_id(test.project_id)
+        schedule_flaky_threshold_check(test.project_id, test_case_ids_with_flaky_run)
 
-        check_and_mark_flaky_test_cases(project, test_case_ids_with_flaky_run)
+        project = Tuist.Projects.get_project_by_id(test.project_id)
 
         Tuist.PubSub.broadcast(
           test,
@@ -526,32 +526,12 @@ defmodule Tuist.Runs do
     end
   end
 
-  defp check_and_mark_flaky_test_cases(_project, []), do: :ok
+  defp schedule_flaky_threshold_check(_project_id, []), do: :ok
 
-  defp check_and_mark_flaky_test_cases(%{auto_mark_flaky_tests: false}, _test_case_ids), do: :ok
-
-  defp check_and_mark_flaky_test_cases(project, test_case_ids) do
-    flaky_counts = get_flaky_runs_groups_counts_for_test_cases(test_case_ids)
-
-    Enum.each(test_case_ids, fn test_case_id ->
-      flaky_runs_count = Map.get(flaky_counts, test_case_id, 0)
-
-      if flaky_runs_count >= project.auto_mark_flaky_threshold do
-        {:ok, _} = update_test_case(test_case_id, %{is_flaky: true})
-
-        auto_quarantined =
-          if project.auto_quarantine_flaky_tests do
-            {:ok, _} = update_test_case(test_case_id, %{is_quarantined: true})
-            true
-          else
-            false
-          end
-
-        %{test_case_id: test_case_id, project_id: project.id, auto_quarantined: auto_quarantined, flaky_runs_count: flaky_runs_count}
-        |> FlakyTestAlertWorker.new()
-        |> Oban.insert!()
-      end
-    end)
+  defp schedule_flaky_threshold_check(project_id, test_case_ids) do
+    %{project_id: project_id, test_case_ids: test_case_ids}
+    |> FlakyThresholdCheckWorker.new(schedule_in: 5)
+    |> Oban.insert!()
 
     :ok
   end
@@ -714,7 +694,6 @@ defmodule Tuist.Runs do
       {:ok, Map.merge(test_case, filtered_attrs)}
     end
   end
-
 
   @doc """
   Lists test case runs for a specific test case by its UUID.

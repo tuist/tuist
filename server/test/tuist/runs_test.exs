@@ -2454,9 +2454,11 @@ defmodule Tuist.RunsTest do
       assert flaky_case.status == "success"
       assert flaky_case.is_flaky == true
 
-      # Verify the TestCase record is also marked as flaky (CI run)
-      {:ok, test_case} = Runs.get_test_case_by_id(flaky_case.test_case_id)
-      assert test_case.is_flaky == true
+      # Verify that a FlakyThresholdCheckWorker was enqueued to mark the test_case as flaky
+      assert_enqueued(
+        worker: Tuist.Alerts.Workers.FlakyThresholdCheckWorker,
+        args: %{project_id: project.id, test_case_ids: [flaky_case.test_case_id]}
+      )
     end
 
     test "marks test_case_run as flaky but not test_case for non-CI runs with repetitions" do
@@ -2580,7 +2582,10 @@ defmodule Tuist.RunsTest do
       ci_run = hd(ci_test_case_runs)
       test_case_id = ci_run.test_case_id
 
-      # Verify TestCase is marked as flaky after CI run
+      # Manually mark the test case as flaky (simulating what the FlakyThresholdCheckWorker would do)
+      {:ok, _} = Runs.update_test_case(test_case_id, %{is_flaky: true})
+
+      # Verify TestCase is marked as flaky
       {:ok, test_case_after_ci} = Runs.get_test_case_by_id(test_case_id)
       assert test_case_after_ci.is_flaky == true
 
@@ -3439,7 +3444,6 @@ defmodule Tuist.RunsTest do
 
     test "returns flaky test cases for a project" do
       project = ProjectsFixtures.project_fixture()
-      test_case_id = Ecto.UUID.generate()
 
       test_modules = fn status ->
         [
@@ -3447,12 +3451,12 @@ defmodule Tuist.RunsTest do
             name: "TestModule",
             status: status,
             duration: 500,
-            test_cases: [%{name: "flakyTest", status: status, duration: 250, test_case_id: test_case_id}]
+            test_cases: [%{name: "flakyTest", status: status, duration: 250}]
           }
         ]
       end
 
-      {:ok, _first_test} =
+      {:ok, first_test} =
         RunsFixtures.test_fixture(
           project_id: project.id,
           account_id: project.account_id,
@@ -3474,6 +3478,13 @@ defmodule Tuist.RunsTest do
           test_modules: test_modules.("failure")
         )
 
+      # Get the actual test_case_id from the created test_case_run
+      {[test_case_run | _], _} =
+        Runs.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: first_test.id}]})
+
+      # Mark the test_case as flaky (simulating what the FlakyThresholdCheckWorker would do)
+      {:ok, _} = Runs.update_test_case(test_case_run.test_case_id, %{is_flaky: true})
+
       RunsFixtures.optimize_test_case_runs()
 
       {flaky_tests, meta} = Runs.list_flaky_test_cases(project.id, %{})
@@ -3490,41 +3501,51 @@ defmodule Tuist.RunsTest do
     test "supports pagination" do
       project = ProjectsFixtures.project_fixture()
 
-      for i <- 1..3 do
-        test_case_id = Ecto.UUID.generate()
+      test_case_ids =
+        for i <- 1..3 do
+          test_modules = fn status ->
+            [
+              %{
+                name: "TestModule",
+                status: status,
+                duration: 500,
+                test_cases: [%{name: "flakyTest#{i}", status: status, duration: 250}]
+              }
+            ]
+          end
 
-        test_modules = fn status ->
-          [
-            %{
-              name: "TestModule",
-              status: status,
-              duration: 500,
-              test_cases: [%{name: "flakyTest#{i}", status: status, duration: 250, test_case_id: test_case_id}]
-            }
-          ]
+          {:ok, first_test} =
+            RunsFixtures.test_fixture(
+              project_id: project.id,
+              account_id: project.account_id,
+              git_commit_sha: "commit#{i}",
+              is_ci: true,
+              status: "success",
+              ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+              test_modules: test_modules.("success")
+            )
+
+          {:ok, _} =
+            RunsFixtures.test_fixture(
+              project_id: project.id,
+              account_id: project.account_id,
+              git_commit_sha: "commit#{i}",
+              is_ci: true,
+              status: "failure",
+              ran_at: NaiveDateTime.utc_now(),
+              test_modules: test_modules.("failure")
+            )
+
+          # Get the actual test_case_id from the created test_case_run
+          {[test_case_run | _], _} =
+            Runs.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: first_test.id}]})
+
+          test_case_run.test_case_id
         end
 
-        {:ok, _} =
-          RunsFixtures.test_fixture(
-            project_id: project.id,
-            account_id: project.account_id,
-            git_commit_sha: "commit#{i}",
-            is_ci: true,
-            status: "success",
-            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
-            test_modules: test_modules.("success")
-          )
-
-        {:ok, _} =
-          RunsFixtures.test_fixture(
-            project_id: project.id,
-            account_id: project.account_id,
-            git_commit_sha: "commit#{i}",
-            is_ci: true,
-            status: "failure",
-            ran_at: NaiveDateTime.utc_now(),
-            test_modules: test_modules.("failure")
-          )
+      # Mark all test_cases as flaky (simulating what the FlakyThresholdCheckWorker would do)
+      for test_case_id <- test_case_ids do
+        {:ok, _} = Runs.update_test_case(test_case_id, %{is_flaky: true})
       end
 
       RunsFixtures.optimize_test_case_runs()
@@ -3543,41 +3564,51 @@ defmodule Tuist.RunsTest do
     test "supports search filtering by name" do
       project = ProjectsFixtures.project_fixture()
 
-      for {name, i} <- [{"loginTest", 1}, {"logoutTest", 2}, {"profileTest", 3}] do
-        test_case_id = Ecto.UUID.generate()
+      test_case_ids =
+        for {name, i} <- [{"loginTest", 1}, {"logoutTest", 2}, {"profileTest", 3}] do
+          test_modules = fn status ->
+            [
+              %{
+                name: "TestModule",
+                status: status,
+                duration: 500,
+                test_cases: [%{name: name, status: status, duration: 250}]
+              }
+            ]
+          end
 
-        test_modules = fn status ->
-          [
-            %{
-              name: "TestModule",
-              status: status,
-              duration: 500,
-              test_cases: [%{name: name, status: status, duration: 250, test_case_id: test_case_id}]
-            }
-          ]
+          {:ok, first_test} =
+            RunsFixtures.test_fixture(
+              project_id: project.id,
+              account_id: project.account_id,
+              git_commit_sha: "commit#{i}",
+              is_ci: true,
+              status: "success",
+              ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+              test_modules: test_modules.("success")
+            )
+
+          {:ok, _} =
+            RunsFixtures.test_fixture(
+              project_id: project.id,
+              account_id: project.account_id,
+              git_commit_sha: "commit#{i}",
+              is_ci: true,
+              status: "failure",
+              ran_at: NaiveDateTime.utc_now(),
+              test_modules: test_modules.("failure")
+            )
+
+          # Get the actual test_case_id from the created test_case_run
+          {[test_case_run | _], _} =
+            Runs.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: first_test.id}]})
+
+          test_case_run.test_case_id
         end
 
-        {:ok, _} =
-          RunsFixtures.test_fixture(
-            project_id: project.id,
-            account_id: project.account_id,
-            git_commit_sha: "commit#{i}",
-            is_ci: true,
-            status: "success",
-            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
-            test_modules: test_modules.("success")
-          )
-
-        {:ok, _} =
-          RunsFixtures.test_fixture(
-            project_id: project.id,
-            account_id: project.account_id,
-            git_commit_sha: "commit#{i}",
-            is_ci: true,
-            status: "failure",
-            ran_at: NaiveDateTime.utc_now(),
-            test_modules: test_modules.("failure")
-          )
+      # Mark all test_cases as flaky (simulating what the FlakyThresholdCheckWorker would do)
+      for test_case_id <- test_case_ids do
+        {:ok, _} = Runs.update_test_case(test_case_id, %{is_flaky: true})
       end
 
       RunsFixtures.optimize_test_case_runs()
@@ -3597,41 +3628,51 @@ defmodule Tuist.RunsTest do
     test "supports ordering by name" do
       project = ProjectsFixtures.project_fixture()
 
-      for {name, i} <- [{"zebra", 1}, {"alpha", 2}, {"beta", 3}] do
-        test_case_id = Ecto.UUID.generate()
+      test_case_ids =
+        for {name, i} <- [{"zebra", 1}, {"alpha", 2}, {"beta", 3}] do
+          test_modules = fn status ->
+            [
+              %{
+                name: "TestModule",
+                status: status,
+                duration: 500,
+                test_cases: [%{name: name, status: status, duration: 250}]
+              }
+            ]
+          end
 
-        test_modules = fn status ->
-          [
-            %{
-              name: "TestModule",
-              status: status,
-              duration: 500,
-              test_cases: [%{name: name, status: status, duration: 250, test_case_id: test_case_id}]
-            }
-          ]
+          {:ok, first_test} =
+            RunsFixtures.test_fixture(
+              project_id: project.id,
+              account_id: project.account_id,
+              git_commit_sha: "commit#{i}",
+              is_ci: true,
+              status: "success",
+              ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+              test_modules: test_modules.("success")
+            )
+
+          {:ok, _} =
+            RunsFixtures.test_fixture(
+              project_id: project.id,
+              account_id: project.account_id,
+              git_commit_sha: "commit#{i}",
+              is_ci: true,
+              status: "failure",
+              ran_at: NaiveDateTime.utc_now(),
+              test_modules: test_modules.("failure")
+            )
+
+          # Get the actual test_case_id from the created test_case_run
+          {[test_case_run | _], _} =
+            Runs.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: first_test.id}]})
+
+          test_case_run.test_case_id
         end
 
-        {:ok, _} =
-          RunsFixtures.test_fixture(
-            project_id: project.id,
-            account_id: project.account_id,
-            git_commit_sha: "commit#{i}",
-            is_ci: true,
-            status: "success",
-            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
-            test_modules: test_modules.("success")
-          )
-
-        {:ok, _} =
-          RunsFixtures.test_fixture(
-            project_id: project.id,
-            account_id: project.account_id,
-            git_commit_sha: "commit#{i}",
-            is_ci: true,
-            status: "failure",
-            ran_at: NaiveDateTime.utc_now(),
-            test_modules: test_modules.("failure")
-          )
+      # Mark all test_cases as flaky (simulating what the FlakyThresholdCheckWorker would do)
+      for test_case_id <- test_case_ids do
+        {:ok, _} = Runs.update_test_case(test_case_id, %{is_flaky: true})
       end
 
       RunsFixtures.optimize_test_case_runs()
@@ -3650,7 +3691,6 @@ defmodule Tuist.RunsTest do
     test "does not return test cases from other projects" do
       project1 = ProjectsFixtures.project_fixture()
       project2 = ProjectsFixtures.project_fixture()
-      test_case_id = Ecto.UUID.generate()
 
       test_modules = fn status ->
         [
@@ -3658,12 +3698,12 @@ defmodule Tuist.RunsTest do
             name: "TestModule",
             status: status,
             duration: 500,
-            test_cases: [%{name: "flakyTest", status: status, duration: 250, test_case_id: test_case_id}]
+            test_cases: [%{name: "flakyTest", status: status, duration: 250}]
           }
         ]
       end
 
-      {:ok, _} =
+      {:ok, first_test} =
         RunsFixtures.test_fixture(
           project_id: project1.id,
           account_id: project1.account_id,
@@ -3684,6 +3724,13 @@ defmodule Tuist.RunsTest do
           ran_at: NaiveDateTime.utc_now(),
           test_modules: test_modules.("failure")
         )
+
+      # Get the actual test_case_id from the created test_case_run
+      {[test_case_run | _], _} =
+        Runs.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: first_test.id}]})
+
+      # Mark the test_case as flaky (simulating what the FlakyThresholdCheckWorker would do)
+      {:ok, _} = Runs.update_test_case(test_case_run.test_case_id, %{is_flaky: true})
 
       RunsFixtures.optimize_test_case_runs()
 
@@ -4654,7 +4701,6 @@ defmodule Tuist.RunsTest do
       assert fetched_test_case.is_flaky == false
     end
   end
-
 
   describe "is_new detection for test case runs" do
     test "marks test_case_run as new when no prior CI run exists on default branch" do

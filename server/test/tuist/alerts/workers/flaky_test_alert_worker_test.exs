@@ -70,7 +70,12 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorkerTest do
       # When
       result =
         FlakyTestAlertWorker.perform(%Oban.Job{
-          args: %{"test_case_id" => test_case.id, "project_id" => project.id, "auto_quarantined" => true, "flaky_runs_count" => 3}
+          args: %{
+            "test_case_id" => test_case.id,
+            "project_id" => project.id,
+            "auto_quarantined" => true,
+            "flaky_runs_count" => 3
+          }
         })
 
       # Then
