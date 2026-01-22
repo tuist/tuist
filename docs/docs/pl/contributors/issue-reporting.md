@@ -67,12 +67,12 @@ ludziom, którzy chcą pomóc tobie.
   aby znaleźć błąd.
 - **Nie ma potrzeby publikowania tajnego kodu:** Możesz nie być w stanie
   opublikować swojej głównej strony (z wielu powodów). Przerobienie niewielkiej
-  jej części na powtarzalny przypadek testowy pozwala publicznie zademonstrować
-  problem bez ujawniania tajnego kodu.
+  jej części jako powtarzalnego przypadku testowego pozwala na publiczne
+  zademonstrowanie problemu bez ujawniania tajnego kodu.
 - **Dowód błędu:** Czasami błąd jest spowodowany pewną kombinacją ustawień na
   komputerze. Odtwarzalny przypadek testowy pozwala współtwórcom na pobranie
   kompilacji i przetestowanie jej również na swoich komputerach. Pomaga to
   zweryfikować i zawęzić przyczynę problemu.
 - **Uzyskaj pomoc w naprawieniu błędu:** Jeśli ktoś inny jest w stanie odtworzyć
-  twój problem, często ma duże szanse na jego naprawienie. Naprawienie błędu bez
-  jego wcześniejszego odtworzenia jest prawie niemożliwe.
+  twój problem, często ma duże szanse na jego naprawienie. Niemal niemożliwe
+  jest naprawienie błędu bez jego wcześniejszego odtworzenia.
