@@ -53,9 +53,9 @@ yapılandırmanız gerekecektir:
     `https://tuist.dev/users/auth/okta/callback`
 13. "Login initiated by" ifadesini "Either Okta or App" olarak değiştirin.
 14. "Kullanıcılara uygulama simgesini göster" öğesini seçin
-15. "Oturum açma URL'sini" `https://tuist.dev/users/auth/okta?organization_id=1`
-    ile güncelleyin. ` organization_id` iletişim noktanız tarafından
-    sağlanacaktır.
+15. "Giriş URL'sini başlat "ı
+    `https://tuist.dev/users/auth/okta?organization_id=1` ile güncelleyin. `
+    organization_id` iletişim noktanız tarafından sağlanacaktır.
 16. "Kaydet "e tıklayın.
 17. Okta kontrol panelinizden Tuist oturum açma işlemini başlatın.
 18. Aşağıdaki komutu çalıştırarak Okta etki alanınızdan imzalanan kullanıcılara
