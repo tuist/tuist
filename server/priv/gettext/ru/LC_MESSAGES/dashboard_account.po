@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2026-01-22 12:36+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Sofia Kalinina <sofya.kalinina@gmail.com>\n"
 "Language-Team: Russian <https://translate.tuist.dev/projects/tuist/"
 "dashboard_account/ru/>\n"
 "Language: ru\n"
@@ -66,7 +66,7 @@ msgstr "Администратор"
 #: lib/tuist/billing.ex:37
 #: lib/tuist_web/live/billing_live.ex:187
 #: lib/tuist_web/live/billing_live.html.heex:58
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Air"
 msgstr "Air"
 
