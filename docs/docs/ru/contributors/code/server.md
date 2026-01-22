@@ -5,31 +5,31 @@
   "description": "Contribute to the Tuist Server."
 }
 ---
-# Server {#server}
+# Сервер {#server}
 
-Source:
+Источник:
 [github.com/tuist/tuist/tree/main/server](https://github.com/tuist/tuist/tree/main/server)
 
-## What it is for {#what-it-is-for}
+## Для чего это нужно {#what-it-is-for}
 
-The server powers Tuist’s server-side features like authentication, accounts and
-projects, cache storage, insights, previews, registry, and integrations (GitHub,
-Slack, and SSO). It is a Phoenix/Elixir application with Postgres and
-ClickHouse.
+Сервер обеспечивает работу серверных функций Tuist, таких как аутентификация,
+учетные записи и проекты, хранение кэша, аналитика, предварительный просмотр,
+реестр и интеграции (GitHub, Slack и SSO). Это приложение Phoenix/Elixir с
+Postgres и ClickHouse.
 
 ::: warning TIMESCALEDB DEPRECATION
 <!-- -->
-TimescaleDB is deprecated and will be removed. For now, if you need it for local
-setup or migrations, use the [TimescaleDB installation
-docs](https://docs.timescale.com/self-hosted/latest/install/installation-macos/).
+TimescaleDB устарела и будет удалена. На данный момент, если она вам нужна для
+локальной настройки или миграции, воспользуйтесь [документацией по установке
+TimescaleDB](https://docs.timescale.com/self-hosted/latest/install/installation-macos/).
 <!-- -->
 :::
 
-## How to contribute {#how-to-contribute}
+## Как внести свой вклад {#how-to-contribute}
 
-Contributions to the server require signing the CLA (`server/CLA.md`).
+Для внесения изменений на сервер необходимо подписать CLA (`server/CLA.md`).
 
-### Set up locally {#set-up-locally}
+### Настройте локально {#set-up-locally}
 
 ```bash
 cd server
@@ -49,12 +49,12 @@ mise run install
 mise run dev
 ```
 
-> [!NOTE] First-party developers load encrypted secrets from
-> `priv/secrets/dev.key`. External contributors won't have that key, and that's
-> fine. The server still runs locally with `TUIST_SECRET_KEY_BASE`, but OAuth,
-> Stripe, and other integrations remain disabled.
+> [!ПРИМЕЧАНИЕ] Разработчики-партнеры загружают зашифрованные секретные ключи с
+> `priv/secrets/dev.key`. Внешние участники не будут иметь этот ключ, и это
+> нормально. Сервер по-прежнему работает локально с `TUIST_SECRET_KEY_BASE`, но
+> OAuth, Stripe и другие интеграции остаются отключенными.
 
-### Tests and formatting {#tests-and-formatting}
+### Тесты и форматирование {#tests-and-formatting}
 
-- Tests: `mix test`
-- Format: `mise run format`
+- Тесты: `mix test`
+- Формат: `mise run format`
