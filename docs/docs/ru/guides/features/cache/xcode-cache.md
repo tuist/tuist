@@ -13,9 +13,10 @@ Tuist обеспечивает поддержку кэша компиляции 
 
 ## Настройка {#setup}
 
-::: предупреждение РЕКВИЗИТЫ
+::: warning ТРЕБОВАНИЯ
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Туистский счет и проект</LocalizedLink>
+- <LocalizedLink href="/guides/server/accounts-and-projects"> Аккаунт Tuist и
+  проект</LocalizedLink>
 - Xcode 26.0 или более поздняя версия
 <!-- -->
 :::
@@ -27,8 +28,8 @@ Tuist обеспечивает поддержку кэша компиляции 
 tuist init
 ```
 
-Когда у вас есть файл `Tuist.swift`, ссылающийся на ваш `fullHandle`, вы можете
-настроить кэширование для своего проекта, выполнив команду:
+После того как у вас есть файл `Tuist.swift`, ссылающийся на ваш `fullHandle`,
+вы можете настроить кэширование для вашего проекта, выполнив команду:
 
 ```bash
 tuist setup cache
@@ -103,24 +104,33 @@ let tuist = Tuist(
 Чтобы включить кэширование в среде CI, нужно выполнить ту же команду, что и в
 локальных средах: `tuist setup cache`.
 
-Кроме того, необходимо убедиться, что переменная окружения `TUIST_TOKEN`
-установлена. Вы можете создать ее, следуя документации
-<LocalizedLink href="/guides/server/authentication#as-a-project">здесь</LocalizedLink>.
-Переменная окружения `TUIST_TOKEN` _ должна_ присутствовать на вашем шаге
-сборки, но мы рекомендуем установить ее для всего рабочего процесса CI.
+Для аутентификации можно использовать либо
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC-аутентификацию</LocalizedLink>
+(рекомендуется для поддерживаемых CI-провайдеров), либо
+<LocalizedLink href="/guides/server/authentication#account-tokens">токен учетной
+записи</LocalizedLink> через переменную окружения `TUIST_TOKEN`.
 
-Пример рабочего процесса для GitHub Actions может выглядеть следующим образом:
+Пример рабочего процесса для GitHub Actions с использованием аутентификации
+OIDC:
 ```yaml
 name: Build
 
-env:
-  TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   build:
+    runs-on: macos-latest
     steps:
-      - # Your set up steps...
-      - name: Set up Tuist Cache
-        run: tuist setup cache
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: tuist auth login
+      - run: tuist setup cache
       - # Your build steps
 ```
+
+Дополнительные примеры см. в руководстве
+<LocalizedLink href="/guides/integrations/continuous-integration">Continuous
+Integration</LocalizedLink>, включая аутентификацию на основе токенов и другие
+CI-платформы, такие как Xcode Cloud, CircleCI, Bitrise и Codemagic.
