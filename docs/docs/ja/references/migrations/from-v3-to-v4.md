@@ -5,19 +5,20 @@
   "description": "This page documents how to migrate the Tuist CLI from the version 3 to version 4."
 }
 ---
-# Tuist v3からv4へ{#from-tuist-v3-to-v4}
+# Tuist v3 から v4 へ{#from-tuist-v3-to-v4}
 
-Tuist
-4](https://github.com/tuist/tuist/releases/tag/4.0.0)のリリースに伴い、私たちはプロジェクトにいくつかの変更点を導入する機会を得ました。この文書では、Tuist
-3からTuist 4にアップグレードするためにプロジェクトに加える必要のある変更について概説します。
+[Tuist
+4](https://github.com/tuist/tuist/releases/tag/4.0.0)のリリースに伴い、プロジェクトの長期的な使用と保守を容易にするため、いくつかの重大な変更を導入しました。このドキュメントでは、Tuist
+3からTuist 4へアップグレードするために必要な変更点を説明します。
 
-### `tuistenvによるバージョン管理の廃止` {#dropped-version-management-through-tuistenv}
+### `によるバージョン管理の廃止 tuistenv` {#dropped-version-management-through-tuistenv}
 
-Tuist 4以前は、インストールスクリプトは`tuistenv` というツールをインストールし、インストール時に`tuist`
-という名前に変更された。このツールはTuistのバージョンのインストールとアクティベーションを担当し、環境間の決定性を保証する。Tuistのフィーチャー・サーフェスを減らす目的で、私たちは`tuistenv`
-をやめ、[Mise](https://mise.jdx.dev/)を採用することにしました。これは同じ仕事をするツールですが、より柔軟で、異なるツール間で使用することができます。`tuistenv`
-を使用していた場合は、`curl -Ls https://uninstall.tuist.io | bash`
-を実行して現在のバージョンのTuistをアンインストールし、その後、お好みのインストール方法でインストールしてください。Miseの利用を強くお勧めします。なぜならMiseは環境間で決定論的にインストールとアクティベーションができるからです。
+Tuist 4以前のインストールスクリプトは、ツール`tuistenv` をインストールし、インストール時に`tuist`
+にリネームしていました。このツールはTuistのバージョンをインストール・アクティベートし、環境間で決定論を保証していました。Tuistの機能面を減らす目的で、`tuistenv`
+を廃止し、同様の機能を持ちながら柔軟性が高く異なるツール間で使用可能な[Mise](https://mise.jdx.dev/)ツールを採用することにしました。`tuistenv`
+を使用していた場合、以下のコマンドで現行バージョンのTuistをアンインストールする必要があります：`curl -Ls
+https://uninstall.tuist.io | bash`
+その後、任意の方法で再インストールしてください。環境間で決定論的にバージョンをインストール・アクティベート可能なMiseの使用を強く推奨します。
 
 コードグループ
 
@@ -29,73 +30,77 @@ curl -Ls https://uninstall.tuist.io | bash
 
 ::: warning MISE IN CI ENVIRONMENTS AND XCODE PROJECTS
 <!-- -->
-Miseがもたらす決定論を全面的に受け入れることを決めた場合、[CI環境](https://mise.jdx.dev/continuous-integration.html)と[Xcodeプロジェクト](https://mise.jdx.dev/ide-integration.html#xcode)でMiseを使用する方法のドキュメントをチェックすることをお勧めします。
+Miseが提供する決定論を全面的に採用する場合、[CI環境](https://mise.jdx.dev/continuous-integration.html)および[Xcodeプロジェクト](https://mise.jdx.dev/ide-integration.html#xcode)でのMiseの使用方法に関するドキュメントを確認することを推奨します。
 <!-- -->
 :::
 
 ::: info HOMEBREW IS SUPPORTED
 <!-- -->
-macOS用の一般的なパッケージマネージャであるHomebrewを使用してもTuistをインストールできることに注意してほしい。Homebrewを使ってTuistをインストールする方法は<LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">インストールガイド</LocalizedLink>にあります。
+macOS用の人気パッケージマネージャーであるHomebrewを使用してTuistをインストールすることも可能です。Homebrewを使ったTuistのインストール手順は<LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">インストールガイド</LocalizedLink>でご確認いただけます。
 <!-- -->
 :::
 
-### `init` コンストラクタを`ProjectDescription` モデルから削除した。{#dropped-init-constructors-from-projectdescription-models}
+### ` `のイニシャライザ のコンストラクタ を から削除ProjectDescription のモデル`` {#dropped-init-constructors-from-projectdescription-models}
 
-APIの可読性と表現力を向上させる目的で、`init` コンストラクタをすべての`ProjectDescription`
-モデルから削除することにしました。すべてのモデルは、モデルのインスタンスを生成するために使うことができる静的なコンストラクタを提供するようになりました。`init`
+APIの可読性と表現力を向上させるため、すべての`プロジェクトおよび` モデルから、`init`
+コンストラクタを削除することにしました。各モデルは現在、モデルのインスタンスを作成するために使用できる静的コンストラクタを提供しています。`init`
 コンストラクタを使用していた場合は、代わりに静的コンストラクタを使用するようにプロジェクトを更新する必要があります。
 
 ::: tip NAMING CONVENTION
 <!-- -->
-静的コンストラクタの名前としてモデル名を使用するのが、私たちが従う命名規則です。例えば、`Target`
-モデルの静的コンストラクタは`Target.target` です。
+当社が採用する命名規則では、静的コンストラクタ名にモデル名を使用します。例えば、`Target` の静的コンストラクタ名は`Target.target`
+となります。
 <!-- -->
 :::
 
-### `--no-cache` を`--no-binary-cache に改名。` {#renamed-nocache-to-nobinarycache}
+### `--no-cache` を`--no-binary-cache に改名` {#renamed-nocache-to-nobinarycache}
 
-`--no-cache` フラグがあいまいだったので、バイナリ・キャッシュを指すことを明確にするために、`--no-binary-cache`
-に名前を変更することにしました。`--no-cache` フラグを使用していた場合は、代わりに`--no-binary-cache`
-フラグを使用するようにプロジェクトを更新する必要があります。
+`--no-cache` フラグは曖昧であったため、バイナリキャッシュを指すことを明確にするため、`--no-binary-cache`
+に名称を変更しました。`--no-cache` フラグを使用していた場合は、代わりに`--no-binary-cache`
+フラグを使用するようプロジェクトを更新する必要があります。
 
-### `tuist fetch` を`tuist install にリネーム。` {#renamed-tuist-fetch-to-tuist-install}
+### `tuist fetch` を`tuist install に改名` {#renamed-tuist-fetch-to-tuist-install}
 
-業界の慣例に合わせるため、`tuist fetch` コマンドの名前を`tuist install` に変更しました。`tuist fetch`
-コマンドを使っていた場合は、代わりに`tuist install` コマンドを使うようにプロジェクトを更新する必要があります。
+業界標準に合わせるため、`tuist fetch` コマンドを`tuist install` に変更しました。`tuist fetch`
+コマンドを使用していた場合は、プロジェクトを更新し、代わりに`tuist install` コマンドを使用する必要があります。
 
-### [`Package.swift` を依存関係の DSL として採用](https://github.com/tuist/tuist/pull/5862)。{#adopt-packageswift-as-the-dsl-for-dependencieshttpsgithubcomtuisttuistpull5862}
+### [依存関係記述言語として`のPackage.swift` を採用](https://github.com/tuist/tuist/pull/5862){#adopt-packageswift-as-the-dsl-for-dependencieshttpsgithubcomtuisttuistpull5862}
 
-Tuist 4以前は、`Dependencies.swift`
-ファイルで依存関係を定義できました。この独自形式は、[Dependabot](https://github.com/dependabot)や[Renovatebot](https://github.com/renovatebot/renovate)のようなツールで依存関係を自動的に更新するサポートを壊していた。さらに、ユーザーにとって不必要な間接参照を導入していました。そこで、`Package.swift`
-をTuistで依存関係を定義する唯一の方法として採用することにしました。`Dependencies.swift`
-ファイルを使用していた場合、`Tuist/Dependencies.swift` の内容をルートにある`Package.swift` に移動し、`#if
-TUIST`
-ディレクティブを使用して統合を設定する必要があります。Swiftパッケージの依存関係を統合する方法<LocalizedLink href="/guides/features/projects/dependencies#swift-packages">についてはこちらをご覧ください。</LocalizedLink>
+Tuist 4以前では、`/Dependencies.swift`
+ファイルで依存関係を定義できました。この独自フォーマットは、[Dependabot](https://github.com/dependabot) や
+[Renovatebot](https://github.com/renovatebot/renovate)
+などのツールによる依存関係の自動更新サポートを妨げていました。さらに、ユーザーにとって不要な間接的な操作を強いるものでした。
+そのため、Tuistでは依存関係を定義する唯一の方法として`Package.swift` を採用することに決定しました。`Dependencies.swift`
+ファイルを使用していた場合は、その内容を`Tuist/Dependencies.swift` からルートディレクトリの`Package.swift`
+に移動し、`#if TUIST` ディレクティブを使用して統合を設定する必要があります。Swift
+Packageの依存関係を統合する方法の詳細は<LocalizedLink href="/guides/features/projects/dependencies#swift-packages">こちらをご覧ください。</LocalizedLink>
 
-### `tuist cache warm` を`tuist cache に改名。` {#renamed-tuist-cache-warm-to-tuist-cache}
+### `tuist cache warm` を`tuist cache に改名` {#renamed-tuist-cache-warm-to-tuist-cache}
 
-簡潔にするため、`tuist cache warm` コマンドの名前を、`tuist cache` に変更することにしました。`tuist cache
-warm` コマンドを使っていた場合は、代わりに`tuist cache` コマンドを使うようにプロジェクトを更新する必要があります。
+簡潔化のため、``` tuist cache warm `` ` コマンドを ``` tuist cache ``` に改名しました。``` tuist
+cache warm `` ` コマンドを使用していた場合は、代わりに ``` tuist cache `` `
+コマンドを使用するようプロジェクトを更新する必要があります。
 
 
-### `tuist cache print-hashes` を`tuist cache --print-hashes にリネーム。` {#renamed-tuist-cache-printhashes-to-tuist-cache-printhashes}
+### `tuist cache print-hashes` を`tuist cache --print-hashes に改名` {#renamed-tuist-cache-printhashes-to-tuist-cache-printhashes}
 
-私たちは、`tuist cache print-hashes` コマンドの名前を、`tuist cache --print-hashes`
-に変更し、`tuist cache` コマンドのフラグであることを明確にすることにしました。`tuist cache print-hashes`
-コマンドを使っていた場合は、代わりに`tuist cache --print-hashes` フラグを使うようにプロジェクトを更新する必要があります。
+`tuist cache print-hashes` コマンドを、`tuist cache --print-hashes`
+に改名しました。これにより、`tuist cache` コマンドのフラグであることが明確になります。`tuist cache print-hashes`
+コマンドを使用していた場合は、プロジェクトを更新し、代わりに`tuist cache --print-hashes` フラグを使用する必要があります。
 
-### キャッシング・プロファイルの削除{#removed-caching-profiles}
+### キャッシュプロファイルを削除しました{#removed-caching-profiles}
 
-Tuist 4以前は、`Tuist/Config.swift`
-にキャッシュ用の設定を含むキャッシュ・プロファイルを定義できました。この機能を削除することにしたのは、プロジェクトの生成に使用したプロファイル以外のプロファイルを生成プロセスで使用すると混乱につながる可能性があったからです。さらに、ユーザーがアプリのリリースバージョンをビルドするためにデバッグプロファイルを使用することにつながり、予期しない結果につながる可能性があります。その代わりに、`--configuration`
-オプションを導入しました。このオプションを使うと、プロジェクトの生成時に使用する設定を指定できます。キャッシング・プロファイルを使用していた場合は、代わりに`--configuration`
-オプションを使用するようにプロジェクトを更新する必要があります。
+Tuist 4以前では、`Tuist/Config.swift`
+でキャッシュプロファイルを定義でき、キャッシュ設定を含んでいました。プロジェクト生成に使用したプロファイルとは異なるプロファイルで生成プロセスを使用すると混乱を招く可能性があるため、この機能は削除されました。
+さらに、デバッグプロファイルでアプリのリリース版をビルドするといった誤った操作を招き、予期せぬ結果を招く恐れがありました。代わりに、プロジェクト生成時に使用する設定を指定できる「`--configuration」`
+オプションを導入しました。キャッシュプロファイルを使用していた場合は、代わりに「`--configuration」`
+オプションを使用するようプロジェクトを更新する必要があります。
 
-### `--skip-cache` を削除し、引数を使用するようにした。{#removed-skipcache-in-favor-of-arguments}
+### 引数優先のため、``--skip-cache` ` を削除{#removed-skipcache-in-favor-of-arguments}
 
-`generate` コマンドから`--skip-cache`
-フラグを削除し、引数を使用してバイナリキャッシュをスキップするターゲットを制御するようにしました。`--skip-cache`
-フラグを使用していた場合は、代わりに引数を使用するようにプロジェクトを更新する必要があります。
+` `` の ` ` コマンドから ` --skip-cache`
+フラグを削除しました。代わりに、引数を使用してバイナリキャッシュをスキップする対象を制御します。` --skip-cache`
+フラグを使用していた場合は、プロジェクトを更新して代わりに引数を使用する必要があります。` ` `
 
 コードグループ
 
@@ -109,43 +114,44 @@ tuist generate Foo
 <!-- -->
 :::
 
-### [署名機能の停止](https://github.com/tuist/tuist/pull/5716)。{#dropped-signing-capabilitieshttpsgithubcomtuisttuistpull5716}
+### [署名機能の廃止](https://github.com/tuist/tuist/pull/5716){#dropped-signing-capabilitieshttpsgithubcomtuisttuistpull5716}
 
-署名は、[Fastlane](https://fastlane.tools/)やXcode自体のようなコミュニティツールによってすでに解決されており、それらの方がはるかに良い仕事をしている。私たちは、署名はTuistのストレッチゴールであり、プロジェクトのコア機能に集中した方が良いと考えました。リポジトリ内の証明書とプロファイルを暗号化し、生成時に適切な場所にインストールすることで構成されるTuistの署名機能を使用していた場合、プロジェクト生成前に実行する独自のスクリプトでそのロジックを複製したいと思うかもしれません。特に
-  - ファイルシステムまたは環境変数に格納されているキーを使用して証明書とプロ
-    ファイルを復号化し、証明書をキーチェーンに、プロビジョニング・プロファイルをディレク
-    トリ`~/Library/MobileDevice/Provisioning Profiles` にインストールするスクリプト。
-  - 既存のプロファイルと証明書を取り込んで暗号化するスクリプト。
+署名処理は既に[Fastlane](https://fastlane.tools/)やXcode自体のコミュニティツールで解決されており、そちらの方がはるかに優れた処理を行います。
+Tuistにとって署名機能はストレッチゴールであり、プロジェクトの中核機能に注力すべきと判断しました。Tuistの署名機能（リポジトリ内の証明書とプロファイルを暗号化し、生成時に適切な場所にインストールする処理）を利用していた場合、プロジェクト生成前に実行する独自スクリプトで同等のロジックを再現することを推奨します。具体的には：
+  - ファイルシステムまたは環境変数に保存されたキーを使用して証明書とプロファイルを復号化し、証明書をキーチェーンにインストールし、プロビジョニングプロファイルをディレクトリ`~/Library/MobileDevice/Provisioning\
+    Profiles` にインストールするスクリプト。
+  - 既存のプロファイルと証明書を受け取り、それらを暗号化できるスクリプト。
 
 ::: tip SIGNING REQUIREMENTS
 <!-- -->
-署名には、正しい証明書がキーチェーンに存在し、プロビジョニング・プロファイルが`~/Library/MobileDevice/Provisioning
-Profiles` ディレクトリに存在する必要がある。キーチェーンに証明書をインストールするには`security`
-コマンドラインツールを使用し、プロビジョニング・プロファイルを正しいディレクトリにコピーするには`cp` コマンドを使用する。
+署名には、キーチェーンに適切な証明書が存在し、プロビジョニングプロファイルがディレクトリ`~/Library/MobileDevice/Provisioning\
+Profiles` に存在している必要があります。キーチェーンへの証明書インストールには`security`
+コマンドラインツールを、プロビジョニングプロファイルのコピーには`cp` コマンドを使用できます。
 <!-- -->
 :::
 
-### `Dependencies.swiftによるCarthageの統合を削除した。` {#dropped-carthage-integration-via-dependenciesswift}
+### `のDependencies.swift経由でのCarthage統合を廃止` {#dropped-carthage-integration-via-dependenciesswift}
 
-Tuist 4以前は、Carthageの依存関係は`Dependencies.swift` ファイルで定義することができ、ユーザーは`tuist fetch`
-を実行することでそれを取得することができました。私たちはまた、Swiftパッケージマネージャが依存関係を管理するための望ましい方法である将来を考慮し、これはTuistのためのストレッチゴールであると感じました。Carthage
-依存関係を使用していた場合、`Carthage` を直接使用して、コンパイル済みのフレームワークと XCFrameworks を Carthage
-の標準ディレクトリにプルし、`TargetDependency.xcframework` と`TargetDependency.framework`
-のケースを使用してタグセットからこれらのバイナリを参照する必要があります。
+Tuist 4以前では、Carthage依存関係は`/Dependencies.swift` ファイルで定義でき、ユーザーは`tuist fetch`
+を実行して取得できました。しかし、特に将来的にSwift Package
+Managerが依存関係管理の主流となることを考慮すると、これはTuistにとってやや無理のある目標だと感じていました。
+Carthage依存関係を使用している場合、`Carthage`
+を直接実行して事前コンパイル済みフレームワークとXCFrameworksをCarthageの標準ディレクトリに取得し、その後`TargetDependency.xcframework`
+および`TargetDependency.framework` のケースで、それらのバイナリをターゲットから参照する必要があります。
 
 ::: info CARTHAGE IS STILL SUPPORTED
 <!-- -->
-一部のユーザーは、我々がカルタゴのサポートをやめたと理解していた。そうではありません。TuistとCarthageの出力の間の契約は、システムに格納されたフレームワークとXCFrameworksに対するものです。唯一変わったのは、誰が依存関係のフェッチに責任を持つかということです。以前はCarthageを通してTuistでしたが、今はCarthageです。
+一部のユーザーがCarthageのサポートを終了したと誤解していました。終了していません。TuistとCarthageの出力間の契約は、システム保存フレームワークとXCFrameworksに対して行われます。変更されたのは依存関係取得の責任主体のみです。以前はTuistがCarthage経由で行っていましたが、現在はCarthageが行っています。
 <!-- -->
 :::
 
-### `TargetDependency.packagePlugin` API を削除しました。{#dropped-the-targetdependencypackageplugin-api}
+### `TargetDependency.packagePlugin` API を削除しました{#dropped-the-targetdependencypackageplugin-api}
 
-Tuist 4以前は、`TargetDependency.packagePlugin`
-caseを使用してパッケージプラグイン依存関係を定義することができました。Swiftパッケージマネージャが新しいパッケージタイプを導入するのを見た後、私たちはより柔軟で将来性のあるものに向けてAPIを反復することにしました。`TargetDependency.packagePlugin`
-を使用していた場合、代わりに`TargetDependency.package` を使用し、引数として使用したいパッケージのタイプを渡す必要があります。
+Tuist 4以前では、`TargetDependency.packagePlugin`
+のケースを使用してパッケージプラグイン依存関係を定義できました。Swift Package
+Managerが新しいパッケージタイプを導入したことを受け、より柔軟で将来を見据えたAPIへと進化させることを決定しました。`TargetDependency.packagePlugin`
+を使用していた場合は、代わりに`TargetDependency.package` を使用し、使用するパッケージのタイプを引数として渡す必要があります。
 
-### [非推奨APIの廃止](https://github.com/tuist/tuist/pull/5560)。{#dropped-deprecated-apishttpsgithubcomtuisttuistpull5560}
+### [廃止予定のAPIは削除](https://github.com/tuist/tuist/pull/5560){#dropped-deprecated-apishttpsgithubcomtuisttuistpull5560}
 
-Tuist
-3で非推奨とされたAPIを削除しました。非推奨APIのいずれかを使用していた場合は、新しいAPIを使用するようにプロジェクトを更新する必要があります。
+Tuist 3で非推奨とマークされたAPIは削除しました。非推奨APIを使用していた場合は、新しいAPIを使用するようにプロジェクトを更新する必要があります。
