@@ -7,23 +7,21 @@
 ---
 # 持續整合 (CI){#continuous-integration-ci}
 
-若要在 [continuous
-integration](https://en.wikipedia.org/wiki/Continuous_integration) 工作流程中執行 Tuist
-指令，您需要在 CI 環境中安裝。
+要在您的[持續整合](https://en.wikipedia.org/wiki/Continuous_integration)工作流程中執行 Tuist
+指令，您需要在 CI 環境中安裝此工具。
 
-驗證是可選的，但如果您要使用
-<LocalizedLink href="/guides/features/cache">cache</LocalizedLink>
-等伺服器端功能，則需要驗證。
+驗證為可選項目，但若需使用伺服器端功能（如
+<LocalizedLink href="/guides/features/cache">快取</LocalizedLink>）則必須進行驗證。
 
-以下各節將舉例說明如何在不同的 CI 平台上執行。
+以下各節將提供在不同 CI 平台上執行此操作的範例。
 
 ## 範例{#examples}
 
-### GitHub 動作{#github-actions}
+### GitHub Actions{#github-actions}
 
-在 [GitHub Actions](https://docs.github.com/en/actions) 上，您可以使用
+在 [GitHub Actions](https://docs.github.com/en/actions) 中，可使用
 <LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
-認證</LocalizedLink> 來進行安全的無密認證：
+驗證</LocalizedLink> 實現安全且無密鑰的驗證：
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -119,27 +117,27 @@ jobs:
 
 ::: info OIDC SETUP
 <!-- -->
-在使用 OIDC 認證之前，您需要 <LocalizedLink href="/guides/integrations/gitforge/github"> 將
-GitHub 倉庫 </LocalizedLink> 連接到您的 Tuist 專案。要使用 OIDC，需要`permissions: id-token:
-write` 。另外，您也可以使用
-<LocalizedLink href="/guides/server/authentication#account-tokens">
-帳號令牌</LocalizedLink>，並將`TUIST_TOKEN` secret.
+在使用 OIDC 驗證前，您需先 <LocalizedLink href="/guides/integrations/gitforge/github">將
+GitHub 儲存庫</LocalizedLink> 連結至您的 Tuist 專案。需具備以下權限才能啟用 OIDC：`權限：id-token: write`
+。您亦可使用
+<LocalizedLink href="/guides/server/authentication#account-tokens">帳戶令牌</LocalizedLink>，其密鑰為`TUIST_TOKEN`
+。
 <!-- -->
 :::
 
 ::: tip
 <!-- -->
-我們建議在您的 Tuist 專案中使用`mise use --pin` 來釘住跨環境的 Tuist 版本。該指令會建立`.tool-versions`
-檔案，其中包含 Tuist 的版本。
+我們建議在 Tuist 專案中使用 ``` 並搭配 `--pin` 參數執行 `` `，以在不同環境中固定 Tuist 版本。此指令將建立 ``` 目錄下的
+`.tool-versions` 檔案（路徑為 `` `），該檔案將儲存 Tuist 的版本資訊。
 <!-- -->
 :::
 
-### Xcode 雲端{#xcode-cloud}
+### Xcode Cloud{#xcode-cloud}
 
-在使用 Xcode 專案作為真相來源的 [Xcode Cloud](https://developer.apple.com/xcode-cloud/)
-中，您需要新增
+在以 Xcode 專案作為資料來源的 [Xcode Cloud](https://developer.apple.com/xcode-cloud/)
+中，您需新增
 [post-clone](https://developer.apple.com/documentation/xcode/writing-custom-build-scripts#Create-a-custom-build-script)
-指令碼來安裝 Tuist 並執行所需的指令，例如`tuist generate` ：
+腳本以安裝 Tuist 並執行所需指令，例如：`tuist generate`
 
 ::: code-group
 
@@ -167,17 +165,16 @@ tuist generate
 
 ::: info AUTHENTICATION
 <!-- -->
-透過在 Xcode Cloud 工作流程設定中設定`TUIST_TOKEN` 環境變數，使用
-<LocalizedLink href="/guides/server/authentication#account-tokens">
-帳號令牌</LocalizedLink>。
+請透過在 Xcode Cloud 工作流程設定中設定環境變數`TUIST_TOKEN` ，使用
+<LocalizedLink href="/guides/server/authentication#account-tokens">帳戶代幣</LocalizedLink>。
 <!-- -->
 :::
 
 ### CircleCI{#circleci}
 
-在 [CircleCI](https://circleci.com) 上，您可以使用
-<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC 驗證
-</LocalizedLink> 來進行安全、無密碼的驗證：
+在 [CircleCI](https://circleci.com) 上，您可使用
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
+認證</LocalizedLink> 實現安全且無密鑰的認證：
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -230,19 +227,18 @@ jobs:
 
 ::: info AUTHENTICATION
 <!-- -->
-在使用 OIDC 認證之前，您需要 <LocalizedLink href="/guides/integrations/gitforge/github">
-將您的 GitHub 倉庫 </LocalizedLink> 連接到您的 Tuist 專案。CircleCI OIDC 令牌包含您已連接的 GitHub
-倉庫，Tuist 會使用它來授權存取您的專案。另外，您也可以使用`TUIST_TOKEN` 環境變數的
-<LocalizedLink href="/guides/server/authentication#account-tokens">
-帳號令牌</LocalizedLink>。
+在使用 OIDC 驗證前，您需先 <LocalizedLink href="/guides/integrations/gitforge/github">將
+GitHub 儲存庫</LocalizedLink> 連結至您的 Tuist 專案。CircleCI 的 OIDC 憑證會包含您已連結的 GitHub
+儲存庫，Tuist 將以此驗證您對專案的存取權限。您亦可改用
+<LocalizedLink href="/guides/server/authentication#account-tokens">帳戶憑證</LocalizedLink>，並透過環境變數設定：`TUIST_TOKEN`
 <!-- -->
 :::
 
 ### Bitrise{#bitrise}
 
-在 [Bitrise](https://bitrise.io) 上，您可以使用
-<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC 驗證
-</LocalizedLink> 來進行安全、無密碼的驗證：
+在 [Bitrise](https://bitrise.io) 上，您可使用
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
+認證</LocalizedLink> 實現安全且無密鑰的認證：
 
 ::: code-group
 ```yaml [OIDC (Mise)]
@@ -297,17 +293,17 @@ workflows:
 
 ::: info AUTHENTICATION
 <!-- -->
-在使用 OIDC 認證之前，您需要 <LocalizedLink href="/guides/integrations/gitforge/github">
-將您的 GitHub 倉庫 </LocalizedLink> 連接到您的 Tuist 專案。Bitrise OIDC 令牌包含您已連接的 GitHub
-倉庫，Tuist 會使用它來授權存取您的專案。另外，您也可以使用`TUIST_TOKEN` 環境變數來使用
-<LocalizedLink href="/guides/server/authentication#account-tokens">
-帳號令牌</LocalizedLink>。
+在使用 OIDC 驗證前，您需先 <LocalizedLink href="/guides/integrations/gitforge/github">將
+GitHub 儲存庫</LocalizedLink> 連結至 Tuist 專案。Bitrise OIDC 憑證會包含您已連結的 GitHub 儲存庫，Tuist
+將以此授權存取您的專案。您亦可使用
+<LocalizedLink href="/guides/server/authentication#account-tokens">帳戶憑證</LocalizedLink>，並透過環境變數`TUIST_TOKEN`
+設定。
 <!-- -->
 :::
 
-### 編碼魔術{#codemagic}
+### Codemagic{#codemagic}
 
-在 [Codemagic](https://codemagic.io) 中，您可以在工作流程中增加額外的步驟來安裝 Tuist：
+在 [Codemagic](https://codemagic.io) 中，您可為工作流程新增安裝 Tuist 的步驟：
 
 ::: code-group
 ```yaml [Mise]
@@ -348,7 +344,8 @@ workflows:
 
 ::: info AUTHENTICATION
 <!-- -->
-建立 <LocalizedLink href="/guides/server/authentication#account-tokens">
-帳號令牌</LocalizedLink>，並將其新增為秘密環境變數，命名為`TUIST_TOKEN` 。
+建立一個
+<LocalizedLink href="/guides/server/authentication#account-tokens">帳戶令牌</LocalizedLink>，並將其新增為名為`TUIST_TOKEN
+的機密環境變數` 。
 <!-- -->
 :::
