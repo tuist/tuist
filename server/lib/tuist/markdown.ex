@@ -12,7 +12,6 @@ defmodule Tuist.Markdown do
   This function uses Earmark to parse markdown and HtmlSanitizeEx to sanitize
   the resulting HTML. If markdown parsing fails, the original text is returned.
   """
-  @spec to_html(String.t()) :: String.t()
   def to_html(markdown) when is_binary(markdown) do
     case Earmark.as_html(markdown) do
       {:ok, html, _warnings} -> HtmlSanitizeEx.markdown_html(html)
