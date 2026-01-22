@@ -5,80 +5,67 @@
   "description": "Get insights into your tests to identify slow and flaky tests."
 }
 ---
-# Test Insights {#test-insights}
+# 테스트 인사이트 {#test-insights}
 
-::: warning REQUIREMENTS
+::: warning 요구 사항
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
-  project</LocalizedLink>
+- 1}Tuist 계정 및 프로젝트</LocalizedLink>
 <!-- -->
 :::
 
-Test insights help you monitor your test suite's health by identifying slow
-tests or quickly understanding failed CI runs. As your test suite grows, it
-becomes increasingly difficult to spot trends like gradually slowing tests or
-intermittent failures. Tuist Test Insights provides you with the visibility you
-need to maintain a fast and reliable test suite.
+테스트 인사이트는 느린 테스트를 식별하거나 실패한 CI 실행을 신속하게 파악함으로써 테스트 스위트의 상태를 모니터링하는 데 도움을 줍니다.
+테스트 스위트가 커질수록 점진적으로 느려지는 테스트나 간헐적 실패와 같은 추세를 포착하기가 점점 어려워집니다. Tuist Test
+Insights는 빠르고 안정적인 테스트 스위트를 유지하는 데 필요한 가시성을 제공합니다.
 
-With Test Insights, you can answer questions such as:
-- Have my tests become slower? Which ones?
-- Which tests are flaky and need attention?
-- Why did my CI run fail?
+테스트 인사이트를 통해 다음과 같은 질문에 답할 수 있습니다:
+- 테스트 속도가 느려졌나요? 어떤 테스트가?
+- 어떤 테스트가 불안정하여 주의가 필요한가요?
+- CI 실행이 실패한 이유는 무엇인가요?
 
-## Setup {#setup}
+## 설정 {#setup}
 
-To start tracking your tests, you can leverage the `tuist inspect test` command
-by adding it to your scheme's test post-action:
+시험 추적을 시작하려면 `tuist inspect test` 명령을 계획의 시험 사후 조치에 추가하여 활용할 수 있습니다:
 
-![Post-action for inspecting
-tests](/images/guides/features/insights/inspect-test-scheme-post-action.png)
+![테스트 검사를 위한 사후
+조치](/images/guides/features/insights/inspect-test-scheme-post-action.png)
 
-In case you're using [Mise](https://mise.jdx.dev/), your script will need to
-activate `tuist` in the post-action environment:
+[Mise](https://mise.jdx.dev/)를 사용하는 경우, 스크립트의 환경 설정 후속 작업에서 `tuist`를 활성화해야 합니다:
 ```sh
 # -C ensures that Mise loads the configuration from the Mise configuration
 # file in the project's root directory.
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 ```
 
-::: tip MISE & PROJECT PATHS
+::: tip Mise와 프로젝트 경로
 <!-- -->
-Your environment's `PATH` environment variable is not inherited by the scheme
-post action, and therefore you have to use Mise's absolute path, which will
-depend on how you installed Mise. Moreover, don't forget to inherit the build
-settings from a target in your project such that you can run Mise from the
-directory pointed to by $SRCROOT.
+`PATH` 환경 변수는 스키마 Post Action에 의해 상속되지 않으므로 Mise의 절대 경로를 사용해야 하며, 이는 Mise 설치 방법에
+따라 달라집니다. 또한 프로젝트의 Target에서 빌드 설정을 상속하여 $SRCROOT가 가리키는 디렉토리에서 Mise를 실행할 수 있도록 하는
+것을 잊지 마세요.
 <!-- -->
 :::
 
-Your test runs are now tracked as long as you are logged in to your Tuist
-account. You can access your test insights in the Tuist dashboard and see how
-they evolve over time:
+이제 튜이스트 계정에 로그인되어 있는 한 테스트 실행이 추적됩니다. 튜이스트 대시보드에서 테스트 인사이트에 액세스하여 시간이 지남에 따라 어떻게
+발전하는지 확인할 수 있습니다:
 
-![Dashboard with test
-insights](/images/guides/features/insights/tests-dashboard.png)
+![테스트 인사이트가 포함된 대시보드](/images/guides/features/insights/tests-dashboard.png)
 
-Apart from overall trends, you can also dive deep into each individual test,
-such as when debugging failures or slow tests on the CI:
+전체 트렌드 외에도 CI에서 실패 또는 느린 테스트를 디버깅할 때와 같이 각 개별 테스트에 대해 자세히 살펴볼 수도 있습니다:
 
-![Test detail](/images/guides/features/insights/test-detail.png)
+![테스트 세부 정보](/images/guides/features/insights/test-detail.png)
 
-## Generated projects {#generated-projects}
+## Generated 프로젝트 {#generated-projects}
 
-::: info
+::: info Mise란?
 <!-- -->
-Auto-generated schemes automatically include the `tuist inspect test`
-post-action.
+자동 생성된 Scheme에는 `tuist inspect build` Post Action이 자동으로 포함됩니다.
 <!-- -->
 :::
 > 
-> If you are not interested in tracking test insights in your auto-generated
-> schemes, disable them using the
-> <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#testinsightsdisabled">testInsightsDisabled</LocalizedLink>
-> generation option.
+> 자동 생성된 스키마에서 분석을 추적하는 데 관심이 없는 경우
+> <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#testinsightsdisabled">buildInsightsDisabled</LocalizedLink>
+> Generation 옵션을 사용하여 비활성화하세요.
 
-If you are using generated projects with custom schemes, you can set up
-post-actions for test insights:
+사용자 정의된 스키마와 함께 생성된 프로젝트를 사용하는 경우 다음과 같이 분석에 대한 Post Action을 설정할 수 있습니다:
 
 ```swift
 let project = Project(
@@ -110,7 +97,7 @@ let project = Project(
 )
 ```
 
-If you're not using Mise, your scripts can be simplified to:
+Mise를 사용하지 않는 경우 스크립트를 다음과 같이 간소화할 수 있습니다:
 
 ```swift
 testAction: .testAction(
@@ -124,16 +111,17 @@ testAction: .testAction(
 )
 ```
 
-## Continuous integration {#continuous-integration}
+## 지속적 통합 {#continuous-integration}
 
-To track test insights on CI, you will need to ensure that your CI is
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>.
+CI에 대한 빌드 및 테스트 분석을 추적하려면 CI가
+<LocalizedLink href="/guides/integrations/continuous-integration#authentication">인증</LocalizedLink>되었는지
+확인해야 합니다.
 
-Additionally, you will either need to:
-- Use the <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
-  xcodebuild`</LocalizedLink> command when invoking `xcodebuild` actions.
-- Add `-resultBundlePath` to your `xcodebuild` invocation.
+또한 다음 중 하나를 수행해야 합니다:
+- `xcodebuild` 동작을 호출할 때
+  <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
+  xcodebuild`</LocalizedLink> 명령을 사용합니다.
+- `xcodebuild` 호출에 `-resultBundlePath` 을 추가합니다.
 
-When `xcodebuild` tests your project without `-resultBundlePath`, the required
-result bundle files are not generated. The `tuist inspect test` post-action
-requires these files to analyze your tests.
+`xcodebuild` 명령을 `-resultBundlePath` 옵션 없이 프로젝트 테스트 시, 필요한 결과 번들 파일이 생성되지 않습니다.
+`tuist inspect test` 사후 작업은 테스트 분석을 위해 해당 파일을 요구합니다.
