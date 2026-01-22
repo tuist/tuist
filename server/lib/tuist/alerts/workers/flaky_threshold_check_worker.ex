@@ -32,33 +32,27 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorker do
     end
   end
 
-  defp check_and_mark_flaky(project, test_case) do
-    # Skip if auto-mark is disabled
-    if project.auto_mark_flaky_tests do
-      flaky_runs_count = Runs.get_flaky_runs_groups_count_for_test_case(test_case.id)
+  defp check_and_mark_flaky(%{auto_mark_flaky_tests: true} = project, test_case) do
+    flaky_runs_count = Runs.get_flaky_runs_groups_count_for_test_case(test_case.id)
 
-      if flaky_runs_count >= project.auto_mark_flaky_threshold do
-        # Mark test case as flaky
-        {:ok, _updated_test_case} = Runs.set_test_case_flaky(test_case.id, true)
+    if flaky_runs_count >= project.auto_mark_flaky_threshold do
+      {:ok, _updated_test_case} = Runs.set_test_case_flaky(test_case.id, true)
 
-        # Auto-quarantine if enabled
-        auto_quarantined =
-          if project.auto_quarantine_flaky_tests do
-            Runs.set_test_case_quarantined(test_case.id, true)
-            true
-          else
-            false
-          end
+      auto_quarantined =
+        if project.auto_quarantine_flaky_tests do
+          Runs.set_test_case_quarantined(test_case.id, true)
+          true
+        else
+          false
+        end
 
-        # Enqueue alert job
-        %{test_case_id: test_case.id, project_id: project.id, auto_quarantined: auto_quarantined}
-        |> FlakyTestAlertWorker.new()
-        |> Oban.insert!()
-      end
-
-      :ok
-    else
-      :ok
+      %{test_case_id: test_case.id, project_id: project.id, auto_quarantined: auto_quarantined}
+      |> FlakyTestAlertWorker.new()
+      |> Oban.insert!()
     end
+
+    :ok
   end
+
+  defp check_and_mark_flaky(_project, _test_case), do: :ok
 end
