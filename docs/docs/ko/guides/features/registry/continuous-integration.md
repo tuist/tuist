@@ -5,7 +5,7 @@
   "description": "Learn how to use the Tuist Registry in continuous integration."
 }
 ---
-# 지속적 통합(CI) {#continuous-integration-ci}
+# 지속 통합 {#continuous-integration}
 
 CI에서 레지스트리를 사용하려면 워크플로우의 일부로 `tuist 레지스트리 로그인` 을 실행하여 레지스트리에 로그인했는지 확인해야 합니다.
 
@@ -35,7 +35,7 @@ registry login` 을 실행합니다.
 <LocalizedLink href="/guides/server/authentication#as-a-project">here</LocalizedLink>
 문서를 참조하여 만들 수 있습니다.
 
-그러면 GitHub 액션의 워크플로 예시는 다음과 같습니다:
+GitHub Action의 Workflow 예시는 다음과 같을 수 있습니다:
 ```yaml
 name: Build
 
@@ -79,7 +79,7 @@ let config = Config(
 
 또한 `Package.resolved` 의 경로를 찾아야 합니다. ` ls **/Package.resolved` 을 실행하여 경로를 가져올 수
 있습니다. 경로는
-`App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved` 과 같이
+`App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved` 와 같이
 표시되어야 합니다.
 
 Swift 패키지와 XcodeProj 기반 통합의 경우 프로젝트의 루트 또는 `Tuist` 디렉터리에 있는 기본 `.build` 디렉터리를
