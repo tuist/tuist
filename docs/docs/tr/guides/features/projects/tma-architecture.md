@@ -122,9 +122,9 @@ Azaltma](https://swiftrocks.com/reducing-ios-build-times-by-using-interface-targ
 fikrinden esinlenmiştir.
 
 Arayüzlere bağlı olmak, uygulamaların çalışma zamanında uygulama grafiğini
-oluşturmasını ve buna ihtiyaç duyan modüllere bağımlılık enjekte etmesini
+oluşturmasını ve bunu ihtiyaç duyan modüllere bağımlılık enjekte etmesini
 gerektirir. TMA bunun nasıl yapılacağı konusunda görüş bildirmese de, bağımlılık
-enjekte etme çözümlerinin veya kalıplarının ya da inşa zamanı dolaylamaları
+enjekte etme çözümleri veya kalıpları ya da yerleşik zamanlı dolaylamalar
 eklemeyen veya bu amaç için tasarlanmamış platform API'lerini kullanmayan
 çözümlerin kullanılmasını öneriyoruz.
 
@@ -138,13 +138,15 @@ olmaktan çıkmıştır.
 
 Geliştirme sırasında, paket erişim mantığını hedefin kütüphane veya çerçeve
 yapısından ayırmak için
-<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle accessors</LocalizedLink> kullanarak dinamik kütüphaneler veya çerçeveler
+<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle
+accessors</LocalizedLink> kullanarak dinamik kütüphaneler veya çerçeveler
 kullanmanızı öneririz. Bu, hızlı derleme süreleri ve [SwiftUI
 Önizlemelerinin](https://developer.apple.com/documentation/swiftui/previews-in-xcode)
 güvenilir bir şekilde çalışmasını sağlamak için çok önemlidir. Ve uygulamanın
 hızlı önyükleme yapmasını sağlamak için sürüm derlemeleri için statik
 kütüphaneler veya çerçeveler. Ürün türünü oluşturma zamanında değiştirmek için
-<LocalizedLink href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables">dinamik yapılandırmadan</LocalizedLink> yararlanabilirsiniz:
+<LocalizedLink href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables">dinamik
+yapılandırmadan</LocalizedLink> yararlanabilirsiniz:
 
 ```bash
 # You'll have to read the value of the variable from the manifest {#youll-have-to-read-the-value-of-the-variable-from-the-manifest}
@@ -178,7 +180,7 @@ beraberinde getirir, bu nedenle kullanmanızı önermiyoruz.
 
 ## Kod {#code}
 
-TMA, modülleriniz için kod mimarisi ve kalıpları hakkında görüş bildirmez.
+TMA, modülleriniz için kod mimarisi ve kalıpları konusunda görüş bildirmez.
 Ancak, deneyimlerimize dayanarak bazı ipuçlarını paylaşmak istiyoruz:
 
 - **Derleyiciden yararlanmak harikadır.** Derleyiciden fazla yararlanmak
