@@ -232,6 +232,75 @@ final class DependenciesAcceptanceTestAppAlamofire: TuistAcceptanceTestCase {
     }
 }
 
+final class DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources: TuistAcceptanceTestCase {
+    func test_app_with_objc_static_framework_with_resources() async throws {
+        try await setUpFixture("generated_app_with_objc_static_framework_with_resources")
+        try await run(InstallCommand.self)
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self, "App", "--platform", "ios")
+
+        // Create a simulator for testing
+        let commandRunner = CommandRunner()
+        let simulatorId = UUID().uuidString
+        try await commandRunner.run(
+            arguments: ["/usr/bin/xcrun", "simctl", "create", simulatorId, "iPhone 16 Pro"]
+        ).pipedStream().awaitCompletion()
+
+        defer {
+            Task {
+                try? await commandRunner.run(
+                    arguments: ["/usr/bin/xcrun", "simctl", "delete", simulatorId]
+                ).pipedStream().awaitCompletion()
+            }
+        }
+
+        // Boot the simulator
+        try await commandRunner.run(
+            arguments: ["/usr/bin/xcrun", "simctl", "boot", simulatorId]
+        ).pipedStream().awaitCompletion()
+
+        // Find the built app
+        let appPath = derivedDataPath
+            .appending(components: ["Build", "Products", "Debug-iphonesimulator", "App.app"])
+
+        // Install the app
+        try await commandRunner.run(
+            arguments: ["/usr/bin/xcrun", "simctl", "install", simulatorId, appPath.pathString]
+        ).pipedStream().awaitCompletion()
+
+        // Launch the app
+        try await commandRunner.run(
+            arguments: ["/usr/bin/xcrun", "simctl", "launch", simulatorId, "dev.tuist.app"]
+        ).pipedStream().awaitCompletion()
+
+        // Wait a bit for the app to initialize and potentially crash
+        try await Task.sleep(for: .seconds(2))
+
+        // Verify the app is still running by checking if the process exists
+        let listOutput = try await commandRunner.run(
+            arguments: ["/usr/bin/xcrun", "simctl", "spawn", simulatorId, "launchctl", "list"]
+        ).concatenatedString()
+
+        XCTAssertTrue(
+            listOutput.contains("UIKitApplication:dev.tuist.app"),
+            "App should still be running after launch. If it crashed, the bundle accessor for ObjC static frameworks with resources may be broken."
+        )
+
+        // Wait a bit more to ensure stability
+        try await Task.sleep(for: .seconds(1))
+
+        // Check again that the app is still running
+        let finalListOutput = try await commandRunner.run(
+            arguments: ["/usr/bin/xcrun", "simctl", "spawn", simulatorId, "launchctl", "list"]
+        ).concatenatedString()
+
+        XCTAssertTrue(
+            finalListOutput.contains("UIKitApplication:dev.tuist.app"),
+            "App should remain running. If it crashed after initial launch, there may be a delayed resource loading issue."
+        )
+    }
+}
+
 final class DependenciesAcceptanceTestAppPocketSVG: TuistAcceptanceTestCase {
     func test_app_with_pocket_svg() async throws {
         try await setUpFixture("generated_app_with_pocket_svg")
