@@ -34,12 +34,9 @@ OktaとのSSOはエンタープライズ顧客のみが利用可能です。設�
 4. アプリケーションの表示名を入力してください。例：「Tuist」。Tuistのロゴを[このURL](https://tuist.dev/images/tuist_dashboard.png)からアップロードしてください。
 5. サインインリダイレクトURIは現時点ではそのままにしておく
 6. 「割り当て」でSSOアプリケーションへのアクセス制御を選択し、保存してください。
-7. After saving, the general settings for the application will be available.
-   Copy the "Client ID" and "Client Secret". Also note your Okta organization
-   URL (e.g., `https://your-company.okta.com`) – you will need to safely share
-   all of these with your point of contact.
-8. Once the Tuist team has configured the SSO, click on General Settings "Edit"
-   button.
+7. 保存後、アプリケーションの一般設定が利用可能になります。「クライアントID」と「クライアントシークレット」をコピーしてください。また、Okta組織のURL（例:`https://your-company.okta.com`
+   ）も確認してください。これらすべてを安全に担当者と共有する必要があります。
+8. TuistチームがSSOを設定したら、一般設定の「編集」ボタンをクリックしてください。
 9. 以下のリダイレクトURLを貼り付けてください：`https://tuist.dev/users/auth/okta/callback`
 10. 「Login initiated by」を「Okta またはアプリ」に変更してください。
 11. 「ユーザーにアプリケーションアイコンを表示する」を選択
