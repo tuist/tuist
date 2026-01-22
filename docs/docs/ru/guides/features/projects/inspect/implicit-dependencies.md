@@ -23,7 +23,7 @@ Xcode, Apple разработала систему сборки таким об�
 вашего проекта:
 
 ```bash
-tuist inspect implicit-imports
+tuist inspect dependencies --only implicit
 ```
 
 Если команда обнаруживает неявный импорт, она завершает работу с кодом выхода,
@@ -32,7 +32,8 @@ tuist inspect implicit-imports
 ::: tip VALIDATE IN CI
 <!-- -->
 Мы настоятельно рекомендуем запускать эту команду в рамках команды
-<LocalizedLink href="/guides/features/automate/continuous-integration">continuous integration</LocalizedLink> каждый раз, когда новый код выкладывается вверх по
+<LocalizedLink href="/guides/features/automate/continuous-integration">continuous
+integration</LocalizedLink> каждый раз, когда новый код выкладывается вверх по
 течению.
 <!-- -->
 :::
