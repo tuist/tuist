@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-22 13:04+0000\n"
+"PO-Revision-Date: 2026-01-22 18:01+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Russian <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/ru/>\n"
@@ -706,50 +706,67 @@ msgstr "с последней точкой"
 msgid "since yesterday"
 msgstr "с вчерашнего дня"
 
+#, fuzzy
 msgid "Flakiness rate"
-msgstr ""
+msgstr "Коэффициент нестабильности"
 
+#, fuzzy
 msgid "Flaky"
-msgstr ""
+msgstr "Нестабильный"
 
+#, fuzzy
 msgid "Flaky Runs"
-msgstr ""
+msgstr "Нестабильная работа"
 
+#, fuzzy
 msgid "Flaky Tests"
-msgstr ""
+msgstr "Нестабильные тесты"
 
+#, fuzzy
 msgid "Flaky runs"
-msgstr ""
+msgstr "Нестабильная работа"
 
+#, fuzzy
 msgid "Flaky test cases"
-msgstr ""
+msgstr "Нестабильные тестовые случаи"
 
+#, fuzzy
 msgid "Flaky test runs"
-msgstr ""
+msgstr "Нестабильные тестовые запуски"
 
+#, fuzzy
 msgid "Last flaky run"
-msgstr ""
+msgstr "Последний нестабильный запуск"
 
+#, fuzzy
 msgid "Mark as flaky"
-msgstr ""
+msgstr "Пометить как нестабильный"
 
+#, fuzzy
 msgid "Most occurring flaky tests"
-msgstr ""
+msgstr "Наиболее часто встречающиеся нестабильные тесты"
 
+#, fuzzy
 msgid "No flaky tests"
-msgstr ""
+msgstr "Без нестабильных тестов"
 
+#, fuzzy
 msgid "Number of test cases that passed after retry."
-msgstr ""
+msgstr "Количество тестовых случаев, прошедших после повторной попытки."
 
+#, fuzzy
 msgid "Percentage of test runs that were flaky in the last 30 days."
 msgstr ""
+"Процент тестовых прогонов, которые были нестабильными за последние 30 дней."
 
+#, fuzzy
 msgid "The number of test runs with flaky tests."
-msgstr ""
+msgstr "Количество прогонов тестов с нестабильными результатами."
 
+#, fuzzy
 msgid "Unmark as flaky"
-msgstr ""
+msgstr "Снять пометку «нестабильный»"
 
+#, fuzzy
 msgid "New"
-msgstr ""
+msgstr "Новое"
