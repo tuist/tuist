@@ -21,8 +21,10 @@ Tuist 的 QA
 ## 先决条件{#prerequisites}
 
 要开始使用 Tuist QA，您需要
-- 从 PR CI 工作流程中设置上传 <LocalizedLink href="/guides/features/previews">预览 </LocalizedLink>，然后代理就可以使用这些预览进行测试了
-- <LocalizedLink href="/guides/integrations/gitforge/github">与 GitHub 集成</LocalizedLink>，因此您可以直接从 PR 触发代理
+- 从 PR CI 工作流程中设置上传 <LocalizedLink href="/guides/features/previews">预览
+  </LocalizedLink>，然后代理就可以使用这些预览进行测试了
+- <LocalizedLink href="/guides/integrations/gitforge/github">与 GitHub
+  集成</LocalizedLink>，因此您可以直接从 PR 触发代理
 
 ## 用法 {#usage｝
 
@@ -39,11 +41,12 @@ feature A` 来触发 QA 代理：
 
 质量保证时间表](/images/guides/features/qa/qa-timeline.png)。
 
-您可以在我们的公共控制面板中查看我们为<LocalizedLink href="/guides/features/previews#tuist-ios-app">iOS 应用程序</LocalizedLink>进行的所有 QA 运行： https://tuist.dev/tuist/tuist/qa
+您可以在我们的公共控制面板中查看我们为<LocalizedLink href="/guides/features/previews#tuist-ios-app">iOS
+应用程序</LocalizedLink>进行的所有 QA 运行： https://tuist.dev/tuist/tuist/qa
 
 信息
 <!-- -->
-质量保证代理可自主运行，启动后不会被其他提示打断。我们会在整个执行过程中提供详细的日志，帮助您了解代理是如何与您的应用程序交互的。这些日志对于迭代应用程序上下文和测试提示以更好地指导代理行为非常有价值。如果您对代理如何执行您的应用有任何反馈，请通过
+质量保证代理可自主运行，启动后不会被其他提示打断。我们会在整个执行过程中提供详细日志，帮助您了解代理如何与您的应用程序交互。这些日志对于迭代应用程序上下文和测试提示以更好地指导代理行为非常有价值。如果您对代理如何执行您的应用有任何反馈，请通过
 [GitHub Issues](https://github.com/tuist/tuist/issues)、[Slack
 社区](https://slack.tuist.dev) 或[社区论坛](https://community.tuist.dev)告知我们。
 <!-- -->
