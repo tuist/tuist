@@ -5,26 +5,25 @@
   "description": "Use selective testing to run only the tests that have changed since the last successful test run."
 }
 ---
-# Testowanie selektywne {#selective-testing}
+# Testowanie wybiórcze {#selective-testing}
 
 Wraz z rozwojem projektu rośnie liczba testów. Przez długi czas uruchamianie
-wszystkich testów przy każdym PR lub push na `main` zajmowało dziesiątki sekund.
-Ale to rozwiązanie nie skaluje się do tysięcy testów, które może mieć Twój
-zespół.
+wszystkich testów dla każdego PR lub push do `main` zajmuje dziesiątki sekund.
+Jednak rozwiązanie to nie jest skalowalne do tysięcy testów, które może mieć
+Twój zespół.
 
-Przy każdym uruchomieniu testów w CI najprawdopodobniej ponownie uruchamiasz
-wszystkie testy, niezależnie od zmian. Selektywne testowanie Tuist pomaga
-drastycznie przyspieszyć uruchamianie samych testów, uruchamiając tylko te
-testy, które zmieniły się od ostatniego udanego uruchomienia testowego w oparciu
-o nasz algorytm
-<LocalizedLink href="/guides/features/projects/hashing">hashing</LocalizedLink>.
+Podczas każdego testu w CI najprawdopodobniej ponownie uruchamiasz wszystkie
+testy, niezależnie od zmian. Selektywne testowanie Tuist pomaga znacznie
+przyspieszyć samo uruchamianie testów, uruchamiając tylko te testy, które uległy
+zmianie od ostatniego pomyślnego uruchomienia testu w oparciu o nasz algorytm
+haszujący <LocalizedLink href="/guides/features/projects/hashing">.
 
-Testowanie selektywne działa z `xcodebuild`, który obsługuje dowolny projekt
-Xcode, lub jeśli generujesz swoje projekty za pomocą Tuist, możesz zamiast tego
-użyć polecenia `tuist test`, które zapewnia dodatkowe udogodnienia, takie jak
+Testowanie selektywne działa z `xcodebuild`, które obsługuje dowolny projekt
+Xcode, lub jeśli generujesz swoje projekty za pomocą Tuist, możesz użyć
+polecenia `tuist test`, które zapewnia dodatkowe udogodnienia, takie jak
 integracja z <LocalizedLink href="/guides/features/cache">binary
 cache</LocalizedLink>. Aby rozpocząć testowanie selektywne, postępuj zgodnie z
-instrukcjami opartymi na konfiguracji projektu:
+instrukcjami dostosowanymi do konfiguracji Twojego projektu:
 
 - <LocalizedLink href="/guides/features/selective-testing/xcode-project">xcodebuild</LocalizedLink>
 - <LocalizedLink href="/guides/features/selective-testing/generated-project">Wygenerowany
@@ -32,23 +31,23 @@ instrukcjami opartymi na konfiguracji projektu:
 
 ::: warning MODULE VS FILE-LEVEL GRANULARITY
 <!-- -->
-Ze względu na brak możliwości wykrycia wewnątrzkodowych zależności między
-testami i źródłami, maksymalna ziarnistość testowania selektywnego znajduje się
-na poziomie celu. Dlatego zalecamy, aby cele były małe i skoncentrowane, aby
-zmaksymalizować korzyści płynące z testowania selektywnego.
+Ze względu na niemożność wykrycia zależności między testami a źródłami w kodzie,
+maksymalna szczegółowość testów selektywnych znajduje się na poziomie docelowym.
+Dlatego zalecamy, aby cele były niewielkie i skoncentrowane, aby zmaksymalizować
+korzyści płynące z testów selektywnych.
 <!-- -->
 :::
 
 ::: warning TEST COVERAGE
 <!-- -->
-Narzędzia pokrycia testów zakładają, że cały zestaw testów jest uruchamiany
-jednocześnie, co czyni je niekompatybilnymi z selektywnym uruchamianiem testów -
-oznacza to, że dane pokrycia mogą nie odzwierciedlać rzeczywistości podczas
-korzystania z selekcji testów. Jest to znane ograniczenie i nie oznacza, że
-robisz coś źle. Zachęcamy zespoły do zastanowienia się nad tym, czy pokrycie
-nadal przynosi znaczące informacje w tym kontekście, a jeśli tak, to zapewniamy,
-że już myślimy o tym, jak sprawić, by pokrycie działało poprawnie z selektywnymi
-przebiegami w przyszłości.
+Narzędzia do testowania pokrycia zakładają, że cały zestaw testów jest
+uruchamiany jednocześnie, co sprawia, że nie są one kompatybilne z selektywnym
+uruchamianiem testów — oznacza to, że dane dotyczące pokrycia mogą nie
+odzwierciedlać rzeczywistości w przypadku korzystania z selekcji testów. Jest to
+znane ograniczenie i nie oznacza, że robisz coś źle. Zachęcamy zespoły do
+zastanowienia się, czy pokrycie nadal dostarcza znaczących informacji w tym
+kontekście, a jeśli tak, to zapewniamy, że już zastanawiamy się, jak sprawić, by
+pokrycie działało poprawnie z selektywnymi uruchomieniami w przyszłości.
 <!-- -->
 :::
 
@@ -57,17 +56,18 @@ przebiegami w przyszłości.
 
 ::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
-Aby uzyskać automatyczne komentarze do pull/merge requestów, zintegruj projekt
-<LocalizedLink href="/guides/server/accounts-and-projects">Tuist</LocalizedLink>
-z platformą
-<LocalizedLink href="/guides/server/authentication">Git</LocalizedLink>.
+Aby uzyskać automatyczne komentarze do pull/merge request, zintegruj swój
+<LocalizedLink href="/guides/server/accounts-and-projects">projekt
+Tuist</LocalizedLink> z
+<LocalizedLink href="/guides/server/authentication">platformą
+Git</LocalizedLink>.
 <!-- -->
 :::
 
 Po połączeniu projektu Tuist z platformą Git, taką jak
-[GitHub](https://github.com), i rozpoczęciu korzystania z `tuist xcodebuild
-test` lub `tuist test` jako części przepływu CI, Tuist opublikuje komentarz
-bezpośrednio w żądaniach ściągnięcia/łączenia, w tym informacje o tym, które
-testy zostały uruchomione, a które pominięte: ![Komentarz aplikacji GitHub z
-linkiem do podglądu
-Tuist](/images/guides/features/selective-testing/github-app-comment.png).
+[GitHub](https://github.com), i rozpoczęciu korzystania z poleceń `tuist
+xcodebuild test` lub `tuist test` w ramach przepływu pracy CI, Tuist opublikuje
+komentarz bezpośrednio w żądaniach pull/merge, zawierający informacje o tym,
+które testy zostały przeprowadzone, a które pominięte: ![Komentarz w aplikacji
+GitHub z linkiem do podglądu
+Tuist](/images/guides/features/selective-testing/github-app-comment.png)
