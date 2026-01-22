@@ -5,19 +5,18 @@
   "description": "Contribute to the Tuist documentation site."
 }
 ---
-# Docs {#docs}
+# 문서 {#docs}
 
 Source:
 [github.com/tuist/tuist/tree/main/docs](https://github.com/tuist/tuist/tree/main/docs)
 
-## What it is for {#what-it-is-for}
+## 용도 {#what-it-is-for}
 
-The docs site hosts Tuist’s product and contributor documentation. It is built
-with VitePress.
+문서 사이트는 Tuist의 제품 및 기여자 문서를 호스팅합니다. VitePress로 구축되었습니다.
 
-## How to contribute {#how-to-contribute}
+## 기여 방법 {#how-to-contribute}
 
-### Set up locally {#set-up-locally}
+### 로컬 환경 설정 {#set-up-locally}
 
 ```bash
 cd docs
@@ -25,12 +24,11 @@ mise install
 mise run dev
 ```
 
-### Optional generated data {#optional-generated-data}
+### 선택적 생성 데이터 {#optional-generated-data}
 
-We embed some generated data in the docs:
+문서에 생성된 데이터를 일부 포함합니다:
 
-- CLI reference data: `mise run generate-cli-docs`
-- Project manifest reference data: `mise run generate-manifests-docs`
+- CLI 참조 데이터: `mise run generate-cli-docs`
+- 프로젝트 매니페스트 참조 데이터: `mise run generate-manifests-docs`
 
-These are optional. The docs render without them, so only run them when you need
-to refresh the generated content.
+이들은 선택 사항입니다. 문서가 이 요소들 없이도 렌더링되므로, 생성된 콘텐츠를 새로 고칠 필요가 있을 때만 실행하세요.
