@@ -42,12 +42,12 @@ SSO с Okta доступен только для корпоративных кл
 5. Пока что оставьте URI перенаправления для входа без изменений.
 6. В разделе «Задания» выберите желаемый контроль доступа к приложению SSO и
    сохраните.
-7. After saving, the general settings for the application will be available.
-   Copy the "Client ID" and "Client Secret". Also note your Okta organization
-   URL (e.g., `https://your-company.okta.com`) – you will need to safely share
-   all of these with your point of contact.
-8. Once the Tuist team has configured the SSO, click on General Settings "Edit"
-   button.
+7. После сохранения станут доступны общие настройки приложения. Скопируйте
+   «Идентификатор клиента» и «Секретный ключ клиента». Также запишите URL-адрес
+   вашей организации Okta (например, `https://your-company.okta.com`) — вам
+   нужно будет безопасно передать все эти данные своему контактному лицу.
+8. После того как команда Tuist настроит SSO, нажмите кнопку «Изменить» в
+   разделе «Общие настройки».
 9. Вставьте следующий URL-адрес перенаправления:
    `https://tuist.dev/users/auth/okta/callback`
 10. Измените «Вход инициирован» на «Okta или приложение».
