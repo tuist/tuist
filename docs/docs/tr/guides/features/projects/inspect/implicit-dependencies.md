@@ -23,7 +23,7 @@ sağlar. Aşağıdaki komut, projenizin örtük bağımlılıklarının çıktı
 verecektir:
 
 ```bash
-tuist inspect implicit-imports
+tuist inspect dependencies --only implicit
 ```
 
 Komut herhangi bir örtük içe aktarma tespit ederse, sıfırdan farklı bir çıkış
@@ -32,7 +32,8 @@ koduyla çıkar.
 ::: tip VALIDATE IN CI
 <!-- -->
 Bu komutu, her yeni kod yayınlandığında
-<LocalizedLink href="/guides/features/automate/continuous-integration">sürekli entegrasyon</LocalizedLink> komutunuzun bir parçası olarak çalıştırmanızı
+<LocalizedLink href="/guides/features/automate/continuous-integration">sürekli
+entegrasyon</LocalizedLink> komutunuzun bir parçası olarak çalıştırmanızı
 şiddetle tavsiye ederiz.
 <!-- -->
 :::
