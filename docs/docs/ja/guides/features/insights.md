@@ -9,38 +9,40 @@
 
 警告 要件
 <!-- -->
-- A<LocalizedLink href="/guides/server/accounts-and-projects">トゥイストのアカウントとプロジェクト</LocalizedLink>
+- <LocalizedLink href="/guides/server/accounts-and-projects">Tuistアカウントとプロジェクト</LocalizedLink>
 <!-- -->
 :::
 
-大規模なプロジェクトに取り組むことは、雑用のように感じるべきではない。実際、ほんの2週間前に始めたプロジェクトと同じくらい楽しいはずだ。そうならない理由のひとつは、プロジェクトが大きくなるにつれて、開発者のエクスペリエンスが損なわれるからだ。ビルドにかかる時間は長くなり、テストは遅く、不安定になる。耐えられなくなるまで、これらの問題を見過ごすのは簡単なことだが、しかしその時点で対処するのは難しい。Tuist
-Insightsは、プロジェクトの健全性を監視し、プロジェクトの規模が拡大しても生産性の高い開発者環境を維持するためのツールを提供する。
+大規模プロジェクトの作業は、面倒な作業のように感じるべきではありません。実際、2週間前に始めたプロジェクトに取り組むのと同じくらい楽しいものであるべきです。
+そうならない理由の一つは、プロジェクトが大きくなるにつれて開発者の体験が悪化するためです。ビルド時間が長くなり、テストは遅く不安定になります。こうした問題は、耐えられないほど深刻化するまで見過ごされがちです。しかし、その段階になると対処が困難になります。Tuist
+Insightsは、プロジェクトの健全性を監視し、プロジェクトが拡大する中でも生産的な開発環境を維持するためのツールを提供します。
 
-言い換えれば、Tuist Insightsは次のような質問に答えるのに役立つ：
-- この1週間で、ビルドタイムが大幅に伸びましたか？
+つまり、Tuist Insightsは次のような質問への回答を支援します：
+- 先週、ビルド時間が大幅に増加しましたか？
 - CIでのビルドは、ローカル開発と比べて遅いのですか？
 
-おそらくCIワークフローのパフォーマンスに関するメトリクスは持っているだろうが、ローカルの開発環境については同じように可視化できていないかもしれない。しかし、ローカルのビルド時間は開発者のエクスペリエンスに貢献する最も重要な要素の1つです。
+CIワークフローのパフォーマンスについては何らかの指標をお持ちかもしれませんが、ローカル開発環境については同様の可視性がない可能性があります。しかし、ローカルビルド時間は開発者体験に寄与する最も重要な要素の一つです。
 
-ローカルビルド時間の追跡を開始するには、`tuist inspect build` コマンドをスキームのポストアクションに追加することで活用できる：
+ローカルビルド時間の追跡を開始するには、schemeのpost-actionに以下のコマンドを追加することで、`tuist inspect build`
+を活用できます：
 
-![ビルド検査の事後処理](/images/guides/features/insights/inspect-build-scheme-post-action.png)。
+![ビルド検査後のアクション](/images/guides/features/insights/inspect-build-scheme-post-action.png)
 
 ::: info
 <!-- -->
-Tuistがビルド設定を追跡できるように、"Provide build settings from
-"を実行ファイルまたはメインのビルドターゲットに設定することを推奨する。
+Tuistがビルド構成を追跡できるようにするため、「ビルド設定の提供元」を実行ファイルまたはメインのビルドターゲットに設定することを推奨します。
 <!-- -->
 :::
 
 ::: info
 <!-- -->
-1}生成されたプロジェクト</LocalizedLink>を使用していない場合、ビルドに失敗してもポスト・スキーム・アクションは実行されません。
+<LocalizedLink href="/guides/features/projects">生成されたプロジェクト</LocalizedLink>を使用していない場合、ビルドが失敗した際にはポストスキームアクションは実行されません。
 <!-- -->
 :::
 > 
-> Xcodeの文書化されていない機能により、この場合でも実行することができます。`project.pbxproj`
-> ファイルの該当するスキームの`BuildAction` の`runPostActionsOnFailure` 属性を`YES` に設定します：
+> ``
+> Xcodeの非公式機能により、この場合でも実行可能です。該当する`プロジェクトの.pbxprojファイル内の`ビルドアクション設定で、以下の属性を次のように設定してください：`runPostActionsOnFailure`
+> ` YES`
 > 
 > ```diff
 > <BuildAction
@@ -64,16 +66,16 @@ postアクションによって継承されないので、Miseの絶対パスを
 :::
 
 
-Tuistアカウントにログインしている限り、ローカルのビルドが追跡されるようになりました。Tuistダッシュボードでビルドタイムにアクセスし、時間の経過とともにビルドタイムがどのように変化していくかを確認できるようになりました：
+Tuistアカウントにログインしている限り、ローカルビルドが追跡されるようになりました。Tuistダッシュボードでビルド時間を確認し、時間の経過に伴う変化を把握できます：
 
 
 ::: チップ
 <!-- -->
-ダッシュボードに素早くアクセスするには、CLIから`tuist project show --web` を実行する。
+ダッシュボードに素早くアクセスするには、CLIから`tuist project show --web` を実行してください。
 <!-- -->
 :::
 
-ビルド・インサイトのダッシュボード](/images/guides/features/insights/builds-dashboard.png)。
+![ビルドインサイト付きダッシュボード](/images/guides/features/insights/builds-dashboard.png)
 
 ## 生成されたプロジェクト{#generated-projects}。
 
@@ -118,7 +120,7 @@ let project = Project(
 )
 ```
 
-三瀬を使用していない場合、スクリプトは次のように簡略化できる：
+Miseを使用していない場合、スクリプトは以下のように簡略化できます：
 
 ```swift
 buildAction: .buildAction(
@@ -138,11 +140,11 @@ buildAction: .buildAction(
 
 CIでビルドのインサイトを追跡するには、CIが<LocalizedLink href="/guides/integrations/continuous-integration#authentication">認証済み</LocalizedLink>であることを確認する必要があります。
 
-さらに、以下のいずれかが必要となる：
+さらに、以下のいずれかが必要です：
 - `xcodebuild`
-  アクションを呼び出すときは、<LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
-  xcodebuild`</LocalizedLink> コマンドを使用する。
-- `xcodebuild` の呼び出しに`-resultBundlePath` を追加する。
+  アクションを呼び出す際は、<LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
+  xcodebuild`</LocalizedLink> コマンドを使用してください。
+- `` の xcodebuild 呼び出しに、` -resultBundlePath ` を追加してください。``
 
 `xcodebuild` が、`-resultBundlePath`
 なしでプロジェクトをビルドするとき、必要なアクティビティログと結果バンドルファイルは生成されません。`tuist inspect build`
