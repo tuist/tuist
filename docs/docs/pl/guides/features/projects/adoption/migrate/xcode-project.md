@@ -7,31 +7,30 @@
 ---
 # Migracja projektu Xcode {#migrate-an-xcode-project}
 
-O ile <LocalizedLink href="/guides/features/projects/adoption/new-project"> nie
-utworzysz nowego projektu przy użyciu Tuist</LocalizedLink>, w którym to
-przypadku wszystko zostanie skonfigurowane automatycznie, będziesz musiał
-zdefiniować swoje projekty Xcode przy użyciu prymitywów Tuist. Żmudność tego
-procesu zależy od stopnia złożoności projektu.
+O ile nie
+<LocalizedLink href="/guides/features/projects/adoption/new-project">utworzysz
+nowego projektu za pomocą Tuist</LocalizedLink>, w którym to przypadku wszystko
+zostanie skonfigurowane automatycznie, będziesz musiał zdefiniować swoje
+projekty Xcode za pomocą prymitywów Tuist. To, jak żmudny jest ten proces,
+zależy od stopnia złożoności Twoich projektów.
 
 Jak zapewne wiesz, projekty Xcode mogą z czasem stać się nieuporządkowane i
-złożone: grupy, które nie pasują do struktury katalogów, pliki, które są
-współdzielone między celami lub odniesienia do plików, które wskazują na
-nieistniejące pliki (by wspomnieć o niektórych). Cała ta nagromadzona złożoność
-utrudnia nam dostarczenie polecenia, które niezawodnie migruje projekt.
+złożone: grupy, które nie pasują do struktury katalogów, pliki współdzielone
+między celami lub odniesienia do plików, które nie istnieją (aby wymienić tylko
+kilka). Cała ta nagromadzona złożoność utrudnia nam zapewnienie polecenia, które
+niezawodnie przenosi projekt.
 
-Co więcej, ręczna migracja jest doskonałym ćwiczeniem do czyszczenia i
-upraszczania projektów. Nie tylko deweloperzy w projekcie będą za to wdzięczni,
-ale także Xcode, który będzie je szybciej przetwarzał i indeksował. Gdy w pełni
-zaadoptujesz Tuist, upewnisz się, że projekty są spójnie zdefiniowane i
-pozostają proste.
+Ponadto ręczna migracja jest doskonałym ćwiczeniem pozwalającym uporządkować i
+uprościć projekty. Będą za to wdzięczni nie tylko programiści pracujący nad
+projektem, ale także Xcode, który będzie szybciej je przetwarzał i indeksował.
+Po pełnym wdrożeniu Tuist zapewni spójną definicję projektów i ich prostotę.
 
-Aby ułatwić tę pracę, przedstawiamy kilka wskazówek opartych na opiniach, które
-otrzymaliśmy od użytkowników.
+Aby ułatwić tę pracę, przedstawiamy kilka wskazówek opartych na opiniach
+otrzymanych od użytkowników.
 
-## Tworzenie rusztowania projektu {#create-project-scaffold}
+## Utwórz szkielet projektu {#create-project-scaffold}
 
-Przede wszystkim utwórz rusztowanie dla swojego projektu z następującymi plikami
-Tuist:
+Najpierw utwórz szkielet projektu z następującymi plikami Tuist:
 
 ::: code-group
 
@@ -79,24 +78,23 @@ let package = Package(
 <!-- -->
 :::
 
-`Project.swift` to plik manifestu, w którym definiuje się projekt, a
-`Package.swift` to plik manifestu, w którym definiuje się zależności. Plik
-`Tuist.swift` to miejsce, w którym można zdefiniować ustawienia Tuist dla
-projektu.
+`Project.swift` to plik manifestu, w którym definiujesz swój projekt, a
+`Package.swift` to plik manifestu, w którym definiujesz swoje zależności. Plik
+`Tuist.swift` służy do definiowania ustawień Tuist w zakresie projektu.
 
 ::: tip PROJECT NAME WITH -TUIST SUFFIX
 <!-- -->
-Aby zapobiec konfliktom z istniejącym projektem Xcode, zalecamy dodanie
-przyrostka `-Tuist` do nazwy projektu. Można go usunąć po pełnej migracji
-projektu do Tuist.
+Aby zapobiec konfliktom z istniejącym projektem Xcode, zalecamy dodanie do nazwy
+projektu sufiksów `-Tuist`. Możesz je usunąć po zakończeniu migracji projektu do
+Tuist.
 <!-- -->
 :::
 
-## Zbuduj i przetestuj projekt Tuist w CI {#build-and-test-the-tuist-project-in-ci}
+## Skompiluj i przetestuj projekt Tuist w CI. {#build-and-test-the-tuist-project-in-ci}
 
-Aby upewnić się, że migracja każdej zmiany jest prawidłowa, zalecamy
-rozszerzenie ciągłej integracji w celu zbudowania i przetestowania projektu
-wygenerowanego przez Tuist z pliku manifestu:
+Aby zapewnić prawidłowość migracji każdej zmiany, zalecamy rozszerzenie ciągłej
+integracji w celu skompilowania i przetestowania projektu wygenerowanego przez
+Tuist na podstawie pliku manifestu:
 
 ```bash
 tuist install
@@ -106,9 +104,9 @@ xcodebuild build {xcodebuild flags} # or tuist test
 
 ## Wyodrębnij ustawienia kompilacji projektu do plików `.xcconfig`. {#extract-the-project-build-settings-into-xcconfig-files}
 
-Wyodrębnij ustawienia kompilacji z projektu do pliku `.xcconfig`, aby uprościć
-projekt i ułatwić migrację. Za pomocą poniższego polecenia można wyodrębnić
-ustawienia kompilacji z projektu do pliku `.xcconfig`:
+Wyodrębnij ustawienia kompilacji z projektu do pliku `.xcconfig`, aby projekt
+był bardziej przejrzysty i łatwiejszy do migracji. Możesz użyć następującego
+polecenia, aby wyodrębnić ustawienia kompilacji z projektu do pliku `.xcconfig`:
 
 
 ```bash
@@ -117,7 +115,7 @@ tuist migration settings-to-xcconfig -p MyApp.xcodeproj -x xcconfigs/MyApp-Proje
 ```
 
 Następnie zaktualizuj plik `Project.swift`, aby wskazywał na właśnie utworzony
-plik `.xcconfig`:
+plik `.xcconfig`.
 
 ```swift
 import ProjectDescription
@@ -134,15 +132,15 @@ let project = Project(
 )
 ```
 
-Następnie należy rozszerzyć potok ciągłej integracji, aby uruchomić następujące
-polecenie w celu zapewnienia, że zmiany ustawień kompilacji są wprowadzane
-bezpośrednio do plików `.xcconfig`:
+Następnie rozszerz potok ciągłej integracji, aby uruchomić następujące polecenie
+w celu zapewnienia, że zmiany w ustawieniach kompilacji są wprowadzane
+bezpośrednio w plikach `.xcconfig`:
 
 ```bash
 tuist migration check-empty-settings -p Project.xcodeproj
 ```
 
-## Wyodrębnij zależności pakietów {#extract-package-dependencies}
+## Wyodrębnij zależności pakietu {#extract-package-dependencies}
 
 Wyodrębnij wszystkie zależności projektu do pliku `Tuist/Package.swift`:
 
@@ -174,46 +172,46 @@ let package = Package(
 
 ::: tip PRODUCT TYPES
 <!-- -->
-Typ produktu dla określonego pakietu można zastąpić, dodając go do słownika
+Możesz zmienić typ produktu dla konkretnego pakietu, dodając go do słownika
 `productTypes` w strukturze `PackageSettings`. Domyślnie Tuist zakłada, że
 wszystkie pakiety są statycznymi frameworkami.
 <!-- -->
 :::
 
 
-## Określenie kolejności migracji {#determine-the-migration-order}
+## Określ kolejność migracji {#determine-the-migration-order}
 
-Zalecamy migrację obiektów docelowych od tego, który jest najbardziej zależny do
-najmniej. Możesz użyć następującego polecenia, aby wyświetlić listę obiektów
-docelowych projektu, posortowanych według liczby zależności:
+Zalecamy migrację celów od najbardziej zależnych do najmniej zależnych. Możesz
+użyć następującego polecenia, aby wyświetlić listę celów projektu posortowaną
+według liczby zależności:
 
 ```bash
 tuist migration list-targets -p Project.xcodeproj
 ```
 
-Rozpocznij migrację celów z góry listy, ponieważ są one najbardziej zależne.
+Rozpocznij migrację celów od góry listy, ponieważ są to te, od których zależy
+najwięcej.
 
 
-## Migracja celów {#migrate-targets}
+## Migruj cele {#migrate-targets}
 
-Migruj cele jeden po drugim. Zalecamy wykonanie pull requesta dla każdego celu,
-aby upewnić się, że zmiany zostały sprawdzone i przetestowane przed ich
-scaleniem.
+Przenoś cele jeden po drugim. Zalecamy wykonanie pull requestu dla każdego celu,
+aby zapewnić, że zmiany zostaną sprawdzone i przetestowane przed ich scaleniem.
 
 ### Wyodrębnij docelowe ustawienia kompilacji do plików `.xcconfig`. {#extract-the-target-build-settings-into-xcconfig-files}
 
-Podobnie jak w przypadku ustawień kompilacji projektu, należy wyodrębnić
-docelowe ustawienia kompilacji do pliku `.xcconfig`, aby docelowa kompilacja
-była prostsza i łatwiejsza do migracji. Możesz użyć następującego polecenia, aby
-wyodrębnić ustawienia kompilacji z celu do pliku `.xcconfig`:
+Podobnie jak w przypadku ustawień kompilacji projektu, wyodrębnij ustawienia
+kompilacji docelowej do pliku `.xcconfig`, aby docelowy plik był bardziej
+przejrzysty i łatwiejszy do migracji. Możesz użyć następującego polecenia, aby
+wyodrębnić ustawienia kompilacji z docelowego pliku do pliku `.xcconfig`:
 
 ```bash
 tuist migration settings-to-xcconfig -p MyApp.xcodeproj -t TargetX -x xcconfigs/TargetX.xcconfig
 ```
 
-### Zdefiniuj cel w pliku `Project.swift` {#define-the-target-in-the-projectswift-file}
+### Zdefiniuj cel w pliku `Project.swift`. {#define-the-target-in-the-projectswift-file}
 
-Zdefiniuj cel w `Project.targets`:
+Zdefiniuj cel w pliku `Project.targets`:
 
 ```swift
 import ProjectDescription
@@ -252,27 +250,27 @@ Jeśli cel ma powiązany cel testowy, należy go zdefiniować w pliku
 <!-- -->
 :::
 
-### Weryfikacja migracji docelowej {#validate-the-target-migration}
+### Sprawdź poprawność migracji docelowej. {#validate-the-target-migration}
 
 Uruchom `tuist generate`, a następnie `xcodebuild build`, aby upewnić się, że
-projekt zostanie zbudowany, oraz `tuist test`, aby upewnić się, że testy
-zakończą się pomyślnie. Dodatkowo możesz użyć
+projekt został skompilowany, oraz `tuist test`, aby upewnić się, że testy
+zakończyły się powodzeniem. Dodatkowo możesz użyć
 [xcdiff](https://github.com/bloomberg/xcdiff), aby porównać wygenerowany projekt
-Xcode z istniejącym, aby upewnić się, że zmiany są prawidłowe.
+Xcode z istniejącym i upewnić się, że zmiany są poprawne.
 
-### Powtarzanie {#repeat}
+### Powtórz {#repeat}
 
-Powtarzaj tę czynność, aż wszystkie obiekty docelowe zostaną w pełni zmigrowane.
-Po zakończeniu zalecamy aktualizację potoków CI i CD w celu zbudowania i
+Powtarzaj tę czynność, aż wszystkie cele zostaną w pełni przeniesione. Po
+zakończeniu zalecamy zaktualizowanie potoków CI i CD w celu skompilowania i
 przetestowania projektu przy użyciu `tuist generate`, a następnie `xcodebuild
 build` i `tuist test`.
 
 ## Rozwiązywanie problemów {#troubleshooting}
 
-### Błędy kompilacji z powodu brakujących plików. {#compilation-errors-due-to-missing-files}
+### Błędy kompilacji spowodowane brakującymi plikami. {#compilation-errors-due-to-missing-files}
 
-Jeśli pliki powiązane z celami projektu Xcode nie były zawarte w katalogu
-systemu plików reprezentującym cel, projekt może się nie skompilować. Upewnij
-się, że lista plików po wygenerowaniu projektu za pomocą Tuist jest zgodna z
-listą plików w projekcie Xcode i skorzystaj z okazji, aby dostosować strukturę
-plików do struktury docelowej.
+Jeśli pliki powiązane z celami projektu Xcode nie zostały zawarte w katalogu
+systemu plików reprezentującym cel, może to spowodować, że projekt nie będzie
+się kompilował. Upewnij się, że lista plików po wygenerowaniu projektu za pomocą
+Tuist jest zgodna z listą plików w projekcie Xcode i skorzystaj z okazji, aby
+dostosować strukturę plików do struktury celu.
