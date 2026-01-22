@@ -2,6 +2,7 @@ import { defineConfig } from "vitepress";
 import { withMermaid } from "vitepress-plugin-mermaid";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import {
   guidesSidebar,
   contributorsSidebar,
@@ -14,6 +15,8 @@ import llmstxtPlugin from "vitepress-plugin-llmstxt";
 import postcssRtlcss from "postcss-rtlcss";
 import { validateAdmonitions } from "./validate-admonitions.mjs";
 import { checkLocalePages } from "./check-locale-pages.mjs";
+
+const vitepressDir = path.dirname(fileURLToPath(import.meta.url));
 
 async function themeConfig(locale) {
   const sidebar = {};
@@ -230,6 +233,7 @@ export default withMermaid(
       metaChunk: true,
     },
     vite: {
+      cacheDir: path.join(vitepressDir, "cache"),
       plugins: [
         llmstxtPlugin({
           ignore: llmsIgnore,
