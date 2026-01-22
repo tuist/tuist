@@ -133,9 +133,57 @@ metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 استخدام البادئات مثل `ميزة:` أو `فريق:` أو `طبقة:` يجعل من السهل فهم الغرض من كل
 علامة وتجنب تعارض التسمية.
 
+## علامات النظام {#system-tags}
+
+يستخدم تويست البادئة `tuist:` للعلامات التي يديرها النظام. يتم تطبيق هذه
+العلامات تلقائيًا بواسطة Tuist ويمكن استخدامها في ملفات تعريف ذاكرة التخزين
+المؤقت لاستهداف أنواع محددة من المحتوى الذي تم إنشاؤه.
+
+### علامات النظام المتوفرة
+
+| الوسم         | الوصف                                                                                                                                                                                |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `تويست: مركب` | تطبق على أهداف الحزمة المركبة التي ينشئها Tuist لمعالجة الموارد في المكتبات الثابتة والأطر الثابتة. هذه الحُزم موجودة لأسباب تاريخية لتوفير واجهات برمجة تطبيقات الوصول إلى الموارد. |
+
+### استخدام علامات النظام مع ملفات تعريف ذاكرة التخزين المؤقت
+
+يمكنك استخدام علامات النظام في ملفات تعريف ذاكرة التخزين المؤقت لتضمين أو
+استبعاد الأهداف المركبة:
+
+```swift
+import ProjectDescription
+
+let tuist = Tuist(
+    project: .tuist(
+        cacheOptions: .options(
+            profiles: .profiles(
+                [
+                    "development": .profile(
+                        .onlyExternal,
+                        and: ["tag:tuist:synthesized"]  // Also cache synthesized bundles
+                    )
+                ],
+                default: .onlyExternal
+            )
+        )
+    )
+)
+```
+
+::: tip SYNTHESIZED BUNDLES INHERIT PARENT TAGS
+<!-- -->
+ترث أهداف الحزمة المركبة جميع العلامات من هدفها الأم بالإضافة إلى تلقي علامة
+`tuist:synthesized`. هذا يعني أنه إذا قمت بتمييز مكتبة ثابتة بعلامة `ميزة:auth`
+، فإن حزمة الموارد المركبة الخاصة بها ستحتوي على كل من علامتي `ميزة:auth` و
+`tuist:synthesized`.
+<!-- -->
+:::
+
 ## استخدام العلامات مع مساعدي وصف المشروع {#using-tags-with-helpers}
 
-يمكنك الاستفادة من <LocalizedLink href="/guides/features/projects/code-sharing">مساعدات وصف المشروع</LocalizedLink> لتوحيد كيفية تطبيق العلامات عبر مشروعك:
+يمكنك الاستفادة من
+<LocalizedLink href="/guides/features/projects/code-sharing">مساعدات وصف
+المشروع</LocalizedLink> لتوحيد كيفية تطبيق العلامات عبر مشروعك:
 
 ```swift
 // Tuist/ProjectDescriptionHelpers/Project+Templates.swift
@@ -200,7 +248,9 @@ let project = Project(
 
 ### التكامل مع التخزين المؤقت
 
-تعمل علامات البيانات الوصفية بسلاسة مع <LocalizedLink href="/guides/features/cache">ميزات التخزين المؤقت في Tuist</LocalizedLink>:
+تعمل علامات البيانات الوصفية بسلاسة مع
+<LocalizedLink href="/guides/features/cache"> ميزات التخزين المؤقت في
+<LocalizedLink href="/guides/features/cache">Tuist</LocalizedLink>:
 
 ```bash
 # Cache all targets
@@ -223,6 +273,10 @@ tuist generate tag:feature:payment
 
 ## الميزات ذات الصلة {#related-features}
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">مشاركة الرمز</LocalizedLink> - استخدام مساعدي وصف المشروع لتوحيد استخدام العلامات
-- <LocalizedLink href="/guides/features/cache">ذاكرة التخزين المؤقت</LocalizedLink> - ادمج العلامات مع التخزين المؤقت للحصول على أداء بناء مثالي
-- <LocalizedLink href="/guides/features/selective-testing">اختبار انتقائي</LocalizedLink> - إجراء اختبارات للأهداف المتغيرة فقط
+- <LocalizedLink href="/guides/features/projects/code-sharing">مشاركة
+  الرمز</LocalizedLink> - استخدام مساعدي وصف المشروع لتوحيد استخدام العلامات
+- <LocalizedLink href="/guides/features/cache">ذاكرة التخزين
+  المؤقت</LocalizedLink> - ادمج العلامات مع التخزين المؤقت للحصول على أداء بناء
+  مثالي
+- <LocalizedLink href="/guides/features/selective-testing">اختبار
+  انتقائي</LocalizedLink> - إجراء اختبارات للأهداف المتغيرة فقط
