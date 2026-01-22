@@ -3,9 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-22 12:40+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"PO-Revision-Date: 2026-01-22 13:04+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Japanese <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/ja/>\n"
 "Language: ja\n"
@@ -28,29 +27,29 @@ msgstr ""
 #: lib/tuist_web/live/overview_live.html.heex:816
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{average_build_time}s"
-msgstr "平均ビルド時間}s"
+msgstr "%{average_build_time}s"
 
 #: lib/tuist_web/live/overview_live.html.heex:104
 #: lib/tuist_web/live/overview_live.html.heex:180
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{binary_cache_effectiveness}%"
-msgstr "バイナリキャッシュ効果}%。"
+msgstr "%{binary_cache_effectiveness}%"
 
 #: lib/tuist_web/live/overview_live.html.heex:140
 #: lib/tuist_web/live/overview_live.html.heex:159
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{duration}s"
-msgstr "期間}s"
+msgstr "%{duration}s"
 
 #: lib/tuist_web/live/overview_live.html.heex:189
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{selective_test_effectiveness}%"
-msgstr "選択的試験効果}%。"
+msgstr "%{selective_test_effectiveness}%"
 
 #: lib/tuist_web/live/overview_live.html.heex:122
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{selective_tests_effectiveness}%"
-msgstr "%{selective_tests_effectiveness}%."
+msgstr "%{selective_tests_effectiveness}%"
 
 #: lib/tuist_web/live/create_project_live.ex:76
 #, elixir-autogen, elixir-format, fuzzy
@@ -72,18 +71,18 @@ msgstr "アナリティクス"
 #: lib/tuist_web/live/overview_live.html.heex:654
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Any"
-msgstr "どんなものでも"
+msgstr "Any"
 
 #: lib/tuist_web/live/project_settings_live.html.heex:40
 #: lib/tuist_web/live/project_settings_live.html.heex:64
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Anyone with the link"
-msgstr "リンクをお持ちの方"
+msgstr "リンクを持っている人なら誰でも"
 
 #: lib/tuist_web/live/overview_live.html.heex:511
 #, elixir-autogen, elixir-format, fuzzy
 msgid "App:"
-msgstr "アプリ"
+msgstr "アプリ:"
 
 #: lib/tuist_web/live/project_settings_live.html.heex:161
 #, elixir-autogen, elixir-format, fuzzy
@@ -95,27 +94,27 @@ msgstr "本当に削除しますか？"
 #: lib/tuist_web/live/overview_live.html.heex:883
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Average build time"
-msgstr "平均製造時間"
+msgstr "平均ビルド時間"
 
 #: lib/tuist_web/live/overview_live.html.heex:151
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Average test time"
-msgstr "平均試験時間"
+msgstr "平均テスト時間"
 
 #: lib/tuist_web/live/overview_live.html.heex:134
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Average time it takes to build a project as reported from Xcode post actions."
-msgstr "Xcodeのポストアクションから報告された、プロジェクトのビルドにかかる平均時間。"
+msgstr "Xcodeのポストアクションから報告されるプロジェクトのビルドにかかる平均時間。"
 
 #: lib/tuist_web/live/overview_live.html.heex:153
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Average time it takes to test a project when using the 'tuist test' command."
-msgstr "tuist test'コマンドを使用してプロジェクトをテストするのにかかる平均時間。"
+msgstr "'tuist test' コマンド使用時のプロジェクトテスト平均所要時間。"
 
 #: lib/tuist_web/live/overview_live.html.heex:377
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Binary cache and selective testing: no data yet"
-msgstr "バイナリーキャッシュと選択的テスト：データはまだない"
+msgstr "バイナリキャッシュと選択的テスト：データはまだありません"
 
 #: lib/tuist_web/live/overview_live.html.heex:324
 #, elixir-autogen, elixir-format, fuzzy
@@ -125,7 +124,7 @@ msgstr "ビルド時間"
 #: lib/tuist_web/live/overview_live.html.heex:287
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Build time saved"
-msgstr "建設時間の短縮"
+msgstr "ビルド時間の節約"
 
 #: lib/tuist_web/live/overview_live.html.heex:642
 #, elixir-autogen, elixir-format, fuzzy
@@ -135,7 +134,7 @@ msgstr "ビルド"
 #: lib/tuist_web/live/overview_live.html.heex:622
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Bundle install size"
-msgstr "バンドル・インストール・サイズ"
+msgstr "バンドルインストールサイズ"
 
 #: lib/tuist_web/live/overview_live.html.heex:503
 #, elixir-autogen, elixir-format, fuzzy
@@ -160,9 +159,9 @@ msgstr "キャッシュの有効性"
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cache effectiveness represents the combined hit rate of both Module cache and Xcode cache, showing the percentage of cacheable items that were resolved from cache rather than being rebuilt."
 msgstr ""
-"キャッシュの有効性は、モジュールキャッシュと Xcode キャッシュの両方のヒット率"
-"を表し、再構築されるのではなく、キャッシュから解決されたキャッシュ可能な"
-"アイテムのパーセンテージを示します。"
+"キャッシュの有効性は、モジュールキャッシュとXcodeキャッシュの両方のヒット率を"
+"組み合わせたもので、再構築されずにキャッシュから解決されたキャッシュ可能な項"
+"目の割合を示します。"
 
 #: lib/tuist_web/live/overview_live.html.heex:79
 #: lib/tuist_web/live/overview_live.html.heex:552
@@ -176,17 +175,19 @@ msgstr "キャンセル"
 #: lib/tuist_web/live/create_project_live.ex:78
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Choose an account to create your project or set up a new organization."
-msgstr "アカウントを選択して、プロジェクトを作成するか、新しい組織を設定します。"
+msgstr ""
+"プロジェクトを作成するか、新しい組織を設定するためにアカウントを選択してくだ"
+"さい。"
 
 #: lib/tuist_web/live/create_project_live.ex:97
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Continue"
-msgstr "続ける"
+msgstr "Continue"
 
 #: lib/tuist_web/live/create_project_live.ex:60
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Create a Tuist project to continue"
-msgstr "続けてTuistプロジェクトを作成する"
+msgstr "Tuistプロジェクトを作成して続行する"
 
 #: lib/tuist_web/live/projects_live.ex:320
 #, elixir-autogen, elixir-format, fuzzy
@@ -201,19 +202,19 @@ msgstr "プロジェクトを作成する"
 #: lib/tuist_web/live/create_project_live.ex:102
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Create organization"
-msgstr "組織を作る"
+msgstr "組織を作成する"
 
 #: lib/tuist_web/live/projects_live.ex:306
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Create project"
-msgstr "プロジェクトの作成"
+msgstr "プロジェクトを作成"
 
 #: lib/tuist_web/live/projects_live.ex:170
 #: lib/tuist_web/live/projects_live.ex:213
 #: lib/tuist_web/live/projects_live.ex:280
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Created %{time}"
-msgstr "作成された %{時刻}。"
+msgstr "作成日時: %{time}"
 
 #: lib/tuist_web/live/project_settings_live.html.heex:205
 #, elixir-autogen, elixir-format, fuzzy
@@ -224,39 +225,39 @@ msgstr "削除"
 #: lib/tuist_web/live/project_settings_live.html.heex:167
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Delete project"
-msgstr "プロジェクトの削除"
+msgstr "プロジェクトを削除"
 
 #: lib/tuist_web/live/project_settings_live.html.heex:179
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Deleting the project will permanently remove all of its data"
-msgstr "プロジェクトを削除すると、すべてのデータが永久に削除されます。"
+msgstr "プロジェクトを削除すると、そのすべてのデータが完全に消去されます"
 
 #: lib/tuist_web/live/project_settings_live.html.heex:186
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Enter this project's name to confirm"
-msgstr "このプロジェクト名を入力して確認する"
+msgstr "このプロジェクト名を入力して確認してください"
 
 #: lib/tuist_web/live/overview_live.html.heex:19
 #: lib/tuist_web/live/overview_live.html.heex:650
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Environment:"
-msgstr "環境："
+msgstr "環境:"
 
 #: lib/tuist_web/live/overview_live.html.heex:735
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed builds"
-msgstr "失敗したビルド"
+msgstr "ビルド失敗"
 
 #: lib/tuist_web/live/overview_live.html.heex:405
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Failed runs"
-msgstr "失敗したラン"
+msgstr "失敗した実行"
 
 #: lib/tuist_web/live/project_settings_live.html.heex:8
 #: lib/tuist_web/live/project_settings_live.html.heex:19
 #, elixir-autogen, elixir-format, fuzzy
 msgid "General"
-msgstr "一般"
+msgstr "一般事項"
 
 #: lib/tuist_web/live/project_settings_live.html.heex:32
 #, elixir-autogen, elixir-format, fuzzy
@@ -266,78 +267,78 @@ msgstr "一般アクセス"
 #: lib/tuist_web/live/overview_live.html.heex:573
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Install size"
-msgstr "設置サイズ"
+msgstr "インストールサイズ"
 
 #: lib/tuist_web/live/overview_live.html.heex:787
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Last 30 runs"
-msgstr "直近30本"
+msgstr "直近30回の実行"
 
 #: lib/tuist_web/live/overview_live.html.heex:458
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Last 40 runs"
-msgstr "最後の40本"
+msgstr "直近40回の実行"
 
 #: lib/tuist_web/live/projects_live.ex:165
 #: lib/tuist_web/live/projects_live.ex:208
 #: lib/tuist_web/live/projects_live.ex:275
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Last interacted with %{time}"
-msgstr "最後に対話した時間"
+msgstr "最終更新日時: %{time}"
 
 #: lib/tuist_web/live/overview_live.html.heex:483
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Latest app previews"
-msgstr "最新アプリのプレビュー"
+msgstr "最新のアプリプレビュー"
 
 #: lib/tuist_web/live/overview_live.ex:329
 #: lib/tuist_web/live/overview_live.html.heex:31
 #: lib/tuist_web/live/overview_live.html.heex:662
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Local"
-msgstr "ローカル"
+msgstr "Local"
 
 #: lib/tuist_web/live/create_project_live.ex:67
 #: lib/tuist_web/live/projects_live.ex:328
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Name"
-msgstr "名称"
+msgstr "名前"
 
 #: lib/tuist_web/live/projects_live.ex:313
 #, elixir-autogen, elixir-format, fuzzy
 msgid "New project"
-msgstr "新プロジェクト"
+msgstr "新規プロジェクト"
 
 #: lib/tuist_web/live/overview_live.html.heex:895
 #, elixir-autogen, elixir-format, fuzzy
 msgid "No builds yet"
-msgstr "まだビルドされていない"
+msgstr "まだビルドはありません"
 
 #: lib/tuist_web/live/overview_live.html.heex:633
 #, elixir-autogen, elixir-format, fuzzy
 msgid "No bundles yet"
-msgstr "バンドルはまだない"
+msgstr "まだバンドルはありません"
 
 #: lib/tuist_web/live/overview_live.html.heex:493
 #, elixir-autogen, elixir-format, fuzzy
 msgid "No previews yet"
-msgstr "プレビューはまだない"
+msgstr "まだプレビューはありません"
 
 #: lib/tuist_web/live/overview_live.html.heex:792
 #, elixir-autogen, elixir-format, fuzzy
 msgid "No recent builds yet"
-msgstr "最近のビルドはまだない"
+msgstr "まだ最新のビルドはありません"
 
 #: lib/tuist_web/live/project_settings_live.html.heex:38
 #: lib/tuist_web/live/project_settings_live.html.heex:52
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Only people with access"
-msgstr "アクセスできる人のみ"
+msgstr "アクセス権限を持つ者のみ"
 
 #: lib/tuist_web/live/create_project_live.ex:100
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Or set up a new organization"
-msgstr "あるいは新しい組織を立ち上げる"
+msgstr "または新しい組織を設定する"
 
 #: lib/tuist_web/live/overview_live.ex:25
 #, elixir-autogen, elixir-format, fuzzy
@@ -347,17 +348,17 @@ msgstr "概要"
 #: lib/tuist_web/live/overview_live.html.heex:730
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Passed builds"
-msgstr "合格ビルド"
+msgstr "ビルド成功"
 
 #: lib/tuist_web/live/overview_live.html.heex:400
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Passed runs"
-msgstr "合格ラン"
+msgstr "合格した実行"
 
 #: lib/tuist_web/live/project_settings_live.html.heex:24
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Preview access"
-msgstr "プレビュー・アクセス"
+msgstr "プレビューアクセス"
 
 #: lib/tuist_web/live/overview_live.html.heex:472
 #, elixir-autogen, elixir-format, fuzzy
@@ -389,13 +390,13 @@ msgstr "最近のプロジェクト"
 #: lib/tuist_web/live/project_settings_live.html.heex:133
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Rename"
-msgstr "名前変更"
+msgstr "名前を変更する"
 
 #: lib/tuist_web/live/project_settings_live.html.heex:80
 #: lib/tuist_web/live/project_settings_live.html.heex:101
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Rename project"
-msgstr "プロジェクト名の変更"
+msgstr "プロジェクト名を変更する"
 
 #: lib/tuist_web/live/project_settings_live.html.heex:95
 #, elixir-autogen, elixir-format, fuzzy
@@ -405,32 +406,32 @@ msgstr "プロジェクト名を変更しますか？"
 #: lib/tuist_web/live/project_settings_live.html.heex:112
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Renaming can have unexpected consequences"
-msgstr "名前の変更は予期せぬ結果をもたらす"
+msgstr "名前の変更は予期せぬ結果を招く可能性があります"
 
 #: lib/tuist_web/live/project_settings_live.html.heex:83
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Renaming your project can have unintended side effects."
-msgstr "プロジェクト名を変更すると、意図しない副作用が生じることがあります。"
+msgstr "プロジェクト名を変更すると、予期しない副作用が生じる可能性があります。"
 
 #: lib/tuist_web/live/overview_live.html.heex:463
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Runs: no data yet"
-msgstr "ラン：まだデータなし"
+msgstr "実行回数: データはまだありません"
 
 #: lib/tuist_web/live/overview_live.html.heex:350
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Saved"
-msgstr "保存"
+msgstr "保存済み"
 
 #: lib/tuist_web/live/projects_live.ex:235
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Search projects..."
-msgstr "検索プロジェクト..."
+msgstr "プロジェクトを検索..."
 
 #: lib/tuist_web/live/create_project_live.ex:72
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Select account"
-msgstr "アカウント選択"
+msgstr "アカウントを選択"
 
 #: lib/tuist_web/live/overview_live.html.heex:114
 #: lib/tuist_web/live/overview_live.html.heex:187
@@ -442,12 +443,12 @@ msgstr "選択的テストの有効性"
 #: lib/tuist_web/live/overview_live.html.heex:116
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Selective test effectiveness represents the ratio of selective test hits compared to selective test misses."
-msgstr "選択的検査の有効性は、選択的検査がヒットした割合とミスした割合を示す。"
+msgstr "選択的テストの有効性は、選択的テストのヒット数とミス数の比率で表される。"
 
 #: lib/tuist_web/live/project_settings_live.html.heex:27
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Set your previews to be public or private by default."
-msgstr "デフォルトでプレビューを公開または非公開に設定します。"
+msgstr "プレビューをデフォルトで公開または非公開に設定してください。"
 
 #: lib/tuist_web/live/project_settings_live.ex:24
 #, elixir-autogen, elixir-format, fuzzy
@@ -467,17 +468,17 @@ msgstr "テスト"
 #: lib/tuist_web/live/projects_live.ex:24
 #, elixir-autogen, elixir-format, fuzzy
 msgid "The page you are looking for doesn't exist or has been moved."
-msgstr "お探しのページは存在しないか、移動されました。"
+msgstr "お探しのページは存在しません、または移動されました。"
 
 #: lib/tuist_web/live/project_settings_live.html.heex:149
 #, elixir-autogen, elixir-format, fuzzy
 msgid "This action cannot be undone."
-msgstr "この行為は取り消すことができない。"
+msgstr "この操作は取り消せません。"
 
 #: lib/tuist_web/live/create_project_live.ex:50
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Tuist Logo"
-msgstr "Tuistロゴ"
+msgstr "Tuist Logo"
 
 #: lib/tuist_web/live/overview_live.html.heex:390
 #: lib/tuist_web/live/overview_live.html.heex:476
@@ -489,29 +490,29 @@ msgstr "もっと見る"
 #: lib/tuist_web/live/project_settings_live.ex:14
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You are not authorized to perform this action."
-msgstr "あなたはこの操作を行う権限がありません。"
+msgstr "この操作を実行する権限がありません。"
 
 #: lib/tuist_web/live/overview_live.ex:322
 #, elixir-autogen, elixir-format, fuzzy
 msgid "since last month"
-msgstr "先月より"
+msgstr "先月から"
 
 #: lib/tuist_web/live/overview_live.ex:319
 #, elixir-autogen, elixir-format, fuzzy
 msgid "since last week"
-msgstr "先週から"
+msgstr "先週以来"
 
 #: lib/tuist_web/live/overview_live.ex:320
 #, elixir-autogen, elixir-format, fuzzy
 msgid "since last year"
-msgstr "昨年から"
+msgstr "昨年以来"
 
 #: lib/tuist_web/live/overview_live.html.heex:86
 #: lib/tuist_web/live/overview_live.html.heex:561
 #: lib/tuist_web/live/overview_live.html.heex:717
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Apply"
-msgstr "応募する"
+msgstr "適用"
 
 #: lib/tuist_web/live/overview_live.html.heex:70
 #: lib/tuist_web/live/overview_live.html.heex:543
@@ -525,13 +526,13 @@ msgstr "カスタム"
 #: lib/tuist_web/live/overview_live.html.heex:698
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Last 12 months"
-msgstr "過去12ヶ月"
+msgstr "過去12か月"
 
 #: lib/tuist_web/live/overview_live.html.heex:52
 #: lib/tuist_web/live/overview_live.html.heex:683
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Last 24 hours"
-msgstr "直近24時間"
+msgstr "過去24時間"
 
 #: lib/tuist_web/live/overview_live.html.heex:62
 #: lib/tuist_web/live/overview_live.html.heex:535
@@ -545,12 +546,12 @@ msgstr "過去30日間"
 #: lib/tuist_web/live/overview_live.html.heex:688
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Last 7 days"
-msgstr "直近7日間"
+msgstr "過去7日間"
 
 #: lib/tuist_web/live/overview_live.ex:321
 #, elixir-autogen, elixir-format, fuzzy
 msgid "since last period"
-msgstr "前期より"
+msgstr "前回のピリオド以降"
 
 #: lib/tuist_web/live/overview_live.ex:318
 #, elixir-autogen, elixir-format, fuzzy
