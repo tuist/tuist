@@ -12,10 +12,16 @@ alias Credo.Checks.TimestampsType
         ],
         excluded: [~r"/_build/", ~r"/deps/", ~r"/node_modules/"]
       },
-      requires: ["./credo/checks/**/*.ex"],
+      requires: ["../tuist_common/credo/checks/**/*.ex"],
       checks: %{
         extra: [
-          {Credo.Check.Refactor.Nesting, [max_nesting: 3]}
+          {Credo.Check.Refactor.Nesting, [max_nesting: 3]},
+          {TimestampsType, files: %{included: ["lib/"]}, allowed_type: :utc_datetime},
+          {Credo.Checks.UnusedReturnValue,
+           [
+             files: %{excluded: ["priv/repo/migrations/"]},
+             modules: [[:Cache, :Repo], [:Repo], [:Oban]]
+           ]}
         ],
         disabled: [
           {Credo.Check.Design.TagTODO, []}

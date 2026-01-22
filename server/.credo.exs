@@ -12,7 +12,10 @@ alias Credo.Checks.TimestampsType
         ],
         excluded: [~r"/_build/", ~r"/deps/", ~r"/node_modules/"]
       },
-      requires: ["./credo/checks/**/*.ex"],
+      requires: [
+        "./credo/checks/**/*.ex",
+        "../tuist_common/credo/checks/**/*.ex"
+      ],
       checks: %{
         extra: [
           {Credo.Check.Refactor.Nesting, [max_nesting: 3]},

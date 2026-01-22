@@ -103,4 +103,3 @@ Mimic.copy(Port)
 
 ExUnit.start(exclude: [:skip])
 Ecto.Adapters.SQL.Sandbox.mode(Tuist.Repo, :manual)
-Credo.Application.start([], [])
