@@ -5,69 +5,64 @@
   "description": "Contribute to the Tuist CLI."
 }
 ---
-# CLI {#cli}
+# CLI{#cli}
 
-Source:
+ソース:
 [github.com/tuist/tuist/tree/main/Tuist](https://github.com/tuist/tuist/tree/main/Tuist)
-and
+および
 [github.com/tuist/tuist/tree/main/cli](https://github.com/tuist/tuist/tree/main/cli)
 
-## What it is for {#what-it-is-for}
+## 目的{#what-it-is-for}
 
-The CLI is the heart of Tuist. It handles project generation, automation
-workflows (test, run, graph, and inspect), and provides the interface to the
-Tuist server for features like authentication, cache, insights, previews,
-registry, and selective testing.
+CLIはTuistの中核です。プロジェクト生成、自動化ワークフロー（テスト、実行、グラフ化、検査）を処理し、認証、キャッシュ、インサイト、プレビュー、レジストリ、選択的テストなどの機能向けにTuistサーバーへのインターフェースを提供します。
 
-## How to contribute {#how-to-contribute}
+## 貢献方法{#how-to-contribute}
 
-### Requirements {#requirements}
+### 要件{#requirements}
 
-- macOS 14.0+
+- macOS 14.0以降
 - Xcode 26+
 
-### Set up locally {#set-up-locally}
+### ローカルに設定する{#set-up-locally}
 
-- Clone the repository: `git clone git@github.com:tuist/tuist.git`
-- Install Mise using [their official install
-  script](https://mise.jdx.dev/getting-started.html) (not Homebrew) and run
-  `mise install`
-- Install Tuist dependencies: `tuist install`
-- Generate the workspace: `tuist generate`
+- リポジトリをクローン:`git clone git@github.com:tuist/tuist.git`
+- Miseは[公式インストールスクリプト](https://mise.jdx.dev/getting-started.html)（Homebrewではない）を使用してインストールし、`mise
+  installを実行してください`
+- Tuistの依存関係をインストール:`tuist install`
+- ワークスペースを生成:`tuist generate`
 
-The generated project opens automatically. If you need to reopen it later, run
-`open Tuist.xcworkspace`.
+生成されたプロジェクトは自動的に開きます。後で再度開く必要がある場合は、`open Tuist.xcworkspace` を実行してください。
 
 ::: info XED .
 <!-- -->
-If you try to open the project using `xed .`, it will open the package, not the
-Tuist-generated workspace. Use `Tuist.xcworkspace`.
+`xed .` でプロジェクトを開こうとすると、Tuistが生成したワークスペースではなくパッケージが開きます。`Tuist.xcworkspace`
+を使用してください。
 <!-- -->
 :::
 
-### Run Tuist {#run-tuist}
+### Tuistを実行{#run-tuist}
 
-#### From Xcode {#from-xcode}
+#### Xcodeより{#from-xcode}
 
-Edit the `tuist` scheme and set arguments like `generate --no-open`. Set the
-working directory to the project root (or use `--path`).
+`tuist` スキームを編集し、`generate --no-open`
+のような引数を設定します。作業ディレクトリをプロジェクトルートに設定するか（または`--path` を使用）、
 
 ::: warning PROJECTDESCRIPTION COMPILATION
 <!-- -->
-The CLI depends on `ProjectDescription` being built. If it fails to run, build
-the `Tuist-Workspace` scheme first.
+CLIは`ProjectDescription` のビルドに依存します。実行に失敗した場合は、まず`Tuist-Workspace`
+schemeをビルドしてください。
 <!-- -->
 :::
 
-#### From the terminal {#from-the-terminal}
+#### ターミナルから{#from-the-terminal}
 
-First generate the workspace:
+まずワークスペースを生成します：
 
 ```bash
 tuist generate --no-open
 ```
 
-Then build the `tuist` executable with Xcode and run it from DerivedData:
+次に、`tuist` 実行ファイルをXcodeでビルドし、DerivedDataから実行します：
 
 ```bash
 tuist_build_dir="$(xcodebuild -workspace Tuist.xcworkspace -scheme tuist -configuration Debug -destination 'platform=macOS' -showBuildSettings | awk -F' = ' '/BUILT_PRODUCTS_DIR/{print $2; exit}')"
@@ -75,7 +70,7 @@ tuist_build_dir="$(xcodebuild -workspace Tuist.xcworkspace -scheme tuist -config
 "$tuist_build_dir/tuist" generate --path /path/to/project --no-open
 ```
 
-Or via Swift Package Manager:
+またはSwift Package Manager経由で:
 
 ```bash
 swift build --product ProjectDescription
