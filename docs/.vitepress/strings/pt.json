@@ -155,6 +155,12 @@
                         },
                         "handbook": {
                             "text": ""
+                        },
+                        "cli": {
+                            "text": "CLI"
+                        },
+                        "server": {
+                            "text": "Server"
                         }
                     },
                     "text": ""
