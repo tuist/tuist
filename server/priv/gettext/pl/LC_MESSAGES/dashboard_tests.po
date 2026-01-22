@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-22 13:04+0000\n"
+"PO-Revision-Date: 2026-01-22 18:01+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Polish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/pl/>\n"
@@ -704,50 +704,67 @@ msgstr "od ostatniego kropki"
 msgid "since yesterday"
 msgstr "od wczoraj"
 
+#, fuzzy
 msgid "Flakiness rate"
-msgstr ""
+msgstr "Wskaźnik niestabilności"
 
+#, fuzzy
 msgid "Flaky"
-msgstr ""
+msgstr "Flaky"
 
+#, fuzzy
 msgid "Flaky Runs"
-msgstr ""
+msgstr "Nieregularne działania"
 
+#, fuzzy
 msgid "Flaky Tests"
-msgstr ""
+msgstr "Niesprawne testy"
 
+#, fuzzy
 msgid "Flaky runs"
-msgstr ""
+msgstr "Nieregularne działania"
 
+#, fuzzy
 msgid "Flaky test cases"
-msgstr ""
+msgstr "Niesprawne przypadki testowe"
 
+#, fuzzy
 msgid "Flaky test runs"
-msgstr ""
+msgstr "Nierówne przebiegi testów"
 
+#, fuzzy
 msgid "Last flaky run"
-msgstr ""
+msgstr "Ostatni niestabilny przebieg"
 
+#, fuzzy
 msgid "Mark as flaky"
-msgstr ""
+msgstr "Oznacz jako niestabilne"
 
+#, fuzzy
 msgid "Most occurring flaky tests"
-msgstr ""
+msgstr "Najczęściej występujące niestabilne testy"
 
+#, fuzzy
 msgid "No flaky tests"
-msgstr ""
+msgstr "Żadnych niepewnych testów"
 
+#, fuzzy
 msgid "Number of test cases that passed after retry."
 msgstr ""
+"Liczba przypadków testowych, które przeszły pomyślnie po ponownej próbie."
 
+#, fuzzy
 msgid "Percentage of test runs that were flaky in the last 30 days."
-msgstr ""
+msgstr "Odsetek niepewnych przebiegów testowych w ciągu ostatnich 30 dni."
 
+#, fuzzy
 msgid "The number of test runs with flaky tests."
-msgstr ""
+msgstr "Liczba przebiegów testowych z niestabilnymi testami."
 
+#, fuzzy
 msgid "Unmark as flaky"
-msgstr ""
+msgstr "Odznacz jako niestabilne"
 
+#, fuzzy
 msgid "New"
-msgstr ""
+msgstr "Nowy"
