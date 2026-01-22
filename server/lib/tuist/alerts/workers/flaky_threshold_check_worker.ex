@@ -20,13 +20,9 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorker do
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"test_case_id" => test_case_id, "project_id" => project_id}}) do
     with {:ok, test_case} <- Runs.get_test_case_by_id(test_case_id),
+         false <- test_case.is_flaky,
          %Projects.Project{} = project <- Projects.get_project_by_id(project_id) do
-      # Skip if test case is already marked as flaky
-      if test_case.is_flaky do
-        :ok
-      else
-        check_and_mark_flaky(project, test_case)
-      end
+      check_and_mark_flaky(project, test_case)
     else
       _ -> :ok
     end
