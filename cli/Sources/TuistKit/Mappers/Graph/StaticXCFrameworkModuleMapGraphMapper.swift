@@ -348,19 +348,18 @@ extension String {
         from sourcePath: AbsolutePath,
         to destinationPath: AbsolutePath
     ) -> String {
-        let srcRootPrefix = "$(SRCROOT)/"
-        guard let range = range(of: srcRootPrefix) else { return self }
+        let srcRootMarker = "$(SRCROOT)/"
+        guard let markerRange = range(of: srcRootMarker) else { return self }
 
-        let afterPrefix = self[range.upperBound...]
-        let endIndex = afterPrefix.firstIndex(of: "\"") ?? afterPrefix.endIndex
-        let relativePath = String(afterPrefix[..<endIndex])
+        let pathStart = markerRange.upperBound
+        let pathEnd = self[pathStart...].firstIndex(of: "\"") ?? endIndex
+        let pathString = String(self[pathStart ..< pathEnd])
 
-        guard let absolutePath = try? sourcePath.appending(RelativePath(validating: relativePath)) else { return self }
-        let newRelativePath = absolutePath.relative(to: destinationPath).pathString
+        guard let relativePath = try? RelativePath(validating: pathString) else { return self }
 
-        return replacingCharacters(
-            in: range.lowerBound ..< index(range.upperBound, offsetBy: relativePath.count),
-            with: "\(srcRootPrefix)\(newRelativePath)"
-        )
+        let absolutePath = sourcePath.appending(relativePath)
+        let resolvedPath = absolutePath.relative(to: destinationPath)
+
+        return String(self[..<markerRange.upperBound]) + resolvedPath.pathString + String(self[pathEnd...])
     }
 }
