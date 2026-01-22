@@ -21,7 +21,7 @@ może nie być najlepszym rozwiązaniem dla innych, które chcą skupić się na
 rozwoju swoich produktów. Na przykład widzieliśmy organizacje, których zespół
 platformy iOS wprowadził Bazel i musiał go porzucić po tym, jak inżynierowie,
 którzy kierowali wysiłkiem, opuścili firmę. Stanowisko Apple w sprawie silnego
-sprzężenia między Xcode a systemem kompilacji jest kolejnym czynnikiem, który
+powiązania między Xcode a systemem kompilacji jest kolejnym czynnikiem, który
 utrudnia utrzymanie projektów Bazel w czasie.
 
 ::: tip TUIST UNIQUENESS LIES IN ITS FINESSE
