@@ -80,6 +80,7 @@ defmodule TuistWeb.BundleLive do
                 "filter",
                 "file-breakdown-sort-by",
                 "file-breakdown-filter",
+                "file-breakdown-type-filter",
                 "file-breakdown-page",
                 "tab",
                 "current-path"
@@ -127,14 +128,18 @@ defmodule TuistWeb.BundleLive do
 
   defp assign_file_breakdown(%{assigns: %{all_artifacts: all_artifacts}} = socket, params) do
     file_breakdown_filter = params["file-breakdown-filter"] || ""
+    file_breakdown_type_filter = params["file-breakdown-type-filter"]
     file_breakdown_sort_by = params["file-breakdown-sort-by"] || "size"
     file_breakdown_sort_order = params["file-breakdown-sort-order"] || "desc"
     file_breakdown_page = String.to_integer(params["file-breakdown-page"] || "1")
 
     file_breakdown_filtered_artifacts =
       Enum.filter(all_artifacts, fn artifact ->
-        String.contains?(String.downcase(artifact.path), String.downcase(file_breakdown_filter)) &&
-          Enum.empty?(artifact.children)
+        path_matches = String.contains?(String.downcase(artifact.path), String.downcase(file_breakdown_filter))
+        is_leaf = Enum.empty?(artifact.children)
+        type_matches = file_breakdown_type_filter in [nil, "all"] || to_string(artifact.artifact_type) == file_breakdown_type_filter
+
+        path_matches && is_leaf && type_matches
       end)
 
     file_breakdown_page_count =
@@ -153,6 +158,7 @@ defmodule TuistWeb.BundleLive do
 
     socket
     |> assign(:file_breakdown_filter, file_breakdown_filter)
+    |> assign(:file_breakdown_type_filter, file_breakdown_type_filter)
     |> assign(:file_breakdown_page, file_breakdown_page)
     |> assign(:file_breakdown_page_count, file_breakdown_page_count)
     |> assign(
@@ -570,6 +576,22 @@ defmodule TuistWeb.BundleLive do
       |> Map.put("file-breakdown-sort-by", file_breakdown_sort_by)
       |> Map.delete("file-breakdown-page")
       |> Map.delete("file-breakdown-sort-order")
+
+    "?#{URI.encode_query(query_params)}"
+  end
+
+  def file_breakdown_dropdown_item_patch_type_filter(type_filter, uri) do
+    query_params =
+      uri.query
+      |> URI.decode_query()
+      |> then(fn params ->
+        if type_filter == "all" do
+          Map.delete(params, "file-breakdown-type-filter")
+        else
+          Map.put(params, "file-breakdown-type-filter", type_filter)
+        end
+      end)
+      |> Map.delete("file-breakdown-page")
 
     "?#{URI.encode_query(query_params)}"
   end
