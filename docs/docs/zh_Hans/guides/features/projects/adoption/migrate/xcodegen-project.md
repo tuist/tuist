@@ -44,7 +44,7 @@ tuist generate
 
 ## `project.yaml` {#projectyaml}
 
-XcodeGen 的`project.yaml` 描述文件变为`Project.swift` 。此外，您还可以使用`Workspace.swift`
+XcodeGen 的`project.yaml` 描述文件变为`Project.swift` 。此外，您还可以通过`Workspace.swift`
 来自定义项目在工作区中的分组方式。您也可以让项目`Project.swift` 包含引用其他项目目标的目标。在这种情况下，Tuist 将生成一个包含所有项目的
 Xcode 工作区。
 
@@ -75,7 +75,8 @@ XcodeGen 和 Tuist 都采用了 Xcode 的语言和概念。不过，Tuist 基于
 
 YAML 作为项目配置语言的一个缺点是，它不支持开箱即用的 YAML 文件之间的复用。这是描述项目时的一个常见需求，XcodeGen
 不得不使用自己的专利解决方案（名为*"templates"* ）来解决这个问题。Tuist 的可重用性内置于 Swift 语言本身，并通过名为
-<LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink> 的 Swift 模块实现，该模块允许在所有清单文件中重用代码。
+<LocalizedLink href="/guides/features/projects/code-sharing">project description
+helpers</LocalizedLink> 的 Swift 模块实现，该模块允许在所有清单文件中重用代码。
 
 代码组
 ```swift [Tuist/ProjectDescriptionHelpers/Target+Features.swift]
