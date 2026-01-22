@@ -41,7 +41,7 @@ Oktaを使用したSSOは、企業のお客様のみご利用いただけます�
 13. Login initiated by」を「Either Okta or App」に変更します。
 14. ユーザーにアプリケーションのアイコンを表示する」を選択する
 15. Initiate login URL "を`https://tuist.dev/users/auth/okta?organization_id=1`
-    で更新します。`organization_id` は、担当者から提供されます。
+    で更新してください。`organization_id` は、担当者から提供されます。
 16. 保存」をクリックする。
 17. OktaダッシュボードからTuistログインを開始する。
 18. 以下のコマンドを実行して、Oktaドメインから署名したユーザーにTuist組織へのアクセスを自動的に与えます：
