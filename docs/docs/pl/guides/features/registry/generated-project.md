@@ -7,10 +7,10 @@
 ---
 # Wygenerowany projekt z integracją pakietów opartą na XcodeProj {#generated-project-with-xcodeproj-based-integration}
 
-Jeśli korzystasz z domyślnej integracji
-<LocalizedLink href="/guides/features/projects/dependencies#xcodes-default-integration">Xcode</LocalizedLink>
-pakietów z Tuist Projects, musisz użyć identyfikatora rejestru zamiast adresu
-URL podczas dodawania pakietu:
+Jeśli korzystasz z
+<LocalizedLink href="/guides/features/projects/dependencies#xcodes-default-integration">domyślnej
+integracji Xcode</LocalizedLink> pakietów z Tuist Projects, podczas dodawania
+pakietu musisz użyć identyfikatora rejestru zamiast adresu URL:
 ```swift
 import ProjectDescription
 
