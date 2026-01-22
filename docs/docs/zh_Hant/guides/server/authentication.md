@@ -39,12 +39,14 @@ CLI 在向伺服器提出要求時會自動查詢憑證。如果存取權限已�
 ### 設定 OIDC 驗證{#setting-up-oidc-authentication}
 
 1. **將您的套件庫連接到 Tuist**: 按照
-   <LocalizedLink href="/guides/integrations/gitforge/github">GitHub 整合指南</LocalizedLink>，將您的 GitHub 套件庫連接到 Tuist 專案。
+   <LocalizedLink href="/guides/integrations/gitforge/github">GitHub
+   整合指南</LocalizedLink>，將您的 GitHub 套件庫連接到 Tuist 專案。
 
 2. **執行 `tuist auth login`** ：在您的 CI 工作流程中，在任何需要驗證的指令之前執行`tuist auth login` 。CLI
    會自動偵測 CI 環境，並使用 OIDC 進行驗證。
 
-請參閱 <LocalizedLink href="/guides/integrations/continuous-integration">Continuous Integration 指南</LocalizedLink>，以瞭解特定提供商的配置範例。
+請參閱 <LocalizedLink href="/guides/integrations/continuous-integration">Continuous
+Integration 指南</LocalizedLink>，以瞭解特定提供商的配置範例。
 
 ### OIDC 令牌範圍{#oidc-token-scopes}
 
