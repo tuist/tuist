@@ -7,7 +7,8 @@
 ---
 # 遷移 Xcode 專案{#migrate-an-xcode-project}
 
-除非您 <LocalizedLink href="/guides/features/projects/adoption/new-project"> 使用 Tuist</LocalizedLink> 創建一個新專案，在這種情況下，您會自動獲得所有配置，否則您必須使用 Tuist 的基元來定義您的 Xcode
+除非您 <LocalizedLink href="/guides/features/projects/adoption/new-project"> 使用
+Tuist</LocalizedLink> 創建一個新專案，在這種情況下，您會自動獲得所有配置，否則您必須使用 Tuist 的基元來定義您的 Xcode
 專案。這個過程有多繁瑣，取決於您的專案有多複雜。
 
 您可能知道，Xcode 專案可能會隨著時間的推移而變得混亂且複雜：與目錄結構不符的群組、跨目標共用的檔案，或是指向不存在檔案的檔案引用
