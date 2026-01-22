@@ -3,8 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-22 12:39+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"PO-Revision-Date: 2026-01-22 13:04+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Polish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_previews/pl/>\n"
 "Language: pl\n"
@@ -33,7 +33,7 @@ msgstr "Ikona %{app_name}"
 #: lib/tuist_web/live/preview_live.ex:36
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{display_name} · Tuist"
-msgstr "%{display_name} - Tuist"
+msgstr "%{display_name} · Tuist"
 
 #: lib/tuist_web/live/preview_live.html.heex:141
 #: lib/tuist_web/live/previews_live.ex:171
@@ -45,7 +45,7 @@ msgstr "Oddział"
 #: lib/tuist_web/live/previews_live.html.heex:93
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Built at"
-msgstr "Zbudowany w"
+msgstr "Zbudowane w"
 
 #: lib/tuist_web/live/preview_live.html.heex:124
 #, elixir-autogen, elixir-format, fuzzy
@@ -56,12 +56,12 @@ msgstr "Identyfikator pakietu"
 #: lib/tuist_web/live/previews_live.html.heex:87
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Commit SHA"
-msgstr "Zobowiązanie SHA"
+msgstr "Commit SHA"
 
 #: lib/tuist_web/live/preview_live.html.heex:118
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Created by"
-msgstr "Stworzony przez"
+msgstr "Utworzone przez"
 
 #: lib/tuist_web/live/preview_live.html.heex:40
 #, elixir-autogen, elixir-format, fuzzy
@@ -92,7 +92,7 @@ msgstr "Zainstaluj aplikację"
 #: lib/tuist_web/live/previews_live.html.heex:24
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Latest app previews"
-msgstr "Najnowsze zapowiedzi aplikacji"
+msgstr "Najnowsze podglądy aplikacji"
 
 #: lib/tuist_web/live/previews_live.html.heex:71
 #, elixir-autogen, elixir-format, fuzzy
@@ -108,7 +108,7 @@ msgstr "Brak"
 #: lib/tuist_web/live/preview_live.html.heex:213
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Or run using CLI"
-msgstr "Lub uruchomić za pomocą CLI"
+msgstr "Lub uruchom za pomocą CLI"
 
 #: lib/tuist_web/live/previews_live.html.heex:74
 #, elixir-autogen, elixir-format, fuzzy
@@ -136,12 +136,12 @@ msgstr "Ran at"
 #: lib/tuist_web/live/previews_live.html.heex:90
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Ran by"
-msgstr "Prowadzony przez"
+msgstr "Zarządzane przez"
 
 #: lib/tuist_web/live/preview_live.html.heex:93
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Run"
-msgstr "Bieg"
+msgstr "Uruchom"
 
 #: lib/tuist_web/live/previews_live.html.heex:6
 #, elixir-autogen, elixir-format, fuzzy
@@ -151,7 +151,7 @@ msgstr "Uruchom następujące polecenie, aby udostępnić podgląd aplikacji."
 #: lib/tuist_web/live/preview_live.html.heex:176
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Scan QR code"
-msgstr "Skanowanie kodu QR"
+msgstr "Zeskanuj kod QR"
 
 #: lib/tuist_web/live/preview_live.html.heex:179
 #, elixir-autogen, elixir-format, fuzzy
@@ -174,20 +174,20 @@ msgstr "Obsługiwane platformy"
 #, elixir-autogen, elixir-format, fuzzy
 msgid "This preview is only supported on simulators and can't be installed on a physical device"
 msgstr ""
-"Ta wersja zapoznawcza jest obsługiwana tylko na symulatorach i nie można jej "
-"zainstalować na fizycznym urządzeniu"
+"Ten podgląd jest obsługiwany tylko na symulatorach i nie można go "
+"zainstalować na fizycznym urządzeniu."
 
 #: lib/tuist_web/live/preview_live.html.heex:200
 #, elixir-autogen, elixir-format, fuzzy
 msgid "This preview isn't available for device installation"
-msgstr "Ta wersja zapoznawcza nie jest dostępna do instalacji na urządzeniu"
+msgstr "Ten podgląd nie jest dostępny dla instalacji na urządzeniu."
 
 #: lib/tuist_web/live/preview_live.html.heex:12
 #, elixir-autogen, elixir-format, fuzzy
 msgid "To run the preview directly from the browser, download and install the Tuist macOS app"
 msgstr ""
 "Aby uruchomić podgląd bezpośrednio z przeglądarki, pobierz i zainstaluj "
-"aplikację Tuist macOS"
+"aplikację Tuist dla systemu macOS."
 
 #: lib/tuist_web/live/preview_live.html.heex:76
 #, elixir-autogen, elixir-format, fuzzy
@@ -197,16 +197,16 @@ msgstr "V %{wersja}"
 #: lib/tuist_web/live/previews_live.html.heex:52
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Filter"
-msgstr "Filtr"
+msgstr "Filtruj"
 
 #: lib/tuist_web/live/previews_live.html.heex:44
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Search..."
-msgstr "Szukaj..."
+msgstr "Wyszukaj..."
 
 #: lib/tuist_web/live/preview_live.html.heex:156
 #: lib/tuist_web/live/previews_live.ex:163
 #: lib/tuist_web/live/previews_live.html.heex:81
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Track"
-msgstr "Ścieżka"
+msgstr "Śledź"
