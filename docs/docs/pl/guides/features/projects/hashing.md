@@ -58,7 +58,8 @@ w celu debugowania problemu:
 
 1. Uruchom `tuist hash cache` lub `tuist hash selective-testing` (hashe dla
    <LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink>
-   lub <LocalizedLink href="/guides/features/selective-testing">selective testing</LocalizedLink>), skopiuj hashe, zmień nazwę katalogu projektu i
+   lub <LocalizedLink href="/guides/features/selective-testing">selective
+   testing</LocalizedLink>), skopiuj hashe, zmień nazwę katalogu projektu i
    uruchom polecenie ponownie. Skróty powinny się zgadzać.
 2. Jeśli skróty nie są zgodne, prawdopodobnie wygenerowany projekt zależy od
    środowiska. Uruchom `tuist graph --format json` w obu przypadkach i porównaj
