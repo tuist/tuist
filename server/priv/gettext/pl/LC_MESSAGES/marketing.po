@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-12-24 14:48+0000\nPO-Revision-Date: 2026-01-22 12:36+0000\nLast-Translator: Weblate <noreply-mt-weblate@weblate.org>\nLanguage-Team: Polish <https://translate.tuist.dev/projects/tuist/marketing/pl/>\nLanguage: pl\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=3; plural=n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\nX-Generator: Weblate 5.15.2\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-12-24 14:48+0000\nPO-Revision-Date: 2026-01-22 12:36+0000\nLast-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-memory@weblate.org>\nLanguage-Team: Polish <https://translate.tuist.dev/projects/tuist/marketing/pl/>\nLanguage: pl\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=3; plural=n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\nX-Generator: Weblate 5.15.2\n"
 
 ## This file is a PO Template file.
 ##
