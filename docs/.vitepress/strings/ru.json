@@ -153,6 +153,15 @@
                     "items": {
                         "handbook": {
                             "text": "Справочник"
+                        },
+                        "cli": {
+                            "text": "CLI"
+                        },
+                        "server": {
+                            "text": "Сервер"
+                        },
+                        "docs": {
+                            "text": "Документация"
                         }
                     }
                 }
