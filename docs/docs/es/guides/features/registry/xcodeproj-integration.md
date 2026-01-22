@@ -23,7 +23,7 @@ let tuist = Tuist(
 )
 ```
 
-Si quiere asegurarse de que se utiliza el registro cada vez que resuelva
+Si quiere asegurarse de que el registro se utiliza cada vez que resuelve
 dependencias, tendrá que actualizar `dependencies` en su archivo
 `Tuist/Package.swift` para utilizar el identificador del registro en lugar de
 una URL. El identificador del registro siempre tiene la forma
