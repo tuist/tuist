@@ -7,8 +7,8 @@
 ---
 # حزم سويفت {#حزم سويفت}
 
-إذا كنت تعمل على حزمة Swift، يمكنك استخدام العلامة `--استبدال
--Scm-with-registry` لحل التبعيات من السجل إذا كانت متوفرة:
+إذا كنت تعمل على حزمة Swift، يمكنك استخدام علامة `--replace-scm-with-registry`
+لحل التبعيات من السجل إذا كانت متوفرة:
 
 ```bash
 swift package --replace-scm-with-registry resolve
