@@ -6,28 +6,27 @@
 }
 ---
 
-# Cache Architecture {#cache-architecture}
+# بنية ذاكرة التخزين المؤقت {#cache-architecture}
 
-::: info
+:::: المعلومات
 <!-- -->
-This page provides a technical overview of the Tuist cache service architecture.
-It is primarily intended for **self-hosting users** and **contributors** who
-need to understand the internal workings of the service. General users who only
-want to use the cache do not need to read this.
+تقدم هذه الصفحة نظرة عامة تقنية على بنية خدمة ذاكرة التخزين المؤقت Tuist. وهي
+مخصصة في المقام الأول لمستخدمي الاستضافة الذاتية **والمساهمين في** و **** الذين
+يحتاجون إلى فهم طريقة عمل الخدمة الداخلية. لا يحتاج المستخدمون العاديون الذين
+يرغبون فقط في استخدام ذاكرة التخزين المؤقت إلى قراءة هذه الصفحة.
 <!-- -->
 :::
 
-The Tuist cache service is a standalone service that provides Content
-Addressable Storage (CAS) for build artifacts and a key-value store for cache
-metadata.
+خدمة Tuist cache هي خدمة مستقلة توفر تخزينًا قابلًا للعنونة بالمحتوى (CAS)
+لإنشاء المنتجات ومخزنًا للقيم الرئيسية لبيانات التعريف المخزنة مؤقتًا.
 
-## Overview {#overview}
+## نظرة عامة {#overview}
 
-The service uses a two-tier storage architecture:
+تستخدم الخدمة بنية تخزين من مستويين:
 
-- **Local disk**: Primary storage for low-latency cache hits
-- **S3**: Durable storage that persists artifacts and allows recovery after
-  eviction
+- **القرص المحلي**: التخزين الأساسي لعمليات الوصول إلى ذاكرة التخزين المؤقت ذات
+  زمن الاستجابة المنخفض
+- **S3**: تخزين متين يحافظ على الملفات ويسمح باستعادتها بعد إزالتها
 
 ```mermaid
 flowchart LR
@@ -38,55 +37,54 @@ flowchart LR
     APP -->|auth| SERVER[Tuist Server]
 ```
 
-## Components {#components}
+## المكونات {#components}
 
 ### Nginx {#nginx}
 
-Nginx serves as the entry point and handles efficient file delivery using
-`X-Accel-Redirect`:
+يعمل Nginx كنقطة دخول ويتولى توصيل الملفات بكفاءة باستخدام `X-Accel-Redirect`:
 
-- **Downloads**: The cache service validates authentication, then returns an
-  `X-Accel-Redirect` header. Nginx serves the file directly from disk or proxies
-  from S3.
-- **Uploads**: Nginx proxies requests to the cache service, which streams data
-  to disk.
+- ** `التنزيلات**: تقوم خدمة ذاكرة التخزين المؤقت بالتحقق من صحة المصادقة، ثم
+  تعرض رأس X-Accel-Redirect`. يقوم Nginx بتقديم الملف مباشرة من القرص أو
+  البروكسيات من S3.
+- **التحميلات**: يقوم Nginx بتوجيه الطلبات إلى خدمة التخزين المؤقت، التي تقوم
+  ببث البيانات إلى القرص.
 
-### Content Addressable Storage {#cas}
+### التخزين القابل للعنونة بالمحتوى {#cas}
 
-Artifacts are stored on local disk in a sharded directory structure:
+يتم تخزين القطع الأثرية على القرص المحلي في بنية مجلدات مجزأة:
 
-- **Path**: `{account}/{project}/cas/{shard1}/{shard2}/{artifact_id}`
-- **Sharding**: First four characters of the artifact ID create a two-level
-  shard (e.g., `ABCD1234` → `AB/CD/ABCD1234`)
+- **المسار**: `{account}/{project}/cas/{shard1}/{shard2}/{artifact_id}`
+- **تجزئة**: تشكل الأحرف الأربعة الأولى من معرف الأثر جزءًا من جزءين (على سبيل
+  المثال، `ABCD1234` → `AB/CD/ABCD1234`)
 
-### S3 Integration {#s3}
+### تكامل S3 {#s3}
 
-S3 provides durable storage:
+يوفر S3 تخزينًا دائمًا:
 
-- **Background uploads**: After writing to disk, artifacts are queued for upload
-  to S3 via a background worker that runs every minute
-- **On-demand hydration**: When a local artifact is missing, the request is
-  served immediately via a presigned S3 URL while the artifact is queued for
-  background download to local disk
+- **تحميلات في الخلفية**: بعد الكتابة على القرص، يتم وضع العناصر في قائمة انتظار
+  للتحميل إلى S3 عبر عامل في الخلفية يعمل كل دقيقة.
+- **الترطيب عند الطلب**: عند فقدان عنصر محلي، يتم تلبية الطلب على الفور عبر
+  عنوان URL S3 موقّع مسبقًا، بينما يتم وضع العنصر في قائمة الانتظار للتنزيل في
+  الخلفية على القرص المحلي.
 
-### Disk Eviction {#eviction}
+### إخلاء القرص {#eviction}
 
-The service manages disk space using LRU eviction:
+تدير الخدمة مساحة القرص باستخدام طريقة LRU eviction:
 
-- Access times are tracked in SQLite
-- When disk usage exceeds 85%, the oldest artifacts are deleted until usage
-  drops to 70%
-- Artifacts remain in S3 after local eviction
+- يتم تتبع أوقات الوصول في SQLite
+- عندما يتجاوز استخدام القرص 85٪، يتم حذف الأقدم من الملفات حتى ينخفض الاستخدام
+  إلى 70٪.
+- تظل القطع الأثرية في S3 بعد الإخلاء المحلي
 
-### Authentication {#authentication}
+### المصادقة {#authentication}
 
-The cache delegates authentication to the Tuist server by calling the
-`/api/projects` endpoint and caching results (10 minutes for success, 3 seconds
-for failure).
+يقوم ذاكرة التخزين المؤقت بتفويض المصادقة إلى خادم Tuist عن طريق استدعاء نقطة
+النهاية `/api/projects` وتخزين النتائج مؤقتًا (10 دقائق في حالة النجاح، و3 ثوانٍ
+في حالة الفشل).
 
-## Request Flows {#request-flows}
+## تدفقات الطلبات {#request-flows}
 
-### Download {#download-flow}
+### تنزيل {#download-flow}
 
 ```mermaid
 sequenceDiagram
@@ -107,7 +105,7 @@ sequenceDiagram
     N-->>CLI: File bytes
 ```
 
-### Upload {#upload-flow}
+### تحميل {#upload-flow}
 
 ```mermaid
 sequenceDiagram
@@ -124,18 +122,18 @@ sequenceDiagram
     A->>S: Background upload
 ```
 
-## API Endpoints {#api-endpoints}
+## نقاط نهاية واجهة برمجة التطبيقات {#api-endpoints}
 
-| Endpoint                      | Method | Description                     |
-| ----------------------------- | ------ | ------------------------------- |
-| `/up`                         | GET    | Health check                    |
-| `/metrics`                    | GET    | Prometheus metrics              |
-| `/api/cache/cas/:id`          | GET    | Download CAS artifact           |
-| `/api/cache/cas/:id`          | POST   | Upload CAS artifact             |
-| `/api/cache/keyvalue/:cas_id` | GET    | Get key-value entry             |
-| `/api/cache/keyvalue`         | PUT    | Store key-value entry           |
-| `/api/cache/module/:id`       | HEAD   | Check if module artifact exists |
-| `/api/cache/module/:id`       | GET    | Download module artifact        |
-| `/api/cache/module/start`     | POST   | Start multipart upload          |
-| `/api/cache/module/part`      | POST   | Upload part                     |
-| `/api/cache/module/complete`  | POST   | Complete multipart upload       |
+| نقطة النهاية                  | الطريقة | الوصف                           |
+| ----------------------------- | ------- | ------------------------------- |
+| `/up`                         | GET     | فحص الصحة                       |
+| `/metrics`                    | GET     | مقاييس بروميثيوس                |
+| `/api/cache/cas/:id`          | GET     | تنزيل أداة CAS                  |
+| `/api/cache/cas/:id`          | نشر     | تحميل أداة CAS                  |
+| `/api/cache/keyvalue/:cas_id` | GET     | احصل على إدخال القيمة الرئيسية  |
+| `/api/cache/keyvalue`         | PUT     | تخزين إدخال القيمة الرئيسية     |
+| `/api/cache/module/:id`       | HEAD    | تحقق من وجود أثر الوحدة النمطية |
+| `/api/cache/module/:id`       | GET     | تنزيل أداة الوحدة النمطية       |
+| `/api/cache/module/start`     | نشر     | ابدأ التحميل المتعدد الأجزاء    |
+| `/api/cache/module/part`      | نشر     | تحميل الجزء                     |
+| `/api/cache/module/complete`  | نشر     | أكمل التحميل متعدد الأجزاء      |
