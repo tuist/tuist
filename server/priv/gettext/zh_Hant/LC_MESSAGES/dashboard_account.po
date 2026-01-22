@@ -3,9 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-22 12:38+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"PO-Revision-Date: 2026-01-22 13:03+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_account/zh_Hant/>\n"
 "Language: zh_Hant\n"
@@ -39,12 +38,12 @@ msgstr "$0.50"
 #: lib/tuist_web/live/accept_invitation_live.ex:63
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{inviter} has invited you to join the %{organization} organization"
-msgstr "%{inviter} 邀請您加入 %{organization} 組織"
+msgstr "%{inviter} 已邀請您加入 %{organization} 組織"
 
 #: lib/tuist_web/live/billing_live.html.heex:294
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{month}/%{year}"
-msgstr "%{月}/%{年｝"
+msgstr "%{月份}/%{年份}"
 
 #: lib/tuist/accounts/user_notifier.ex:175
 #: lib/tuist_web/live/accept_invitation_live.ex:75
@@ -73,7 +72,7 @@ msgstr "Air"
 #: lib/tuist_web/live/billing_live.html.heex:317
 #, elixir-autogen, elixir-format, fuzzy
 msgid "All billing correspondence will go to this email"
-msgstr "所有帳單信函將發送到此電子郵件"
+msgstr "所有帳務往來文件將寄至此電子郵件地址"
 
 #: lib/tuist/billing.ex:46
 #: lib/tuist_web/live/billing_live.ex:192
@@ -95,12 +94,12 @@ msgstr "所有地區"
 #: lib/tuist_web/live/account_settings_live.html.heex:247
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Are you sure you want to delete this?"
-msgstr "您確定要刪除這個嗎？"
+msgstr "您確定要刪除此項目嗎？"
 
 #: lib/tuist_web/live/members_live.ex:196
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Are you sure you want to remove %{name} from this organization?"
-msgstr "您確定要將 %{name} 從這個組織中移除嗎？"
+msgstr "您確定要從此組織移除 %{name} 嗎？"
 
 #: lib/tuist_web/live/billing_live.ex:71
 #: lib/tuist_web/live/billing_live.html.heex:3
@@ -132,12 +131,12 @@ msgstr "變更訂閱方案"
 #: lib/tuist_web/live/billing_live.html.heex:154
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Change your subscription to fit your needs."
-msgstr "變更您的訂閱，以符合您的需求。"
+msgstr "請依需求調整您的訂閱方案。"
 
 #: lib/tuist_web/live/account_settings_live.ex:140
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Choose where your artifacts, like module cache binaries, are stored for legal compliance."
-msgstr "選擇您的藝術品（如模組快取二進位檔）儲存位置，以符合法律規定。"
+msgstr "為符合法規要求，請選擇模組快取二進位檔等工件的儲存位置。"
 
 #: lib/tuist/billing.ex:47
 #, elixir-autogen, elixir-format, fuzzy
@@ -157,7 +156,7 @@ msgstr "社群支援：透過社群論壇提供支援"
 #: lib/tuist_web/live/billing_live.html.heex:147
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Completely free for open source projects"
-msgstr "開放原始碼專案完全免費"
+msgstr "完全免費供開源專案使用"
 
 #: lib/tuist/accounts/user_notifier.ex:113
 #, elixir-autogen, elixir-format, fuzzy
@@ -167,13 +166,13 @@ msgstr "確認您的電子郵件"
 #: lib/tuist/accounts/user_notifier.ex:104
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Confirmation instructions"
-msgstr "確認指示"
+msgstr "確認說明"
 
 #: lib/tuist/billing.ex:79
 #: lib/tuist_web/live/billing_live.ex:254
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Contact sales"
-msgstr "聯絡銷售人員"
+msgstr "聯絡業務部門"
 
 #: lib/tuist_web/live/create_organization_live.ex:37
 #, elixir-autogen, elixir-format, fuzzy
@@ -183,12 +182,12 @@ msgstr "建立新組織"
 #: lib/tuist_web/live/create_organization_live.ex:35
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Create an organization account to continue"
-msgstr "建立組織帳號以繼續"
+msgstr "建立組織帳戶以繼續"
 
 #: lib/tuist_web/live/create_organization_live.ex:57
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Create organization"
-msgstr "建立組織"
+msgstr "建立組織架構"
 
 #: lib/tuist_web/live/billing_live.ex:244
 #, elixir-autogen, elixir-format, fuzzy
@@ -206,7 +205,7 @@ msgstr "建立您的方案或自行託管您的實例。"
 #: lib/tuist_web/live/billing_live.html.heex:11
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Current plan"
-msgstr "目前計劃"
+msgstr "現行方案"
 
 #: lib/tuist/billing.ex:78
 #: lib/tuist_web/live/billing_live.ex:245
@@ -219,12 +218,12 @@ msgstr "客製化"
 #: lib/tuist_web/live/billing_live.ex:247
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Custom terms"
-msgstr "自訂條款"
+msgstr "自訂術語"
 
 #: lib/tuist_web/live/billing_live.html.heex:133
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Custom terms: Tailored agreements to meet your specific needs"
-msgstr "自訂條款：量身定制的協議，滿足您的特定需求"
+msgstr "客製化條款：量身打造的協議以滿足您的特定需求"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:153
 #, elixir-autogen, elixir-format, fuzzy
@@ -234,7 +233,7 @@ msgstr "儀表板"
 #: lib/tuist_web/live/accept_invitation_live.ex:81
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Decline"
-msgstr "下降"
+msgstr "拒絕"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:145
 #: lib/tuist_web/live/account_settings_live.html.heex:291
@@ -257,17 +256,17 @@ msgstr "刪除組織"
 #: lib/tuist_web/live/account_settings_live.html.heex:118
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Deleting the organization will delete all of its projects"
-msgstr "刪除組織會刪除其所有專案"
+msgstr "刪除該組織將一併刪除其所有專案"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:265
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Deleting your account will also delete all the projects that belong to it"
-msgstr "刪除您的帳號也會刪除所有屬於它的專案"
+msgstr "刪除您的帳戶將同時刪除所有隸屬該帳戶的專案"
 
 #: lib/tuist/accounts/user_notifier.ex:137
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Did you request to reset your password?"
-msgstr "您是否要求重新設定密碼？"
+msgstr "您是否要求重設密碼？"
 
 #: lib/tuist_web/live/billing_live.ex:205
 #, elixir-autogen, elixir-format, fuzzy
@@ -323,7 +322,7 @@ msgstr "免費"
 #: lib/tuist_web/live/billing_live.html.heex:25
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Free tier exceeded"
-msgstr "超出免費等級"
+msgstr "免費使用額度已超出"
 
 #: lib/tuist_web/live/billing_live.ex:191
 #, elixir-autogen, elixir-format, fuzzy
@@ -333,22 +332,22 @@ msgstr "免費方案限額內免費"
 #: lib/tuist/billing.ex:63
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Generous base price"
-msgstr "豐厚的基本價格"
+msgstr "寬裕的基礎價格"
 
 #: lib/tuist_web/live/billing_live.html.heex:116
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Generous base price: Pay nothing if below free tier limits"
-msgstr "優惠的基本價格：如果低於免費等級限制，則無需支付任何費用"
+msgstr "寬裕的基礎價格：若低於免費方案限制則無需支付任何費用"
 
 #: lib/tuist/billing.ex:43
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Generous free monthly tier"
-msgstr "慷慨的免費月費層級"
+msgstr "慷慨的免費月度方案"
 
 #: lib/tuist_web/live/billing_live.html.heex:99
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Generous free monthly tier: Usage capped at free tier limits"
-msgstr "慷慨的每月免費等級：使用量以免費等級限制為上限"
+msgstr "慷慨的免費月度方案：使用量受限於免費方案的上限"
 
 #: lib/tuist/billing.ex:41
 #: lib/tuist/billing.ex:61
@@ -365,43 +364,43 @@ msgstr "無需信用卡即可開始使用。"
 #: lib/tuist_web/live/billing_live.html.heex:79
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Get started with no credit card required—try with no commitment."
-msgstr "無需信用卡即可開始使用 - 試用無需承諾。"
+msgstr "立即開始使用，無需信用卡——無需承諾即可試用。"
 
 #: lib/tuist/accounts/user_notifier.ex:172
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Hola %{invitee_email}, you can join the organization by clicking the button below:"
-msgstr "Hola %{invitee_email}，您可以點擊下面的按鈕加入組織："
+msgstr "您好 %{invitee_email}，您可點擊下方按鈕加入本組織："
 
 #: lib/tuist/accounts/user_notifier.ex:139
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Hola %{name}, you can reset your password by clicking the button below:"
-msgstr "您好 %{姓名}，您可以按一下下面的按鈕重設密碼："
+msgstr "您好 %{name}，您可點擊下方按鈕重設密碼："
 
 #: lib/tuist/accounts/user_notifier.ex:118
 #: lib/tuist/accounts/user_notifier.ex:147
 #, elixir-autogen, elixir-format, fuzzy
 msgid "If you didn't make this request, feel free to ignore this email."
-msgstr "如果您沒有提出此要求，請隨時忽略此電子郵件。"
+msgstr "若此郵件非您所發，請忽略此信。"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:105
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Invitation accepted!"
-msgstr "接受邀請！"
+msgstr "邀請已接受！"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:88
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Invitation not found"
-msgstr "未找到邀請函"
+msgstr "邀請函未找到"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:127
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Invitation rejected"
-msgstr "拒絕邀請"
+msgstr "邀請遭拒絕"
 
 #: lib/tuist/accounts/user_notifier.ex:166
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Invitation to %{organization_name}"
-msgstr "邀請參加 %{ 組織名稱｝"
+msgstr "邀請函致 %{組織名稱}"
 
 #: lib/tuist_web/live/members_live.ex:66
 #, elixir-autogen, elixir-format, fuzzy
@@ -411,22 +410,22 @@ msgstr "邀請函"
 #: lib/tuist_web/live/members_live.ex:324
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Invite member"
-msgstr "邀請會員"
+msgstr "邀請成員"
 
 #: lib/tuist_web/live/members_live.ex:328
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Invite members"
-msgstr "邀請會員"
+msgstr "邀請成員"
 
 #: lib/tuist_web/live/members_live.ex:306
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Invite members to your organization"
-msgstr "邀請會員加入您的組織"
+msgstr "邀請成員加入您的組織"
 
 #: lib/tuist_web/live/billing_live.html.heex:40
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Learn more"
-msgstr "瞭解更多"
+msgstr "了解更多"
 
 #: lib/tuist/billing.ex:45
 #, elixir-autogen, elixir-format, fuzzy
@@ -436,7 +435,7 @@ msgstr "完全免費"
 #: lib/tuist_web/live/billing_live.html.heex:105
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Like, totally free: All features, no credit card required"
-msgstr "就像，完全免費：所有功能，無需信用卡"
+msgstr "完全免費：所有功能，無需信用卡"
 
 #: lib/tuist_web/live/members_live.ex:99
 #: lib/tuist_web/live/members_live.ex:236
@@ -447,7 +446,7 @@ msgstr "管理角色"
 #: lib/tuist_web/live/billing_live.html.heex:5
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Manage your billing and payment details"
-msgstr "管理您的帳單和付款細節"
+msgstr "管理您的帳單與付款資訊"
 
 #: lib/tuist_web/live/members_live.ex:78
 #, elixir-autogen, elixir-format, fuzzy
@@ -458,7 +457,7 @@ msgstr "會員"
 #: lib/tuist_web/live/members_live.ex:36
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Members"
-msgstr "會員"
+msgstr "成員"
 
 #: lib/tuist_web/live/billing_live.ex:149
 #, elixir-autogen, elixir-format, fuzzy
@@ -468,7 +467,7 @@ msgstr "最受歡迎"
 #: lib/tuist_web/live/create_organization_live.ex:49
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Name"
-msgstr "名稱"
+msgstr "姓名"
 
 #: lib/tuist/billing.ex:51
 #, elixir-autogen, elixir-format, fuzzy
@@ -478,7 +477,7 @@ msgstr "無需信用卡"
 #: lib/tuist_web/live/members_live.ex:303
 #, elixir-autogen, elixir-format, fuzzy
 msgid "No invitations created"
-msgstr "未建立邀請函"
+msgstr "未建立任何邀請"
 
 #: lib/tuist_web/live/members_live.ex:260
 #, elixir-autogen, elixir-format, fuzzy
@@ -489,17 +488,17 @@ msgstr "未找到成員"
 #: lib/tuist_web/live/billing_live.ex:248
 #, elixir-autogen, elixir-format, fuzzy
 msgid "On-premise"
-msgstr "現場安裝"
+msgstr "本地部署"
 
 #: lib/tuist_web/live/billing_live.html.heex:139
 #, elixir-autogen, elixir-format, fuzzy
 msgid "On-premise: Self-host your instance of Tuist"
-msgstr "內部部署：自行託管您的 Tuist 實例"
+msgstr "本地部署：自行託管您的 Tuist 實例"
 
 #: lib/tuist_web/live/billing_live.html.heex:59
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Open source"
-msgstr "開放原始碼"
+msgstr "開源"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:54
 #: lib/tuist_web/live/account_settings_live.html.heex:128
@@ -510,7 +509,7 @@ msgstr "組織名稱"
 #: lib/tuist/accounts/user.ex:88
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Passwords don't match"
-msgstr "密碼不匹配"
+msgstr "密碼不符"
 
 #: lib/tuist/billing.ex:64
 #: lib/tuist_web/live/billing_live.ex:220
@@ -532,7 +531,7 @@ msgstr "付款方式"
 #: lib/tuist_web/live/billing_live.html.heex:246
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Payments for your subscription are made using the default card."
-msgstr "您的訂閱使用預設卡付款。"
+msgstr "訂閱費用將透過預設信用卡支付。"
 
 #: lib/tuist_web/live/members_live.ex:279
 #, elixir-autogen, elixir-format, fuzzy
@@ -557,12 +556,12 @@ msgstr "優先支援"
 #: lib/tuist_web/live/billing_live.ex:249
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Priority support via shared Slack channel"
-msgstr "透過共用的 Slack 頻道提供優先支援"
+msgstr "透過共享 Slack 頻道提供優先支援"
 
 #: lib/tuist_web/live/billing_live.html.heex:142
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Priority support: Via shared Slack channel"
-msgstr "優先支援：透過共用的 Slack 頻道"
+msgstr "優先支援：透過共享 Slack 通道"
 
 #: lib/tuist/billing.ex:56
 #: lib/tuist_web/live/billing_live.ex:215
@@ -574,17 +573,17 @@ msgstr "Pro"
 #: lib/tuist_web/live/account_settings_live.ex:153
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Region"
-msgstr "地區"
+msgstr "區域"
 
 #: lib/tuist_web/live/billing_live.html.heex:225
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Remote cache hits"
-msgstr "遠端快取記憶體命中率"
+msgstr "遠端快取命中"
 
 #: lib/tuist_web/live/billing_live.html.heex:34
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Remote cache hits:"
-msgstr "遠端快取命中："
+msgstr "遠端快取命中次數："
 
 #: lib/tuist_web/live/members_live.ex:214
 #, elixir-autogen, elixir-format, fuzzy
@@ -607,23 +606,23 @@ msgstr "重新命名"
 #: lib/tuist_web/live/account_settings_live.html.heex:37
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Rename organization"
-msgstr "重新命名組織"
+msgstr "組織重命名"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:31
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Rename your organization?"
-msgstr "重新命名您的組織？"
+msgstr "要重新命名您的組織嗎？"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:49
 #: lib/tuist_web/live/account_settings_live.html.heex:198
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Renaming can have unexpected consequences"
-msgstr "重新命名可能會產生意想不到的後果"
+msgstr "重新命名可能導致意外後果"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:16
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Renaming your organization can have unintended side effects."
-msgstr "重新命名組織可能會產生意想不到的副作用。"
+msgstr "變更組織名稱可能產生未預期的副作用。"
 
 #: lib/tuist/accounts/user_notifier.ex:133
 #, elixir-autogen, elixir-format, fuzzy
@@ -649,12 +648,12 @@ msgstr "角色"
 #: lib/tuist_web/live/members_live.ex:165
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Save"
-msgstr "節省"
+msgstr "儲存"
 
 #: lib/tuist_web/live/members_live.ex:43
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Search members..."
-msgstr "搜尋會員..."
+msgstr "搜尋成員..."
 
 #: lib/tuist_web/live/account_settings_live.ex:148
 #, elixir-autogen, elixir-format, fuzzy
@@ -705,18 +704,18 @@ msgstr "透過社群論壇提供支援"
 #: lib/tuist/billing.ex:82
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Tailored agreements to meet your specific needs"
-msgstr "量身訂做的協議，滿足您的特定需求"
+msgstr "量身訂製的協議以滿足您的特定需求"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:87
 #: lib/tuist_web/live/account_settings_live.html.heex:235
 #, elixir-autogen, elixir-format, fuzzy
 msgid "This action cannot be undone."
-msgstr "此動作無法撤銷。"
+msgstr "此操作無法撤銷。"
 
 #: lib/tuist/accounts/user_notifier.ex:110
 #, elixir-autogen, elixir-format, fuzzy
 msgid "To start using Tuist, verify your email and you are good to go:"
-msgstr "要開始使用 Tuist，只需驗證您的電子郵件即可："
+msgstr "要開始使用 Tuist，請驗證您的電子郵件即可使用："
 
 #: lib/tuist_web/live/billing_live.html.heex:234
 #, elixir-autogen, elixir-format, fuzzy
@@ -726,7 +725,7 @@ msgstr "總計"
 #: lib/tuist_web/live/members_live.ex:261
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Try changing your search term"
-msgstr "嘗試變更您的搜尋字詞"
+msgstr "嘗試變更您的搜尋詞"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:52
 #: lib/tuist_web/live/create_organization_live.ex:26
@@ -747,7 +746,7 @@ msgstr "未知"
 #: lib/tuist/billing.ex:70
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Unlimited projects"
-msgstr "無限制專案"
+msgstr "無限專案"
 
 #: lib/tuist_web/live/billing_live.html.heex:325
 #, elixir-autogen, elixir-format, fuzzy
@@ -768,12 +767,12 @@ msgstr "更新使用者名稱"
 #: lib/tuist_web/live/account_settings_live.html.heex:181
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Update your username?"
-msgstr "更新您的用戶名？"
+msgstr "更新您的使用者名稱？"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:166
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Updating your username can have unintended consequences."
-msgstr "更新您的使用者名稱可能會產生意想不到的後果。"
+msgstr "更新使用者名稱可能產生非預期後果。"
 
 #: lib/tuist_web/live/billing_live.ex:234
 #, elixir-autogen, elixir-format, fuzzy
@@ -783,17 +782,17 @@ msgstr "升級"
 #: lib/tuist_web/live/billing_live.html.heex:162
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Upgrade plan"
-msgstr "升級計劃"
+msgstr "升級方案"
 
 #: lib/tuist_web/live/billing_live.html.heex:206
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Usage"
-msgstr "使用方式"
+msgstr "用法"
 
 #: lib/tuist/billing.ex:44
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Usage capped at free tier limits"
-msgstr "使用上限為免費等級限制"
+msgstr "使用量受限於免費方案的上限"
 
 #: lib/tuist_web/live/billing_live.html.heex:22
 #, elixir-autogen, elixir-format, fuzzy
@@ -803,12 +802,12 @@ msgstr "使用細節"
 #: lib/tuist_web/live/billing_live.html.heex:69
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Usage-based"
-msgstr "以使用量為基礎"
+msgstr "基於使用情境"
 
 #: lib/tuist/billing.ex:65
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Usage-based pricing"
-msgstr "按使用量定價"
+msgstr "基於使用量的定價"
 
 #: lib/tuist_web/live/billing_live.ex:216
 #, elixir-autogen, elixir-format, fuzzy
@@ -824,12 +823,12 @@ msgstr "超出免費方案後按用量計費。"
 #: lib/tuist_web/live/billing_live.html.heex:122
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Usage-based pricing: Pay only for what you use per feature"
-msgstr "以使用量為基礎的定價：只需為您使用的每項功能支付費用"
+msgstr "用量計價模式：僅按功能實際使用量付費"
 
 #: lib/tuist_web/live/billing_live.html.heex:91
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Use all Tuist features as long as you stay open source."
-msgstr "只要保持開放原始碼，就可以使用所有 Tuist 功能。"
+msgstr "只要您保持開源性質，即可使用所有 Tuist 功能。"
 
 #: lib/tuist_web/live/members_live.ex:123
 #: lib/tuist_web/live/members_live.ex:130
@@ -846,43 +845,43 @@ msgstr "使用者名稱"
 #: lib/tuist/billing.ex:67
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Via Slack and email"
-msgstr "透過 Slack 和電子郵件"
+msgstr "透過 Slack 與電子郵件"
 
 #: lib/tuist/billing.ex:85
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Via shared Slack channel"
-msgstr "透過共用的 Slack 頻道"
+msgstr "透過共享 Slack 通道"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:96
 #, elixir-autogen, elixir-format, fuzzy
 msgid "We could not find the invitation you are trying to accept. Please try again."
-msgstr "我們無法找到您要接受的邀請。請再試一次。"
+msgstr "我們無法找到您嘗試接受的邀請。請重新嘗試。"
 
 #: lib/tuist_web/live/account_settings_live.ex:17
 #: lib/tuist_web/live/billing_live.ex:13
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You are not authorized to perform this action."
-msgstr "您無權執行此動作。"
+msgstr "您無權執行此操作。"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:119
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You are now a part of %{organization} organization"
-msgstr "您現在是 %{organization} 組織的一員"
+msgstr "您現已成為 %{組織名稱} 組織的一員"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:107
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You have accepted the invite to join the organization"
-msgstr "您已接受邀請加入組織"
+msgstr "您已接受加入該組織的邀請"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:61
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You have been invited"
-msgstr "您已受邀"
+msgstr "您已獲邀"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:129
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You have rejected the invite to join the organization"
-msgstr "您已拒絕加入組織的邀請"
+msgstr "您已拒絕加入該組織的邀請"
 
 #: lib/tuist/accounts/user_notifier.ex:116
 #, elixir-autogen, elixir-format, fuzzy
@@ -892,37 +891,37 @@ msgstr "您收到這封電子郵件，是因為您最近註冊了 Tuist 帳戶�
 #: lib/tuist/accounts/user_notifier.ex:145
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You received this email because you requested a password reset for your Tuist account."
-msgstr "您收到這封電子郵件，是因為您要求重設您的 Tuist 帳戶密碼。"
+msgstr "您收到此電子郵件是因為您要求重設您的 Tuist 帳戶密碼。"
 
 #: lib/tuist/accounts/user_notifier.ex:170
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You were invited to join the %{organization_name} Tuist organization by %{inviter_email}"
-msgstr "%{inviter_email} 邀請您加入 %{organization_name} Tuist 組織。"
+msgstr "您已獲 %{inviter_email} 邀請加入 %{organization_name} Tuist 組織"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:141
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You won’t be able to access this organization unless invited again."
-msgstr "除非再次受到邀請，否則您將無法存取此組織。"
+msgstr "除非再次獲邀，否則您將無法存取此組織。"
 
 #: lib/tuist/accounts/user_notifier.ex:108
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You're Almost Set!"
-msgstr "您幾乎已經準備好了！"
+msgstr "您已接近完成！"
 
 #: lib/tuist_web/live/billing_live.html.heex:210
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You’ve exceeded your free tier quota and will incur charges for additional usage."
-msgstr "您已超出免費等級的配額，額外使用將產生費用。"
+msgstr "您已超過免費使用額度，後續使用將產生費用。"
 
 #: lib/tuist_web/live/billing_live.html.heex:47
 #, elixir-autogen, elixir-format, fuzzy
 msgid "about remote cache hits"
-msgstr "關於遠端快取命中"
+msgstr "關於遠端快取命中率"
 
 #: lib/tuist_web/live/billing_live.html.heex:228
 #, elixir-autogen, elixir-format, fuzzy
 msgid "above free tier"
-msgstr "免費等級以上"
+msgstr "免費使用額度上限"
 
 #: lib/tuist/billing.ex:60
 #: lib/tuist_web/live/billing_live.ex:218
@@ -938,7 +937,7 @@ msgstr "每月收費"
 #: lib/tuist_web/live/billing_live.ex:36
 #, elixir-autogen, elixir-format, fuzzy
 msgid "charged on %{next_charge_date}"
-msgstr "於 %{next_charge_date} 收費"
+msgstr "於 %{next_charge_date} 扣款"
 
 #: lib/tuist_web/live/billing_live.html.heex:301
 #, elixir-autogen, elixir-format, fuzzy
