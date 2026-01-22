@@ -54,6 +54,38 @@ You can also manually mark or unmark tests as flaky from the test case detail pa
 - You want to acknowledge a known flaky test while working on a fix
 - A test was incorrectly flagged due to infrastructure issues
 
+## Quarantining flaky tests {#quarantining}
+
+Quarantining allows you to isolate flaky tests so they don't block your CI pipeline while you work on fixing them. Quarantined tests can be skipped during test runs, preventing false failures from disrupting your team's workflow.
+
+> [!IMPORTANT]
+> Quarantining a test does not automatically skip it. You must explicitly pass the list of quarantined tests to xcodebuild using the `-skip-testing` flag.
+
+### Automatic quarantine
+
+When enabled in your project's Automations settings, tests are automatically quarantined when they're marked as flaky. This ensures that newly detected flaky tests are immediately isolated without manual intervention.
+
+To enable automatic quarantine:
+1. Go to your project settings
+2. Navigate to the **Automations** tab
+3. Enable **Auto-quarantine flaky tests**
+
+### Manual quarantine
+
+You can also manually quarantine or unquarantine tests from the test case detail page using the **Quarantine** and **Unquarantine** buttons. This is useful when:
+- You want to quarantine a test before it's automatically detected as flaky
+- You want to unquarantine a test after fixing the underlying issue
+
+### Skipping quarantined tests with xcodebuild {#skipping-quarantined-tests}
+
+Use the `tuist test case list` command with the `--skip-testing` flag to get quarantined test identifiers formatted for xcodebuild:
+
+```bash
+xcodebuild test \
+  -scheme MyScheme \
+  $(tuist test case list --skip-testing)
+```
+
 ## Slack notifications {#slack-notifications}
 
 Get notified instantly when a test becomes flaky by setting up <LocalizedLink href="/guides/integrations/slack#flaky-test-alerts">flaky test alerts</LocalizedLink> in your Slack integration.
