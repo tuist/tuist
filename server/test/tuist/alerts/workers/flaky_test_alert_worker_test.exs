@@ -32,11 +32,11 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorkerTest do
       stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
       stub(Runs, :get_flaky_runs_groups_count_for_test_case, fn _id -> 3 end)
 
-      expect(Slack, :send_flaky_test_alert, fn p, tc, count, was_auto_quarantined ->
+      expect(Slack, :send_flaky_test_alert, fn p, tc, count, auto_quarantined ->
         assert p.id == project.id
         assert tc.id == test_case.id
         assert count == 3
-        assert was_auto_quarantined == false
+        assert auto_quarantined == false
         :ok
       end)
 
@@ -50,7 +50,7 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorkerTest do
       assert result == :ok
     end
 
-    test "passes was_auto_quarantined flag to alert", %{project: project} do
+    test "passes auto_quarantined flag to alert", %{project: project} do
       # Given
       {:ok, project} =
         Tuist.Projects.update_project(project, %{
@@ -64,15 +64,15 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorkerTest do
       stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
       stub(Runs, :get_flaky_runs_groups_count_for_test_case, fn _id -> 3 end)
 
-      expect(Slack, :send_flaky_test_alert, fn _p, _tc, _count, was_auto_quarantined ->
-        assert was_auto_quarantined == true
+      expect(Slack, :send_flaky_test_alert, fn _p, _tc, _count, auto_quarantined ->
+        assert auto_quarantined == true
         :ok
       end)
 
       # When
       result =
         FlakyTestAlertWorker.perform(%Oban.Job{
-          args: %{"test_case_id" => test_case.id, "project_id" => project.id, "was_auto_quarantined" => true}
+          args: %{"test_case_id" => test_case.id, "project_id" => project.id, "auto_quarantined" => true}
         })
 
       # Then

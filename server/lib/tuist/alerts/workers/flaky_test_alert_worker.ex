@@ -21,17 +21,17 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorker do
   @impl Oban.Worker
   def perform(%Oban.Job{args: args}) do
     %{"test_case_id" => test_case_id, "project_id" => project_id} = args
-    was_auto_quarantined = Map.get(args, "was_auto_quarantined", false)
+    auto_quarantined = Map.get(args, "auto_quarantined", false)
 
     with {:ok, test_case} <- Runs.get_test_case_by_id(test_case_id),
          %Projects.Project{} = project <- Projects.get_project_by_id(project_id) do
       flaky_runs_count = Runs.get_flaky_runs_groups_count_for_test_case(test_case_id)
-      send_alert(project, test_case, flaky_runs_count, was_auto_quarantined)
+      send_alert(project, test_case, flaky_runs_count, auto_quarantined)
       :ok
     end
   end
 
-  defp send_alert(project, test_case, flaky_runs_count, was_auto_quarantined) do
+  defp send_alert(project, test_case, flaky_runs_count, auto_quarantined) do
     project = Repo.preload(project, account: :slack_installation)
 
     cond do
@@ -45,7 +45,7 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorker do
         :ok
 
       true ->
-        Slack.send_flaky_test_alert(project, test_case, flaky_runs_count, was_auto_quarantined)
+        Slack.send_flaky_test_alert(project, test_case, flaky_runs_count, auto_quarantined)
     end
   end
 end
