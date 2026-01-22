@@ -5,39 +5,37 @@
   "description": "Use coding agents and local runs to debug issues in Tuist."
 }
 ---
-# Debugging {#debugging}
+# تصحيح الأخطاء {#تصحيح الأخطاء}
 
-Being open is a practical advantage: the code is available, you can run it
-locally, and you can use coding agents to answer questions faster and debug
-potential bugs in the codebase.
+الانفتاح ميزة عملية: الكود متاح، ويمكنك تشغيله محليًا، ويمكنك استخدام عوامل
+الترميز للإجابة على الأسئلة بشكل أسرع وتصحيح الأخطاء المحتملة في قاعدة الكود.
 
-If you find missing or incomplete documentation while debugging, update the
-English docs under `docs/` and open a PR.
+إذا وجدت وثائق مفقودة أو غير مكتملة أثناء تصحيح الأخطاء، فقم بتحديث الوثائق
+الإنجليزية الموجودة في `docs/` وافتح PR.
 
-## Use coding agents {#use-coding-agents}
+## استخدم عوامل الترميز {#use-coding-agents}
 
-Coding agents are useful for:
+تعد عوامل الترميز مفيدة في:
 
-- Scanning the codebase for where a behavior is implemented.
-- Reproducing issues locally and iterating quickly.
-- Tracing how inputs flow through Tuist to find the root cause.
+- فحص قاعدة الكود لمعرفة مكان تنفيذ السلوك.
+- إعادة إنتاج المشكلات محليًا وتكرارها بسرعة.
+- تتبع كيفية تدفق المدخلات عبر Tuist للعثور على السبب الجذري.
 
-Share the smallest reproduction you can, and point the agent at the specific
-component (CLI, server, cache, docs, or handbook). The more focused the scope,
-the faster and more accurate the debugging process is.
+شارك أصغر نسخة ممكنة، ووجه الوكيل إلى المكون المحدد (CLI أو الخادم أو ذاكرة
+التخزين المؤقت أو المستندات أو الدليل). كلما كان النطاق أكثر تركيزًا، كانت عملية
+تصحيح الأخطاء أسرع وأكثر دقة.
 
-### Frequently Needed Prompts (FNP) {#frequently-needed-prompts}
+### المطالبات المطلوبة بشكل متكرر (FNP) {#frequently-needed-prompts}
 
-#### Unexpected project generation {#unexpected-project-generation}
+#### إنشاء مشروع غير متوقع {#unexpected-project-generation}
 
-The project generation is giving me something I do not expect. Run the Tuist CLI
-against my project at `/path/to/project` to understand why this is happening.
-Trace the generator pipeline and point to the code paths responsible for the
-output.
+إنشاء المشروع يعطيني شيئًا لم أكن أتوقعه. قم بتشغيل Tuist CLI على مشروعي على
+`/path/to/project` لفهم سبب حدوث ذلك. تتبع مسار المولد وأشر إلى مسارات الكود
+المسؤولة عن الإخراج.
 
-#### Reproducible bug in generated projects {#reproducible-bug-in-generated-projects}
+#### خطأ قابل للتكرار في المشاريع التي تم إنشاؤها {#reproducible-bug-in-generated-projects}
 
-This looks like a bug in generated projects. Create a reproducible project under
-`examples/`, using existing examples as a reference. Add an acceptance test that
-fails, run it via `xcodebuild` with only that test selected, fix the issue,
-re-run the test to confirm it passes, and open a PR.
+يبدو أن هذا خطأ في المشاريع التي تم إنشاؤها. قم بإنشاء مشروع قابل للتكرار تحت
+`examples/` ، باستخدام الأمثلة الموجودة كمرجع. أضف اختبار قبول يفشل، وقم بتشغيله
+عبر `xcodebuild` مع تحديد هذا الاختبار فقط، وقم بإصلاح المشكلة، وأعد تشغيل
+الاختبار للتأكد من نجاحه، وافتح PR.
