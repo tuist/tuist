@@ -96,7 +96,7 @@ tuist generate # Generate an Xcode project
 
 ## 项目生成{#project-generation}
 
-社区提供了一组规则
+社区提供了一套规则
 [rules_xcodeproj](https://github.com/MobileNativeFoundation/rules_xcodeproj)，用于从
 Bazel 声明的项目中生成 Xcode 项目。与需要在`BUILD` 文件中添加一些配置的 Bazel 不同，Tuist
 完全不需要任何配置。您可以在项目根目录下运行`tuist generate` ，Tuist 就会为您生成一个 Xcode 项目。
