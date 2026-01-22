@@ -5,39 +5,30 @@
   "description": "Use coding agents and local runs to debug issues in Tuist."
 }
 ---
-# Debugging {#debugging}
+# 除錯{#debugging}
 
-Being open is a practical advantage: the code is available, you can run it
-locally, and you can use coding agents to answer questions faster and debug
-potential bugs in the codebase.
+開放性具有實用優勢：程式碼公開可供查閱，您可在地端執行程式，並能運用程式設計代理程式加速解答疑問，同時在程式碼庫中偵測潛在錯誤。
 
-If you find missing or incomplete documentation while debugging, update the
-English docs under `docs/` and open a PR.
+若在除錯時發現文件遺漏或不完整，請更新英文文件（路徑：`docs/` ），並開啟 PR。
 
-## Use coding agents {#use-coding-agents}
+## 使用編碼代理{#use-coding-agents}
 
-Coding agents are useful for:
+程式設計代理程式適用於：
 
-- Scanning the codebase for where a behavior is implemented.
-- Reproducing issues locally and iterating quickly.
-- Tracing how inputs flow through Tuist to find the root cause.
+- 掃描程式碼庫以定位行為的實作位置。
+- 在地端重現問題並快速迭代。
+- 追蹤輸入如何流經 Tuist 以找出根本原因。
 
-Share the smallest reproduction you can, and point the agent at the specific
-component (CLI, server, cache, docs, or handbook). The more focused the scope,
-the faster and more accurate the debugging process is.
+請提供最簡化的重現案例，並將問題指向特定元件（CLI、伺服器、快取、文件或手冊）。範圍越聚焦，除錯過程將越快速且精準。
 
-### Frequently Needed Prompts (FNP) {#frequently-needed-prompts}
+### 常需提示語 (FNP){#frequently-needed-prompts}
 
-#### Unexpected project generation {#unexpected-project-generation}
+#### 意外的專案生成{#unexpected-project-generation}
 
-The project generation is giving me something I do not expect. Run the Tuist CLI
-against my project at `/path/to/project` to understand why this is happening.
-Trace the generator pipeline and point to the code paths responsible for the
-output.
+專案生成結果出現預期外狀況。請執行 Tuist CLI 對照我的專案：`/path/to/project`
+以釐清問題成因。追蹤生成器管道並指出導致此輸出的程式碼路徑。
 
-#### Reproducible bug in generated projects {#reproducible-bug-in-generated-projects}
+#### 生成專案中的可重現錯誤{#reproducible-bug-in-generated-projects}
 
-This looks like a bug in generated projects. Create a reproducible project under
-`examples/`, using existing examples as a reference. Add an acceptance test that
-fails, run it via `xcodebuild` with only that test selected, fix the issue,
-re-run the test to confirm it passes, and open a PR.
+此問題疑似為生成專案的錯誤。請參照現有範例，於`examples/ 目錄下建立可重現的專案（` ）。新增一個會失敗的驗收測試，透過`xcodebuild`
+執行（僅選取該測試），修正問題後重新執行測試確認通過，最後開啟 PR。
