@@ -547,7 +547,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         packageType: packageType,
                         condition: condition,
                         moduleAliases: moduleAliases,
-                        dependencyModuleAliases: &dependencyModuleAliases
+                        dependencyModuleAliases: &dependencyModuleAliases,
+                        enabledTraits: enabledTraits
                     )
                 case let .byName(name: name, condition: condition),
                      let .target(
@@ -560,7 +561,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         packageType: packageType,
                         condition: condition,
                         moduleAliases: packageModuleAliases[packageInfo.name],
-                        dependencyModuleAliases: &dependencyModuleAliases
+                        dependencyModuleAliases: &dependencyModuleAliases,
+                        enabledTraits: enabledTraits
                     )
                 }
             }
@@ -606,8 +608,17 @@ public final class PackageInfoMapper: PackageInfoMapping {
         packageType: PackageType,
         condition: PackageInfo.PackageConditionDescription?,
         moduleAliases: [String: String]?,
-        dependencyModuleAliases: inout [String: String]
+        dependencyModuleAliases: inout [String: String],
+        enabledTraits: Set<String>
     ) throws -> ProjectDescription.TargetDependency? {
+        // If the condition has traits, check if any of them are enabled
+        // If none are enabled, skip this dependency
+        if let traits = condition?.traits, !traits.isEmpty {
+            let hasEnabledTrait = traits.contains { enabledTraits.contains($0) }
+            if !hasEnabledTrait {
+                return nil
+            }
+        }
         let platformCondition: ProjectDescription.PlatformCondition?
         do {
             platformCondition = try ProjectDescription.PlatformCondition.from(condition)
