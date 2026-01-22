@@ -23,18 +23,18 @@ Tuist.
 ::: tip SWIFT OVER YAML
 <!-- -->
 Wiele organizacji preferuje Tuist jako narzędzie do generowania projektów,
-ponieważ wykorzystuje on Swift jako format konfiguracji. Swift to język
-programowania, z którym programiści są zaznajomieni i który zapewnia im wygodę
-korzystania z funkcji autouzupełniania, sprawdzania typów i walidacji Xcode.
+ponieważ wykorzystuje ono Swift jako format konfiguracyjny. Swift jest językiem
+programowania znanym programistom, który zapewnia im wygodę korzystania z
+funkcji autouzupełniania, sprawdzania typów i walidacji w Xcode.
 <!-- -->
 :::
 
-Poniżej znajduje się kilka uwag i wskazówek, które pomogą w migracji projektów z
-XcodeGen do Tuist.
+Poniżej przedstawiono kilka wskazówek i wytycznych, które pomogą Ci przenieść
+projekty z XcodeGen do Tuist.
 
 ## Generowanie projektu {#project-generation}
 
-Zarówno Tuist, jak i XcodeGen udostępniają polecenie `generate`, które
+Zarówno Tuist, jak i XcodeGen udostępniają polecenie „ `generate` ”, które
 przekształca deklarację projektu w projekty i obszary robocze Xcode.
 
 ::: code-group
@@ -49,19 +49,18 @@ tuist generate
 <!-- -->
 :::
 
-Różnica polega na sposobie edycji. W Tuist można uruchomić polecenie `tuist
-edit`, które generuje projekt Xcode w locie, który można otworzyć i rozpocząć
-pracę. Jest to szczególnie przydatne, gdy chcesz szybko wprowadzić zmiany w
-projekcie.
+Różnica polega na doświadczeniu związanym z edycją. Dzięki Tuist możesz
+uruchomić polecenie `tuist edit`, które generuje projekt Xcode, który możesz
+otworzyć i rozpocząć pracę. Jest to szczególnie przydatne, gdy chcesz wprowadzić
+szybkie zmiany w swoim projekcie.
 
 ## `project.yaml` {#projectyaml}
 
-Plik opisu XcodeGen `project.yaml` staje się `Project.swift`. Ponadto można mieć
-`Workspace.swift` jako sposób na dostosowanie sposobu grupowania projektów w
-obszarach roboczych. Można również mieć projekt `Project.swift` z obiektami
-docelowymi, które odwołują się do obiektów docelowych z innych projektów. W
-takich przypadkach Tuist wygeneruje Xcode Workspace zawierający wszystkie
-projekty.
+`XcodeGen project.yaml` plik opisu staje się `Project.swift`. Ponadto można mieć
+`Workspace.swift` jako sposób dostosowania sposobu grupowania projektów w
+obszarach roboczych. Można również mieć projekt `Project.swift` z celami, które
+odwołują się do celów z innych projektów. W takich przypadkach Tuist wygeneruje
+obszar roboczy Xcode zawierający wszystkie projekty.
 
 ::: code-group
 
@@ -82,21 +81,22 @@ projekty.
 ::: tip XCODE'S LANGUAGE
 <!-- -->
 Zarówno XcodeGen, jak i Tuist wykorzystują język i koncepcje Xcode. Jednak
-konfiguracja Tuist oparta na języku Swift zapewnia wygodę korzystania z funkcji
-autouzupełniania, sprawdzania typu i walidacji Xcode.
+konfiguracja Tuist oparta na Swift zapewnia wygodę korzystania z funkcji
+autouzupełniania, sprawdzania typów i walidacji Xcode.
 <!-- -->
 :::
 
 ## Szablony specyfikacji {#spec-templates}
 
-Jedną z wad YAML jako języka konfiguracji projektu jest to, że nie obsługuje on
-możliwości ponownego wykorzystania plików YAML po wyjęciu z pudełka. Jest to
-powszechna potrzeba przy opisywaniu projektów, którą XcodeGen musiał rozwiązać
-za pomocą własnego rozwiązania o nazwie *"templates"*. W Tuist możliwość
-ponownego użycia jest wbudowana w sam język Swift i poprzez moduł Swift o nazwie
+Jedną z wad języka YAML jako języka konfiguracji projektów jest to, że nie
+obsługuje on ponownego wykorzystania plików YAML bez dodatkowych modyfikacji.
+Jest to częsta potrzeba podczas opisywania projektów, którą XcodeGen musiał
+rozwiązać za pomocą własnego, zastrzeżonego rozwiązania o nazwie „szablony” *
+„templates”*. Dzięki Tuist ponowne wykorzystanie jest wbudowane w sam język
+Swift oraz poprzez moduł Swift o nazwie
 <LocalizedLink href="/guides/features/projects/code-sharing">project description
-helpers</LocalizedLink>, który umożliwia ponowne użycie kodu we wszystkich
-plikach manifestu.
+helpers</LocalizedLink>, który umożliwia ponowne wykorzystanie kodu we
+wszystkich plikach manifestu.
 
 ::: code-group
 ```swift [Tuist/ProjectDescriptionHelpers/Target+Features.swift]
