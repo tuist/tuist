@@ -1,15 +1,16 @@
 ---
 {
-  "title": "Insights",
+  "title": "Build Insights",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Get insights into your projects to maintain a product developer environment."
+  "description": "Get insights into your builds to maintain a productive developer environment."
 }
 ---
-# İçgörüler {#insights}
+# İçgörüler Oluşturun {#build-insights}
 
 ::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve projesi</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve
+  projesi</LocalizedLink>
 <!-- -->
 :::
 
@@ -25,15 +26,7 @@ geliştirici ortamını korumanız için size araçlar sağlar.
 Başka bir deyişle, Tuist Insights aşağıdaki gibi soruları yanıtlamanıza yardımcı
 olur:
 - Yapım süresi son bir hafta içinde önemli ölçüde arttı mı?
-- Testlerim yavaşladı mı? Hangileri yavaşladı?
-
-::: info
-<!-- -->
-Tuist Insights erken geliştirme aşamasındadır.
-<!-- -->
-:::
-
-## Yapılar {#builds}
+- Derlemelerim CI üzerinde yerel geliştirmeye kıyasla daha mı yavaş?
 
 Muhtemelen CI iş akışlarının performansı için bazı metriklere sahip olsanız da,
 yerel geliştirme ortamı için aynı görünürlüğe sahip olmayabilirsiniz. Ancak
@@ -56,8 +49,8 @@ ayarlamanızı öneririz.
 
 ::: info
 <!-- -->
-<LocalizedLink href="/guides/features/projects">oluşturulmuş projele</LocalizedLink> kullanmıyorsanız, derleme başarısız olursa şema sonrası
-eylem yürütülmez.
+1}oluşturulmuş projeleri</LocalizedLink> kullanmıyorsanız, derleme başarısız
+olursa şema sonrası eylem yürütülmez.
 <!-- -->
 :::
 > 
@@ -83,10 +76,10 @@ $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect build
 ::: tip MISE & PROJECT PATHS
 <!-- -->
 Ortamınızın `PATH` ortam değişkeni scheme post eylemi tarafından miras alınmaz
-ve bu nedenle Mise'ı nasıl kurduğunuza bağlı olarak Mise'ın mutlak yolunu
-kullanmanız gerekir. Ayrıca, Mise'i $SRCROOT tarafından işaret edilen dizinden
-çalıştırabilmeniz için derleme ayarlarını projenizdeki bir hedeften devralmayı
-unutmayın.
+ve bu nedenle Mise'ın mutlak yolunu kullanmanız gerekir, bu da Mise'ı nasıl
+kurduğunuza bağlı olacaktır. Ayrıca, Mise'i $SRCROOT tarafından işaret edilen
+dizinden çalıştırabilmeniz için derleme ayarlarını projenizdeki bir hedeften
+devralmayı unutmayın.
 <!-- -->
 :::
 
@@ -106,64 +99,20 @@ komutunu çalıştırın.
 ![Yapı içgörüleri içeren gösterge
 tablosu](/images/guides/features/insights/builds-dashboard.png)
 
-## Testler {#tests}
-
-Derlemeleri takip etmenin yanı sıra testlerinizi de izleyebilirsiniz. Test
-içgörüleri, yavaş testleri belirlemenize veya başarısız CI çalıştırmalarını
-hızlı bir şekilde anlamanıza yardımcı olur.
-
-Testlerinizi izlemeye başlamak için `tuist inspect test` komutunu şemanızın test
-sonrası eylemine ekleyerek kullanabilirsiniz:
-
-![Testlerin incelenmesi için eylem sonrası]
-(/images/guides/features/insights/inspect-test-scheme-post-action.png)
-
-Mise](https://mise.jdx.dev/) kullanıyorsanız, senaryonuzun eylem sonrası ortamda
-`tuist` adresini etkinleştirmesi gerekecektir:
-```sh
-# -C ensures that Mise loads the configuration from the Mise configuration
-# file in the project's root directory.
-$HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
-```
-
-::: tip MISE & PROJECT PATHS
-<!-- -->
-Ortamınızın `PATH` ortam değişkeni scheme post eylemi tarafından miras alınmaz
-ve bu nedenle Mise'ı nasıl kurduğunuza bağlı olarak Mise'ın mutlak yolunu
-kullanmanız gerekir. Ayrıca, Mise'i $SRCROOT tarafından işaret edilen dizinden
-çalıştırabilmeniz için derleme ayarlarını projenizdeki bir hedeften devralmayı
-unutmayın.
-<!-- -->
-:::
-
-Test çalışmalarınız artık Tuist hesabınıza giriş yaptığınız sürece takip
-ediliyor. Test içgörülerinize Tuist kontrol panelinden erişebilir ve zaman
-içinde nasıl geliştiklerini görebilirsiniz:
-
-![Test içgörüleri içeren gösterge
-tablosu](/images/guides/features/insights/tests-dashboard.png)
-
-Genel eğilimlerin yanı sıra, CI'daki hataları veya yavaş testleri ayıklarken
-olduğu gibi, her bir testin derinliklerine de dalabilirsiniz:
-
-![Test detayı](/images/guides/features/insights/test-detail.png)
-
 ## Oluşturulmuş projele {#generated-projects}
 
 ::: info
 <!-- -->
-Otomatik olarak oluşturulan şemalar otomatik olarak hem `tuist inspect build`
-hem de `tuist inspect test` son eylemlerini içerir.
+Otomatik olarak oluşturulan şemalar otomatik olarak `tuist inspect build`
+post-action içerir.
 <!-- -->
 :::
 > 
 > Otomatik oluşturulan şemalarınızdaki içgörüleri izlemekle ilgilenmiyorsanız,
 > <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">buildInsightsDisabled</LocalizedLink>
-> ve
-> <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#testinsightsdisabled">testInsightsDisabled</LocalizedLink>
-> oluşturma seçeneklerini kullanarak bunları devre dışı bırakın.
+> oluşturma seçeneğini kullanarak bunları devre dışı bırakın.
 
-Özel şemalarla oluşturulmuş projele kullanıyorsanız, hem derleme hem de test
+Özel şemalarla oluşturulmuş projeler kullanıyorsanız, hem derleme hem de test
 içgörüleri için son eylemler ayarlayabilirsiniz:
 
 ```swift
@@ -191,19 +140,6 @@ let project = Project(
                 // Run build post-actions even if the build fails
                 runPostActionsOnFailure: true
             ),
-            testAction: .testAction(
-                targets: ["MyAppTests"],
-                postActions: [
-                    // Test insights: Track test duration and flakiness
-                    .executionAction(
-                        title: "Inspect Test",
-                        scriptText: """
-                        $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
-                        """,
-                        target: "MyAppTests"
-                    )
-                ]
-            ),
             runAction: .runAction(configuration: "Debug")
         )
     ]
@@ -223,30 +159,21 @@ buildAction: .buildAction(
         )
     ],
     runPostActionsOnFailure: true
-),
-testAction: .testAction(
-    targets: ["MyAppTests"],
-    postActions: [
-        .executionAction(
-            title: "Inspect Test",
-            scriptText: "tuist inspect test"
-        )
-    ]
 )
 ```
 
 ## Sürekli entegrasyon {#continuous-integration}
 
-CI'da derleme ve test içgörülerini izlemek için CI'nızın
+CI'da derleme içgörülerini izlemek için CI'nızın
 <LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>
 olduğundan emin olmanız gerekir.
 
 Ek olarak, aşağıdakilerden birini yapmanız gerekecektir:
 - `xcodebuild` eylemlerini çağırırken
-  <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist xcodebuild`</LocalizedLink> komutunu kullanın.
+  <LocalizedLink href="/cli/xcodebuild#tuist-xcodebuild">`tuist
+  xcodebuild`</LocalizedLink> komutunu kullanın.
 - `xcodebuild` çağrınıza `-resultBundlePath` ekleyin.
 
-`xcodebuild` projenizi `-resultBundlePath` olmadan derlediğinde veya test
-ettiğinde, gerekli etkinlik günlüğü ve sonuç demeti dosyaları oluşturulmaz. Hem
-`tuist inspect build` hem de `tuist inspect test` post-action'ları derleme ve
-testlerinizi analiz etmek için bu dosyaları gerektirir.
+`xcodebuild` projenizi `-resultBundlePath` olmadan derlediğinde, gerekli
+etkinlik günlüğü ve sonuç demeti dosyaları oluşturulmaz. ` tuist inspect build`
+post-action, derlemelerinizi analiz etmek için bu dosyaları gerektirir.
