@@ -42,9 +42,9 @@ Po pierwsze, należy utworzyć aplikację Okta i skonfigurować ją do pracy z T
 5. URI przekierowania logowania należy na razie pozostawić bez zmian.
 6. W sekcji "Przypisania" wybierz żądaną kontrolę dostępu do aplikacji SSO i
    zapisz.
-7. Po zapisaniu dostępne będą ogólne ustawienia aplikacji. Skopiuj
-   "Identyfikator klienta" i "Sekret klienta" - będziesz musiał bezpiecznie
-   udostępnić je swojemu punktowi kontaktowemu.
+7. Po zapisaniu dostępne będą ogólne ustawienia aplikacji. Skopiuj "Client ID" i
+   "Client Secret" - będziesz musiał bezpiecznie udostępnić je swojemu punktowi
+   kontaktowemu.
 8. Zespół Tuist będzie musiał ponownie wdrożyć serwer Tuist z dostarczonym
    identyfikatorem klienta i kluczem tajnym. Może to potrwać do jednego dnia
    roboczego.
