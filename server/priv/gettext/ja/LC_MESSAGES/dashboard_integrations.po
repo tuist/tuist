@@ -3,9 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
-"PO-Revision-Date: 2026-01-22 12:36+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"PO-Revision-Date: 2026-01-22 13:03+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Japanese <https://translate.tuist.dev/projects/tuist/"
 "dashboard_integrations/ja/>\n"
 "Language: ja\n"
@@ -28,7 +27,7 @@ msgstr ""
 #: lib/tuist_web/live/integrations_live.html.heex:50
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Add new project connection"
-msgstr "新規プロジェクト接続の追加"
+msgstr "新規プロジェクト接続を追加"
 
 #: lib/tuist_web/live/integrations_live.html.heex:113
 #, elixir-autogen, elixir-format, fuzzy
@@ -43,12 +42,12 @@ msgstr "Tuistプロジェクトを選択"
 #: lib/tuist_web/live/integrations_live.html.heex:92
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Choose a repository"
-msgstr "リポジトリを選択する"
+msgstr "リポジトリを選択してください"
 
 #: lib/tuist_web/live/integrations_live.html.heex:43
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Choose repository to connect to"
-msgstr "接続するリポジトリを選択する"
+msgstr "接続するリポジトリを選択してください"
 
 #: lib/tuist_web/live/integrations_live.html.heex:9
 #, elixir-autogen, elixir-format, fuzzy
@@ -63,12 +62,12 @@ msgstr "接続された %{time_ago}"
 #: lib/tuist_web/live/integrations_live.ex:149
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Connected %{time_ago} by %{name}"
-msgstr "time_ago}に%{name}で接続。"
+msgstr "%{name} によって %{time_ago} が接続されました"
 
 #: lib/tuist_web/live/integrations_live.html.heex:120
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Create Connection"
-msgstr "コネクションの構築"
+msgstr "接続を作成する"
 
 #: lib/tuist_web/live/integrations_live.html.heex:6
 #, elixir-autogen, elixir-format, fuzzy
@@ -78,7 +77,7 @@ msgstr "GitHub"
 #: lib/tuist_web/live/integrations_live.html.heex:19
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Install GitHub App"
-msgstr "GitHubアプリをインストールする"
+msgstr "GitHub Appをインストール"
 
 #: lib/tuist_web/live/integrations_live.ex:30
 #: lib/tuist_web/live/integrations_live.html.heex:2
@@ -94,19 +93,19 @@ msgstr "管理"
 #: lib/tuist_web/live/integrations_live.html.heex:27
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Manage integration"
-msgstr "統合の管理"
+msgstr "統合を管理する"
 
 #: lib/tuist_web/live/integrations_live.html.heex:162
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Remove connection"
-msgstr "接続を外す"
+msgstr "接続を削除"
 
 #: lib/tuist_web/live/integrations_live.ex:15
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You are not authorized to perform this action."
-msgstr "あなたはこの操作を行う権限がありません。"
+msgstr "この操作を実行する権限がありません。"
 
 #: lib/tuist_web/live/integrations_live.html.heex:38
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Your access to repositories depends on your GitHub and Tuist integration setup."
-msgstr "リポジトリへのアクセスは、GitHubとTuistの統合設定に依存します。"
+msgstr "リポジトリへのアクセス権は、GitHubとTuistの連携設定に依存します。"
