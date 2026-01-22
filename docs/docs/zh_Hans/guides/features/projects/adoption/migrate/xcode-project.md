@@ -7,7 +7,8 @@
 ---
 # 迁移 Xcode 项目{#migrate-an-xcode-project}
 
-除非您使用 Tuist<LocalizedLink href="/guides/features/projects/adoption/new-project"> 创建一个新项目</LocalizedLink>，在这种情况下，您将自动获得所有配置，否则您必须使用 Tuist 的基元来定义您的 Xcode
+除非您使用 Tuist<LocalizedLink href="/guides/features/projects/adoption/new-project">
+创建一个新项目</LocalizedLink>，在这种情况下，您将自动获得所有配置，否则您必须使用 Tuist 的基元来定义您的 Xcode
 项目。这个过程有多繁琐，取决于您的项目有多复杂。
 
 您可能知道，随着时间的推移，Xcode
@@ -73,7 +74,7 @@ let package = Package(
 
 ::: tip PROJECT NAME WITH -TUIST SUFFIX
 <!-- -->
-为防止与现有 Xcode 项目发生冲突，我们建议在项目名称中添加`-Tuist` 后缀。当您将项目完全迁移到 Tuist 后，就可以去掉后缀。
+为防止与现有 Xcode 项目发生冲突，我们建议在项目名称中添加`-Tuist` 后缀。一旦您将项目完全迁移到 Tuist，您就可以去掉后缀。
 <!-- -->
 :::
 
