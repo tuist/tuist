@@ -5,16 +5,16 @@
   "description": "Pick a Tuist component and learn how to work on it locally."
 }
 ---
-# Code {#code}
+# Kod {#code}
 
-Tuist is a monorepo. Each component has its own tooling, dependencies, and local
-run steps. Choose the area you want to contribute to:
+Tuist tek bir depo (monorepo)dır. Her bileşenin kendi araçları, bağımlılıkları
+ve yerel çalıştırma adımları vardır. Katkıda bulunmak istediğiniz alanı seçin:
 
 - <LocalizedLink href="/contributors/code/cli">CLI</LocalizedLink>
-- <LocalizedLink href="/contributors/code/server">Server</LocalizedLink>
-- <LocalizedLink href="/contributors/code/handbook">Handbook</LocalizedLink>
-- <LocalizedLink href="/contributors/code/docs">Docs</LocalizedLink>
+- <LocalizedLink href="/contributors/code/server">Sunucu</LocalizedLink>
+- <LocalizedLink href="/contributors/code/handbook">El Kitabı</LocalizedLink>
+- <LocalizedLink href="/contributors/code/docs">Dokümanlar</LocalizedLink>
 
-All components use
+Tüm bileşenler bağımlılık yönetimi için
 <LocalizedLink href="https://mise.jdx.dev/getting-started.html">Mise</LocalizedLink>
-for dependency management.
+kullanır.
