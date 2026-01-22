@@ -28,11 +28,12 @@ degradado significativamente. Por ejemplo, el cambio de nombre de un archivo
 puede tardar hasta 15 segundos en volver a indexarse. ¡15 segundos!
 
 **Si Apple hará de Swift Package Manager un gestor de proyectos construido a
-escala es incierto.** Sin embargo, no estamos viendo ninguna señal de que eso
+escala es incierto.** Sin embargo, no estamos viendo ninguna señal de que esto
 vaya a suceder. De hecho, estamos viendo todo lo contrario. Están tomando
 decisiones inspiradas en Xcode, como lograr la conveniencia a través de
 configuraciones implícitas, que
-<LocalizedLink href="/guides/features/projects/cost-of-convenience">como sabrás,</LocalizedLink> es la fuente de complicaciones a escala. Creemos que
+<LocalizedLink href="/guides/features/projects/cost-of-convenience">como
+sabrás,</LocalizedLink> es la fuente de complicaciones a escala. Creemos que
 Apple tendría que ir a los primeros principios y revisar algunas decisiones que
 tenían sentido como gestor de dependencias pero no como gestor de proyectos, por
 ejemplo el uso de un lenguaje compilado como interfaz para definir proyectos.
@@ -93,12 +94,14 @@ let tuist = Tuist()
 
 El `Tuist.swift` contiene la configuración para tu proyecto y su ruta sirve como
 referencia para determinar la raíz de tu proyecto. Puedes consultar el documento
-<LocalizedLink href="/guides/features/projects/directory-structure">estructura de directorios</LocalizedLink> para saber más sobre la estructura de los
+<LocalizedLink href="/guides/features/projects/directory-structure">estructura
+de directorios</LocalizedLink> para saber más sobre la estructura de los
 proyectos Tuist.
 
 ## Editar el proyecto {#editing-the-project}
 
-Puede utilizar <LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink> para editar el proyecto en Xcode. El comando generará un
+Puede utilizar <LocalizedLink href="/guides/features/projects/editing">`tuist
+edit`</LocalizedLink> para editar el proyecto en Xcode. El comando generará un
 proyecto Xcode que puede abrir y empezar a trabajar en él.
 
 ```bash
