@@ -5,11 +5,11 @@
   "description": "Learn how to use the Tuist Registry in a generated Xcode project with the Xcode package integration."
 }
 ---
-# 使用 Xcode 套件整合產生專案{#generated-project-with-xcode-based-integration}
+# 已生成整合 Xcode 套件的專案{#generated-project-with-xcode-based-integration}
 
-如果您正在使用
+若您使用的是
 <LocalizedLink href="/guides/features/projects/dependencies#xcodes-default-integration">Xcode
-的預設套件與 Tuist Projects 整合</LocalizedLink>，則在新增套件時，您需要使用註冊表識別符，而非 URL：
+與 Tuist Projects 的預設套件整合</LocalizedLink>，添加套件時需使用註冊識別碼而非網址：
 ```swift
 import ProjectDescription
 
