@@ -168,7 +168,7 @@ qué ha pasado y ocultar la información que no sea relevante. Además, deben se
 procesables, indicando a los usuarios los pasos que pueden dar para recuperarse
 de ellos.
 
-Y por último, pero no menos importante, nuestros casos de prueba deben
+Y por último, pero no por ello menos importante, nuestros casos de prueba deben
 contemplar escenarios de fallo. No solo garantizan que estamos gestionando los
 errores como se supone que debemos, sino que evitan que futuros desarrolladores
 rompan esa lógica.
