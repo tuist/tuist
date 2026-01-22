@@ -12,13 +12,13 @@
 
 ## 환경 변수를 통한 구성 {#configuration-through-environment-variables}
 
-Tuist에서는 매니페스트 파일에서 액세스할 수 있는 환경 변수를 통해 구성을 전달할 수 있습니다. 예를 들어
+Tuist에서는 매니페스트 파일에서 접근할 수 있는 환경 변수를 통해 설정을 전달할 수 있습니다. 예:
 
 ```bash
 TUIST_APP_NAME=MyApp tuist generate
 ```
 
-여러 환경 변수를 전달하려면 공백으로 구분하면 됩니다. 예를 들어
+여러 환경 변수를 전달하려면 공백으로 구분하면 됩니다. 예:
 
 ```bash
 TUIST_APP_NAME=MyApp TUIST_APP_LOCALE=pl tuist generate
