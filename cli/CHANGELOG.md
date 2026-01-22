@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.130.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* fix bundle accessor for Obj-C external static frameworks with resources by [@pepicrft](https://github.com/pepicrft) in [#9210](https://github.com/tuist/tuist/pull/9210)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.130.1...4.130.2
+
 ## What's Changed in 4.130.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
