@@ -38,7 +38,8 @@ curl -Ls https://uninstall.tuist.io | bash
 ::: info HOMEBREW IS SUPPORTED
 <!-- -->
 請注意，您仍可使用 Homebrew 安裝 Tuist，Homebrew 是適用於 macOS 的常用套件管理程式。您可以在
-<LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew"> 安裝指南</LocalizedLink> 中找到如何使用 Homebrew 安裝 Tuist 的說明。
+<LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">
+安裝指南</LocalizedLink> 中找到如何使用 Homebrew 安裝 Tuist 的說明。
 <!-- -->
 :::
 
