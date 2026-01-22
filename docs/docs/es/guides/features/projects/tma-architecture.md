@@ -26,7 +26,7 @@ principios que la sustentan.
 <!-- -->
 :::
 
-## Principio básico {#core-principle}
+## Principio básico {#principio básico}
 
 Los desarrolladores deben ser capaces de **construir, probar y probar** sus
 características de forma rápida, independientemente de la aplicación principal,
@@ -142,13 +142,15 @@ un problema.
 
 Recomendamos el uso de bibliotecas o marcos dinámicos durante el desarrollo
 utilizando
-<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">accesores de paquetes</LocalizedLink> para desacoplar la lógica de acceso a paquetes de la
+<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">accesores
+de paquetes</LocalizedLink> para desacoplar la lógica de acceso a paquetes de la
 naturaleza de la biblioteca o marco del objetivo. Esto es clave para tiempos de
 compilación rápidos y para asegurar que [SwiftUI
 Previews](https://developer.apple.com/documentation/swiftui/previews-in-xcode)
 funcione de forma fiable. Y librerías estáticas o frameworks para las versiones
 de lanzamiento para asegurar que la aplicación arranca rápido. Puede aprovechar
-<LocalizedLink href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables">la configuración dinámica</LocalizedLink> para cambiar el tipo de producto en el
+<LocalizedLink href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables">la
+configuración dinámica</LocalizedLink> para cambiar el tipo de producto en el
 momento de la generación:
 
 ```bash
