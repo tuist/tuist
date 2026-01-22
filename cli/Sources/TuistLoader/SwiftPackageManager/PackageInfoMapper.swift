@@ -1578,8 +1578,14 @@ extension ProjectDescription.PlatformCondition {
             }
         }
 
-        // If empty, we know there are no supported platforms and this dependency should not be included in the graph
+        // If platformNames is empty but the condition exists (e.g., for trait-only conditions),
+        // return nil to indicate no platform filtering
         if filters.isEmpty {
+            // If the condition has traits but no platform names, this is a valid trait-only condition
+            if let traits = condition.traits, !traits.isEmpty {
+                return nil
+            }
+            // Otherwise, there are no supported platforms and this dependency should not be included
             throw OnlyConditionsWithUnsupportedPlatforms()
         }
 
