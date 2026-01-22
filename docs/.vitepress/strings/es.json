@@ -144,6 +144,17 @@
                 },
                 "releases": {
                     "text": "Releases"
+                },
+                "debugging": {
+                    "text": "Depuración"
+                },
+                "code": {
+                    "text": "Código",
+                    "items": {
+                        "handbook": {
+                            "text": "Manual"
+                        }
+                    }
                 }
             }
         },
@@ -366,6 +377,14 @@
                         },
                         "qa": {
                             "text": "QA"
+                        },
+                        "test-insights": {
+                            "items": {
+                                "flaky-tests": {
+                                    "text": "Pruebas defectuosas"
+                                }
+                            },
+                            "text": "Ideas de prueba"
                         }
                     }
                 },
