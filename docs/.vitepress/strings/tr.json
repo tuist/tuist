@@ -149,8 +149,15 @@
                     "items": {
                         "docs": {
                             "text": "Dokümanlar"
+                        },
+                        "handbook": {
+                            "text": "El Kitabı"
                         }
-                    }
+                    },
+                    "text": "Kod"
+                },
+                "debugging": {
+                    "text": "Hata Ayıklama"
                 }
             }
         },
@@ -370,6 +377,14 @@
                         },
                         "qa": {
                             "text": "QA"
+                        },
+                        "test-insights": {
+                            "items": {
+                                "flaky-tests": {
+                                    "text": "Berbat testler"
+                                }
+                            },
+                            "text": "Test içgörüleri"
                         }
                     }
                 },
