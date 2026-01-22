@@ -5,65 +5,62 @@
   "description": "AI-powered testing agent that tests your iOS apps automatically with comprehensive QA coverage."
 }
 ---
-# 质量保证{#qa}
+# QA{#qa}
 
 ::: warning EARLY PREVIEW
 <!-- -->
-Tuist QA 目前处于早期预览阶段。登录 [tuist.dev/qa](https://tuist.dev/qa) 获取访问权限。
+Tuist QA 目前处于早期预览阶段。请访问 [tuist.dev/qa](https://tuist.dev/qa) 注册获取使用权限。
 <!-- -->
 :::
 
-高质量的移动应用开发依赖于全面的测试，但传统方法存在局限性。单元测试速度快、成本低，但会遗漏真实的用户场景。验收测试和人工质量保证可以捕捉到这些差距，但它们需要大量资源，而且不能很好地扩展。
+优质移动应用开发依赖全面测试，但传统方法存在局限。单元测试虽快速且成本效益高，却无法覆盖真实用户场景。验收测试和人工质量保证虽能弥补这些缺口，但资源密集且难以扩展。
 
-Tuist 的 QA
-代理通过模拟真实的用户行为解决了这一难题。它可以自主探索您的应用程序，识别界面元素，执行真实的交互，并标记潜在的问题。这种方法可以帮助您在开发早期识别错误和可用性问题，同时避免传统验收和质量保证测试的开销和维护负担。
+Tuist的QA代理通过模拟真实用户行为解决此难题。它能自主探索应用程序，识别界面元素，执行真实交互，并标记潜在问题。这种方法有助于在开发早期发现缺陷和可用性问题，同时避免传统验收测试和质量保证测试带来的开销与维护负担。
 
 ## 先决条件{#prerequisites}
 
-要开始使用 Tuist QA，您需要
-- 从 PR CI 工作流程中设置上传 <LocalizedLink href="/guides/features/previews">预览
-  </LocalizedLink>，然后代理就可以使用这些预览进行测试了
-- <LocalizedLink href="/guides/integrations/gitforge/github">与 GitHub
-  集成</LocalizedLink>，因此您可以直接从 PR 触发代理
+要开始使用 Tuist QA，您需要：
+- 在PR
+  CI工作流中设置上传<LocalizedLink href="/guides/features/previews">预览图</LocalizedLink>，供代理程序用于测试
+- <LocalizedLink href="/guides/integrations/gitforge/github">将</LocalizedLink>与GitHub集成，以便您可直接从PR中触发代理
 
 ## 用法 {#usage｝
 
-Tuist QA 目前可直接从 PR 触发。一旦您的 PR 关联了预览，您就可以通过在 PR 上注释`/qa test I want to test
-feature A` 来触发 QA 代理：
+Tuist QA 当前可直接从 PR 触发。当 PR 关联预览后，您可在 PR 中通过评论`/qa test I want to test feature A`
+触发 QA 代理：
 
-[质量保证触发评论](/images/guides/features/qa/qa-trigger-comment.png)。
+![QA触发评论](/images/guides/features/qa/qa-trigger-comment.png)
 
-注释中包含一个实时会话链接，您可以实时查看质量保证代理的进度和发现的任何问题。代理完成运行后，会将结果摘要发回 PR：
+该注释包含一个实时会话链接，您可通过该链接实时查看QA代理的运行进度及其发现的问题。代理完成运行后，将把结果摘要反馈至PR：
 
-![质量保证测试摘要](/images/guides/features/qa/qa-test-summary.png)!
+![QA测试摘要](/images/guides/features/qa/qa-test-summary.png)
 
-作为公关评论链接到的仪表板报告的一部分，您将获得问题列表和时间轴，以便查看问题的具体发生过程：
+作为仪表板报告的一部分（PR评论链接指向该报告），您将获得问题列表和时间线，以便查明问题确切的发生过程：
 
-质量保证时间表](/images/guides/features/qa/qa-timeline.png)。
+![QA时间线](/images/guides/features/qa/qa-timeline.png)
 
-您可以在我们的公共控制面板中查看我们为<LocalizedLink href="/guides/features/previews#tuist-ios-app">iOS
-应用程序</LocalizedLink>进行的所有 QA 运行： https://tuist.dev/tuist/tuist/qa
+您可在我们的公开仪表盘查看所有针对<LocalizedLink href="/guides/features/previews#tuist-ios-app">iOS应用</LocalizedLink>的质量保证测试：https://tuist.dev/tuist/tuist/qa
 
 信息
 <!-- -->
-质量保证代理可自主运行，启动后不会被其他提示打断。我们会在整个执行过程中提供详细日志，帮助您了解代理如何与您的应用程序交互。这些日志对于迭代应用程序上下文和测试提示以更好地指导代理行为非常有价值。如果您对代理如何执行您的应用有任何反馈，请通过
-[GitHub Issues](https://github.com/tuist/tuist/issues)、[Slack
-社区](https://slack.tuist.dev) 或[社区论坛](https://community.tuist.dev)告知我们。
+QA代理程序启动后将自主运行，无法通过额外提示中断其进程。
+我们提供详细的执行日志，助您理解代理与应用的交互过程。这些日志对迭代应用上下文和测试提示语至关重要，可优化代理行为引导。若您对代理在应用中的表现有反馈，请通过[GitHub
+Issues](https://github.com/tuist/tuist/issues)、[Slack社区](https://slack.tuist.dev)或[社区论坛](https://community.tuist.dev)告知我们。
 <!-- -->
 :::
 
-### 应用程序背景{#app-context}
+### 应用上下文{#app-context}
 
-代理可能需要更多关于您应用程序的上下文，以便能够很好地导航。我们有三种应用程序上下文：
-- 应用程序说明
-- 证书
-- 启动争论小组
+客服人员可能需要更多应用背景信息才能更好地操作。我们提供三类应用背景：
+- 应用描述
+- 凭证
+- 启动参数组
 
-所有这些都可以在项目的仪表板设置中进行配置 (`Settings` >`QA`)。
+所有设置均可在项目控制面板中配置（`设置` >`质量保证` ）。
 
-#### 应用程序说明{#app-description}
+#### 应用描述{#app-description}
 
-应用程序描述用于提供有关应用程序功能和工作原理的额外信息。这是一个长格式文本字段，在启动代理时作为提示的一部分传递。举例如下
+应用描述用于提供关于应用功能及运作方式的补充说明。这是长文本字段，在启动智能体时作为提示的一部分传递。示例如下：
 
 ```
 Tuist iOS app is an app that gives users easy access to previews, which are specific builds of apps. The app contains metadata about the previews, such as the version and build number, and allows users to run previews directly on their device.
@@ -71,17 +68,17 @@ Tuist iOS app is an app that gives users easy access to previews, which are spec
 The app additionally includes a profile tab to surface about information about the currently signed-in profile and includes capabilities like signing out.
 ```
 
-#### 证书{#credentials}
+#### 凭证{#credentials}
 
-如果代理需要登录应用程序来测试某些功能，您可以提供凭证供代理使用。如果代理意识到需要登录，就会填写这些凭据。
+若代理需登录应用测试某些功能，可提供凭证供其使用。当代理识别到需要登录时，将自动填写这些凭证。
 
-#### 启动争论小组{#launch-argument-groups}
+#### 启动参数组{#launch-argument-groups}
 
-启动参数组是根据运行代理前的测试提示选择的。例如，如果不想让代理重复登录，浪费令牌和运行时间，可以在此处指定凭据。如果代理认为它应该以登录方式启动会话，那么它将在启动应用程序时使用凭据启动参数组。
+启动参数组的选择基于您在运行代理前的测试提示。例如，若您不希望代理反复登录导致令牌和运行器分钟数浪费，可在此处指定凭据。当代理识别到应以登录状态启动会话时，将在应用启动时使用凭据启动参数组。
 
-![启动参数组](/images/guides/features/qa/launch-argument-groups.png)!
+![启动参数组](/images/guides/features/qa/launch-argument-groups.png)
 
-这些启动参数是标准的 Xcode 启动参数。下面是一个如何使用它们自动登录的示例：
+这些启动参数是标准的Xcode启动参数。以下是使用它们实现自动登录的示例：
 
 ```swift
 import ArgumentParser
