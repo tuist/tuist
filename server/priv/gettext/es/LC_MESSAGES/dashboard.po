@@ -3,9 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:51+0000\n"
-"PO-Revision-Date: 2026-01-22 12:40+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"PO-Revision-Date: 2026-01-22 13:04+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Spanish <https://translate.tuist.dev/projects/tuist/dashboard-"
 "1/es/>\n"
 "Language: es\n"
@@ -28,7 +27,7 @@ msgstr ""
 #: lib/tuist_web/components/previews/app_preview.ex:24
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{app_name} icon"
-msgstr "icono %{app_name}"
+msgstr "Icono %{app_name}"
 
 #: lib/tuist_web/controllers/error_html.ex:22
 #, elixir-autogen, elixir-format, fuzzy
@@ -64,12 +63,12 @@ msgstr "Configuración de la cuenta"
 #: lib/tuist_web/components/percentile_dropdown_widget.ex:125
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Avg."
-msgstr "Avg."
+msgstr "Promedio."
 
 #: lib/tuist_web/controllers/error_html.ex:16
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Bad request"
-msgstr "Mala petición"
+msgstr "Solicitud incorrecta."
 
 #: lib/tuist_web/components/layouts/account.html.heex:32
 #, elixir-autogen, elixir-format, fuzzy
@@ -79,7 +78,7 @@ msgstr "Facturación"
 #: lib/tuist_web/components/app_layout_components.ex:45
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Build Runs"
-msgstr "Recorridos de construcción"
+msgstr "Ejecuciones de compilación"
 
 #: lib/tuist_web/components/app_layout_components.ex:28
 #, elixir-autogen, elixir-format, fuzzy
@@ -101,7 +100,7 @@ msgstr "CI"
 #: lib/tuist_web/components/app_layout_components.ex:122
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cache Runs"
-msgstr "Ejecuciones en caché"
+msgstr "Ejecuciones de caché"
 
 #: lib/tuist_web/live/layout_live.ex:96
 #: lib/tuist_web/live/layout_live.ex:165
@@ -112,7 +111,7 @@ msgstr "Crear organización"
 #: lib/tuist_web/components/account_dropdown.ex:75
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Download macOS app"
-msgstr "Descargar aplicación macOS"
+msgstr "Descargar la aplicación para macOS"
 
 #: lib/tuist_web/components/layouts/ops.html.heex:37
 #, elixir-autogen, elixir-format, fuzzy
@@ -147,7 +146,7 @@ msgstr "Comenzar"
 #: lib/tuist_web/controllers/error_html.ex:143
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Go to dashboard"
-msgstr "Ir al salpicadero"
+msgstr "Ir al panel de control"
 
 #: lib/tuist_web/components/layouts/ops.html.heex:61
 #, elixir-autogen, elixir-format, fuzzy
@@ -163,17 +162,17 @@ msgstr "Integrations"
 #: lib/tuist_web/controllers/github_app_setup_controller.ex:29
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Invalid GitHub app installation. Please try again."
-msgstr "Instalación no válida de la aplicación GitHub. Inténtalo de nuevo."
+msgstr "Instalación de la aplicación GitHub no válida. Inténtalo de nuevo."
 
 #: lib/tuist_web/controllers/github_app_setup_controller.ex:32
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Invalid installation request. Please try again."
-msgstr "Solicitud de instalación no válida. Por favor, inténtelo de nuevo."
+msgstr "Solicitud de instalación no válida. Inténtalo de nuevo."
 
 #: lib/tuist_web/components/layouts/ops.html.heex:26
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Jobs"
-msgstr "Empleo"
+msgstr "Empleos"
 
 #: lib/tuist_web/components/empty_state.ex:42
 #, elixir-autogen, elixir-format, fuzzy
@@ -213,28 +212,28 @@ msgstr "Siguiente"
 #: lib/tuist_web/components/widget.ex:144
 #, elixir-autogen, elixir-format, fuzzy
 msgid "No data yet"
-msgstr "Aún no hay datos"
+msgstr "Aún no hay datos."
 
 #: lib/tuist_web/controllers/error_html.ex:52
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Not found"
-msgstr "No se ha encontrado"
+msgstr "No encontrado"
 
 #: lib/tuist_web/authorization.ex:27
 #: lib/tuist_web/authorization.ex:46
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Only operations roles can access this page."
-msgstr "Sólo los responsables de operaciones pueden acceder a esta página."
+msgstr "Solo los roles operativos pueden acceder a esta página."
 
 #: lib/tuist_web/controllers/error_html.ex:86
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Oops! Something went wrong"
-msgstr "¡Uy! Algo salió mal"
+msgstr "¡Vaya! Algo ha salido mal."
 
 #: lib/tuist_web/controllers/error_html.ex:53
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Oops, we couldn't find that page"
-msgstr "Oops, no pudimos encontrar esa página"
+msgstr "Vaya, no hemos podido encontrar esa página."
 
 #: lib/tuist_web/components/account_dropdown.ex:68
 #: lib/tuist_web/components/layouts/ops.html.heex:11
@@ -245,14 +244,14 @@ msgstr "Operaciones"
 #: lib/tuist_web/components/app_layout_components.ex:21
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Overview"
-msgstr "Visión general"
+msgstr "Resumen"
 
 #: lib/tuist_web/controllers/error_html.ex:32
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Please, make sure you are accessing the right resource and that you have the permissions to access it."
 msgstr ""
-"Por favor, asegúrate de que estás accediendo al recurso correcto y de que "
-"tienes los permisos para acceder a él."
+"Asegúrate de que estás accediendo al recurso correcto y de que tienes los "
+"permisos necesarios para acceder a él."
 
 #: lib/tuist_web/components/app_components.ex:51
 #, elixir-autogen, elixir-format, fuzzy
@@ -284,25 +283,25 @@ msgstr "Error del servidor"
 #: lib/tuist_web/components/layouts/account.html.heex:56
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Settings"
-msgstr "Ajustes"
+msgstr "Configuración"
 
 #: lib/tuist_web/controllers/error_html.ex:89
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Sorry, something went wrong on our side. Contact us at contact@tuist.dev and we'll look into it."
 msgstr ""
-"Lo sentimos, algo ha ido mal por nuestra parte. Ponte en contacto con "
+"Lo sentimos, ha habido un error por nuestra parte. Ponte en contacto con "
 "nosotros en contact@tuist.dev y lo investigaremos."
 
 #: lib/tuist_web/controllers/error_html.ex:46
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Sorry, the page you are looking for doesn't exist or has been moved."
-msgstr "Lo sentimos, la página que busca no existe o ha sido movida."
+msgstr "Lo sentimos, la página que busca no existe o ha sido trasladada."
 
 #: lib/tuist_web/controllers/error_html.ex:67
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Sorry, you made too many requests. Please try again later."
 msgstr ""
-"Lo sentimos, ha realizado demasiadas solicitudes. Vuelva a intentarlo más "
+"Lo sentimos, ha realizado demasiadas solicitudes. Inténtelo de nuevo más "
 "tarde."
 
 #: lib/tuist_web/components/layouts/ops.html.heex:44
@@ -313,7 +312,7 @@ msgstr "Almacenamiento"
 #: lib/tuist_web/components/account_dropdown.ex:84
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Switch to your preferred theme"
-msgstr "Cambia a tu tema preferido"
+msgstr "Cambia a tu tema preferido."
 
 #: lib/tuist_web/components/app_layout_components.ex:86
 #, elixir-autogen, elixir-format, fuzzy
@@ -323,7 +322,7 @@ msgstr "Casos de prueba"
 #: lib/tuist_web/components/app_layout_components.ex:75
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Test Runs"
-msgstr "Pruebas"
+msgstr "Pruebas de funcionamiento"
 
 #: lib/tuist_web/components/app_layout_components.ex:58
 #, elixir-autogen, elixir-format, fuzzy
@@ -338,18 +337,18 @@ msgstr "No se ha encontrado la cuenta %{account_handle}."
 #: lib/tuist_web/live/layout_live.ex:142
 #, elixir-autogen, elixir-format, fuzzy
 msgid "The account you are looking for doesn't exist or has been moved."
-msgstr "La cuenta que buscas no existe o ha sido movida."
+msgstr "La cuenta que buscas no existe o ha sido trasladada."
 
 #: lib/tuist_web/controllers/auth_controller.ex:23
 #, elixir-autogen, elixir-format, fuzzy
 msgid "The authentication URL is not supported"
-msgstr "No se admite la URL de autenticación"
+msgstr "La URL de autenticación no es compatible."
 
 #: lib/tuist_web/authorization.ex:63
 #: lib/tuist_web/authorization.ex:79
 #, elixir-autogen, elixir-format, fuzzy
 msgid "The page you are looking for doesn't exist or has been moved."
-msgstr "La página que busca no existe o ha sido movida."
+msgstr "La página que busca no existe o ha sido trasladada."
 
 #: lib/tuist_web/controllers/preview_controller.ex:132
 #, elixir-autogen, elixir-format, fuzzy
@@ -367,33 +366,33 @@ msgstr "No se ha encontrado el proyecto %{project_slug}."
 #, elixir-autogen, elixir-format, fuzzy
 msgid "The project full handle %{project_slug} is invalid. It should follow the convention 'account_handle/project_handle'."
 msgstr ""
-"El nombre completo del proyecto %{project_slug} no es válido. Debería seguir "
-"la convención 'account_handle/project_handle'."
+"El identificador completo del proyecto %{project_slug} no es válido. Debe "
+"seguir la convención «account_handle/project_handle»."
 
 #: lib/tuist_web/live/layout_live.ex:61
 #, elixir-autogen, elixir-format, fuzzy
 msgid "The project you are looking for doesn't exist or has been moved."
-msgstr "El proyecto que busca no existe o ha sido trasladado."
+msgstr "El proyecto que buscas no existe o ha sido trasladado."
 
 #: lib/tuist_web/plugs/loader_plug.ex:93
 #, elixir-autogen, elixir-format, fuzzy
 msgid "The run with ID %{run_id} was not found."
-msgstr "No se ha encontrado la ejecución con ID %{run_id}."
+msgstr "No se ha encontrado la ejecución con el ID %{run_id}."
 
 #: lib/tuist_web/live/layout_live.ex:242
 #, elixir-autogen, elixir-format, fuzzy
 msgid "The run you are looking for doesn't exist or has been moved."
-msgstr "El recorrido que buscas no existe o ha sido movido."
+msgstr "La carrera que buscas no existe o se ha trasladado."
 
 #: lib/tuist_web/controllers/error_html.ex:73
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Too many requests"
-msgstr "Demasiadas solicitudes"
+msgstr "Demasiadas solicitudes."
 
 #: lib/tuist_web/controllers/error_html.ex:74
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Too many requests."
-msgstr "Demasiadas peticiones."
+msgstr "Demasiadas solicitudes."
 
 #: lib/tuist_web/components/app_layout_components.ex:219
 #: lib/tuist_web/components/app_layout_components.ex:246
@@ -411,13 +410,13 @@ msgstr ""
 #: lib/tuist_web/controllers/error_html.ex:28
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Unauthorized"
-msgstr "Sin autorización"
+msgstr "No autorizado."
 
 #: lib/tuist_web/components/runs/ran_by_badge.ex:29
 #: lib/tuist_web/components/runs/ran_by_badge.ex:77
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Unknown"
-msgstr "Desconocido"
+msgstr "Desconocido."
 
 #: lib/tuist_web/components/app_layout_components.ex:149
 #, elixir-autogen, elixir-format, fuzzy
@@ -427,7 +426,7 @@ msgstr "Caché de Xcode"
 #: lib/tuist_web/controllers/error_html.ex:29
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You are not authorized to view this page"
-msgstr "No está autorizado a ver esta página"
+msgstr "No estás autorizado para ver esta página."
 
 #: lib/tuist_web/authorization.ex:21
 #: lib/tuist_web/authorization.ex:40
@@ -435,12 +434,12 @@ msgstr "No está autorizado a ver esta página"
 #: lib/tuist_web/authorization.ex:72
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You need to be authenticated to access this page."
-msgstr "Debe estar autentificado para acceder a esta página."
+msgstr "Debes estar autenticado para acceder a esta página."
 
 #: lib/tuist_web/controllers/user_session_controller.ex:28
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You've exceeded the rate limit. Try again later."
-msgstr "Ha superado el límite de velocidad. Vuelva a intentarlo más tarde."
+msgstr "Has superado el límite de velocidad. Inténtalo de nuevo más tarde."
 
 #: lib/tuist_web/components/terminal.ex:10
 #, elixir-autogen, elixir-format, fuzzy
