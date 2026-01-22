@@ -6,28 +6,30 @@
 }
 ---
 
-# Cache Architecture {#cache-architecture}
+# Arquitectura de caché {#cache-architecture}
 
 ::: info
 <!-- -->
-This page provides a technical overview of the Tuist cache service architecture.
-It is primarily intended for **self-hosting users** and **contributors** who
-need to understand the internal workings of the service. General users who only
-want to use the cache do not need to read this.
+Esta página ofrece una descripción técnica general de la arquitectura del
+servicio de caché de Tuist. Está dirigida principalmente a los usuarios de
+autoalojamiento de **, los colaboradores de** y **, y los colaboradores de** que
+necesitan comprender el funcionamiento interno del servicio. Los usuarios
+generales que solo desean utilizar la caché no necesitan leer esto.
 <!-- -->
 :::
 
-The Tuist cache service is a standalone service that provides Content
-Addressable Storage (CAS) for build artifacts and a key-value store for cache
-metadata.
+El servicio de caché de Tuist es un servicio independiente que proporciona
+almacenamiento direccionable por contenido (CAS) para artefactos de compilación
+y un almacén de claves-valores para metadatos de caché.
 
-## Overview {#overview}
+## Resumen {#overview}
 
-The service uses a two-tier storage architecture:
+El servicio utiliza una arquitectura de almacenamiento de dos niveles:
 
-- **Local disk**: Primary storage for low-latency cache hits
-- **S3**: Durable storage that persists artifacts and allows recovery after
-  eviction
+- **Disco local**: almacenamiento primario para accesos a caché de baja
+  latencia.
+- **S3**: almacenamiento duradero que conserva los artefactos y permite la
+  recuperación tras la expulsión.
 
 ```mermaid
 flowchart LR
@@ -38,55 +40,57 @@ flowchart LR
     APP -->|auth| SERVER[Tuist Server]
 ```
 
-## Components {#components}
+## Componentes {#components}
 
 ### Nginx {#nginx}
 
-Nginx serves as the entry point and handles efficient file delivery using
-`X-Accel-Redirect`:
+Nginx sirve como punto de entrada y gestiona la entrega eficiente de archivos
+utilizando `X-Accel-Redirect`:
 
-- **Downloads**: The cache service validates authentication, then returns an
-  `X-Accel-Redirect` header. Nginx serves the file directly from disk or proxies
-  from S3.
-- **Uploads**: Nginx proxies requests to the cache service, which streams data
-  to disk.
+- **Descargas**: El servicio de caché valida la autenticación y, a continuación,
+  devuelve un encabezado `X-Accel-Redirect`. Nginx sirve el archivo directamente
+  desde el disco o los proxies desde S3.
+- **Cargas**: Nginx proxy las solicitudes al servicio de caché, que transmite
+  los datos al disco.
 
-### Content Addressable Storage {#cas}
+### Almacenamiento direccionable por contenido. {#cas}
 
-Artifacts are stored on local disk in a sharded directory structure:
+Los artefactos se almacenan en el disco local en una estructura de directorios
+fragmentada:
 
-- **Path**: `{account}/{project}/cas/{shard1}/{shard2}/{artifact_id}`
-- **Sharding**: First four characters of the artifact ID create a two-level
-  shard (e.g., `ABCD1234` → `AB/CD/ABCD1234`)
+- **Ruta**: `{cuenta}/{proyecto}/cas/{shard1}/{shard2}/{artifact_id}`
+- **Fragmentación**: Los cuatro primeros caracteres del ID del artefacto crean
+  una fragmentación de dos niveles (por ejemplo, `ABCD1234` → `AB/CD/ABCD1234`).
 
-### S3 Integration {#s3}
+### Integración S3 {#s3}
 
-S3 provides durable storage:
+S3 proporciona almacenamiento duradero:
 
-- **Background uploads**: After writing to disk, artifacts are queued for upload
-  to S3 via a background worker that runs every minute
-- **On-demand hydration**: When a local artifact is missing, the request is
-  served immediately via a presigned S3 URL while the artifact is queued for
-  background download to local disk
+- **Cargas en segundo plano**: Después de escribir en el disco, los artefactos
+  se ponen en cola para su carga en S3 a través de un trabajador en segundo
+  plano que se ejecuta cada minuto.
+- **Hidratación bajo demanda**: cuando falta un artefacto local, la solicitud se
+  atiende inmediatamente a través de una URL S3 presignada, mientras que el
+  artefacto se pone en cola para su descarga en segundo plano en el disco local.
 
-### Disk Eviction {#eviction}
+### Expulsión del disco {#eviction}
 
-The service manages disk space using LRU eviction:
+El servicio gestiona el espacio en disco utilizando la expulsión LRU:
 
-- Access times are tracked in SQLite
-- When disk usage exceeds 85%, the oldest artifacts are deleted until usage
-  drops to 70%
-- Artifacts remain in S3 after local eviction
+- Los tiempos de acceso se registran en SQLite.
+- Cuando el uso del disco supera el 85 %, se eliminan los artefactos más
+  antiguos hasta que el uso desciende al 70 %.
+- Los artefactos permanecen en S3 después de la expulsión local.
 
-### Authentication {#authentication}
+### Autenticación {#authentication}
 
-The cache delegates authentication to the Tuist server by calling the
-`/api/projects` endpoint and caching results (10 minutes for success, 3 seconds
-for failure).
+La caché delega la autenticación al servidor Tuist llamando al punto final
+`/api/projects` y almacenando los resultados en caché (10 minutos si se realiza
+correctamente, 3 segundos si falla).
 
-## Request Flows {#request-flows}
+## Flujos de solicitudes {#request-flows}
 
-### Download {#download-flow}
+### Descargar {#download-flow}
 
 ```mermaid
 sequenceDiagram
@@ -107,7 +111,7 @@ sequenceDiagram
     N-->>CLI: File bytes
 ```
 
-### Upload {#upload-flow}
+### Subir {#upload-flow}
 
 ```mermaid
 sequenceDiagram
@@ -124,18 +128,18 @@ sequenceDiagram
     A->>S: Background upload
 ```
 
-## API Endpoints {#api-endpoints}
+## Puntos finales de la API {#api-endpoints}
 
-| Endpoint                      | Method | Description                     |
-| ----------------------------- | ------ | ------------------------------- |
-| `/up`                         | GET    | Health check                    |
-| `/metrics`                    | GET    | Prometheus metrics              |
-| `/api/cache/cas/:id`          | GET    | Download CAS artifact           |
-| `/api/cache/cas/:id`          | POST   | Upload CAS artifact             |
-| `/api/cache/keyvalue/:cas_id` | GET    | Get key-value entry             |
-| `/api/cache/keyvalue`         | PUT    | Store key-value entry           |
-| `/api/cache/module/:id`       | HEAD   | Check if module artifact exists |
-| `/api/cache/module/:id`       | GET    | Download module artifact        |
-| `/api/cache/module/start`     | POST   | Start multipart upload          |
-| `/api/cache/module/part`      | POST   | Upload part                     |
-| `/api/cache/module/complete`  | POST   | Complete multipart upload       |
+| Punto final                   | Método   | Descripción                                  |
+| ----------------------------- | -------- | -------------------------------------------- |
+| `/up`                         | OBTENER  | Comprobación de estado                       |
+| `/metrics`                    | OBTENER  | Métricas de Prometheus                       |
+| `/api/cache/cas/:id`          | OBTENER  | Descargar artefacto CAS                      |
+| `/api/cache/cas/:id`          | PUBLICAR | Subir artefacto CAS                          |
+| `/api/cache/keyvalue/:cas_id` | OBTENER  | Obtener entrada clave-valor                  |
+| `/api/cache/keyvalue`         | PUT      | Almacenar entradas clave-valor.              |
+| `/api/cache/module/:id`       | HEAD     | Comprueba si existe el artefacto del módulo. |
+| `/api/cache/module/:id`       | OBTENER  | Descargar artefacto del módulo               |
+| `/api/cache/module/start`     | PUBLICAR | Iniciar carga multiparte                     |
+| `/api/cache/module/part`      | PUBLICAR | Subir parte                                  |
+| `/api/cache/module/complete`  | PUBLICAR | Carga completa de varias partes.             |
