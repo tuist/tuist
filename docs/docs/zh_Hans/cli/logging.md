@@ -14,13 +14,14 @@ CLI 会在内部记录信息，以帮助您诊断问题。
 如果命令调用没有产生预期结果，可以通过检查日志来诊断问题。CLI 会将日志转发到
 [OSLog](https://developer.apple.com/documentation/os/oslog) 和文件系统。
 
-每次运行都会在`$XDG_STATE_HOME/tuist/logs/{uuid}.log` 下创建日志文件，其中`$XDG_STATE_HOME`
+每次运行时，它都会在`$XDG_STATE_HOME/tuist/logs/{uuid}.log` 处创建一个日志文件，其中`$XDG_STATE_HOME`
 的值为`~/.local/state` （如果未设置环境变量）。也可以使用`$TUIST_XDG_STATE_HOME` 设置 Tuist
 特有的状态目录，其优先级高于`$XDG_STATE_HOME` 。
 
 ::: tip
 <!-- -->
-有关 Tuist 目录组织以及如何配置自定义目录的更多信息，请参阅 <LocalizedLink href="/cli/directories"> 目录文档</LocalizedLink>。
+有关 Tuist 目录组织以及如何配置自定义目录的更多信息，请参阅 <LocalizedLink href="/cli/directories">
+目录文档</LocalizedLink>。
 <!-- -->
 :::
 
