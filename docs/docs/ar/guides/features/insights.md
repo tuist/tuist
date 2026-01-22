@@ -1,15 +1,16 @@
 ---
 {
-  "title": "Insights",
+  "title": "Build Insights",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Get insights into your projects to maintain a product developer environment."
+  "description": "Get insights into your builds to maintain a productive developer environment."
 }
 ---
-# رؤى وأفكار {#insights}
+# بناء الرؤى {#build-insights}
 
-::: warning REQUIREMENTS
+:::: متطلبات التحذير
 <!-- -->
-- <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع تويست</LocalizedLink>
+- أ <LocalizedLink href="/guides/server/accounts-and-projects">حساب ومشروع تويست
+  <LocalizedLink href="/guides/server/accounts-and-projects">تويست</LocalizedLink>
 <!-- -->
 :::
 
@@ -17,40 +18,32 @@
 يكون ممتعًا مثل العمل على مشروع بدأته قبل أسبوعين فقط. أحد الأسباب التي تجعل
 الأمر ليس كذلك هو أنه كلما كبر المشروع، كلما تأثرت تجربة المطور. حيث تزداد أوقات
 البناء وتصبح الاختبارات بطيئة ومتعثرة. غالبًا ما يكون من السهل التغاضي عن هذه
-المشكلات إلى أن تصل إلى مرحلة تصبح فيها غير محتملة - ولكن عند هذه النقطة، يصعب
-معالجتها. توفّر لك Tuist Insights الأدوات اللازمة لمراقبة سلامة مشروعك والحفاظ
-على بيئة مطوّر منتجة للمطوّرين مع توسع مشروعك.
+المشكلات إلى أن تصل إلى نقطة تصبح فيها غير محتملة - ولكن عند هذه النقطة، من
+الصعب معالجتها. توفّر لك Tuist Insights الأدوات اللازمة لمراقبة سلامة مشروعك
+والحفاظ على بيئة مطوّر منتجة للمطوّرين مع توسع مشروعك.
 
 بعبارة أخرى، تساعدك رؤى تويست إنسايتس على الإجابة عن أسئلة مثل:
 - هل زاد وقت البناء بشكل ملحوظ في الأسبوع الماضي؟
-- هل أصبحت اختباراتي أبطأ؟ أي منها؟
-
-::: info
-<!-- -->
-رؤى تويست إنسايتس في مرحلة التطوير المبكر.
-<!-- -->
-:::
-
-## يبني {#builds}
+- هل عمليات الإنشاء الخاصة بي أبطأ على CI مقارنة بالتطوير المحلي؟
 
 في حين أنه من المحتمل أن يكون لديك بعض المقاييس لأداء عمليات سير عمل CI، فقد لا
 يكون لديك نفس الرؤية في بيئة التطوير المحلية. ومع ذلك، فإن أوقات البناء المحلية
 هي أحد أهم العوامل التي تساهم في تجربة المطور.
 
-للبدء في تتبع أوقات الإنشاء المحلي، يمكنك الاستفادة من الأمر `tuist inspect
-build` من خلال إضافته إلى الإجراء اللاحق لمخططك:
+لبدء تتبع أوقات الإنشاء المحلي، يمكنك الاستفادة من الأمر `tuist inspect build`
+من خلال إضافته إلى الإجراء اللاحق لمخططك:
 
 ![الإجراء اللاحق لفحص الإنشاءات]
 (/images/guides/features/insights/inspect-build-scheme-post-action.png)
 
-::: info
+:::: المعلومات
 <!-- -->
 نوصي بتعيين "توفير إعدادات الإنشاء من" إلى الملف القابل للتنفيذ أو هدف الإنشاء
 الرئيسي الخاص بك لتمكين Tuist من تتبع تكوين الإنشاء.
 <!-- -->
 :::
 
-::: info
+:::: المعلومات
 <!-- -->
 إذا كنت لا تستخدم <LocalizedLink href="/guides/features/projects">المشاريع التي
 تم إنشاؤها </LocalizedLink>، فلن يتم تنفيذ إجراء ما بعد المخطط في حالة فشل
@@ -87,78 +80,36 @@ Mise من الدليل الذي يشير إليه $SRCROOT.
 :::
 
 
-يتم الآن تتبُّع عمليات الإنشاء المحلية الخاصة بك طالما أنك قمت بتسجيل الدخول إلى
-حسابك في Tuist. يمكنك الآن الوصول إلى أوقات الإنشاءات الخاصة بك في لوحة معلومات
-Tuist ومعرفة كيفية تطورها بمرور الوقت:
+يتم الآن تتبع عمليات الإنشاء المحلية الخاصة بك طالما أنك مسجّل الدخول إلى حسابك
+في Tuist. يمكنك الآن الوصول إلى أوقات الإنشاءات الخاصة بك في لوحة معلومات Tuist
+ومعرفة كيفية تطورها بمرور الوقت:
 
 
-::: tip
+:::: إكرامية
 <!-- -->
 للوصول بسرعة إلى لوحة التحكم، قم بتشغيل `tuist project show --web` من CLI.
 <!-- -->
 :::
 
-![لوحة المعلومات مع رؤى البناء]
+![لوحة معلومات مع رؤى البناء]
 (/images/guides/features/insights/builds-dashboard.png)
-
-## اختبارات {#tests}
-
-بالإضافة إلى تتبع عمليات الإنشاء، يمكنك أيضًا مراقبة اختباراتك. تساعدك رؤى
-الاختبار على تحديد الاختبارات البطيئة أو فهم عمليات تشغيل CI الفاشلة بسرعة.
-
-لبدء تتبُّع اختباراتك، يمكنك الاستفادة من الأمر `tuist inspect test` من خلال
-إضافته إلى الإجراء اللاحق لاختبار مخططك:
-
-![الإجراء اللاحق لفحص
-الاختبارات](/images/guides/features/insights/inspect-test-scheme-post-action.png)
-
-في حال كنت تستخدم [Mise] (https://mise.jdx.dev/)، سيحتاج البرنامج النصي الخاص بك
-إلى تنشيط `tuist` في بيئة ما بعد العمل:
-```sh
-# -C ensures that Mise loads the configuration from the Mise configuration
-# file in the project's root directory.
-$HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
-```
-
-::: tip MISE & PROJECT PATHS
-<!-- -->
-لا يتم توريث متغير البيئة الخاص ببيئتك `PATH` من خلال إجراء ما بعد المخطط،
-وبالتالي عليك استخدام المسار المطلق لـ Mise، والذي سيعتمد على كيفية تثبيت Mise.
-علاوةً على ذلك، لا تنسَ أن ترث إعدادات الإنشاء من هدف في مشروعك بحيث يمكنك تشغيل
-Mise من الدليل الذي يشير إليه $SRCROOT.
-<!-- -->
-:::
-
-يتم الآن تتبع عمليات الاختبار الخاصة بك طالما قمت بتسجيل الدخول إلى حسابك على
-Tuist. يمكنك الوصول إلى رؤى الاختبارات الخاصة بك في لوحة تحكم تويست ومعرفة كيفية
-تطورها بمرور الوقت:
-
-![لوحة معلومات مع رؤى اختبارية]
-(/images/guides/features/insights/tests-dashboard.png)
-
-بصرف النظر عن الاتجاهات الإجمالية، يمكنك أيضًا التعمق في كل اختبار على حدة، كما
-هو الحال عند تصحيح الأخطاء أو الاختبارات البطيئة على CI:
-
-![تفاصيل الاختبار] (/images/guides/features/insights/test-detail.png)
 
 ## المشاريع التي تم إنشاؤها {#generated-projects}
 
-::: info
+:::: المعلومات
 <!-- -->
-تتضمن المخططات التي يتم إنشاؤها تلقائيًا تلقائيًا كلاً من `tuist inspect build`
-و `tuist inspect test` ما بعد الإجراءات.
+تتضمن المخططات التي يتم إنشاؤها تلقائيًا المخططات التي يتم إنشاؤها تلقائيًا
+`tuist فحص البناء` ما بعد العمل.
 <!-- -->
 :::
 > 
 > إذا لم تكن مهتمًا بتتبع الرؤى في المخططات التي يتم إنشاؤها تلقائيًا، فعليك
-> تعطيلها باستخدام خيارات الإنشاء
-> <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">إنشاء
-> الرؤى معطلة</LocalizedLink> و
-> <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#testinsightsdisabled">اختبار
-> الرؤى معطلة</LocalizedLink>.
+> تعطيلها باستخدام خيار إنشاء
+> <LocalizedLink href="/references/project-description/structs/tuist.generationoptions#buildinsightsdisabled">
+> إنشاء رؤى معطلة</LocalizedLink>.
 
-إذا كنت تستخدم المشاريع المُنشأة ذات المخططات المخصصة، يمكنك إعداد الإجراءات
-اللاحقة لكل من رؤى الإنشاء والاختبار:
+إذا كنت تستخدم المشاريع التي تم إنشاؤها باستخدام مخططات مخصصة، يمكنك إعداد
+إجراءات لاحقة لرؤى الإنشاء:
 
 ```swift
 let project = Project(
@@ -185,19 +136,6 @@ let project = Project(
                 // Run build post-actions even if the build fails
                 runPostActionsOnFailure: true
             ),
-            testAction: .testAction(
-                targets: ["MyAppTests"],
-                postActions: [
-                    // Test insights: Track test duration and flakiness
-                    .executionAction(
-                        title: "Inspect Test",
-                        scriptText: """
-                        $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
-                        """,
-                        target: "MyAppTests"
-                    )
-                ]
-            ),
             runAction: .runAction(configuration: "Debug")
         )
     ]
@@ -217,21 +155,12 @@ buildAction: .buildAction(
         )
     ],
     runPostActionsOnFailure: true
-),
-testAction: .testAction(
-    targets: ["MyAppTests"],
-    postActions: [
-        .executionAction(
-            title: "Inspect Test",
-            scriptText: "tuist inspect test"
-        )
-    ]
 )
 ```
 
 ## التكامل المستمر {#continuous-integration}
 
-لتتبع رؤى الإنشاء والاختبار على CI، ستحتاج إلى التأكد من أن CI الخاص بك هو
+لتتبع رؤى الإنشاء على CI، ستحتاج إلى التأكد من أن CI الخاص بك هو
 <LocalizedLink href="/guides/integrations/continuous-integration#authentication">
 مصادق عليه</LocalizedLink>.
 
@@ -240,7 +169,6 @@ testAction: .testAction(
   xcodebuild`</LocalizedLink> عند استدعاء `xcodebuild` الإجراءات.
 - أضف `-resultBundleBundlePath` إلى استدعاء `xcodebuild`.
 
-عندما `xcodebuild` يبني أو يختبر مشروعك بدون `-resultBundlePath` ، لا يتم إنشاء
-ملفات سجل النشاط المطلوب وملفات حزمة النتائج. يتطلب كل من `tuist فحص الإنشاء` و
-`tuist فحص الاختبار` ما بعد الإجراءات، هذه الملفات لتحليل الإنشاءات والاختبارات
-الخاصة بك.
+عندما يقوم `xcodebuild` ببناء مشروعك بدون `-resultBundlePath` ، لا يتم إنشاء
+ملفات سجل النشاط المطلوبة وملفات حزمة النتائج. يتطلب `tuist فحص الإنشاء` ما بعد
+الإجراء هذه الملفات لتحليل الإنشاءات الخاصة بك.
