@@ -5,54 +5,54 @@
   "description": "Learn how to leverage selective testing to run only the tests that have changed."
 }
 ---
-# Selective testing {#selective-testing}
+# الاختبار الانتقائي {#الاختبار الانتقائي}
 
-::: warning REQUIREMENTS
+:::: متطلبات التحذير
 <!-- -->
-- A <LocalizedLink href="/guides/features/projects">generated
-  project</LocalizedLink>
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
-  project</LocalizedLink>
+- مشروع <LocalizedLink href="/guides/features/projects">تم
+  إنشاؤه</LocalizedLink>
+- حساب <LocalizedLink href="/guides/server/accounts-and-projects">Tuist
+  والمشروع</LocalizedLink>
 <!-- -->
 :::
 
-To run tests selectively with your generated project, use the `tuist test`
-command. The command
-<LocalizedLink href="/guides/features/projects/hashing">hashes</LocalizedLink>
-your Xcode project the same way it does for
-<LocalizedLink href="/guides/features/cache#cache-warming">warming the
-cache</LocalizedLink>, and on success, it persists the hashes on to determine
-what has changed in future runs.
+لتشغيل الاختبارات بشكل انتقائي مع مشروعك الذي تم إنشاؤه، استخدم الأمر `tuist
+test`. يقوم الأمر
+<LocalizedLink href="/guides/features/projects/hashing">بتجزئة</LocalizedLink>
+مشروع Xcode الخاص بك بنفس الطريقة التي يقوم بها
+<LocalizedLink href="/guides/features/cache#cache-warming">بتسخين ذاكرة التخزين
+المؤقت</LocalizedLink>، وعند النجاح، يستمر في التجزئة لتحديد ما تغير في
+التشغيلات المستقبلية.
 
-In future runs `tuist test` transparently uses the hashes to filter down the
-tests to run only the ones that have changed since the last successful test run.
+في عمليات التشغيل المستقبلية `tuist test` يستخدم بشكل شفاف علامات التجزئة لتصفية
+الاختبارات لتشغيل فقط تلك التي تغيرت منذ آخر عملية تشغيل ناجحة للاختبار.
 
-For example, assuming the following dependency graph:
+على سبيل المثال، بافتراض وجود الرسم البياني التالي للتبعية:
 
-- `FeatureA` has tests `FeatureATests`, and depends on `Core`
-- `FeatureB` has tests `FeatureBTests`, and depends on `Core`
-- `Core` has tests `CoreTests`
+- `ميزة` يحتوي على اختبارات `ميزةATests` ، ويعتمد على `Core`
+- `الميزة B` تحتوي على اختبارات `الميزة B الاختبارات` ، وتعتمد على `Core`
+- `يحتوي Core` على اختبارات `CoreTests`
 
-`tuist test` will behave as such:
+`اختبار tuist` سيتصرف على النحو التالي:
 
-| Action                  | Description                                                         | Internal state                                                                 |
-| ----------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `tuist test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The hashes of `FeatureATests`, `FeatureBTests` and `CoreTests` are persisted   |
-| `FeatureA` is updated   | The developer modifies the code of a target                         | Same as before                                                                 |
-| `tuist test` invocation | Runs the tests in `FeatureATests` because it hash has changed       | The new hash of `FeatureATests` is persisted                                   |
-| `Core` is updated       | The developer modifies the code of a target                         | Same as before                                                                 |
-| `tuist test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The new hash of `FeatureATests` `FeatureBTests`, and `CoreTests` are persisted |
+| الإجراء                | الوصف                                                                     | الحالة الداخلية                                                                        |
+| ---------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `اختبار tuist استدعاء` | قم بتشغيل الاختبارات في `CoreTests` ، `FeatureATests` ، و `FeatureBTests` | يتم الاحتفاظ بعلامات التجزئة الخاصة بـ `FeatureATests` و `FeatureBTests` و `CoreTests` |
+| `ميزة تم تحديث`        | يقوم المطور بتعديل كود الهدف                                              | كما في السابق                                                                          |
+| `اختبار tuist استدعاء` | تشغيل الاختبارات في `FeatureATests` لأن التجزئة قد تغيرت                  | يتم الاحتفاظ بالهاش الجديد لـ `FeatureATests`                                          |
+| `تم تحديث Core`        | يقوم المطور بتعديل كود الهدف                                              | كما في السابق                                                                          |
+| `اختبار tuist استدعاء` | قم بتشغيل الاختبارات في `CoreTests` ، `FeatureATests` ، و `FeatureBTests` | يتم الاحتفاظ بالهاش الجديد لـ `FeatureATests` `FeatureBTests` و `CoreTests`            |
 
-`tuist test` integrates directly with binary caching to use as many binaries
-from your local or remote storage to improve the build time when running your
-test suite. The combination of selective testing with binary caching can
-dramatically reduce the time it takes to run tests on your CI.
+`اختبار tuist يتكامل` مباشرة مع التخزين المؤقت الثنائي لاستخدام أكبر عدد ممكن من
+الملفات الثنائية من التخزين المحلي أو البعيد لتحسين وقت الإنشاء عند تشغيل مجموعة
+الاختبارات. يمكن أن يؤدي الجمع بين الاختبار الانتقائي والتخزين المؤقت الثنائي
+إلى تقليل الوقت الذي يستغرقه تشغيل الاختبارات على CI بشكل كبير.
 
-## UI Tests {#ui-tests}
+## اختبارات واجهة المستخدم {#ui-tests}
 
-Tuist supports selective testing of UI tests. However, Tuist needs to know the
-destination in advance. Only if you specify the `destination` parameter, Tuist
-will run the UI tests selectively, such as:
+يدعم Tuist الاختبار الانتقائي لاختبارات واجهة المستخدم. ومع ذلك، يحتاج Tuist إلى
+معرفة الوجهة مسبقًا. فقط إذا قمت بتحديد الوجهة `` ، فسيقوم Tuist بتشغيل اختبارات
+واجهة المستخدم بشكل انتقائي، مثل:
 ```sh
 tuist test --device 'iPhone 14 Pro'
 # or
