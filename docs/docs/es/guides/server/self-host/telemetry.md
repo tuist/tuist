@@ -319,7 +319,7 @@ descarga para un objeto en el almacenamiento remoto.
 ### `tuist_storage_generate_download_presigned_url_count` (count) {#tuist_storage_generate_download_presigned_url_count-count}
 
 El número de veces que se generó una URL de descarga preasignada para un objeto
-en el almacenamiento remoto.
+del almacenamiento remoto.
 
 #### Etiquetas {#tuist-storage-generate-download-presigned-url-count-tags}
 
@@ -499,8 +499,8 @@ pool.
 
 ### `tuist_http_send_duration_nanoseconds_sum` (suma) {#tuist_http_send_duration_nanoseconds_sum-sum}
 
-Tiempo que tardan en completarse las peticiones una vez asignadas a una conexión
-del pool.
+El tiempo que tardan en completarse las peticiones una vez asignadas a una
+conexión del pool.
 
 ### `tuist_http_send_duration_nanoseconds_bucket` (distribución) {#tuist_http_send_duration_nanoseconds_bucket-distribution}
 
