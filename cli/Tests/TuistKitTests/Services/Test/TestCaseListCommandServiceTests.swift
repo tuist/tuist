@@ -59,26 +59,9 @@ struct TestCaseListCommandServiceTests {
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
-        let response = Operations.listTestCases.Output.Ok.Body.jsonPayload(
-            pagination_metadata: .init(
-                current_page: 1,
-                has_next_page: false,
-                has_previous_page: false,
-                page_size: 10,
-                total_count: 1,
-                total_pages: 1
-            ),
-            test_cases: [
-                .init(
-                    avg_duration: 150,
-                    id: UUID().uuidString,
-                    is_flaky: false,
-                    is_quarantined: false,
-                    module: .init(id: UUID().uuidString, name: "AppTests"),
-                    name: "testExample()",
-                    suite: .init(id: UUID().uuidString, name: "ExampleTests"),
-                    url: "https://tuist.dev/test-case/1"
-                ),
+        let response = Operations.listTestCases.Output.Ok.Body.jsonPayload.test(
+            testCases: [
+                .test(name: "testExample()", moduleName: "AppTests", suiteName: "ExampleTests"),
             ]
         )
         given(listTestCasesService).listTestCases(
@@ -118,17 +101,7 @@ struct TestCaseListCommandServiceTests {
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
-        let response = Operations.listTestCases.Output.Ok.Body.jsonPayload(
-            pagination_metadata: .init(
-                current_page: 1,
-                has_next_page: false,
-                has_previous_page: false,
-                page_size: 10,
-                total_count: 0,
-                total_pages: 0
-            ),
-            test_cases: []
-        )
+        let response = Operations.listTestCases.Output.Ok.Body.jsonPayload.test(testCases: [])
         given(listTestCasesService).listTestCases(
             fullHandle: .value(fullHandle),
             serverURL: .value(serverURL),
@@ -165,17 +138,7 @@ struct TestCaseListCommandServiceTests {
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
-        let response = Operations.listTestCases.Output.Ok.Body.jsonPayload(
-            pagination_metadata: .init(
-                current_page: 1,
-                has_next_page: false,
-                has_previous_page: false,
-                page_size: 10,
-                total_count: 0,
-                total_pages: 0
-            ),
-            test_cases: []
-        )
+        let response = Operations.listTestCases.Output.Ok.Body.jsonPayload.test(testCases: [])
         given(listTestCasesService).listTestCases(
             fullHandle: .value(fullHandle),
             serverURL: .value(serverURL),
@@ -212,36 +175,11 @@ struct TestCaseListCommandServiceTests {
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
-        let response = Operations.listTestCases.Output.Ok.Body.jsonPayload(
-            pagination_metadata: .init(
-                current_page: 1,
-                has_next_page: false,
-                has_previous_page: false,
-                page_size: 500,
-                total_count: 2,
-                total_pages: 1
-            ),
-            test_cases: [
-                .init(
-                    avg_duration: 100,
-                    id: UUID().uuidString,
-                    is_flaky: true,
-                    is_quarantined: false,
-                    module: .init(id: UUID().uuidString, name: "AppTests"),
-                    name: "testFlaky()",
-                    suite: .init(id: UUID().uuidString, name: "FlakyTests"),
-                    url: "https://tuist.dev/test-case/1"
-                ),
-                .init(
-                    avg_duration: 200,
-                    id: UUID().uuidString,
-                    is_flaky: false,
-                    is_quarantined: true,
-                    module: .init(id: UUID().uuidString, name: "CoreTests"),
-                    name: "testQuarantined()",
-                    suite: nil,
-                    url: "https://tuist.dev/test-case/2"
-                ),
+        let response = Operations.listTestCases.Output.Ok.Body.jsonPayload.test(
+            pageSize: 500,
+            testCases: [
+                .test(name: "testFlaky()", moduleName: "AppTests", suiteName: "FlakyTests", isFlaky: true),
+                .test(name: "testQuarantined()", moduleName: "CoreTests", isQuarantined: true),
             ]
         )
         given(listTestCasesService).listTestCases(
@@ -281,26 +219,10 @@ struct TestCaseListCommandServiceTests {
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
-        let response = Operations.listTestCases.Output.Ok.Body.jsonPayload(
-            pagination_metadata: .init(
-                current_page: 1,
-                has_next_page: false,
-                has_previous_page: false,
-                page_size: 500,
-                total_count: 1,
-                total_pages: 1
-            ),
-            test_cases: [
-                .init(
-                    avg_duration: 200,
-                    id: UUID().uuidString,
-                    is_flaky: false,
-                    is_quarantined: true,
-                    module: .init(id: UUID().uuidString, name: "CoreTests"),
-                    name: "testQuarantined()",
-                    suite: .init(id: UUID().uuidString, name: "QuarantinedTests"),
-                    url: "https://tuist.dev/test-case/1"
-                ),
+        let response = Operations.listTestCases.Output.Ok.Body.jsonPayload.test(
+            pageSize: 500,
+            testCases: [
+                .test(name: "testQuarantined()", moduleName: "CoreTests", suiteName: "QuarantinedTests", isQuarantined: true),
             ]
         )
         given(listTestCasesService).listTestCases(
@@ -339,27 +261,9 @@ struct TestCaseListCommandServiceTests {
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
-        let response = Operations.listTestCases.Output.Ok.Body.jsonPayload(
-            pagination_metadata: .init(
-                current_page: 1,
-                has_next_page: false,
-                has_previous_page: false,
-                page_size: 5,
-                total_count: 1,
-                total_pages: 1
-            ),
-            test_cases: [
-                .init(
-                    avg_duration: 100,
-                    id: UUID().uuidString,
-                    is_flaky: false,
-                    is_quarantined: false,
-                    module: .init(id: UUID().uuidString, name: "AppTests"),
-                    name: "testExample()",
-                    suite: nil,
-                    url: "https://tuist.dev/test-case/1"
-                ),
-            ]
+        let response = Operations.listTestCases.Output.Ok.Body.jsonPayload.test(
+            pageSize: 5,
+            testCases: [.test(name: "testExample()", moduleName: "AppTests")]
         )
         given(listTestCasesService).listTestCases(
             fullHandle: .value(fullHandle),
@@ -397,27 +301,11 @@ struct TestCaseListCommandServiceTests {
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
-        let response = Operations.listTestCases.Output.Ok.Body.jsonPayload(
-            pagination_metadata: .init(
-                current_page: 2,
-                has_next_page: false,
-                has_previous_page: true,
-                page_size: 10,
-                total_count: 15,
-                total_pages: 2
-            ),
-            test_cases: [
-                .init(
-                    avg_duration: 100,
-                    id: UUID().uuidString,
-                    is_flaky: false,
-                    is_quarantined: false,
-                    module: .init(id: UUID().uuidString, name: "AppTests"),
-                    name: "testPage2()",
-                    suite: nil,
-                    url: "https://tuist.dev/test-case/1"
-                ),
-            ]
+        let response = Operations.listTestCases.Output.Ok.Body.jsonPayload.test(
+            currentPage: 2,
+            totalPages: 2,
+            hasPreviousPage: true,
+            testCases: [.test(name: "testPage2()", moduleName: "AppTests")]
         )
         given(listTestCasesService).listTestCases(
             fullHandle: .value(fullHandle),
@@ -455,16 +343,10 @@ struct TestCaseListCommandServiceTests {
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
-        let response = Operations.listTestCases.Output.Ok.Body.jsonPayload(
-            pagination_metadata: .init(
-                current_page: 5,
-                has_next_page: false,
-                has_previous_page: true,
-                page_size: 10,
-                total_count: 10,
-                total_pages: 1
-            ),
-            test_cases: []
+        let response = Operations.listTestCases.Output.Ok.Body.jsonPayload.test(
+            currentPage: 5,
+            hasPreviousPage: true,
+            testCases: []
         )
         given(listTestCasesService).listTestCases(
             fullHandle: .value(fullHandle),
@@ -502,27 +384,8 @@ struct TestCaseListCommandServiceTests {
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
-        let response = Operations.listTestCases.Output.Ok.Body.jsonPayload(
-            pagination_metadata: .init(
-                current_page: 1,
-                has_next_page: false,
-                has_previous_page: false,
-                page_size: 10,
-                total_count: 1,
-                total_pages: 1
-            ),
-            test_cases: [
-                .init(
-                    avg_duration: 500,
-                    id: UUID().uuidString,
-                    is_flaky: false,
-                    is_quarantined: false,
-                    module: .init(id: UUID().uuidString, name: "AppTests"),
-                    name: "testFast()",
-                    suite: nil,
-                    url: "https://tuist.dev/test-case/1"
-                ),
-            ]
+        let response = Operations.listTestCases.Output.Ok.Body.jsonPayload.test(
+            testCases: [.test(name: "testFast()", moduleName: "AppTests", avgDuration: 500)]
         )
         given(listTestCasesService).listTestCases(
             fullHandle: .value(fullHandle),
@@ -560,27 +423,8 @@ struct TestCaseListCommandServiceTests {
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
-        let response = Operations.listTestCases.Output.Ok.Body.jsonPayload(
-            pagination_metadata: .init(
-                current_page: 1,
-                has_next_page: false,
-                has_previous_page: false,
-                page_size: 10,
-                total_count: 1,
-                total_pages: 1
-            ),
-            test_cases: [
-                .init(
-                    avg_duration: 2500,
-                    id: UUID().uuidString,
-                    is_flaky: false,
-                    is_quarantined: false,
-                    module: .init(id: UUID().uuidString, name: "AppTests"),
-                    name: "testSlow()",
-                    suite: nil,
-                    url: "https://tuist.dev/test-case/1"
-                ),
-            ]
+        let response = Operations.listTestCases.Output.Ok.Body.jsonPayload.test(
+            testCases: [.test(name: "testSlow()", moduleName: "AppTests", avgDuration: 2500)]
         )
         given(listTestCasesService).listTestCases(
             fullHandle: .value(fullHandle),
@@ -616,17 +460,7 @@ struct TestCaseListCommandServiceTests {
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
         given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
-        let response = Operations.listTestCases.Output.Ok.Body.jsonPayload(
-            pagination_metadata: .init(
-                current_page: 1,
-                has_next_page: false,
-                has_previous_page: false,
-                page_size: 10,
-                total_count: 0,
-                total_pages: 0
-            ),
-            test_cases: []
-        )
+        let response = Operations.listTestCases.Output.Ok.Body.jsonPayload.test(testCases: [])
         given(listTestCasesService).listTestCases(
             fullHandle: .value(explicitFullHandle),
             serverURL: .value(serverURL),
@@ -657,5 +491,50 @@ struct TestCaseListCommandServiceTests {
             page: .any,
             pageSize: .any
         ).called(1)
+    }
+}
+
+extension Operations.listTestCases.Output.Ok.Body.jsonPayload {
+    static func test(
+        currentPage: Int = 1,
+        pageSize: Int = 10,
+        totalPages: Int = 1,
+        hasNextPage: Bool = false,
+        hasPreviousPage: Bool = false,
+        testCases: [Components.Schemas.TestCase]
+    ) -> Self {
+        .init(
+            pagination_metadata: .init(
+                current_page: currentPage,
+                has_next_page: hasNextPage,
+                has_previous_page: hasPreviousPage,
+                page_size: pageSize,
+                total_count: testCases.count,
+                total_pages: totalPages
+            ),
+            test_cases: testCases
+        )
+    }
+}
+
+extension Components.Schemas.TestCase {
+    static func test(
+        name: String,
+        moduleName: String,
+        suiteName: String? = nil,
+        avgDuration: Int = 100,
+        isFlaky: Bool = false,
+        isQuarantined: Bool = false
+    ) -> Self {
+        .init(
+            avg_duration: avgDuration,
+            id: UUID().uuidString,
+            is_flaky: isFlaky,
+            is_quarantined: isQuarantined,
+            module: .init(id: UUID().uuidString, name: moduleName),
+            name: name,
+            suite: suiteName.map { .init(id: UUID().uuidString, name: $0) },
+            url: "https://tuist.dev/test-case/\(UUID().uuidString)"
+        )
     }
 }
