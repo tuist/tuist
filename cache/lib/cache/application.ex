@@ -18,6 +18,7 @@ defmodule Cache.Application do
 
     base_children = [
       Cache.Repo,
+      Cache.SQLiteWriter,
       {Phoenix.PubSub, name: Cache.PubSub},
       Cache.Authentication,
       Cache.KeyValueStore,

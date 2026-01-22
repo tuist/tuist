@@ -18,6 +18,7 @@ defmodule CacheWeb.ConnCase do
   use ExUnit.CaseTemplate
 
   alias Cache.Repo
+  alias Cache.SQLiteWriter
   alias Ecto.Adapters.SQL.Sandbox
 
   using do
@@ -35,6 +36,11 @@ defmodule CacheWeb.ConnCase do
 
   setup _tags do
     :ok = Sandbox.checkout(Repo)
+
+    if pid = Process.whereis(SQLiteWriter) do
+      Sandbox.allow(Repo, self(), pid)
+      SQLiteWriter.reset()
+    end
 
     Cachex.clear(:cache_keyvalue_store)
     Cachex.clear(:cas_auth_cache)

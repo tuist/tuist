@@ -4,6 +4,7 @@ defmodule Cache.KeyValueStoreTest do
   alias Cache.KeyValueEntry
   alias Cache.KeyValueStore
   alias Cache.Repo
+  alias Cache.SQLiteWriter
   alias Ecto.Adapters.SQL.Sandbox
 
   @account_handle "test-account"
@@ -13,6 +14,12 @@ defmodule Cache.KeyValueStoreTest do
   setup do
     :ok = Sandbox.checkout(Repo)
     Sandbox.mode(Repo, {:shared, self()})
+
+    if pid = Process.whereis(SQLiteWriter) do
+      Sandbox.allow(Repo, self(), pid)
+      SQLiteWriter.reset()
+    end
+
     Cachex.clear(:cache_keyvalue_store)
     :ok
   end
@@ -219,6 +226,8 @@ defmodule Cache.KeyValueStoreTest do
 
       assert :ok = KeyValueStore.put_key_value(@cas_id, @account_handle, @project_handle, values)
 
+      :ok = SQLiteWriter.flush(:key_values)
+
       key = "keyvalue:#{@account_handle}:#{@project_handle}:#{@cas_id}"
       record = Repo.get_by!(KeyValueEntry, key: key)
       assert record.json_payload == Jason.encode!(%{entries: [%{"value" => "value1"}, %{"value" => "value2"}]})
@@ -227,6 +236,8 @@ defmodule Cache.KeyValueStoreTest do
     test "reads through cachex when entries exist only in sqlite" do
       values = ["value1", "value2"]
       assert :ok = KeyValueStore.put_key_value(@cas_id, @account_handle, @project_handle, values)
+
+      :ok = SQLiteWriter.flush(:key_values)
 
       # Simulate cache eviction to force DB lookup
       Cachex.clear(:cache_keyvalue_store)

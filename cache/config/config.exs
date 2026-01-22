@@ -14,6 +14,15 @@ config :cache, Cache.Repo,
   queue_target: 1_000,
   queue_interval: 1_000
 
+config :cache, :sqlite_writer,
+  flush_interval_ms: 200,
+  flush_timeout_ms: 30_000,
+  max_batch_size: 1000,
+  retry_max_attempts: 5,
+  retry_base_delay_ms: 50,
+  retry_max_delay_ms: 2000,
+  shutdown_ms: 30_000
+
 config :cache, CacheWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,
