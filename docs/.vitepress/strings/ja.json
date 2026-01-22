@@ -144,6 +144,17 @@
                 },
                 "releases": {
                     "text": "リリース"
+                },
+                "debugging": {
+                    "text": "デバッグ"
+                },
+                "code": {
+                    "text": "コード",
+                    "items": {
+                        "handbook": {
+                            "text": "ハンドブック"
+                        }
+                    }
                 }
             }
         },
@@ -366,6 +377,14 @@
                         },
                         "qa": {
                             "text": "QA"
+                        },
+                        "test-insights": {
+                            "items": {
+                                "flaky-tests": {
+                                    "text": "欠陥テスト"
+                                }
+                            },
+                            "text": "テストの洞察"
                         }
                     }
                 },
