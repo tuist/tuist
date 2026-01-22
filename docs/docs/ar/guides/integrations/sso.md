@@ -37,25 +37,21 @@ SSO مع Okta متاح فقط للعملاء من الشركات. إذا كنت 
    الموجود في [هذا الرابط](https://tuist.dev/images/tuist_dashboard.png).
 5. اترك عناوين URIs إعادة توجيه تسجيل الدخول كما هي في الوقت الحالي
 6. تحت "المهام"، اختر التحكم في الوصول المطلوب إلى تطبيق SSO واحفظه.
-7. بعد الحفظ، ستتوفر الإعدادات العامة للتطبيق. انسخ "معرف العميل" و"سر العميل" –
-   ستحتاج إلى مشاركة هذه المعلومات بأمان مع جهة الاتصال الخاصة بك.
-8. سيحتاج فريق Tuist إلى إعادة نشر خادم Tuist باستخدام معرف العميل والسر
-   المقدمين. قد يستغرق ذلك ما يصل إلى يوم عمل واحد.
-9. بمجرد نشر الخادم، انقر على زر "تحرير" في الإعدادات العامة.
-10. الصق عنوان URL التالي لإعادة التوجيه:
-    `https://tuist.dev/users/auth/okta/callback`
-13. قم بتغيير "Login initiated by" إلى "Either Okta or App".
-14. حدد "عرض رمز التطبيق للمستخدمين"
-15. قم بتحديث "عنوان URL لبدء تسجيل الدخول" بـ
+7. After saving, the general settings for the application will be available.
+   Copy the "Client ID" and "Client Secret". Also note your Okta organization
+   URL (e.g., `https://your-company.okta.com`) – you will need to safely share
+   all of these with your point of contact.
+8. Once the Tuist team has configured the SSO, click on General Settings "Edit"
+   button.
+9. الصق عنوان URL التالي لإعادة التوجيه:
+   `https://tuist.dev/users/auth/okta/callback`
+10. قم بتغيير "Login initiated by" إلى "Either Okta or App".
+11. حدد "عرض رمز التطبيق للمستخدمين"
+12. قم بتحديث "عنوان URL لبدء تسجيل الدخول" بـ
     `https://tuist.dev/users/auth/okta?organization_id=1`. سيتم توفير
     `organization_id` من قبل جهة الاتصال الخاصة بك.
-16. انقر على "حفظ".
-17. ابدأ تسجيل الدخول إلى Tuist من لوحة تحكم Okta.
-18. امنح الوصول التلقائي إلى مؤسسة Tuist الخاصة بك للمستخدمين المسجلين من مجال
-    Okta الخاص بك عن طريق تشغيل الأمر التالي:
-```bash
-tuist organization update sso my-organization --provider okta --organization-id my-okta-domain.com
-```
+13. انقر على "حفظ".
+14. ابدأ تسجيل الدخول إلى Tuist من لوحة تحكم Okta.
 
 :::: تحذير
 <!-- -->

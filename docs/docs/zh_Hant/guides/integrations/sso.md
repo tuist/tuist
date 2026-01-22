@@ -34,20 +34,19 @@ Okta 單一登入服務僅限企業客戶使用。若您有意設定此服務，
 4. 輸入應用程式的顯示名稱，例如「Tuist」。上傳位於[此網址](https://tuist.dev/images/tuist_dashboard.png)的Tuist標誌。
 5. 目前請保留登入重定向 URI 不變
 6. 在「指派」項目下選擇所需的 SSO 應用程式存取控制權限，然後儲存設定。
-7. 儲存後即可使用應用程式的通用設定。請複製「客戶端識別碼」與「客戶端密鑰」——您需將此資訊安全地分享給您的聯絡窗口。
-8. Tuist 團隊需使用提供的客戶端 ID 與密鑰重新部署 Tuist 伺服器。此過程可能耗時最多一個工作天。
-9. 伺服器部署完成後，請點擊「一般設定」的「編輯」按鈕。
-10. 請貼上以下重定向網址：`https://tuist.dev/users/auth/okta/callback`
-13. 將「由...啟動的登入」改為「Okta 或應用程式」。
-14. 選擇「向使用者顯示應用程式圖示」
-15. 請將「啟動登入網址」更新為：`https://tuist.dev/users/auth/okta?organization_id=1`
+7. After saving, the general settings for the application will be available.
+   Copy the "Client ID" and "Client Secret". Also note your Okta organization
+   URL (e.g., `https://your-company.okta.com`) – you will need to safely share
+   all of these with your point of contact.
+8. Once the Tuist team has configured the SSO, click on General Settings "Edit"
+   button.
+9. 請貼上以下重定向網址：`https://tuist.dev/users/auth/okta/callback`
+10. 將「由...啟動的登入」改為「Okta 或應用程式」。
+11. 選擇「向使用者顯示應用程式圖示」
+12. 請將「啟動登入網址」更新為：`https://tuist.dev/users/auth/okta?organization_id=1`
     組織識別碼（`）及聯絡窗口（` ）將由您的聯絡人提供。
-16. 點擊「儲存」。
-17. 請從您的 Okta 儀表板啟動 Tuist 登入程序。
-18. 執行以下指令，即可自動授予從您的 Okta 網域簽署的用戶存取您的 Tuist 組織的權限：
-```bash
-tuist organization update sso my-organization --provider okta --organization-id my-okta-domain.com
-```
+13. 點擊「儲存」。
+14. 請從您的 Okta 儀表板啟動 Tuist 登入程序。
 
 ::: warning
 <!-- -->

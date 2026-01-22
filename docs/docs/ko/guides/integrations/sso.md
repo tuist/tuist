@@ -36,22 +36,19 @@ Okta와의 SSO는 기업 고객에게만 제공됩니다. 설정하시려면
    URL](https://tuist.dev/images/tuist_dashboard.png)에 위치한 Tuist 로고를 업로드하세요.
 5. 현재로서는 로그인 리다이렉트 URI는 그대로 두십시오
 6. "할당" 항목에서 SSO 애플리케이션에 대한 원하는 접근 제어를 선택하고 저장하십시오.
-7. 저장 후 애플리케이션의 일반 설정을 확인할 수 있습니다. "클라이언트 ID"와 "클라이언트 시크릿"을 복사하세요. 담당자와 안전하게
-   공유해야 합니다.
-8. Tuist 팀은 제공된 클라이언트 ID와 시크릿으로 Tuist 서버를 재배포해야 합니다. 이 작업은 영업일 기준 최대 1일이 소요될 수
-   있습니다.
-9. 서버가 배포된 후, 일반 설정의 "편집" 버튼을 클릭하십시오.
-10. 다음 리다이렉트 URL을 붙여넣으세요: `https://tuist.dev/users/auth/okta/callback`
-13. "Login initiated by"를 "Okta 또는 앱"으로 변경하십시오.
-14. "사용자에게 애플리케이션 아이콘 표시" 선택
-15. "로그인 시작 URL"을 `https://tuist.dev/users/auth/okta?organization_id=1` 로
+7. After saving, the general settings for the application will be available.
+   Copy the "Client ID" and "Client Secret". Also note your Okta organization
+   URL (e.g., `https://your-company.okta.com`) – you will need to safely share
+   all of these with your point of contact.
+8. Once the Tuist team has configured the SSO, click on General Settings "Edit"
+   button.
+9. 다음 리다이렉트 URL을 붙여넣으세요: `https://tuist.dev/users/auth/okta/callback`
+10. "Login initiated by"를 "Okta 또는 앱"으로 변경하십시오.
+11. "사용자에게 애플리케이션 아이콘 표시" 선택
+12. "로그인 시작 URL"을 `https://tuist.dev/users/auth/okta?organization_id=1` 로
     업데이트하십시오. `organization_id` 는 담당자가 제공할 것입니다.
-16. "저장"을 클릭하세요.
-17. Okta 대시보드에서 Tuist 로그인을 시작하십시오.
-18. 다음 명령어를 실행하여 Okta 도메인에서 로그인한 사용자에게 Tuist 조직에 대한 자동 접근 권한을 부여하세요:
-```bash
-tuist organization update sso my-organization --provider okta --organization-id my-okta-domain.com
-```
+13. "저장"을 클릭하세요.
+14. Okta 대시보드에서 Tuist 로그인을 시작하십시오.
 
 ::: warning
 <!-- -->

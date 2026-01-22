@@ -42,26 +42,21 @@ Tuist:
    URL](https://tuist.dev/images/tuist_dashboard.png).
 5. Na razie pozostaw adresy URI przekierowania logowania bez zmian.
 6. W sekcji „Zadania” wybierz żądaną kontrolę dostępu do aplikacji SSO i zapisz.
-7. Po zapisaniu dostępne będą ogólne ustawienia aplikacji. Skopiuj „Client ID” i
-   „Client Secret” – musisz bezpiecznie udostępnić te dane osobie kontaktowej.
-8. Zespół Tuist będzie musiał ponownie wdrożyć serwer Tuist przy użyciu
-   dostarczonego identyfikatora klienta i klucza tajnego. Może to potrwać do
-   jednego dnia roboczego.
-9. Po wdrożeniu serwera kliknij przycisk „Edytuj” w ustawieniach ogólnych.
-10. Wklej następujący adres przekierowania:
-    `https://tuist.dev/users/auth/okta/callback`
-13. Zmień „Logowanie zainicjowane przez” na „Okta lub aplikacja”.
-14. Wybierz opcję „Wyświetlaj ikonę aplikacji użytkownikom”.
-15. Zaktualizuj „Adres URL inicjowania logowania” na
+7. After saving, the general settings for the application will be available.
+   Copy the "Client ID" and "Client Secret". Also note your Okta organization
+   URL (e.g., `https://your-company.okta.com`) – you will need to safely share
+   all of these with your point of contact.
+8. Once the Tuist team has configured the SSO, click on General Settings "Edit"
+   button.
+9. Wklej następujący adres przekierowania:
+   `https://tuist.dev/users/auth/okta/callback`
+10. Zmień „Logowanie zainicjowane przez” na „Okta lub aplikacja”.
+11. Wybierz opcję „Wyświetlaj ikonę aplikacji użytkownikom”.
+12. Zaktualizuj „Adres URL inicjowania logowania” na
     `https://tuist.dev/users/auth/okta?organization_id=1`. `organization_id`
     zostanie podany przez osobę kontaktową.
-16. Kliknij „Zapisz”.
-17. Zainicjuj logowanie Tuist z pulpitu nawigacyjnego Okta.
-18. Aby zapewnić automatyczny dostęp do organizacji Tuist użytkownikom
-    zalogowanym z domeny Okta, należy uruchomić następujące polecenie:
-```bash
-tuist organization update sso my-organization --provider okta --organization-id my-okta-domain.com
-```
+13. Kliknij „Zapisz”.
+14. Zainicjuj logowanie Tuist z pulpitu nawigacyjnego Okta.
 
 ::: warning
 <!-- -->

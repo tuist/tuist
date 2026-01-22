@@ -43,28 +43,21 @@ funcione con Tuist:
 5. Por ahora, deje los URI de redirección de inicio de sesión como están
 6. En "Asignaciones" elija el control de acceso deseado a la Aplicación SSO y
    guarde.
-7. Después de guardar, los ajustes generales de la aplicación estarán
-   disponibles. Copia el "ID de cliente" y el "Secreto de cliente": tendrás que
-   compartirlos de forma segura con tu punto de contacto.
-8. El equipo de Tuist tendrá que volver a desplegar el servidor de Tuist con el
-   ID de cliente y el secreto proporcionados. Esto puede tardar hasta un día
-   laborable.
-9. Una vez desplegado el servidor, haga clic en el botón "Editar" de la
-   Configuración General.
-10. Pegue la siguiente URL de redirección:
-    `https://tuist.dev/users/auth/okta/callback`
-13. Cambie "Inicio de sesión iniciado por" a "Okta o aplicación".
-14. Seleccione "Mostrar el icono de la aplicación a los usuarios"
-15. Actualice la "Initiate login URL" con
+7. After saving, the general settings for the application will be available.
+   Copy the "Client ID" and "Client Secret". Also note your Okta organization
+   URL (e.g., `https://your-company.okta.com`) – you will need to safely share
+   all of these with your point of contact.
+8. Once the Tuist team has configured the SSO, click on General Settings "Edit"
+   button.
+9. Pegue la siguiente URL de redirección:
+   `https://tuist.dev/users/auth/okta/callback`
+10. Cambie "Inicio de sesión iniciado por" a "Okta o aplicación".
+11. Seleccione "Mostrar el icono de la aplicación a los usuarios"
+12. Actualice la "Initiate login URL" con
     `https://tuist.dev/users/auth/okta?organization_id=1`. El `organization_id`
     será proporcionado por su punto de contacto.
-16. Haz clic en "Guardar".
-17. Inicia sesión en Tuist desde tu panel de control de Okta.
-18. Da acceso automático a tu organización Tuist a los usuarios firmados desde
-    tu dominio Okta ejecutando el siguiente comando:
-```bash
-tuist organization update sso my-organization --provider okta --organization-id my-okta-domain.com
-```
+13. Haz clic en "Guardar".
+14. Inicia sesión en Tuist desde tu panel de control de Okta.
 
 ::: advertencia
 <!-- -->

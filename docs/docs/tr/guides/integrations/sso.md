@@ -43,26 +43,21 @@ yapılandırmanız gerekir:
 5. Şimdilik oturum açma yönlendirme URI'lerini olduğu gibi bırakın.
 6. "Görevler" altında, SSO Uygulamasına istediğiniz erişim kontrolünü seçin ve
    kaydedin.
-7. Kaydettikten sonra, uygulamanın genel ayarları kullanılabilir hale
-   gelecektir. "Müşteri Kimliği" ve "Müşteri Gizli Anahtarı"nı kopyalayın –
-   bunları irtibat kişinizle güvenli bir şekilde paylaşmanız gerekecektir.
-8. Tuist ekibi, sağlanan istemci kimliği ve gizli anahtarı ile Tuist sunucusunu
-   yeniden dağıtmalıdır. Bu işlem bir iş günü sürebilir.
-9. Sunucu dağıtıldıktan sonra, Genel Ayarlar "Düzenle" düğmesine tıklayın.
-10. Aşağıdaki yönlendirme URL'sini yapıştırın:
-    `https://tuist.dev/users/auth/okta/callback`
-13. "Giriş başlatıldı" ifadesini "Okta veya Uygulama" olarak değiştirin.
-14. "Kullanıcılara uygulama simgesini göster" seçeneğini seçin.
-15. "Giriş URL'sini başlat"ı
+7. After saving, the general settings for the application will be available.
+   Copy the "Client ID" and "Client Secret". Also note your Okta organization
+   URL (e.g., `https://your-company.okta.com`) – you will need to safely share
+   all of these with your point of contact.
+8. Once the Tuist team has configured the SSO, click on General Settings "Edit"
+   button.
+9. Aşağıdaki yönlendirme URL'sini yapıştırın:
+   `https://tuist.dev/users/auth/okta/callback`
+10. "Giriş başlatıldı" ifadesini "Okta veya Uygulama" olarak değiştirin.
+11. "Kullanıcılara uygulama simgesini göster" seçeneğini seçin.
+12. "Giriş URL'sini başlat"ı
     `https://tuist.dev/users/auth/okta?organization_id=1` ile güncelleyin.
     `organization_id`, irtibat kişiniz tarafından sağlanacaktır.
-16. "Kaydet"i tıklayın.
-17. Okta kontrol panelinden Tuist oturum açma işlemini başlatın.
-18. Aşağıdaki komutu çalıştırarak Okta etki alanından oturum açan kullanıcılara
-    Tuist kuruluşunuza otomatik olarak erişim izni verin:
-```bash
-tuist organization update sso my-organization --provider okta --organization-id my-okta-domain.com
-```
+13. "Kaydet"i tıklayın.
+14. Okta kontrol panelinden Tuist oturum açma işlemini başlatın.
 
 ::: warning
 <!-- -->

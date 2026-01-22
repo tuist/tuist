@@ -44,25 +44,20 @@ with Tuist:
 6. Under "Assignments" choose the desired access control to the SSO Application
    and save.
 7. After saving, the general settings for the application will be available.
-   Copy the "Client ID" and "Client Secret" – you will need to safely share this
-   with your point of contact.
-8. The Tuist team will need to redeploy the Tuist server with the provided
-   client ID and secret. This may take up to one business day.
-9. Once the server is deployed, click on General Settings "Edit" button.
-10. Paste the following redirect URL:
-    `https://tuist.dev/users/auth/okta/callback`
-13. Change "Login initiated by" to "Either Okta or App".
-14. Select "Display application icon to users"
-15. Update the "Initiate login URL" with
+   Copy the "Client ID" and "Client Secret". Also note your Okta organization
+   URL (e.g., `https://your-company.okta.com`) – you will need to safely share
+   all of these with your point of contact.
+8. Once the Tuist team has configured the SSO, click on General Settings "Edit"
+   button.
+9. Paste the following redirect URL:
+   `https://tuist.dev/users/auth/okta/callback`
+10. Change "Login initiated by" to "Either Okta or App".
+11. Select "Display application icon to users"
+12. Update the "Initiate login URL" with
     `https://tuist.dev/users/auth/okta?organization_id=1`. The `organization_id`
     will be supplied by your point of contact.
-16. Click "Save".
-17. Initiate Tuist login from your Okta dashboard.
-18. Give automatically access to your Tuist organization to users signed from
-    your Okta domain by running the following command:
-```bash
-tuist organization update sso my-organization --provider okta --organization-id my-okta-domain.com
-```
+13. Click "Save".
+14. Initiate Tuist login from your Okta dashboard.
 
 ::: warning
 <!-- -->
