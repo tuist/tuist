@@ -33,7 +33,7 @@ Tuist-synthesizedインターフェイスを通してリソースにアクセス
 ## リソース {#resources}
 
 Tuistは、Swiftの`Info.plist`
-やエンタイトルメントなどのファイルの内容を宣言するためのインターフェースを提供する。これは、ターゲットやプロジェクト間で一貫性を確保し、コンパイル時に問題をキャッチするためにコンパイラを活用するのに便利です。また、コンテンツをモデル化し、ターゲットやプロジェクト間で共有するために、独自の抽象化を考え出すこともできます。
+やエンタイトルメントなどのファイルの内容を宣言するためのインターフェースを提供する。これは、ターゲットやプロジェクト間で一貫性を確保し、コンパイル時に問題を検出するためにコンパイラを活用するのに便利です。また、コンテンツをモデル化し、ターゲットやプロジェクト間で共有するために、独自の抽象化を考え出すこともできます。
 
 プロジェクトが生成されると、Tuistはそれらのファイルの内容を合成し、それらを定義したプロジェクトを含むディレクトリに相対する`Derived`
 ディレクトリに書き込む。
@@ -73,8 +73,9 @@ NSBundle *bundle = [MyFeatureResources bundle];
 
 ::: tip SUPPORTING RESOURCES IN LIBRARIES THROUGH BUNDLES
 <!-- -->
-ターゲット製品、例えばライブラリがリソースをサポートしていない場合、Tuistはそのリソースを製品タイプ`バンドル`
-のターゲットに含めることで、最終的な製品が完成し、インターフェイスが正しいバンドルを指すようにする。
+ターゲット製品、例えばライブラリがリソースをサポートしていない場合、Tuistは最終製品に最終的に含まれ、インタフェースが正しいバンドルを指すことを保証する製品タイプ`バンドル`
+のターゲットにリソースを含めます。これらの合成されたバンドルは自動的に`tuist:synthesized`
+でタグ付けされ、親ターゲットからすべてのタグを継承するので、<LocalizedLink href="/guides/features/projects/metadata-tags#system-tags">キャッシュプロファイル</LocalizedLink>でターゲットにすることができます。
 <!-- -->
 :::
 
@@ -105,7 +106,7 @@ SwiftGen](https://github.com/SwiftGen/SwiftGen)
 | ------------ | ------------------------------ |
 | ストリングス       | `文字列.ステンシル`                    |
 | 資産           | `資産.ステンシル`                     |
-| ちりめん         | `プリスト.ステンシル`                   |
+| ちらし          | `プリスト.ステンシル`                   |
 | フォント         | `フォント.ステンシル`                   |
 | コアデータ        | `CoreData.stencil（コアデータ・ステンシル` |
 | インターフェイスビルダー | `InterfaceBuilder.stencil`     |
@@ -122,6 +123,6 @@ let project = Project(resourceSynthesizers: [.string(), .fonts()])
 
 ::: info REFERENCE
 <!-- -->
-このフィクスチャ](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates)で、カスタムテンプレートを使ってリソースへのアクセサーを合成する方法の例を見ることができます。
+この例](https://github.com/tuist/tuist/tree/main/examples/xcode/generated_ios_app_with_templates)で、カスタムテンプレートを使ってリソースへのアクセサーを合成する方法の例を見ることができる。
 <!-- -->
 :::
