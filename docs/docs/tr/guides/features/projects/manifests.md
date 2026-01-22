@@ -7,33 +7,32 @@
 ---
 # Manifestolar {#manifests}
 
-Tuist, projeleri ve çalışma alanlarını tanımlamanın ve oluşturma sürecini
-yapılandırmanın birincil yolu olarak Swift dosyalarını varsayılan olarak
-kullanır. Bu dosyalar, dokümantasyon boyunca **manifest dosyaları** olarak
-adlandırılır.
+Tuist, projeleri ve çalışma alanlarını tanımlamak ve oluşturma sürecini
+yapılandırmak için varsayılan olarak Swift dosyalarını kullanır. Bu dosyalar,
+belgelerde **manifest files** olarak adlandırılır.
 
-Swift kullanma kararı, paketleri tanımlamak için Swift dosyalarını da kullanan
-[Swift Paket
-Yöneticisi](https://www.swift.org/documentation/package-manager/)'nden
-esinlenilmiştir. Swift kullanımı sayesinde, içeriğin doğruluğunu doğrulamak ve
-farklı manifesto dosyalarında kodu yeniden kullanmak için derleyiciden ve
-sözdizimi vurgulama, otomatik tamamlama ve doğrulama sayesinde birinci sınıf bir
-düzenleme deneyimi sağlamak için Xcode'dan yararlanabiliyoruz.
+Swift'i kullanma kararı, paketleri tanımlamak için Swift dosyalarını kullanan
+[Swift Package Manager](https://www.swift.org/documentation/package-manager/)
+tarafından ilham alınarak verilmiştir. Swift'i kullanarak, derleyiciyi içeriğin
+doğruluğunu onaylamak ve farklı manifest dosyalarında kodu yeniden kullanmak
+için kullanabiliriz. Ayrıca, Xcode'un sözdizimi vurgulaması, otomatik tamamlama
+ve doğrulama özellikleri sayesinde birinci sınıf bir düzenleme deneyimi
+sunabiliriz.
 
 ::: info CACHING
 <!-- -->
-Manifest dosyaları derlenmesi gereken Swift dosyaları olduğundan, Tuist
-ayrıştırma işlemini hızlandırmak için derleme sonuçlarını önbelleğe alır. Bu
-nedenle, Tuist'i ilk kez çalıştırdığınızda, projeyi oluşturmanın biraz daha uzun
-sürebileceğini fark edeceksiniz. Sonraki çalıştırmalar daha hızlı olacaktır.
+Manifest dosyaları derlenmesi gereken Swift dosyaları olduğundan, Tuist derleme
+sonuçlarını önbelleğe alarak ayrıştırma sürecini hızlandırır. Bu nedenle,
+Tuist'i ilk kez çalıştırdığınızda projenin oluşturulması biraz daha uzun
+sürebilir. Sonraki çalıştırmalarda daha hızlı olacaktır.
 <!-- -->
 :::
 
-## Proje.swift {#projectswift}
+## Project.swift {#projectswift}
 
-1}`Project.swift`</LocalizedLink> manifestosu bir Xcode projesi bildirir. Proje,
-manifesto dosyasının bulunduğu dizinde `name` özelliğinde belirtilen adla
-oluşturulur.
+<LocalizedLink href="/references/project-description/structs/project">`Project.swift`</LocalizedLink>
+manifest, bir Xcode projesini bildirir. Proje, manifest dosyasının bulunduğu
+dizinde, `name` özelliğinde belirtilen adla oluşturulur.
 
 ```swift
 // Project.swift
@@ -48,21 +47,21 @@ let project = Project(
 
 ::: warning ROOT VARIABLES
 <!-- -->
-Manifestonun kökünde olması gereken tek değişken `let project = Project(...)`.
-Manifestonun çeşitli bölümlerinde kodu yeniden kullanmanız gerekiyorsa Swift
-fonksiyonlarını kullanabilirsiniz.
+Manifesto kökünde bulunması gereken tek değişken `let project =
+Project(...)`'dir. Manifestonun çeşitli bölümlerinde kodu yeniden kullanmanız
+gerekiyorsa, Swift işlevlerini kullanabilirsiniz.
 <!-- -->
 :::
 
-## Çalışma Alanı.swift {#workspaceswift}
+## Workspace.swift {#workspaceswift}
 
-Varsayılan olarak Tuist, oluşturulmakta olan projeyi ve bağımlılıklarının
-projelerini içeren bir [Xcode Çalışma
+Tuist, varsayılan olarak, oluşturulmuş projeyi ve bağımlılıklarının projelerini
+içeren bir [Xcode Çalışma
 Alanı](https://developer.apple.com/documentation/xcode/projects-and-workspaces)
-oluşturur. Herhangi bir nedenle çalışma alanını ek projeler eklemek veya dosya
-ve grupları dahil etmek için özelleştirmek isterseniz, bunu bir
+oluşturur. Herhangi bir nedenle çalışma alanını özelleştirerek ek projeler
+eklemek veya dosya ve gruplar dahil etmek isterseniz, bunu
 <LocalizedLink href="/references/project-description/structs/workspace">`Workspace.swift`</LocalizedLink>
-manifestosu tanımlayarak yapabilirsiniz.
+manifestosunu tanımlayarak yapabilirsiniz.
 
 ```swift
 // Workspace.swift
@@ -78,38 +77,38 @@ let workspace = Workspace(
 
 ::: info
 <!-- -->
-Tuist bağımlılık grafiğini çözecek ve bağımlılıkların projelerini çalışma
+Tuist, bağımlılık grafiğini çözecek ve bağımlılıkların projelerini çalışma
 alanına dahil edecektir. Bunları manuel olarak eklemenize gerek yoktur. Bu,
-derleme sisteminin bağımlılıkları doğru şekilde çözümlemesi için gereklidir.
+derleme sisteminin bağımlılıkları doğru bir şekilde çözmesi için gereklidir.
 <!-- -->
 :::
 
 ### Çoklu veya tekli proje {#multi-or-monoproject}
 
-Sıklıkla gündeme gelen bir soru, bir çalışma alanında tek bir proje mi yoksa
-birden fazla proje mi kullanılacağıdır. Tek proje kurulumunun sık sık Git
-çakışmalarına yol açacağı Tuist'in olmadığı bir dünyada, çalışma alanlarının
-kullanımı teşvik edilir. Ancak, Tuist tarafından oluşturulan Xcode projelerinin
-Git deposuna dahil edilmesini önermediğimiz için Git çakışmaları bir sorun
-teşkil etmemektedir. Bu nedenle, bir çalışma alanında tek bir proje veya birden
-fazla proje kullanma kararı size kalmıştır.
+Sıkça sorulan bir soru, bir çalışma alanında tek bir proje mi yoksa birden fazla
+proje mi kullanılması gerektiğidir. Tuist'in olmadığı ve tek proje kurulumunun
+sık sık Git çakışmalarına yol açtığı bir dünyada, çalışma alanlarının
+kullanılması teşvik edilir. Ancak, Tuist tarafından oluşturulan Xcode
+projelerinin Git deposuna dahil edilmesini önermediğimizden, Git çakışmaları
+sorun teşkil etmez. Bu nedenle, bir çalışma alanında tek bir proje mi yoksa
+birden fazla proje mi kullanacağınız kararı size kalmıştır.
 
-Tuist projesinde, soğuk üretim süresi daha hızlı olduğu için (derlenecek daha az
-manifesto dosyası) ve bir kapsülleme birimi olarak
-<LocalizedLink href="/guides/features/projects/code-sharing">proje açıklama
-yardımcılarından</LocalizedLink> yararlandığımız için mono-projelere
-dayanıyoruz. Bununla birlikte, uygulamanızın farklı alanlarını temsil etmek için
-Xcode projelerini bir kapsülleme birimi olarak kullanmak isteyebilirsiniz, bu da
-Xcode'un önerilen proje yapısıyla daha yakından uyumludur.
+Tuist projesinde, soğuk nesil süresi daha hızlı olduğu için (derlenecek daha az
+manifest dosyası olduğu için) tekli projelere güveniyoruz ve
+<LocalizedLink href="/guides/features/projects/code-sharing">proje açıklaması
+yardımcıları</LocalizedLink>nı kapsülleme birimi olarak kullanıyoruz. Ancak,
+uygulamanızın farklı alanlarını temsil etmek için Xcode projelerini kapsülleme
+birimi olarak kullanmak isteyebilirsiniz, bu da Xcode'un önerdiği proje yapısına
+daha yakındır.
 
 ## Tuist.swift {#tuistswift}
 
 Tuist, proje yapılandırmasını basitleştirmek için
-<LocalizedLink href="/contributors/principles.html#default-to-conventions">uygun
-varsayılanlar</LocalizedLink> sağlar. Ancak, projenin kökünde Tuist tarafından
-projenin kökünü belirlemek için kullanılan bir
+<LocalizedLink href="/contributors/principles.html#default-to-conventions">mantıklı
+varsayılanlar</LocalizedLink> sağlar. Ancak, projenin kökünde
 <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>
-tanımlayarak yapılandırmayı özelleştirebilirsiniz.
+tanımlayarak yapılandırmayı özelleştirebilirsiniz. Bu dosya, Tuist tarafından
+projenin kökünü belirlemek için kullanılır.
 
 ```swift
 import ProjectDescription
