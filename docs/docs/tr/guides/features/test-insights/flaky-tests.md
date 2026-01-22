@@ -5,35 +5,37 @@
   "description": "Automatically detect and track flaky tests in your CI pipelines."
 }
 ---
-# Flaky Tests {#flaky-tests}
+# Kararsız Testler {#flaky-tests}
 
 ::: warning REQUIREMENTS
 <!-- -->
 - <LocalizedLink href="/guides/features/test-insights">Test
-  Insights</LocalizedLink> must be configured
+  Insights</LocalizedLink> yapılandırılmalıdır.
 <!-- -->
 :::
 
-Flaky tests are tests that produce different results (pass or fail) when run
-multiple times with the same code. They erode trust in your test suite and waste
-developer time investigating false failures. Tuist automatically detects flaky
-tests and helps you track them over time.
+Kararsız testler, aynı kodla birden çok kez çalıştırıldığında farklı sonuçlar
+(başarılı veya başarısız) veren testlerdir. Bu testler, test paketine olan
+güveni zedeler ve geliştiricilerin yanlış başarısızlıkları araştırmak için zaman
+kaybetmelerine neden olur. Tuist, kararsız testleri otomatik olarak algılar ve
+bunları zaman içinde takip etmenize yardımcı olur.
 
-![Flaky Tests page](/images/guides/features/test-insights/flaky-tests-page.png)
+![Flaky Tests
+sayfası](/images/guides/features/test-insights/flaky-tests-page.png)
 
-## How flaky detection works {#how-it-works}
+## Dengesiz algılama nasıl çalışır? {#how-it-works}
 
-Tuist detects flaky tests in two ways:
+Tuist, iki şekilde hatalı testleri algılar:
 
-### Test retries {#test-retries}
+### Test tekrarları {#test-retries}
 
-When you run tests with Xcode's retry functionality (using
-`-retry-tests-on-failure` or `-test-iterations`), Tuist analyzes the results of
-each attempt. If a test fails on some attempts but passes on others, it's marked
-as flaky.
+Xcode'un yeniden deneme işlevini kullanarak testler yaptığınızda (
+`-retry-tests-on-failure` veya `-test-iterations` kullanarak), Tuist her
+denemenin sonuçlarını analiz eder. Bir test bazı denemelerde başarısız olurken
+diğerlerinde başarılı olursa, bu test "kararsız" olarak işaretlenir.
 
-For example, if a test fails on the first attempt but passes on the retry, Tuist
-records this as a flaky test.
+Örneğin, bir test ilk denemede başarısız olur ancak yeniden denemede başarılı
+olursa, Tuist bunu dengesiz test olarak kaydeder.
 
 ```sh
 tuist xcodebuild test \
@@ -45,33 +47,36 @@ tuist xcodebuild test \
 ![Flaky test case
 detail](/images/guides/features/test-insights/flaky-test-case-detail.png)
 
-### Cross-run detection {#cross-run-detection}
+### Çapraz çalıştırma algılama {#cross-run-detection}
 
-Even without test retries, Tuist can detect flaky tests by comparing results
-across different CI runs on the same commit. If a test passes in one CI run but
-fails in another run for the same commit, both runs are marked as flaky.
+Test tekrarları olmasa bile, Tuist aynı taahhütte farklı CI çalıştırmalarındaki
+sonuçları karşılaştırarak dengesiz testleri tespit edebilir. Bir test bir CI
+çalıştırmasında başarılı olurken, aynı taahhütte başka bir çalıştırmada
+başarısız olursa, her iki çalıştırma da dengesiz olarak işaretlenir.
 
-This is particularly useful for catching flaky tests that don't fail
-consistently enough to be caught by retries, but still cause intermittent CI
-failures.
+Bu, yeniden denemelerle yakalanamayacak kadar tutarlı bir şekilde başarısız
+olmayan, ancak yine de aralıklı CI hatalarına neden olan dengesiz testleri
+yakalamak için özellikle yararlıdır.
 
-## Managing flaky tests {#managing-flaky-tests}
+## Kararsız testleri yönetme {#managing-flaky-tests}
 
-### Automatic clearing
+### Otomatik temizleme
 
-Tuist automatically clears the flaky flag from tests that haven't been flaky for
-14 days. This ensures that tests that have been fixed don't remain marked as
-flaky indefinitely.
+Tuist, 14 gün boyunca hatalı olmayan testlerden hatalı bayrağını otomatik olarak
+siler. Bu, düzeltilen testlerin süresiz olarak hatalı olarak işaretli
+kalmamasını sağlar.
 
-### Manual management
+### Manuel yönetim
 
-You can also manually mark or unmark tests as flaky from the test case detail
-page. This is useful when:
-- You want to acknowledge a known flaky test while working on a fix
-- A test was incorrectly flagged due to infrastructure issues
+Test durum ayrıntıları sayfasından testleri manuel olarak dengesiz olarak
+işaretleyebilir veya işaretini kaldırabilirsiniz. Bu, aşağıdaki durumlarda
+yararlıdır:
+- Düzeltme üzerinde çalışırken bilinen bir hatalı testi onaylamak istiyorsunuz.
+- Altyapı sorunları nedeniyle bir test yanlış bir şekilde işaretlendi.
 
-## Slack notifications {#slack-notifications}
+## Slack bildirimleri {#slack-notifications}
 
-Get notified instantly when a test becomes flaky by setting up
+Slack entegrasyonunuzda
 <LocalizedLink href="/guides/integrations/slack#flaky-test-alerts">flaky test
-alerts</LocalizedLink> in your Slack integration.
+alerts</LocalizedLink> ayarlayarak, bir testin dengesiz hale geldiğinde anında
+bildirim alın.
