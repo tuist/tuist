@@ -3,9 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-22 12:40+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"PO-Revision-Date: 2026-01-22 13:04+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_account/tr/>\n"
 "Language: tr\n"
@@ -34,12 +33,12 @@ msgstr "$0"
 #: lib/tuist_web/live/billing_live.html.heex:220
 #, elixir-autogen, elixir-format, fuzzy
 msgid "$0.50"
-msgstr "$0.50"
+msgstr "0,50 $"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:63
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{inviter} has invited you to join the %{organization} organization"
-msgstr "davet eden} sizi %{organizasyon} organizasyonuna katılmaya davet etti"
+msgstr "%{inviter} sizi %{organization} organizasyonuna katılmaya davet etti."
 
 #: lib/tuist_web/live/billing_live.html.heex:294
 #, elixir-autogen, elixir-format, fuzzy
@@ -73,7 +72,7 @@ msgstr "Air"
 #: lib/tuist_web/live/billing_live.html.heex:317
 #, elixir-autogen, elixir-format, fuzzy
 msgid "All billing correspondence will go to this email"
-msgstr "Tüm fatura yazışmaları bu e-postaya gönderilecektir"
+msgstr "Tüm fatura yazışmaları bu e-posta adresine gönderilecektir."
 
 #: lib/tuist/billing.ex:46
 #: lib/tuist_web/live/billing_live.ex:192
@@ -100,7 +99,7 @@ msgstr "Bunu silmek istediğinizden emin misiniz?"
 #: lib/tuist_web/live/members_live.ex:196
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Are you sure you want to remove %{name} from this organization?"
-msgstr "Bu organizasyondan %{name}'i kaldırmak istediğinizden emin misiniz?"
+msgstr "Bu kuruluştan %{name}'yi kaldırmak istediğinizden emin misiniz?"
 
 #: lib/tuist_web/live/billing_live.ex:71
 #: lib/tuist_web/live/billing_live.html.heex:3
@@ -127,19 +126,19 @@ msgstr "İptal"
 #: lib/tuist_web/live/billing_live.html.heex:156
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Change subscription plan"
-msgstr "Abonelik planını değiştirme"
+msgstr "Abonelik planını değiştir"
 
 #: lib/tuist_web/live/billing_live.html.heex:154
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Change your subscription to fit your needs."
-msgstr "Aboneliğinizi ihtiyaçlarınıza uyacak şekilde değiştirin."
+msgstr "İhtiyaçlarınıza göre aboneliğinizi değiştirin."
 
 #: lib/tuist_web/live/account_settings_live.ex:140
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Choose where your artifacts, like module cache binaries, are stored for legal compliance."
 msgstr ""
-"Yasal uyumluluk için modül önbellek ikili dosyaları gibi artifaktlarınızın "
-"nerede saklanacağını seçin."
+"Yasal uyumluluk için modül önbellek ikili dosyaları gibi öğelerinizin "
+"depolanacağı yeri seçin."
 
 #: lib/tuist/billing.ex:47
 #, elixir-autogen, elixir-format, fuzzy
@@ -159,7 +158,7 @@ msgstr "Topluluk desteği: Topluluk forumu aracılığıyla destek"
 #: lib/tuist_web/live/billing_live.html.heex:147
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Completely free for open source projects"
-msgstr "Açık kaynak projeleri için tamamen ücretsiz"
+msgstr "Açık kaynak projeler için tamamen ücretsizdir."
 
 #: lib/tuist/accounts/user_notifier.ex:113
 #, elixir-autogen, elixir-format, fuzzy
@@ -175,12 +174,12 @@ msgstr "Onay talimatları"
 #: lib/tuist_web/live/billing_live.ex:254
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Contact sales"
-msgstr "İletişim satış"
+msgstr "Satış departmanıyla iletişime geçin"
 
 #: lib/tuist_web/live/create_organization_live.ex:37
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Create a new organization"
-msgstr "Yeni bir kuruluş oluşturun"
+msgstr "Yeni bir organizasyon oluşturun"
 
 #: lib/tuist_web/live/create_organization_live.ex:35
 #, elixir-autogen, elixir-format, fuzzy
@@ -227,7 +226,7 @@ msgstr "Özel terimler"
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Custom terms: Tailored agreements to meet your specific needs"
 msgstr ""
-"Özel şartlar: Özel ihtiyaçlarınızı karşılamak için uyarlanmış anlaşmalar"
+"Özel terimler: Özel ihtiyaçlarınızı karşılamak için uyarlanmış anlaşmalar"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:153
 #, elixir-autogen, elixir-format, fuzzy
@@ -237,45 +236,45 @@ msgstr "Panel"
 #: lib/tuist_web/live/accept_invitation_live.ex:81
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Decline"
-msgstr "Düşüş"
+msgstr "Reddet"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:145
 #: lib/tuist_web/live/account_settings_live.html.heex:291
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Delete"
-msgstr "Silme"
+msgstr "Sil"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:232
 #: lib/tuist_web/live/account_settings_live.html.heex:253
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Delete account"
-msgstr "Hesap silme"
+msgstr "Hesabı sil"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:84
 #: lib/tuist_web/live/account_settings_live.html.heex:105
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Delete organization"
-msgstr "Organizasyon silme"
+msgstr "Kuruluşu sil"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:118
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Deleting the organization will delete all of its projects"
-msgstr "Kuruluşun silinmesi tüm projelerini silecektir"
+msgstr "Kuruluş silindiğinde, tüm projeleri de silinir."
 
 #: lib/tuist_web/live/account_settings_live.html.heex:265
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Deleting your account will also delete all the projects that belong to it"
-msgstr "Hesabınızı sildiğinizde ona ait tüm projeler de silinecektir"
+msgstr "Hesabınızı silmek, o hesaba ait tüm projeleri de siler."
 
 #: lib/tuist/accounts/user_notifier.ex:137
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Did you request to reset your password?"
-msgstr "Şifrenizi sıfırlamayı talep ettiniz mi?"
+msgstr "Şifrenizi sıfırlamayı mı talep ettiniz?"
 
 #: lib/tuist_web/live/billing_live.ex:205
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Downgrade"
-msgstr "Not düşürme"
+msgstr "Düşürme"
 
 #: lib/tuist_web/live/members_live.ex:90
 #, elixir-autogen, elixir-format, fuzzy
@@ -326,7 +325,7 @@ msgstr "Ücretsiz"
 #: lib/tuist_web/live/billing_live.html.heex:25
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Free tier exceeded"
-msgstr "Ücretsiz katman aşıldı"
+msgstr "Ücretsiz kullanım sınırı aşıldı"
 
 #: lib/tuist_web/live/billing_live.ex:191
 #, elixir-autogen, elixir-format, fuzzy
@@ -342,20 +341,20 @@ msgstr "Cömert taban fiyat"
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Generous base price: Pay nothing if below free tier limits"
 msgstr ""
-"Cömert taban fiyat: Ücretsiz katman sınırlarının altındaysa hiçbir şey "
+"Cömert temel fiyat: Ücretsiz kademenin sınırlarının altındaysa hiçbir şey "
 "ödemeyin"
 
 #: lib/tuist/billing.ex:43
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Generous free monthly tier"
-msgstr "Cömert ücretsiz aylık katman"
+msgstr "Cömert aylık ücretsiz paket"
 
 #: lib/tuist_web/live/billing_live.html.heex:99
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Generous free monthly tier: Usage capped at free tier limits"
 msgstr ""
-"Cömert ücretsiz aylık katman: Kullanım ücretsiz katman limitleriyle "
-"sınırlıdır"
+"Cömert aylık ücretsiz paket: Kullanım, ücretsiz paket sınırlarıyla "
+"sınırlıdır."
 
 #: lib/tuist/billing.ex:41
 #: lib/tuist/billing.ex:61
@@ -372,27 +371,26 @@ msgstr "Kredi kartı gerekmeden başlayın."
 #: lib/tuist_web/live/billing_live.html.heex:79
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Get started with no credit card required—try with no commitment."
-msgstr "Kredi kartı gerekmeden başlayın; hiçbir taahhütte bulunmadan deneyin."
+msgstr "Kredi kartı gerekmeden başlayın — hiçbir taahhütte bulunmadan deneyin."
 
 #: lib/tuist/accounts/user_notifier.ex:172
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Hola %{invitee_email}, you can join the organization by clicking the button below:"
 msgstr ""
-"Hola %{invitee_email}, aşağıdaki butona tıklayarak organizasyona "
+"Merhaba %{invitee_email}, aşağıdaki düğmeyi tıklayarak organizasyona "
 "katılabilirsiniz:"
 
 #: lib/tuist/accounts/user_notifier.ex:139
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Hola %{name}, you can reset your password by clicking the button below:"
 msgstr ""
-"Hola %{name}, aşağıdaki butona tıklayarak şifrenizi sıfırlayabilirsiniz:"
+"Merhaba %{name}, aşağıdaki düğmeyi tıklayarak şifrenizi sıfırlayabilirsiniz:"
 
 #: lib/tuist/accounts/user_notifier.ex:118
 #: lib/tuist/accounts/user_notifier.ex:147
 #, elixir-autogen, elixir-format, fuzzy
 msgid "If you didn't make this request, feel free to ignore this email."
-msgstr ""
-"Bu talepte bulunmadıysanız, bu e-postayı görmezden gelmekten çekinmeyin."
+msgstr "Bu talebi siz yapmadıysanız, bu e-postayı görmezden gelebilirsiniz."
 
 #: lib/tuist_web/live/accept_invitation_live.ex:105
 #, elixir-autogen, elixir-format, fuzzy
@@ -402,7 +400,7 @@ msgstr "Davet kabul edildi!"
 #: lib/tuist_web/live/accept_invitation_live.ex:88
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Invitation not found"
-msgstr "Davetiye bulunamadı"
+msgstr "Davet bulunamadı"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:127
 #, elixir-autogen, elixir-format, fuzzy
@@ -412,7 +410,7 @@ msgstr "Davet reddedildi"
 #: lib/tuist/accounts/user_notifier.ex:166
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Invitation to %{organization_name}"
-msgstr "Organizasyon_adı} davetiyesi"
+msgstr "%{organization_name} davetiyesi"
 
 #: lib/tuist_web/live/members_live.ex:66
 #, elixir-autogen, elixir-format, fuzzy
@@ -442,7 +440,7 @@ msgstr "Daha fazla bilgi edinin"
 #: lib/tuist/billing.ex:45
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Like, totally free"
-msgstr "Yani, tamamen bedava"
+msgstr "Tamamen ücretsiz"
 
 #: lib/tuist_web/live/billing_live.html.heex:105
 #, elixir-autogen, elixir-format, fuzzy
@@ -453,7 +451,7 @@ msgstr "Tamamen ücretsiz: Tüm özellikler, kredi kartı gerekmez"
 #: lib/tuist_web/live/members_live.ex:236
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Manage role"
-msgstr "Rol yönetme"
+msgstr "Rolü yönet"
 
 #: lib/tuist_web/live/billing_live.html.heex:5
 #, elixir-autogen, elixir-format, fuzzy
@@ -479,7 +477,7 @@ msgstr "En popüler"
 #: lib/tuist_web/live/create_organization_live.ex:49
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Name"
-msgstr "İsim"
+msgstr "Ad"
 
 #: lib/tuist/billing.ex:51
 #, elixir-autogen, elixir-format, fuzzy
@@ -489,7 +487,7 @@ msgstr "Kredi kartı gerekmez"
 #: lib/tuist_web/live/members_live.ex:303
 #, elixir-autogen, elixir-format, fuzzy
 msgid "No invitations created"
-msgstr "Davetiye oluşturulmadı"
+msgstr "Oluşturulan davet yok"
 
 #: lib/tuist_web/live/members_live.ex:260
 #, elixir-autogen, elixir-format, fuzzy
@@ -505,7 +503,7 @@ msgstr "Yerel kurulum"
 #: lib/tuist_web/live/billing_live.html.heex:139
 #, elixir-autogen, elixir-format, fuzzy
 msgid "On-premise: Self-host your instance of Tuist"
-msgstr "Şirket içi: Tuist örneğinizi kendiniz barındırın"
+msgstr "Yerinde: Tuist örneğini kendi sunucunuzda barındırın"
 
 #: lib/tuist_web/live/billing_live.html.heex:59
 #, elixir-autogen, elixir-format, fuzzy
@@ -516,12 +514,12 @@ msgstr "Açık kaynak"
 #: lib/tuist_web/live/account_settings_live.html.heex:128
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Organization name"
-msgstr "Organizasyon adı"
+msgstr "Kuruluş adı"
 
 #: lib/tuist/accounts/user.ex:88
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Passwords don't match"
-msgstr "Parolalar eşleşmiyor"
+msgstr "Şifreler eşleşmiyor"
 
 #: lib/tuist/billing.ex:64
 #: lib/tuist_web/live/billing_live.ex:220
@@ -543,7 +541,7 @@ msgstr "Ödeme yöntemi"
 #: lib/tuist_web/live/billing_live.html.heex:246
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Payments for your subscription are made using the default card."
-msgstr "Aboneliğiniz için ödemeler varsayılan kart kullanılarak yapılır."
+msgstr "Abonelik ödemeleriniz varsayılan kartınızla yapılır."
 
 #: lib/tuist_web/live/members_live.ex:279
 #, elixir-autogen, elixir-format, fuzzy
@@ -558,7 +556,7 @@ msgstr "Fiyat"
 #: lib/tuist_web/live/billing_live.html.heex:172
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Pricing details"
-msgstr "Fiyatlandırma detayları"
+msgstr "Fiyatlandırma ayrıntıları"
 
 #: lib/tuist/billing.ex:85
 #, elixir-autogen, elixir-format, fuzzy
@@ -590,17 +588,17 @@ msgstr "Bölge"
 #: lib/tuist_web/live/billing_live.html.heex:225
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Remote cache hits"
-msgstr "Uzak önbellek vuruşları"
+msgstr "Uzak önbellek isabetleri"
 
 #: lib/tuist_web/live/billing_live.html.heex:34
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Remote cache hits:"
-msgstr "Uzak önbellek vuruşları:"
+msgstr "Uzak önbellek isabetleri:"
 
 #: lib/tuist_web/live/members_live.ex:214
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Remove"
-msgstr "Kaldırmak"
+msgstr "Kaldır"
 
 #: lib/tuist_web/live/members_live.ex:178
 #: lib/tuist_web/live/members_live.ex:246
@@ -612,29 +610,29 @@ msgstr "Üyeyi kaldır"
 #: lib/tuist_web/live/account_settings_live.html.heex:219
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Rename"
-msgstr "Yeniden Adlandır"
+msgstr "Yeniden adlandırın"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:13
 #: lib/tuist_web/live/account_settings_live.html.heex:37
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Rename organization"
-msgstr "Kuruluşu yeniden adlandırın"
+msgstr "Kuruluşun adını değiştirin"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:31
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Rename your organization?"
-msgstr "Kuruluşunuzun adını değiştirmek mi?"
+msgstr "Kuruluşunuzun adını değiştirmek mi istiyorsunuz?"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:49
 #: lib/tuist_web/live/account_settings_live.html.heex:198
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Renaming can have unexpected consequences"
-msgstr "Yeniden adlandırma beklenmedik sonuçlar doğurabilir"
+msgstr "Yeniden adlandırma beklenmedik sonuçlara yol açabilir."
 
 #: lib/tuist_web/live/account_settings_live.html.heex:16
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Renaming your organization can have unintended side effects."
-msgstr "Kuruluşunuzu yeniden adlandırmanın istenmeyen yan etkileri olabilir."
+msgstr "Kuruluşunuzun adını değiştirmek istenmeyen yan etkilere neden olabilir."
 
 #: lib/tuist/accounts/user_notifier.ex:133
 #, elixir-autogen, elixir-format, fuzzy
@@ -665,12 +663,12 @@ msgstr "Kaydet"
 #: lib/tuist_web/live/members_live.ex:43
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Search members..."
-msgstr "Üyeleri arayın..."
+msgstr "Üyeleri ara..."
 
 #: lib/tuist_web/live/account_settings_live.ex:148
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Select region"
-msgstr "Bölge seçiniz"
+msgstr "Bölgeyi seçin"
 
 #: lib/tuist/billing.ex:84
 #, elixir-autogen, elixir-format, fuzzy
@@ -716,7 +714,7 @@ msgstr "Topluluk forumu aracılığıyla destek"
 #: lib/tuist/billing.ex:82
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Tailored agreements to meet your specific needs"
-msgstr "Özel ihtiyaçlarınızı karşılamak için uyarlanmış anlaşmalar"
+msgstr "Özel ihtiyaçlarınızı karşılayacak şekilde uyarlanmış sözleşmeler"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:87
 #: lib/tuist_web/live/account_settings_live.html.heex:235
@@ -739,18 +737,18 @@ msgstr "Toplam"
 #: lib/tuist_web/live/members_live.ex:261
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Try changing your search term"
-msgstr "Arama teriminizi değiştirmeyi deneyin"
+msgstr "Arama teriminizi değiştirmeyi deneyin."
 
 #: lib/tuist_web/live/accept_invitation_live.ex:52
 #: lib/tuist_web/live/create_organization_live.ex:26
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Tuist Logo"
-msgstr "Tuist Logo"
+msgstr "Tuist Logosu"
 
 #: lib/tuist_web/live/account_settings_live.ex:158
 #, elixir-autogen, elixir-format, fuzzy
 msgid "United States"
-msgstr "Birleşik Devletler"
+msgstr "Amerika Birleşik Devletleri"
 
 #: lib/tuist/vcs.ex:464
 #, elixir-autogen, elixir-format, fuzzy
@@ -765,12 +763,12 @@ msgstr "Sınırsız proje"
 #: lib/tuist_web/live/billing_live.html.heex:325
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Update billing email"
-msgstr "Fatura e-postasını güncelleme"
+msgstr "Fatura e-postasını güncelle"
 
 #: lib/tuist_web/live/billing_live.html.heex:257
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Update payment method"
-msgstr "Ödeme yöntemini güncelleme"
+msgstr "Ödeme yöntemini güncelle"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:163
 #: lib/tuist_web/live/account_settings_live.html.heex:187
@@ -781,12 +779,12 @@ msgstr "Kullanıcı adını güncelle"
 #: lib/tuist_web/live/account_settings_live.html.heex:181
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Update your username?"
-msgstr "Kullanıcı adınızı güncelleyin?"
+msgstr "Kullanıcı adınızı güncellemek ister misiniz?"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:166
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Updating your username can have unintended consequences."
-msgstr "Kullanıcı adınızı güncellemenin istenmeyen sonuçları olabilir."
+msgstr "Kullanıcı adınızı güncellemek istenmeyen sonuçlara yol açabilir."
 
 #: lib/tuist_web/live/billing_live.ex:234
 #, elixir-autogen, elixir-format, fuzzy
@@ -806,12 +804,12 @@ msgstr "Kullanım"
 #: lib/tuist/billing.ex:44
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Usage capped at free tier limits"
-msgstr "Kullanım ücretsiz katman limitleriyle sınırlıdır"
+msgstr "Kullanım, ücretsiz katman sınırlarıyla sınırlıdır."
 
 #: lib/tuist_web/live/billing_live.html.heex:22
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Usage details"
-msgstr "Kullanım detayları"
+msgstr "Kullanım ayrıntıları"
 
 #: lib/tuist_web/live/billing_live.html.heex:69
 #, elixir-autogen, elixir-format, fuzzy
@@ -838,13 +836,15 @@ msgstr "Ücretsiz katmandan sonra kullanıma dayalı fiyatlandırma."
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Usage-based pricing: Pay only for what you use per feature"
 msgstr ""
-"Kullanıma dayalı fiyatlandırma: Özellik başına yalnızca kullandığınız kadar "
-"ödeyin"
+"Kullanıma dayalı fiyatlandırma: Her özellik için yalnızca kullandığınız "
+"kadar ödeyin"
 
 #: lib/tuist_web/live/billing_live.html.heex:91
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Use all Tuist features as long as you stay open source."
-msgstr "Açık kaynak olarak kaldığınız sürece tüm Tuist özelliklerini kullanın."
+msgstr ""
+"Açık kaynak kodlu kaldığınız sürece tüm Tuist özelliklerini "
+"kullanabilirsiniz."
 
 #: lib/tuist_web/live/members_live.ex:123
 #: lib/tuist_web/live/members_live.ex:130
@@ -856,7 +856,7 @@ msgstr "Kullanıcı"
 #: lib/tuist_web/live/account_settings_live.html.heex:275
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Username"
-msgstr "Kullanıcı Adı"
+msgstr "Kullanıcı adı"
 
 #: lib/tuist/billing.ex:67
 #, elixir-autogen, elixir-format, fuzzy
@@ -877,17 +877,17 @@ msgstr "Kabul etmeye çalıştığınız daveti bulamadık. Lütfen tekrar deney
 #: lib/tuist_web/live/billing_live.ex:13
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You are not authorized to perform this action."
-msgstr "Bu işlemi gerçekleştirme yetkiniz yoktur."
+msgstr "Bu işlemi gerçekleştirmek için yetkiniz yok."
 
 #: lib/tuist_web/live/accept_invitation_live.ex:119
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You are now a part of %{organization} organization"
-msgstr "Artık %{organizasyon} organizasyonunun bir parçasısınız"
+msgstr "Artık %{organization} kuruluşunun bir parçasısınız."
 
 #: lib/tuist_web/live/accept_invitation_live.ex:107
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You have accepted the invite to join the organization"
-msgstr "Organizasyona katılma davetini kabul ettiniz"
+msgstr "Organizasyona katılma davetini kabul ettiniz."
 
 #: lib/tuist_web/live/accept_invitation_live.ex:61
 #, elixir-autogen, elixir-format, fuzzy
@@ -897,53 +897,51 @@ msgstr "Davet edildiniz"
 #: lib/tuist_web/live/accept_invitation_live.ex:129
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You have rejected the invite to join the organization"
-msgstr "Organizasyona katılma davetini reddettiniz"
+msgstr "Organizasyona katılma davetini reddettiniz."
 
 #: lib/tuist/accounts/user_notifier.ex:116
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You received this email because you recently signed up for a Tuist account."
-msgstr ""
-"Bu e-postayı aldınız çünkü kısa süre önce bir Tuist hesabına kaydoldunuz."
+msgstr "Bu e-postayı, yakın zamanda bir Tuist hesabı açtığınız için aldınız."
 
 #: lib/tuist/accounts/user_notifier.ex:145
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You received this email because you requested a password reset for your Tuist account."
 msgstr ""
-"Tuist hesabınız için şifre sıfırlama talebinde bulunduğunuz için bu e-"
-"postayı aldınız."
+"Bu e-postayı, Tuist hesabınız için şifre sıfırlama talebinde bulunduğunuz "
+"için aldınız."
 
 #: lib/tuist/accounts/user_notifier.ex:170
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You were invited to join the %{organization_name} Tuist organization by %{inviter_email}"
 msgstr ""
-"Tuist %{organization_name} organizasyonuna katılmaya %{inviter_email} "
-"tarafından davet edildiniz."
+"%{organization_name} Tuist organizasyonuna %{inviter_email} tarafından davet "
+"edildiniz."
 
 #: lib/tuist_web/live/accept_invitation_live.ex:141
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You won’t be able to access this organization unless invited again."
-msgstr "Tekrar davet edilmediğiniz sürece bu organizasyona erişemezsiniz."
+msgstr "Tekrar davet edilmedikçe bu kuruluşa erişemezsiniz."
 
 #: lib/tuist/accounts/user_notifier.ex:108
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You're Almost Set!"
-msgstr "Neredeyse Hazırsınız!"
+msgstr "Neredeyse hazırsınız!"
 
 #: lib/tuist_web/live/billing_live.html.heex:210
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You’ve exceeded your free tier quota and will incur charges for additional usage."
-msgstr ""
-"Ücretsiz katman kotanızı aştınız ve ek kullanım için ücretlendirileceksiniz."
+msgstr "Ücretsiz kotanızı aştınız ve ek kullanım için ücretlendirileceksiniz."
 
 #: lib/tuist_web/live/billing_live.html.heex:47
 #, elixir-autogen, elixir-format, fuzzy
 msgid "about remote cache hits"
-msgstr "uzak önbellek vuruşları hakkında"
+msgstr "uzak önbellek isabetleri hakkında"
 
 #: lib/tuist_web/live/billing_live.html.heex:228
 #, elixir-autogen, elixir-format, fuzzy
 msgid "above free tier"
-msgstr "ücretsiz katmanın üstünde"
+msgstr "ücretsiz kademenin üstünde"
 
 #: lib/tuist/billing.ex:60
 #: lib/tuist_web/live/billing_live.ex:218
@@ -954,14 +952,14 @@ msgstr "ve yukarı"
 #: lib/tuist_web/live/billing_live.ex:34
 #, elixir-autogen, elixir-format, fuzzy
 msgid "charged /per month"
-msgstr "ücret /ay başına"
+msgstr "aylık ücret"
 
 #: lib/tuist_web/live/billing_live.ex:36
 #, elixir-autogen, elixir-format, fuzzy
 msgid "charged on %{next_charge_date}"
-msgstr "ücretin %{next_charge_date} tarihinde tahsil edilmesi"
+msgstr "%{next_charge_date} tarihinde ücretlendirilir."
 
 #: lib/tuist_web/live/billing_live.html.heex:301
 #, elixir-autogen, elixir-format, fuzzy
 msgid "xxxx xxxx xxxx %{card_number}"
-msgstr "xxxx xxxx xxxx %{kart_numarası}"
+msgstr "xxxx xxxx xxxx %{card_number}"
