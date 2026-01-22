@@ -23,12 +23,12 @@ tuist organization update sso my-organization --provider google --organization-i
 
 ## Okta{#okta}
 
-使用 Okta 进行 SSO 仅适用于企业客户。如果您有兴趣设置，请通过
+使用 Okta 的 SSO 仅适用于企业客户。如果您有兴趣设置，请通过
 [contact@tuist.dev](mailto:contact@tuist.dev) 联系我们。
 
 在此过程中，我们会为您指定一个联系人，帮助您设置 Okta SSO。
 
-首先，您需要创建一个 Okta 应用程序，并将其配置为与 Tuist 一起使用：
+首先，您需要创建一个 Okta 应用程序，并将其配置为与 Tuist 一起工作：
 1. 转到 Okta 管理仪表板
 2. 应用程序 > 应用程序 > 创建应用程序集成
 3. 选择 "OIDC - OpenID Connect "和 "Web 应用程序
