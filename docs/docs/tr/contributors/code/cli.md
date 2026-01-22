@@ -7,67 +7,68 @@
 ---
 # CLI {#cli}
 
-Source:
+Kaynak:
 [github.com/tuist/tuist/tree/main/Tuist](https://github.com/tuist/tuist/tree/main/Tuist)
-and
-[github.com/tuist/tuist/tree/main/cli](https://github.com/tuist/tuist/tree/main/cli)
+ve
+[github.com/tuist/tuist/tree/main/CLI](https://github.com/tuist/tuist/tree/main/cli)
 
-## What it is for {#what-it-is-for}
+## Ne için kullanılır? {#what-it-is-for}
 
-The CLI is the heart of Tuist. It handles project generation, automation
-workflows (test, run, graph, and inspect), and provides the interface to the
-Tuist server for features like authentication, cache, insights, previews,
-registry, and selective testing.
+CLI, Tuist'in kalbidir. Proje oluşturma, otomasyon iş akışları (test,
+çalıştırma, grafik ve inceleme) işlemlerini gerçekleştirir ve kimlik doğrulama,
+önbellek, içgörüler, önizlemeler, Kayıt ve seçmeli testler gibi özellikler için
+Tuist sunucusuna arayüz sağlar.
 
-## How to contribute {#how-to-contribute}
+## Nasıl katkıda bulunabilirsiniz? {#how-to-contribute}
 
-### Requirements {#requirements}
+### Gereksinimler {#requirements}
 
 - macOS 14.0+
 - Xcode 26+
 
-### Set up locally {#set-up-locally}
+### Yerel olarak ayarlayın {#set-up-locally}
 
-- Clone the repository: `git clone git@github.com:tuist/tuist.git`
-- Install Mise using [their official install
-  script](https://mise.jdx.dev/getting-started.html) (not Homebrew) and run
-  `mise install`
-- Install Tuist dependencies: `tuist install`
-- Generate the workspace: `tuist generate`
+- Depoyu klonlayın: `git clone git@github.com:tuist/tuist.git`
+- Mise'yi [resmi kurulum komut
+  dosyasını](https://mise.jdx.dev/getting-started.html) (Homebrew değil)
+  kullanarak kurun ve `mise install komutunu çalıştırın.`
+- Tuist bağımlılıklarını yükleyin: `tuist install`
+- Çalışma alanını oluşturun: `tuist generate`
 
-The generated project opens automatically. If you need to reopen it later, run
-`open Tuist.xcworkspace`.
+Oluşturulmuş proje otomatik olarak açılır. Daha sonra yeniden açmanız gerekirse,
+`open Tuist.xcworkspace` komutunu çalıştırın.
 
 ::: info XED .
 <!-- -->
-If you try to open the project using `xed .`, it will open the package, not the
-Tuist-generated workspace. Use `Tuist.xcworkspace`.
+`xed.` kullanarak projeyi açmaya çalışırsanız, Tuist tarafından oluşturulan
+çalışma alanı değil, paket açılır. `Tuist.xcworkspace` kullanın.
 <!-- -->
 :::
 
-### Run Tuist {#run-tuist}
+### Tuist'i çalıştırın {#run-tuist}
 
-#### From Xcode {#from-xcode}
+#### Xcode'dan {#from-xcode}
 
-Edit the `tuist` scheme and set arguments like `generate --no-open`. Set the
-working directory to the project root (or use `--path`).
+`tuist` şemasını düzenleyin ve `generate --no-open` gibi argümanları ayarlayın.
+Çalışma dizinini proje kök dizinine ayarlayın (veya `--path` kullanın).
 
 ::: warning PROJECTDESCRIPTION COMPILATION
 <!-- -->
-The CLI depends on `ProjectDescription` being built. If it fails to run, build
-the `Tuist-Workspace` scheme first.
+CLI, `ProjectDescription` dosyasının oluşturulmasına bağlıdır. Çalışmazsa, önce
+`Tuist-Workspace` şemasını oluşturun.
 <!-- -->
 :::
 
-#### From the terminal {#from-the-terminal}
+#### Terminalden {#from-the-terminal}
 
-First generate the workspace:
+Önce çalışma alanını oluşturun:
 
 ```bash
 tuist generate --no-open
 ```
 
-Then build the `tuist` executable with Xcode and run it from DerivedData:
+Ardından, Xcode ile `tuist` yürütülebilir dosyasını oluşturun ve DerivedData'dan
+çalıştırın:
 
 ```bash
 tuist_build_dir="$(xcodebuild -workspace Tuist.xcworkspace -scheme tuist -configuration Debug -destination 'platform=macOS' -showBuildSettings | awk -F' = ' '/BUILT_PRODUCTS_DIR/{print $2; exit}')"
@@ -75,7 +76,7 @@ tuist_build_dir="$(xcodebuild -workspace Tuist.xcworkspace -scheme tuist -config
 "$tuist_build_dir/tuist" generate --path /path/to/project --no-open
 ```
 
-Or via Swift Package Manager:
+Veya Swift paketi Yöneticisi aracılığıyla:
 
 ```bash
 swift build --product ProjectDescription
