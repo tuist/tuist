@@ -6,49 +6,48 @@
 }
 ---
 
-# Self-host Cache {#self-host-cache}
+# ذاكرة التخزين المؤقتة ذاتية الاستضافة {#self-host-cache}
 
-The Tuist cache service can be self-hosted to provide a private binary cache for
-your team. This is most useful for organizations with large artifacts and
-frequent builds, where placing the cache closer to your CI infrastructure
-reduces latency and improves cache efficiency. By minimizing the distance
-between your build agents and the cache, you ensure that network overhead
-doesn't negate the speed benefits of caching.
+يمكن استضافة خدمة Tuist cache بشكل مستقل لتوفير ذاكرة تخزين مؤقتة ثنائية خاصة
+لفريقك. وهذا مفيد للغاية للمؤسسات التي لديها ملفات كبيرة وتقوم بعمليات إنشاء
+متكررة، حيث يؤدي وضع ذاكرة التخزين المؤقتة بالقرب من البنية التحتية لـ CI إلى
+تقليل زمن الاستجابة وتحسين كفاءة ذاكرة التخزين المؤقتة. من خلال تقليل المسافة
+بين وكلاء الإنشاء وذاكرة التخزين المؤقتة، تضمن أن لا تؤثر أعباء الشبكة على مزايا
+السرعة التي توفرها ذاكرة التخزين المؤقتة.
 
-::: info
+:::: المعلومات
 <!-- -->
-Self-hosting cache nodes requires an **Enterprise plan**.
+يتطلب استضافة عقد التخزين المؤقت ذاتيًا خطة **Enterprise**.
 
-You can connect self-hosted cache nodes to either the hosted Tuist server
-(`https://tuist.dev`) or a self-hosted Tuist server. Self-hosting the Tuist
-server itself requires a separate server license. See the
-<LocalizedLink href="/guides/server/self-host/install">server self-hosting
-guide</LocalizedLink>.
-<!-- -->
-:::
-
-## Prerequisites {#prerequisites}
-
-- Docker and Docker Compose
-- S3-compatible storage bucket
-- A running Tuist server instance (hosted or self-hosted)
-
-## Deployment {#deployment}
-
-The cache service is distributed as a Docker image at
-[ghcr.io/tuist/cache](https://ghcr.io/tuist/cache). We provide reference
-configuration files in the [cache
-directory](https://github.com/tuist/tuist/tree/main/cache).
-
-::: tip
-<!-- -->
-We provide a Docker Compose setup because it's a convenient baseline for
-evaluation and small deployments. You can use it as a reference and adapt it to
-your preferred deployment model (Kubernetes, raw Docker, etc.).
+يمكنك توصيل عقد التخزين المؤقت ذاتية الاستضافة إما بخادم Tuist المستضاف
+(`https://tuist.dev`) أو بخادم Tuist ذاتي الاستضافة. يتطلب استضافة خادم Tuist
+بنفسك ترخيص خادم منفصل. راجع
+<LocalizedLink href="/guides/server/self-host/install">دليل استضافة الخادم
+بنفسك</LocalizedLink>.
 <!-- -->
 :::
 
-### Configuration files {#config-files}
+## المتطلبات الأساسية {#prerequisites}
+
+- Docker و Docker Compose
+- سلة تخزين متوافقة مع S3
+- مثيل خادم Tuist قيد التشغيل (مستضاف أو مستضاف ذاتيًا)
+
+## النشر {#deployment}
+
+يتم توزيع خدمة ذاكرة التخزين المؤقت كصورة Docker على
+[ghcr.io/tuist/cache](https://ghcr.io/tuist/cache). نوفر ملفات تكوين مرجعية في
+[دليل ذاكرة التخزين المؤقت](https://github.com/tuist/tuist/tree/main/cache).
+
+:::: إكرامية
+<!-- -->
+نحن نوفر إعداد Docker Compose لأنه يمثل أساسًا مناسبًا للتقييم وعمليات النشر
+الصغيرة. يمكنك استخدامه كمرجع وتكييفه مع نموذج النشر المفضل لديك (Kubernetes،
+Docker الخام، إلخ).
+<!-- -->
+:::
+
+### ملفات التكوين {#config-files}
 
 ```bash
 curl -O https://raw.githubusercontent.com/tuist/tuist/main/cache/docker-compose.yml
@@ -56,14 +55,14 @@ mkdir -p docker
 curl -o docker/nginx.conf https://raw.githubusercontent.com/tuist/tuist/main/cache/docker/nginx.conf
 ```
 
-### Environment variables {#environment-variables}
+### متغيرات البيئة {#environment-variables}
 
-Create a `.env` file with your configuration.
+أنشئ ملف `.env` مع التكوين الخاص بك.
 
-::: tip
+:::: إكرامية
 <!-- -->
-The service is built with Elixir/Phoenix, so some variables use the `PHX_`
-prefix. You can treat these as standard service configuration.
+تم إنشاء الخدمة باستخدام Elixir/Phoenix، لذا تستخدم بعض المتغيرات البادئة PHX_`
+` . يمكنك التعامل معها على أنها تكوين خدمة قياسي.
 <!-- -->
 :::
 
@@ -91,42 +90,42 @@ S3_REGION=us-east-1
 DATA_DIR=/data
 ```
 
-| Variable                          | Required | Default                   | Description                                                                                       |
-| --------------------------------- | -------- | ------------------------- | ------------------------------------------------------------------------------------------------- |
-| `SECRET_KEY_BASE`                 | Yes      |                           | Secret key used to sign and encrypt data (minimum 64 characters).                                 |
-| `PUBLIC_HOST`                     | Yes      |                           | Public hostname or IP address of your cache service. Used to generate absolute URLs.              |
-| `SERVER_URL`                      | Yes      |                           | URL of your Tuist server for authentication. Defaults to `https://tuist.dev`                      |
-| `DATA_DIR`                        | Yes      |                           | Directory where CAS artifacts are stored on disk. The provided Docker Compose setup uses `/data`. |
-| `S3_BUCKET`                       | Yes      |                           | S3 bucket name.                                                                                   |
-| `S3_HOST`                         | Yes      |                           | S3 endpoint hostname.                                                                             |
-| `S3_ACCESS_KEY_ID`                | Yes      |                           | S3 access key.                                                                                    |
-| `S3_SECRET_ACCESS_KEY`            | Yes      |                           | S3 secret key.                                                                                    |
-| `S3_REGION`                       | Yes      |                           | S3 region.                                                                                        |
-| `CAS_DISK_HIGH_WATERMARK_PERCENT` | No       | `85`                      | Disk usage percentage that triggers LRU eviction.                                                 |
-| `CAS_DISK_TARGET_PERCENT`         | No       | `70`                      | Target disk usage after eviction.                                                                 |
-| `PHX_SOCKET_PATH`                 | No       | `/run/cache/cache.sock`   | Path where the service creates its Unix socket (when enabled).                                    |
-| `PHX_SOCKET_LINK`                 | No       | `/run/cache/current.sock` | Symlink path that Nginx uses to connect to the service.                                           |
+| متغير                             | مطلوب | افتراضي                   | الوصف                                                                                               |
+| --------------------------------- | ----- | ------------------------- | --------------------------------------------------------------------------------------------------- |
+| `SECRET_KEY_BASE`                 | نعم   |                           | مفتاح سري يستخدم لتوقيع وتشفير البيانات (64 حرفًا على الأقل).                                       |
+| `PUBLIC_HOST`                     | نعم   |                           | اسم المضيف العام أو عنوان IP لخدمة ذاكرة التخزين المؤقت الخاصة بك. يُستخدم لإنشاء عناوين URL مطلقة. |
+| `SERVER_URL`                      | نعم   |                           | عنوان URL لخادم Tuist الخاص بك للمصادقة. القيمة الافتراضية هي `https://tuist.dev`                   |
+| `DATA_DIR`                        | نعم   |                           | الدليل الذي يتم فيه تخزين ملفات CAS على القرص. يستخدم إعداد Docker Compose المقدم `/data`.          |
+| `S3_BUCKET`                       | نعم   |                           | اسم سلة S3.                                                                                         |
+| `S3_HOST`                         | نعم   |                           | اسم مضيف نقطة نهاية S3.                                                                             |
+| `S3_ACCESS_KEY_ID`                | نعم   |                           | مفتاح الوصول S3.                                                                                    |
+| `S3_SECRET_ACCESS_KEY`            | نعم   |                           | مفتاح سري S3.                                                                                       |
+| `S3_REGION`                       | نعم   |                           | منطقة S3.                                                                                           |
+| `CAS_DISK_HIGH_WATERMARK_PERCENT` | لا    | `85`                      | نسبة استخدام القرص التي تؤدي إلى إخلاء LRU.                                                         |
+| `CAS_DISK_TARGET_PERCENT`         | لا    | `70`                      | استخدام القرص المستهدف بعد الإخلاء.                                                                 |
+| `PHX_SOCKET_PATH`                 | لا    | `/run/cache/cache.sock`   | المسار الذي تنشئ فيه الخدمة مقبس Unix الخاص بها (عند التمكين).                                      |
+| `PHX_SOCKET_LINK`                 | لا    | `/run/cache/current.sock` | مسار الارتباط الرمزي الذي يستخدمه Nginx للاتصال بالخدمة.                                            |
 
-### Start the service {#start-service}
+### ابدأ الخدمة {#start-service}
 
 ```bash
 docker compose up -d
 ```
 
-### Verify the deployment {#verify}
+### تحقق من النشر {#verify}
 
 ```bash
 curl http://localhost/up
 ```
 
-## Configure the cache endpoint {#configure-endpoint}
+## تكوين نقطة نهاية ذاكرة التخزين المؤقت {#configure-endpoint}
 
-After deploying the cache service, register it in your Tuist server organization
-settings:
+بعد نشر خدمة ذاكرة التخزين المؤقت، قم بتسجيلها في إعدادات مؤسسة خادم Tuist:
 
-1. Navigate to your organization's **Settings** page
-2. Find the **Custom cache endpoints** section
-3. Add your cache service URL (for example, `https://cache.example.com`)
+1. انتقل إلى صفحة إعدادات **** الخاصة بمؤسستك.
+2. ابحث عن **نقاط نهاية ذاكرة التخزين المؤقت المخصصة قسم**
+3. أضف عنوان URL لخدمة ذاكرة التخزين المؤقت (على سبيل المثال،
+   `https://cache.example.com`)
 
 <!-- TODO: Add screenshot of organization settings page showing Custom cache endpoints section -->
 
@@ -136,58 +135,60 @@ graph TD
   B --> C[Tuist CLI uses your endpoint]
 ```
 
-Once configured, the Tuist CLI will use your self-hosted cache.
+بمجرد التهيئة، سيستخدم Tuist CLI ذاكرة التخزين المؤقتة المستضافة ذاتيًا.
 
-## Volumes {#volumes}
+## المجلدات {#volumes}
 
-The Docker Compose configuration uses three volumes:
+يستخدم تكوين Docker Compose ثلاثة مجلدات:
 
-| Volume         | Purpose                                     |
-| -------------- | ------------------------------------------- |
-| `cas_data`     | Binary artifact storage                     |
-| `sqlite_data`  | Access metadata for LRU eviction            |
-| `cache_socket` | Unix socket for Nginx-service communication |
+| الحجم          | الغرض                                  |
+| -------------- | -------------------------------------- |
+| `cas_data`     | تخزين الأثر الثنائي                    |
+| `sqlite_data`  | الوصول إلى البيانات الوصفية لإخلاء LRU |
+| `cache_socket` | مقبس Unix للاتصال بخدمة Nginx          |
 
-## Health checks {#health-checks}
+## فحوصات صحية {#health-checks}
 
-- `GET /up` — Returns 200 when healthy
-- `GET /metrics` — Prometheus metrics
+- `GET /up` — يُرجع 200 عندما يكون سليمًا
+- `GET /metrics` — مقاييس Prometheus
 
-## Monitoring {#monitoring}
+## المراقبة {#monitoring}
 
-The cache service exposes Prometheus-compatible metrics at `/metrics`.
+تكشف خدمة ذاكرة التخزين المؤقت عن المقاييس المتوافقة مع Prometheus على
+`/metrics`.
 
-If you use Grafana, you can import the [reference
-dashboard](https://raw.githubusercontent.com/tuist/tuist/refs/heads/main/cache/priv/grafana_dashboards/cache_service.json).
+إذا كنت تستخدم Grafana، يمكنك استيراد [لوحة المعلومات
+المرجعية](https://raw.githubusercontent.com/tuist/tuist/refs/heads/main/cache/priv/grafana_dashboards/cache_service.json).
 
-## Upgrading {#upgrading}
+## الترقية {#upgrading}
 
 ```bash
 docker compose pull
 docker compose up -d
 ```
 
-The service runs database migrations automatically on startup.
+تقوم الخدمة بتشغيل عمليات ترحيل قاعدة البيانات تلقائيًا عند بدء التشغيل.
 
-## Troubleshooting {#troubleshooting}
+## استكشاف الأخطاء وإصلاحها {#استكشاف الأخطاء وإصلاحها}
 
-### Cache not being used {#troubleshooting-caching}
+### لا يتم استخدام ذاكرة التخزين المؤقت {#troubleshooting-caching}
 
-If you expect caching but are seeing consistent cache misses (for example, the
-CLI is repeatedly uploading the same artifacts, or downloads never happen),
-follow these steps:
+إذا كنت تتوقع التخزين المؤقت ولكنك تلاحظ فشلًا متكررًا في التخزين المؤقت (على
+سبيل المثال، يقوم CLI بتحميل نفس العناصر بشكل متكرر، أو لا يتم التنزيل أبدًا)،
+فاتبع الخطوات التالية:
 
-1. Verify the custom cache endpoint is correctly configured in your organization
-   settings.
-2. Ensure your Tuist CLI is authenticated by running `tuist auth login`.
-3. Check the cache service logs for any errors: `docker compose logs cache`.
+1. تحقق من أن نقطة نهاية ذاكرة التخزين المؤقتة المخصصة قد تم تكوينها بشكل صحيح
+   في إعدادات مؤسستك.
+2. تأكد من مصادقة Tuist CLI عن طريق تشغيل `tuist auth login`.
+3. تحقق من سجلات خدمة ذاكرة التخزين المؤقت بحثًا عن أي أخطاء: `docker compose
+   logs cache`.
 
-### Socket path mismatch {#troubleshooting-socket}
+### عدم تطابق مسار المقبس {#troubleshooting-socket}
 
-If you see connection refused errors:
+إذا رأيت أخطاء رفض الاتصال:
 
-- Ensure `PHX_SOCKET_LINK` points to the socket path configured in nginx.conf
-  (default: `/run/cache/current.sock`)
-- Verify `PHX_SOCKET_PATH` and `PHX_SOCKET_LINK` are both set correctly in
+- تأكد من أن `PHX_SOCKET_LINK` يشير إلى مسار المقبس المُعد في nginx.conf
+  (الافتراضي: `/run/cache/current.sock`)
+- تحقق من أن `PHX_SOCKET_PATH` و `PHX_SOCKET_LINK` محددان بشكل صحيح في
   docker-compose.yml
-- Verify the `cache_socket` volume is mounted in both containers
+- تحقق من أن وحدة التخزين `cache_socket` مركبة في كلا الحاويتين
