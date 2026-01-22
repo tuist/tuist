@@ -7,51 +7,52 @@
 ---
 # Sürümler
 
-Tuist, anlamlı değişiklikler ana dalla birleştirildiğinde yeni sürümleri
-otomatik olarak yayınlayan sürekli bir sürüm sistemi kullanır. Bu yaklaşım,
+Tuist, anlamlı değişiklikler ana dala birleştirildiğinde yeni sürümleri otomatik
+olarak yayınlayan sürekli bir sürüm sistemini kullanır. Bu yaklaşım,
 bakımcıların manuel müdahalesi olmadan iyileştirmelerin kullanıcılara hızlı bir
 şekilde ulaşmasını sağlar.
 
-## Genel Bakış
+## Genel bakış
 
-Sürekli olarak üç ana bileşeni piyasaya sürüyoruz:
+Üç ana bileşeni sürekli olarak yayınlıyoruz:
 - **Tuist CLI** - CLI aracı
 - **Tuist Sunucusu** - Arka uç hizmetleri
 - **Tuist Uygulaması** - macOS ve iOS uygulamaları (iOS uygulaması yalnızca
-  TestFlight'a sürekli olarak dağıtılır, daha fazla bilgi için [buraya] bakın}
+  TestFlight'a sürekli olarak dağıtılır, daha fazla bilgi için [buraya] bakın
+  (#app-store-release)
 
-Her bileşenin, ana dala yapılan her gönderimde otomatik olarak çalışan kendi
-sürüm işlem hattı vardır.
+Her bileşen, ana dala her itme işleminde otomatik olarak çalışan kendi sürüm
+boru hattına sahiptir.
 
-## Nasıl çalışır
+## Nasıl çalışır?
 
-### 1. Sözleşmeleri taahhüt edin
+### 1. Kurallara uyun
 
-Taahhüt mesajlarımızı yapılandırmak için [Conventional
+Commit mesajlarımızı yapılandırmak için [Conventional
 Commits](https://www.conventionalcommits.org/) kullanıyoruz. Bu, araçlarımızın
-değişikliklerin doğasını anlamasına, sürüm atlamalarını belirlemesine ve uygun
+değişikliklerin niteliğini anlamasına, sürüm artışlarını belirlemesine ve uygun
 değişiklik günlükleri oluşturmasına olanak tanır.
 
-Biçim: `tür (kapsam): açıklama`
+Biçim: `tür(kapsam): açıklama`
 
-#### Taahhüt türleri ve etkileri
+#### Commit türleri ve etkileri
 
-| Tip          | Açıklama                       | Sürüm Etkisi                    | Örnekler                                              |
-| ------------ | ------------------------------ | ------------------------------- | ----------------------------------------------------- |
-| `feat`       | Yeni özellik veya kabiliyet    | Küçük sürüm yükseltmesi (x.Y.z) | `feat(CLI): Swift 6 için destek ekleyin`              |
-| `düzeltmek`  | Hata düzeltme                  | Yama sürümü çarpması (x.y.Z)    | `fix(app): projeler açılırken oluşan çökme giderildi` |
-| `dokümanlar` | Dokümantasyon değişiklikleri   | Serbest bırakma yok             | `dokümanlar: güncelleme kurulum kilavuzu`             |
-| `stil`       | Kod stili değişiklikleri       | Serbest bırakma yok             | `style: swiftformat ile kodu biçimlendir`             |
-| `refactor`   | Kod yeniden düzenleme          | Serbest bırakma yok             | `refactor(server): auth mantığını basitleştirin`      |
-| `mükemmel`   | Performans iyileştirmeleri     | Yama sürümü yükseltme           | `perf(CLI): bağımlılık çözümlemesini optimize eder`   |
-| `test`       | Test eklemeleri/değişiklikleri | Serbest bırakma yok             | `test: önbellek için birim testleri ekleyin`          |
-| `chore`      | Bakım görevleri                | Serbest bırakma yok             | `chore: bağımlılıkları güncelle`                      |
-| `ci`         | CI/CD değişiklikleri           | Serbest bırakma yok             | `ci: sürümler için iş akışı ekleyin`                  |
+| Yazın                | Açıklama                       | Sürüm Etkisi                    | Örnekler                                                     |
+| -------------------- | ------------------------------ | ------------------------------- | ------------------------------------------------------------ |
+| `feat`               | Yeni özellik veya yetenek      | Küçük sürüm yükseltmesi (x.Y.z) | `feat(CLI): Swift 6 desteği ekleyin`                         |
+| `düzelt`             | Hata düzeltme                  | Yama sürümü yükseltmesi (x.y.Z) | `fix(app): projeleri açarken yaşanan çökme sorunu çözüldü`   |
+| `docs`               | Dokümantasyon değişiklikleri   | Yayın yok                       | `docs: kurulum kılavuzunu güncelle`                          |
+| `stil`               | Kod stili değişiklikleri       | Yayın yok                       | `stil: swiftformat ile kod biçimlendirme`                    |
+| `yeniden düzenleyin` | Kod yeniden düzenleme          | Yayın yok                       | `refactor(sunucu): kimlik doğrulama mantığını basitleştirin` |
+| `perf`               | Performans iyileştirmeleri     | Yama sürümü yükseltmesi         | `perf(CLI): bağımlılık çözümünü optimize edin`               |
+| `test`               | Test eklemeleri/değişiklikleri | Yayın yok                       | `test: önbellek için birim testleri ekleyin`                 |
+| `chore`              | Bakım görevleri                | Yayın yok                       | `görev: bağımlılıkları güncelle`                             |
+| `ci`                 | CI/CD değişiklikleri           | Yayın yok                       | `ci: sürümler için iş akışı ekleyin`                         |
 
-#### Kırılma değişiklikleri
+#### Önemli değişiklikler
 
-Kırıcı değişiklikler büyük sürüm artışını (X.0.0) tetikler ve commit gövdesinde
-belirtilmelidir:
+Önemli değişiklikler, ana sürümde büyük bir değişiklik (X.0.0) tetikler ve
+commit gövdesinde belirtilmelidir:
 
 ```
 feat(cli): change default cache location
@@ -60,54 +61,54 @@ BREAKING CHANGE: The cache is now stored in ~/.tuist/cache instead of .tuist-cac
 Users will need to clear their old cache directory.
 ```
 
-### 2. Değişiklik tespiti
+### 2. Değişiklik algılama
 
-Her bileşen [git cliff](https://git-cliff.org/) kullanır:
-- Son sürümden bu yana yapılan değişiklikleri analiz edin
-- İşlemleri kapsama göre filtreleme (CLI, app, server)
-- Serbest bırakılabilir değişiklikler olup olmadığını belirleyin
+Her bileşen [git cliff](https://git-cliff.org/) kullanarak şunları yapar:
+- Son sürümden bu yana yapılan işlemleri analiz edin
+- Kapsama göre taahhütleri filtreleyin (CLI, app, server)
+- Yayınlanabilir değişiklikler olup olmadığını belirleyin.
 - Değişiklik günlüklerini otomatik olarak oluşturun
 
-### 3. Boru hattını serbest bırakın
+### 3. Yayınlama süreci
 
-Serbest bırakılabilir değişiklikler tespit edildiğinde:
+Yayınlanabilir değişiklikler tespit edildiğinde:
 
-1. **Sürüm hesaplama**: Boru hattı bir sonraki sürüm numarasını belirler
+1. **Sürüm hesaplama**: Boru hattı bir sonraki sürüm numarasını belirler.
 2. **Değişiklik günlüğü oluşturma**: git cliff, commit mesajlarından bir
-   değişiklik günlüğü oluşturur
-3. **Oluşturma süreci**: Bileşen oluşturulur ve test edilir
-4. **Sürüm oluşturma**: Artifact'lar ile bir GitHub sürümü oluşturulur
-5. **Dağıtım**: Güncellemeler paket yöneticilerine gönderilir (örneğin, CLI için
-   Homebrew)
+   değişiklik günlüğü oluşturur.
+3. **Oluşturma süreci**: Bileşen oluşturulur ve test edilir.
+4. **Sürüm oluşturma**: GitHub sürümü, artefaktlarla birlikte oluşturulur.
+5. **Dağıtım**: Güncellemeler paket yöneticilerine (ör. CLI için Homebrew)
+   gönderilir.
 
 ### 4. Kapsam filtreleme
 
-Her bileşen yalnızca ilgili değişiklikler olduğunda yayınlanır:
+Her bileşen, yalnızca ilgili değişiklikler olduğunda yayınlanır:
 
-- **CLI**: `(CLI)` kapsamı veya kapsamı olmayan komutlar
-- **Uygulama**: ` (app)` kapsamı ile commitler
-- **Sunucu**: ` (sunucu)` kapsamı ile commitler
+- **CLI**: `(CLI) ile commit yapar.` scope veya no scope
+- **Uygulama**: `(app)` scope ile yapılan işlemler
+- **Sunucu**: `(sunucu) ile taahhütler` kapsamı
 
 ## İyi commit mesajları yazma
 
-Taahhüt mesajları sürüm notlarını doğrudan etkilediğinden, net ve açıklayıcı
+Commit mesajları sürüm notlarını doğrudan etkilediğinden, açık ve açıklayıcı
 mesajlar yazmak önemlidir:
 
-### Yap:
-- Şimdiki zaman kullanın: "özellik eklendi" değil "özellik eklendi"
-- Kısa ama açıklayıcı olun
-- Değişiklikler bileşene özgü olduğunda kapsamı dahil edin
-- Uygun olduğunda sorunlara referans verin: `fix(CLI): derleme önbelleği
-  sorununu çözün (#1234)`
+### Yapılması gerekenler:
+- Şimdiki zaman kullanın: "özellik ekle" değil, "özellik eklendi"
+- Kısa ve öz, ancak açıklayıcı olun.
+- Değişiklikler bileşene özgü ise kapsamı da ekleyin.
+- Uygun olduğunda referans sorunları: `düzeltme (CLI): derleme önbelleği
+  sorununu çözme (#1234)`
 
-### Yapma:
-- "Hatayı düzelt" veya "kodu güncelle" gibi belirsiz mesajlar kullanın
-- Birden fazla ilgisiz değişikliği tek bir işlemde karıştırma
-- Son dakika değişiklik bilgilerini eklemeyi unutun
+### Yapmamanız gerekenler:
+- "Hata düzeltme" veya "kod güncelleme" gibi belirsiz mesajlar kullanın.
+- Birden fazla ilgisiz değişikliği tek bir işlemde birleştirin
+- Önemli değişiklik bilgilerini eklemeyi unutmayın.
 
-### Kırılma değişiklikleri
+### Önemli değişiklikler
 
-Kırılma değişiklikleri için, commit gövdesine `BREAKING CHANGE:` adresini
+Önemli değişiklikler için, `BREAKING CHANGE:` ifadesini commit gövdesine
 ekleyin:
 
 ```
@@ -119,22 +120,22 @@ Users need to clear their cache after updating.
 
 ## Yayın iş akışları
 
-Sürüm iş akışları şurada tanımlanmıştır:
+Yayın iş akışları şu şekilde tanımlanmıştır:
 - `.github/workflows/cli-release.yml` - CLI sürümleri
 - `.github/workflows/app-release.yml` - Uygulama sürümleri
 - `.github/workflows/server-release.yml` - Sunucu sürümleri
 
 Her iş akışı:
-- Ana şebekeye itme ile çalışır
+- Ana sayfaya gönderildiğinde çalışır.
 - Manuel olarak tetiklenebilir
-- Değişiklik tespiti için git cliff kullanır
-- Tüm sürüm sürecini yönetir
+- Değişiklik tespiti için git cliff kullanır.
+- Tüm yayın sürecini yönetir.
 
-## Salımların izlenmesi
+## Sürümleri izleme
 
-Sürümleri şu yolla izleyebilirsiniz:
-- [GitHub Sürümler sayfası](https://github.com/tuist/tuist/releases)
-- İş akışı çalıştırmaları için GitHub Eylemleri sekmesi
+Sürümleri şu şekilde takip edebilirsiniz:
+- [GitHub Sürümleri sayfası](https://github.com/tuist/tuist/releases)
+- İş akışı çalıştırmaları için GitHub Actions sekmesi
 - Her bileşen dizinindeki değişiklik günlüğü dosyaları
 
 ## Avantajlar
@@ -142,41 +143,41 @@ Sürümleri şu yolla izleyebilirsiniz:
 Bu sürekli sürüm yaklaşımı şunları sağlar:
 
 - **Hızlı teslimat**: Değişiklikler birleştirildikten hemen sonra kullanıcılara
-  ulaşır
-- **Azaltılmış darboğazlar**: Manuel sürümler için beklemek yok
-- **Açık iletişim**: Commit mesajlarından otomatik değişiklik günlükleri
+  ulaşır.
+- ****'da darboğazlar azaltıldı: Manuel sürümler için beklemek gerekmiyor
+- **Net iletişim**: Commit mesajlarından otomatik değişiklik günlükleri
 - **Tutarlı süreç**: Tüm bileşenler için aynı sürüm akışı
-- **Kalite güvencesi**: Sadece test edilen değişiklikler yayınlanır
+- **Kalite güvencesi**: Yalnızca test edilmiş değişiklikler yayınlanır.
 
 ## Sorun Giderme
 
-Serbest bırakma başarısız olursa:
+Sürüm başarısız olursa:
 
-1. Başarısız iş akışı için GitHub Actions günlüklerini kontrol edin
-2. Taahhüt mesajlarınızın geleneksel formatı takip ettiğinden emin olun
-3. Tüm testlerin geçtiğini doğrulayın
-4. Bileşenin başarıyla derlendiğini kontrol edin
+1. Başarısız iş akışını GitHub Actions günlüklerinde kontrol edin.
+2. Commit mesajlarınızın geleneksel biçimi izlediğinden emin olun.
+3. Tüm testlerin başarılı olduğunu doğrulayın.
+4. Bileşenin başarıyla oluşturulduğunu kontrol edin.
 
-Hemen yayınlanması gereken acil düzeltmeler için:
-1. Taahhüdünüzün net bir kapsamı olduğundan emin olun
-2. Birleştirmeden sonra sürüm iş akışını izleyin
-3. Gerekirse manuel serbest bırakmayı tetikleyin
+Acil olarak yayınlanması gereken acil düzeltmeler için:
+1. Commit'inizin kapsamının net olduğundan emin olun.
+2. Birleştirme işleminden sonra, yayın iş akışını izleyin.
+3. Gerekirse, manuel yayınlamayı başlatın.
 
 ## App Store sürümü
 
-CLI ve Sunucu yukarıda açıklanan sürekli sürüm sürecini takip ederken, **iOS
+CLI ve Sunucu yukarıda açıklanan sürekli sürüm sürecini izlerken, **iOS
 uygulaması** Apple'ın App Store inceleme süreci nedeniyle bir istisnadır:
 
-- **Manuel sürümler**: iOS uygulama sürümlerinin App Store'a manuel olarak
-  gönderilmesi gerekir
-- **İnceleme gecikmeleri**: Her sürüm Apple'ın inceleme sürecinden geçmelidir ve
-  bu süreç 1-7 gün sürebilir
-- **Toplu değişiklikler**: Her iOS sürümünde genellikle birden fazla değişiklik
-  bir araya getirilir
-- **TestFlight**: Beta sürümleri App Store'da yayınlanmadan önce TestFlight
-  aracılığıyla dağıtılabilir
-- **Sürüm notları**: App Store yönergeleri için özel olarak yazılmalıdır
+- **Manuel sürümler**: iOS uygulama sürümleri, App Store'a manuel olarak
+  gönderilmelidir.
+- **İnceleme gecikmeleri**: Her sürüm, 1-7 gün sürebilen Apple'ın inceleme
+  sürecinden geçmelidir.
+- **Toplu değişiklikler**: Birden fazla değişiklik genellikle her iOS sürümünde
+  bir araya getirilir.
+- **TestFlight**: Beta sürümleri, App Store'da yayınlanmadan önce TestFlight
+  aracılığıyla dağıtılabilir.
+- **Sürüm notları**: App Store yönergeleri için özel olarak yazılmalıdır.
 
-iOS uygulaması hala aynı commit kurallarını takip ediyor ve değişiklik günlüğü
-oluşturmak için git cliff kullanıyor, ancak kullanıcılara gerçek sürüm daha az
-sıklıkta, manuel bir programda gerçekleşiyor.
+iOS uygulaması hala aynı commit kurallarına uymakta ve değişiklik günlüğü
+oluşturmak için git cliff kullanmaktadır, ancak kullanıcılara sunulan gerçek
+sürümler daha seyrek ve manuel bir programla yayınlanmaktadır.
