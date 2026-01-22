@@ -5,54 +5,47 @@
   "description": "Learn how to leverage selective testing to run only the tests that have changed."
 }
 ---
-# Selective testing {#selective-testing}
+# 선택적 테스트 {#selective-testing}
 
-::: warning REQUIREMENTS
+::: warning 요구 사항
 <!-- -->
-- A <LocalizedLink href="/guides/features/projects">generated
-  project</LocalizedLink>
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
-  project</LocalizedLink>
+- <LocalizedLink href="/guides/features/projects"> 생성된 프로젝트</LocalizedLink>
+- 1}Tuist 계정 및 프로젝트</LocalizedLink>
 <!-- -->
 :::
 
-To run tests selectively with your generated project, use the `tuist test`
-command. The command
-<LocalizedLink href="/guides/features/projects/hashing">hashes</LocalizedLink>
-your Xcode project the same way it does for
-<LocalizedLink href="/guides/features/cache#cache-warming">warming the
-cache</LocalizedLink>, and on success, it persists the hashes on to determine
-what has changed in future runs.
+`생성된 프로젝트에서 선택적으로 테스트를 실행하려면 `tuist test` ` 명령을 사용하세요. 이 명령은
+<LocalizedLink href="/guides/features/projects/hashing">해시값</LocalizedLink>을
+생성하여 <LocalizedLink href="/guides/features/cache#cache-warming">캐시
+예열</LocalizedLink>과 동일한 방식으로 Xcode 프로젝트를 처리하며, 성공 시 향후 실행에서 변경된 부분을 판단하기 위해 해시값을
+저장합니다.
 
-In future runs `tuist test` transparently uses the hashes to filter down the
-tests to run only the ones that have changed since the last successful test run.
+향후 실행 시 `tuist test` 은 해시(hash)를 투명하게 활용하여 테스트를 필터링하여, 마지막 성공적인 테스트 실행 이후 변경된
+테스트만 실행합니다.
 
-For example, assuming the following dependency graph:
+예를 들어, 다음과 같은 종속성 그래프를 가정합니다:
 
 - `FeatureA` has tests `FeatureATests`, and depends on `Core`
 - `FeatureB` has tests `FeatureBTests`, and depends on `Core`
-- `Core` has tests `CoreTests`
+- `Core` 에는 테스트가 있습니다 `CoreTests`
 
-`tuist test` will behave as such:
+`tuist test` 는 다음과 같이 동작합니다:
 
-| Action                  | Description                                                         | Internal state                                                                 |
-| ----------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `tuist test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The hashes of `FeatureATests`, `FeatureBTests` and `CoreTests` are persisted   |
-| `FeatureA` is updated   | The developer modifies the code of a target                         | Same as before                                                                 |
-| `tuist test` invocation | Runs the tests in `FeatureATests` because it hash has changed       | The new hash of `FeatureATests` is persisted                                   |
-| `Core` is updated       | The developer modifies the code of a target                         | Same as before                                                                 |
-| `tuist test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The new hash of `FeatureATests` `FeatureBTests`, and `CoreTests` are persisted |
+| 액션                     | 설명                                                                    | 내부 상태                                                                      |
+| ---------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `tuist 테스트` 호출         | `의 CoreTests(`), `의 FeatureATests(`), `의 FeatureBTests에서 테스트를 실행합니다.` | `의 FeatureATests(`), `의 FeatureBTests(` ), `의 CoreTests(` ) 해시값은 영구 저장됩니다. |
+| `FeatureA` 이 업데이트되었습니다 | 개발자는 대상의 코드를 수정합니다.                                                   | 이전과 동일                                                                     |
+| `tuist 테스트` 호출         | `에서 FeatureATests 테스트 실행 중` 해시 변경으로 인해                                | `FeatureATests의 새 해시` 이 저장됩니다.                                             |
+| `Core` 업데이트됨           | 개발자는 대상의 코드를 수정합니다.                                                   | 이전과 동일                                                                     |
+| `tuist 테스트` 호출         | `의 CoreTests(`), `의 FeatureATests(`), `의 FeatureBTests에서 테스트를 실행합니다.` | `의 새 해시 FeatureATests` `FeatureBTests`, 그리고 `CoreTests` 가 지속됩니다.           |
 
-`tuist test` integrates directly with binary caching to use as many binaries
-from your local or remote storage to improve the build time when running your
-test suite. The combination of selective testing with binary caching can
-dramatically reduce the time it takes to run tests on your CI.
+`tuist 테스트` 는 바이너리 캐싱과 직접 연동되어 로컬 또는 원격 저장소의 바이너리를 최대한 활용하여 테스트 스위트 실행 시 빌드 시간을
+단축합니다. 선택적 테스트와 바이너리 캐싱의 결합은 CI 환경에서 테스트 실행 시간을 획기적으로 줄일 수 있습니다.
 
-## UI Tests {#ui-tests}
+## UI 테스트 {#ui-tests}
 
-Tuist supports selective testing of UI tests. However, Tuist needs to know the
-destination in advance. Only if you specify the `destination` parameter, Tuist
-will run the UI tests selectively, such as:
+Tuist는 UI 테스트의 선택적 실행을 지원합니다. 다만 Tuist는 실행 대상을 사전에 알아야 합니다. `대상 지정` 매개변수를 명시해야만
+Tuist가 다음과 같이 UI 테스트를 선택적으로 실행합니다:
 ```sh
 tuist test --device 'iPhone 14 Pro'
 # or
