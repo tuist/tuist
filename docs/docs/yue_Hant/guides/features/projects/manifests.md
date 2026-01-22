@@ -95,7 +95,8 @@ of using a single project or multiple projects in a workspace is up to you.
 
 In the Tuist project we lean on mono-projects because the cold generation time
 is faster (fewer manifest files to compile) and we leverage
-<LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink> as a unit of encapsulation. However, you might want to
+<LocalizedLink href="/guides/features/projects/code-sharing">project description
+helpers</LocalizedLink> as a unit of encapsulation. However, you might want to
 use Xcode projects as a unit of encapsulation to represent different domains of
 your application, which aligns more closely with the Xcode's recommended project
 structure.
@@ -103,7 +104,8 @@ structure.
 ## Tuist.swift {#tuistswift}
 
 Tuist provides
-<LocalizedLink href="/contributors/principles.html#default-to-conventions">sensible defaults</LocalizedLink> to simplify project configuration. However, you can
+<LocalizedLink href="/contributors/principles.html#default-to-conventions">sensible
+defaults</LocalizedLink> to simplify project configuration. However, you can
 customize the configuration by defining a
 <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>
 at the root of the project, which is used by Tuist to determine the root of the
