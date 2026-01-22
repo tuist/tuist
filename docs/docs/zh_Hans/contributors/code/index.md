@@ -10,7 +10,7 @@
 Tuist采用单仓库模式。每个组件拥有独立的工具链、依赖项及本地运行步骤。请选择您希望贡献的领域：
 
 - <LocalizedLink href="/contributors/code/cli">CLI</LocalizedLink>
-- <LocalizedLink href="/contributors/code/server">Server</LocalizedLink>
+- <LocalizedLink href="/contributors/code/server">服务器</LocalizedLink>
 - <LocalizedLink href="/contributors/code/handbook">手册</LocalizedLink>
 - <LocalizedLink href="/contributors/code/docs">文档</LocalizedLink>
 
