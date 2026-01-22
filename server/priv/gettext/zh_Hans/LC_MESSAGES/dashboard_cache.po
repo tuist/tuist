@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
-"PO-Revision-Date: 2026-01-22 13:05+0000\n"
+"PO-Revision-Date: 2026-01-23 07:32+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_cache/zh_Hans/>\n"
@@ -573,20 +573,26 @@ msgstr "自上次句点以来"
 msgid "since yesterday"
 msgstr "自昨日起"
 
+#, fuzzy
 msgid "Cache Endpoint"
-msgstr ""
+msgstr "缓存端点"
 
+#, fuzzy
 msgid "Set up Xcode cache for your project"
-msgstr ""
+msgstr "为项目设置Xcode缓存"
 
+#, fuzzy
 msgid "You can set up the Xcode cache for your project by running:"
-msgstr ""
+msgstr "可通过运行以下命令为项目配置Xcode缓存："
 
+#, fuzzy
 msgid "Tuist documentation"
-msgstr ""
+msgstr "Tuist 文档"
 
+#, fuzzy
 msgid "Size (KB)"
-msgstr ""
+msgstr "大小（KB）"
 
+#, fuzzy
 msgid "Space usage (%)"
-msgstr ""
+msgstr "空格使用率（%）"
