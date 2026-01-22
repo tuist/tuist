@@ -15,7 +15,7 @@ bakımcıların manuel müdahalesi olmadan iyileştirmelerin kullanıcılara hı
 ## Genel Bakış
 
 Sürekli olarak üç ana bileşeni piyasaya sürüyoruz:
-- **Tuist CLI** - Komut satırı aracı
+- **Tuist CLI** - CLI aracı
 - **Tuist Sunucusu** - Arka uç hizmetleri
 - **Tuist Uygulaması** - macOS ve iOS uygulamaları (iOS uygulaması yalnızca
   TestFlight'a sürekli olarak dağıtılır, daha fazla bilgi için [buraya] bakın}
@@ -84,7 +84,7 @@ Serbest bırakılabilir değişiklikler tespit edildiğinde:
 
 Her bileşen yalnızca ilgili değişiklikler olduğunda yayınlanır:
 
-- **CLI**: `(cli)` kapsamı veya kapsamı olmayan komutlar
+- **CLI**: `(CLI)` kapsamı veya kapsamı olmayan komutlar
 - **Uygulama**: ` (app)` kapsamı ile commitler
 - **Sunucu**: ` (sunucu)` kapsamı ile commitler
 
