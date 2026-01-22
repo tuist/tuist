@@ -5362,6 +5362,305 @@ struct PackageInfoMapperTests {
 
         #expect(swiftConditions == nil)
     }
+
+    // MARK: - Trait Condition Filtering Tests
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenDependencyHasTraitConditionAndTraitNotEnabled_excludesDependency() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package2/Sources/Target2")))
+
+        let package1 = PackageInfo.test(
+            name: "Package",
+            products: [
+                .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+            ],
+            targets: [
+                .test(
+                    name: "Target1",
+                    dependencies: [
+                        .product(
+                            name: "Product2",
+                            package: "Package2",
+                            moduleAliases: nil,
+                            condition: .init(platformNames: [], config: nil, traits: ["FeatureX"])
+                        ),
+                    ]
+                ),
+            ],
+            traits: [
+                PackageTrait(enabledTraits: [], name: "FeatureX", description: "Feature X"),
+            ],
+            platforms: [.ios]
+        )
+        let package2 = PackageInfo.test(
+            name: "Package2",
+            products: [
+                .init(name: "Product2", type: .library(.automatic), targets: ["Target2"]),
+            ],
+            targets: [
+                .test(name: "Target2"),
+            ],
+            platforms: [.ios]
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: ["Package": package1, "Package2": package2],
+            enabledTraits: []
+        )
+
+        let target = try #require(project?.targets.first(where: { $0.name == "Target1" }))
+        #expect(target.dependencies.isEmpty)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenDependencyHasTraitConditionAndTraitEnabled_includesDependency() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package2/Sources/Target2")))
+
+        let package1 = PackageInfo.test(
+            name: "Package",
+            products: [
+                .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+            ],
+            targets: [
+                .test(
+                    name: "Target1",
+                    dependencies: [
+                        .product(
+                            name: "Product2",
+                            package: "Package2",
+                            moduleAliases: nil,
+                            condition: .init(platformNames: [], config: nil, traits: ["FeatureX"])
+                        ),
+                    ]
+                ),
+            ],
+            traits: [
+                PackageTrait(enabledTraits: [], name: "FeatureX", description: "Feature X"),
+            ],
+            platforms: [.ios]
+        )
+        let package2 = PackageInfo.test(
+            name: "Package2",
+            products: [
+                .init(name: "Product2", type: .library(.automatic), targets: ["Target2"]),
+            ],
+            targets: [
+                .test(name: "Target2"),
+            ],
+            platforms: [.ios]
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: ["Package": package1, "Package2": package2],
+            enabledTraits: Set(["FeatureX"])
+        )
+
+        let target = try #require(project?.targets.first(where: { $0.name == "Target1" }))
+        #expect(target.dependencies.count == 1)
+        #expect(target.dependencies.first == .external(name: "Product2"))
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenDependencyHasMultipleTraitConditionsAndOneEnabled_includesDependency() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package2/Sources/Target2")))
+
+        let package1 = PackageInfo.test(
+            name: "Package",
+            products: [
+                .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+            ],
+            targets: [
+                .test(
+                    name: "Target1",
+                    dependencies: [
+                        .product(
+                            name: "Product2",
+                            package: "Package2",
+                            moduleAliases: nil,
+                            condition: .init(platformNames: [], config: nil, traits: ["FeatureX", "FeatureY"])
+                        ),
+                    ]
+                ),
+            ],
+            traits: [
+                PackageTrait(enabledTraits: [], name: "FeatureX", description: "Feature X"),
+                PackageTrait(enabledTraits: [], name: "FeatureY", description: "Feature Y"),
+            ],
+            platforms: [.ios]
+        )
+        let package2 = PackageInfo.test(
+            name: "Package2",
+            products: [
+                .init(name: "Product2", type: .library(.automatic), targets: ["Target2"]),
+            ],
+            targets: [
+                .test(name: "Target2"),
+            ],
+            platforms: [.ios]
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: ["Package": package1, "Package2": package2],
+            enabledTraits: Set(["FeatureY"])
+        )
+
+        let target = try #require(project?.targets.first(where: { $0.name == "Target1" }))
+        #expect(target.dependencies.count == 1)
+        #expect(target.dependencies.first == .external(name: "Product2"))
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenDependencyHasNoTraitCondition_includesDependency() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package2/Sources/Target2")))
+
+        let package1 = PackageInfo.test(
+            name: "Package",
+            products: [
+                .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+            ],
+            targets: [
+                .test(
+                    name: "Target1",
+                    dependencies: [
+                        .product(
+                            name: "Product2",
+                            package: "Package2",
+                            moduleAliases: nil,
+                            condition: nil
+                        ),
+                    ]
+                ),
+            ],
+            platforms: [.ios]
+        )
+        let package2 = PackageInfo.test(
+            name: "Package2",
+            products: [
+                .init(name: "Product2", type: .library(.automatic), targets: ["Target2"]),
+            ],
+            targets: [
+                .test(name: "Target2"),
+            ],
+            platforms: [.ios]
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: ["Package": package1, "Package2": package2],
+            enabledTraits: []
+        )
+
+        let target = try #require(project?.targets.first(where: { $0.name == "Target1" }))
+        #expect(target.dependencies.count == 1)
+        #expect(target.dependencies.first == .external(name: "Product2"))
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenTargetDependencyHasTraitConditionAndTraitNotEnabled_excludesDependency() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target2")))
+
+        let package = PackageInfo.test(
+            name: "Package",
+            products: [
+                .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+            ],
+            targets: [
+                .test(
+                    name: "Target1",
+                    dependencies: [
+                        .target(
+                            name: "Target2",
+                            condition: .init(platformNames: [], config: nil, traits: ["FeatureX"])
+                        ),
+                    ]
+                ),
+                .test(name: "Target2"),
+            ],
+            traits: [
+                PackageTrait(enabledTraits: [], name: "FeatureX", description: "Feature X"),
+            ],
+            platforms: [.ios]
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: ["Package": package],
+            enabledTraits: []
+        )
+
+        let target = try #require(project?.targets.first(where: { $0.name == "Target1" }))
+        #expect(target.dependencies.isEmpty)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenByNameDependencyHasTraitConditionAndTraitNotEnabled_excludesDependency() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target1")))
+        try await fileSystem.makeDirectory(at: basePath.appending(try RelativePath(validating: "Package/Sources/Target2")))
+
+        let package = PackageInfo.test(
+            name: "Package",
+            products: [
+                .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+            ],
+            targets: [
+                .test(
+                    name: "Target1",
+                    dependencies: [
+                        .byName(
+                            name: "Target2",
+                            condition: .init(platformNames: [], config: nil, traits: ["FeatureX"])
+                        ),
+                    ]
+                ),
+                .test(name: "Target2"),
+            ],
+            traits: [
+                PackageTrait(enabledTraits: [], name: "FeatureX", description: "Feature X"),
+            ],
+            platforms: [.ios]
+        )
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: ["Package": package],
+            enabledTraits: []
+        )
+
+        let target = try #require(project?.targets.first(where: { $0.name == "Target1" }))
+        #expect(target.dependencies.isEmpty)
+    }
 }
 
 private func defaultSpmResources(_ target: String, customPath: String? = nil) -> ProjectDescription.ResourceFileElements {
