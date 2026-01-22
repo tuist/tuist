@@ -5,54 +5,56 @@
   "description": "Learn how to leverage selective testing to run only the tests that have changed."
 }
 ---
-# Selective testing {#selective-testing}
+# Выборочное тестирование {#selective-testing}
 
-::: warning REQUIREMENTS
+::: warning ТРЕБОВАНИЯ
 <!-- -->
-- A <LocalizedLink href="/guides/features/projects">generated
-  project</LocalizedLink>
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
-  project</LocalizedLink>
+- Проект, созданный
+  <LocalizedLink href="/guides/features/projects"></LocalizedLink>
+- <LocalizedLink href="/guides/server/accounts-and-projects"> Аккаунт Tuist и
+  проект</LocalizedLink>
 <!-- -->
 :::
 
-To run tests selectively with your generated project, use the `tuist test`
-command. The command
-<LocalizedLink href="/guides/features/projects/hashing">hashes</LocalizedLink>
-your Xcode project the same way it does for
-<LocalizedLink href="/guides/features/cache#cache-warming">warming the
-cache</LocalizedLink>, and on success, it persists the hashes on to determine
-what has changed in future runs.
+Чтобы выборочно запускать тесты с помощью сгенерированного проекта, используйте
+команду `tuist test`. Команда
+<LocalizedLink href="/guides/features/projects/hashing">хеширует</LocalizedLink>
+ваш проект Xcode так же, как и при
+<LocalizedLink href="/guides/features/cache#cache-warming">прогревании
+кэша</LocalizedLink>, и в случае успеха сохраняет хэши, чтобы определить, что
+изменилось в будущих запусках.
 
-In future runs `tuist test` transparently uses the hashes to filter down the
-tests to run only the ones that have changed since the last successful test run.
+В будущих запусках `tuist test` прозрачно использует хэши для фильтрации тестов,
+чтобы запускать только те, которые изменились с момента последнего успешного
+запуска тестов.
 
-For example, assuming the following dependency graph:
+Например, предположим, что имеется следующий граф зависимостей:
 
 - `FeatureA` has tests `FeatureATests`, and depends on `Core`
-- `FeatureB` has tests `FeatureBTests`, and depends on `Core`
-- `Core` has tests `CoreTests`
+- `FeatureB` имеет тесты `FeatureBTests` и зависит от `Core`
+- `Core` имеет тесты `CoreTests`
 
-`tuist test` will behave as such:
+`tuist test` будет вести себя следующим образом:
 
-| Action                  | Description                                                         | Internal state                                                                 |
-| ----------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `tuist test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The hashes of `FeatureATests`, `FeatureBTests` and `CoreTests` are persisted   |
-| `FeatureA` is updated   | The developer modifies the code of a target                         | Same as before                                                                 |
-| `tuist test` invocation | Runs the tests in `FeatureATests` because it hash has changed       | The new hash of `FeatureATests` is persisted                                   |
-| `Core` is updated       | The developer modifies the code of a target                         | Same as before                                                                 |
-| `tuist test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The new hash of `FeatureATests` `FeatureBTests`, and `CoreTests` are persisted |
+| Действие                | Описание                                                         | Внутреннее состояние                                             |
+| ----------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `tuist test` invocation | Запускает тесты в `CoreTests`, `FeatureATests` и `FeatureBTests` | Хеши `FeatureATests`, `FeatureBTests` и `CoreTests` сохраняются. |
+| `Особенность` обновлен  | Разработчик изменяет код целевого объекта.                       | Как и раньше                                                     |
+| `tuist test` invocation | Запускает тесты в `FeatureATests`, поскольку хеш изменился.      | Новый хеш `FeatureATests` сохраняется.                           |
+| `Обновлен ядро`         | Разработчик изменяет код целевого объекта.                       | Как и раньше                                                     |
+| `tuist test` invocation | Запускает тесты в `CoreTests`, `FeatureATests` и `FeatureBTests` | Хеши `FeatureATests`, `FeatureBTests` и `CoreTests` сохраняются. |
 
-`tuist test` integrates directly with binary caching to use as many binaries
-from your local or remote storage to improve the build time when running your
-test suite. The combination of selective testing with binary caching can
-dramatically reduce the time it takes to run tests on your CI.
+`tuist test` напрямую интегрируется с кэшированием бинарных файлов, чтобы
+использовать как можно больше бинарных файлов из локального или удаленного
+хранилища для сокращения времени сборки при запуске набора тестов. Сочетание
+выборочного тестирования с кэшированием бинарных файлов может значительно
+сократить время, необходимое для запуска тестов в вашей CI.
 
-## UI Tests {#ui-tests}
+## Тесты пользовательского интерфейса {#ui-tests}
 
-Tuist supports selective testing of UI tests. However, Tuist needs to know the
-destination in advance. Only if you specify the `destination` parameter, Tuist
-will run the UI tests selectively, such as:
+Tuist поддерживает выборочное тестирование UI-тестов. Однако Tuist необходимо
+заранее знать место назначения. Только если вы укажете параметр `destination`,
+Tuist будет выборочно запускать UI-тесты, например:
 ```sh
 tuist test --device 'iPhone 14 Pro'
 # or
