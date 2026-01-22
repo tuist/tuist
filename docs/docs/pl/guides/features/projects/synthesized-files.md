@@ -8,8 +8,8 @@
 # Syntetyzowane pliki {#synthesized-files}
 
 Tuist może generować pliki i kod w czasie generowania, aby ułatwić zarządzanie
-projektami Xcode i pracę z nimi. Na tej stronie dowiesz się więcej o tej
-funkcjonalności i o tym, jak możesz ją wykorzystać w swoich projektach.
+projektami Xcode i pracę z nimi. Na tej stronie dowiesz się o tej
+funkcjonalności i jak możesz jej używać w swoich projektach.
 
 ## Zasoby docelowe {#target-resources}
 
@@ -101,7 +101,11 @@ które zawierają tylko źródła Objective-C. Jest to znane ograniczenie śledz
 <!-- -->
 Jeśli produkt docelowy, na przykład biblioteka, nie obsługuje zasobów, Tuist
 umieści zasoby w produkcie docelowym typu `bundle`, zapewniając, że trafią one
-do produktu końcowego, a interfejs wskaże właściwy pakiet.
+do produktu końcowego, a interfejs będzie wskazywał na właściwy pakiet. Te
+zsyntetyzowane pakiety są automatycznie oznaczane tagiem `tuist:synthesized` i
+dziedziczą wszystkie tagi z ich celu nadrzędnego, umożliwiając kierowanie ich do
+profili
+<LocalizedLink href="/guides/features/projects/metadata-tags#system-tags">cache</LocalizedLink>.
 <!-- -->
 :::
 
@@ -160,8 +164,8 @@ let project = Project(resourceSynthesizers: [.string(), .fonts()])
 
 ::: info REFERENCE
 <!-- -->
-Możesz sprawdzić [this
-fixture](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates),
+Możesz sprawdzić [ten
+przykład](https://github.com/tuist/tuist/tree/main/examples/xcode/generated_ios_app_with_templates),
 aby zobaczyć przykład użycia niestandardowych szablonów do syntezy akcesorów do
 zasobów.
 <!-- -->
