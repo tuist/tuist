@@ -200,15 +200,21 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
             let targetDependency: GraphDependency = .target(name: target.target.name, path: target.path)
             settings[targetDependency] = try await targetSettings(target)
             for dependency in dependencies {
-                if case let GraphDependency.target(_, dependencyPath, _) = dependency, dependencyPath != target.path {
-                    // Skip combining settings from targets at different project paths.
-                    // Path-based settings (HEADER_SEARCH_PATHS, FRAMEWORK_SEARCH_PATHS, etc.)
-                    // are calculated relative to the project path, so they would be incorrect
-                    // for targets in different projects.
-                    continue
+                var dependencySettings = settings[dependency] ?? [:]
+
+                // When combining settings from a target at a different project path,
+                // transform $(SRCROOT)-relative paths to be relative to the current target's project
+                if case let GraphDependency.target(_, dependencyPath, _) = dependency,
+                   dependencyPath != target.path
+                {
+                    dependencySettings = dependencySettings.resolvingSrcRootPaths(
+                        from: dependencyPath,
+                        to: target.path
+                    )
                 }
+
                 settings[targetDependency] = (settings[targetDependency] ?? [:])
-                    .combine(with: settings[dependency] ?? [:])
+                    .combine(with: dependencySettings)
                     .removeDuplicates()
             }
         }
@@ -235,6 +241,20 @@ public final class StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
 }
 
 extension SettingsDictionary {
+    func resolvingSrcRootPaths(
+        from sourcePath: AbsolutePath,
+        to destinationPath: AbsolutePath
+    ) -> SettingsDictionary {
+        mapValues { value in
+            switch value {
+            case let .string(stringValue):
+                return .string(stringValue.resolvingSrcRootPath(from: sourcePath, to: destinationPath))
+            case let .array(arrayValue):
+                return .array(arrayValue.map { $0.resolvingSrcRootPath(from: sourcePath, to: destinationPath) })
+            }
+        }
+    }
+
     /// There are scenarios when the combined settings introduce duplicates for these setting keys.
     /// We don't know how to reproduce – either in a reproducible sample or via unit tests.
     /// This is also why the `removeOtherSwiftFlagsDuplicates` is `internal` instead of `fileprivate`, so we can at least test the
@@ -322,5 +342,25 @@ extension String {
             self == "-I" ||
             self == "-enable-upcoming-feature" ||
             self == "-enable-experimental-feature"
+    }
+
+    fileprivate func resolvingSrcRootPath(
+        from sourcePath: AbsolutePath,
+        to destinationPath: AbsolutePath
+    ) -> String {
+        let srcRootPrefix = "$(SRCROOT)/"
+        guard let range = range(of: srcRootPrefix) else { return self }
+
+        let afterPrefix = self[range.upperBound...]
+        let endIndex = afterPrefix.firstIndex(of: "\"") ?? afterPrefix.endIndex
+        let relativePath = String(afterPrefix[..<endIndex])
+
+        guard let absolutePath = try? sourcePath.appending(RelativePath(validating: relativePath)) else { return self }
+        let newRelativePath = absolutePath.relative(to: destinationPath).pathString
+
+        return replacingCharacters(
+            in: range.lowerBound..<index(range.upperBound, offsetBy: relativePath.count),
+            with: "\(srcRootPrefix)\(newRelativePath)"
+        )
     }
 }
