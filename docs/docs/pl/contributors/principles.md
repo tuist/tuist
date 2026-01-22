@@ -8,7 +8,7 @@
 # Zasady {#principles}
 
 Ta strona opisuje zasady, które są filarami projektowania i rozwoju Tuist.
-Ewoluują one wraz z projektem i mają na celu zapewnienie zrównoważonego rozwoju,
+Ewoluują one wraz z projektem i mają na celu zapewnienie zrównoważonego wzrostu,
 który jest dobrze dostosowany do założeń projektu.
 
 ## Domyślne konwencje {#default-to-conventions}
@@ -160,11 +160,11 @@ oczekujemy od błędu. Jeśli język programowania jest kanałem komunikacyjnym,
 przez który rozprzestrzeniają się błędy, a użytkownicy są miejscem docelowym
 błędów, powinny one być napisane w tym samym języku, w którym mówią docelowi
 (użytkownicy). Powinny one zawierać wystarczającą ilość informacji, aby
-wiedzieć, co się stało i ukrywać informacje, które nie są istotne. Powinny być
-również wykonalne, informując użytkowników, jakie kroki mogą podjąć, aby je
+wiedzieć, co się stało i ukrywać informacje, które nie są istotne. Ponadto
+powinny być wykonalne, informując użytkowników, jakie kroki mogą podjąć, aby je
 naprawić.
 
 I wreszcie, co nie mniej ważne, nasze przypadki testowe powinny uwzględniać
-scenariusze niepowodzenia. Nie tylko zapewniają one, że radzimy sobie z błędami
-tak, jak powinniśmy, ale także uniemożliwiają przyszłym programistom złamanie
-tej logiki.
+scenariusze niepowodzenia. Nie tylko zapewniają, że radzimy sobie z błędami tak,
+jak powinniśmy, ale także uniemożliwiają przyszłym programistom złamanie tej
+logiki.
