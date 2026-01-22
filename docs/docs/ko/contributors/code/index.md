@@ -5,16 +5,16 @@
   "description": "Pick a Tuist component and learn how to work on it locally."
 }
 ---
-# Code {#code}
+# 코드 {#코드}
 
-Tuist is a monorepo. Each component has its own tooling, dependencies, and local
-run steps. Choose the area you want to contribute to:
+Tuist는 단일 저장소(monorepo)입니다. 각 컴포넌트는 자체 도구, 종속성 및 로컬 실행 단계를 가지고 있습니다. 기여하고자 하는
+영역을 선택하세요:
 
 - <LocalizedLink href="/contributors/code/cli">CLI</LocalizedLink>
-- <LocalizedLink href="/contributors/code/server">Server</LocalizedLink>
-- <LocalizedLink href="/contributors/code/handbook">Handbook</LocalizedLink>
-- <LocalizedLink href="/contributors/code/docs">Docs</LocalizedLink>
+- <LocalizedLink href="/contributors/code/server">서버</LocalizedLink>
+- <LocalizedLink href="/contributors/code/handbook">핸드북</LocalizedLink>
+- <LocalizedLink href="/contributors/code/docs">설명서</LocalizedLink>
 
-All components use
-<LocalizedLink href="https://mise.jdx.dev/getting-started.html">Mise</LocalizedLink>
-for dependency management.
+모든 구성 요소는 종속성 관리를 위해
+<LocalizedLink href="https://mise.jdx.dev/getting-started.html">Mise</LocalizedLink>를
+사용합니다.
