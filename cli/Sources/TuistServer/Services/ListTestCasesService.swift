@@ -29,10 +29,10 @@ enum ListTestCasesServiceError: LocalizedError {
     }
 }
 
-public final class ListTestCasesService: ListTestCasesServicing {
+public struct ListTestCasesService: ListTestCasesServicing {
     private let fullHandleService: FullHandleServicing
 
-    public convenience init() {
+    public init() {
         self.init(
             fullHandleService: FullHandleService()
         )
