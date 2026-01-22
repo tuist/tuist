@@ -5,19 +5,17 @@
   "description": "Contribute to the Tuist documentation site."
 }
 ---
-# Docs {#docs}
+# 文件{#docs}
 
-Source:
-[github.com/tuist/tuist/tree/main/docs](https://github.com/tuist/tuist/tree/main/docs)
+來源：[github.com/tuist/tuist/tree/main/docs](https://github.com/tuist/tuist/tree/main/docs)
 
-## What it is for {#what-it-is-for}
+## 用途說明{#what-it-is-for}
 
-The docs site hosts Tuist’s product and contributor documentation. It is built
-with VitePress.
+文件網站託管 Tuist 的產品與貢獻者文件，採用 VitePress 建置。
 
-## How to contribute {#how-to-contribute}
+## 如何貢獻{#how-to-contribute}
 
-### Set up locally {#set-up-locally}
+### 在本地端設定{#set-up-locally}
 
 ```bash
 cd docs
@@ -25,12 +23,11 @@ mise install
 mise run dev
 ```
 
-### Optional generated data {#optional-generated-data}
+### 可選生成資料{#optional-generated-data}
 
-We embed some generated data in the docs:
+我們在文件中嵌入了部分生成數據：
 
-- CLI reference data: `mise run generate-cli-docs`
-- Project manifest reference data: `mise run generate-manifests-docs`
+- CLI 參考資料：`mise run generate-cli-docs`
+- 專案清單參考資料：`mise run generate-manifests-docs`
 
-These are optional. The docs render without them, so only run them when you need
-to refresh the generated content.
+這些是可選的。文件即使沒有這些設定也能正常顯示，因此僅在需要重新生成內容時才執行這些設定。
