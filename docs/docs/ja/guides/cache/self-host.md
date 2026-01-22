@@ -6,49 +6,37 @@
 }
 ---
 
-# Self-host Cache {#self-host-cache}
+# セルフホストキャッシュ{#self-host-cache}
 
-The Tuist cache service can be self-hosted to provide a private binary cache for
-your team. This is most useful for organizations with large artifacts and
-frequent builds, where placing the cache closer to your CI infrastructure
-reduces latency and improves cache efficiency. By minimizing the distance
-between your build agents and the cache, you ensure that network overhead
-doesn't negate the speed benefits of caching.
+Tuistキャッシュサービスは、チーム専用のプライベートバイナリキャッシュを提供するために自社ホスティングが可能です。これは、大規模なアーティファクトと頻繁なビルドを行う組織において特に有用です。CIインフラに近い場所にキャッシュを配置することで、レイテンシを低減しキャッシュ効率を向上させます。ビルドエージェントとキャッシュ間の距離を最小化することで、ネットワークオーバーヘッドがキャッシュの速度メリットを相殺しないようにします。
 
 ::: info
 <!-- -->
-Self-hosting cache nodes requires an **Enterprise plan**.
+キャッシュノードのセルフホスティングには、**のEnterpriseプランが必要です。**
 
-You can connect self-hosted cache nodes to either the hosted Tuist server
-(`https://tuist.dev`) or a self-hosted Tuist server. Self-hosting the Tuist
-server itself requires a separate server license. See the
-<LocalizedLink href="/guides/server/self-host/install">server self-hosting
-guide</LocalizedLink>.
+セルフホスト型キャッシュノードは、ホスト型Tuistサーバー（`https://tuist.dev`
+）またはセルフホスト型Tuistサーバーのいずれかに接続できます。Tuistサーバー自体をセルフホストするには、別途サーバーライセンスが必要です。<LocalizedLink href="/guides/server/self-host/install">サーバーのセルフホスティングガイド</LocalizedLink>を参照してください。
 <!-- -->
 :::
 
-## Prerequisites {#prerequisites}
+## 前提条件{#prerequisites}
 
-- Docker and Docker Compose
-- S3-compatible storage bucket
-- A running Tuist server instance (hosted or self-hosted)
+- Docker と Docker Compose
+- S3互換ストレージバケット
+- 稼働中のTuistサーバーインスタンス（ホスト型またはセルフホスト型）
 
-## Deployment {#deployment}
+## デプロイメント{#deployment}。
 
-The cache service is distributed as a Docker image at
-[ghcr.io/tuist/cache](https://ghcr.io/tuist/cache). We provide reference
-configuration files in the [cache
-directory](https://github.com/tuist/tuist/tree/main/cache).
+キャッシュサービスはDockerイメージとして[ghcr.io/tuist/cache](https://ghcr.io/tuist/cache)で配布されています。参照用設定ファイルは[cacheディレクトリ](https://github.com/tuist/tuist/tree/main/cache)に用意しています。
 
-::: tip
+::: チップ
 <!-- -->
-We provide a Docker Compose setup because it's a convenient baseline for
-evaluation and small deployments. You can use it as a reference and adapt it to
-your preferred deployment model (Kubernetes, raw Docker, etc.).
+評価や小規模なデプロイメントの便利な基盤として、Docker
+Composeによるセットアップを提供しています。これを参照として、お好みのデプロイメントモデル（Kubernetes、生のDockerなど）に適合させてご利用ください。
 <!-- -->
 :::
 
-### Configuration files {#config-files}
+### 設定ファイル{#config-files}
 
 ```bash
 curl -O https://raw.githubusercontent.com/tuist/tuist/main/cache/docker-compose.yml
@@ -56,14 +44,14 @@ mkdir -p docker
 curl -o docker/nginx.conf https://raw.githubusercontent.com/tuist/tuist/main/cache/docker/nginx.conf
 ```
 
-### Environment variables {#environment-variables}
+### 環境変数{#environment-variables}
 
-Create a `.env` file with your configuration.
+`設定ファイルとして `.env` を作成してください。`` ` に設定を記述してください。
 
-::: tip
+::: チップ
 <!-- -->
-The service is built with Elixir/Phoenix, so some variables use the `PHX_`
-prefix. You can treat these as standard service configuration.
+本サービスはElixir/Phoenixで構築されているため、一部の変数には`PHX_`
+というプレフィックスが使用されています。これらは標準的なサービス設定として扱ってください。
 <!-- -->
 :::
 
@@ -91,42 +79,41 @@ S3_REGION=us-east-1
 DATA_DIR=/data
 ```
 
-| Variable                          | Required | Default                   | Description                                                                                       |
-| --------------------------------- | -------- | ------------------------- | ------------------------------------------------------------------------------------------------- |
-| `SECRET_KEY_BASE`                 | Yes      |                           | Secret key used to sign and encrypt data (minimum 64 characters).                                 |
-| `PUBLIC_HOST`                     | Yes      |                           | Public hostname or IP address of your cache service. Used to generate absolute URLs.              |
-| `SERVER_URL`                      | Yes      |                           | URL of your Tuist server for authentication. Defaults to `https://tuist.dev`                      |
-| `DATA_DIR`                        | Yes      |                           | Directory where CAS artifacts are stored on disk. The provided Docker Compose setup uses `/data`. |
-| `S3_BUCKET`                       | Yes      |                           | S3 bucket name.                                                                                   |
-| `S3_HOST`                         | Yes      |                           | S3 endpoint hostname.                                                                             |
-| `S3_ACCESS_KEY_ID`                | Yes      |                           | S3 access key.                                                                                    |
-| `S3_SECRET_ACCESS_KEY`            | Yes      |                           | S3 secret key.                                                                                    |
-| `S3_REGION`                       | Yes      |                           | S3 region.                                                                                        |
-| `CAS_DISK_HIGH_WATERMARK_PERCENT` | No       | `85`                      | Disk usage percentage that triggers LRU eviction.                                                 |
-| `CAS_DISK_TARGET_PERCENT`         | No       | `70`                      | Target disk usage after eviction.                                                                 |
-| `PHX_SOCKET_PATH`                 | No       | `/run/cache/cache.sock`   | Path where the service creates its Unix socket (when enabled).                                    |
-| `PHX_SOCKET_LINK`                 | No       | `/run/cache/current.sock` | Symlink path that Nginx uses to connect to the service.                                           |
+| 変数                                | 必須  | デフォルト                     | 説明                                                                      |
+| --------------------------------- | --- | ------------------------- | ----------------------------------------------------------------------- |
+| `SECRET_KEY_BASE`                 | はい  |                           | データを署名および暗号化するために使用される秘密鍵（最低64文字）。                                      |
+| `PUBLIC_HOST`                     | はい  |                           | キャッシュサービスの公開ホスト名またはIPアドレス。絶対URLを生成するために使用されます。                          |
+| `SERVER_URL`                      | はい  |                           | 認証用のTuistサーバーのURL。デフォルトは`です。https://tuist.dev`                          |
+| `DATA_DIR`                        | はい  |                           | CASアーティファクトがディスク上に保存されるディレクトリ。提供されているDocker Compose設定では、`/data` を使用します。 |
+| `S3_BUCKET`                       | はい  |                           | S3 バケット名。                                                               |
+| `S3_HOST`                         | はい  |                           | S3エンドポイントのホスト名。                                                         |
+| `S3_ACCESS_KEY_ID`                | はい  |                           | S3アクセスキー。                                                               |
+| `S3_SECRET_ACCESS_KEY`            | はい  |                           | S3シークレットキー。                                                             |
+| `S3_REGION`                       | はい  |                           | S3リージョン。                                                                |
+| `CAS_DISK_HIGH_WATERMARK_PERCENT` | いいえ | `85`                      | LRU除去をトリガーするディスク使用率の割合。                                                 |
+| `CAS_DISK_TARGET_PERCENT`         | いいえ | `70`                      | エヴィクション後のターゲットディスク使用量。                                                  |
+| `PHX_SOCKET_PATH`                 | いいえ | `/run/cache/cache.sock`   | サービスがUnixソケットを作成するパス（有効化時）。                                             |
+| `PHX_SOCKET_LINK`                 | いいえ | `/run/cache/current.sock` | Nginxがサービスに接続するために使用するシンボリックリンクのパス。                                     |
 
-### Start the service {#start-service}
+### サービスを開始する{#start-service}
 
 ```bash
 docker compose up -d
 ```
 
-### Verify the deployment {#verify}
+### デプロイメントを確認する{#verify}
 
 ```bash
 curl http://localhost/up
 ```
 
-## Configure the cache endpoint {#configure-endpoint}
+## キャッシュエンドポイントの設定{#configure-endpoint}
 
-After deploying the cache service, register it in your Tuist server organization
-settings:
+キャッシュサービスをデプロイした後、Tuistサーバーの組織設定に登録してください：
 
-1. Navigate to your organization's **Settings** page
-2. Find the **Custom cache endpoints** section
-3. Add your cache service URL (for example, `https://cache.example.com`)
+1. 組織の「**設定」ページに移動してください：**
+2. **のカスタムキャッシュエンドポイントに関するセクション** を参照
+3. キャッシュサービスのURLを追加してください（例：`、https://cache.example.com、` ）
 
 <!-- TODO: Add screenshot of organization settings page showing Custom cache endpoints section -->
 
@@ -136,58 +123,55 @@ graph TD
   B --> C[Tuist CLI uses your endpoint]
 ```
 
-Once configured, the Tuist CLI will use your self-hosted cache.
+設定が完了すると、Tuist CLIは自己ホスト型キャッシュを使用します。
 
-## Volumes {#volumes}
+## 巻{#volumes}
 
-The Docker Compose configuration uses three volumes:
+Docker Compose 構成では、3つのボリュームを使用します：
 
-| Volume         | Purpose                                     |
-| -------------- | ------------------------------------------- |
-| `cas_data`     | Binary artifact storage                     |
-| `sqlite_data`  | Access metadata for LRU eviction            |
-| `cache_socket` | Unix socket for Nginx-service communication |
+| Volume         | 目的                     |
+| -------------- | ---------------------- |
+| `cas_data`     | バイナリアーティファクトストレージ      |
+| `sqlite_data`  | LRU 除去のためのメタデータへのアクセス  |
+| `cache_socket` | Nginxサービス間の通信用Unixソケット |
 
-## Health checks {#health-checks}
+## ヘルスチェック{#health-checks}
 
-- `GET /up` — Returns 200 when healthy
+- `GET /up` — 正常時に200を返す
 - `GET /metrics` — Prometheus metrics
 
-## Monitoring {#monitoring}
+## 監視{#monitoring}
 
-The cache service exposes Prometheus-compatible metrics at `/metrics`.
+キャッシュサービスは、Prometheus互換のメトリクスを`/metrics` で公開しています。
 
-If you use Grafana, you can import the [reference
-dashboard](https://raw.githubusercontent.com/tuist/tuist/refs/heads/main/cache/priv/grafana_dashboards/cache_service.json).
+Grafanaをご利用の場合、[リファレンスダッシュボード](https://raw.githubusercontent.com/tuist/tuist/refs/heads/main/cache/priv/grafana_dashboards/cache_service.json)をインポートできます。
 
-## Upgrading {#upgrading}
+## アップグレード{#upgrading}
 
 ```bash
 docker compose pull
 docker compose up -d
 ```
 
-The service runs database migrations automatically on startup.
+サービスは起動時にデータベース移行を自動的に実行します。
 
-## Troubleshooting {#troubleshooting}
+## トラブルシューティング{#troubleshooting}
 
-### Cache not being used {#troubleshooting-caching}
+### キャッシュが使用されていない{#troubleshooting-caching}
 
-If you expect caching but are seeing consistent cache misses (for example, the
-CLI is repeatedly uploading the same artifacts, or downloads never happen),
-follow these steps:
+キャッシュが機能しているはずなのに一貫してキャッシュミスが発生する場合（例:
+CLIが同じアーティファクトを繰り返しアップロードする、またはダウンロードが全く行われない）、以下の手順を実行してください:
 
-1. Verify the custom cache endpoint is correctly configured in your organization
-   settings.
-2. Ensure your Tuist CLI is authenticated by running `tuist auth login`.
-3. Check the cache service logs for any errors: `docker compose logs cache`.
+1. 組織設定でカスタムキャッシュエンドポイントが正しく設定されていることを確認してください。
+2. Tuist CLIの認証を実行するには、`tuist auth login` を実行してください。
+3. キャッシュサービスのログにエラーがないか確認してください：`docker compose logs cache`
 
-### Socket path mismatch {#troubleshooting-socket}
+### ソケットパスの不一致{#troubleshooting-socket}
 
-If you see connection refused errors:
+接続拒否エラーが表示された場合：
 
-- Ensure `PHX_SOCKET_LINK` points to the socket path configured in nginx.conf
-  (default: `/run/cache/current.sock`)
-- Verify `PHX_SOCKET_PATH` and `PHX_SOCKET_LINK` are both set correctly in
-  docker-compose.yml
-- Verify the `cache_socket` volume is mounted in both containers
+- `PHX_SOCKET_LINK` が nginx.conf
+  で設定されたソケットパスを指すことを確認してください（デフォルト:`/run/cache/current.sock` ）
+- docker-compose.yml 内で、`、PHX_SOCKET_PATH` 、および`、PHX_SOCKET_LINK`
+  が正しく設定されていることを確認してください。
+- `cache_socket` のボリュームが両方のコンテナにマウントされていることを確認してください
