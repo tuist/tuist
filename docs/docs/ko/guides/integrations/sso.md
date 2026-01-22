@@ -36,12 +36,9 @@ Okta와의 SSO는 기업 고객에게만 제공됩니다. 설정하시려면
    URL](https://tuist.dev/images/tuist_dashboard.png)에 위치한 Tuist 로고를 업로드하세요.
 5. 현재로서는 로그인 리다이렉트 URI는 그대로 두십시오
 6. "할당" 항목에서 SSO 애플리케이션에 대한 원하는 접근 제어를 선택하고 저장하십시오.
-7. After saving, the general settings for the application will be available.
-   Copy the "Client ID" and "Client Secret". Also note your Okta organization
-   URL (e.g., `https://your-company.okta.com`) – you will need to safely share
-   all of these with your point of contact.
-8. Once the Tuist team has configured the SSO, click on General Settings "Edit"
-   button.
+7. 저장 후 애플리케이션의 일반 설정이 표시됩니다. "클라이언트 ID"와 "클라이언트 시크릿"을 복사하세요. 또한 Okta 조직 URL(예:
+   `, https://your-company.okta.com,`)을 기록해 두세요. 이 모든 정보를 담당자와 안전하게 공유해야 합니다.
+8. Tuist 팀이 SSO를 구성한 후, 일반 설정의 "편집" 버튼을 클릭하세요.
 9. 다음 리다이렉트 URL을 붙여넣으세요: `https://tuist.dev/users/auth/okta/callback`
 10. "Login initiated by"를 "Okta 또는 앱"으로 변경하십시오.
 11. "사용자에게 애플리케이션 아이콘 표시" 선택
