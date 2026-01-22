@@ -68,8 +68,8 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
 **[Trendyol](https://www.trendyol.com/)、[Etsy](https://www.etsy.com/)、[Bumble](https://bumble.com/)、[Monzo](https://monzo.com/)、[Bending
 Spoons](https://bendingspoons.com/)等100余家企业** 已通过Tuist重塑其苹果平台开发模式。以下是他们的实践成果：
 
-- 使用智能缓存技术**构建速度提升65%** ，
-- **Xcode项目中零合并冲突**
+- 智能缓存使**构建速度提升65%** ，
+- Xcode项目中**零合并冲突**
 - **精确到秒** 的包解析
 - **快乐开的发者们**可以专注于构建功能
 
