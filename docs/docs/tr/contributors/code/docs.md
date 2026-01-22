@@ -5,19 +5,19 @@
   "description": "Contribute to the Tuist documentation site."
 }
 ---
-# Docs {#docs}
+# Belgeler {#docs}
 
-Source:
+Kaynak:
 [github.com/tuist/tuist/tree/main/docs](https://github.com/tuist/tuist/tree/main/docs)
 
-## What it is for {#what-it-is-for}
+## Ne için kullanılır? {#what-it-is-for}
 
-The docs site hosts Tuist’s product and contributor documentation. It is built
-with VitePress.
+Doküman sitesi, Tuist'in ürün ve katkıcı dokümantasyonunu barındırır. VitePress
+ile oluşturulmuştur.
 
-## How to contribute {#how-to-contribute}
+## Nasıl katkıda bulunabilirsiniz? {#how-to-contribute}
 
-### Set up locally {#set-up-locally}
+### Yerel olarak ayarlayın {#set-up-locally}
 
 ```bash
 cd docs
@@ -25,12 +25,12 @@ mise install
 mise run dev
 ```
 
-### Optional generated data {#optional-generated-data}
+### İsteğe bağlı oluşturulan veriler {#optional-generated-data}
 
-We embed some generated data in the docs:
+Belgelere bazı oluşturulmuş veriler ekliyoruz:
 
-- CLI reference data: `mise run generate-cli-docs`
-- Project manifest reference data: `mise run generate-manifests-docs`
+- CLI referans verileri: `mise run generate-cli-docs`
+- Proje manifestosu referans verileri: `mise run generate-manifests-docs`
 
-These are optional. The docs render without them, so only run them when you need
-to refresh the generated content.
+Bunlar isteğe bağlıdır. Belgeler bunlar olmadan da görüntülenir, bu nedenle
+yalnızca oluşturulan içeriği yenilemeniz gerektiğinde bunları çalıştırın.
