@@ -10,8 +10,9 @@
 
 ::: warning REQUIREMENTS
 <!-- -->
--  tarafından oluşturulan bir projele
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve projesi</LocalizedLink>
+- 1} tarafından oluşturulan bir projele</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve
+  projesi</LocalizedLink>
 <!-- -->
 :::
 
@@ -24,7 +25,8 @@ ve geliştirme sürecini hızlandırır.
 ## Isınma {#warming}
 
 Tuist, değişiklikleri tespit etmek için bağımlılık grafiğindeki her hedef için
-verimli bir şekilde <LocalizedLink href="/guides/features/projects/hashing"> hash</LocalizedLink> kullanır. Bu verileri kullanarak, bu hedeflerden türetilen
+verimli bir şekilde <LocalizedLink href="/guides/features/projects/hashing">
+hash</LocalizedLink> kullanır. Bu verileri kullanarak, bu hedeflerden türetilen
 ikililere benzersiz tanımlayıcılar oluşturur ve atar. Tuist, grafik oluşturma
 sırasında, orijinal hedefleri karşılık gelen ikili sürümleriyle sorunsuz bir
 şekilde değiştirir.
@@ -54,7 +56,7 @@ kullanarak bu davranışı tamamen devre dışı bırakma seçeneği vardır:
 tuist generate # Only dependencies
 tuist generate Search # Dependencies + Search dependencies
 tuist generate Search Settings # Dependencies, and Search and Settings dependencies
-tuist generate --no-binary-cache # No cache at all
+tuist generate --cache-profile none # No cache at all
 ```
 
 ```bash [Testing]
@@ -68,15 +70,14 @@ tuist test
 İkili önbelleğe alma, uygulamayı bir simülatörde veya cihazda çalıştırmak ya da
 testler yapmak gibi geliştirme iş akışları için tasarlanmış bir özelliktir.
 Sürüm derlemeleri için tasarlanmamıştır. Uygulamayı arşivlerken,
-`--no-binary-cache` bayrağını kullanarak kaynakları içeren bir proje oluşturun.
+`--cache-profile none` kullanarak kaynakları içeren bir proje oluşturun.
 <!-- -->
 :::
 
 ## Önbellek profilleri {#cache-profiles}
 
-Tuist, oluşturulmuş projele'de agresif hedeflerin önbelleğe alınmış ikili
-dosyalarla nasıl değiştirileceğini kontrol etmek için önbellek profillerini
-destekler.
+Tuist, proje oluştururken agresif hedeflerin önbelleğe alınmış ikili dosyalarla
+nasıl değiştirileceğini kontrol etmek için önbellek profillerini destekler.
 
 - Ankastre:
   - `only-external`: sadece harici bağımlılıkları değiştir (sistem varsayılanı)
@@ -99,13 +100,21 @@ tuist generate
 # Focus on specific targets (implies all-possible)
 tuist generate MyModule AnotherTarget
 
-# Disable binary replacement entirely (backwards compatible)
-tuist generate --no-binary-cache  # equivalent to --cache-profile none
+# Disable binary replacement entirely
+tuist generate --cache-profile none
 ```
+
+::: info DEPRECATED FLAG
+<!-- -->
+`--no-binary-cache` bayrağı kullanımdan kaldırılmıştır. Bunun yerine
+`--cache-profile none` kullanın. Kullanımdan kaldırılan bayrak geriye dönük
+uyumluluk için hala çalışmaktadır.
+<!-- -->
+:::
 
 Etkili davranışı çözerken öncelik (en yüksekten en düşüğe):
 
-1. `--no-binary-cache` → profile `none`
+1. `--cache-profile none`
 2. Hedef odağı (hedefleri `'a geçirmek` oluşturur) → profil `mümkün olan her
    şey`
 3. `--cache-profile `
@@ -146,7 +155,8 @@ yapısına bağlıdır. En iyi sonuçları elde etmek için aşağıdakileri ön
 Yukarıdaki öneriler, yalnızca ikili önbelleğe almanın değil, aynı zamanda
 Xcode'un yeteneklerinin de faydalarını en üst düzeye çıkarmak için projelerinizi
 yapılandırmanın bir yolu olarak önerdiğimiz
-<LocalizedLink href="/guides/features/projects/tma-architecture"> Modüler Mimarinin</LocalizedLink> bir parçasıdır.
+<LocalizedLink href="/guides/features/projects/tma-architecture"> Modüler
+Mimarinin</LocalizedLink> bir parçasıdır.
 
 ## Önerilen kurulum {#recommended-setup}
 
@@ -204,14 +214,15 @@ sırasında sistem yükünü azaltmak için yararlı olabilir.
 
 ### Hedeflerim için ikili dosyalar kullanmıyor {#it-doesnt-use-binaries-for-my-targets}
 
-hash'lerin ortamlar ve çalıştırmalar arasında deterministik
+1}hash'lerin ortamlar ve çalıştırmalar arasında deterministik</LocalizedLink>
 olduğundan emin olun. Bu durum, örneğin mutlak yollar aracılığıyla projenin
 ortama referansları varsa ortaya çıkabilir. ` tuist generate` komutunun iki
 ardışık çağrısı tarafından veya ortamlar ya da çalıştırmalar arasında
 oluşturulan projeleri karşılaştırmak için `diff` komutunu kullanabilirsiniz.
 
 Ayrıca hedefin doğrudan ya da dolaylı olarak
-<LocalizedLink href="/guides/features/cache/generated-project#supported-products">önbelleğe alınamayan hedefe</LocalizedLink> bağlı olmadığından emin olun.
+<LocalizedLink href="/guides/features/cache/generated-project#supported-products">önbelleğe
+alınamayan hedefe</LocalizedLink> bağlı olmadığından emin olun.
 
 ### Eksik semboller {#missing-symbols}
 
@@ -219,6 +230,22 @@ Kaynakları kullanırken, Xcode'un derleme sistemi, Türetilmiş Veriler
 aracılığıyla, açıkça bildirilmeyen bağımlılıkları çözebilir. Ancak, ikili
 önbelleğe güvendiğinizde, bağımlılıklar açıkça bildirilmelidir; aksi takdirde,
 semboller bulunamadığında derleme hataları görmeniz muhtemeldir. Bu hatayı
-ayıklamak için,
-<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist inspect implicit-imports`</LocalizedLink> komutunu kullanmanızı ve örtük
-bağlamadaki gerilemeleri önlemek için CI'da ayarlamanızı öneririz.
+ayıklamak için
+<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist
+inspect dependencies --only implicit`</LocalizedLink> komutunu kullanmanızı ve
+örtük bağlamadaki gerilemeleri önlemek için CI'da ayarlamanızı öneririz.
+
+### Eski modül önbelleği {#legacy-module-cache}
+
+Tuist `4.128.0` sürümünde, modül önbelleği için yeni altyapımızı varsayılan hale
+getirdik. Bu yeni sürümle ilgili sorunlar yaşarsanız,
+`TUIST_LEGACY_MODULE_CACHE` ortam değişkenini ayarlayarak eski önbellek
+davranışına geri dönebilirsiniz.
+
+Bu eski modül önbelleği geçici bir yedektir ve gelecekteki bir güncellemede
+sunucu tarafında kaldırılacaktır. Bundan uzaklaşmayı planlayın.
+
+```bash
+export TUIST_LEGACY_MODULE_CACHE=1
+tuist generate
+```
