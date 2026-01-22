@@ -20,8 +20,8 @@
 بعد ذلك، يمكنك إضافة اتصال مشروع بين مستودع GitHub الخاص بك ومشروع Tuist الخاص
 بك:
 
-![صورة تُظهر إضافة اتصال المشروع]
-(/images/guides/integrations/gitforge/github/add-project-connection.png)
+![صورة توضح إضافة اتصال
+المشروع](/images/guides/integrations/gitforge/github/add-project-connection.png)
 
 ## تعليقات طلب السحب/الدمج {#pullmerge-request-comments}
 
@@ -32,7 +32,7 @@
 <LocalizedLink href="/guides/features/selective-testing#pullmerge-request-comments">
 الاختبارات</LocalizedLink>:
 
-![صورة تُظهر تعليق طلب
+![صورة تظهر تعليق طلب
 السحب](/images/guides/integrations/gitforge/github/pull-request-comment.png)
 
 ::: info REQUIREMENTS
