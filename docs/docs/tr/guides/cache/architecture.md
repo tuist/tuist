@@ -6,28 +6,30 @@
 }
 ---
 
-# Cache Architecture {#cache-architecture}
+# Önbellek Mimarisi {#cache-architecture}
 
 ::: info
 <!-- -->
-This page provides a technical overview of the Tuist cache service architecture.
-It is primarily intended for **self-hosting users** and **contributors** who
-need to understand the internal workings of the service. General users who only
-want to use the cache do not need to read this.
+Bu sayfa, Tuist önbellek hizmeti mimarisinin teknik bir özetini sunar.
+Öncelikle, hizmetin iç işleyişini anlaması gereken **kendi sunucusunda
+barındıran kullanıcılar** ve **katkıda bulunanlar** için hazırlanmıştır.
+Yalnızca önbelleği kullanmak isteyen genel kullanıcıların bu sayfayı okumasına
+gerek yoktur.
 <!-- -->
 :::
 
-The Tuist cache service is a standalone service that provides Content
-Addressable Storage (CAS) for build artifacts and a key-value store for cache
-metadata.
+Tuist önbellek hizmeti, derleme öğeleri için İçerik Adreslenebilir Depolama
+(CAS) ve önbellek meta verileri için anahtar-değer deposu sağlayan bağımsız bir
+hizmettir.
 
-## Overview {#overview}
+## Genel bakış {#overview}
 
-The service uses a two-tier storage architecture:
+Hizmet, iki katmanlı bir depolama mimarisi kullanır:
 
-- **Local disk**: Primary storage for low-latency cache hits
-- **S3**: Durable storage that persists artifacts and allows recovery after
-  eviction
+- **Yerel disk**: Düşük gecikmeli önbellek isabetleri için birincil depolama
+  alanı
+- **S3**: Artefaktları kalıcı olarak saklayan ve tahliye sonrasında kurtarmaya
+  olanak tanıyan dayanıklı depolama
 
 ```mermaid
 flowchart LR
@@ -38,55 +40,55 @@ flowchart LR
     APP -->|auth| SERVER[Tuist Server]
 ```
 
-## Components {#components}
+## Bileşenler {#components}
 
 ### Nginx {#nginx}
 
-Nginx serves as the entry point and handles efficient file delivery using
-`X-Accel-Redirect`:
+Nginx giriş noktası olarak hizmet eder ve `X-Accel-Redirect` kullanarak verimli
+dosya teslimatını yönetir:
 
-- **Downloads**: The cache service validates authentication, then returns an
-  `X-Accel-Redirect` header. Nginx serves the file directly from disk or proxies
-  from S3.
-- **Uploads**: Nginx proxies requests to the cache service, which streams data
-  to disk.
+- **İndirmeler**: Önbellek hizmeti kimlik doğrulamasını onaylar, ardından
+  `X-Accel-Redirect` başlığını döndürür. Nginx, dosyayı doğrudan diskten veya
+  S3'ten proxy'lerden sunar.
+- **Yüklemeler**: Nginx, verileri diske aktaran önbellek hizmetine istekleri
+  yönlendirir.
 
-### Content Addressable Storage {#cas}
+### İçerik Adreslenebilir Depolama {#cas}
 
-Artifacts are stored on local disk in a sharded directory structure:
+Artefaktlar, yerel diskte parçalanmış bir dizin yapısında depolanır:
 
-- **Path**: `{account}/{project}/cas/{shard1}/{shard2}/{artifact_id}`
-- **Sharding**: First four characters of the artifact ID create a two-level
-  shard (e.g., `ABCD1234` → `AB/CD/ABCD1234`)
+- **Yol**: `{hesap}/{proje}/cas/{shard1}/{shard2}/{artifact_id}`
+- **Parçalama**: Artefakt kimliğinin ilk dört karakteri iki seviyeli bir parça
+  oluşturur (ör. `ABCD1234` → `AB/CD/ABCD1234`)
 
-### S3 Integration {#s3}
+### S3 Entegrasyonu {#s3}
 
-S3 provides durable storage:
+S3 dayanıklı depolama sağlar:
 
-- **Background uploads**: After writing to disk, artifacts are queued for upload
-  to S3 via a background worker that runs every minute
-- **On-demand hydration**: When a local artifact is missing, the request is
-  served immediately via a presigned S3 URL while the artifact is queued for
-  background download to local disk
+- **Arka plan yüklemeleri**: Diske yazıldıktan sonra, artefaktlar her dakika
+  çalışan bir arka plan işçisi aracılığıyla S3'e yüklenmek üzere sıraya alınır.
+- **İsteğe bağlı hidrasyon**: Yerel bir yapı eksik olduğunda, yapı yerel diske
+  arka planda indirilmek üzere kuyruğa alınırken, istek önceden imzalanmış bir
+  S3 URL'si aracılığıyla hemen karşılanır.
 
-### Disk Eviction {#eviction}
+### Disk Tahliyesi {#eviction}
 
-The service manages disk space using LRU eviction:
+Hizmet, LRU tahliye yöntemini kullanarak disk alanını yönetir:
 
-- Access times are tracked in SQLite
-- When disk usage exceeds 85%, the oldest artifacts are deleted until usage
-  drops to 70%
-- Artifacts remain in S3 after local eviction
+- Erişim zamanları SQLite'da izlenir.
+- Disk kullanımı %85'i aştığında, kullanım %70'e düşene kadar en eski yapıtlar
+  silinir.
+- Yerel tahliye sonrasında S3'te kalıntılar kalır
 
-### Authentication {#authentication}
+### Kimlik Doğrulama {#authentication}
 
-The cache delegates authentication to the Tuist server by calling the
-`/api/projects` endpoint and caching results (10 minutes for success, 3 seconds
-for failure).
+Önbellek, `/api/projects` uç noktasını çağırarak ve sonuçları önbelleğe alarak
+(başarılı ise 10 dakika, başarısız ise 3 saniye) kimlik doğrulamayı Tuist
+sunucusuna devreder.
 
-## Request Flows {#request-flows}
+## İstek Akışları {#request-flows}
 
-### Download {#download-flow}
+### İndir {#download-flow}
 
 ```mermaid
 sequenceDiagram
@@ -107,7 +109,7 @@ sequenceDiagram
     N-->>CLI: File bytes
 ```
 
-### Upload {#upload-flow}
+### Yükle {#upload-flow}
 
 ```mermaid
 sequenceDiagram
@@ -124,18 +126,18 @@ sequenceDiagram
     A->>S: Background upload
 ```
 
-## API Endpoints {#api-endpoints}
+## API Uç Noktaları {#api-endpoints}
 
-| Endpoint                      | Method | Description                     |
-| ----------------------------- | ------ | ------------------------------- |
-| `/up`                         | GET    | Health check                    |
-| `/metrics`                    | GET    | Prometheus metrics              |
-| `/api/cache/cas/:id`          | GET    | Download CAS artifact           |
-| `/api/cache/cas/:id`          | POST   | Upload CAS artifact             |
-| `/api/cache/keyvalue/:cas_id` | GET    | Get key-value entry             |
-| `/api/cache/keyvalue`         | PUT    | Store key-value entry           |
-| `/api/cache/module/:id`       | HEAD   | Check if module artifact exists |
-| `/api/cache/module/:id`       | GET    | Download module artifact        |
-| `/api/cache/module/start`     | POST   | Start multipart upload          |
-| `/api/cache/module/part`      | POST   | Upload part                     |
-| `/api/cache/module/complete`  | POST   | Complete multipart upload       |
+| Uç nokta                      | Yöntem | Açıklama                                  |
+| ----------------------------- | ------ | ----------------------------------------- |
+| `/up`                         | GET    | Sağlık kontrolü                           |
+| `/metrics`                    | GET    | Prometheus metrikleri                     |
+| `/api/cache/cas/:id`          | GET    | CAS artefaktını indirin                   |
+| `/api/cache/cas/:id`          | POST   | CAS eserini yükleyin                      |
+| `/api/cache/keyvalue/:cas_id` | GET    | Anahtar-değer girdisini alın              |
+| `/api/cache/keyvalue`         | PUT    | Anahtar-değer girişini saklayın           |
+| `/api/cache/module/:id`       | HEAD   | Modül artefaktının varlığını kontrol edin |
+| `/api/cache/module/:id`       | GET    | Modül artefaktını indirin                 |
+| `/api/cache/module/start`     | POST   | Çok parçalı yüklemeyi başlat              |
+| `/api/cache/module/part`      | POST   | Yükleme kısmı                             |
+| `/api/cache/module/complete`  | POST   | Çok parçalı yüklemeyi tamamlayın          |
