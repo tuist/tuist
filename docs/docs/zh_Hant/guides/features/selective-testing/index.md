@@ -5,54 +5,45 @@
   "description": "Learn how to leverage selective testing to run only the tests that have changed."
 }
 ---
-# Selective testing {#selective-testing}
+# 選擇性測試{#selective-testing}
 
 ::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/features/projects">generated
-  project</LocalizedLink>
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
-  project</LocalizedLink>
+- 一個 <LocalizedLink href="/guides/features/projects"> 產生的專案</LocalizedLink>
+- A<LocalizedLink href="/guides/server/accounts-and-projects">Tuist帳號與專案</LocalizedLink>
 <!-- -->
 :::
 
-To run tests selectively with your generated project, use the `tuist test`
-command. The command
-<LocalizedLink href="/guides/features/projects/hashing">hashes</LocalizedLink>
-your Xcode project the same way it does for
-<LocalizedLink href="/guides/features/cache#cache-warming">warming the
-cache</LocalizedLink>, and on success, it persists the hashes on to determine
-what has changed in future runs.
+若要有選擇性地使用已產生的專案執行測試，請使用`tuist test` 指令。該命令
+<LocalizedLink href="/guides/features/projects/hashing">散列</LocalizedLink>您的
+Xcode 專案，方式與
+<LocalizedLink href="/guides/features/cache#cache-warming">暖化快取記憶體</LocalizedLink>相同，成功後會持續散列，以判斷未來執行時有哪些改變。
 
-In future runs `tuist test` transparently uses the hashes to filter down the
-tests to run only the ones that have changed since the last successful test run.
+在未來執行`tuist test` 時，會透明地使用哈希值來篩選測試，只執行自上次成功執行測試以來有變更的測試。
 
-For example, assuming the following dependency graph:
+例如，假設下列依賴圖形：
 
-- `FeatureA` has tests `FeatureATests`, and depends on `Core`
-- `FeatureB` has tests `FeatureBTests`, and depends on `Core`
-- `Core` has tests `CoreTests`
+- `FeatureA` 有測試`FeatureATests` ，並依賴於`核心`
+- `FeatureB` 有測試`FeatureBTests` ，並依賴於`核心`
+- `Core` 有測試`CoreTests`
 
-`tuist test` will behave as such:
+`tuist 測試` 將會有這樣的行為：
 
-| Action                  | Description                                                         | Internal state                                                                 |
-| ----------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `tuist test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The hashes of `FeatureATests`, `FeatureBTests` and `CoreTests` are persisted   |
-| `FeatureA` is updated   | The developer modifies the code of a target                         | Same as before                                                                 |
-| `tuist test` invocation | Runs the tests in `FeatureATests` because it hash has changed       | The new hash of `FeatureATests` is persisted                                   |
-| `Core` is updated       | The developer modifies the code of a target                         | Same as before                                                                 |
-| `tuist test` invocation | Runs the tests in `CoreTests`, `FeatureATests`, and `FeatureBTests` | The new hash of `FeatureATests` `FeatureBTests`, and `CoreTests` are persisted |
+| 行動              | 說明                                                   | 內部狀態                                                       |
+| --------------- | ---------------------------------------------------- | ---------------------------------------------------------- |
+| `tuist test` 調用 | 執行以下測試：`CoreTests` ` FeatureATests` ` FeatureBTests` | `FeatureATests` 、`FeatureBTests` 和`CoreTests` 的散列會被持久化。    |
+| `FeatureA` 已更新  | 開發人員修改目標的程式碼                                         | 與前文相同                                                      |
+| `tuist test` 調用 | 執行`FeatureATests` 中的測試，因為其雜湊值已變更                     | `FeatureATests` 的新切細值會被持久化                                 |
+| `核心` 已更新        | 開發人員修改目標的程式碼                                         | 與前文相同                                                      |
+| `tuist test` 調用 | 執行以下測試：`CoreTests` ` FeatureATests` ` FeatureBTests` | `FeatureATests` `FeatureBTests` ，以及`CoreTests` 的新切細值會被持久化。 |
 
-`tuist test` integrates directly with binary caching to use as many binaries
-from your local or remote storage to improve the build time when running your
-test suite. The combination of selective testing with binary caching can
-dramatically reduce the time it takes to run tests on your CI.
+`tuist test`
+直接與二進位快取整合，可從您的本機或遠端儲存中使用盡可能多的二進位檔案，以改善執行測試套件時的建立時間。選擇性測試與二進位快取的結合，可以大幅縮短在 CI
+上執行測試的時間。
 
-## UI Tests {#ui-tests}
+## UI 測試{#ui-tests}
 
-Tuist supports selective testing of UI tests. However, Tuist needs to know the
-destination in advance. Only if you specify the `destination` parameter, Tuist
-will run the UI tests selectively, such as:
+Tuist 支援 UI 測試的選擇性測試。但是，Tuist 需要事先知道目的地。只有指定`目的地` 參數，Tuist 才會有選擇性地執行 UI 測試，例如：
 ```sh
 tuist test --device 'iPhone 14 Pro'
 # or
