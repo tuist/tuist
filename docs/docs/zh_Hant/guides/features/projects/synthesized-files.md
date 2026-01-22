@@ -71,8 +71,10 @@ NSBundle *bundle = [MyFeatureResources bundle];
 
 ::: tip SUPPORTING RESOURCES IN LIBRARIES THROUGH BUNDLES
 <!-- -->
-如果目標產品 (例如函式庫) 不支援資源，Tuist 會將資源包含在產品類型`bundle` 的目標中，以確保它最終出現在最終產品中，並且介面指向正確的
-bundle。
+如果目標產品，例如函式庫，不支援資源，Tuist 會將資源包含在產品類型為`bundle` 的目標中，以確保它最終出現在最終產品中，並且介面指向正確的
+bundle。這些合成的 bundle 會自動加上`tuist:synthesized` 的標籤，並繼承其父目標的所有標籤，讓您可以在
+<LocalizedLink href="/guides/features/projects/metadata-tags#system-tags">cache
+profiles</LocalizedLink> 中定位它們。
 <!-- -->
 :::
 
@@ -122,7 +124,7 @@ let project = Project(resourceSynthesizers: [.string(), .fonts()])
 ::: info REFERENCE
 <!-- -->
 您可以查看 [this
-fixture](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates)
+example](https://github.com/tuist/tuist/tree/main/examples/xcode/generated_ios_app_with_templates)
 以瞭解如何使用自訂範本來合成資源存取器的範例。
 <!-- -->
 :::
