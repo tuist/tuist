@@ -3,9 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
-"PO-Revision-Date: 2025-12-24 20:50+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"PO-Revision-Date: 2026-01-22 12:38+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Russian <https://translate.tuist.dev/projects/tuist/"
 "dashboard_qa/ru/>\n"
 "Language: ru\n"
@@ -14,7 +13,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
 "n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\n"
-"X-Generator: Weblate 5.15.1\n"
+"X-Generator: Weblate 5.15.2\n"
 
 ## This file is a PO Template file.
 ##
@@ -443,7 +442,7 @@ msgstr "Проекты с использованием QA (последние 30
 #: lib/tuist_web/live/ops_qa_live.html.heex:147
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Prompt"
-msgstr "Подсказка"
+msgstr "Проспект"
 
 #: lib/tuist_web/live/qa_settings_live.html.heex:35
 #, elixir-autogen, elixir-format, fuzzy
@@ -667,7 +666,7 @@ msgid "argument-group-name"
 msgstr "argument-group-name"
 
 #: lib/tuist_web/live/qa_live.html.heex:266
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "issue"
 msgid_plural "issues"
 msgstr[0] ""
