@@ -356,7 +356,7 @@ defmodule TuistWeb.TestCaseLive do
 
   defp send_manual_flaky_alert(project, test_case, user, was_auto_quarantined) do
     if project.flaky_test_alerts_enabled and project.flaky_test_alerts_slack_channel_id do
-      Slack.send_manual_flaky_test_alert(project, test_case, user, was_auto_quarantined)
+      :ok = Slack.send_manual_flaky_test_alert(project, test_case, user, was_auto_quarantined)
     end
 
     :ok
