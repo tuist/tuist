@@ -12,7 +12,8 @@
 <!-- -->
 - Un proyecto generado por
   <LocalizedLink href="/guides/features/projects"></LocalizedLink>
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y proyecto</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Cuenta tuista y
+  proyecto</LocalizedLink>
 <!-- -->
 :::
 
@@ -24,7 +25,8 @@ repetir la compilación y acelerando el proceso de desarrollo.
 
 ## Calentamiento {#warming}
 
-Tuist <LocalizedLink href="/guides/features/projects/hashing">utiliza eficientemente hashes</LocalizedLink> para cada objetivo en el grafo de
+Tuist <LocalizedLink href="/guides/features/projects/hashing">utiliza
+eficientemente hashes</LocalizedLink> para cada objetivo en el grafo de
 dependencia para detectar cambios. Utilizando estos datos, construye y asigna
 identificadores únicos a los binarios derivados de estos objetivos. En el
 momento de generar el grafo, Tuist sustituye sin problemas los objetivos
@@ -57,7 +59,7 @@ comportamiento por completo mediante el uso de una bandera específica:
 tuist generate # Only dependencies
 tuist generate Search # Dependencies + Search dependencies
 tuist generate Search Settings # Dependencies, and Search and Settings dependencies
-tuist generate --no-binary-cache # No cache at all
+tuist generate --cache-profile none # No cache at all
 ```
 
 ```bash [Testing]
@@ -71,8 +73,7 @@ tuist test
 La caché binaria es una función diseñada para flujos de trabajo de desarrollo,
 como la ejecución de la aplicación en un simulador o dispositivo, o la ejecución
 de pruebas. No está pensada para compilaciones de lanzamiento. Al archivar la
-aplicación, genera un proyecto con los fuentes utilizando la opción
-`--no-binary-cache`.
+aplicación, genera un proyecto con los fuentes mediante `--cache-profile none`.
 <!-- -->
 :::
 
@@ -103,13 +104,20 @@ tuist generate
 # Focus on specific targets (implies all-possible)
 tuist generate MyModule AnotherTarget
 
-# Disable binary replacement entirely (backwards compatible)
-tuist generate --no-binary-cache  # equivalent to --cache-profile none
+# Disable binary replacement entirely
+tuist generate --cache-profile none
 ```
+
+::: info DEPRECATED FLAG
+<!-- -->
+La opción `--no-binary-cache` está obsoleta. Utilice `--cache-profile none` en
+su lugar. La opción obsoleta sigue siendo compatible con versiones anteriores.
+<!-- -->
+:::
 
 Precedencia a la hora de resolver la conducta efectiva (de mayor a menor):
 
-1. `--no-binary-cache` → profile `none`
+1. `--cache-profile none`
 2. Enfoque de objetivos (pasar objetivos a `generar`) → perfil `todo-posible`
 3. `--perfil de caché `
 4. Configuración por defecto (si está configurada)
@@ -150,7 +158,8 @@ recomendamos lo siguiente:
    probabilidad de cambio sea menor.
 
 Las sugerencias anteriores forman parte de
-<LocalizedLink href="/guides/features/projects/tma-architecture">La arquitectura modular</LocalizedLink>, que proponemos como una forma de estructurar sus
+<LocalizedLink href="/guides/features/projects/tma-architecture">La arquitectura
+modular</LocalizedLink>, que proponemos como una forma de estructurar sus
 proyectos para maximizar los beneficios no sólo de la caché binaria, sino
 también de las capacidades de Xcode.
 
@@ -211,14 +220,16 @@ reducir la carga del sistema durante las operaciones de caché.
 ### No utiliza binarios para mis objetivos {#it-doesnt-use-binaries-for-my-targets}
 
 Asegúrese de que los
-<LocalizedLink href="/guides/features/projects/hashing#debugging">hashes son deterministas</LocalizedLink> entre entornos y ejecuciones. Esto puede ocurrir
+<LocalizedLink href="/guides/features/projects/hashing#debugging">hashes son
+deterministas</LocalizedLink> entre entornos y ejecuciones. Esto puede ocurrir
 si el proyecto tiene referencias al entorno, por ejemplo a través de rutas
 absolutas. Puede utilizar el comando `diff` para comparar los proyectos
 generados por dos invocaciones consecutivas de `tuist generate` o a través de
 entornos o ejecuciones.
 
 Asegúrese también de que el objetivo no depende directa o indirectamente de un
-<LocalizedLink href="/guides/features/cache/generated-project#supported-products">objetivo no almacenable en caché</LocalizedLink>.
+<LocalizedLink href="/guides/features/cache/generated-project#supported-products">objetivo
+no almacenable en caché</LocalizedLink>.
 
 ### Símbolos que faltan {#missing-symbols}
 
@@ -226,7 +237,23 @@ Cuando se utilizan fuentes, el sistema de compilación de Xcode, a través de lo
 datos derivados, puede resolver las dependencias que no se declaran
 explícitamente. Sin embargo, cuando se confía en la caché binaria, las
 dependencias deben declararse explícitamente; de lo contrario, es probable que
-aparezcan errores de compilación cuando no se encuentren los símbolos. Para
+se produzcan errores de compilación cuando no se encuentren los símbolos. Para
 depurar esto, recomendamos usar el comando
-<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist inspect implicit-imports`</LocalizedLink> y configurarlo en CI para prevenir
-regresiones en el enlazado implícito.
+<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">`tuist
+inspect dependencies --only implicit`</LocalizedLink> y configurarlo en CI para
+prevenir regresiones en el enlazado implícito.
+
+### Caché de módulos heredados {#legacy-module-cache}
+
+En Tuist `4.128.0`, hemos hecho que nuestra nueva infraestructura para la caché
+de módulos sea la predeterminada. Si experimentas problemas con esta nueva
+versión, puedes volver al comportamiento anterior de la caché configurando la
+variable de entorno `TUIST_LEGACY_MODULE_CACHE`.
+
+Esta caché de módulo heredada es un recurso temporal y se eliminará en el lado
+del servidor en una futura actualización. Planifique su migración.
+
+```bash
+export TUIST_LEGACY_MODULE_CACHE=1
+tuist generate
+```
