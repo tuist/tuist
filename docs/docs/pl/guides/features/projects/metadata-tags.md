@@ -137,10 +137,58 @@ metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 Używanie prefiksów takich jak `feature:`, `team:`, lub `layer:` ułatwia
 zrozumienie celu każdego tagu i uniknięcie konfliktów nazewnictwa.
 
+## Znaczniki systemowe {#system-tags}
+
+Tuist używa prefiksu `tuist:` dla tagów zarządzanych przez system. Tagi te są
+automatycznie stosowane przez Tuist i mogą być używane w profilach pamięci
+podręcznej do kierowania określonych typów generowanej zawartości.
+
+### Dostępne znaczniki systemowe
+
+| Tag                    | Opis                                                                                                                                                                                                                                         |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tuist:zsyntetyzowany` | Stosowany do zsyntetyzowanych pakietów docelowych, które Tuist tworzy do obsługi zasobów w statycznych bibliotekach i statycznych frameworkach. Te pakiety istnieją z powodów historycznych, aby zapewnić interfejsy API dostępu do zasobów. |
+
+### Używanie tagów systemowych z profilami pamięci podręcznej
+
+W profilach pamięci podręcznej można używać znaczników systemowych w celu
+uwzględnienia lub wykluczenia zsyntetyzowanych obiektów docelowych:
+
+```swift
+import ProjectDescription
+
+let tuist = Tuist(
+    project: .tuist(
+        cacheOptions: .options(
+            profiles: .profiles(
+                [
+                    "development": .profile(
+                        .onlyExternal,
+                        and: ["tag:tuist:synthesized"]  // Also cache synthesized bundles
+                    )
+                ],
+                default: .onlyExternal
+            )
+        )
+    )
+)
+```
+
+::: tip SYNTHESIZED BUNDLES INHERIT PARENT TAGS
+<!-- -->
+Zsyntetyzowane obiekty docelowe pakietu dziedziczą wszystkie znaczniki ze
+swojego obiektu nadrzędnego, a ponadto otrzymują znacznik `tuist:synthesized`.
+Oznacza to, że jeśli biblioteka statyczna zostanie oznaczona tagiem
+`feature:auth`, jej zsyntetyzowany pakiet zasobów będzie posiadał tagi
+`feature:auth` i `tuist:synthesized`.
+<!-- -->
+:::
+
 ## Używanie tagów z pomocnikami opisu projektu {#using-tags-with-helpers}
 
 Możesz wykorzystać
-<LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink>, aby ustandaryzować sposób stosowania tagów w całym
+<LocalizedLink href="/guides/features/projects/code-sharing">project description
+helpers</LocalizedLink>, aby ustandaryzować sposób stosowania tagów w całym
 projekcie:
 
 ```swift
@@ -237,8 +285,10 @@ tuist generate tag:feature:payment
 
 ## Powiązane funkcje {#related-features}
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">Udostępnianie kodu</LocalizedLink> - Używaj narzędzi pomocniczych opisu projektu, aby
+- <LocalizedLink href="/guides/features/projects/code-sharing">Udostępnianie
+  kodu</LocalizedLink> - Używaj narzędzi pomocniczych opisu projektu, aby
   ustandaryzować użycie tagów
 - <LocalizedLink href="/guides/features/cache">Cache</LocalizedLink> - Połącz
   znaczniki z buforowaniem w celu uzyskania optymalnej wydajności kompilacji.
-- <LocalizedLink href="/guides/features/selective-testing">Testowanie selektywne</LocalizedLink> - Uruchamianie testów tylko dla zmienionych celów
+- <LocalizedLink href="/guides/features/selective-testing">Testowanie
+  selektywne</LocalizedLink> - Uruchamianie testów tylko dla zmienionych celów
