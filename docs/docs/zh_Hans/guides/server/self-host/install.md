@@ -25,7 +25,7 @@
 
 ## 持续部署{#continuous-deployment}
 
-我们强烈建议设置持续部署管道，每天自动部署最新版本的 Tuist。这将确保您始终可以访问最新的功能、改进和安全更新。
+我们强烈建议设置持续部署管道，每天自动部署最新版本的 Tuist。这将确保您始终可以访问最新功能、改进和安全更新。
 
 下面是一个 GitHub 操作工作流程示例，每天检查并部署新版本：
 
@@ -108,9 +108,18 @@ Tuist 使用 [ClickHouse](https://clickhouse.com/) 来存储和查询大量分�
 
 您还需要一个存储文件（如框架和库二进制文件）的解决方案。目前，我们支持任何符合 S3 标准的存储。
 
+::: tip OPTIMIZED CACHING
+<!-- -->
+如果您的目标主要是自带用于存储二进制文件的存储桶并减少缓存延迟，您可能不需要自托管整个服务器。您可以自托管缓存节点，并将它们连接到托管的 Tuist
+服务器或您的自托管服务器。
+
+请参阅<LocalizedLink href="/guides/cache/self-host">缓存自助托管指南</LocalizedLink>。
+<!-- -->
+:::
+
 ## 配置 {#configuration}
 
-服务的配置在运行时通过环境变量完成。鉴于这些变量的敏感性，我们建议将其加密并存储在安全的密码管理解决方案中。请放心，Tuist
+服务配置在运行时通过环境变量完成。鉴于这些变量的敏感性，我们建议将其加密并存储在安全的密码管理解决方案中。请放心，Tuist
 会谨慎处理这些变量，确保它们不会显示在日志中。
 
 ::: info LAUNCH CHECKS
@@ -133,7 +142,7 @@ Tuist 使用 [ClickHouse](https://clickhouse.com/) 来存储和查询大量分�
 
 ::: warning EXPIRATION DATE
 <!-- -->
-许可证有过期日期。如果许可证过期不到 30 天，用户在使用 Tuist 命令与服务器交互时将收到警告。如果您有兴趣更新许可证，请联系
+许可证有过期日期。如果许可证过期不到 30 天，用户在使用与服务器交互的 Tuist 命令时会收到警告。如果您有兴趣更新许可证，请联系
 [contact@tuist.dev](mailto:contact@tuist.dev)。
 <!-- -->
 :::
@@ -240,7 +249,7 @@ Tuist 需要存储空间来存放通过 API 上传的工件。**必须配置一�
 
 #### 符合 S3 标准的存储{#s3compliant-storages}
 
-您可以使用任何兼容 S3 的存储提供程序来存储人工制品。需要使用以下环境变量来验证和配置与存储提供商的集成：
+您可以使用任何兼容 S3 的存储提供程序来存储工件。需要使用以下环境变量来验证和配置与存储提供商的集成：
 
 | 环境变量                                                  | 描述                                                                 | 必需  | 默认值     | 示例                                                           |
 | ----------------------------------------------------- | ------------------------------------------------------------------ | --- | ------- | ------------------------------------------------------------ |
@@ -248,7 +257,7 @@ Tuist 需要存储空间来存放通过 API 上传的工件。**必须配置一�
 | `TUIST_S3_SECRET_ACCESS_KEY` 或`AWS_SECRET_ACCESS_KEY` | 用于对存储提供商进行身份验证的秘密访问密钥                                              | 是   |         | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`                   |
 | `TUIST_S3_REGION` 或`AWS_REGION`                       | 水桶所在的区域                                                            | 没有  | `汽车`    | `us-west-2`                                                  |
 | `TUIST_S3_ENDPOINT` 或`AWS_ENDPOINT`                   | 存储提供程序的端点                                                          | 是   |         | `https://s3.us-west-2.amazonaws.com`                         |
-| `tuist_s3_bucket_name`                                | 存储人工制品的存储桶名称                                                       | 是   |         | `tuist-artifacts`                                            |
+| `tuist_s3_bucket_name`                                | 存放人工制品的存储桶名称                                                       | 是   |         | `tuist-artifacts`                                            |
 | `tuist_s3_ca_cert_pem`                                | 用于验证 S3 HTTPS 连接的 PEM 编码 CA 证书。适用于使用自签名证书或内部证书颁发机构的 air-gapped 环境。 | 没有  | 系统 CA 包 | `-----BEGIN CERTIFICATE-----n...\n-----END CERTIFICATE-----` |
 | `tuist_s3_connect_timeout`                            | 与存储提供程序建立连接的超时（以毫秒为单位                                              | 没有  | `3000`  | `3000`                                                       |
 | `tuist_s3_receive_timeout`                            | 从存储提供程序接收数据的超时（以毫秒为单位                                              | 没有  | `5000`  | `5000`                                                       |
@@ -274,7 +283,7 @@ Storage，请按照[这些文档](https://cloud.google.com/storage/docs/authenti
 
 ### 电子邮件配置{#email-configuration}
 
-Tuist 需要电子邮件功能来进行用户验证和事务通知（如密码重置、账户通知）。目前，**只支持 Mailgun 作为电子邮件提供商** 。
+Tuist 需要电子邮件功能来进行用户验证和事务通知（如密码重置、账户通知）。目前，**只支持 Mailgun** 作为电子邮件提供商。
 
 | 环境变量                              | 描述                                   | 必需  | 默认值                                     | 示例                     |
 | --------------------------------- | ------------------------------------ | --- | --------------------------------------- | ---------------------- |
@@ -302,7 +311,8 @@ Tuist 需要电子邮件功能来进行用户验证和事务通知（如密码�
 
 ### Git 平台配置{#git-platform-configuration}
 
-Tuist 可以<LocalizedLink href="/guides/server/authentication">与 Git 平台</LocalizedLink>集成，提供额外功能，例如自动在拉取请求中发布注释。
+Tuist 可以 <LocalizedLink href="/guides/server/authentication"> 与 Git
+平台集成</LocalizedLink>，提供额外功能，例如自动在拉取请求中发布注释。
 
 #### GitHub{#platform-github}
 
@@ -538,7 +548,7 @@ Tuist 使用 [Finch](https://github.com/sneako/finch) 作为 HTTP 客户端，�
 
 ### 其他指标
 
-除 Finch 指标外，Tuist 还提供以下指标：
+除 Finch 指标外，Tuist 还公开了以下指标：
 - BEAM 虚拟机性能
 - 自定义业务逻辑指标（存储、账户、项目等）
 - 数据库性能（使用 Tuist 托管基础设施时）
@@ -554,6 +564,6 @@ Tuist 在`/ops/` 下提供了一套实用程序，可用于管理实例。
 :::
 
 - **错误 (`/ops/errors`)：**
-  您可以查看应用程序中出现的意外错误。这对于调试和了解出错原因非常有用，如果您遇到问题，我们可能会要求您与我们分享这些信息。
+  您可以查看应用程序中出现的意外错误。这对调试和了解出错原因非常有用，如果您遇到问题，我们可能会要求您与我们分享这些信息。
 - **仪表盘（`/ops/dashboard`）：**
   您可以查看仪表盘，了解应用程序的性能和健康状况（如内存消耗、正在运行的进程、请求数）。该仪表盘对于了解所使用的硬件是否足以处理负载非常有用。
