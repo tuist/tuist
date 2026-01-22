@@ -7,15 +7,15 @@
 ---
 # Swift 软件包 {#swift-packages}
 
-如果您正在处理 Swift 软件包，可以使用`--replace-scm-with-registry` 标志来解析注册表中的依赖项（如果有的话）：
+若您正在处理 Swift 包，可使用 ``--replace-scm-with-registry`` 参数从注册库解析依赖项（若可用）：
 
 ```bash
 swift package --replace-scm-with-registry resolve
 ```
 
-如果要确保每次解析依赖关系时都使用注册表，则需要更新`Package.swift` 文件中的`依赖关系` ，以使用注册表标识符而非
-URL。注册表标识符的形式始终是`{organization}.{repository}`
-。例如，要使用`swift-composable-architecture` 软件包的注册表，请执行以下操作：
+` 若需确保每次解析依赖项时都使用注册库，您需要在`的 Package.swift 文件中将`dependencies` 修改为使用注册库标识符替代
+URL。注册库标识符始终采用`{organization}.{repository}`
+的格式。例如，要为`swift-composable-architecture` 包使用注册库，请执行以下操作：
 ```diff
 dependencies: [
 -   .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "0.1.0")
