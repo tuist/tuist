@@ -7,13 +7,13 @@
 ---
 # Rahatlığın bedeli {#the-cost-of-convenience}
 
-Küçük ölçekli projelerden büyük ölçekli projelere kadar **spektrumunun**
-kullanabileceği bir kod editörü tasarlamak zorlu bir görevdir. Birçok araç,
-çözümlerini katmanlandırarak ve genişletilebilirlik sağlayarak soruna yaklaşır.
-En alttaki katman çok düşük seviyeli ve altta yatan derleme sistemine yakındır
-ve en üstteki katman, kullanımı kolay ancak daha az esnek olan yüksek seviyeli
-bir soyutlamadır. Bunu yaparak basit şeyleri kolaylaştırıyor ve diğer her şeyi
-mümkün kılıyorlar.
+Küçük ölçekli projelerden büyük ölçekli projelere kadar **spektrumunun
+kullanabileceği bir kod düzenleyici tasarlamak** zorlu bir görevdir. Birçok
+araç, çözümlerini katmanlandırarak ve genişletilebilirlik sağlayarak soruna
+yaklaşır. En alttaki katman çok düşük seviyeli ve altta yatan derleme sistemine
+yakındır ve en üstteki katman, kullanımı kolay ancak daha az esnek olan yüksek
+seviyeli bir soyutlamadır. Bunu yaparak basit şeyleri kolaylaştırıyor ve diğer
+her şeyi mümkün kılıyorlar.
 
 Ancak, **[Apple](https://www.apple.com) Xcode** ile farklı bir yaklaşım
 benimsemeye karar verdi. Nedeni bilinmiyor, ancak büyük ölçekli projelerin
@@ -35,15 +35,15 @@ veya [Swift
 Makroları](https://docs.swift.org/swift-book/documentation/the-swift-programming-language/macros/)
 gibi editör özelliklerinin güvenilir ve tahmin edilebilir şekilde çalışmasını
 sağlamada da kilit öneme sahiptir. Xcode ve Xcode projeleri, Swift paketi
-yöneticisinin miras aldığı bir ilke olan kolaylığı sağlamak için geçerli bir
+Yöneticisi'nin miras aldığı bir ilke olan kolaylığı sağlamak için geçerli bir
 tasarım seçimi olarak örtüklüğü benimsediğinden, Xcode kullanmanın zorlukları
-Swift paketi yöneticisinde de mevcuttur.
+Swift paketi Yöneticisi'nde de mevcuttur.
 
 ::: info THE ROLE OF TUIST
 <!-- -->
 Tuist'in rolünü, örtük olarak tanımlanmış projeleri önleyen ve daha iyi bir
-geliştirici deneyimi (örn. doğrulamalar, optimizasyonlar) sağlamak için
-açıklıktan yararlanan bir araç olarak özetleyebiliriz.
+geliştirici deneyimi sağlamak için açıklıktan yararlanan bir araç olarak
+özetleyebiliriz (örneğin, doğrulamalar, optimizasyonlar).
 Bazel](https://bazel.build) gibi araçlar bunu derleme sistemi seviyesine
 indirerek daha da ileri götürmektedir.
 <!-- -->
@@ -59,7 +59,7 @@ optimize edilemez hale getirmeye devam ettikleri.
 
 Aşağıdaki bölümlerde, örtüklüğün geliştirici deneyimini ve projenin sağlığını
 nasıl etkilediğine dair bazı gerçek örnekleri tartışacağız. Liste kapsamlı
-değildir, ancak Xcode projeleri veya Swift paketi ile çalışırken
+değildir, ancak Xcode projeleri veya Swift paketleri ile çalışırken
 karşılaşabileceğiniz zorluklar hakkında size iyi bir fikir vermelidir.
 
 ## Kolaylık yolunuza çıkıyor {#convenience-getting-in-your-way}
@@ -117,7 +117,7 @@ yönetimini kolaylaştıran Tuist gibi kullanmanızı öneririz.
 
 SwiftUI Önizlemeleri veya Swift Makroları gibi bazı editör özellikleri,
 düzenlenmekte olan dosyadan bağımlılık grafiğinin derlenmesini gerektirir.
-Düzenleyici arasındaki bu entegrasyon, derleme sisteminin herhangi bir örtüklüğü
+Düzenleyici arasındaki bu entegrasyon, derleme sisteminin her türlü örtüklüğü
 çözmesini ve bu özelliklerin çalışması için gerekli olan doğru yapıların
 çıktısını almasını gerektirir. Tahmin edebileceğiniz gibi **grafik ne kadar
 örtük olursa** derleme sistemi için görev o kadar zorlaşır ve bu nedenle bu
@@ -131,7 +131,7 @@ kütüphanelerin kullanımı veya komut dosyası oluşturma aşamaları gibi bel
 ### Birleştirilebilir kütüphaneler {#mergeable-libraries}
 
 Dinamik çerçeveler daha esnek ve kullanımı daha kolay olsa da uygulamaların
-başlatılma süresinde olumsuz bir etkiye sahiptir. Diğer taraftan, statik
+başlatılma süresi üzerinde olumsuz bir etkiye sahiptir. Diğer taraftan, statik
 kütüphanelerin başlatılması daha hızlıdır, ancak derleme süresini etkiler ve
 özellikle karmaşık grafik senaryolarında çalışmak biraz daha zordur.
 *Yapılandırmaya bağlı olarak biri ya da diğeri arasında geçiş yapabilseydiniz
@@ -168,13 +168,13 @@ optimizasyonlar mümkün olacaktır.**
 ## Gelecek {#future}
 
 Apple'ın yukarıdaki tüm sorunları önlemek için bir şey yapıp yapmayacağı
-bilinmiyor. Xcode ve Swift paketi Yöneticisi'ne yerleştirilmiş sürekli
-kararları, bunu yapacaklarını göstermiyor. Örtük yapılandırmaya geçerli bir
-durum olarak izin verdiğinizde, **kırıcı değişiklikler getirmeden oradan hareket
-etmek zordur.** İlk ilkelere geri dönmek ve araçların tasarımını yeniden
-düşünmek, yıllardır yanlışlıkla derlenen birçok Xcode projesinin bozulmasına
-neden olabilir. Bunun gerçekleşmesi halinde topluluğun nasıl bir tepki
-vereceğini hayal edin.
+bilinmiyor. Xcode ve Swift paketi yöneticisine yerleştirilmiş sürekli kararları,
+bunu yapacaklarını göstermiyor. Örtük yapılandırmaya geçerli bir durum olarak
+izin verdiğinizde, **kırıcı değişiklikler getirmeden oradan hareket etmek
+zordur.** İlk ilkelere geri dönmek ve araçların tasarımını yeniden düşünmek,
+yıllardır yanlışlıkla derlenen birçok Xcode projesinin bozulmasına neden
+olabilir. Bunun gerçekleşmesi halinde topluluğun nasıl bir tepki vereceğini
+hayal edin.
 
 Apple kendini biraz tavuk-yumurta probleminin içinde buluyor. Kolaylık,
 geliştiricilerin hızlı bir şekilde başlamasına ve ekosistemleri için daha fazla
@@ -186,8 +186,8 @@ Gelecek bilinmediği için **endüstri standartlarına ve Xcode projelerine** m�
 olduğunca yakın olmaya çalışıyoruz. Yukarıdaki sorunları önlüyor ve daha iyi bir
 geliştirici deneyimi sağlamak için sahip olduğumuz bilgiden yararlanıyoruz.
 İdeal olarak bunun için proje oluşturmaya başvurmak zorunda kalmayız, ancak
-Xcode'un ve Swift paketi Paket Yöneticisinin genişletilebilirlik eksikliği bunu
-tek uygulanabilir seçenek haline getiriyor. Ayrıca bu güvenli bir seçenek çünkü
+Xcode'un ve Swift paketi Yöneticisinin genişletilebilirlik eksikliği bunu tek
+uygulanabilir seçenek haline getiriyor. Ayrıca bu güvenli bir seçenek çünkü
 Tuist projelerini bozmak için Xcode projelerini bozmaları gerekecek.
 
 İdeal olarak, **derleme sistemi daha genişletilebilirdi**, ancak bir örtüklük
