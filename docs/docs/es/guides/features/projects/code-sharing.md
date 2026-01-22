@@ -16,9 +16,8 @@ definiciones de proyecto es útil por las siguientes razones:
   solo lugar y todos los proyectos reciben los cambios automáticamente.
 - Permite definir las convenciones de **** a las que pueden ajustarse los nuevos
   proyectos.
-- Los proyectos son más coherentes **** y, por lo tanto, la probabilidad de que
-  se rompan las compilaciones debido a incoherencias es significativamente
-  menor.
+- Los proyectos son más coherentes **** y, por tanto, la probabilidad de que se
+  rompan las compilaciones debido a incoherencias es significativamente menor.
 - Añadir un nuevo proyecto se convierte en una tarea fácil porque podemos
   reutilizar la lógica existente.
 
