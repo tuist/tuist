@@ -143,11 +143,24 @@ Potrzebne będzie również rozwiązanie do przechowywania plików (np. plików
 binarnych frameworków i bibliotek). Obecnie obsługujemy dowolną pamięć masową
 zgodną ze standardem S3.
 
+::: tip OPTIMIZED CACHING
+<!-- -->
+Jeśli Twoim celem jest przede wszystkim posiadanie własnego zasobnika do
+przechowywania plików binarnych i zmniejszenie opóźnień pamięci podręcznej, być
+może nie będziesz musiał samodzielnie hostować całego serwera. Możesz
+samodzielnie hostować węzły pamięci podręcznej i podłączyć je do hostowanego
+serwera Tuist lub własnego serwera.
+
+Zobacz <LocalizedLink href="/guides/cache/self-host"> przewodnik po samodzielnym
+hostingu cache</LocalizedLink>.
+<!-- -->
+:::
+
 ## Konfiguracja {#configuration}
 
 Konfiguracja usługi odbywa się w czasie wykonywania poprzez zmienne
-środowiskowe. Biorąc pod uwagę wrażliwy charakter tych zmiennych, zalecamy ich
-szyfrowanie i przechowywanie w bezpiecznych rozwiązaniach do zarządzania
+środowiskowe. Biorąc pod uwagę wrażliwy charakter tych zmiennych, zalecamy
+szyfrowanie i przechowywanie ich w bezpiecznych rozwiązaniach do zarządzania
 hasłami. Zapewniamy, że Tuist obsługuje te zmienne z najwyższą starannością,
 zapewniając, że nigdy nie są one wyświetlane w dziennikach.
 
@@ -281,7 +294,8 @@ Może być konieczne utworzenie ekranu zgody. W tym celu należy dodać zakresy
 Możesz włączyć uwierzytelnianie w Okta za pomocą protokołu [OAuth
 2.0](https://oauth.net/2/). Będziesz musiał [utworzyć
 aplikację](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta)
-w Okta zgodnie z <LocalizedLink href="/guides/integrations/sso#okta"> tymi instrukcjami</LocalizedLink>.
+w Okta zgodnie z <LocalizedLink href="/guides/integrations/sso#okta"> tymi
+instrukcjami</LocalizedLink>.
 
 Po uzyskaniu identyfikatora klienta i hasła tajnego podczas konfigurowania
 aplikacji Okta należy ustawić następujące zmienne środowiskowe:
@@ -381,7 +395,8 @@ e-mail jest skonfigurowany, ustaw `TUIST_SKIP_EMAIL_CONFIRMATION=false`.
 
 ### Konfiguracja platformy Git {#git-platform-configuration}
 
-Tuist może <LocalizedLink href="/guides/server/authentication"> integrować się z platformami Git</LocalizedLink>, aby zapewnić dodatkowe funkcje, takie jak
+Tuist może <LocalizedLink href="/guides/server/authentication"> integrować się z
+platformami Git</LocalizedLink>, aby zapewnić dodatkowe funkcje, takie jak
 automatyczne publikowanie komentarzy w pull requestach.
 
 #### GitHub {#platform-github}
@@ -633,7 +648,7 @@ udostępnia szczegółowe dane dotyczące żądań HTTP:
   (licznik)
   - Etykiety: `finch_name`, `scheme`, `host`, `port`
 
-#### Wysyłanie metryk
+#### Wyślij metryki
 - `tuist_prom_ex_finch_send_duration_milliseconds` - Czas wysłania żądania
   (histogram)
   - Etykiety: `finch_name`, `method`, `scheme`, `host`, `port`, `error`
