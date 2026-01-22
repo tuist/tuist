@@ -51,7 +51,8 @@ Xcode](https://mise.jdx.dev/ide-integration.html#xcode).
 Ten en cuenta que aún puedes instalar Tuist usando Homebrew, que es un popular
 gestor de paquetes para macOS. Puedes encontrar las instrucciones sobre cómo
 instalar Tuist usando Homebrew en la
-<LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">guía de instalación</LocalizedLink>.
+<LocalizedLink href="/guides/quick-start/install-tuist#alternative-homebrew">guía
+de instalación</LocalizedLink>.
 <!-- -->
 :::
 
@@ -74,7 +75,7 @@ nombre del constructor estático. Por ejemplo, el constructor estático del mode
 
 ### Se ha cambiado el nombre de `--no-cache` a `--no-binary-cache` {#renamed-nocache-to-nobinarycache}
 
-Debido a que la opción `--no-cache` era ambigua, hemos decidido renombrarla a
+Dado que la opción `--no-cache` era ambigua, hemos decidido renombrarla a
 `--no-binary-cache` para dejar claro que se refiere a la caché binaria. Si
 estabas usando la opción `--no-cache`, tendrás que actualizar tu proyecto para
 usar la opción `--no-binary-cache`.
@@ -150,10 +151,10 @@ tuist generate Foo
 ### [Capacidades de firma abandonadas](https://github.com/tuist/tuist/pull/5716) {#dropped-signing-capabilitieshttpsgithubcomtuisttuistpull5716}
 
 La firma ya está resuelta por herramientas de la comunidad como
-[Fastlane](https://fastlane.tools/) y el propio Xcode, que lo hacen mucho mejor.
-Pensamos que firmar era un objetivo demasiado ambicioso para Tuist, y que era
-mejor centrarse en las características principales del proyecto. Si estabas
-usando las capacidades de firma de Tuist, que consistían en cifrar los
+[Fastlane](https://fastlane.tools/) y el propio Xcode, que hacen un trabajo
+mucho mejor. Pensamos que firmar era un objetivo demasiado ambicioso para Tuist,
+y que era mejor centrarse en las características principales del proyecto. Si
+estabas usando las capacidades de firma de Tuist, que consistían en cifrar los
 certificados y perfiles en el repositorio e instalarlos en los lugares adecuados
 en el momento de la generación, puede que quieras replicar esa lógica en tus
 propios scripts que se ejecutan antes de la generación del proyecto. En
