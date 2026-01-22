@@ -153,6 +153,15 @@
                     "items": {
                         "handbook": {
                             "text": "ハンドブック"
+                        },
+                        "cli": {
+                            "text": "CLI"
+                        },
+                        "server": {
+                            "text": "サーバー"
+                        },
+                        "docs": {
+                            "text": "ドキュメント"
                         }
                     }
                 }
@@ -412,6 +421,9 @@
                                 }
                             },
                             "text": "ギットの鍛造"
+                        },
+                        "slack": {
+                            "text": "Slack"
                         }
                     }
                 },
