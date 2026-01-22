@@ -54,7 +54,6 @@ Tuist validates the graph when generating the project to ensure that there are
 no cycles and that all the dependencies are valid. Thanks to this, any team can
 take part in evolving the dependency graph without worrying about breaking it.
 <!-- -->
-:::
 
 ## Local dependencies {#local-dependencies}
 
@@ -76,7 +75,6 @@ Every dependency type accepts a `condition` option to conditionally link the
 dependency based on the platform. By default, it links the dependency for all
 platforms the target supports.
 <!-- -->
-:::
 
 ## External dependencies {#external-dependencies}
 
@@ -97,7 +95,8 @@ integrate Swift Packages in your project using XcodeProj's targets. Thanks to
 that, we can not only give you more control over the integration but also make
 it compatible with workflows like
 <LocalizedLink href="/guides/features/cache">caching</LocalizedLink> and
-<LocalizedLink href="/guides/features/test/selective-testing">selective test runs</LocalizedLink>.
+<LocalizedLink href="/guides/features/test/selective-testing">selective test
+runs</LocalizedLink>.
 
 XcodeProj's integration is more likely to take more time to support new Swift
 Package features or handle more package configurations. However, the mapping
@@ -108,7 +107,6 @@ integration, which is closed-source and maintained by Apple.
 To add external dependencies, you'll have to create a `Package.swift` either
 under `Tuist/` or at the root of the project.
 
-::: code-group
 ```swift [Tuist/Package.swift]
 // swift-tools-version: 5.9
 import PackageDescription
@@ -140,7 +138,6 @@ let package = Package(
 )
 ```
 <!-- -->
-:::
 
 ::: tip PACKAGE SETTINGS
 <!-- -->
@@ -149,7 +146,6 @@ configure how packages are integrated. For example, in the example above it's
 used to override the default product type used for packages. By default, you
 shouldn't need it.
 <!-- -->
-:::
 
 > [!IMPORTANT] CUSTOM BUILD CONFIGURATIONS If your project uses custom build
 > configurations (configurations other than the standard `Debug` and `Release`),
@@ -196,7 +192,6 @@ time as the project grows.
 From your project targets you can then reference those dependencies using the
 `TargetDependency.external` dependency type:
 
-::: code-group
 ```swift [Project.swift]
 import ProjectDescription
 
@@ -220,14 +215,12 @@ let project = Project(
 )
 ```
 <!-- -->
-:::
 
 ::: info NO SCHEMES GENERATED FOR EXTERNAL PACKAGES
 <!-- -->
 The **schemes** are not automatically created for Swift Package projects to keep
 the schemes list clean. You can create them via Xcode's UI.
 <!-- -->
-:::
 
 #### Xcode's default integration {#xcodes-default-integration}
 
@@ -258,7 +251,6 @@ integration](#xcode-s-default-integration) mechanism, even when using Tuist's
 [XcodeProj-based integration](#tuist-s-xcodeproj-based-integration) for your
 project dependencies.
 <!-- -->
-:::
 
 A practical application of an SPM build tool plugin is performing code linting
 during Xcode's "Run Build Tool Plug-ins" build phase. In a package manifest this
@@ -331,7 +323,6 @@ If you build and test your project through `xcodebuild build` and `tuist test`,
 you will similarly need to ensure that the Carthage-resolved dependencies are
 present by running the `carthage update` command before building or testing.
 <!-- -->
-:::
 
 ### CocoaPods {#cocoapods}
 
@@ -355,7 +346,6 @@ that run `xcodebuild` right after generating the project. They are also
 incompatible with binary caching and selective testing since the fingerprinting
 logic doesn't account for the Pods dependencies.
 <!-- -->
-:::
 
 ## Static or dynamic {#static-or-dynamic}
 
@@ -382,9 +372,11 @@ Previews that rely on the compilation graph to become unreliable.
 
 Luckily, Tuist conceptually compresses the complexity associated with changing
 between static and dynamic and synthesizes
-<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle accessors</LocalizedLink> that are standard across linking types. In combination
+<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle
+accessors</LocalizedLink> that are standard across linking types. In combination
 with
-<LocalizedLink href="/guides/features/projects/dynamic-configuration">dynamic configurations via environment variables</LocalizedLink>, you can pass the
+<LocalizedLink href="/guides/features/projects/dynamic-configuration">dynamic
+configurations via environment variables</LocalizedLink>, you can pass the
 linking type at invocation time, and use the value in your manifests to set the
 product type of your targets.
 
@@ -400,7 +392,9 @@ func productType() -> Product {
 ```
 
 Note that Tuist
-<LocalizedLink href="/guides/features/projects/cost-of-convenience">does not default to convenience through implicit configuration due to its costs</LocalizedLink>. What this means is that we rely on you setting the
+<LocalizedLink href="/guides/features/projects/cost-of-convenience">does not
+default to convenience through implicit configuration due to its
+costs</LocalizedLink>. What this means is that we rely on you setting the
 linking type and any additional build settings that are sometimes required, like
 the [`-ObjC` linker
 flag](https://github.com/pointfreeco/swift-composable-architecture/discussions/1657#discussioncomment-4119184),
@@ -414,7 +408,6 @@ A Swift Package that many projects integrate is [The Composable
 Architecture](https://github.com/pointfreeco/swift-composable-architecture). See
 more details in [this section](#the-composable-architecture).
 <!-- -->
-:::
 
 ### Scenarios {#scenarios}
 
@@ -542,7 +535,6 @@ Dynamic linking is not always recommended. See the section [Static or
 dynamic](#static-or-dynamic) for more details. In this example, all dependencies
 are linked dynamically without conditions for simplicity.
 <!-- -->
-:::
 
 ```swift [Tuist/Package.swift]
 // swift-tools-version: 6.0
@@ -595,16 +587,17 @@ let packageSettings = PackageSettings(
 <!-- -->
 Instead of `import Sharing` you'll have to `import SwiftSharing` instead.
 <!-- -->
-:::
 
 ### Transitive static dependencies leaking through `.swiftmodule` {#transitive-static-dependencies-leaking-through-swiftmodule}
 
 When a dynamic framework or library depends on static ones through `import
 StaticSwiftModule`, the symbols are included in the `.swiftmodule` of the
 dynamic framework or library, potentially
-<LocalizedLink href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1">causing the compilation to fail</LocalizedLink>. To prevent that, you'll have to import
+<LocalizedLink href="https://forums.swift.org/t/compiling-a-dynamic-framework-with-a-statically-linked-library-creates-dependencies-in-swiftmodule-file/22708/1">causing
+the compilation to fail</LocalizedLink>. To prevent that, you'll have to import
 the static dependency using
-<LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal import`</LocalizedLink>:
+<LocalizedLink href="https://github.com/swiftlang/swift-evolution/blob/main/proposals/0409-access-level-on-imports.md">`internal
+import`</LocalizedLink>:
 
 ```swift
 internal import StaticModule
@@ -617,7 +610,6 @@ of Swift, you need to use
 <LocalizedLink href="https://github.com/apple/swift/blob/main/docs/ReferenceGuides/UnderscoredAttributes.md#_implementationonly">`@_implementationOnly`</LocalizedLink>
 instead:
 <!-- -->
-:::
 
 ```swift
 @_implementationOnly import StaticModule
