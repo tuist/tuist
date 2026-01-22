@@ -322,6 +322,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
     ) -> String {
         return """
         #import <Foundation/Foundation.h>
+        #import "TuistBundle+\(targetName).h"
 
         @interface \(targetName)BundleFinder : NSObject
         @end

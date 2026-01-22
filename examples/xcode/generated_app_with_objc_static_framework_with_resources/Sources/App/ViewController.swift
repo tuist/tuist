@@ -6,6 +6,12 @@ class ViewController: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = .white
 
+        // Load SVProgressHUD resources on launch to verify bundle accessor works
+        SVProgressHUD.show()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            SVProgressHUD.dismiss()
+        }
+
         let button = UIButton(type: .system)
         button.setTitle("Show Progress", for: .normal)
         button.addTarget(self, action: #selector(showProgress), for: .touchUpInside)
