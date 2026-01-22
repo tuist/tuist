@@ -13,10 +13,11 @@ dönüştürür.
 
 ::: warning
 <!-- -->
-Bu özelliğin amacı, geliştiricilerin Swift paketi içinde Tuist'i benimsemenin
+Bu özelliğin amacı, geliştiricilerin Swift paketlerinde Tuist'i benimsemenin
 etkisini değerlendirmeleri için kolay bir yol sağlamaktır. Bu nedenle, Swift
-paketi Paket Yöneticisi özelliklerinin tamamını desteklemeyi veya Tuist'in
-<LocalizedLink href="/guides/features/projects/code-sharing">proje açıklama yardımcıları</LocalizedLink> gibi benzersiz özelliklerini paketler dünyasına
+paketi Yöneticisi özelliklerinin tamamını desteklemeyi veya Tuist'in
+<LocalizedLink href="/guides/features/projects/code-sharing">proje açıklama
+yardımcıları</LocalizedLink> gibi benzersiz özelliklerini paketler dünyasına
 getirmeyi planlamıyoruz.
 <!-- -->
 :::
@@ -25,13 +26,14 @@ getirmeyi planlamıyoruz.
 <!-- -->
 Tuist komutları, kökü bir `Tuist` veya bir `.git` dizini ile tanımlanan belirli
 bir
-<LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects">dizin yapısı</LocalizedLink> bekler.
+<LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects">dizin
+yapısı</LocalizedLink> bekler.
 <!-- -->
 :::
 
 ## Tuist'i bir Swift paketi ile Kullanma {#using-tuist-with-a-swift-package}
 
-Tuist'in bir Swift paketi içeren [TootSDK
+Tuist'i bir Swift paketi içeren [TootSDK
 Package](https://github.com/TootSDK/TootSDK) deposu ile kullanacağız. Yapmamız
 gereken ilk şey depoyu klonlamak:
 
@@ -40,15 +42,15 @@ git clone https://github.com/TootSDK/TootSDK
 cd TootSDK
 ```
 
-Depo dizinine girdikten sonra, Swift paketi Paket Yöneticisi bağımlılıklarını
+Depo dizinine girdikten sonra, Swift paketi paket yöneticisi bağımlılıklarını
 yüklememiz gerekiyor:
 
 ```bash
 tuist install
 ```
 
-Kaputun altında `tuist install` Swift paketi bağımlılıklarını çözmek ve çekmek
-için Swift paketi Yöneticisini kullanır. Çözümleme tamamlandıktan sonra projeyi
+Kaputun altında `tuist install` paketin bağımlılıklarını çözmek ve çekmek için
+Swift paketi kullanır. Çözümleme tamamlandıktan sonra projeyi
 oluşturabilirsiniz:
 
 ```bash
