@@ -35,8 +35,8 @@ kaynakların ve kaynakların sık sık yer değiştirdiği modüler bir projeyle
   süresini artıracaktır.
 - **Çalışma zamanı hatalarına eğilimli**: Kaynaklar adları ve uzantıları
   (dizeler) ile tanımlanır. Bu nedenle, bunlardan herhangi birindeki bir yazım
-  hatası, kaynağa erişmeye çalışırken bir çalışma zamanı hatasına yol açacaktır.
-  Bu ideal değildir çünkü derleme zamanında yakalanmaz ve sürümde çökmelere yol
+  hatası, kaynağa erişmeye çalışırken çalışma zamanı hatasına yol açacaktır. Bu
+  ideal değildir çünkü derleme zamanında yakalanmaz ve sürümde çökmelere yol
   açabilir.
 
 Tuist yukarıdaki sorunları **demetlere ve kaynaklara erişmek için** uygulama
@@ -99,9 +99,13 @@ sınırlamadır.
 
 ::: tip SUPPORTING RESOURCES IN LIBRARIES THROUGH BUNDLES
 <!-- -->
-Bir hedef ürün, örneğin bir kütüphane, kaynakları desteklemiyorsa, Tuist
-kaynakları `bundle` ürün türündeki bir hedefe dahil ederek nihai ürüne
-ulaşmasını ve arayüzün doğru pakete işaret etmesini sağlayacaktır.
+Eğer bir hedef ürün, örneğin bir kütüphane, kaynakları desteklemiyorsa, Tuist
+kaynakları `bundle` ürün tipindeki bir hedefe dahil ederek nihai üründe yer
+almasını ve arayüzün doğru pakete işaret etmesini sağlayacaktır. Bu sentezlenmiş
+paketler otomatik olarak `tuist:synthesized` ile etiketlenir ve ana
+hedeflerinden tüm etiketleri miras alır, böylece onları
+<LocalizedLink href="/guides/features/projects/metadata-tags#system-tags">cache
+profillerinde</LocalizedLink> hedeflemenize olanak tanır.
 <!-- -->
 :::
 
@@ -161,8 +165,8 @@ let project = Project(resourceSynthesizers: [.string(), .fonts()])
 ::: info REFERENCE
 <!-- -->
 Kaynaklara erişimcileri sentezlemek için özel şablonların nasıl kullanılacağına
-dair bir örnek görmek için [this
-fixture](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates)
-sayfasına göz atabilirsiniz.
+dair bir örnek görmek için [bu
+örnek](https://github.com/tuist/tuist/tree/main/examples/xcode/generated_ios_app_with_templates)'e
+göz atabilirsiniz.
 <!-- -->
 :::
