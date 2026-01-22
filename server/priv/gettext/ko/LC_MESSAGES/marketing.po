@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-12-24 11:49+0000\nLast-Translator: Weblate Admin <admin@cloudron.local>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15.1\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2026-01-22 12:36+0000\nLast-Translator: 이영준 <kofggm@gmail.com>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -185,7 +185,7 @@ msgid "Contact"
 msgstr "문의"
 
 msgid "Contact us"
-msgstr "우리에게 문의하세요"
+msgstr "저희에게 문의하세요"
 
 msgid "Contributors"
 msgstr "기여자들"
@@ -878,7 +878,7 @@ msgid "Free"
 msgstr "무료"
 
 msgid "and up"
-msgstr "그리고 업그레이드"
+msgstr "이상"
 
 msgid "per additional unit"
 msgstr "추가 사용자 마다"
@@ -896,7 +896,7 @@ msgid "About us"
 msgstr "제작자 소개"
 
 msgid "Hits"
-msgstr "조회수"
+msgstr "일치수"
 
 msgid "Read customer story"
 msgstr "사용자 경험 읽기"
