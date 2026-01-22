@@ -3,9 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-22 12:41+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"PO-Revision-Date: 2026-01-22 13:03+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Spanish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_account/es/>\n"
 "Language: es\n"
@@ -34,13 +33,12 @@ msgstr "0$"
 #: lib/tuist_web/live/billing_live.html.heex:220
 #, elixir-autogen, elixir-format, fuzzy
 msgid "$0.50"
-msgstr "$0.50"
+msgstr "0,50 $"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:63
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{inviter} has invited you to join the %{organization} organization"
-msgstr ""
-"El %{invitador} le ha invitado a unirse a la organización %{organización"
+msgstr "%{inviter} te ha invitado a unirte a la organización %{organization}."
 
 #: lib/tuist_web/live/billing_live.html.heex:294
 #, elixir-autogen, elixir-format, fuzzy
@@ -75,8 +73,8 @@ msgstr "Air"
 #, elixir-autogen, elixir-format, fuzzy
 msgid "All billing correspondence will go to this email"
 msgstr ""
-"Toda la correspondencia sobre facturación se enviará a este correo "
-"electrónico"
+"Toda la correspondencia relacionada con la facturación se enviará a este "
+"correo electrónico."
 
 #: lib/tuist/billing.ex:46
 #: lib/tuist_web/live/billing_live.ex:192
@@ -98,12 +96,12 @@ msgstr "Todas las regiones"
 #: lib/tuist_web/live/account_settings_live.html.heex:247
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Are you sure you want to delete this?"
-msgstr "¿Seguro que quieres borrar esto?"
+msgstr "¿Estás seguro de que quieres eliminar esto?"
 
 #: lib/tuist_web/live/members_live.ex:196
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Are you sure you want to remove %{name} from this organization?"
-msgstr "¿Está seguro de que desea eliminar %{nombre} de esta organización?"
+msgstr "¿Estás seguro de que quieres eliminar %{name} de esta organización?"
 
 #: lib/tuist_web/live/billing_live.ex:71
 #: lib/tuist_web/live/billing_live.html.heex:3
@@ -130,7 +128,7 @@ msgstr "Cancelar"
 #: lib/tuist_web/live/billing_live.html.heex:156
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Change subscription plan"
-msgstr "Cambiar el plan de suscripción"
+msgstr "Cambiar plan de suscripción"
 
 #: lib/tuist_web/live/billing_live.html.heex:154
 #, elixir-autogen, elixir-format, fuzzy
@@ -141,8 +139,8 @@ msgstr "Cambia tu suscripción para adaptarla a tus necesidades."
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Choose where your artifacts, like module cache binaries, are stored for legal compliance."
 msgstr ""
-"Elija dónde se almacenan sus artefactos, como los binarios de la caché de "
-"módulos, para garantizar el cumplimiento de la legislación."
+"Elige dónde se almacenan tus artefactos, como los binarios de la caché del "
+"módulo, para cumplir con la normativa legal."
 
 #: lib/tuist/billing.ex:47
 #, elixir-autogen, elixir-format, fuzzy
@@ -157,17 +155,18 @@ msgstr "Soporte de la comunidad a través del foro"
 #: lib/tuist_web/live/billing_live.html.heex:111
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Community support: Support via community forum"
-msgstr "Apoyo comunitario: Apoyo a través del foro comunitario"
+msgstr ""
+"Asistencia de la comunidad: Asistencia a través del foro de la comunidad."
 
 #: lib/tuist_web/live/billing_live.html.heex:147
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Completely free for open source projects"
-msgstr "Totalmente gratuito para proyectos de código abierto"
+msgstr "Totalmente gratuito para proyectos de código abierto."
 
 #: lib/tuist/accounts/user_notifier.ex:113
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Confirm your email"
-msgstr "Confirme su correo electrónico"
+msgstr "Confirma tu correo electrónico."
 
 #: lib/tuist/accounts/user_notifier.ex:104
 #, elixir-autogen, elixir-format, fuzzy
@@ -178,7 +177,7 @@ msgstr "Instrucciones de confirmación"
 #: lib/tuist_web/live/billing_live.ex:254
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Contact sales"
-msgstr "Contacto ventas"
+msgstr "Póngase en contacto con el departamento de ventas."
 
 #: lib/tuist_web/live/create_organization_live.ex:37
 #, elixir-autogen, elixir-format, fuzzy
@@ -188,7 +187,7 @@ msgstr "Crear una nueva organización"
 #: lib/tuist_web/live/create_organization_live.ex:35
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Create an organization account to continue"
-msgstr "Crear una cuenta de organización para continuar"
+msgstr "Crea una cuenta de organización para continuar."
 
 #: lib/tuist_web/live/create_organization_live.ex:57
 #, elixir-autogen, elixir-format, fuzzy
@@ -230,8 +229,7 @@ msgstr "Términos personalizados"
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Custom terms: Tailored agreements to meet your specific needs"
 msgstr ""
-"Condiciones personalizadas: Acuerdos a medida para satisfacer sus "
-"necesidades específicas"
+"Términos personalizados: acuerdos adaptados a sus necesidades específicas."
 
 #: lib/tuist_web/live/accept_invitation_live.ex:153
 #, elixir-autogen, elixir-format, fuzzy
@@ -241,13 +239,13 @@ msgstr "Panel"
 #: lib/tuist_web/live/accept_invitation_live.ex:81
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Decline"
-msgstr "Disminución"
+msgstr "Rechazar"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:145
 #: lib/tuist_web/live/account_settings_live.html.heex:291
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Delete"
-msgstr "Borrar"
+msgstr "Eliminar"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:232
 #: lib/tuist_web/live/account_settings_live.html.heex:253
@@ -259,29 +257,29 @@ msgstr "Eliminar cuenta"
 #: lib/tuist_web/live/account_settings_live.html.heex:105
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Delete organization"
-msgstr "Borrar organización"
+msgstr "Eliminar organización"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:118
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Deleting the organization will delete all of its projects"
-msgstr "Al eliminar la organización se eliminarán todos sus proyectos"
+msgstr "Al eliminar la organización, se eliminarán todos sus proyectos."
 
 #: lib/tuist_web/live/account_settings_live.html.heex:265
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Deleting your account will also delete all the projects that belong to it"
 msgstr ""
-"Al eliminar su cuenta también se eliminarán todos los proyectos que "
-"pertenezcan a ella"
+"Al eliminar tu cuenta, también se eliminarán todos los proyectos que le "
+"pertenecen."
 
 #: lib/tuist/accounts/user_notifier.ex:137
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Did you request to reset your password?"
-msgstr "¿Ha solicitado restablecer su contraseña?"
+msgstr "¿Has solicitado restablecer tu contraseña?"
 
 #: lib/tuist_web/live/billing_live.ex:205
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Downgrade"
-msgstr "Baja de categoría"
+msgstr "Bajar de categoría"
 
 #: lib/tuist_web/live/members_live.ex:90
 #, elixir-autogen, elixir-format, fuzzy
@@ -302,12 +300,12 @@ msgstr "Dirección de correo electrónico"
 #: lib/tuist_web/live/account_settings_live.html.heex:125
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Enter this organization's name to confirm"
-msgstr "Introduzca el nombre de esta organización para confirmar"
+msgstr "Introduce el nombre de esta organización para confirmar."
 
 #: lib/tuist_web/live/account_settings_live.html.heex:272
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Enter your username to confirm"
-msgstr "Introduzca su nombre de usuario para confirmar"
+msgstr "Introduce tu nombre de usuario para confirmar."
 
 #: lib/tuist/billing.ex:75
 #: lib/tuist_web/live/billing_live.ex:243
@@ -332,7 +330,7 @@ msgstr "Gratis"
 #: lib/tuist_web/live/billing_live.html.heex:25
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Free tier exceeded"
-msgstr "Nivel gratuito superado"
+msgstr "Se ha superado el límite gratuito."
 
 #: lib/tuist_web/live/billing_live.ex:191
 #, elixir-autogen, elixir-format, fuzzy
@@ -342,26 +340,25 @@ msgstr "Gratuito dentro de los límites de nivel"
 #: lib/tuist/billing.ex:63
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Generous base price"
-msgstr "Precio base generoso"
+msgstr "Precio base generoso."
 
 #: lib/tuist_web/live/billing_live.html.heex:116
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Generous base price: Pay nothing if below free tier limits"
 msgstr ""
-"Precio base generoso: No pague nada si está por debajo de los límites del "
-"nivel gratuito"
+"Precio base generoso: no pagues nada si no superas los límites del nivel "
+"gratuito."
 
 #: lib/tuist/billing.ex:43
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Generous free monthly tier"
-msgstr "Generosa cuota mensual gratuita"
+msgstr "Generoso plan mensual gratuito"
 
 #: lib/tuist_web/live/billing_live.html.heex:99
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Generous free monthly tier: Usage capped at free tier limits"
 msgstr ""
-"Generoso nivel mensual gratuito: Uso limitado a los límites del nivel "
-"gratuito"
+"Generoso plan mensual gratuito: uso limitado a los límites del plan gratuito."
 
 #: lib/tuist/billing.ex:41
 #: lib/tuist/billing.ex:61
@@ -378,7 +375,7 @@ msgstr "Empiece sin necesidad de tarjeta de crédito."
 #: lib/tuist_web/live/billing_live.html.heex:79
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Get started with no credit card required—try with no commitment."
-msgstr "Comience sin necesidad de tarjeta de crédito: pruébelo sin compromiso."
+msgstr "Empieza sin necesidad de tarjeta de crédito: pruébalo sin compromiso."
 
 #: lib/tuist/accounts/user_notifier.ex:172
 #, elixir-autogen, elixir-format, fuzzy
@@ -391,30 +388,30 @@ msgstr ""
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Hola %{name}, you can reset your password by clicking the button below:"
 msgstr ""
-"Hola %{name}, puedes restablecer tu contraseña haciendo clic en el botón de "
-"abajo:"
+"Hola %{name}, puedes restablecer tu contraseña haciendo clic en el botón "
+"siguiente:"
 
 #: lib/tuist/accounts/user_notifier.ex:118
 #: lib/tuist/accounts/user_notifier.ex:147
 #, elixir-autogen, elixir-format, fuzzy
 msgid "If you didn't make this request, feel free to ignore this email."
 msgstr ""
-"Si no ha hecho esta petición, no dude en ignorar este correo electrónico."
+"Si no ha realizado esta solicitud, puede ignorar este correo electrónico."
 
 #: lib/tuist_web/live/accept_invitation_live.ex:105
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Invitation accepted!"
-msgstr "Invitación aceptada"
+msgstr "¡Invitación aceptada!"
 
 #: lib/tuist_web/live/accept_invitation_live.ex:88
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Invitation not found"
-msgstr "Invitación no encontrada"
+msgstr "Invitación no encontrada."
 
 #: lib/tuist_web/live/accept_invitation_live.ex:127
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Invitation rejected"
-msgstr "Invitación rechazada"
+msgstr "Invitación rechazada."
 
 #: lib/tuist/accounts/user_notifier.ex:166
 #, elixir-autogen, elixir-format, fuzzy
@@ -439,7 +436,7 @@ msgstr "Invitar a miembros"
 #: lib/tuist_web/live/members_live.ex:306
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Invite members to your organization"
-msgstr "Invite a miembros a su organización"
+msgstr "Invita a miembros a tu organización."
 
 #: lib/tuist_web/live/billing_live.html.heex:40
 #, elixir-autogen, elixir-format, fuzzy
@@ -449,23 +446,24 @@ msgstr "Más información"
 #: lib/tuist/billing.ex:45
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Like, totally free"
-msgstr "Totalmente gratis."
+msgstr "Es totalmente gratis."
 
 #: lib/tuist_web/live/billing_live.html.heex:105
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Like, totally free: All features, no credit card required"
-msgstr "Totalmente gratis: Todas las funciones, sin tarjeta de crédito"
+msgstr ""
+"Totalmente gratis: todas las funciones, sin necesidad de tarjeta de crédito."
 
 #: lib/tuist_web/live/members_live.ex:99
 #: lib/tuist_web/live/members_live.ex:236
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Manage role"
-msgstr "Gestionar el papel"
+msgstr "Gestionar función"
 
 #: lib/tuist_web/live/billing_live.html.heex:5
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Manage your billing and payment details"
-msgstr "Gestione sus datos de facturación y pago"
+msgstr "Gestiona tus datos de facturación y pago."
 
 #: lib/tuist_web/live/members_live.ex:78
 #, elixir-autogen, elixir-format, fuzzy
@@ -491,17 +489,17 @@ msgstr "Nombre"
 #: lib/tuist/billing.ex:51
 #, elixir-autogen, elixir-format, fuzzy
 msgid "No credit card required"
-msgstr "No se necesita tarjeta de crédito"
+msgstr "No se requiere tarjeta de crédito."
 
 #: lib/tuist_web/live/members_live.ex:303
 #, elixir-autogen, elixir-format, fuzzy
 msgid "No invitations created"
-msgstr "No se han creado invitaciones"
+msgstr "No se han creado invitaciones."
 
 #: lib/tuist_web/live/members_live.ex:260
 #, elixir-autogen, elixir-format, fuzzy
 msgid "No members found"
-msgstr "No se han encontrado miembros"
+msgstr "No se han encontrado miembros."
 
 #: lib/tuist/billing.ex:83
 #: lib/tuist_web/live/billing_live.ex:248
@@ -512,7 +510,7 @@ msgstr "On-premise"
 #: lib/tuist_web/live/billing_live.html.heex:139
 #, elixir-autogen, elixir-format, fuzzy
 msgid "On-premise: Self-host your instance of Tuist"
-msgstr "On-premise: aloja tu propia instancia de Tuist"
+msgstr "On-premise: Aloja tú mismo tu instancia de Tuist."
 
 #: lib/tuist_web/live/billing_live.html.heex:59
 #, elixir-autogen, elixir-format, fuzzy
@@ -528,7 +526,7 @@ msgstr "Nombre de la organización"
 #: lib/tuist/accounts/user.ex:88
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Passwords don't match"
-msgstr "Las contraseñas no coinciden"
+msgstr "Las contraseñas no coinciden."
 
 #: lib/tuist/billing.ex:64
 #: lib/tuist_web/live/billing_live.ex:220
@@ -545,12 +543,12 @@ msgstr "Pague sólo por lo que utilice"
 #: lib/tuist_web/live/billing_live.html.heex:243
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Payment method"
-msgstr "Forma de pago"
+msgstr "Método de pago"
 
 #: lib/tuist_web/live/billing_live.html.heex:246
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Payments for your subscription are made using the default card."
-msgstr "Los pagos de su abono se realizan con la tarjeta predeterminada."
+msgstr "Los pagos de tu suscripción se realizan con la tarjeta predeterminada."
 
 #: lib/tuist_web/live/members_live.ex:279
 #, elixir-autogen, elixir-format, fuzzy
@@ -565,7 +563,7 @@ msgstr "Precio"
 #: lib/tuist_web/live/billing_live.html.heex:172
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Pricing details"
-msgstr "Precios"
+msgstr "Detalles de precios"
 
 #: lib/tuist/billing.ex:85
 #, elixir-autogen, elixir-format, fuzzy
@@ -575,12 +573,12 @@ msgstr "Asistencia prioritaria"
 #: lib/tuist_web/live/billing_live.ex:249
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Priority support via shared Slack channel"
-msgstr "Asistencia prioritaria a través de un canal Slack compartido"
+msgstr "Asistencia prioritaria a través del canal compartido de Slack."
 
 #: lib/tuist_web/live/billing_live.html.heex:142
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Priority support: Via shared Slack channel"
-msgstr "Asistencia prioritaria: A través de un canal Slack compartido"
+msgstr "Asistencia prioritaria: a través del canal compartido de Slack."
 
 #: lib/tuist/billing.ex:56
 #: lib/tuist_web/live/billing_live.ex:215
@@ -597,12 +595,12 @@ msgstr "Región"
 #: lib/tuist_web/live/billing_live.html.heex:225
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Remote cache hits"
-msgstr "Accesos remotos a la caché"
+msgstr "Aciertos de caché remota"
 
 #: lib/tuist_web/live/billing_live.html.heex:34
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Remote cache hits:"
-msgstr "Accesos remotos a la caché:"
+msgstr "Aciertos de caché remota:"
 
 #: lib/tuist_web/live/members_live.ex:214
 #, elixir-autogen, elixir-format, fuzzy
@@ -619,30 +617,30 @@ msgstr "Eliminar miembro"
 #: lib/tuist_web/live/account_settings_live.html.heex:219
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Rename"
-msgstr "Cambie el nombre de"
+msgstr "Cambiar nombre"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:13
 #: lib/tuist_web/live/account_settings_live.html.heex:37
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Rename organization"
-msgstr "Cambiar el nombre de la organización"
+msgstr "Cambiar el nombre de la organización."
 
 #: lib/tuist_web/live/account_settings_live.html.heex:31
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Rename your organization?"
-msgstr "¿Cambiar el nombre de su organización?"
+msgstr "¿Cambiar el nombre de tu organización?"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:49
 #: lib/tuist_web/live/account_settings_live.html.heex:198
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Renaming can have unexpected consequences"
-msgstr "Cambiar de nombre puede tener consecuencias inesperadas"
+msgstr "Cambiar el nombre puede tener consecuencias inesperadas."
 
 #: lib/tuist_web/live/account_settings_live.html.heex:16
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Renaming your organization can have unintended side effects."
 msgstr ""
-"Cambiar el nombre de su organización puede tener efectos secundarios no "
+"Cambiar el nombre de tu organización puede tener efectos secundarios no "
 "deseados."
 
 #: lib/tuist/accounts/user_notifier.ex:133
@@ -653,7 +651,7 @@ msgstr "Instrucciones para restablecer la contraseña"
 #: lib/tuist/accounts/user_notifier.ex:142
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Reset your password"
-msgstr "Restablecer contraseña"
+msgstr "Restablece tu contraseña."
 
 #: lib/tuist_web/live/members_live.ex:287
 #, elixir-autogen, elixir-format, fuzzy
@@ -664,7 +662,7 @@ msgstr "Revocar invitación"
 #: lib/tuist_web/live/members_live.ex:118
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Role"
-msgstr "Papel"
+msgstr "Función"
 
 #: lib/tuist_web/live/members_live.ex:165
 #, elixir-autogen, elixir-format, fuzzy
@@ -679,7 +677,7 @@ msgstr "Buscar miembros..."
 #: lib/tuist_web/live/account_settings_live.ex:148
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Select region"
-msgstr "Seleccionar región"
+msgstr "Selecciona la región."
 
 #: lib/tuist/billing.ex:84
 #, elixir-autogen, elixir-format, fuzzy
@@ -690,7 +688,7 @@ msgstr "Autoaloja tu instancia de Tuist"
 #: lib/tuist_web/live/account_settings_live.html.heex:3
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Settings"
-msgstr "Ajustes"
+msgstr "Configuración"
 
 #: lib/tuist/billing.ex:67
 #, elixir-autogen, elixir-format, fuzzy
@@ -720,23 +718,25 @@ msgstr "Región de almacenamiento"
 #: lib/tuist/billing.ex:48
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Support via community forum"
-msgstr "Apoyo a través del foro comunitario"
+msgstr "Asistencia a través del foro de la comunidad."
 
 #: lib/tuist/billing.ex:82
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Tailored agreements to meet your specific needs"
-msgstr "Acuerdos adaptados a sus necesidades específicas"
+msgstr "Acuerdos personalizados para satisfacer sus necesidades específicas."
 
 #: lib/tuist_web/live/account_settings_live.html.heex:87
 #: lib/tuist_web/live/account_settings_live.html.heex:235
 #, elixir-autogen, elixir-format, fuzzy
 msgid "This action cannot be undone."
-msgstr "Esta acción no puede deshacerse."
+msgstr "Esta acción no se puede deshacer."
 
 #: lib/tuist/accounts/user_notifier.ex:110
 #, elixir-autogen, elixir-format, fuzzy
 msgid "To start using Tuist, verify your email and you are good to go:"
-msgstr "Para empezar a utilizar Tuist, verifica tu correo electrónico y listo:"
+msgstr ""
+"Para empezar a utilizar Tuist, verifica tu correo electrónico y ya estarás "
+"listo para empezar:"
 
 #: lib/tuist_web/live/billing_live.html.heex:234
 #, elixir-autogen, elixir-format, fuzzy
@@ -746,7 +746,7 @@ msgstr "Total"
 #: lib/tuist_web/live/members_live.ex:261
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Try changing your search term"
-msgstr "Prueba a cambiar el término de búsqueda"
+msgstr "Intenta cambiar el término de búsqueda."
 
 #: lib/tuist_web/live/accept_invitation_live.ex:52
 #: lib/tuist_web/live/create_organization_live.ex:26
@@ -762,7 +762,7 @@ msgstr "Estados Unidos"
 #: lib/tuist/vcs.ex:464
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Unknown"
-msgstr "Desconocido"
+msgstr "Desconocido."
 
 #: lib/tuist/billing.ex:70
 #, elixir-autogen, elixir-format, fuzzy
@@ -777,7 +777,7 @@ msgstr "Actualizar el correo electrónico de facturación"
 #: lib/tuist_web/live/billing_live.html.heex:257
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Update payment method"
-msgstr "Actualizar la forma de pago"
+msgstr "Actualizar método de pago"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:163
 #: lib/tuist_web/live/account_settings_live.html.heex:187
@@ -788,7 +788,7 @@ msgstr "Actualizar nombre de usuario"
 #: lib/tuist_web/live/account_settings_live.html.heex:181
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Update your username?"
-msgstr "¿Actualizar su nombre de usuario?"
+msgstr "¿Actualizar tu nombre de usuario?"
 
 #: lib/tuist_web/live/account_settings_live.html.heex:166
 #, elixir-autogen, elixir-format, fuzzy
@@ -808,12 +808,12 @@ msgstr "Plan de actualización"
 #: lib/tuist_web/live/billing_live.html.heex:206
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Usage"
-msgstr "Utilización"
+msgstr "Uso"
 
 #: lib/tuist/billing.ex:44
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Usage capped at free tier limits"
-msgstr "Uso limitado al nivel gratuito"
+msgstr "Uso limitado a los límites del nivel gratuito."
 
 #: lib/tuist_web/live/billing_live.html.heex:22
 #, elixir-autogen, elixir-format, fuzzy
@@ -844,13 +844,14 @@ msgstr "Precios basados en el uso después del nivel gratuito."
 #: lib/tuist_web/live/billing_live.html.heex:122
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Usage-based pricing: Pay only for what you use per feature"
-msgstr "Precios basados en el uso: Pague sólo por lo que utilice por función"
+msgstr ""
+"Precios basados en el uso: pague solo por lo que utilice de cada función."
 
 #: lib/tuist_web/live/billing_live.html.heex:91
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Use all Tuist features as long as you stay open source."
 msgstr ""
-"Utiliza todas las funciones de Tuist siempre que sigas siendo de código "
+"Utiliza todas las funciones de Tuist siempre y cuando mantengas el código "
 "abierto."
 
 #: lib/tuist_web/live/members_live.ex:123
@@ -868,89 +869,86 @@ msgstr "Nombre de usuario"
 #: lib/tuist/billing.ex:67
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Via Slack and email"
-msgstr "A través de Slack y correo electrónico"
+msgstr "A través de Slack y correo electrónico."
 
 #: lib/tuist/billing.ex:85
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Via shared Slack channel"
-msgstr "A través de un canal Slack compartido"
+msgstr "A través del canal compartido de Slack."
 
 #: lib/tuist_web/live/accept_invitation_live.ex:96
 #, elixir-autogen, elixir-format, fuzzy
 msgid "We could not find the invitation you are trying to accept. Please try again."
 msgstr ""
-"No hemos podido encontrar la invitación que intenta aceptar. Por favor, "
-"inténtelo de nuevo."
+"No hemos podido encontrar la invitación que intentas aceptar. Vuelve a "
+"intentarlo."
 
 #: lib/tuist_web/live/account_settings_live.ex:17
 #: lib/tuist_web/live/billing_live.ex:13
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You are not authorized to perform this action."
-msgstr "No está autorizado a realizar esta acción."
+msgstr "No estás autorizado para realizar esta acción."
 
 #: lib/tuist_web/live/accept_invitation_live.ex:119
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You are now a part of %{organization} organization"
-msgstr "Ahora forma parte de la organización %{organization}."
+msgstr "Ahora formas parte de la organización %{organization}."
 
 #: lib/tuist_web/live/accept_invitation_live.ex:107
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You have accepted the invite to join the organization"
-msgstr "Has aceptado la invitación para unirte a la organización"
+msgstr "Has aceptado la invitación para unirte a la organización."
 
 #: lib/tuist_web/live/accept_invitation_live.ex:61
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You have been invited"
-msgstr "Ha sido invitado"
+msgstr "Has sido invitado."
 
 #: lib/tuist_web/live/accept_invitation_live.ex:129
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You have rejected the invite to join the organization"
-msgstr "Has rechazado la invitación a unirte a la organización"
+msgstr "Has rechazado la invitación para unirte a la organización."
 
 #: lib/tuist/accounts/user_notifier.ex:116
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You received this email because you recently signed up for a Tuist account."
 msgstr ""
-"Has recibido este correo electrónico porque te has registrado recientemente "
-"en Tuist."
+"Has recibido este correo electrónico porque recientemente te has registrado "
+"en una cuenta de Tuist."
 
 #: lib/tuist/accounts/user_notifier.ex:145
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You received this email because you requested a password reset for your Tuist account."
 msgstr ""
-"Has recibido este correo electrónico porque has solicitado el "
-"restablecimiento de la contraseña de tu cuenta Tuist."
+"Has recibido este correo electrónico porque has solicitado restablecer la "
+"contraseña de tu cuenta de Tuist."
 
 #: lib/tuist/accounts/user_notifier.ex:170
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You were invited to join the %{organization_name} Tuist organization by %{inviter_email}"
 msgstr ""
 "Has sido invitado a unirte a la organización %{organization_name} Tuist por %"
-"{inviter_email}"
+"{inviter_email}."
 
 #: lib/tuist_web/live/accept_invitation_live.ex:141
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You won’t be able to access this organization unless invited again."
-msgstr ""
-"No podrás acceder a esta organización a menos que se te invite de nuevo."
+msgstr "No podrás acceder a esta organización a menos que te vuelvan a invitar."
 
 #: lib/tuist/accounts/user_notifier.ex:108
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You're Almost Set!"
-msgstr "¡Ya casi está!"
+msgstr "¡Ya casi está listo!"
 
 #: lib/tuist_web/live/billing_live.html.heex:210
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You’ve exceeded your free tier quota and will incur charges for additional usage."
-msgstr ""
-"Has superado tu cuota de la capa gratuita y se te cobrará por el uso "
-"adicional."
+msgstr "Has superado tu cuota gratuita y se te cobrarán los gastos adicionales."
 
 #: lib/tuist_web/live/billing_live.html.heex:47
 #, elixir-autogen, elixir-format, fuzzy
 msgid "about remote cache hits"
-msgstr "acerca de las visitas remotas a la caché"
+msgstr "Acerca de las visitas a la caché remota"
 
 #: lib/tuist_web/live/billing_live.html.heex:228
 #, elixir-autogen, elixir-format, fuzzy
@@ -966,7 +964,7 @@ msgstr "y más"
 #: lib/tuist_web/live/billing_live.ex:34
 #, elixir-autogen, elixir-format, fuzzy
 msgid "charged /per month"
-msgstr "por mes"
+msgstr "cobrado /por mes"
 
 #: lib/tuist_web/live/billing_live.ex:36
 #, elixir-autogen, elixir-format, fuzzy
