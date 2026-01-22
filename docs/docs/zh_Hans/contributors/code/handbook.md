@@ -5,19 +5,17 @@
   "description": "Contribute to the Tuist Handbook."
 }
 ---
-# Handbook {#handbook}
+# 手册{#handbook}
 
-Source:
-[github.com/tuist/tuist/tree/main/handbook](https://github.com/tuist/tuist/tree/main/handbook)
+来源：[github.com/tuist/tuist/tree/main/handbook](https://github.com/tuist/tuist/tree/main/handbook)
 
-## What it is for {#what-it-is-for}
+## 用途说明{#what-it-is-for}
 
-The handbook documents how Tuist works as a company: values, policies, and
-engineering practices. It is a VitePress site.
+本手册记录了Tuist作为公司的运作方式：价值观、政策和工程实践。这是一个VitePress网站。
 
-## How to contribute {#how-to-contribute}
+## 如何贡献{#how-to-contribute}
 
-### Set up locally {#set-up-locally}
+### 本地设置{#set-up-locally}
 
 ```bash
 cd handbook
