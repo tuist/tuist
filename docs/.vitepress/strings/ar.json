@@ -195,7 +195,7 @@
                             "text": "المستندات"
                         },
                         "handbook": {
-                            "text": "الكتيب"
+                            "text": "دليل"
                         },
                         "cli": {
                             "text": "CLI"
@@ -239,7 +239,7 @@
                     }
                 },
                 "api-documentation": {
-                    "text": "وثائق واجهة برمجة التطبيقات (API)"
+                    "text": "وثائق API"
                 },
                 "status": {
                     "text": "الحالة"
@@ -310,14 +310,14 @@
                                                     "text": "مشروع XcodeGen"
                                                 },
                                                 "bazel-project": {
-                                                    "text": "مشروع بازل"
+                                                    "text": "مشروع Bazel"
                                                 }
                                             }
                                         }
                                     }
                                 },
                                 "manifests": {
-                                    "text": "المظاهر"
+                                    "text": "البيانات"
                                 },
                                 "directory-structure": {
                                     "text": "هيكل الدليل"
@@ -329,7 +329,7 @@
                                     "text": "التبعيات"
                                 },
                                 "code-sharing": {
-                                    "text": "مشاركة الرموز"
+                                    "text": "مشاركة الكود"
                                 },
                                 "synthesized-files": {
                                     "text": "الملفات المركبة"
@@ -347,10 +347,10 @@
                                     "text": "التجزئة"
                                 },
                                 "inspect": {
-                                    "text": "الفحص",
+                                    "text": "تحقق",
                                     "items": {
                                         "implicit-imports": {
-                                            "text": "الواردات الضمنية"
+                                            "text": "الاستيرادات الضمنية"
                                         }
                                     }
                                 },
@@ -358,7 +358,7 @@
                                     "text": "تكلفة الراحة"
                                 },
                                 "tma-architecture": {
-                                    "text": "هندسة معمارية معيارية"
+                                    "text": "الهندسة المعيارية"
                                 },
                                 "best-practices": {
                                     "text": "أفضل الممارسات"
@@ -383,10 +383,10 @@
                             }
                         },
                         "registry": {
-                            "text": "السجل",
+                            "text": "التسجيل",
                             "items": {
                                 "registry": {
-                                    "text": "السجل"
+                                    "text": "التسجيل"
                                 },
                                 "xcode-project": {
                                     "text": "مشروع Xcode"
@@ -395,7 +395,7 @@
                                     "text": "المشروع المُنشأ"
                                 },
                                 "xcodeproj-integration": {
-                                    "text": "التكامل المستند إلى XcodeProj"
+                                    "text": "التكامل القائم على XcodeProj"
                                 },
                                 "swift-package": {
                                     "text": "الحزمة السريعة"
@@ -406,7 +406,7 @@
                             }
                         },
                         "selective-testing": {
-                            "text": "الاختبار الانتقائي",
+                            "text": "اختبار انتقائي",
                             "items": {
                                 "selective-testing": {
                                     "text": "الاختبار الانتقائي"
@@ -423,23 +423,23 @@
                             "text": "بناء الرؤى"
                         },
                         "bundle-size": {
-                            "text": "رؤى الحزمة"
+                            "text": "حزمة الأفكار"
                         },
                         "qa": {
-                            "text": "ضمان الجودة"
+                            "text": "QA"
                         },
                         "test-insights": {
                             "items": {
                                 "flaky-tests": {
-                                    "text": "اختبارات غير متقنة"
+                                    "text": "اختبارات غير موثوقة"
                                 }
                             },
-                            "text": "رؤى اختبارية"
+                            "text": "اختبار الرؤى"
                         }
                     }
                 },
                 "agentic-coding": {
-                    "text": "الترميز التوكيلي",
+                    "text": "الترميز الوكالي",
                     "items": {
                         "mcp": {
                             "text": "MCP"
@@ -458,21 +458,21 @@
                         "git-forges": {
                             "items": {
                                 "github": {
-                                    "text": "جيثب"
+                                    "text": "GitHub"
                                 }
                             },
-                            "text": "صاغة الحدادين"
+                            "text": "Git forges"
                         },
                         "slack": {
-                            "text": "سلاك"
+                            "text": "Slack"
                         }
                     }
                 },
                 "share": {
-                    "text": "شارك",
+                    "text": "مشاركة",
                     "items": {
                         "previews": {
-                            "text": "المعاينات"
+                            "text": "معاينات"
                         }
                     }
                 },
@@ -484,7 +484,7 @@
                                     "text": "القياس عن بُعد"
                                 },
                                 "installation": {
-                                    "text": "التركيب"
+                                    "text": "التثبيت"
                                 }
                             },
                             "text": "الاستضافة الذاتية"
