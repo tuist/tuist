@@ -41,7 +41,7 @@ Para empezar a utilizar Tuist QA, necesitas:
 
 Actualmente, Tuist QA se activa directamente desde un PR. Una vez que tengas una
 vista previa asociada a tu PR, puedes activar el agente de QA comentando `/qa
-test I want to test feature A` en el PR:
+test Quiero probar la característica A` en el PR:
 
 (/images/guides/features/qa/qa-trigger-comment.png)[QA trigger
 comment](/images/guides/features/qa/qa-trigger-comment.png)
@@ -62,7 +62,8 @@ pueda inspeccionar cómo se produjo exactamente el problema:
 GC](/images/guides/features/qa/qa-timeline.png)
 
 Puede ver todas las ejecuciones de control de calidad que realizamos para
-nuestra <LocalizedLink href="/guides/features/previews#tuist-ios-app">aplicación iOS</LocalizedLink> en nuestro panel público: https://tuist.dev/tuist/tuist/qa
+nuestra <LocalizedLink href="/guides/features/previews#tuist-ios-app">aplicación
+iOS</LocalizedLink> en nuestro panel público: https://tuist.dev/tuist/tuist/qa
 
 ::: info
 <!-- -->
@@ -118,7 +119,7 @@ ejecución, puedes especificar aquí tus credenciales. Si el agente reconoce que
 debe iniciar la sesión con sesión iniciada, utilizará el grupo de argumentos de
 lanzamiento de credenciales al iniciar la aplicación.
 
-[Lanzar grupos de
+![Lanzar grupos de
 argumentos](/images/guides/features/qa/launch-argument-groups.png)
 
 Estos argumentos de inicio son los argumentos estándar de Xcode. Aquí tienes un
