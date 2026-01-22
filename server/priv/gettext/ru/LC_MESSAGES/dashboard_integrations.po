@@ -3,9 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
-"PO-Revision-Date: 2026-01-22 12:41+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"PO-Revision-Date: 2026-01-22 13:03+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Russian <https://translate.tuist.dev/projects/tuist/"
 "dashboard_integrations/ru/>\n"
 "Language: ru\n"
@@ -29,7 +28,7 @@ msgstr ""
 #: lib/tuist_web/live/integrations_live.html.heex:50
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Add new project connection"
-msgstr "Добавьте новое проектное соединение"
+msgstr "Добавить новое подключение к проекту"
 
 #: lib/tuist_web/live/integrations_live.html.heex:113
 #, elixir-autogen, elixir-format, fuzzy
@@ -44,12 +43,12 @@ msgstr "Выберите проект Tuist"
 #: lib/tuist_web/live/integrations_live.html.heex:92
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Choose a repository"
-msgstr "Выберите хранилище"
+msgstr "Выберите репозиторий"
 
 #: lib/tuist_web/live/integrations_live.html.heex:43
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Choose repository to connect to"
-msgstr "Выберите хранилище для подключения"
+msgstr "Выберите репозиторий для подключения"
 
 #: lib/tuist_web/live/integrations_live.html.heex:9
 #, elixir-autogen, elixir-format, fuzzy
@@ -59,17 +58,17 @@ msgstr "Подключите любой из ваших репозиториев
 #: lib/tuist_web/live/integrations_live.ex:147
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Connected %{time_ago}"
-msgstr "Подключено %{time_ago}"
+msgstr "Связанный %{time_ago}"
 
 #: lib/tuist_web/live/integrations_live.ex:149
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Connected %{time_ago} by %{name}"
-msgstr "Подключено %{time_ago} от %{name}"
+msgstr "Подключено %{time_ago} пользователем %{name}"
 
 #: lib/tuist_web/live/integrations_live.html.heex:120
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Create Connection"
-msgstr "Создать связь"
+msgstr "Создать соединение"
 
 #: lib/tuist_web/live/integrations_live.html.heex:6
 #, elixir-autogen, elixir-format, fuzzy
@@ -100,7 +99,7 @@ msgstr "Управление интеграцией"
 #: lib/tuist_web/live/integrations_live.html.heex:162
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Remove connection"
-msgstr "Снимите соединение"
+msgstr "Удалить соединение"
 
 #: lib/tuist_web/live/integrations_live.ex:15
 #, elixir-autogen, elixir-format, fuzzy
