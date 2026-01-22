@@ -3,8 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:51+0000\n"
-"PO-Revision-Date: 2026-01-22 12:36+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"PO-Revision-Date: 2026-01-22 13:04+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/dashboard-"
 "1/tr/>\n"
 "Language: tr\n"
@@ -68,7 +68,7 @@ msgstr "Ortalama"
 #: lib/tuist_web/controllers/error_html.ex:16
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Bad request"
-msgstr "Kötü istek"
+msgstr "Hatalı istek"
 
 #: lib/tuist_web/components/layouts/account.html.heex:32
 #, elixir-autogen, elixir-format, fuzzy
@@ -78,7 +78,7 @@ msgstr "Faturalandırma"
 #: lib/tuist_web/components/app_layout_components.ex:45
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Build Runs"
-msgstr "Yapı Çalışmaları"
+msgstr "Derleme Çalıştırmaları"
 
 #: lib/tuist_web/components/app_layout_components.ex:28
 #, elixir-autogen, elixir-format, fuzzy
@@ -100,7 +100,7 @@ msgstr "CI"
 #: lib/tuist_web/components/app_layout_components.ex:122
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cache Runs"
-msgstr "Önbellek Çalışmaları"
+msgstr "Önbellek Çalıştırmaları"
 
 #: lib/tuist_web/live/layout_live.ex:96
 #: lib/tuist_web/live/layout_live.ex:165
@@ -136,7 +136,7 @@ msgstr "Bayraklar"
 #: lib/tuist_web/components/app_layout_components.ex:134
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Generate Runs"
-msgstr "Çalıştırmalar Oluşturun"
+msgstr "Çalıştırmalar Oluştur"
 
 #: lib/tuist_web/components/empty_card_section.ex:29
 #, elixir-autogen, elixir-format, fuzzy
@@ -162,7 +162,7 @@ msgstr "Entegrasyonlar"
 #: lib/tuist_web/controllers/github_app_setup_controller.ex:29
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Invalid GitHub app installation. Please try again."
-msgstr "Geçersiz GitHub uygulaması yüklemesi. Lütfen tekrar deneyin."
+msgstr "GitHub uygulaması yüklemesi geçersiz. Lütfen tekrar deneyin."
 
 #: lib/tuist_web/controllers/github_app_setup_controller.ex:32
 #, elixir-autogen, elixir-format, fuzzy
@@ -172,7 +172,7 @@ msgstr "Geçersiz kurulum isteği. Lütfen tekrar deneyin."
 #: lib/tuist_web/components/layouts/ops.html.heex:26
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Jobs"
-msgstr "Meslekler"
+msgstr "İşler"
 
 #: lib/tuist_web/components/empty_state.ex:42
 #, elixir-autogen, elixir-format, fuzzy
@@ -202,7 +202,7 @@ msgstr "Modül önbelleği"
 #: lib/tuist_web/components/percentile_dropdown_widget.ex:115
 #, elixir-autogen, elixir-format, fuzzy
 msgid "N/A"
-msgstr "N/A"
+msgstr "Yok"
 
 #: lib/tuist_web/components/app_components.ex:60
 #, elixir-autogen, elixir-format, fuzzy
@@ -223,12 +223,12 @@ msgstr "Bulunamadı"
 #: lib/tuist_web/authorization.ex:46
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Only operations roles can access this page."
-msgstr "Bu sayfaya yalnızca operasyon rolleri erişebilir."
+msgstr "Yalnızca operasyon rolleri bu sayfaya erişebilir."
 
 #: lib/tuist_web/controllers/error_html.ex:86
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Oops! Something went wrong"
-msgstr "Oops! Bir şeyler yanlış gitti"
+msgstr "Oops! Bir sorun oluştu"
 
 #: lib/tuist_web/controllers/error_html.ex:53
 #, elixir-autogen, elixir-format, fuzzy
@@ -239,24 +239,23 @@ msgstr "Oops, o sayfayı bulamadık"
 #: lib/tuist_web/components/layouts/ops.html.heex:11
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Operations"
-msgstr "Operasyonlar"
+msgstr "İşlemler"
 
 #: lib/tuist_web/components/app_layout_components.ex:21
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Overview"
-msgstr "Genel Bakış"
+msgstr "Genel bakış"
 
 #: lib/tuist_web/controllers/error_html.ex:32
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Please, make sure you are accessing the right resource and that you have the permissions to access it."
 msgstr ""
-"Lütfen doğru kaynağa eriştiğinizden ve bu kaynağa erişmek için gerekli "
-"izinlere sahip olduğunuzdan emin olun."
+"Lütfen doğru kaynağa eriştiğinizden ve erişim izniniz olduğundan emin olun."
 
 #: lib/tuist_web/components/app_components.ex:51
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Prev"
-msgstr "Prev"
+msgstr "Önceki"
 
 #: lib/tuist_web/components/app_layout_components.ex:157
 #, elixir-autogen, elixir-format, fuzzy
@@ -289,8 +288,8 @@ msgstr "Ayarlar"
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Sorry, something went wrong on our side. Contact us at contact@tuist.dev and we'll look into it."
 msgstr ""
-"Üzgünüz, bizim tarafımızda bir şeyler ters gitti. contact@tuist.dev "
-"adresinden bizimle iletişime geçin, konuyla ilgileneceğiz."
+"Üzgünüz, bizim tarafımızda bir sorun oluştu. contact@tuist.dev adresinden "
+"bize ulaşın, sorunu inceleyeceğiz."
 
 #: lib/tuist_web/controllers/error_html.ex:46
 #, elixir-autogen, elixir-format, fuzzy
@@ -321,7 +320,7 @@ msgstr "Test Durumları"
 #: lib/tuist_web/components/app_layout_components.ex:75
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Test Runs"
-msgstr "Test Çalışmaları"
+msgstr "Test Çalıştırmaları"
 
 #: lib/tuist_web/components/app_layout_components.ex:58
 #, elixir-autogen, elixir-format, fuzzy
@@ -331,7 +330,7 @@ msgstr "Testler"
 #: lib/tuist_web/plugs/loader_plug.ex:52
 #, elixir-autogen, elixir-format, fuzzy
 msgid "The account %{account_handle} was not found."
-msgstr "Hesap %{account_handle} bulunamadı."
+msgstr "%{account_handle} hesabı bulunamadı."
 
 #: lib/tuist_web/live/layout_live.ex:142
 #, elixir-autogen, elixir-format, fuzzy
@@ -358,7 +357,7 @@ msgstr "Önizleme ipa mevcut değil veya süresi dolmuş."
 #: lib/tuist_web/plugs/loader_plug.ex:112
 #, elixir-autogen, elixir-format, fuzzy
 msgid "The project %{project_slug} was not found."
-msgstr "Proje %{project_slug} bulunamadı."
+msgstr "%{project_slug} projesi bulunamadı."
 
 #: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:43
 #: lib/tuist_web/plugs/loader_plug.ex:116
@@ -366,17 +365,17 @@ msgstr "Proje %{project_slug} bulunamadı."
 msgid "The project full handle %{project_slug} is invalid. It should follow the convention 'account_handle/project_handle'."
 msgstr ""
 "Proje tam tanıtıcısı %{project_slug} geçersiz. 'account_handle/"
-"project_handle' kuralına uymalıdır."
+"project_handle' kuralına uymalı."
 
 #: lib/tuist_web/live/layout_live.ex:61
 #, elixir-autogen, elixir-format, fuzzy
 msgid "The project you are looking for doesn't exist or has been moved."
-msgstr "Aradığınız proje mevcut değil veya taşındı."
+msgstr "Aradığınız proje mevcut değil veya taşınmış."
 
 #: lib/tuist_web/plugs/loader_plug.ex:93
 #, elixir-autogen, elixir-format, fuzzy
 msgid "The run with ID %{run_id} was not found."
-msgstr "ID'si %{run_id} olan çalıştırma bulunamadı."
+msgstr "ID %{run_id} olan çalıştırma bulunamadı."
 
 #: lib/tuist_web/live/layout_live.ex:242
 #, elixir-autogen, elixir-format, fuzzy
@@ -386,7 +385,7 @@ msgstr "Aradığınız çalışma mevcut değil veya taşınmış."
 #: lib/tuist_web/controllers/error_html.ex:73
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Too many requests"
-msgstr "Çok fazla talep var"
+msgstr "Çok fazla istek"
 
 #: lib/tuist_web/controllers/error_html.ex:74
 #, elixir-autogen, elixir-format, fuzzy
@@ -403,8 +402,8 @@ msgstr "Tuist İkon"
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Tuist extends Apple's tools, helping you ship apps that stand out."
 msgstr ""
-"Tuist, Apple'ın araçlarını genişleterek öne çıkan uygulamalar göndermenize "
-"yardımcı oluyor."
+"Tuist, Apple'ın araçlarını genişleterek öne çıkan uygulamalar sunmanıza "
+"yardımcı olur."
 
 #: lib/tuist_web/controllers/error_html.ex:28
 #, elixir-autogen, elixir-format, fuzzy
@@ -425,7 +424,7 @@ msgstr "Xcode Önbelleği"
 #: lib/tuist_web/controllers/error_html.ex:29
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You are not authorized to view this page"
-msgstr "Bu sayfayı görüntüleme yetkiniz yok"
+msgstr "Bu sayfayı görüntüleme yetkiniz yok."
 
 #: lib/tuist_web/authorization.ex:21
 #: lib/tuist_web/authorization.ex:40
@@ -433,7 +432,7 @@ msgstr "Bu sayfayı görüntüleme yetkiniz yok"
 #: lib/tuist_web/authorization.ex:72
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You need to be authenticated to access this page."
-msgstr "Bu sayfaya erişmek için kimliğinizin doğrulanması gerekir."
+msgstr "Bu sayfaya erişmek için kimlik doğrulamanız gerekir."
 
 #: lib/tuist_web/controllers/user_session_controller.ex:28
 #, elixir-autogen, elixir-format, fuzzy
