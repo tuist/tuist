@@ -11,7 +11,7 @@ protocol TestCaseListCommandServicing {
         path: String?,
         quarantined: Bool,
         flaky: Bool,
-        identifiersOnly: Bool,
+        skipTesting: Bool,
         page: Int?,
         pageSize: Int?,
         json: Bool
@@ -49,7 +49,7 @@ struct TestCaseListCommandService: TestCaseListCommandServicing {
         path: String?,
         quarantined: Bool,
         flaky: Bool,
-        identifiersOnly: Bool,
+        skipTesting: Bool,
         page: Int?,
         pageSize: Int?,
         json: Bool
@@ -64,7 +64,7 @@ struct TestCaseListCommandService: TestCaseListCommandServicing {
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         let startPage = (page ?? 1) - 1 // Convert to 0-indexed for Noora
-        let pageSize = pageSize ?? (identifiersOnly ? 500 : 10)
+        let pageSize = pageSize ?? (skipTesting ? 500 : 10)
 
         let initialTestCasesPage = try await listTestCasesService.listTestCases(
             fullHandle: resolvedFullHandle,
@@ -77,18 +77,17 @@ struct TestCaseListCommandService: TestCaseListCommandServicing {
 
         let initialTestCases = initialTestCasesPage.test_cases
 
-        if identifiersOnly {
-            let identifiers = initialTestCases.map { testCase in
-                let name = testCase.name.hasSuffix("()")
-                    ? String(testCase.name.dropLast(2))
-                    : testCase.name
+        if skipTesting {
+            let skipTestingArgs = initialTestCases.map { testCase in
+                let identifier: String
                 if let suiteName = testCase.suite?.name {
-                    return "\(testCase.module.name)/\(suiteName)/\(name)"
+                    identifier = "\(testCase.module.name)/\(suiteName)/\(testCase.name)"
                 } else {
-                    return "\(testCase.module.name)/\(name)"
+                    identifier = "\(testCase.module.name)/\(testCase.name)"
                 }
-            }.joined(separator: ",")
-            Noora.current.passthrough("\(identifiers)")
+                return "-skip-testing \(identifier)"
+            }.joined(separator: " ")
+            Noora.current.passthrough(TerminalText(stringLiteral: skipTestingArgs))
             return
         }
 

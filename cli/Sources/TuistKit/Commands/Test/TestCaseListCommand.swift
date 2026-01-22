@@ -42,10 +42,10 @@ struct TestCaseListCommand: AsyncParsableCommand, NooraReadyCommand {
 
     @Flag(
         name: .long,
-        help: "Output only test identifiers as a comma-separated list for use with xcodebuild's -only-testing option.",
-        envKey: .testCaseListIdentifiersOnly
+        help: "Output as xcodebuild -skip-testing arguments.",
+        envKey: .testCaseListSkipTesting
     )
-    var identifiersOnly: Bool = false
+    var skipTesting: Bool = false
 
     @Option(
         name: .long,
@@ -75,7 +75,7 @@ struct TestCaseListCommand: AsyncParsableCommand, NooraReadyCommand {
             path: path,
             quarantined: quarantined,
             flaky: flaky,
-            identifiersOnly: identifiersOnly,
+            skipTesting: skipTesting,
             page: page,
             pageSize: pageSize,
             json: json

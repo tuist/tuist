@@ -187,7 +187,7 @@ public enum EnvKey: String, CaseIterable {
     case testCaseListFullHandle = "TUIST_TEST_CASE_LIST_FULL_HANDLE"
     case testCaseListFlaky = "TUIST_TEST_CASE_LIST_FLAKY"
     case testCaseListQuarantined = "TUIST_TEST_CASE_LIST_QUARANTINED"
-    case testCaseListIdentifiersOnly = "TUIST_TEST_CASE_LIST_IDENTIFIERS_ONLY"
+    case testCaseListSkipTesting = "TUIST_TEST_CASE_LIST_SKIP_TESTING"
     case testCaseListPage = "TUIST_TEST_CASE_LIST_PAGE"
     case testCaseListPageSize = "TUIST_TEST_CASE_LIST_PAGE_SIZE"
     case testCaseListJson = "TUIST_TEST_CASE_LIST_JSON"
