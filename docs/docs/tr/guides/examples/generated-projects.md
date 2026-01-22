@@ -5,7 +5,7 @@
   "description": "Examples of generated projects which we use as fixtures to run acceptance tests against."
 }
 ---
-# Oluşturulmuş Proje Örnekleri
+# Oluşturulmuş Projeler Örnekleri
 
 Bu bölümde, kabul testlerini çalıştırmak için
 [örnekler](https://github.com/tuist/tuist/tree/main/examples/xcode) olarak
