@@ -47,7 +47,7 @@ Format: `type(scope): description`
 | `chore`    | Maintenance tasks         | No release                 | `chore: update dependencies`                    |
 | `ci`       | CI/CD changes             | No release                 | `ci: add workflow for releases`                 |
 
-####
+#### Breaking changes
 
 Breaking changes trigger a major version bump (X.0.0) and should be indicated in
 the commit body:
@@ -103,7 +103,7 @@ clear, descriptive messages:
 - Mix multiple unrelated changes in one commit
 - Forget to include breaking change information
 
-###
+### Breaking changes
 
 For breaking changes, include `BREAKING CHANGE:` in the commit body:
 
