@@ -5,127 +5,98 @@
   "description": "Learn how to integrate Tuist with Slack."
 }
 ---
-# Slack integration {#slack}
+# Slack 整合{#slack}
 
-If your organization uses Slack, you can integrate Tuist to surface insights
-directly in your channels. This turns monitoring from something your team has to
-remember to do into something that just happens. For example, your team can
-receive daily summaries of build performance, cache hit rates, or bundle size
-trends.
+若貴組織使用 Slack，可整合 Tuist
+將分析結果直接顯示於通訊頻道。此舉能將監控從團隊需主動執行的任務，轉變為自動運作的機制。舉例而言，團隊可接收每日彙整的建置效能、快取命中率或封裝大小趨勢報告。
 
-## Setup {#setup}
+## 設定{#setup}
 
-### Connect your Slack workspace {#connect-workspace}
+### 連接您的 Slack 工作區{#connect-workspace}
 
-First, connect your Slack workspace to your Tuist account in the `Integrations`
-tab:
+首先，請在`整合功能` 標籤頁中，將您的 Slack 工作空間與 Tuist 帳戶連結：
 
-![An image that shows the integrations tab with Slack
-connection](/images/guides/integrations/slack/integrations.png)
+![顯示整合標籤頁與 Slack 連接的圖片](/images/guides/integrations/slack/integrations.png)
 
-Click **Connect Slack** to authorize Tuist to post messages to your workspace.
-This will redirect you to Slack's authorization page where you can approve the
-connection.
+點擊**連結 Slack** 以授權 Tuist 向您的工作空間發佈訊息。此操作將導向 Slack 授權頁面，您可於該處批准此連結。
 
-> [!NOTE] SLACK ADMIN APPROVAL
+> [!注意] 需經 Slack 管理員核准
 > <!-- -->
-> If your Slack workspace restricts app installations, you may need to request
-> approval from a Slack administrator. Slack will guide you through the approval
-> request process during authorization.
+> 若您的 Slack 工作區限制應用程式安裝，您可能需要向 Slack 管理員申請批准。授權過程中，Slack 將引導您完成批准申請流程。
 > <!-- -->
 
-### Project reports {#project-reports}
+### 專案報告{#project-reports}
 
-After connecting Slack, configure reports for each project in the project
-settings' notifications tab:
+連接 Slack 後，請至專案設定的「通知」分頁為每個專案設定報告：
 
-![An image that shows the notifications settings with Slack report
-configuration](/images/guides/integrations/slack/notifications-settings.png)
+![顯示通知設定與 Slack
+報告配置的圖片](/images/guides/integrations/slack/notifications-settings.png)
 
-You can configure:
-- **Channel**: Select which Slack channel receives the reports
-- **Schedule**: Choose which days of the week to receive reports
-- **Time**: Set the time of day
+您可設定：
+- **頻道**: 選擇接收報告的 Slack 通道
+- **排程**: 選擇每週接收報告的日期
+- **時間設定：**
 
-> [!WARNING] PRIVATE CHANNELS
+> [!警告] 私人頻道
 > <!-- -->
-> For the Tuist Slack app to post messages in a private channel, you must first
-> add the Tuist bot to that channel. In Slack, open the private channel, click
-> the channel name to open settings, select "Integrations", then "Add apps" and
-> search for Tuist.
+> 若要讓 Tuist Slack 應用程式在私人頻道發佈訊息，您必須先將 Tuist 機器人加入該頻道。請在 Slack
+> 中開啟私人頻道，點擊頻道名稱開啟設定，選擇「整合」後點選「新增應用程式」，搜尋 Tuist 即可。
 > <!-- -->
 
-Once configured, Tuist sends automated daily reports to your selected Slack
-channel:
+設定完成後，Tuist 將自動每日向您指定的 Slack 通道發送報告：
 
 <img src="/images/guides/integrations/slack/report.png" alt="An image that shows a Slack report message" style="max-width: 500px;" />
 
-### Alert rules {#alert-rules}
+### 警示規則{#alert-rules}
 
-Get notified in Slack with alert rules when key metrics significantly regress to
-help you catch slower builds, cache degradation, or test slowdowns as soon as
-possible, minimizing the impact on your team's productivity.
+透過警示規則在 Slack 接收通知，當關鍵指標出現顯著退化時，協助您盡快發現建置速度變慢、快取效能衰退或測試延遲等狀況，將對團隊生產力的影響降至最低。
 
-To create an alert rule, go to your project's notification settings and click
-**Add alert rule**:
+若要建立警示規則，請前往專案的通知設定，點擊「新增警示規則」連結：**Add alert rule**:
 
-You can configure:
-- **Name**: A descriptive name for the alert
-- **Category**: What to measure (build duration, test duration, or cache hit
-  rate)
-- **Metric**: How to aggregate the data (p50, p90, p99, or average)
-- **Deviation**: The percentage change that triggers an alert
-- **Rolling window**: How many recent runs to compare against
-- **Slack channel**: Where to send the alert
+您可設定：
+- **名稱**: 警報的描述性名稱
+- **類別** ：應測量項目（建置時間、測試時間或快取命中率）
+- **指標** ：數據聚合方式（第50百分位數、第90百分位數、第99百分位數或平均值）
+- **偏差**: 觸發警報的百分比變化值
+- **滾動視窗**: 需對比多少次近期執行結果
+- **Slack 通道**: 警報發送位置
 
-For example, you might create an alert that triggers when the p90 build duration
-increases by more than 20% compared to the previous 100 builds.
+例如，您可建立一個警示，當 p90 建造時間較前 100 次建造增加超過 20% 時觸發。
 
-When an alert triggers, you'll receive a message like this in your Slack
-channel:
+當警報觸發時，您將在 Slack 通道收到類似以下訊息：
 
 <img src="/images/guides/integrations/slack/alert.png" alt="An image that shows a Slack alert message" style="max-width: 500px;" />
 
-> [!NOTE] COOLDOWN PERIOD
+> [!注意] 冷卻期
 > <!-- -->
-> After an alert triggers, it won't fire again for the same rule for 24 hours.
-> This prevents notification fatigue when a metric stays elevated.
+> 警報觸發後，相同規則將在24小時內不再觸發。此機制可避免指標持續偏高時引發的通知疲勞。
 > <!-- -->
 
-### Flaky test alerts {#flaky-test-alerts}
+### 不穩定測試警報{#flaky-test-alerts}
 
-Get notified instantly when a test becomes flaky. Unlike metric-based alert
-rules that compare rolling windows, flaky test alerts trigger the moment Tuist
-detects a new flaky test, helping you catch test instability before it impacts
-your team.
+當測試出現不穩定時立即接收通知。不同於基於指標的警報規則（需比較滾動視窗數據），不穩定測試警報會在 Tuist
+偵測到新不穩定測試時立即觸發，助您在測試不穩定影響團隊前及時發現問題。
 
-To create a flaky test alert rule, go to your project's notification settings
-and click **Add flaky test alert rule**:
+若要建立不穩定測試警示規則，請前往專案的通知設定，點擊「新增不穩定測試警示規則」連結：**Add flaky test alert rule**
 
-You can configure:
-- **Name**: A descriptive name for the alert
-- **Trigger threshold**: The minimum number of flaky runs in the last 30 days
-  required to trigger an alert
-- **Slack channel**: Where to send the alert
+您可設定：
+- **名稱**: 警報的描述性名稱
+- **觸發閾值**: 過去30天內觸發警報所需的最低不穩定運行次數
+- **Slack 通道**: 警報發送位置
 
-When a test becomes flaky and meets your threshold, you'll receive a
-notification with a direct link to investigate the test case:
+當測試變得不穩定且達到設定閾值時，您將收到通知並附有直接連結以調查該測試案例：
 
 <img src="/images/guides/integrations/slack/flaky-test-alert.png" alt="An image that shows a Slack flaky test alert message" style="max-width: 500px;" />
 
-## On-premise installations {#on-premise}
+## 本地安裝{#on-premise}
 
-For on-premise Tuist installations, you'll need to create your own Slack app and
-configure the necessary environment variables.
+針對本地部署的 Tuist 安裝，您需要自行建立 Slack 應用程式並設定必要的環境變數。
 
-### Create a Slack app {#create-slack-app}
+### 建立 Slack 應用程式{#create-slack-app}
 
-1. Go to the [Slack API Apps page](https://api.slack.com/apps) and click
-   **Create New App**
-2. Choose **From an app manifest** and select the workspace where you want to
-   install the app
-3. Paste the following manifest, replacing the redirect URL with your Tuist
-   server URL:
+1. 前往 [Slack API 應用程式頁面](https://api.slack.com/apps)，點擊「建立新應用程式」****
+2. 從應用程式清單中選擇「**」** ，並選取欲安裝應用程式的作業區
+3. 請將以下清單貼上，並將重定向網址替換為您的 Tuist 伺服器網址：
 
 ```json
 {
@@ -159,12 +130,11 @@ configure the necessary environment variables.
 }
 ```
 
-4. Review and create the app
+4. 審核並建立應用程式
 
-### Configure environment variables {#configure-environment}
+### 設定環境變數{#configure-environment}
 
-Set the following environment variables on your Tuist server:
+請在您的 Tuist 伺服器上設定以下環境變數：
 
-- `SLACK_CLIENT_ID` - The Client ID from your Slack app's Basic Information page
-- `SLACK_CLIENT_SECRET` - The Client Secret from your Slack app's Basic
-  Information page
+- `SLACK_CLIENT_ID` - 取自您的 Slack 應用程式「基本資訊」頁面的客戶端 ID
+- `SLACK_CLIENT_SECRET` - 取自您的 Slack 應用程式「基本資訊」頁面的客戶端密鑰
