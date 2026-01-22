@@ -687,14 +687,7 @@ defmodule Tuist.Environment do
   end
 
   def secret_key_base(secrets \\ secrets()) do
-    case get([:secret_key, :base], secrets) do
-      # Default secret so third-party devs can run the server
-      nil when @env == :dev ->
-        "rpux4+W/oBey0drSFOctyIbppOG2A9VUUuTMC1WaM8xZgYxA6gg4yryG/LkOoqkj"
-
-      value ->
-        value
-    end
+    get([:secret_key, :base], secrets)
   end
 
   def secret_key_password(secrets \\ secrets()) do
