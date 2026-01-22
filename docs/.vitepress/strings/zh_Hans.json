@@ -449,13 +449,13 @@
                             "text": "自主托管"
                         },
                         "accounts-and-projects": {
-                            "text": "Accounts and projects"
+                            "text": "账户和项目"
                         },
                         "authentication": {
-                            "text": "Authentication"
+                            "text": "验证"
                         }
                     },
-                    "text": "Server"
+                    "text": "服务器"
                 }
             }
         }
