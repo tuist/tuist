@@ -5,16 +5,16 @@
   "description": "Learn how to add dependencies to your first Swift project"
 }
 ---
-# 종속성 추가 {#add-dependencies}
+# 의존성 추가 {#add-dependencies}
 
-프로젝트에서 추가 기능을 제공하기 위해 타사 라이브러리에 의존하는 것이 일반적입니다. 이렇게 하려면 다음 명령을 실행하여 프로젝트를 가장 잘
-편집할 수 있도록 하세요:
+프로젝트가 추가 기능을 제공하기 위해 타사 라이브러리에 의존하는 것은 흔한 일입니다. 이를 위해 프로젝트 편집 시 최적의 환경을 제공받으려면
+다음 명령어를 실행하세요:
 
 ```bash
 tuist edit
 ```
 
-프로젝트 파일이 포함된 Xcode 프로젝트가 열립니다. ` Package.swift` 파일을 편집하고
+Xcode 프로젝트가 열리면 프로젝트 파일이 포함되어 있습니다. Package.swift( `)를 편집하고 다음을 추가하세요.`
 
 ```swift
 // swift-tools-version: 5.9
@@ -42,7 +42,7 @@ let package = Package(
 )
 ```
 
-그런 다음 프로젝트에서 애플리케이션 대상을 편집하여 `Kingfisher` 을 종속성으로 선언합니다:
+그런 다음 프로젝트의 애플리케이션 타깃을 편집하여 `Kingfisher` 를 종속성으로 선언하십시오:
 
 ```swift
 import ProjectDescription
@@ -82,32 +82,33 @@ let project = Project(
 )
 ```
 
-그런 다음 `tuist install` 을 실행하여 [Swift 패키지
-관리자](https://www.swift.org/documentation/package-manager/)를 사용하여 종속성을 해결하고
+그런 다음 `tuist install` 를 실행하여 [Swift Package
+Manager](https://www.swift.org/documentation/package-manager/)을 사용하여 종속성을 해결하고
 가져옵니다.
 
 ::: info SPM AS A DEPENDENCY RESOLVER
 <!-- -->
-종속성에 대한 Tuist의 권장 접근 방식은 종속성을 해결할 때만 Swift 패키지 관리자(SPM)를 사용합니다. 그런 다음 Tuist는 이를
-Xcode 프로젝트와 타깃으로 변환하여 구성 가능성과 제어를 극대화합니다.
+Tuist가 권장하는 종속성 관리 방식은 Swift Package Manager(SPM)를 종속성 해결에만 사용합니다. 이후 Tuist는 최대의
+구성 가능성과 제어력을 위해 이를 Xcode 프로젝트 및 타깃으로 변환합니다.
 <!-- -->
 :::
 
 ## 프로젝트 시각화 {#visualize-the-project}
 
-실행하여 프로젝트 구조를 시각화할 수 있습니다:
+다음 명령어를 실행하여 프로젝트 구조를 시각화할 수 있습니다:
 
 ```bash
 tuist graph
 ```
 
-이 명령은 프로젝트 디렉토리에 `graph.png` 파일을 출력하고 엽니다:
+이 명령어는 프로젝트 디렉토리에 `graph.png` 파일을 출력하고 엽니다:
 
 ![프로젝트 그래프](/images/guides/quick-start/graph.png)
 
-## 종속성 사용 {#use-the-dependency}
+## 의존성을 사용하십시오 {#use-the-dependency}
 
-`tuist generate` 을 실행하여 Xcode에서 프로젝트를 열고 `ContentView.swift` 파일을 다음과 같이 변경합니다:
+`를 실행하세요. tuist generate` 를 실행하여 Xcode에서 프로젝트를 열고, `ContentView.swift 파일(` )에서
+다음 변경 사항을 적용하세요:
 
 ```swift
 import SwiftUI
@@ -131,4 +132,4 @@ struct ContentView_Previews: PreviewProvider {
 }
 ```
 
-Xcode에서 앱을 실행하면 URL에서 이미지가 로드되는 것을 볼 수 있습니다.
+Xcode에서 앱을 실행하면 URL에서 로드된 이미지가 표시됩니다.
