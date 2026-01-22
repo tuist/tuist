@@ -102,7 +102,8 @@ struct TestCaseListCommandService: TestCaseListCommandServicing {
             if flaky { filters.append("flaky") }
             let filterDescription = filters.isEmpty ? "" : " with filters: \(filters.joined(separator: ", "))"
             if let page {
-                Noora.current.passthrough("No test cases found on page \(page) for project \(resolvedFullHandle)\(filterDescription).")
+                Noora.current
+                    .passthrough("No test cases found on page \(page) for project \(resolvedFullHandle)\(filterDescription).")
             } else {
                 Noora.current.passthrough("No test cases found for project \(resolvedFullHandle)\(filterDescription).")
             }
