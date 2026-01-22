@@ -3,8 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
-"PO-Revision-Date: 2026-01-22 12:38+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"PO-Revision-Date: 2026-01-22 13:03+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Arabic <https://translate.tuist.dev/projects/tuist/"
 "dashboard_cache/ar/>\n"
 "Language: ar\n"
@@ -28,13 +28,13 @@ msgstr ""
 #: lib/tuist_web/live/bundle_live.html.heex:421
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{duplicates_count} duplicates"
-msgstr "%{duplicates_count} التكرارات"
+msgstr "%{duplicates_count} تكرارات"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:516
 #: lib/tuist_web/live/xcode_cache_live.html.heex:501
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{duration}s"
-msgstr "%{المدة}s"
+msgstr "%{duration}s"
 
 #: lib/tuist_web/live/cache_runs_live.html.heex:77
 #: lib/tuist_web/live/module_cache_live.html.heex:117
@@ -53,27 +53,27 @@ msgstr "%{المدة}s"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:484
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{hit_rate}%"
-msgstr "%{معدل الإصابة}%"
+msgstr "%{hit_rate}%"
 
 #: lib/tuist_web/live/cache_runs_live.html.heex:113
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{run_duration}s"
-msgstr "%{مدّة_التشغيل}s"
+msgstr "%{run_duration}s"
 
 #: lib/tuist_web/live/bundle_live.html.heex:367
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{savings} %"
-msgstr "%{المدخرات} %"
+msgstr "%{savings} %"
 
 #: lib/tuist_web/live/bundle_live.ex:769
 #, elixir-autogen, elixir-format, fuzzy
 msgid "%{space_usage} %"
-msgstr "%{مساحة_استخدام_المكان} %"
+msgstr "%{space_usage} %"
 
 #: lib/tuist_web/live/bundles_live.html.heex:185
 #, elixir-autogen, elixir-format, fuzzy
 msgid "0 MB"
-msgstr "0 ميغابايت"
+msgstr "0 ميجابايت"
 
 #: lib/tuist_web/live/bundle_live.ex:767
 #, elixir-autogen, elixir-format, fuzzy
@@ -103,7 +103,7 @@ msgstr "أي"
 #: lib/tuist_web/live/bundles_live.html.heex:90
 #, elixir-autogen, elixir-format, fuzzy
 msgid "App bundle"
-msgstr "حزمة التطبيق"
+msgstr "حزمة التطبيقات"
 
 #: lib/tuist_web/live/bundles_live.html.heex:27
 #, elixir-autogen, elixir-format, fuzzy
@@ -113,7 +113,7 @@ msgstr "التطبيق:"
 #: lib/tuist_web/live/bundle_live.html.heex:536
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Asset"
-msgstr "الأصول"
+msgstr "الأصل"
 
 #: lib/tuist_web/live/bundle_live.html.heex:213
 #, elixir-autogen, elixir-format, fuzzy
@@ -134,12 +134,12 @@ msgstr "متوسط معدل الوصول إلى ذاكرة التخزين الم
 #: lib/tuist_web/live/module_cache_live.html.heex:95
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Avg. hit rate"
-msgstr "متوسط معدل الإصابة"
+msgstr "متوسط معدل النجاح"
 
 #: lib/tuist_web/live/bundle_live.html.heex:201
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Binaries"
-msgstr "الثنائيات"
+msgstr "الملفات الثنائية"
 
 #: lib/tuist_web/live/bundle_live.html.heex:534
 #, elixir-autogen, elixir-format, fuzzy
@@ -153,22 +153,22 @@ msgstr "ثنائي"
 #: lib/tuist_web/live/cache_runs_live.html.heex:96
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Branch"
-msgstr "الفرع"
+msgstr "فرع"
 
 #: lib/tuist_web/live/bundles_live.html.heex:48
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Branch:"
-msgstr "الفرع:"
+msgstr "فرع:"
 
 #: lib/tuist_web/live/bundle_live.ex:52
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Bundle"
-msgstr "الحزمة"
+msgstr "حزمة"
 
 #: lib/tuist_web/live/bundle_live.html.heex:66
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Bundle ID"
-msgstr "معرّف الحزمة"
+msgstr "معرف الحزمة"
 
 #: lib/tuist_web/live/bundles_live.html.heex:19
 #, elixir-autogen, elixir-format, fuzzy
@@ -183,7 +183,7 @@ msgstr "تحليل حجم الحزمة"
 #: lib/tuist_web/live/bundle_live.ex:744
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Bundle not found."
-msgstr "الحزمة غير موجودة."
+msgstr "لم يتم العثور على الحزمة."
 
 #: lib/tuist_web/live/bundles_live.ex:25
 #: lib/tuist_web/live/bundles_live.html.heex:281
@@ -213,8 +213,8 @@ msgstr "تنزيلات ذاكرة التخزين المؤقت"
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cache downloads represents the total size of cache artifacts downloaded from remote storage during the given period."
 msgstr ""
-"تمثل تنزيلات ذاكرة التخزين المؤقت الحجم الإجمالي لقطع التخزين المؤقت التي تم "
-"تنزيلها من وحدة التخزين عن بُعد خلال الفترة المحددة."
+"تمثل تنزيلات ذاكرة التخزين المؤقت الحجم الإجمالي لملفات ذاكرة التخزين المؤقت "
+"التي تم تنزيلها من وحدة التخزين البعيدة خلال الفترة المحددة."
 
 #: lib/tuist_web/live/module_cache_live.ex:160
 #: lib/tuist_web/live/module_cache_live.html.heex:99
@@ -245,27 +245,27 @@ msgstr ""
 #: lib/tuist_web/live/module_cache_live.ex:144
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cache hits"
-msgstr "ضربات ذاكرة التخزين المؤقت"
+msgstr "نتائج البحث في ذاكرة التخزين المؤقت"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:181
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cache hits represents the total count of targets that were resolved from cache (local or remote) during the given period."
 msgstr ""
-"يمثل عدد مرات الوصول إلى ذاكرة التخزين المؤقت إجمالي عدد الأهداف التي تم حلها "
-"من ذاكرة التخزين المؤقت (المحلية أو البعيدة) خلال الفترة المحددة."
+"تمثل زيارات ذاكرة التخزين المؤقت العدد الإجمالي للأهداف التي تم حلها من ذاكرة "
+"التخزين المؤقت (المحلية أو البعيدة) خلال الفترة المحددة."
 
 #: lib/tuist_web/live/module_cache_live.ex:152
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cache misses"
-msgstr "أخطاء في ذاكرة التخزين المؤقت"
+msgstr "أخطاء ذاكرة التخزين المؤقت"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:200
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cache misses represents the total count of cacheable targets that had to be rebuilt because they were not found in cache during the given period."
 msgstr ""
 "تمثل حالات فقدان ذاكرة التخزين المؤقت العدد الإجمالي للأهداف القابلة للتخزين "
-"المؤقت التي كان يجب إعادة بنائها لأنه لم يتم العثور عليها في ذاكرة التخزين "
-"المؤقت خلال فترة معينة."
+"المؤقت التي كان لا بد من إعادة بنائها لأنها لم يتم العثور عليها في ذاكرة "
+"التخزين المؤقت خلال الفترة المحددة."
 
 #: lib/tuist_web/live/xcode_cache_live.ex:128
 #: lib/tuist_web/live/xcode_cache_live.html.heex:165
@@ -277,8 +277,8 @@ msgstr "تحميلات ذاكرة التخزين المؤقت"
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Cache uploads represents the total size of cache artifacts uploaded to remote storage during the given period."
 msgstr ""
-"تمثل عمليات التحميل من ذاكرة التخزين المؤقت الحجم الإجمالي لقطع التخزين "
-"المؤقت التي تم تحميلها إلى وحدة التخزين عن بُعد خلال الفترة المحددة."
+"تمثل تحميلات ذاكرة التخزين المؤقت الحجم الإجمالي لملفات ذاكرة التخزين المؤقت "
+"التي تم تحميلها إلى وحدة التخزين البعيدة خلال الفترة المحددة."
 
 #: lib/tuist_web/live/cache_runs_live.ex:35
 #: lib/tuist_web/live/cache_runs_live.html.heex:64
@@ -291,7 +291,7 @@ msgstr "الأوامر"
 #: lib/tuist_web/live/bundles_live.html.heex:384
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Commit SHA"
-msgstr "التزام SHA"
+msgstr "تأكيد SHA"
 
 #: lib/tuist_web/live/bundle_live.html.heex:82
 #: lib/tuist_web/live/bundles_live.html.heex:293
@@ -299,7 +299,7 @@ msgstr "التزام SHA"
 #: lib/tuist_web/live/bundles_live.html.heex:395
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Created at"
-msgstr "تم إنشاؤها في"
+msgstr "تم الإنشاء في"
 
 #: lib/tuist_web/live/bundle_live.html.heex:14
 #, elixir-autogen, elixir-format, fuzzy
@@ -315,7 +315,7 @@ msgstr "الدليل"
 #: lib/tuist_web/live/bundles_live.html.heex:260
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Donwload size"
-msgstr "حجم التحميل"
+msgstr "حجم التنزيل"
 
 #: lib/tuist_web/live/bundle_live.html.heex:100
 #: lib/tuist_web/live/bundle_live.html.heex:103
@@ -331,7 +331,7 @@ msgstr "حجم التنزيل"
 #: lib/tuist_web/live/bundles_live.html.heex:316
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Download size (MB)"
-msgstr "حجم التنزيل (ميغابايت)"
+msgstr "حجم التنزيل (ميجابايت)"
 
 #: lib/tuist_web/live/bundle_live.html.heex:217
 #, elixir-autogen, elixir-format, fuzzy
@@ -373,13 +373,13 @@ msgstr "ملف"
 #: lib/tuist_web/live/bundle_live.html.heex:468
 #, elixir-autogen, elixir-format, fuzzy
 msgid "File Breakdown"
-msgstr "تقسيم الملفات"
+msgstr "تفصيل الملف"
 
 #: lib/tuist_web/live/bundles_live.html.heex:325
 #: lib/tuist_web/live/cache_runs_live.html.heex:43
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Filter"
-msgstr "التصفية"
+msgstr "تصفية"
 
 #: lib/tuist_web/live/bundle_live.html.heex:537
 #, elixir-autogen, elixir-format, fuzzy
@@ -395,7 +395,7 @@ msgstr "الخطوط"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:482
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Hit Rate"
-msgstr "معدل الإصابة"
+msgstr "معدل النجاح"
 
 #: lib/tuist_web/live/cache_runs_live.ex:64
 #: lib/tuist_web/live/cache_runs_live.html.heex:10
@@ -403,12 +403,12 @@ msgstr "معدل الإصابة"
 #: lib/tuist_web/live/cache_runs_live.html.heex:69
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Hit rate"
-msgstr "معدل الإصابة"
+msgstr "معدل النجاح"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:178
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Hits"
-msgstr "النقرات"
+msgstr "نتائج البحث"
 
 #: lib/tuist_web/live/bundle_live.ex:883
 #: lib/tuist_web/live/bundles_live.ex:379
@@ -434,7 +434,7 @@ msgstr "حجم التثبيت"
 #: lib/tuist_web/live/bundles_live.html.heex:308
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Install size (MB)"
-msgstr "حجم التثبيت (ميغابايت)"
+msgstr "حجم التثبيت (ميجابايت)"
 
 #: lib/tuist_web/live/bundle_live.html.heex:31
 #, elixir-autogen, elixir-format, fuzzy
@@ -455,18 +455,18 @@ msgstr "التوطين"
 #: lib/tuist_web/live/bundle_live.html.heex:205
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Localizations"
-msgstr "التوطين"
+msgstr "الترجمة"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:197
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Misses"
-msgstr "ملكة جمال"
+msgstr "أخطاء"
 
 #: lib/tuist_web/live/bundle_live.html.heex:180
 #: lib/tuist_web/live/bundle_live.html.heex:595
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Module Breakdown"
-msgstr "تفاصيل الوحدة النمطية"
+msgstr "تفصيل الوحدة"
 
 #: lib/tuist_web/live/module_cache_live.ex:19
 #, elixir-autogen, elixir-format, fuzzy
@@ -496,7 +496,7 @@ msgstr "لا توجد حزم حتى الآن"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:519
 #, elixir-autogen, elixir-format, fuzzy
 msgid "No data yet"
-msgstr "لا توجد بيانات بعد"
+msgstr "لا توجد بيانات حتى الآن"
 
 #: lib/tuist_web/live/bundle_live.html.heex:576
 #, elixir-autogen, elixir-format, fuzzy
@@ -506,7 +506,7 @@ msgstr "لم يتم العثور على ملفات"
 #: lib/tuist_web/live/bundle_live.html.heex:336
 #, elixir-autogen, elixir-format, fuzzy
 msgid "No insights yet"
-msgstr "لا توجد رؤى بعد"
+msgstr "لا توجد رؤى حتى الآن"
 
 #: lib/tuist_web/live/bundle_live.html.heex:675
 #, elixir-autogen, elixir-format, fuzzy
@@ -527,13 +527,13 @@ msgstr "أخرى"
 #: lib/tuist_web/live/bundle_live.html.heex:168
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Overview"
-msgstr "لمحة عامة"
+msgstr "نظرة عامة"
 
 #: lib/tuist_web/live/cache_runs_live.ex:47
 #: lib/tuist_web/live/cache_runs_live.html.heex:91
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Passed"
-msgstr "نجحت"
+msgstr "تمت الموافقة"
 
 #: lib/tuist_web/live/bundle_live.html.heex:490
 #: lib/tuist_web/live/bundle_live.html.heex:497
@@ -552,7 +552,7 @@ msgstr "المنصة"
 #: lib/tuist_web/live/bundle_live.html.heex:357
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Potential savings"
-msgstr "الوفورات المحتملة"
+msgstr "التوفير المحتمل"
 
 #: lib/tuist_web/live/cache_runs_live.html.heex:11
 #: lib/tuist_web/live/cache_runs_live.html.heex:34
@@ -561,7 +561,7 @@ msgstr "الوفورات المحتملة"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:511
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Ran at"
-msgstr "ركض في"
+msgstr "تم تشغيله في"
 
 #: lib/tuist_web/live/cache_runs_live.ex:80
 #: lib/tuist_web/live/cache_runs_live.html.heex:99
@@ -569,40 +569,39 @@ msgstr "ركض في"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:492
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Ran by"
-msgstr "تم تشغيله بواسطة"
+msgstr "تشغيل بواسطة"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:387
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Recent Builds"
-msgstr "الإنشاءات الأخيرة"
+msgstr "الإصدارات الحديثة"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:418
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Recent Runs"
-msgstr "الجولات الأخيرة"
+msgstr "التشغيلات الأخيرة"
 
 #: lib/tuist_web/live/bundle_live.html.heex:355
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Remove duplicate files"
-msgstr "إزالة الملفات المكررة"
+msgstr "قم بإزالة الملفات المكررة"
 
 #: lib/tuist_web/live/bundle_live.html.heex:105
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Represents the size of the compressed app bundle that gets downloaded by a user over the network."
-msgstr ""
-"يمثل حجم حزمة التطبيق المضغوط الذي يتم تنزيله من قبل المستخدم عبر الشبكة."
+msgstr "يمثل حجم حزمة التطبيق المضغوطة التي يقوم المستخدم بتنزيلها عبر الشبكة."
 
 #: lib/tuist_web/live/bundle_live.html.heex:132
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Represents the size of the uncompressed app bundle that gets installed by a user. This is the number that gets shown in the App Store."
 msgstr ""
-"يمثل حجم حزمة التطبيق غير المضغوطة التي يتم تثبيتها من قبل المستخدم. هذا هو "
-"الرقم الذي يظهر في متجر التطبيقات."
+"يمثل حجم حزمة التطبيق غير المضغوطة التي يقوم المستخدم بتثبيتها. هذا هو الرقم "
+"الذي يظهر في متجر التطبيقات."
 
 #: lib/tuist_web/live/bundles_live.html.heex:6
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Run the following command to analyze a bundle."
-msgstr "قم بتشغيل الأمر التالي لتحليل الحزمة."
+msgstr "قم بتشغيل الأمر التالي لتحليل حزمة."
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:479
 #, elixir-autogen, elixir-format, fuzzy
@@ -631,13 +630,13 @@ msgstr "الحجم"
 #: lib/tuist_web/live/cache_runs_live.html.heex:14
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Sort by:"
-msgstr "فرز حسب:"
+msgstr "ترتيب حسب:"
 
 #: lib/tuist_web/live/bundle_live.html.heex:570
 #: lib/tuist_web/live/bundle_live.html.heex:669
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Space usage"
-msgstr "استخدام المساحة"
+msgstr "استخدام المسافات"
 
 #: lib/tuist_web/live/cache_runs_live.ex:43
 #, elixir-autogen, elixir-format, fuzzy
@@ -655,8 +654,8 @@ msgstr ""
 #, elixir-autogen, elixir-format, fuzzy
 msgid "The bundle install size. This is the uncompressed app size and represents how much space the app takes on the device."
 msgstr ""
-"حجم تثبيت الحزمة. هذا هو حجم التطبيق غير المضغوط ويمثل مقدار المساحة التي "
-"يشغلها التطبيق على الجهاز."
+"حجم تثبيت الحزمة. هذا هو حجم التطبيق غير المضغوط ويمثل المساحة التي يشغلها "
+"التطبيق على الجهاز."
 
 #: lib/tuist_web/live/bundle_live.html.heex:577
 #: lib/tuist_web/live/bundle_live.html.heex:676
@@ -670,12 +669,12 @@ msgstr "حاول تغيير مصطلح البحث"
 #: lib/tuist_web/live/bundles_live.html.heex:351
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Type"
-msgstr "النوع"
+msgstr "اكتب"
 
 #: lib/tuist_web/live/bundles_live.html.heex:70
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Type:"
-msgstr "النوع:"
+msgstr "اكتب:"
 
 #: lib/tuist_web/live/bundle_live.ex:886
 #: lib/tuist_web/live/bundle_live.html.heex:78
@@ -689,7 +688,7 @@ msgstr "غير معروف"
 #: lib/tuist_web/live/bundle_live.html.heex:151
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Uploaded by"
-msgstr "تم الرفع بواسطة"
+msgstr "تم التحميل بواسطة"
 
 #: lib/tuist_web/live/bundle_live.html.heex:93
 #, elixir-autogen, elixir-format, fuzzy
@@ -708,7 +707,7 @@ msgstr "عرض المزيد"
 #: lib/tuist_web/live/bundles_live.html.heex:98
 #, elixir-autogen, elixir-format, fuzzy
 msgid "XCArchive"
-msgstr "أرشيف XCArchive"
+msgstr "XCArchive"
 
 #: lib/tuist_web/live/xcode_cache_live.ex:20
 #, elixir-autogen, elixir-format, fuzzy
@@ -718,55 +717,55 @@ msgstr "ذاكرة التخزين المؤقت لـ Xcode"
 #: lib/tuist_web/live/bundle_live.html.heex:43
 #, elixir-autogen, elixir-format, fuzzy
 msgid "compared to last bundle"
-msgstr "مقارنة بالحزمة الأخيرة"
+msgstr "مقارنةً بالحزمة الأخيرة"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:394
 #: lib/tuist_web/live/xcode_cache_live.html.heex:298
 #, elixir-autogen, elixir-format, fuzzy
 msgid "p50"
-msgstr "p50"
+msgstr "ص 50"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:66
 #, elixir-autogen, elixir-format, fuzzy
 msgid "p50 cache hit rate"
-msgstr "معدل إصابة ذاكرة التخزين المؤقت p50"
+msgstr "معدل الوصول إلى ذاكرة التخزين المؤقت p50"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:98
 #, elixir-autogen, elixir-format, fuzzy
 msgid "p50 hit rate"
-msgstr "معدل إصابة p50"
+msgstr "معدل النجاح p50"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:381
 #: lib/tuist_web/live/xcode_cache_live.html.heex:285
 #, elixir-autogen, elixir-format, fuzzy
 msgid "p90"
-msgstr "p90"
+msgstr "ص 90"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:65
 #, elixir-autogen, elixir-format, fuzzy
 msgid "p90 cache hit rate"
-msgstr "معدل إصابة ذاكرة التخزين المؤقت p90"
+msgstr "معدل الوصول إلى ذاكرة التخزين المؤقت p90"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:97
 #, elixir-autogen, elixir-format, fuzzy
 msgid "p90 hit rate"
-msgstr "معدل إصابة p90"
+msgstr "معدل النجاح p90"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:368
 #: lib/tuist_web/live/xcode_cache_live.html.heex:272
 #, elixir-autogen, elixir-format, fuzzy
 msgid "p99"
-msgstr "p99"
+msgstr "ص 99"
 
 #: lib/tuist_web/live/xcode_cache_live.html.heex:64
 #, elixir-autogen, elixir-format, fuzzy
 msgid "p99 cache hit rate"
-msgstr "معدل إصابة ذاكرة التخزين المؤقت لـ p99"
+msgstr "معدل الوصول إلى ذاكرة التخزين المؤقت p99"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:96
 #, elixir-autogen, elixir-format, fuzzy
 msgid "p99 hit rate"
-msgstr "معدل إصابة p99"
+msgstr "معدل النجاح p99"
 
 #: lib/tuist_web/live/bundles_live.ex:257
 #: lib/tuist_web/live/module_cache_live.ex:250
@@ -794,7 +793,7 @@ msgstr "منذ العام الماضي"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:50
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Apply"
-msgstr "قدم طلبك"
+msgstr "تطبيق"
 
 #: lib/tuist_web/live/bundles_live.html.heex:133
 #: lib/tuist_web/live/module_cache_live.html.heex:71
@@ -815,7 +814,7 @@ msgstr "مخصص"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:29
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Last 12 months"
-msgstr "آخر 12 شهراً"
+msgstr "آخر 12 شهرًا"
 
 #: lib/tuist_web/live/module_cache_live.html.heex:44
 #: lib/tuist_web/live/xcode_cache_live.html.heex:14
@@ -828,7 +827,7 @@ msgstr "آخر 24 ساعة"
 #: lib/tuist_web/live/xcode_cache_live.html.heex:24
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Last 30 days"
-msgstr "آخر 30 يوماً"
+msgstr "آخر 30 يومًا"
 
 #: lib/tuist_web/live/bundles_live.html.heex:111
 #: lib/tuist_web/live/module_cache_live.html.heex:49
@@ -842,10 +841,10 @@ msgstr "آخر 7 أيام"
 #: lib/tuist_web/live/xcode_cache_live.ex:198
 #, elixir-autogen, elixir-format, fuzzy
 msgid "since last period"
-msgstr "منذ الفترة الماضية"
+msgstr "منذ النقطة الأخيرة"
 
 #: lib/tuist_web/live/module_cache_live.ex:246
 #: lib/tuist_web/live/xcode_cache_live.ex:195
 #, elixir-autogen, elixir-format, fuzzy
 msgid "since yesterday"
-msgstr "منذ الأمس"
+msgstr "منذ أمس"
