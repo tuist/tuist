@@ -5,35 +5,29 @@
   "description": "Automatically detect and track flaky tests in your CI pipelines."
 }
 ---
-# Flaky Tests {#flaky-tests}
+# 不安定なテスト{#flaky-tests}
 
-::: warning REQUIREMENTS
+警告 要件
 <!-- -->
 - <LocalizedLink href="/guides/features/test-insights">Test
-  Insights</LocalizedLink> must be configured
+  Insights</LocalizedLink> は設定が必要です
 <!-- -->
 :::
 
-Flaky tests are tests that produce different results (pass or fail) when run
-multiple times with the same code. They erode trust in your test suite and waste
-developer time investigating false failures. Tuist automatically detects flaky
-tests and helps you track them over time.
+不安定なテストとは、同じコードで複数回実行した際に異なる結果（合格または不合格）を生成するテストです。これらはテストスイートへの信頼を損ない、開発者が誤った失敗を調査する時間を浪費させます。Tuistは不安定なテストを自動的に検出し、時間の経過とともに追跡するのを支援します。
 
 ![Flaky Tests page](/images/guides/features/test-insights/flaky-tests-page.png)
 
-## How flaky detection works {#how-it-works}
+## フラッキー検出の仕組み{#how-it-works}
 
-Tuist detects flaky tests in two ways:
+Tuistは不安定なテストを2つの方法で検出します：
 
-### Test retries {#test-retries}
+### テスト再試行{#test-retries}
 
-When you run tests with Xcode's retry functionality (using
-`-retry-tests-on-failure` or `-test-iterations`), Tuist analyzes the results of
-each attempt. If a test fails on some attempts but passes on others, it's marked
-as flaky.
+Xcodeのリトライ機能（`-retry-tests-on-failure` または`-test-iterations`
+を使用）でテストを実行すると、Tuistは各試行の結果を分析します。テストが一部の試行で失敗し、他の試行で成功する場合、フラッキーとしてマークされます。
 
-For example, if a test fails on the first attempt but passes on the retry, Tuist
-records this as a flaky test.
+例えば、テストが最初の試行では失敗するが再試行で成功する場合、Tuistはこれを不安定なテストとして記録します。
 
 ```sh
 tuist xcodebuild test \
@@ -42,36 +36,26 @@ tuist xcodebuild test \
   -test-iterations 3
 ```
 
-![Flaky test case
-detail](/images/guides/features/test-insights/flaky-test-case-detail.png)
+![不安定なテストケースの詳細](/images/guides/features/test-insights/flaky-test-case-detail.png)
 
-### Cross-run detection {#cross-run-detection}
+### クロスラン検出{#cross-run-detection}
 
-Even without test retries, Tuist can detect flaky tests by comparing results
-across different CI runs on the same commit. If a test passes in one CI run but
-fails in another run for the same commit, both runs are marked as flaky.
+テストの再実行がなくても、Tuistは同一コミットに対する異なるCI実行間の結果を比較することで不安定なテストを検出できます。同一コミットに対してあるCI実行でテストが成功し、別の実行で失敗した場合、両方の実行が不安定なテストとしてマークされます。
 
-This is particularly useful for catching flaky tests that don't fail
-consistently enough to be caught by retries, but still cause intermittent CI
-failures.
+これは、再試行では検出できないほど一貫して失敗しないが、それでも断続的なCI失敗を引き起こす不安定なテストを検出するのに特に有用です。
 
-## Managing flaky tests {#managing-flaky-tests}
+## 不安定なテストの管理{#managing-flaky-tests}
 
-### Automatic clearing
+### 自動クリア
 
-Tuist automatically clears the flaky flag from tests that haven't been flaky for
-14 days. This ensures that tests that have been fixed don't remain marked as
-flaky indefinitely.
+Tuistは、14日間不安定な動作を示していないテストから自動的に不安定フラグを解除します。これにより、修正されたテストが永久に不安定としてマークされ続けることが防止されます。
 
-### Manual management
+### 手動管理
 
-You can also manually mark or unmark tests as flaky from the test case detail
-page. This is useful when:
-- You want to acknowledge a known flaky test while working on a fix
-- A test was incorrectly flagged due to infrastructure issues
+テストケースの詳細ページから、手動でテストを不安定なテストとしてマークまたはマーク解除することもできます。これは以下の場合に便利です：
+- 既知の不具合のあるテストを修正作業中に認識したい
+- インフラストラクチャの問題により、テストが誤ってフラグ付けされました
 
-## Slack notifications {#slack-notifications}
+## Slack通知{#slack-notifications}
 
-Get notified instantly when a test becomes flaky by setting up
-<LocalizedLink href="/guides/integrations/slack#flaky-test-alerts">flaky test
-alerts</LocalizedLink> in your Slack integration.
+Slack連携で<LocalizedLink href="/guides/integrations/slack#flaky-test-alerts">不安定なテスト通知</LocalizedLink>を設定すると、テストが不安定になった際に即時通知を受け取れます。
