@@ -41,7 +41,11 @@ Workspace.swift
     جميع ملفات البيان. يمكن لملفات البيان `استيراد ProjectDescriptionHelpers`
     لاستخدام الشيفرة المحددة في هذا الدليل. مشاركة الشيفرة مفيدة لتجنب التكرار
     وضمان الاتساق عبر المشاريع.
-  - **Package.swift:** يحتوي هذا الملف على تبعيات Swift Package لتويست لدمجها باستخدام مشاريع وأهداف Xcode (مثل [CocoaPods] (https://cococapods)}) القابلة للتكوين والتحسين. تعرف على المزيد <LocalizedLink href="/guides/features/projects/dependencies">هنا</LocalizedLink>.
+  - **Package.swift:** يحتوي هذا الملف على تبعيات Swift Package لتويست لدمجها
+    باستخدام مشاريع وأهداف Xcode (مثل [CocoaPods] (https://cococapods)}) القابلة
+    للتكوين والتحسين. تعرف على المزيد
+    <LocalizedLink href="/guides/features/projects/dependencies">
+    هنا</LocalizedLink>.
 
 - **الدليل الجذر**: الدليل الجذر لمشروعك الذي يحتوي أيضًا على الدليل `Tuist`.
   - <LocalizedLink href="/guides/features/projects/manifests#tuistswift"><bold>Tuist.swift:</bold></LocalizedLink>
@@ -60,10 +64,12 @@ Workspace.swift
 يجب أن يكون البيان في دليل أو دليل فرعي لدليل يحتوي على دليل `Tuist` الذي يمثل
 جذر المشروع.
 
-::: tip
+:::: إكرامية
+<!-- -->
 سمحت مساحات عمل Xcode بتقسيم المشاريع إلى مشاريع Xcode متعددة لتقليل احتمالية
 تعارضات الدمج. إذا كان هذا ما كنت تستخدم مساحات العمل من أجله، فلن تحتاج إليها
 في Tuist. يُنشئ تويست تلقائيًا مساحة عمل تحتوي على مشروع ومشاريع تبعياته.
+<!-- -->
 :::
 
 ## حزمة سويفت <Badge type="warning" text="beta" /> {#swift-package-badge-typewarning-textbeta-}
@@ -72,4 +78,9 @@ Workspace.swift
 أي شيء. يلتقط تويست تلقائيًا على الجذر الخاص بك `Package.swift` وتعمل جميع ميزات
 تويست كما لو كان `Project.swift` البيان.
 
-للبدء، قم بتشغيل `tuist install` و `tuist generate` في حزمة SPM الخاصة بك. يجب أن يحتوي مشروعك الآن على جميع المخططات والملفات نفسها التي ستراها في تكامل Xcode SPM الفانيليا. ومع ذلك، يمكنك الآن أيضًا تشغيل <LocalizedLink href="/guides/features/cache">`tuist cache`</LocalizedLink> وستحصل على معظم تبعيات ووحدات SPM الخاصة بك مجمعة مسبقًا، مما يجعل الإنشاءات اللاحقة سريعة للغاية.
+للبدء، قم بتشغيل `tuist install` و `tuist generate` في حزمة SPM الخاصة بك. يجب
+أن يحتوي مشروعك الآن على جميع المخططات والملفات نفسها التي ستراها في تكامل Xcode
+SPM الفانيليا. ومع ذلك، يمكنك الآن أيضًا تشغيل
+<LocalizedLink href="/guides/features/cache">`tuist cache`</LocalizedLink>
+وستحصل على معظم تبعيات ووحدات SPM الخاصة بك مجمعة مسبقًا، مما يجعل الإنشاءات
+اللاحقة سريعة للغاية.
