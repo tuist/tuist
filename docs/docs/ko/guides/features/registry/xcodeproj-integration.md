@@ -7,7 +7,7 @@
 ---
 # XcodeProj 기반 패키지 통합으로 생성된 프로젝트 {#generated-project-with-xcodeproj-based-integration}
 
-<LocalizedLink href="/guides/features/projects/dependencies#tuists-xcodeprojbased-integration">XcodeProj 기반 통합</LocalizedLink>을 사용하는 경우 ``--replace-scm-with-registry`` 플래그를
+1}XcodeProj 기반 통합</LocalizedLink>을 사용하는 경우 ``--replace-scm-with-registry`` 플래그를
 사용하여 레지스트리에서 종속성을 해결할 수 있습니다(사용 가능한 경우). ` Tuist.swift` 파일의 `installOptions` 에
 추가합니다:
 ```swift
