@@ -5,127 +5,128 @@
   "description": "Learn how to integrate Tuist with Slack."
 }
 ---
-# Slack integration {#slack}
+# Slack entegrasyonu {#slack}
 
-If your organization uses Slack, you can integrate Tuist to surface insights
-directly in your channels. This turns monitoring from something your team has to
-remember to do into something that just happens. For example, your team can
-receive daily summaries of build performance, cache hit rates, or bundle size
-trends.
+Kuruluşunuz Slack kullanıyorsa, Tuist'i entegre ederek kanallarınızda doğrudan
+içgörüler elde edebilirsiniz. Böylece, izleme ekibinizin hatırlaması gereken bir
+şey olmaktan çıkıp, kendiliğinden gerçekleşen bir şey haline gelir. Örneğin,
+ekibiniz günlük olarak derleme performansı, önbellek isabet oranları veya paket
+boyutu eğilimleri hakkında özetler alabilir.
 
-## Setup {#setup}
+## Kurulum {#setup}
 
-### Connect your Slack workspace {#connect-workspace}
+### Slack çalışma alanınızı bağlayın {#connect-workspace}
 
-First, connect your Slack workspace to your Tuist account in the `Integrations`
-tab:
+İlk olarak, Slack çalışma alanınızı `Entegrasyonlar` sekmesinden Tuist
+hesabınıza bağlayın:
 
-![An image that shows the integrations tab with Slack
-connection](/images/guides/integrations/slack/integrations.png)
+![Slack bağlantısı ile entegrasyonlar sekmesini gösteren bir
+resim](/images/guides/integrations/slack/integrations.png)
 
-Click **Connect Slack** to authorize Tuist to post messages to your workspace.
-This will redirect you to Slack's authorization page where you can approve the
-connection.
+**'ı tıklayın Slack** 'u bağlayarak Tuist'in çalışma alanınıza mesaj
+göndermesine izin verin. Bu sizi bağlantıyı onaylayabileceğiniz Slack'in
+yetkilendirme sayfasına yönlendirecektir.
 
-> [!NOTE] SLACK ADMIN APPROVAL
+> [!NOT] SLACK YÖNETİCİSİNİN ONAYI
 > <!-- -->
-> If your Slack workspace restricts app installations, you may need to request
-> approval from a Slack administrator. Slack will guide you through the approval
-> request process during authorization.
-> <!-- -->
-
-### Project reports {#project-reports}
-
-After connecting Slack, configure reports for each project in the project
-settings' notifications tab:
-
-![An image that shows the notifications settings with Slack report
-configuration](/images/guides/integrations/slack/notifications-settings.png)
-
-You can configure:
-- **Channel**: Select which Slack channel receives the reports
-- **Schedule**: Choose which days of the week to receive reports
-- **Time**: Set the time of day
-
-> [!WARNING] PRIVATE CHANNELS
-> <!-- -->
-> For the Tuist Slack app to post messages in a private channel, you must first
-> add the Tuist bot to that channel. In Slack, open the private channel, click
-> the channel name to open settings, select "Integrations", then "Add apps" and
-> search for Tuist.
+> Slack çalışma alanınız uygulama yüklemelerini kısıtlıyorsa, Slack
+> yöneticisinden onay almanız gerekebilir. Slack, yetkilendirme sırasında onay
+> talebi sürecinde size rehberlik edecektir.
 > <!-- -->
 
-Once configured, Tuist sends automated daily reports to your selected Slack
-channel:
+### Proje raporları {#project-reports}
+
+Slack'i bağladıktan sonra, proje ayarlarının bildirimler sekmesinde her proje
+için raporları yapılandırın:
+
+![Slack rapor yapılandırmasıyla bildirim ayarlarını gösteren bir
+resim](/images/guides/integrations/slack/notifications-settings.png)
+
+Aşağıdakileri yapılandırabilirsiniz:
+- **Kanal**: Raporları hangi Slack kanalının alacağını seçin.
+- ****'ı planlayın: Raporları almak istediğiniz günleri seçin
+- **Saat**: Günün saatini ayarlayın
+
+> [!UYARI] ÖZEL KANALLAR
+> <!-- -->
+> Tuist Slack uygulamasının özel bir kanalda mesaj gönderebilmesi için, önce
+> Tuist botunu o kanala eklemeniz gerekir. Slack'te özel kanalı açın, kanal
+> adını tıklayarak ayarları açın, "Entegrasyonlar"ı seçin, ardından "Uygulama
+> ekle"yi seçin ve Tuist'i arayın.
+> <!-- -->
+
+Yapılandırıldıktan sonra, Tuist seçtiğiniz Slack kanalına otomatik günlük
+raporlar gönderir:
 
 <img src="/images/guides/integrations/slack/report.png" alt="An image that shows a Slack report message" style="max-width: 500px;" />
 
-### Alert rules {#alert-rules}
+### Uyarı kuralları {#alert-rules}
 
-Get notified in Slack with alert rules when key metrics significantly regress to
-help you catch slower builds, cache degradation, or test slowdowns as soon as
-possible, minimizing the impact on your team's productivity.
+Önemli metrikler önemli ölçüde gerilediğinde Slack'te uyarı kuralları ile
+bildirim alın, böylece yavaşlamış derlemeleri, önbellek bozulmalarını veya test
+yavaşlamalarını mümkün olan en kısa sürede yakalayabilir ve ekibinizin
+üretkenliği üzerindeki etkiyi en aza indirebilirsiniz.
 
-To create an alert rule, go to your project's notification settings and click
-**Add alert rule**:
+Uyarı kuralı oluşturmak için projenizin bildirim ayarlarına gidin ve " **"
+(Uyarı kuralı ekle) seçeneğine tıklayın.**:
 
-You can configure:
-- **Name**: A descriptive name for the alert
-- **Category**: What to measure (build duration, test duration, or cache hit
-  rate)
-- **Metric**: How to aggregate the data (p50, p90, p99, or average)
-- **Deviation**: The percentage change that triggers an alert
-- **Rolling window**: How many recent runs to compare against
-- **Slack channel**: Where to send the alert
+Aşağıdakileri yapılandırabilirsiniz:
+- ****'ın adı: Uyarı için açıklayıcı bir ad
+- **Kategori**: Ne ölçülmeli (yapım süresi, test süresi veya önbellek isabet
+  oranı)
+- **Metrik**: Verilerin nasıl toplanacağı (p50, p90, p99 veya ortalama)
+- **Sapma**: Uyarıyı tetikleyen yüzde değişim
+- **Yuvarlanan pencere**: Karşılaştırılacak son kaç çalıştırma
+- **Slack kanalı**: Uyarıyı nereye göndereceksiniz?
 
-For example, you might create an alert that triggers when the p90 build duration
-increases by more than 20% compared to the previous 100 builds.
+Örneğin, p90 derleme süresi önceki 100 derlemeye kıyasla %20'den fazla
+arttığında tetiklenen bir uyarı oluşturabilirsiniz.
 
-When an alert triggers, you'll receive a message like this in your Slack
-channel:
+Bir uyarı tetiklendiğinde, Slack kanalınızda aşağıdaki gibi bir mesaj alırsınız:
 
 <img src="/images/guides/integrations/slack/alert.png" alt="An image that shows a Slack alert message" style="max-width: 500px;" />
 
-> [!NOTE] COOLDOWN PERIOD
+> [!NOT] BEKLEME SÜRESİ
 > <!-- -->
-> After an alert triggers, it won't fire again for the same rule for 24 hours.
-> This prevents notification fatigue when a metric stays elevated.
+> Bir uyarı tetiklendikten sonra, aynı kural için 24 saat boyunca tekrar
+> tetiklenmez. Bu, bir metrik yüksek kaldığında bildirim yorgunluğunu önler.
 > <!-- -->
 
-### Flaky test alerts {#flaky-test-alerts}
+### Kararsız test uyarıları {#flaky-test-alerts}
 
-Get notified instantly when a test becomes flaky. Unlike metric-based alert
-rules that compare rolling windows, flaky test alerts trigger the moment Tuist
-detects a new flaky test, helping you catch test instability before it impacts
-your team.
+Testin dengesiz hale geldiğinde anında bildirim alın. Dönen pencereleri
+karşılaştıran metrik tabanlı uyarı kurallarından farklı olarak, dengesiz test
+uyarıları Tuist yeni bir dengesiz test algıladığı anda tetiklenir ve testin
+dengesizliği ekibinizi etkilemeden önce fark etmenize yardımcı olur.
 
-To create a flaky test alert rule, go to your project's notification settings
-and click **Add flaky test alert rule**:
+Flaky test uyarı kuralı oluşturmak için projenizin bildirim ayarlarına gidin ve
+" **" (Flaky test uyarı kuralı ekle) seçeneğine tıklayın. Flaky test uyarı
+kuralı ekleyin**:
 
-You can configure:
-- **Name**: A descriptive name for the alert
-- **Trigger threshold**: The minimum number of flaky runs in the last 30 days
-  required to trigger an alert
-- **Slack channel**: Where to send the alert
+Aşağıdakileri yapılandırabilirsiniz:
+- ****'ın adı: Uyarı için açıklayıcı bir ad
+- **Tetikleme eşiği**: Son 30 gün içinde bir uyarıyı tetiklemek için gereken
+  minimum hatalı çalışma sayısı
+- **Slack kanalı**: Uyarıyı nereye göndereceksiniz?
 
-When a test becomes flaky and meets your threshold, you'll receive a
-notification with a direct link to investigate the test case:
+Bir test dengesiz hale gelip eşiğinizi aşarsa, test durumunu incelemek için
+doğrudan bağlantı içeren bir bildirim alırsınız:
 
 <img src="/images/guides/integrations/slack/flaky-test-alert.png" alt="An image that shows a Slack flaky test alert message" style="max-width: 500px;" />
 
-## On-premise installations {#on-premise}
+## Yerinde kurulumlar {#on-premise}
 
-For on-premise Tuist installations, you'll need to create your own Slack app and
-configure the necessary environment variables.
+Yerinde Tuist kurulumları için, kendi Slack uygulamanızı oluşturmanız ve gerekli
+ortam değişkenlerini yapılandırmanız gerekir.
 
-### Create a Slack app {#create-slack-app}
+### Slack uygulaması oluşturun {#create-slack-app}
 
-1. Go to the [Slack API Apps page](https://api.slack.com/apps) and click
-   **Create New App**
-2. Choose **From an app manifest** and select the workspace where you want to
-   install the app
-3. Paste the following manifest, replacing the redirect URL with your Tuist
-   server URL:
+1. [Slack API Uygulamaları sayfasına](https://api.slack.com/apps) gidin ve
+   **Yeni Uygulama Oluştur'u tıklayın.**
+2. **'ı seçin Uygulama manifestosundan** ve uygulamayı yüklemek istediğiniz
+   çalışma alanını seçin
+3. Aşağıdaki manifestoyu yapıştırın ve yönlendirme URL'sini Tuist sunucu
+   URL'nizle değiştirin:
 
 ```json
 {
@@ -159,12 +160,13 @@ configure the necessary environment variables.
 }
 ```
 
-4. Review and create the app
+4. Uygulamayı inceleyin ve oluşturun
 
-### Configure environment variables {#configure-environment}
+### Ortam değişkenlerini yapılandırın {#configure-environment}
 
-Set the following environment variables on your Tuist server:
+Tuist sunucunuzda aşağıdaki ortam değişkenlerini ayarlayın:
 
-- `SLACK_CLIENT_ID` - The Client ID from your Slack app's Basic Information page
-- `SLACK_CLIENT_SECRET` - The Client Secret from your Slack app's Basic
-  Information page
+- `SLACK_CLIENT_ID` - Slack uygulamanızın Temel Bilgiler sayfasındaki İstemci
+  Kimliği
+- `SLACK_CLIENT_SECRET` - Slack uygulamanızın Temel Bilgiler sayfasındaki
+  Müşteri Gizli Anahtarı
