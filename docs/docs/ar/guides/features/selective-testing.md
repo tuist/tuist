@@ -18,23 +18,23 @@
 <LocalizedLink href="/guides/features/projects/hashing"> التجزئة</LocalizedLink>
 الخاصة بنا.
 
-To run tests selectively with your
-<LocalizedLink href="/guides/features/projects">generated
-project</LocalizedLink>, use the `tuist test` command. The command
-<LocalizedLink href="/guides/features/projects/hashing">hashes</LocalizedLink>
-your Xcode project the same way it does for the
-<LocalizedLink href="/guides/features/cache/module-cache">module
-cache</LocalizedLink>, and on success, it persists the hashes to determine what
-has changed in future runs. In future runs, `tuist test` transparently uses the
-hashes to filter down the tests and run only the ones that have changed since
-the last successful test run.
+لتشغيل الاختبارات بشكل انتقائي مع
+<LocalizedLink href="/guides/features/projects">المشروع الذي تم
+إنشاؤه</LocalizedLink>، استخدم الأمر `tuist test`. يقوم الأمر
+<LocalizedLink href="/guides/features/projects/hashing">بتجزئة</LocalizedLink>
+مشروع Xcode الخاص بك بنفس الطريقة التي يتبعها مع
+<LocalizedLink href="/guides/features/cache/module-cache">ذاكرة التخزين المؤقتة
+للوحدة النمطية</LocalizedLink>، وعند النجاح، يحتفظ بالتجزئة لتحديد ما تم تغييره
+في عمليات التشغيل المستقبلية. في عمليات التشغيل المستقبلية، يستخدم `tuist test`
+التجزئة بشكل شفاف لتصفية الاختبارات وتشغيل الاختبارات التي تغيرت فقط منذ آخر
+عملية تشغيل ناجحة للاختبار.
 
-`tuist test` integrates directly with the
-<LocalizedLink href="/guides/features/cache/module-cache">module
-cache</LocalizedLink> to use as many binaries from your local or remote storage
-to improve the build time when running your test suite. The combination of
-selective testing with module caching can dramatically reduce the time it takes
-to run tests on your CI.
+`اختبار tuist` يتكامل مباشرة مع
+<LocalizedLink href="/guides/features/cache/module-cache">ذاكرة التخزين المؤقتة
+للوحدة النمطية</LocalizedLink> لاستخدام أكبر عدد ممكن من الملفات الثنائية من
+التخزين المحلي أو البعيد لتحسين وقت الإنشاء عند تشغيل مجموعة الاختبارات. يمكن أن
+يؤدي الجمع بين الاختبار الانتقائي وذاكرة التخزين المؤقتة للوحدة النمطية إلى
+تقليل الوقت الذي يستغرقه تشغيل الاختبارات على CI بشكل كبير.
 
 :::: تحذير وحدة نمطية مقابل مستوى الملف
 <!-- -->
@@ -67,9 +67,9 @@ to run tests on your CI.
 <!-- -->
 :::
 
-Once your Tuist project is connected with your Git platform such as
-[GitHub](https://github.com), and you start using `tuist test` as part of your
-CI workflow, Tuist will post a comment directly in your pull/merge requests,
-including which tests were run and which skipped: ![GitHub app comment with a
-Tuist Preview
-link](/images/guides/features/selective-testing/github-app-comment.png)
+بمجرد اتصال مشروع Tuist الخاص بك مع منصة Git الخاصة بك مثل [GitHub]
+(https://github.com)، وبدء استخدام `tuist xcodebuild test` أو `tuist test` كجزء
+من سير عمل CI wortkflow الخاص بك، سوف ينشر Tuist تعليقًا مباشرة في طلبات
+السحب/الدمج الخاصة بك، بما في ذلك الاختبارات التي تم تشغيلها وأيها تم تخطيها:
+![تعليق تطبيق GitHub مع رابط معاينة Tuist]
+(/images/guides/features/selective-testing/github-app-comment.png)
