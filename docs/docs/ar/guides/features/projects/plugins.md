@@ -10,10 +10,13 @@
 المكوّنات الإضافية هي أداة لمشاركة وإعادة استخدام القطع الأثرية ل Tuist عبر
 مشاريع متعددة. يتم دعم القطع الأثرية التالية:
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">مساعدي وصف المشروع</LocalizedLink> عبر مشاريع متعددة.
-- <LocalizedLink href="/guides/features/projects/templates">القوالب</LocalizedLink> عبر مشاريع متعددة.
+- <LocalizedLink href="/guides/features/projects/code-sharing">مساعدي وصف
+  المشروع</LocalizedLink> عبر مشاريع متعددة.
+- <LocalizedLink href="/guides/features/projects/templates">القوالب</LocalizedLink>
+  عبر مشاريع متعددة.
 - المهام عبر مشاريع متعددة.
-- <LocalizedLink href="/guides/features/projects/synthesized-files">قالب ملحق الموارد</LocalizedLink> عبر مشاريع متعددة
+- <LocalizedLink href="/guides/features/projects/synthesized-files">قالب ملحق
+  الموارد</LocalizedLink>قالب</LocalizedLink> عبر مشاريع متعددة
 
 لاحظ أن الإضافات مصممة لتكون طريقة بسيطة لتوسيع وظائف تويست. لذلك هناك **بعض
 القيود التي يجب مراعاتها**:
@@ -35,7 +38,7 @@
 ملف بيان يوضح اسم المكوّن الإضافي ودليل `ProjectDescriptionHelpers` يحتوي على
 ملفات Swift المساعدة.
 
-:::: code-group
+:::: مجموعة الرموز
 ```bash [Plugin.swift]
 import ProjectDescription
 
@@ -48,16 +51,20 @@ let plugin = Plugin(name: "MyPlugin")
 ├── ProjectDescriptionHelpers
 └── ...
 ```
-::::
+<!-- -->
+:::
 
 ### المكون الإضافي لقوالب ملحقات الموارد {#resource-accessor-templates-plugin}
 
-إذا كنت بحاجة إلى مشاركة <LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">ملحقات الموارد</LocalizedLink> المركّبة يمكنك استخدام هذا النوع من المكوّنات الإضافية. يُمثّل المكوّن الإضافي بدليل يحتوي على `Plugin.swift` ملف بيان يُعلن
+إذا كنت بحاجة إلى مشاركة
+<LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">
+ملحقات الموارد</LocalizedLink> المركّبة يمكنك استخدام هذا النوع من المكوّنات
+الإضافية. يُمثّل المكوّن الإضافي بدليل يحتوي على `Plugin.swift` ملف بيان يُعلن
 اسم المكوّن الإضافي ودليل `ResourceSynthesizizizers` يحتوي على ملفات قالب قالب
 ملحق الموارد.
 
 
-:::: code-group
+:::: مجموعة الرموز
 ```bash [Plugin.swift]
 import ProjectDescription
 
@@ -73,7 +80,8 @@ let plugin = Plugin(name: "MyPlugin")
 ├───── CustomTemplate.stencil
 └── ...
 ```
-::::
+<!-- -->
+:::
 
 اسم القالب هو إصدار [حالة الجمل] (https://en.wikipedia.org/wiki/Camel_case) من
 نوع المورد:
@@ -107,7 +115,11 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 :::
 
 المهام هي `$ PATH`-المسار -المسارات التنفيذية المكشوفة التي يمكن استدعاؤها من
-خلال الأمر `tuist` إذا كانت تتبع اصطلاح التسمية `tuist-<task-name>`. في الإصدارات السابقة، وفرت تويست بعض الاصطلاحات والأدوات الضعيفة تحت `tuist plugin` إلى `بناء` و `تشغيل` و `اختبار` و `أرشفة` المهام التي تمثلها الملفات التنفيذية في حزم سويفت، لكننا أهملنا هذه الميزة لأنها تزيد من عبء الصيانة وتعقيد الأداة.
+خلال الأمر `tuist` إذا كانت تتبع اصطلاح التسمية `tuist-<task-name>`. في
+الإصدارات السابقة، وفرت تويست بعض الاصطلاحات والأدوات الضعيفة تحت `tuist plugin`
+إلى `بناء` و `تشغيل` و `اختبار` و `أرشفة` المهام التي تمثلها الملفات التنفيذية
+في حزم سويفت، لكننا أهملنا هذه الميزة لأنها تزيد من عبء الصيانة وتعقيد
+الأداة.</task-name>
 
 إذا كنت تستخدم تويست لتوزيع المهام، فإننا نوصي ببناء
 - يمكنك الاستمرار في استخدام `ProjectAutomation.xcframework` الموزعة مع كل إصدار
