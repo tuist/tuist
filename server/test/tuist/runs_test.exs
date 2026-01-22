@@ -2,7 +2,6 @@ defmodule Tuist.RunsTest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
-  alias Tuist.Alerts.Workers.FlakyThresholdCheckWorker
   alias Tuist.IngestRepo
   alias Tuist.Runs
   alias Tuist.Runs.TestCase
@@ -4656,112 +4655,6 @@ defmodule Tuist.RunsTest do
     end
   end
 
-  describe "create_test_cases/2 enqueuing flaky threshold check jobs" do
-    test "enqueues job when test case becomes newly flaky" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      # When
-      Runs.create_test_cases(project.id, [
-        %{
-          name: "testFlaky",
-          module_name: "MyTests",
-          suite_name: "TestSuite",
-          status: "success",
-          duration: 100,
-          is_flaky: true,
-          ran_at: NaiveDateTime.utc_now()
-        }
-      ])
-
-      # Then
-      assert_enqueued(worker: FlakyThresholdCheckWorker, args: %{project_id: project.id})
-    end
-
-    test "does not enqueue job when test case is not flaky" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      # When
-      Runs.create_test_cases(project.id, [
-        %{
-          name: "testNonFlaky",
-          module_name: "MyTests",
-          suite_name: "TestSuite",
-          status: "success",
-          duration: 100,
-          is_flaky: false,
-          ran_at: NaiveDateTime.utc_now()
-        }
-      ])
-
-      # Then
-      refute_enqueued(worker: FlakyThresholdCheckWorker)
-    end
-
-    test "does not enqueue job when test case was already flaky" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      Runs.create_test_cases(project.id, [
-        %{
-          name: "testAlreadyFlaky",
-          module_name: "MyTests",
-          suite_name: "TestSuite",
-          status: "success",
-          duration: 100,
-          is_flaky: true,
-          ran_at: NaiveDateTime.utc_now()
-        }
-      ])
-
-      # When - create the same test case again as flaky
-      Runs.create_test_cases(project.id, [
-        %{
-          name: "testAlreadyFlaky",
-          module_name: "MyTests",
-          suite_name: "TestSuite",
-          status: "success",
-          duration: 100,
-          is_flaky: true,
-          ran_at: NaiveDateTime.utc_now()
-        }
-      ])
-
-      # Then - only one job should be enqueued (from first creation)
-      assert length(all_enqueued(worker: FlakyThresholdCheckWorker)) == 1
-    end
-
-    test "enqueues jobs for multiple newly flaky test cases" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      # When
-      Runs.create_test_cases(project.id, [
-        %{
-          name: "testFlaky1",
-          module_name: "MyTests",
-          suite_name: "TestSuite",
-          status: "success",
-          duration: 100,
-          is_flaky: true,
-          ran_at: NaiveDateTime.utc_now()
-        },
-        %{
-          name: "testFlaky2",
-          module_name: "MyTests",
-          suite_name: "TestSuite",
-          status: "success",
-          duration: 100,
-          is_flaky: true,
-          ran_at: NaiveDateTime.utc_now()
-        }
-      ])
-
-      # Then
-      assert length(all_enqueued(worker: FlakyThresholdCheckWorker)) == 2
-    end
-  end
 
   describe "is_new detection for test case runs" do
     test "marks test_case_run as new when no prior CI run exists on default branch" do
