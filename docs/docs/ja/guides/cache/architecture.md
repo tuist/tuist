@@ -6,28 +6,23 @@
 }
 ---
 
-# Cache Architecture {#cache-architecture}
+# キャッシュアーキテクチャ{#cache-architecture}
 
 ::: info
 <!-- -->
-This page provides a technical overview of the Tuist cache service architecture.
-It is primarily intended for **self-hosting users** and **contributors** who
-need to understand the internal workings of the service. General users who only
-want to use the cache do not need to read this.
+このページはTuistキャッシュサービスの技術的概要を説明します。主に**のセルフホスティングユーザー（** ）および**のコントリビューター（**
+）がサービスの内部動作を理解する必要がある場合に想定されています。キャッシュを利用するだけの一般ユーザーは読む必要はありません。
 <!-- -->
 :::
 
-The Tuist cache service is a standalone service that provides Content
-Addressable Storage (CAS) for build artifacts and a key-value store for cache
-metadata.
+Tuistキャッシュサービスは、ビルド成果物向けのコンテンツアドレス可能ストレージ（CAS）と、キャッシュメタデータ向けのキーバリューストアを提供するスタンドアロンサービスです。
 
-## Overview {#overview}
+## 概要{#overview}
 
-The service uses a two-tier storage architecture:
+本サービスは二層ストレージアーキテクチャを採用しています：
 
-- **Local disk**: Primary storage for low-latency cache hits
-- **S3**: Durable storage that persists artifacts and allows recovery after
-  eviction
+- **ローカルディスク**: 低遅延キャッシュヒットのためのプライマリストレージ
+- **S3**: アーティファクトを永続的に保存し、削除後の復元を可能にする耐久性のあるストレージ
 
 ```mermaid
 flowchart LR
@@ -38,55 +33,49 @@ flowchart LR
     APP -->|auth| SERVER[Tuist Server]
 ```
 
-## Components {#components}
+## コンポーネント{#components}
 
-### Nginx {#nginx}
+### Nginx{#nginx}
 
-Nginx serves as the entry point and handles efficient file delivery using
-`X-Accel-Redirect`:
+Nginxはエントリポイントとして機能し、`X-Accel-Redirect` を使用して効率的なファイル配信を処理します。
 
-- **Downloads**: The cache service validates authentication, then returns an
-  `X-Accel-Redirect` header. Nginx serves the file directly from disk or proxies
-  from S3.
-- **Uploads**: Nginx proxies requests to the cache service, which streams data
-  to disk.
+- **ダウンロード**: キャッシュサービスは認証を検証した後、`X-Accel-Redirect`
+  ヘッダーを返します。Nginxはファイルをディスクから直接提供するか、S3からプロキシします。
+- **アップロード**: Nginxはリクエストをキャッシュサービスにプロキシし、キャッシュサービスはデータをディスクにストリーミングします。
 
-### Content Addressable Storage {#cas}
+### コンテンツアドレス可能ストレージ{#cas}
 
-Artifacts are stored on local disk in a sharded directory structure:
+アーティファクトはローカルディスク上に、分割されたディレクトリ構造で保存されます：
 
-- **Path**: `{account}/{project}/cas/{shard1}/{shard2}/{artifact_id}`
-- **Sharding**: First four characters of the artifact ID create a two-level
-  shard (e.g., `ABCD1234` → `AB/CD/ABCD1234`)
+- **パス**:`{account}/{project}/cas/{shard1}/{shard2}/{artifact_id}`
+- **** のシャード化：アーティファクトIDの先頭4文字で2階層のシャードを生成（例： ABCD1234 → AB/CD/ABCD1234 ）`` ``
 
-### S3 Integration {#s3}
+### S3 統合{#s3}
 
-S3 provides durable storage:
+S3は耐久性のあるストレージを提供します：
 
-- **Background uploads**: After writing to disk, artifacts are queued for upload
-  to S3 via a background worker that runs every minute
-- **On-demand hydration**: When a local artifact is missing, the request is
-  served immediately via a presigned S3 URL while the artifact is queued for
-  background download to local disk
+- **バックグラウンドアップロード**:
+  ディスクへの書き込み後、アーティファクトは毎分実行されるバックグラウンドワーカーを介してS3へのアップロード用にキューイングされます
+- **オンデマンドハイドレーション**:
+  ローカルアーティファクトが存在しない場合、アーティファクトがバックグラウンドでローカルディスクにダウンロードされる間、事前署名済みS3
+  URLを介してリクエストが即座に処理される
 
-### Disk Eviction {#eviction}
+### ディスクエヴィクション{#eviction}
 
-The service manages disk space using LRU eviction:
+本サービスはLRUエヴィクション方式でディスク領域を管理します：
 
-- Access times are tracked in SQLite
-- When disk usage exceeds 85%, the oldest artifacts are deleted until usage
-  drops to 70%
-- Artifacts remain in S3 after local eviction
+- アクセス時間はSQLiteで追跡されます
+- ディスク使用率が85%を超えた場合、使用率が70%まで低下するまで最も古いアーティファクトが削除される
+- ローカルでの削除後もアーティファクトはS3に残る
 
-### Authentication {#authentication}
+### 認証{#authentication}
 
-The cache delegates authentication to the Tuist server by calling the
-`/api/projects` endpoint and caching results (10 minutes for success, 3 seconds
-for failure).
+キャッシュは、`/api/projects`
+エンドポイントを呼び出し、結果をキャッシュすることで認証をTuistサーバーに委譲します（成功時は10分間、失敗時は3秒間キャッシュ）。
 
-## Request Flows {#request-flows}
+## リクエストフロー{#request-flows}
 
-### Download {#download-flow}
+### ダウンロード{#download-flow}
 
 ```mermaid
 sequenceDiagram
@@ -107,7 +96,7 @@ sequenceDiagram
     N-->>CLI: File bytes
 ```
 
-### Upload {#upload-flow}
+### アップロード{#upload-flow}
 
 ```mermaid
 sequenceDiagram
@@ -124,18 +113,18 @@ sequenceDiagram
     A->>S: Background upload
 ```
 
-## API Endpoints {#api-endpoints}
+## APIエンドポイント{#api-endpoints}
 
-| Endpoint                      | Method | Description                     |
-| ----------------------------- | ------ | ------------------------------- |
-| `/up`                         | GET    | Health check                    |
-| `/metrics`                    | GET    | Prometheus metrics              |
-| `/api/cache/cas/:id`          | GET    | Download CAS artifact           |
-| `/api/cache/cas/:id`          | POST   | Upload CAS artifact             |
-| `/api/cache/keyvalue/:cas_id` | GET    | Get key-value entry             |
-| `/api/cache/keyvalue`         | PUT    | Store key-value entry           |
-| `/api/cache/module/:id`       | HEAD   | Check if module artifact exists |
-| `/api/cache/module/:id`       | GET    | Download module artifact        |
-| `/api/cache/module/start`     | POST   | Start multipart upload          |
-| `/api/cache/module/part`      | POST   | Upload part                     |
-| `/api/cache/module/complete`  | POST   | Complete multipart upload       |
+| エンドポイント                       | 方法   | 説明                    |
+| ----------------------------- | ---- | --------------------- |
+| `/up`                         | GET  | ヘルスチェック               |
+| `/metrics`                    | GET  | プロメテウス メトリクス          |
+| `/api/cache/cas/:id`          | GET  | CASアーティファクトをダウンロード    |
+| `/api/cache/cas/:id`          | POST | CASアーティファクトをアップロード    |
+| `/api/cache/keyvalue/:cas_id` | GET  | キーと値のエントリを取得する        |
+| `/api/cache/keyvalue`         | PUT  | キーと値のエントリを保存する        |
+| `/api/cache/module/:id`       | HEAD | モジュールアーティファクトの存在を確認する |
+| `/api/cache/module/:id`       | GET  | モジュールアーティファクトをダウンロード  |
+| `/api/cache/module/start`     | POST | マルチパートアップロードを開始       |
+| `/api/cache/module/part`      | POST | アップロード部分              |
+| `/api/cache/module/complete`  | POST | マルチパートアップロードを完了する     |
