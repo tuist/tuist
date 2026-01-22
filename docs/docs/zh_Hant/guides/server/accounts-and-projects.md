@@ -5,42 +5,42 @@
   "description": "Learn how to create and manage accounts and projects in Tuist."
 }
 ---
-# 帳戶和專案{#accounts-and-projects}
+# 帳戶與專案{#accounts-and-projects}
 
-有些 Tuist 功能需要伺服器，伺服器可增加資料的持久性，並可與其他服務互動。要與伺服器互動，您需要一個帳號和一個專案，並連接到您的本機專案。
+某些 Tuist 功能需要伺服器支援，該伺服器可提供資料持久化並與其他服務互動。欲與伺服器互動，您需擁有帳戶及專案，並將其連結至您的本地專案。
 
 ## 帳戶{#accounts}
 
-要使用伺服器，您需要一個帳戶。有兩種類型的帳戶：
+使用本服務需先註冊帳號。帳號分為兩種類型：
 
-- **個人帳戶：** 當您註冊時會自動建立這些帳號，並透過從身分提供者 (例如 GitHub) 取得的句柄或電子郵件地址的第一部分來識別。
-- **組織帳戶：** 這些帳號是手動建立的，由開發人員定義的句柄來識別。組織允許邀請其他成員合作進行專案。
+- **個人帳戶：** 這些帳戶於註冊時自動建立，其識別碼取自身分提供者（如 GitHub）或電子郵件地址的前段部分。
+- **組織帳戶：** 此類帳戶需手動建立，並由開發者定義的識別碼標記。組織功能可邀請其他成員共同參與專案協作。
 
-如果您熟悉 [GitHub](https://github.com)，其概念與他們類似，您可以擁有個人和組織帳號，並透過*句柄* 來識別，該句柄會在構建 URL
-時使用。
+若您熟悉[GitHub](https://github.com)，其概念與之類似：您可擁有個人及組織帳戶，這些帳戶透過*使用者名稱*
+進行識別，該名稱用於構建網址。
 
 ::: info CLI-FIRST
 <!-- -->
-管理帳戶和專案的大部分作業都是透過 CLI 完成。我們正在開發 Web 介面，讓帳戶和專案管理變得更容易。
+多數帳戶與專案管理操作皆透過命令列介面執行。我們正開發網頁介面，屆時將更便利地管理帳戶與專案。
 <!-- -->
 :::
 
-您可以透過 <LocalizedLink href="/cli/organization">`tuist
-organization`</LocalizedLink> 下的子指令管理組織。若要建立新的組織帳戶，請執行
+您可透過 <LocalizedLink href="/cli/organization">`tuist
+organization`</LocalizedLink> 下的子指令管理組織。建立新組織帳戶請執行：
 ```bash
 tuist organization create {account-handle}
 ```
 
 ## 專案{#projects}
 
-您的專案，無論是 Tuist 的或原始 Xcode 的，都需要透過遠端專案與您的帳戶整合。繼續與 GitHub
-作比較，這就像您有一個本機和一個遠端儲存庫，您可以在那裡推送您的變更。您可以使用
-<LocalizedLink href="/cli/project">`tuist project`</LocalizedLink> 來建立和管理專案。
+您的專案（無論是 Tuist 專案或原始 Xcode 專案）皆需透過遠端專案與您的帳戶整合。延續與 GitHub
+的類比，這如同擁有本地與遠端儲存庫，供您推送變更。您可使用 <LocalizedLink href="/cli/project">`tuist
+project`</LocalizedLink> 來建立與管理專案。
 
-專案以完整句柄來識別，完整句柄是組織句柄和專案句柄串連的結果。例如，如果組織的句柄是`tuist` ，專案的句柄是`tuist`
-，完整句柄就是`tuist/tuist` 。
+專案透過完整識別碼標示，此識別碼由組織識別碼與專案識別碼串接而成。例如：若某組織識別碼為`tuist` ，專案識別碼為`tuist`
+，則完整識別碼為`tuist/tuist` 。
 
-本地專案和遠端專案之間的綁定是透過設定檔完成的。如果沒有，請在`Tuist.swift` 建立，並加入下列內容：
+本地與遠端專案的綁定是透過設定檔完成的。若尚未建立，請在`Tuist.swift` 位置建立檔案，並加入以下內容：
 
 ```swift
 let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
@@ -48,12 +48,12 @@ let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist
 
 ::: warning TUIST PROJECT-ONLY FEATURES
 <!-- -->
-請注意，有些功能如
-<LocalizedLink href="/guides/features/cache">二進位快取</LocalizedLink>，需要您擁有 Tuist
-專案。如果您使用的是原始的 Xcode 專案，則無法使用這些功能。
+請注意，某些功能（例如
+<LocalizedLink href="/guides/features/cache">二進位快取</LocalizedLink>）需要您擁有 Tuist
+專案。若您使用的是原始 Xcode 專案，將無法使用這些功能。
 <!-- -->
 :::
 
-您專案的 URL 是使用完整句柄來建立的。例如，Tuist 的儀表板是公開的，可在
+專案網址採用完整識別碼構建。例如公開的 Tuist 儀表板可透過
 [tuist.dev/tuist/tuist](https://tuist.dev/tuist/tuist) 存取，其中`tuist/tuist`
-是專案的完整句柄。
+即為專案完整識別碼。
