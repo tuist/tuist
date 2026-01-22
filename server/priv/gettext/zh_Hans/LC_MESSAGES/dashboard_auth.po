@@ -3,8 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:51+0000\n"
-"PO-Revision-Date: 2026-01-22 12:43+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"PO-Revision-Date: 2026-01-22 13:04+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_auth/zh_Hans/>\n"
 "Language: zh_Hans\n"
@@ -37,7 +37,7 @@ msgstr "账户创建成功！请登录。"
 #: lib/tuist_web/live/user_registration_live.ex:304
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Account name is already taken"
-msgstr "帐户名已被占用"
+msgstr "账户名称已被占用"
 
 #: lib/tuist_web/live/user_registration_live.ex:187
 #, elixir-autogen, elixir-format, fuzzy
@@ -47,12 +47,12 @@ msgstr "已有账户？"
 #: lib/tuist_web/live/connect_live.ex:97
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Already set up your Tuist project? Skip setup and go to the dashboard."
-msgstr "已经设置了 Tuist 项目？跳过设置，进入仪表板。"
+msgstr "已设置好 Tuist 项目？跳过设置，直接进入仪表盘。"
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:72
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Back to log in"
-msgstr "返回登录"
+msgstr "返回登录页面"
 
 #: lib/tuist_web/live/user_registration_live.ex:39
 #, elixir-autogen, elixir-format, fuzzy
@@ -62,17 +62,17 @@ msgstr "二进制缓存"
 #: lib/tuist_web/live/user_reset_password_live.ex:30
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Change your password"
-msgstr "更改密码"
+msgstr "更改您的密码"
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:40
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Check your email"
-msgstr "查看电子邮件"
+msgstr "检查您的电子邮件"
 
 #: lib/tuist_web/live/user_registration_live.ex:219
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Check your inbox for a confirmation email and click the link to continue."
-msgstr "查看收件箱中的确认电子邮件，点击链接继续。"
+msgstr "请查收邮箱中的确认邮件，并点击链接继续操作。"
 
 #: lib/tuist_web/live/choose_username_live.ex:48
 #, elixir-autogen, elixir-format, fuzzy
@@ -82,7 +82,7 @@ msgstr "选择用户名"
 #: lib/tuist_web/live/choose_username_live.ex:50
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Choose a username for your personal account"
-msgstr "为个人账户选择用户名"
+msgstr "为您的个人账户选择用户名"
 
 #: lib/tuist_web/live/user_reset_password_live.ex:50
 #, elixir-autogen, elixir-format, fuzzy
@@ -112,7 +112,7 @@ msgstr "连接您的项目"
 #: lib/tuist_web/live/connect_live.ex:37
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Connect your project to the dashboard"
-msgstr "将项目连接到仪表板"
+msgstr "将您的项目连接至仪表板"
 
 #: lib/tuist_web/live/connect_live.ex:33
 #, elixir-autogen, elixir-format, fuzzy
@@ -138,12 +138,12 @@ msgstr "仪表板"
 #: lib/tuist_web/live/user_registration_live.ex:30
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Discover how selective testing is reducing your test time."
-msgstr "了解选择性测试如何缩短测试时间。"
+msgstr "了解选择性测试如何缩短您的测试时间。"
 
 #: lib/tuist_web/live/user_login_live.ex:178
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Don't have an account?"
-msgstr "没有账户？"
+msgstr "还没有账户？"
 
 #: lib/tuist_web/live/sso_login_live.ex:69
 #: lib/tuist_web/live/user_forgot_password_live.ex:52
@@ -152,22 +152,22 @@ msgstr "没有账户？"
 #: lib/tuist_web/live/user_registration_live.ex:148
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Email address"
-msgstr "电子邮件地址"
+msgstr "电子邮箱地址"
 
 #: lib/tuist_web/live/user_registration_live.ex:307
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Email is already taken"
-msgstr "电子邮件已被占用"
+msgstr "该邮箱已被占用"
 
 #: lib/tuist_web/live/connect_live.ex:75
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Explore Tuist features like binary caching and selective testing to speed up your development."
-msgstr "探索二进制缓存和选择性测试等 Tuist 功能，加快开发速度。"
+msgstr "探索Tuist的二进制缓存和选择性测试等功能，加速您的开发进程。"
 
 #: lib/tuist_web/live/user_registration_live.ex:42
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Explore how binary caching is enhancing your build times."
-msgstr "探索二进制缓存如何缩短构建时间。"
+msgstr "探索二进制缓存如何提升您的构建速度。"
 
 #: lib/tuist_web/live/user_login_live.ex:166
 #, elixir-autogen, elixir-format, fuzzy
@@ -182,7 +182,7 @@ msgstr "忘记密码？"
 #: lib/tuist_web/live/user_forgot_password_live.ex:42
 #, elixir-autogen, elixir-format, fuzzy
 msgid "If your email exists in our records, you'll receive reset instructions shortly."
-msgstr "如果您的电子邮件存在于我们的记录中，您将很快收到重置说明。"
+msgstr "若您的邮箱已在我们的记录中，重置说明将很快发送至您的邮箱。"
 
 #: lib/tuist_web/live/connect_live.ex:41
 #, elixir-autogen, elixir-format, fuzzy
@@ -198,12 +198,12 @@ msgstr "使用 URL 即时分享您的应用"
 #: lib/tuist_web/live/user_okta_login_live.ex:84
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Interested in SSO?"
-msgstr "对 SSO 感兴趣？"
+msgstr "对单点登录（SSO）感兴趣吗？"
 
 #: lib/tuist_web/live/user_login_live.ex:159
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Keep me logged in"
-msgstr "保持我的登录状态"
+msgstr "保持登录状态"
 
 #: lib/tuist_web/live/sso_login_live.ex:77
 #: lib/tuist_web/live/user_login_live.ex:15
@@ -225,12 +225,12 @@ msgstr "登录 Tuist"
 #: lib/tuist_web/live/user_okta_login_live.ex:57
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Log in to your enterprise account via Okta"
-msgstr "通过 Okta 登录企业账户"
+msgstr "通过Okta登录您的企业账户"
 
 #: lib/tuist_web/live/user_okta_login_live.ex:34
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Logging in via Okta failed"
-msgstr "通过 Okta 登录失败"
+msgstr "通过Okta登录失败"
 
 #: lib/tuist_web/live/user_reset_password_live.ex:42
 #, elixir-autogen, elixir-format, fuzzy
@@ -240,12 +240,12 @@ msgstr "新密码"
 #: lib/tuist_web/live/connect_live.ex:73
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Next steps"
-msgstr "下一步工作"
+msgstr "后续步骤"
 
 #: lib/tuist_web/live/sso_login_live.ex:32
 #, elixir-autogen, elixir-format, fuzzy
 msgid "No SSO organization found for this email"
-msgstr "此电子邮件未找到 SSO 组织"
+msgstr "未找到此邮箱对应的SSO组织"
 
 #: lib/tuist_web/live/connect_live.ex:91
 #, elixir-autogen, elixir-format, fuzzy
@@ -276,7 +276,7 @@ msgstr "预览"
 #: lib/tuist_web/live/connect_live.ex:94
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Project Ready? Proceed to dashboard"
-msgstr "项目准备好了吗？进入仪表板"
+msgstr "项目准备就绪？前往仪表盘"
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:61
 #: lib/tuist_web/live/user_reset_password_live.ex:58
@@ -292,7 +292,7 @@ msgstr "运行以下命令安装 Tuist CLI。"
 #: lib/tuist_web/live/connect_live.ex:57
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Run this command to link your project to the dashboard."
-msgstr "运行此命令可将项目链接到仪表板。"
+msgstr "运行此命令将项目关联至仪表板。"
 
 #: lib/tuist_web/live/user_registration_live.ex:27
 #, elixir-autogen, elixir-format, fuzzy
@@ -309,12 +309,12 @@ msgstr "注册"
 #: lib/tuist_web/live/user_registration_live.ex:75
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Sign up for Tuist"
-msgstr "注册 Tuist"
+msgstr "注册Tuist"
 
 #: lib/tuist_web/live/choose_username_live.ex:114
 #, elixir-autogen, elixir-format, fuzzy
 msgid "This username has already been taken"
-msgstr "该用户名已被注册"
+msgstr "该用户名已被占用"
 
 #: lib/tuist_web/live/device_codes_success_live.ex:39
 #, elixir-autogen, elixir-format, fuzzy
@@ -333,22 +333,22 @@ msgstr "Tuist CLI 已连接！"
 #: lib/tuist_web/live/user_reset_password_live.ex:22
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Tuist Logo"
-msgstr "图伊斯特徽标"
+msgstr "Tuist 标志"
 
 #: lib/tuist_web/live/device_codes_success_live.ex:37
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Tuist app is connected!"
-msgstr "Tuist 应用程序已连接！"
+msgstr "Tuist应用已连接！"
 
 #: lib/tuist_web/live/connect_live.ex:104
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Tuist dashboard"
-msgstr "仪表盘"
+msgstr "Tuist 仪表盘"
 
 #: lib/tuist_web/live/connect_live.ex:82
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Tuist documentation"
-msgstr "图纸文件"
+msgstr "Tuist 文档"
 
 #: lib/tuist_web/live/device_codes_success_live.ex:41
 #, elixir-autogen, elixir-format, fuzzy
@@ -370,7 +370,7 @@ msgstr "用户名"
 #: lib/tuist_web/live/user_registration_live.ex:172
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Username may only contain alphanumeric characters"
-msgstr "用户名只能包含字母数字字符"
+msgstr "用户名仅可包含字母数字字符"
 
 #: lib/tuist_web/live/connect_live.ex:28
 #, elixir-autogen, elixir-format, fuzzy
@@ -385,61 +385,61 @@ msgstr "我们将向您的收件箱发送密码重置链接"
 #: lib/tuist_web/live/user_login_live.ex:47
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Welcome back! Please log in to continue"
-msgstr "欢迎回来请登录以继续"
+msgstr "欢迎回来！请登录继续"
 
 #: lib/tuist_web/live/user_registration_live.ex:77
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Welcome! Create an account to continue"
-msgstr "欢迎您创建账户以继续"
+msgstr "欢迎！请创建账户继续操作"
 
 #: lib/tuist_web/live/device_codes_success_live.ex:51
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You can close the tab and continue"
-msgstr "您可以关闭该选项卡并继续"
+msgstr "您可以关闭标签页继续操作"
 
 #: lib/tuist_web/live/device_codes_success_live.ex:47
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You can close the tab and continue in the app"
-msgstr "您可以关闭标签页，然后继续使用应用程序"
+msgstr "您可关闭标签页并在应用中继续操作"
 
 #: lib/tuist_web/live/device_codes_success_live.ex:49
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You can close the tab and continue in the terminal"
-msgstr "您可以关闭该选项卡，然后继续在终端中操作"
+msgstr "可关闭标签页并在终端中继续操作"
 
 #: lib/tuist_web/live/user_confirmation_live.ex:46
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Your account could not be confirmed."
-msgstr "您的帐户无法确认。"
+msgstr "您的账户无法通过验证。"
 
 #: lib/tuist_web/live/user_confirmation_live.ex:27
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Your account has been confirmed."
-msgstr "您的账户已确认。"
+msgstr "您的账户已通过验证。"
 
 #: lib/tuist_web/live/user_confirmation_live.ex:36
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Your account has been confirmed. You will be redirected shortly..."
-msgstr "您的帐户已确认。您将很快被重新定向..."
+msgstr "您的账户已通过验证。您将很快被重定向..."
 
 #: lib/tuist_web/live/user_reset_password_live.ex:32
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Your new password must be different to previously used passwords."
-msgstr "新密码必须与以前使用的密码不同。"
+msgstr "您的新密码必须与之前使用过的密码不同。"
 
 #: lib/tuist_web/live/connect_live.ex:49
 #: lib/tuist_web/live/connect_live.ex:67
 #, elixir-autogen, elixir-format, fuzzy
 msgid "homebrew"
-msgstr "自酿"
+msgstr "homebrew"
 
 #: lib/tuist_web/live/connect_live.ex:46
 #: lib/tuist_web/live/connect_live.ex:62
 #, elixir-autogen, elixir-format, fuzzy
 msgid "mise"
-msgstr "幕布"
+msgstr "mise"
 
 #: lib/tuist_web/live/connect_live.ex:37
 #, elixir-autogen, elixir-format, fuzzy
 msgid "using CLI"
-msgstr "使用 CLI"
+msgstr "使用命令行界面"
