@@ -348,18 +348,26 @@ extension String {
         from sourcePath: AbsolutePath,
         to destinationPath: AbsolutePath
     ) -> String {
-        let srcRootMarker = "$(SRCROOT)/"
-        guard let markerRange = range(of: srcRootMarker) else { return self }
+        let srcRootMarker = "$(SRCROOT)"
+        guard contains(srcRootMarker) else { return self }
 
-        let pathStart = markerRange.upperBound
-        let pathEnd = self[pathStart...].firstIndex(of: "\"") ?? endIndex
-        let pathString = String(self[pathStart ..< pathEnd])
+        var pathComponents = split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+        guard let srcRootIndex = pathComponents.firstIndex(where: { $0.contains(srcRootMarker) }) else { return self }
 
-        guard let relativePath = try? RelativePath(validating: pathString) else { return self }
+        let prefix = String(pathComponents[srcRootIndex].prefix(while: { $0 != "$" }))
+        let suffix = pathComponents.last?.hasSuffix("\"") == true ? "\"" : ""
+
+        pathComponents[srcRootIndex] = srcRootMarker
+
+        let relativePathString = pathComponents[(srcRootIndex + 1)...]
+            .joined(separator: "/")
+            .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+
+        guard let relativePath = try? RelativePath(validating: relativePathString) else { return self }
 
         let absolutePath = sourcePath.appending(relativePath)
-        let resolvedPath = absolutePath.relative(to: destinationPath)
+        let resolvedComponents = absolutePath.relative(to: destinationPath).components
 
-        return String(self[..<markerRange.upperBound]) + resolvedPath.pathString + String(self[pathEnd...])
+        return prefix + (pathComponents[...srcRootIndex] + resolvedComponents).joined(separator: "/") + suffix
     }
 }
