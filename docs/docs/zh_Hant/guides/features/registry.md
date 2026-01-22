@@ -36,20 +36,25 @@ tuist registry login
 
 ::: info
 <!-- -->
-驗證需要 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 帳戶和專案</LocalizedLink>。
+驗證需要 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist
+帳戶和專案</LocalizedLink>。
 <!-- -->
 :::
 
 ### 解決依賴性{#resolving-dependencies}
 
 若要從登錄而非原始碼控制解決相依性問題，請根據您的專案設定繼續閱讀：
-- <LocalizedLink href="/guides/features/registry/xcode-project">Xcode 專案</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/generated-project">使用 Xcode 套件整合產生專案</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">使用基於 XcodeProj 的套件整合產生專案</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/xcode-project">Xcode
+  專案</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/generated-project">使用 Xcode
+  套件整合產生專案</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">使用基於
+  XcodeProj 的套件整合產生專案</LocalizedLink>
 - <LocalizedLink href="/guides/features/registry/swift-package">快速套裝</LocalizedLink>
 
 若要在 CI
-上設定註冊表，請遵循此指南：<LocalizedLink href="/guides/features/registry/continuous-integration">Continuous integration</LocalizedLink>.
+上設定註冊表，請遵循此指南：<LocalizedLink href="/guides/features/registry/continuous-integration">Continuous
+integration</LocalizedLink>.
 
 ### 套件登錄識別碼{#package-registry-identifiers}
 
