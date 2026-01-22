@@ -29,7 +29,7 @@ PostHog integration is optional and can be enabled by setting the appropriate
 environment variables. When configured, Tuist will automatically track user
 events, page views, and user journeys.
 
-| Environment variable    | Descrição                    | Required | Default | Examples                                          |
+| Environment variable    | Descrição                    | Required | Default | Exemplos                                          |
 | ----------------------- | ---------------------------- | -------- | ------- | ------------------------------------------------- |
 | `TUIST_POSTHOG_API_KEY` | Your PostHog project API key | No       |         | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
 | `TUIST_POSTHOG_URL`     | The PostHog API endpoint URL | No       |         | `https://eu.i.posthog.com`                        |
