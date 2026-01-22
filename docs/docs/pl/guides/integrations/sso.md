@@ -42,12 +42,12 @@ Tuist:
    URL](https://tuist.dev/images/tuist_dashboard.png).
 5. Na razie pozostaw adresy URI przekierowania logowania bez zmian.
 6. W sekcji „Zadania” wybierz żądaną kontrolę dostępu do aplikacji SSO i zapisz.
-7. After saving, the general settings for the application will be available.
-   Copy the "Client ID" and "Client Secret". Also note your Okta organization
-   URL (e.g., `https://your-company.okta.com`) – you will need to safely share
-   all of these with your point of contact.
-8. Once the Tuist team has configured the SSO, click on General Settings "Edit"
-   button.
+7. Po zapisaniu dostępne będą ogólne ustawienia aplikacji. Skopiuj „Client ID”
+   (ID klienta) i „Client Secret” (tajny klucz klienta). Zanotuj również adres
+   URL organizacji Okta (np. `https://your-company.okta.com`) — wszystkie te
+   informacje należy bezpiecznie udostępnić osobie kontaktowej.
+8. Po skonfigurowaniu SSO przez zespół Tuist kliknij przycisk „Edytuj” w
+   ustawieniach ogólnych.
 9. Wklej następujący adres przekierowania:
    `https://tuist.dev/users/auth/okta/callback`
 10. Zmień „Logowanie zainicjowane przez” na „Okta lub aplikacja”.
