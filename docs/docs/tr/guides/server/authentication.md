@@ -22,7 +22,7 @@ komutu çalıştırmanız gerekir:
 tuist auth login
 ```
 
-Komut sizi web tabanlı bir kimlik doğrulama akışına yönlendirecektir. Kimlik
+Komut sizi web tabanlı bir kimlik doğrulama akışına götürecektir. Kimlik
 doğrulaması yaptıktan sonra CLI, `~/.config/tuist/credentials` altında uzun
 ömürlü bir yenileme belirteci ve kısa ömürlü bir erişim belirteci
 depolayacaktır. Dizindeki her dosya, varsayılan olarak `tuist.dev.json` olması
@@ -50,7 +50,8 @@ token'ı ile değiştirir.
 ### OIDC kimlik doğrulamasını ayarlama {#setting-up-oidc-authentication}
 
 1. **Deponuzu Tuist'e bağlayın**: GitHub deponuzu Tuist projenize bağlamak için
-   <LocalizedLink href="/guides/integrations/gitforge/github">GitHub entegrasyon kılavuzunu</LocalizedLink> izleyin.
+   <LocalizedLink href="/guides/integrations/gitforge/github">GitHub entegrasyon
+   kılavuzunu</LocalizedLink> izleyin.
 
 2. **tuist auth login`** komutunu çalıştırın: CI iş akışınızda, kimlik doğrulama
    gerektiren tüm komutlardan önce `tuist auth login` komutunu çalıştırın. CLI,
@@ -58,7 +59,8 @@ token'ı ile değiştirir.
    yapacaktır.
 
 Sağlayıcıya özgü yapılandırma örnekleri için
-<LocalizedLink href="/guides/integrations/continuous-integration">Sürekli Entegrasyon kılavuzuna</LocalizedLink> bakın.
+<LocalizedLink href="/guides/integrations/continuous-integration">Sürekli
+Entegrasyon kılavuzuna</LocalizedLink> bakın.
 
 ### OIDC belirteç kapsamları {#oidc-token-scopes}
 
@@ -106,8 +108,8 @@ Komut aşağıdaki seçenekleri kabul eder:
 | ------------------------ | -------------------------------------------- |
 | `account:members:read`   | Hesap üyelerini okuyun                       |
 | `hesap:üyeler:yaz`       | Hesap üyelerini yönetme                      |
-| `account:registry:read`  | Swift paketi kayıt defterinden okuma         |
-| `account:registry:write` | Swift paketi kayıt defterinde yayınlama      |
+| `account:Kayıt:read`     | Swift paketi kayıt defterinden okuma         |
+| `account:Kayıt:write`    | Swift paketi kayıt defterinde yayınlama      |
 | `proje:önizleme:oku`     | Önizlemeleri indirin                         |
 | `project:previews:write` | Önizlemeleri yükleyin                        |
 | `project:admin:read`     | Proje ayarlarını okuma                       |
@@ -175,7 +177,7 @@ export TUIST_TOKEN=your-account-token
 İhtiyacınız olduğunda hesap jetonlarını kullanın:
 - OIDC'yi desteklemeyen CI ortamlarında kimlik doğrulama
 - Token'ın hangi işlemleri gerçekleştirebileceği üzerinde ince taneli kontrol
-- Bir hesap içinde birden fazla projeye erişebilen bir token
+- Bir hesap içindeki birden fazla projeye erişebilen bir belirteç
 - Otomatik olarak sona eren zaman sınırlı tokenlar
 <!-- -->
 :::
