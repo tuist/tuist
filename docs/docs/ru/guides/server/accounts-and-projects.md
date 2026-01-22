@@ -49,7 +49,8 @@ tuist organization create {account-handle}
 Ваши проекты, будь то проекты Tuist или проекты Xcode, должны быть интегрированы
 с вашим аккаунтом через удаленный проект. Продолжая сравнение с GitHub, можно
 сказать, что у вас есть локальный и удаленный репозиторий, куда вы отправляете
-свои изменения. Вы можете использовать <LocalizedLink href="/cli/project">`tuist project`</LocalizedLink> для создания и управления проектами.
+свои изменения. Вы можете использовать <LocalizedLink href="/cli/project">`tuist
+project`</LocalizedLink> для создания и управления проектами.
 
 Проекты идентифицируются по полному дескриптору, который является результатом
 конкатенации дескриптора организации и дескриптора проекта. Например, если у вас
@@ -67,7 +68,8 @@ let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist
 ::: warning TUIST PROJECT-ONLY FEATURES
 <!-- -->
 Обратите внимание, что некоторые функции, например
-<LocalizedLink href="/guides/features/cache">двоичное кэширование</LocalizedLink>, требуют наличия проекта Tuist. Если вы используете
+<LocalizedLink href="/guides/features/cache">двоичное
+кэширование</LocalizedLink>, требуют наличия проекта Tuist. Если вы используете
 сырые проекты Xcode, вы не сможете воспользоваться этими функциями.
 <!-- -->
 :::
