@@ -126,7 +126,7 @@ sequenceDiagram
 
 ## API Endpoints {#api-endpoints}
 
-| Endpoint                      | Method | Description                     |
+| Endpoint                      | Method | Descrição                       |
 | ----------------------------- | ------ | ------------------------------- |
 | `/up`                         | GET    | Health check                    |
 | `/metrics`                    | GET    | Prometheus metrics              |
