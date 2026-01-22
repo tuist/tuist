@@ -143,6 +143,18 @@ ClickHouse перед запуском службы.
 фреймворков и библиотек). В настоящее время мы поддерживаем любое хранилище,
 совместимое с S3.
 
+::: tip OPTIMIZED CACHING
+<!-- -->
+Если ваша цель - создать собственный бакет для хранения двоичных файлов и
+уменьшить задержки в кэше, возможно, вам не понадобится самостоятельно размещать
+весь сервер. Вы можете самостоятельно разместить узлы кэша и подключить их к
+размещенному серверу Tuist или вашему самостоятельному серверу.
+
+См. руководство по самостоятельному хостингу
+<LocalizedLink href="/guides/cache/self-host">cache</LocalizedLink>.
+<!-- -->
+:::
+
 ## Конфигурация {#configuration}
 
 Конфигурация службы выполняется во время выполнения с помощью переменных
@@ -172,8 +184,8 @@ ClickHouse перед запуском службы.
 | `TUIST_LICENSE_CERTIFICATE_BASE64` | **Исключительная альтернатива `TUIST_LICENSE`**. Публичный сертификат в кодировке Base64 для автономной проверки лицензии в средах с воздушной завесой, где сервер не может связаться с внешними службами. Используется только в тех случаях, когда `TUIST_LICENSE` не может быть использован. | Да*       |              | `LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t...` |
 
 \* Должны быть указаны либо `TUIST_LICENSE`, либо
-`TUIST_LICENSE_CERTIFICATE_BASE64`, но не оба. Используйте `TUIST_LICENSE` для
-стандартных развертываний.
+`TUIST_LICENSE_CERTIFICATE_BASE64`, но не оба. Для стандартных развертываний
+используйте `TUIST_LICENSE`.
 
 ::: warning EXPIRATION DATE
 <!-- -->
@@ -264,9 +276,9 @@ GitHub:
 #### Google {#google}
 
 Вы можете настроить аутентификацию в Google с помощью [OAuth
-2](https://developers.google.com/identity/protocols/oauth2). Для этого вам нужно
-будет создать новый мандат типа OAuth client ID. При создании учетных данных
-выберите тип приложения "Веб-приложение", назовите его `Tuist`, а URI
+2](https://developers.google.com/identity/protocols/oauth2). Для этого вам
+потребуется создать новый мандат типа OAuth client ID. При создании учетных
+данных выберите тип приложения "Веб-приложение", назовите его `Tuist`, а URI
 перенаправления установите на `{base_url}/users/auth/google/callback`, где
 `base_url` - это URL, на котором работает ваш хостинг-сервис. После создания
 приложения скопируйте идентификатор и секрет клиента и установите их в качестве
@@ -284,7 +296,8 @@ GitHub:
 Вы можете включить аутентификацию с помощью Okta по протоколу [OAuth
 2.0](https://oauth.net/2/). Вам нужно будет [создать
 приложение](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta)
-на Okta, следуя <LocalizedLink href="/guides/integrations/sso#okta">этим инструкциям</LocalizedLink>.
+на Okta, следуя <LocalizedLink href="/guides/integrations/sso#okta"> этим
+инструкциям</LocalizedLink>.
 
 После получения идентификатора и секрета клиента в процессе настройки приложения
 Okta вам нужно будет установить следующие переменные окружения:
@@ -384,7 +397,8 @@ SMTP для вашего локального развертывания, свя
 
 ### Настройка платформы Git {#git-platform-configuration}
 
-Tuist может <LocalizedLink href="/guides/server/authentication">интегрироваться с Git-платформами</LocalizedLink>, чтобы предоставить дополнительные
+Tuist может <LocalizedLink href="/guides/server/authentication">интегрироваться
+с Git-платформами</LocalizedLink>, чтобы предоставить дополнительные
 возможности, такие как автоматическая публикация комментариев в ваших запросах
 на вытягивание.
 
@@ -633,7 +647,7 @@ HTTP-клиента и выдает подробные метрики о HTTP-з
 #### Метрики подключения
 - `tuist_prom_ex_finch_connect_duration_milliseconds` - Время установления
   соединения (гистограмма).
-  - Ярлыки: `finch_name`, `scheme`, `host`, `port`, `error`
+  - Метки: `finch_name`, `scheme`, `host`, `port`, `error`
   - Ведра: 10 мс, 50 мс, 100 мс, 250 мс, 500 мс, 1 с, 2,5 с, 5 с
 - `tuist_prom_ex_finch_connect_count_total` - Общее количество попыток
   соединения (счетчик).
