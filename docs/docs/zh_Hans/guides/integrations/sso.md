@@ -33,12 +33,9 @@ Okta单点登录仅面向企业客户开放。如需配置该服务，请通过[
 4. 输入应用程序的显示名称，例如"Tuist"。上传位于[此网址](https://tuist.dev/images/tuist_dashboard.png)的Tuist徽标。
 5. 当前请保留登录重定向URI原样
 6. 在"任务"下选择所需的SSO应用访问控制权限并保存。
-7. After saving, the general settings for the application will be available.
-   Copy the "Client ID" and "Client Secret". Also note your Okta organization
-   URL (e.g., `https://your-company.okta.com`) – you will need to safely share
-   all of these with your point of contact.
-8. Once the Tuist team has configured the SSO, click on General Settings "Edit"
-   button.
+7. 保存后将显示应用程序的通用设置。复制"客户端ID"和"客户端密钥"。同时记录您的Okta组织URL（例如：`https://your-company.okta.com`
+   ），您需要将这些信息安全地分享给您的对接联系人。
+8. 当 Tuist 团队完成 SSO 配置后，请点击"常规设置"中的"编辑"按钮。
 9. 粘贴以下重定向网址：`https://tuist.dev/users/auth/okta/callback`
 10. 将"Login initiated by"改为"Okta 或 应用程序"。
 11. 选择"向用户显示应用程序图标"
