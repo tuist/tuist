@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-22 13:03+0000\n"
+"PO-Revision-Date: 2026-01-22 18:01+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Arabic <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/ar/>\n"
@@ -701,50 +701,66 @@ msgstr "منذ النقطة الأخيرة"
 msgid "since yesterday"
 msgstr "منذ أمس"
 
+#, fuzzy
 msgid "Flakiness rate"
-msgstr ""
+msgstr "معدل التقلب"
 
+#, fuzzy
 msgid "Flaky"
-msgstr ""
+msgstr "غير موثوق"
 
+#, fuzzy
 msgid "Flaky Runs"
-msgstr ""
+msgstr "تشغيلات متقطعة"
 
+#, fuzzy
 msgid "Flaky Tests"
-msgstr ""
+msgstr "اختبارات Flaky"
 
+#, fuzzy
 msgid "Flaky runs"
-msgstr ""
+msgstr "تشغيلات متقطعة"
 
+#, fuzzy
 msgid "Flaky test cases"
-msgstr ""
+msgstr "حالات الاختبار غير الموثوقة"
 
+#, fuzzy
 msgid "Flaky test runs"
-msgstr ""
+msgstr "تشغيل اختبارات غير منتظمة"
 
+#, fuzzy
 msgid "Last flaky run"
-msgstr ""
+msgstr "آخر تشغيل غير مستقر"
 
+#, fuzzy
 msgid "Mark as flaky"
-msgstr ""
+msgstr "ضع علامة \"غير موثوق\""
 
+#, fuzzy
 msgid "Most occurring flaky tests"
-msgstr ""
+msgstr "الاختبارات غير الموثوقة الأكثر شيوعًا"
 
+#, fuzzy
 msgid "No flaky tests"
-msgstr ""
+msgstr "لا تقم بإجراء اختبارات غير موثوقة"
 
+#, fuzzy
 msgid "Number of test cases that passed after retry."
-msgstr ""
+msgstr "عدد حالات الاختبار التي نجحت بعد إعادة المحاولة."
 
+#, fuzzy
 msgid "Percentage of test runs that were flaky in the last 30 days."
-msgstr ""
+msgstr "النسبة المئوية للاختبارات التي كانت غير مستقرة في آخر 30 يومًا."
 
+#, fuzzy
 msgid "The number of test runs with flaky tests."
-msgstr ""
+msgstr "عدد مرات إجراء الاختبارات مع الاختبارات غير المستقرة."
 
+#, fuzzy
 msgid "Unmark as flaky"
-msgstr ""
+msgstr "إلغاء تحديد \"غير موثوق\""
 
+#, fuzzy
 msgid "New"
-msgstr ""
+msgstr "جديد"
