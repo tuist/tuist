@@ -3,9 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2025-12-24 20:45+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"PO-Revision-Date: 2026-01-22 12:38+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Arabic <https://translate.tuist.dev/projects/tuist/"
 "dashboard_builds/ar/>\n"
 "Language: ar\n"
@@ -14,7 +13,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 "
 "&& n%100<=10 ? 3 : n%100>=11 ? 4 : 5;\n"
-"X-Generator: Weblate 5.15.1\n"
+"X-Generator: Weblate 5.15.2\n"
 
 ## This file is a PO Template file.
 ##
@@ -319,7 +318,7 @@ msgstr "نظيفة"
 #: lib/tuist_web/live/run_detail_live.html.heex:102
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Command"
-msgstr "الأوامر"
+msgstr "الأمر"
 
 #: lib/tuist_web/live/build_runs_live.html.heex:74
 #: lib/tuist_web/live/run_detail_live.html.heex:149
