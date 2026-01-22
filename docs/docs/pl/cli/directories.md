@@ -10,17 +10,17 @@
 Tuist organizuje swoje pliki w kilku katalogach w systemie, zgodnie ze
 specyfikacją [XDG Base Directory
 Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html).
-Zapewnia to czysty, standardowy sposób zarządzania konfiguracją, pamięcią
-podręczną i plikami stanu.
+Zapewnia to przejrzysty, standardowy sposób zarządzania plikami
+konfiguracyjnymi, pamięcią podręczną i plikami stanu.
 
 ## Obsługiwane zmienne środowiskowe {#supported-environment-variables}
 
-Tuist obsługuje zarówno standardowe zmienne XDG, jak i prefiksowane warianty
-specyficzne dla Tuist. Warianty specyficzne dla Tuist (z prefiksem `TUIST_`)
-mają pierwszeństwo, umożliwiając konfigurację Tuist niezależnie od innych
+Tuist obsługuje zarówno standardowe zmienne XDG, jak i specyficzne dla Tuist
+warianty z prefiksami. Warianty specyficzne dla Tuist (z prefiksami `TUIST_`)
+mają pierwszeństwo, co pozwala skonfigurować Tuist oddzielnie od innych
 aplikacji.
 
-### Katalog konfiguracji {#configuration-directory}
+### Katalog konfiguracyjny {#configuration-directory}
 
 **Zmienne środowiskowe:**
 - `TUIST_XDG_CONFIG_HOME` (ma pierwszeństwo)
@@ -28,7 +28,7 @@ aplikacji.
 
 **Domyślnie:** `~/.config/tuist`
 
-**Używany do:**
+**Używane do:**
 - Poświadczenia serwera (`credentials/{host}.json`)
 
 **Przykład:**
@@ -50,17 +50,16 @@ tuist auth login
 
 **Domyślnie:** `~/.cache/tuist`
 
-**Używany do:**
+**Używane do:**
 - **Wtyczki**: Pobrana i skompilowana pamięć podręczna wtyczek
-- **ProjectDescriptionHelpers**: Skompilowane narzędzia pomocnicze opisu
-  projektu
-- **Manifesty**: Pliki manifestu w pamięci podręcznej
+- **ProjectDescriptionHelpers**: Skompilowane pomocniki opisujące projekt
+- **Manifesty**: Pliki manifestów w pamięci podręcznej
 - **Projekty**: Wygenerowana pamięć podręczna projektu automatyzacji
 - **EditProjects**: Pamięć podręczna dla polecenia edycji
-- **Uruchomienia**: Testowanie i tworzenie danych analitycznych uruchomień
-- **Pliki binarne**: Pliki binarne artefaktów kompilacji (nieudostępniane w
-  różnych środowiskach)
-- **SelectiveTests**: Pamięć podręczna testów selektywnych
+- **Uruchom**: Testuj i twórz dane analityczne dotyczące uruchomień.
+- **Pliki binarne**: Utwórz pliki binarne artefaktu (nie można ich udostępniać
+  między środowiskami)
+- **SelectiveTests**: Selektywne testowanie pamięci podręcznej
 
 **Przykład:**
 ```bash
@@ -73,7 +72,7 @@ export XDG_CACHE_HOME=/tmp/cache
 tuist cache
 ```
 
-### Katalog państw {#state-directory}
+### Katalog stanowy {#state-directory}
 
 **Zmienne środowiskowe:**
 - `TUIST_XDG_STATE_HOME` (ma pierwszeństwo)
@@ -81,8 +80,8 @@ tuist cache
 
 **Domyślnie:** `~/.local/state/tuist`
 
-**Używany do:**
-- **Dzienniki**: Pliki dziennika (`logs/{uuid}.log`)
+**Używane do:**
+- **Logi**: Pliki logów (`logs/{uuid}.log`)
 - **Blokady**: Pliki blokady uwierzytelniania (`{handle}.sock`)
 
 **Przykład:**
@@ -98,24 +97,25 @@ tuist generate
 
 ## Kolejność pierwszeństwa {#precedence-order}
 
-Podczas określania, który katalog ma zostać użyty, Tuist sprawdza zmienne
-środowiskowe w następującej kolejności:
+Przy ustalaniu, którego katalogu użyć, Tuist sprawdza zmienne środowiskowe w
+następującej kolejności:
 
-1. **Zmienna specyficzna dla Tuist** (np. `TUIST_XDG_CONFIG_HOME`).
+1. **Zmienne specyficzne dla Tuist** (np. `TUIST_XDG_CONFIG_HOME`)
 2. **Standardowa zmienna XDG** (np. `XDG_CONFIG_HOME`)
 3. **Domyślna lokalizacja** (np. `~/.config/tuist`)
 
-Pozwala to na:
-- Użyj standardowych zmiennych XDG, aby spójnie zorganizować wszystkie aplikacje
-- Zastąp zmiennymi specyficznymi dla Tuist, gdy potrzebujesz różnych lokalizacji
-  dla Tuist
-- Poleganie na rozsądnych ustawieniach domyślnych bez żadnej konfiguracji
+Dzięki temu możesz:
+- Używaj standardowych zmiennych XDG, aby uporządkować wszystkie aplikacje w
+  spójny sposób.
+- W razie potrzeby zastąp zmienne specyficzne dla Tuist, jeśli potrzebujesz
+  innych lokalizacji dla Tuist.
+- Polegaj na rozsądnych ustawieniach domyślnych bez konieczności konfiguracji.
 
 ## Typowe przypadki użycia {#common-use-cases}
 
-### Izolowanie Tuist dla każdego projektu {#isolating-tuist-per-project}
+### Izolowanie Tuist według projektu {#isolating-tuist-per-project}
 
-Warto odizolować pamięć podręczną i stan Tuist dla każdego projektu:
+Możesz wyodrębnić pamięć podręczną i stan Tuist dla każdego projektu:
 
 ```bash
 # In your project's .envrc (using direnv)
@@ -150,7 +150,7 @@ jobs:
 
 ### Debugowanie z izolowanymi katalogami {#debugging-with-isolated-directories}
 
-Podczas debugowania błędów warto mieć czyste konto:
+Podczas debugowania problemów może być potrzebne czyste konto:
 
 ```bash
 # Create temporary directories for debugging
