@@ -16,7 +16,7 @@
 명령은 프로젝트의 암시적 종속성을 출력합니다:
 
 ```bash
-tuist inspect implicit-imports
+tuist inspect dependencies --only implicit
 ```
 
 명령이 암시적 가져오기를 감지하면 0이 아닌 종료 코드를 사용하여 종료합니다.
@@ -24,7 +24,8 @@ tuist inspect implicit-imports
 ::: tip VALIDATE IN CI
 <!-- -->
 새 코드가 업스트림에 푸시될 때마다 이 명령을
-<LocalizedLink href="/guides/features/automate/continuous-integration">연속 통합</LocalizedLink> 명령의 일부로 실행하는 것을 강력히 권장합니다.
+<LocalizedLink href="/guides/features/automate/continuous-integration">연속
+통합</LocalizedLink> 명령의 일부로 실행하는 것을 강력히 권장합니다.
 <!-- -->
 :::
 
