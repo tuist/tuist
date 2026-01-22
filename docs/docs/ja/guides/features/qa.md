@@ -39,7 +39,7 @@ PRコメントがリンクしているダッシュボードのレポートの一
 
 QAタイムライン](/images/guides/features/qa/qa-timeline.png)。
 
-iOSアプリのすべてのQA実行は、公開ダッシュボードでご覧いただけます:
+1}iOSアプリ</LocalizedLink>のすべてのQA実行は、公開ダッシュボードでご覧いただけます:
 https://tuist.dev/tuist/tuist/qa
 
 ::: info
@@ -72,7 +72,7 @@ The app additionally includes a profile tab to surface about information about t
 
 #### 資格証明書{#credentials}
 
-エージェントがいくつかの機能をテストするためにアプリにサインインする必要がある場合、エージェントが使用する認証情報を提供することができます。エージェントは、サインインする必要があると認識した場合、これらの認証情報を入力します。
+エージェントがいくつかの機能をテストするためにアプリにサインインする必要がある場合、エージェントが使用する認証情報を提供することができます。エージェントは、サインインが必要であると認識した場合、これらの認証情報を入力します。
 
 #### 引数グループを立ち上げる{#launch-argument-groups}
 
