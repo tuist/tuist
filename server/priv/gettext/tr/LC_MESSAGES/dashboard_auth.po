@@ -3,8 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:51+0000\n"
-"PO-Revision-Date: 2026-01-22 12:36+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"PO-Revision-Date: 2026-01-22 13:04+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_auth/tr/>\n"
 "Language: tr\n"
@@ -32,7 +32,7 @@ msgstr "Hesap onaylandı!"
 #: lib/tuist_web/live/user_registration_live.ex:292
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Account created successfully! Please log in."
-msgstr "Hesap başarıyla oluşturuldu! Lütfen giriş yapınız."
+msgstr "Hesap başarıyla oluşturuldu! Lütfen giriş yapın."
 
 #: lib/tuist_web/live/user_registration_live.ex:304
 #, elixir-autogen, elixir-format, fuzzy
@@ -42,7 +42,7 @@ msgstr "Hesap adı zaten alınmış"
 #: lib/tuist_web/live/user_registration_live.ex:187
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Already have an account?"
-msgstr "Zaten bir hesabınız var mı?"
+msgstr "Zaten bir hesabınız mı var?"
 
 #: lib/tuist_web/live/connect_live.ex:97
 #, elixir-autogen, elixir-format, fuzzy
@@ -54,7 +54,7 @@ msgstr ""
 #: lib/tuist_web/live/user_forgot_password_live.ex:72
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Back to log in"
-msgstr "Girişe geri dön"
+msgstr "Giriş yapmaya geri dön"
 
 #: lib/tuist_web/live/user_registration_live.ex:39
 #, elixir-autogen, elixir-format, fuzzy
@@ -75,13 +75,13 @@ msgstr "E-postanızı kontrol edin"
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Check your inbox for a confirmation email and click the link to continue."
 msgstr ""
-"Onay e-postası için gelen kutunuzu kontrol edin ve devam etmek için "
-"bağlantıya tıklayın."
+"Onay e-postasını gelen kutunuzda kontrol edin ve devam etmek için bağlantıya "
+"tıklayın."
 
 #: lib/tuist_web/live/choose_username_live.ex:48
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Choose a username"
-msgstr "Bir kullanıcı adı seçin"
+msgstr "Kullanıcı adı seçin"
 
 #: lib/tuist_web/live/choose_username_live.ex:50
 #, elixir-autogen, elixir-format, fuzzy
@@ -101,7 +101,7 @@ msgstr "Hesabınızı onaylayın"
 #: lib/tuist_web/live/user_confirmation_live.ex:44
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Confirmation failed"
-msgstr "Onaylama başarısız oldu"
+msgstr "Onay başarısız"
 
 #: lib/tuist_web/live/connect_live.ex:12
 #, elixir-autogen, elixir-format, fuzzy
@@ -142,7 +142,7 @@ msgstr "Panel"
 #: lib/tuist_web/live/user_registration_live.ex:30
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Discover how selective testing is reducing your test time."
-msgstr "Seçmeli testlerin test sürenizi nasıl azalttığını keşfedin."
+msgstr "Seçmeli testlerin test sürenizi nasıl kısalttığını keşfedin."
 
 #: lib/tuist_web/live/user_login_live.ex:178
 #, elixir-autogen, elixir-format, fuzzy
@@ -161,20 +161,20 @@ msgstr "E-posta adresi"
 #: lib/tuist_web/live/user_registration_live.ex:307
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Email is already taken"
-msgstr "E-posta zaten alınmış"
+msgstr "E-posta adresi zaten alınmış"
 
 #: lib/tuist_web/live/connect_live.ex:75
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Explore Tuist features like binary caching and selective testing to speed up your development."
 msgstr ""
-"Geliştirmenizi hızlandırmak için ikili önbellekleme ve seçmeli test gibi "
+"Geliştirme hızınızı artırmak için ikili önbellekleme ve seçmeli test gibi "
 "Tuist özelliklerini keşfedin."
 
 #: lib/tuist_web/live/user_registration_live.ex:42
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Explore how binary caching is enhancing your build times."
 msgstr ""
-"İkili önbelleğe almanın derleme sürelerinizi nasıl iyileştirdiğini keşfedin."
+"İkili önbelleklemenin derleme sürelerinizi nasıl iyileştirdiğini keşfedin."
 
 #: lib/tuist_web/live/user_login_live.ex:166
 #, elixir-autogen, elixir-format, fuzzy
@@ -190,7 +190,7 @@ msgstr "Şifrenizi mi unuttunuz?"
 #, elixir-autogen, elixir-format, fuzzy
 msgid "If your email exists in our records, you'll receive reset instructions shortly."
 msgstr ""
-"E-postanız kayıtlarımızda mevcutsa, kısa süre içinde sıfırlama talimatları "
+"E-postanız kayıtlarımızda mevcutsa, kısa süre içinde sıfırlama talimatlarını "
 "alacaksınız."
 
 #: lib/tuist_web/live/connect_live.ex:41
@@ -212,7 +212,7 @@ msgstr "SSO ile ilgileniyor musunuz?"
 #: lib/tuist_web/live/user_login_live.ex:159
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Keep me logged in"
-msgstr "Oturumumu açık tut"
+msgstr "Giriş yapmamı sağla"
 
 #: lib/tuist_web/live/sso_login_live.ex:77
 #: lib/tuist_web/live/user_login_live.ex:15
@@ -228,13 +228,13 @@ msgstr "Giriş yap"
 #: lib/tuist_web/live/user_okta_login_live.ex:55
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Log in to Tuist"
-msgstr "Tuist'te oturum açın"
+msgstr "Tuist'e giriş yapın"
 
 #: lib/tuist_web/live/sso_login_live.ex:54
 #: lib/tuist_web/live/user_okta_login_live.ex:57
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Log in to your enterprise account via Okta"
-msgstr "Okta aracılığıyla kurumsal hesabınıza giriş yapın"
+msgstr "Okta üzerinden kurumsal hesabınıza giriş yapın."
 
 #: lib/tuist_web/live/user_okta_login_live.ex:34
 #, elixir-autogen, elixir-format, fuzzy
@@ -254,7 +254,7 @@ msgstr "Sonraki adımlar"
 #: lib/tuist_web/live/sso_login_live.ex:32
 #, elixir-autogen, elixir-format, fuzzy
 msgid "No SSO organization found for this email"
-msgstr "Bu e-posta için SSO organizasyonu bulunamadı"
+msgstr "Bu e-posta için SSO kuruluşu bulunamadı"
 
 #: lib/tuist_web/live/connect_live.ex:91
 #, elixir-autogen, elixir-format, fuzzy
@@ -275,7 +275,7 @@ msgstr "Şifre"
 #: lib/tuist_web/live/user_reset_password_live.ex:94
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Password reset successfully."
-msgstr "Parola başarıyla sıfırlandı."
+msgstr "Şifre sıfırlama işlemi başarıyla tamamlandı."
 
 #: lib/tuist_web/live/user_registration_live.ex:51
 #, elixir-autogen, elixir-format, fuzzy
@@ -285,7 +285,7 @@ msgstr "Önizlemeler"
 #: lib/tuist_web/live/connect_live.ex:94
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Project Ready? Proceed to dashboard"
-msgstr "Proje Hazır mı? Gösterge tablosuna ilerleyin"
+msgstr "Proje hazır mı? Kontrol paneline geçin"
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:61
 #: lib/tuist_web/live/user_reset_password_live.ex:58
@@ -301,7 +301,7 @@ msgstr "Tuist CLI'yi yüklemek için aşağıdaki komutu çalıştırın."
 #: lib/tuist_web/live/connect_live.ex:57
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Run this command to link your project to the dashboard."
-msgstr "Projenizi gösterge tablosuna bağlamak için bu komutu çalıştırın."
+msgstr "Projenizi kontrol paneline bağlamak için bu komutu çalıştırın."
 
 #: lib/tuist_web/live/user_registration_live.ex:27
 #, elixir-autogen, elixir-format, fuzzy
@@ -318,12 +318,12 @@ msgstr "Kaydolun"
 #: lib/tuist_web/live/user_registration_live.ex:75
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Sign up for Tuist"
-msgstr "Tuist için kaydolun"
+msgstr "Tuist'e kaydolun"
 
 #: lib/tuist_web/live/choose_username_live.ex:114
 #, elixir-autogen, elixir-format, fuzzy
 msgid "This username has already been taken"
-msgstr "Bu kullanıcı adı zaten alınmış"
+msgstr "Bu kullanıcı adı zaten alınmış."
 
 #: lib/tuist_web/live/device_codes_success_live.ex:39
 #, elixir-autogen, elixir-format, fuzzy
@@ -342,7 +342,7 @@ msgstr "Tuist CLI bağlandı!"
 #: lib/tuist_web/live/user_reset_password_live.ex:22
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Tuist Logo"
-msgstr "Tuist Logo"
+msgstr "Tuist Logosu"
 
 #: lib/tuist_web/live/device_codes_success_live.ex:37
 #, elixir-autogen, elixir-format, fuzzy
@@ -352,7 +352,7 @@ msgstr "Tuist uygulaması bağlandı!"
 #: lib/tuist_web/live/connect_live.ex:104
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Tuist dashboard"
-msgstr "Tuist gösterge paneli"
+msgstr "Tuist kontrol paneli"
 
 #: lib/tuist_web/live/connect_live.ex:82
 #, elixir-autogen, elixir-format, fuzzy
@@ -373,58 +373,58 @@ msgstr "Kullanıcı onay bağlantısı geçersiz veya süresi dolmuş."
 #: lib/tuist_web/live/user_registration_live.ex:169
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Username"
-msgstr "Kullanıcı Adı"
+msgstr "Kullanıcı adı"
 
 #: lib/tuist_web/live/choose_username_live.ex:64
 #: lib/tuist_web/live/user_registration_live.ex:172
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Username may only contain alphanumeric characters"
-msgstr "Kullanıcı adı yalnızca alfanümerik karakterler içerebilir"
+msgstr "Kullanıcı adı yalnızca alfasayısal karakterler içerebilir."
 
 #: lib/tuist_web/live/connect_live.ex:28
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Waiting for connection"
-msgstr "Bağlantı için bekleniyor"
+msgstr "Bağlantı bekleniyor"
 
 #: lib/tuist_web/live/user_forgot_password_live.ex:31
 #, elixir-autogen, elixir-format, fuzzy
 msgid "We'll send a password reset link to your inbox"
-msgstr "Gelen kutunuza bir şifre sıfırlama bağlantısı göndereceğiz"
+msgstr "Şifre sıfırlama bağlantısını gelen kutunuza göndereceğiz."
 
 #: lib/tuist_web/live/user_login_live.ex:47
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Welcome back! Please log in to continue"
-msgstr "Tekrar hoş geldiniz! Devam etmek için lütfen giriş yapın"
+msgstr "Hoş geldiniz! Devam etmek için lütfen giriş yapın."
 
 #: lib/tuist_web/live/user_registration_live.ex:77
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Welcome! Create an account to continue"
-msgstr "Hoş geldiniz! Devam etmek için bir hesap oluşturun"
+msgstr "Hoş geldiniz! Devam etmek için bir hesap oluşturun."
 
 #: lib/tuist_web/live/device_codes_success_live.ex:51
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You can close the tab and continue"
-msgstr "Sekmeyi kapatabilir ve devam edebilirsiniz"
+msgstr "Sekmeyi kapatıp devam edebilirsiniz."
 
 #: lib/tuist_web/live/device_codes_success_live.ex:47
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You can close the tab and continue in the app"
-msgstr "Sekmeyi kapatabilir ve uygulamaya devam edebilirsiniz"
+msgstr "Sekmeyi kapatıp uygulamada devam edebilirsiniz."
 
 #: lib/tuist_web/live/device_codes_success_live.ex:49
 #, elixir-autogen, elixir-format, fuzzy
 msgid "You can close the tab and continue in the terminal"
-msgstr "Sekmeyi kapatabilir ve terminalde devam edebilirsiniz"
+msgstr "Sekmeyi kapatıp terminalde devam edebilirsiniz."
 
 #: lib/tuist_web/live/user_confirmation_live.ex:46
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Your account could not be confirmed."
-msgstr "Hesabınız onaylanamadı."
+msgstr "Hesabınız doğrulanamadı."
 
 #: lib/tuist_web/live/user_confirmation_live.ex:27
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Your account has been confirmed."
-msgstr "Hesabınız onaylandı."
+msgstr "Hesabınız onaylanmıştır."
 
 #: lib/tuist_web/live/user_confirmation_live.ex:36
 #, elixir-autogen, elixir-format, fuzzy
@@ -446,7 +446,7 @@ msgstr "homebrew"
 #: lib/tuist_web/live/connect_live.ex:62
 #, elixir-autogen, elixir-format, fuzzy
 msgid "mise"
-msgstr "Mise"
+msgstr "mise"
 
 #: lib/tuist_web/live/connect_live.ex:37
 #, elixir-autogen, elixir-format, fuzzy
