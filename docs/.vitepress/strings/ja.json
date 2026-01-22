@@ -323,7 +323,7 @@
                                     "text": "ベストプラクティス"
                                 },
                                 "metadata-tags": {
-                                    "text": "メタデータ・タグ"
+                                    "text": "メタデータタグ"
                                 }
                             }
                         },
@@ -390,10 +390,10 @@
                         "test-insights": {
                             "items": {
                                 "flaky-tests": {
-                                    "text": "欠陥テスト"
+                                    "text": "不安定なテスト"
                                 }
                             },
-                            "text": "テストの洞察"
+                            "text": "テストインサイト"
                         }
                     }
                 },
@@ -420,7 +420,7 @@
                                     "text": "GitHub"
                                 }
                             },
-                            "text": "ギットの鍛造"
+                            "text": "Git フォージ"
                         },
                         "slack": {
                             "text": "Slack"
