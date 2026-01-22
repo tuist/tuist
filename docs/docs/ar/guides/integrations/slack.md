@@ -5,127 +5,124 @@
   "description": "Learn how to integrate Tuist with Slack."
 }
 ---
-# Slack integration {#slack}
+# تكامل Slack {#slack}
 
-If your organization uses Slack, you can integrate Tuist to surface insights
-directly in your channels. This turns monitoring from something your team has to
-remember to do into something that just happens. For example, your team can
-receive daily summaries of build performance, cache hit rates, or bundle size
-trends.
+إذا كانت مؤسستك تستخدم Slack، فيمكنك دمج Tuist لعرض الرؤى مباشرة في قنواتك. وهذا
+يحول المراقبة من شيء يجب على فريقك تذكر القيام به إلى شيء يحدث تلقائيًا. على
+سبيل المثال، يمكن لفريقك تلقي ملخصات يومية عن أداء البنية، ومعدلات الوصول إلى
+ذاكرة التخزين المؤقت، أو اتجاهات حجم الحزم.
 
-## Setup {#setup}
+## الإعداد {#setup}
 
-### Connect your Slack workspace {#connect-workspace}
+### قم بتوصيل مساحة عمل Slack الخاصة بك {#connect-workspace}
 
-First, connect your Slack workspace to your Tuist account in the `Integrations`
-tab:
+أولاً، قم بربط مساحة عمل Slack بحساب Tuist الخاص بك في علامة التبويب
+"تكاملات"` في " `":
 
-![An image that shows the integrations tab with Slack
-connection](/images/guides/integrations/slack/integrations.png)
+![صورة تظهر علامة التبويب "التكاملات" مع اتصال
+Slack](/images/guides/integrations/slack/integrations.png)
 
-Click **Connect Slack** to authorize Tuist to post messages to your workspace.
-This will redirect you to Slack's authorization page where you can approve the
-connection.
+انقر على " **" (توصيل Slack) "** " (توصيل Slack) لتفويض Tuist بنشر الرسائل في
+مساحة عملك. سيؤدي ذلك إلى إعادة توجيهك إلى صفحة التفويض في Slack حيث يمكنك
+الموافقة على التوصيل.
 
-> [!NOTE] SLACK ADMIN APPROVAL
+> [!ملاحظة] موافقة مسؤول SLACK
 > <!-- -->
-> If your Slack workspace restricts app installations, you may need to request
-> approval from a Slack administrator. Slack will guide you through the approval
-> request process during authorization.
-> <!-- -->
-
-### Project reports {#project-reports}
-
-After connecting Slack, configure reports for each project in the project
-settings' notifications tab:
-
-![An image that shows the notifications settings with Slack report
-configuration](/images/guides/integrations/slack/notifications-settings.png)
-
-You can configure:
-- **Channel**: Select which Slack channel receives the reports
-- **Schedule**: Choose which days of the week to receive reports
-- **Time**: Set the time of day
-
-> [!WARNING] PRIVATE CHANNELS
-> <!-- -->
-> For the Tuist Slack app to post messages in a private channel, you must first
-> add the Tuist bot to that channel. In Slack, open the private channel, click
-> the channel name to open settings, select "Integrations", then "Add apps" and
-> search for Tuist.
+> إذا كانت مساحة عمل Slack الخاصة بك تقيد تثبيت التطبيقات، فقد تحتاج إلى طلب
+> موافقة من مسؤول Slack. سيقوم Slack بإرشادك خلال عملية طلب الموافقة أثناء
+> التفويض.
 > <!-- -->
 
-Once configured, Tuist sends automated daily reports to your selected Slack
-channel:
+### تقارير المشروع {#project-reports}
+
+بعد توصيل Slack، قم بتكوين التقارير لكل مشروع في علامة تبويب الإشعارات في
+إعدادات المشروع:
+
+![صورة توضح إعدادات الإشعارات مع تكوين تقرير
+Slack](/images/guides/integrations/slack/notifications-settings.png)
+
+يمكنك تكوين:
+- **قناة**: حدد قناة Slack التي تتلقى التقارير
+- **جدول**: اختر أيام الأسبوع التي تريد تلقي التقارير فيها
+- **الوقت**: اضبط الوقت من اليوم
+
+> [!تحذير] القنوات الخاصة
+> <!-- -->
+> لكي يتمكن تطبيق Tuist Slack من نشر الرسائل في قناة خاصة، يجب أولاً إضافة روبوت
+> Tuist إلى تلك القناة. في Slack، افتح القناة الخاصة، وانقر على اسم القناة لفتح
+> الإعدادات، وحدد "التكاملات"، ثم "إضافة تطبيقات" وابحث عن Tuist.
+> <!-- -->
+
+بمجرد التهيئة، يرسل Tuist تقارير يومية آلية إلى قناة Slack التي حددتها:
 
 <img src="/images/guides/integrations/slack/report.png" alt="An image that shows a Slack report message" style="max-width: 500px;" />
 
-### Alert rules {#alert-rules}
+### قواعد التنبيه {#alert-rules}
 
-Get notified in Slack with alert rules when key metrics significantly regress to
-help you catch slower builds, cache degradation, or test slowdowns as soon as
-possible, minimizing the impact on your team's productivity.
+احصل على إشعارات في Slack باستخدام قواعد التنبيه عندما تتراجع المقاييس الرئيسية
+بشكل كبير لمساعدتك على اكتشاف عمليات البناء البطيئة أو تدهور ذاكرة التخزين
+المؤقت أو تباطؤ الاختبارات في أسرع وقت ممكن، مما يقلل من تأثير ذلك على إنتاجية
+فريقك.
 
-To create an alert rule, go to your project's notification settings and click
-**Add alert rule**:
+لإنشاء قاعدة تنبيه، انتقل إلى إعدادات الإشعارات الخاصة بمشروعك وانقر على " **"
+(إضافة قاعدة تنبيه) "**" (تنبيهات الترجمة):
 
-You can configure:
-- **Name**: A descriptive name for the alert
-- **Category**: What to measure (build duration, test duration, or cache hit
-  rate)
-- **Metric**: How to aggregate the data (p50, p90, p99, or average)
-- **Deviation**: The percentage change that triggers an alert
-- **Rolling window**: How many recent runs to compare against
-- **Slack channel**: Where to send the alert
+يمكنك تكوين:
+- **الاسم**: اسم وصفية للتنبيه
+- **الفئة**: ما الذي يجب قياسه (مدة البناء، مدة الاختبار، أو معدل الوصول إلى
+  ذاكرة التخزين المؤقت)
+- **المقياس**: كيفية تجميع البيانات (p50، p90، p99، أو المتوسط)
+- **الانحراف**: النسبة المئوية للتغيير التي تؤدي إلى ظهور تنبيه
+- **نافذة متحركة**: عدد المرات الأخيرة التي تمت مقارنتها
+- **قناة Slack**: إلى أين ترسل التنبيه
 
-For example, you might create an alert that triggers when the p90 build duration
-increases by more than 20% compared to the previous 100 builds.
+على سبيل المثال، يمكنك إنشاء تنبيه يتم تشغيله عندما تزيد مدة إنشاء p90 بأكثر من
+20% مقارنة بـ 100 عملية إنشاء سابقة.
 
-When an alert triggers, you'll receive a message like this in your Slack
-channel:
+عندما يتم تشغيل تنبيه، ستتلقى رسالة مثل هذه في قناة Slack الخاصة بك:
 
 <img src="/images/guides/integrations/slack/alert.png" alt="An image that shows a Slack alert message" style="max-width: 500px;" />
 
-> [!NOTE] COOLDOWN PERIOD
+> [!ملاحظة] فترة التهدئة
 > <!-- -->
-> After an alert triggers, it won't fire again for the same rule for 24 hours.
-> This prevents notification fatigue when a metric stays elevated.
+> بعد تشغيل التنبيه، لن يتم تشغيله مرة أخرى لنفس القاعدة لمدة 24 ساعة. هذا يمنع
+> إرهاق الإشعارات عندما تظل المقياس مرتفعًا.
 > <!-- -->
 
-### Flaky test alerts {#flaky-test-alerts}
+### تنبيهات الاختبار غير الموثوقة {#flaky-test-alerts}
 
-Get notified instantly when a test becomes flaky. Unlike metric-based alert
-rules that compare rolling windows, flaky test alerts trigger the moment Tuist
-detects a new flaky test, helping you catch test instability before it impacts
-your team.
+احصل على إشعار فوري عندما يصبح الاختبار غير مستقر. على عكس قواعد التنبيه القائمة
+على المقاييس التي تقارن النوافذ المتحركة، يتم تشغيل تنبيهات الاختبار غير المستقر
+في اللحظة التي يكتشف فيها Tuist اختبارًا جديدًا غير مستقر، مما يساعدك على اكتشاف
+عدم استقرار الاختبار قبل أن يؤثر على فريقك.
 
-To create a flaky test alert rule, go to your project's notification settings
-and click **Add flaky test alert rule**:
+لإنشاء قاعدة تنبيه اختبار غير مستقر، انتقل إلى إعدادات الإشعارات في مشروعك وانقر
+على " **" (إضافة تنبيه اختبار غير مستقر) قاعدة تنبيه اختبار غير مستقر**:
 
-You can configure:
-- **Name**: A descriptive name for the alert
-- **Trigger threshold**: The minimum number of flaky runs in the last 30 days
-  required to trigger an alert
-- **Slack channel**: Where to send the alert
+يمكنك تكوين:
+- **الاسم**: اسم وصفية للتنبيه
+- **عتبة التشغيل**: الحد الأدنى لعدد مرات التشغيل غير المستقر في آخر 30 يومًا
+  المطلوب لتشغيل تنبيه
+- **قناة Slack**: إلى أين ترسل التنبيه
 
-When a test becomes flaky and meets your threshold, you'll receive a
-notification with a direct link to investigate the test case:
+عندما يصبح الاختبار غير مستقر ويصل إلى الحد الأدنى المحدد، ستتلقى إشعارًا يحتوي
+على رابط مباشر للتحقق من حالة الاختبار:
 
 <img src="/images/guides/integrations/slack/flaky-test-alert.png" alt="An image that shows a Slack flaky test alert message" style="max-width: 500px;" />
 
-## On-premise installations {#on-premise}
+## التثبيتات المحلية {#on-premise}
 
-For on-premise Tuist installations, you'll need to create your own Slack app and
-configure the necessary environment variables.
+بالنسبة لتثبيتات Tuist المحلية، ستحتاج إلى إنشاء تطبيق Slack خاص بك وتكوين
+متغيرات البيئة الضرورية.
 
-### Create a Slack app {#create-slack-app}
+### إنشاء تطبيق Slack {#create-slack-app}
 
-1. Go to the [Slack API Apps page](https://api.slack.com/apps) and click
-   **Create New App**
-2. Choose **From an app manifest** and select the workspace where you want to
-   install the app
-3. Paste the following manifest, replacing the redirect URL with your Tuist
-   server URL:
+1. انتقل إلى [صفحة تطبيقات Slack API](https://api.slack.com/apps) وانقر على "
+   **" (تطبيقات Slack) "Create New App" (إنشاء تطبيق جديد)**
+2. اختر " **" من ملف تعريف التطبيق** وحدد مساحة العمل التي تريد تثبيت التطبيق
+   فيها.
+3. الصق البيان التالي، واستبدل عنوان URL لإعادة التوجيه بعنوان URL لخادم Tuist
+   الخاص بك:
 
 ```json
 {
@@ -159,12 +156,13 @@ configure the necessary environment variables.
 }
 ```
 
-4. Review and create the app
+4. راجع التطبيق وقم بإنشائه
 
-### Configure environment variables {#configure-environment}
+### تكوين متغيرات البيئة {#configure-environment}
 
-Set the following environment variables on your Tuist server:
+قم بتعيين متغيرات البيئة التالية على خادم Tuist الخاص بك:
 
-- `SLACK_CLIENT_ID` - The Client ID from your Slack app's Basic Information page
-- `SLACK_CLIENT_SECRET` - The Client Secret from your Slack app's Basic
-  Information page
+- `SLACK_CLIENT_ID` - معرف العميل من صفحة المعلومات الأساسية لتطبيق Slack الخاص
+  بك
+- `SLACK_CLIENT_SECRET` - سر العميل من صفحة المعلومات الأساسية لتطبيق Slack
+  الخاص بك
