@@ -18,7 +18,9 @@ config :cache, Cache.Repo,
   busy_timeout: 30_000,
   journal_mode: :wal,
   synchronous: :normal,
-  temp_store: :memory
+  temp_store: :memory,
+  queue_target: 1_000,
+  queue_interval: 1_000
 
 config :cache, CacheWeb.Endpoint,
   url: [host: "localhost"],
