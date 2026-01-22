@@ -92,22 +92,31 @@ let tuist = Tuist(
 
 若要在 CI 環境中啟用快取，您需要執行與本機環境相同的指令：`tuist setup cache` 。
 
-此外，您需要確保`TUIST_TOKEN` 環境變數已設定。您可以按照說明文件
-<LocalizedLink href="/guides/server/authentication#as-a-project"> 這裡 </LocalizedLink> 建立一個。`TUIST_TOKEN` 環境變數_必須在您的建置步驟中出現_ ，但我們建議您在整個 CI
-工作流程中都設定該變數。
+在驗證方面，您可以使用 <LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
+驗證</LocalizedLink>（建議使用支援的 CI 供應商），或透過`TUIST_TOKEN` 環境變數使用
+<LocalizedLink href="/guides/server/authentication#account-tokens">
+帳戶令牌</LocalizedLink>。
 
-GitHub Actions 的示例工作流程如下：
+使用 OIDC 認證的 GitHub Actions 工作流程範例：
 ```yaml
 name: Build
 
-env:
-  TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   build:
+    runs-on: macos-latest
     steps:
-      - # Your set up steps...
-      - name: Set up Tuist Cache
-        run: tuist setup cache
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: tuist auth login
+      - run: tuist setup cache
       - # Your build steps
 ```
+
+更多範例請參閱
+<LocalizedLink href="/guides/integrations/continuous-integration">Continuous
+Integration 指南</LocalizedLink>，包括基於令牌的驗證和其他 CI 平台，如 Xcode Cloud、CircleCI、Bitrise
+和 Codemagic。
