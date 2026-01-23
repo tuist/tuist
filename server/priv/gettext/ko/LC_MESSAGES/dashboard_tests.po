@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
-"PO-Revision-Date: 2026-01-22 18:01+0000\n"
+"PO-Revision-Date: 2026-01-23 12:12+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/ko/>\n"
@@ -602,11 +602,14 @@ msgstr "불규칙 표시 해제"
 msgid "New"
 msgstr "새로"
 
+#, fuzzy
 msgid "Quarantine"
-msgstr ""
+msgstr "격리"
 
+#, fuzzy
 msgid "Quarantined"
-msgstr ""
+msgstr "격리됨"
 
+#, fuzzy
 msgid "Unquarantine"
-msgstr ""
+msgstr "검역 해제"
