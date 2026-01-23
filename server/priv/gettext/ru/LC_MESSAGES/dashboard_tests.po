@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2026-01-23 12:12+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Russian <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/ru/>\n"
 "Language: ru\n"
@@ -370,7 +371,7 @@ msgstr "Последние тестовые запуски"
 
 #, fuzzy
 msgid "Remote"
-msgstr "Удаленный"
+msgstr "Удалить"
 
 #, fuzzy
 msgid "Scheme"
@@ -454,7 +455,7 @@ msgstr "Тестовые сценарии"
 
 #, fuzzy
 msgid "Test Case Runs"
-msgstr "Запуск тестовых случаев"
+msgstr "Тестовые сценарии"
 
 #, fuzzy
 msgid "Test Cases"
@@ -486,7 +487,7 @@ msgstr "Наборы тестов"
 
 #, fuzzy
 msgid "Test case"
-msgstr "Тестовый случай"
+msgstr "Тестовые сценарии"
 
 #, fuzzy
 msgid "Test case not found."
@@ -506,7 +507,7 @@ msgstr ""
 
 #, fuzzy
 msgid "Test cases"
-msgstr "Тестовые случаи"
+msgstr "Тестовые сценарии"
 
 #, fuzzy
 msgid "Test reliability"
