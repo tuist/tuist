@@ -3,8 +3,9 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
-"PO-Revision-Date: 2026-01-22 12:36+0000\n"
-"Last-Translator: 이영준 <kofggm@gmail.com>\n"
+"PO-Revision-Date: 2026-01-23 12:12+0000\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/ko/>\n"
 "Language: ko\n"
@@ -329,160 +330,215 @@ msgstr "지난 기간 이후"
 msgid "since yesterday"
 msgstr "어제부터"
 
+#, fuzzy
 msgid "Channel"
-msgstr ""
+msgstr "채널"
 
+#, fuzzy
 msgid "Configure"
-msgstr ""
+msgstr "Configure"
 
+#, fuzzy
 msgid "Daily"
-msgstr ""
+msgstr "매일"
 
+#, fuzzy
 msgid "Frequency"
-msgstr ""
+msgstr "빈도"
 
+#, fuzzy
 msgid "Never"
-msgstr ""
+msgstr "안함"
 
+#, fuzzy
 msgid "Save"
-msgstr ""
+msgstr "저장"
 
+#, fuzzy
 msgid "Send test report"
-msgstr ""
+msgstr "테스트 보고서 보내기"
 
+#, fuzzy
 msgid "Time"
-msgstr ""
+msgstr "수행 시간"
 
+#, fuzzy
 msgid "All days"
-msgstr ""
+msgstr "모든 날"
 
+#, fuzzy
 msgid "Select days"
-msgstr ""
+msgstr "날짜 선택"
 
+#, fuzzy
 msgid "Average"
-msgstr ""
+msgstr "평균"
 
+#, fuzzy
 msgid "Build duration"
-msgstr ""
+msgstr "빌드 소요 시간"
 
+#, fuzzy
 msgid "Cache hit rate"
-msgstr ""
+msgstr "캐시 일치율"
 
+#, fuzzy
 msgid "Category"
-msgstr ""
+msgstr "카테고리"
 
+#, fuzzy
 msgid "Get notified when metrics regress"
-msgstr ""
+msgstr "수치가 떨어질 때 알림 받기"
 
+#, fuzzy
 msgid "Metric"
-msgstr ""
+msgstr "통계"
 
+#, fuzzy
 msgid "Test duration"
-msgstr ""
+msgstr "테스트 기간"
 
+#, fuzzy
 msgid "Rolling window"
-msgstr ""
+msgstr "구간 계산"
 
+#, fuzzy
 msgid "Add alert rule"
-msgstr ""
+msgstr "알림 규칙 추가"
 
+#, fuzzy
 msgid "Alert name"
-msgstr ""
+msgstr "알림 이름"
 
+#, fuzzy
 msgid "Alert rules"
-msgstr ""
+msgstr "알림 규칙"
 
+#, fuzzy
 msgid "Configure schedule"
-msgstr ""
+msgstr "일정 설정"
 
+#, fuzzy
 msgid "Configure your report notifications"
-msgstr ""
+msgstr "보고서 알림 설정"
 
+#, fuzzy
 msgid "Connect Slack"
-msgstr ""
+msgstr "Slack 연결"
 
+#, fuzzy
 msgid "Deviation (%)"
-msgstr ""
+msgstr "편차 (%)"
 
+#, fuzzy
 msgid "Notifications"
-msgstr ""
+msgstr "알림"
 
+#, fuzzy
 msgid "Repeat"
-msgstr ""
+msgstr "요일"
 
+#, fuzzy
 msgid "Reports"
-msgstr ""
+msgstr "보고서"
 
+#, fuzzy
 msgid "Schedule"
-msgstr ""
+msgstr "일정"
 
+#, fuzzy
 msgid "Slack"
-msgstr ""
+msgstr "Slack"
 
+#, fuzzy
 msgid "Select channel"
-msgstr ""
+msgstr "채널 선택"
 
+#, fuzzy
 msgid "Update channel"
-msgstr ""
+msgstr "채널 업데이트"
 
+#, fuzzy
 msgid "Slack channel"
-msgstr ""
+msgstr "슬랙 채널"
 
+#, fuzzy
 msgid "average"
-msgstr ""
+msgstr "평균"
 
+#, fuzzy
 msgid "build time"
-msgstr ""
+msgstr "빌드 시간"
 
+#, fuzzy
 msgid "builds"
-msgstr ""
+msgstr "빌드"
 
+#, fuzzy
 msgid "cache hit rate"
-msgstr ""
+msgstr "캐시 일치율"
 
+#, fuzzy
 msgid "test time"
-msgstr ""
+msgstr "테스트 소요 시간"
 
+#, fuzzy
 msgid "tests"
-msgstr ""
+msgstr "테스트"
 
+#, fuzzy
 msgid "Create"
-msgstr ""
+msgstr "만들기"
 
+#, fuzzy
 msgid "Create alert rule"
-msgstr ""
+msgstr "알림 규칙 만들기"
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{metric_category}</strong> of the last "
 "<strong>%{rolling_window_size} %{unit}</strong> has decreased by "
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
+"최 <strong>%{rolling_window_size} %{unit}</strong> 의 <strong>%"
+"{metric_category}</strong> 이 이전 <strong>%{rolling_window_size} %{unit}</"
+"strong> 에 비해 <strong>%{deviation}%</strong> 감소한 경우 알림을 보냅니다."
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{metric_category}</strong> of the last "
 "<strong>%{rolling_window_size} %{unit}</strong> has increased by "
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
+"최근 <strong>%{rolling_window_size} %{unit}</strong> 의 <strong>%"
+"{metric_category}</strong> 이 이전 <strong>%{rolling_window_size} %{unit}</"
+"strong> 에 비해 <strong>%{deviation}%</strong> 증가하면 알림을 보냅니다."
 
+#, fuzzy
 msgid "Connect your Slack account before selecting channels."
-msgstr ""
+msgstr "채널을 선택하기 전에 Slack 계정을 연결하세요."
 
+#, fuzzy
 msgid "Deviation"
-msgstr ""
+msgstr "편차"
 
+#, fuzzy
 msgid "None"
-msgstr ""
+msgstr "없음"
 
+#, fuzzy
 msgid "Update"
-msgstr ""
+msgstr "업데이트"
 
+#, fuzzy
 msgid "Update alert rule"
-msgstr ""
+msgstr "알림 규칙 업데이트"
 
+#, fuzzy
 msgid "Metrics"
-msgstr ""
+msgstr "Metrics"
 
 msgid "Create an alert rule to get notified when metrics regress"
 msgstr ""
