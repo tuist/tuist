@@ -78,10 +78,10 @@ defmodule Tuist.IngestRepo.Migrations.BackfillFirstRunEvents do
         id: :uuid,
         test_case_id: :uuid,
         project_id: :i64,
-        event_type: :string,
-        actor_type: :string,
-        actor_id: :i64,
-        reason: :string,
+        event_type: "LowCardinality(String)",
+        actor_type: "LowCardinality(String)",
+        actor_id: "Nullable(Int64)",
+        reason: "Nullable(String)",
         metadata: :string,
         inserted_at: "DateTime64(6)"
       }
@@ -106,7 +106,7 @@ defmodule Tuist.IngestRepo.Migrations.BackfillFirstRunEvents do
 
       batch ->
         change_fun.(batch)
-        next_test_case_id = batch |> List.last() |> Map.get(:test_case_id)
+        next_test_case_id = batch |> List.last() |> Map.get(:test_case_id) |> Ecto.UUID.cast!()
         Process.sleep(@throttle_ms)
         throttle_change_in_batches(query_fun, change_fun, next_test_case_id)
     end
