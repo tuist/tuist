@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-22 18:01+0000\n"
+"PO-Revision-Date: 2026-01-23 12:12+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Polish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/pl/>\n"
@@ -769,11 +769,14 @@ msgstr "Odznacz jako niestabilne"
 msgid "New"
 msgstr "Nowy"
 
+#, fuzzy
 msgid "Quarantine"
-msgstr ""
+msgstr "Kwarantanna"
 
+#, fuzzy
 msgid "Quarantined"
-msgstr ""
+msgstr "Kwarantanna"
 
+#, fuzzy
 msgid "Unquarantine"
-msgstr ""
+msgstr "Wycofaj z kwarantanny"
