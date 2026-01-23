@@ -22,13 +22,15 @@ extension TuistCore.PackageSettings {
         let projectOptions: [String: XcodeGraph.Project.Options] = manifest
             .projectOptions
             .mapValues { .from(manifest: $0) }
+        let targetBuildableFolders = manifest.targetBuildableFolders
 
         return .init(
             productTypes: productTypes,
             productDestinations: productDestinations,
             baseSettings: baseSettings,
             targetSettings: targetSettings,
-            projectOptions: projectOptions
+            projectOptions: projectOptions,
+            targetBuildableFolders: targetBuildableFolders
         )
     }
 }
