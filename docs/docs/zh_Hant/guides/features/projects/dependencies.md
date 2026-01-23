@@ -68,7 +68,7 @@ Swift Packages 是我們推薦的在專案中宣告相依性的方式。您可�
 
 Xcode 的預設整合雖然是最方便的，但缺乏中大型專案所需的彈性與控制。為了克服這個問題，Tuist 提供了一個基於 XcodeProj 的整合，允許您使用
 XcodeProj 的目標在專案中整合 Swift
-套件。有賴於此，我們不僅能讓您對整合有更多控制，還能使其相容於<LocalizedLink href="/guides/features/cache">快取</LocalizedLink>和<LocalizedLink href="/guides/features/test/selective-testing">選擇性測試執行</LocalizedLink>等工作流程。
+套件。有賴於此，我們不僅能讓您對整合有更多控制，還能使其相容於<LocalizedLink href="/guides/features/cache">快取</LocalizedLink>和<LocalizedLink href="/guides/features/selective-testing">選擇性測試執行</LocalizedLink>等工作流程。
 
 XcodeProj 的整合更可能需要更多的時間來支援新的 Swift 套件功能或處理更多的套件配置。不過，Swift 套件與 XcodeProj
 目標之間的對應邏輯是開放原始碼的，可以由社群貢獻。這與 Xcode 的預設整合相反，Xcode 的預設整合是封閉源碼，並由 Apple 維護。

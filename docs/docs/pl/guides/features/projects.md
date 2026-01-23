@@ -28,10 +28,10 @@ i interakcji z nim:
 
 - **Generuj:** Jest to podstawowy przepływ pracy. Użyj go, aby utworzyć projekt
   Xcode, który jest kompatybilny z Xcode.
-- **<LocalizedLink href="/guides/features/build">Build</LocalizedLink>:** Ten
+- **<LocalizedLink href="/cli/build">Build</LocalizedLink>:** Ten
   przepływ pracy nie tylko generuje projekt Xcode, ale także wykorzystuje
   `xcodebuild` do jego kompilacji.
-- **<LocalizedLink href="/guides/features/test">Test</LocalizedLink>:** Działa
+- **<LocalizedLink href="/cli/test">Test</LocalizedLink>:** Działa
   podobnie do przepływu kompilacji, nie tylko generuje projekt Xcode, ale
   wykorzystuje `xcodebuild` do jego przetestowania.
 

@@ -33,7 +33,7 @@ distinto de cero.
 ::: tip VALIDAR EN CI
 <!-- -->
 Recomendamos encarecidamente ejecutar este comando como parte de su
-<LocalizedLink href="/guides/features/automate/continuous-integration">comando de integración continua</LocalizedLink> cada vez que se publique nuevo código.
+<LocalizedLink href="/guides/integrations/continuous-integration">comando de integración continua</LocalizedLink> cada vez que se publique nuevo código.
 <!-- -->
 :::
 

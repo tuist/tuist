@@ -104,7 +104,7 @@ Xcode'un önerilen proje yapısıyla daha yakından uyumludur.
 ## Tuist.swift {#tuistswift}
 
 Tuist, proje yapılandırmasını basitleştirmek için
-<LocalizedLink href="/contributors/principles.html#default-to-conventions">uygun varsayılanlar</LocalizedLink> sağlar. Ancak, projenin kökünde Tuist tarafından
+<LocalizedLink href="/contributors/principles#default-to-conventions">uygun varsayılanlar</LocalizedLink> sağlar. Ancak, projenin kökünde Tuist tarafından
 projenin kökünü belirlemek için kullanılan bir
 <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>
 tanımlayarak yapılandırmayı özelleştirebilirsiniz.

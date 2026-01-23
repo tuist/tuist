@@ -30,10 +30,10 @@ için çeşitli iş akışları sunar:
 
 - **Üretme:** Bu temel bir iş akışıdır. Xcode ile uyumlu bir Xcode projesi
   oluşturmak için kullanın.
-- **<LocalizedLink href="/guides/features/build">Build</LocalizedLink>:** Bu iş
+- **<LocalizedLink href="/cli/build">Build</LocalizedLink>:** Bu iş
   akışı sadece Xcode projesini oluşturmakla kalmaz, aynı zamanda onu derlemek
   için `xcodebuild` adresini kullanır.
-- **<LocalizedLink href="/guides/features/test">Test</LocalizedLink>:** Derleme
+- **<LocalizedLink href="/cli/test">Test</LocalizedLink>:** Derleme
   iş akışına çok benzer şekilde çalışan bu iş akışı sadece Xcode projesini
   oluşturmakla kalmaz, aynı zamanda test etmek için `xcodebuild` adresini
   kullanır.

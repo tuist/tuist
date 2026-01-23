@@ -57,7 +57,7 @@ Xcode는 각 제품에 대해 파생된 데이터 디렉터리 내부의 디렉�
 ::: tip TUIST DETECTION OF IMPLICIT DEPENDENCIES
 <!-- -->
 튜이스트는 암시적 종속성을 감지하는
-<LocalizedLink href="/guides/features/inspect/implicit-dependencies">command</LocalizedLink>를
+<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">command</LocalizedLink>를
 제공합니다. 이 명령을 사용하여 모든 종속성이 명시적인지 CI에서 확인할 수 있습니다.
 <!-- -->
 :::

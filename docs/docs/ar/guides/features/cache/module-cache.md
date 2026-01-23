@@ -192,7 +192,7 @@ tuist generate
 
 تأكد من أن تكون <LocalizedLink href="/guides/features/projects/hashing#debugging">التجزئة حتمية</LocalizedLink> عبر البيئات وعمليات التشغيل. قد يحدث هذا إذا كان المشروع يحتوي على مراجع للبيئة، على سبيل المثال من خلال مسارات مطلقة. يمكنك استخدام الأمر `diff` لمقارنة المشاريع التي تم إنشاؤها بواسطة استدعاءين متتاليين للأمر `tuist توليد` أو عبر البيئات أو عمليات التشغيل.
 
-تأكد أيضًا من أن الهدف لا يعتمد بشكل مباشر أو غير مباشر على هدف <LocalizedLink href="/guides/features/cache/generated-project#supported-products">غير قابل للتخزين المؤقت</LocalizedLink>.
+تأكد أيضًا من أن الهدف لا يعتمد بشكل مباشر أو غير مباشر على هدف <LocalizedLink href="/guides/features/cache/module-cache#supported-products">غير قابل للتخزين المؤقت</LocalizedLink>.
 
 ### الرموز المفقودة {#missing-symbols}
 

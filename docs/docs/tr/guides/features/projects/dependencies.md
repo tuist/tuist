@@ -100,7 +100,7 @@ kullanarak Swift paketi'ni projenize entegre etmenize olanak tanıyan XcodeProj
 tabanlı bir entegrasyon sunuyor. Bu sayede, entegrasyon üzerinde daha fazla
 kontrol sahibi olmanızı sağlamakla kalmıyor, aynı zamanda
 <LocalizedLink href="/guides/features/cache">caching</LocalizedLink> ve
-<LocalizedLink href="/guides/features/test/selective-testing">selective test runs</LocalizedLink> gibi iş akışlarıyla uyumlu hale getirebiliyoruz.
+<LocalizedLink href="/guides/features/selective-testing">selective test runs</LocalizedLink> gibi iş akışlarıyla uyumlu hale getirebiliyoruz.
 
 XcodeProj'un entegrasyonu, yeni Swift paketi özelliklerini desteklemek veya daha
 fazla paket yapılandırmasını işlemek için daha fazla zaman alabilir. Bununla

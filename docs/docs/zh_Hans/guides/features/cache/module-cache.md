@@ -174,7 +174,7 @@ tuist generate
 确保<LocalizedLink href="/guides/features/projects/hashing#debugging">散列在不同环境和运行中都是确定的</LocalizedLink>。如果项目有对环境的引用，例如通过绝对路径，可能会出现这种情况。您可以使用`diff`
 命令比较连续两次调用`tuist generate` 或跨环境或跨运行生成的项目。
 
-还要确保目标不直接或间接依赖于<LocalizedLink href="/guides/features/cache/generated-project#supported-products">不可缓存目标</LocalizedLink>。
+还要确保目标不直接或间接依赖于<LocalizedLink href="/guides/features/cache/module-cache#supported-products">不可缓存目标</LocalizedLink>。
 
 ### 缺失的符号{#missing-symbols}
 

@@ -25,9 +25,9 @@ Package Manager من قبل، فإن النهج مشابه جدًا.
 
 - **توليد:** هذا هو سير العمل التأسيسي. استخدمه لإنشاء مشروع Xcode متوافق مع
   Xcode.
-- **<LocalizedLink href="/guides/features/build">بناء</LocalizedLink>:** لا ينشئ
+- **<LocalizedLink href="/cli/build">بناء</LocalizedLink>:** لا ينشئ
   سير العمل هذا مشروع Xcode فحسب، بل يستخدم أيضًا `xcodebuild` لتجميعه.
-- **<LocalizedLink href="/guides/features/test">اختبار</LocalizedLink>:** يعمل
+- **<LocalizedLink href="/cli/test">اختبار</LocalizedLink>:** يعمل
   بشكل مشابه لسير عمل الإنشاء، وهذا لا ينشئ مشروع Xcode فحسب، بل يستخدم
   `xcodebuild` لاختباره.
 

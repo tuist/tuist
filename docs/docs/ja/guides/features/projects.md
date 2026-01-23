@@ -18,9 +18,9 @@ Generatedは、複雑さとコストを許容可能なレベルに保ちなが�
 プロジェクトを定義したら、Tuistはそれを管理し、相互作用させるための様々なワークフローを提供する：
 
 - **生成する：** これは基本的なワークフローです。Xcodeと互換性のあるXcodeプロジェクトを作成するために使用します。
-- **<LocalizedLink href="/guides/features/build">ビルド</LocalizedLink>：**
+- **<LocalizedLink href="/cli/build">ビルド</LocalizedLink>：**
   このワークフローは、Xcodeプロジェクトを生成するだけでなく、`xcodebuild` を使用してコンパイルします。
-- **<LocalizedLink href="/guides/features/test">テスト</LocalizedLink>：**
+- **<LocalizedLink href="/cli/test">テスト</LocalizedLink>：**
   ビルド・ワークフローのように動作し、Xcodeプロジェクトを生成するだけでなく、`xcodebuild` を利用してテストします。
 
 ## Xcodeプロジェクトの課題 {#challenges-with-xcode-projects}。
