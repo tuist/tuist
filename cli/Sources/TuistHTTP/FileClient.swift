@@ -142,7 +142,7 @@ import Path
 
         private func recordDownload(request: URLRequest, response: HTTPURLResponse) async {
             guard let recorder = HARRecorder.current, let url = request.url else { return }
-            let metadata = retrieveHARMetadata(for: url)
+            let metadata = await retrieveHARMetadata(for: url)
             await recorder.recordRequest(
                 url: url,
                 method: request.httpMethod ?? "GET",
@@ -164,7 +164,7 @@ import Path
 
         private func recordDownloadError(request: URLRequest, error: Error) async {
             guard let recorder = HARRecorder.current, let url = request.url else { return }
-            let metadata = retrieveHARMetadata(for: url)
+            let metadata = await retrieveHARMetadata(for: url)
             await recorder.recordError(
                 url: url,
                 method: request.httpMethod ?? "GET",
@@ -181,7 +181,7 @@ import Path
 
         private func recordUpload(request: URLRequest, response: HTTPURLResponse, requestBodySize: Int) async {
             guard let recorder = HARRecorder.current, let url = request.url else { return }
-            let metadata = retrieveHARMetadata(for: url)
+            let metadata = await retrieveHARMetadata(for: url)
             await recorder.recordRequest(
                 url: url,
                 method: request.httpMethod ?? "PUT",
@@ -203,7 +203,7 @@ import Path
 
         private func recordUploadError(request: URLRequest, error: Error, requestBodySize: Int) async {
             guard let recorder = HARRecorder.current, let url = request.url else { return }
-            let metadata = retrieveHARMetadata(for: url)
+            let metadata = await retrieveHARMetadata(for: url)
             await recorder.recordError(
                 url: url,
                 method: request.httpMethod ?? "PUT",
@@ -227,8 +227,8 @@ import Path
             let responseHeadersSize: Int?
         }
 
-        private func retrieveHARMetadata(for url: URL) -> HARMetadataResult {
-            guard let metrics = URLSessionMetricsDelegate.shared.retrieveMetrics(for: url),
+        private func retrieveHARMetadata(for url: URL) async -> HARMetadataResult {
+            guard let metrics = await URLSessionMetricsDelegate.shared.retrieveMetrics(for: url),
                   let harMetadata = URLSessionMetricsDelegate.extractHARMetadata(from: metrics)
             else {
                 let now = Date()

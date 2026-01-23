@@ -29,10 +29,10 @@ public struct TuistURLSessionTransport: ClientTransport {
             let metricsDelegate = TaskMetricsDelegate()
             let (data, response) = try await session.data(for: urlRequest, delegate: metricsDelegate)
 
-            if let metrics = metricsDelegate.transactionMetrics,
+            if let metrics = await metricsDelegate.transactionMetrics,
                let url = urlRequest.url
             {
-                URLSessionMetricsDelegate.shared.storeMetrics(metrics, for: url)
+                await URLSessionMetricsDelegate.shared.storeMetrics(metrics, for: url)
             }
         #else
             let (data, response) = try await session.data(for: urlRequest, delegate: nil)
@@ -144,11 +144,26 @@ enum TuistURLSessionTransportError: LocalizedError {
 
 #if canImport(TuistHAR)
     /// A per-task delegate that captures metrics for a single request.
-    private final class TaskMetricsDelegate: NSObject, URLSessionTaskDelegate {
-        var transactionMetrics: URLSessionTaskTransactionMetrics?
+    /// Uses an actor to safely pass metrics from URLSession's delegate queue to the async context.
+    private final class TaskMetricsDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+        private let storage = MetricsHolder()
+
+        var transactionMetrics: URLSessionTaskTransactionMetrics? {
+            get async { await storage.metrics }
+        }
 
         func urlSession(_: URLSession, task _: URLSessionTask, didFinishCollecting metrics: URLSessionTaskMetrics) {
-            transactionMetrics = metrics.transactionMetrics.last
+            let transactionMetrics = metrics.transactionMetrics.last
+            Task { await storage.setMetrics(transactionMetrics) }
+        }
+    }
+
+    /// Actor that holds metrics for a single request.
+    private actor MetricsHolder {
+        var metrics: URLSessionTaskTransactionMetrics?
+
+        func setMetrics(_ metrics: URLSessionTaskTransactionMetrics?) {
+            self.metrics = metrics
         }
     }
 #endif
