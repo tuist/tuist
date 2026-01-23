@@ -22,35 +22,14 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
     opts
   end
 
-  def call(conn, category) when is_atom(category) do
-    case category do
-      :run ->
-        authorize_project(conn, :run)
+  @project_categories [:run, :bundle, :cache, :preview, :qa_run, :qa_step, :qa_screenshot, :test]
 
-      :bundle ->
-        authorize_project(conn, :bundle)
+  def call(conn, category) when category in @project_categories do
+    authorize_project(conn, category)
+  end
 
-      :cache ->
-        authorize_project(conn, :cache)
-
-      :preview ->
-        authorize_project(conn, :preview)
-
-      :registry ->
-        authorize_account(conn, :registry)
-
-      :qa_run ->
-        authorize_project(conn, :qa_run)
-
-      :qa_step ->
-        authorize_project(conn, :qa_step)
-
-      :qa_screenshot ->
-        authorize_project(conn, :qa_screenshot)
-
-      :test ->
-        authorize_project(conn, :test)
-    end
+  def call(conn, :registry) do
+    authorize_account(conn, :registry)
   end
 
   def call(conn, opts) do
