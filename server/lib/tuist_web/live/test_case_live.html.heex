@@ -271,7 +271,7 @@
             </div>
             <div data-part="overview-history-content">
               <span data-part="overview-history-item-title">{event_title(event.event_type)}</span>
-              <span data-part="overview-history-item-subtitle">{format_event_subtitle(event)}</span>
+              <span :if={format_event_subtitle(event)} data-part="overview-history-item-subtitle">{format_event_subtitle(event)}</span>
             </div>
             <div data-part="overview-history-time">
               {Timex.from_now(event.inserted_at)}
@@ -611,7 +611,7 @@
             <span data-part="timeline-title">
               {event_title(event.event_type)}
             </span>
-            <span data-part="timeline-subtitle">
+            <span :if={format_event_subtitle(event)} data-part="timeline-subtitle">
               {format_event_subtitle(event)}
             </span>
           </div>
