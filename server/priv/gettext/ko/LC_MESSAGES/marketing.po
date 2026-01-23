@@ -1,17 +1,5 @@
 msgid ""
-msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-11-05 17:58+0000\n"
-"PO-Revision-Date: 2026-01-22 12:36+0000\n"
-"Last-Translator: Weblate Admin <admin@cloudron.local>\n"
-"Language-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\n"
-"Language: ko\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.15.2\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2026-01-23 09:02+0000\nLast-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-memory@weblate.org>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -924,8 +912,9 @@ msgstr "현황판에서 실시간으로"
 msgid "Language"
 msgstr "언어"
 
+#, fuzzy
 msgid "Read story"
-msgstr ""
+msgstr "스토리 읽기"
 
 msgid "%{company} case study"
 msgstr ""
