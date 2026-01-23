@@ -443,7 +443,7 @@
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-5);
-      padding: var(--noora-spacing-8);
+      padding: var(--noora-spacing-8) var(--noora-spacing-8) var(--noora-spacing-8) 0;
 
       & [data-part="timeline"] {
         display: flex;
