@@ -84,8 +84,8 @@
     <.tab_menu_horizontal_item
       :if={@has_binary_cache_data}
       label={dgettext("dashboard_builds", "Module Cache")}
-      selected={@selected_tab == "compilation-optimizations"}
-      patch={"?#{Query.put(@uri.query, "tab", "compilation-optimizations")}"}
+      selected={@selected_tab == "module-cache"}
+      patch={"?#{Query.put(@uri.query, "tab", "module-cache")}"}
       replace={true}
     />
   </.tab_menu_horizontal>
@@ -324,7 +324,7 @@
       </.card_section>
     </.card>
   <% end %>
-  <%= if @selected_tab == "compilation-optimizations" do %>
+  <%= if @selected_tab == "module-cache" do %>
     <.module_cache_tab
       binary_cache_analytics={@binary_cache_analytics}
       binary_cache_filter={@binary_cache_filter}

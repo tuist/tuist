@@ -175,7 +175,7 @@ defmodule TuistWeb.RunDetailLive do
     assign_selective_testing_data(socket, analytics, meta, params)
   end
 
-  defp assign_tab_data(socket, "compilation-optimizations", params) do
+  defp assign_tab_data(socket, "module-cache", params) do
     {analytics, meta} = load_binary_cache_data(socket.assigns.run, params)
 
     assign_binary_cache_data(socket, analytics, meta, params)

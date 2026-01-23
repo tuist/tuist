@@ -86,7 +86,7 @@ defmodule TuistWeb.RunDetailLiveTest do
       {:ok, lv, _html} =
         live(
           conn,
-          ~p"/#{organization.account.name}/#{project.name}/runs/#{cache_run.id}?tab=compilation-optimizations"
+          ~p"/#{organization.account.name}/#{project.name}/runs/#{cache_run.id}?tab=module-cache"
         )
 
       # Then

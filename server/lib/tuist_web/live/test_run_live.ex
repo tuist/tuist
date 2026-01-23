@@ -87,7 +87,7 @@ defmodule TuistWeb.TestRunLive do
         {"overview", "test-modules"} ->
           {socket.assigns.test_modules_available_filters, socket.assigns.test_modules_active_filters}
 
-        {"compilation-optimizations", _} ->
+        {"module-cache", _} ->
           {socket.assigns.binary_cache_available_filters, socket.assigns.binary_cache_active_filters}
 
         _ ->
@@ -299,7 +299,7 @@ defmodule TuistWeb.TestRunLive do
   defp reset_test_tab_page(params, socket) do
     selected_tab = socket.assigns.selected_tab
 
-    if selected_tab == "compilation-optimizations" do
+    if selected_tab == "module-cache" do
       Map.put(params, "binary-cache-page", "1")
     else
       test_tab = URI.decode_query(socket.assigns.uri.query)["test-tab"] || "test-cases"
@@ -325,7 +325,7 @@ defmodule TuistWeb.TestRunLive do
     end
   end
 
-  defp assign_tab_data(socket, "compilation-optimizations", params) do
+  defp assign_tab_data(socket, "module-cache", params) do
     if socket.assigns.command_event do
       {analytics, meta} = load_binary_cache_data(socket.assigns.command_event, params)
       assign_binary_cache_data(socket, analytics, meta, params)
