@@ -307,31 +307,26 @@ defmodule Tuist.SlackTest do
     end
   end
 
-  describe "send_flaky_test_alert/1" do
+  describe "send_flaky_test_alert/4" do
     test "sends flaky test alert notification to Slack" do
       # Given
       user = AccountsFixtures.user_fixture()
       installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
-      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
 
-      rule =
-        AlertsFixtures.flaky_test_alert_rule_fixture(
-          project: project,
-          slack_channel_id: "C12345",
-          slack_channel_name: "flaky-alerts"
-        )
+      {:ok, project} =
+        [account_id: user.account.id]
+        |> ProjectsFixtures.project_fixture()
+        |> Projects.update_project(%{
+          flaky_test_alerts_slack_channel_id: "C12345",
+          flaky_test_alerts_slack_channel_name: "flaky-alerts"
+        })
 
-      test_case_id = Ecto.UUID.generate()
-
-      alert =
-        AlertsFixtures.flaky_test_alert_fixture(
-          flaky_test_alert_rule: rule,
-          flaky_runs_count: 5,
-          test_case_id: test_case_id,
-          test_case_name: "testExample",
-          test_case_module_name: "MyTests",
-          test_case_suite_name: "TestSuite"
-        )
+      test_case = %{
+        id: Ecto.UUID.generate(),
+        name: "testExample",
+        module_name: "MyTests",
+        suite_name: "TestSuite"
+      }
 
       expect(Client, :post_message, fn token, channel_id, blocks ->
         assert token == installation.access_token
@@ -346,7 +341,7 @@ defmodule Tuist.SlackTest do
         assert test_case_block.text.text =~ "testExample"
         assert test_case_block.text.text =~ "MyTests"
         assert test_case_block.text.text =~ "TestSuite"
-        assert test_case_block.text.text =~ test_case_id
+        assert test_case_block.text.text =~ test_case.id
 
         metric_block = Enum.at(blocks, 4)
         assert metric_block.text.text =~ "5 flaky runs"
@@ -354,7 +349,7 @@ defmodule Tuist.SlackTest do
       end)
 
       # When
-      result = Slack.send_flaky_test_alert(alert)
+      result = Slack.send_flaky_test_alert(project, test_case, 5)
 
       # Then
       assert result == :ok
@@ -364,20 +359,21 @@ defmodule Tuist.SlackTest do
       # Given
       user = AccountsFixtures.user_fixture()
       _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
-      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
 
-      rule =
-        AlertsFixtures.flaky_test_alert_rule_fixture(
-          project: project,
-          slack_channel_id: "C12345",
-          slack_channel_name: "flaky-alerts"
-        )
+      {:ok, project} =
+        [account_id: user.account.id]
+        |> ProjectsFixtures.project_fixture()
+        |> Projects.update_project(%{
+          flaky_test_alerts_slack_channel_id: "C12345",
+          flaky_test_alerts_slack_channel_name: "flaky-alerts"
+        })
 
-      alert =
-        AlertsFixtures.flaky_test_alert_fixture(
-          flaky_test_alert_rule: rule,
-          flaky_runs_count: 1
-        )
+      test_case = %{
+        id: Ecto.UUID.generate(),
+        name: "testExample",
+        module_name: "MyTests",
+        suite_name: nil
+      }
 
       expect(Client, :post_message, fn _token, _channel_id, blocks ->
         metric_block = Enum.at(blocks, 4)
@@ -387,7 +383,7 @@ defmodule Tuist.SlackTest do
       end)
 
       # When
-      result = Slack.send_flaky_test_alert(alert)
+      result = Slack.send_flaky_test_alert(project, test_case, 1)
 
       # Then
       assert result == :ok
@@ -397,20 +393,21 @@ defmodule Tuist.SlackTest do
       # Given
       user = AccountsFixtures.user_fixture()
       _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
-      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
 
-      rule =
-        AlertsFixtures.flaky_test_alert_rule_fixture(
-          project: project,
-          slack_channel_id: "C12345",
-          slack_channel_name: "flaky-alerts"
-        )
+      {:ok, project} =
+        [account_id: user.account.id]
+        |> ProjectsFixtures.project_fixture()
+        |> Projects.update_project(%{
+          flaky_test_alerts_slack_channel_id: "C12345",
+          flaky_test_alerts_slack_channel_name: "flaky-alerts"
+        })
 
-      alert =
-        AlertsFixtures.flaky_test_alert_fixture(
-          flaky_test_alert_rule: rule,
-          test_case_suite_name: nil
-        )
+      test_case = %{
+        id: Ecto.UUID.generate(),
+        name: "testExample",
+        module_name: "MyTests",
+        suite_name: nil
+      }
 
       expect(Client, :post_message, fn _token, _channel_id, blocks ->
         test_case_block = Enum.at(blocks, 3)
@@ -419,7 +416,42 @@ defmodule Tuist.SlackTest do
       end)
 
       # When
-      result = Slack.send_flaky_test_alert(alert)
+      result = Slack.send_flaky_test_alert(project, test_case, 3)
+
+      # Then
+      assert result == :ok
+    end
+
+    test "includes auto-quarantine info when was_auto_quarantined is true" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+
+      {:ok, project} =
+        [account_id: user.account.id]
+        |> ProjectsFixtures.project_fixture()
+        |> Projects.update_project(%{
+          flaky_test_alerts_slack_channel_id: "C12345",
+          flaky_test_alerts_slack_channel_name: "flaky-alerts"
+        })
+
+      test_case = %{
+        id: Ecto.UUID.generate(),
+        name: "testExample",
+        module_name: "MyTests",
+        suite_name: nil
+      }
+
+      expect(Client, :post_message, fn _token, _channel_id, blocks ->
+        # Should have 6 blocks when auto-quarantined (extra info block)
+        assert length(blocks) == 6
+        quarantine_block = Enum.at(blocks, 5)
+        assert Enum.any?(quarantine_block.elements, fn e -> e.text =~ "automatically quarantined" end)
+        :ok
+      end)
+
+      # When
+      result = Slack.send_flaky_test_alert(project, test_case, 3, true)
 
       # Then
       assert result == :ok

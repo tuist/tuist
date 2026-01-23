@@ -40,5 +40,43 @@ defmodule TuistWeb.TestCaseLiveTest do
       {:ok, _lv, _html} =
         live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}")
     end
+
+    test "quarantine button quarantines a test case", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, account_id: account.id)
+      test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
+      [test_case_run | _] = test_run.test_case_runs
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}")
+
+      html = lv |> element(~s|button[phx-click="quarantine"]|) |> render_click()
+
+      assert html =~ "Quarantined"
+      assert html =~ "Unquarantine"
+    end
+
+    test "unquarantine button unquarantines a test case", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, account_id: account.id)
+      test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
+      [test_case_run | _] = test_run.test_case_runs
+
+      Tuist.Runs.update_test_case(test_case_run.test_case_id, %{is_quarantined: true})
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}")
+
+      html = lv |> element(~s|button[phx-click="unquarantine"]|) |> render_click()
+
+      refute html =~ "Quarantined"
+      assert html =~ "Quarantine"
+    end
   end
 end

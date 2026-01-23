@@ -741,7 +741,7 @@ let package = Package(
             id: "MobileNativeFoundation.XCLogParser",
             .upToNextMajor(from: "0.2.45")
         ),
-        .package(id: "tuist.Noora", .upToNextMajor(from: "0.51.2")),
+        .package(id: "tuist.Noora", from: "0.54.0"),
         .package(
             id: "frazer-rbsn.OrderedSet", .upToNextMajor(from: "2.0.0")
         ),

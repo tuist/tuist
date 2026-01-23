@@ -447,7 +447,7 @@ struct CommandEnvironmentVariableTests {
     }
 
     @Test(.withMockedEnvironment()) func testTestCommandWithEnvVars() throws {
-        // Set environment variables for TestCommand
+        // Set environment variables for TestRunCommand
         setVariable(.testScheme, value: "MyScheme")
         setVariable(.testClean, value: "true")
         setVariable(.testNoUpload, value: "true")
@@ -470,8 +470,8 @@ struct CommandEnvironmentVariableTests {
         setVariable(.testBinaryCache, value: "false")
         setVariable(.testSelectiveTesting, value: "false")
 
-        // Execute TestCommand without command line arguments
-        let testCommandWithEnvVars = try TestCommand.parse([])
+        // Execute TestRunCommand without command line arguments
+        let testCommandWithEnvVars = try TestRunCommand.parse([])
         #expect(testCommandWithEnvVars.scheme == "MyScheme")
         #expect(testCommandWithEnvVars.clean == true)
         #expect(testCommandWithEnvVars.noUpload == true)
@@ -498,8 +498,8 @@ struct CommandEnvironmentVariableTests {
         #expect(testCommandWithEnvVars.binaryCache == false)
         #expect(testCommandWithEnvVars.selectiveTesting == false)
 
-        // Execute TestCommand with command line arguments
-        let testCommandWithArgs = try TestCommand.parse([
+        // Execute TestRunCommand with command line arguments
+        let testCommandWithArgs = try TestRunCommand.parse([
             "NewScheme",
             "--no-clean",
             "--path", "/new/test/path",

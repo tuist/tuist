@@ -486,6 +486,29 @@ defmodule Tuist.Authorization do
     end
   end
 
+  object :test do
+    action :read do
+      desc("Allows the authenticated subject to read a project's tests if the project is public.")
+      allow(:public_project)
+
+      desc("Allows users of a project to read tests.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of a project to read tests.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows the authenticated project to read tests if it matches the project.")
+      allow([:authenticated_as_project, :projects_match])
+
+      desc("Allows users with ops access to read any tests.")
+      allow([:authenticated_as_user, :ops_access])
+
+      desc("Allows an account token with project:tests:read or project:tests:write scope to read tests.")
+      allow([:authenticated_as_account, scopes_permit: "project:tests:read"])
+      allow([:authenticated_as_account, scopes_permit: "project:tests:write"])
+    end
+  end
+
   object :ops do
     action :read do
       desc("Allows ops access for authorized users.")
