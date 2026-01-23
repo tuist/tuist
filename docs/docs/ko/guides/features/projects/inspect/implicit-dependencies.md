@@ -24,15 +24,15 @@ tuist inspect dependencies --only implicit
 
 ::: tip CI에서 검사하기
 <!-- -->
-새로운 코드가 업스트림에 푸시될 때마다 이 명령을
-<LocalizedLink href="/guides/features/automate/continuous-integration">지속적
-통합</LocalizedLink> 명령의 일부로 실행할 것을 강력히 권장합니다.
+새로운 코드가 올라올 때마다 이 명령을
+<LocalizedLink href="/guides/features/automate/continuous-integration">CI</LocalizedLink>
+명령의 일부로 실행하는 것을 강력히 권장합니다.
 <!-- -->
 :::
 
-::: warning NOT ALL IMPLICIT CASES ARE DETECTED
+::: warning 모든 암시적 import가 감지되지는 않음
 <!-- -->
-Tuist는 암시적 종속성을 탐지하기 위해 정적 코드 분석에 의존하므로 모든 경우를 포착하지 못할 수 있습니다. 예를 들어, Tuist는 코드
-내 컴파일러 지시문을 통한 조건부 임포트(conditional imports)를 이해하지 못합니다.
+Tuist는 암시적 의존성을 탐지하기 위해 정적 코드 분석에 의존하므로 모든 경우를 포착하지 못할 수 있습니다. 예를 들어, Tuist는 코드
+내 컴파일러 지시문을 통한 조건부 import를 이해하지 못합니다.
 <!-- -->
 :::
