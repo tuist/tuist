@@ -149,6 +149,17 @@ defmodule TuistWeb.TestCaseLive do
     end
   end
 
+  defp refresh_history_events(%{assigns: %{selected_tab: "history", test_case_id: test_case_id}} = socket) do
+    {events, meta} = Runs.list_test_case_events(test_case_id, %{page: 1, page_size: 20})
+
+    socket
+    |> assign(:history_events, events)
+    |> assign(:history_meta, meta)
+    |> assign(:history_page, 1)
+  end
+
+  defp refresh_history_events(socket), do: socket
+
   def handle_event(
         "search-test-case-runs",
         %{"search" => search},
@@ -213,7 +224,8 @@ defmodule TuistWeb.TestCaseLive do
     {:noreply,
      socket
      |> assign(:test_case_detail, %{test_case_detail | is_flaky: updated_test_case.is_flaky})
-     |> assign(:flaky_runs_grouped, [])}
+     |> assign(:flaky_runs_grouped, [])
+     |> refresh_history_events()}
   end
 
   def handle_event(
@@ -253,7 +265,10 @@ defmodule TuistWeb.TestCaseLive do
     # Send Slack notification for manual flaky marking
     send_manual_flaky_alert(project, updated_test_case, current_user, was_auto_quarantined)
 
-    {:noreply, assign(socket, :test_case_detail, test_case_detail)}
+    {:noreply,
+     socket
+     |> assign(:test_case_detail, test_case_detail)
+     |> refresh_history_events()}
   end
 
   def handle_event(
@@ -274,7 +289,10 @@ defmodule TuistWeb.TestCaseLive do
         project_id: project.id
       )
 
-    {:noreply, assign(socket, :test_case_detail, %{test_case_detail | is_quarantined: updated_test_case.is_quarantined})}
+    {:noreply,
+     socket
+     |> assign(:test_case_detail, %{test_case_detail | is_quarantined: updated_test_case.is_quarantined})
+     |> refresh_history_events()}
   end
 
   def handle_event(
@@ -295,7 +313,10 @@ defmodule TuistWeb.TestCaseLive do
         project_id: project.id
       )
 
-    {:noreply, assign(socket, :test_case_detail, %{test_case_detail | is_quarantined: updated_test_case.is_quarantined})}
+    {:noreply,
+     socket
+     |> assign(:test_case_detail, %{test_case_detail | is_quarantined: updated_test_case.is_quarantined})
+     |> refresh_history_events()}
   end
 
   def handle_event(
