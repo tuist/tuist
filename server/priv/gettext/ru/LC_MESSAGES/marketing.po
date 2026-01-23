@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2026-01-23 09:02+0000\nLast-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-memory@weblate.org>\nLanguage-Team: Russian <https://translate.tuist.dev/projects/tuist/marketing/ru/>\nLanguage: ru\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\nX-Generator: Weblate 5.15.2\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2026-01-23 09:02+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Russian <https://translate.tuist.dev/projects/tuist/marketing/ru/>\nLanguage: ru\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\nX-Generator: Weblate 5.15.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -916,47 +916,61 @@ msgstr "Язык"
 msgid "Read story"
 msgstr "Читать рассказ"
 
+#, fuzzy
 msgid "%{company} case study"
-msgstr ""
+msgstr "%{company} пример из практики"
 
+#, fuzzy
 msgid "(opens in new tab)"
-msgstr ""
+msgstr "(открывается в новой вкладке)"
 
+#, fuzzy
 msgid "Discover how teams around the world use Tuist to build high-quality apps faster, streamline workflows, and save countless hours of engineering time."
-msgstr ""
+msgstr "Узнайте, как команды по всему миру используют Tuist для более быстрого создания высококачественных приложений, оптимизации рабочих процессов и экономии бесчисленных часов инженерного времени."
 
+#, fuzzy
 msgid "Founded"
-msgstr ""
+msgstr "Основано"
 
+#, fuzzy
 msgid "Learn how teams use Tuist to scale their iOS development."
-msgstr ""
+msgstr "Узнайте, как команды используют Tuist для масштабирования разработки приложений для iOS."
 
+#, fuzzy
 msgid "Onboarded"
-msgstr ""
+msgstr "Внедренный"
 
+#, fuzzy
 msgid "Read next"
-msgstr ""
+msgstr "Читать дальше"
 
+#, fuzzy
 msgid "Explore Tuist's features on the public dashboard"
-msgstr ""
+msgstr "Ознакомьтесь с функциями Tuist на общедоступной панели инструментов."
 
+#, fuzzy
 msgid "Public dashboard"
-msgstr ""
+msgstr "Публичная панель инструментов"
 
+#, fuzzy
 msgid "See how leading teams scale with Tuist"
-msgstr ""
+msgstr "Узнайте, как ведущие команды масштабируются с помощью Tuist"
 
+#, fuzzy
 msgid "See how leading tech companies are scaling their development with Tuist."
-msgstr ""
+msgstr "Узнайте, как ведущие технологические компании масштабируют свою разработку с помощью Tuist."
 
+#, fuzzy
 msgid "AI moves fast. So should your builds."
-msgstr ""
+msgstr "ИИ развивается быстро. Ваши сборки тоже должны развиваться быстро."
 
+#, fuzzy
 msgid "Customers"
-msgstr ""
+msgstr "Клиенты"
 
+#, fuzzy
 msgid "Tuist Customers"
-msgstr ""
+msgstr "Клиенты Tuist"
 
 #~ msgid "AI writes faster. So should your builds."
 #~ msgstr "AI writes faster. So should your builds."
