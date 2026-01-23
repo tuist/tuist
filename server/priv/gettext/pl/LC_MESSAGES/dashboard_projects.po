@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-22 13:04+0000\n"
+"PO-Revision-Date: 2026-01-23 12:12+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Polish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/pl/>\n"
@@ -431,195 +431,269 @@ msgstr "od ostatniego kropki"
 msgid "since yesterday"
 msgstr "od wczoraj"
 
+#, fuzzy
 msgid "Channel"
-msgstr ""
+msgstr "Kanał"
 
+#, fuzzy
 msgid "Configure"
-msgstr ""
+msgstr "Skonfiguruj"
 
+#, fuzzy
 msgid "Daily"
-msgstr ""
+msgstr "Codziennie"
 
+#, fuzzy
 msgid "Frequency"
-msgstr ""
+msgstr "Częstotliwość"
 
+#, fuzzy
 msgid "Never"
-msgstr ""
+msgstr "Nigdy"
 
+#, fuzzy
 msgid "Save"
-msgstr ""
+msgstr "Zapisz"
 
+#, fuzzy
 msgid "Send test report"
-msgstr ""
+msgstr "Wyślij raport z testów"
 
+#, fuzzy
 msgid "Time"
-msgstr ""
+msgstr "Czas"
 
+#, fuzzy
 msgid "All days"
-msgstr ""
+msgstr "Wszystkie dni"
 
+#, fuzzy
 msgid "Select days"
-msgstr ""
+msgstr "Wybierz dni"
 
+#, fuzzy
 msgid "Average"
-msgstr ""
+msgstr "Średnia"
 
+#, fuzzy
 msgid "Build duration"
-msgstr ""
+msgstr "Czas trwania budowy"
 
+#, fuzzy
 msgid "Cache hit rate"
-msgstr ""
+msgstr "Wskaźnik trafień w pamięci podręcznej"
 
+#, fuzzy
 msgid "Category"
-msgstr ""
+msgstr "Kategoria"
 
+#, fuzzy
 msgid "Get notified when metrics regress"
-msgstr ""
+msgstr "Otrzymuj powiadomienia o pogorszeniu się wskaźników"
 
+#, fuzzy
 msgid "Metric"
-msgstr ""
+msgstr "Metryka"
 
+#, fuzzy
 msgid "Test duration"
-msgstr ""
+msgstr "Czas trwania testu"
 
+#, fuzzy
 msgid "Rolling window"
-msgstr ""
+msgstr "Okno przesuwne"
 
+#, fuzzy
 msgid "Add alert rule"
-msgstr ""
+msgstr "Dodaj regułę alertu"
 
+#, fuzzy
 msgid "Alert name"
-msgstr ""
+msgstr "Nazwa alertu"
 
+#, fuzzy
 msgid "Alert rules"
-msgstr ""
+msgstr "Reguły alertów"
 
+#, fuzzy
 msgid "Configure schedule"
-msgstr ""
+msgstr "Skonfiguruj harmonogram"
 
+#, fuzzy
 msgid "Configure your report notifications"
-msgstr ""
+msgstr "Skonfiguruj powiadomienia o raportach"
 
+#, fuzzy
 msgid "Connect Slack"
-msgstr ""
+msgstr "Połącz Slack"
 
+#, fuzzy
 msgid "Deviation (%)"
-msgstr ""
+msgstr "Odchylenie (%)"
 
+#, fuzzy
 msgid "Notifications"
-msgstr ""
+msgstr "Powiadomienia"
 
+#, fuzzy
 msgid "Repeat"
-msgstr ""
+msgstr "Powtórz"
 
+#, fuzzy
 msgid "Reports"
-msgstr ""
+msgstr "Raporty"
 
+#, fuzzy
 msgid "Schedule"
-msgstr ""
+msgstr "Harmonogram"
 
+#, fuzzy
 msgid "Slack"
-msgstr ""
+msgstr "Slack"
 
+#, fuzzy
 msgid "Select channel"
-msgstr ""
+msgstr "Wybierz kanał"
 
+#, fuzzy
 msgid "Update channel"
-msgstr ""
+msgstr "Aktualizuj kanał"
 
+#, fuzzy
 msgid "Slack channel"
-msgstr ""
+msgstr "Kanał Slack"
 
+#, fuzzy
 msgid "average"
-msgstr ""
+msgstr "średnia"
 
+#, fuzzy
 msgid "build time"
-msgstr ""
+msgstr "czas kompilacji"
 
+#, fuzzy
 msgid "builds"
-msgstr ""
+msgstr "buduje"
 
+#, fuzzy
 msgid "cache hit rate"
-msgstr ""
+msgstr "wskaźnik trafień w pamięci podręcznej"
 
+#, fuzzy
 msgid "test time"
-msgstr ""
+msgstr "czas testu"
 
+#, fuzzy
 msgid "tests"
-msgstr ""
+msgstr "testy"
 
+#, fuzzy
 msgid "Create"
-msgstr ""
+msgstr "Utwórz"
 
+#, fuzzy
 msgid "Create alert rule"
-msgstr ""
+msgstr "Utwórz regułę alertu"
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{metric_category}</strong> of the last "
 "<strong>%{rolling_window_size} %{unit}</strong> has decreased by "
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
+"Powiadomienie, gdy <strong>%{metric_category}</strong> ostatniego <strong>%"
+"{rolling_window_size} %{unit}</strong> spadło o <strong>%{deviation}%</"
+"strong> w porównaniu z poprzednim <strong>%{rolling_window_size} %{unit}</"
+"strong>."
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{metric_category}</strong> of the last "
 "<strong>%{rolling_window_size} %{unit}</strong> has increased by "
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
+"Powiadomienie, gdy <strong>%{metric_category}</strong> z ostatniego <strong>%"
+"{rolling_window_size} %{unit}</strong> wzrosło o <strong>%{deviation}%</"
+"strong> w porównaniu z poprzednim <strong>%{rolling_window_size} %{unit}</"
+"strong>."
 
+#, fuzzy
 msgid "Connect your Slack account before selecting channels."
-msgstr ""
+msgstr "Połącz swoje konto Slack przed wybraniem kanałów."
 
+#, fuzzy
 msgid "Deviation"
-msgstr ""
+msgstr "Odchylenie"
 
+#, fuzzy
 msgid "None"
-msgstr ""
+msgstr "Brak"
 
+#, fuzzy
 msgid "Update"
-msgstr ""
+msgstr "Aktualizacja"
 
+#, fuzzy
 msgid "Update alert rule"
-msgstr ""
+msgstr "Zaktualizuj regułę alertu"
 
 msgid "Metrics"
 msgstr ""
 
+#, fuzzy
 msgid "Create an alert rule to get notified when metrics regress"
 msgstr ""
+"Utwórz regułę alertu, aby otrzymywać powiadomienia w przypadku regresji "
+"metryk."
 
+#, fuzzy
 msgid "No alert rules"
-msgstr ""
+msgstr "Brak reguł alertów"
 
+#, fuzzy
 msgid "Auto-mark tests as flaky"
-msgstr ""
+msgstr "Automatycznie oznaczaj testy jako niestabilne."
 
+#, fuzzy
 msgid "Auto-quarantine flaky tests"
-msgstr ""
+msgstr "Automatyczna kwarantanna niestabilnych testów"
 
+#, fuzzy
 msgid "Automatically quarantine tests when they are detected as flaky"
 msgstr ""
+"Automatycznie poddawaj testy kwarantannie, gdy zostaną wykryte jako "
+"niestabilne."
 
+#, fuzzy
 msgid "Automations"
-msgstr ""
+msgstr "Automatyzacje"
 
+#, fuzzy
 msgid "Flaky test detection"
-msgstr ""
+msgstr "Wykrywanie błędów testowych"
 
+#, fuzzy
 msgid "Get notified when tests are flagged as flaky"
-msgstr ""
+msgstr "Otrzymuj powiadomienia, gdy testy zostaną oznaczone jako niestabilne."
 
+#, fuzzy
 msgid "Minimum occurrences"
-msgstr ""
+msgstr "Minimalna liczba wystąpień"
 
+#, fuzzy
 msgid "Slack notifications"
-msgstr ""
+msgstr "Powiadomienia Slack"
 
+#, fuzzy
 msgid "Test quarantine"
-msgstr ""
+msgstr "Testowa kwarantanna"
 
+#, fuzzy
 msgid ""
 "Tests will be marked as flaky after the specified number of flaky "
 "occurrences within the last 30 days"
 msgstr ""
+"Testy zostaną oznaczone jako niestabilne po określonej liczbie niestabilnych "
+"wystąpień w ciągu ostatnich 30 dni."
