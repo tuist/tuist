@@ -748,3 +748,12 @@ msgstr "取消标记为不稳定"
 #, fuzzy
 msgid "New"
 msgstr "新"
+
+msgid "Quarantine"
+msgstr ""
+
+msgid "Quarantined"
+msgstr ""
+
+msgid "Unquarantine"
+msgstr ""

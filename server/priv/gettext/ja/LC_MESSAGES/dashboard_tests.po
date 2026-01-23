@@ -758,3 +758,12 @@ msgstr "フラッキーとしてマークを解除"
 #, fuzzy
 msgid "New"
 msgstr "新規"
+
+msgid "Quarantine"
+msgstr ""
+
+msgid "Quarantined"
+msgstr ""
+
+msgid "Unquarantine"
+msgstr ""
