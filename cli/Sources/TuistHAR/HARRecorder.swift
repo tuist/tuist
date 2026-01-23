@@ -130,9 +130,7 @@ public actor HARRecorder {
             let data = try HAR.encode(log)
             try data.write(to: filePath.url, options: .atomic)
         } catch {
-            #if os(macOS)
-                Logger.current.debug("Failed to persist HAR file: \(error)")
-            #endif
+            Logger.current.debug("Failed to persist HAR file: \(error)")
         }
     }
 
