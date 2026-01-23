@@ -97,9 +97,9 @@
 
     & [data-part="summary-main"] {
       display: flex;
+      flex: 1;
       flex-direction: column;
       gap: var(--noora-spacing-8);
-      flex: 1;
     }
 
     & [data-part="metadata-grid"] {
@@ -161,11 +161,11 @@
   & [data-part="test-case-details-section"] {
     & [data-part="overview-history"] {
       display: flex;
+      flex: 0 0 40%;
       flex-direction: column;
       gap: var(--noora-spacing-5);
-      padding-left: var(--noora-spacing-5);
       border-left: 1px solid var(--noora-surface-border-primary);
-      flex: 0 0 40%;
+      padding-left: var(--noora-spacing-5);
 
       & [data-part="overview-history-title"] {
         color: var(--noora-surface-label-primary);
@@ -183,18 +183,18 @@
         flex-direction: row;
         align-items: center;
         gap: 10px;
-        padding: var(--noora-spacing-5);
-        background: var(--noora-surface-background-primary);
-        border-radius: var(--noora-radius-large);
         box-shadow: var(--noora-light-border-default);
+        border-radius: var(--noora-radius-large);
+        background: var(--noora-surface-background-primary);
+        padding: var(--noora-spacing-5);
 
         & [data-part="overview-history-icon"] {
           display: flex;
-          align-items: center;
-          justify-content: center;
           flex-shrink: 0;
-          padding: var(--noora-spacing-3);
+          justify-content: center;
+          align-items: center;
           border-radius: var(--noora-radius-large);
+          padding: var(--noora-spacing-3);
 
           & svg {
             width: var(--noora-icon-size-large);
@@ -239,9 +239,9 @@
 
         & [data-part="overview-history-content"] {
           display: flex;
+          flex: 1;
           flex-direction: column;
           gap: var(--noora-spacing-2);
-          flex: 1;
 
           & [data-part="overview-history-item-title"] {
             color: var(--noora-surface-label-primary);
@@ -255,9 +255,9 @@
         }
 
         & [data-part="overview-history-time"] {
+          flex-shrink: 0;
           color: var(--noora-surface-label-secondary);
           font: var(--noora-font-weight-regular) var(--noora-font-body-small);
-          flex-shrink: 0;
         }
       }
 
@@ -560,19 +560,19 @@
 
       & [data-part="timeline"] {
         display: flex;
+        position: relative;
         flex-direction: column;
         gap: var(--noora-spacing-5);
-        position: relative;
         padding-left: 48px;
 
         &::before {
-          content: "";
           position: absolute;
           top: 0;
           bottom: 0;
           left: 24px;
-          width: 1px;
           background: var(--noora-surface-border-primary);
+          width: 1px;
+          content: "";
         }
       }
 
@@ -581,18 +581,18 @@
         flex-direction: row;
         align-items: center;
         gap: 10px;
-        padding: var(--noora-spacing-5);
-        background: var(--noora-surface-background-primary);
-        border-radius: var(--noora-radius-large);
         box-shadow: var(--noora-light-border-default);
+        border-radius: var(--noora-radius-large);
+        background: var(--noora-surface-background-primary);
+        padding: var(--noora-spacing-5);
 
         & [data-part="timeline-icon"] {
           display: flex;
-          align-items: center;
-          justify-content: center;
           flex-shrink: 0;
-          padding: var(--noora-spacing-3);
+          justify-content: center;
+          align-items: center;
           border-radius: var(--noora-radius-large);
+          padding: var(--noora-spacing-3);
 
           & svg {
             width: var(--noora-icon-size-large);
@@ -637,9 +637,9 @@
 
         & [data-part="timeline-content"] {
           display: flex;
+          flex: 1;
           flex-direction: column;
           gap: var(--noora-spacing-2);
-          flex: 1;
 
           & [data-part="timeline-title"] {
             color: var(--noora-surface-label-primary);
@@ -653,17 +653,17 @@
         }
 
         & [data-part="timeline-time"] {
+          flex-shrink: 0;
           color: var(--noora-surface-label-secondary);
           font: var(--noora-font-weight-regular) var(--noora-font-body-small);
-          flex-shrink: 0;
         }
       }
 
       & [data-part="timeline-empty"] {
         display: flex;
         flex-direction: column;
-        align-items: center;
         justify-content: center;
+        align-items: center;
         gap: var(--noora-spacing-3);
         padding: var(--noora-spacing-10);
         text-align: center;
