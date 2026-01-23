@@ -101,7 +101,16 @@ defmodule Tuist.IngestRepo.Migrations.BackfillFirstRunEvents do
   defp throttle_change_in_batches(query_fun, change_fun, last_test_case_id) do
     case IngestRepo.all(query_fun.(last_test_case_id), log: :info, timeout: :infinity) do
       [] ->
-        Logger.info("Backfill complete")
+        Logger.info("Backfill complete, running OPTIMIZE to deduplicate...")
+
+        {:ok, _} =
+          IngestRepo.query(
+            "OPTIMIZE TABLE test_case_events FINAL",
+            [],
+            timeout: :infinity
+          )
+
+        Logger.info("OPTIMIZE complete")
         :ok
 
       batch ->
