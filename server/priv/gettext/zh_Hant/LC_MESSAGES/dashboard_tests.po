@@ -749,3 +749,12 @@ msgstr "取消標記為不穩定"
 #, fuzzy
 msgid "New"
 msgstr "新"
+
+msgid "Quarantine"
+msgstr ""
+
+msgid "Quarantined"
+msgstr ""
+
+msgid "Unquarantine"
+msgstr ""
