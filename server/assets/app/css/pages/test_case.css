@@ -465,12 +465,12 @@
           align-items: center;
           justify-content: center;
           flex-shrink: 0;
-          padding: var(--noora-spacing-2);
+          padding: var(--noora-spacing-3);
           border-radius: var(--noora-radius-large);
 
           & svg {
-            width: var(--noora-icon-size-medium);
-            height: var(--noora-icon-size-medium);
+            width: var(--noora-icon-size-large);
+            height: var(--noora-icon-size-large);
           }
 
           &[data-color="primary"] {
