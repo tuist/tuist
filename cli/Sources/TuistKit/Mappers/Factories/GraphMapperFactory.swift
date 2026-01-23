@@ -128,6 +128,13 @@ public final class GraphMapperFactory: GraphMapperFactorying {
             mappers.append(ModuleMapMapper())
             mappers.append(ExternalProjectsPlatformNarrowerGraphMapper())
             mappers.append(PruneOrphanExternalTargetsGraphMapper())
+            mappers.append(UpdateWorkspaceProjectsGraphMapper())
+
+            if config.project.generatedProject?.generationOptions.enforceExplicitDependencies == true {
+                mappers.append(ExplicitDependencyGraphMapper())
+            }
+
+            mappers.append(StaticXCFrameworkModuleMapGraphMapper())
 
             mappers.append(
                 TestsCacheGraphMapper(
@@ -163,14 +170,6 @@ public final class GraphMapperFactory: GraphMapperFactorying {
                 mappers.append(focusTargetsGraphMapper)
                 mappers.append(TreeShakePrunedTargetsGraphMapper())
             }
-
-            mappers.append(UpdateWorkspaceProjectsGraphMapper())
-
-            if config.project.generatedProject?.generationOptions.enforceExplicitDependencies == true {
-                mappers.append(ExplicitDependencyGraphMapper())
-            }
-
-            mappers.append(StaticXCFrameworkModuleMapGraphMapper())
 
             return mappers
         }
