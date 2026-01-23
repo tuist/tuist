@@ -1,17 +1,5 @@
 msgid ""
-msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-12-24 14:48+0000\n"
-"PO-Revision-Date: 2026-01-22 13:02+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
-"Language-Team: Arabic <https://translate.tuist.dev/projects/tuist/marketing/ar/>\n"
-"Language: ar\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && n%100<=10 ? 3 : n%100>=11 ? 4 : 5;\n"
-"X-Generator: Weblate 5.15.2\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-12-24 14:48+0000\nPO-Revision-Date: 2026-01-23 09:02+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Arabic <https://translate.tuist.dev/projects/tuist/marketing/ar/>\nLanguage: ar\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && n%100<=10 ? 3 : n%100>=11 ? 4 : 5;\nX-Generator: Weblate 5.15.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -368,11 +356,11 @@ msgstr "الأسئلة المتكررة"
 
 #, fuzzy
 msgid "Generated Projects"
-msgstr "المشروع المُنشأ"
+msgstr "المشاريع التي تم إنشاؤها"
 
 #, fuzzy
 msgid "Generated projects"
-msgstr "المشروع المُنشأ"
+msgstr "المشاريع التي تم إنشاؤها"
 
 #, fuzzy
 msgid "Get Support"
@@ -1226,47 +1214,61 @@ msgstr "اللغة"
 msgid "Read story"
 msgstr "اقرأ القصة"
 
+#, fuzzy
 msgid "%{company} case study"
-msgstr ""
+msgstr "دراسة حالة %{company}"
 
+#, fuzzy
 msgid "(opens in new tab)"
-msgstr ""
+msgstr "(يفتح في علامة تبويب جديدة)"
 
+#, fuzzy
 msgid "Discover how teams around the world use Tuist to build high-quality apps faster, streamline workflows, and save countless hours of engineering time."
-msgstr ""
+msgstr "اكتشف كيف تستخدم الفرق في جميع أنحاء العالم Tuist لإنشاء تطبيقات عالية الجودة بشكل أسرع، وتبسيط سير العمل، وتوفير ساعات لا حصر لها من وقت الهندسة."
 
+#, fuzzy
 msgid "Founded"
-msgstr ""
+msgstr "تأسست"
 
+#, fuzzy
 msgid "Learn how teams use Tuist to scale their iOS development."
-msgstr ""
+msgstr "تعرف على كيفية استخدام الفرق لـ Tuist لتوسيع نطاق تطوير iOS."
 
+#, fuzzy
 msgid "Onboarded"
-msgstr ""
+msgstr "تم التسجيل"
 
+#, fuzzy
 msgid "Read next"
-msgstr ""
+msgstr "اقرأ التالي"
 
+#, fuzzy
 msgid "Explore Tuist's features on the public dashboard"
-msgstr ""
+msgstr "استكشف ميزات Tuist على لوحة التحكم العامة"
 
+#, fuzzy
 msgid "Public dashboard"
-msgstr ""
+msgstr "لوحة التحكم العامة"
 
+#, fuzzy
 msgid "See how leading teams scale with Tuist"
-msgstr ""
+msgstr "شاهد كيف تتوسع الفرق الرائدة مع Tuist"
 
+#, fuzzy
 msgid "See how leading tech companies are scaling their development with Tuist."
-msgstr ""
+msgstr "شاهد كيف تعمل شركات التكنولوجيا الرائدة على توسيع نطاق تطويرها باستخدام Tuist."
 
+#, fuzzy
 msgid "AI moves fast. So should your builds."
-msgstr ""
+msgstr "تتطور الذكاء الاصطناعي بسرعة. لذا يجب أن تتطور منتجاتك أيضًا."
 
+#, fuzzy
 msgid "Customers"
-msgstr ""
+msgstr "العملاء"
 
+#, fuzzy
 msgid "Tuist Customers"
-msgstr ""
+msgstr "عملاء Tuist"
 
 #, fuzzy
 #~ msgid "AI writes faster. So should your builds."
