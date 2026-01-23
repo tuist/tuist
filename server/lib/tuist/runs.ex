@@ -685,10 +685,9 @@ defmodule Tuist.Runs do
   ## Parameters
   - `test_case_id` - the test case UUID to update
   - `update_attrs` - map with `:is_flaky` and/or `:is_quarantined` boolean values
-  - `project_id` - the project ID for creating events
   - `actor` - map with `:type` (:user or :system) and `:id` (account_id or nil for system)
   """
-  def update_test_case(test_case_id, update_attrs, project_id, actor) when is_map(update_attrs) do
+  def update_test_case(test_case_id, update_attrs, actor) when is_map(update_attrs) do
     valid_keys = [:is_flaky, :is_quarantined]
     filtered_attrs = Map.take(update_attrs, valid_keys)
 
@@ -702,13 +701,13 @@ defmodule Tuist.Runs do
 
       {1, nil} = IngestRepo.insert_all(TestCase, [attrs])
 
-      create_events_for_test_case_changes(test_case_id, test_case, filtered_attrs, project_id, actor)
+      create_events_for_test_case_changes(test_case_id, test_case, filtered_attrs, actor)
 
       {:ok, Map.merge(test_case, filtered_attrs)}
     end
   end
 
-  defp create_events_for_test_case_changes(test_case_id, old_test_case, new_attrs, project_id, actor) do
+  defp create_events_for_test_case_changes(test_case_id, old_test_case, new_attrs, actor) do
     event_types = determine_test_case_events(old_test_case, new_attrs)
 
     if Enum.any?(event_types) do
@@ -719,7 +718,6 @@ defmodule Tuist.Runs do
           %{
             id: UUIDv7.generate(),
             test_case_id: test_case_id,
-            project_id: project_id,
             event_type: to_string(event_type),
             actor_type: to_string(actor.type),
             actor_id: actor.id,
@@ -758,10 +756,9 @@ defmodule Tuist.Runs do
   """
   def list_test_case_events(test_case_id, attrs \\ %{}) do
     {events, meta} =
-      from(e in TestCaseEvent,
-        where: e.test_case_id == ^test_case_id
+      Tuist.ClickHouseFlop.validate_and_run!(from(e in TestCaseEvent, where: e.test_case_id == ^test_case_id), attrs,
+        for: TestCaseEvent
       )
-      |> Tuist.ClickHouseFlop.validate_and_run!(attrs, for: TestCaseEvent)
 
     events = Repo.preload(events, :actor)
     {events, meta}
@@ -1110,12 +1107,12 @@ defmodule Tuist.Runs do
       IngestRepo.insert_all(TestCaseRunRepetition, all_repetitions)
     end
 
-    create_first_run_events(test_case_runs, test.project_id)
+    create_first_run_events(test_case_runs)
 
     test_case_ids_with_flaky_run
   end
 
-  defp create_first_run_events(test_case_runs, project_id) do
+  defp create_first_run_events(test_case_runs) do
     new_test_case_runs = Enum.filter(test_case_runs, & &1.is_new)
 
     if Enum.any?(new_test_case_runs) do
@@ -1126,7 +1123,6 @@ defmodule Tuist.Runs do
           %{
             id: TestCaseEvent.first_run_id(run.test_case_id),
             test_case_id: run.test_case_id,
-            project_id: project_id,
             event_type: "first_run",
             actor_type: "system",
             actor_id: nil,

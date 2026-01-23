@@ -41,7 +41,6 @@ defmodule Tuist.IngestRepo.Migrations.BackfillFirstRunEvents do
       tcr in "test_case_runs",
       select: %{
         test_case_id: tcr.test_case_id,
-        project_id: min(tcr.project_id),
         first_ran_at: min(tcr.ran_at)
       },
       where: not is_nil(tcr.test_case_id) and tcr.test_case_id > ^last_test_case_id,
@@ -57,13 +56,11 @@ defmodule Tuist.IngestRepo.Migrations.BackfillFirstRunEvents do
     events =
       Enum.map(batch, fn %{
                            test_case_id: test_case_id,
-                           project_id: project_id,
                            first_ran_at: first_ran_at
                          } ->
         %{
           id: TestCaseEvent.first_run_id(test_case_id),
           test_case_id: test_case_id,
-          project_id: project_id,
           event_type: "first_run",
           actor_type: "system",
           actor_id: nil,
@@ -76,7 +73,6 @@ defmodule Tuist.IngestRepo.Migrations.BackfillFirstRunEvents do
       types: %{
         id: :uuid,
         test_case_id: :uuid,
-        project_id: :i64,
         event_type: "LowCardinality(String)",
         actor_type: "LowCardinality(String)",
         actor_id: "Nullable(Int64)",

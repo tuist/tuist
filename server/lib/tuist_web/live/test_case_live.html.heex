@@ -192,65 +192,70 @@
           </div>
         </div>
         <div data-part="widgets">
-        <.widget
-          :if={@flakiness_rate && @flakiness_rate > 0}
-          title={dgettext("dashboard_tests", "Flakiness rate")}
-          description={
-            dgettext(
-              "dashboard_tests",
-              "Percentage of test runs that were flaky in the last 30 days."
-            )
-          }
-          value={"#{@flakiness_rate}%"}
-          id="widget-flakiness-rate"
-        />
-        <.widget
-          title={dgettext("dashboard_tests", "Test reliability")}
-          description={
-            dgettext(
-              "dashboard_tests",
-              "Success rate based on runs from the %{branch} branch. Falls back to all branches if no runs exist on %{branch}.",
-              branch: @selected_project.default_branch
-            )
-          }
-          value={"#{@reliability}%"}
-          id="widget-test-reliability"
-          empty={is_nil(@reliability)}
-          empty_label={dgettext("dashboard_tests", "No data")}
-        />
-        <.widget
-          title={dgettext("dashboard_tests", "Test case runs")}
-          description={
-            dgettext("dashboard_tests", "Total number of times this test case has been executed.")
-          }
-          value={Number.Delimit.number_to_delimited(@analytics.total_count, precision: 0)}
-          id="widget-test-case-runs"
-          empty={@analytics.total_count == 0}
-        />
-        <.widget
-          title={dgettext("dashboard_tests", "Failed test case runs")}
-          description={dgettext("dashboard_tests", "Number of times this test case has failed.")}
-          value={Number.Delimit.number_to_delimited(@analytics.failed_count, precision: 0)}
-          id="widget-failed-test-case-runs"
-          empty={@analytics.total_count == 0}
-        />
-        <.widget
-          title={dgettext("dashboard_tests", "Avg. test case run duration")}
-          description={
-            dgettext(
-              "dashboard_tests",
-              "Average duration of this test case across the last 50 runs."
-            )
-          }
-          value={
-            Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-              @analytics.avg_duration
-            )
-          }
-          id="widget-avg-duration"
-          empty={@analytics.total_count == 0}
-          empty_label={dgettext("dashboard_tests", "No data")}
-        />
+          <.widget
+            :if={@flakiness_rate && @flakiness_rate > 0}
+            title={dgettext("dashboard_tests", "Flakiness rate")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Percentage of test runs that were flaky in the last 30 days."
+              )
+            }
+            value={"#{@flakiness_rate}%"}
+            id="widget-flakiness-rate"
+          />
+          <.widget
+            title={dgettext("dashboard_tests", "Test reliability")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Success rate based on runs from the %{branch} branch. Falls back to all branches if no runs exist on %{branch}.",
+                branch: @selected_project.default_branch
+              )
+            }
+            value={"#{@reliability}%"}
+            id="widget-test-reliability"
+            empty={is_nil(@reliability)}
+            empty_label={dgettext("dashboard_tests", "No data")}
+          />
+          <.widget
+            title={dgettext("dashboard_tests", "Test case runs")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Total number of times this test case has been executed."
+              )
+            }
+            value={Number.Delimit.number_to_delimited(@analytics.total_count, precision: 0)}
+            id="widget-test-case-runs"
+            empty={@analytics.total_count == 0}
+          />
+          <.widget
+            title={dgettext("dashboard_tests", "Failed test case runs")}
+            description={
+              dgettext("dashboard_tests", "Number of times this test case has failed.")
+            }
+            value={Number.Delimit.number_to_delimited(@analytics.failed_count, precision: 0)}
+            id="widget-failed-test-case-runs"
+            empty={@analytics.total_count == 0}
+          />
+          <.widget
+            title={dgettext("dashboard_tests", "Avg. test case run duration")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Average duration of this test case across the last 50 runs."
+              )
+            }
+            value={
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @analytics.avg_duration
+              )
+            }
+            id="widget-avg-duration"
+            empty={@analytics.total_count == 0}
+            empty_label={dgettext("dashboard_tests", "No data")}
+          />
         </div>
       </div>
 
@@ -271,7 +276,9 @@
             </div>
             <div data-part="overview-history-content">
               <span data-part="overview-history-item-title">{event_title(event.event_type)}</span>
-              <span :if={format_event_subtitle(event)} data-part="overview-history-item-subtitle">{format_event_subtitle(event)}</span>
+              <span :if={format_event_subtitle(event)} data-part="overview-history-item-subtitle">
+                {format_event_subtitle(event)}
+              </span>
             </div>
             <div data-part="overview-history-time">
               {Timex.from_now(event.inserted_at)}

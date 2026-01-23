@@ -2659,7 +2659,7 @@ defmodule Tuist.RunsTest do
       test_case_id = ci_run.test_case_id
 
       # Manually mark the test case as flaky (simulating what the FlakyThresholdCheckWorker would do)
-      {:ok, _} = Runs.update_test_case(test_case_id, %{is_flaky: true}, project.id, %{type: :system, id: nil})
+      {:ok, _} = Runs.update_test_case(test_case_id, %{is_flaky: true}, %{type: :system, id: nil})
 
       # Verify TestCase is marked as flaky
       {:ok, test_case_after_ci} = Runs.get_test_case_by_id(test_case_id)
@@ -3272,7 +3272,7 @@ defmodule Tuist.RunsTest do
     end
   end
 
-  describe "update_test_case/2" do
+  describe "update_test_case/3" do
     test "marks a test case as flaky" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -3296,7 +3296,7 @@ defmodule Tuist.RunsTest do
       assert test_case.is_flaky == false
 
       # When
-      result = Runs.update_test_case(test_case.id, %{is_flaky: true}, project.id, %{type: :system, id: nil})
+      result = Runs.update_test_case(test_case.id, %{is_flaky: true}, %{type: :system, id: nil})
 
       # Then
       assert {:ok, updated_test_case} = result
@@ -3310,11 +3310,10 @@ defmodule Tuist.RunsTest do
 
     test "returns error when test case does not exist" do
       # Given
-      project = ProjectsFixtures.project_fixture()
       non_existent_id = UUIDv7.generate()
 
       # When
-      result = Runs.update_test_case(non_existent_id, %{is_flaky: true}, project.id, %{type: :system, id: nil})
+      result = Runs.update_test_case(non_existent_id, %{is_flaky: true}, %{type: :system, id: nil})
 
       # Then
       assert result == {:error, :not_found}
@@ -3342,10 +3341,10 @@ defmodule Tuist.RunsTest do
       {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
 
       # Mark as flaky first
-      {:ok, _} = Runs.update_test_case(test_case.id, %{is_flaky: true}, project.id, %{type: :system, id: nil})
+      {:ok, _} = Runs.update_test_case(test_case.id, %{is_flaky: true}, %{type: :system, id: nil})
 
       # When - mark as flaky again
-      result = Runs.update_test_case(test_case.id, %{is_flaky: true}, project.id, %{type: :system, id: nil})
+      result = Runs.update_test_case(test_case.id, %{is_flaky: true}, %{type: :system, id: nil})
 
       # Then
       assert {:ok, updated_test_case} = result
@@ -3374,12 +3373,12 @@ defmodule Tuist.RunsTest do
       {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
 
       # Mark as flaky first
-      {:ok, _} = Runs.update_test_case(test_case.id, %{is_flaky: true}, project.id, %{type: :system, id: nil})
+      {:ok, _} = Runs.update_test_case(test_case.id, %{is_flaky: true}, %{type: :system, id: nil})
       {:ok, flaky_test_case} = Runs.get_test_case_by_id(test_case.id)
       assert flaky_test_case.is_flaky == true
 
       # When
-      result = Runs.update_test_case(test_case.id, %{is_flaky: false}, project.id, %{type: :system, id: nil})
+      result = Runs.update_test_case(test_case.id, %{is_flaky: false}, %{type: :system, id: nil})
 
       # Then
       assert {:ok, updated_test_case} = result
@@ -3393,11 +3392,10 @@ defmodule Tuist.RunsTest do
 
     test "returns error when unmarking test case that does not exist" do
       # Given
-      project = ProjectsFixtures.project_fixture()
       non_existent_id = UUIDv7.generate()
 
       # When
-      result = Runs.update_test_case(non_existent_id, %{is_flaky: false}, project.id, %{type: :system, id: nil})
+      result = Runs.update_test_case(non_existent_id, %{is_flaky: false}, %{type: :system, id: nil})
 
       # Then
       assert result == {:error, :not_found}
@@ -3426,7 +3424,7 @@ defmodule Tuist.RunsTest do
       assert test_case.is_flaky == false
 
       # When - unmark when already not flaky
-      result = Runs.update_test_case(test_case.id, %{is_flaky: false}, project.id, %{type: :system, id: nil})
+      result = Runs.update_test_case(test_case.id, %{is_flaky: false}, %{type: :system, id: nil})
 
       # Then
       assert {:ok, updated_test_case} = result
@@ -3434,7 +3432,7 @@ defmodule Tuist.RunsTest do
     end
   end
 
-  describe "update_test_case/4 quarantine" do
+  describe "update_test_case/3 quarantine" do
     test "marks a test case as quarantined" do
       project = ProjectsFixtures.project_fixture()
 
@@ -3456,7 +3454,7 @@ defmodule Tuist.RunsTest do
       {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
       assert test_case.is_quarantined == false
 
-      result = Runs.update_test_case(test_case.id, %{is_quarantined: true}, project.id, %{type: :system, id: nil})
+      result = Runs.update_test_case(test_case.id, %{is_quarantined: true}, %{type: :system, id: nil})
 
       assert {:ok, updated_test_case} = result
       assert updated_test_case.is_quarantined == true
@@ -3467,10 +3465,9 @@ defmodule Tuist.RunsTest do
     end
 
     test "returns error when test case does not exist" do
-      project = ProjectsFixtures.project_fixture()
       non_existent_id = UUIDv7.generate()
 
-      result = Runs.update_test_case(non_existent_id, %{is_quarantined: true}, project.id, %{type: :system, id: nil})
+      result = Runs.update_test_case(non_existent_id, %{is_quarantined: true}, %{type: :system, id: nil})
 
       assert result == {:error, :not_found}
     end
@@ -3495,11 +3492,11 @@ defmodule Tuist.RunsTest do
 
       {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
 
-      {:ok, _} = Runs.update_test_case(test_case.id, %{is_quarantined: true}, project.id, %{type: :system, id: nil})
+      {:ok, _} = Runs.update_test_case(test_case.id, %{is_quarantined: true}, %{type: :system, id: nil})
       {:ok, quarantined_test_case} = Runs.get_test_case_by_id(test_case.id)
       assert quarantined_test_case.is_quarantined == true
 
-      result = Runs.update_test_case(test_case.id, %{is_quarantined: false}, project.id, %{type: :system, id: nil})
+      result = Runs.update_test_case(test_case.id, %{is_quarantined: false}, %{type: :system, id: nil})
 
       assert {:ok, updated_test_case} = result
       assert updated_test_case.is_quarantined == false
@@ -3562,7 +3559,7 @@ defmodule Tuist.RunsTest do
         Runs.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: first_test.id}]})
 
       # Mark the test_case as flaky (simulating what the FlakyThresholdCheckWorker would do)
-      {:ok, _} = Runs.update_test_case(test_case_run.test_case_id, %{is_flaky: true}, project.id, %{type: :system, id: nil})
+      {:ok, _} = Runs.update_test_case(test_case_run.test_case_id, %{is_flaky: true}, %{type: :system, id: nil})
 
       RunsFixtures.optimize_test_case_runs()
 
@@ -3624,7 +3621,7 @@ defmodule Tuist.RunsTest do
 
       # Mark all test_cases as flaky (simulating what the FlakyThresholdCheckWorker would do)
       for test_case_id <- test_case_ids do
-        {:ok, _} = Runs.update_test_case(test_case_id, %{is_flaky: true}, project.id, %{type: :system, id: nil})
+        {:ok, _} = Runs.update_test_case(test_case_id, %{is_flaky: true}, %{type: :system, id: nil})
       end
 
       RunsFixtures.optimize_test_case_runs()
@@ -3687,7 +3684,7 @@ defmodule Tuist.RunsTest do
 
       # Mark all test_cases as flaky (simulating what the FlakyThresholdCheckWorker would do)
       for test_case_id <- test_case_ids do
-        {:ok, _} = Runs.update_test_case(test_case_id, %{is_flaky: true}, project.id, %{type: :system, id: nil})
+        {:ok, _} = Runs.update_test_case(test_case_id, %{is_flaky: true}, %{type: :system, id: nil})
       end
 
       RunsFixtures.optimize_test_case_runs()
@@ -3751,7 +3748,7 @@ defmodule Tuist.RunsTest do
 
       # Mark all test_cases as flaky (simulating what the FlakyThresholdCheckWorker would do)
       for test_case_id <- test_case_ids do
-        {:ok, _} = Runs.update_test_case(test_case_id, %{is_flaky: true}, project.id, %{type: :system, id: nil})
+        {:ok, _} = Runs.update_test_case(test_case_id, %{is_flaky: true}, %{type: :system, id: nil})
       end
 
       RunsFixtures.optimize_test_case_runs()
@@ -3809,7 +3806,7 @@ defmodule Tuist.RunsTest do
         Runs.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: first_test.id}]})
 
       # Mark the test_case as flaky (simulating what the FlakyThresholdCheckWorker would do)
-      {:ok, _} = Runs.update_test_case(test_case_run.test_case_id, %{is_flaky: true}, project.id, %{type: :system, id: nil})
+      {:ok, _} = Runs.update_test_case(test_case_run.test_case_id, %{is_flaky: true}, %{type: :system, id: nil})
 
       RunsFixtures.optimize_test_case_runs()
 
@@ -5376,7 +5373,6 @@ defmodule Tuist.RunsTest do
 
     test "loads actor" do
       # Given
-      project = ProjectsFixtures.project_fixture()
       user = AccountsFixtures.user_fixture(preload: [:account])
       test_case_id = Ecto.UUID.generate()
       now = NaiveDateTime.utc_now()
@@ -5385,7 +5381,6 @@ defmodule Tuist.RunsTest do
         %{
           id: Ecto.UUID.generate(),
           test_case_id: test_case_id,
-          project_id: project.id,
           event_type: "marked_flaky",
           actor_type: "user",
           actor_id: user.account.id,
@@ -5403,7 +5398,7 @@ defmodule Tuist.RunsTest do
     end
   end
 
-  describe "update_test_case/4 with event creation" do
+  describe "update_test_case/3 with event creation" do
     test "creates marked_flaky event when is_flaky changes from false to true" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -5416,7 +5411,6 @@ defmodule Tuist.RunsTest do
         Runs.update_test_case(
           test_case.id,
           %{is_flaky: true},
-          project.id,
           %{type: :user, id: user.account.id}
         )
 
@@ -5439,7 +5433,6 @@ defmodule Tuist.RunsTest do
         Runs.update_test_case(
           test_case.id,
           %{is_flaky: false},
-          project.id,
           %{type: :user, id: user.account.id}
         )
 
@@ -5460,7 +5453,6 @@ defmodule Tuist.RunsTest do
         Runs.update_test_case(
           test_case.id,
           %{is_quarantined: true},
-          project.id,
           %{type: :system, id: nil}
         )
 
@@ -5483,7 +5475,6 @@ defmodule Tuist.RunsTest do
         Runs.update_test_case(
           test_case.id,
           %{is_flaky: true, is_quarantined: true},
-          project.id,
           %{type: :user, id: user.account.id}
         )
 
@@ -5494,6 +5485,5 @@ defmodule Tuist.RunsTest do
       assert "marked_flaky" in event_types
       assert "quarantined" in event_types
     end
-
   end
 end

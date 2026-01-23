@@ -57,7 +57,6 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorker do
         Runs.update_test_case(
           test_case_id,
           update_attrs,
-          project_id,
           %{type: :system, id: nil}
         )
 

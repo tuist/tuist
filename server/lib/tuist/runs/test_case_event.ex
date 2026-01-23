@@ -31,7 +31,6 @@ defmodule Tuist.Runs.TestCaseEvent do
   @primary_key {:id, Ecto.UUID, autogenerate: false}
   schema "test_case_events" do
     field :test_case_id, Ecto.UUID
-    field :project_id, Ch, type: "Int64"
     field :event_type, Ch, type: "LowCardinality(String)"
     field :actor_type, Ch, type: "LowCardinality(String)"
     field :actor_id, Ch, type: "Nullable(Int64)"
@@ -43,8 +42,8 @@ defmodule Tuist.Runs.TestCaseEvent do
 
   def changeset(event, attrs) do
     event
-    |> cast(attrs, [:id, :test_case_id, :project_id, :event_type, :actor_type, :actor_id, :metadata, :inserted_at])
-    |> validate_required([:id, :test_case_id, :project_id, :event_type, :actor_type])
+    |> cast(attrs, [:id, :test_case_id, :event_type, :actor_type, :actor_id, :metadata, :inserted_at])
+    |> validate_required([:id, :test_case_id, :event_type, :actor_type])
     |> validate_actor()
   end
 

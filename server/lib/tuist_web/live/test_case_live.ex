@@ -136,7 +136,13 @@ defmodule TuistWeb.TestCaseLive do
   defp assign_history_tab(socket, _other_tab) do
     socket
     |> assign(:history_events, [])
-    |> assign(:history_meta, %Flop.Meta{total_count: 0, total_pages: 0, current_page: 1, page_size: 20, has_next_page?: false})
+    |> assign(:history_meta, %Flop.Meta{
+      total_count: 0,
+      total_pages: 0,
+      current_page: 1,
+      page_size: 20,
+      has_next_page?: false
+    })
     |> assign(:history_page, 1)
   end
 
@@ -212,20 +218,12 @@ defmodule TuistWeb.TestCaseLive do
   def handle_event(
         "unmark-as-flaky",
         _params,
-        %{
-          assigns: %{
-            test_case_id: test_case_id,
-            test_case_detail: test_case_detail,
-            selected_project: project,
-            current_user: current_user
-          }
-        } = socket
+        %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user}} = socket
       ) do
     {:ok, updated_test_case} =
       Runs.update_test_case(
         test_case_id,
         %{is_flaky: false},
-        project.id,
         %{type: :user, id: current_user.account.id}
       )
 
@@ -252,7 +250,6 @@ defmodule TuistWeb.TestCaseLive do
       Runs.update_test_case(
         test_case_id,
         %{is_flaky: true},
-        project.id,
         %{type: :user, id: current_user.account.id}
       )
 
@@ -264,7 +261,6 @@ defmodule TuistWeb.TestCaseLive do
           Runs.update_test_case(
             test_case_id,
             %{is_quarantined: true},
-            project.id,
             %{type: :user, id: current_user.account.id}
           )
 
@@ -285,20 +281,12 @@ defmodule TuistWeb.TestCaseLive do
   def handle_event(
         "quarantine",
         _params,
-        %{
-          assigns: %{
-            test_case_id: test_case_id,
-            test_case_detail: test_case_detail,
-            selected_project: project,
-            current_user: current_user
-          }
-        } = socket
+        %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user}} = socket
       ) do
     {:ok, updated_test_case} =
       Runs.update_test_case(
         test_case_id,
         %{is_quarantined: true},
-        project.id,
         %{type: :user, id: current_user.account.id}
       )
 
@@ -311,20 +299,12 @@ defmodule TuistWeb.TestCaseLive do
   def handle_event(
         "unquarantine",
         _params,
-        %{
-          assigns: %{
-            test_case_id: test_case_id,
-            test_case_detail: test_case_detail,
-            selected_project: project,
-            current_user: current_user
-          }
-        } = socket
+        %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user}} = socket
       ) do
     {:ok, updated_test_case} =
       Runs.update_test_case(
         test_case_id,
         %{is_quarantined: false},
-        project.id,
         %{type: :user, id: current_user.account.id}
       )
 
@@ -511,11 +491,9 @@ defmodule TuistWeb.TestCaseLive do
 
   defp format_event_subtitle(%{event_type: "first_run"}), do: nil
 
-  defp format_event_subtitle(%{actor_type: "system"}),
-    do: dgettext("dashboard_tests", "Automatically by Tuist")
+  defp format_event_subtitle(%{actor_type: "system"}), do: dgettext("dashboard_tests", "Automatically by Tuist")
 
   defp format_event_subtitle(%{actor: nil}), do: nil
 
-  defp format_event_subtitle(%{actor: actor}),
-    do: dgettext("dashboard_tests", "Manually by @%{name}", name: actor.name)
+  defp format_event_subtitle(%{actor: actor}), do: dgettext("dashboard_tests", "Manually by @%{name}", name: actor.name)
 end

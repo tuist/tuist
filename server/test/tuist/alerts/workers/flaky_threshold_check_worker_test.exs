@@ -70,11 +70,10 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorkerTest do
 
       stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
 
-      expect(Runs, :update_test_case, fn id, attrs, opts ->
+      expect(Runs, :update_test_case, fn id, attrs, actor ->
         assert id == test_case.id
         assert attrs == %{is_flaky: true}
-        assert opts[:actor] == %{type: :system, id: nil}
-        assert opts[:project_id] == project.id
+        assert actor == %{type: :system, id: nil}
         {:ok, Map.merge(test_case, attrs)}
       end)
 
@@ -111,11 +110,10 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorkerTest do
 
       stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
 
-      expect(Runs, :update_test_case, fn id, attrs, opts ->
+      expect(Runs, :update_test_case, fn id, attrs, actor ->
         assert id == test_case.id
         assert attrs == %{is_flaky: true, is_quarantined: true}
-        assert opts[:actor] == %{type: :system, id: nil}
-        assert opts[:project_id] == project.id
+        assert actor == %{type: :system, id: nil}
         {:ok, Map.merge(test_case, attrs)}
       end)
 
@@ -186,11 +184,10 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorkerTest do
         end
       end)
 
-      expect(Runs, :update_test_case, fn id, attrs, opts ->
+      expect(Runs, :update_test_case, fn id, attrs, actor ->
         assert id == test_case_1.id
         assert attrs == %{is_flaky: true}
-        assert opts[:actor] == %{type: :system, id: nil}
-        assert opts[:project_id] == project.id
+        assert actor == %{type: :system, id: nil}
         {:ok, Map.merge(test_case_1, attrs)}
       end)
 
