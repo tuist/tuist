@@ -455,7 +455,7 @@
         flex-direction: row;
         align-items: center;
         gap: 10px;
-        padding: var(--noora-spacing-4);
+        padding: var(--noora-spacing-5);
         background: var(--noora-surface-background-primary);
         border-radius: var(--noora-radius-large);
         box-shadow: var(--noora-light-border-default);
