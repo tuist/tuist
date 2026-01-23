@@ -60,6 +60,10 @@ alias Tuist.Slack.Installation
 #
 # =============================================================================
 
+alias Tuist.Xcode.XcodeGraph
+alias Tuist.Xcode.XcodeProject
+alias Tuist.Xcode.XcodeTarget
+
 # Scale presets
 seed_scale = System.get_env("SEED_SCALE", "small")
 
@@ -937,6 +941,163 @@ IO.puts("  - Suite runs: #{:counters.get(suite_run_counter, 1)}")
 IO.puts("  - Case runs: #{:counters.get(case_run_counter, 1)}")
 IO.puts("  - Failures: #{:counters.get(failure_counter, 1)}")
 
+# Generate command events with module cache data linked to test runs
+# This ensures test runs have binary cache analytics available
+IO.puts("Generating test command events with module cache data...")
+
+# Query test runs from ClickHouse to get IDs for linking
+test_run_ids =
+  IngestRepo.all(
+    from(t in Test,
+      where: t.project_id == ^tuist_project.id,
+      select: %{id: t.id, ran_at: t.ran_at},
+      order_by: [desc: t.ran_at],
+      limit: 100
+    )
+  )
+
+test_runs_with_cache_count = min(length(test_run_ids), 50)
+IO.puts("  - Linking #{test_runs_with_cache_count} test runs with module cache data")
+
+test_run_command_events =
+  test_run_ids
+  |> Enum.take(test_runs_with_cache_count)
+  |> Enum.map(fn test_run ->
+    command_event_id = UUIDv7.generate()
+
+    %{
+      id: command_event_id,
+      test_run_id: test_run.id,
+      name: "test",
+      duration: Enum.random(10_000..100_000),
+      tuist_version: "4.1.0",
+      project_id: tuist_project.id,
+      cacheable_targets: ["App", "Framework", "Core", "UI", "Networking"],
+      local_cache_target_hits: ["Framework", "Core"],
+      remote_cache_target_hits: ["UI"],
+      test_targets: ["AppTests", "FrameworkTests"],
+      local_test_target_hits: ["FrameworkTests"],
+      remote_test_target_hits: [],
+      swift_version: "5.9",
+      macos_version: "14.0",
+      subcommand: "",
+      command_arguments: "test --scheme App",
+      is_ci: Enum.random([true, false]),
+      user_id: nil,
+      client_id: "client-id",
+      status: Enum.random([0, 1]),
+      error_message: nil,
+      preview_id: nil,
+      git_ref: nil,
+      git_commit_sha: Enum.random(["a1b2c3d4e5f6", "f6e5d4c3b2a1"]),
+      git_branch: Enum.random(branches),
+      created_at: test_run.ran_at,
+      updated_at: test_run.ran_at,
+      ran_at: test_run.ran_at,
+      build_run_id: nil
+    }
+  end)
+
+if length(test_run_command_events) > 0 do
+  IngestRepo.insert_all(Event, test_run_command_events, timeout: 120_000)
+  IO.puts("  - Created #{length(test_run_command_events)} test command events")
+
+  # Create XcodeGraphs, Projects, and Targets linked to these command events
+  xcode_target_names = ["App", "Framework", "Core", "UI", "Networking", "AppTests", "FrameworkTests"]
+  product_types = ["app", "framework", "static_library", "unit_test_bundle"]
+  dest_pool = [["iphone"], ["ipad"], ["mac"], ["iphone", "ipad"]]
+  hash_pool = Enum.map(1..100, fn _ -> SeedHelpers.random_hex(64) end)
+  subhash_pool = Enum.map(1..100, fn _ -> SeedHelpers.random_hex(32) end)
+
+  test_xcode_graphs =
+    Enum.map(test_run_command_events, fn event ->
+      %{
+        id: UUIDv7.generate(),
+        name: "Workspace",
+        command_event_id: event.id,
+        binary_build_duration: Enum.random(30_000..180_000),
+        inserted_at: NaiveDateTime.truncate(event.ran_at, :second)
+      }
+    end)
+
+  IngestRepo.insert_all(XcodeGraph, test_xcode_graphs, timeout: 120_000)
+  IO.puts("  - Created #{length(test_xcode_graphs)} XcodeGraphs")
+
+  test_xcode_projects =
+    Enum.flat_map(test_xcode_graphs, fn graph ->
+      [
+        %{
+          id: UUIDv7.generate(),
+          name: "App",
+          path: "/App/App.xcodeproj",
+          xcode_graph_id: graph.id,
+          command_event_id: graph.command_event_id,
+          inserted_at: graph.inserted_at
+        },
+        %{
+          id: UUIDv7.generate(),
+          name: "Framework",
+          path: "/Framework/Framework.xcodeproj",
+          xcode_graph_id: graph.id,
+          command_event_id: graph.command_event_id,
+          inserted_at: graph.inserted_at
+        }
+      ]
+    end)
+
+  IngestRepo.insert_all(XcodeProject, test_xcode_projects, timeout: 120_000)
+  IO.puts("  - Created #{length(test_xcode_projects)} XcodeProjects")
+
+  test_xcode_targets =
+    Enum.flat_map(test_xcode_projects, fn project ->
+      xcode_target_names
+      |> Enum.with_index()
+      |> Enum.map(fn {target_name, idx} ->
+        hit_value = rem(idx, 3)
+        is_external = rem(idx, 7) == 0
+        hash_idx = rem(idx, 100)
+
+        %{
+          id: UUIDv7.generate(),
+          name: "#{project.name}_#{target_name}",
+          binary_cache_hash: Enum.at(hash_pool, hash_idx),
+          binary_cache_hit: hit_value,
+          binary_build_duration: 5000 + rem(idx * 17, 25_000),
+          selective_testing_hash: nil,
+          selective_testing_hit: 0,
+          xcode_project_id: project.id,
+          command_event_id: project.command_event_id,
+          inserted_at: project.inserted_at,
+          product: Enum.at(product_types, rem(idx, length(product_types))),
+          bundle_id: "com.tuist.#{String.downcase(project.name)}.#{String.downcase(target_name)}",
+          product_name: target_name,
+          destinations: Enum.at(dest_pool, rem(idx, length(dest_pool))),
+          external_hash: if(is_external, do: Enum.at(subhash_pool, hash_idx), else: ""),
+          sources_hash: if(is_external, do: "", else: Enum.at(subhash_pool, rem(hash_idx + 1, 100))),
+          resources_hash:
+            if(rem(idx, 2) == 0 and not is_external, do: Enum.at(subhash_pool, rem(hash_idx + 2, 100)), else: ""),
+          copy_files_hash: "",
+          core_data_models_hash: "",
+          target_scripts_hash: if(rem(idx, 3) == 0, do: Enum.at(subhash_pool, rem(hash_idx + 3, 100)), else: ""),
+          environment_hash: if(is_external, do: "", else: Enum.at(subhash_pool, rem(hash_idx + 4, 100))),
+          headers_hash: "",
+          deployment_target_hash: if(is_external, do: "", else: Enum.at(subhash_pool, rem(hash_idx + 5, 100))),
+          info_plist_hash:
+            if(rem(idx, 2) == 0 and not is_external, do: Enum.at(subhash_pool, rem(hash_idx + 6, 100)), else: ""),
+          entitlements_hash: if(rem(idx, 4) == 0, do: Enum.at(subhash_pool, rem(hash_idx + 7, 100)), else: ""),
+          dependencies_hash: if(is_external, do: "", else: Enum.at(subhash_pool, rem(hash_idx + 8, 100))),
+          project_settings_hash: if(is_external, do: "", else: Enum.at(subhash_pool, rem(hash_idx + 9, 100))),
+          target_settings_hash: if(is_external, do: "", else: Enum.at(subhash_pool, rem(hash_idx + 10, 100))),
+          buildable_folders_hash: "",
+          additional_strings: []
+        }
+      end)
+    end)
+
+  IngestRepo.insert_all(XcodeTarget, test_xcode_targets, timeout: 120_000)
+  IO.puts("  - Created #{length(test_xcode_targets)} XcodeTargets with subhashes")
+end
+
 IO.puts("Generating #{seed_config.command_events} command events in parallel...")
 
 # Pre-compute static data outside the generator
@@ -1190,7 +1351,7 @@ end
     end)
 
   # Insert graphs (all from ≤10 dates, safe for large batch)
-  IngestRepo.insert_all(Tuist.Xcode.XcodeGraph, graphs, timeout: 120_000)
+  IngestRepo.insert_all(XcodeGraph, graphs, timeout: 120_000)
   :counters.add(graph_counter, 1, length(graphs))
 
   # Generate all projects for this batch's graphs
@@ -1214,7 +1375,7 @@ end
   projects
   |> Enum.chunk_every(50_000)
   |> Enum.each(fn chunk ->
-    IngestRepo.insert_all(Tuist.Xcode.XcodeProject, chunk, timeout: 120_000)
+    IngestRepo.insert_all(XcodeProject, chunk, timeout: 120_000)
     :counters.add(project_counter, 1, length(chunk))
   end)
 
@@ -1230,7 +1391,7 @@ end
   end)
   |> Stream.chunk_every(100_000)
   |> Enum.each(fn chunk ->
-    IngestRepo.insert_all(Tuist.Xcode.XcodeTarget, chunk, timeout: 120_000)
+    IngestRepo.insert_all(XcodeTarget, chunk, timeout: 120_000)
     :counters.add(target_counter, 1, length(chunk))
   end)
 

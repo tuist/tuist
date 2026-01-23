@@ -3,8 +3,8 @@ defmodule TuistWeb.RunDetailLive do
   use TuistWeb, :live_view
   use Noora
 
-  import Noora.Filter
   import TuistWeb.Runs.CacheEndpointFormatter
+  import TuistWeb.Runs.ModuleCacheTab
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
