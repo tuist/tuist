@@ -55,7 +55,9 @@ defmodule Tuist.MixProject do
       {:gettext, "~> 1.0", override: true},
       {:jason, "~> 1.2"},
       {:libcluster, "~> 3.5"},
-      {:bandit, git: "https://github.com/tuist/bandit", branch: "skip-body-drain-on-connection-close", override: true},
+      # Using fork with client disconnect detection during body read timeouts
+      # PR: https://github.com/mtrudel/bandit/pull/564
+      {:bandit, git: "https://github.com/tuist/bandit", branch: "detect-client-disconnect-on-timeout", override: true},
       {:credo, "~> 1.7.13", only: [:dev, :test], runtime: false},
       {:appsignal, "~> 2.15.0"},
       {:appsignal_phoenix, "~> 2.5"},
