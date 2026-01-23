@@ -958,12 +958,11 @@ test_run_ids =
 
 # Query existing command events with test_run_ids to avoid duplicates
 existing_test_run_ids =
-  IngestRepo.all(
-    from(e in Event,
-      where: e.project_id == ^tuist_project.id and not is_nil(e.test_run_id),
-      select: e.test_run_id
-    )
+  from(e in Event,
+    where: e.project_id == ^tuist_project.id and not is_nil(e.test_run_id),
+    select: e.test_run_id
   )
+  |> IngestRepo.all()
   |> MapSet.new()
 
 # Filter to only test runs without existing command events
@@ -1068,7 +1067,10 @@ create_xcode_data_for_events = fn events, label ->
       end)
 
     IngestRepo.insert_all(XcodeTarget, xcode_targets, timeout: 120_000)
-    IO.puts("  - #{label}: #{length(xcode_graphs)} graphs, #{length(xcode_projects)} projects, #{length(xcode_targets)} targets")
+
+    IO.puts(
+      "  - #{label}: #{length(xcode_graphs)} graphs, #{length(xcode_projects)} projects, #{length(xcode_targets)} targets"
+    )
   end
 end
 
@@ -1119,33 +1121,33 @@ IO.puts("Generating command events with module cache data for generate and cache
 
 # Query existing generate/cache command events that have xcode data
 existing_events_with_xcode =
-  IngestRepo.all(
-    from(g in XcodeGraph,
-      join: e in Event,
-      on: g.command_event_id == e.id,
-      where: e.project_id == ^tuist_project.id and e.name in ["generate", "cache"],
-      select: e.id
-    )
+  from(g in XcodeGraph,
+    join: e in Event,
+    on: g.command_event_id == e.id,
+    where: e.project_id == ^tuist_project.id and e.name in ["generate", "cache"],
+    select: e.id
   )
+  |> IngestRepo.all()
   |> MapSet.new()
 
 # Query generate/cache events without xcode data
 events_needing_xcode =
-  IngestRepo.all(
-    from(e in Event,
-      where: e.project_id == ^tuist_project.id and e.name in ["generate", "cache"],
-      select: %{id: e.id, name: e.name, ran_at: e.ran_at},
-      order_by: [desc: e.ran_at],
-      limit: 200
-    )
+  from(e in Event,
+    where: e.project_id == ^tuist_project.id and e.name in ["generate", "cache"],
+    select: %{id: e.id, name: e.name, ran_at: e.ran_at},
+    order_by: [desc: e.ran_at],
+    limit: 200
   )
+  |> IngestRepo.all()
   |> Enum.reject(fn event -> MapSet.member?(existing_events_with_xcode, event.id) end)
   |> Enum.take(100)
 
-generate_events = Enum.filter(events_needing_xcode, &(&1.name == "generate")) |> Enum.take(50)
-cache_events = Enum.filter(events_needing_xcode, &(&1.name == "cache")) |> Enum.take(50)
+generate_events = events_needing_xcode |> Enum.filter(&(&1.name == "generate")) |> Enum.take(50)
+cache_events = events_needing_xcode |> Enum.filter(&(&1.name == "cache")) |> Enum.take(50)
 
-IO.puts("  - Found #{length(generate_events)} generate events and #{length(cache_events)} cache events needing xcode data")
+IO.puts(
+  "  - Found #{length(generate_events)} generate events and #{length(cache_events)} cache events needing xcode data"
+)
 
 create_xcode_data_for_events.(generate_events, "Generate runs")
 create_xcode_data_for_events.(cache_events, "Cache runs")
