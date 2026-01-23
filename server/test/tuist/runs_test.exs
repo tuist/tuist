@@ -5371,7 +5371,7 @@ defmodule Tuist.RunsTest do
           id: Ecto.UUID.generate(),
           test_case_id: test_case_id,
           event_type: "marked_flaky",
-                    actor_id: user.account.id,
+          actor_id: user.account.id,
           inserted_at: now
         }
       ])
