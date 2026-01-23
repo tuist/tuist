@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-22 13:04+0000\n"
+"PO-Revision-Date: 2026-01-23 12:12+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Japanese <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/ja/>\n"
@@ -426,195 +426,262 @@ msgstr "前回のピリオド以降"
 msgid "since yesterday"
 msgstr "昨日から"
 
+#, fuzzy
 msgid "Channel"
-msgstr ""
+msgstr "チャンネル"
 
+#, fuzzy
 msgid "Configure"
-msgstr ""
+msgstr "設定"
 
+#, fuzzy
 msgid "Daily"
-msgstr ""
+msgstr "Daily"
 
+#, fuzzy
 msgid "Frequency"
-msgstr ""
+msgstr "頻度"
 
+#, fuzzy
 msgid "Never"
-msgstr ""
+msgstr "決して"
 
+#, fuzzy
 msgid "Save"
-msgstr ""
+msgstr "保存"
 
+#, fuzzy
 msgid "Send test report"
-msgstr ""
+msgstr "テストレポートを送信"
 
+#, fuzzy
 msgid "Time"
-msgstr ""
+msgstr "時間"
 
+#, fuzzy
 msgid "All days"
-msgstr ""
+msgstr "すべての日"
 
+#, fuzzy
 msgid "Select days"
-msgstr ""
+msgstr "選択日"
 
+#, fuzzy
 msgid "Average"
-msgstr ""
+msgstr "平均"
 
+#, fuzzy
 msgid "Build duration"
-msgstr ""
+msgstr "ビルド時間"
 
+#, fuzzy
 msgid "Cache hit rate"
-msgstr ""
+msgstr "キャッシュヒット率"
 
+#, fuzzy
 msgid "Category"
-msgstr ""
+msgstr "カテゴリー"
 
+#, fuzzy
 msgid "Get notified when metrics regress"
-msgstr ""
+msgstr "メトリクスが後退した際に通知を受け取る"
 
+#, fuzzy
 msgid "Metric"
-msgstr ""
+msgstr "メトリック"
 
+#, fuzzy
 msgid "Test duration"
-msgstr ""
+msgstr "テスト時間"
 
+#, fuzzy
 msgid "Rolling window"
-msgstr ""
+msgstr "ローリングウィンドウ"
 
+#, fuzzy
 msgid "Add alert rule"
-msgstr ""
+msgstr "アラートルールを追加"
 
+#, fuzzy
 msgid "Alert name"
-msgstr ""
+msgstr "アラート名"
 
+#, fuzzy
 msgid "Alert rules"
-msgstr ""
+msgstr "アラートルール"
 
+#, fuzzy
 msgid "Configure schedule"
-msgstr ""
+msgstr "スケジュールを設定する"
 
+#, fuzzy
 msgid "Configure your report notifications"
-msgstr ""
+msgstr "レポート通知を設定する"
 
+#, fuzzy
 msgid "Connect Slack"
-msgstr ""
+msgstr "Slackを接続する"
 
+#, fuzzy
 msgid "Deviation (%)"
-msgstr ""
+msgstr "偏差率（%）"
 
+#, fuzzy
 msgid "Notifications"
-msgstr ""
+msgstr "通知"
 
+#, fuzzy
 msgid "Repeat"
-msgstr ""
+msgstr "Repeat"
 
+#, fuzzy
 msgid "Reports"
-msgstr ""
+msgstr "レポート"
 
+#, fuzzy
 msgid "Schedule"
-msgstr ""
+msgstr "スケジュール"
 
 msgid "Slack"
 msgstr ""
 
+#, fuzzy
 msgid "Select channel"
-msgstr ""
+msgstr "チャンネルを選択"
 
+#, fuzzy
 msgid "Update channel"
-msgstr ""
+msgstr "更新チャンネル"
 
+#, fuzzy
 msgid "Slack channel"
-msgstr ""
+msgstr "Slackチャンネル"
 
+#, fuzzy
 msgid "average"
-msgstr ""
+msgstr "平均"
 
+#, fuzzy
 msgid "build time"
-msgstr ""
+msgstr "ビルド時間"
 
+#, fuzzy
 msgid "builds"
-msgstr ""
+msgstr "builds"
 
+#, fuzzy
 msgid "cache hit rate"
-msgstr ""
+msgstr "キャッシュヒット率"
 
+#, fuzzy
 msgid "test time"
-msgstr ""
+msgstr "テスト時間"
 
+#, fuzzy
 msgid "tests"
-msgstr ""
+msgstr "tests"
 
+#, fuzzy
 msgid "Create"
-msgstr ""
+msgstr "作成"
 
+#, fuzzy
 msgid "Create alert rule"
-msgstr ""
+msgstr "アラートルールを作成する"
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{metric_category}</strong> of the last "
 "<strong>%{rolling_window_size} %{unit}</strong> has decreased by "
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
+"<strong>%{metric_category}</strong> の直近<strong>%{rolling_window_size} %"
+"{unit}</strong> が、前回の<strong>%{rolling_window_size} %{unit}</strong> と"
+"比較して<strong>%{deviation}%</strong> 減少した場合にアラートを通知する。"
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{metric_category}</strong> of the last "
 "<strong>%{rolling_window_size} %{unit}</strong> has increased by "
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
+"<strong>%{metric_category}</strong> の直近<strong>%{rolling_window_size} %"
+"{unit}</strong> が、前回の<strong>%{rolling_window_size} %{unit}</strong> と"
+"比較して<strong>%{deviation}%</strong> 増加した場合にアラートを通知する。"
 
+#, fuzzy
 msgid "Connect your Slack account before selecting channels."
-msgstr ""
+msgstr "チャンネルを選択する前に、Slackアカウントを接続してください。"
 
+#, fuzzy
 msgid "Deviation"
-msgstr ""
+msgstr "偏差"
 
+#, fuzzy
 msgid "None"
-msgstr ""
+msgstr "なし"
 
+#, fuzzy
 msgid "Update"
-msgstr ""
+msgstr "更新"
 
+#, fuzzy
 msgid "Update alert rule"
-msgstr ""
+msgstr "更新アラートルール"
 
 msgid "Metrics"
 msgstr ""
 
+#, fuzzy
 msgid "Create an alert rule to get notified when metrics regress"
-msgstr ""
+msgstr "メトリクスの退行が発生した際に通知を受けるアラートルールを作成する"
 
+#, fuzzy
 msgid "No alert rules"
-msgstr ""
+msgstr "アラートルールなし"
 
+#, fuzzy
 msgid "Auto-mark tests as flaky"
-msgstr ""
+msgstr "テストを不安定として自動マークする"
 
+#, fuzzy
 msgid "Auto-quarantine flaky tests"
-msgstr ""
+msgstr "不安定なテストの自動隔離"
 
+#, fuzzy
 msgid "Automatically quarantine tests when they are detected as flaky"
-msgstr ""
+msgstr "不安定なテストが検出された場合、自動的に隔離する"
 
+#, fuzzy
 msgid "Automations"
-msgstr ""
+msgstr "自動化"
 
+#, fuzzy
 msgid "Flaky test detection"
-msgstr ""
+msgstr "不安定なテストの検出"
 
+#, fuzzy
 msgid "Get notified when tests are flagged as flaky"
-msgstr ""
+msgstr "テストが不安定とフラグ付けされた際に通知を受け取る"
 
+#, fuzzy
 msgid "Minimum occurrences"
-msgstr ""
+msgstr "最小発生回数"
 
+#, fuzzy
 msgid "Slack notifications"
-msgstr ""
+msgstr "Slack通知"
 
+#, fuzzy
 msgid "Test quarantine"
-msgstr ""
+msgstr "テスト隔離"
 
+#, fuzzy
 msgid ""
 "Tests will be marked as flaky after the specified number of flaky "
 "occurrences within the last 30 days"
 msgstr ""
+"過去30日間のフラッキー発生回数が指定回数を超えた場合、テストはフラッキーとし"
+"てマークされます"
