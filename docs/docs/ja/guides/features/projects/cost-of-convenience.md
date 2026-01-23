@@ -43,7 +43,7 @@ Xcode は、各製品の派生データディレクトリ内のディレクト�
 
 ::: 先端 インプリシット・ディペンデンスのTUIST検出
 <!-- -->
-Tuistは暗黙の依存関係を検出するための<LocalizedLink href="/guides/features/inspect/implicit-dependencies">コマンド</LocalizedLink>を提供します。このコマンドを使えば、すべての依存関係が明示的であることをCIで検証できる。
+Tuistは暗黙の依存関係を検出するための<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">コマンド</LocalizedLink>を提供します。このコマンドを使えば、すべての依存関係が明示的であることをCIで検証できる。
 <!-- -->
 :::
 

@@ -15,6 +15,7 @@ import llmstxtPlugin from "vitepress-plugin-llmstxt";
 import postcssRtlcss from "postcss-rtlcss";
 import { validateAdmonitions } from "./validate-admonitions.mjs";
 import { checkLocalePages } from "./check-locale-pages.mjs";
+import { validateLocalizedLinks } from "./validate-localized-links.mjs";
 
 const vitepressDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -356,7 +357,11 @@ export default withMermaid(
     },
     async buildEnd({ outDir }) {
       // Run validations in parallel
-      await Promise.all([validateAdmonitions(outDir), checkLocalePages(outDir)]);
+      await Promise.all([
+        validateAdmonitions(outDir),
+        checkLocalePages(outDir),
+        validateLocalizedLinks(outDir),
+      ]);
 
       // Copy functions directory to dist
       const functionsSource = path.join(path.dirname(outDir), "functions");

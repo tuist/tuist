@@ -66,7 +66,7 @@ Swift 包是我们推荐的在项目中声明依赖关系的方式。您可以�
 
 Xcode 的默认集成虽然是最方便的集成，但缺乏大中型项目所需的灵活性和控制性。为了克服这一问题，Tuist 提供了基于 XcodeProj 的集成，允许您使用
 XcodeProj 的目标在您的项目中集成 Swift
-包。因此，我们不仅可以让您对集成进行更多控制，还可以使其与<LocalizedLink href="/guides/features/cache">缓存</LocalizedLink>和<LocalizedLink href="/guides/features/test/selective-testing">选择性测试运行</LocalizedLink>等工作流兼容。
+包。因此，我们不仅可以让您对集成进行更多控制，还可以使其与<LocalizedLink href="/guides/features/cache">缓存</LocalizedLink>和<LocalizedLink href="/guides/features/selective-testing">选择性测试运行</LocalizedLink>等工作流兼容。
 
 XcodeProj 的集成更有可能需要更多时间来支持新的 Swift 包功能或处理更多的包配置。不过，Swift 包和 XcodeProj
 目标之间的映射逻辑是开源的，可以由社区贡献。这与 Xcode 的默认集成相反，后者是闭源的，由 Apple 维护。

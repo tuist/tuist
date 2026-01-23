@@ -51,7 +51,7 @@ msgstr ""
 msgid "%{savings} %"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:769
+#: lib/tuist_web/live/bundle_live.ex:880
 #, elixir-autogen, elixir-format
 msgid "%{space_usage} %"
 msgstr ""
@@ -61,7 +61,7 @@ msgstr ""
 msgid "0 MB"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:767
+#: lib/tuist_web/live/bundle_live.ex:878
 #, elixir-autogen, elixir-format
 msgid "< 0.1 %"
 msgstr ""
@@ -82,7 +82,7 @@ msgstr ""
 msgid "Any"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:884
+#: lib/tuist_web/live/bundle_live.ex:995
 #: lib/tuist_web/live/bundles_live.ex:387
 #: lib/tuist_web/live/bundles_live.ex:392
 #: lib/tuist_web/live/bundles_live.ex:928
@@ -96,7 +96,8 @@ msgstr ""
 msgid "App:"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.html.heex:536
+#: lib/tuist_web/live/bundle_live.ex:1010
+#: lib/tuist_web/live/bundle_live.html.heex:545
 #, elixir-autogen, elixir-format
 msgid "Asset"
 msgstr ""
@@ -127,7 +128,8 @@ msgstr ""
 msgid "Binaries"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.html.heex:534
+#: lib/tuist_web/live/bundle_live.ex:1008
+#: lib/tuist_web/live/bundle_live.html.heex:543
 #, elixir-autogen, elixir-format
 msgid "Binary"
 msgstr ""
@@ -146,7 +148,7 @@ msgstr ""
 msgid "Branch:"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:52
+#: lib/tuist_web/live/bundle_live.ex:54
 #, elixir-autogen, elixir-format
 msgid "Bundle"
 msgstr ""
@@ -166,7 +168,7 @@ msgstr ""
 msgid "Bundle Size Analysis"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:744
+#: lib/tuist_web/live/bundle_live.ex:855
 #, elixir-autogen, elixir-format
 msgid "Bundle not found."
 msgstr ""
@@ -277,8 +279,9 @@ msgstr ""
 msgid "Delete bundle"
 msgstr ""
 
+#: lib/tuist_web/live/bundle_live.ex:1013
 #: lib/tuist_web/live/bundle_live.html.heex:197
-#: lib/tuist_web/live/bundle_live.html.heex:539
+#: lib/tuist_web/live/bundle_live.html.heex:548
 #, elixir-autogen, elixir-format
 msgid "Directory"
 msgstr ""
@@ -334,8 +337,9 @@ msgstr ""
 msgid "Failed"
 msgstr ""
 
+#: lib/tuist_web/live/bundle_live.ex:1012
 #: lib/tuist_web/live/bundle_live.html.heex:221
-#: lib/tuist_web/live/bundle_live.html.heex:538
+#: lib/tuist_web/live/bundle_live.html.heex:547
 #, elixir-autogen, elixir-format
 msgid "File"
 msgstr ""
@@ -346,13 +350,15 @@ msgstr ""
 msgid "File Breakdown"
 msgstr ""
 
+#: lib/tuist_web/live/bundle_live.html.heex:514
 #: lib/tuist_web/live/bundles_live.html.heex:325
 #: lib/tuist_web/live/cache_runs_live.html.heex:43
 #, elixir-autogen, elixir-format
 msgid "Filter"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.html.heex:537
+#: lib/tuist_web/live/bundle_live.ex:1011
+#: lib/tuist_web/live/bundle_live.html.heex:546
 #, elixir-autogen, elixir-format
 msgid "Font"
 msgstr ""
@@ -381,7 +387,7 @@ msgstr ""
 msgid "Hits"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:883
+#: lib/tuist_web/live/bundle_live.ex:994
 #: lib/tuist_web/live/bundles_live.ex:386
 #: lib/tuist_web/live/bundles_live.ex:391
 #: lib/tuist_web/live/bundles_live.ex:929
@@ -418,7 +424,8 @@ msgstr ""
 msgid "Local"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.html.heex:535
+#: lib/tuist_web/live/bundle_live.ex:1009
+#: lib/tuist_web/live/bundle_live.html.heex:544
 #, elixir-autogen, elixir-format
 msgid "Localization"
 msgstr ""
@@ -434,7 +441,7 @@ msgid "Misses"
 msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:180
-#: lib/tuist_web/live/bundle_live.html.heex:595
+#: lib/tuist_web/live/bundle_live.html.heex:604
 #, elixir-autogen, elixir-format
 msgid "Module Breakdown"
 msgstr ""
@@ -445,9 +452,9 @@ msgid "Module Cache"
 msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:60
-#: lib/tuist_web/live/bundle_live.html.heex:617
-#: lib/tuist_web/live/bundle_live.html.heex:624
-#: lib/tuist_web/live/bundle_live.html.heex:643
+#: lib/tuist_web/live/bundle_live.html.heex:626
+#: lib/tuist_web/live/bundle_live.html.heex:633
+#: lib/tuist_web/live/bundle_live.html.heex:652
 #: lib/tuist_web/live/bundles_live.ex:908
 #: lib/tuist_web/live/bundles_live.html.heex:345
 #, elixir-autogen, elixir-format
@@ -469,7 +476,7 @@ msgstr ""
 msgid "No data yet"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.html.heex:576
+#: lib/tuist_web/live/bundle_live.html.heex:585
 #, elixir-autogen, elixir-format
 msgid "No files found"
 msgstr ""
@@ -479,7 +486,7 @@ msgstr ""
 msgid "No insights yet"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.html.heex:675
+#: lib/tuist_web/live/bundle_live.html.heex:684
 #, elixir-autogen, elixir-format
 msgid "No modules found"
 msgstr ""
@@ -490,7 +497,8 @@ msgstr ""
 msgid "Not available"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.html.heex:540
+#: lib/tuist_web/live/bundle_live.ex:1014
+#: lib/tuist_web/live/bundle_live.html.heex:549
 #, elixir-autogen, elixir-format
 msgid "Other"
 msgstr ""
@@ -508,7 +516,7 @@ msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:490
 #: lib/tuist_web/live/bundle_live.html.heex:497
-#: lib/tuist_web/live/bundle_live.html.heex:516
+#: lib/tuist_web/live/bundle_live.html.heex:525
 #, elixir-autogen, elixir-format
 msgid "Path"
 msgstr ""
@@ -578,31 +586,31 @@ msgid "Scheme"
 msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:479
-#: lib/tuist_web/live/bundle_live.html.heex:606
+#: lib/tuist_web/live/bundle_live.html.heex:615
 #, elixir-autogen, elixir-format
 msgid "Search..."
 msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:489
 #: lib/tuist_web/live/bundle_live.html.heex:505
-#: lib/tuist_web/live/bundle_live.html.heex:558
-#: lib/tuist_web/live/bundle_live.html.heex:616
-#: lib/tuist_web/live/bundle_live.html.heex:632
-#: lib/tuist_web/live/bundle_live.html.heex:657
+#: lib/tuist_web/live/bundle_live.html.heex:567
+#: lib/tuist_web/live/bundle_live.html.heex:625
+#: lib/tuist_web/live/bundle_live.html.heex:641
+#: lib/tuist_web/live/bundle_live.html.heex:666
 #, elixir-autogen, elixir-format
 msgid "Size"
 msgstr ""
 
 #: lib/tuist_web/live/bundle_live.html.heex:493
-#: lib/tuist_web/live/bundle_live.html.heex:620
+#: lib/tuist_web/live/bundle_live.html.heex:629
 #: lib/tuist_web/live/bundles_live.html.heex:296
 #: lib/tuist_web/live/cache_runs_live.html.heex:14
 #, elixir-autogen, elixir-format
 msgid "Sort by:"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.html.heex:570
-#: lib/tuist_web/live/bundle_live.html.heex:669
+#: lib/tuist_web/live/bundle_live.html.heex:579
+#: lib/tuist_web/live/bundle_live.html.heex:678
 #, elixir-autogen, elixir-format
 msgid "Space usage"
 msgstr ""
@@ -622,14 +630,15 @@ msgstr ""
 msgid "The bundle install size. This is the uncompressed app size and represents how much space the app takes on the device."
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.html.heex:577
-#: lib/tuist_web/live/bundle_live.html.heex:676
+#: lib/tuist_web/live/bundle_live.html.heex:586
+#: lib/tuist_web/live/bundle_live.html.heex:685
 #, elixir-autogen, elixir-format
 msgid "Try changing your search term"
 msgstr ""
 
+#: lib/tuist_web/live/bundle_live.ex:1004
 #: lib/tuist_web/live/bundle_live.html.heex:52
-#: lib/tuist_web/live/bundle_live.html.heex:530
+#: lib/tuist_web/live/bundle_live.html.heex:539
 #: lib/tuist_web/live/bundles_live.ex:924
 #: lib/tuist_web/live/bundles_live.html.heex:351
 #, elixir-autogen, elixir-format
@@ -641,7 +650,7 @@ msgstr ""
 msgid "Type:"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:886
+#: lib/tuist_web/live/bundle_live.ex:997
 #: lib/tuist_web/live/bundle_live.html.heex:78
 #: lib/tuist_web/live/bundle_live.html.heex:158
 #: lib/tuist_web/live/bundle_live.html.heex:225
@@ -665,7 +674,7 @@ msgstr ""
 msgid "View more"
 msgstr ""
 
-#: lib/tuist_web/live/bundle_live.ex:885
+#: lib/tuist_web/live/bundle_live.ex:996
 #: lib/tuist_web/live/bundles_live.ex:388
 #: lib/tuist_web/live/bundles_live.ex:393
 #: lib/tuist_web/live/bundles_live.ex:930
@@ -832,4 +841,14 @@ msgstr ""
 #: lib/tuist_web/live/xcode_cache_live.html.heex:21
 #, elixir-autogen, elixir-format
 msgid "Tuist documentation"
+msgstr ""
+
+#: lib/tuist_web/live/bundle_live.ex:1022
+#, elixir-autogen, elixir-format
+msgid "Size (KB)"
+msgstr ""
+
+#: lib/tuist_web/live/bundle_live.ex:1030
+#, elixir-autogen, elixir-format
+msgid "Space usage (%)"
 msgstr ""

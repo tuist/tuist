@@ -85,7 +85,7 @@ jobs:
       - name: Setup Tuist cache
         run: tuist setup cache
       - name: Install Tuist dependencies
-        if: steps.cache-restore.outputs.cache-matched-key == ''
+        if: steps.cache-restore.outputs.cache-hit != 'true'
         run: tuist install
       - name: Generate CLI docs
         working-directory: docs

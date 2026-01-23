@@ -19,9 +19,9 @@ Generated 是一种可行的替代方案，有助于克服这些挑战，同时�
 定义好项目后，Tuist 提供各种工作流程来管理项目并与之互动：
 
 - **生成：** 这是一个基础工作流程。使用它可以创建一个与 Xcode 兼容的 Xcode 项目。
-- **<LocalizedLink href="/guides/features/build">编译</LocalizedLink>：**
+- **<LocalizedLink href="/cli/build">编译</LocalizedLink>：**
   此工作流程不仅会生成 Xcode 项目，还会使用`xcodebuild` 对其进行编译。
-- **<LocalizedLink href="/guides/features/test">测试</LocalizedLink>：**
+- **<LocalizedLink href="/cli/test">测试</LocalizedLink>：**
   操作方式与构建工作流程类似，它不仅生成 Xcode 项目，还利用`xcodebuild` 对其进行测试。
 
 ## Xcode 项目面临的挑战 {#challenges-with-xcode-projects}

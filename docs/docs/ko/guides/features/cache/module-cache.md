@@ -179,7 +179,7 @@ tuist generate
 비교할 수 있습니다.
 
 또한 대상이
-<LocalizedLink href="/guides/features/cache/generated-project#supported-products">캐시할 수 없는 대상</LocalizedLink>에 직접 또는 간접적으로 의존하지 않는지 확인하세요.
+<LocalizedLink href="/guides/features/cache/module-cache#supported-products">캐시할 수 없는 대상</LocalizedLink>에 직접 또는 간접적으로 의존하지 않는지 확인하세요.
 
 ### 누락된 기호 {#missing-symbols}
 

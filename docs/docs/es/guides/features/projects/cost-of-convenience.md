@@ -84,7 +84,7 @@ accidentalmente con un gráfico que no está bien definido.
 ::: tip DETECCIÓN TUISTA DE DEPENDENCIAS IMPLÍCITAS
 <!-- -->
 Tuist proporciona un
-<LocalizedLink href="/guides/features/inspect/implicit-dependencies">comando</LocalizedLink>
+<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">comando</LocalizedLink>
 para detectar dependencias implícitas. Puedes utilizar el comando para validar
 en CI que todas tus dependencias son explícitas.
 <!-- -->

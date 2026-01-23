@@ -78,7 +78,7 @@ compile with a graph that is not well-defined.
 ::: tip TUIST DETECTION OF IMPLICIT DEPENDENCIES
 <!-- -->
 Tuist provides a
-<LocalizedLink href="/guides/features/inspect/implicit-dependencies">command</LocalizedLink>
+<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">command</LocalizedLink>
 to detect implicit dependencies. You can use the command to validate in CI that
 all your dependencies are explicit.
 <!-- -->

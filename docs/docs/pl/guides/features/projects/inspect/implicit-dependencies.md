@@ -32,7 +32,7 @@ wyjścia innym niż zero.
 ::: tip VALIDATE IN CI
 <!-- -->
 Zdecydowanie zalecamy uruchamianie tego polecenia jako części polecenia
-<LocalizedLink href="/guides/features/automate/continuous-integration">ciągłej integracji</LocalizedLink> za każdym razem, gdy nowy kod jest przesyłany w górę
+<LocalizedLink href="/guides/integrations/continuous-integration">ciągłej integracji</LocalizedLink> za każdym razem, gdy nowy kod jest przesyłany w górę
 strumienia.
 <!-- -->
 :::

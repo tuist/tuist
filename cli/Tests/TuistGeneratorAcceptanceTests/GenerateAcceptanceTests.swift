@@ -29,6 +29,14 @@ struct GeneratorAcceptanceTests {
         try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
     }
 
+    @Test(.withFixture("generated_spm_dependency_with_trait_conditions"), .withMockedLogger())
+    func spm_dependency_with_trait_conditions() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
+    }
+
     @Test(.withFixture("generated_local_spm_dependency_with_assets"), .withMockedLogger())
     func local_spm_dependency_with_assets() async throws {
         // Given

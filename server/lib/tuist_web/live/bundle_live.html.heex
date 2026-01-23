@@ -509,6 +509,15 @@
             <:right_icon><.check /></:right_icon>
           </.dropdown_item>
         </.dropdown>
+        <.filter_dropdown
+          id="file-breakdown-filter-dropdown"
+          label={dgettext("dashboard_cache", "Filter")}
+          available_filters={@file_breakdown_available_filters}
+          active_filters={@file_breakdown_active_filters}
+        />
+      </div>
+      <div :if={Enum.any?(@file_breakdown_active_filters)} data-part="active-filters">
+        <.active_filter :for={filter <- @file_breakdown_active_filters} filter={filter} />
       </div>
       <.table id="file-breakdown-table" rows={@file_breakdown_current_page_artifacts}>
         <:col

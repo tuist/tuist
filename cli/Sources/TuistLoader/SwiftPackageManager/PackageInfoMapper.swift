@@ -547,7 +547,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         packageType: packageType,
                         condition: condition,
                         moduleAliases: moduleAliases,
-                        dependencyModuleAliases: &dependencyModuleAliases
+                        dependencyModuleAliases: &dependencyModuleAliases,
+                        enabledTraits: enabledTraits
                     )
                 case let .byName(name: name, condition: condition),
                      let .target(
@@ -560,7 +561,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
                         packageType: packageType,
                         condition: condition,
                         moduleAliases: packageModuleAliases[packageInfo.name],
-                        dependencyModuleAliases: &dependencyModuleAliases
+                        dependencyModuleAliases: &dependencyModuleAliases,
+                        enabledTraits: enabledTraits
                     )
                 }
             }
@@ -606,8 +608,17 @@ public final class PackageInfoMapper: PackageInfoMapping {
         packageType: PackageType,
         condition: PackageInfo.PackageConditionDescription?,
         moduleAliases: [String: String]?,
-        dependencyModuleAliases: inout [String: String]
+        dependencyModuleAliases: inout [String: String],
+        enabledTraits: Set<String>
     ) throws -> ProjectDescription.TargetDependency? {
+        // If the condition has traits, check if any of them are enabled
+        // If none are enabled, skip this dependency
+        if let traits = condition?.traits, !traits.isEmpty {
+            let hasEnabledTrait = traits.contains { enabledTraits.contains($0) }
+            if !hasEnabledTrait {
+                return nil
+            }
+        }
         let platformCondition: ProjectDescription.PlatformCondition?
         do {
             platformCondition = try ProjectDescription.PlatformCondition.from(condition)
@@ -1567,8 +1578,14 @@ extension ProjectDescription.PlatformCondition {
             }
         }
 
-        // If empty, we know there are no supported platforms and this dependency should not be included in the graph
+        // If platformNames is empty but the condition exists (e.g., for trait-only conditions),
+        // return nil to indicate no platform filtering
         if filters.isEmpty {
+            // If the condition has traits but no platform names, this is a valid trait-only condition
+            if let traits = condition.traits, !traits.isEmpty {
+                return nil
+            }
+            // Otherwise, there are no supported platforms and this dependency should not be included
             throw OnlyConditionsWithUnsupportedPlatforms()
         }
 

@@ -35,7 +35,8 @@ let targets: [Target] = [
             fileSystemDependency,
             "TuistSupport",
         ],
-        path: "cli/Sources/tuistbenchmark"
+        path: "cli/Sources/tuistbenchmark",
+        exclude: ["AGENTS.md"]
     ),
     .executableTarget(
         name: "tuistfixturegenerator",
@@ -46,7 +47,8 @@ let targets: [Target] = [
             "ProjectDescription",
             "TuistSupport",
         ],
-        path: "cli/Sources/tuistfixturegenerator"
+        path: "cli/Sources/tuistfixturegenerator",
+        exclude: ["AGENTS.md"]
     ),
     .target(
         name: "TuistCore",
@@ -62,6 +64,7 @@ let targets: [Target] = [
             anyCodableDependency,
         ],
         path: "cli/Sources/TuistCore",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -99,7 +102,7 @@ let targets: [Target] = [
             "TuistCI",
             "TuistCAS",
             "TuistLaunchctl",
-            .product(name: "Noora", package: "Noora"),
+            .product(name: "Noora", package: "tuist.Noora"),
             .product(name: "Command", package: "tuist.Command"),
             .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
             .product(name: "XcodeGraphMapper", package: "tuist.XcodeGraph"),
@@ -110,6 +113,7 @@ let targets: [Target] = [
             .product(name: "GRPCNIOTransportHTTP2", package: "grpc.grpc-swift-nio-transport"),
         ],
         path: "cli/Sources/TuistKit",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -122,20 +126,23 @@ let targets: [Target] = [
             "TuistLoader",
             "ProjectDescription",
             "ProjectAutomation",
-            .product(name: "Noora", package: "Noora"),
+            .product(name: "Noora", package: "tuist.Noora"),
             pathDependency,
             swiftToolsSupportDependency,
         ],
         path: "cli/Sources/tuist",
+        exclude: ["AGENTS.md"]
     ),
     .target(
         name: "ProjectDescription",
         dependencies: [],
         path: "cli/Sources/ProjectDescription",
+        exclude: ["AGENTS.md"]
     ),
     .target(
         name: "ProjectAutomation",
         path: "cli/Sources/ProjectAutomation",
+        exclude: ["AGENTS.md"]
     ),
     .target(
         name: "TuistSupport",
@@ -147,13 +154,14 @@ let targets: [Target] = [
             mockableDependency,
             fileSystemDependency,
             commandDependency,
-            .product(name: "Noora", package: "Noora"),
+            .product(name: "Noora", package: "tuist.Noora"),
             .product(name: "LoggingOSLog", package: "chrisaljoudi.swift-log-oslog"),
             .product(name: "FileLogging", package: "crspybits.swift-log-file"),
             .product(name: "XCLogParser", package: "MobileNativeFoundation.XCLogParser"),
             .product(name: "OrderedSet", package: "frazer-rbsn.OrderedSet"),
         ],
         path: "cli/Sources/TuistSupport",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -172,6 +180,7 @@ let targets: [Target] = [
             argumentParserDependency,
         ],
         path: "cli/Sources/TuistTesting",
+        exclude: ["AGENTS.md"],
         linkerSettings: [.linkedFramework("XCTest")]
     ),
     .target(
@@ -188,6 +197,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         path: "cli/Sources/TuistAcceptanceTesting",
+        exclude: ["AGENTS.md"],
         linkerSettings: [.linkedFramework("XCTest")]
     ),
     .target(
@@ -207,6 +217,7 @@ let targets: [Target] = [
             "TuistRootDirectoryLocator",
         ],
         path: "cli/Sources/TuistGenerator",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -225,6 +236,7 @@ let targets: [Target] = [
             "TuistRootDirectoryLocator",
         ],
         path: "cli/Sources/TuistScaffold",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -243,6 +255,7 @@ let targets: [Target] = [
             commandDependency,
         ],
         path: "cli/Sources/TuistAutomation",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -259,6 +272,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         path: "cli/Sources/TuistDependencies",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -275,6 +289,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         path: "cli/Sources/TuistMigration",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -294,6 +309,7 @@ let targets: [Target] = [
             "TuistGit",
         ],
         path: "cli/Sources/TuistLoader",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -304,6 +320,7 @@ let targets: [Target] = [
             mockableDependency
         ],
         path: "cli/Sources/TuistProcess",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -322,6 +339,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         path: "cli/Sources/TuistPlugin",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -343,11 +361,11 @@ let targets: [Target] = [
             pathDependency,
             .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
             .product(name: "HTTPTypes", package: "apple.swift-http-types"),
-            .product(name: "OpenAPIURLSession", package: "apple.swift-openapi-urlsession"),
+            .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
             .product(name: "Rosalind", package: "tuist.Rosalind"),
         ],
         path: "cli/Sources/TuistServer",
-        exclude: ["OpenAPI/server.yml"],
+        exclude: ["OpenAPI/server.yml", "AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -360,6 +378,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         path: "cli/Sources/TuistOIDC",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -376,6 +395,7 @@ let targets: [Target] = [
             mockableDependency,
         ],
         path: "cli/Sources/TuistHasher",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -390,6 +410,7 @@ let targets: [Target] = [
             .product(name: "HTTPTypes", package: "apple.swift-http-types"),
         ],
         path: "cli/Sources/TuistHTTP",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -407,10 +428,10 @@ let targets: [Target] = [
             xcodeGraphDependency,
             "TuistHasher",
             .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
-            .product(name: "OpenAPIURLSession", package: "apple.swift-openapi-urlsession"),
+            .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
         ],
         path: "cli/Sources/TuistCache",
-        exclude: ["OpenAPI/cache.yml"],
+        exclude: ["OpenAPI/cache.yml", "AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -423,6 +444,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         path: "cli/Sources/TuistSimulator",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -441,6 +463,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         path: "cli/Sources/TuistXCActivityLog",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -456,6 +479,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         path: "cli/Sources/TuistXCResultService",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -469,6 +493,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         path: "cli/Sources/TuistGit",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -482,6 +507,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         path: "cli/Sources/TuistRootDirectoryLocator",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -495,6 +521,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         path: "cli/Sources/TuistXcodeProjectOrWorkspacePathLocator",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -507,6 +534,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         path: "cli/Sources/TuistCI",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -527,7 +555,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         path: "cli/Sources/TuistCAS",
-        exclude: ["cas.proto", "keyvalue.proto", "grpc-swift-proto-generator-config.json"],
+        exclude: ["cas.proto", "keyvalue.proto", "grpc-swift-proto-generator-config.json", "AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -541,6 +569,7 @@ let targets: [Target] = [
             mockableDependency,
         ],
         path: "cli/Sources/TuistCASAnalytics",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -553,6 +582,7 @@ let targets: [Target] = [
             pathDependency,
         ],
         path: "cli/Sources/TuistLaunchctl",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
@@ -689,10 +719,11 @@ let package = Package(
             id: "apple.swift-http-types", .upToNextMajor(from: "1.3.0")
         ),
         .package(
-            id: "apple.swift-openapi-urlsession", .upToNextMajor(from: "1.0.2")
+            url: "https://github.com/tuist/swift-openapi-urlsession",
+            branch: "fix/wroteFinalChunk-closed-state-crash"
         ),
         .package(id: "tuist.Path", .upToNextMajor(from: "0.3.0")),
-        .package(id: "tuist.XcodeGraph", .upToNextMajor(from: "1.30.10")),
+        .package(id: "tuist.XcodeGraph", .upToNextMajor(from: "1.31.0")),
         .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.11.0")),
         .package(id: "tuist.Command", .upToNextMajor(from: "0.8.0")),
         .package(id: "sparkle-project.Sparkle", from: "2.6.4"),
@@ -710,7 +741,7 @@ let package = Package(
             id: "MobileNativeFoundation.XCLogParser",
             .upToNextMajor(from: "0.2.45")
         ),
-        .package(url: "https://github.com/tuist/Noora.git", revision: "e88d68882877288bb7e1abc6c4e117549649ac18"),
+        .package(id: "tuist.Noora", from: "0.54.0"),
         .package(
             id: "frazer-rbsn.OrderedSet", .upToNextMajor(from: "2.0.0")
         ),

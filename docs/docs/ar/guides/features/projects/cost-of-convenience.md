@@ -67,7 +67,7 @@ SwiftUI] (https://developer.apple.com/documentation/swiftui/previews-in-xcode)
 بياني غير محدد بشكل جيد.
 
 ::: tip TUIST DETECTION OF IMPLICIT DEPENDENCIES
-يوفر تويست أمرًا <LocalizedLink href="/guides/features/inspect/implicit-dependencies">أمرًا</LocalizedLink> للكشف عن التبعيات الضمنية. يمكنك استخدام هذا الأمر للتحقق في CI من أن جميع التبعيات صريحة في CI.
+يوفر تويست أمرًا <LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">أمرًا</LocalizedLink> للكشف عن التبعيات الضمنية. يمكنك استخدام هذا الأمر للتحقق في CI من أن جميع التبعيات صريحة في CI.
 :::
 
 ### البحث عن التبعيات الضمنية في المخططات {#find-implicit-dependencies-in-schemes}

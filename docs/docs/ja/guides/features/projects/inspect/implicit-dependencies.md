@@ -20,7 +20,7 @@ tuist inspect implicit-imports
 
 ::: tip VALIDATE IN CI
 <!-- -->
-新しいコードがアップストリームにプッシュされるたびに、<LocalizedLink href="/guides/features/automate/continuous-integration">継続的インテグレーション</LocalizedLink>コマンドの一部としてこのコマンドを実行することを強く推奨する。
+新しいコードがアップストリームにプッシュされるたびに、<LocalizedLink href="/guides/integrations/continuous-integration">継続的インテグレーション</LocalizedLink>コマンドの一部としてこのコマンドを実行することを強く推奨する。
 <!-- -->
 :::
 
