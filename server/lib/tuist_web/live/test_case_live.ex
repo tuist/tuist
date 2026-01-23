@@ -222,9 +222,11 @@ defmodule TuistWeb.TestCaseLive do
         } = socket
       ) do
     {:ok, updated_test_case} =
-      Runs.update_test_case(test_case_id, %{is_flaky: false},
-        actor: %{type: :user, id: current_user.account.id},
-        project_id: project.id
+      Runs.update_test_case(
+        test_case_id,
+        %{is_flaky: false},
+        project.id,
+        %{type: :user, id: current_user.account.id}
       )
 
     {:noreply,
@@ -247,9 +249,11 @@ defmodule TuistWeb.TestCaseLive do
         } = socket
       ) do
     {:ok, updated_test_case} =
-      Runs.update_test_case(test_case_id, %{is_flaky: true},
-        actor: %{type: :user, id: current_user.account.id},
-        project_id: project.id
+      Runs.update_test_case(
+        test_case_id,
+        %{is_flaky: true},
+        project.id,
+        %{type: :user, id: current_user.account.id}
       )
 
     test_case_detail = %{test_case_detail | is_flaky: updated_test_case.is_flaky}
@@ -257,10 +261,11 @@ defmodule TuistWeb.TestCaseLive do
     {test_case_detail, was_auto_quarantined} =
       if project.auto_quarantine_flaky_tests do
         {:ok, quarantined_test_case} =
-          Runs.update_test_case(test_case_id, %{is_quarantined: true},
-            actor: %{type: :user, id: current_user.account.id},
-            reason: "Auto-quarantined when manually marked as flaky",
-            project_id: project.id
+          Runs.update_test_case(
+            test_case_id,
+            %{is_quarantined: true},
+            project.id,
+            %{type: :user, id: current_user.account.id}
           )
 
         {%{test_case_detail | is_quarantined: quarantined_test_case.is_quarantined}, true}
@@ -290,9 +295,11 @@ defmodule TuistWeb.TestCaseLive do
         } = socket
       ) do
     {:ok, updated_test_case} =
-      Runs.update_test_case(test_case_id, %{is_quarantined: true},
-        actor: %{type: :user, id: current_user.account.id},
-        project_id: project.id
+      Runs.update_test_case(
+        test_case_id,
+        %{is_quarantined: true},
+        project.id,
+        %{type: :user, id: current_user.account.id}
       )
 
     {:noreply,
@@ -314,9 +321,11 @@ defmodule TuistWeb.TestCaseLive do
         } = socket
       ) do
     {:ok, updated_test_case} =
-      Runs.update_test_case(test_case_id, %{is_quarantined: false},
-        actor: %{type: :user, id: current_user.account.id},
-        project_id: project.id
+      Runs.update_test_case(
+        test_case_id,
+        %{is_quarantined: false},
+        project.id,
+        %{type: :user, id: current_user.account.id}
       )
 
     {:noreply,

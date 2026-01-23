@@ -680,13 +680,15 @@ defmodule Tuist.Runs do
 
   Only `is_flaky` and `is_quarantined` are valid update attributes.
 
-  ## Options
-  - `:actor` - map with `:type` (:user or :system) and `:id` (account_id or nil for system)
-  - `:project_id` - required when actor is provided, for creating events
-  """
-  def update_test_case(test_case_id, update_attrs, opts \\ [])
+  Creates test case events to track the state change.
 
-  def update_test_case(test_case_id, update_attrs, opts) when is_map(update_attrs) do
+  ## Parameters
+  - `test_case_id` - the test case UUID to update
+  - `update_attrs` - map with `:is_flaky` and/or `:is_quarantined` boolean values
+  - `project_id` - the project ID for creating events
+  - `actor` - map with `:type` (:user or :system) and `:id` (account_id or nil for system)
+  """
+  def update_test_case(test_case_id, update_attrs, project_id, actor) when is_map(update_attrs) do
     valid_keys = [:is_flaky, :is_quarantined]
     filtered_attrs = Map.take(update_attrs, valid_keys)
 
@@ -700,38 +702,33 @@ defmodule Tuist.Runs do
 
       {1, nil} = IngestRepo.insert_all(TestCase, [attrs])
 
-      create_events_for_test_case_changes(test_case_id, test_case, filtered_attrs, opts)
+      create_events_for_test_case_changes(test_case_id, test_case, filtered_attrs, project_id, actor)
 
       {:ok, Map.merge(test_case, filtered_attrs)}
     end
   end
 
-  defp create_events_for_test_case_changes(test_case_id, old_test_case, new_attrs, opts) do
-    actor = Keyword.get(opts, :actor)
-    project_id = Keyword.get(opts, :project_id)
+  defp create_events_for_test_case_changes(test_case_id, old_test_case, new_attrs, project_id, actor) do
+    event_types = determine_test_case_events(old_test_case, new_attrs)
 
-    if actor && project_id do
-      event_types = determine_test_case_events(old_test_case, new_attrs)
+    if Enum.any?(event_types) do
+      now = NaiveDateTime.utc_now()
 
-      if Enum.any?(event_types) do
-        now = NaiveDateTime.utc_now()
+      events =
+        Enum.map(event_types, fn event_type ->
+          %{
+            id: UUIDv7.generate(),
+            test_case_id: test_case_id,
+            project_id: project_id,
+            event_type: to_string(event_type),
+            actor_type: to_string(actor.type),
+            actor_id: actor.id,
+            metadata: "{}",
+            inserted_at: now
+          }
+        end)
 
-        events =
-          Enum.map(event_types, fn event_type ->
-            %{
-              id: UUIDv7.generate(),
-              test_case_id: test_case_id,
-              project_id: project_id,
-              event_type: to_string(event_type),
-              actor_type: to_string(actor.type),
-              actor_id: actor.id,
-              metadata: "{}",
-              inserted_at: now
-            }
-          end)
-
-        IngestRepo.insert_all(TestCaseEvent, events)
-      end
+      IngestRepo.insert_all(TestCaseEvent, events)
     end
   end
 
@@ -753,30 +750,6 @@ defmodule Tuist.Runs do
       end
 
     events
-  end
-
-  @doc """
-  Creates a test case event record in ClickHouse.
-  For first_run events, uses a deterministic ID for deduplication.
-  """
-  def create_test_case_event(attrs) do
-    id =
-      if attrs[:event_type] == :first_run or attrs[:event_type] == "first_run" do
-        TestCaseEvent.first_run_id(attrs[:test_case_id])
-      else
-        UUIDv7.generate()
-      end
-
-    attrs =
-      attrs
-      |> Map.put(:id, id)
-      |> Map.put(:inserted_at, NaiveDateTime.utc_now())
-      |> Map.update(:event_type, nil, &to_string/1)
-      |> Map.update(:actor_type, nil, &to_string/1)
-
-    %TestCaseEvent{}
-    |> TestCaseEvent.changeset(attrs)
-    |> IngestRepo.insert()
   end
 
   @doc """

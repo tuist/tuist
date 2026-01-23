@@ -68,7 +68,7 @@ defmodule TuistWeb.TestCaseLiveTest do
       test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
       [test_case_run | _] = test_run.test_case_runs
 
-      Tuist.Runs.update_test_case(test_case_run.test_case_id, %{is_quarantined: true})
+      Tuist.Runs.update_test_case(test_case_run.test_case_id, %{is_quarantined: true}, project.id, %{type: :system, id: nil})
 
       {:ok, lv, _html} =
         live(conn, ~p"/#{account.name}/#{project.name}/tests/test-cases/#{test_case_run.test_case_id}")
