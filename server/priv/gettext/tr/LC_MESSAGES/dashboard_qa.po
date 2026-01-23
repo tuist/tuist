@@ -14,723 +14,574 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=n != 1;\n"
 "X-Generator: Weblate 5.15.2\n"
 
-## This file is a PO Template file.
-##
-## "msgid"s here are often extracted from source code.
-## Add new messages manually only if they're dynamic
-## messages that can't be statically extracted.
-##
-## Run "mix gettext.extract" to bring this file up to
-## date. Leave "msgstr"s empty as changing them here has no
-## effect: edit them in PO (.po) files instead.
+# # This file is a PO Template file.
+# #
+# # "msgid"s here are often extracted from source code.
+# # Add new messages manually only if they're dynamic
+# # messages that can't be statically extracted.
+# #
+# # Run "mix gettext.extract" to bring this file up to
+# # date. Leave "msgstr"s empty as changing them here has no
+# # effect: edit them in PO (.po) files instead.
 #
-#: lib/tuist_web/live/qa_run_live.html.heex:104
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid " or sit back and relax..."
 msgstr " veya arkanıza yaslanıp rahatlayın..."
 
-#: lib/tuist_web/live/qa_run_live.html.heex:34
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "%{app_name} icon"
 msgstr "%{app_name} simgesi"
 
-#: lib/tuist_web/live/qa_run_live.html.heex:513
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "%{current_step}/%{total_steps} steps"
 msgstr "%{current_step}/%{total_steps} adım"
 
-#: lib/tuist_web/live/qa_live.html.heex:126
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "%{qa_average_duration}s"
 msgstr "%{qa_average_duration}s"
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:147
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "--my-launch-argument value"
 msgstr "--my-launch-argument değeri"
 
-#: lib/tuist_web/live/qa_live.html.heex:341
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "1. Upload a preview from a PR"
 msgstr "1. PR'den bir önizleme yükleyin"
 
-#: lib/tuist_web/live/qa_live.html.heex:365
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "2. Trigger the QA session from the PR"
 msgstr "2. PR'den QA oturumunu başlatın."
 
-#: lib/tuist_web/live/ops_qa_live.html.heex:108
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Account"
 msgstr "Hesap"
 
-#: lib/tuist_web/live/qa_run_live.html.heex:317
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Action"
 msgstr "Eylem"
 
-#: lib/tuist_web/live/ops_qa_live.html.heex:156
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Actions"
 msgstr "Eylem"
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:166
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Add"
 msgstr "Ekle"
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:119
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Add arguments"
 msgstr "Argümanlar ekleyin"
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:113
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Add launch argument group"
 msgstr "Başlatma argüman grubu ekleyin"
 
-#: lib/tuist_web/live/qa_live.html.heex:3
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Analytics"
 msgstr "Analitik"
 
-#: lib/tuist_web/live/qa_live.ex:191
-#: lib/tuist_web/live/qa_live.ex:200
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Any"
 msgstr "Herhangi bir"
 
-#: lib/tuist_web/live/qa_run_live.html.heex:641
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "App context"
 msgstr "Uygulama bağlamı"
 
-#: lib/tuist_web/live/qa_run_live.html.heex:682
-#: lib/tuist_web/live/qa_settings_live.html.heex:25
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "App description"
 msgstr "Uygulama açıklaması"
 
-#: lib/tuist_web/live/qa_live.ex:154
-#: lib/tuist_web/live/qa_live.html.heex:100
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "App issues found"
 msgstr "Uygulama sorunları bulundu"
 
-#: lib/tuist_web/live/qa_live.html.heex:102
-#, elixir-autogen, elixir-format, fuzzy
-msgid "App issues found represents the total number of issues discovered during QA testing in a given period."
+#, fuzzy
+msgid ""
+"App issues found represents the total number of issues discovered during QA "
+"testing in a given period."
 msgstr ""
 "Bulunan uygulama sorunları, belirli bir dönemde QA testleri sırasında "
 "keşfedilen toplam sorun sayısını temsil eder."
 
-#: lib/tuist_web/live/qa_live.html.heex:8
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "App:"
 msgstr "Uygulama:"
 
-#: lib/tuist_web/live/qa_run_live.html.heex:675
-#: lib/tuist_web/live/qa_settings_live.html.heex:146
-#: lib/tuist_web/live/qa_settings_live.html.heex:182
-#: lib/tuist_web/live/qa_settings_live.html.heex:232
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Arguments"
 msgstr "Argümanlar"
 
-#: lib/tuist_web/live/qa_live.html.heex:120
-#, elixir-autogen, elixir-format, fuzzy
-msgid "Average QA duration represents the average time it took to complete a QA session during a given period."
+#, fuzzy
+msgid ""
+"Average QA duration represents the average time it took to complete a QA "
+"session during a given period."
 msgstr ""
 "Ortalama QA süresi, belirli bir dönemde bir QA oturumunu tamamlamak için "
 "geçen ortalama süreyi temsil eder."
 
-#: lib/tuist_web/live/ops_qa_live.html.heex:117
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Average Tokens per Run"
 msgstr "Çalışma Başına Ortalama Token Sayısı"
 
-#: lib/tuist_web/live/qa_live.ex:166
-#: lib/tuist_web/live/qa_live.html.heex:118
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Avg. QA duration"
 msgstr "Ort. QA süresi"
 
-#: lib/tuist_web/live/ops_qa_logs_live.html.heex:5
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Back"
 msgstr "Geri"
 
-#: lib/tuist_web/live/qa_live.html.heex:272
-#: lib/tuist_web/live/qa_run_live.html.heex:141
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Branch"
 msgstr "Dal"
 
-#: lib/tuist_web/live/qa_run_live.html.heex:169
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Bundle identifier"
 msgstr "Paket tanımlayıcı"
 
-#: lib/tuist_web/live/qa_live.html.heex:61
-#: lib/tuist_web/live/qa_settings_live.html.heex:157
-#: lib/tuist_web/live/qa_settings_live.html.heex:243
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Cancel"
 msgstr "İptal"
 
-#: lib/tuist_web/live/qa_run_live.html.heex:98
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Check the live "
 msgstr "Canlı olarak kontrol edin "
 
-#: lib/tuist_web/live/qa_live.html.heex:278
-#: lib/tuist_web/live/qa_run_live.html.heex:148
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Commit SHA"
 msgstr "SHA'yı kaydedin"
 
-#: lib/tuist_web/live/qa_live.html.heex:242
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Completed"
 msgstr "Tamamlandı"
 
-#: lib/tuist_web/live/qa_run_live.html.heex:133
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Created at"
 msgstr "Oluşturuldu"
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:66
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Credentials"
 msgstr "Kimlik Bilgileri"
 
-#: lib/tuist_web/live/qa_run_live.html.heex:672
-#: lib/tuist_web/live/qa_settings_live.html.heex:140
-#: lib/tuist_web/live/qa_settings_live.html.heex:179
-#: lib/tuist_web/live/qa_settings_live.html.heex:222
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Description"
 msgstr "Açıklama"
 
-#: lib/tuist_web/live/qa_run_live.html.heex:108
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Details"
 msgstr "Ayrıntılar"
 
-#: lib/tuist_web/live/qa_live.html.heex:281
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Duration"
 msgstr "Süre"
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:189
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Edit launch argument group"
 msgstr "Başlatma argümanı grubunu düzenle"
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:28
-#, elixir-autogen, elixir-format, fuzzy
-msgid "Edit or update the app description to ensure the agent can run tests smoothly:"
+#, fuzzy
+msgid ""
+"Edit or update the app description to ensure the agent can run tests "
+"smoothly:"
 msgstr ""
 "Ajanın testleri sorunsuz bir şekilde çalıştırabilmesi için uygulama "
 "açıklamasını düzenleyin veya güncelleyin:"
 
-#: lib/tuist_web/live/qa_run_live.html.heex:648
-#: lib/tuist_web/live/qa_settings_live.html.heex:84
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Email"
 msgstr "E-posta"
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:49
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Enter your app description..."
 msgstr "Uygulama açıklamanızı girin..."
 
-#: lib/tuist_web/live/qa_live.html.heex:241
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Failed"
 msgstr "Başarısız"
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:8
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "General"
 msgstr "Genel"
 
-#: lib/tuist_web/live/ops_qa_live.html.heex:167
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Get our customers to run some QA!"
 msgstr "Müşterilerimizden bazı kalite kontrol testleri yapmalarını isteyin!"
 
-#: lib/tuist_web/live/qa_live.html.heex:376
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "GitHub comment"
 msgstr "GitHub yorumu"
 
-#: lib/tuist_web/live/qa_live.html.heex:284
-#: lib/tuist_web/live/qa_run_live.html.heex:364
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "In progress"
 msgstr "Devam ediyor"
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:36
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Include expected outcomes"
 msgstr "Beklenen sonuçları ekleyin"
 
-#: lib/tuist_web/live/qa_live.html.heex:263
-#: lib/tuist_web/live/qa_run_live.html.heex:331
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Issues"
 msgstr "Sorunlar"
 
-#: lib/tuist_web/live/qa_run_live.html.heex:182
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Issues identified"
 msgstr "Tespit edilen sorunlar"
 
-#: lib/tuist_web/live/ops_qa_live.html.heex:111
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Last 30 Days"
 msgstr "Son 30 Gün"
 
-#: lib/tuist_web/live/ops_qa_live.html.heex:114
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Last Year"
 msgstr "Geçen Yıl"
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:141
-#: lib/tuist_web/live/qa_settings_live.html.heex:223
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Launch argument group description"
 msgstr "Başlatma argümanı grubu açıklaması"
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:108
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Launch argument groups"
 msgstr "Başlatma argüman grupları"
 
-#: lib/tuist_web/live/qa_run_live.html.heex:666
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Launch arguments"
 msgstr "Başlatma argümanları"
 
-#: lib/tuist_web/live/qa_run_live.html.heex:81
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Logs"
 msgstr "Günlükler"
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:69
-#, elixir-autogen, elixir-format, fuzzy
-msgid "Modify or update your app credentials. The agent will use these fields to sign in just as a user would."
+#, fuzzy
+msgid ""
+"Modify or update your app credentials. The agent will use these fields to "
+"sign in just as a user would."
 msgstr ""
 "Uygulama kimlik bilgilerinizi değiştirin veya güncelleyin. Temsilci, bir "
 "kullanıcı gibi bu alanları kullanarak oturum açacaktır."
 
-#: lib/tuist_web/live/qa_live.html.heex:232
-#: lib/tuist_web/live/qa_run_live.html.heex:669
-#: lib/tuist_web/live/qa_settings_live.html.heex:134
-#: lib/tuist_web/live/qa_settings_live.html.heex:176
-#: lib/tuist_web/live/qa_settings_live.html.heex:212
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Name"
 msgstr "Ad"
 
-#: lib/tuist_web/live/qa_run_live.html.heex:404
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Next step"
 msgstr "Sonraki adım"
 
-#: lib/tuist_web/live/ops_qa_live.html.heex:166
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "No QA runs found"
 msgstr "QA çalışması bulunamadı"
 
-#: lib/tuist_web/live/qa_live.html.heex:312
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "No QA runs yet"
 msgstr "Henüz QA çalıştırılmadı"
 
-#: lib/tuist_web/live/qa_live.html.heex:212
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "No data yet"
 msgstr "Henüz veri yok"
 
-#: lib/tuist_web/live/qa_run_live.html.heex:187
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "No issues identified"
 msgstr "Herhangi bir sorun tespit edilmedi."
 
-#: lib/tuist_web/live/qa_run_live.html.heex:700
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "No logs found"
 msgstr "Günlük bulunamadı"
 
-#: lib/tuist_web/live/ops_qa_logs_live.html.heex:31
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "No logs found for this QA run"
 msgstr "Bu QA çalışması için loglama yapılmadı."
 
-#: lib/tuist_web/live/ops_qa_live.html.heex:123
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "No token usage found"
 msgstr "Token kullanımı bulunamadı"
 
-#: lib/tuist_web/live/qa_live.html.heex:275
-#: lib/tuist_web/live/qa_run_live.html.heex:144
-#: lib/tuist_web/live/qa_run_live.html.heex:164
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "None"
 msgstr "Yok"
 
-#: lib/tuist_web/live/qa_run_live.html.heex:74
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Overview"
 msgstr "Genel bakış"
 
-#: lib/tuist_web/live/qa_run_live.html.heex:156
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "PR Comment"
 msgstr "PR Yorum"
 
-#: lib/tuist_web/live/qa_run_live.html.heex:656
-#: lib/tuist_web/live/qa_settings_live.html.heex:90
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Password"
 msgstr "Şifre"
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:91
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Password for test account"
 msgstr "Test hesabı şifresi"
 
-#: lib/tuist_web/live/qa_live.html.heex:240
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Pending"
 msgstr "Beklemede"
 
-#: lib/tuist_web/live/qa_live.html.heex:256
-#: lib/tuist_web/live/qa_run_live.html.heex:113
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Platform"
 msgstr "Platform"
 
-#: lib/tuist_web/live/qa_run_live.html.heex:699
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Preparing the agent environment..."
 msgstr "Ajan ortamı hazırlanıyor..."
 
-#: lib/tuist_web/live/qa_run_live.html.heex:384
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Previous step"
 msgstr "Önceki adım"
 
-#: lib/tuist_web/live/ops_qa_live.html.heex:141
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Project"
 msgstr "Proje"
 
-#: lib/tuist_web/live/ops_qa_live.html.heex:92
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Projects"
 msgstr "Projeler"
 
-#: lib/tuist_web/live/ops_qa_live.html.heex:53
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Projects Using QA (Last 30 Days)"
 msgstr "QA Kullanan Projeler (Son 30 Gün)"
 
-#: lib/tuist_web/live/ops_qa_live.html.heex:147
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Prompt"
 msgstr "İsteme"
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:35
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Provide clear instructions for testing"
 msgstr "Test için açık talimatlar verin."
 
-#: lib/tuist_web/live/qa_live.ex:22
-#: lib/tuist_web/live/qa_run_live.html.heex:4
-#: lib/tuist_web/live/qa_settings_live.html.heex:13
-#: lib/tuist_web/live/qa_settings_live.html.heex:19
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "QA"
 msgstr "QA"
 
-#: lib/tuist_web/live/ops_qa_logs_live.ex:29
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "QA Logs"
 msgstr "QA Günlükleri"
 
-#: lib/tuist_web/live/ops_qa_live.ex:18
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "QA Operations"
 msgstr "QA İşlemleri"
 
-#: lib/tuist_web/live/qa_run_live.ex:64
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "QA Run"
 msgstr "QA Çalıştır"
 
-#: lib/tuist_web/live/ops_qa_live.html.heex:42
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "QA Runs"
 msgstr "QA Çalıştırmaları"
 
-#: lib/tuist_web/live/ops_qa_live.html.heex:3
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "QA Runs (Last 30 Days)"
 msgstr "QA Çalıştırmaları (Son 30 Gün)"
 
-#: lib/tuist_web/live/qa_live.html.heex:220
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "QA Sessions"
 msgstr "QA Oturumları"
 
-#: lib/tuist_web/live/qa_settings_live.ex:62
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "QA Settings"
 msgstr "QA Ayarları"
 
-#: lib/tuist_web/live/qa_run_live.html.heex:123
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "QA duration"
 msgstr "QA süresi"
 
-#: lib/tuist_web/live/qa_live.ex:146
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "QA run count"
 msgstr "QA çalıştırma sayısı"
 
-#: lib/tuist_web/live/ops_qa_logs_live.ex:14
-#: lib/tuist_web/live/qa_run_live.ex:31
-#: lib/tuist_web/live/qa_run_live.ex:36
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "QA run not found"
 msgstr "QA çalıştırması bulunamadı"
 
-#: lib/tuist_web/live/qa_live.html.heex:82
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "QA runs"
 msgstr "QA çalıştırılır"
 
-#: lib/tuist_web/live/qa_live.html.heex:84
-#, elixir-autogen, elixir-format, fuzzy
-msgid "QA runs represent the number of QA test sessions executed during a given period."
+#, fuzzy
+msgid ""
+"QA runs represent the number of QA test sessions executed during a given "
+"period."
 msgstr ""
 "QA çalıştırmaları, belirli bir dönemde gerçekleştirilen QA test "
 "oturumlarının sayısını temsil eder."
 
-#: lib/tuist_web/live/ops_qa_live.html.heex:153
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Ran at"
 msgstr "Ran at"
 
-#: lib/tuist_web/live/ops_qa_live.html.heex:138
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Recent QA Runs"
 msgstr "Son QA Çalışmaları"
 
-#: lib/tuist_web/live/qa_run_live.html.heex:357
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Result"
 msgstr "Sonuç"
 
-#: lib/tuist_web/live/qa_live.html.heex:239
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Running"
 msgstr "Çalıştırma"
 
-#: lib/tuist_web/live/qa_run_live.html.heex:126
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Running tests..."
 msgstr "Testler devam ediyor..."
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:55
-#: lib/tuist_web/live/qa_settings_live.html.heex:97
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Save"
 msgstr "Kaydet"
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:34
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Share your naming conventions with the LLM"
 msgstr "LLM ile adlandırma kurallarınızı paylaşın."
 
-#: lib/tuist_web/live/qa_live.html.heex:368
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Start the QA session from GitHub with the sample command below."
 msgstr "Aşağıdaki örnek komutla GitHub'dan QA oturumunu başlatın."
 
-#: lib/tuist_web/live/qa_live.html.heex:297
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Started at"
 msgstr "Başlangıç tarihi"
 
-#: lib/tuist_web/live/ops_qa_live.html.heex:144
-#: lib/tuist_web/live/qa_live.html.heex:235
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Status"
 msgstr "Durum"
 
-#: lib/tuist_web/live/qa_run_live.html.heex:608
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Step %{step_index}"
 msgstr "Adım %{step_index}"
 
-#: lib/tuist_web/live/qa_run_live.html.heex:388
-#: lib/tuist_web/live/qa_run_live.html.heex:409
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Step %{step_number}"
 msgstr "Adım %{step_number}"
 
-#: lib/tuist_web/live/qa_run_live.html.heex:297
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Steps"
 msgstr "Adımlar"
 
-#: lib/tuist_web/live/qa_run_live.html.heex:208
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Temporary visual inconsistency"
 msgstr "Geçici görsel tutarsızlık"
 
-#: lib/tuist_web/live/qa_run_live.html.heex:95
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "The agent is currently running tests"
 msgstr "Ajan şu anda testler yürütüyor."
 
-#: lib/tuist_web/live/qa_run_live.html.heex:343
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Timestamp"
 msgstr "Zaman damgası"
 
-#: lib/tuist_web/live/ops_qa_live.html.heex:105
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Token Usage by Account"
 msgstr "Hesap Başına Jeton Kullanımı"
 
-#: lib/tuist_web/live/ops_qa_live.html.heex:150
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Token usage"
 msgstr "Token kullanımı"
 
-#: lib/tuist_web/live/ops_qa_live.html.heex:125
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Token usage will appear here once QA runs start using LLM features"
 msgstr ""
 "QA, LLM özelliklerini kullanmaya başladığında token kullanımı burada "
 "görünecektir."
 
-#: lib/tuist_web/live/qa_live.html.heex:352
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Tuist documentation"
 msgstr "Tuist belgeleri"
 
-#: lib/tuist_web/live/qa_run_live.html.heex:172
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Unknown"
 msgstr "Bilinmiyor"
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:253
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Update"
 msgstr "Güncelle"
 
-#: lib/tuist_web/live/qa_live.html.heex:344
-#, elixir-autogen, elixir-format, fuzzy
-msgid "Upload a preview from a PR to kick off the QA session, following the instructions in the documentation below."
+#, fuzzy
+msgid ""
+"Upload a preview from a PR to kick off the QA session, following the "
+"instructions in the documentation below."
 msgstr ""
 "Aşağıdaki belgedeki talimatları izleyerek, QA oturumunu başlatmak için bir "
 "PR'den önizleme yükleyin."
 
-#: lib/tuist_web/live/qa_run_live.html.heex:47
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "V %{version}"
 msgstr "V %{version}"
 
-#: lib/tuist_web/live/ops_qa_live.html.heex:159
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "View Logs"
 msgstr "Günlükleri Görüntüle"
 
-#: lib/tuist_web/live/qa_settings_live.ex:17
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "You are not authorized to perform this action."
 msgstr "Bu işlemi gerçekleştirmek için yetkiniz yok."
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:135
-#: lib/tuist_web/live/qa_settings_live.html.heex:213
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "argument-group-name"
 msgstr "argument-group-name"
 
-#: lib/tuist_web/live/qa_live.html.heex:266
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "issue"
 msgid_plural "issues"
 msgstr[0] "sorun"
 msgstr[1] "sorunlar"
 
-#: lib/tuist_web/live/qa_run_live.html.heex:102
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "logs"
 msgstr "günlükler"
 
-#: lib/tuist_web/live/qa_live.ex:189
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "since last month"
 msgstr "geçen aydan beri"
 
-#: lib/tuist_web/live/qa_live.ex:186
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "since last week"
 msgstr "geçen haftadan beri"
 
-#: lib/tuist_web/live/qa_live.ex:187
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "since last year"
 msgstr "geçen yıldan beri"
 
-#: lib/tuist_web/live/qa_settings_live.html.heex:85
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "test@example.com"
 msgstr "test@example.com"
 
-#: lib/tuist_web/live/qa_live.html.heex:70
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Apply"
 msgstr "Uygula"
 
-#: lib/tuist_web/live/qa_live.html.heex:52
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Custom"
 msgstr "Özel"
 
-#: lib/tuist_web/live/qa_live.html.heex:49
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Last 12 months"
 msgstr "Son 12 ay"
 
-#: lib/tuist_web/live/qa_live.html.heex:34
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Last 24 hours"
 msgstr "Son 24 saat"
 
-#: lib/tuist_web/live/qa_live.html.heex:44
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Last 30 days"
 msgstr "Son 30 gün"
 
-#: lib/tuist_web/live/qa_live.html.heex:39
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Last 7 days"
 msgstr "Son 7 gün"
 
-#: lib/tuist_web/live/qa_live.ex:188
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "since last period"
 msgstr "son nokta"
 
-#: lib/tuist_web/live/qa_live.ex:185
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "since yesterday"
 msgstr "dünden beri"
+
+msgid "Notifications"
+msgstr ""
+
+msgid "Automations"
+msgstr ""
