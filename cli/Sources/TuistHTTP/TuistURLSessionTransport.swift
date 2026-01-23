@@ -2,6 +2,10 @@ import Foundation
 import HTTPTypes
 import OpenAPIRuntime
 
+#if canImport(TuistHAR)
+    import TuistHAR
+#endif
+
 /// A custom URLSession transport that uses async/await APIs to enable metrics collection.
 /// Unlike the default URLSessionTransport which uses completion handlers, this transport
 /// uses `data(for:delegate:)` which triggers the URLSessionTaskDelegate methods including
@@ -21,7 +25,18 @@ public struct TuistURLSessionTransport: ClientTransport {
     ) async throws -> (HTTPResponse, HTTPBody?) {
         let urlRequest = try await buildURLRequest(from: request, body: body, baseURL: baseURL)
 
-        let (data, response) = try await session.data(for: urlRequest, delegate: nil)
+        #if canImport(TuistHAR)
+            let metricsDelegate = TaskMetricsDelegate()
+            let (data, response) = try await session.data(for: urlRequest, delegate: metricsDelegate)
+
+            if let metrics = metricsDelegate.transactionMetrics,
+               let url = urlRequest.url
+            {
+                URLSessionMetricsDelegate.shared.storeMetrics(metrics, for: url)
+            }
+        #else
+            let (data, response) = try await session.data(for: urlRequest, delegate: nil)
+        #endif
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw TuistURLSessionTransportError.invalidResponse(response)
@@ -126,3 +141,14 @@ enum TuistURLSessionTransportError: LocalizedError {
         }
     }
 }
+
+#if canImport(TuistHAR)
+    /// A per-task delegate that captures metrics for a single request.
+    private final class TaskMetricsDelegate: NSObject, URLSessionTaskDelegate {
+        var transactionMetrics: URLSessionTaskTransactionMetrics?
+
+        func urlSession(_: URLSession, task _: URLSessionTask, didFinishCollecting metrics: URLSessionTaskMetrics) {
+            transactionMetrics = metrics.transactionMetrics.last
+        }
+    }
+#endif

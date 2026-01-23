@@ -1,11 +1,11 @@
 import Foundation
 
-/// A URLSession delegate that captures task metrics for HAR recording.
+/// A delegate that manages task metrics storage for HAR recording.
 public final class URLSessionMetricsDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
     /// Shared instance used by the Tuist URLSession.
     public static let shared = URLSessionMetricsDelegate()
 
-    /// Storage for captured metrics, keyed by task identifier.
+    /// Storage for captured metrics, keyed by URL.
     private let metricsStorage = MetricsStorage()
 
     override private init() {
@@ -14,22 +14,24 @@ public final class URLSessionMetricsDelegate: NSObject, URLSessionTaskDelegate, 
 
     // MARK: - URLSessionTaskDelegate
 
-    public func urlSession(_: URLSession, task: URLSessionTask, didFinishCollecting metrics: URLSessionTaskMetrics) {
-        guard let transactionMetrics = metrics.transactionMetrics.last else { return }
-        metricsStorage.store(transactionMetrics, for: task.taskIdentifier)
+    public func urlSession(_: URLSession, task _: URLSessionTask, didFinishCollecting metrics: URLSessionTaskMetrics) {
+        guard let transactionMetrics = metrics.transactionMetrics.last,
+              let url = transactionMetrics.request.url
+        else { return }
+        metricsStorage.store(transactionMetrics, for: url)
     }
 
     // MARK: - Public API
 
-    /// Retrieves and removes the metrics for a given task identifier.
-    /// - Parameter taskIdentifier: The task identifier to look up.
-    /// - Returns: The captured metrics, or nil if not found.
-    public func retrieveMetrics(for taskIdentifier: Int) -> URLSessionTaskTransactionMetrics? {
-        metricsStorage.retrieve(for: taskIdentifier)
+    /// Stores metrics for a URL. Used by TuistURLSessionTransport which captures metrics via per-task delegate.
+    /// - Parameters:
+    ///   - metrics: The transaction metrics to store.
+    ///   - url: The URL to associate with the metrics.
+    public func storeMetrics(_ metrics: URLSessionTaskTransactionMetrics, for url: URL) {
+        metricsStorage.store(metrics, for: url)
     }
 
-    /// Retrieves metrics for a URL and removes them from storage.
-    /// This is useful when the task identifier is not available.
+    /// Retrieves and removes the metrics for a URL.
     /// - Parameter url: The URL to look up.
     /// - Returns: The captured metrics, or nil if not found.
     public func retrieveMetrics(for url: URL) -> URLSessionTaskTransactionMetrics? {
@@ -106,46 +108,27 @@ public final class URLSessionMetricsDelegate: NSObject, URLSessionTaskDelegate, 
 }
 
 /// Thread-safe storage for URLSession task metrics.
+/// Uses FIFO queues per URL to handle concurrent requests to the same endpoint.
 private final class MetricsStorage: @unchecked Sendable {
-    private var metricsByTaskId: [Int: URLSessionTaskTransactionMetrics] = [:]
-    private var metricsByURL: [URL: URLSessionTaskTransactionMetrics] = [:]
+    private var metricsByURL: [URL: [URLSessionTaskTransactionMetrics]] = [:]
     private let lock = NSLock()
 
-    func store(_ metrics: URLSessionTaskTransactionMetrics, for taskIdentifier: Int) {
+    func store(_ metrics: URLSessionTaskTransactionMetrics, for url: URL) {
         lock.lock()
         defer { lock.unlock() }
-        metricsByTaskId[taskIdentifier] = metrics
-        if let url = metrics.request.url {
-            metricsByURL[url] = metrics
-        }
-    }
-
-    func retrieve(for taskIdentifier: Int) -> URLSessionTaskTransactionMetrics? {
-        lock.lock()
-        defer { lock.unlock() }
-        let metrics = metricsByTaskId.removeValue(forKey: taskIdentifier)
-        if let url = metrics?.request.url {
-            metricsByURL.removeValue(forKey: url)
-        }
-        return metrics
+        metricsByURL[url, default: []].append(metrics)
     }
 
     func retrieve(for url: URL) -> URLSessionTaskTransactionMetrics? {
         lock.lock()
         defer { lock.unlock() }
-        guard let metrics = metricsByURL.removeValue(forKey: url) else { return nil }
-        if let taskId = findTaskId(for: metrics) {
-            metricsByTaskId.removeValue(forKey: taskId)
+        guard var metricsArray = metricsByURL[url], !metricsArray.isEmpty else { return nil }
+        let metrics = metricsArray.removeFirst()
+        if metricsArray.isEmpty {
+            metricsByURL.removeValue(forKey: url)
+        } else {
+            metricsByURL[url] = metricsArray
         }
         return metrics
-    }
-
-    private func findTaskId(for metrics: URLSessionTaskTransactionMetrics) -> Int? {
-        for (taskId, storedMetrics) in metricsByTaskId {
-            if storedMetrics === metrics {
-                return taskId
-            }
-        }
-        return nil
     }
 }
