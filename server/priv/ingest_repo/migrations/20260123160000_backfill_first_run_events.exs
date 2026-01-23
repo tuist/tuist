@@ -51,7 +51,6 @@ defmodule Tuist.IngestRepo.Migrations.BackfillFirstRunEvents do
           event_type: "first_run",
           actor_type: "system",
           actor_id: nil,
-          metadata: "{}",
           inserted_at: first_ran_at || now
         }
       end)
@@ -63,7 +62,6 @@ defmodule Tuist.IngestRepo.Migrations.BackfillFirstRunEvents do
         event_type: "LowCardinality(String)",
         actor_type: "LowCardinality(String)",
         actor_id: "Nullable(Int64)",
-        metadata: :string,
         inserted_at: "DateTime64(6)"
       }
     )

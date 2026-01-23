@@ -34,7 +34,6 @@ defmodule Tuist.Runs.TestCaseEvent do
     field :event_type, Ch, type: "LowCardinality(String)"
     field :actor_type, Ch, type: "LowCardinality(String)"
     field :actor_id, Ch, type: "Nullable(Int64)"
-    field :metadata, :string, default: "{}"
     field :inserted_at, Ch, type: "DateTime64(6)"
 
     belongs_to :actor, Tuist.Accounts.Account, foreign_key: :actor_id, define_field: false
@@ -42,7 +41,7 @@ defmodule Tuist.Runs.TestCaseEvent do
 
   def changeset(event, attrs) do
     event
-    |> cast(attrs, [:id, :test_case_id, :event_type, :actor_type, :actor_id, :metadata, :inserted_at])
+    |> cast(attrs, [:id, :test_case_id, :event_type, :actor_type, :actor_id, :inserted_at])
     |> validate_required([:id, :test_case_id, :event_type, :actor_type])
     |> validate_actor()
   end

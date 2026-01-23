@@ -5298,7 +5298,6 @@ defmodule Tuist.RunsTest do
   describe "list_test_case_events/2" do
     test "lists events for a test case ordered by inserted_at desc" do
       # Given
-      project = ProjectsFixtures.project_fixture()
       user = AccountsFixtures.user_fixture(preload: [:account])
       test_case_id = Ecto.UUID.generate()
       event1_id = Ecto.UUID.generate()
@@ -5309,21 +5308,17 @@ defmodule Tuist.RunsTest do
         %{
           id: event1_id,
           test_case_id: test_case_id,
-          project_id: project.id,
           event_type: "marked_flaky",
           actor_type: "user",
           actor_id: user.account.id,
-          metadata: "{}",
           inserted_at: now
         },
         %{
           id: event2_id,
           test_case_id: test_case_id,
-          project_id: project.id,
           event_type: "quarantined",
           actor_type: "system",
           actor_id: nil,
-          metadata: "{}",
           inserted_at: now
         }
       ])
@@ -5341,7 +5336,6 @@ defmodule Tuist.RunsTest do
 
     test "paginates events correctly" do
       # Given
-      project = ProjectsFixtures.project_fixture()
       test_case_id = Ecto.UUID.generate()
       now = NaiveDateTime.utc_now()
 
@@ -5350,11 +5344,9 @@ defmodule Tuist.RunsTest do
           %{
             id: Ecto.UUID.generate(),
             test_case_id: test_case_id,
-            project_id: project.id,
             event_type: "marked_flaky",
             actor_type: "system",
             actor_id: nil,
-            metadata: "{}",
             inserted_at: now
           }
         end
@@ -5384,7 +5376,6 @@ defmodule Tuist.RunsTest do
           event_type: "marked_flaky",
           actor_type: "user",
           actor_id: user.account.id,
-          metadata: "{}",
           inserted_at: now
         }
       ])

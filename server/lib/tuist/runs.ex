@@ -721,7 +721,6 @@ defmodule Tuist.Runs do
             event_type: to_string(event_type),
             actor_type: to_string(actor.type),
             actor_id: actor.id,
-            metadata: "{}",
             inserted_at: now
           }
         end)
@@ -1126,7 +1125,6 @@ defmodule Tuist.Runs do
             event_type: "first_run",
             actor_type: "system",
             actor_id: nil,
-            metadata: "{}",
             inserted_at: now
           }
         end)
@@ -1623,11 +1621,9 @@ defmodule Tuist.Runs do
           %{
             id: UUIDv7.generate(),
             test_case_id: test_case.id,
-            project_id: test_case.project_id,
             event_type: "unmarked_flaky",
             actor_type: "system",
             actor_id: nil,
-            metadata: "{}",
             inserted_at: now
           }
         end)
