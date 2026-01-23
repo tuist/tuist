@@ -3,8 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
-"PO-Revision-Date: 2026-01-22 13:05+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"PO-Revision-Date: 2026-01-23 12:12+0000\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
 "Language-Team: Japanese <https://translate.tuist.dev/projects/tuist/"
 "dashboard_qa/ja/>\n"
 "Language: ja\n"
@@ -510,7 +510,7 @@ msgstr "V %{version}"
 
 #, fuzzy
 msgid "View Logs"
-msgstr "ログを表示"
+msgstr "ログを見る"
 
 #, fuzzy
 msgid "You are not authorized to perform this action."
@@ -523,7 +523,7 @@ msgstr "引数グループ名"
 #, fuzzy
 msgid "issue"
 msgid_plural "issues"
-msgstr[0] "問題点"
+msgstr[0] "Issues"
 
 #, fuzzy
 msgid "logs"
