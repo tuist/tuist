@@ -18,7 +18,9 @@ public final class URLSessionMetricsDelegate: NSObject, URLSessionTaskDelegate, 
         guard let transactionMetrics = metrics.transactionMetrics.last,
               let url = transactionMetrics.request.url
         else { return }
-        metricsStorage.store(transactionMetrics, for: url)
+        Task {
+            await metricsStorage.store(transactionMetrics, for: url)
+        }
     }
 
     // MARK: - Public API
@@ -27,15 +29,15 @@ public final class URLSessionMetricsDelegate: NSObject, URLSessionTaskDelegate, 
     /// - Parameters:
     ///   - metrics: The transaction metrics to store.
     ///   - url: The URL to associate with the metrics.
-    public func storeMetrics(_ metrics: URLSessionTaskTransactionMetrics, for url: URL) {
-        metricsStorage.store(metrics, for: url)
+    public func storeMetrics(_ metrics: URLSessionTaskTransactionMetrics, for url: URL) async {
+        await metricsStorage.store(metrics, for: url)
     }
 
     /// Retrieves and removes the metrics for a URL.
     /// - Parameter url: The URL to look up.
     /// - Returns: The captured metrics, or nil if not found.
-    public func retrieveMetrics(for url: URL) -> URLSessionTaskTransactionMetrics? {
-        metricsStorage.retrieve(for: url)
+    public func retrieveMetrics(for url: URL) async -> URLSessionTaskTransactionMetrics? {
+        await metricsStorage.retrieve(for: url)
     }
 
     /// Extracts HAR-relevant metadata from URLSessionTaskTransactionMetrics.
@@ -107,21 +109,16 @@ public final class URLSessionMetricsDelegate: NSObject, URLSessionTaskDelegate, 
     }
 }
 
-/// Thread-safe storage for URLSession task metrics.
+/// Thread-safe storage for URLSession task metrics using Swift concurrency.
 /// Uses FIFO queues per URL to handle concurrent requests to the same endpoint.
-private final class MetricsStorage: @unchecked Sendable {
+private actor MetricsStorage {
     private var metricsByURL: [URL: [URLSessionTaskTransactionMetrics]] = [:]
-    private let lock = NSLock()
 
     func store(_ metrics: URLSessionTaskTransactionMetrics, for url: URL) {
-        lock.lock()
-        defer { lock.unlock() }
         metricsByURL[url, default: []].append(metrics)
     }
 
     func retrieve(for url: URL) -> URLSessionTaskTransactionMetrics? {
-        lock.lock()
-        defer { lock.unlock() }
         guard var metricsArray = metricsByURL[url], !metricsArray.isEmpty else { return nil }
         let metrics = metricsArray.removeFirst()
         if metricsArray.isEmpty {

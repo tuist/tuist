@@ -38,7 +38,7 @@ public struct HARRecordingMiddleware: ClientMiddleware {
                     contentType: responseContentType
                 )
 
-                let harMetadata = retrieveHARMetadata(for: fullURL)
+                let harMetadata = await retrieveHARMetadata(for: fullURL)
                 let statusCode = response.status.code
                 let statusText = response.status.reasonPhrase ?? ""
                 let responseHeaders = response.headerFields.map { HAR.Header(name: $0.name.rawName, value: $0.value) }
@@ -64,7 +64,7 @@ public struct HARRecordingMiddleware: ClientMiddleware {
 
                 return (response, responseBodyForNext)
             } catch {
-                let harMetadata = retrieveHARMetadata(for: fullURL)
+                let harMetadata = await retrieveHARMetadata(for: fullURL)
 
                 Task.detached {
                     await recorder.recordError(
@@ -128,8 +128,8 @@ public struct HARRecordingMiddleware: ClientMiddleware {
             let responseHeadersSize: Int?
         }
 
-        private func retrieveHARMetadata(for url: URL) -> HARMetadataResult {
-            guard let metrics = URLSessionMetricsDelegate.shared.retrieveMetrics(for: url),
+        private func retrieveHARMetadata(for url: URL) async -> HARMetadataResult {
+            guard let metrics = await URLSessionMetricsDelegate.shared.retrieveMetrics(for: url),
                   let harMetadata = URLSessionMetricsDelegate.extractHARMetadata(from: metrics)
             else {
                 let now = Date()
