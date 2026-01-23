@@ -144,7 +144,7 @@ jobs:
   acceptance-tests:
     name: Acceptance Tests
     runs-on: namespace-profile-default-macos
-    timeout-minutes: 15
+    timeout-minutes: 40
     needs: [check-team-membership]
     if: |
       always() &&

@@ -1,5 +1,5 @@
 {
-  "originHash" : "a5620d69d44426eea025703d3aca722a1c6ef06f7b17714324b574d5f279e951",
+  "originHash" : "bf9550eab1b052edb70b8fe328b41fc130a3e0724440e6de9323fd34241fca31",
   "pins" : [
     {
       "identity" : "1024jp.GzipSwift",
@@ -22,7 +22,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.7.0"
+        "version" : "1.6.2"
       }
     },
     {
@@ -443,14 +443,6 @@
       }
     },
     {
-      "identity" : "pointfreeco.swift-custom-dump",
-      "kind" : "registry",
-      "location" : "",
-      "state" : {
-        "version" : "1.3.4"
-      }
-    },
-    {
       "identity" : "pointfreeco.swift-snapshot-testing",
       "kind" : "registry",
       "location" : "",
@@ -488,6 +480,15 @@
       "location" : "",
       "state" : {
         "version" : "0.15.1"
+      }
+    },
+    {
+      "identity" : "swift-custom-dump",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pointfreeco/swift-custom-dump",
+      "state" : {
+        "revision" : "93a8aa4937030b606de42f44b17870249f49af0b",
+        "version" : "1.3.4"
       }
     },
     {
@@ -583,7 +584,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.54.0"
+        "version" : "0.51.2"
       }
     },
     {
@@ -608,15 +609,6 @@
       "location" : "",
       "state" : {
         "version" : "0.2.0"
-      }
-    },
-    {
-      "identity" : "tuist.swift-openapi-urlsession",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tuist/swift-openapi-urlsession",
-      "state" : {
-        "branch" : "fix/wroteFinalChunk-closed-state-crash",
-        "revision" : "a617139ebad68a6a27439cf2b39dea578bd09171"
       }
     },
     {
