@@ -1,5 +1,17 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2026-01-22 12:35+0000\nLast-Translator: Weblate Admin <admin@cloudron.local>\nLanguage-Team: Japanese <https://translate.tuist.dev/projects/tuist/marketing/ja/>\nLanguage: ja\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15.2\n"
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-11-05 17:58+0000\n"
+"PO-Revision-Date: 2026-01-22 12:35+0000\n"
+"Last-Translator: Weblate Admin <admin@cloudron.local>\n"
+"Language-Team: Japanese <https://translate.tuist.dev/projects/tuist/marketing/ja/>\n"
+"Language: ja\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Weblate 5.15.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -38,7 +50,9 @@ msgstr "9+"
 msgid ""
 "<p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with \"contact sales\" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>\n"
 "<p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>\n"
-msgstr "<p>オープンソースへのコミットメントとコアバリューが、独自の価格設定アプローチを形成しています。「営業へお問い合わせ」、限定デモ、その他のセールス戦術でお客様から少しでも多く引き出そうとする多くのモデルとは異なり、私たちは公正さと透明性を信じています。すべての人を平等に扱い、誰にとっても公平な価格を設定します。私たちのサービスを選ぶことで、優れた製品を手に入れるだけでなく、より多くのオープンソースプロジェクトの開発を支援することになります。繁栄するビジネスの構築は長期的な旅であり、怪しい慣習に満ちた短期スプリントではないと考えています。私たちの理念については%{read_more}をご覧ください。</p>\n<p>Tuistをサポートすることで、Swiftエコシステムのためのより多くのオープンソースソフトウェアの開発も支援することになります。</p>\n"
+msgstr ""
+"<p>オープンソースへのコミットメントとコアバリューが、独自の価格設定アプローチを形成しています。「営業へお問い合わせ」、限定デモ、その他のセールス戦術でお客様から少しでも多く引き出そうとする多くのモデルとは異なり、私たちは公正さと透明性を信じています。すべての人を平等に扱い、誰にとっても公平な価格を設定します。私たちのサービスを選ぶことで、優れた製品を手に入れるだけでなく、より多くのオープンソースプロジェクトの開発を支援することになります。繁栄するビジネスの構築は長期的な旅であり、怪しい慣習に満ちた短期スプリントではないと考えています。私たちの理念については%{read_more}をご覧ください。</p>\n"
+"<p>Tuistをサポートすることで、Swiftエコシステムのためのより多くのオープンソースソフトウェアの開発も支援することになります。</p>\n"
 
 msgid "A confirmation email has been sent to your account with further details."
 msgstr "詳細を記載した確認メールをお送りしました。"
@@ -883,9 +897,6 @@ msgstr "から"
 msgid "per additional unit"
 msgstr "追加1ユニットあたり"
 
-msgid "AI writes faster. So should your builds."
-msgstr "AIは速く書く。ビルドも速くあるべき。"
-
 msgid "A Tuist command execution that interacts with the server pull test result information. As an estimate, this is roughly equivalent to the number of test runs on CI."
 msgstr "サーバーと連携してテスト結果情報を取得するTuistコマンド実行。概算として、これはCIでのテスト実行回数にほぼ相当します。"
 
@@ -912,3 +923,51 @@ msgstr "ダッシュボードでライブ表示"
 
 msgid "Language"
 msgstr "言語"
+
+msgid "Read story"
+msgstr ""
+
+msgid "%{company} case study"
+msgstr ""
+
+msgid "(opens in new tab)"
+msgstr ""
+
+msgid "Discover how teams around the world use Tuist to build high-quality apps faster, streamline workflows, and save countless hours of engineering time."
+msgstr ""
+
+msgid "Founded"
+msgstr ""
+
+msgid "Learn how teams use Tuist to scale their iOS development."
+msgstr ""
+
+msgid "Onboarded"
+msgstr ""
+
+msgid "Read next"
+msgstr ""
+
+msgid "Explore Tuist's features on the public dashboard"
+msgstr ""
+
+msgid "Public dashboard"
+msgstr ""
+
+msgid "See how leading teams scale with Tuist"
+msgstr ""
+
+msgid "See how leading tech companies are scaling their development with Tuist."
+msgstr ""
+
+msgid "AI moves fast. So should your builds."
+msgstr ""
+
+msgid "Customers"
+msgstr ""
+
+msgid "Tuist Customers"
+msgstr ""
+
+#~ msgid "AI writes faster. So should your builds."
+#~ msgstr "AIは速く書く。ビルドも速くあるべき。"

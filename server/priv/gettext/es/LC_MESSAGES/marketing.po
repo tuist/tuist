@@ -1,5 +1,17 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2026-01-22 12:35+0000\nLast-Translator: Weblate Admin <admin@cloudron.local>\nLanguage-Team: Spanish <https://translate.tuist.dev/projects/tuist/marketing/es/>\nLanguage: es\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n != 1;\nX-Generator: Weblate 5.15.2\n"
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-11-05 17:58+0000\n"
+"PO-Revision-Date: 2026-01-22 12:35+0000\n"
+"Last-Translator: Weblate Admin <admin@cloudron.local>\n"
+"Language-Team: Spanish <https://translate.tuist.dev/projects/tuist/marketing/es/>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"X-Generator: Weblate 5.15.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -38,7 +50,9 @@ msgstr "9+"
 msgid ""
 "<p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with \"contact sales\" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>\n"
 "<p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>\n"
-msgstr "<p>Nuestro compromiso con el código abierto y nuestros valores fundamentales conforman nuestro enfoque único de los precios. A diferencia de muchos modelos que intentan sacarle hasta el último dólar con llamadas de \"ventas de contacto\", demostraciones limitadas y otras tácticas de venta, nosotros creemos en la equidad y la transparencia. Tratamos a todos por igual y fijamos precios justos para todos. Al elegir nuestros servicios, no sólo obtiene un gran producto, sino que también apoya el desarrollo de más proyectos de código abierto. Entendemos la creación de un negocio próspero como un viaje a largo plazo, no como un sprint a corto plazo lleno de prácticas turbias. Puedes %{read_more} sobre nuestra filosofía.</p>\n<p>Al apoyar a Tuist, también estás apoyando el desarrollo de más software de código abierto para el ecosistema Swift.</p>\n"
+msgstr ""
+"<p>Nuestro compromiso con el código abierto y nuestros valores fundamentales conforman nuestro enfoque único de los precios. A diferencia de muchos modelos que intentan sacarle hasta el último dólar con llamadas de \"ventas de contacto\", demostraciones limitadas y otras tácticas de venta, nosotros creemos en la equidad y la transparencia. Tratamos a todos por igual y fijamos precios justos para todos. Al elegir nuestros servicios, no sólo obtiene un gran producto, sino que también apoya el desarrollo de más proyectos de código abierto. Entendemos la creación de un negocio próspero como un viaje a largo plazo, no como un sprint a corto plazo lleno de prácticas turbias. Puedes %{read_more} sobre nuestra filosofía.</p>\n"
+"<p>Al apoyar a Tuist, también estás apoyando el desarrollo de más software de código abierto para el ecosistema Swift.</p>\n"
 
 msgid "A confirmation email has been sent to your account with further details."
 msgstr "Se ha enviado un correo electrónico de confirmación a su cuenta con más detalles."
@@ -883,9 +897,6 @@ msgstr "y más"
 msgid "per additional unit"
 msgstr "por unidad adicional"
 
-msgid "AI writes faster. So should your builds."
-msgstr "La IA escribe más rápido. Tus builds también deberían."
-
 msgid "A Tuist command execution that interacts with the server pull test result information. As an estimate, this is roughly equivalent to the number of test runs on CI."
 msgstr "La ejecución de un comando Tuist que interactúa con el servidor extrae información sobre los resultados de las pruebas. Como estimación, esto es aproximadamente equivalente al número de ejecuciones de prueba en CI."
 
@@ -912,6 +923,54 @@ msgstr "en vivo en nuestro panel"
 
 msgid "Language"
 msgstr "Idioma"
+
+msgid "Read story"
+msgstr ""
+
+msgid "%{company} case study"
+msgstr ""
+
+msgid "(opens in new tab)"
+msgstr ""
+
+msgid "Discover how teams around the world use Tuist to build high-quality apps faster, streamline workflows, and save countless hours of engineering time."
+msgstr ""
+
+msgid "Founded"
+msgstr ""
+
+msgid "Learn how teams use Tuist to scale their iOS development."
+msgstr ""
+
+msgid "Onboarded"
+msgstr ""
+
+msgid "Read next"
+msgstr ""
+
+msgid "Explore Tuist's features on the public dashboard"
+msgstr ""
+
+msgid "Public dashboard"
+msgstr ""
+
+msgid "See how leading teams scale with Tuist"
+msgstr ""
+
+msgid "See how leading tech companies are scaling their development with Tuist."
+msgstr ""
+
+msgid "AI moves fast. So should your builds."
+msgstr ""
+
+msgid "Customers"
+msgstr ""
+
+msgid "Tuist Customers"
+msgstr ""
+
+#~ msgid "AI writes faster. So should your builds."
+#~ msgstr "La IA escribe más rápido. Tus builds también deberían."
 
 #~ msgid "$0"
 #~ msgstr "$0"
