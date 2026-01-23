@@ -251,6 +251,54 @@
           empty_label={dgettext("dashboard_tests", "No data")}
         />
       </div>
+
+      <div
+        :if={Enum.any?(@overview_history_events) or @overview_first_run_date}
+        data-part="overview-history"
+      >
+        <div data-part="overview-history-title">
+          {dgettext("dashboard_tests", "Test history")}
+        </div>
+        <div data-part="overview-history-timeline">
+          <div
+            :for={event <- @overview_history_events}
+            data-part="overview-history-item"
+          >
+            <div data-part="overview-history-icon" data-color={event_color(event.event_type)}>
+              <.icon name={event_icon(event.event_type)} />
+            </div>
+            <div data-part="overview-history-content">
+              <span data-part="overview-history-item-title">{event_title(event.event_type)}</span>
+              <span data-part="overview-history-item-subtitle">{format_event_subtitle(event)}</span>
+            </div>
+            <div data-part="overview-history-time">
+              {Timex.from_now(event.inserted_at)}
+            </div>
+          </div>
+
+          <div :if={@overview_first_run_date} data-part="overview-history-item">
+            <div data-part="overview-history-icon" data-color="primary">
+              <.icon name="info_circle" />
+            </div>
+            <div data-part="overview-history-content">
+              <span data-part="overview-history-item-title">
+                {dgettext("dashboard_tests", "First run of this test")}
+              </span>
+            </div>
+            <div data-part="overview-history-time">
+              {Timex.from_now(@overview_first_run_date)}
+            </div>
+          </div>
+        </div>
+        <div :if={@overview_history_total > 3} data-part="overview-history-footer">
+          <.button
+            label={dgettext("dashboard_tests", "View more")}
+            variant="secondary"
+            size="small"
+            patch={"?#{Query.put(@uri.query, "tab", "history")}"}
+          />
+        </div>
+      </div>
     </.card_section>
   </.card>
 

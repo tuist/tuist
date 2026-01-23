@@ -116,6 +116,7 @@ defmodule TuistWeb.TestCaseLive do
       |> assign_analytics()
       |> assign_test_case_runs(params)
       |> assign_history_tab(selected_tab)
+      |> assign_overview_history()
 
     {:noreply, socket}
   end
@@ -142,6 +143,18 @@ defmodule TuistWeb.TestCaseLive do
     |> assign(:first_run_date, nil)
   end
 
+  defp assign_overview_history(socket) do
+    test_case_id = socket.assigns.test_case_id
+
+    {events, meta} = Runs.list_test_case_events(test_case_id, %{page: 1, page_size: 3})
+    first_run_date = get_first_run_date(test_case_id)
+
+    socket
+    |> assign(:overview_history_events, events)
+    |> assign(:overview_history_total, meta.total_count)
+    |> assign(:overview_first_run_date, first_run_date)
+  end
+
   defp get_first_run_date(test_case_id) do
     case Runs.get_test_case_first_run_date(test_case_id) do
       {:ok, date} -> date
@@ -156,9 +169,12 @@ defmodule TuistWeb.TestCaseLive do
     |> assign(:history_events, events)
     |> assign(:history_meta, meta)
     |> assign(:history_page, 1)
+    |> assign_overview_history()
   end
 
-  defp refresh_history_events(socket), do: socket
+  defp refresh_history_events(socket) do
+    assign_overview_history(socket)
+  end
 
   def handle_event(
         "search-test-case-runs",
