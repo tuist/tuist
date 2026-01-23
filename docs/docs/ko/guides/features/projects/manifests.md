@@ -49,10 +49,10 @@ let project = Project(
 
 ## Workspace.swift {#workspaceswift}
 
-기본적으로, Tuist는 생성된 프로젝트와 그것을 참조하는 프로젝트들 포함해서 [Xcode
-Workspace](https://developer.apple.com/documentation/xcode/projects-and-workspaces)를
+기본적으로, Tuist는 생성된 프로젝트와 의존하는 프로젝트들 포함해서 [Xcode
+워크스페이스](https://developer.apple.com/documentation/xcode/projects-and-workspaces)를
 생성 합니다. 만약 워크스페이스에 추가적인 프로젝트나 파일, 그룹을 추가하고 싶으면,
-<LocalizedLink href="/references/project-description/structs/workspace">Workspace.swift</LocalizedLink>
+<LocalizedLink href="/references/project-description/structs/workspace">`Workspace.swift`</LocalizedLink>
 Manifest도 사용할 수 있습니다.
 
 ```swift
