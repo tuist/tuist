@@ -115,7 +115,30 @@
     </div>
   </div>
 
+  <.tab_menu_horizontal>
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_tests", "Overview")}
+      selected={@selected_tab == "overview"}
+      patch={"?#{Query.put(@uri.query, "tab", "overview")}"}
+      replace={true}
+    />
+    <.tab_menu_horizontal_item
+      :if={Enum.any?(@flaky_runs_grouped)}
+      label={dgettext("dashboard_tests", "Flaky Runs")}
+      selected={@selected_tab == "flaky-runs"}
+      patch={"?#{Query.put(@uri.query, "tab", "flaky-runs")}"}
+      replace={true}
+    />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_tests", "Test History")}
+      selected={@selected_tab == "history"}
+      patch={"?#{Query.put(@uri.query, "tab", "history")}"}
+      replace={true}
+    />
+  </.tab_menu_horizontal>
+
   <.card
+    :if={@selected_tab == "overview"}
     title={dgettext("dashboard_tests", "Summary")}
     icon="chart_arcs"
     data-part="test-case-details"
@@ -232,7 +255,7 @@
   </.card>
 
   <.card
-    :if={Enum.any?(@flaky_runs_grouped)}
+    :if={@selected_tab == "flaky-runs" and Enum.any?(@flaky_runs_grouped)}
     title={dgettext("dashboard_tests", "Flaky Runs")}
     icon="alert_triangle"
     data-part="flaky-runs-card"
@@ -375,6 +398,7 @@
   </.card>
 
   <.card
+    :if={@selected_tab == "overview"}
     title={dgettext("dashboard_tests", "Test Case Runs")}
     icon="exchange"
     data-part="test-case-runs-card"
@@ -528,6 +552,73 @@
             "?#{Query.put(@uri.query, "page", page)}"
           end
         }
+      />
+    </.card_section>
+  </.card>
+
+  <.card
+    :if={@selected_tab == "history"}
+    title={dgettext("dashboard_tests", "Test History")}
+    icon="history"
+    data-part="test-history-card"
+  >
+    <.card_section data-part="test-history-section">
+      <div data-part="timeline">
+        <div
+          :for={event <- @history_events}
+          data-part="timeline-item"
+        >
+          <div data-part="timeline-icon" data-color={event_color(event.event_type)}>
+            <.icon name={event_icon(event.event_type)} />
+          </div>
+          <div data-part="timeline-content">
+            <span data-part="timeline-title">
+              {event_title(event.event_type)}
+            </span>
+            <span data-part="timeline-subtitle">
+              {format_event_subtitle(event)}
+            </span>
+          </div>
+          <span data-part="timeline-time">
+            {Timex.from_now(event.inserted_at)}
+          </span>
+        </div>
+
+        <div :if={@first_run_date} data-part="timeline-item" data-type="first-run">
+          <div data-part="timeline-icon" data-color="primary">
+            <.icon name="info_circle" />
+          </div>
+          <div data-part="timeline-content">
+            <span data-part="timeline-title">
+              {dgettext("dashboard_tests", "First run of this test")}
+            </span>
+          </div>
+          <span data-part="timeline-time">
+            {Timex.from_now(@first_run_date)}
+          </span>
+        </div>
+
+        <div
+          :if={Enum.empty?(@history_events) and is_nil(@first_run_date)}
+          data-part="timeline-empty"
+        >
+          <span data-part="title">{dgettext("dashboard_tests", "No history available")}</span>
+          <span data-part="subtitle">
+            {dgettext(
+              "dashboard_tests",
+              "Events will appear here when the test case status changes."
+            )}
+          </span>
+        </div>
+      </div>
+
+      <.button
+        :if={@history_page < @history_meta.total_pages}
+        label={dgettext("dashboard_tests", "Load more")}
+        variant="secondary"
+        size="small"
+        phx-click="load-more-history"
+        data-part="load-more-button"
       />
     </.card_section>
   </.card>

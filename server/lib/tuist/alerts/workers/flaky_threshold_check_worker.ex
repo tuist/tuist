@@ -53,7 +53,20 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorker do
           %{is_flaky: true}
         end
 
-      {:ok, _updated_test_case} = Runs.update_test_case(test_case_id, update_attrs)
+      reason =
+        if auto_quarantine do
+          "Automatically marked as flaky and quarantined after #{flaky_count} flaky run(s)"
+        else
+          "Automatically marked as flaky after #{flaky_count} flaky run(s)"
+        end
+
+      {:ok, _updated_test_case} =
+        Runs.update_test_case(test_case_id, update_attrs,
+          actor: %{type: :system, id: nil},
+          reason: reason,
+          project_id: project_id
+        )
+
       enqueue_alert(project_id, test_case_id, flaky_count, auto_quarantine)
     else
       _ -> :ok

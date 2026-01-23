@@ -33,6 +33,7 @@ defmodule Tuist.Runs do
   alias Tuist.Runs.FlakyTestCase
   alias Tuist.Runs.Test
   alias Tuist.Runs.TestCase
+  alias Tuist.Runs.TestCaseEvent
   alias Tuist.Runs.TestCaseFailure
   alias Tuist.Runs.TestCaseRun
   alias Tuist.Runs.TestCaseRunRepetition
@@ -678,8 +679,15 @@ defmodule Tuist.Runs do
   ClickHouse ReplacingMergeTree will keep the most recent row.
 
   Only `is_flaky` and `is_quarantined` are valid update attributes.
+
+  ## Options
+  - `:actor` - map with `:type` (:user or :system) and `:id` (account_id or nil for system)
+  - `:reason` - optional string explaining why the change was made
+  - `:project_id` - required when actor is provided, for creating events
   """
-  def update_test_case(test_case_id, update_attrs) when is_map(update_attrs) do
+  def update_test_case(test_case_id, update_attrs, opts \\ [])
+
+  def update_test_case(test_case_id, update_attrs, opts) when is_map(update_attrs) do
     valid_keys = [:is_flaky, :is_quarantined]
     filtered_attrs = Map.take(update_attrs, valid_keys)
 
@@ -693,7 +701,88 @@ defmodule Tuist.Runs do
 
       {1, nil} = IngestRepo.insert_all(TestCase, [attrs])
 
+      create_events_for_test_case_changes(test_case_id, test_case, filtered_attrs, opts)
+
       {:ok, Map.merge(test_case, filtered_attrs)}
+    end
+  end
+
+  defp create_events_for_test_case_changes(test_case_id, old_test_case, new_attrs, opts) do
+    actor = Keyword.get(opts, :actor)
+    reason = Keyword.get(opts, :reason)
+    project_id = Keyword.get(opts, :project_id)
+
+    if actor && project_id do
+      events = determine_test_case_events(old_test_case, new_attrs)
+
+      Enum.each(events, fn event_type ->
+        create_test_case_event(%{
+          test_case_id: test_case_id,
+          project_id: project_id,
+          event_type: event_type,
+          actor_type: actor.type,
+          actor_id: actor.id,
+          reason: reason
+        })
+      end)
+    end
+  end
+
+  defp determine_test_case_events(old_test_case, new_attrs) do
+    events = []
+
+    events =
+      case {Map.get(old_test_case, :is_flaky, false), Map.get(new_attrs, :is_flaky)} do
+        {false, true} -> [:marked_flaky | events]
+        {true, false} -> [:unmarked_flaky | events]
+        _ -> events
+      end
+
+    events =
+      case {Map.get(old_test_case, :is_quarantined, false), Map.get(new_attrs, :is_quarantined)} do
+        {false, true} -> [:quarantined | events]
+        {true, false} -> [:unquarantined | events]
+        _ -> events
+      end
+
+    events
+  end
+
+  @doc """
+  Creates a test case event record.
+  """
+  def create_test_case_event(attrs) do
+    %TestCaseEvent{}
+    |> TestCaseEvent.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Lists test case events for a specific test case with pagination using Flop.
+  Returns {events, meta} where meta is a Flop.Meta struct.
+  """
+  def list_test_case_events(test_case_id, attrs \\ %{}) do
+    from(e in TestCaseEvent,
+      where: e.test_case_id == ^test_case_id,
+      preload: [:actor]
+    )
+    |> Flop.validate_and_run!(attrs, for: TestCaseEvent)
+  end
+
+  @doc """
+  Gets the earliest ran_at timestamp for a test case from test_case_runs.
+  Returns {:ok, datetime} or {:error, :not_found}.
+  """
+  def get_test_case_first_run_date(test_case_id) do
+    query =
+      from(tcr in TestCaseRun,
+        where: tcr.test_case_id == ^test_case_id,
+        select: min(tcr.ran_at)
+      )
+
+    case ClickHouseRepo.one(query) do
+      nil -> {:error, :not_found}
+      date -> {:ok, date}
     end
   end
 
@@ -1524,6 +1613,21 @@ defmodule Tuist.Runs do
       end)
 
     IngestRepo.insert_all(TestCase, test_cases_to_update)
+
+    Enum.each(stale_test_cases, fn test_case ->
+      try do
+        create_test_case_event(%{
+          test_case_id: test_case.id,
+          project_id: test_case.project_id,
+          event_type: :unmarked_flaky,
+          actor_type: :system,
+          actor_id: nil,
+          reason: "Automatically unmarked as flaky after 14 days with no flaky runs"
+        })
+      rescue
+        Ecto.ConstraintError -> :ok
+      end
+    end)
 
     {:ok, length(test_cases_to_update)}
   end

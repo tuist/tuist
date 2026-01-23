@@ -5293,4 +5293,274 @@ defmodule Tuist.RunsTest do
       assert new_run.is_new == true
     end
   end
+
+  describe "create_test_case_event/1" do
+    test "creates a test case event with user actor" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      test_case_id = Ecto.UUID.generate()
+
+      # When
+      {:ok, event} =
+        Runs.create_test_case_event(%{
+          test_case_id: test_case_id,
+          project_id: project.id,
+          event_type: :marked_flaky,
+          actor_type: :user,
+          actor_id: user.account.id,
+          reason: "Test is flaky"
+        })
+
+      # Then
+      assert event.test_case_id == test_case_id
+      assert event.project_id == project.id
+      assert event.event_type == :marked_flaky
+      assert event.actor_type == :user
+      assert event.actor_id == user.account.id
+      assert event.reason == "Test is flaky"
+    end
+
+    test "creates a test case event with system actor" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = Ecto.UUID.generate()
+
+      # When
+      {:ok, event} =
+        Runs.create_test_case_event(%{
+          test_case_id: test_case_id,
+          project_id: project.id,
+          event_type: :unmarked_flaky,
+          actor_type: :system,
+          actor_id: nil,
+          reason: "Automatically unmarked after 14 days"
+        })
+
+      # Then
+      assert event.test_case_id == test_case_id
+      assert event.event_type == :unmarked_flaky
+      assert event.actor_type == :system
+      assert event.actor_id == nil
+    end
+
+    test "fails when user actor has no actor_id" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = Ecto.UUID.generate()
+
+      # When
+      {:error, changeset} =
+        Runs.create_test_case_event(%{
+          test_case_id: test_case_id,
+          project_id: project.id,
+          event_type: :marked_flaky,
+          actor_type: :user,
+          actor_id: nil
+        })
+
+      # Then
+      assert changeset.errors[:actor_id] != nil
+    end
+
+    test "fails when system actor has an actor_id" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      test_case_id = Ecto.UUID.generate()
+
+      # When
+      {:error, changeset} =
+        Runs.create_test_case_event(%{
+          test_case_id: test_case_id,
+          project_id: project.id,
+          event_type: :marked_flaky,
+          actor_type: :system,
+          actor_id: user.account.id
+        })
+
+      # Then
+      assert changeset.errors[:actor_id] != nil
+    end
+  end
+
+  describe "list_test_case_events/2" do
+    test "lists events for a test case ordered by inserted_at desc" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      test_case_id = Ecto.UUID.generate()
+
+      {:ok, event1} =
+        Runs.create_test_case_event(%{
+          test_case_id: test_case_id,
+          project_id: project.id,
+          event_type: :marked_flaky,
+          actor_type: :user,
+          actor_id: user.account.id
+        })
+
+      {:ok, event2} =
+        Runs.create_test_case_event(%{
+          test_case_id: test_case_id,
+          project_id: project.id,
+          event_type: :quarantined,
+          actor_type: :system,
+          actor_id: nil
+        })
+
+      # When
+      {events, meta} = Runs.list_test_case_events(test_case_id)
+
+      # Then
+      assert length(events) == 2
+      assert meta.total_count == 2
+      event_ids = Enum.map(events, & &1.id)
+      assert event1.id in event_ids
+      assert event2.id in event_ids
+    end
+
+    test "paginates events correctly" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = Ecto.UUID.generate()
+
+      for _ <- 1..5 do
+        Runs.create_test_case_event(%{
+          test_case_id: test_case_id,
+          project_id: project.id,
+          event_type: :marked_flaky,
+          actor_type: :system,
+          actor_id: nil
+        })
+      end
+
+      # When
+      {events, meta} = Runs.list_test_case_events(test_case_id, %{page: 1, page_size: 2})
+
+      # Then
+      assert length(events) == 2
+      assert meta.total_count == 5
+      assert meta.total_pages == 3
+      assert meta.current_page == 1
+    end
+
+    test "preloads actor" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      test_case_id = Ecto.UUID.generate()
+
+      Runs.create_test_case_event(%{
+        test_case_id: test_case_id,
+        project_id: project.id,
+        event_type: :marked_flaky,
+        actor_type: :user,
+        actor_id: user.account.id
+      })
+
+      # When
+      {[event], _meta} = Runs.list_test_case_events(test_case_id)
+
+      # Then
+      assert event.actor.id == user.account.id
+      assert event.actor.name == user.account.name
+    end
+  end
+
+  describe "update_test_case/3 with event creation" do
+    test "creates marked_flaky event when is_flaky changes from false to true" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false)
+
+      # When
+      {:ok, _updated} =
+        Runs.update_test_case(test_case.id, %{is_flaky: true},
+          actor: %{type: :user, id: user.account.id},
+          project_id: project.id
+        )
+
+      # Then
+      {events, _meta} = Runs.list_test_case_events(test_case.id)
+      assert length(events) == 1
+      assert hd(events).event_type == :marked_flaky
+      assert hd(events).actor_id == user.account.id
+    end
+
+    test "creates unmarked_flaky event when is_flaky changes from true to false" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: true)
+
+      # When
+      {:ok, _updated} =
+        Runs.update_test_case(test_case.id, %{is_flaky: false},
+          actor: %{type: :user, id: user.account.id},
+          project_id: project.id
+        )
+
+      # Then
+      {events, _meta} = Runs.list_test_case_events(test_case.id)
+      assert length(events) == 1
+      assert hd(events).event_type == :unmarked_flaky
+    end
+
+    test "creates quarantined event when is_quarantined changes from false to true" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_quarantined: false)
+
+      # When
+      {:ok, _updated} =
+        Runs.update_test_case(test_case.id, %{is_quarantined: true},
+          actor: %{type: :system, id: nil},
+          reason: "Auto-quarantined",
+          project_id: project.id
+        )
+
+      # Then
+      {events, _meta} = Runs.list_test_case_events(test_case.id)
+      assert length(events) == 1
+      assert hd(events).event_type == :quarantined
+      assert hd(events).actor_type == :system
+      assert hd(events).reason == "Auto-quarantined"
+    end
+
+    test "creates multiple events when both is_flaky and is_quarantined change" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false, is_quarantined: false)
+
+      # When
+      {:ok, _updated} =
+        Runs.update_test_case(test_case.id, %{is_flaky: true, is_quarantined: true},
+          actor: %{type: :user, id: user.account.id},
+          project_id: project.id
+        )
+
+      # Then
+      {events, _meta} = Runs.list_test_case_events(test_case.id)
+      assert length(events) == 2
+      event_types = Enum.map(events, & &1.event_type)
+      assert :marked_flaky in event_types
+      assert :quarantined in event_types
+    end
+
+    test "does not create events when no actor is provided" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false)
+
+      # When
+      {:ok, _updated} = Runs.update_test_case(test_case.id, %{is_flaky: true})
+
+      # Then
+      {events, _meta} = Runs.list_test_case_events(test_case.id)
+      assert Enum.empty?(events)
+    end
+  end
 end
