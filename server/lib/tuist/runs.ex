@@ -682,7 +682,6 @@ defmodule Tuist.Runs do
 
   ## Options
   - `:actor` - map with `:type` (:user or :system) and `:id` (account_id or nil for system)
-  - `:reason` - optional string explaining why the change was made
   - `:project_id` - required when actor is provided, for creating events
   """
   def update_test_case(test_case_id, update_attrs, opts \\ [])
@@ -709,7 +708,6 @@ defmodule Tuist.Runs do
 
   defp create_events_for_test_case_changes(test_case_id, old_test_case, new_attrs, opts) do
     actor = Keyword.get(opts, :actor)
-    reason = Keyword.get(opts, :reason)
     project_id = Keyword.get(opts, :project_id)
 
     if actor && project_id do
@@ -721,8 +719,7 @@ defmodule Tuist.Runs do
           project_id: project_id,
           event_type: event_type,
           actor_type: actor.type,
-          actor_id: actor.id,
-          reason: reason
+          actor_id: actor.id
         })
       end)
     end
@@ -1661,8 +1658,7 @@ defmodule Tuist.Runs do
           project_id: test_case.project_id,
           event_type: :unmarked_flaky,
           actor_type: :system,
-          actor_id: nil,
-          reason: "Automatically unmarked as flaky after 14 days with no flaky runs"
+          actor_id: nil
         })
       rescue
         Ecto.ConstraintError -> :ok

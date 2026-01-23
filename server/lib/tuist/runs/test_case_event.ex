@@ -7,7 +7,7 @@ defmodule Tuist.Runs.TestCaseEvent do
   - marked_flaky / unmarked_flaky
   - quarantined / unquarantined
 
-  Each event records who performed the action (user or system) and optionally why.
+  Each event records who performed the action (user or system).
 
   This is a ClickHouse entity using ReplacingMergeTree. For first_run events,
   a deterministic ID based on test_case_id ensures deduplication.
@@ -35,14 +35,13 @@ defmodule Tuist.Runs.TestCaseEvent do
     field :event_type, Ch, type: "LowCardinality(String)"
     field :actor_type, Ch, type: "LowCardinality(String)"
     field :actor_id, Ch, type: "Nullable(Int64)"
-    field :reason, Ch, type: "Nullable(String)"
     field :metadata, :string, default: "{}"
     field :inserted_at, Ch, type: "DateTime64(6)"
   end
 
   def changeset(event, attrs) do
     event
-    |> cast(attrs, [:id, :test_case_id, :project_id, :event_type, :actor_type, :actor_id, :reason, :metadata, :inserted_at])
+    |> cast(attrs, [:id, :test_case_id, :project_id, :event_type, :actor_type, :actor_id, :metadata, :inserted_at])
     |> validate_required([:id, :test_case_id, :project_id, :event_type, :actor_type])
     |> validate_actor()
   end
