@@ -16,16 +16,13 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
   attr :binary_cache_sort_order, :string, required: true
   attr :expanded_target_names, :any, required: true
   attr :uri, :any, required: true
-  attr :show_chart, :boolean, default: false
-  attr :show_copy_button, :boolean, default: false
-  attr :binary_cache_json, :string, default: "[]"
-  attr :show_filters, :boolean, default: false
-  attr :available_filters, :list, default: []
-  attr :binary_cache_active_filters, :list, default: []
+  attr :binary_cache_json, :string, required: true
+  attr :available_filters, :list, required: true
+  attr :binary_cache_active_filters, :list, required: true
 
   def module_cache_tab(assigns) do
     ~H"""
-    <div>
+    <div class="tuist-module-cache-tab">
       <.card
         title={dgettext("dashboard_builds", "Summary")}
         icon="chart_arcs"
@@ -75,7 +72,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
         icon="database"
         data-part="binary-cache"
       >
-        <:actions :if={@show_copy_button}>
+        <:actions>
           <.button
             id="copy-binary-cache-json"
             variant="secondary"
@@ -91,10 +88,9 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
         <.card_section data-part="binary-cache-section">
           <.card_section
             :if={
-              @show_chart &&
-                @binary_cache_analytics.binary_cache_local_hits_count +
-                  @binary_cache_analytics.binary_cache_remote_hits_count +
-                  @binary_cache_analytics.binary_cache_misses_count > 0
+              @binary_cache_analytics.binary_cache_local_hits_count +
+                @binary_cache_analytics.binary_cache_remote_hits_count +
+                @binary_cache_analytics.binary_cache_misses_count > 0
             }
             data-part="cacheable-targets-card-section"
           >
@@ -134,7 +130,6 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
               />
             </.form>
             <.filter_dropdown
-              :if={@show_filters}
               id="binary-cache-filter-dropdown"
               label={dgettext("dashboard_builds", "Filter")}
               available_filters={@available_filters}
@@ -142,7 +137,7 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
             />
           </div>
           <div
-            :if={@show_filters && Enum.any?(@binary_cache_active_filters)}
+            :if={Enum.any?(@binary_cache_active_filters)}
             data-part="active-filters"
           >
             <.active_filter :for={filter <- @binary_cache_active_filters} filter={filter} />

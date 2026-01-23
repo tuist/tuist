@@ -87,6 +87,9 @@ defmodule TuistWeb.TestRunLive do
         {"overview", "test-modules"} ->
           {socket.assigns.test_modules_available_filters, socket.assigns.test_modules_active_filters}
 
+        {"compilation-optimizations", _} ->
+          {socket.assigns.binary_cache_available_filters, socket.assigns.binary_cache_active_filters}
+
         _ ->
           {[], []}
       end
@@ -240,6 +243,9 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:selective_testing_page_count, 0)
     |> assign(:binary_cache_analytics, %{})
     |> assign(:binary_cache_page_count, 0)
+    |> assign(:binary_cache_available_filters, define_binary_cache_filters())
+    |> assign(:binary_cache_active_filters, [])
+    |> assign(:binary_cache_json, "[]")
     |> assign(:expanded_target_names, MapSet.new())
   end
 
@@ -291,17 +297,23 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp reset_test_tab_page(params, socket) do
-    test_tab = URI.decode_query(socket.assigns.uri.query)["test-tab"] || "test-cases"
+    selected_tab = socket.assigns.selected_tab
 
-    page_param =
-      case test_tab do
-        "test-cases" -> "test-cases-page"
-        "test-suites" -> "test-suites-page"
-        "test-modules" -> "test-modules-page"
-        _ -> "test-cases-page"
-      end
+    if selected_tab == "compilation-optimizations" do
+      Map.put(params, "binary-cache-page", "1")
+    else
+      test_tab = URI.decode_query(socket.assigns.uri.query)["test-tab"] || "test-cases"
 
-    Map.put(params, page_param, "1")
+      page_param =
+        case test_tab do
+          "test-cases" -> "test-cases-page"
+          "test-suites" -> "test-suites-page"
+          "test-modules" -> "test-modules-page"
+          _ -> "test-cases-page"
+        end
+
+      Map.put(params, page_param, "1")
+    end
   end
 
   defp assign_tab_data(socket, "test-optimizations", params) do
@@ -389,14 +401,18 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp assign_binary_cache_data(socket, analytics, meta, params) do
+    filters = Filter.Operations.decode_filters_from_query(params, socket.assigns.binary_cache_available_filters)
+
     socket
     |> assign(:binary_cache_analytics, analytics)
     |> assign(:binary_cache_meta, meta)
     |> assign(:binary_cache_page_count, meta.total_pages)
     |> assign(:binary_cache_filter, params["binary-cache-filter"] || "")
+    |> assign(:binary_cache_active_filters, filters)
     |> assign(:binary_cache_page, String.to_integer(params["binary-cache-page"] || "1"))
     |> assign(:binary_cache_sort_by, params["binary-cache-sort-by"] || "name")
     |> assign(:binary_cache_sort_order, params["binary-cache-sort-order"] || "asc")
+    |> assign(:binary_cache_json, binary_cache_targets_json(socket.assigns.command_event))
   end
 
   defp assign_selective_testing_defaults(socket) do
@@ -409,6 +425,7 @@ defmodule TuistWeb.TestRunLive do
     socket
     |> assign(:binary_cache_analytics, socket.assigns.binary_cache_analytics)
     |> assign(:binary_cache_page_count, socket.assigns.binary_cache_page_count)
+    |> assign(:binary_cache_active_filters, [])
   end
 
   defp assign_test_cases_data(socket, test_cases, meta, params) do
@@ -455,12 +472,16 @@ defmodule TuistWeb.TestRunLive do
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp assign_param_defaults(socket, params) do
+    binary_cache_filters =
+      Filter.Operations.decode_filters_from_query(params, socket.assigns.binary_cache_available_filters)
+
     socket
     |> assign(:selective_testing_filter, params["selective-testing-filter"] || "")
     |> assign(:selective_testing_page, String.to_integer(params["selective-testing-page"] || "1"))
     |> assign(:selective_testing_sort_by, params["selective-testing-sort-by"] || "name")
     |> assign(:selective_testing_sort_order, params["selective-testing-sort-order"] || "desc")
     |> assign(:binary_cache_filter, params["binary-cache-filter"] || "")
+    |> assign(:binary_cache_active_filters, binary_cache_filters)
     |> assign(:binary_cache_page, String.to_integer(params["binary-cache-page"] || "1"))
     |> assign(:binary_cache_sort_by, params["binary-cache-sort-by"] || "name")
     |> assign(:binary_cache_sort_order, params["binary-cache-sort-order"] || "desc")
@@ -490,9 +511,13 @@ defmodule TuistWeb.TestRunLive do
 
   defp load_binary_cache_data(run, params) do
     counts = Xcode.binary_cache_counts(run)
+    filters = Filter.Operations.decode_filters_from_query(params, define_binary_cache_filters())
+
+    text_filters = build_flop_filters(params["binary-cache-filter"])
+    filter_flop_filters = build_binary_cache_flop_filters(filters)
 
     flop_params = %{
-      filters: build_flop_filters(params["binary-cache-filter"]),
+      filters: text_filters ++ filter_flop_filters,
       page: String.to_integer(params["binary-cache-page"] || "1"),
       page_size: @table_page_size,
       order_by: [ensure_allowed_params("binary-cache-sort-by", params)],
@@ -924,4 +949,84 @@ defmodule TuistWeb.TestRunLive do
       }
     ]
   end
+
+  defp define_binary_cache_filters do
+    [
+      %Filter.Filter{
+        id: "binary_cache_hit",
+        field: :binary_cache_hit,
+        display_name: dgettext("dashboard_builds", "Hit"),
+        type: :option,
+        options: [:local, :remote, :miss],
+        options_display_names: %{
+          remote: dgettext("dashboard_builds", "Remote"),
+          local: dgettext("dashboard_builds", "Local"),
+          miss: dgettext("dashboard_builds", "Missed")
+        },
+        operator: :==,
+        value: nil
+      }
+    ]
+  end
+
+  defp build_binary_cache_flop_filters(filters) do
+    filters
+    |> Enum.map(fn filter ->
+      case filter.id do
+        "binary_cache_hit" ->
+          %{filter | value: if(filter.value, do: Atom.to_string(filter.value))}
+
+        _ ->
+          filter
+      end
+    end)
+    |> Filter.Operations.convert_filters_to_flop()
+  end
+
+  defp binary_cache_targets_json(nil), do: "[]"
+
+  defp binary_cache_targets_json(command_event) do
+    command_event = Tuist.ClickHouseRepo.preload(command_event, [:xcode_targets])
+
+    command_event.xcode_targets
+    |> Enum.filter(&(&1.binary_cache_hash != nil))
+    |> Enum.sort_by(& &1.name)
+    |> Enum.map(&target_to_json_map/1)
+    |> Jason.encode!(pretty: true)
+  end
+
+  defp target_to_json_map(target) do
+    %{
+      name: target.name,
+      binary_cache_hit: target.binary_cache_hit,
+      binary_cache_hash: target.binary_cache_hash,
+      product: target.product,
+      bundle_id: target.bundle_id,
+      product_name: target.product_name,
+      external_hash: target.external_hash,
+      sources_hash: target.sources_hash,
+      resources_hash: target.resources_hash,
+      copy_files_hash: target.copy_files_hash,
+      core_data_models_hash: target.core_data_models_hash,
+      target_scripts_hash: target.target_scripts_hash,
+      environment_hash: target.environment_hash,
+      headers_hash: target.headers_hash,
+      deployment_target_hash: target.deployment_target_hash,
+      info_plist_hash: target.info_plist_hash,
+      entitlements_hash: target.entitlements_hash,
+      dependencies_hash: target.dependencies_hash,
+      project_settings_hash: target.project_settings_hash,
+      target_settings_hash: target.target_settings_hash,
+      buildable_folders_hash: target.buildable_folders_hash,
+      destinations: target.destinations,
+      additional_strings: target.additional_strings
+    }
+    |> Enum.reject(fn {_k, v} -> empty_value?(v) end)
+    |> Map.new()
+  end
+
+  defp empty_value?(nil), do: true
+  defp empty_value?(""), do: true
+  defp empty_value?([]), do: true
+  defp empty_value?(_), do: false
 end
