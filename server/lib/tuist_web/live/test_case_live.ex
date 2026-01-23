@@ -470,7 +470,7 @@ defmodule TuistWeb.TestCaseLive do
   defp event_title(:unquarantined), do: dgettext("dashboard_tests", "Marked as unquarantined")
   defp event_title(_), do: dgettext("dashboard_tests", "Event")
 
-  defp format_event_subtitle(%{actor_type: :system}), do: dgettext("dashboard_tests", "Automatically")
+  defp format_event_subtitle(%{actor_type: :system}), do: dgettext("dashboard_tests", "Automatically by Tuist")
   defp format_event_subtitle(%{actor: nil}), do: dgettext("dashboard_tests", "Unknown")
 
   defp format_event_subtitle(%{actor: actor}),
