@@ -2,6 +2,7 @@ import Foundation
 import Noora
 import Path
 import TSCBasic
+import TuistHAR
 import TuistHTTP
 import TuistLoader
 import TuistServer

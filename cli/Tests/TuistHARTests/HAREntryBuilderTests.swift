@@ -1,8 +1,7 @@
 import Foundation
 import Testing
 
-@testable import TuistHTTP
-@testable import TuistSupport
+@testable import TuistHAR
 
 struct HAREntryBuilderTests {
     private let subject = HAREntryBuilder()

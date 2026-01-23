@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TuistSupport
 
 /// An actor that manages HAR recording and persistence.
 public actor HARRecorder {
@@ -44,6 +45,81 @@ public actor HARRecorder {
     public func record(_ entry: HAR.Entry) async {
         log.entries.append(entry)
         await persist()
+    }
+
+    /// Records an HTTP request and response.
+    /// - Parameters:
+    ///   - url: The request URL.
+    ///   - method: The HTTP method.
+    ///   - requestHeaders: The request headers.
+    ///   - requestBody: The request body data.
+    ///   - responseStatusCode: The HTTP status code.
+    ///   - responseStatusText: The HTTP status text.
+    ///   - responseHeaders: The response headers.
+    ///   - responseBody: The response body data.
+    ///   - startTime: When the request started.
+    ///   - endTime: When the response was fully received.
+    ///   - timings: Optional detailed timing metrics.
+    public func recordRequest(
+        url: URL,
+        method: String,
+        requestHeaders: [HAR.Header],
+        requestBody: Data?,
+        responseStatusCode: Int,
+        responseStatusText: String,
+        responseHeaders: [HAR.Header],
+        responseBody: Data?,
+        startTime: Date,
+        endTime: Date,
+        timings: HAR.Timings? = nil
+    ) async {
+        let entry = HAREntryBuilder().buildEntry(
+            url: url,
+            method: method,
+            requestHeaders: requestHeaders,
+            requestBody: requestBody,
+            responseStatusCode: responseStatusCode,
+            responseStatusText: responseStatusText,
+            responseHeaders: responseHeaders,
+            responseBody: responseBody,
+            startTime: startTime,
+            endTime: endTime,
+            timings: timings
+        )
+        await record(entry)
+    }
+
+    /// Records a failed HTTP request.
+    /// - Parameters:
+    ///   - url: The request URL.
+    ///   - method: The HTTP method.
+    ///   - requestHeaders: The request headers.
+    ///   - requestBody: The request body data.
+    ///   - error: The error that occurred.
+    ///   - startTime: When the request started.
+    ///   - endTime: When the error occurred.
+    ///   - timings: Optional detailed timing metrics.
+    public func recordError(
+        url: URL,
+        method: String,
+        requestHeaders: [HAR.Header],
+        requestBody: Data?,
+        error: Error,
+        startTime: Date,
+        endTime: Date,
+        timings: HAR.Timings? = nil
+    ) async {
+        let entry = HAREntryBuilder().buildErrorEntry(
+            url: url,
+            method: method,
+            requestHeaders: requestHeaders,
+            requestBody: requestBody,
+            error: error,
+            startTime: startTime,
+            endTime: endTime,
+            timings: timings
+        )
+        await record(entry)
     }
 
     /// Returns the current HAR log.

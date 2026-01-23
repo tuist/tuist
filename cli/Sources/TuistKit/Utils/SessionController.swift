@@ -79,23 +79,40 @@ public struct SessionController {
         )
     }
 
-    /// Cleans up old session directories.
+    /// Cleans up old session directories based on age and count limits.
     /// - Parameters:
     ///   - stateDirectory: The base state directory.
-    ///   - maxAge: Maximum age of sessions to keep (default: 5 days).
-    private func clean(stateDirectory: AbsolutePath, maxAge: TimeInterval = 5 * 24 * 60 * 60) async throws {
+    ///   - maxAge: Maximum age of sessions to keep (default: 7 days).
+    ///   - maxSessions: Maximum number of sessions to keep (default: 50).
+    private func clean(
+        stateDirectory: AbsolutePath,
+        maxAge: TimeInterval = 7 * 24 * 60 * 60,
+        maxSessions: Int = 50
+    ) async throws {
         let sessionsDirectory = stateDirectory.appending(component: "sessions")
         guard try await fileSystem.exists(sessionsDirectory) else { return }
 
         let cutoffDate = Date().addingTimeInterval(-maxAge)
 
+        var sessionsWithDates: [(path: AbsolutePath, creationDate: Date)] = []
+
         for sessionPath in try await fileSystem.glob(directory: sessionsDirectory, include: ["*"]).collect() {
-            if let creationDate = try FileManager.default.attributesOfItem(
+            guard let creationDate = try FileManager.default.attributesOfItem(
                 atPath: sessionPath.pathString
-            )[.creationDate] as? Date,
-                creationDate < cutoffDate
-            {
+            )[.creationDate] as? Date else { continue }
+
+            if creationDate < cutoffDate {
                 try await fileSystem.remove(sessionPath)
+            } else {
+                sessionsWithDates.append((path: sessionPath, creationDate: creationDate))
+            }
+        }
+
+        if sessionsWithDates.count > maxSessions {
+            sessionsWithDates.sort { $0.creationDate > $1.creationDate }
+            let sessionsToRemove = sessionsWithDates.dropFirst(maxSessions)
+            for session in sessionsToRemove {
+                try await fileSystem.remove(session.path)
             }
         }
     }
@@ -107,7 +124,7 @@ public struct SessionController {
         let oldLogsDirectory = stateDirectory.appending(component: "logs")
         guard try await fileSystem.exists(oldLogsDirectory) else { return }
 
-        let cutoffDate = Date().addingTimeInterval(-5 * 24 * 60 * 60)
+        let cutoffDate = Date().addingTimeInterval(-7 * 24 * 60 * 60)
 
         for logPath in try await fileSystem.glob(directory: oldLogsDirectory, include: ["*.log"]).collect() {
             if let creationDate = try FileManager.default.attributesOfItem(
