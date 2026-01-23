@@ -37,6 +37,8 @@ defmodule Tuist.Runs.TestCaseEvent do
     field :actor_id, Ch, type: "Nullable(Int64)"
     field :metadata, :string, default: "{}"
     field :inserted_at, Ch, type: "DateTime64(6)"
+
+    belongs_to :actor, Tuist.Accounts.Account, foreign_key: :actor_id, define_field: false
   end
 
   def changeset(event, attrs) do

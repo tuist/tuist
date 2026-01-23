@@ -755,7 +755,6 @@ defmodule Tuist.Runs do
   @doc """
   Lists test case events for a specific test case with pagination using Flop.
   Returns {events, meta} where meta is a Flop.Meta struct.
-  Loads actors separately from PostgreSQL since events are in ClickHouse.
   """
   def list_test_case_events(test_case_id, attrs \\ %{}) do
     {events, meta} =
@@ -764,31 +763,8 @@ defmodule Tuist.Runs do
       )
       |> Tuist.ClickHouseFlop.validate_and_run!(attrs, for: TestCaseEvent)
 
-    events_with_actors = load_event_actors(events)
-    {events_with_actors, meta}
-  end
-
-  defp load_event_actors(events) do
-    actor_ids =
-      events
-      |> Enum.map(& &1.actor_id)
-      |> Enum.reject(&is_nil/1)
-      |> Enum.uniq()
-
-    actors_map =
-      if Enum.any?(actor_ids) do
-        Tuist.Accounts.Account
-        |> where([a], a.id in ^actor_ids)
-        |> Repo.all()
-        |> Map.new(&{&1.id, &1})
-      else
-        %{}
-      end
-
-    Enum.map(events, fn event ->
-      actor = Map.get(actors_map, event.actor_id)
-      Map.put(event, :actor, actor)
-    end)
+    events = Repo.preload(events, :actor)
+    {events, meta}
   end
 
   @doc """
