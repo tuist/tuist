@@ -1,5 +1,5 @@
 {
-  "originHash" : "ee407103684b9f1921a92aa4f163fd1c499ae09cac6f519191fbb6c01ff3e17c",
+  "originHash" : "bf9550eab1b052edb70b8fe328b41fc130a3e0724440e6de9323fd34241fca31",
   "pins" : [
     {
       "identity" : "1024jp.GzipSwift",
@@ -94,7 +94,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.8.0"
+        "version" : "1.9.1"
       }
     },
     {
@@ -102,7 +102,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "2.92.2"
+        "version" : "2.93.0"
       }
     },
     {
@@ -110,7 +110,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.31.3"
+        "version" : "1.32.0"
       }
     },
     {
@@ -327,7 +327,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.5.0"
+        "version" : "0.6.0"
       }
     },
     {
@@ -443,14 +443,6 @@
       }
     },
     {
-      "identity" : "pointfreeco.swift-custom-dump",
-      "kind" : "registry",
-      "location" : "",
-      "state" : {
-        "version" : "1.3.4"
-      }
-    },
-    {
       "identity" : "pointfreeco.swift-snapshot-testing",
       "kind" : "registry",
       "location" : "",
@@ -488,6 +480,15 @@
       "location" : "",
       "state" : {
         "version" : "0.15.1"
+      }
+    },
+    {
+      "identity" : "swift-custom-dump",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pointfreeco/swift-custom-dump",
+      "state" : {
+        "revision" : "93a8aa4937030b606de42f44b17870249f49af0b",
+        "version" : "1.3.4"
       }
     },
     {
@@ -567,7 +568,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.14.9"
+        "version" : "0.14.10"
       }
     },
     {
@@ -615,7 +616,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.30.10"
+        "version" : "1.31.0"
       }
     },
     {
