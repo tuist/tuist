@@ -35,6 +35,7 @@ public enum Module: String, CaseIterable {
     case casAnalytics = "TuistCASAnalytics"
     case launchctl = "TuistLaunchctl"
     case http = "TuistHTTP"
+    case har = "TuistHAR"
 
     func forceStaticLinking() -> Bool {
         return Environment.forceStaticLinking.getBoolean(default: false)
@@ -357,7 +358,7 @@ public enum Module: String, CaseIterable {
             moduleTags.append("domain:plugins")
         case .simulator, .xcActivityLog, .git, .rootDirectoryLocator,
             .process, .ci, .cas, .casAnalytics, .launchctl, .xcResultService, .xcodeProjectOrWorkspacePathLocator,
-            .http:
+            .http, .har:
             moduleTags.append("domain:infrastructure")
         }
 
@@ -487,6 +488,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.launchctl.targetName),
                     .target(name: Module.oidc.targetName),
                     .target(name: Module.http.targetName),
+                    .target(name: Module.har.targetName),
                     .external(name: "MCP"),
                     .external(name: "FileSystem"),
                     .external(name: "SwiftToolsSupport"),
@@ -716,9 +718,14 @@ public enum Module: String, CaseIterable {
             case .http:
                 [
                     .target(name: Module.support.targetName, condition: .when([.macos])),
+                    .target(name: Module.har.targetName, condition: .when([.macos])),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "HTTPTypes"),
                     .external(name: "FileSystem"),
+                ]
+            case .har:
+                [
+                    .target(name: Module.support.targetName),
                 ]
             }
         if self != .projectDescription, self != .projectAutomation {
@@ -732,6 +739,12 @@ public enum Module: String, CaseIterable {
             switch self {
             case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .process:
                 []
+            case .har:
+                [
+                    .target(name: Module.testing.targetName),
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
+                ]
             case .tuistFixtureGenerator:
                 [
                     .target(name: Module.projectDescription.targetName),

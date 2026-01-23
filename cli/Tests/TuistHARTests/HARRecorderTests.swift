@@ -3,7 +3,8 @@ import FileSystemTesting
 import Foundation
 import Path
 import Testing
-import TuistSupport
+
+@testable import TuistHAR
 
 struct HARRecorderTests {
     @Test(.inTemporaryDirectory)

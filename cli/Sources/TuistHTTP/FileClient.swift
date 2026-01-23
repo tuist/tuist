@@ -1,11 +1,12 @@
 import Foundation
 import Path
 
-#if os(macOS)
+#if canImport(TuistHAR)
+    import TuistHAR
     import TuistSupport
 #endif
 
-#if os(macOS)
+#if canImport(TuistHAR)
     enum FileClientError: LocalizedError, FatalError {
         case urlSessionError(URLRequest, Error, AbsolutePath?)
         case serverSideError(URLRequest, HTTPURLResponse, AbsolutePath?)
@@ -71,27 +72,31 @@ import Path
 
         public func download(url: URL) async throws -> AbsolutePath {
             let request = URLRequest(url: url)
-            let startTime = Date()
+            let fallbackStartTime = Date()
             do {
                 let (localUrl, response) = try await session.download(for: request)
-                let endTime = Date()
+                let fallbackEndTime = Date()
                 guard let httpResponse = response as? HTTPURLResponse else {
                     throw FileClientError.invalidResponse(request, nil)
                 }
-                await recordDownload(
-                    request: request,
-                    response: httpResponse,
-                    startTime: startTime,
-                    endTime: endTime
-                )
+                Task.detached { [self] in
+                    await recordDownload(
+                        request: request,
+                        response: httpResponse,
+                        fallbackStartTime: fallbackStartTime,
+                        fallbackEndTime: fallbackEndTime
+                    )
+                }
                 if successStatusCodeRange.contains(httpResponse.statusCode) {
                     return try AbsolutePath(validating: localUrl.path)
                 } else {
                     throw FileClientError.invalidResponse(request, nil)
                 }
             } catch {
-                let endTime = Date()
-                await recordDownloadError(request: request, error: error, startTime: startTime, endTime: endTime)
+                let fallbackEndTime = Date()
+                Task.detached { [self] in
+                    await recordDownloadError(request: request, error: error, fallbackStartTime: fallbackStartTime, fallbackEndTime: fallbackEndTime)
+                }
                 if error is FileClientError {
                     throw error
                 } else {
@@ -104,34 +109,38 @@ import Path
             let fileSize = try FileHandler.shared.fileSize(path: file)
             let fileData = try Data(contentsOf: file.url)
             let request = uploadRequest(url: url, fileSize: fileSize, data: fileData)
-            let startTime = Date()
+            let fallbackStartTime = Date()
             do {
                 let (_, response) = try await session.data(for: request)
-                let endTime = Date()
+                let fallbackEndTime = Date()
                 guard let httpResponse = response as? HTTPURLResponse else {
                     throw FileClientError.invalidResponse(request, file)
                 }
-                await recordUpload(
-                    request: request,
-                    response: httpResponse,
-                    requestBodySize: Int(fileSize),
-                    startTime: startTime,
-                    endTime: endTime
-                )
+                Task.detached { [self] in
+                    await recordUpload(
+                        request: request,
+                        response: httpResponse,
+                        requestBodySize: Int(fileSize),
+                        fallbackStartTime: fallbackStartTime,
+                        fallbackEndTime: fallbackEndTime
+                    )
+                }
                 if successStatusCodeRange.contains(httpResponse.statusCode) {
                     return true
                 } else {
                     throw FileClientError.serverSideError(request, httpResponse, file)
                 }
             } catch {
-                let endTime = Date()
-                await recordUploadError(
-                    request: request,
-                    error: error,
-                    requestBodySize: Int(fileSize),
-                    startTime: startTime,
-                    endTime: endTime
-                )
+                let fallbackEndTime = Date()
+                Task.detached { [self] in
+                    await recordUploadError(
+                        request: request,
+                        error: error,
+                        requestBodySize: Int(fileSize),
+                        fallbackStartTime: fallbackStartTime,
+                        fallbackEndTime: fallbackEndTime
+                    )
+                }
                 if error is FileClientError {
                     throw error
                 } else {
@@ -157,12 +166,12 @@ import Path
         private func recordDownload(
             request: URLRequest,
             response: HTTPURLResponse,
-            startTime: Date,
-            endTime: Date
+            fallbackStartTime: Date,
+            fallbackEndTime: Date
         ) async {
             guard let recorder = HARRecorder.current, let url = request.url else { return }
-            let timings = retrieveTimings(for: url)
-            let entry = HAREntryBuilder().buildEntry(
+            let (timings, startTime, endTime) = retrieveTimingsAndDates(for: url, fallbackStart: fallbackStartTime, fallbackEnd: fallbackEndTime)
+            await recorder.recordRequest(
                 url: url,
                 method: request.httpMethod ?? "GET",
                 requestHeaders: (request.allHTTPHeaderFields ?? [:]).map { HAR.Header(name: $0.key, value: $0.value) },
@@ -176,18 +185,17 @@ import Path
                 endTime: endTime,
                 timings: timings
             )
-            await recorder.record(entry)
         }
 
         private func recordDownloadError(
             request: URLRequest,
             error: Error,
-            startTime: Date,
-            endTime: Date
+            fallbackStartTime: Date,
+            fallbackEndTime: Date
         ) async {
             guard let recorder = HARRecorder.current, let url = request.url else { return }
-            let timings = retrieveTimings(for: url)
-            let entry = HAREntryBuilder().buildErrorEntry(
+            let (timings, startTime, endTime) = retrieveTimingsAndDates(for: url, fallbackStart: fallbackStartTime, fallbackEnd: fallbackEndTime)
+            await recorder.recordError(
                 url: url,
                 method: request.httpMethod ?? "GET",
                 requestHeaders: (request.allHTTPHeaderFields ?? [:]).map { HAR.Header(name: $0.key, value: $0.value) },
@@ -197,19 +205,18 @@ import Path
                 endTime: endTime,
                 timings: timings
             )
-            await recorder.record(entry)
         }
 
         private func recordUpload(
             request: URLRequest,
             response: HTTPURLResponse,
             requestBodySize: Int,
-            startTime: Date,
-            endTime: Date
+            fallbackStartTime: Date,
+            fallbackEndTime: Date
         ) async {
             guard let recorder = HARRecorder.current, let url = request.url else { return }
-            let timings = retrieveTimings(for: url)
-            let entry = HAREntryBuilder().buildEntry(
+            let (timings, startTime, endTime) = retrieveTimingsAndDates(for: url, fallbackStart: fallbackStartTime, fallbackEnd: fallbackEndTime)
+            await recorder.recordRequest(
                 url: url,
                 method: request.httpMethod ?? "PUT",
                 requestHeaders: (request.allHTTPHeaderFields ?? [:]).map { HAR.Header(name: $0.key, value: $0.value) },
@@ -223,19 +230,18 @@ import Path
                 endTime: endTime,
                 timings: timings
             )
-            await recorder.record(entry)
         }
 
         private func recordUploadError(
             request: URLRequest,
             error: Error,
             requestBodySize: Int,
-            startTime: Date,
-            endTime: Date
+            fallbackStartTime: Date,
+            fallbackEndTime: Date
         ) async {
             guard let recorder = HARRecorder.current, let url = request.url else { return }
-            let timings = retrieveTimings(for: url)
-            let entry = HAREntryBuilder().buildErrorEntry(
+            let (timings, startTime, endTime) = retrieveTimingsAndDates(for: url, fallbackStart: fallbackStartTime, fallbackEnd: fallbackEndTime)
+            await recorder.recordError(
                 url: url,
                 method: request.httpMethod ?? "PUT",
                 requestHeaders: (request.allHTTPHeaderFields ?? [:]).map { HAR.Header(name: $0.key, value: $0.value) },
@@ -245,14 +251,16 @@ import Path
                 endTime: endTime,
                 timings: timings
             )
-            await recorder.record(entry)
         }
 
-        private func retrieveTimings(for url: URL) -> HAR.Timings? {
+        private func retrieveTimingsAndDates(for url: URL, fallbackStart: Date, fallbackEnd: Date) -> (HAR.Timings?, Date, Date) {
             guard let metrics = URLSessionMetricsDelegate.shared.retrieveMetrics(for: url) else {
-                return nil
+                return (nil, fallbackStart, fallbackEnd)
             }
-            return URLSessionMetricsDelegate.convertToHARTimings(metrics)
+            let timings = URLSessionMetricsDelegate.convertToHARTimings(metrics)
+            let startTime = metrics.fetchStartDate ?? fallbackStart
+            let endTime = metrics.responseEndDate ?? fallbackEnd
+            return (timings, startTime, endTime)
         }
     }
-#endif
+#endif // canImport(TuistHAR)

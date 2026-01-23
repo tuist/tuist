@@ -1,5 +1,9 @@
 import Foundation
 
+#if canImport(TuistHAR)
+    import TuistHAR
+#endif
+
 private func tuistURLSessionConfiguration() -> URLSessionConfiguration {
     let configuration: URLSessionConfiguration = .ephemeral
     configuration.timeoutIntervalForRequest = 120 // 2 minutes
@@ -10,7 +14,7 @@ private func tuistURLSessionConfiguration() -> URLSessionConfiguration {
     return configuration
 }
 
-#if os(macOS)
+#if canImport(TuistHAR)
     private var _tuistURLSession: URLSession = .init(
         configuration: tuistURLSessionConfiguration(),
         delegate: URLSessionMetricsDelegate.shared,

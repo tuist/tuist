@@ -100,4 +100,36 @@ struct SessionControllerTests {
         // Then: Old logs directory should be removed since it's empty
         #expect(try await !fileSystem.exists(oldLogsDirectory))
     }
+
+    @Test(.inTemporaryDirectory)
+    func setup_limitsMaxSessions() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // Given: Create more than 50 session directories
+        let sessionsDirectory = temporaryDirectory.appending(component: "sessions")
+        try await fileSystem.makeDirectory(at: sessionsDirectory)
+
+        var sessionDates: [(path: AbsolutePath, date: Date)] = []
+        for i in 0 ..< 55 {
+            let sessionId = UUID().uuidString
+            let sessionDirectory = sessionsDirectory.appending(component: sessionId)
+            try await fileSystem.makeDirectory(at: sessionDirectory)
+            try await fileSystem.touch(sessionDirectory.appending(component: "logs.txt"))
+
+            let date = Calendar.current.date(byAdding: .hour, value: -i, to: Date())!
+            try FileManager.default.setAttributes(
+                [FileAttributeKey.creationDate: date],
+                ofItemAtPath: sessionDirectory.pathString
+            )
+            sessionDates.append((path: sessionDirectory, date: date))
+        }
+
+        // When
+        _ = try await subject.setup(stateDirectory: temporaryDirectory)
+
+        // Then: Only 50 sessions should remain
+        // Setup creates a new session first (making 56 total), then cleanup runs and keeps the newest 50
+        let sessions = try await fileSystem.glob(directory: sessionsDirectory, include: ["*"]).collect()
+        #expect(sessions.count == 50)
+    }
 }

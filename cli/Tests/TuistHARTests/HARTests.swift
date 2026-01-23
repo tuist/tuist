@@ -1,6 +1,7 @@
 import Foundation
 import Testing
-import TuistSupport
+
+@testable import TuistHAR
 
 struct HARTests {
     @Test
