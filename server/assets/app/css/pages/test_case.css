@@ -92,8 +92,15 @@
 
   & [data-part="test-case-details-section"] {
     display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-8);
+    flex-direction: row;
+    gap: var(--noora-spacing-5);
+
+    & [data-part="summary-main"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-8);
+      flex: 1;
+    }
 
     & [data-part="metadata-grid"] {
       display: flex;
