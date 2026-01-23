@@ -1,17 +1,5 @@
 msgid ""
-msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-11-05 17:58+0000\n"
-"PO-Revision-Date: 2026-01-22 12:35+0000\n"
-"Last-Translator: Weblate Admin <admin@cloudron.local>\n"
-"Language-Team: Spanish <https://translate.tuist.dev/projects/tuist/marketing/es/>\n"
-"Language: es\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=n != 1;\n"
-"X-Generator: Weblate 5.15.2\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2026-01-23 09:02+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Spanish <https://translate.tuist.dev/projects/tuist/marketing/es/>\nLanguage: es\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n != 1;\nX-Generator: Weblate 5.15.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -924,50 +912,65 @@ msgstr "en vivo en nuestro panel"
 msgid "Language"
 msgstr "Idioma"
 
+#, fuzzy
 msgid "Read story"
-msgstr ""
+msgstr "Leer historia"
 
+#, fuzzy
 msgid "%{company} case study"
-msgstr ""
+msgstr "%{company} caso práctico"
 
+#, fuzzy
 msgid "(opens in new tab)"
-msgstr ""
+msgstr "(se abre en una nueva pestaña)"
 
+#, fuzzy
 msgid "Discover how teams around the world use Tuist to build high-quality apps faster, streamline workflows, and save countless hours of engineering time."
-msgstr ""
+msgstr "Descubre cómo equipos de todo el mundo utilizan Tuist para crear aplicaciones de alta calidad más rápidamente, optimizar los flujos de trabajo y ahorrar innumerables horas de ingeniería."
 
+#, fuzzy
 msgid "Founded"
-msgstr ""
+msgstr "Fundada"
 
+#, fuzzy
 msgid "Learn how teams use Tuist to scale their iOS development."
-msgstr ""
+msgstr "Descubre cómo los equipos utilizan Tuist para ampliar su desarrollo de iOS."
 
+#, fuzzy
 msgid "Onboarded"
-msgstr ""
+msgstr "Incorporado"
 
+#, fuzzy
 msgid "Read next"
-msgstr ""
+msgstr "Leer a continuación"
 
+#, fuzzy
 msgid "Explore Tuist's features on the public dashboard"
-msgstr ""
+msgstr "Explora las funciones de Tuist en el panel de control público."
 
+#, fuzzy
 msgid "Public dashboard"
-msgstr ""
+msgstr "Panel de control público"
 
+#, fuzzy
 msgid "See how leading teams scale with Tuist"
-msgstr ""
+msgstr "Descubre cómo los equipos líderes crecen con Tuist."
 
+#, fuzzy
 msgid "See how leading tech companies are scaling their development with Tuist."
-msgstr ""
+msgstr "Descubre cómo las empresas tecnológicas líderes están ampliando su desarrollo con Tuist."
 
+#, fuzzy
 msgid "AI moves fast. So should your builds."
-msgstr ""
+msgstr "La IA avanza rápidamente. Tus creaciones también deberían hacerlo."
 
+#, fuzzy
 msgid "Customers"
-msgstr ""
+msgstr "Clientes"
 
+#, fuzzy
 msgid "Tuist Customers"
-msgstr ""
+msgstr "Clientes de Tuist"
 
 #~ msgid "AI writes faster. So should your builds."
 #~ msgstr "La IA escribe más rápido. Tus builds también deberían."
