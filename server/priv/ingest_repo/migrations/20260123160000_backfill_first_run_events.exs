@@ -20,20 +20,7 @@ defmodule Tuist.IngestRepo.Migrations.BackfillFirstRunEvents do
   end
 
   def down do
-    Logger.info("Removing backfilled first_run events...")
-
-    {:ok, result} =
-      IngestRepo.query(
-        """
-        ALTER TABLE test_case_events
-        DELETE WHERE event_type = 'first_run' AND actor_type = 'system'
-        SETTINGS mutations_sync = 1
-        """,
-        [],
-        timeout: :infinity
-      )
-
-    Logger.info("Removed first_run events: #{inspect(result)}")
+    :ok
   end
 
   defp page_query(last_test_case_id) do
