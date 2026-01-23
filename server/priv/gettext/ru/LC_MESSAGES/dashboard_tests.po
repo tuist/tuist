@@ -770,3 +770,12 @@ msgstr "Снять пометку «нестабильный»"
 #, fuzzy
 msgid "New"
 msgstr "Новое"
+
+msgid "Quarantine"
+msgstr ""
+
+msgid "Quarantined"
+msgstr ""
+
+msgid "Unquarantine"
+msgstr ""

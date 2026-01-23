@@ -764,3 +764,12 @@ msgstr "إلغاء تحديد \"غير موثوق\""
 #, fuzzy
 msgid "New"
 msgstr "جديد"
+
+msgid "Quarantine"
+msgstr ""
+
+msgid "Quarantined"
+msgstr ""
+
+msgid "Unquarantine"
+msgstr ""

@@ -751,7 +751,8 @@ msgstr "Sin pruebas poco fiables."
 
 #, fuzzy
 msgid "Number of test cases that passed after retry."
-msgstr "Número de casos de prueba que han superado la prueba tras reintentarlo."
+msgstr ""
+"Número de casos de prueba que han superado la prueba tras reintentarlo."
 
 #, fuzzy
 msgid "Percentage of test runs that were flaky in the last 30 days."
@@ -770,3 +771,12 @@ msgstr "Desmarcar como inestable."
 #, fuzzy
 msgid "New"
 msgstr "Nuevo"
+
+msgid "Quarantine"
+msgstr ""
+
+msgid "Quarantined"
+msgstr ""
+
+msgid "Unquarantine"
+msgstr ""
