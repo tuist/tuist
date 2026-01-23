@@ -36,6 +36,45 @@ public final class URLSessionMetricsDelegate: NSObject, URLSessionTaskDelegate, 
         metricsStorage.retrieve(for: url)
     }
 
+    /// Extracts HAR-relevant metadata from URLSessionTaskTransactionMetrics.
+    public struct HARMetadata {
+        public let timings: HAR.Timings
+        public let startTime: Date
+        public let endTime: Date
+        public let httpVersion: String?
+        public let requestHeadersSize: Int?
+        public let responseHeadersSize: Int?
+    }
+
+    /// Extracts all HAR-relevant metadata from URLSessionTaskTransactionMetrics.
+    /// - Parameter metrics: The transaction metrics to extract from.
+    /// - Returns: HARMetadata containing timings, dates, and sizes.
+    public static func extractHARMetadata(from metrics: URLSessionTaskTransactionMetrics) -> HARMetadata? {
+        guard let startTime = metrics.fetchStartDate,
+              let endTime = metrics.responseEndDate
+        else {
+            return nil
+        }
+
+        let timings = convertToHARTimings(metrics)
+        let httpVersion = metrics.networkProtocolName
+        let requestHeadersSize = metrics.countOfRequestHeaderBytesSent > 0
+            ? Int(metrics.countOfRequestHeaderBytesSent)
+            : nil
+        let responseHeadersSize = metrics.countOfResponseHeaderBytesReceived > 0
+            ? Int(metrics.countOfResponseHeaderBytesReceived)
+            : nil
+
+        return HARMetadata(
+            timings: timings,
+            startTime: startTime,
+            endTime: endTime,
+            httpVersion: httpVersion,
+            requestHeadersSize: requestHeadersSize,
+            responseHeadersSize: responseHeadersSize
+        )
+    }
+
     /// Converts URLSessionTaskTransactionMetrics to HAR.Timings.
     /// - Parameter metrics: The transaction metrics to convert.
     /// - Returns: HAR timings with detailed breakdown.

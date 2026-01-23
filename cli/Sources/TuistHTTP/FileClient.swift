@@ -142,7 +142,7 @@ import Path
 
         private func recordDownload(request: URLRequest, response: HTTPURLResponse) async {
             guard let recorder = HARRecorder.current, let url = request.url else { return }
-            let (timings, startTime, endTime) = retrieveTimingsAndDates(for: url)
+            let metadata = retrieveHARMetadata(for: url)
             await recorder.recordRequest(
                 url: url,
                 method: request.httpMethod ?? "GET",
@@ -153,30 +153,35 @@ import Path
                 responseHeaders: (response.allHeaderFields as? [String: String] ?? [:])
                     .map { HAR.Header(name: $0.key, value: $0.value) },
                 responseBody: nil,
-                startTime: startTime,
-                endTime: endTime,
-                timings: timings
+                startTime: metadata.startTime,
+                endTime: metadata.endTime,
+                timings: metadata.timings,
+                httpVersion: metadata.httpVersion,
+                requestHeadersSize: metadata.requestHeadersSize,
+                responseHeadersSize: metadata.responseHeadersSize
             )
         }
 
         private func recordDownloadError(request: URLRequest, error: Error) async {
             guard let recorder = HARRecorder.current, let url = request.url else { return }
-            let (timings, startTime, endTime) = retrieveTimingsAndDates(for: url)
+            let metadata = retrieveHARMetadata(for: url)
             await recorder.recordError(
                 url: url,
                 method: request.httpMethod ?? "GET",
                 requestHeaders: (request.allHTTPHeaderFields ?? [:]).map { HAR.Header(name: $0.key, value: $0.value) },
                 requestBody: nil,
                 error: error,
-                startTime: startTime,
-                endTime: endTime,
-                timings: timings
+                startTime: metadata.startTime,
+                endTime: metadata.endTime,
+                timings: metadata.timings,
+                httpVersion: metadata.httpVersion,
+                requestHeadersSize: metadata.requestHeadersSize
             )
         }
 
         private func recordUpload(request: URLRequest, response: HTTPURLResponse, requestBodySize: Int) async {
             guard let recorder = HARRecorder.current, let url = request.url else { return }
-            let (timings, startTime, endTime) = retrieveTimingsAndDates(for: url)
+            let metadata = retrieveHARMetadata(for: url)
             await recorder.recordRequest(
                 url: url,
                 method: request.httpMethod ?? "PUT",
@@ -187,37 +192,63 @@ import Path
                 responseHeaders: (response.allHeaderFields as? [String: String] ?? [:])
                     .map { HAR.Header(name: $0.key, value: $0.value) },
                 responseBody: nil,
-                startTime: startTime,
-                endTime: endTime,
-                timings: timings
+                startTime: metadata.startTime,
+                endTime: metadata.endTime,
+                timings: metadata.timings,
+                httpVersion: metadata.httpVersion,
+                requestHeadersSize: metadata.requestHeadersSize,
+                responseHeadersSize: metadata.responseHeadersSize
             )
         }
 
         private func recordUploadError(request: URLRequest, error: Error, requestBodySize: Int) async {
             guard let recorder = HARRecorder.current, let url = request.url else { return }
-            let (timings, startTime, endTime) = retrieveTimingsAndDates(for: url)
+            let metadata = retrieveHARMetadata(for: url)
             await recorder.recordError(
                 url: url,
                 method: request.httpMethod ?? "PUT",
                 requestHeaders: (request.allHTTPHeaderFields ?? [:]).map { HAR.Header(name: $0.key, value: $0.value) },
                 requestBody: Data(count: requestBodySize),
                 error: error,
-                startTime: startTime,
-                endTime: endTime,
-                timings: timings
+                startTime: metadata.startTime,
+                endTime: metadata.endTime,
+                timings: metadata.timings,
+                httpVersion: metadata.httpVersion,
+                requestHeadersSize: metadata.requestHeadersSize
             )
         }
 
-        private func retrieveTimingsAndDates(for url: URL) -> (HAR.Timings?, Date, Date) {
+        private struct HARMetadataResult {
+            let timings: HAR.Timings?
+            let startTime: Date
+            let endTime: Date
+            let httpVersion: String?
+            let requestHeadersSize: Int?
+            let responseHeadersSize: Int?
+        }
+
+        private func retrieveHARMetadata(for url: URL) -> HARMetadataResult {
             guard let metrics = URLSessionMetricsDelegate.shared.retrieveMetrics(for: url),
-                  let startTime = metrics.fetchStartDate,
-                  let endTime = metrics.responseEndDate
+                  let harMetadata = URLSessionMetricsDelegate.extractHARMetadata(from: metrics)
             else {
                 let now = Date()
-                return (nil, now, now)
+                return HARMetadataResult(
+                    timings: nil,
+                    startTime: now,
+                    endTime: now,
+                    httpVersion: nil,
+                    requestHeadersSize: nil,
+                    responseHeadersSize: nil
+                )
             }
-            let timings = URLSessionMetricsDelegate.convertToHARTimings(metrics)
-            return (timings, startTime, endTime)
+            return HARMetadataResult(
+                timings: harMetadata.timings,
+                startTime: harMetadata.startTime,
+                endTime: harMetadata.endTime,
+                httpVersion: harMetadata.httpVersion,
+                requestHeadersSize: harMetadata.requestHeadersSize,
+                responseHeadersSize: harMetadata.responseHeadersSize
+            )
         }
     }
 #endif // canImport(TuistHAR)

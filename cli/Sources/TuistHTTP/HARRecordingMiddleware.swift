@@ -38,7 +38,7 @@ public struct HARRecordingMiddleware: ClientMiddleware {
                     contentType: responseContentType
                 )
 
-                let (timings, startTime, endTime) = retrieveTimingsAndDates(for: fullURL)
+                let harMetadata = retrieveHARMetadata(for: fullURL)
                 let statusCode = response.status.code
                 let statusText = response.status.reasonPhrase ?? ""
                 let responseHeaders = response.headerFields.map { HAR.Header(name: $0.name.rawName, value: $0.value) }
@@ -53,15 +53,18 @@ public struct HARRecordingMiddleware: ClientMiddleware {
                         responseStatusText: statusText,
                         responseHeaders: responseHeaders,
                         responseBody: responseBodyData,
-                        startTime: startTime,
-                        endTime: endTime,
-                        timings: timings
+                        startTime: harMetadata.startTime,
+                        endTime: harMetadata.endTime,
+                        timings: harMetadata.timings,
+                        httpVersion: harMetadata.httpVersion,
+                        requestHeadersSize: harMetadata.requestHeadersSize,
+                        responseHeadersSize: harMetadata.responseHeadersSize
                     )
                 }
 
                 return (response, responseBodyForNext)
             } catch {
-                let (timings, startTime, endTime) = retrieveTimingsAndDates(for: fullURL)
+                let harMetadata = retrieveHARMetadata(for: fullURL)
 
                 Task.detached {
                     await recorder.recordError(
@@ -70,9 +73,11 @@ public struct HARRecordingMiddleware: ClientMiddleware {
                         requestHeaders: requestHeaders,
                         requestBody: requestBodyData,
                         error: error,
-                        startTime: startTime,
-                        endTime: endTime,
-                        timings: timings
+                        startTime: harMetadata.startTime,
+                        endTime: harMetadata.endTime,
+                        timings: harMetadata.timings,
+                        httpVersion: harMetadata.httpVersion,
+                        requestHeadersSize: harMetadata.requestHeadersSize
                     )
                 }
 
@@ -114,16 +119,37 @@ public struct HARRecordingMiddleware: ClientMiddleware {
             return binaryTypes.contains { contentType.hasPrefix($0) }
         }
 
-        private func retrieveTimingsAndDates(for url: URL) -> (HAR.Timings?, Date, Date) {
+        private struct HARMetadataResult {
+            let timings: HAR.Timings?
+            let startTime: Date
+            let endTime: Date
+            let httpVersion: String?
+            let requestHeadersSize: Int?
+            let responseHeadersSize: Int?
+        }
+
+        private func retrieveHARMetadata(for url: URL) -> HARMetadataResult {
             guard let metrics = URLSessionMetricsDelegate.shared.retrieveMetrics(for: url),
-                  let startTime = metrics.fetchStartDate,
-                  let endTime = metrics.responseEndDate
+                  let harMetadata = URLSessionMetricsDelegate.extractHARMetadata(from: metrics)
             else {
                 let now = Date()
-                return (nil, now, now)
+                return HARMetadataResult(
+                    timings: nil,
+                    startTime: now,
+                    endTime: now,
+                    httpVersion: nil,
+                    requestHeadersSize: nil,
+                    responseHeadersSize: nil
+                )
             }
-            let timings = URLSessionMetricsDelegate.convertToHARTimings(metrics)
-            return (timings, startTime, endTime)
+            return HARMetadataResult(
+                timings: harMetadata.timings,
+                startTime: harMetadata.startTime,
+                endTime: harMetadata.endTime,
+                httpVersion: harMetadata.httpVersion,
+                requestHeadersSize: harMetadata.requestHeadersSize,
+                responseHeadersSize: harMetadata.responseHeadersSize
+            )
         }
 
         private func buildURL(baseURL: URL, path: String?) -> URL {
