@@ -601,3 +601,12 @@ msgstr "불규칙 표시 해제"
 #, fuzzy
 msgid "New"
 msgstr "새로"
+
+msgid "Quarantine"
+msgstr ""
+
+msgid "Quarantined"
+msgstr ""
+
+msgid "Unquarantine"
+msgstr ""
