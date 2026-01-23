@@ -19,7 +19,7 @@ public struct TuistURLSessionTransport: ClientTransport {
         baseURL: URL,
         operationID _: String
     ) async throws -> (HTTPResponse, HTTPBody?) {
-        let urlRequest = try buildURLRequest(from: request, body: body, baseURL: baseURL)
+        let urlRequest = try await buildURLRequest(from: request, body: body, baseURL: baseURL)
 
         let (data, response) = try await session.data(for: urlRequest, delegate: nil)
 
@@ -35,7 +35,7 @@ public struct TuistURLSessionTransport: ClientTransport {
         return (httpResponseObj, responseBody)
     }
 
-    private func buildURLRequest(from request: HTTPRequest, body: HTTPBody?, baseURL: URL) throws -> URLRequest {
+    private func buildURLRequest(from request: HTTPRequest, body: HTTPBody?, baseURL: URL) async throws -> URLRequest {
         let url = try buildURL(baseURL: baseURL, path: request.path)
 
         var urlRequest = URLRequest(url: url)
@@ -46,7 +46,7 @@ public struct TuistURLSessionTransport: ClientTransport {
         }
 
         if let body {
-            urlRequest.httpBody = try collectBodySync(body)
+            urlRequest.httpBody = try await collectBody(body)
         }
 
         return urlRequest
@@ -91,33 +91,12 @@ public struct TuistURLSessionTransport: ClientTransport {
         return url
     }
 
-    private func collectBodySync(_ body: HTTPBody) throws -> Data? {
+    private func collectBody(_ body: HTTPBody) async throws -> Data? {
         switch body.length {
         case .unknown:
             return nil
         case let .known(length):
-            var data = Data()
-            data.reserveCapacity(Int(length))
-            let semaphore = DispatchSemaphore(value: 0)
-            var collectedData: Data?
-            var collectionError: Error?
-
-            Task {
-                do {
-                    collectedData = try await Data(collecting: body, upTo: Int(length))
-                } catch {
-                    collectionError = error
-                }
-                semaphore.signal()
-            }
-
-            semaphore.wait()
-
-            if let error = collectionError {
-                throw error
-            }
-
-            return collectedData
+            return try await Data(collecting: body, upTo: Int(length))
         }
     }
 
