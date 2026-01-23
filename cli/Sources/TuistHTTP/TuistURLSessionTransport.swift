@@ -36,25 +36,7 @@ public struct TuistURLSessionTransport: ClientTransport {
     }
 
     private func buildURLRequest(from request: HTTPRequest, body: HTTPBody?, baseURL: URL) throws -> URLRequest {
-        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: true) else {
-            throw TuistURLSessionTransportError.invalidURL(baseURL)
-        }
-
-        if let path = request.path {
-            let pathAndQuery = path.split(separator: "?", maxSplits: 1)
-            let pathPart = String(pathAndQuery[0])
-            components.path = components.path.isEmpty ? pathPart : components.path + pathPart
-
-            if pathAndQuery.count > 1 {
-                let existingQuery = components.query
-                let newQuery = String(pathAndQuery[1])
-                components.query = existingQuery.map { $0 + "&" + newQuery } ?? newQuery
-            }
-        }
-
-        guard let url = components.url else {
-            throw TuistURLSessionTransportError.invalidURL(baseURL)
-        }
+        let url = try buildURL(baseURL: baseURL, path: request.path)
 
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = request.method.rawValue
@@ -68,6 +50,45 @@ public struct TuistURLSessionTransport: ClientTransport {
         }
 
         return urlRequest
+    }
+
+    private func buildURL(baseURL: URL, path: String?) throws -> URL {
+        guard let path, !path.isEmpty else {
+            return baseURL
+        }
+
+        guard var baseComponents = URLComponents(url: baseURL, resolvingAgainstBaseURL: true) else {
+            throw TuistURLSessionTransportError.invalidURL(baseURL)
+        }
+
+        guard let pathURL = URL(string: path, relativeTo: nil),
+              let pathComponents = URLComponents(string: pathURL.absoluteString) ?? URLComponents(string: path)
+        else {
+            let combinedPath = baseComponents.path.isEmpty ? path : baseComponents.path + path
+            baseComponents.path = combinedPath
+            guard let url = baseComponents.url else {
+                throw TuistURLSessionTransportError.invalidURL(baseURL)
+            }
+            return url
+        }
+
+        if !pathComponents.path.isEmpty {
+            let basePath = baseComponents.path
+            let newPath = pathComponents.path
+            baseComponents.path = basePath.isEmpty ? newPath : basePath + newPath
+        }
+
+        if let newQueryItems = pathComponents.queryItems, !newQueryItems.isEmpty {
+            var existingItems = baseComponents.queryItems ?? []
+            existingItems.append(contentsOf: newQueryItems)
+            baseComponents.queryItems = existingItems
+        }
+
+        guard let url = baseComponents.url else {
+            throw TuistURLSessionTransportError.invalidURL(baseURL)
+        }
+
+        return url
     }
 
     private func collectBodySync(_ body: HTTPBody) throws -> Data? {

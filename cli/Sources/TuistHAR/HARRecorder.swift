@@ -48,18 +48,6 @@ public actor HARRecorder {
     }
 
     /// Records an HTTP request and response.
-    /// - Parameters:
-    ///   - url: The request URL.
-    ///   - method: The HTTP method.
-    ///   - requestHeaders: The request headers.
-    ///   - requestBody: The request body data.
-    ///   - responseStatusCode: The HTTP status code.
-    ///   - responseStatusText: The HTTP status text.
-    ///   - responseHeaders: The response headers.
-    ///   - responseBody: The response body data.
-    ///   - startTime: When the request started.
-    ///   - endTime: When the response was fully received.
-    ///   - timings: Optional detailed timing metrics.
     public func recordRequest(
         url: URL,
         method: String,
@@ -73,7 +61,7 @@ public actor HARRecorder {
         endTime: Date,
         timings: HAR.Timings? = nil
     ) async {
-        let entry = HAREntryBuilder().buildEntry(
+        let entry = buildEntry(
             url: url,
             method: method,
             requestHeaders: requestHeaders,
@@ -90,15 +78,6 @@ public actor HARRecorder {
     }
 
     /// Records a failed HTTP request.
-    /// - Parameters:
-    ///   - url: The request URL.
-    ///   - method: The HTTP method.
-    ///   - requestHeaders: The request headers.
-    ///   - requestBody: The request body data.
-    ///   - error: The error that occurred.
-    ///   - startTime: When the request started.
-    ///   - endTime: When the error occurred.
-    ///   - timings: Optional detailed timing metrics.
     public func recordError(
         url: URL,
         method: String,
@@ -109,7 +88,7 @@ public actor HARRecorder {
         endTime: Date,
         timings: HAR.Timings? = nil
     ) async {
-        let entry = HAREntryBuilder().buildErrorEntry(
+        let entry = buildErrorEntry(
             url: url,
             method: method,
             requestHeaders: requestHeaders,
@@ -154,6 +133,153 @@ public actor HARRecorder {
             #if os(macOS)
                 Logger.current.debug("Failed to persist HAR file: \(error)")
             #endif
+        }
+    }
+
+    // MARK: - Entry Building
+
+    private func buildEntry(
+        url: URL,
+        method: String,
+        requestHeaders: [HAR.Header],
+        requestBody: Data?,
+        responseStatusCode: Int,
+        responseStatusText: String,
+        responseHeaders: [HAR.Header],
+        responseBody: Data?,
+        startTime: Date,
+        endTime: Date,
+        timings: HAR.Timings? = nil
+    ) -> HAR.Entry {
+        let durationMs = Int((endTime.timeIntervalSince(startTime)) * 1000)
+        let filteredRequestHeaders = Self.filterSensitiveHeaders(requestHeaders)
+        let filteredResponseHeaders = Self.filterSensitiveHeaders(responseHeaders)
+
+        let entryTimings = timings ?? HAR.Timings(
+            send: 0,
+            wait: durationMs,
+            receive: 0
+        )
+
+        return HAR.Entry(
+            startedDateTime: startTime,
+            time: durationMs,
+            request: HAR.Request(
+                method: method,
+                url: url.absoluteString,
+                httpVersion: "HTTP/1.1",
+                cookies: [],
+                headers: filteredRequestHeaders,
+                queryString: extractQueryParameters(from: url),
+                postData: buildPostData(from: requestBody, headers: requestHeaders),
+                headersSize: -1,
+                bodySize: requestBody?.count ?? 0
+            ),
+            response: HAR.Response(
+                status: responseStatusCode,
+                statusText: responseStatusText,
+                httpVersion: "HTTP/1.1",
+                cookies: [],
+                headers: filteredResponseHeaders,
+                content: buildContent(from: responseBody, headers: responseHeaders),
+                redirectURL: "",
+                headersSize: -1,
+                bodySize: responseBody?.count ?? 0
+            ),
+            timings: entryTimings
+        )
+    }
+
+    private func buildErrorEntry(
+        url: URL,
+        method: String,
+        requestHeaders: [HAR.Header],
+        requestBody: Data?,
+        error: Error,
+        startTime: Date,
+        endTime: Date,
+        timings: HAR.Timings? = nil
+    ) -> HAR.Entry {
+        let durationMs = Int((endTime.timeIntervalSince(startTime)) * 1000)
+        let filteredRequestHeaders = Self.filterSensitiveHeaders(requestHeaders)
+        let errorMessage = String(describing: error)
+
+        let entryTimings = timings ?? HAR.Timings(
+            send: 0,
+            wait: durationMs,
+            receive: 0
+        )
+
+        return HAR.Entry(
+            startedDateTime: startTime,
+            time: durationMs,
+            request: HAR.Request(
+                method: method,
+                url: url.absoluteString,
+                httpVersion: "HTTP/1.1",
+                cookies: [],
+                headers: filteredRequestHeaders,
+                queryString: extractQueryParameters(from: url),
+                postData: buildPostData(from: requestBody, headers: requestHeaders),
+                headersSize: -1,
+                bodySize: requestBody?.count ?? 0
+            ),
+            response: HAR.Response(
+                status: 0,
+                statusText: "Error",
+                httpVersion: "HTTP/1.1",
+                cookies: [],
+                headers: [],
+                content: HAR.Content(
+                    size: errorMessage.utf8.count,
+                    mimeType: "text/plain",
+                    text: errorMessage
+                ),
+                redirectURL: "",
+                headersSize: -1,
+                bodySize: errorMessage.utf8.count
+            ),
+            timings: entryTimings
+        )
+    }
+
+    private func extractQueryParameters(from url: URL) -> [HAR.QueryParameter] {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: true),
+              let queryItems = components.queryItems
+        else {
+            return []
+        }
+        return queryItems.map { HAR.QueryParameter(name: $0.name, value: $0.value ?? "") }
+    }
+
+    private func buildPostData(from data: Data?, headers: [HAR.Header]) -> HAR.PostData? {
+        guard let data, !data.isEmpty else { return nil }
+
+        let mimeType = headers.first { $0.name.lowercased() == "content-type" }?.value ?? "application/octet-stream"
+
+        if let text = String(data: data, encoding: .utf8) {
+            return HAR.PostData(mimeType: mimeType, text: text)
+        } else {
+            return HAR.PostData(mimeType: mimeType, text: data.base64EncodedString())
+        }
+    }
+
+    private func buildContent(from data: Data?, headers: [HAR.Header]) -> HAR.Content {
+        let mimeType = headers.first { $0.name.lowercased() == "content-type" }?.value ?? "application/octet-stream"
+
+        guard let data, !data.isEmpty else {
+            return HAR.Content(size: 0, mimeType: mimeType)
+        }
+
+        if let text = String(data: data, encoding: .utf8) {
+            return HAR.Content(size: data.count, mimeType: mimeType, text: text)
+        } else {
+            return HAR.Content(
+                size: data.count,
+                mimeType: mimeType,
+                text: data.base64EncodedString(),
+                encoding: "base64"
+            )
         }
     }
 }
