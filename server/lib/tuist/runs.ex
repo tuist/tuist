@@ -711,17 +711,27 @@ defmodule Tuist.Runs do
     project_id = Keyword.get(opts, :project_id)
 
     if actor && project_id do
-      events = determine_test_case_events(old_test_case, new_attrs)
+      event_types = determine_test_case_events(old_test_case, new_attrs)
 
-      Enum.each(events, fn event_type ->
-        create_test_case_event(%{
-          test_case_id: test_case_id,
-          project_id: project_id,
-          event_type: event_type,
-          actor_type: actor.type,
-          actor_id: actor.id
-        })
-      end)
+      if Enum.any?(event_types) do
+        now = NaiveDateTime.utc_now()
+
+        events =
+          Enum.map(event_types, fn event_type ->
+            %{
+              id: UUIDv7.generate(),
+              test_case_id: test_case_id,
+              project_id: project_id,
+              event_type: to_string(event_type),
+              actor_type: to_string(actor.type),
+              actor_id: actor.id,
+              metadata: "{}",
+              inserted_at: now
+            }
+          end)
+
+        IngestRepo.insert_all(TestCaseEvent, events)
+      end
     end
   end
 
@@ -1159,14 +1169,25 @@ defmodule Tuist.Runs do
   defp create_first_run_events(test_case_runs, project_id) do
     new_test_case_runs = Enum.filter(test_case_runs, & &1.is_new)
 
-    Enum.each(new_test_case_runs, fn run ->
-      create_test_case_event(%{
-        test_case_id: run.test_case_id,
-        project_id: project_id,
-        event_type: :first_run,
-        actor_type: :system
-      })
-    end)
+    if Enum.any?(new_test_case_runs) do
+      now = NaiveDateTime.utc_now()
+
+      events =
+        Enum.map(new_test_case_runs, fn run ->
+          %{
+            id: TestCaseEvent.first_run_id(run.test_case_id),
+            test_case_id: run.test_case_id,
+            project_id: project_id,
+            event_type: "first_run",
+            actor_type: "system",
+            actor_id: nil,
+            metadata: "{}",
+            inserted_at: now
+          }
+        end)
+
+      IngestRepo.insert_all(TestCaseEvent, events)
+    end
   end
 
   defp calculate_avg_test_case_duration(test_cases) do
@@ -1651,19 +1672,23 @@ defmodule Tuist.Runs do
 
     IngestRepo.insert_all(TestCase, test_cases_to_update)
 
-    Enum.each(stale_test_cases, fn test_case ->
-      try do
-        create_test_case_event(%{
-          test_case_id: test_case.id,
-          project_id: test_case.project_id,
-          event_type: :unmarked_flaky,
-          actor_type: :system,
-          actor_id: nil
-        })
-      rescue
-        Ecto.ConstraintError -> :ok
-      end
-    end)
+    if Enum.any?(stale_test_cases) do
+      events =
+        Enum.map(stale_test_cases, fn test_case ->
+          %{
+            id: UUIDv7.generate(),
+            test_case_id: test_case.id,
+            project_id: test_case.project_id,
+            event_type: "unmarked_flaky",
+            actor_type: "system",
+            actor_id: nil,
+            metadata: "{}",
+            inserted_at: now
+          }
+        end)
+
+      IngestRepo.insert_all(TestCaseEvent, events)
+    end
 
     {:ok, length(test_cases_to_update)}
   end
