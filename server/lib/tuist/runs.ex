@@ -749,41 +749,66 @@ defmodule Tuist.Runs do
   end
 
   @doc """
-  Creates a test case event record.
+  Creates a test case event record in ClickHouse.
+  For first_run events, uses a deterministic ID for deduplication.
   """
   def create_test_case_event(attrs) do
+    id =
+      if attrs[:event_type] == :first_run or attrs[:event_type] == "first_run" do
+        TestCaseEvent.first_run_id(attrs[:test_case_id])
+      else
+        UUIDv7.generate()
+      end
+
+    attrs =
+      attrs
+      |> Map.put(:id, id)
+      |> Map.put(:inserted_at, NaiveDateTime.utc_now())
+      |> Map.update(:event_type, nil, &to_string/1)
+      |> Map.update(:actor_type, nil, &to_string/1)
+
     %TestCaseEvent{}
     |> TestCaseEvent.changeset(attrs)
-    |> Repo.insert()
+    |> IngestRepo.insert()
   end
 
   @doc """
   Lists test case events for a specific test case with pagination using Flop.
   Returns {events, meta} where meta is a Flop.Meta struct.
+  Loads actors separately from PostgreSQL since events are in ClickHouse.
   """
   def list_test_case_events(test_case_id, attrs \\ %{}) do
-    from(e in TestCaseEvent,
-      where: e.test_case_id == ^test_case_id,
-      preload: [:actor]
-    )
-    |> Flop.validate_and_run!(attrs, for: TestCaseEvent)
+    {events, meta} =
+      from(e in TestCaseEvent,
+        where: e.test_case_id == ^test_case_id
+      )
+      |> Tuist.ClickHouseFlop.validate_and_run!(attrs, for: TestCaseEvent)
+
+    events_with_actors = load_event_actors(events)
+    {events_with_actors, meta}
   end
 
-  @doc """
-  Gets the earliest ran_at timestamp for a test case from test_case_runs.
-  Returns {:ok, datetime} or {:error, :not_found}.
-  """
-  def get_test_case_first_run_date(test_case_id) do
-    query =
-      from(tcr in TestCaseRun,
-        where: tcr.test_case_id == ^test_case_id,
-        select: min(tcr.ran_at)
-      )
+  defp load_event_actors(events) do
+    actor_ids =
+      events
+      |> Enum.map(& &1.actor_id)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
 
-    case ClickHouseRepo.one(query) do
-      nil -> {:error, :not_found}
-      date -> {:ok, date}
-    end
+    actors_map =
+      if Enum.any?(actor_ids) do
+        Tuist.Accounts.Account
+        |> where([a], a.id in ^actor_ids)
+        |> Repo.all()
+        |> Map.new(&{&1.id, &1})
+      else
+        %{}
+      end
+
+    Enum.map(events, fn event ->
+      actor = Map.get(actors_map, event.actor_id)
+      Map.put(event, :actor, actor)
+    end)
   end
 
   @doc """
@@ -1129,7 +1154,22 @@ defmodule Tuist.Runs do
       IngestRepo.insert_all(TestCaseRunRepetition, all_repetitions)
     end
 
+    create_first_run_events(test_case_runs, test.project_id)
+
     test_case_ids_with_flaky_run
+  end
+
+  defp create_first_run_events(test_case_runs, project_id) do
+    new_test_case_runs = Enum.filter(test_case_runs, & &1.is_new)
+
+    Enum.each(new_test_case_runs, fn run ->
+      create_test_case_event(%{
+        test_case_id: run.test_case_id,
+        project_id: project_id,
+        event_type: :first_run,
+        actor_type: :system
+      })
+    end)
   end
 
   defp calculate_avg_test_case_duration(test_cases) do

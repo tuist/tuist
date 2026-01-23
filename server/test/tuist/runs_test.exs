@@ -5315,8 +5315,8 @@ defmodule Tuist.RunsTest do
       # Then
       assert event.test_case_id == test_case_id
       assert event.project_id == project.id
-      assert event.event_type == :marked_flaky
-      assert event.actor_type == :user
+      assert event.event_type == "marked_flaky"
+      assert event.actor_type == "user"
       assert event.actor_id == user.account.id
       assert event.reason == "Test is flaky"
     end
@@ -5339,8 +5339,8 @@ defmodule Tuist.RunsTest do
 
       # Then
       assert event.test_case_id == test_case_id
-      assert event.event_type == :unmarked_flaky
-      assert event.actor_type == :system
+      assert event.event_type == "unmarked_flaky"
+      assert event.actor_type == "system"
       assert event.actor_id == nil
     end
 
@@ -5474,6 +5474,7 @@ defmodule Tuist.RunsTest do
       project = ProjectsFixtures.project_fixture()
       user = AccountsFixtures.user_fixture(preload: [:account])
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       # When
       {:ok, _updated} =
@@ -5485,7 +5486,7 @@ defmodule Tuist.RunsTest do
       # Then
       {events, _meta} = Runs.list_test_case_events(test_case.id)
       assert length(events) == 1
-      assert hd(events).event_type == :marked_flaky
+      assert hd(events).event_type == "marked_flaky"
       assert hd(events).actor_id == user.account.id
     end
 
@@ -5494,6 +5495,7 @@ defmodule Tuist.RunsTest do
       project = ProjectsFixtures.project_fixture()
       user = AccountsFixtures.user_fixture(preload: [:account])
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: true)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       # When
       {:ok, _updated} =
@@ -5505,13 +5507,14 @@ defmodule Tuist.RunsTest do
       # Then
       {events, _meta} = Runs.list_test_case_events(test_case.id)
       assert length(events) == 1
-      assert hd(events).event_type == :unmarked_flaky
+      assert hd(events).event_type == "unmarked_flaky"
     end
 
     test "creates quarantined event when is_quarantined changes from false to true" do
       # Given
       project = ProjectsFixtures.project_fixture()
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_quarantined: false)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       # When
       {:ok, _updated} =
@@ -5524,8 +5527,8 @@ defmodule Tuist.RunsTest do
       # Then
       {events, _meta} = Runs.list_test_case_events(test_case.id)
       assert length(events) == 1
-      assert hd(events).event_type == :quarantined
-      assert hd(events).actor_type == :system
+      assert hd(events).event_type == "quarantined"
+      assert hd(events).actor_type == "system"
       assert hd(events).reason == "Auto-quarantined"
     end
 
@@ -5534,6 +5537,7 @@ defmodule Tuist.RunsTest do
       project = ProjectsFixtures.project_fixture()
       user = AccountsFixtures.user_fixture(preload: [:account])
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false, is_quarantined: false)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       # When
       {:ok, _updated} =
@@ -5546,14 +5550,15 @@ defmodule Tuist.RunsTest do
       {events, _meta} = Runs.list_test_case_events(test_case.id)
       assert length(events) == 2
       event_types = Enum.map(events, & &1.event_type)
-      assert :marked_flaky in event_types
-      assert :quarantined in event_types
+      assert "marked_flaky" in event_types
+      assert "quarantined" in event_types
     end
 
     test "does not create events when no actor is provided" do
       # Given
       project = ProjectsFixtures.project_fixture()
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       # When
       {:ok, _updated} = Runs.update_test_case(test_case.id, %{is_flaky: true})

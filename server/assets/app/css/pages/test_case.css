@@ -145,18 +145,14 @@
 
   & [data-part="test-case-details"] {
     & [data-part="widgets"] {
-      display: flex;
-      flex-direction: row;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
       gap: var(--noora-spacing-4);
       background-color: var(--noora-surface-background-primary);
 
-      & > * {
-        flex-grow: 1;
-      }
-
       @media (max-width: 768px) {
         & {
-          flex-direction: column;
+          grid-template-columns: 1fr;
         }
       }
     }
@@ -167,8 +163,9 @@
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-5);
-      padding-left: var(--noora-spacing-8);
+      padding-left: var(--noora-spacing-5);
       border-left: 1px solid var(--noora-surface-border-primary);
+      flex: 0 0 35%;
 
       & [data-part="overview-history-title"] {
         color: var(--noora-surface-label-primary);
@@ -179,18 +176,6 @@
         display: flex;
         flex-direction: column;
         gap: var(--noora-spacing-5);
-        position: relative;
-        padding-left: 24px;
-
-        &::before {
-          content: "";
-          position: absolute;
-          top: 12px;
-          bottom: 12px;
-          left: 0;
-          width: 1px;
-          border-left: 1px dashed var(--noora-surface-border-primary);
-        }
       }
 
       & [data-part="overview-history-item"] {

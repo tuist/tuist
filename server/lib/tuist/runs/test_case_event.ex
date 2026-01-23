@@ -3,17 +3,18 @@ defmodule Tuist.Runs.TestCaseEvent do
   Represents an audit event for a test case.
 
   Events track state changes like:
+  - first_run (first time test was seen on default branch)
   - marked_flaky / unmarked_flaky
   - quarantined / unquarantined
 
   Each event records who performed the action (user or system) and optionally why.
+
+  This is a ClickHouse entity using ReplacingMergeTree. For first_run events,
+  a deterministic ID based on test_case_id ensures deduplication.
   """
   use Ecto.Schema
 
   import Ecto.Changeset
-
-  alias Tuist.Accounts.Account
-  alias Tuist.Projects.Project
 
   @derive {
     Flop.Schema,
@@ -27,24 +28,22 @@ defmodule Tuist.Runs.TestCaseEvent do
     max_limit: 100
   }
 
-  @primary_key {:id, Ecto.UUID, autogenerate: true}
+  @primary_key {:id, Ecto.UUID, autogenerate: false}
   schema "test_case_events" do
     field :test_case_id, Ecto.UUID
-    field :event_type, Ecto.Enum, values: [:marked_flaky, :unmarked_flaky, :quarantined, :unquarantined]
-    field :actor_type, Ecto.Enum, values: [:user, :system]
-    field :reason, :string
-    field :metadata, :map, default: %{}
-
-    belongs_to :project, Project
-    belongs_to :actor, Account
-
-    timestamps(type: :utc_datetime)
+    field :project_id, Ch, type: "Int64"
+    field :event_type, Ch, type: "LowCardinality(String)"
+    field :actor_type, Ch, type: "LowCardinality(String)"
+    field :actor_id, Ch, type: "Nullable(Int64)"
+    field :reason, Ch, type: "Nullable(String)"
+    field :metadata, :string, default: "{}"
+    field :inserted_at, Ch, type: "DateTime64(6)"
   end
 
   def changeset(event, attrs) do
     event
-    |> cast(attrs, [:test_case_id, :project_id, :event_type, :actor_type, :actor_id, :reason, :metadata])
-    |> validate_required([:test_case_id, :project_id, :event_type, :actor_type])
+    |> cast(attrs, [:id, :test_case_id, :project_id, :event_type, :actor_type, :actor_id, :reason, :metadata, :inserted_at])
+    |> validate_required([:id, :test_case_id, :project_id, :event_type, :actor_type])
     |> validate_actor()
   end
 
@@ -53,14 +52,27 @@ defmodule Tuist.Runs.TestCaseEvent do
     actor_id = get_field(changeset, :actor_id)
 
     case {actor_type, actor_id} do
-      {:user, nil} ->
+      {"user", nil} ->
         add_error(changeset, :actor_id, "is required when actor_type is user")
 
-      {:system, id} when not is_nil(id) ->
+      {"system", id} when not is_nil(id) ->
         add_error(changeset, :actor_id, "must be nil when actor_type is system")
 
       _ ->
         changeset
     end
+  end
+
+  @doc """
+  Generates a deterministic UUID for first_run events based on test_case_id.
+  This ensures ReplacingMergeTree deduplicates duplicate first_run events.
+  """
+  def first_run_id(test_case_id) do
+    <<a::32, b::16, c::16, d::16, e::48>> =
+      :md5
+      |> :crypto.hash("first_run:#{test_case_id}")
+      |> binary_part(0, 16)
+
+    Ecto.UUID.cast!(<<a::32, b::16, 4::4, c::12, 2::2, d::14, e::48>>)
   end
 end
