@@ -459,7 +459,7 @@
           bottom: 0;
           left: 0;
           width: 2px;
-          background: var(--noora-surface-border-secondary);
+          background: var(--noora-surface-border-primary);
         }
       }
 
