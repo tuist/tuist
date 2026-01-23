@@ -16,11 +16,13 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
   attr :binary_cache_sort_order, :string, required: true
   attr :expanded_target_names, :any, required: true
   attr :uri, :any, required: true
-  attr :binary_cache_json, :string, required: true
+  attr :run, :any, required: true
   attr :available_filters, :list, required: true
   attr :binary_cache_active_filters, :list, required: true
 
   def module_cache_tab(assigns) do
+    assigns = assign(assigns, :binary_cache_json, binary_cache_targets_json(assigns.run))
+
     ~H"""
     <div class="tuist-module-cache-tab">
       <.card
@@ -470,4 +472,51 @@ defmodule TuistWeb.Runs.ModuleCacheTab do
       _ -> [0, 0, 0, 0]
     end
   end
+
+  defp binary_cache_targets_json(nil), do: "[]"
+
+  defp binary_cache_targets_json(run) do
+    run = Tuist.ClickHouseRepo.preload(run, [:xcode_targets])
+
+    run.xcode_targets
+    |> Enum.filter(&(&1.binary_cache_hash != nil))
+    |> Enum.sort_by(& &1.name)
+    |> Enum.map(&target_to_json_map/1)
+    |> Jason.encode!(pretty: true)
+  end
+
+  defp target_to_json_map(target) do
+    %{
+      name: target.name,
+      binary_cache_hit: target.binary_cache_hit,
+      binary_cache_hash: target.binary_cache_hash,
+      product: target.product,
+      bundle_id: target.bundle_id,
+      product_name: target.product_name,
+      external_hash: target.external_hash,
+      sources_hash: target.sources_hash,
+      resources_hash: target.resources_hash,
+      copy_files_hash: target.copy_files_hash,
+      core_data_models_hash: target.core_data_models_hash,
+      target_scripts_hash: target.target_scripts_hash,
+      environment_hash: target.environment_hash,
+      headers_hash: target.headers_hash,
+      deployment_target_hash: target.deployment_target_hash,
+      info_plist_hash: target.info_plist_hash,
+      entitlements_hash: target.entitlements_hash,
+      dependencies_hash: target.dependencies_hash,
+      project_settings_hash: target.project_settings_hash,
+      target_settings_hash: target.target_settings_hash,
+      buildable_folders_hash: target.buildable_folders_hash,
+      destinations: target.destinations,
+      additional_strings: target.additional_strings
+    }
+    |> Enum.reject(fn {_k, v} -> empty_value?(v) end)
+    |> Map.new()
+  end
+
+  defp empty_value?(nil), do: true
+  defp empty_value?(""), do: true
+  defp empty_value?([]), do: true
+  defp empty_value?(_), do: false
 end
