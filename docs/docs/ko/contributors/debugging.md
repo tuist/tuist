@@ -5,7 +5,7 @@
   "description": "Use coding agents and local runs to debug issues in Tuist."
 }
 ---
-# 디버깅 중 {#디버깅}
+# 디버깅 {#debugging}
 
 개방성은 실질적인 이점입니다: 코드를 이용할 수 있고, 로컬에서 실행할 수 있으며, 코딩 에이전트를 활용해 질문에 더 빠르게 답변하고
 코드베이스의 잠재적 버그를 디버깅할 수 있습니다.
