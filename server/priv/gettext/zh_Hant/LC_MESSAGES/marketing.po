@@ -1,5 +1,17 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-29 08:29+0000\nPO-Revision-Date: 2026-01-22 12:36+0000\nLast-Translator: Weblate Admin <admin@cloudron.local>\nLanguage-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/projects/tuist/marketing/zh_Hant/>\nLanguage: zh_Hant\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15.2\n"
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-11-29 08:29+0000\n"
+"PO-Revision-Date: 2026-01-22 12:36+0000\n"
+"Last-Translator: Weblate Admin <admin@cloudron.local>\n"
+"Language-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/projects/tuist/marketing/zh_Hant/>\n"
+"Language: zh_Hant\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Weblate 5.15.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -37,7 +49,9 @@ msgstr "9+"
 msgid ""
 "<p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with \"contact sales\" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>\n"
 "<p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>\n"
-msgstr "<p>我們對開放原始碼的承諾和核心價值塑造了獨特的定價方式。與許多透過「聯絡銷售」電話、限制性試用和其他銷售手段來榨取每一分錢的模式不同，我們相信公平與透明。我們一視同仁，制定對所有人都公平的價格。選擇我們的服務，您不僅能獲得優質的產品，還能支持更多開放原始碼專案的發展。我們認為建立一個蓬勃發展的企業是一段長期旅程，而非充斥著灰色操作的短期衝刺。您可以%{read_more}瞭解我們的理念。</p>\n<p>透過支持 Tuist，您也在支持 Swift 生態系統中更多開源軟體的發展。</p>\n"
+msgstr ""
+"<p>我們對開放原始碼的承諾和核心價值塑造了獨特的定價方式。與許多透過「聯絡銷售」電話、限制性試用和其他銷售手段來榨取每一分錢的模式不同，我們相信公平與透明。我們一視同仁，制定對所有人都公平的價格。選擇我們的服務，您不僅能獲得優質的產品，還能支持更多開放原始碼專案的發展。我們認為建立一個蓬勃發展的企業是一段長期旅程，而非充斥著灰色操作的短期衝刺。您可以%{read_more}瞭解我們的理念。</p>\n"
+"<p>透過支持 Tuist，您也在支持 Swift 生態系統中更多開源軟體的發展。</p>\n"
 
 msgid "A confirmation email has been sent to your account with further details."
 msgstr "我們已發送一封包含詳細資訊的確認信至您的帳戶。"
@@ -882,9 +896,6 @@ msgstr "起"
 msgid "per additional unit"
 msgstr "每額外單位"
 
-msgid "AI writes faster. So should your builds."
-msgstr "AI 寫得更快，您的建置也應該更快。"
-
 msgid "A Tuist command execution that interacts with the server pull test result information. As an estimate, this is roughly equivalent to the number of test runs on CI."
 msgstr "與伺服器互動以拉取測試結果資訊的 Tuist 指令執行。估計而言，這大致等同於 CI 上的測試執行次數。"
 
@@ -911,3 +922,51 @@ msgstr "在我們的儀表板即時呈現"
 
 msgid "Language"
 msgstr "語言"
+
+msgid "Read story"
+msgstr ""
+
+msgid "%{company} case study"
+msgstr ""
+
+msgid "(opens in new tab)"
+msgstr ""
+
+msgid "Discover how teams around the world use Tuist to build high-quality apps faster, streamline workflows, and save countless hours of engineering time."
+msgstr ""
+
+msgid "Founded"
+msgstr ""
+
+msgid "Learn how teams use Tuist to scale their iOS development."
+msgstr ""
+
+msgid "Onboarded"
+msgstr ""
+
+msgid "Read next"
+msgstr ""
+
+msgid "Explore Tuist's features on the public dashboard"
+msgstr ""
+
+msgid "Public dashboard"
+msgstr ""
+
+msgid "See how leading teams scale with Tuist"
+msgstr ""
+
+msgid "See how leading tech companies are scaling their development with Tuist."
+msgstr ""
+
+msgid "AI moves fast. So should your builds."
+msgstr ""
+
+msgid "Customers"
+msgstr ""
+
+msgid "Tuist Customers"
+msgstr ""
+
+#~ msgid "AI writes faster. So should your builds."
+#~ msgstr "AI 寫得更快，您的建置也應該更快。"
