@@ -59,7 +59,10 @@ public actor HARRecorder {
         responseBody: Data?,
         startTime: Date,
         endTime: Date,
-        timings: HAR.Timings? = nil
+        timings: HAR.Timings? = nil,
+        httpVersion: String? = nil,
+        requestHeadersSize: Int? = nil,
+        responseHeadersSize: Int? = nil
     ) async {
         let entry = buildEntry(
             url: url,
@@ -72,7 +75,10 @@ public actor HARRecorder {
             responseBody: responseBody,
             startTime: startTime,
             endTime: endTime,
-            timings: timings
+            timings: timings,
+            httpVersion: httpVersion,
+            requestHeadersSize: requestHeadersSize,
+            responseHeadersSize: responseHeadersSize
         )
         await record(entry)
     }
@@ -86,7 +92,9 @@ public actor HARRecorder {
         error: Error,
         startTime: Date,
         endTime: Date,
-        timings: HAR.Timings? = nil
+        timings: HAR.Timings? = nil,
+        httpVersion: String? = nil,
+        requestHeadersSize: Int? = nil
     ) async {
         let entry = buildErrorEntry(
             url: url,
@@ -96,7 +104,9 @@ public actor HARRecorder {
             error: error,
             startTime: startTime,
             endTime: endTime,
-            timings: timings
+            timings: timings,
+            httpVersion: httpVersion,
+            requestHeadersSize: requestHeadersSize
         )
         await record(entry)
     }
@@ -147,7 +157,10 @@ public actor HARRecorder {
         responseBody: Data?,
         startTime: Date,
         endTime: Date,
-        timings: HAR.Timings? = nil
+        timings: HAR.Timings? = nil,
+        httpVersion: String? = nil,
+        requestHeadersSize: Int? = nil,
+        responseHeadersSize: Int? = nil
     ) -> HAR.Entry {
         let durationMs = Int((endTime.timeIntervalSince(startTime)) * 1000)
         let filteredRequestHeaders = Self.filterSensitiveHeaders(requestHeaders)
@@ -159,29 +172,31 @@ public actor HARRecorder {
             receive: 0
         )
 
+        let resolvedHttpVersion = Self.formatHttpVersion(httpVersion)
+
         return HAR.Entry(
             startedDateTime: startTime,
             time: durationMs,
             request: HAR.Request(
                 method: method,
                 url: url.absoluteString,
-                httpVersion: "HTTP/1.1",
+                httpVersion: resolvedHttpVersion,
                 cookies: [],
                 headers: filteredRequestHeaders,
                 queryString: extractQueryParameters(from: url),
                 postData: buildPostData(from: requestBody, headers: requestHeaders),
-                headersSize: -1,
+                headersSize: requestHeadersSize ?? -1,
                 bodySize: requestBody?.count ?? 0
             ),
             response: HAR.Response(
                 status: responseStatusCode,
                 statusText: responseStatusText,
-                httpVersion: "HTTP/1.1",
+                httpVersion: resolvedHttpVersion,
                 cookies: [],
                 headers: filteredResponseHeaders,
                 content: buildContent(from: responseBody, headers: responseHeaders),
                 redirectURL: "",
-                headersSize: -1,
+                headersSize: responseHeadersSize ?? -1,
                 bodySize: responseBody?.count ?? 0
             ),
             timings: entryTimings
@@ -196,7 +211,9 @@ public actor HARRecorder {
         error: Error,
         startTime: Date,
         endTime: Date,
-        timings: HAR.Timings? = nil
+        timings: HAR.Timings? = nil,
+        httpVersion: String? = nil,
+        requestHeadersSize: Int? = nil
     ) -> HAR.Entry {
         let durationMs = Int((endTime.timeIntervalSince(startTime)) * 1000)
         let filteredRequestHeaders = Self.filterSensitiveHeaders(requestHeaders)
@@ -208,24 +225,26 @@ public actor HARRecorder {
             receive: 0
         )
 
+        let resolvedHttpVersion = Self.formatHttpVersion(httpVersion)
+
         return HAR.Entry(
             startedDateTime: startTime,
             time: durationMs,
             request: HAR.Request(
                 method: method,
                 url: url.absoluteString,
-                httpVersion: "HTTP/1.1",
+                httpVersion: resolvedHttpVersion,
                 cookies: [],
                 headers: filteredRequestHeaders,
                 queryString: extractQueryParameters(from: url),
                 postData: buildPostData(from: requestBody, headers: requestHeaders),
-                headersSize: -1,
+                headersSize: requestHeadersSize ?? -1,
                 bodySize: requestBody?.count ?? 0
             ),
             response: HAR.Response(
                 status: 0,
                 statusText: "Error",
-                httpVersion: "HTTP/1.1",
+                httpVersion: resolvedHttpVersion,
                 cookies: [],
                 headers: [],
                 content: HAR.Content(
@@ -239,6 +258,22 @@ public actor HARRecorder {
             ),
             timings: entryTimings
         )
+    }
+
+    private static func formatHttpVersion(_ protocolName: String?) -> String {
+        guard let protocolName else { return "HTTP/1.1" }
+        switch protocolName.lowercased() {
+        case "h2", "http/2", "http/2.0":
+            return "HTTP/2"
+        case "h3", "http/3", "http/3.0":
+            return "HTTP/3"
+        case "http/1.1":
+            return "HTTP/1.1"
+        case "http/1.0":
+            return "HTTP/1.0"
+        default:
+            return protocolName.uppercased()
+        }
     }
 
     private func extractQueryParameters(from url: URL) -> [HAR.QueryParameter] {
