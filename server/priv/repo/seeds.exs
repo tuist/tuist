@@ -943,7 +943,7 @@ IO.puts("  - Failures: #{:counters.get(failure_counter, 1)}")
 
 # Generate command events with module cache data linked to test runs
 # This ensures test runs have binary cache analytics available
-IO.puts("Generating test command events with module cache data...")
+IO.puts("Generating command events with module cache data for test runs...")
 
 # Query test runs from ClickHouse to get IDs for linking
 test_run_ids =
@@ -956,17 +956,127 @@ test_run_ids =
     )
   )
 
-test_runs_with_cache_count = min(length(test_run_ids), 50)
-IO.puts("  - Linking #{test_runs_with_cache_count} test runs with module cache data")
+# Query existing command events with test_run_ids to avoid duplicates
+existing_test_run_ids =
+  IngestRepo.all(
+    from(e in Event,
+      where: e.project_id == ^tuist_project.id and not is_nil(e.test_run_id),
+      select: e.test_run_id
+    )
+  )
+  |> MapSet.new()
 
-test_run_command_events =
+# Filter to only test runs without existing command events
+test_runs_without_events =
   test_run_ids
-  |> Enum.take(test_runs_with_cache_count)
-  |> Enum.map(fn test_run ->
-    command_event_id = UUIDv7.generate()
+  |> Enum.reject(fn test_run -> MapSet.member?(existing_test_run_ids, test_run.id) end)
+  |> Enum.take(50)
 
+IO.puts("  - Found #{length(test_run_ids)} test runs, #{MapSet.size(existing_test_run_ids)} already have command events")
+IO.puts("  - Creating command events for #{length(test_runs_without_events)} test runs")
+
+# Helper function to create XcodeGraphs, Projects, and Targets for command events
+create_xcode_data_for_events = fn events, label ->
+  if length(events) > 0 do
+    xcode_target_names = ["App", "Framework", "Core", "UI", "Networking", "AppTests", "FrameworkTests"]
+    product_types = ["app", "framework", "static_library", "unit_test_bundle"]
+    dest_pool = [["iphone"], ["ipad"], ["mac"], ["iphone", "ipad"]]
+    hash_pool = Enum.map(1..100, fn _ -> SeedHelpers.random_hex(64) end)
+    subhash_pool = Enum.map(1..100, fn _ -> SeedHelpers.random_hex(32) end)
+
+    xcode_graphs =
+      Enum.map(events, fn event ->
+        %{
+          id: UUIDv7.generate(),
+          name: "Workspace",
+          command_event_id: event.id,
+          binary_build_duration: Enum.random(30_000..180_000),
+          inserted_at: NaiveDateTime.truncate(event.ran_at, :second)
+        }
+      end)
+
+    IngestRepo.insert_all(XcodeGraph, xcode_graphs, timeout: 120_000)
+
+    xcode_projects =
+      Enum.flat_map(xcode_graphs, fn graph ->
+        [
+          %{
+            id: UUIDv7.generate(),
+            name: "App",
+            path: "/App/App.xcodeproj",
+            xcode_graph_id: graph.id,
+            command_event_id: graph.command_event_id,
+            inserted_at: graph.inserted_at
+          },
+          %{
+            id: UUIDv7.generate(),
+            name: "Framework",
+            path: "/Framework/Framework.xcodeproj",
+            xcode_graph_id: graph.id,
+            command_event_id: graph.command_event_id,
+            inserted_at: graph.inserted_at
+          }
+        ]
+      end)
+
+    IngestRepo.insert_all(XcodeProject, xcode_projects, timeout: 120_000)
+
+    xcode_targets =
+      Enum.flat_map(xcode_projects, fn project ->
+        xcode_target_names
+        |> Enum.with_index()
+        |> Enum.map(fn {target_name, idx} ->
+          hit_value = rem(idx, 3)
+          is_external = rem(idx, 7) == 0
+          hash_idx = rem(idx, 100)
+
+          %{
+            id: UUIDv7.generate(),
+            name: "#{project.name}_#{target_name}",
+            binary_cache_hash: Enum.at(hash_pool, hash_idx),
+            binary_cache_hit: hit_value,
+            binary_build_duration: 5000 + rem(idx * 17, 25_000),
+            selective_testing_hash: nil,
+            selective_testing_hit: 0,
+            xcode_project_id: project.id,
+            command_event_id: project.command_event_id,
+            inserted_at: project.inserted_at,
+            product: Enum.at(product_types, rem(idx, length(product_types))),
+            bundle_id: "com.tuist.#{String.downcase(project.name)}.#{String.downcase(target_name)}",
+            product_name: target_name,
+            destinations: Enum.at(dest_pool, rem(idx, length(dest_pool))),
+            external_hash: if(is_external, do: Enum.at(subhash_pool, hash_idx), else: ""),
+            sources_hash: if(is_external, do: "", else: Enum.at(subhash_pool, rem(hash_idx + 1, 100))),
+            resources_hash:
+              if(rem(idx, 2) == 0 and not is_external, do: Enum.at(subhash_pool, rem(hash_idx + 2, 100)), else: ""),
+            copy_files_hash: "",
+            core_data_models_hash: "",
+            target_scripts_hash: if(rem(idx, 3) == 0, do: Enum.at(subhash_pool, rem(hash_idx + 3, 100)), else: ""),
+            environment_hash: if(is_external, do: "", else: Enum.at(subhash_pool, rem(hash_idx + 4, 100))),
+            headers_hash: "",
+            deployment_target_hash: if(is_external, do: "", else: Enum.at(subhash_pool, rem(hash_idx + 5, 100))),
+            info_plist_hash:
+              if(rem(idx, 2) == 0 and not is_external, do: Enum.at(subhash_pool, rem(hash_idx + 6, 100)), else: ""),
+            entitlements_hash: if(rem(idx, 4) == 0, do: Enum.at(subhash_pool, rem(hash_idx + 7, 100)), else: ""),
+            dependencies_hash: if(is_external, do: "", else: Enum.at(subhash_pool, rem(hash_idx + 8, 100))),
+            project_settings_hash: if(is_external, do: "", else: Enum.at(subhash_pool, rem(hash_idx + 9, 100))),
+            target_settings_hash: if(is_external, do: "", else: Enum.at(subhash_pool, rem(hash_idx + 10, 100))),
+            buildable_folders_hash: "",
+            additional_strings: []
+          }
+        end)
+      end)
+
+    IngestRepo.insert_all(XcodeTarget, xcode_targets, timeout: 120_000)
+    IO.puts("  - #{label}: #{length(xcode_graphs)} graphs, #{length(xcode_projects)} projects, #{length(xcode_targets)} targets")
+  end
+end
+
+# Create command events for test runs that don't have them yet
+test_run_command_events =
+  Enum.map(test_runs_without_events, fn test_run ->
     %{
-      id: command_event_id,
+      id: UUIDv7.generate(),
       test_run_id: test_run.id,
       name: "test",
       duration: Enum.random(10_000..100_000),
@@ -1001,102 +1111,44 @@ test_run_command_events =
 if length(test_run_command_events) > 0 do
   IngestRepo.insert_all(Event, test_run_command_events, timeout: 120_000)
   IO.puts("  - Created #{length(test_run_command_events)} test command events")
-
-  # Create XcodeGraphs, Projects, and Targets linked to these command events
-  xcode_target_names = ["App", "Framework", "Core", "UI", "Networking", "AppTests", "FrameworkTests"]
-  product_types = ["app", "framework", "static_library", "unit_test_bundle"]
-  dest_pool = [["iphone"], ["ipad"], ["mac"], ["iphone", "ipad"]]
-  hash_pool = Enum.map(1..100, fn _ -> SeedHelpers.random_hex(64) end)
-  subhash_pool = Enum.map(1..100, fn _ -> SeedHelpers.random_hex(32) end)
-
-  test_xcode_graphs =
-    Enum.map(test_run_command_events, fn event ->
-      %{
-        id: UUIDv7.generate(),
-        name: "Workspace",
-        command_event_id: event.id,
-        binary_build_duration: Enum.random(30_000..180_000),
-        inserted_at: NaiveDateTime.truncate(event.ran_at, :second)
-      }
-    end)
-
-  IngestRepo.insert_all(XcodeGraph, test_xcode_graphs, timeout: 120_000)
-  IO.puts("  - Created #{length(test_xcode_graphs)} XcodeGraphs")
-
-  test_xcode_projects =
-    Enum.flat_map(test_xcode_graphs, fn graph ->
-      [
-        %{
-          id: UUIDv7.generate(),
-          name: "App",
-          path: "/App/App.xcodeproj",
-          xcode_graph_id: graph.id,
-          command_event_id: graph.command_event_id,
-          inserted_at: graph.inserted_at
-        },
-        %{
-          id: UUIDv7.generate(),
-          name: "Framework",
-          path: "/Framework/Framework.xcodeproj",
-          xcode_graph_id: graph.id,
-          command_event_id: graph.command_event_id,
-          inserted_at: graph.inserted_at
-        }
-      ]
-    end)
-
-  IngestRepo.insert_all(XcodeProject, test_xcode_projects, timeout: 120_000)
-  IO.puts("  - Created #{length(test_xcode_projects)} XcodeProjects")
-
-  test_xcode_targets =
-    Enum.flat_map(test_xcode_projects, fn project ->
-      xcode_target_names
-      |> Enum.with_index()
-      |> Enum.map(fn {target_name, idx} ->
-        hit_value = rem(idx, 3)
-        is_external = rem(idx, 7) == 0
-        hash_idx = rem(idx, 100)
-
-        %{
-          id: UUIDv7.generate(),
-          name: "#{project.name}_#{target_name}",
-          binary_cache_hash: Enum.at(hash_pool, hash_idx),
-          binary_cache_hit: hit_value,
-          binary_build_duration: 5000 + rem(idx * 17, 25_000),
-          selective_testing_hash: nil,
-          selective_testing_hit: 0,
-          xcode_project_id: project.id,
-          command_event_id: project.command_event_id,
-          inserted_at: project.inserted_at,
-          product: Enum.at(product_types, rem(idx, length(product_types))),
-          bundle_id: "com.tuist.#{String.downcase(project.name)}.#{String.downcase(target_name)}",
-          product_name: target_name,
-          destinations: Enum.at(dest_pool, rem(idx, length(dest_pool))),
-          external_hash: if(is_external, do: Enum.at(subhash_pool, hash_idx), else: ""),
-          sources_hash: if(is_external, do: "", else: Enum.at(subhash_pool, rem(hash_idx + 1, 100))),
-          resources_hash:
-            if(rem(idx, 2) == 0 and not is_external, do: Enum.at(subhash_pool, rem(hash_idx + 2, 100)), else: ""),
-          copy_files_hash: "",
-          core_data_models_hash: "",
-          target_scripts_hash: if(rem(idx, 3) == 0, do: Enum.at(subhash_pool, rem(hash_idx + 3, 100)), else: ""),
-          environment_hash: if(is_external, do: "", else: Enum.at(subhash_pool, rem(hash_idx + 4, 100))),
-          headers_hash: "",
-          deployment_target_hash: if(is_external, do: "", else: Enum.at(subhash_pool, rem(hash_idx + 5, 100))),
-          info_plist_hash:
-            if(rem(idx, 2) == 0 and not is_external, do: Enum.at(subhash_pool, rem(hash_idx + 6, 100)), else: ""),
-          entitlements_hash: if(rem(idx, 4) == 0, do: Enum.at(subhash_pool, rem(hash_idx + 7, 100)), else: ""),
-          dependencies_hash: if(is_external, do: "", else: Enum.at(subhash_pool, rem(hash_idx + 8, 100))),
-          project_settings_hash: if(is_external, do: "", else: Enum.at(subhash_pool, rem(hash_idx + 9, 100))),
-          target_settings_hash: if(is_external, do: "", else: Enum.at(subhash_pool, rem(hash_idx + 10, 100))),
-          buildable_folders_hash: "",
-          additional_strings: []
-        }
-      end)
-    end)
-
-  IngestRepo.insert_all(XcodeTarget, test_xcode_targets, timeout: 120_000)
-  IO.puts("  - Created #{length(test_xcode_targets)} XcodeTargets with subhashes")
+  create_xcode_data_for_events.(test_run_command_events, "Test runs")
 end
+
+# Also create command events with xcode data for generate and cache runs
+IO.puts("Generating command events with module cache data for generate and cache runs...")
+
+# Query existing generate/cache command events that have xcode data
+existing_events_with_xcode =
+  IngestRepo.all(
+    from(g in XcodeGraph,
+      join: e in Event,
+      on: g.command_event_id == e.id,
+      where: e.project_id == ^tuist_project.id and e.name in ["generate", "cache"],
+      select: e.id
+    )
+  )
+  |> MapSet.new()
+
+# Query generate/cache events without xcode data
+events_needing_xcode =
+  IngestRepo.all(
+    from(e in Event,
+      where: e.project_id == ^tuist_project.id and e.name in ["generate", "cache"],
+      select: %{id: e.id, name: e.name, ran_at: e.ran_at},
+      order_by: [desc: e.ran_at],
+      limit: 200
+    )
+  )
+  |> Enum.reject(fn event -> MapSet.member?(existing_events_with_xcode, event.id) end)
+  |> Enum.take(100)
+
+generate_events = Enum.filter(events_needing_xcode, &(&1.name == "generate")) |> Enum.take(50)
+cache_events = Enum.filter(events_needing_xcode, &(&1.name == "cache")) |> Enum.take(50)
+
+IO.puts("  - Found #{length(generate_events)} generate events and #{length(cache_events)} cache events needing xcode data")
+
+create_xcode_data_for_events.(generate_events, "Generate runs")
+create_xcode_data_for_events.(cache_events, "Cache runs")
 
 IO.puts("Generating #{seed_config.command_events} command events in parallel...")
 
