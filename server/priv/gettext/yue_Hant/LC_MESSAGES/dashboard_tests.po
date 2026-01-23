@@ -568,3 +568,12 @@ msgstr ""
 
 msgid "New"
 msgstr ""
+
+msgid "Quarantine"
+msgstr ""
+
+msgid "Quarantined"
+msgstr ""
+
+msgid "Unquarantine"
+msgstr ""
