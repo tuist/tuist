@@ -1288,12 +1288,19 @@ collected_events =
 
 :ets.delete(all_generate_cache_events)
 
-# Process in batches to avoid memory issues
-collected_events
-|> Enum.chunk_every(1000)
+# Group events by date to avoid ClickHouse partition limit (max 100 partitions per insert)
+# Process events in date-grouped batches (10 days at a time like main XcodeGraph generation)
+events_by_date =
+  collected_events
+  |> Enum.group_by(fn event -> NaiveDateTime.to_date(event.ran_at) end)
+  |> Enum.sort_by(fn {date, _events} -> date end, Date)
+
+events_by_date
+|> Enum.chunk_every(10)
 |> Enum.with_index(1)
-|> Enum.each(fn {event_batch, batch_idx} ->
-  create_xcode_data_for_events.(event_batch, "Batch #{batch_idx}")
+|> Enum.each(fn {date_batches, batch_idx} ->
+  events_in_batch = Enum.flat_map(date_batches, fn {_date, events} -> events end)
+  create_xcode_data_for_events.(events_in_batch, "Date batch #{batch_idx}")
 end)
 
 IO.puts("  - Total: #{length(collected_events)} events with xcode data")
