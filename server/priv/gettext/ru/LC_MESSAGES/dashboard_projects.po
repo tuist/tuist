@@ -3,8 +3,9 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-22 13:05+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"PO-Revision-Date: 2026-01-23 12:12+0000\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Russian <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/ru/>\n"
 "Language: ru\n"
@@ -446,8 +447,9 @@ msgstr ""
 msgid "Never"
 msgstr ""
 
+#, fuzzy
 msgid "Save"
-msgstr ""
+msgstr "Сохранить"
 
 msgid "Send test report"
 msgstr ""
@@ -518,8 +520,9 @@ msgstr ""
 msgid "Schedule"
 msgstr ""
 
+#, fuzzy
 msgid "Slack"
-msgstr ""
+msgstr "Slack"
 
 msgid "Select channel"
 msgstr ""
@@ -545,8 +548,9 @@ msgstr ""
 msgid "test time"
 msgstr ""
 
+#, fuzzy
 msgid "tests"
-msgstr ""
+msgstr "Тесты"
 
 msgid "Create"
 msgstr ""
@@ -583,8 +587,9 @@ msgstr ""
 msgid "Update alert rule"
 msgstr ""
 
+#, fuzzy
 msgid "Metrics"
-msgstr ""
+msgstr "Метрики"
 
 msgid "Create an alert rule to get notified when metrics regress"
 msgstr ""
