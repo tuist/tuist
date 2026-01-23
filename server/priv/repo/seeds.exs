@@ -1196,11 +1196,14 @@ cmd_project_id = tuist_project.id
 cmd_user_id = user.id
 
 event_counter = :counters.new(1, [:atomics])
-generate_event_counter = :counters.new(1, [:atomics])
+generate_cache_event_counter = :counters.new(1, [:atomics])
 
 # Stream and insert command events in parallel chunks
 # Use larger chunks (100K) and higher concurrency for faster throughput
 cmd_chunk_size = 100_000
+
+# Collect generate and cache events for xcode data creation
+all_generate_cache_events = :ets.new(:generate_cache_events, [:bag, :public])
 
 # Process command events sequentially to avoid overwhelming ClickHouse connections
 # Using Stream.chunk_every for memory efficiency
@@ -1265,14 +1268,35 @@ cmd_chunk_size = 100_000
   IngestRepo.insert_all(Event, events, timeout: 120_000)
   :counters.add(event_counter, 1, length(events))
 
-  # Count generate events for later xcode graph generation
-  gen_count = Enum.count(events, &(&1.name == "generate"))
-  :counters.add(generate_event_counter, 1, gen_count)
+  # Collect generate and cache events for xcode data creation
+  generate_cache_events = Enum.filter(events, &(&1.name in ["generate", "cache"]))
+  Enum.each(generate_cache_events, fn event -> :ets.insert(all_generate_cache_events, {:event, event}) end)
+  :counters.add(generate_cache_event_counter, 1, length(generate_cache_events))
 
   IO.write("\r  Inserted: #{:counters.get(event_counter, 1)}")
 end)
 
-IO.puts("\n  Done. (#{:counters.get(generate_event_counter, 1)} generate events)")
+IO.puts("\n  Done. (#{:counters.get(generate_cache_event_counter, 1)} generate/cache events)")
+
+# Create xcode data for all generate and cache events
+IO.puts("Creating xcode data for all generate and cache command events...")
+
+collected_events =
+  all_generate_cache_events
+  |> :ets.tab2list()
+  |> Enum.map(fn {:event, event} -> event end)
+
+:ets.delete(all_generate_cache_events)
+
+# Process in batches to avoid memory issues
+collected_events
+|> Enum.chunk_every(1000)
+|> Enum.with_index(1)
+|> Enum.each(fn {event_batch, batch_idx} ->
+  create_xcode_data_for_events.(event_batch, "Batch #{batch_idx}")
+end)
+
+IO.puts("  - Total: #{length(collected_events)} events with xcode data")
 
 # Generate XcodeGraphs, Projects, and Targets in a fully streaming manner
 # Process graphs in chunks to avoid memory pressure with 40M+ targets
