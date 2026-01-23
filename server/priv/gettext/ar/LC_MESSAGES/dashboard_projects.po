@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-22 13:05+0000\n"
+"PO-Revision-Date: 2026-01-23 12:12+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Arabic <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/ar/>\n"
@@ -429,195 +429,264 @@ msgstr "منذ النقطة الأخيرة"
 msgid "since yesterday"
 msgstr "منذ أمس"
 
+#, fuzzy
 msgid "Channel"
-msgstr ""
+msgstr "القناة"
 
+#, fuzzy
 msgid "Configure"
-msgstr ""
+msgstr "تكوين"
 
+#, fuzzy
 msgid "Daily"
-msgstr ""
+msgstr "يوميًا"
 
+#, fuzzy
 msgid "Frequency"
-msgstr ""
+msgstr "التكرار"
 
+#, fuzzy
 msgid "Never"
-msgstr ""
+msgstr "أبدًا"
 
+#, fuzzy
 msgid "Save"
-msgstr ""
+msgstr "حفظ"
 
+#, fuzzy
 msgid "Send test report"
-msgstr ""
+msgstr "إرسال تقرير الاختبار"
 
+#, fuzzy
 msgid "Time"
-msgstr ""
+msgstr "الوقت"
 
+#, fuzzy
 msgid "All days"
-msgstr ""
+msgstr "جميع الأيام"
 
+#, fuzzy
 msgid "Select days"
-msgstr ""
+msgstr "حدد الأيام"
 
+#, fuzzy
 msgid "Average"
-msgstr ""
+msgstr "المتوسط"
 
+#, fuzzy
 msgid "Build duration"
-msgstr ""
+msgstr "مدة البناء"
 
+#, fuzzy
 msgid "Cache hit rate"
-msgstr ""
+msgstr "معدل الوصول إلى ذاكرة التخزين المؤقت"
 
+#, fuzzy
 msgid "Category"
-msgstr ""
+msgstr "الفئة"
 
+#, fuzzy
 msgid "Get notified when metrics regress"
-msgstr ""
+msgstr "احصل على إشعار عند تراجع المقاييس"
 
+#, fuzzy
 msgid "Metric"
-msgstr ""
+msgstr "المقياس"
 
+#, fuzzy
 msgid "Test duration"
-msgstr ""
+msgstr "مدة الاختبار"
 
+#, fuzzy
 msgid "Rolling window"
-msgstr ""
+msgstr "نافذة متحركة"
 
+#, fuzzy
 msgid "Add alert rule"
-msgstr ""
+msgstr "إضافة قاعدة تنبيه"
 
+#, fuzzy
 msgid "Alert name"
-msgstr ""
+msgstr "اسم التنبيه"
 
+#, fuzzy
 msgid "Alert rules"
-msgstr ""
+msgstr "قواعد التنبيه"
 
+#, fuzzy
 msgid "Configure schedule"
-msgstr ""
+msgstr "تكوين الجدول الزمني"
 
+#, fuzzy
 msgid "Configure your report notifications"
-msgstr ""
+msgstr "تكوين إشعارات التقارير"
 
+#, fuzzy
 msgid "Connect Slack"
-msgstr ""
+msgstr "ربط Slack"
 
+#, fuzzy
 msgid "Deviation (%)"
-msgstr ""
+msgstr "الانحراف (٪)"
 
+#, fuzzy
 msgid "Notifications"
-msgstr ""
+msgstr "الإشعارات"
 
+#, fuzzy
 msgid "Repeat"
-msgstr ""
+msgstr "كرر"
 
+#, fuzzy
 msgid "Reports"
-msgstr ""
+msgstr "التقارير"
 
+#, fuzzy
 msgid "Schedule"
-msgstr ""
+msgstr "الجدول الزمني"
 
+#, fuzzy
 msgid "Slack"
-msgstr ""
+msgstr "Slack"
 
+#, fuzzy
 msgid "Select channel"
-msgstr ""
+msgstr "اختر القناة"
 
+#, fuzzy
 msgid "Update channel"
-msgstr ""
+msgstr "تحديث القناة"
 
+#, fuzzy
 msgid "Slack channel"
-msgstr ""
+msgstr "قناة Slack"
 
+#, fuzzy
 msgid "average"
-msgstr ""
+msgstr "المتوسط"
 
+#, fuzzy
 msgid "build time"
-msgstr ""
+msgstr "وقت البناء"
 
+#, fuzzy
 msgid "builds"
-msgstr ""
+msgstr "builds"
 
+#, fuzzy
 msgid "cache hit rate"
-msgstr ""
+msgstr "معدل نجاح ذاكرة التخزين المؤقت"
 
+#, fuzzy
 msgid "test time"
-msgstr ""
+msgstr "وقت الاختبار"
 
+#, fuzzy
 msgid "tests"
-msgstr ""
+msgstr "اختبارات"
 
+#, fuzzy
 msgid "Create"
-msgstr ""
+msgstr "إنشاء"
 
+#, fuzzy
 msgid "Create alert rule"
-msgstr ""
+msgstr "إنشاء قاعدة تنبيه"
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{metric_category}</strong> of the last "
 "<strong>%{rolling_window_size} %{unit}</strong> has decreased by "
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
+"تنبيه عندما ينخفض مؤشر <strong>%{metric_category}</strong> لآخر <strong>%"
+"{rolling_window_size} %{unit}</strong> بنسبة <strong>%{deviation}%</strong> "
+"مقارنةً بـ <strong>%{rolling_window_size} %{unit}</strong>."
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{metric_category}</strong> of the last "
 "<strong>%{rolling_window_size} %{unit}</strong> has increased by "
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
+"تنبيه عندما يزداد مؤشر <strong>%{metric_category}</strong> لآخر <strong>%"
+"{rolling_window_size} %{unit}</strong> بنسبة <strong>%{deviation}%</strong> "
+"مقارنةً بـ <strong>%{rolling_window_size} %{unit}</strong>."
 
+#, fuzzy
 msgid "Connect your Slack account before selecting channels."
-msgstr ""
+msgstr "قم بتوصيل حساب Slack الخاص بك قبل تحديد القنوات."
 
+#, fuzzy
 msgid "Deviation"
-msgstr ""
+msgstr "الانحراف"
 
+#, fuzzy
 msgid "None"
-msgstr ""
+msgstr "لا شيء"
 
+#, fuzzy
 msgid "Update"
-msgstr ""
+msgstr "تحديث"
 
+#, fuzzy
 msgid "Update alert rule"
-msgstr ""
+msgstr "تحديث قاعدة التنبيه"
 
+#, fuzzy
 msgid "Metrics"
-msgstr ""
+msgstr "المقاييس"
 
+#, fuzzy
 msgid "Create an alert rule to get notified when metrics regress"
-msgstr ""
+msgstr "أنشئ قاعدة تنبيه لتلقي إشعار عند تراجع المقاييس"
 
+#, fuzzy
 msgid "No alert rules"
-msgstr ""
+msgstr "لا توجد قواعد تنبيه"
 
+#, fuzzy
 msgid "Auto-mark tests as flaky"
-msgstr ""
+msgstr "ضع علامة تلقائية على الاختبارات على أنها غير موثوقة"
 
+#, fuzzy
 msgid "Auto-quarantine flaky tests"
-msgstr ""
+msgstr "الحجر التلقائي للاختبارات غير الموثوقة"
 
+#, fuzzy
 msgid "Automatically quarantine tests when they are detected as flaky"
-msgstr ""
+msgstr "ضع الاختبارات في الحجر الصحي تلقائيًا عند اكتشافها على أنها غير مستقرة"
 
+#, fuzzy
 msgid "Automations"
-msgstr ""
+msgstr "الأتمتة"
 
+#, fuzzy
 msgid "Flaky test detection"
-msgstr ""
+msgstr "اكتشاف الاختبار غير الدقيق"
 
+#, fuzzy
 msgid "Get notified when tests are flagged as flaky"
-msgstr ""
+msgstr "احصل على إشعار عندما يتم وضع علامة على الاختبارات على أنها غير موثوقة"
 
+#, fuzzy
 msgid "Minimum occurrences"
-msgstr ""
+msgstr "الحد الأدنى لعدد المرات"
 
+#, fuzzy
 msgid "Slack notifications"
-msgstr ""
+msgstr "إشعارات Slack"
 
+#, fuzzy
 msgid "Test quarantine"
-msgstr ""
+msgstr "اختبار الحجر الصحي"
 
+#, fuzzy
 msgid ""
 "Tests will be marked as flaky after the specified number of flaky "
 "occurrences within the last 30 days"
 msgstr ""
+"سيتم وضع علامة \"غير مستقر\" على الاختبارات بعد عدد محدد من حالات عدم الاستقرار "
+"خلال آخر 30 يومًا."
