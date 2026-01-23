@@ -82,10 +82,11 @@ public struct TuistCommand: AsyncParsableCommand {
     }
 
     public static func main(
-        logFilePath: AbsolutePath,
+        sessionPaths: SessionPaths,
         _ arguments: [String]? = nil,
         parseAsRoot: ((_ arguments: [String]?) throws -> ParsableCommand) = Self.parseAsRoot
     ) async throws {
+        let logFilePath = sessionPaths.logFilePath
         let path: AbsolutePath
         if let argumentIndex = CommandLine.arguments.firstIndex(of: "--path") {
             path = try AbsolutePath(
@@ -245,7 +246,7 @@ public struct TuistCommand: AsyncParsableCommand {
             print("\n")
             Noora.current.warning(warningAlerts)
         }
-        let logsNextStep: TerminalText = "Check out the logs at \(logFilePath.pathString)"
+        let logsNextStep: TerminalText = "Check out the session logs at \(logFilePath.parentDirectory.pathString)"
 
         if let errorAlert {
             print("\n")

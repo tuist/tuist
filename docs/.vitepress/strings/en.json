@@ -84,8 +84,8 @@
       "items": {
         "cli": {
           "items": {
-            "logging": {
-              "text": "Logging"
+            "debugging": {
+              "text": "Debugging"
             },
             "directories": {
               "text": "Directories"

@@ -1,6 +1,5 @@
 import Foundation
 import OpenAPIRuntime
-import OpenAPIURLSession
 import TuistHTTP
 import TuistServer
 import TuistSupport
@@ -18,8 +17,9 @@ extension Client {
     ) -> Client {
         .init(
             serverURL: cacheURL,
-            transport: URLSessionTransport(configuration: .init(session: .tuistShared)),
+            transport: TuistURLSessionTransport(),
             middlewares: [
+                HARRecordingMiddleware(),
                 RequestIdMiddleware(),
                 CacheClientAuthenticationMiddleware(
                     authenticationURL: authenticationURL,

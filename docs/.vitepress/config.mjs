@@ -165,7 +165,7 @@ const searchOptionsLocales = Object.fromEntries(
 
 function redirectToEnglishForGeneratedDocs(req, res) {
   const localizedCliPassthrough = new Set([
-    "/cli/logging",
+    "/cli/debugging",
     "/cli/directories",
     "/cli/shell-completions",
   ]);
@@ -481,6 +481,7 @@ export default withMermaid(
 /:locale/server /:locale/guides/server/accounts-and-projects 301
 /:locale/references/examples /:locale/guides/examples/generated-projects 301
 /:locale/references/examples/* /:locale/guides/examples/generated-projects/:splat 301
+/:locale/cli/logging /:locale/cli/debugging 301
 ${cliLocaleRedirects}
 ${projectDescriptionLocaleRedirects}
 ${await fs.readFile(path.join(import.meta.dirname, "locale-redirects.txt"), {
