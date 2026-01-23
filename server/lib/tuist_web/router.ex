@@ -344,6 +344,32 @@ defmodule TuistWeb.Router do
           post "/", BundlesController, :create
         end
 
+        scope "/generations" do
+          get "/", GenerationsController, :index
+          get "/:run_id", GenerationsController, :show
+        end
+
+        scope "/cache-runs" do
+          get "/", CacheRunsController, :index
+          get "/:run_id", CacheRunsController, :show
+        end
+
+        scope "/builds" do
+          get "/", BuildsController, :index
+          get "/:build_id", BuildsController, :show
+        end
+
+        scope "/tests" do
+          get "/", TestsController, :index
+
+          scope "/cases" do
+            get "/", TestCasesController, :index
+            get "/:test_case_id", TestCasesController, :show
+          end
+
+          get "/:test_id", TestsController, :show
+        end
+
         scope "/runs" do
           get "/", RunsController, :index
           post "/", RunsController, :create

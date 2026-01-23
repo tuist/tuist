@@ -11,6 +11,9 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
   def init(:run), do: :run
   def init(:bundle), do: :bundle
   def init(:cache), do: :cache
+  def init(:build), do: :build
+  def init(:test), do: :test
+  def init(:test_case), do: :test_case
   def init(:preview), do: :preview
   def init(:registry), do: :registry
   def init(:qa_run), do: :qa_run
@@ -31,6 +34,15 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
 
       :cache ->
         authorize_project(conn, :cache)
+
+      :build ->
+        authorize_project(conn, :build)
+
+      :test ->
+        authorize_project(conn, :test)
+
+      :test_case ->
+        authorize_project(conn, :test_case)
 
       :preview ->
         authorize_project(conn, :preview)

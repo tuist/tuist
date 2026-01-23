@@ -11,7 +11,10 @@ public struct GenerateCommand: AsyncParsableCommand, RecentPathRememberableComma
         CommandConfiguration(
             commandName: "generate",
             abstract: "Generates an Xcode workspace to start working on the project.",
-            subcommands: []
+            subcommands: [
+                GenerateListCommand.self,
+                GenerateShowCommand.self,
+            ]
         )
     }
 
