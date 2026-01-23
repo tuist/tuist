@@ -29,7 +29,9 @@ public struct TuistURLSessionTransport: ClientTransport {
             let metricsDelegate = TaskMetricsDelegate()
             let (data, response) = try await session.data(for: urlRequest, delegate: metricsDelegate)
 
-            if let metrics = await metricsDelegate.transactionMetrics,
+            // The delegate callback is guaranteed to complete before session.data() returns,
+            // so transactionMetrics is safely accessible here without race conditions.
+            if let metrics = metricsDelegate.transactionMetrics,
                let url = urlRequest.url
             {
                 await URLSessionMetricsDelegate.shared.storeMetrics(metrics, for: url)
@@ -143,27 +145,20 @@ enum TuistURLSessionTransportError: LocalizedError {
 }
 
 #if canImport(TuistHAR)
+    import os
+
     /// A per-task delegate that captures metrics for a single request.
-    /// Uses an actor to safely pass metrics from URLSession's delegate queue to the async context.
+    /// The delegate callback is guaranteed to complete before session.data() returns,
+    /// so we use lock-based synchronization to safely read the metrics.
     private final class TaskMetricsDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
-        private let storage = MetricsHolder()
+        private let storage = OSAllocatedUnfairLock(initialState: nil as URLSessionTaskTransactionMetrics?)
 
         var transactionMetrics: URLSessionTaskTransactionMetrics? {
-            get async { await storage.metrics }
+            storage.withLock { $0 }
         }
 
         func urlSession(_: URLSession, task _: URLSessionTask, didFinishCollecting metrics: URLSessionTaskMetrics) {
-            let transactionMetrics = metrics.transactionMetrics.last
-            Task { await storage.setMetrics(transactionMetrics) }
-        }
-    }
-
-    /// Actor that holds metrics for a single request.
-    private actor MetricsHolder {
-        var metrics: URLSessionTaskTransactionMetrics?
-
-        func setMetrics(_ metrics: URLSessionTaskTransactionMetrics?) {
-            self.metrics = metrics
+            storage.withLock { $0 = metrics.transactionMetrics.last }
         }
     }
 #endif
