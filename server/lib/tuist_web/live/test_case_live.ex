@@ -224,7 +224,7 @@ defmodule TuistWeb.TestCaseLive do
       Runs.update_test_case(
         test_case_id,
         %{is_flaky: false},
-        %{type: :user, id: current_user.account.id}
+        actor_id: current_user.account.id
       )
 
     {:noreply,
@@ -250,7 +250,7 @@ defmodule TuistWeb.TestCaseLive do
       Runs.update_test_case(
         test_case_id,
         %{is_flaky: true},
-        %{type: :user, id: current_user.account.id}
+        actor_id: current_user.account.id
       )
 
     test_case_detail = %{test_case_detail | is_flaky: updated_test_case.is_flaky}
@@ -261,7 +261,7 @@ defmodule TuistWeb.TestCaseLive do
           Runs.update_test_case(
             test_case_id,
             %{is_quarantined: true},
-            %{type: :user, id: current_user.account.id}
+            actor_id: current_user.account.id
           )
 
         {%{test_case_detail | is_quarantined: quarantined_test_case.is_quarantined}, true}
@@ -287,7 +287,7 @@ defmodule TuistWeb.TestCaseLive do
       Runs.update_test_case(
         test_case_id,
         %{is_quarantined: true},
-        %{type: :user, id: current_user.account.id}
+        actor_id: current_user.account.id
       )
 
     {:noreply,
@@ -305,7 +305,7 @@ defmodule TuistWeb.TestCaseLive do
       Runs.update_test_case(
         test_case_id,
         %{is_quarantined: false},
-        %{type: :user, id: current_user.account.id}
+        actor_id: current_user.account.id
       )
 
     {:noreply,

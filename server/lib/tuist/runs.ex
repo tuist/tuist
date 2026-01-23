@@ -685,11 +685,12 @@ defmodule Tuist.Runs do
   ## Parameters
   - `test_case_id` - the test case UUID to update
   - `update_attrs` - map with `:is_flaky` and/or `:is_quarantined` boolean values
-  - `actor` - map with `:type` (:user or :system) and `:id` (account_id or nil for system)
+  - `opts` - optional keyword list with `:actor_id` (account_id for user actions, nil for system)
   """
-  def update_test_case(test_case_id, update_attrs, actor) when is_map(update_attrs) do
+  def update_test_case(test_case_id, update_attrs, opts \\ []) when is_map(update_attrs) do
     valid_keys = [:is_flaky, :is_quarantined]
     filtered_attrs = Map.take(update_attrs, valid_keys)
+    actor_id = Keyword.get(opts, :actor_id)
 
     with {:ok, test_case} <- get_test_case_by_id(test_case_id) do
       attrs =
@@ -701,13 +702,13 @@ defmodule Tuist.Runs do
 
       {1, nil} = IngestRepo.insert_all(TestCase, [attrs])
 
-      create_events_for_test_case_changes(test_case_id, test_case, filtered_attrs, actor)
+      create_events_for_test_case_changes(test_case_id, test_case, filtered_attrs, actor_id)
 
       {:ok, Map.merge(test_case, filtered_attrs)}
     end
   end
 
-  defp create_events_for_test_case_changes(test_case_id, old_test_case, new_attrs, actor) do
+  defp create_events_for_test_case_changes(test_case_id, old_test_case, new_attrs, actor_id) do
     event_types = determine_test_case_events(old_test_case, new_attrs)
 
     if Enum.any?(event_types) do
@@ -719,7 +720,7 @@ defmodule Tuist.Runs do
             id: UUIDv7.generate(),
             test_case_id: test_case_id,
             event_type: to_string(event_type),
-            actor_id: actor.id,
+            actor_id: actor_id,
             inserted_at: now
           }
         end)

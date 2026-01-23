@@ -2659,7 +2659,7 @@ defmodule Tuist.RunsTest do
       test_case_id = ci_run.test_case_id
 
       # Manually mark the test case as flaky (simulating what the FlakyThresholdCheckWorker would do)
-      {:ok, _} = Runs.update_test_case(test_case_id, %{is_flaky: true}, %{type: :system, id: nil})
+      {:ok, _} = Runs.update_test_case(test_case_id, %{is_flaky: true})
 
       # Verify TestCase is marked as flaky
       {:ok, test_case_after_ci} = Runs.get_test_case_by_id(test_case_id)
@@ -3296,7 +3296,7 @@ defmodule Tuist.RunsTest do
       assert test_case.is_flaky == false
 
       # When
-      result = Runs.update_test_case(test_case.id, %{is_flaky: true}, %{type: :system, id: nil})
+      result = Runs.update_test_case(test_case.id, %{is_flaky: true})
 
       # Then
       assert {:ok, updated_test_case} = result
@@ -3313,7 +3313,7 @@ defmodule Tuist.RunsTest do
       non_existent_id = UUIDv7.generate()
 
       # When
-      result = Runs.update_test_case(non_existent_id, %{is_flaky: true}, %{type: :system, id: nil})
+      result = Runs.update_test_case(non_existent_id, %{is_flaky: true})
 
       # Then
       assert result == {:error, :not_found}
@@ -3341,10 +3341,10 @@ defmodule Tuist.RunsTest do
       {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
 
       # Mark as flaky first
-      {:ok, _} = Runs.update_test_case(test_case.id, %{is_flaky: true}, %{type: :system, id: nil})
+      {:ok, _} = Runs.update_test_case(test_case.id, %{is_flaky: true})
 
       # When - mark as flaky again
-      result = Runs.update_test_case(test_case.id, %{is_flaky: true}, %{type: :system, id: nil})
+      result = Runs.update_test_case(test_case.id, %{is_flaky: true})
 
       # Then
       assert {:ok, updated_test_case} = result
@@ -3373,12 +3373,12 @@ defmodule Tuist.RunsTest do
       {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
 
       # Mark as flaky first
-      {:ok, _} = Runs.update_test_case(test_case.id, %{is_flaky: true}, %{type: :system, id: nil})
+      {:ok, _} = Runs.update_test_case(test_case.id, %{is_flaky: true})
       {:ok, flaky_test_case} = Runs.get_test_case_by_id(test_case.id)
       assert flaky_test_case.is_flaky == true
 
       # When
-      result = Runs.update_test_case(test_case.id, %{is_flaky: false}, %{type: :system, id: nil})
+      result = Runs.update_test_case(test_case.id, %{is_flaky: false})
 
       # Then
       assert {:ok, updated_test_case} = result
@@ -3395,7 +3395,7 @@ defmodule Tuist.RunsTest do
       non_existent_id = UUIDv7.generate()
 
       # When
-      result = Runs.update_test_case(non_existent_id, %{is_flaky: false}, %{type: :system, id: nil})
+      result = Runs.update_test_case(non_existent_id, %{is_flaky: false})
 
       # Then
       assert result == {:error, :not_found}
@@ -3424,7 +3424,7 @@ defmodule Tuist.RunsTest do
       assert test_case.is_flaky == false
 
       # When - unmark when already not flaky
-      result = Runs.update_test_case(test_case.id, %{is_flaky: false}, %{type: :system, id: nil})
+      result = Runs.update_test_case(test_case.id, %{is_flaky: false})
 
       # Then
       assert {:ok, updated_test_case} = result
@@ -3454,7 +3454,7 @@ defmodule Tuist.RunsTest do
       {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
       assert test_case.is_quarantined == false
 
-      result = Runs.update_test_case(test_case.id, %{is_quarantined: true}, %{type: :system, id: nil})
+      result = Runs.update_test_case(test_case.id, %{is_quarantined: true})
 
       assert {:ok, updated_test_case} = result
       assert updated_test_case.is_quarantined == true
@@ -3467,7 +3467,7 @@ defmodule Tuist.RunsTest do
     test "returns error when test case does not exist" do
       non_existent_id = UUIDv7.generate()
 
-      result = Runs.update_test_case(non_existent_id, %{is_quarantined: true}, %{type: :system, id: nil})
+      result = Runs.update_test_case(non_existent_id, %{is_quarantined: true})
 
       assert result == {:error, :not_found}
     end
@@ -3492,11 +3492,11 @@ defmodule Tuist.RunsTest do
 
       {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
 
-      {:ok, _} = Runs.update_test_case(test_case.id, %{is_quarantined: true}, %{type: :system, id: nil})
+      {:ok, _} = Runs.update_test_case(test_case.id, %{is_quarantined: true})
       {:ok, quarantined_test_case} = Runs.get_test_case_by_id(test_case.id)
       assert quarantined_test_case.is_quarantined == true
 
-      result = Runs.update_test_case(test_case.id, %{is_quarantined: false}, %{type: :system, id: nil})
+      result = Runs.update_test_case(test_case.id, %{is_quarantined: false})
 
       assert {:ok, updated_test_case} = result
       assert updated_test_case.is_quarantined == false
@@ -3559,7 +3559,7 @@ defmodule Tuist.RunsTest do
         Runs.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: first_test.id}]})
 
       # Mark the test_case as flaky (simulating what the FlakyThresholdCheckWorker would do)
-      {:ok, _} = Runs.update_test_case(test_case_run.test_case_id, %{is_flaky: true}, %{type: :system, id: nil})
+      {:ok, _} = Runs.update_test_case(test_case_run.test_case_id, %{is_flaky: true})
 
       RunsFixtures.optimize_test_case_runs()
 
@@ -3621,7 +3621,7 @@ defmodule Tuist.RunsTest do
 
       # Mark all test_cases as flaky (simulating what the FlakyThresholdCheckWorker would do)
       for test_case_id <- test_case_ids do
-        {:ok, _} = Runs.update_test_case(test_case_id, %{is_flaky: true}, %{type: :system, id: nil})
+        {:ok, _} = Runs.update_test_case(test_case_id, %{is_flaky: true})
       end
 
       RunsFixtures.optimize_test_case_runs()
@@ -3684,7 +3684,7 @@ defmodule Tuist.RunsTest do
 
       # Mark all test_cases as flaky (simulating what the FlakyThresholdCheckWorker would do)
       for test_case_id <- test_case_ids do
-        {:ok, _} = Runs.update_test_case(test_case_id, %{is_flaky: true}, %{type: :system, id: nil})
+        {:ok, _} = Runs.update_test_case(test_case_id, %{is_flaky: true})
       end
 
       RunsFixtures.optimize_test_case_runs()
@@ -3748,7 +3748,7 @@ defmodule Tuist.RunsTest do
 
       # Mark all test_cases as flaky (simulating what the FlakyThresholdCheckWorker would do)
       for test_case_id <- test_case_ids do
-        {:ok, _} = Runs.update_test_case(test_case_id, %{is_flaky: true}, %{type: :system, id: nil})
+        {:ok, _} = Runs.update_test_case(test_case_id, %{is_flaky: true})
       end
 
       RunsFixtures.optimize_test_case_runs()
@@ -3806,7 +3806,7 @@ defmodule Tuist.RunsTest do
         Runs.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: first_test.id}]})
 
       # Mark the test_case as flaky (simulating what the FlakyThresholdCheckWorker would do)
-      {:ok, _} = Runs.update_test_case(test_case_run.test_case_id, %{is_flaky: true}, %{type: :system, id: nil})
+      {:ok, _} = Runs.update_test_case(test_case_run.test_case_id, %{is_flaky: true})
 
       RunsFixtures.optimize_test_case_runs()
 
@@ -5398,7 +5398,7 @@ defmodule Tuist.RunsTest do
         Runs.update_test_case(
           test_case.id,
           %{is_flaky: true},
-          %{type: :user, id: user.account.id}
+          actor_id: user.account.id
         )
 
       # Then
@@ -5420,7 +5420,7 @@ defmodule Tuist.RunsTest do
         Runs.update_test_case(
           test_case.id,
           %{is_flaky: false},
-          %{type: :user, id: user.account.id}
+          actor_id: user.account.id
         )
 
       # Then
@@ -5436,12 +5436,7 @@ defmodule Tuist.RunsTest do
       IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       # When
-      {:ok, _updated} =
-        Runs.update_test_case(
-          test_case.id,
-          %{is_quarantined: true},
-          %{type: :system, id: nil}
-        )
+      {:ok, _updated} = Runs.update_test_case(test_case.id, %{is_quarantined: true})
 
       # Then
       {events, _meta} = Runs.list_test_case_events(test_case.id)
@@ -5462,7 +5457,7 @@ defmodule Tuist.RunsTest do
         Runs.update_test_case(
           test_case.id,
           %{is_flaky: true, is_quarantined: true},
-          %{type: :user, id: user.account.id}
+          actor_id: user.account.id
         )
 
       # Then
