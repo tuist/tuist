@@ -50,7 +50,6 @@ defmodule TuistCommon.BodyReader do
     * `:max_bytes` - Maximum allowed body size (default: 100MB)
 
   """
-  @spec read(Plug.Conn.t(), keyword()) :: {:ok, binary(), Plug.Conn.t()} | {:error, atom(), Plug.Conn.t()}
   def read(conn, opts \\ []) do
     base_opts = [length: @default_max_bytes, read_length: @default_read_length]
     merged_opts = Keyword.merge(read_opts(conn, base_opts), opts)
@@ -138,7 +137,6 @@ defmodule TuistCommon.BodyReader do
       600_000
 
   """
-  @spec calculate_timeout(non_neg_integer(), keyword()) :: non_neg_integer()
   def calculate_timeout(content_length, opts \\ []) do
     min_timeout = Keyword.get(opts, :min_timeout, @default_read_timeout)
     max_timeout = Keyword.get(opts, :max_timeout, @default_max_timeout)
@@ -172,7 +170,6 @@ defmodule TuistCommon.BodyReader do
       # Returns opts with ~200s timeout for 10MB at 50KB/s
 
   """
-  @spec read_opts(Plug.Conn.t(), keyword()) :: keyword()
   def read_opts(conn, base_opts \\ []) do
     base_opts =
       Keyword.merge(
@@ -230,7 +227,6 @@ defmodule TuistCommon.BodyReader do
       20_000
 
   """
-  @spec chunk_timeout(keyword()) :: non_neg_integer()
   def chunk_timeout(opts \\ []) do
     read_length = Keyword.get(opts, :read_length, @default_read_length)
     min_timeout = Keyword.get(opts, :min_timeout, 15_000)
@@ -249,17 +245,12 @@ defmodule TuistCommon.BodyReader do
 
   Returns `nil` if the header is not present or cannot be parsed.
   """
-  @spec get_content_length(Plug.Conn.t()) :: non_neg_integer() | nil
   def get_content_length(conn) do
-    case Plug.Conn.get_req_header(conn, "content-length") do
-      [value] ->
-        case Integer.parse(value) do
-          {length, ""} when length >= 0 -> length
-          _ -> nil
-        end
-
-      _ ->
-        nil
+    with [value] <- Plug.Conn.get_req_header(conn, "content-length"),
+         {length, ""} when length >= 0 <- Integer.parse(value) do
+      length
+    else
+      _ -> nil
     end
   end
 end
