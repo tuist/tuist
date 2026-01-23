@@ -1,0 +1,170 @@
+<div id="project-automations">
+  <h1 data-part="title">
+    {@selected_project.name}
+  </h1>
+
+  <.tab_menu_horizontal>
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_projects", "General")}
+      selected={false}
+      patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings"}
+    />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_projects", "Notifications")}
+      selected={false}
+      patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/notifications"}
+    />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_projects", "Automations")}
+      selected={true}
+      patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/automations"}
+    />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_projects", "QA")}
+      selected={false}
+      patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/qa"}
+    />
+  </.tab_menu_horizontal>
+
+  <h2 data-part="subtitle">
+    {dgettext("dashboard_projects", "Automations")}
+  </h2>
+
+  <.card_section data-part="flaky-detection-card-section">
+    <div data-part="header">
+      <div data-part="title-group">
+        <span data-part="title">
+          {dgettext("dashboard_projects", "Flaky test detection")}
+        </span>
+        <span data-part="subtitle">
+          {dgettext(
+            "dashboard_projects",
+            "Get notified when tests are flagged as flaky"
+          )}
+        </span>
+      </div>
+    </div>
+    <div data-part="content">
+      <div data-part="slack-section">
+        <div data-part="content">
+          <div data-part="toggle">
+            <.toggle
+              id="auto-mark-flaky-toggle"
+              checked={@selected_project.auto_mark_flaky_tests}
+              phx-click="toggle_auto_mark_flaky"
+            />
+            <label data-part="label">
+              {dgettext("dashboard_projects", "Auto-mark tests as flaky")}
+            </label>
+          </div>
+          <span data-part="subtitle">
+            {dgettext(
+              "dashboard_projects",
+              "Tests will be marked as flaky after the specified number of flaky occurrences within the last 30 days"
+            )}
+          </span>
+        </div>
+        <div data-part="stacked-row-content">
+          <label data-part="label">
+            {dgettext("dashboard_projects", "Minimum occurrences")}
+          </label>
+          <.text_input
+            type="basic"
+            id="auto-mark-flaky-threshold"
+            name="threshold"
+            value={@selected_project.auto_mark_flaky_threshold}
+            phx-keyup="update_auto_mark_flaky_threshold"
+            phx-debounce="500"
+            disabled={not @selected_project.auto_mark_flaky_tests}
+          />
+        </div>
+      </div>
+      <div data-part="slack-section">
+        <div data-part="content">
+          <div data-part="toggle">
+            <.toggle
+              id="flaky-alerts-toggle"
+              checked={@selected_project.flaky_test_alerts_enabled}
+              disabled={
+                is_nil(@slack_installation) ||
+                  is_nil(@selected_project.flaky_test_alerts_slack_channel_id)
+              }
+              phx-click="toggle_flaky_alerts"
+            />
+            <label data-part="label">
+              {dgettext("dashboard_projects", "Slack notifications")}
+            </label>
+          </div>
+          <.tag
+            :if={@slack_installation && @selected_project.flaky_test_alerts_slack_channel_id}
+            label={"##{@selected_project.flaky_test_alerts_slack_channel_name}"}
+          />
+          <.link_button
+            :if={is_nil(@slack_installation)}
+            href={~p"/#{@selected_account.name}/integrations"}
+            target="_blank"
+            label={dgettext("dashboard_projects", "Connect Slack")}
+            variant="primary"
+          >
+            <:icon_right><.external_link /></:icon_right>
+          </.link_button>
+        </div>
+        <div data-part="row-content">
+          <.button
+            :if={is_nil(@slack_installation)}
+            label={dgettext("dashboard_projects", "Select channel")}
+            variant="secondary"
+            size="medium"
+            disabled
+          />
+          <.button
+            :if={@slack_installation}
+            label={
+              if @selected_project.flaky_test_alerts_slack_channel_id,
+                do: dgettext("dashboard_projects", "Update channel"),
+                else: dgettext("dashboard_projects", "Select channel")
+            }
+            variant="secondary"
+            size="medium"
+            id="flaky-alert-channel-selection-link"
+            href={@flaky_alert_channel_selection_url}
+            phx-hook="SelectSlackChannelPopup"
+            data-event="flaky_alert_channel_selected"
+          />
+        </div>
+      </div>
+    </div>
+  </.card_section>
+
+  <.card_section data-part="quarantine-card-section">
+    <div data-part="header">
+      <div data-part="title-group">
+        <span data-part="title">
+          {dgettext("dashboard_projects", "Test quarantine")}
+        </span>
+        <span data-part="subtitle">
+          {dgettext(
+            "dashboard_projects",
+            "Automatically quarantine tests when they are detected as flaky"
+          )}
+        </span>
+      </div>
+    </div>
+    <div data-part="content">
+      <div data-part="slack-section">
+        <div data-part="content">
+          <div data-part="toggle">
+            <.toggle
+              id="auto-quarantine-toggle"
+              checked={@selected_project.auto_quarantine_flaky_tests}
+              phx-click="toggle_auto_quarantine"
+            />
+            <label data-part="label">
+              {dgettext("dashboard_projects", "Auto-quarantine flaky tests")}
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </.card_section>
+</div>

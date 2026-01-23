@@ -58,11 +58,6 @@ defmodule Tuist.Application do
     run_if_error_tracking_enabled do
       Appsignal.Phoenix.LiveView.attach()
       Appsignal.Ecto.attach(:tuist, Tuist.ClickHouseRepo)
-
-      :logger.add_primary_filter(
-        :appsignal_error_filter,
-        {&TuistCommon.Appsignal.ErrorFilter.filter/2, []}
-      )
     end
   end
 

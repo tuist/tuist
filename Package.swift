@@ -361,7 +361,7 @@ let targets: [Target] = [
             pathDependency,
             .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
             .product(name: "HTTPTypes", package: "apple.swift-http-types"),
-            .product(name: "OpenAPIURLSession", package: "apple.swift-openapi-urlsession"),
+            .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
             .product(name: "Rosalind", package: "tuist.Rosalind"),
         ],
         path: "cli/Sources/TuistServer",
@@ -428,7 +428,7 @@ let targets: [Target] = [
             xcodeGraphDependency,
             "TuistHasher",
             .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
-            .product(name: "OpenAPIURLSession", package: "apple.swift-openapi-urlsession"),
+            .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
         ],
         path: "cli/Sources/TuistCache",
         exclude: ["OpenAPI/cache.yml", "AGENTS.md"],
@@ -719,7 +719,8 @@ let package = Package(
             id: "apple.swift-http-types", .upToNextMajor(from: "1.3.0")
         ),
         .package(
-            id: "apple.swift-openapi-urlsession", .upToNextMajor(from: "1.0.2")
+            url: "https://github.com/tuist/swift-openapi-urlsession",
+            branch: "fix/wroteFinalChunk-closed-state-crash"
         ),
         .package(id: "tuist.Path", .upToNextMajor(from: "0.3.0")),
         .package(id: "tuist.XcodeGraph", .upToNextMajor(from: "1.31.0")),
@@ -740,7 +741,7 @@ let package = Package(
             id: "MobileNativeFoundation.XCLogParser",
             .upToNextMajor(from: "0.2.45")
         ),
-        .package(id: "tuist.Noora", .upToNextMajor(from: "0.51.2")),
+        .package(id: "tuist.Noora", from: "0.54.0"),
         .package(
             id: "frazer-rbsn.OrderedSet", .upToNextMajor(from: "2.0.0")
         ),

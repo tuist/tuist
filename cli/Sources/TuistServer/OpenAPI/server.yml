@@ -58,6 +58,14 @@ components:
       type: object
       x-struct:
       x-validate:
+    TestCasesIndexPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: TestCasesIndexPage
+      type: integer
+      x-struct:
+      x-validate:
     BundleRequest:
       description: Request schema for bundle creation
       properties:
@@ -171,6 +179,15 @@ components:
       title: ArtifactUploadID
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ArtifactUploadId
+      x-validate:
+    TestCasesIndexPageSize:
+      default: 20
+      description: The maximum number of test cases to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: TestCasesIndexPageSize
+      type: integer
+      x-struct:
       x-validate:
     CacheCategory:
       default: builds
@@ -750,6 +767,91 @@ components:
       title: CommandEventArtifact
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.CommandEventArtifact
+      x-validate:
+    TestCase:
+      description: The schema for a test case.
+      properties:
+        avg_duration:
+          description: Average duration of recent runs in milliseconds
+          type: integer
+          x-struct:
+          x-validate:
+        id:
+          description: ID of the test case
+          format: uuid
+          type: string
+          x-struct:
+          x-validate:
+        is_flaky:
+          description: Whether the test case is marked as flaky
+          type: boolean
+          x-struct:
+          x-validate:
+        is_quarantined:
+          description: Whether the test case is quarantined
+          type: boolean
+          x-struct:
+          x-validate:
+        module:
+          description: The module containing the test case
+          properties:
+            id:
+              description: ID of the module
+              type: string
+              x-struct:
+              x-validate:
+            name:
+              description: Name of the module
+              type: string
+              x-struct:
+              x-validate:
+          required:
+            - id
+            - name
+          type: object
+          x-struct:
+          x-validate:
+        name:
+          description: Name of the test case
+          type: string
+          x-struct:
+          x-validate:
+        suite:
+          description: The test suite containing the test case (optional)
+          nullable: true
+          properties:
+            id:
+              description: ID of the suite
+              type: string
+              x-struct:
+              x-validate:
+            name:
+              description: Name of the suite
+              type: string
+              x-struct:
+              x-validate:
+          required:
+            - id
+            - name
+          type: object
+          x-struct:
+          x-validate:
+        url:
+          description: URL to the test case detail page
+          type: string
+          x-struct:
+          x-validate:
+      required:
+        - id
+        - name
+        - module
+        - avg_duration
+        - is_flaky
+        - is_quarantined
+        - url
+      title: TestCase
+      type: object
+      x-struct: Elixir.TuistWeb.API.Schemas.TestCase
       x-validate:
     Preview:
       properties:
@@ -1559,7 +1661,6 @@ components:
                             - success
                             - failure
                             - skipped
-                            - flaky
                           type: string
                           x-struct:
                           x-validate:
@@ -2058,7 +2159,6 @@ components:
                         - success
                         - failure
                         - skipped
-                        - flaky
                       type: string
                       x-struct:
                       x-validate:
@@ -4255,6 +4355,14 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
+        - description: Page number for pagination.
+          in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -4263,20 +4371,12 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: Page number for pagination.
+        - description: Filter bundles by git branch.
           in: query
-          name: page
+          name: git_branch
           required: false
           schema:
-            type: integer
+            type: string
             x-struct:
             x-validate:
         - description: Number of items per page.
@@ -4287,10 +4387,10 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
           schema:
             type: string
             x-struct:
@@ -5932,20 +6032,20 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: The ID of the bundle.
           in: path
           name: bundle_id
           required: true
           schema:
             format: uuid
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
             type: string
             x-struct:
             x-validate:
@@ -6540,6 +6640,98 @@ paths:
       summary: Creates an invitation
       tags:
         - Invitations
+  /api/projects/{account_handle}/{project_handle}/tests/test-cases:
+    get:
+      callbacks: {}
+      operationId: listTestCases
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by flaky status. When true, only returns flaky test cases.
+          in: query
+          name: flaky
+          required: false
+          schema:
+            type: boolean
+            x-struct:
+            x-validate:
+        - description: Filter by quarantined status. When true, only returns quarantined test cases.
+          in: query
+          name: quarantined
+          required: false
+          schema:
+            type: boolean
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of test cases to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: TestCasesIndexPageSize
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: TestCasesIndexPage
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                  test_cases:
+                    items:
+                      $ref: '#/components/schemas/TestCase'
+                    type: array
+                    x-struct:
+                    x-validate:
+                required:
+                  - test_cases
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of test cases
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+      summary: List test cases associated with a given project.
+      tags:
+        - Test Cases
   /api/cache/cas/{id}:
     get:
       callbacks: {}
@@ -8346,7 +8538,6 @@ paths:
                                     - success
                                     - failure
                                     - skipped
-                                    - flaky
                                   type: string
                                   x-struct:
                                   x-validate:

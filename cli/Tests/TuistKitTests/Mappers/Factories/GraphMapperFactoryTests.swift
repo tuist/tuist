@@ -241,12 +241,36 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
         func test_automation_contains_the_filter_target_dependenies_tree_graph_mapper() throws {
             // Given
             let config = Tuist.test()
+            let includedTargets: Set<TargetQuery> = [.named("MyTarget")]
 
             // When
             let got = subject.automation(
                 config: config,
                 ignoreBinaryCache: false,
                 ignoreSelectiveTesting: true,
+                testPlan: nil,
+                includedTargets: includedTargets,
+                excludedTargets: [],
+                configuration: "Debug",
+                cacheStorage: cacheStorage,
+                destination: nil
+            )
+
+            // Then - FocusTargetsGraphMappers is now part of .default() and runs before TestsCacheGraphMapper
+            XCTAssertContainsElementOfType(
+                got, TestsCacheGraphMapper.self, after: FocusTargetsGraphMappers.self
+            )
+        }
+
+        func test_automation_runs_tests_cache_after_static_xcframework_module_map_mapper() throws {
+            // Given
+            let config = Tuist.test()
+
+            // When
+            let got = subject.automation(
+                config: config,
+                ignoreBinaryCache: false,
+                ignoreSelectiveTesting: false,
                 testPlan: nil,
                 includedTargets: [],
                 excludedTargets: [],
@@ -255,9 +279,9 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
                 destination: nil
             )
 
-            // Then
+            // Then - TestsCacheGraphMapper should run after StaticXCFrameworkModuleMapGraphMapper for consistent hashing
             XCTAssertContainsElementOfType(
-                got, FocusTargetsGraphMappers.self, after: TestsCacheGraphMapper.self
+                got, TestsCacheGraphMapper.self, after: StaticXCFrameworkModuleMapGraphMapper.self
             )
         }
 
@@ -340,6 +364,44 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
             let generationMapperTypes = generationMappers.prefix(8).map { String(describing: type(of: $0)) }
 
             XCTAssertEqual(preloadMapperTypes, generationMapperTypes)
+        }
+
+        func test_automation_and_binaryCacheWarming_use_same_base_mappers() {
+            // Given
+            let config = Tuist.test()
+            let targets: Set<TargetQuery> = [.named("MyTarget")]
+
+            // When
+            let automationMappers = subject.automation(
+                config: config,
+                ignoreBinaryCache: true,
+                ignoreSelectiveTesting: true,
+                testPlan: nil,
+                includedTargets: targets,
+                excludedTargets: [],
+                configuration: "Debug",
+                cacheStorage: cacheStorage,
+                destination: nil
+            )
+            let cacheMappers = subject.binaryCacheWarming(
+                config: config,
+                targets: [.iOS: targets],
+                cacheSources: targets,
+                configuration: "Debug",
+                cacheStorage: cacheStorage
+            )
+
+            // Then - Both should use .default() base mappers up to StaticXCFrameworkModuleMapGraphMapper
+            // This ensures consistent hashing between tuist test and tuist cache
+            let automationBaseMappers = automationMappers
+                .prefix { !($0 is TestsCacheGraphMapper) }
+                .map { String(describing: type(of: $0)) }
+
+            let cacheBaseMappers = cacheMappers
+                .prefix { !($0 is GenerateCacheableSchemesGraphMapper) && !($0 is TargetsToCacheBinariesGraphMapper) }
+                .map { String(describing: type(of: $0)) }
+
+            XCTAssertEqual(automationBaseMappers, cacheBaseMappers)
         }
     }
 #endif

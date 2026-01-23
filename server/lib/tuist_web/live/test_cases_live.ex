@@ -63,13 +63,14 @@ defmodule TuistWeb.TestCasesLive do
         value: ""
       },
       %Filter.Filter{
-        id: "is_flaky",
-        field: :is_flaky,
+        id: "test_case_trait",
+        field: :test_case_trait,
         display_name: dgettext("dashboard_tests", "Test case"),
         type: :option,
-        options: ["flaky"],
+        options: [:flaky, :quarantined],
         options_display_names: %{
-          "flaky" => dgettext("dashboard_tests", "Flaky")
+          flaky: dgettext("dashboard_tests", "Flaky"),
+          quarantined: dgettext("dashboard_tests", "Quarantined")
         },
         operator: :==,
         value: nil
@@ -356,7 +357,7 @@ defmodule TuistWeb.TestCasesLive do
     flop_filters =
       filters
       |> Filter.Operations.convert_filters_to_flop()
-      |> Enum.map(&convert_is_flaky_filter/1)
+      |> Enum.map(&convert_trait_filter/1)
 
     if search == "" do
       flop_filters
@@ -365,11 +366,15 @@ defmodule TuistWeb.TestCasesLive do
     end
   end
 
-  defp convert_is_flaky_filter(%{field: :is_flaky, value: "flaky"} = filter) do
-    %{filter | value: true}
+  defp convert_trait_filter(%{field: :test_case_trait, value: :flaky} = filter) do
+    %{filter | field: :is_flaky, value: true}
   end
 
-  defp convert_is_flaky_filter(filter), do: filter
+  defp convert_trait_filter(%{field: :test_case_trait, value: :quarantined} = filter) do
+    %{filter | field: :is_quarantined, value: true}
+  end
+
+  defp convert_trait_filter(filter), do: filter
 
   defp sort_icon("asc"), do: "square_rounded_arrow_up"
   defp sort_icon("desc"), do: "square_rounded_arrow_down"

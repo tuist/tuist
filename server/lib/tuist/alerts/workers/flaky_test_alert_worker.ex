@@ -3,8 +3,8 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorker do
   A job that sends Slack notifications when a test case becomes flaky.
 
   This worker is enqueued when a test case transitions from non-flaky to flaky.
-  It checks all flaky test alert rules for the project and sends notifications
-  if the test case's flaky runs count exceeds the rule's threshold.
+  It uses project-level flaky_test_alerts_enabled flag and sends alerts to the
+  configured Slack channel.
 
   The job is unique per test_case_id only while being processed - once completed,
   a new job can be inserted for the same test case.
@@ -13,53 +13,38 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorker do
     max_attempts: 3,
     unique: [keys: [:test_case_id], states: [:available, :scheduled, :executing, :retryable]]
 
-  alias Tuist.Alerts
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.Runs
   alias Tuist.Slack
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"test_case_id" => test_case_id, "project_id" => project_id}}) do
+  def perform(%Oban.Job{args: args}) do
+    %{"test_case_id" => test_case_id, "project_id" => project_id, "flaky_runs_count" => flaky_runs_count} = args
+    auto_quarantined = Map.get(args, "auto_quarantined", false)
+
     with {:ok, test_case} <- Runs.get_test_case_by_id(test_case_id),
          %Projects.Project{} = project <- Projects.get_project_by_id(project_id) do
-      flaky_runs_count = Runs.get_flaky_runs_groups_count_for_test_case(test_case_id)
-      rules = Alerts.get_project_flaky_test_alert_rules(project)
-
-      for rule <- rules do
-        check_and_notify(rule, test_case, flaky_runs_count)
-      end
-
+      send_alert(project, test_case, flaky_runs_count, auto_quarantined)
       :ok
     end
   end
 
-  defp check_and_notify(rule, test_case, flaky_runs_count) do
-    rule = Repo.preload(rule, project: [account: :slack_installation])
+  defp send_alert(project, test_case, flaky_runs_count, auto_quarantined) do
+    project = Repo.preload(project, account: :slack_installation)
 
     cond do
-      flaky_runs_count < rule.trigger_threshold ->
+      not project.flaky_test_alerts_enabled ->
         :ok
 
-      is_nil(rule.slack_channel_id) ->
+      is_nil(project.flaky_test_alerts_slack_channel_id) ->
         :ok
 
-      is_nil(rule.project.account.slack_installation) ->
+      is_nil(project.account.slack_installation) ->
         :ok
 
       true ->
-        {:ok, alert} =
-          Alerts.create_flaky_test_alert(%{
-            flaky_test_alert_rule_id: rule.id,
-            flaky_runs_count: flaky_runs_count,
-            test_case_id: test_case.id,
-            test_case_name: test_case.name,
-            test_case_module_name: test_case.module_name,
-            test_case_suite_name: test_case.suite_name
-          })
-
-        alert = Repo.preload(alert, flaky_test_alert_rule: [project: [account: :slack_installation]])
-        :ok = Slack.send_flaky_test_alert(alert)
+        Slack.send_flaky_test_alert(project, test_case, flaky_runs_count, auto_quarantined)
     end
   end
 end

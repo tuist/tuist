@@ -1206,7 +1206,7 @@ msgstr ""
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:541
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:578
 #: lib/tuist_web/marketing/controllers/marketing_controller.ex:633
-#: lib/tuist_web/marketing/controllers/marketing_controller.ex:667
+#: lib/tuist_web/marketing/controllers/marketing_controller.ex:671
 #, elixir-autogen, elixir-format
 msgid "Tuist"
 msgstr ""

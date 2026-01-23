@@ -4,10 +4,19 @@ defmodule Cache.BodyReader do
 
   Small bodies are read into memory, large bodies are streamed to temporary files
   to avoid memory pressure.
+
+  ## Timeout Strategy
+
+  Uses progressive timeouts inspired by Apache's `mod_reqtimeout` MinRate:
+  - Initial timeout is calculated based on Content-Length and minimum throughput
+  - Each subsequent chunk read uses a fresh timeout based on chunk size
+  - This allows slow-but-steady connections while timing out stalled transfers
+
+  See `TuistCommon.BodyReader` for the timeout calculation logic.
   """
 
   @max_upload_bytes 25 * 1024 * 1024
-  @default_opts [length: @max_upload_bytes, read_length: 262_144, read_timeout: 60_000]
+  @default_opts [length: @max_upload_bytes, read_length: 262_144]
 
   @doc """
   Reads the request body from the connection.
@@ -99,8 +108,12 @@ defmodule Cache.BodyReader do
   end
 
   defp read_loop(conn, opts, device, bytes_read, writer, max_bytes) do
+    # Use progressive timeout for each chunk read (similar to Apache mod_reqtimeout MinRate)
+    # This resets the timeout on each successful read, allowing slow-but-steady connections
+    chunk_opts = Keyword.put(opts, :read_timeout, chunk_timeout(opts))
+
     conn
-    |> Plug.Conn.read_body(opts)
+    |> Plug.Conn.read_body(chunk_opts)
     |> handle_loop_result(conn, opts, device, bytes_read, writer, max_bytes)
   rescue
     Bandit.TransportError ->
@@ -150,6 +163,11 @@ defmodule Cache.BodyReader do
   end
 
   defp read_opts(conn) do
-    Map.get(conn.private, :body_read_opts, @default_opts)
+    base_opts = Map.get(conn.private, :body_read_opts, @default_opts)
+    TuistCommon.BodyReader.read_opts(conn, base_opts)
+  end
+
+  defp chunk_timeout(opts) do
+    TuistCommon.BodyReader.chunk_timeout(opts)
   end
 end

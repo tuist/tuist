@@ -55,7 +55,9 @@ defmodule Tuist.MixProject do
       {:gettext, "~> 1.0", override: true},
       {:jason, "~> 1.2"},
       {:libcluster, "~> 3.5"},
-      {:bandit, git: "https://github.com/tuist/bandit", branch: "skip-body-drain-on-connection-close", override: true},
+      # Using fork with client disconnect detection during body read timeouts
+      # PR: https://github.com/mtrudel/bandit/pull/564
+      {:bandit, git: "https://github.com/tuist/bandit", branch: "detect-client-disconnect-on-timeout", override: true},
       {:credo, "~> 1.7.13", only: [:dev, :test], runtime: false},
       {:appsignal, "~> 2.15.0"},
       {:appsignal_phoenix, "~> 2.5"},
@@ -133,7 +135,7 @@ defmodule Tuist.MixProject do
       {:ecto_ch, "~> 0.8.3"},
       (System.get_env("NOORA_LOCAL") &&
          {:noora, path: "../../Noora/web"}) ||
-        {:noora, "== 0.56.1"},
+        {:noora, "== 0.57.0"},
       {:zstream, "~> 0.6"},
       {:cloak_ecto, "~> 1.3.0"},
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},

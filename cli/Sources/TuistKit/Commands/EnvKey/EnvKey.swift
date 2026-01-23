@@ -181,6 +181,17 @@ public enum EnvKey: String, CaseIterable {
     case testWithoutBuilding = "TUIST_TEST_WITHOUT_BUILDING"
     case testBuildOnly = "TUIST_TEST_BUILD_ONLY"
 
+    // TEST CASE LIST
+
+    case testCaseListPath = "TUIST_TEST_CASE_LIST_PATH"
+    case testCaseListFullHandle = "TUIST_TEST_CASE_LIST_FULL_HANDLE"
+    case testCaseListFlaky = "TUIST_TEST_CASE_LIST_FLAKY"
+    case testCaseListQuarantined = "TUIST_TEST_CASE_LIST_QUARANTINED"
+    case testCaseListSkipTesting = "TUIST_TEST_CASE_LIST_SKIP_TESTING"
+    case testCaseListPage = "TUIST_TEST_CASE_LIST_PAGE"
+    case testCaseListPageSize = "TUIST_TEST_CASE_LIST_PAGE_SIZE"
+    case testCaseListJson = "TUIST_TEST_CASE_LIST_JSON"
+
     // ORGANIZATION BILLING
 
     case organizationBillingOrganizationName = "TUIST_ORGANIZATION_BILLING_ORGANIZATION_NAME"

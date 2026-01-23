@@ -5,7 +5,12 @@ All notable changes to this project will be documented in this file.
 
 ### 🐛 Bug Fixes
 
+* ensure consistent mapper order between automation and cache pipelines by [@fortmarek](https://github.com/fortmarek) in [#9228](https://github.com/tuist/tuist/pull/9228)
+* filter out dependencies with unsatisfied trait conditions by [@pepicrft](https://github.com/pepicrft) in [#9219](https://github.com/tuist/tuist/pull/9219)
 * fix bundle accessor for Obj-C external static frameworks with resources by [@pepicrft](https://github.com/pepicrft) in [#9210](https://github.com/tuist/tuist/pull/9210)
+### 📚 Documentation
+
+* add intent layer nodes by [@pepicrft](https://github.com/pepicrft) in [#9042](https://github.com/tuist/tuist/pull/9042)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.130.1...4.130.2
 

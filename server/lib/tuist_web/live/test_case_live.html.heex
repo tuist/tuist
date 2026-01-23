@@ -39,6 +39,13 @@
           style="light-fill"
           size="large"
         />
+        <.badge
+          :if={@test_case_detail.is_quarantined}
+          label={dgettext("dashboard_tests", "Quarantined")}
+          color="destructive"
+          style="light-fill"
+          size="large"
+        />
       </div>
       <div
         :if={@test_case_detail.module_name != "" or @test_case_detail.suite_name != ""}
@@ -61,6 +68,28 @@
       </div>
     </div>
     <div data-part="actions">
+      <.button
+        :if={@test_case_detail.is_quarantined}
+        label={dgettext("dashboard_tests", "Unquarantine")}
+        variant="secondary"
+        size="medium"
+        phx-click="unquarantine"
+      >
+        <:icon_left>
+          <.icon name="lock_open_2" />
+        </:icon_left>
+      </.button>
+      <.button
+        :if={!@test_case_detail.is_quarantined}
+        label={dgettext("dashboard_tests", "Quarantine")}
+        variant="secondary"
+        size="medium"
+        phx-click="quarantine"
+      >
+        <:icon_left>
+          <.icon name="lock" />
+        </:icon_left>
+      </.button>
       <.button
         :if={@test_case_detail.is_flaky}
         label={dgettext("dashboard_tests", "Unmark as flaky")}

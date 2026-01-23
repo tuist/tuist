@@ -7,8 +7,6 @@ defmodule Tuist.Slack do
 
   alias Tuist.Alerts.Alert
   alias Tuist.Alerts.AlertRule
-  alias Tuist.Alerts.FlakyTestAlert
-  alias Tuist.Alerts.FlakyTestAlertRule
   alias Tuist.Environment
   alias Tuist.Projects.Project
   alias Tuist.Repo
@@ -49,11 +47,6 @@ defmodule Tuist.Slack do
         clear_alert_rule_slack_fields_query(account_id),
         []
       )
-      |> Ecto.Multi.update_all(
-        :clear_flaky_test_alert_rule_slack_fields,
-        clear_flaky_test_alert_rule_slack_fields_query(account_id),
-        []
-      )
       |> Ecto.Multi.delete(:delete_installation, installation)
       |> Repo.transaction()
 
@@ -83,7 +76,9 @@ defmodule Tuist.Slack do
       update: [
         set: [
           slack_channel_id: nil,
-          slack_channel_name: nil
+          slack_channel_name: nil,
+          flaky_test_alerts_slack_channel_id: nil,
+          flaky_test_alerts_slack_channel_name: nil
         ]
       ]
     )
@@ -93,20 +88,6 @@ defmodule Tuist.Slack do
     from(ar in AlertRule,
       join: p in Project,
       on: ar.project_id == p.id,
-      where: p.account_id == ^account_id,
-      update: [
-        set: [
-          slack_channel_id: nil,
-          slack_channel_name: nil
-        ]
-      ]
-    )
-  end
-
-  defp clear_flaky_test_alert_rule_slack_fields_query(account_id) do
-    from(ftar in FlakyTestAlertRule,
-      join: p in Project,
-      on: ftar.project_id == p.id,
       where: p.account_id == ^account_id,
       update: [
         set: [
@@ -145,6 +126,14 @@ defmodule Tuist.Slack do
       end
 
     Phoenix.Token.sign(TuistWeb.Endpoint, "slack_state", payload)
+  end
+
+  def generate_flaky_alert_channel_selection_token(project_id, account_id) do
+    Phoenix.Token.sign(TuistWeb.Endpoint, "slack_state", %{
+      type: :flaky_alert_channel_selection,
+      project_id: project_id,
+      account_id: account_id
+    })
   end
 
   def verify_state_token(token) do
@@ -331,32 +320,40 @@ defmodule Tuist.Slack do
     "#{Float.round(rate * 100, 1)}%"
   end
 
-  @doc """
-  Sends a flaky test alert notification to Slack.
-  """
-  def send_flaky_test_alert(%FlakyTestAlert{} = alert) do
-    %FlakyTestAlert{
-      flaky_test_alert_rule: %{
-        slack_channel_id: slack_channel_id,
-        project: %{
-          name: project_name,
-          account: %{name: account_name, slack_installation: %Installation{access_token: access_token}}
-        }
-      }
-    } = alert = Repo.preload(alert, flaky_test_alert_rule: [project: [account: :slack_installation]])
+  defp maybe_add_suite(details, nil), do: details
+  defp maybe_add_suite(details, ""), do: details
+  defp maybe_add_suite(details, suite_name), do: details ++ ["*Suite:* #{suite_name}"]
 
-    blocks = build_flaky_test_alert_blocks(alert, account_name, project_name)
+  @doc """
+  Sends a flaky test alert notification to Slack using project-level settings.
+  """
+  def send_flaky_test_alert(project, test_case, flaky_runs_count, was_auto_quarantined \\ false) do
+    project = Repo.preload(project, account: :slack_installation)
+
+    %Project{
+      flaky_test_alerts_slack_channel_id: slack_channel_id,
+      name: project_name,
+      account: %{name: account_name, slack_installation: %Installation{access_token: access_token}}
+    } = project
+
+    blocks = build_flaky_test_alert_blocks(test_case, flaky_runs_count, account_name, project_name, was_auto_quarantined)
     Client.post_message(access_token, slack_channel_id, blocks)
   end
 
-  defp build_flaky_test_alert_blocks(alert, account_name, project_name) do
-    [
+  defp build_flaky_test_alert_blocks(test_case, flaky_runs_count, account_name, project_name, was_auto_quarantined) do
+    base_blocks = [
       flaky_test_alert_header_block(),
-      flaky_test_alert_context_block(alert),
+      flaky_test_alert_context_block(),
       alert_divider_block(),
-      flaky_test_alert_test_case_block(alert, account_name, project_name),
-      flaky_test_alert_metric_block(alert)
+      flaky_test_alert_test_case_block(test_case, account_name, project_name),
+      flaky_test_alert_metric_block(flaky_runs_count)
     ]
+
+    if was_auto_quarantined do
+      base_blocks ++ [auto_quarantined_info_block()]
+    else
+      base_blocks
+    end
   end
 
   defp flaky_test_alert_header_block do
@@ -369,9 +366,10 @@ defmodule Tuist.Slack do
     }
   end
 
-  defp flaky_test_alert_context_block(%FlakyTestAlert{inserted_at: triggered_at}) do
-    ts = DateTime.to_unix(triggered_at)
-    fallback = Calendar.strftime(triggered_at, "%b %d, %H:%M")
+  defp flaky_test_alert_context_block do
+    now = DateTime.utc_now()
+    ts = DateTime.to_unix(now)
+    fallback = Calendar.strftime(now, "%b %d, %H:%M")
 
     %{
       type: "context",
@@ -381,20 +379,13 @@ defmodule Tuist.Slack do
     }
   end
 
-  defp flaky_test_alert_test_case_block(alert, account_name, project_name) do
-    %FlakyTestAlert{
-      test_case_id: test_case_id,
-      test_case_name: name,
-      test_case_module_name: module_name,
-      test_case_suite_name: suite_name
-    } = alert
-
+  defp flaky_test_alert_test_case_block(test_case, account_name, project_name) do
     base_url = Environment.app_url()
-    test_case_url = "#{base_url}/#{account_name}/#{project_name}/tests/test-cases/#{test_case_id}"
+    test_case_url = "#{base_url}/#{account_name}/#{project_name}/tests/test-cases/#{test_case.id}"
 
     details =
-      ["*Test:* <#{test_case_url}|#{name}>", "*Module:* #{module_name}"]
-      |> maybe_add_suite(suite_name)
+      ["*Test:* <#{test_case_url}|#{test_case.name}>", "*Module:* #{test_case.module_name}"]
+      |> maybe_add_suite(test_case.suite_name)
       |> Enum.join("\n")
 
     %{
@@ -406,11 +397,7 @@ defmodule Tuist.Slack do
     }
   end
 
-  defp maybe_add_suite(details, nil), do: details
-  defp maybe_add_suite(details, ""), do: details
-  defp maybe_add_suite(details, suite_name), do: details ++ ["*Suite:* #{suite_name}"]
-
-  defp flaky_test_alert_metric_block(%FlakyTestAlert{flaky_runs_count: flaky_runs_count}) do
+  defp flaky_test_alert_metric_block(flaky_runs_count) do
     runs_label = if flaky_runs_count == 1, do: "run", else: "runs"
 
     %{
@@ -418,6 +405,78 @@ defmodule Tuist.Slack do
       text: %{
         type: "mrkdwn",
         text: "*#{flaky_runs_count} flaky #{runs_label} detected in the last 30 days*"
+      }
+    }
+  end
+
+  defp auto_quarantined_info_block do
+    %{
+      type: "context",
+      elements: [
+        %{type: "mrkdwn", text: ":no_entry_sign: _This test has been automatically quarantined_"}
+      ]
+    }
+  end
+
+  @doc """
+  Sends a Slack notification when a test case is manually marked as flaky by a user.
+  """
+  def send_manual_flaky_test_alert(project, test_case, user, was_auto_quarantined \\ false) do
+    project = Repo.preload(project, account: :slack_installation)
+
+    case project do
+      %Project{
+        flaky_test_alerts_slack_channel_id: slack_channel_id,
+        name: project_name,
+        account: %{name: account_name, slack_installation: %Installation{access_token: access_token}}
+      }
+      when not is_nil(slack_channel_id) and not is_nil(access_token) ->
+        blocks = build_manual_flaky_test_alert_blocks(test_case, user, account_name, project_name, was_auto_quarantined)
+        Client.post_message(access_token, slack_channel_id, blocks)
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp build_manual_flaky_test_alert_blocks(test_case, user, account_name, project_name, was_auto_quarantined) do
+    base_blocks = [
+      flaky_test_alert_header_block(),
+      manual_flaky_test_alert_context_block(user),
+      alert_divider_block(),
+      flaky_test_alert_test_case_block(test_case, account_name, project_name),
+      manual_flaky_test_alert_info_block()
+    ]
+
+    if was_auto_quarantined do
+      base_blocks ++ [auto_quarantined_info_block()]
+    else
+      base_blocks
+    end
+  end
+
+  defp manual_flaky_test_alert_context_block(user) do
+    now = DateTime.utc_now()
+    ts = DateTime.to_unix(now)
+    fallback = Calendar.strftime(now, "%b %d, %H:%M")
+
+    %{
+      type: "context",
+      elements: [
+        %{
+          type: "mrkdwn",
+          text: "Manually marked as flaky by *#{user.email}* at <!date^#{ts}^{date_short} {time}|#{fallback}>"
+        }
+      ]
+    }
+  end
+
+  defp manual_flaky_test_alert_info_block do
+    %{
+      type: "section",
+      text: %{
+        type: "mrkdwn",
+        text: "_This test was manually marked as flaky by a team member_"
       }
     }
   end
