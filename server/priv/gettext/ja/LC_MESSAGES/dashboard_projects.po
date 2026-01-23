@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2026-01-23 12:12+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Japanese <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/ja/>\n"
 "Language: ja\n"
@@ -542,8 +543,9 @@ msgstr "レポート"
 msgid "Schedule"
 msgstr "スケジュール"
 
+#, fuzzy
 msgid "Slack"
-msgstr ""
+msgstr "Slack"
 
 #, fuzzy
 msgid "Select channel"
@@ -631,8 +633,9 @@ msgstr "更新"
 msgid "Update alert rule"
 msgstr "更新アラートルール"
 
+#, fuzzy
 msgid "Metrics"
-msgstr ""
+msgstr "メトリクス"
 
 #, fuzzy
 msgid "Create an alert rule to get notified when metrics regress"
