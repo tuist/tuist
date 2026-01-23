@@ -40,18 +40,18 @@ defmodule TuistWeb.Marketing.MarketingOrgLogos do
   end
 
   defp render_logo(name, "ko") do
-    color_func = String.to_existing_atom("#{name}_org_logo_color")
+    color_func = String.to_atom("#{name}_org_logo_color")
 
     if function_exported?(__MODULE__, color_func, 1) do
       apply(__MODULE__, color_func, [%{}])
     else
-      mono_func = String.to_existing_atom("#{name}_org_logo")
+      mono_func = String.to_atom("#{name}_org_logo")
       apply(__MODULE__, mono_func, [%{}])
     end
   end
 
   defp render_logo(name, _locale) do
-    mono_func = String.to_existing_atom("#{name}_org_logo")
+    mono_func = String.to_atom("#{name}_org_logo")
     apply(__MODULE__, mono_func, [%{}])
   end
 end
