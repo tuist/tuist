@@ -5,21 +5,21 @@
   "description": "Learn how to gather insights about your project."
 }
 ---
-# İçgörü toplayın {#gather-insights}
+# İçgörüler toplayın {#gather-insights}
 
-Tuist, yeteneklerini genişletmek için bir sunucu ile entegre olabilir. Bu
-yeteneklerden biri de projeniz ve derlemeleriniz hakkında bilgi toplamaktır.
-İhtiyacınız olan tek şey, sunucuda bir projeye sahip bir hesabınızın olmasıdır.
+Tuist, yeteneklerini genişletmek için bir sunucu ile entegre edilebilir. Bu
+yeteneklerden biri, projeniz ve derlemeleriniz hakkında bilgi toplamaktır. Tek
+ihtiyacınız olan, sunucuda bir projeye sahip bir hesap açmaktır.
 
-Her şeyden önce, çalıştırarak kimlik doğrulaması yapmanız gerekir:
+Öncelikle, aşağıdaki komutu çalıştırarak kimlik doğrulaması yapmanız gerekir:
 
 ```bash
 tuist auth login
 ```
 
-## Bir proje oluşturun {#create-a-project}
+## Proje oluşturun {#create-a-project}
 
-Daha sonra çalıştırarak bir proje oluşturabilirsiniz:
+Ardından şu komutu çalıştırarak bir proje oluşturabilirsiniz:
 
 ```bash
 tuist project create my-handle/MyApp
@@ -27,13 +27,14 @@ tuist project create my-handle/MyApp
 # Tuist project my-handle/MyApp was successfully created 🎉 {#tuist-project-myhandlemyapp-was-successfully-created-}
 ```
 
-Projenin tam tanıtıcısını temsil eden `my-handle/MyApp` adresini kopyalayın.
+`my-handle/MyApp` adresini kopyalayın. Bu adres, projenin tam tanıtıcısını
+temsil eder.
 
 ## Projeleri bağlayın {#connect-projects}
 
-Projeyi sunucuda oluşturduktan sonra, yerel projenize bağlamanız gerekecektir. `
-tuist edit` adresini çalıştırın ve `Tuist.swift` dosyasını projenin tam
-tanıtıcısını içerecek şekilde düzenleyin:
+Sunucuda projeyi oluşturduktan sonra, onu yerel projenize bağlamanız gerekir.
+`tuist edit` komutunu çalıştırın ve `Tuist.swift` dosyasını düzenleyerek
+projenin tam adresini ekleyin:
 
 ```swift
 import ProjectDescription
@@ -41,23 +42,23 @@ import ProjectDescription
 let tuist = Tuist(fullHandle: "my-handle/MyApp")
 ```
 
-İşte bu! Artık projeniz ve derlemeleriniz hakkında bilgi toplamaya hazırsınız.
-Sonuçları sunucuya bildiren testleri çalıştırmak için `tuist test` adresini
-çalıştırın.
+Voilà! Artık projeniz ve derlemeleriniz hakkında bilgi toplamaya hazırsınız.
+`tuist test` komutunu çalıştırarak testleri çalıştırın ve sonuçları sunucuya
+bildirin.
 
 ::: info
 <!-- -->
-Tuist sonuçları yerel olarak sıraya koyar ve komutu engellemeden göndermeye
+Tuist, sonuçları yerel olarak sıraya alır ve komutu engellemeden göndermeye
 çalışır. Bu nedenle, komut bittikten hemen sonra gönderilmeyebilirler. CI'da
 sonuçlar hemen gönderilir.
 <!-- -->
 :::
 
 
-![Sunucudaki çalıştırmaların listesini gösteren bir
-görüntü](/images/guides/quick-start/runs.png)
+![Sunucudaki çalıştırma listesini gösteren bir
+resim](/images/guides/quick-start/runs.png)
 
-Projelerinizden ve derlemelerinizden gelen verilere sahip olmak, bilinçli
-kararlar almak için çok önemlidir. Tuist, yeteneklerini genişletmeye devam
-edecek ve siz de proje yapılandırmanızı değiştirmek zorunda kalmadan bunlardan
-yararlanacaksınız. Sihir, değil mi? 🪄
+Projelerinizden ve derlemelerinizden elde edilen veriler, bilinçli kararlar
+almak için çok önemlidir. Tuist, yeteneklerini genişletmeye devam edecek ve siz
+de proje yapılandırmanızı değiştirmenize gerek kalmadan bu yeteneklerden
+yararlanabileceksiniz. Sihir gibi, değil mi? 🪄

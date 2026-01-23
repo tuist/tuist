@@ -10,7 +10,7 @@
 일부 Tuist 기능에는 데이터의 지속성을 추가하고 다른 서비스와 상호 작용할 수 있는 서버가 필요합니다. 서버와 상호 작용하려면 로컬
 프로젝트에 연결하는 계정과 프로젝트가 필요합니다.
 
-## 계정 {#accounts}
+## 계정 {#계정}
 
 서버를 사용하려면 계정이 필요합니다. 계정에는 두 가지 유형이 있습니다:
 
@@ -22,23 +22,23 @@
 깃허브](https://github.com)에 익숙하다면, 개인 계정과 조직 계정을 가질 수 있고 URL을 구성할 때 사용되는 *핸들* 로
 식별되는 개념이 비슷하다는 것을 알 수 있습니다.
 
-::: info CLI-FIRST
+::: 정보 CLI-FIRST
 <!-- -->
 계정과 프로젝트를 관리하는 대부분의 작업은 CLI를 통해 이루어집니다. 저희는 계정과 프로젝트를 더 쉽게 관리할 수 있는 웹 인터페이스를 개발
 중입니다.
 <!-- -->
 :::
 
-<LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink> 아래의 하위 명령을 통해 조직을 관리할 수 있습니다. 새 조직 계정을
+1}`tuist organization`</LocalizedLink> 아래의 하위 명령을 통해 조직을 관리할 수 있습니다. 새 조직 계정을
 생성하려면 실행합니다:
 ```bash
 tuist organization create {account-handle}
 ```
 
-## 프로젝트 {#projects}
+## 프로젝트 {#프로젝트}
 
 Tuist의 프로젝트든 원시 Xcode의 프로젝트든 원격 프로젝트를 통해 계정과 통합해야 합니다. GitHub와 계속 비교하면 변경 사항을
-푸시하는 로컬 리포지토리와 원격 리포지토리가 있는 것과 같습니다. <LocalizedLink href="/cli/project">`tuist 프로젝트`</LocalizedLink>를 사용하여 프로젝트를
+푸시하는 로컬 리포지토리와 원격 리포지토리가 있는 것과 같습니다. 1}`tuist 프로젝트`</LocalizedLink>를 사용하여 프로젝트를
 만들고 관리할 수 있습니다.
 
 프로젝트는 조직 핸들과 프로젝트 핸들을 연결한 결과인 전체 핸들로 식별됩니다. 예를 들어, 조직 핸들이 `tuist` 이고 프로젝트 핸들이
@@ -53,7 +53,7 @@ let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist
 
 ::: 경고 튜이스트 프로젝트 전용 기능
 <!-- -->
-<LocalizedLink href="/guides/features/cache">바이너리 캐싱</LocalizedLink>과 같은 일부 기능에는 Tuist 프로젝트가 있어야 한다는 점에 유의하세요. 원시 Xcode
+1}바이너리 캐싱</LocalizedLink>과 같은 일부 기능에는 Tuist 프로젝트가 있어야 한다는 점에 유의하세요. 원시 Xcode
 프로젝트를 사용하는 경우 이러한 기능을 사용할 수 없습니다.
 <!-- -->
 :::

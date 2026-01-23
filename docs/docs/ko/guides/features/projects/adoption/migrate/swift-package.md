@@ -22,7 +22,8 @@ at Bumble](https://medium.com/bumble-tech/scaling-ios-at-bumble-239e0fa009f2) �
 **Apple이 Swift Package Manager를 대규모 프로젝트 관리 도구로 발전시킬지는 확실하지 않습니다.** 그러나 아직까지는 그런
 징후가 보이지 않습니다. 오히려 반대 방향으로 가고 있습니다. Apple은 Xcode에서 영감을 받은 결정(예를 들어 암묵적 설정을 통한 편의성
 추구)을 선택하고 있는데
-<LocalizedLink href="/guides/features/projects/cost-of-convenience">이것은 알고 있듯이</LocalizedLink> 대규모에서 복잡성을 초래합니다. 우리는 Apple이 근본적인 원칙으로 돌아가서 의존성 관리 도구로 적합하지만
+<LocalizedLink href="/guides/features/projects/cost-of-convenience">이것은 알고
+있듯이</LocalizedLink> 대규모에서 복잡성을 초래합니다. 우리는 Apple이 근본적인 원칙으로 돌아가서 의존성 관리 도구로 적합하지만
 프로젝트 정의를 위해 컴파일된 언어를 인터페이스로 사용하는 방식과 같이 프로젝트 관리 도구로는 적합하지 않은 결정을 다시 검토해야 한다고
 생각합니다.
 
@@ -76,12 +77,14 @@ let tuist = Tuist()
 
 `Tuist.swift`는 프로젝트의 설정을 포함하고 이 파일의 경로가 프로젝트의 루트를 결정하는 기준이 됩니다. Tuist 프로젝트의 구조에
 대해 더 자세히 알아보려면
-<LocalizedLink href="/guides/features/projects/directory-structure">디렉토리 구조</LocalizedLink> 문서를 확인하기 바랍니다.
+<LocalizedLink href="/guides/features/projects/directory-structure">디렉토리
+구조</LocalizedLink> 문서를 확인하기 바랍니다.
 
 ## 프로젝트 편집 {#editing-the-project}
 
 Xcode에서 프로젝트를 편집하기 위해
-<LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink>를 사용할 수 있습니다. 이 명령어는 프로젝트를 열고 작업할 수 있는 Xcode 프로젝트를 생성합니다.
+<LocalizedLink href="/guides/features/projects/editing">`tuist
+edit`</LocalizedLink>를 사용할 수 있습니다. 이 명령어는 프로젝트를 열고 작업할 수 있는 Xcode 프로젝트를 생성합니다.
 
 ```bash
 tuist edit

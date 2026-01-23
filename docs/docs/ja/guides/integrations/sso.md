@@ -9,48 +9,44 @@
 
 ## グーグル
 
-Google Workspace組織を持っていて、同じGoogleホストドメインでサインインした開発者をTuist組織に追加したい場合は、次のように設定します：
+Google Workspace 組織をお持ちで、同じ Google ホストドメインでサインインする開発者をすべて Tuist
+組織に追加したい場合は、以下で設定できます：
 ```bash
 tuist organization update sso my-organization --provider google --organization-id my-google-domain.com
 ```
 
 ::: 警告
 <!-- -->
-設定するドメインの組織に関連付けられた電子メールを使用してGoogleで認証する必要があります。
+設定するドメインの組織に関連付けられたメールアドレスでGoogleに認証されている必要があります。
 <!-- -->
 :::
 
 ## Okta {#okta}
 
-Oktaを使用したSSOは、企業のお客様のみご利用いただけます。設定にご興味のある方は、[contact@tuist.dev](mailto:contact@tuist.dev)までご連絡ください。
+OktaとのSSOはエンタープライズ顧客のみが利用可能です。設定をご希望の場合は、[contact@tuist.dev](mailto:contact@tuist.dev)までお問い合わせください。
 
-プロセス中に、Okta SSOの設定をサポートする担当者が割り当てられます。
+プロセス中に、Okta SSOの設定を支援する担当者が割り当てられます。
 
-まず、Oktaアプリケーションを作成し、Tuistで動作するように設定する必要があります：
-1. Oktaの管理ダッシュボードにアクセスする
-2. アプリケーション > アプリケーション > アプリの統合を作成
-3. OIDC - OpenID Connect "と "Webアプリケーション "を選択する。
-4. アプリケーションの表示名、例えば "Tuist
-   "を入力してください。このURL](https://tuist.dev/images/tuist_dashboard.png)にあるTuistのロゴをアップロードしてください。
-5. サインインのリダイレクトURIは今のところそのままにしておく。
-6. Assignments "でSSOアプリケーションへのアクセスコントロールを選択し、保存します。
-7. 保存後、アプリケーションの一般設定が利用可能になります。クライアントID "と "クライアントシークレット "をコピーしてください。
-8. Tuistチームは提供されたクライアントIDとシークレットでTuistサーバーを再デプロイする必要があります。これには最大1営業日かかります。
-9. サーバーがデプロイされたら、General Settingsの "Edit "ボタンをクリックします。
-10. 以下のリダイレクトURLを貼り付ける：`https://tuist.dev/users/auth/okta/callback`
-13. Login initiated by」を「Either Okta or App」に変更します。
-14. ユーザーにアプリケーションのアイコンを表示する」を選択する
-15. Initiate login URL "を`https://tuist.dev/users/auth/okta?organization_id=1`
-    で更新します。`organization_id` は、担当者から提供されます。
-16. 保存」をクリックする。
-17. OktaダッシュボードからTuistログインを開始する。
-18. 以下のコマンドを実行して、Oktaドメインから署名したユーザーにTuist組織へのアクセスを自動的に与えます：
-```bash
-tuist organization update sso my-organization --provider okta --organization-id my-okta-domain.com
-```
+まず、Oktaアプリケーションを作成し、Tuistと連携するように設定する必要があります：
+1. Okta管理ダッシュボードに移動する
+2. アプリケーション > アプリケーション > アプリ統合の作成
+3. 「OIDC - OpenID Connect」と「Web Application」を選択してください
+4. アプリケーションの表示名を入力してください。例：「Tuist」。Tuistのロゴを[このURL](https://tuist.dev/images/tuist_dashboard.png)からアップロードしてください。
+5. サインインリダイレクトURIは現時点ではそのままにしておく
+6. 「割り当て」でSSOアプリケーションへのアクセス制御を選択し、保存してください。
+7. 保存後、アプリケーションの一般設定が利用可能になります。「クライアントID」と「クライアントシークレット」をコピーしてください。また、Okta組織のURL（例:`https://your-company.okta.com`
+   ）も確認してください。これらすべてを安全に担当者と共有する必要があります。
+8. TuistチームがSSOを設定したら、一般設定の「編集」ボタンをクリックしてください。
+9. 以下のリダイレクトURLを貼り付けてください：`https://tuist.dev/users/auth/okta/callback`
+10. 「Login initiated by」を「Okta またはアプリ」に変更してください。
+11. 「ユーザーにアプリケーションアイコンを表示する」を選択
+12. Initiate login URL "を`https://tuist.dev/users/auth/okta?organization_id=1`
+    で更新してください。`organization_id` は、担当者から提供されます。
+13. 「保存」をクリックしてください。
+14. OktaダッシュボードからTuistのログインを開始してください。
 
 ::: 警告
 <!-- -->
-Tuistは現在、Okta組織からのユーザーの自動プロビジョニングとデプロビジョニングをサポートしていないため、ユーザーは最初にOktaダッシュボードからサインインする必要があります。一度Oktaダッシュボードからサインインすると、自動的にTuist組織に追加されます。
+ユーザーは最初にOktaダッシュボードからサインインする必要があります。Tuistは現在、Okta組織からのユーザーの自動プロビジョニングおよびデプロビジョニングをサポートしていないためです。Oktaダッシュボードからサインインすると、自動的にTuist組織に追加されます。
 <!-- -->
 :::

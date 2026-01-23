@@ -7,23 +7,25 @@
 ---
 # Uso de Tuist con un paquete Swift <Badge type="warning" text="beta" /> {#using-tuist-with-a-swift-package-badge-typewarning-textbeta-}
 
-Tuist soporta el uso de `Package.swift` como DSL para tus proyectos y convierte
-tus objetivos de paquete en un proyecto y objetivos nativos de Xcode.
+Tuist admite el uso de `Package.swift` como DSL para tus proyectos y convierte
+los objetivos de tu paquete en un proyecto y objetivos Xcode nativos.
 
 ::: advertencia
 <!-- -->
-El objetivo de esta característica es proporcionar una manera fácil para los
-desarrolladores para evaluar el impacto de la adopción de Tuist en sus paquetes
-Swift. Por lo tanto, no planeamos soportar toda la gama de características del
-Gestor de Paquetes Swift ni traer todas las características únicas de Tuist como
-<LocalizedLink href="/guides/features/projects/code-sharing">ayudantes de descripción de proyectos</LocalizedLink> al mundo de los paquetes.
+El objetivo de esta función es proporcionar a los desarrolladores una forma
+sencilla de evaluar el impacto de adoptar Tuist en sus paquetes Swift. Por lo
+tanto, no tenemos previsto admitir todas las funciones de Swift Package Manager
+ni incorporar todas las funciones exclusivas de Tuist, como
+<LocalizedLink href="/guides/features/projects/code-sharing">los ayudantes de
+descripción de proyectos</LocalizedLink>, al mundo de los paquetes.
 <!-- -->
 :::
 
 ::: info ROOT DIRECTORY
 <!-- -->
-Los comandos Tuist esperan una cierta estructura
-<LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects">de directorios</LocalizedLink> cuya raíz esté identificada por un directorio
+Los comandos de Tuist esperan una determinada
+<LocalizedLink href="/guides/features/projects/directory-structure#standard-tuist-projects">estructura
+de directorios</LocalizedLink> cuya raíz se identifica mediante un directorio
 `Tuist` o un directorio `.git`.
 <!-- -->
 :::
@@ -32,27 +34,27 @@ Los comandos Tuist esperan una cierta estructura
 
 Vamos a utilizar Tuist con el repositorio [TootSDK
 Package](https://github.com/TootSDK/TootSDK), que contiene un paquete Swift. Lo
-primero que tenemos que hacer es clonar el repositorio:
+primero que debemos hacer es clonar el repositorio:
 
 ```bash
 git clone https://github.com/TootSDK/TootSDK
 cd TootSDK
 ```
 
-Una vez en el directorio del repositorio, necesitamos instalar las dependencias
-del gestor de paquetes Swift:
+Una vez en el directorio del repositorio, debemos instalar las dependencias del
+Swift Package Manager:
 
 ```bash
 tuist install
 ```
 
-Bajo el capó `tuist install` utiliza el gestor de paquetes Swift para resolver y
-extraer las dependencias del paquete. Después de la resolución completa, puede
+Detrás de escena `tuist install` utiliza Swift Package Manager para resolver y
+extraer las dependencias del paquete. Una vez completada la resolución, puede
 generar el proyecto:
 
 ```bash
 tuist generate
 ```
 
-¡Voilà! Tienes un proyecto nativo de Xcode que puedes abrir y empezar a trabajar
-en él.
+¡Voilà! Ya tienes un proyecto Xcode nativo que puedes abrir y empezar a
+trabajar.

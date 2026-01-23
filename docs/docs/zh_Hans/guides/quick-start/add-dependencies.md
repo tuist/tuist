@@ -7,13 +7,13 @@
 ---
 # 添加依赖项{#add-dependencies}
 
-项目通常依赖第三方库来提供额外功能。为此，请运行以下命令，以获得最佳的项目编辑体验：
+项目常需依赖第三方库以实现扩展功能。为获得最佳编辑体验，请执行以下命令：
 
 ```bash
 tuist edit
 ```
 
-将打开一个包含项目文件的 Xcode 项目。编辑`Package.swift` 并添加
+Xcode项目将自动打开并包含您的项目文件。编辑`目录下的Package.swift文件，在` 路径下添加以下内容：
 
 ```swift
 // swift-tools-version: 5.9
@@ -41,7 +41,7 @@ let package = Package(
 )
 ```
 
-然后编辑项目中的应用程序目标，将`Kingfisher` 声明为依赖关系：
+然后在项目中编辑应用程序目标，将`Kingfisher` 声明为依赖项：
 
 ```swift
 import ProjectDescription
@@ -81,31 +81,31 @@ let project = Project(
 )
 ```
 
-然后运行`tuist install` ，使用[Swift
-软件包管理器](https://www.swift.org/documentation/package-manager/)解析并提取依赖项。
+然后运行`tuist install` 通过[Swift Package
+Manager](https://www.swift.org/documentation/package-manager/)解决并拉取依赖项。
 
 ::: info SPM AS A DEPENDENCY RESOLVER
 <!-- -->
-Tuist 推荐的依赖关系处理方法仅使用 Swift 包管理器 (SPM) 来解决依赖关系。然后，Tuist 将它们转换为 Xcode
-项目和目标，以实现最大程度的可配置性和可控性。
+Tuist推荐的依赖管理方案仅使用Swift Package Manager (SPM)
+解决依赖问题。随后Tuist将这些依赖转换为Xcode项目和目标，以实现最大程度的可配置性和控制力。
 <!-- -->
 :::
 
-## 项目可视化{#visualize-the-project}
+## 可视化项目{#visualize-the-project}
 
-您可以通过运行
+可通过运行以下命令可视化项目结构：
 
 ```bash
 tuist graph
 ```
 
-该命令将输出并打开项目目录下的`graph.png` 文件：
+该命令将在项目目录中输出并打开`graph.png` 文件：
 
-![项目图](/images/guides/quick-start/graph.png)!
+![项目图](/images/guides/quick-start/graph.png)
 
-## 使用依赖关系{#use-the-dependency}
+## 使用依赖项{#use-the-dependency}
 
-运行`tuist generate` 在 Xcode 中打开项目，并对`ContentView.swift` 文件进行以下修改：
+运行`tuist generate` 在 Xcode 中打开项目，并对`ContentView.swift 文件进行以下修改：`
 
 ```swift
 import SwiftUI
@@ -129,4 +129,4 @@ struct ContentView_Previews: PreviewProvider {
 }
 ```
 
-在 Xcode 中运行应用程序，您应该会看到从 URL 加载的图像。
+在Xcode中运行应用程序，您应能看到从URL加载的图像。

@@ -5,13 +5,13 @@
   "description": "Learn how to gather insights about your project."
 }
 ---
-# Zbieranie informacji {#gather-insights}
+# Zbieraj spostrzeżenia {#gather-insights}
 
-Tuist może integrować się z serwerem w celu rozszerzenia jego możliwości. Jedną
-z tych możliwości jest gromadzenie informacji o projekcie i kompilacjach.
+Tuist może zintegrować się z serwerem, aby rozszerzyć swoje możliwości. Jedną z
+tych możliwości jest gromadzenie informacji o projekcie i kompilacjach.
 Wystarczy mieć konto z projektem na serwerze.
 
-Przede wszystkim musisz się uwierzytelnić, uruchamiając aplikację:
+Najpierw musisz się uwierzytelnić, uruchamiając:
 
 ```bash
 tuist auth login
@@ -19,7 +19,7 @@ tuist auth login
 
 ## Utwórz projekt {#create-a-project}
 
-Następnie można utworzyć projekt, uruchamiając go:
+Następnie możesz utworzyć projekt, uruchamiając:
 
 ```bash
 tuist project create my-handle/MyApp
@@ -27,12 +27,12 @@ tuist project create my-handle/MyApp
 # Tuist project my-handle/MyApp was successfully created 🎉 {#tuist-project-myhandlemyapp-was-successfully-created-}
 ```
 
-Skopiuj `my-handle/MyApp`, który reprezentuje pełny uchwyt projektu.
+Skopiuj `my-handle/MyApp`, który reprezentuje pełny identyfikator projektu.
 
 ## Połącz projekty {#connect-projects}
 
-Po utworzeniu projektu na serwerze należy połączyć go z projektem lokalnym.
-Uruchom `tuist edit` i edytuj plik `tuist.swift`, aby zawierał pełny uchwyt
+Po utworzeniu projektu na serwerze należy połączyć go z lokalnym projektem.
+Uruchom `tuist edit` i edytuj plik `Tuist.swift`, aby uwzględnić pełną nazwę
 projektu:
 
 ```swift
@@ -41,23 +41,23 @@ import ProjectDescription
 let tuist = Tuist(fullHandle: "my-handle/MyApp")
 ```
 
-Voila! Jesteś teraz gotowy do zbierania informacji o swoim projekcie i
-kompilacjach. Uruchom `tuist test`, aby uruchomić testy raportujące wyniki do
+Voilà! Teraz jesteś gotowy, aby zebrać informacje o swoim projekcie i
+kompilacjach. Uruchom `tuist test`, aby uruchomić testy i przesłać wyniki do
 serwera.
 
 :: info
 <!-- -->
-Tuist buforuje wyniki lokalnie i próbuje je wysłać bez blokowania polecenia. W
-związku z tym wyniki mogą nie zostać wysłane natychmiast po zakończeniu
+Tuist umieszcza wyniki w kolejce lokalnej i próbuje je wysłać bez blokowania
+polecenia. Dlatego mogą one nie zostać wysłane natychmiast po zakończeniu
 polecenia. W CI wyniki są wysyłane natychmiast.
 <!-- -->
 :::
 
 
-![Obrazek przedstawiający listę uruchomień na
+![Obraz przedstawiający listę uruchomień na
 serwerze](/images/guides/quick-start/runs.png)
 
-Posiadanie danych z projektów i kompilacji ma kluczowe znaczenie dla
-podejmowania świadomych decyzji. Tuist będzie nadal rozszerzać swoje możliwości,
-a Ty będziesz mógł z nich korzystać bez konieczności zmiany konfiguracji
-projektu. Magia, prawda? 🪄
+Dane z projektów i kompilacji mają kluczowe znaczenie dla podejmowania
+świadomych decyzji. Tuist będzie nadal rozszerzać swoje możliwości, a Ty
+będziesz mógł z nich korzystać bez konieczności zmiany konfiguracji projektu.
+Magiczne, prawda? 🪄

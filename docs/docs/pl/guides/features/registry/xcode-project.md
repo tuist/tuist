@@ -7,19 +7,20 @@
 ---
 # Projekt Xcode {#xcode-project}
 
-Aby dodać pakiety za pomocą rejestru w projekcie Xcode, należy użyć domyślnego
-interfejsu użytkownika Xcode. Pakiety można wyszukiwać w rejestrze, klikając
-przycisk `+` w zakładce `Package Dependencies` w Xcode. Jeśli pakiet jest
-dostępny w rejestrze, w prawym górnym rogu zostanie wyświetlony rejestr
-`tuist.dev`:
+Aby dodać pakiety przy użyciu rejestru w projekcie Xcode, użyj domyślnego
+interfejsu użytkownika Xcode. Możesz wyszukiwać pakiety w rejestrze, klikając
+przycisk „ ` ” (Dodaj pakiet) + „` ” (Dodaj pakiet) w zakładce „ `” (Dodaj
+pakiet) „Package Dependencies” (Zależności pakietów) „` ” (Dodaj pakiet) w
+Xcode. Jeśli pakiet jest dostępny w rejestrze, w prawym górnym rogu pojawi się
+komunikat „ `” (Dodaj pakiet) „tuist.dev” „` ” (Rejestr).
 
 ![Dodawanie zależności
-pakietów](/images/guides/features/build/registry/registry-add-package.png)
+pakietu](/images/guides/features/build/registry/registry-add-package.png)
 
 :: info
 <!-- -->
-Xcode nie obsługuje obecnie automatycznego zastępowania pakietów kontroli źródła
-ich odpowiednikami w rejestrze. Konieczne będzie ręczne usunięcie pakietu
-kontroli źródła i dodanie pakietu rejestru, aby przyspieszyć rozwiązywanie.
+Xcode obecnie nie obsługuje automatycznego zastępowania pakietów kontroli źródła
+ich odpowiednikami w rejestrze. Aby przyspieszyć rozwiązanie problemu, należy
+ręcznie usunąć pakiet kontroli źródła i dodać pakiet rejestru.
 <!-- -->
 :::

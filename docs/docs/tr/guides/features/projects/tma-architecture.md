@@ -7,144 +7,146 @@
 ---
 # Modüler Mimari (TMA) {#the-modular-architecture-tma}
 
-TMA, ölçeklenebilirliği sağlamak, derleme ve test döngülerini optimize etmek ve
-ekibinizde iyi uygulamalar sağlamak için Apple OS uygulamalarını yapılandırmaya
-yönelik mimari bir yaklaşımdır. Temel fikri, uygulamalarınızı açık ve özlü
-API'ler kullanarak birbirine bağlı bağımsız özellikler oluşturarak inşa
-etmektir.
+TMA, Apple OS uygulamalarını ölçeklenebilirlik sağlamak, derleme ve test
+döngülerini optimize etmek ve ekibinizde iyi uygulamaları garantilemek için
+yapılandırmaya yönelik bir mimari yaklaşımdır. Temel fikri, açık ve özlü API'ler
+kullanılarak birbirine bağlanan bağımsız özellikler oluşturarak uygulamalarınızı
+geliştirmektir.
 
-Bu kılavuz, mimarinin ilkelerini tanıtarak uygulama özelliklerinizi farklı
+Bu kılavuz, mimarinin ilkelerini tanıtarak, uygulama özelliklerinizi farklı
 katmanlarda tanımlamanıza ve düzenlemenize yardımcı olur. Ayrıca, bu mimariyi
-kullanmaya karar vermeniz halinde size ipuçları, araçlar ve tavsiyeler de sunar.
+kullanmaya karar verirseniz, ipuçları, araçlar ve tavsiyeler de sunar.
 
 ::: info µFEATURES
 <!-- -->
 Bu mimari daha önce µFeatures olarak biliniyordu. Amacını ve arkasındaki
-ilkeleri daha iyi yansıtması için adını The Modular Architecture (TMA) olarak
-değiştirdik.
+ilkeleri daha iyi yansıtmak için adını Modüler Mimari (TMA) olarak değiştirdik.
 <!-- -->
 :::
 
 ## Temel ilke {#core-principle}
 
-Geliştiriciler, UI önizlemeleri, kod tamamlama ve hata ayıklama gibi Xcode
-özelliklerinin güvenilir bir şekilde çalışmasını sağlarken, ana uygulamadan
-bağımsız olarak **özelliklerini hızlı bir şekilde oluşturabilmeli, test
-edebilmeli ve** deneyebilmelidir.
+Geliştiriciler, ana uygulamadan bağımsız olarak ve UI önizlemeleri, kod
+tamamlama ve hata ayıklama gibi Xcode özelliklerinin güvenilir bir şekilde
+çalıştığından emin olarak, özelliklerini hızlı bir şekilde **oluşturmalı, test
+etmeli ve** denemelidir.
 
-## Modül nedir {#what-is-a-module}
+## Modül nedir? {#what-is-a-module}
 
-Bir modül bir uygulama özelliğini temsil eder ve aşağıdaki beş hedefin
-birleşimidir (burada hedef bir Xcode hedefini ifade eder):
+Modül, bir uygulama özelliğini temsil eder ve aşağıdaki beş hedefin birleşimidir
+(hedef, Xcode hedefini ifade eder):
 
 - **Kaynak:** Özellik kaynak kodunu (Swift, Objective-C, C++, JavaScript...) ve
-  kaynaklarını (görüntüler, yazı tipleri, storyboard'lar, xibs) içerir.
-- **Arayüz:** Özelliğin genel arayüzünü ve modellerini içeren tamamlayıcı bir
+  kaynaklarını (görüntüler, yazı tipleri, storyboard'lar, xib'ler) içerir.
+- **Arayüz:** Bu, özelliğin genel arayüzünü ve modellerini içeren bir eşlik eden
   hedeftir.
-- **Testler:** Özellik birim ve entegrasyon testlerini içerir.
+- **Testler:** Özellik birimi ve entegrasyon testlerini içerir.
 - **Test:** Testlerde ve örnek uygulamada kullanılabilecek test verileri sağlar.
-  Ayrıca, daha sonra göreceğimiz gibi diğer özellikler tarafından
-  kullanılabilecek modül sınıfları ve protokolleri için mock'lar sağlar.
-- **Örnek:** Geliştiricilerin özelliği belirli koşullar altında (farklı diller,
-  ekran boyutları, ayarlar) denemek için kullanabilecekleri örnek bir uygulama
-  içerir.
+  Ayrıca, daha sonra göreceğimiz gibi, diğer özellikler tarafından
+  kullanılabilecek modül sınıfları ve protokoller için sahte veriler sağlar.
+- **Örnek:** Geliştiricilerin belirli koşullar altında (farklı diller, ekran
+  boyutları, ayarlar) özelliği denemek için kullanabilecekleri bir örnek
+  uygulama içerir.
 
-Tuist'in DSL'si sayesinde projenizde uygulayabileceğiniz hedefler için bir
-adlandırma kuralını izlemenizi öneririz.
+Hedefler için bir adlandırma kuralı izlemenizi öneririz. Tuist'in DSL'i
+sayesinde bunu projenizde uygulayabilirsiniz.
 
-| Hedef              | Bağımlılıklar               | İçerik                        |
-| ------------------ | --------------------------- | ----------------------------- |
-| `Özellik`          | `FeatureInterface`          | Kaynak kodu ve kaynaklar      |
-| `FeatureInterface` | -                           | Genel arayüz ve modeller      |
-| `ÖzellikTestleri`  | `Özellik`, `ÖzellikTesti`   | Birim ve entegrasyon testleri |
-| `ÖzellikTesti`     | `FeatureInterface`          | Test verileri ve mock'lar     |
-| `ÖzellikÖrnek`     | `FeatureTesting`, `Feature` | Örnek uygulama                |
+| Hedef              | Bağımlılıklar               | İçerik                         |
+| ------------------ | --------------------------- | ------------------------------ |
+| `Özellik`          | `FeatureInterface`          | Kaynak kodu ve kaynaklar       |
+| `FeatureInterface` | -                           | Genel arayüz ve modeller       |
+| `Özellik Testleri` | `Özellik`, `ÖzellikTesting` | Birim ve entegrasyon testleri  |
+| `Özellik Testi`    | `FeatureInterface`          | Test verileri ve sahte veriler |
+| `ÖzellikÖrnek`     | `FeatureTesting`, `Feature` | Örnek uygulama                 |
 
 ::: tip UI Previews
 <!-- -->
-`Özellik`, UI önizlemelerine izin vermek için `FeatureTesting` adresini
-Geliştirme Varlığı olarak kullanabilir
+`Özellik`, `FeatureTesting` 'yi bir geliştirme varlığı olarak kullanarak UI
+önizlemelerine izin verebilir.
 <!-- -->
 :::
 
 ::: warning COMPILER DIRECTIVES INSTEAD OF TESTING TARGETS
 <!-- -->
-Alternatif olarak, `Debug` için derleme yaparken test verilerini ve mock'ları
-`Feature` veya `FeatureInterface` hedeflerine dahil etmek için derleyici
-yönergelerini kullanabilirsiniz. Grafiği basitleştirirsiniz, ancak uygulamayı
-çalıştırmak için ihtiyaç duymayacağınız kodu derlemiş olursunuz.
+Alternatif olarak, derleyici yönergelerini kullanarak `Feature` veya
+`FeatureInterface` hedeflerine test verilerini ve sahte verileri
+ekleyebilirsiniz. `Debug` için derleme yaparken. Grafiği basitleştirirsiniz,
+ancak uygulamayı çalıştırmak için ihtiyacınız olmayan kodları derlemiş
+olursunuz.
 <!-- -->
 :::
 
-## Neden bir modül {#why-a-module}
+## Neden bir modül? {#why-a-module}
 
-### Açık ve öz API'ler {#clear-and-concise-apis}
+### Açık ve özlü API'ler {#clear-and-concise-apis}
 
-Tüm uygulama kaynak kodu aynı hedefte bulunduğunda, kodda örtük bağımlılıklar
-oluşturmak ve çok iyi bilinen spagetti koduyla sonuçlanmak çok kolaydır. Her şey
-güçlü bir şekilde birbirine bağlıdır, durum bazen öngörülemez ve yeni
-değişiklikler yapmak bir kabusa dönüşür. Özellikleri bağımsız hedeflerde
+Tüm uygulama kaynak kodu aynı hedefte yer aldığında, kodda örtük bağımlılıklar
+oluşturmak ve sonuçta çok iyi bilinen spagetti koduyla karşılaşmak çok kolaydır.
+Her şey birbirine sıkı sıkıya bağlıdır, durum bazen öngörülemez olabilir ve yeni
+değişiklikler yapmak bir kabusa dönüşebilir. Özellikleri bağımsız hedeflerde
 tanımladığımızda, özellik uygulamamızın bir parçası olarak genel API'ler
-tasarlamamız gerekir. Neyin herkese açık olması gerektiğine, özelliğimizin nasıl
-tüketilmesi gerektiğine, neyin özel kalması gerektiğine karar vermemiz gerekir.
+tasarlamamız gerekir. Neyin genel olması gerektiğini, özelliğimizin nasıl
+kullanılması gerektiğini, neyin özel kalması gerektiğini belirlememiz gerekir.
 Özellik istemcilerimizin özelliği nasıl kullanmasını istediğimiz üzerinde daha
-fazla kontrole sahibiz ve güvenli API'ler tasarlayarak iyi uygulamaları
-zorlayabiliriz.
+fazla kontrolümüz olur ve güvenli API'ler tasarlayarak iyi uygulamaları zorunlu
+kılabiliriz.
 
 ### Küçük modüller {#small-modules}
 
 [Böl ve fethet](https://en.wikipedia.org/wiki/Divide_and_conquer). Küçük
-modüller halinde çalışmak, daha fazla odaklanmanıza ve özelliği izole bir
-şekilde test edip denemenize olanak tanır. Ayrıca, daha seçici bir derleme
-yaptığımız için geliştirme döngüleri çok daha hızlıdır, yalnızca özelliğimizi
-çalıştırmak için gerekli olan bileşenleri derleriz. Tüm uygulamanın derlenmesi
-yalnızca çalışmamızın en sonunda, özelliği uygulamaya entegre etmemiz
-gerektiğinde gereklidir.
+modüller halinde çalışmak, daha fazla odaklanmanıza ve özelliği ayrı ayrı test
+etmenize ve denemenize olanak tanır. Ayrıca, özelliğin çalışması için gerekli
+olan bileşenleri derleyerek daha seçici bir derleme yaptığımızdan, geliştirme
+döngüleri çok daha hızlıdır. Uygulamanın tamamının derlenmesi, yalnızca
+çalışmamızın en sonunda, özelliği uygulamaya entegre etmemiz gerektiğinde
+gereklidir.
 
-### Yeniden Kullanılabilirlik {#reusability}
+### Yeniden kullanılabilirlik {#reusability}
 
-Uygulamalar ve uzantılar gibi diğer ürünler arasında kodun yeniden kullanılması,
-çerçeveler veya kütüphaneler kullanılarak teşvik edilir. Modüller oluşturarak
-bunları yeniden kullanmak oldukça basittir. Sadece mevcut modülleri
-birleştirerek ve _(gerektiğinde)_ platforma özgü kullanıcı arayüzü katmanları
-ekleyerek bir iMessage uzantısı, bir Bugün Uzantısı veya bir watchOS uygulaması
-oluşturabiliriz.
+Uygulamalar ve uzantılar gibi diğer ürünlerde kodun yeniden kullanılması,
+çerçeveler veya kütüphaneler kullanılarak teşvik edilir. Modülleri yeniden
+kullanarak bunları oluşturmak oldukça basittir. Mevcut modülleri birleştirip
+(gerekirse) __ platformuna özgü UI katmanları ekleyerek iMessage uzantısı, Today
+Extension veya watchOS uygulaması oluşturabiliriz.
 
 ## Bağımlılıklar {#dependencies}
 
-Bir modül başka bir modüle bağımlı olduğunda, arayüz hedefine karşı bir
-bağımlılık bildirir. Bunun faydası iki yönlüdür. Bir modülün uygulamasının başka
-bir modülün uygulamasına bağlanmasını önler ve temiz derlemeleri hızlandırır
-çünkü yalnızca özelliğimizin uygulamasını ve doğrudan ve geçişli bağımlılıkların
-arayüzlerini derlemeleri gerekir. Bu yaklaşım SwiftRock'ın [Arayüz Modülleri
-Kullanarak iOS Derleme Sürelerini
+Bir modül başka bir modüle bağlıysa, arayüz hedefine karşı bir bağımlılık
+bildirir. Bunun iki avantajı vardır. Bir modülün uygulamasının başka bir modülün
+uygulamasına bağlanmasını önler ve yalnızca özelliğimizin uygulamasını ve
+doğrudan ve geçişli bağımlılıkların arayüzlerini derlemek gerektiğinden temiz
+derlemeleri hızlandırır. Bu yaklaşım, SwiftRock'un [Arayüz Modülleri Kullanarak
+iOS Derleme Sürelerini
 Azaltma](https://swiftrocks.com/reducing-ios-build-times-by-using-interface-targets)
 fikrinden esinlenmiştir.
 
-Arayüzlere bağlı olmak, uygulamaların çalışma zamanında uygulama grafiğini
-oluşturmasını ve buna ihtiyaç duyan modüllere bağımlılık enjekte etmesini
-gerektirir. TMA bunun nasıl yapılacağı konusunda görüş bildirmese de, bağımlılık
-enjekte etme çözümlerinin veya kalıplarının ya da inşa zamanı dolaylamaları
-eklemeyen veya bu amaç için tasarlanmamış platform API'lerini kullanmayan
-çözümlerin kullanılmasını öneriyoruz.
+Arayüzlere bağlı olarak, uygulamaların çalışma zamanında uygulamaların grafiğini
+oluşturması ve bunu ihtiyaç duyan modüllere bağımlılık enjeksiyonu ile eklemesi
+gerekir. TMA bu konuda bir görüş belirtmemekle birlikte, bağımlılık enjeksiyonu
+çözümleri veya desenleri ya da derleme zamanında dolaylı ifadeler eklemeyen veya
+bu amaç için tasarlanmamış platform API'leri kullanmayan çözümleri kullanmanızı
+öneririz.
 
-## Ürün tipleri {#product-types}
+## Ürün türleri {#product-types}
 
-Bir modül oluştururken, hedefler için **kütüphaneler ve çerçeveler** ile
-**statik ve dinamik bağlama** arasında seçim yapabilirsiniz. Tuist olmadan, bu
-kararı vermek biraz daha karmaşıktır çünkü bağımlılık grafiğini manuel olarak
-yapılandırmanız gerekir. Ancak Tuist Projects sayesinde bu artık bir sorun
-olmaktan çıkmıştır.
+Bir modül oluştururken, hedefler iç **kütüphaneleri ve çerçeveleri** ve **statik
+ve dinamik bağlantılar** arasından seçim yapabilirsiniz. Tuist olmadan,
+bağımlılık grafiğini manuel olarak yapılandırmanız gerektiğinden bu kararı
+vermek biraz daha karmaşıktır. Ancak, Tuist Projects sayesinde bu artık bir
+sorun değildir.
 
-Geliştirme sırasında, paket erişim mantığını hedefin kütüphane veya çerçeve
-yapısından ayırmak için
-<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle accessors</LocalizedLink> kullanarak dinamik kütüphaneler veya çerçeveler
+Geliştirme sırasında,
+<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">paket
+erişimcileri</LocalizedLink> kullanarak paket erişim mantığını hedefin kütüphane
+veya çerçeve yapısından ayırmak için dinamik kütüphaneler veya çerçeveler
 kullanmanızı öneririz. Bu, hızlı derleme süreleri ve [SwiftUI
-Önizlemelerinin](https://developer.apple.com/documentation/swiftui/previews-in-xcode)
-güvenilir bir şekilde çalışmasını sağlamak için çok önemlidir. Ve uygulamanın
-hızlı önyükleme yapmasını sağlamak için sürüm derlemeleri için statik
-kütüphaneler veya çerçeveler. Ürün türünü oluşturma zamanında değiştirmek için
-<LocalizedLink href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables">dinamik yapılandırmadan</LocalizedLink> yararlanabilirsiniz:
+Önizlemeleri](https://developer.apple.com/documentation/swiftui/previews-in-xcode)'nin
+güvenilir bir şekilde çalışmasını sağlamak için çok önemlidir. Ayrıca,
+uygulamanın hızlı bir şekilde başlatılmasını sağlamak için sürüm derlemeleri
+için statik kütüphaneler veya çerçeveler kullanın. Ürün türünü oluşturma
+sırasında değiştirmek için
+<LocalizedLink href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables">dinamik
+yapılandırma</LocalizedLink> özelliğinden yararlanabilirsiniz:
 
 ```bash
 # You'll have to read the value of the variable from the manifest {#youll-have-to-read-the-value-of-the-variable-from-the-manifest}
@@ -167,47 +169,48 @@ func productType() -> Product {
 
 ::: warning MERGEABLE LIBRARIES
 <!-- -->
-Apple, statik ve dinamik kütüphaneler arasında geçiş yapmanın zahmetini
-[birleştirilebilir
+Apple, [birleştirilebilir
 kütüphaneler](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries)
-sunarak hafifletmeye çalışmıştır. Ancak bu, derlemenizi tekrar üretilemez hale
-getiren ve optimize etmeyi zorlaştıran derleme zamanı belirsizliklerini
-beraberinde getirir, bu nedenle kullanmanızı önermiyoruz.
+özelliğini sunarak statik ve dinamik kütüphaneler arasında geçiş yapmanın
+zorluğunu azaltmaya çalıştı. Ancak bu, derleme zamanında belirsizlik yaratarak
+derlemenizin tekrarlanabilirliğini ve optimize edilebilirliğini zorlaştırır, bu
+nedenle bu özelliği kullanmanızı önermiyoruz.
 <!-- -->
 :::
 
 ## Kod {#code}
 
-TMA, modülleriniz için kod mimarisi ve kalıpları hakkında görüş bildirmez.
-Ancak, deneyimlerimize dayanarak bazı ipuçlarını paylaşmak istiyoruz:
+TMA, modüllerinizin kod mimarisi ve kalıpları konusunda herhangi bir görüş
+belirtmez. Ancak, deneyimlerimize dayanarak bazı ipuçları paylaşmak isteriz:
 
-- **Derleyiciden yararlanmak harikadır.** Derleyiciden fazla yararlanmak
-  verimsiz olabilir ve önizleme gibi bazı Xcode özelliklerinin güvenilmez
-  şekilde çalışmasına neden olabilir. Derleyiciyi iyi uygulamaları zorunlu
-  kılmak ve hataları erken yakalamak için kullanmanızı öneririz, ancak kodun
-  okunmasını ve bakımını zorlaştıracak kadar değil.
-- **Swift Makrolarını idareli kullanın.** Çok güçlü olabilirler ancak aynı
-  zamanda kodun okunmasını ve bakımını zorlaştırabilirler.
-- **Platformu ve dili benimseyin, onları soyutlamayın.** Ayrıntılı soyutlama
-  katmanları bulmaya çalışmak ters etki yaratabilir. Platform ve dil, ek
-  soyutlama katmanlarına ihtiyaç duymadan harika uygulamalar oluşturmak için
-  yeterince güçlüdür. Özelliklerinizi oluşturmak için referans olarak iyi
-  programlama ve tasarım modellerini kullanın.
+- **Derleyiciyi kullanmak harika bir şeydir.** Derleyiciyi aşırı kullanmak
+  verimsiz olabilir ve önizleme gibi bazı Xcode özelliklerinin güvenilir
+  çalışmamasına neden olabilir. Derleyiciyi, iyi uygulamaları uygulamak ve
+  hataları erken yakalamak için kullanmanızı öneririz, ancak kodun okunmasını ve
+  bakımını zorlaştıracak kadar kullanmayın.
+- **Swift Makrolarını ölçülü kullanın.** Çok güçlü olabilirler, ancak kodun
+  okunmasını ve bakımını zorlaştırabilirler.
+- **Platformu ve dili benimseyin, soyutlamayın.** Ayrıntılı soyutlama katmanları
+  oluşturmaya çalışmak, ters etki yaratabilir. Platform ve dil, ek soyutlama
+  katmanlarına ihtiyaç duymadan harika uygulamalar oluşturmak için yeterince
+  güçlüdür. Özelliklerinizi oluşturmak için iyi programlama ve tasarım
+  modellerini referans olarak kullanın.
 
 ## Kaynaklar {#resources}
 
-- [Building µFeatures](https://speakerdeck.com/pepibumur/building-ufeatures)
-- [Çerçeve Odaklı Programlama]
-  (https://speakerdeck.com/pepibumur/framework-oriented-programming-mobilization-dot-pl)
-- [A Journey into frameworks and
-  Swift](https://speakerdeck.com/pepibumur/a-journey-into-frameworks-and-swift)
-- [iOS'ta geliştirmemizi hızlandırmak için çerçevelerden yararlanma - Bölüm
+- [µFeatures oluşturma](https://speakerdeck.com/pepibumur/building-ufeatures)
+- [Çerçeve Odaklı
+  Programlama](https://speakerdeck.com/pepibumur/framework-oriented-programming-mobilization-dot-pl)
+- [Çerçeveler ve Swift'e Bir
+  Yolculuk](https://speakerdeck.com/pepibumur/a-journey-into-frameworks-and-swift)
+- [iOS'ta geliştirme sürecimizi hızlandırmak için çerçevelerden yararlanma -
+  Bölüm
   1](https://developers.soundcloud.com/blog/leveraging-frameworks-to-speed-up-our-development-on-ios-part-1)
-- [Kütüphane Odaklı Programlama]
-  (https://academy.realm.io/posts/justin-spahr-summers-library-oriented-programming/)
-- [Building Modern
-  Frameworks](https://developer.apple.com/videos/play/wwdc2014/416/)
-- [xcconfig dosyaları için Resmi Olmayan
-  Kılavuz](https://pewpewthespells.com/blog/xcconfig_guide.html)
+- [Kütüphane Odaklı
+  Programlama](https://academy.realm.io/posts/justin-spahr-summers-library-oriented-programming/)
+- [Modern Çerçeveler
+  Oluşturmak](https://developer.apple.com/videos/play/wwdc2014/416/)
+- [xcconfig dosyalarına ilişkin resmi olmayan
+  kılavuz](https://pewpewthespells.com/blog/xcconfig_guide.html)
 - [Statik ve Dinamik
   Kütüphaneler](https://pewpewthespells.com/blog/static_and_dynamic_libraries.html)

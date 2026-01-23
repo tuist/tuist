@@ -5,7 +5,7 @@
   "description": "Learn how to install Tuist in your environment."
 }
 ---
-# Tuist'i kurun {#install-tuist}
+# Tuist'i yükleyin {#install-tuist}
 
 Tuist CLI bir çalıştırılabilir dosyadan, dinamik çerçevelerden ve bir dizi
 kaynaktan (örneğin şablonlar) oluşur. Tuist'i
@@ -17,13 +17,13 @@ birini kullanmanızı öneririz.**
 
 ::: info
 <!-- -->
-Mise, farklı ortamlarda araçların deterministik sürümlerini sağlamaya ihtiyaç
-duyan bir ekip veya kuruluşsanız [Homebrew](https://brew.sh) için önerilen bir
-alternatiftir.
+Mise, farklı ortamlarda araçların deterministik sürümlerini sağlamak isteyen bir
+ekip veya kuruluşsanız, [Homebrew](https://brew.sh) yerine kullanılması önerilen
+bir alternatiftir.
 <!-- -->
 :::
 
-Tuist'i aşağıdaki komutlardan herhangi birini kullanarak kurabilirsiniz:
+Tuist'i aşağıdaki komutlardan herhangi birini kullanarak yükleyebilirsiniz:
 
 ```bash
 mise install tuist            # Install the current version specified in .tool-versions/.mise.toml
@@ -31,10 +31,9 @@ mise install tuist@x.y.z      # Install a specific version number
 mise install tuist@3          # Install a fuzzy version number
 ```
 
-Homebrew gibi aracın tek bir sürümünü global olarak kuran ve etkinleştiren
-araçların aksine, **Mise'ın** sürümünün global olarak ya da bir projeye bağlı
-olarak etkinleştirilmesini gerektirdiğini unutmayın. Bu, `mise use`
-çalıştırılarak yapılır:
+Homebrew gibi araçların aksine, tek bir sürümü global olarak yükleyen ve
+etkinleştiren **Mise,** sürümünün global olarak veya bir proje kapsamında
+etkinleştirilmesini gerektirir. Bu, `mise use` komutunu çalıştırarak yapılır:
 
 ```bash
 mise use tuist@x.y.z          # Use tuist-x.y.z in the current project
@@ -45,8 +44,8 @@ mise use -g tuist@system      # Use the system's tuist as the global default
 
 ### <a href="https://brew.sh">Homebrew</a> {#recommended-homebrew}
 
-Tuist'i [Homebrew](https://brew.sh) ve [bizim
-formüllerimiz](https://github.com/tuist/homebrew-tuist) kullanarak
+Tuist'i [Homebrew](https://brew.sh) ve
+[formüllerimiz](https://github.com/tuist/homebrew-tuist) kullanarak
 yükleyebilirsiniz:
 
 ```bash
@@ -57,9 +56,9 @@ brew install --formula tuist@x.y.z
 
 ::: tip VERIFYING THE AUTHENTICITY OF THE BINARIES
 <!-- -->
-Sertifikanın takımının `U6LC622NKF` olup olmadığını kontrol eden aşağıdaki
-komutu çalıştırarak kurulumunuzun ikili dosyalarının bizim tarafımızdan
-oluşturulduğunu doğrulayabilirsiniz:
+Aşağıdaki komutu çalıştırarak, kurulumunuzun ikili dosyalarının tarafımızdan
+oluşturulduğunu doğrulayabilirsiniz. Bu komut, sertifikanın ekibinin
+`U6LC622NKF` olup olmadığını kontrol eder:
 
 ```bash
 curl -fsSL "https://docs.tuist.dev/verify.sh" | bash

@@ -71,8 +71,9 @@ NSBundle *bundle = [MyFeatureResources bundle];
 
 小贴士 通过工具包为图书馆资源提供支持
 <!-- -->
-如果目标产品（例如库）不支持资源，Tuist 会将资源包含在产品类型为`bundle` 的目标产品中，以确保资源最终出现在最终产品中，并确保接口指向正确的
-bundle。
+若目标产品（如库文件）不支持资源，Tuist将把资源纳入`类型的目标中，具体为：`
+确保资源最终包含在产品中，且接口指向正确的包。这些合成包会自动标记为：`tuist:synthesized`
+并继承父目标的所有标签，使您能在<LocalizedLink href="/guides/features/projects/metadata-tags#system-tags">缓存配置文件</LocalizedLink>中定位它们。
 <!-- -->
 :::
 
@@ -121,7 +122,7 @@ let project = Project(resourceSynthesizers: [.string(), .fonts()])
 信息参考
 <!-- -->
 您可以查看 [this
-fixture](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates)
+fixture](https://github.com/tuist/tuist/tree/main/examples/xcode/generated_ios_app_with_templates)
 以了解如何使用自定义模板合成资源访问器的示例。
 <!-- -->
 :::

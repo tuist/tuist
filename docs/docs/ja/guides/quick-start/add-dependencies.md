@@ -5,15 +5,15 @@
   "description": "Learn how to add dependencies to your first Swift project"
 }
 ---
-# 依存関係の追加{#add-dependencies}
+# 依存関係を追加{#add-dependencies}
 
-追加機能を提供するために、プロジェクトがサードパーティのライブラリに依存することはよくあることです。そのためには、以下のコマンドを実行すると、プロジェクトの編集がより快適になります：
+プロジェクトが追加機能を提供するためにサードパーティライブラリに依存することは一般的です。プロジェクト編集の最適な環境を得るには、次のコマンドを実行してください：
 
 ```bash
 tuist edit
 ```
 
-プロジェクト・ファイルを含むXcodeプロジェクトが開きます。`Package.swift` 。
+`Xcodeプロジェクトが開き、プロジェクトファイルが含まれます。Package.swiftを編集し、` に以下の内容を追加してください：
 
 ```swift
 // swift-tools-version: 5.9
@@ -41,7 +41,7 @@ let package = Package(
 )
 ```
 
-次に、プロジェクトのアプリケーション・ターゲットを編集して、`Kingfisher` を依存関係として宣言します：
+次に、プロジェクト内のアプリケーションターゲットを編集し、`Kingfisher` を依存関係として宣言します:
 
 ```swift
 import ProjectDescription
@@ -81,31 +81,32 @@ let project = Project(
 )
 ```
 
-それから`tuist install` を実行し、[Swift Package
-Manager](https://www.swift.org/documentation/package-manager/)を使って依存関係を解決し、取り出します。
+その後、`tuist install` を実行し、[Swift Package
+Manager](https://www.swift.org/documentation/package-manager/)
+を使用して依存関係を解決・取得してください。
 
 ::: info SPM AS A DEPENDENCY RESOLVER
 <!-- -->
-依存関係に対するTuistの推奨アプローチは、依存関係を解決するためにSwift Package Manager
-(SPM)のみを使用する。そしてTuistはそれらをXcodeプロジェクトとターゲットに変換し、最大限の設定と制御を可能にする。
+Tuistが推奨する依存関係管理のアプローチでは、Swift Package Manager (SPM)
+を依存関係の解決にのみ使用します。その後、TuistはそれらをXcodeプロジェクトとターゲットに変換し、最大限の設定性と制御性を実現します。
 <!-- -->
 :::
 
 ## プロジェクトを可視化する{#visualize-the-project}
 
-を実行することで、プロジェクトの構造を可視化することができる：
+プロジェクト構造を可視化するには、以下を実行してください：
 
 ```bash
 tuist graph
 ```
 
-このコマンドは、プロジェクトのディレクトリにある`graph.png` ファイルを出力し、開きます：
+このコマンドはプロジェクトディレクトリに`graph.png` ファイルを出力・開きます：
 
-プロジェクトグラフ
+![プロジェクトグラフ](/images/guides/quick-start/graph.png)
 
-## 依存関係を利用する{#use-the-dependency}
+## 依存関係を使用する{#use-the-dependency}
 
-`tuist generate` を実行して Xcode でプロジェクトを開き、`ContentView.swift` ファイルに以下の変更を加えます：
+`tuist generate` を実行してプロジェクトをXcodeで開く。`/ContentView.swift` ファイルに以下の変更を加える：
 
 ```swift
 import SwiftUI

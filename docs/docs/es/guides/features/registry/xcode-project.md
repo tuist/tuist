@@ -7,20 +7,20 @@
 ---
 # Proyecto Xcode {#xcode-project}
 
-Para añadir paquetes utilizando el registro en su proyecto Xcode, utilice la
-interfaz de usuario predeterminada de Xcode. Puede buscar paquetes en el
-registro haciendo clic en el botón `+` en la pestaña `Package Dependencies` en
-Xcode. Si el paquete está disponible en el registro, verá el registro
-`tuist.dev` en la parte superior derecha:
+Para añadir paquetes utilizando el registro en tu proyecto Xcode, utiliza la
+interfaz de usuario predeterminada de Xcode. Puedes buscar paquetes en el
+registro haciendo clic en el botón « ` » + «` » en la pestaña « `» «Package
+Dependencies» «` » de Xcode. Si el paquete está disponible en el registro, verás
+el registro « `» «tuist.dev» «` » en la parte superior derecha:
 
-[Añadiendo dependencias de
-paquetes](/images/guides/features/build/registry/registry-add-package.png)
+![Añadir dependencias del
+paquete](/images/guides/features/build/registry/registry-add-package.png)
 
 ::: info
 <!-- -->
-Actualmente, Xcode no admite la sustitución automática de los paquetes de
-control de origen por sus equivalentes de registro. Deberá eliminar manualmente
-el paquete de control de origen y añadir el paquete de registro para acelerar la
-resolución.
+Actualmente, Xcode no admite la sustitución automática de paquetes de control de
+código fuente por sus equivalentes en el registro. Deberá eliminar manualmente
+el paquete de control de código fuente y añadir el paquete del registro para
+acelerar la resolución.
 <!-- -->
 :::

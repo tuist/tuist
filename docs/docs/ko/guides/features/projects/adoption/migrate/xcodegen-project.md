@@ -78,7 +78,8 @@ Type 검사, 기능에 대한 유효성 검사를 사용하게 해주는 편의�
 YAML를 프로젝트 환경 설정으로 사용하는 것의 단점 중 하나는 YAML의 재사용을 지원하지 않는 것 입니다. 이것은 XcodeGen이
 프로젝트를 설명할 때 발생하는 일반적인 요구 사항인데, XcodeGen에서는 *"templates"* 라는 자체 솔루션을 통해 해결해야
 했습니다. Tuist의 재사용성은 Swift 언어 자체에 만들어져 있고 모든 Manifest 파일들에서 설정 코드를 재 사용 할 수 있게 해주는
-<LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink>라는 이름의 Swift 모듈을 통해 이루어 집니다.
+<LocalizedLink href="/guides/features/projects/code-sharing">project description
+helpers</LocalizedLink>라는 이름의 Swift 모듈을 통해 이루어 집니다.
 
 ::: code-group
 ```swift [Tuist/ProjectDescriptionHelpers/Target+Features.swift]

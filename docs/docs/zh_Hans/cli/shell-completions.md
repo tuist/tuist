@@ -7,26 +7,24 @@
 ---
 # Shell completions
 
-如果您在**全局安装了 Tuist** （例如通过 Homebrew），则可以为 Bash 和 Zsh 安装 shell
-completions，以自动完成命令和选项。
+若您已通过全局安装（如通过Homebrew）获取Tuist**** ，可为Bash和Zsh安装命令补全功能，实现命令与选项的自动补全。
 
 ::: warning WHAT IS A GLOBAL INSTALLATION
 <!-- -->
-全局安装是指在 shell 的`$PATH` 环境变量中可用的安装。这意味着你可以在终端的任何目录下运行`tuist` 。这是 Homebrew
-的默认安装方法。
+全局安装是指安装在终端环境变量（`$PATH` ）中的软件。这意味着您可在终端任意目录运行：`tuist` 此为Homebrew的默认安装方式。
 <!-- -->
 :::
 
 #### Zsh{#zsh}
 
-如果您安装了 [oh-my-zsh](https://ohmyz.sh/) ，您已经有一个自动加载完成脚本的目录
--`.oh-my-zsh/completions` 。将新的完成脚本复制到该目录中名为`_tuist` 的新文件中：
+若已安装[oh-my-zsh](https://ohmyz.sh/)，则自动加载补全脚本的目录已存在——`.oh-my-zsh/completions`
+。将新补全脚本复制到该目录下的新文件中，命名为`_tuist` ：
 
 ```bash
 tuist --generate-completion-script > ~/.oh-my-zsh/completions/_tuist
 ```
 
-如果没有`oh-my-zsh` ，则需要在函数路径中添加完成脚本的路径，并开启完成脚本自动加载功能。首先，在`~/.zshrc` 中添加这几行：
+若未安装`（即oh-my-zsh）` ，需将补全脚本路径添加至函数路径，并启用补全脚本自动加载功能。首先在` 或~/.zshrc中添加以下内容` ：
 
 ```bash
 fpath=(~/.zsh/completion $fpath)
@@ -34,34 +32,31 @@ autoload -U compinit
 compinit
 ```
 
-接下来，在`~/.zsh/completion` 下创建一个目录，并将完成脚本复制到新目录中，同样复制到名为`_tuist` 的文件中。
+接下来，在以下路径创建目录：`~/.zsh/completion` 并将补全脚本复制到新目录中，同样命名为：`_tuist`
 
 ```bash
 tuist --generate-completion-script > ~/.zsh/completion/_tuist
 ```
 
-#### 巴什{#bash}
+#### Bash{#bash}
 
-如果已经安装了
-[bash-completion](https://github.com/scop/bash-completion)，可以直接将新的完成脚本复制到文件`/usr/local/etc/bash_completion.d/_tuist`
-：
+若已安装[bash-completion](https://github.com/scop/bash-completion)，可将新补全脚本复制至文件：`/usr/local/etc/bash_completion.d/_tuist`
 
 ```bash
 tuist --generate-completion-script > /usr/local/etc/bash_completion.d/_tuist
 ```
 
-如果没有 bash-completion，则需要直接获取补全脚本。将其复制到`~/.bash_completions/`
-等目录，然后在`~/.bash_profile` 或`~/.bashrc` 中添加以下一行：
+```若未启用bash补全功能，需直接加载补全脚本。请将其复制至指定目录（如` 或~/.bash_completions/），随后在`
+、~/.bash_profile或` 、~/.bashrc中添加以下内容：
 
 ```bash
 source ~/.bash_completions/example.bash
 ```
 
-#### 鱼类{#fish}
+#### 鱼{#fish}
 
-如果使用 [fish
-shell](https://fishshell.com)，可以将新的完成脚本复制到`~/.config/fish/completions/tuist.fish`
-：
+若使用[fish
+shell](https://fishshell.com)，可将新补全脚本复制至：`~/.config/fish/completions/tuist.fish`:
 
 ```bash
 mkdir -p ~/.config/fish/completions

@@ -7,8 +7,7 @@
 ---
 # 記錄{#logging}
 
-CLI 採用 [swift-log](https://github.com/apple/swift-log) 記錄介面。此套件抽象出記錄的實作細節，讓 CLI
-與記錄後端無關。日誌記錄器是使用任務本地端（task locals）進行依賴注入（dependency-injected），並可在任何地方使用以下方式存取：
+此命令列介面採用[swift-log](https://github.com/apple/swift-log)介面進行記錄。此套件抽象化記錄的實作細節，使命令列介面能獨立於記錄後端運作。記錄器透過任務局部變數進行依賴注入，可於任何位置透過以下方式存取：
 
 ```bash
 Logger.current
@@ -16,12 +15,10 @@ Logger.current
 
 ::: info
 <!-- -->
-當使用`Dispatch` 或分離的任務時，任務本地端不會傳播值，所以如果您使用它們，您需要取得該值並將它傳給異步操作。
+使用`調度` 或分離任務時，任務局部變數不會傳遞其值，因此若需使用，必須自行取得該值並傳遞至非同步操作中。
 <!-- -->
 :::
 
-## 記錄什麼{#what-to-log}
+## 記錄事項{#what-to-log}
 
-日誌不是 CLI
-的使用者介面。當問題發生時，它們是診斷問題的工具。因此，您提供的資訊越多越好。在建立新功能時，站在開發人員遇到意外行為的立場，想想哪些資訊會對他們有幫助。確保使用正確的
-[日誌層級](https://www.swift.org/documentation/server/guides/libraries/log-levels.html)。否則開發人員無法濾除雜訊。
+日誌並非命令列介面的使用者介面，而是用於診斷問題發生的工具。因此提供的資訊越詳盡越好。開發新功能時，請設身處地想像開發者遭遇異常行為時的處境，思考哪些資訊對他們最有幫助。務必使用正確的[日誌等級](https://www.swift.org/documentation/server/guides/libraries/log-levels.html)，否則開發者將無法過濾無用訊息。

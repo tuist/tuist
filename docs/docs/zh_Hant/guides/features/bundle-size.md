@@ -5,7 +5,7 @@
   "description": "Find out how to make and keep your app's memory footprint as small as possible."
 }
 ---
-# 捆綁式洞察力{#bundle-size}
+# 整合洞察{#bundle-size}
 
 ::: warning REQUIREMENTS
 <!-- -->
@@ -13,13 +13,12 @@
 <!-- -->
 :::
 
-當您在應用程式中加入更多功能時，您的應用程式 bundle 大小也會不斷增加。當您發送更多的程式碼和資產時，有些 bundle
-大小的成長是不可避免的，但有許多方法可以將成長減至最低，例如確保您的資產不會在您的 bundle 中重複，或剝除未使用的二進位符號。Tuist
-為您提供工具和洞察力，幫助您的應用程式大小保持在較小的範圍內 - 我們也會隨時間監控您的應用程式大小。
+隨著應用程式新增更多功能，您的應用程式封裝大小持續增長。雖然隨著更多程式碼與資源的發布，封裝大小的增長在所難免，但仍有諸多方法可減緩此增長趨勢，例如確保資源在不同封裝間不重複存在，或移除未使用的二進位符號。Tuist
+提供工具與分析洞察，協助您維持應用程式體積精簡——我們更會持續監測您的應用程式大小變化。
 
-## 使用方式{#usage}
+## 用法{#usage}
 
-若要分析 bundle，您可以使用`tuist inspect bundle` 指令：
+要分析程式碼包，可使用以下指令：`tuist inspect bundle`
 
 ::: code-group
 ```bash [Analyze an .ipa]
@@ -34,13 +33,13 @@ tuist inspect bundle App.app
 <!-- -->
 :::
 
-`tuist inspect bundle` 指令會分析 bundle，並提供連結讓您查看 bundle 的詳細概觀，包括掃描 bundle 的內容或模組明細：
+執行 ``tuist inspect bundle` ` 指令可分析套件，並提供連結供您檢視套件詳細概覽，包含套件內容掃描或模組分解資訊：
 
-![分析束](/images/guides/features/bundle-size/analyzed-bundle.png)
+![已分析的組合](/images/guides/features/bundle-size/analyzed-bundle.png)
 
 ## 持續整合{#continuous-integration}
 
-若要隨時間追蹤 bundle 大小，您需要分析 CI 上的 bundle。首先，您需要確保您的 CI 已經<LocalizedLink href="/guides/integrations/continuous-integration#authentication">驗證</LocalizedLink>：
+為追蹤隨時間變化的套件大小，您需在持續整合環境中分析該套件。首先，請確保您的持續整合環境已完成<LocalizedLink href="/guides/integrations/continuous-integration#authentication">驗證</LocalizedLink>：
 
 GitHub Actions 的示例工作流程如下：
 
@@ -57,18 +56,21 @@ jobs:
           TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
 ```
 
-一旦設定好，您就可以看到您的捆綁大小是如何隨著時間演變的：
+設定完成後，您將能觀察到您的套件大小隨時間演變的趨勢：
 
-![Bundle size graph](/images/guides/features/bundle-size/bundle-size-graph.png)
+![封裝大小圖表](/images/guides/features/bundle-size/bundle-size-graph.png)
 
 ## 拉取/合併請求註解{#pullmerge-request-comments}
 
 ::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
-若要取得自動的 pull/merge 請求註解，請將您的 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 專案</LocalizedLink>與 <LocalizedLink href="/guides/server/authentication">Git 平台</LocalizedLink>整合。
+若要取得自動的 pull/merge 請求註解，請將您的
+<LocalizedLink href="/guides/server/accounts-and-projects">Tuist
+專案</LocalizedLink>與 <LocalizedLink href="/guides/server/authentication">Git
+平台</LocalizedLink>整合。
 <!-- -->
 :::
 
-一旦您的 Tuist 專案與 [GitHub](https://github.com) 等 Git 平台連線，每當您執行 `tuist inspect bundle` 時，Tuist 會直接在您的 pull/merge request 中發佈註解：
-
-![GitHub app comment with inspected bundles](/images/guides/features/bundle-size/github-app-with-bundles.png)
+當您的 Tuist 專案與 Git 平台（如 [GitHub](https://github.com)）完成串接後，每當執行`tuist inspect
+bundle` 時，Tuist 將直接在您的拉取/合併請求中發布評論：![GitHub app comment with inspected
+bundles](/images/guides/features/bundle-size/github-app-with-bundles.png)

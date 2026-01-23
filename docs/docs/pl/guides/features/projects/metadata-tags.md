@@ -5,34 +5,33 @@
   "description": "Learn how to use target metadata tags to organize and focus on specific parts of your project"
 }
 ---
-# Znaczniki metadanych {#metadata-tags}
+# Tagi metadanych {#metadata-tags}
 
-W miarę jak projekty stają się coraz większe i bardziej złożone, praca z całą
-bazą kodu na raz może stać się nieefektywna. Tuist udostępnia tagi metadanych
-**** jako sposób na zorganizowanie celów w logiczne grupy i skupienie się na
-określonych częściach projektu podczas jego rozwoju.
+Wraz ze wzrostem rozmiaru i złożoności projektów praca z całym kodem źródłowym
+naraz może stać się nieefektywna. Tuist udostępnia tagi metadanych **** , które
+pozwalają organizować cele w logiczne grupy i skupiać się na konkretnych
+częściach projektu podczas jego tworzenia.
 
 ## Czym są tagi metadanych? {#what-are-metadata-tags}
 
-Znaczniki metadanych to etykiety łańcuchowe, które można dołączyć do obiektów
-docelowych w projekcie. Służą one jako znaczniki, które pozwalają na:
+Tagi metadanych to etykiety tekstowe, które można dołączyć do elementów
+docelowych w projekcie. Służą one jako znaczniki, które umożliwiają:
 
-- **Grupowanie powiązanych obiektów docelowych** - oznaczanie obiektów
-  docelowych należących do tej samej funkcji, zespołu lub warstwy
-  architektonicznej.
-- **Skoncentruj swój obszar roboczy** - Generuj projekty, które zawierają tylko
-  cele z określonymi tagami.
-- **Zoptymalizuj swój przepływ pracy** - Pracuj nad określonymi funkcjami bez
-  ładowania niepowiązanych części bazy kodu.
-- **Wybierz cele do zachowania jako źródła** - Wybierz grupę celów, które chcesz
-  zachować jako źródła podczas buforowania.
+- **Grupuj powiązane cele** - Oznaczaj cele, które należą do tej samej funkcji,
+  zespołu lub warstwy architektury.
+- **Skoncentruj się na swoim obszarze roboczym** - Generuj projekty, które
+  zawierają tylko cele z określonymi tagami
+- **Zoptymalizuj przepływ pracy** - Pracuj nad konkretnymi funkcjami bez
+  ładowania niepowiązanych części kodu źródłowego.
+- **Wybierz cele, które chcesz zachować jako źródła** - Wybierz grupę celów,
+  które chcesz zachować jako źródła podczas buforowania
 
-Tagi są definiowane za pomocą właściwości `metadata` na obiektach docelowych i
-są przechowywane jako tablica ciągów znaków.
+Tagi są definiowane przy użyciu właściwości `metadata` w celach i są
+przechowywane jako tablica ciągów znaków.
 
-## Definiowanie znaczników metadanych {#defining-metadata-tags}
+## Definiowanie tagów metadanych {#defining-metadata-tags}
 
-Tagi można dodawać do dowolnego celu w manifeście projektu:
+Możesz dodać tagi do dowolnego celu w manifeście projektu:
 
 ```swift
 import ProjectDescription
@@ -71,14 +70,14 @@ let project = Project(
 )
 ```
 
-## Koncentracja na oznaczonych celach {#focusing-on-tagged-targets}
+## Skupianie się na oznaczonych celach {#focusing-on-tagged-targets}
 
-Po oznaczeniu celów można użyć polecenia `tuist generate`, aby utworzyć
-skoncentrowany projekt, który zawiera tylko określone cele:
+Po oznaczeniu celów można użyć polecenia `tuist generate`, aby utworzyć projekt
+skupiony, który zawiera tylko określone cele:
 
-### Skupienie według tagu
+### Skup się na tagu
 
-Użyj tagu `:`, aby wygenerować projekt ze wszystkimi celami pasującymi do
+Użyj tagu `:` prefix, aby wygenerować projekt ze wszystkimi celami pasującymi do
 określonego tagu:
 
 ```bash
@@ -89,9 +88,9 @@ tuist generate tag:feature:auth
 tuist generate tag:team:identity
 ```
 
-### Skupienie według nazwy
+### Skup się na nazwie
 
-Możesz także skupić się na konkretnych celach według nazwy:
+Możesz również skupić się na konkretnych celach według nazwy:
 
 ```bash
 # Generate project with the Authentication target
@@ -102,20 +101,21 @@ tuist generate Authentication
 
 Kiedy skupiasz się na celach:
 
-1. **Uwzględnione cele** - Cele pasujące do zapytania są uwzględnione w
+1. **Zawarte cele** - Cele pasujące do Twojego zapytania są zawarte w
    wygenerowanym projekcie.
-2. **Zależności** - Wszystkie zależności skupionych celów są automatycznie
+2. **Zależności** - Wszystkie zależności wybranych celów są automatycznie
    uwzględniane.
-3. **Cele testowe** - uwzględniono cele testowe dla skoncentrowanych celów.
-4. **Wykluczenie** - Wszystkie inne cele są wykluczone z obszaru roboczego.
+3. **Cele testowe** - Cele testowe dla celów, na których skupiono uwagę, są
+   zawarte
+4. **Wykluczenie** - Wszystkie pozostałe cele są wykluczone z obszaru roboczego.
 
-Oznacza to, że otrzymujesz mniejszy, łatwiejszy w zarządzaniu obszar roboczy,
-który zawiera tylko to, czego potrzebujesz do pracy nad swoją funkcją.
+Oznacza to, że otrzymujesz mniejsze, łatwiejsze w zarządzaniu miejsce pracy,
+które zawiera tylko to, czego potrzebujesz do pracy nad swoją funkcją.
 
-## Konwencje nazewnictwa znaczników {#tag-naming-conventions}
+## Konwencje nazewnictwa tagów {#tag-naming-conventions}
 
-Chociaż jako tagu można użyć dowolnego ciągu znaków, przestrzeganie spójnej
-konwencji nazewnictwa pomaga utrzymać porządek w tagach:
+Chociaż jako tag można użyć dowolnego ciągu znaków, stosowanie spójnych
+konwencji nazewniczych pomaga utrzymać porządek w tagach:
 
 ```swift
 // Organize by feature
@@ -134,13 +134,60 @@ metadata: .metadata(tags: ["platform:ios", "platform:macos"])
 metadata: .metadata(tags: ["feature:auth", "team:identity", "layer:ui"])
 ```
 
-Używanie prefiksów takich jak `feature:`, `team:`, lub `layer:` ułatwia
-zrozumienie celu każdego tagu i uniknięcie konfliktów nazewnictwa.
+Używanie przedrostków, takich jak `feature:`, `team:` lub `layer:` ułatwia
+zrozumienie przeznaczenia każdego tagu i pozwala uniknąć konfliktów nazw.
 
-## Używanie tagów z pomocnikami opisu projektu {#using-tags-with-helpers}
+## Tagi systemowe {#system-tags}
+
+Tuist używa przedrostka `tuist:` dla tagów zarządzanych przez system. Tagi te są
+automatycznie stosowane przez Tuist i mogą być używane w profilach pamięci
+podręcznej w celu kierowania do określonych typów generowanych treści.
+
+### Dostępne tagi systemowe
+
+| Tag                 | Opis                                                                                                                                                                                                                                         |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tuist:synthesized` | Stosowane do syntetycznych pakietów docelowych tworzonych przez Tuist do obsługi zasobów w bibliotekach statycznych i frameworkach statycznych. Pakiety te istnieją z powodów historycznych, aby zapewnić dostęp do interfejsów API zasobów. |
+
+### Korzystanie z tagów systemowych z profilami pamięci podręcznej
+
+Możesz używać tagów systemowych w profilach pamięci podręcznej, aby włączać lub
+wyłączać syntetyzowane cele:
+
+```swift
+import ProjectDescription
+
+let tuist = Tuist(
+    project: .tuist(
+        cacheOptions: .options(
+            profiles: .profiles(
+                [
+                    "development": .profile(
+                        .onlyExternal,
+                        and: ["tag:tuist:synthesized"]  // Also cache synthesized bundles
+                    )
+                ],
+                default: .onlyExternal
+            )
+        )
+    )
+)
+```
+
+::: tip SYNTHESIZED BUNDLES INHERIT PARENT TAGS
+<!-- -->
+Syntetyzowane pakiety docelowe dziedziczą wszystkie tagi z nadrzędnego pakietu
+docelowego, a dodatkowo otrzymują tag `tuist:synthesized`. Oznacza to, że jeśli
+oznaczysz bibliotekę statyczną tagiem `feature:auth`, jej syntetyzowany pakiet
+zasobów będzie zawierał zarówno tagi `feature:auth`, jak i `tuist:synthesized`.
+<!-- -->
+:::
+
+## Korzystanie z tagów z pomocnikami opisu projektu {#using-tags-with-helpers}
 
 Możesz wykorzystać
-<LocalizedLink href="/guides/features/projects/code-sharing">project description helpers</LocalizedLink>, aby ustandaryzować sposób stosowania tagów w całym
+<LocalizedLink href="/guides/features/projects/code-sharing">pomocniki opisu
+projektu</LocalizedLink>, aby ujednolicić sposób stosowania tagów w całym
 projekcie:
 
 ```swift
@@ -184,34 +231,34 @@ let project = Project(
 )
 ```
 
-## Korzyści z używania znaczników metadanych {#benefits}
+## Korzyści wynikające z używania tagów metadanych {#benefits}
 
-### Ulepszone doświadczenie deweloperskie
+### Ulepszone środowisko programistyczne
 
-Skupiając się na określonych częściach projektu, możesz:
+Skupiając się na konkretnych częściach projektu, możesz:
 
 - **Zmniejsz rozmiar projektu Xcode** - Pracuj z mniejszymi projektami, które
-  można szybciej otwierać i nawigować.
-- **Przyspiesz kompilacje** - kompiluj tylko to, czego potrzebujesz do bieżącej
+  szybciej się otwierają i są łatwiejsze w nawigacji.
+- **Przyspiesz kompilacje** - Kompiluj tylko to, co jest potrzebne do bieżącej
   pracy
-- **Poprawa koncentracji** - Unikanie rozpraszania uwagi przez niepowiązany kod
+- **Popraw skupienie** - Unikaj rozpraszania uwagi przez niepowiązany kod
 - **Optymalizacja indeksowania** - Xcode indeksuje mniej kodu, dzięki czemu
-  autouzupełnianie jest szybsze.
+  autouzupełnianie działa szybciej.
 
 ### Lepsza organizacja projektu
 
-Tagi zapewniają elastyczny sposób organizacji bazy kodu:
+Tagi zapewniają elastyczny sposób organizowania kodu źródłowego:
 
 - **Wiele wymiarów** - Oznaczaj cele według funkcji, zespołu, warstwy, platformy
-  lub dowolnego innego wymiaru.
-- **Brak zmian strukturalnych** - Dodanie struktury organizacyjnej bez zmiany
-  układu katalogu
-- **Zagadnienia przekrojowe** - Pojedynczy cel może należeć do wielu grup
+  lub innego wymiaru.
+- **Brak zmian strukturalnych** - Dodaj strukturę organizacyjną bez zmiany
+  układu katalogów
+- **Kwestie przekrojowe** - Pojedynczy cel może należeć do wielu grup
   logicznych.
 
 ### Integracja z buforowaniem
 
-Znaczniki metadanych płynnie współpracują z funkcjami buforowania
+Tagi metadanych działają płynnie z funkcjami buforowania
 <LocalizedLink href="/guides/features/cache">Tuist</LocalizedLink>:
 
 ```bash
@@ -224,21 +271,23 @@ tuist generate tag:feature:payment
 
 ## Dobre praktyki {#best-practices}
 
-1. **Zacznij od prostego** - Zacznij od pojedynczego wymiaru tagowania (np.
-   cech) i rozszerzaj go w razie potrzeby.
-2. **Zachowaj spójność** - Używaj tych samych konwencji nazewnictwa we
-   wszystkich manifestach.
+1. **Zacznij od prostych tagów** - Zacznij od jednego wymiaru tagowania (np.
+   cechy) i rozszerzaj go w razie potrzeby.
+2. **Zachowaj spójność** - Stosuj te same konwencje nazewnictwa we wszystkich
+   manifestach.
 3. **Dokumentuj swoje tagi** - Zachowaj listę dostępnych tagów i ich znaczeń w
-   dokumentacji projektu.
-4. **Korzystanie z modułów pomocniczych** - Wykorzystanie modułów pomocniczych
-   opisu projektu do standaryzacji stosowania znaczników
-5. **Przeglądaj okresowo** - W miarę rozwoju projektu przeglądaj i aktualizuj
+   dokumentacji swojego projektu.
+4. **Korzystaj z pomocy** - Wykorzystaj pomocniki opisujące projekt, aby
+   ujednolicić stosowanie tagów.
+5. **Regularnie sprawdzaj** - W miarę rozwoju projektu sprawdzaj i aktualizuj
    strategię tagowania.
 
 ## Powiązane funkcje {#related-features}
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">Udostępnianie kodu</LocalizedLink> - Używaj narzędzi pomocniczych opisu projektu, aby
-  ustandaryzować użycie tagów
+- <LocalizedLink href="/guides/features/projects/code-sharing">Udostępnianie
+  kodu</LocalizedLink> - Używaj pomocy opisujących projekt, aby ujednolicić
+  użycie tagów.
 - <LocalizedLink href="/guides/features/cache">Cache</LocalizedLink> - Połącz
-  znaczniki z buforowaniem w celu uzyskania optymalnej wydajności kompilacji.
-- <LocalizedLink href="/guides/features/selective-testing">Testowanie selektywne</LocalizedLink> - Uruchamianie testów tylko dla zmienionych celów
+  tagi z buforowaniem, aby uzyskać optymalną wydajność kompilacji.
+- <LocalizedLink href="/guides/features/selective-testing">Testowanie
+  selektywne</LocalizedLink> - Przeprowadzaj testy tylko dla zmienionych celów.

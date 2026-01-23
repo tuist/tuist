@@ -5,55 +5,56 @@
   "description": "Learn how to migrate from Swift Package Manager as a solution for managing your projects to Tuist projects."
 }
 ---
-# Bir Swift paketi taşıma {#migrate-a-swift-package}
+# Swift paketi taşıma {#migrate-a-swift-package}
 
 Swift paketi, Swift kodu için bir bağımlılık yöneticisi olarak ortaya çıktı ve
-istemeden kendini projeleri yönetme ve Objective-C gibi diğer programlama
-dillerini destekleme sorununu çözerken buldu. Araç farklı bir amaç göz önünde
-bulundurularak tasarlandığından, Tuist'in sağladığı esneklik, performans ve
-güçten yoksun olduğu için ölçekli projeleri yönetmek için kullanmak zor
-olabilir. Bu durum, Swift paketi Yöneticisi ve yerel Xcode projelerinin
-performansını karşılaştıran aşağıdaki tabloyu içeren [Scaling iOS at
+istemeden de olsa projelerin yönetilmesi ve Objective-C gibi diğer programlama
+dillerinin desteklenmesi sorununu çözdü. Bu araç farklı bir amaçla
+tasarlandığından, Tuist'in sağladığı esneklik, performans ve güce sahip olmadığı
+için büyük ölçekli projeleri yönetmek için kullanmak zor olabilir. Bu durum,
+Swift paketi ve yerel Xcode projelerinin performansını karşılaştıran aşağıdaki
+tabloyu içeren [Scaling iOS at
 Bumble](https://medium.com/bumble-tech/scaling-ios-at-bumble-239e0fa009f2)
 makalesinde iyi bir şekilde ele alınmıştır:
 
 <img style="max-width: 400px;" alt="A table that compares the regression in performance when using SPM over native Xcode projects" src="/images/guides/start/migrate/performance-table.webp">
 
-Swift paketi paket yöneticisinin benzer bir proje yönetimi rolü
-üstlenebileceğini düşünerek Tuist'e duyulan ihtiyacı sorgulayan geliştiriciler
-ve kuruluşlarla sık sık karşılaşıyoruz. Bazıları, daha sonra geliştirici
-deneyimlerinin önemli ölçüde azaldığını fark etmek için bir geçişe girişiyor.
-Örneğin, bir dosyanın yeniden adlandırılması, yeniden endekslenmesi 15 saniye
-kadar sürebilir. 15 saniye!
+Swift paketi'nin benzer bir proje yönetimi rolü üstlenebileceğini düşünerek
+Tuist'in gerekliliğini sorgulayan geliştiriciler ve kuruluşlarla sık sık
+karşılaşıyoruz. Bazıları geçiş yapmaya karar veriyor, ancak daha sonra
+geliştirici deneyimlerinin önemli ölçüde kötüleştiğini fark ediyor. Örneğin, bir
+dosyanın yeniden adlandırılması için yeniden indeksleme işlemi 15 saniye kadar
+sürebilir. 15 saniye!
 
-**Apple'ın Swift paketi Paket Yöneticisini ölçekli bir proje yöneticisi haline
-getirip getirmeyeceği belirsiz.** Ancak, bunun gerçekleştiğine dair herhangi bir
-işaret görmüyoruz. Aslında tam tersini görüyoruz. Örtük yapılandırmalar yoluyla
-kolaylık sağlamak gibi Xcode'dan esinlenen kararlar alıyorlar ki bu da
-<LocalizedLink href="/guides/features/projects/cost-of-convenience"> bildiğiniz gibi </LocalizedLink> ölçekte komplikasyonların kaynağıdır. Apple'ın ilk
-ilkelere dönmesi ve bir bağımlılık yöneticisi olarak mantıklı olan ancak bir
-proje yöneticisi olarak mantıklı olmayan, örneğin projeleri tanımlamak için bir
-arayüz olarak derlenmiş bir dilin kullanılması gibi bazı kararları yeniden
-gözden geçirmesi gerektiğine inanıyoruz.
+**Apple'ın Swift paketi yöneticisini ölçeklenebilir bir proje yöneticisi haline
+getirip getirmeyeceği belirsizdir.** Ancak, bunun olacağına dair herhangi bir
+işaret görmüyoruz. Aslında, tam tersini görüyoruz. Xcode'dan esinlenen kararlar
+alıyorlar, örneğin örtük yapılandırmalarla kolaylık sağlama gibi, ki
+<LocalizedLink href="/guides/features/projects/cost-of-convenience">bildiğiniz
+gibi,</LocalizedLink> bu ölçeklendirmede karmaşıklığa neden oluyor. Apple'ın
+temel ilkelere dönmesi ve bağımlılık yöneticisi olarak mantıklı olan ancak proje
+yöneticisi olarak mantıklı olmayan bazı kararları yeniden gözden geçirmesi
+gerektiğini düşünüyoruz, örneğin projeleri tanımlamak için arayüz olarak
+derlenmiş bir dilin kullanılması gibi.
 
 ::: tip SPM AS JUST A DEPENDENCY MANAGER
 <!-- -->
-Tuist, Swift paketi Paket Yöneticisi'ni bir bağımlılık yöneticisi olarak ele
-alıyor ve bu harika bir şey. Onu bağımlılıkları çözmek ve inşa etmek için
-kullanıyoruz. Projeleri tanımlamak için kullanmıyoruz çünkü bunun için
-tasarlanmadı.
+Tuist, Swift paketi yöneticisini bir bağımlılık yöneticisi olarak görür ve bu
+harika bir şeydir. Bağımlılıkları çözmek ve bunları oluşturmak için kullanırız.
+Projeleri tanımlamak için kullanmayız çünkü bunun için tasarlanmamıştır.
 <!-- -->
 :::
 
-## Swift paketi Yöneticisinden Tuist'e Geçiş {#migrating-from-swift-package-manager-to-tuist}
+## Swift paket yöneticisinden Tuist'e geçiş {#migrating-from-swift-package-manager-to-tuist}
 
-Swift paketi Yöneticisi ve Tuist arasındaki benzerlikler geçiş sürecini
-basitleştirir. Temel fark, projelerinizi `Package.swift` yerine Tuist'in
-DSL'sini kullanarak tanımlayacak olmanızdır.
+Swift paketi ile Tuist arasındaki benzerlikler, geçiş sürecini kolaylaştırır.
+Temel fark, projelerinizi `Package.swift` yerine Tuist'in DSL'sini kullanarak
+tanımlayacak olmanızdır.
 
-Öncelikle, `Package.swift` dosyanızın yanında bir `Project.swift` dosyası
-oluşturun. ` Project.swift` dosyası projenizin tanımını içerecektir. İşte tek
-hedefli bir projeyi tanımlayan bir `Project.swift` dosyası örneği:
+İlk olarak, `Project.swift` dosyasını `Package.swift` dosyasının yanına
+oluşturun. `Project.swift` dosyası projenizin tanımını içerecektir. Aşağıda, tek
+bir hedef içeren bir projeyi tanımlayan `Project.swift` dosyasının bir örneği
+verilmiştir:
 
 ```swift
 import ProjectDescription
@@ -72,17 +73,17 @@ let project = Project(
 )
 ```
 
-Dikkat edilmesi gereken bazı şeyler:
+Dikkat edilmesi gereken bazı noktalar:
 
-- **ProjectDescription**: ` PackageDescription` kullanmak yerine
-  `ProjectDescription` kullanacaksınız.
-- **Proje:** Bir `paketi` örneğini dışa aktarmak yerine, bir `projesi` örneğini
+- **ProjectDescription**: `PackageDescription` yerine, `ProjectDescription`
+  kullanacaksınız.
+- **Proje:** ` paketini` örneğini dışa aktarmak yerine, `projesini` örneğini
   dışa aktaracaksınız.
-- **Xcode dili:** Projenizi tanımlamak için kullandığınız ilkeller Xcode'un
-  dilini taklit eder, bu nedenle diğerlerinin yanı sıra şemalar, hedefler ve
-  derleme aşamaları bulacaksınız.
+- **Xcode dili:** Projenizi tanımlamak için kullandığınız temel öğeler Xcode
+  dilini taklit eder, bu nedenle şemalar, hedefler ve derleme aşamaları gibi
+  öğeler bulacaksınız.
 
-Ardından aşağıdaki içeriğe sahip bir `Tuist.swift` dosyası oluşturun:
+Ardından, aşağıdaki içeriğe sahip bir `Tuist.swift` dosyası oluşturun:
 
 ```swift
 import ProjectDescription
@@ -90,22 +91,24 @@ import ProjectDescription
 let tuist = Tuist()
 ```
 
-`Tuist.swift` projenizin yapılandırmasını içerir ve yolu projenizin kökünü
-belirlemek için bir referans görevi görür. Tuist projelerinin yapısı hakkında
-daha fazla bilgi edinmek için
-<LocalizedLink href="/guides/features/projects/directory-structure">directory structure</LocalizedLink> belgesine göz atabilirsiniz.
+`Tuist.swift`, projenizin yapılandırmasını içerir ve yolu, projenizin kökünü
+belirlemek için referans görevi görür. Tuist projelerinin yapısı hakkında daha
+fazla bilgi edinmek için
+<LocalizedLink href="/guides/features/projects/directory-structure">dizin
+yapısı</LocalizedLink> belgesini inceleyebilirsiniz.
 
-## Projenin düzenlenmesi {#editing-the-project}
+## Projeyi düzenleme {#editing-the-project}
 
 Xcode'da projeyi düzenlemek için
-<LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink> komutunu kullanabilirsiniz. Komut, açıp üzerinde çalışmaya
-başlayabileceğiniz bir Xcode projesi oluşturacaktır.
+<LocalizedLink href="/guides/features/projects/editing">`tuist
+edit`</LocalizedLink> komutunu kullanabilirsiniz. Bu komut, açıp üzerinde
+çalışmaya başlayabileceğiniz bir Xcode projesi oluşturacaktır.
 
 ```bash
 tuist edit
 ```
 
-Projenin boyutuna bağlı olarak, tek seferde veya aşamalı olarak kullanmayı
-düşünebilirsiniz. DSL ve iş akışına aşina olmak için küçük bir proje ile
-başlamanızı öneririz. Tavsiyemiz her zaman en çok bağımlı olunan hedeften
-başlamak ve en üst düzey hedefe kadar ilerlemektir.
+Projenin büyüklüğüne bağlı olarak, tek seferde veya aşamalı olarak kullanmayı
+düşünebilirsiniz. DSL ve iş akışına aşina olmak için küçük bir projeyle
+başlamanızı öneririz. Tavsiyemiz, her zaman en çok bağımlı olan hedeften
+başlayıp en üst düzey hedefe kadar ilerlemenizdir.

@@ -22,20 +22,21 @@ tuist init
 <!-- -->
 :::
 
-سيرشدك الأمر خلال الخطوات اللازمة
-<LocalizedLink href="/guides/features/projects"> لإنشاء مشروع تم
-إنشاؤه</LocalizedLink> أو دمج مشروع Xcode أو مساحة عمل موجودة. يساعدك على توصيل
-الإعداد الخاص بك بالخادم البعيد، مما يتيح لك الوصول إلى ميزات مثل
-<LocalizedLink href="/guides/features/selective-testing"> الاختبار
-الانتقائي</LocalizedLink>، <LocalizedLink href="/guides/features/previews">
-والمراجعات</LocalizedLink>، و <LocalizedLink href="/guides/features/registry">
-السجل</LocalizedLink>.
+سيوجهك الأمر خلال الخطوات اللازمة لـ
+<LocalizedLink href="/guides/features/projects">إنشاء مشروع تم
+إنشاؤه</LocalizedLink> أو دمج مشروع أو مساحة عمل Xcode موجودة. يساعدك هذا الأمر
+على توصيل إعداداتك بالخادم البعيد، مما يتيح لك الوصول إلى ميزات مثل
+<LocalizedLink href="/guides/features/selective-testing">الاختبار
+الانتقائي</LocalizedLink>
+و<LocalizedLink href="/guides/features/previews">المعاينات</LocalizedLink>
+و<LocalizedLink href="/guides/features/registry">السجل</LocalizedLink>.
 
 ::: info MIGRATE AN EXISTING PROJECT
 <!-- -->
-إذا كنت ترغب في ترحيل مشروع قائم إلى المشاريع التي تم إنشاؤها لتحسين تجربة
-المطور والاستفادة من <LocalizedLink href="/guides/features/cache">ذاكرة التخزين
-المؤقت</LocalizedLink>، راجع دليل
-الترحيل<LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project"></LocalizedLink>.
+إذا كنت ترغب في ترحيل مشروع موجود إلى مشاريع تم إنشاؤها لتحسين تجربة المطور
+والاستفادة من <LocalizedLink href="/guides/features/cache">ذاكرة التخزين
+المؤقتة</LocalizedLink>، فراجع
+<LocalizedLink href="/guides/features/projects/adoption/migrate/xcode-project">دليل
+الترحيل</LocalizedLink>.
 <!-- -->
 :::

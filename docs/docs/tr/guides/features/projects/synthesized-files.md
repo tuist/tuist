@@ -7,73 +7,73 @@
 ---
 # Sentezlenmiş dosyalar {#synthesized-files}
 
-Tuist, Xcode projelerini yönetmeye ve bunlarla çalışmaya bazı kolaylıklar
-getirmek için oluşturma zamanında dosya ve kod oluşturabilir. Bu sayfada bu
-işlevsellik hakkında bilgi edinecek ve projelerinizde nasıl kullanabileceğinizi
-öğreneceksiniz.
+Tuist, Xcode projelerini yönetmeyi ve bunlarla çalışmayı kolaylaştırmak için
+oluşturma sırasında dosyalar ve kodlar oluşturabilir. Bu sayfada, bu işlevsellik
+ve projelerinizde nasıl kullanabileceğiniz hakkında bilgi edineceksiniz.
 
 ## Hedef kaynaklar {#target-resources}
 
-Xcode projeleri hedeflere kaynak eklemeyi destekler. Bununla birlikte, özellikle
-kaynakların ve kaynakların sık sık yer değiştirdiği modüler bir projeyle
-çalışırken ekiplere bazı zorluklar sunarlar:
+Xcode projeleri, hedeflere kaynak eklemeyi destekler. Ancak, özellikle
+kaynakların ve kaynakların sık sık taşındığı modüler projelerde çalışırken,
+ekiplere bazı zorluklar çıkarır:
 
-- **Tutarsız çalışma zamanı erişimi**: Kaynakların nihai üründe nereye gideceği
-  ve bunlara nasıl erişeceğiniz hedef ürüne bağlıdır. Örneğin, hedefiniz bir
-  uygulamayı temsil ediyorsa, kaynaklar uygulama paketine kopyalanır. Bu durum,
-  kaynaklara erişen kodun paket yapısı üzerinde varsayımlarda bulunmasına neden
-  olur ki bu da ideal değildir çünkü kodun mantık yürütmesini ve kaynakların
-  hareket etmesini zorlaştırır.
-- **Kaynakları desteklemeyen ürünler**: Statik kütüphaneler gibi paket olmayan
-  ve bu nedenle kaynakları desteklemeyen bazı ürünler vardır. Bu nedenle,
-  projenize veya uygulamanıza bazı ek yükler getirebilecek farklı bir ürün
-  türüne, örneğin çerçevelere başvurmanız gerekir. Örneğin, statik çerçeveler
-  nihai ürüne statik olarak bağlanır ve yalnızca kaynakları nihai ürüne
-  kopyalamak için bir derleme aşaması gerekir. Ya da Xcode'un hem ikili dosyayı
-  hem de kaynakları nihai ürüne kopyalayacağı dinamik çerçeveler, ancak
-  çerçevenin dinamik olarak yüklenmesi gerektiğinden uygulamanızın başlangıç
-  süresini artıracaktır.
-- **Çalışma zamanı hatalarına eğilimli**: Kaynaklar adları ve uzantıları
-  (dizeler) ile tanımlanır. Bu nedenle, bunlardan herhangi birindeki bir yazım
-  hatası, kaynağa erişmeye çalışırken bir çalışma zamanı hatasına yol açacaktır.
-  Bu ideal değildir çünkü derleme zamanında yakalanmaz ve sürümde çökmelere yol
-  açabilir.
+- **Tutarsız çalışma zamanı erişimi**: Kaynakların nihai üründe nereye
+  yerleştirileceği ve bunlara nasıl erişileceği, hedef ürüne bağlıdır. Örneğin,
+  hedefiniz bir uygulamayı temsil ediyorsa, kaynaklar uygulama paketine
+  kopyalanır. Bu, kaynaklara erişen kodun paket yapısı hakkında varsayımlarda
+  bulunmasına neden olur. Bu durum, kodun anlaşılmasını ve kaynakların
+  taşınmasını zorlaştırdığı için ideal değildir.
+- **Kaynakları desteklemeyen ürünler**: Statik kütüphaneler gibi, paket olmayan
+  ve bu nedenle kaynakları desteklemeyen belirli ürünler vardır. Bu nedenle,
+  projenize veya uygulamanıza ek yük getirebilecek farklı bir ürün türüne,
+  örneğin çerçevelere başvurmanız gerekir. Örneğin, statik çerçeveler nihai
+  ürüne statik olarak bağlanacak ve kaynakları nihai ürüne kopyalamak için bir
+  derleme aşaması gerekecektir. Ya da dinamik çerçevelerde, Xcode hem ikili
+  dosyayı hem de kaynakları nihai ürüne kopyalayacaktır, ancak çerçevenin
+  dinamik olarak yüklenmesi gerektiğinden uygulamanızın başlatma süresi
+  artacaktır.
+- **Çalışma zamanı hatalarına yatkın**: Kaynaklar, adları ve uzantıları
+  (diziler) ile tanımlanır. Bu nedenle, bunlardan herhangi birinde yazım hatası
+  olması, kaynağa erişmeye çalışırken çalışma zamanı hatasına yol açar. Bu,
+  derleme sırasında yakalanmadığı ve sürümde çökmelere yol açabileceği için
+  ideal değildir.
 
-Tuist yukarıdaki sorunları **demetlere ve kaynaklara erişmek için** uygulama
-ayrıntılarını soyutlayan birleşik bir arayüz sentezleyerek çözmektedir.
+Tuist, **'ı kullanarak yukarıdaki sorunları çözer ve uygulama ayrıntılarını
+soyutlayan, paketlere ve kaynaklara erişmek için birleşik bir arayüz
+oluşturur**.
 
 ::: warning RECOMMENDED
 <!-- -->
-Kaynaklara Tuist tarafından sentezlenen arayüz üzerinden erişmek zorunlu olmasa
-da, kod hakkında mantık yürütmeyi ve kaynakların hareket etmesini
-kolaylaştırdığı için bunu öneriyoruz.
+Tuist tarafından sentezlenen arayüz üzerinden kaynaklara erişmek zorunlu olmasa
+da, kodun anlaşılmasını ve kaynakların taşınmasını kolaylaştırdığı için bunu
+öneririz.
 <!-- -->
 :::
 
 ## Kaynaklar {#resources}
 
-Tuist, `Info.plist` veya Swift'teki yetkilendirmeler gibi dosyaların içeriğini
-bildirmek için arayüzler sağlar. Bu, hedefler ve projeler arasında tutarlılığı
-sağlamak ve derleme zamanında sorunları yakalamak için derleyiciden yararlanmak
-için kullanışlıdır. Ayrıca içeriği modellemek ve hedefler ve projeler arasında
-paylaşmak için kendi soyutlamalarınızı da oluşturabilirsiniz.
+Tuist, `Info.plist` gibi dosyaların içeriğini veya Swift'teki yetkileri beyan
+etmek için arayüzler sağlar. Bu, hedefler ve projeler arasında tutarlılığı
+sağlamak ve derleme sırasında sorunları yakalamak için derleyiciyi kullanmak
+açısından yararlıdır. Ayrıca, içeriği modellemek ve hedefler ve projeler
+arasında paylaşmak için kendi soyutlamalarınızı da oluşturabilirsiniz.
 
 Projeniz oluşturulduğunda, Tuist bu dosyaların içeriğini sentezleyecek ve
-bunları tanımlayan projeyi içeren dizine göre `Türetilmiş` dizinine yazacaktır.
+bunları tanımlayan projeyi içeren dizine göre `Derived` dizinine yazacaktır.
 
 ::: tip GITIGNORE THE DERIVED DIRECTORY
 <!-- -->
-`Derived` dizinini projenizin `.gitignore` dosyasına eklemenizi öneririz.
+`'un Derived` dizinini projenizin `.gitignore` dosyasına eklemenizi öneririz.
 <!-- -->
 :::
 
 ## Paket erişimcileri {#bundle-accessors}
 
-Tuist, hedef kaynakları içeren pakete erişmek için bir arayüz sentezler.
+Tuist, hedef kaynakları içeren pakete erişmek için bir arayüz oluşturur.
 
 ### Swift {#swift}
 
-Hedef, paketi açığa çıkaran `Bundle` türünde bir uzantı içerecektir:
+Hedef, paketi ortaya çıkaran `Bundle` türünde bir uzantı içerecektir:
 
 ```swift
 let bundle = Bundle.module
@@ -81,8 +81,8 @@ let bundle = Bundle.module
 
 ### Objective-C {#objectivec}
 
-Objective-C'de, pakete erişmek için `{Target}Resources` şeklinde bir arayüz elde
-edersiniz:
+Objective-C'de, pakete erişmek için bir arayüz elde edersiniz
+`{Target}Resources`:
 
 ```objc
 NSBundle *bundle = [MyFeatureResources bundle];
@@ -91,56 +91,61 @@ NSBundle *bundle = [MyFeatureResources bundle];
 ::: warning LIMITATION WITH INTERNAL TARGETS
 <!-- -->
 Şu anda Tuist, yalnızca Objective-C kaynakları içeren dahili hedefler için
-kaynak paketi erişicileri oluşturmamaktadır. Bu, [issue
-#6456](https://github.com/tuist/tuist/issues/6456)'de izlenen bilinen bir
+kaynak paketi erişimcileri oluşturmamaktadır. Bu, [sorun
+#6456](https://github.com/tuist/tuist/issues/6456) numaralı bilinen bir
 sınırlamadır.
 <!-- -->
 :::
 
 ::: tip SUPPORTING RESOURCES IN LIBRARIES THROUGH BUNDLES
 <!-- -->
-Bir hedef ürün, örneğin bir kütüphane, kaynakları desteklemiyorsa, Tuist
-kaynakları `bundle` ürün türündeki bir hedefe dahil ederek nihai ürüne
-ulaşmasını ve arayüzün doğru pakete işaret etmesini sağlayacaktır.
+Hedef ürün, örneğin bir kütüphane, kaynakları desteklemiyorsa, Tuist kaynakları
+ürün türü `bundle` hedefine dahil ederek, bunların nihai ürüne eklenmesini ve
+arayüzün doğru pakete yönlendirilmesini sağlar. Bu sentezlenmiş paketler
+otomatik olarak `tuist:synthesized` ile etiketlenir ve ana hedeflerinden tüm
+etiketleri devralır, böylece bunları
+<LocalizedLink href="/guides/features/projects/metadata-tags#system-tags">cache
+profiles</LocalizedLink> içinde hedefleyebilirsiniz.
 <!-- -->
 :::
 
 ## Kaynak erişimcileri {#resource-accessors}
 
-Kaynaklar, dizeler kullanılarak adları ve uzantılarıyla tanımlanır. Bu ideal
-değildir çünkü derleme zamanında yakalanmaz ve sürümde çökmelere neden olabilir.
-Bunu önlemek için Tuist, kaynaklara erişmek için bir arayüz sentezlemek üzere
-proje oluşturma sürecine [SwiftGen](https://github.com/SwiftGen/SwiftGen)
-entegre eder. Bu sayede, herhangi bir sorunu yakalamak için derleyiciden
-yararlanarak kaynaklara güvenle erişebilirsiniz.
+Kaynaklar, dizeler kullanılarak adları ve uzantıları ile tanımlanır. Bu ideal
+bir durum değildir, çünkü derleme sırasında yakalanmaz ve sürümde çökmelere
+neden olabilir. Bunu önlemek için Tuist, kaynaklara erişmek için bir arayüz
+oluşturmak üzere [SwiftGen](https://github.com/SwiftGen/SwiftGen) projesini
+proje oluşturma sürecine entegre eder. Bu sayede, derleyiciyi kullanarak
+herhangi bir sorunu yakalayarak kaynaklara güvenle erişebilirsiniz.
 
 Tuist, varsayılan olarak aşağıdaki kaynak türleri için erişimcileri sentezlemek
 üzere
-[templates](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator/Templates)
+[şablonlar](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator/Templates)
 içerir:
 
-| Kaynak türü           | Sentezlenmiş dosyalar    |
-| --------------------- | ------------------------ |
-| Görüntüler ve renkler | `Assets+{Target}.swift`  |
-| Dizeler               | `Strings+{Target}.swift` |
-| Plistler              | `{NameOfPlist}.swift`    |
-| Yazı Tipleri          | `Fonts+{Target}.swift`   |
-| Dosyalar              | `Files+{Target}.swift`   |
+| Kaynak türü           | Sentezlenmiş dosyalar     |
+| --------------------- | ------------------------- |
+| Görüntüler ve renkler | `Assets+{Hedef}.swift`    |
+| Diziler               | `Strings+{Target}.swift`  |
+| Plistler              | `{NameOfPlist}.swift`     |
+| Yazı tipleri          | `Fonts+{Target}.swift`    |
+| Dosyalar              | `Dosyaları+{Hedef}.swift` |
 
-> Not: Proje seçeneklerine `disableSynthesizedResourceAccessors` seçeneğini
-> aktararak kaynak erişimcilerinin sentezlenmesini proje bazında devre dışı
+> Not: `disableSynthesizedResourceAccessors` seçeneğini proje seçeneklerine
+> aktararak, proje bazında kaynak erişimcilerin sentezlenmesini devre dışı
 > bırakabilirsiniz.
 
 #### Özel şablonlar {#custom-templates}
 
-SwiftGen](https://github.com/SwiftGen/SwiftGen) tarafından desteklenmesi gereken
-diğer kaynak türlerine erişimcileri sentezlemek için kendi şablonlarınızı
-sağlamak istiyorsanız, bunları `Tuist/ResourceSynthesizers/{name}.stencil`
-adresinde oluşturabilirsiniz; burada ad, kaynağın deve harfi versiyonudur.
+[SwiftGen](https://github.com/SwiftGen/SwiftGen) tarafından desteklenmesi
+gereken diğer kaynak türlerine erişim sağlayıcıları sentezlemek için kendi
+şablonlarınızı sağlamak istiyorsanız, bunları
+`Tuist/ResourceSynthesizers/{name}.stencil` adresinde oluşturabilirsiniz. Burada
+name, kaynağın camel-case versiyonudur.
 
 | Kaynaklar        | Şablon adı                 |
 | ---------------- | -------------------------- |
-| dizeler          | `Dizeler.şablon`           |
+| diziler          | `Strings.stencil`          |
 | varlıklar        | `Assets.stencil`           |
 | plists           | `Plists.stencil`           |
 | yazı tipleri     | `Fonts.stencil`            |
@@ -148,11 +153,11 @@ adresinde oluşturabilirsiniz; burada ad, kaynağın deve harfi versiyonudur.
 | interfaceBuilder | `InterfaceBuilder.stencil` |
 | json             | `JSON.stencil`             |
 | yaml             | `YAML.stencil`             |
-| dosyalar         | `Dosyalar.şablon`          |
+| dosyaları        | `Files.stencil`            |
 
-Erişicilerin sentezleneceği kaynak türlerinin listesini yapılandırmak
-istiyorsanız, kullanmak istediğiniz kaynak sentezleyicilerinin listesini aktaran
-`Project.resourceSynthesizers` özelliğini kullanabilirsiniz:
+Erişimcileri sentezlemek için kaynak türleri listesini yapılandırmak
+istiyorsanız, `Project.resourceSynthesizers` özelliğini kullanarak kullanmak
+istediğiniz kaynak sentezleyicilerin listesini geçebilirsiniz:
 
 ```swift
 let project = Project(resourceSynthesizers: [.string(), .fonts()])
@@ -160,9 +165,9 @@ let project = Project(resourceSynthesizers: [.string(), .fonts()])
 
 ::: info REFERENCE
 <!-- -->
-Kaynaklara erişimcileri sentezlemek için özel şablonların nasıl kullanılacağına
-dair bir örnek görmek için [this
-fixture](https://github.com/tuist/tuist/tree/main/cli/Fixtures/ios_app_with_templates)
-sayfasına göz atabilirsiniz.
+Kaynaklara erişim sağlayıcıları sentezlemek için özel şablonların nasıl
+kullanıldığına dair bir örnek görmek için [bu
+örneği](https://github.com/tuist/tuist/tree/main/examples/xcode/generated_ios_app_with_templates)
+inceleyebilirsiniz.
 <!-- -->
 :::

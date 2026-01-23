@@ -7,47 +7,47 @@
 ---
 # 翻譯{#translate}
 
-語言可能是理解的障礙。我們希望確保盡量多的人都能使用 Tuist。如果您使用的語言是 Tuist 不支援的，您可以幫助我們翻譯 Tuist 的各種表面。
+語言可能成為理解的障礙。我們致力讓 Tuist 能觸及盡可能多的人群。若您使用的語言尚未獲 Tuist 支援，歡迎協助翻譯 Tuist 的各類介面元素。
 
-由於維護翻譯是一項持續性的工作，因此我們會在看到有貢獻者願意協助我們維護時，才會增加語言。目前支援下列語言：
+由於翻譯維護屬持續性工作，我們將視貢獻者意願協助維護的情況逐步新增語言。目前支援以下語言：
 
-- 英語
-- 韓語
-- 日本語
-- 俄語
+- 英文
+- 韓文
+- 日文
+- 俄文
 - 中文
-- 西班牙語
+- 西班牙文
 - 葡萄牙語
 
 ::: tip REQUEST A NEW LANGUAGE
 <!-- -->
-如果您認為 Tuist 可以從支援新語言中獲益，請在社群論壇中建立一個新的
-[主題](https://community.tuist.io/c/general/4)，與社群進行討論。
+若您認為 Tuist 支援新增語言將有所助益，請至社群論壇建立新主題(https://community.tuist.io/c/general/4)
+與社群成員共同討論。
 <!-- -->
 :::
 
-## 如何翻譯{#how-to-translate}
+## 翻譯指南{#how-to-translate}
 
-我們在 [translate.tuist.dev](https://translate.tuist.dev) 有一個
-[Weblate](https://weblate.org/en-gb/) 的實例在執行。您可以前往
-[專案](https://translate.tuist.dev/engage/tuist/)，建立帳號並開始翻譯。
+我們在 [translate.tuist.dev](https://translate.tuist.dev) 運行著
+[Weblate](https://weblate.org/en-gb/) 實例。您可前往
+[該專案](https://translate.tuist.dev/engage/tuist/)，建立帳號後即可開始翻譯。
 
-翻譯會使用 GitHub 的拉取請求同步回原始碼倉庫，維護人員會審查並合併。
+翻譯內容將透過 GitHub 拉取請求同步回原始儲存庫，維護者將進行審查與合併。
 
 ::: warning DON'T MODIFY THE RESOURCES IN THE TARGET LANGUAGE
 <!-- -->
-Weblate 會分割檔案以綁定源語言和目標語言。如果您修改來源語言，就會破壞綁定，而且調和可能會產生意想不到的結果。
+Weblate 會將檔案分割成區段以綁定源語言與目標語言。若修改源語言內容，將破壞語言綁定關係，後續對照可能產生意外結果。
 <!-- -->
 :::
 
-## 指引{#guidelines}
+## 指南{#guidelines}
 
-以下是我們在翻譯時遵循的準則。
+以下為我們進行翻譯時遵循的準則：
 
-### 自訂容器和 GitHub 警示{#custom-containers-and-github-alerts}
+### 自訂容器與 GitHub 警示{#custom-containers-and-github-alerts}
 
-翻譯 [custom containers](https://vitepress.dev/guide/markdown#custom-containers)
-時，只翻譯標題和內容**，但不翻譯警示類型** 。
+翻譯[自訂容器](https://vitepress.dev/guide/markdown#custom-containers)時，僅翻譯標題與內容欄位**，勿翻譯警示類型欄位**
+。
 
 ```markdown
 <!-- -->
@@ -58,15 +58,15 @@ Weblate 會分割檔案以綁定源語言和目標語言。如果您修改來源
 :::
 ```
 
-### 標題標題{#heading-titles}
+### 標題名稱{#heading-titles}
 
-翻譯標題時，只翻譯標題而不翻譯 ID。例如，翻譯以下標題時：
+翻譯標題時，僅翻譯標題文字而不翻譯標識符。例如翻譯以下標題時：
 
 ```markdown
 # Add dependencies {#add-dependencies}
 ```
 
-應該翻譯為（注意 id 沒有翻譯）：
+應翻譯為（請注意ID字段不作翻譯）：
 
 ```markdown
 # 의존성 추가하기 {#add-dependencies}

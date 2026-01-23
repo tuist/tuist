@@ -8,43 +8,43 @@
 # Pamięć podręczna Xcode {#xcode-cache}
 
 Tuist zapewnia obsługę pamięci podręcznej kompilacji Xcode, która umożliwia
-zespołom udostępnianie artefaktów kompilacji poprzez wykorzystanie możliwości
+zespołom współdzielenie artefaktów kompilacji poprzez wykorzystanie możliwości
 buforowania systemu kompilacji.
 
 ## Konfiguracja {#setup}
 
 ::: ostrzeżenie WYMAGANIA
 <!-- -->
-- Konto i projekt <LocalizedLink href="/guides/server/accounts-and-projects"> Tuist</LocalizedLink>
+- Konto <LocalizedLink href="/guides/server/accounts-and-projects">Tuist i
+  projekt</LocalizedLink>
 - Xcode 26.0 lub nowszy
 <!-- -->
 :::
 
-Jeśli nie masz jeszcze konta i projektu Tuist, możesz je utworzyć, uruchamiając
-aplikację:
+Jeśli nie masz jeszcze konta Tuist i projektu, możesz je utworzyć, uruchamiając:
 
 ```bash
 tuist init
 ```
 
-Gdy masz już plik `Tuist.swift` odwołujący się do twojego `fullHandle`, możesz
-skonfigurować buforowanie dla swojego projektu, uruchamiając go:
+Po utworzeniu pliku `Tuist.swift` odwołującego się do `fullHandle`, możesz
+skonfigurować buforowanie dla swojego projektu, uruchamiając:
 
 ```bash
 tuist setup cache
 ```
 
 To polecenie tworzy
-[LaunchAgent](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html),
-aby uruchomić lokalną usługę pamięci podręcznej podczas uruchamiania, której
-[system kompilacji](https://github.com/swiftlang/swift-build) Swift używa do
-udostępniania artefaktów kompilacji. Polecenie to należy uruchomić raz zarówno w
-środowisku lokalnym, jak i CI.
+[LaunchAgent](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html)
+w celu uruchomienia lokalnej usługi pamięci podręcznej podczas startu, której
+system kompilacji Swift [build system](https://github.com/swiftlang/swift-build)
+używa do udostępniania artefaktów kompilacji. Polecenie to należy uruchomić
+jednokrotnie zarówno w środowisku lokalnym, jak i CI.
 
-Aby skonfigurować pamięć podręczną na CI, upewnij się, że jesteś
+Aby skonfigurować pamięć podręczną w CI, upewnij się, że jesteś
 <LocalizedLink href="/guides/integrations/continuous-integration#authentication">uwierzytelniony</LocalizedLink>.
 
-### Konfiguracja ustawień kompilacji Xcode {#configure-xcode-build-settings}
+### Skonfiguruj ustawienia kompilacji Xcode {#configure-xcode-build-settings}
 
 Dodaj następujące ustawienia kompilacji do projektu Xcode:
 
@@ -55,20 +55,21 @@ COMPILATION_CACHE_ENABLE_PLUGIN = YES
 COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
 ```
 
-Należy pamiętać, że `COMPILATION_CACHE_REMOTE_SERVICE_PATH` i
-`COMPILATION_CACHE_ENABLE_PLUGIN` muszą zostać dodane jako **zdefiniowane przez
-użytkownika ustawienia kompilacji**, ponieważ nie są one bezpośrednio dostępne w
-interfejsie ustawień kompilacji Xcode:
+Należy pamiętać, że `COMPILATION_CACHE_REMOTE_SERVICE_PATH` oraz
+`COMPILATION_CACHE_ENABLE_PLUGIN` muszą zostać dodane jako **ustawienia
+kompilacji zdefiniowane przez użytkownika**, ponieważ nie są one bezpośrednio
+widoczne w interfejsie użytkownika ustawień kompilacji Xcode:
 
 ::: info SOCKET PATH
 <!-- -->
-Ścieżka gniazda zostanie wyświetlona po uruchomieniu `tuist setup cache`. Jest
-ona oparta na pełnej nazwie projektu z ukośnikami zastąpionymi podkreślnikami.
+Ścieżka gniazda zostanie wyświetlona po uruchomieniu polecenia `tuist setup
+cache`. Jest ona oparta na pełnym uchwycie projektu, w którym ukośniki zostały
+zastąpione znakami podkreślenia.
 <!-- -->
 :::
 
-Ustawienia te można również określić podczas uruchamiania `xcodebuild`, dodając
-następujące flagi, takie jak
+Możesz również określić te ustawienia podczas uruchamiania `xcodebuild`, dodając
+następujące flagi, takie jak:
 
 ```
 xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
@@ -80,7 +81,7 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
 
 ::: info GENERATED PROJECTS
 <!-- -->
-Ręczne konfigurowanie ustawień nie jest konieczne, jeśli projekt został
+Ręczne ustawianie parametrów nie jest konieczne, jeśli projekt został
 wygenerowany przez Tuist.
 
 W takim przypadku wystarczy dodać `enableCaching: true` do pliku `Tuist.swift`:
@@ -99,28 +100,38 @@ let tuist = Tuist(
 <!-- -->
 :::
 
-### Ciągła integracja #{ciągła-integracja}
+### Ciągła integracja #{continuous-integration}
 
 Aby włączyć buforowanie w środowisku CI, należy uruchomić to samo polecenie, co
-w środowisku lokalnym: `tuist setup cache`.
+w środowiskach lokalnych: `tuist setup cache`.
 
-Dodatkowo należy upewnić się, że ustawiona jest zmienna środowiskowa
-`TUIST_TOKEN`. Można ją utworzyć, postępując zgodnie z dokumentacją
-<LocalizedLink href="/guides/server/authentication#as-a-project"> tutaj</LocalizedLink>. Zmienna środowiskowa `TUIST_TOKEN` _ musi_ być obecna w
-kroku kompilacji, ale zalecamy ustawienie jej dla całego przepływu pracy CI.
+W celu uwierzytelnienia można użyć
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">uwierzytelnienia
+OIDC</LocalizedLink> (zalecane dla obsługiwanych dostawców CI) lub
+<LocalizedLink href="/guides/server/authentication#account-tokens">tokenu
+konta</LocalizedLink> poprzez zmienną środowiskową `TUIST_TOKEN`.
 
-Przykładowy przepływ pracy dla GitHub Actions mógłby wyglądać następująco:
+Przykładowy przebieg pracy dla GitHub Actions z wykorzystaniem uwierzytelniania
+OIDC:
 ```yaml
 name: Build
 
-env:
-  TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   build:
+    runs-on: macos-latest
     steps:
-      - # Your set up steps...
-      - name: Set up Tuist Cache
-        run: tuist setup cache
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: tuist auth login
+      - run: tuist setup cache
       - # Your build steps
 ```
+
+Więcej przykładów, w tym uwierzytelnianie oparte na tokenach i inne platformy
+CI, takie jak Xcode Cloud, CircleCI, Bitrise i Codemagic, można znaleźć w
+<LocalizedLink href="/guides/integrations/continuous-integration">przewodniku po
+ciągłej integracji</LocalizedLink>.

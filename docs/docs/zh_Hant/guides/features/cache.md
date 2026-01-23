@@ -5,37 +5,43 @@
   "description": "Optimize your build times with Tuist Cache."
 }
 ---
-# 快取記憶體{#cache}
+# 快取{#cache}
 
-Xcode 的建立系統提供
-[增量建立](https://en.wikipedia.org/wiki/Incremental_build_model)，可提高單一電腦上的效率。但是，建立工件無法在不同環境中共用，因此您必須反覆重建相同的程式碼
-- 不論是在 [Continuous Integration (CI)
-環境](https://en.wikipedia.org/wiki/Continuous_integration)，或是在本機開發環境 (Mac) 中。
+Xcode 的建置系統提供 [增量建置](https://en.wikipedia.org/wiki/Incremental_build_model)
+功能，可提升單一機器的建置效率。然而建置產物無法跨環境共享，迫使您在 [持續整合 (CI)
+環境](https://en.wikipedia.org/wiki/Continuous_integration) 或本地開發環境（您的
+Mac）中反覆重建相同程式碼。
 
-Tuist 藉由快取功能解決這些挑戰，大幅縮短本機開發及 CI 環境的建置時間。這種方法不僅加速了回饋迴圈，還將情境切換的需求降至最低，最終提升了生產力。
+Tuist 透過其快取功能解決這些挑戰，顯著縮短本地開發與 CI 環境的建置時間。此方法不僅加速反饋循環，更減少情境切換需求，最終提升生產力。
 
-我們提供兩種快取方式：
+我們提供兩種快取類型：
 - <LocalizedLink href="/guides/features/cache/module-cache">模組快取</LocalizedLink>
-- <LocalizedLink href="/guides/features/cache/xcode-cache">Xcode 快取</LocalizedLink>
+- <LocalizedLink href="/guides/features/cache/xcode-cache">Xcode
+  快取</LocalizedLink>
 
 ## 模組快取{#module-cache}
 
-對於使用 Tuist 的 <LocalizedLink href="/guides/features/projects">專案產生</LocalizedLink> 功能的專案，我們提供了強大的快取記憶體系統，可將個別模組快取為二進位檔案，並在團隊和 CI 環境中分享。
+針對採用 Tuist
+<LocalizedLink href="/guides/features/projects">專案生成</LocalizedLink>功能的專案，我們提供強大的快取系統，能將個別模組以二進位形式快取，並在團隊與持續整合環境間共享。
 
-雖然您也可以使用新的 Xcode
-快取，但此功能目前已針對本機建立進行最佳化，與產生的專案快取相比，您可能會有較低的快取命中率。但是，決定使用哪種快取解決方案取決於您的特定需求和偏好。您也可以結合兩種快取解決方案，以達到最佳效果。
+雖然您亦可使用新版 Xcode
+快取功能，但此功能目前針對本地建置進行優化，相較於生成專案快取，其命中率可能較低。然而，選擇何種快取方案取決於您的具體需求與偏好。您亦可結合兩種快取方案以達最佳成效。
 
-<LocalizedLink href="/guides/features/cache/module-cache">進一步瞭解模組快取 →</LocalizedLink>
+<LocalizedLink href="/guides/features/cache/module-cache">深入了解模組快取
+→</LocalizedLink>
 
 ## Xcode 快取{#xcode-cache}
 
 ::: warning STATE OF CACHE IN XCODE
 <!-- -->
-Xcode 快取目前已針對本機增量建置進行最佳化，且整個建置任務範圍尚未與路徑無關。不過您還是可以透過插入 Tuist
-的遠端快取體驗到好處，而且我們預期隨著時間的推移，建立時間會隨著建立系統能力的不斷提升而改善。
+Xcode 快取機制目前針對本地增量建置進行優化，且建置任務的完整流程尚未實現路徑獨立性。儘管如此，您仍可透過接入 Tuist
+遠端快取獲得效益，隨著建置系統能力的持續提升，我們預期建置時間將逐步改善。
 <!-- -->
 :::
 
-Apple 一直致力於在建立層級開發新的快取解決方案，類似於 Bazel 和 Buck 等其他建立系統。新的快取功能自 Xcode 26 開始提供，Tuist 現在可與之無縫整合 - 無論您是否使用 Tuist 的 <LocalizedLink href="/guides/features/projects">專案產生</LocalizedLink> 功能。
+Apple 正在開發基於建置層級的新型快取解決方案，類似於 Bazel 和 Buck 等建置系統。此項新快取功能自 Xcode 26 起已開放使用，Tuist
+現已與其無縫整合——無論您是否使用 Tuist 的
+<LocalizedLink href="/guides/features/projects">專案生成</LocalizedLink>功能皆可適用。
 
-<LocalizedLink href="/guides/features/cache/xcode-cache">進一步瞭解 Xcode 快取 →</LocalizedLink>
+<LocalizedLink href="/guides/features/cache/xcode-cache">深入了解 Xcode 快取
+→</LocalizedLink>

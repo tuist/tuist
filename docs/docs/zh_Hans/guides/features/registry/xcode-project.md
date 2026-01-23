@@ -7,13 +7,13 @@
 ---
 # Xcode 项目{#xcode-project}
 
-要在 Xcode 项目中使用注册表添加软件包，请使用默认的 Xcode UI。您可以点击 Xcode 中`Package Dependencies`
-标签页中的`+` 按钮，在注册表中搜索软件包。如果软件包在注册表中可用，您将在右上角看到`tuist.dev` 注册表：
+要在 Xcode 项目中使用注册库添加包，请使用默认的 Xcode 界面。您可在 Xcode 的“`”&gt;“Package
+Dependencies”&gt;“` ”选项卡中，点击“` ”+“` ”按钮搜索注册库中的包。若包在注册库中可用，右上角将显示`tuist.dev` 注册库：
 
-添加软件包依赖关系](/images/guides/features/build/registry/registry-add-package.png)。
+![添加包依赖项](/images/guides/features/build/registry/registry-add-package.png)
 
 信息
 <!-- -->
-Xcode 目前不支持将源代码控制包自动替换为其注册表对应包。您需要手动删除源代码控制包并添加注册表包，以加快解决速度。
+Xcode 目前不支持自动将源代码控制包替换为注册表对应项。您需要手动移除源代码控制包并添加注册表包以加快问题解决速度。
 <!-- -->
 :::

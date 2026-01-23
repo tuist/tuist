@@ -9,24 +9,26 @@
 
 ::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve projesi</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve
+  projesi</LocalizedLink>
 <!-- -->
 :::
 
-Bir uygulama geliştirirken, geri bildirim almak için başkalarıyla paylaşmak
-isteyebilirsiniz. Geleneksel olarak bu, ekiplerin uygulamalarını oluşturarak,
+Bir uygulama oluştururken, geri bildirim almak için onu başkalarıyla paylaşmak
+isteyebilirsiniz. Geleneksel olarak, ekipler bunu uygulamalarını oluşturup
 imzalayarak ve Apple'ın [TestFlight](https://developer.apple.com/testflight/)
-gibi platformlarına göndererek yaptıkları bir şeydir. Ancak bu süreç, özellikle
-de sadece bir iş arkadaşınızdan veya bir arkadaşınızdan hızlı geri bildirim
-almak istediğinizde zahmetli ve yavaş olabilir.
+gibi platformlara yükleyerek yaparlar. Ancak, özellikle bir iş arkadaşınızdan
+veya arkadaşınızdan hızlı geri bildirim almak istediğinizde, bu süreç zahmetli
+ve yavaş olabilir.
 
-Bu süreci daha kolay hale getirmek için Tuist, uygulamalarınızın önizlemelerini
-oluşturmanın ve herkesle paylaşmanın bir yolunu sunuyor.
+Bu süreci daha verimli hale getirmek için Tuist, uygulamalarınızın
+önizlemelerini oluşturup herkesle paylaşma imkanı sunar.
 
 ::: warning DEVICE BUILDS NEED TO BE SIGNED
 <!-- -->
-Cihaz için oluştururken, uygulamanın doğru şekilde imzalandığından emin olmak şu
-anda sizin sorumluluğunuzdadır. Gelecekte bunu kolaylaştırmayı planlıyoruz.
+Cihaz için derleme yaparken, uygulamanın doğru şekilde imzalandığından emin
+olmak şu anda sizin sorumluluğunuzdadır. Gelecekte bu süreci kolaylaştırmayı
+planlıyoruz.
 <!-- -->
 :::
 
@@ -46,23 +48,24 @@ tuist share App.ipa # Share an existing .ipa file
 <!-- -->
 :::
 
-Komut, uygulamayı simülatörde veya gerçek bir cihazda çalıştırmak için herhangi
-biriyle paylaşabileceğiniz bir bağlantı oluşturacaktır. Tek yapmaları gereken
-aşağıdaki komutu çalıştırmak:
+Komut, uygulamayı çalıştırmak için simülatörde veya gerçek bir cihazda herkesle
+paylaşabileceğiniz bir bağlantı oluşturacaktır. Tek yapmaları gereken aşağıdaki
+komutu çalıştırmaktır:
 
 ```bash
 tuist run {url}
 tuist run --device "My iPhone" {url} # Run the app on a specific device
 ```
 
-Bir `.ipa` dosyasını paylaşırken, Önizleme bağlantısını kullanarak uygulamayı
-doğrudan mobil cihazdan indirebilirsiniz. ` .ipa` önizleme bağlantıları
-varsayılan olarak _herkese açık_. Gelecekte, bunları özel yapma seçeneğiniz
-olacak, böylece bağlantının alıcısının uygulamayı indirmek için Tuist hesabıyla
-kimlik doğrulaması yapması gerekecektir.
+`.ipa` dosyasını paylaşırken, Önizleme bağlantısını kullanarak uygulamayı
+doğrudan mobil cihazdan indirebilirsiniz. `.ipa` önizlemelerine giden
+bağlantılar varsayılan olarak _private_ şeklindedir, yani alıcı uygulamayı
+indirmek için Tuist hesabıyla kimlik doğrulaması yapmalıdır. Uygulamayı herkesle
+paylaşmak istiyorsanız, bunu proje ayarlarından genel olarak
+değiştirebilirsiniz.
 
-`tuist run` ayrıca `latest`, branch name veya belirli bir commit hash gibi bir
-belirticiye dayalı olarak en son önizlemeyi çalıştırmanızı sağlar:
+`tuist run` ayrıca `latest` gibi bir belirteç, dal adı veya belirli bir commit
+hash'i temel alarak en son önizlemeyi çalıştırmanıza da olanak tanır:
 
 ```bash
 tuist run App@latest # Runs latest App preview associated with the project's default branch
@@ -72,42 +75,42 @@ tuist run App@00dde7f56b1b8795a26b8085a781fb3715e834be # Runs latest App preview
 
 ::: warning UNIQUE BUILD NUMBERS IN CI
 <!-- -->
-Çoğu CI sağlayıcısının ortaya çıkardığı bir CI çalışma numarasından yararlanarak
-`CFBundleVersion` (derleme sürümü) öğesinin benzersiz olduğundan emin olun.
-Örneğin, GitHub Actions'ta `CFBundleVersion` adresini <code v-pre>${{
-github.run_number }}</code> değişkenine ayarlayabilirsiniz.
+`CFBundleVersion` (derleme sürümü) değerinin, çoğu CI sağlayıcısının sunduğu CI
+çalıştırma numarasını kullanarak benzersiz olduğundan emin olun. Örneğin, GitHub
+Actions'da `CFBundleVersion` değerini <code v-pre>${{ github.run_number
+}}</code> değişkenine ayarlayabilirsiniz.
 
-Aynı ikili dosyaya (derleme) ve aynı `CFBundleVersion` adresine sahip bir
-önizleme yüklemek başarısız olacaktır.
+Aynı ikili dosya (derleme) ve aynı `CFBundleVersion` ile önizleme yüklemek
+başarısız olacaktır.
 <!-- -->
 :::
 
 ## Parçalar {#tracks}
 
 Parçalar, önizlemelerinizi adlandırılmış gruplar halinde düzenlemenizi sağlar.
-Örneğin, dahili test kullanıcıları için bir `beta` izi ve otomatik derlemeler
-için bir `nightly` iziniz olabilir. Parçalar tembel bir şekilde oluşturulur -
-paylaşırken bir parça adı belirtmeniz yeterlidir; mevcut değilse otomatik olarak
-oluşturulacaktır.
+Örneğin, iç test kullanıcıları için `beta` parçası ve otomatik derlemeler için
+`nightly` parçası olabilir. Parçalar otomatik olarak oluşturulur — paylaşırken
+bir parça adı belirtmeniz yeterlidir, mevcut değilse otomatik olarak
+oluşturulur.
 
-Belirli bir parçada önizleme paylaşmak için `--track` seçeneğini kullanın:
+Belirli bir parçanın önizlemesini paylaşmak için `--track` seçeneğini kullanın:
 
 ```bash
 tuist share App --track beta
 tuist share App --track nightly
 ```
 
-Bu şunlar için yararlıdır:
-- **Önizlemeleri düzenleme**: Önizlemeleri amaca göre gruplama (örneğin, `beta`,
-  `gecelik`, `dahili`)
-- **Uygulama içi güncellemeler**: Tuist SDK, kullanıcıları hangi güncellemeler
-  hakkında bilgilendireceğini belirlemek için izleri kullanır
-- **Filtreleme**: Tuist kontrol panelinde parçaya göre önizlemeleri kolayca
-  bulun ve yönetin
+Bu, aşağıdakiler için yararlıdır:
+- **Önizlemeleri düzenleme**: Önizlemeleri amaca göre gruplandırın (ör. `beta`,
+  `nightly`, `internal`)
+- **Uygulama içi güncellemeler**: Tuist SDK, kullanıcılara hangi güncellemelerin
+  bildirileceğini belirlemek için izleri kullanır.
+- ****'ı filtreleme: Tuist panosunda parçalara göre önizlemeleri kolayca bulun
+  ve yönetin
 
 ::: warning PREVIEWS' VISIBILITY
 <!-- -->
-Önizlemelere yalnızca projenin ait olduğu kuruluşa erişimi olan kişiler
+Yalnızca projenin ait olduğu kuruluşa erişimi olan kişiler önizlemelere
 erişebilir. Süresi dolan bağlantılar için destek eklemeyi planlıyoruz.
 <!-- -->
 :::
@@ -121,19 +124,19 @@ erişebilir. Süresi dolan bağlantılar için destek eklemeyi planlıyoruz.
     <img src="/images/guides/features/menu-bar-app.png" style="width: 300px;" />
 </div>
 
-Tuist Önizlemelerini çalıştırmayı daha da kolaylaştırmak için bir Tuist macOS
-menü çubuğu uygulaması geliştirdik. Tuist CLI aracılığıyla Önizlemeleri
-çalıştırmak yerine, macOS uygulamasını
-[indirebilirsiniz](https://tuist.dev/download). Uygulamayı `brew install --cask
-tuist/tuist/tuist` çalıştırarak da yükleyebilirsiniz.
+Tuist Önizlemelerini daha da kolay hale getirmek için, Tuist macOS menü çubuğu
+uygulamasını geliştirdik. Tuist CLI üzerinden Önizlemeleri çalıştırmak yerine,
+macOS uygulamasını [indirebilirsiniz](https://tuist.dev/download). Uygulamayı
+`brew install --cask tuist/tuist/tuist` komutunu çalıştırarak da
+yükleyebilirsiniz.
 
-Şimdi Önizleme sayfasında "Çalıştır "a tıkladığınızda, macOS uygulaması otomatik
-olarak o anda seçili cihazınızda başlatılacaktır.
+Önizleme sayfasında "Çalıştır" düğmesine tıkladığınızda, macOS uygulaması seçili
+cihazınızda otomatik olarak başlatılır.
 
 ::: warning REQUIREMENTS
 <!-- -->
-Xcode'un yerel olarak yüklü olması ve macOS 14 veya sonraki bir sürümü
-kullanıyor olmanız gerekir.
+Xcode'un yerel olarak yüklü olması ve macOS 14 veya üstü bir sürümde çalışıyor
+olmanız gerekir.
 <!-- -->
 :::
 
@@ -148,56 +151,60 @@ kullanıyor olmanız gerekir.
     </a>
 </div>
 
-MacOS uygulamasına benzer şekilde, Tuist iOS uygulamaları da önizlemelerinize
-erişmeyi ve çalıştırmayı kolaylaştırıyor.
+macOS uygulamasına benzer şekilde, Tuist iOS uygulamaları önizlemelerinize
+erişmeyi ve bunları çalıştırmayı kolaylaştırır.
 
 ## Çekme/birleştirme isteği yorumları {#pullmerge-request-comments}
 
 ::: warning INTEGRATION WITH GIT PLATFORM REQUIRED
 <!-- -->
 Otomatik çekme/birleştirme isteği yorumları almak için
-<LocalizedLink href="/guides/server/accounts-and-projects">uzak projenizi</LocalizedLink> bir
-<LocalizedLink href="/guides/server/authentication">Git platformu</LocalizedLink> ile entegre edin.
+<LocalizedLink href="/guides/server/accounts-and-projects">uzak
+projenizi</LocalizedLink> bir
+<LocalizedLink href="/guides/server/authentication">Git
+platformuyla</LocalizedLink> entegre edin.
 <!-- -->
 :::
 
 Yeni işlevlerin test edilmesi, her kod incelemesinin bir parçası olmalıdır.
-Ancak bir uygulamayı yerel olarak derlemek zorunda kalmak gereksiz sürtüşmeler
-yaratır ve genellikle geliştiricilerin cihazlarındaki işlevselliği test etmeyi
-atlamasına neden olur. Ancak *her çekme isteği, uygulamayı Tuist macOS
-uygulamasında seçtiğiniz bir cihazda otomatik olarak çalıştıracak yapıya bir
-bağlantı içeriyor olsaydı ne olurdu?*
+Ancak uygulamayı yerel olarak derlemek zorunda kalmak, gereksiz bir zorluk
+yaratır ve genellikle geliştiricilerin cihazlarında test işlevlerini tamamen
+atlamasına neden olur. Peki, her pull isteği, Tuist macOS uygulamasında
+seçtiğiniz bir cihazda uygulamayı otomatik olarak çalıştıracak derleme
+bağlantısı içerse ne olurl *?*
 
-Tuist projeniz [GitHub](https://github.com) gibi Git platformunuza bağlandıktan
-sonra, CI iş akışınıza bir <LocalizedLink href="/cli/share">`tuist share MyApp`</LocalizedLink> ekleyin. Tuist daha sonra doğrudan çekme isteklerinizde
-bir Önizleme bağlantısı yayınlayacaktır: ![Tuist Önizleme bağlantısı içeren
-GitHub uygulama yorumu](/images/guides/features/github-app-with-preview.png)
+Tuist projeniz [GitHub](https://github.com) gibi Git platformunuzla bağlandıktan
+sonra, CI iş akışınıza <LocalizedLink href="/cli/share">`tuist share
+MyApp`</LocalizedLink> ekleyin. Tuist, pull isteklerinize doğrudan bir Önizleme
+bağlantısı ekleyecektir: ![GitHub uygulaması yorumu ve Tuist Önizleme
+bağlantısı](/images/guides/features/github-app-with-preview.png)
 
 
 ## Uygulama içi güncelleme bildirimleri {#in-app-update-notifications}
 
-Tuist SDK](https://github.com/tuist/sdk), uygulamanızın daha yeni bir önizleme
+[Tuist SDK](https://github.com/tuist/sdk), uygulamanızın daha yeni bir önizleme
 sürümünün mevcut olduğunu algılamasını ve kullanıcıları bilgilendirmesini
-sağlar. Bu, test kullanıcılarını en son sürümde tutmak için kullanışlıdır.
+sağlar. Bu, test kullanıcılarının en son sürümü kullanmasını sağlamak için
+yararlıdır.
 
-SDK, aynı **önizleme izi** içindeki güncellemeleri kontrol eder. Bir önizlemeyi
-`--track` kullanarak açık bir parça ile paylaştığınızda, SDK bu parçadaki
-güncellemeleri arayacaktır. Herhangi bir iz belirtilmezse, git dalı iz olarak
-kullanılır - bu nedenle `ana` dalından oluşturulan bir önizleme yalnızca `ana`
-dalından da oluşturulan daha yeni önizlemeler hakkında bildirimde bulunacaktır.
+SDK, aynı **önizleme izinde** güncellemeleri kontrol eder. `--track` kullanarak
+açık bir izle önizlemeyi paylaştığınızda, SDK o izde güncellemeleri arar. Hiçbir
+iz belirtilmezse, git dalı iz olarak kullanılır; bu nedenle, `ana` dalından
+oluşturulan bir önizleme, yalnızca `ana` dalından da oluşturulan daha yeni
+önizlemeler hakkında bildirimde bulunur.
 
 ### Kurulum {#sdk-installation}
 
-Tuist SDK'yı bir Swift paketi bağımlılığı olarak ekleyin:
+Tuist SDK'yı Swift paketi bağımlılığı olarak ekleyin:
 
 ```swift
 .package(url: "https://github.com/tuist/sdk", .upToNextMajor(from: "0.1.0"))
 ```
 
-### Güncellemeler için izleyin {#sdk-monitor-updates}
+### Güncellemeleri izleyin {#sdk-monitor-updates}
 
-Yeni önizleme sürümlerini periyodik olarak kontrol etmek için
-`monitorPreviewUpdates` adresini kullanın:
+`monitorPreviewUpdates` adresini kullanarak yeni önizleme sürümlerini düzenli
+olarak kontrol edin:
 
 ```swift
 import TuistSDK
@@ -218,7 +225,7 @@ struct MyApp: App {
 }
 ```
 
-### Tek güncelleme kontrolü {#sdk-single-check}
+### Tekli güncelleme kontrolü {#sdk-single-check}
 
 Manuel güncelleme kontrolü için:
 
@@ -235,7 +242,7 @@ if let preview = try await sdk.checkForUpdate() {
 
 ### Güncelleme izlemeyi durdurma {#sdk-stop-monitoring}
 
-`monitorPreviewUpdates` iptal edilebilen bir `Task` döndürür:
+`monitorPreviewUpdates` iptal edilebilen bir `Görev` döndürür:
 
 ```swift
 let task = sdk.monitorPreviewUpdates { preview in
@@ -248,45 +255,45 @@ task.cancel()
 
 ::: info
 <!-- -->
-Güncelleme denetimi simülatörlerde ve App Store yapılarında otomatik olarak
+Güncelleme kontrolü, simülatörlerde ve App Store sürümlerinde otomatik olarak
 devre dışı bırakılır.
 <!-- -->
 :::
 
 ## README rozeti {#readme-badge}
 
-Tuist Önizlemelerini deponuzda daha görünür kılmak için, `README` dosyanıza en
-son Tuist Önizlemesine işaret eden bir rozet ekleyebilirsiniz:
+Tuist Önizlemelerini deponuzda daha görünür hale getirmek için, `README`
+dosyasına en son Tuist Önizlemesine yönlendiren bir rozet ekleyebilirsiniz:
 
 [![Tuist
 Önizleme](https://tuist.dev/Dimillian/IcySky/previews/latest/badge.svg)](https://tuist.dev/Dimillian/IcySky/previews/latest)
 
-Rozeti `README` adresinize eklemek için aşağıdaki işaretlemeyi kullanın ve hesap
-ve proje tanıtıcılarını kendi tanıtıcılarınızla değiştirin:
+`'nizin README` dosyasına rozeti eklemek için aşağıdaki markdown'u kullanın ve
+hesap ve proje adlarını kendi adlarınızla değiştirin:
 ```
 [![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest)
 ```
 
 Projeniz farklı paket tanımlayıcılarına sahip birden fazla uygulama içeriyorsa,
 `bundle-id` sorgu parametresini ekleyerek hangi uygulamanın önizlemesine
-bağlantı verileceğini belirtebilirsiniz:
+bağlanılacağını belirtebilirsiniz:
 ```
 [![Tuist Preview](https://tuist.dev/{account-handle}/{project-handle}/previews/latest/badge.svg)](https://tuist.dev/{account-handle}/{project-handle}/previews/latest?bundle-id=com.example.app)
 ```
 
 ## Otomasyonlar {#automations}
 
-`tuist share` komutundan bir JSON çıktısı almak için `--json` bayrağını
-kullanabilirsiniz:
+`--json` bayrağını kullanarak `tuist share` komutundan JSON çıktısı
+alabilirsiniz:
 ```
 tuist share --json
 ```
 
-JSON çıktısı, CI sağlayıcınızı kullanarak bir Slack mesajı göndermek gibi özel
-otomasyonlar oluşturmak için kullanışlıdır. JSON, tam önizleme bağlantısını
-içeren bir `url` anahtarı ve gerçek bir cihazdan önizlemeleri indirmeyi
-kolaylaştırmak için QR kod görüntüsünün URL'sini içeren bir `qrCodeURL` anahtarı
-içerir. JSON çıktısının bir örneği aşağıdadır:
+JSON çıktısı, CI sağlayıcınızı kullanarak Slack mesajı göndermek gibi özel
+otomasyonlar oluşturmak için kullanışlıdır. JSON, gerçek bir cihazdan
+önizlemeleri daha kolay indirmek için tam önizleme bağlantısını içeren `url`
+anahtarı ve QR kodu görüntüsünün URL'sini içeren `qrCodeURL` anahtarı içerir.
+JSON çıktısının bir örneği aşağıdadır:
 ```json
 {
   "id": 1234567890,

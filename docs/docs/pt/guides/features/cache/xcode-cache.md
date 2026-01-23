@@ -15,7 +15,8 @@ capabilities.
 
 ::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and project</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist account and
+  project</LocalizedLink>
 - Xcode 26.0 or later
 <!-- -->
 :::
@@ -104,24 +105,33 @@ let tuist = Tuist(
 To enable caching in your CI environment, you need to run the same command as in
 local environments: `tuist setup cache`.
 
-Additionally, you need to ensure the `TUIST_TOKEN` environment variable is set.
-You can create one by following the documentation
-<LocalizedLink href="/guides/server/authentication#as-a-project">here</LocalizedLink>.
-The `TUIST_TOKEN` environment variable _must_ be present for your build step,
-but we'd recommend setting it for the whole CI workflow.
+For authentication, you can use either
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC
+authentication</LocalizedLink> (recommended for supported CI providers) or an
+<LocalizedLink href="/guides/server/authentication#account-tokens">account
+token</LocalizedLink> via the `TUIST_TOKEN` environment variable.
 
-An example workflow for GitHub Actions could then look like this:
+An example workflow for GitHub Actions using OIDC authentication:
 ```yaml
 name: Build
 
-env:
-  TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   build:
+    runs-on: macos-latest
     steps:
-      - # Your set up steps...
-      - name: Set up Tuist Cache
-        run: tuist setup cache
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: tuist auth login
+      - run: tuist setup cache
       - # Your build steps
 ```
+
+See the
+<LocalizedLink href="/guides/integrations/continuous-integration">Continuous
+Integration guide</LocalizedLink> for more examples, including token-based
+authentication and other CI platforms like Xcode Cloud, CircleCI, Bitrise, and
+Codemagic.

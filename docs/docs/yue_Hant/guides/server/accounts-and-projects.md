@@ -46,7 +46,8 @@ tuist organization create {account-handle}
 Your projects, either Tuist's or raw Xcode's, need to be integrated with your
 account through a remote project. Continuing with the comparison with GitHub,
 it's like having a local and a remote repository where you push your changes.
-You can use the <LocalizedLink href="/cli/project">`tuist project`</LocalizedLink> to create and manage projects.
+You can use the <LocalizedLink href="/cli/project">`tuist
+project`</LocalizedLink> to create and manage projects.
 
 Projects are identified by a full handle, which is the result of concatenating
 the organization handle and the project handle. For example, if you have an

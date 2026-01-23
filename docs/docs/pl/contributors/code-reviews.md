@@ -5,62 +5,62 @@
   "description": "Learn how to contribute to Tuist by reviewing code"
 }
 ---
-# Recenzje kodów {#code-reviews}
+# Recenzje kodu {#code-reviews}
 
-Przeglądanie pull requestów jest powszechnym rodzajem wkładu. Pomimo ciągłej
-integracji (CI) zapewniającej, że kod robi to, co powinien, to nie wystarczy.
-Istnieją cechy wkładu, których nie można zautomatyzować: projekt, struktura i
-architektura kodu, jakość testów lub literówki. Poniższe sekcje przedstawiają
-różne aspekty procesu przeglądu kodu.
+Sprawdzanie pull requestów to częsty rodzaj wkładu. Mimo że ciągła integracja
+(CI) gwarantuje, że kod działa tak, jak powinien, to nie wystarczy. Są pewne
+cechy wkładu, których nie da się zautomatyzować: projekt, struktura i
+architektura kodu, jakość testów czy literówki. Poniższe sekcje przedstawiają
+różne aspekty procesu sprawdzania kodu.
 
 ## Czytelność {#readability}
 
-Czy kod jasno wyraża swoje intencje? **Jeśli musisz spędzić dużo czasu na
-zastanawianiu się, co robi kod, należy poprawić jego implementację.** Zasugeruj
-podzielenie kodu na mniejsze abstrakcje, które są łatwiejsze do zrozumienia.
-Alternatywnie i jako ostatni zasób, mogą dodać komentarz wyjaśniający
-rozumowanie, które za tym stoi. Zadaj sobie pytanie, czy byłbyś w stanie
-zrozumieć kod w niedalekiej przyszłości, bez otaczającego kontekstu, takiego jak
-opis pull requesta.
+Czy kod jasno wyraża swój zamysł? **Jeśli musisz poświęcić dużo czasu na
+zrozumienie działania kodu, oznacza to, że jego implementacja wymaga poprawy.**
+Zaproponuj podzielenie kodu na mniejsze, łatwiejsze do zrozumienia abstrakcje.
+Alternatywnie, w ostateczności, można dodać komentarz wyjaśniający uzasadnienie
+takiego rozwiązania. Zadaj sobie pytanie, czy w najbliższej przyszłości byłbyś w
+stanie zrozumieć kod bez dodatkowego kontekstu, takiego jak opis pull requestu.
 
 ## Małe pull requesty {#small-pull-requests}
 
-Duże pull requesty są trudne do przejrzenia i łatwiej jest przeoczyć szczegóły.
-Jeśli pull request staje się zbyt duży i niemożliwy do zarządzania, zasugeruj
-autorowi jego rozbicie.
+Duże pull requesty są trudne do przejrzenia i łatwiej przeoczyć w nich
+szczegóły. Jeśli pull request staje się zbyt duży i trudny do opanowania,
+zasugeruj autorowi, aby go podzielił.
 
 ::: info EXCEPTIONS
 <!-- -->
-Istnieje kilka scenariuszy, w których podział pull requesta nie jest możliwy, na
-przykład gdy zmiany są ściśle powiązane i nie można ich podzielić. W takich
-przypadkach autor powinien przedstawić jasne wyjaśnienie zmian i ich
-uzasadnienie.
+Istnieje kilka scenariuszy, w których podział pull requestu nie jest możliwy,
+np. gdy zmiany są ściśle powiązane i nie można ich rozdzielić. W takich
+przypadkach autor powinien przedstawić jasne wyjaśnienie zmian i uzasadnienie
+ich wprowadzenia.
 <!-- -->
 :::
 
 ## Spójność {#consistency}
 
-Ważne jest, aby zmiany były spójne z resztą projektu. Niespójności komplikują
-konserwację, dlatego powinniśmy ich unikać. Jeśli istnieje podejście do
-wysyłania komunikatów do użytkownika lub zgłaszania błędów, powinniśmy się go
-trzymać. Jeśli autor nie zgadza się ze standardami projektu, zasugeruj mu
-otwarcie tematu, w którym możemy omówić je dalej.
+Ważne jest, aby zmiany były spójne z resztą projektu. Niespójności utrudniają
+konserwację, dlatego należy ich unikać. Jeśli istnieje podejście do wyświetlania
+komunikatów dla użytkownika lub zgłaszania błędów, należy się go trzymać. Jeśli
+autor nie zgadza się ze standardami projektu, zaproponuj mu otwarcie zgłoszenia,
+w którym będziemy mogli omówić te kwestie.
 
 ## Testy {#tests}
 
 Testy pozwalają na pewną zmianę kodu. Kod w pull requestach powinien być
-przetestowany, a wszystkie testy powinny przejść pomyślnie. Dobry test to taki,
-który konsekwentnie daje ten sam wynik i jest łatwy do zrozumienia i utrzymania.
-Recenzenci spędzają większość czasu na przeglądaniu kodu implementacji, ale
-testy są równie ważne, ponieważ również są kodem.
+przetestowany, a wszystkie testy powinny zakończyć się powodzeniem. Dobry test
+to taki, który konsekwentnie daje ten sam wynik i jest łatwy do zrozumienia i
+utrzymania. Recenzenci spędzają większość czasu na przeglądaniu kodu
+implementacyjnego, ale testy są równie ważne, ponieważ również stanowią kod.
 
-## Przełomowe zmiany {#breaking-changes}
+## Zmiany wprowadzające istotne modyfikacje {#breaking-changes}
 
-Uszkadzające zmiany są złym doświadczeniem dla użytkowników Tuist. Wkład
-powinien unikać wprowadzania przełomowych zmian, chyba że jest to absolutnie
-konieczne. Istnieje wiele funkcji językowych, które możemy wykorzystać do
-ewolucji interfejsu Tuist bez uciekania się do łamania zmian. To, czy zmiana
-jest łamiąca czy nie, może nie być oczywiste. Metodą na sprawdzenie, czy zmiana
-jest szkodliwa, jest uruchomienie Tuist względem projektów w katalogu fixtures.
-Wymaga to postawienia się w sytuacji użytkownika i wyobrażenia sobie, jak zmiany
-wpłyną na niego.
+Zmiany powodujące niekompatybilność są niekorzystne dla użytkowników Tuist.
+Przyczyniając się do rozwoju projektu, należy unikać wprowadzania zmian
+powodujących niekompatybilność, chyba że jest to absolutnie konieczne. Istnieje
+wiele funkcji językowych, które możemy wykorzystać do rozwoju interfejsu Tuist
+bez uciekania się do zmian powodujących niekompatybilność. To, czy zmiana
+powoduje niekompatybilność, może nie być oczywiste. Metodą weryfikacji, czy
+zmiana jest przełomowa, jest uruchomienie Tuist na projektach w katalogu
+fixtures. Wymaga to postawienia się w sytuacji użytkownika i wyobrażenia sobie,
+jak zmiany wpłyną na niego.

@@ -9,77 +9,77 @@
 
 Tuist sunucusu tarafından toplanan metrikleri
 [Prometheus](https://prometheus.io/) ve [Grafana](https://grafana.com/) gibi bir
-görselleştirme aracı kullanarak ihtiyaçlarınıza göre uyarlanmış özel bir
-gösterge tablosu oluşturabilirsiniz. Prometheus ölçümleri, 9091 numaralı
-bağlantı noktasındaki `/metrics` uç noktası aracılığıyla sunulur. Prometheus'un
+görselleştirme aracı kullanarak alabilir ve ihtiyaçlarınıza göre özelleştirilmiş
+bir gösterge paneli oluşturabilirsiniz. Prometheus metrikleri, 9091 numaralı
+bağlantı noktasında `/metrics` uç noktası üzerinden sunulur. Prometheus'un
 [scrape_interval](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus)
-değeri 10_000 saniyeden daha az olarak ayarlanmalıdır (varsayılan değer olan 15
-saniyeyi korumanızı öneririz).
+değeri 10_000 saniyeden az olarak ayarlanmalıdır (varsayılan 15 saniye değerini
+korumanızı öneririz).
 
 ## PostHog analitiği {#posthog-analytics}
 
-Tuist, kullanıcı davranışı analizi ve olay takibi için
-[PostHog](https://posthog.com/) ile entegre olur. Bu, kullanıcıların Tuist
-sunucunuzla nasıl etkileşime girdiğini anlamanıza, özellik kullanımını
-izlemenize ve pazarlama sitesi, gösterge tablosu ve API belgeleri genelinde
-kullanıcı davranışı hakkında bilgi edinmenize olanak tanır.
+Tuist, kullanıcı davranış analizi ve olay izleme için
+[PostHog](https://posthog.com/) ile entegre çalışır. Bu sayede, kullanıcıların
+Tuist sunucunuzla nasıl etkileşimde bulunduğunu anlayabilir, özellik kullanımını
+izleyebilir ve pazarlama sitesi, kontrol paneli ve API belgeleri genelinde
+kullanıcı davranışları hakkında bilgi edinebilirsiniz.
 
-### Konfigürasyon {#posthog-configuration}
+### Yapılandırma {#posthog-configuration}
 
 PostHog entegrasyonu isteğe bağlıdır ve uygun ortam değişkenleri ayarlanarak
-etkinleştirilebilir. Yapılandırıldığında Tuist, kullanıcı etkinliklerini, sayfa
-görüntülemelerini ve kullanıcı yolculuklarını otomatik olarak izleyecektir.
+etkinleştirilebilir. Yapılandırıldığında, Tuist kullanıcı olaylarını, sayfa
+görüntülemelerini ve kullanıcı yolculuklarını otomatik olarak izler.
 
 | Ortam değişkeni         | Açıklama                        | Gerekli | Varsayılan | Örnekler                                          |
 | ----------------------- | ------------------------------- | ------- | ---------- | ------------------------------------------------- |
-| `TUIST_POSTHOG_API_KEY` | PostHog projesi API anahtarınız | Hayır   |            | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
-| `TUIST_POSTHOG_URL`     | PostHog API uç noktası URL'si   | Hayır   |            | `https://eu.i.posthog.com`                        |
+| `TUIST_POSTHOG_API_KEY` | PostHog projenizin API anahtarı | Hayır   |            | `phc_fpR9c0Hs5H5VXUsupU1I0WlEq366FaZH6HJR3lRIWVR` |
+| `TUIST_POSTHOG_URL`     | PostHog API uç nokta URL'si     | Hayır   |            | `https://eu.i.posthog.com`                        |
 
 ::: info ANALYTICS ENABLEMENT
 <!-- -->
-Analitik yalnızca `TUIST_POSTHOG_API_KEY` ve `TUIST_POSTHOG_URL` değişkenlerinin
-her ikisi de yapılandırıldığında etkinleştirilir. Değişkenlerden biri eksikse,
-hiçbir analiz olayı gönderilmeyecektir.
+Analitik, yalnızca `TUIST_POSTHOG_API_KEY` ve `TUIST_POSTHOG_URL`
+yapılandırıldığında etkinleştirilir. Herhangi bir değişken eksikse, analitik
+olayları gönderilmez.
 <!-- -->
 :::
 
 ### Özellikler {#posthog-features}
 
-PostHog etkinleştirildiğinde, Tuist otomatik olarak izler:
+PostHog etkinleştirildiğinde, Tuist otomatik olarak şunları izler:
 
-- **Kullanıcı kimliği**: Kullanıcılar benzersiz kimlikleri ve e-posta adresleri
-  ile tanımlanır
+- **Kullanıcı kimliği**: Kullanıcılar, benzersiz kimlik numaraları ve e-posta
+  adresleri ile tanımlanır.
 - **Kullanıcı takma adı**: Kullanıcılar, daha kolay tanımlanabilmeleri için
-  hesap adlarıyla takma ad alırlar
-- **Grup analizi**: Kullanıcılar, segmentlere ayrılmış analizler için seçtikleri
-  proje ve organizasyona göre gruplandırılır
-- **Sayfa bölümleri**: Olaylar, uygulamanın hangi bölümünün onları oluşturduğunu
-  gösteren süper özellikler içerir:
-  - `marketing` - Pazarlama sayfalarından ve genel içerikten etkinlikler
-  - `gösterge tablosu` - Ana uygulama gösterge tablosundan ve kimliği
-    doğrulanmış alanlardan gelen olaylar
-  - `api-docs` - API dokümantasyon sayfalarından gelen olaylar
-- **Sayfa görüntülemeleri**: Phoenix LiveView kullanarak sayfa gezintisinin
-  otomatik takibi
+  hesap adlarıyla takma adlandırılır.
+- **Grup analizi**: Kullanıcılar, seçtikleri proje ve organizasyona göre
+  gruplandırılır ve segmentlere ayrılmış analizler yapılır.
+- **Sayfa bölümleri**: Olaylar, uygulamanın hangi bölümünün bunları
+  oluşturduğunu gösteren süper özellikler içerir:
+  - `pazarlama` - Pazarlama sayfalarından ve halka açık içeriklerden etkinlikler
+  - `dashboard` - Ana uygulama panosundan ve kimliği doğrulanmış alanlardan
+    gelen olaylar
+  - `api-docs` - API belgeleri sayfalarından olaylar
+- **Sayfa görüntülemeleri**: Phoenix LiveView kullanarak sayfa geziniminin
+  otomatik olarak izlenmesi
 - **Özel olaylar**: Özellik kullanımı ve kullanıcı etkileşimleri için uygulamaya
   özgü olaylar
 
-### Gizlilikle ilgili hususlar {#posthog-privacy}
+### Gizlilik hususları {#posthog-privacy}
 
 - Kimliği doğrulanmış kullanıcılar için PostHog, kullanıcının benzersiz
-  kimliğini farklı tanımlayıcı olarak kullanır ve e-posta adresini içerir
+  kimliğini ayırt edici tanımlayıcı olarak kullanır ve e-posta adresini ekler.
 - Anonim kullanıcılar için PostHog, verileri yerel olarak depolamaktan kaçınmak
-  için yalnızca bellekte kalıcılık kullanır
-- Tüm analizler kullanıcı gizliliğine saygı gösterir ve en iyi veri koruma
-  uygulamalarını takip eder
-- PostHog verileri PostHog'un gizlilik politikasına ve yapılandırmanıza göre
-  işlenir
+  için yalnızca bellek kalıcılığı kullanır.
+- Tüm analizler kullanıcı gizliliğine saygı gösterir ve veri koruma en iyi
+  uygulamalarına uyar.
+- PostHog verileri, PostHog'un gizlilik politikası ve sizin yapılandırmanıza
+  göre işlenir.
 
-## Elixir ölçümleri {#elixir-metrics}
+## Elixir metrikleri {#elixir-metrics}
 
 Varsayılan olarak Elixir çalışma zamanı, BEAM, Elixir ve kullandığımız bazı
-kütüphanelerin metriklerini dahil ediyoruz. Aşağıda görmeyi bekleyebileceğiniz
-metriklerden bazıları verilmiştir:
+kütüphanelerin metriklerini dahil ediyoruz. Aşağıda görebileceğiniz bazı
+metrikler bulunmaktadır:
 
 - [Uygulama](https://hexdocs.pm/prom_ex/PromEx.Plugins.Application.html)
 - [BEAM](https://hexdocs.pm/prom_ex/PromEx.Plugins.Beam.html)
@@ -89,8 +89,8 @@ metriklerden bazıları verilmiştir:
 - [Ecto](https://hexdocs.pm/prom_ex/PromEx.Plugins.Ecto.html)
 - [Oban](https://hexdocs.pm/prom_ex/PromEx.Plugins.Oban.html)
 
-Hangi metriklerin mevcut olduğunu ve bunların nasıl kullanılacağını öğrenmek
-için bu sayfaları kontrol etmenizi öneririz.
+Hangi metriklerin mevcut olduğunu ve bunların nasıl kullanıldığını öğrenmek için
+bu sayfaları kontrol etmenizi öneririz.
 
 ## Metrikleri çalıştırır {#runs-metrics}
 
@@ -98,41 +98,41 @@ Tuist Runs ile ilgili bir dizi metrik.
 
 ### `tuist_runs_total` (sayaç) {#tuist_runs_total-counter}
 
-Tuist Koşularının toplam sayısı.
+Toplam Tuist Koşusu sayısı.
 
 #### Etiketler {#tuist-runs-total-tags}
 
-| Etiket  | Açıklama                                                                               |
-| ------- | -------------------------------------------------------------------------------------- |
-| `isim`  | Çalıştırılan `tuist` komutunun adı, örneğin `build`, `test`, vb.                       |
-| `is_ci` | Yürütücünün bir CI mı yoksa bir geliştirici makinesi mi olduğunu gösteren bir boolean. |
-| `durum` | `0` ` başarılı olması durumunda`, `1` ` başarısız olması durumunda`.                   |
+| Etiket  | Açıklama                                                                                   |
+| ------- | ------------------------------------------------------------------------------------------ |
+| `name`  | `tuist` komutunun adı, örneğin `build`, `test`, vb.                                        |
+| `is_ci` | Yürütücünün bir CI mi yoksa geliştiricinin makinesi mi olduğunu belirten bir boole değeri. |
+| `durum` | `0` ` başarı durumunda`, `1` ` başarısızlık durumunda`.                                    |
 
 ### `tuist_runs_duration_milliseconds` (histogram) {#tuist_runs_duration_milliseconds-histogram}
 
-Her tuist çalışmasının milisaniye cinsinden toplam süresi.
+Her tuist'in toplam süresi milisaniye cinsindendir.
 
 #### Etiketler {#tuist-runs-duration-miliseconds-tags}
 
-| Etiket  | Açıklama                                                                               |
-| ------- | -------------------------------------------------------------------------------------- |
-| `isim`  | Çalıştırılan `tuist` komutunun adı, örneğin `build`, `test`, vb.                       |
-| `is_ci` | Yürütücünün bir CI mı yoksa bir geliştirici makinesi mi olduğunu gösteren bir boolean. |
-| `durum` | `0` ` başarılı olması durumunda`, `1` ` başarısız olması durumunda`.                   |
+| Etiket  | Açıklama                                                                                   |
+| ------- | ------------------------------------------------------------------------------------------ |
+| `name`  | `tuist` komutunun adı, örneğin `build`, `test`, vb.                                        |
+| `is_ci` | Yürütücünün bir CI mi yoksa geliştiricinin makinesi mi olduğunu belirten bir boole değeri. |
+| `durum` | `0` ` başarı durumunda`, `1` ` başarısızlık durumunda`.                                    |
 
 ## Önbellek ölçümleri {#cache-metrics}
 
-Tuist Önbelleği ile ilgili bir dizi metrik.
+Tuist Önbelleği ile ilgili bir dizi ölçüm.
 
 ### `tuist_cache_events_total` (sayaç) {#tuist_cache_events_total-counter}
 
-İkili önbellek olaylarının toplam sayısı.
+Toplam ikili önbellek olayı sayısı.
 
 #### Etiketler {#tuist-cache-events-total-tags}
 
-| Etiket       | Açıklama                                                           |
-| ------------ | ------------------------------------------------------------------ |
-| `event_type` | `local_hit`, `remote_hit` veya `miss` adreslerinden biri olabilir. |
+| Etiket       | Açıklama                                        |
+| ------------ | ----------------------------------------------- |
+| `event_type` | `local_hit`, `remote_hit` veya `miss` olabilir. |
 
 ### `tuist_cache_uploads_total` (sayaç) {#tuist_cache_uploads_total-counter}
 
@@ -156,60 +156,59 @@ Tuist Önbelleği ile ilgili bir dizi metrik.
 
 Önizleme özelliği ile ilgili bir dizi metrik.
 
-### `tuist_previews_uploads_total` (sum) {#tuist_previews_uploads_total-counter}
+### `tuist_previews_uploads_total` (toplam) {#tuist_previews_uploads_total-counter}
 
-Yüklenen toplam önizleme sayısı.
+Yüklenen önizlemelerin toplam sayısı.
 
 ### `tuist_previews_downloads_total` (toplam) {#tuist_previews_downloads_total-counter}
 
-İndirilen toplam önizleme sayısı.
+İndirilen önizlemelerin toplam sayısı.
 
 ---
 
-## Depolama ölçümleri {#storage-metrics}
+## Depolama ölçütleri {#storage-metrics}
 
-Eserlerin uzak bir depolama alanında (örn. s3) depolanmasıyla ilgili bir dizi
+Uzak depolama alanında (ör. s3) artefaktların depolanmasıyla ilgili bir dizi
 metrik.
 
 ::: tip
 <!-- -->
-Bu metrikler, depolama işlemlerinin performansını anlamak ve olası darboğazları
-belirlemek için kullanışlıdır.
+Bu ölçütler, depolama işlemlerinin performansını anlamak ve olası darboğazları
+belirlemek için yararlıdır.
 <!-- -->
 :::
 
 ### `tuist_storage_get_object_size_size_bytes` (histogram) {#tuist_storage_get_object_size_size_bytes-histogram}
 
-Uzak depolama alanından alınan bir nesnenin boyutu (bayt cinsinden).
+Uzak depolamadan alınan bir nesnenin boyutu (bayt cinsinden).
 
 #### Etiketler {#tuist-storage-get-object-size-size-bytes-tags}
 
-| Etiket       | Açıklama                                          |
-| ------------ | ------------------------------------------------- |
-| `object_key` | Uzak depolama alanındaki nesnenin arama anahtarı. |
+| Etiket       | Açıklama                                   |
+| ------------ | ------------------------------------------ |
+| `object_key` | Uzak depolamadaki nesnenin arama anahtarı. |
 
 
 ### `tuist_storage_get_object_size_duration_miliseconds` (histogram) {#tuist_storage_get_object_size_duration_miliseconds-histogram}
 
-Uzak depolama alanından bir nesne boyutunu getirme süresi (milisaniye
-cinsinden).
+Uzak depolamadan bir nesne boyutunu alma süresi (milisaniye cinsinden).
 
 #### Etiketler {#tuist-storage-get-object-size-duration-miliseconds-tags}
 
-| Etiket       | Açıklama                                          |
-| ------------ | ------------------------------------------------- |
-| `object_key` | Uzak depolama alanındaki nesnenin arama anahtarı. |
+| Etiket       | Açıklama                                   |
+| ------------ | ------------------------------------------ |
+| `object_key` | Uzak depolamadaki nesnenin arama anahtarı. |
 
 
-### `tuist_storage_get_object_size_count` (counter) {#tuist_storage_get_object_size_count-counter}
+### `tuist_storage_get_object_size_count` (sayaç) {#tuist_storage_get_object_size_count-counter}
 
-Bir nesne boyutunun uzak depolama alanından kaç kez getirildiği.
+Uzak depolama alanından nesne boyutunun alınma sayısı.
 
 #### Etiketler {#tuist-storage-get-object-size-count-tags}
 
-| Etiket       | Açıklama                                          |
-| ------------ | ------------------------------------------------- |
-| `object_key` | Uzak depolama alanındaki nesnenin arama anahtarı. |
+| Etiket       | Açıklama                                   |
+| ------------ | ------------------------------------------ |
+| `object_key` | Uzak depolamadaki nesnenin arama anahtarı. |
 
 ### `tuist_storage_delete_all_objects_duration_milliseconds` (histogram) {#tuist_storage_delete_all_objects_duration_milliseconds-histogram}
 
@@ -217,53 +216,54 @@ Uzak depolama alanından tüm nesneleri silme süresi (milisaniye cinsinden).
 
 #### Etiketler {#tuist-storage-delete-all-objects-duration-milliseconds-tags}
 
-| Etiket       | Açıklama                                         |
-| ------------ | ------------------------------------------------ |
-| `proje_slug` | Nesneleri silinmekte olan projenin proje slug'ı. |
+| Etiket         | Açıklama                                 |
+| -------------- | ---------------------------------------- |
+| `project_slug` | Nesneleri silinen projenin proje slug'ı. |
 
 
 ### `tuist_storage_delete_all_objects_count` (sayaç) {#tuist_storage_delete_all_objects_count-counter}
 
-Tüm proje nesnelerinin uzak depolama alanından kaç kez silindiğinin sayısı.
+Tüm proje nesnelerinin uzak depolama alanından silinme sayısı.
 
 #### Etiketler {#tuist-storage-delete-all-objects-count-tags}
 
-| Etiket       | Açıklama                                         |
-| ------------ | ------------------------------------------------ |
-| `proje_slug` | Nesneleri silinmekte olan projenin proje slug'ı. |
+| Etiket         | Açıklama                                 |
+| -------------- | ---------------------------------------- |
+| `project_slug` | Nesneleri silinen projenin proje slug'ı. |
 
 
 ### `tuist_storage_multipart_start_upload_duration_milliseconds` (histogram) {#tuist_storage_multipart_start_upload_duration_milliseconds-histogram}
 
-Uzak depolama alanına bir yükleme başlatma süresi (milisaniye cinsinden).
+Uzak depolama alanına yükleme işleminin başlamasının süresi (milisaniye
+cinsinden).
 
 #### Etiketler {#tuist-storage-multipart-start-upload-duration-milliseconds-tags}
 
-| Etiket       | Açıklama                                          |
-| ------------ | ------------------------------------------------- |
-| `object_key` | Uzak depolama alanındaki nesnenin arama anahtarı. |
+| Etiket       | Açıklama                                   |
+| ------------ | ------------------------------------------ |
+| `object_key` | Uzak depolamadaki nesnenin arama anahtarı. |
 
 ### `tuist_storage_multipart_start_upload_duration_count` (sayaç) {#tuist_storage_multipart_start_upload_duration_count-counter}
 
-Uzak depolama alanına yükleme işleminin başlatılma sayısı.
+Uzak depolama alanına yükleme işleminin başlatıldığı sayı.
 
 #### Etiketler {#tuist-storage-multipart-start-upload-duration-count-tags}
 
-| Etiket       | Açıklama                                          |
-| ------------ | ------------------------------------------------- |
-| `object_key` | Uzak depolama alanındaki nesnenin arama anahtarı. |
+| Etiket       | Açıklama                                   |
+| ------------ | ------------------------------------------ |
+| `object_key` | Uzak depolamadaki nesnenin arama anahtarı. |
 
 
 ### `tuist_storage_get_object_as_string_duration_milliseconds` (histogram) {#tuist_storage_get_object_as_string_duration_milliseconds-histogram}
 
-Bir nesneyi uzak depolama alanından dize olarak getirme süresi (milisaniye
+Uzak depolama alanından bir nesneyi dize olarak getirmenin süresi (milisaniye
 cinsinden).
 
 #### Etiketler {#tuist-storage-get-object-as-string-duration-milliseconds-tags}
 
-| Etiket       | Açıklama                                          |
-| ------------ | ------------------------------------------------- |
-| `object_key` | Uzak depolama alanındaki nesnenin arama anahtarı. |
+| Etiket       | Açıklama                                   |
+| ------------ | ------------------------------------------ |
+| `object_key` | Uzak depolamadaki nesnenin arama anahtarı. |
 
 ### `tuist_storage_get_object_as_string_count` (count) {#tuist_storage_get_object_as_string_count-count}
 
@@ -271,124 +271,125 @@ Bir nesnenin uzak depolama alanından dize olarak getirilme sayısı.
 
 #### Etiketler {#tuist-storage-get-object-as-string-count-tags}
 
-| Etiket       | Açıklama                                          |
-| ------------ | ------------------------------------------------- |
-| `object_key` | Uzak depolama alanındaki nesnenin arama anahtarı. |
+| Etiket       | Açıklama                                   |
+| ------------ | ------------------------------------------ |
+| `object_key` | Uzak depolamadaki nesnenin arama anahtarı. |
 
 
 ### `tuist_storage_check_object_existence_duration_milliseconds` (histogram) {#tuist_storage_check_object_existence_duration_milliseconds-histogram}
 
-Uzak depolama alanındaki bir nesnenin varlığını kontrol etme süresi (milisaniye
+Uzak depolamada bir nesnenin varlığını kontrol etmenin süresi (milisaniye
 cinsinden).
 
 #### Etiketler {#tuist-storage-check-object-existence-duration-milliseconds-tags}
 
-| Etiket       | Açıklama                                          |
-| ------------ | ------------------------------------------------- |
-| `object_key` | Uzak depolama alanındaki nesnenin arama anahtarı. |
+| Etiket       | Açıklama                                   |
+| ------------ | ------------------------------------------ |
+| `object_key` | Uzak depolamadaki nesnenin arama anahtarı. |
 
 ### `tuist_storage_check_object_existence_count` (count) {#tuist_storage_check_object_existence_count-count}
 
-Uzak depolama alanında bir nesnenin varlığının kaç kez kontrol edildiği.
+Uzak depolamada bir nesnenin varlığı kaç kez kontrol edildi.
 
 #### Etiketler {#tuist-storage-check-object-existence-count-tags}
 
-| Etiket       | Açıklama                                          |
-| ------------ | ------------------------------------------------- |
-| `object_key` | Uzak depolama alanındaki nesnenin arama anahtarı. |
+| Etiket       | Açıklama                                   |
+| ------------ | ------------------------------------------ |
+| `object_key` | Uzak depolamadaki nesnenin arama anahtarı. |
 
 ### `tuist_storage_generate_download_presigned_url_duration_milliseconds` (histogram) {#tuist_storage_generate_download_presigned_url_duration_milliseconds-histogram}
 
-Uzak depolama alanındaki bir nesne için önceden atanmış bir indirme URL'si
-oluşturma süresi (milisaniye cinsinden).
+Uzak depolamadaki bir nesne için önceden imzalanmış indirme URL'si oluşturma
+süresi (milisaniye cinsinden).
 
 #### Etiketler {#tuist-storage-generate-download-presigned-url-duration-milliseconds-tags}
 
-| Etiket       | Açıklama                                          |
-| ------------ | ------------------------------------------------- |
-| `object_key` | Uzak depolama alanındaki nesnenin arama anahtarı. |
+| Etiket       | Açıklama                                   |
+| ------------ | ------------------------------------------ |
+| `object_key` | Uzak depolamadaki nesnenin arama anahtarı. |
 
 
 ### `tuist_storage_generate_download_presigned_url_count` (count) {#tuist_storage_generate_download_presigned_url_count-count}
 
-Uzak depolama alanındaki bir nesne için önceden imzalanmış bir indirme URL'sinin
-kaç kez oluşturulduğu.
+Uzak depolamadaki bir nesne için önceden imzalanmış indirme URL'si oluşturulma
+sayısı.
 
 #### Etiketler {#tuist-storage-generate-download-presigned-url-count-tags}
 
-| Etiket       | Açıklama                                          |
-| ------------ | ------------------------------------------------- |
-| `object_key` | Uzak depolama alanındaki nesnenin arama anahtarı. |
+| Etiket       | Açıklama                                   |
+| ------------ | ------------------------------------------ |
+| `object_key` | Uzak depolamadaki nesnenin arama anahtarı. |
 
 ### `tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds` (histogram) {#tuist_storage_multipart_generate_upload_part_presigned_url_duration_milliseconds-histogram}
 
-Uzak depolama alanındaki bir nesne için parça yükleme hazır URL'sinin
-oluşturulma süresi (milisaniye cinsinden).
+Uzak depolamadaki bir nesne için önceden imzalanmış bir parça yükleme URL'si
+oluşturmanın süresi (milisaniye cinsinden).
 
 #### Etiketler {#tuist-storage-multipart-generate-upload-part-presigned-url-duration-milliseconds-tags}
 
-| Etiket           | Açıklama                                          |
-| ---------------- | ------------------------------------------------- |
-| `object_key`     | Uzak depolama alanındaki nesnenin arama anahtarı. |
-| `parça_numarası` | Yüklenmekte olan nesnenin parça numarası.         |
-| `upload_id`      | Çok parçalı yüklemenin yükleme kimliği.           |
+| Etiket        | Açıklama                                   |
+| ------------- | ------------------------------------------ |
+| `object_key`  | Uzak depolamadaki nesnenin arama anahtarı. |
+| `part_number` | Yüklenen nesnenin parça numarası.          |
+| `upload_id`   | Çok parçalı yüklemenin yükleme kimliği.    |
 
 ### `tuist_storage_multipart_generate_upload_part_presigned_url_count` (count) {#tuist_storage_multipart_generate_upload_part_presigned_url_count-count}
 
-Uzak depolamadaki bir nesne için parça yükleme önceden atanmış URL'sinin kaç kez
+Uzak depolamadaki bir nesne için önceden imzalanmış URL'nin kaç kez
 oluşturulduğu.
 
 #### Etiketler {#tuist-storage-multipart-generate-upload-part-presigned-url-count-tags}
 
-| Etiket           | Açıklama                                          |
-| ---------------- | ------------------------------------------------- |
-| `object_key`     | Uzak depolama alanındaki nesnenin arama anahtarı. |
-| `parça_numarası` | Yüklenmekte olan nesnenin parça numarası.         |
-| `upload_id`      | Çok parçalı yüklemenin yükleme kimliği.           |
+| Etiket        | Açıklama                                   |
+| ------------- | ------------------------------------------ |
+| `object_key`  | Uzak depolamadaki nesnenin arama anahtarı. |
+| `part_number` | Yüklenen nesnenin parça numarası.          |
+| `upload_id`   | Çok parçalı yüklemenin yükleme kimliği.    |
 
 ### `tuist_storage_multipart_complete_upload_duration_milliseconds` (histogram) {#tuist_storage_multipart_complete_upload_duration_milliseconds-histogram}
 
-Uzak depolama alanına bir yüklemenin tamamlanma süresi (milisaniye cinsinden).
+Uzak depolama alanına yükleme işleminin tamamlanma süresi (milisaniye
+cinsinden).
 
 #### Etiketler {#tuist-storage-multipart-complete-upload-duration-milliseconds-tags}
 
-| Etiket       | Açıklama                                          |
-| ------------ | ------------------------------------------------- |
-| `object_key` | Uzak depolama alanındaki nesnenin arama anahtarı. |
-| `upload_id`  | Çok parçalı yüklemenin yükleme kimliği.           |
+| Etiket       | Açıklama                                   |
+| ------------ | ------------------------------------------ |
+| `object_key` | Uzak depolamadaki nesnenin arama anahtarı. |
+| `upload_id`  | Çok parçalı yüklemenin yükleme kimliği.    |
 
 
 ### `tuist_storage_multipart_complete_upload_count` (count) {#tuist_storage_multipart_complete_upload_count-count}
 
-Uzak depolama alanına bir yüklemenin tamamlandığı toplam sayı.
+Uzak depolama alanına yükleme işleminin tamamlandığı toplam sayı.
 
 #### Etiketler {#tuist-storage-multipart-complete-upload-count-tags}
 
-| Etiket       | Açıklama                                          |
-| ------------ | ------------------------------------------------- |
-| `object_key` | Uzak depolama alanındaki nesnenin arama anahtarı. |
-| `upload_id`  | Çok parçalı yüklemenin yükleme kimliği.           |
+| Etiket       | Açıklama                                   |
+| ------------ | ------------------------------------------ |
+| `object_key` | Uzak depolamadaki nesnenin arama anahtarı. |
+| `upload_id`  | Çok parçalı yüklemenin yükleme kimliği.    |
 
 ---
 
-## Kimlik doğrulama ölçümleri {#authentication-metrics}
+## Kimlik doğrulama ölçütleri {#authentication-metrics}
 
-Kimlik doğrulama ile ilgili bir dizi metrik.
+Kimlik doğrulama ile ilgili bir dizi ölçüt.
 
 ### `tuist_authentication_token_refresh_error_total` (sayaç) {#tuist_authentication_token_refresh_error_total-counter}
 
-Belirteç yenileme hatalarının toplam sayısı.
+Toplam token yenileme hatası sayısı.
 
 #### Etiketler {#tuist-authentication-token-refresh-error-total-tags}
 
-| Etiket        | Açıklama                                                                               |
-| ------------- | -------------------------------------------------------------------------------------- |
-| `cli_version` | Hatayla karşılaşılan Tuist CLI sürümü.                                                 |
-| `Sebep`       | Belirteç yenileme hatasının nedeni, örneğin `invalid_token_type` veya `invalid_token`. |
+| Etiket        | Açıklama                                                                            |
+| ------------- | ----------------------------------------------------------------------------------- |
+| `cli_version` | Hata ile karşılaşılan Tuist CLI sürümü.                                             |
+| `neden`       | Token yenileme hatasının nedeni, örneğin `invalid_token_type` veya `invalid_token`. |
 
 ---
 
-## Proje ölçümleri {#projects-metrics}
+## Proje metrikleri {#projects-metrics}
 
 Projelerle ilgili bir dizi metrik.
 
@@ -411,18 +412,18 @@ Toplam kuruluş sayısı.
 Toplam kullanıcı sayısı.
 
 
-## Veritabanı ölçümleri {#database-metrics}
+## Veritabanı metrikleri {#database-metrics}
 
-Veritabanı bağlantısıyla ilgili bir dizi metrik.
+Veritabanı bağlantısıyla ilgili bir dizi ölçüm.
 
 ### `tuist_repo_pool_checkout_queue_length` (last_value) {#tuist_repo_pool_checkout_queue_length-last_value}
 
-Bir kuyrukta bekleyen ve bir veritabanı bağlantısına atanmayı bekleyen
-veritabanı sorgularının sayısı.
+Veritabanı bağlantısına atanmak için kuyrukta bekleyen veritabanı sorgularının
+sayısı.
 
 ### `tuist_repo_pool_ready_conn_count` (last_value) {#tuist_repo_pool_ready_conn_count-last_value}
 
-Bir veritabanı sorgusuna atanmaya hazır olan veritabanı bağlantılarının sayısı.
+Veritabanı sorgusuna atanmaya hazır veritabanı bağlantılarının sayısı.
 
 
 ### `tuist_repo_pool_db_connection_connected` (sayaç) {#tuist_repo_pool_db_connection_connected-counter}
@@ -431,63 +432,63 @@ Veritabanına kurulan bağlantıların sayısı.
 
 ### `tuist_repo_pool_db_connection_disconnected` (sayaç) {#tuist_repo_pool_db_connection_disconnected-counter}
 
-Veritabanıyla bağlantısı kesilen bağlantı sayısı.
+Veritabanından bağlantısı kesilen bağlantıların sayısı.
 
-## HTTP ölçümleri {#http-metrics}
+## HTTP metrikleri {#http-metrics}
 
-Tuist'in HTTP aracılığıyla diğer hizmetlerle etkileşimleriyle ilgili bir dizi
+Tuist'in HTTP aracılığıyla diğer hizmetlerle etkileşimlerine ilişkin bir dizi
 metrik.
 
 ### `tuist_http_request_count` (sayaç) {#tuist_http_request_count-last_value}
 
 Giden HTTP isteklerinin sayısı.
 
-### `tuist_http_request_duration_nanosecond_sum` (sum) {#tuist_http_request_duration_nanosecond_sum-last_value}
+### `tuist_http_request_duration_nanosecond_sum` (toplam) {#tuist_http_request_duration_nanosecond_sum-last_value}
 
-Giden isteklerin sürelerinin toplamı (bir bağlantıya atanmak için bekledikleri
-süre dahil).
+Giden isteklerin süresinin toplamı (bağlantıya atanmak için bekledikleri süre
+dahil).
 
 ### `tuist_http_request_duration_nanosecond_bucket` (dağıtım) {#tuist_http_request_duration_nanosecond_bucket-distribution}
-Giden taleplerin süresinin dağılımı (bir bağlantıya atanmak için bekledikleri
-süre dahil).
+Giden isteklerin süresinin dağılımı (bağlantıya atanmak için bekledikleri süre
+dahil).
 
 ### `tuist_http_queue_count` (sayaç) {#tuist_http_queue_count-counter}
 
 Havuzdan alınan isteklerin sayısı.
 
-### `tuist_http_queue_duration_nanoseconds_sum` (sum) {#tuist_http_queue_duration_nanoseconds_sum-sum}
+### `tuist_http_queue_duration_nanoseconds_sum` (toplam) {#tuist_http_queue_duration_nanoseconds_sum-sum}
 
-Havuzdan bir bağlantı almak için geçen süre.
+Havuzdan bir bağlantı almak için gereken süre.
 
-### `tuist_http_queue_idle_time_nanoseconds_sum` (sum) {#tuist_http_queue_idle_time_nanoseconds_sum-sum}
+### `tuist_http_queue_idle_time_nanoseconds_sum` (toplam) {#tuist_http_queue_idle_time_nanoseconds_sum-sum}
 
-Bir bağlantının alınmayı beklerken boşta kaldığı süre.
+Bağlantının geri alınmak için beklediği boşta kalma süresi.
 
 ### `tuist_http_queue_duration_nanoseconds_bucket` (dağıtım) {#tuist_http_queue_duration_nanoseconds_bucket-distribution}
 
-Havuzdan bir bağlantı almak için geçen süre.
+Havuzdan bir bağlantı almak için gereken süre.
 
 ### `tuist_http_queue_idle_time_nanoseconds_bucket` (dağıtım) {#tuist_http_queue_idle_time_nanoseconds_bucket-distribution}
 
-Bir bağlantının alınmayı beklerken boşta kaldığı süre.
+Bağlantının geri alınmak için beklediği boşta kalma süresi.
 
 ### `tuist_http_connection_count` (sayaç) {#tuist_http_connection_count-counter}
 
 Kurulan bağlantıların sayısı.
 
-### `tuist_http_connection_duration_nanoseconds_sum` (sum) {#tuist_http_connection_duration_nanoseconds_sum-sum}
+### `tuist_http_connection_duration_nanoseconds_sum` (toplam) {#tuist_http_connection_duration_nanoseconds_sum-sum}
 
-Bir ana bilgisayara karşı bağlantı kurmak için geçen süre.
+Bir ana bilgisayara bağlantı kurmak için gereken süre.
 
 ### `tuist_http_connection_duration_nanoseconds_bucket` (dağıtım) {#tuist_http_connection_duration_nanoseconds_bucket-distribution}
 
-Bir ana bilgisayara karşı bağlantı kurmak için gereken sürenin dağılımı.
+Bir ana bilgisayara bağlantı kurmak için gereken sürenin dağılımı.
 
 ### `tuist_http_send_count` (sayaç) {#tuist_http_send_count-counter}
 
-Havuzdan bir bağlantıya atandıktan sonra gönderilen istek sayısı.
+Havuzdan bir bağlantıya atandıktan sonra gönderilen isteklerin sayısı.
 
-### `tuist_http_send_duration_nanoseconds_sum` (sum) {#tuist_http_send_duration_nanoseconds_sum-sum}
+### `tuist_http_send_duration_nanoseconds_sum` (toplam) {#tuist_http_send_duration_nanoseconds_sum-sum}
 
 Havuzdan bir bağlantıya atandıktan sonra isteklerin tamamlanması için geçen
 süre.
@@ -501,18 +502,18 @@ sürenin dağılımı.
 
 Gönderilen isteklerden alınan yanıtların sayısı.
 
-### `tuist_http_receive_duration_nanoseconds_sum` (sum) {#tuist_http_receive_duration_nanoseconds_sum-sum}
+### `tuist_http_receive_duration_nanoseconds_sum` (toplam) {#tuist_http_receive_duration_nanoseconds_sum-sum}
 
-Yanıt almak için harcanan süre.
+Yanıtları almak için harcanan süre.
 
 ### `tuist_http_receive_duration_nanoseconds_bucket` (dağıtım) {#tuist_http_receive_duration_nanoseconds_bucket-distribution}
 
-Yanıt almak için harcanan zamanın dağılımı.
+Yanıtları almak için harcanan sürenin dağılımı.
 
 ### `tuist_http_queue_available_connections` (last_value) {#tuist_http_queue_available_connections-last_value}
 
-Kuyrukta mevcut olan bağlantı sayısı.
+Kuyrukta kullanılabilir bağlantı sayısı.
 
 ### `tuist_http_queue_in_use_connections` (last_value) {#tuist_http_queue_in_use_connections-last_value}
 
-Kullanımda olan kuyruk bağlantılarının sayısı.
+Kullanılmakta olan kuyruk bağlantılarının sayısı.

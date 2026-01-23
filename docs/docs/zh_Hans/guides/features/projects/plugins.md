@@ -7,29 +7,27 @@
 ---
 # 插件{#plugins}
 
-插件是在多个项目中共享和重用 Tuist 工具的工具。支持以下工件：
+插件是跨多个项目共享和复用Tuist工件的工具。支持以下工件类型：
 
-- <LocalizedLink href="/guides/features/projects/code-sharing">跨多个项目的项目描述助手</LocalizedLink>。
+- <LocalizedLink href="/guides/features/projects/code-sharing">项目描述助手</LocalizedLink>跨多个项目。
 - <LocalizedLink href="/guides/features/projects/templates">跨多个项目的模板</LocalizedLink>。
 - 跨多个项目的任务。
 - <LocalizedLink href="/guides/features/projects/synthesized-files">跨多个项目的资源访问器</LocalizedLink>模板
 
-请注意，插件的设计初衷是作为扩展 Tuist 功能的一种简单方式。因此，**，需要考虑一些限制** ：
+请注意，插件旨在为扩展Tuist功能提供简便途径。因此存在某些限制需予以考虑：****
 
-- 一个插件不能依赖于另一个插件。
-- 插件不能依赖第三方 Swift 软件包
-- 插件不能使用使用该插件的项目中的项目描述助手。
+- 插件不能依赖于另一个插件。
+- 插件不能依赖第三方Swift包
+- 插件不能使用调用该插件的项目中的项目描述辅助函数。
 
-如果您需要更多灵活性，可以考虑为工具提出功能建议，或者在 Tuist 的生成框架
-[`TuistGenerator`](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator)
-上构建自己的解决方案。
+若需更灵活的处理方式，可考虑为该工具提交功能建议，或基于Tuist生成框架[`TuistGenerator`](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator)构建自有解决方案。
 
 ## 插件类型{#plugin-types}
 
 ### 项目描述辅助插件{#project-description-helper-plugin}
 
-项目描述辅助插件由一个目录表示，该目录包含一个`Plugin.swift` manifest
-文件，其中声明了插件的名称，以及一个`ProjectDescriptionHelpers` 目录，其中包含辅助 Swift 文件。
+项目描述辅助插件由以下目录构成：`包含声明插件名称的 manifest 文件 Plugin.swift` ` 包含辅助 Swift 文件的
+ProjectDescriptionHelpers 目录`
 
 代码组
 ```bash [Plugin.swift]
@@ -49,8 +47,8 @@ let plugin = Plugin(name: "MyPlugin")
 
 ### 资源访问器模板插件{#resource-accessor-templates-plugin}
 
-如果需要共享<LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">合成的资源访问器</LocalizedLink>，可以使用这种类型的插件。插件由一个包含`Plugin.swift`
-manifest 文件（声明插件名称）和`ResourceSynthesizers` 目录（包含资源访问器模板文件）的目录表示。
+若需共享<LocalizedLink href="/guides/features/projects/synthesized-files#resource-accessors">合成资源访问器</LocalizedLink>，可使用此类插件。该插件由以下目录构成：`Plugin.swift`
+（声明插件名称的清单文件）`ResourceSynthesizers` （包含资源访问器模板文件的目录）
 
 
 代码组
@@ -72,20 +70,20 @@ let plugin = Plugin(name: "MyPlugin")
 <!-- -->
 :::
 
-模板名称是资源类型的 [camel case](https://en.wikipedia.org/wiki/Camel_case) 版本：
+模板名称采用资源类型的驼峰式命名法：
 
-| 资源类型  | 模板文件名称                     |
+| 资源类型  | 模板文件名                      |
 | ----- | -------------------------- |
 | 弦乐    | `字符串模板`                    |
 | 资产    | `Assets.stencil`           |
-| 财产清单  | `Plists.stencil`           |
+| 属性列表  | `Plists.stencil`           |
 | 字体    | `字体模板`                     |
 | 核心数据  | `CoreData.stencil`         |
-| 界面生成器 | `InterfaceBuilder.stencil` |
+| 界面构建器 | `InterfaceBuilder.stencil` |
 | JSON  | `JSON.stencil`             |
 | YAML  | `YAML.stencil`             |
 
-在项目中定义资源合成器时，可以指定插件名称，以便使用插件中的模板：
+在项目中定义资源合成器时，可通过指定插件名称来使用插件提供的模板：
 
 ```swift
 let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
@@ -95,38 +93,33 @@ let project = Project(resourceSynthesizers: [.strings(plugin: "MyPlugin")])
 
 ::: warning DEPRECATED
 <!-- -->
-任务插件已过时。如果您正在为您的项目寻找自动化解决方案，请查看
-[本博文](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects)。
+任务插件已弃用。若需为项目寻找自动化解决方案，请参阅[这篇博客文章](https://tuist.dev/blog/2025/04/15/automation-in-swift-projects)。
 <!-- -->
 :::
 
-任务是`$PATH`-exposed executables（暴露的可执行文件），如果它们遵循命名规范`tuist-<task-name>`
-，则可通过`tuist` 命令调用。在早期版本中，Tuist 在`tuist plugin`
-下提供了一些弱约定和工具，用于`build`,`run`,`test` 和`archive` 任务，这些任务由 Swift
-包中的可执行文件表示，但我们已弃用这一功能，因为它增加了工具的维护负担和复杂性。
+任务是`$PATH`-exposed可执行文件，若遵循命名规范`tuist-<task-name>` ，则可通过`tuist`
+命令调用。早期版本中，Tuist在`tuist plugin`
+提供了一些弱规范工具，用于构建Swift包中的可执行文件任务：`build`,`run`,`test` 及`archive`
+。但因该功能增加工具维护负担与复杂度，现已弃用。</task-name>
 
-如果您使用 Tuist 来分发任务，我们建议您构建自己的
-- 您可以继续使用随每个 Tuist 版本发布的`ProjectAutomation.xcframework` ，通过`let graph = try
-  Tuist.graph()` 从逻辑中访问项目图。该命令使用系统进程运行`tuist` 命令，并返回项目图的内存表示。
-- 要发布任务，我们建议在 GitHub 发布中加入支持`arm64` 和`x86_64` 的胖二进制文件，并使用
-  [Mise](https://mise.jdx.dev) 作为安装工具。要指导 Mise 如何安装你的工具，你需要一个插件仓库。您可以使用
-  [Tuist's](https://github.com/asdf-community/asdf-tuist) 作为参考。
-- 如果将工具命名为`tuist-{xxx}` ，用户可以通过运行`mise install` 来安装它，他们可以直接调用它，也可以通过`tuist xxx`
-  运行它。
+若您使用Tuist分配任务，建议构建您的
+- 您仍可使用随Tuist版本发布的`ProjectAutomation.xcframework` ，通过`let graph = try
+  Tuist.graph()` 在逻辑中访问项目图。该命令使用系统进程运行`tuist` 命令，并返回项目图的内存表示。
+- 为分发任务，建议在GitHub发布中包含支持`arm64` 和`x86_64`
+  的胖二进制文件，并使用[Mise](https://mise.jdx.dev)作为安装工具。需创建插件仓库来指导Mise安装您的工具，可参考[Tuist's](https://github.com/asdf-community/asdf-tuist)实现方案。
+- 若将工具命名为`tuist-{xxx}` ，用户可通过运行`mise install` 安装。安装后既可直接调用，也可通过`tuist xxx` 间接调用。
 
 ::: info THE FUTURE OF PROJECTAUTOMATION
 <!-- -->
-我们计划将`ProjectAutomation` 和`XcodeGraph`
-的模型合并为一个单一的向后兼容框架，向用户公开项目图的整体性。此外，我们还将把生成逻辑提取到一个新的层中，即`XcodeGraph` ，您也可以通过自己的
-CLI 使用该层。将其视为构建您自己的 Tuist。
+我们计划将`的ProjectAutomation（` ）与`的XcodeGraph（`
+）整合为单一向后兼容框架，向用户完整呈现项目图谱。此外，我们将把生成逻辑提取至新层级`XcodeGraph（`
+），您亦可将其用于自定义命令行界面。可将其视为构建专属的Tuist。
 <!-- -->
 :::
 
 ## 使用插件{#using-plugins}
 
-要使用插件，必须将其添加到项目的
-<LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>
-清单文件中：
+要使用插件，需将其添加到项目<LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>清单文件中：
 
 ```swift
 import ProjectDescription
@@ -139,7 +132,7 @@ let tuist = Tuist(
 )
 ```
 
-如果想在不同版本库的项目中重复使用插件，可以将插件推送到 Git 版本库，并在`Tuist.swift` 文件中引用它：
+若需在不同仓库的项目间复用插件，可将插件推送到Git仓库，并在`的Tuist.swift文件中通过` 引用：
 
 ```swift
 import ProjectDescription
@@ -153,17 +146,17 @@ let tuist = Tuist(
 )
 ```
 
-添加插件后，`tuist install` 将从全局缓存目录中获取插件。
+安装插件后，执行 ``tuist install` ` 命令将把插件下载至全局缓存目录。
 
 ::: info NO VERSION RESOLUTION
 <!-- -->
-您可能已经注意到，我们不提供插件的版本解析。我们建议使用 Git 标签或 SHA 以确保可重复性。
+如您所见，我们不提供插件的版本解析功能。建议使用Git标签或SHA值确保可重现性。
 <!-- -->
 :::
 
 ::: tip PROJECT DESCRIPTION HELPERS PLUGINS
 <!-- -->
-使用项目描述帮助插件时，包含帮助程序的模块名称就是插件名称
+使用项目描述辅助工具插件时，包含辅助工具的模块名称即为插件名称
 ```swift
 import ProjectDescription
 import MyTuistPlugin

@@ -5,95 +5,94 @@
   "description": "Learn about The Modular Architecture (TMA) and how to structure your projects using it."
 }
 ---
-# 模組化架構 (TMA){#the-modular-architecture-tma}
+# 模組化架構（TMA）{#the-modular-architecture-tma}
 
-TMA 是構建 Apple OS
-應用程式的架構方法，可實現可擴展性、優化建立和測試週期，並確保您的團隊有良好的實踐。其核心理念是透過建立獨立的功能來建立您的應用程式，而這些功能則透過清晰簡潔的
-API 相互連結。
+TMA 是一種架構方法，用於建構 Apple
+作業系統應用程式，以實現可擴展性、優化建置與測試週期，並確保團隊遵循良好實務。其核心理念是透過建構獨立功能來開發應用程式，這些功能透過清晰簡潔的 API
+相互連結。
 
-這些指導方針介紹架構的原則，協助您識別和組織不同層級的應用程式功能。如果您決定使用此架構，它也會介紹提示、工具和建議。
+這些準則闡述架構設計原則，協助您辨識並將應用程式功能分層組織。若您決定採用此架構，文中亦提供實用技巧、工具與建議。
 
 ::: info µFEATURES
 <!-- -->
-此架構之前稱為 µFeatures。我們將其重新命名為 The Modular Architecture (TMA)，以更好地反映其目的及其背後的原則。
+此架構先前稱為μFeatures。我們將其更名為模組化架構（TMA），以更貼切地反映其宗旨與背後的設計原則。
 <!-- -->
 :::
 
 ## 核心原則{#core-principle}
 
-開發人員應該能夠**，獨立於主應用程式，快速建立、測試並嘗試** 其功能，同時確保 UI 預覽、程式碼完成和除錯等 Xcode 功能可靠運作。
+**** 開發人員應能快速建立、測試及嘗試其功能，且能獨立於主應用程式運作，同時確保 Xcode 功能（如 UI 預覽、程式碼完成及除錯）運作可靠。
 
-## 什麼是模組{#what-is-a-module}
+## 何謂模組{#what-is-a-module}
 
-模組代表應用程式功能，是下列五個目標的組合 (其中目標是指 Xcode 目標)：
+模組代表應用程式功能，由以下五個目標組合而成（此處目標指Xcode目標）：
 
-- **來源：** 包含功能原始碼 (Swift、Objective-C、C++、JavaScript...) 及其資源
-  (圖片、字型、storyboards、xibs)。
-- **介面：** 它是一個伴隨目標，包含功能的公共介面和模型。
-- **測試：** 包含功能單元與整合測試。
-- **測試：** 提供可在測試和範例程式中使用的測試資料。它也提供模組類別和通訊協定的模組，這些模組可以被其他功能使用，我們稍後就會看到。
-- **範例：** 包含一個範例應用程式，開發人員可使用該應用程式在特定條件（不同語言、螢幕尺寸、設定）下試用功能。
+- **來源：** 包含功能原始碼（Swift、Objective-C、C++、JavaScript...）及其資源（圖片、字型、故事板、xib檔案）。
+- **介面：** 此為配套目標，包含功能的公開介面與模型。
+- **測試：** 包含功能單元測試與整合測試。
+- **測試：** 提供可用於測試及範例應用程式的測試資料。同時也為模組類別與協定提供模擬物件，後續將說明其如何供其他功能使用。
+- **範例：** 內含示範應用程式，開發人員可藉此在特定條件下（不同語言、螢幕尺寸、設定）測試此功能。
 
-我們建議您遵循目標的命名慣例，由於 Tuist 的 DSL，您可以在專案中強制執行。
+我們建議遵循目標名稱的命名規範，您可透過 Tuist 的 DSL 在專案中強制執行此規範。
 
-| 目標     | 依賴          | 內容      |
-| ------ | ----------- | ------- |
-| `特點`   | `功能介面`      | 原始碼與資源  |
-| `功能介面` | -           | 公共介面與模型 |
-| `功能測試` | `功能`,`功能測試` | 單元與整合測試 |
-| `功能測試` | `功能介面`      | 測試資料和模擬 |
-| `功能範例` | `功能測試`,`功能` | 應用範例    |
+| 目標     | 依賴          | 內容        |
+| ------ | ----------- | --------- |
+| `功能`   | `功能介面`      | 原始碼與資源    |
+| `功能介面` | -           | 公開介面與模型   |
+| `功能測試` | `功能測試：` 、`` | 單元測試與整合測試 |
+| `功能測試` | `功能介面`      | 測試資料與模擬資料 |
+| `功能範例` | `功能測試`,`功能` | 範例應用程式    |
 
 ::: tip UI Previews
 <!-- -->
-`功能` 可以使用`FeatureTesting` 作為開發資產，以允許 UI 預覽
+`功能測試（FeatureTesting）` 可使用`FeatureTesting` 作為開發資產，以實現 UI 預覽功能
 <!-- -->
 :::
 
 ::: warning COMPILER DIRECTIVES INSTEAD OF TESTING TARGETS
 <!-- -->
-另外，您也可以在編譯`Debug` 時，使用編譯器指令在`Feature` 或`FeatureInterface`
-目標中包含測試資料和模組。您可以簡化圖形，但最終您會編譯出執行應用程式時不需要的程式碼。
+另可透過編譯指令在以下目標中包含測試資料與模擬物件：`功能目標` 或`功能介面目標` 編譯時選用`調試模式`
+此舉雖能簡化圖形結構，但最終編譯的程式碼將包含應用程式執行時無需的內容。
 <!-- -->
 :::
 
-## 為什麼需要模組{#why-a-module}
+## 為何需要模組{#why-a-module}
 
 ### 清晰簡潔的 API{#clear-and-concise-apis}
 
-當所有的應用程式原始碼都存放在相同的目標中時，很容易在程式碼中建立隱含的依賴關係，結果就是眾所皆知的意大利麵條程式碼。所有東西都是強連結的、狀態有時是不可預測的，而且引進新的變更會變成一場惡夢。當我們在獨立目標中定義功能時，我們需要設計公共
-API
-作為功能實作的一部分。我們需要決定什麼應該是公開的，我們的功能應該如何被使用，什麼應該保持私有。我們對於希望功能客戶端如何使用功能有更多的控制權，而且我們可以透過設計安全的
-API 來強制執行良好的實作。
+當所有應用程式原始碼存放於同一目標時，極易在程式碼中形成隱性依賴關係，最終演變成眾所周知的義大利麵程式碼。此時所有元件高度耦合，狀態有時難以預測，任何新增變更都將成為噩夢。當我們在獨立目標中定義功能時，必須將公開
+API 設計納入功能實作環節。 我們必須決定哪些應公開、功能應如何被使用、哪些應保持私有。如此既能掌控功能客戶端的使用方式，亦可透過設計安全的 API
+來強制執行良好實務。
 
 ### 小型模組{#small-modules}
 
-[分而治之](https://en.wikipedia.org/wiki/Divide_and_conquer)。以小模組的方式工作，可以讓您更專注，並獨立測試和嘗試功能。此外，由於我們的編譯更具選擇性，只編譯功能運作所需的元件，因此開發週期更快。只有在工作最後，需要將功能整合到應用程式時，才需要編譯整個應用程式。
+[分而治之](https://en.wikipedia.org/wiki/Divide_and_conquer)。採用小模組化開發能提升專注力，並在獨立環境中測試功能。此外，由於採用選擇性編譯機制（僅編譯實現功能所需的元件），開發週期大幅縮短。僅在工作尾聲需將功能整合至應用程式時，才需進行完整應用程式的編譯。
 
-### 重複使用性{#reusability}
+### 可重複使用性{#reusability}
 
-我們鼓勵您使用框架或函式庫，在應用程式和其他產品（例如擴充套件）之間重複使用程式碼。透過建立模組來重複使用是相當直接的。我們只要結合現有的模組，並加入_(必要時)_
-平台特定的 UI 層，就能建立 iMessage 延伸、Today 延伸或 watchOS 應用程式。
+鼓勵透過框架或函式庫在應用程式與擴充功能等產品間重複使用程式碼。藉由建構模組，重複使用便相當直觀。我們只需整合現有模組，並視需要添加平台專屬的 UI
+層（例如：`_`、`_ `），即可開發 iMessage 擴充功能、今日擴充功能或 watchOS 應用程式。
 
-## 依賴{#dependencies}
+## 依賴項{#dependencies}
 
-當一個模組依賴於另一個模組時，它會宣告對其介面目標的依賴。這樣做有兩方面的好處。它可以防止一個模組的實作與另一個模組的實作耦合，而且可以加快簡潔的建置速度，因為他們只需要編譯我們功能的實作，以及直接和反式依賴的介面。這個方法的靈感來自
-SwiftRock [Reducing iOS Build Times by Using Interface
-Modules](https://swiftrocks.com/reducing-ios-build-times-by-using-interface-targets)
-的想法。
+當模組依賴其他模組時，需針對其介面目標宣告依賴關係。此做法具雙重效益：既能避免模組實作與其他模組實作產生耦合，亦可加速乾淨建置流程——因僅需編譯本功能之實作，以及直接與傳遞性依賴的介面。此方法靈感源自
+SwiftRock 的構想：[透過介面模組縮短 iOS
+建置時間](https://swiftrocks.com/reducing-ios-build-times-by-using-interface-targets)。
 
-依賴介面需要應用程式在執行時建立實作圖形，並依賴注入到需要的模組中。雖然 TMA
-對於如何做到這一點不持主見，但我們建議使用依賴注入解決方案或模式，或是不增加建置時間間接或使用非為此目的而設計的平台 API 的解決方案。
+依賴介面機制要求應用程式在執行時建立實作圖，並將其依賴注入至需要該功能的模組。儘管 TMA
+對具體實現方式不作規定，我們建議採用依賴注入解決方案或模式，避免在編譯時增加間接層次，亦不應使用非為此目的設計的平台 API。
 
 ## 產品類型{#product-types}
 
-在建立模組時，您可以選擇**函式庫和框架** ，以及**靜態和動態連結** 作為目標。如果沒有
-Tuist，做出這個決定會比較複雜，因為您需要手動設定相依圖。不過，有了 Tuist Projects，這不再是問題。
+建立模組時，可針對目標選擇以下選項：**函式庫與框架** ，以及**靜態與動態連結** 。若未使用
+Tuist，此決策過程較為複雜，因需手動配置依賴關係圖。然而透過 Tuist Projects，此問題已迎刃而解。
 
-我們建議在開發過程中使用動態函式庫或框架，使用
-<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle accessors</LocalizedLink> 來將 bundle 存取邏輯與目標函式庫或框架的性質分離。這是快速編譯和確保 [SwiftUI
-預覽](https://developer.apple.com/documentation/swiftui/previews-in-xcode)可靠運作的關鍵。而釋出版本建置的靜態函式庫或框架，則可確保應用程式快速啟動。您可以利用
-<LocalizedLink href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables"> 動態配置</LocalizedLink>，在產生時變更產品類型：
+開發期間建議使用動態庫或框架，透過
+<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">束狀存取器</LocalizedLink>
+將束狀存取邏輯與目標庫/框架的本質解耦。此舉對實現快速編譯時間及確保 [SwiftUI
+預覽功能](https://developer.apple.com/documentation/swiftui/previews-in-xcode)
+穩定運作至關重要。正式發布版本則應採用靜態庫或框架，以確保應用程式啟動迅速。
+您可運用<LocalizedLink href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables">動態配置</LocalizedLink>在生成時變更產品類型：
 
 ```bash
 # You'll have to read the value of the variable from the manifest {#youll-have-to-read-the-value-of-the-variable-from-the-manifest}
@@ -116,33 +115,31 @@ func productType() -> Product {
 
 ::: warning MERGEABLE LIBRARIES
 <!-- -->
-Apple 嘗試透過引入 [mergeable
-libraries](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries)
-來減輕在靜態與動態函式庫之間切換的麻煩。然而，這會引進建立時的非決定性，使得您的建立不可重複，而且更難優化，因此我們不建議使用。
+Apple 試圖透過引入
+[可合併函式庫](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries)
+來減輕在靜態與動態函式庫間切換的繁瑣性。然而此舉會引入建置時間的不確定性，導致建置過程無法重現且更難優化，因此我們不建議使用此機制。
 <!-- -->
 :::
 
-## 代碼{#code}
+## 程式碼{#code}
 
-TMA 對於您模組的程式碼架構和模式不持任何意見。不過，我們想根據我們的經驗分享一些提示：
+TMA 對模組的程式架構與模式不作強制規範。然而，我們仍願分享基於實務經驗的建議：
 
-- **利用編譯器是非常好的。** 過度使用編譯器可能會導致無益的結果，並導致某些 Xcode 功能 (例如預覽)
-  無法可靠地運作。我們建議使用編譯器來強制執行良好的實務並及早捕捉錯誤，但不要過度使用編譯器而導致程式碼更難閱讀和維護。
-- **少用 Swift 巨集。** 它們可以非常強大，但也會讓程式碼更難閱讀和維護。
-- **擁抱平台和語言，不要將它們抽象化。**
-  試著想出更多的抽象層，結果可能會適得其反。平台和語言已經足夠強大到不需要額外的抽象層就能建立很棒的應用程式。使用良好的程式設計與設計模式作為建立功能的參考。
+- **善用編譯器是好事。** 過度依賴編譯器可能導致效率低下，並使預覽等 Xcode
+  功能運作不穩定。我們建議運用編譯器來落實良好實務並及早偵測錯誤，但切勿過度使用以致影響程式碼的可讀性與維護性。
+- **請謹慎使用 Swift 宏指令。** 宏指令雖能大幅提升效能，但也可能降低程式碼的可讀性與維護性。
+- **擁抱平台與語言，切勿抽象化處理。**
+  試圖建立繁複的抽象層可能適得其反。平台與語言本身已具備足夠能力打造卓越應用程式，無需額外抽象層。請以優質程式設計與設計模式為參考基準來建構功能。
 
 ## 資源{#resources}
 
-- [Building µFeatures](https://speakerdeck.com/pepibumur/building-ufeatures)
-- [Framework Oriented
-  Programming](https://speakerdeck.com/pepibumur/framework-oriented-programming-mobilization-dot-pl)
-- [A Journey into frameworks and
-  Swift](https://speakerdeck.com/pepibumur/a-journey-into-frameworks-and-swift)
-- [利用框架加快我們在 iOS 上的開發速度 -
-  第一部分](https://developers.soundcloud.com/blog/leveraging-frameworks-to-speed-up-our-development-on-ios-part-1)。
-- [Library Oriented
-  Programming](https://academy.realm.io/posts/justin-spahr-summers-library-oriented-programming/)
-- [建立現代框架](https://developer.apple.com/videos/play/wwdc2014/416/)
-- [xcconfig 檔案非官方指南](https://pewpewthespells.com/blog/xcconfig_guide.html)。
+- [建立微特徵](https://speakerdeck.com/pepibumur/building-ufeatures)
+- [框架導向程式設計](https://speakerdeck.com/pepibumur/framework-oriented-programming-mobilization-dot-pl)
+- [框架與 Swift
+  之旅](https://speakerdeck.com/pepibumur/a-journey-into-frameworks-and-swift)
+- [運用框架加速 iOS 開發進程 -
+  第一部分](https://developers.soundcloud.com/blog/leveraging-frameworks-to-speed-up-our-development-on-ios-part-1)
+- [面向函式庫的程式設計](https://academy.realm.io/posts/justin-spahr-summers-library-oriented-programming/)
+- [建構現代框架](https://developer.apple.com/videos/play/wwdc2014/416/)
+- [非官方 xcconfig 檔案指南](https://pewpewthespells.com/blog/xcconfig_guide.html)
 - [靜態與動態函式庫](https://pewpewthespells.com/blog/static_and_dynamic_libraries.html)

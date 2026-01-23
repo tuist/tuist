@@ -7,26 +7,26 @@
 ---
 # 目录{#directories}
 
-Tuist 遵循 [XDG
-基本目录规范](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html)，在系统中的多个目录中组织文件。这为管理配置、缓存和状态文件提供了一种简洁、标准的方式。
+Tuist 根据 [XDG
+基础目录规范](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html)
+在系统多个目录中组织文件，提供管理配置、缓存和状态文件的规范化方式。
 
 ## 支持的环境变量{#supported-environment-variables}
 
-Tuist 既支持标准 XDG 变量，也支持 Tuist 特有的前缀变量。Tuist 专用变量（前缀为`TUIST_` ）优先，允许您将 Tuist
-与其他应用程序分开配置。
+Tuist同时支持标准XDG变量与Tuist专属前缀变体。Tuist专属变体（以`TUIST_` 开头）具有优先级，可实现与其他应用程序的独立配置。
 
 ### 配置目录{#configuration-directory}
 
 **环境变量：**
-- `TUIST_XDG_CONFIG_HOME` （优先）。
-- `xdg_config_home`
+- `TUIST_XDG_CONFIG_HOME` (优先级最高)
+- `XDG_CONFIG_HOME`
 
 **默认值：** `~/.config/tuist`
 
-**用于：**
-- 服务器凭据 (`credentials/{host}.json`)
+**用途：**
+- 服务器凭证（`credentials/{host}.json` ）
 
-**例如**
+**示例：**
 ```bash
 # Set Tuist-specific config directory
 export TUIST_XDG_CONFIG_HOME=/custom/config
@@ -40,22 +40,22 @@ tuist auth login
 ### 缓存目录{#cache-directory}
 
 **环境变量：**
-- `TUIST_XDG_CACHE_HOME` （优先）。
+- `TUIST_XDG_CACHE_HOME` (优先级最高)
 - `XDG_CACHE_HOME`
 
 **默认值：** `~/.cache/tuist`
 
-**用于：**
-- **插件** ：已下载和编译的插件缓存
-- **ProjectDescriptionHelpers** ：编译的项目描述助手
-- **清单** ：缓存清单文件
-- **项目** ：生成自动化项目缓存
+**用途：**
+- **插件** ：已下载并编译的插件缓存
+- **ProjectDescriptionHelpers**: 编译后的项目描述辅助工具
+- **清单文件**: 缓存的清单文件
+- **项目**: 自动生成的项目缓存
 - **编辑项目** ：编辑命令缓存
-- **运行** ：测试和构建运行分析数据
-- **二进制文件** ：构建工件二进制文件（不可跨环境共享）
-- **SelectiveTests** ：选择性测试缓存
+- **运行**: 测试与构建运行分析数据
+- **二进制文件**: 构建二进制构建产物（不可跨环境共享）
+- **SelectiveTests**: 选择性测试缓存
 
-**例如**
+**示例：**
 ```bash
 # Set Tuist-specific cache directory
 export TUIST_XDG_CACHE_HOME=/tmp/tuist-cache
@@ -66,19 +66,19 @@ export XDG_CACHE_HOME=/tmp/cache
 tuist cache
 ```
 
-### 国家目录{#state-directory}
+### 州目录{#state-directory}
 
 **环境变量：**
-- `TUIST_XDG_STATE_HOME` （优先使用）
+- `TUIST_XDG_STATE_HOME` (优先级最高)
 - `XDG_STATE_HOME`
 
 **默认值：** `~/.local/state/tuist`
 
-**用于：**
-- **日志** ：日志文件 (`logs/{uuid}.log`)
-- **锁** ：身份验证锁文件 (`{handle}.sock`)
+**用途：**
+- **日志**: 日志文件 (`logs/{uuid}.log`)
+- **锁** ：认证锁文件（`{handle}.sock` ）
 
-**例如**
+**示例：**
 ```bash
 # Set Tuist-specific state directory
 export TUIST_XDG_STATE_HOME=/var/log/tuist
@@ -89,24 +89,24 @@ export XDG_STATE_HOME=/var/log
 tuist generate
 ```
 
-## 优先顺序{#precedence-order}
+## 优先级顺序{#precedence-order}
 
-在确定使用哪个目录时，Tuist 会按以下顺序检查环境变量：
+在确定使用哪个目录时，Tuist按以下顺序检查环境变量：
 
-1. **特定于 Tuist 的变量** （例如，`TUIST_XDG_CONFIG_HOME`)
-2. **标准 XDG 变量** （如`XDG_CONFIG_HOME`)
-3. **默认位置** （例如，`~/.config/tuist`)
+1. **Tuist专属变量** （例如：`TUIST_XDG_CONFIG_HOME` ）
+2. **标准XDG变量** （例如：`XDG_CONFIG_HOME` ）
+3. **默认位置：** （例如：`~/.config/tuist` ）
 
-这样您就可以
-- 使用标准的 XDG 变量来统一组织所有应用程序
-- 当需要 Tuist 的不同位置时，使用 Tuist 专用变量覆盖
-- 依靠合理的默认设置，无需任何配置
+这将使您能够：
+- 使用标准XDG变量来统一管理所有应用程序
+- 若需为Tuist设置不同位置，请使用Tuist专属变量覆盖
+- 无需任何配置，直接采用合理的默认设置
 
-## 常见用例{#common-use-cases}
+## 常见使用场景{#common-use-cases}
 
-### 按项目隔离图易斯特{#isolating-tuist-per-project}
+### 按项目隔离 Tuist{#isolating-tuist-per-project}
 
-您可能需要在每个项目中隔离 Tuist 的缓存和状态：
+您可能需要按项目隔离 Tuist 的缓存和状态：
 
 ```bash
 # In your project's .envrc (using direnv)
@@ -117,7 +117,7 @@ export TUIST_XDG_CONFIG_HOME="$PWD/.tuist/config"
 
 ### CI/CD 环境{#ci-cd-environments}
 
-在 CI 环境中，您可能需要使用临时目录：
+在CI环境中，建议使用临时目录：
 
 ```yaml
 # GitHub Actions example
@@ -141,7 +141,7 @@ jobs:
 
 ### 使用隔离目录进行调试{#debugging-with-isolated-directories}
 
-在调试问题时，你可能需要一块干净的石板：
+在调试问题时，您可能需要一个干净的起点：
 
 ```bash
 # Create temporary directories for debugging

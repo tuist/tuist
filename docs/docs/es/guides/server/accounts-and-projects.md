@@ -15,17 +15,17 @@ necesitas una cuenta y un proyecto que conectes a tu proyecto local.
 
 Para utilizar el servidor, necesitarás una cuenta. Hay dos tipos de cuentas:
 
-- **Cuenta personal:** Estas cuentas se crean automáticamente cuando te
-  registras y se identifican mediante un identificador que se obtiene del
-  proveedor de identidad (por ejemplo, GitHub) o de la primera parte de la
-  dirección de correo electrónico.
+- **Cuenta personal:** Estas cuentas se crean automáticamente al registrarse y
+  se identifican mediante un nombre de usuario obtenido del proveedor de
+  identidad (por ejemplo, GitHub) o de la primera parte de la dirección de
+  correo electrónico.
 - **Cuenta de organización:** Estas cuentas se crean manualmente y se
-  identifican mediante un identificador definido por el desarrollador. Las
-  organizaciones permiten invitar a otros miembros a colaborar en los proyectos.
+  identifican mediante un nombre definido por el desarrollador. Las
+  organizaciones permiten invitar a otros miembros a colaborar en proyectos.
 
 Si estás familiarizado con [GitHub](https://github.com), el concepto es similar
 al suyo, donde puedes tener cuentas personales y de organización, y se
-identifican por un *handle* que se utiliza al construir URLs.
+identifican mediante un identificador ** que se utiliza al construir las URL.
 
 ::: info CLI-FIRST
 <!-- -->
@@ -35,28 +35,29 @@ gestión de cuentas y proyectos.
 <!-- -->
 :::
 
-Puede gestionar la organización a través de los subcomandos bajo
+Puede gestionar la organización mediante los subcomandos de
 <LocalizedLink href="/cli/organization">`tuist organization`</LocalizedLink>.
-Para crear una nueva cuenta de organización, ejecute
+Para crear una nueva cuenta de organización, ejecute:
 ```bash
 tuist organization create {account-handle}
 ```
 
 ## Proyectos {#projects}
 
-Tus proyectos, ya sean de Tuist o de Xcode en bruto, necesitan estar integrados
-con tu cuenta a través de un proyecto remoto. Siguiendo con la comparación con
-GitHub, es como tener un repositorio local y otro remoto donde empujar tus
-cambios. Puedes usar el <LocalizedLink href="/cli/project">`tuist project`</LocalizedLink> para crear y gestionar proyectos.
+Tus proyectos, ya sean de Tuist o de Xcode sin procesar, deben integrarse con tu
+cuenta a través de un proyecto remoto. Siguiendo con la comparación con GitHub,
+es como tener un repositorio local y otro remoto donde enviar tus cambios.
+Puedes utilizar <LocalizedLink href="/cli/project">`tuist
+project`</LocalizedLink> para crear y gestionar proyectos.
 
 Los proyectos se identifican mediante un identificador completo, que es el
 resultado de concatenar el identificador de la organización y el identificador
-del proyecto. Por ejemplo, si tiene una organización con el identificador
-`tuist`, y un proyecto con el identificador `tuist`, el identificador completo
+del proyecto. Por ejemplo, si tienes una organización con el identificador
+`tuist` y un proyecto con el identificador `tuist`, el identificador completo
 sería `tuist/tuist`.
 
 La vinculación entre el proyecto local y el remoto se realiza a través del
-fichero de configuración. Si no tienes ninguno, créalo en `Tuist.swift` y añade
+archivo de configuración. Si no tienes ninguno, créalo en `Tuist.swift` y añade
 el siguiente contenido:
 
 ```swift
@@ -65,14 +66,14 @@ let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist
 
 ::: warning TUIST PROJECT-ONLY FEATURES
 <!-- -->
-Tenga en cuenta que hay algunas características como
-<LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink> que
-requieren que usted tenga un proyecto Tuist. Si utilizas proyectos Xcode sin
-procesar, no podrás utilizar estas funciones.
+Ten en cuenta que hay algunas funciones, como
+<LocalizedLink href="/guides/features/cache">almacenamiento en caché
+binario</LocalizedLink>, que requieren que tengas un proyecto Tuist. Si utilizas
+proyectos Xcode sin procesar, no podrás utilizar esas funciones.
 <!-- -->
 :::
 
-La URL de tu proyecto se construye utilizando el "handle" completo. Por ejemplo,
-el panel de Tuist, que es público, es accesible en
+La URL de tu proyecto se construye utilizando el identificador completo. Por
+ejemplo, el panel de control de Tuist, que es público, es accesible en
 [tuist.dev/tuist/tuist](https://tuist.dev/tuist/tuist), donde `tuist/tuist` es
-el nombre completo del proyecto.
+el identificador completo del proyecto.

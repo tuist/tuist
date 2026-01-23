@@ -26,7 +26,7 @@ tuist edit
 이 명령어는 전역 디렉토리에 Xcode 프로젝트를 생성하고 Xcode에서 엽니다. 생성된 프로젝트는 모든 Manifest가 유효한 것을 보장하기
 위해 빌드 할 수 있는 `Manifests` 디렉토리를 가집니다.
 
-::: info Glob으로 처리된 Manifest
+::: info Glob 처리된 Manifest
 <!-- -->
 `tuist edit` 는 최상위(유일하게 `Tuist.swift` 파일을 가지는) 디렉토리에서 `**/{Manifest}.swift`
 Glob을 사용해서 Manifest들을 처리 합니다. 최상위 디렉토리에 올바른 `Tuist.swift`가 있는지 확인하세요.

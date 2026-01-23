@@ -5,19 +5,17 @@
   "description": "Learn how to use the Tuist Registry in continuous integration."
 }
 ---
-# 持续集成 (CI){#continuous-integration-ci}
+# 持续集成（CI）{#continuous-integration-ci}
 
-要在 CI 上使用注册表，需要在工作流程中运行`tuist registry login` ，确保已登录注册表。
+要在CI环境中使用注册表，需确保通过运行`tuist registry login` 完成注册表登录，将其纳入工作流流程。
 
 ::: info ONLY XCODE INTEGRATION
 <!-- -->
-只有在使用 Xcode 集成软件包时，才需要创建新的预解锁钥匙串。
+仅当使用Xcode的包集成时，才需要创建新的预解锁钥匙串。
 <!-- -->
 :::
 
-由于注册表凭据存储在钥匙串中，因此需要确保在 CI 环境中可以访问钥匙串。请注意，一些 CI 提供商或自动化工具（如
-[Fastlane](https://fastlane.tools/)
-）已经创建了临时钥匙串，或提供了创建钥匙串的内置方法。不过，您也可以通过使用以下代码创建自定义步骤来创建一个：
+由于注册表凭据存储在钥匙串中，您需要确保CI环境中可访问该钥匙串。请注意，某些CI提供商或自动化工具（如[Fastlane](https://fastlane.tools/)）已创建临时钥匙串或提供内置创建方式。但您也可通过创建自定义步骤并使用以下代码来创建钥匙串：
 ```bash
 TMP_DIRECTORY=$(mktemp -d)
 KEYCHAIN_PATH=$TMP_DIRECTORY/keychain.keychain
@@ -28,13 +26,13 @@ security default-keychain -s $KEYCHAIN_PATH
 security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
 ```
 
-`tuist 注册表登录` 会将凭证存储在默认钥匙串中。在运行_ `tuist registry login` 之前，确保已创建并解锁默认钥匙串_。
+`tuist registry login` 将把凭据存储在默认钥匙串中。在运行_ `tuist registry login`
+之前，请确保已创建并解锁默认钥匙串_。
 
-此外，您还需要确保`TUIST_TOKEN` 环境变量已设置。您可以根据此处的文档
-<LocalizedLink href="/guides/server/authentication#as-a-project"></LocalizedLink>
-创建一个环境变量。
+此外，需确保环境变量`TUIST_TOKEN`
+已设置。可参照文档<LocalizedLink href="/guides/server/authentication#as-a-project">此处</LocalizedLink>进行创建。
 
-GitHub 操作的工作流程示例如下：
+GitHub Actions 的示例工作流如下所示：
 ```yaml
 name: Build
 
@@ -58,12 +56,11 @@ jobs:
       - # Your build steps
 ```
 
-### 跨环境递增分辨率{#incremental-resolution-across-environments}
+### 跨环境的增量解析{#incremental-resolution-across-environments}
 
-使用我们的注册表，清洁/冷解析的速度会稍快一些，如果在 CI
-构建过程中持续保持已解析的依赖关系，效果会更好。请注意，由于有了注册表，您需要存储和还原的目录大小比没有注册表时要小得多，所需的时间也大大减少。要在使用默认的
-Xcode 软件包集成时缓存依赖关系，最好的办法是在通过`xcodebuild`
-解析依赖关系时指定一个自定义的`clonedSourcePackagesDirPath` 。这可以通过在`Config.swift` 文件中添加以下内容来实现：
+使用我们的注册表可略微提升干净/冷解析速度，若在持续集成构建中持久化解析后的依赖项，性能提升更为显著。需注意：注册表使存储和恢复所需的目录体积大幅缩减，耗时显著降低。
+使用默认Xcode包集成时，缓存依赖项的最佳方式是在通过`xcodebuild` 解析依赖项时，通过`clonedSourcePackagesDirPath`
+指定自定义路径。可在`Config.swift` 文件中添加以下配置实现：
 
 ```swift
 import ProjectDescription
@@ -75,14 +72,13 @@ let config = Config(
 )
 ```
 
-此外，您还需要找到`Package.resolved` 的路径。您可以运行`ls **/Package.resolved`
-获取路径。路径应类似于`App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`
+`此外，您需要获取`的Package.resolved路径。可通过运行`ls **/Package.resolved`
+获取路径。该路径应类似于`App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`
 。
 
-对于 Swift 包和基于 XcodeProj 的集成，我们可以使用位于项目根目录或`Tuist` 目录中的默认`.build`
-目录。请在设置管道时确保路径正确。
+对于Swift包及基于XcodeProj的集成，可使用默认路径`.build` 目录（位于项目根目录或`Tuist` 目录内）。设置管道时请确保路径正确。
 
-下面是一个 GitHub Actions 工作流程示例，用于在使用默认 Xcode 软件包集成时解析和缓存依赖关系：
+以下是使用默认Xcode包集成时，通过GitHub Actions解决并缓存依赖项的示例工作流：
 ```yaml
 - name: Restore cache
   id: cache-restore

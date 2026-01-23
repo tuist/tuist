@@ -49,7 +49,8 @@ provider and exchange the CI-provided token for a Tuist access token.
 ### Setting up OIDC authentication {#setting-up-oidc-authentication}
 
 1. **Connect your repository to Tuist**: Follow the
-   <LocalizedLink href="/guides/integrations/gitforge/github">GitHub integration guide</LocalizedLink> to connect your GitHub repository to your Tuist
+   <LocalizedLink href="/guides/integrations/gitforge/github">GitHub integration
+   guide</LocalizedLink> to connect your GitHub repository to your Tuist
    project.
 
 2. **Run `tuist auth login`**: In your CI workflow, run `tuist auth login`
@@ -57,7 +58,8 @@ provider and exchange the CI-provided token for a Tuist access token.
    detect the CI environment and authenticate using OIDC.
 
 See the
-<LocalizedLink href="/guides/integrations/continuous-integration">Continuous Integration guide</LocalizedLink> for provider-specific configuration examples.
+<LocalizedLink href="/guides/integrations/continuous-integration">Continuous
+Integration guide</LocalizedLink> for provider-specific configuration examples.
 
 ### OIDC token scopes {#oidc-token-scopes}
 

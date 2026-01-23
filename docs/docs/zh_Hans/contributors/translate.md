@@ -5,7 +5,7 @@
   "description": "This document describes the principles that guide the development of Tuist."
 }
 ---
-# 翻译 {#translate｝
+# 翻译 {#translate}
 
 语言可能成为理解的障碍。我们希望尽可能多的人都能使用 Tuist。如果您使用的语言不支持 Tuist，您可以帮助我们翻译 Tuist 的各种表面。
 
@@ -26,15 +26,15 @@
 <!-- -->
 :::
 
-## 如何翻译 {#how-to-translate｝
+## 如何翻译 {#how-to-translate}
 
-我们在 [translate.tuist.dev](https://translate.tuist.dev) 上运行了
-[Weblate](https://weblate.org/en-gb/) 实例。您可以前往
-[项目](https://translate.tuist.dev/engage/tuist/)，创建一个账户，然后开始翻译。
+我们在 [translate.tuist.dev](https://translate.tuist.dev) 上运行着
+[Weblate](https://weblate.org/en-gb/) 的实例。您可以前往
+[项目](https://translate.tuist.dev/engage/tuist/)，创建帐户，然后开始翻译。
 
-翻译会通过 GitHub 的拉取请求同步回源代码库，维护者会审核并合并这些请求。
+翻译内容会通过 GitHub pull request 同步回源仓库，维护人员会进行审核和合并。
 
-警告 不要修改目标语言中的资源
+::: 警告 不要修改目标语言中的资源
 <!-- -->
 Weblate 对文件进行分段，以绑定源语言和目标语言。如果修改了源语言，就会破坏绑定，调和可能会产生意想不到的结果。
 <!-- -->

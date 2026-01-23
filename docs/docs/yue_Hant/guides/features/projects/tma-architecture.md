@@ -130,13 +130,15 @@ decision is a bit more complex because you need to configure the dependency
 graph manually. However, thanks to Tuist Projects, this is no longer a problem.
 
 We recommend using dynamic libraries or frameworks during development using
-<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle accessors</LocalizedLink> to decouple the bundle-accessing logic from the
+<LocalizedLink href="/guides/features/projects/synthesized-files#bundle-accessors">bundle
+accessors</LocalizedLink> to decouple the bundle-accessing logic from the
 library or framework nature of the target. This is key for fast compilation
 times and to ensure [SwiftUI
 Previews](https://developer.apple.com/documentation/swiftui/previews-in-xcode)
 work reliably. And static libraries or frameworks for the release builds to
 ensure the app boots fast. You can leverage
-<LocalizedLink href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables">dynamic configuration</LocalizedLink> to change the product type at generation-time:
+<LocalizedLink href="/guides/features/projects/dynamic-configuration#configuration-through-environment-variables">dynamic
+configuration</LocalizedLink> to change the product type at generation-time:
 
 ```bash
 # You'll have to read the value of the variable from the manifest {#youll-have-to-read-the-value-of-the-variable-from-the-manifest}

@@ -42,10 +42,14 @@ tuist registry login
 ### 依存関係の解決{#resolving-dependencies}。
 
 ソース・コントロールからではなくレジストリから依存関係を解決するには、プロジェクトのセットアップに基づいて読み進めてください：
-- <LocalizedLink href="/guides/features/registry/xcode-project">Xcode project</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/generated-project">Xcode パッケージ統合で生成されたプロジェクト</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">XcodeProj ベースのパッケージ統合で生成されたプロジェクト</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/swift-package">Swift パッケージ</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/xcode-project">Xcode
+  project</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/generated-project">Xcode
+  パッケージ統合で生成されたプロジェクト</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">XcodeProj
+  ベースのパッケージ統合で生成されたプロジェクト</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/swift-package">Swift
+  パッケージ</LocalizedLink>
 
 CI上でレジストリを設定するには、このガイドに従ってください：<LocalizedLink href="/guides/features/registry/continuous-integration">継続的インテグレーション</LocalizedLink>.
 

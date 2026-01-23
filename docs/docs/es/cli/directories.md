@@ -7,18 +7,18 @@
 ---
 # Directorios {#directories}
 
-Tuist organiza sus archivos a través de varios directorios en tu sistema,
-siguiendo la [XDG Base Directory
-Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html).
+Tuist organiza sus archivos en varios directorios de tu sistema, siguiendo la
+[Especificación del directorio base
+XDG](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html).
 Esto proporciona una forma limpia y estándar de gestionar los archivos de
 configuración, caché y estado.
 
 ## Variables de entorno compatibles {#supported-environment-variables}
 
-Tuist admite tanto variables XDG estándar como variantes prefijadas específicas
-de Tuist. Las variantes específicas de Tuist (prefijadas con `TUIST_`) tienen
-preferencia, lo que te permite configurar Tuist por separado de otras
-aplicaciones.
+Tuist admite tanto variables XDG estándar como variantes con prefijos
+específicos de Tuist. Las variantes específicas de Tuist (con el prefijo
+`TUIST_`) tienen prioridad, lo que le permite configurar Tuist por separado de
+otras aplicaciones.
 
 ### Directorio de configuración {#configuration-directory}
 
@@ -26,12 +26,12 @@ aplicaciones.
 - `TUIST_XDG_CONFIG_HOME` (tiene prioridad)
 - `XDG_CONFIG_HOME`
 
-**Por defecto:** `~/.config/tuist`
+**Predeterminado:** `~/.config/tuist`
 
 **Se utiliza para:**
 - Credenciales del servidor (`credentials/{host}.json`)
 
-**Por ejemplo:**
+**Ejemplo:**
 ```bash
 # Set Tuist-specific config directory
 export TUIST_XDG_CONFIG_HOME=/custom/config
@@ -42,27 +42,26 @@ export XDG_CONFIG_HOME=/custom/config
 tuist auth login
 ```
 
-### Directorio caché {#cache-directory}
+### Directorio de caché {#cache-directory}
 
 **Variables de entorno:**
 - `TUIST_XDG_CACHE_HOME` (tiene prioridad)
 - `XDG_CACHE_HOME`
 
-**Por defecto:** `~/.cache/tuist`
+**Predeterminado:** `~/.cache/tuist`
 
 **Se utiliza para:**
-- **Plugins**: Caché de plugins descargados y compilados
-- **ProjectDescriptionHelpers**: Ayudantes de descripción de proyectos
-  compilados
-- **Manifiestos**: Archivos de manifiesto en caché
-- **Proyectos**: Caché del proyecto de automatización generado
-- **EditProjects**: Caché para el comando de edición
-- **Ejecuta**: Prueba y construye datos analíticos de ejecución
-- **Binarios**: Binarios de artefactos de construcción (no compartibles entre
-  entornos)
-- **Pruebas selectivas**: Caché de pruebas selectivas
+- **Plugins**: caché de plugins descargados y compilados.
+- **ProjectDescriptionHelpers**: Ayudas compiladas para la descripción del
+  proyecto.
+- **Manifiestos**: Archivos de manifiesto almacenados en caché.
+- **Proyectos**: Caché del proyecto de automatización generada.
+- **EditProjects**: Caché para el comando de edición.
+- **Ejecuta**: Prueba y crea datos analíticos de ejecución.
+- **Binarios**: Compila binarios de artefactos (no compartibles entre entornos).
+- **SelectiveTests**: caché de pruebas selectivas.
 
-**Por ejemplo:**
+**Ejemplo:**
 ```bash
 # Set Tuist-specific cache directory
 export TUIST_XDG_CACHE_HOME=/tmp/tuist-cache
@@ -79,13 +78,13 @@ tuist cache
 - `TUIST_XDG_STATE_HOME` (tiene prioridad)
 - `XDG_STATE_HOME`
 
-**Por defecto:** `~/.local/state/tuist`
+**Predeterminado:** `~/.local/state/tuist`
 
 **Se utiliza para:**
 - **Registros**: Archivos de registro (`logs/{uuid}.log`)
 - **Bloqueos**: Archivos de bloqueo de autenticación (`{handle}.sock`)
 
-**Por ejemplo:**
+**Ejemplo:**
 ```bash
 # Set Tuist-specific state directory
 export TUIST_XDG_STATE_HOME=/var/log/tuist
@@ -98,25 +97,25 @@ tuist generate
 
 ## Orden de precedencia {#precedence-order}
 
-Al determinar qué directorio utilizar, Tuist comprueba las variables de entorno
-en el siguiente orden:
+A la hora de determinar qué directorio utilizar, Tuist comprueba las variables
+de entorno en el siguiente orden:
 
 1. **Variable específica de Tuist** (por ejemplo, `TUIST_XDG_CONFIG_HOME`)
 2. **Variable XDG estándar** (por ejemplo, `XDG_CONFIG_HOME`)
-3. **Ubicación por defecto** (por ejemplo, `~/.config/tuist`)
+3. **Ubicación predeterminada** (por ejemplo, `~/.config/tuist`)
 
-Esto te permite:
+Esto le permite:
 - Utiliza variables XDG estándar para organizar todas tus aplicaciones de forma
-  coherente
-- Sustituye con variables específicas de Tuist cuando necesites diferentes
-  ubicaciones para Tuist
-- Confiar en valores por defecto sensibles sin ninguna configuración
+  coherente.
+- Sobrescribe con variables específicas de Tuist cuando necesites ubicaciones
+  diferentes para Tuist.
+- Confíe en los valores predeterminados sensatos sin necesidad de configuración.
 
-## Casos de uso común {#common-use-cases}
+## Casos de uso comunes {#common-use-cases}
 
-### Aislar Tuist por proyecto {#isolating-tuist-per-project}
+### Aislar Tuist por proyecto. {#isolating-tuist-per-project}
 
-Tal vez quieras aislar la caché y el estado de Tuist por proyecto:
+Es posible que desee aislar la caché y el estado de Tuist por proyecto:
 
 ```bash
 # In your project's .envrc (using direnv)
@@ -151,7 +150,7 @@ jobs:
 
 ### Depuración con directorios aislados {#debugging-with-isolated-directories}
 
-Al depurar problemas, es posible que desee hacer borrón y cuenta nueva:
+Al depurar problemas, es posible que desee empezar de cero:
 
 ```bash
 # Create temporary directories for debugging

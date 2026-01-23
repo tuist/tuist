@@ -22,8 +22,10 @@ zwrotnego, ale także minimalizuje potrzebę przełączania kontekstu, ostateczn
 zwiększając produktywność.
 
 Oferujemy dwa rodzaje buforowania:
-- <LocalizedLink href="/guides/features/cache/module-cache">Buforowanie modułu</LocalizedLink>
-- <LocalizedLink href="/guides/features/cache/xcode-cache">Buforowanie Xcode</LocalizedLink>
+- <LocalizedLink href="/guides/features/cache/module-cache">Buforowanie
+  modułu</LocalizedLink>
+- <LocalizedLink href="/guides/features/cache/xcode-cache">Buforowanie
+  Xcode</LocalizedLink>
 
 ## Pamięć podręczna modułów {#module-cache}
 
@@ -39,11 +41,12 @@ wygenerowanego projektu. Decyzja o wyborze rozwiązania do buforowania zależy
 jednak od konkretnych potrzeb i preferencji. Można również połączyć oba
 rozwiązania buforowania, aby osiągnąć najlepsze wyniki.
 
-<LocalizedLink href="/guides/features/cache/module-cache">Dowiedz się więcej o module pamięci podręcznej →</LocalizedLink>
+<LocalizedLink href="/guides/features/cache/module-cache">Dowiedz się więcej o
+module pamięci podręcznej →</LocalizedLink>
 
 ## Pamięć podręczna Xcode {#xcode-cache}
 
-::: warning XCODE CACHE STATE
+::: ostrzeżenie STAN CACHE W XCODE
 <!-- -->
 Buforowanie Xcode jest obecnie zoptymalizowane pod kątem lokalnych kompilacji
 przyrostowych, a całe spektrum zadań kompilacji nie jest jeszcze niezależne od
@@ -56,6 +59,8 @@ miarę jak możliwości systemu kompilacji będą się poprawiać.
 Apple pracuje nad nowym rozwiązaniem buforowania na poziomie kompilacji,
 podobnym do innych systemów kompilacji, takich jak Bazel i Buck. Nowa funkcja
 buforowania jest dostępna od Xcode 26, a Tuist płynnie się z nią integruje -
-niezależnie od tego, czy korzystasz z funkcji <LocalizedLink href="/guides/features/projects">generowania projektów</LocalizedLink>, czy nie.
+niezależnie od tego, czy korzystasz z funkcji generowania projektów
+<LocalizedLink href="/guides/features/projects">, czy nie.
 
-<LocalizedLink href="/guides/features/cache/xcode-cache">Dowiedz się więcej o pamięci podręcznej Xcode →</LocalizedLink>
+<LocalizedLink href="/guides/features/cache/xcode-cache">Dowiedz się więcej o
+pamięci podręcznej Xcode →</LocalizedLink>

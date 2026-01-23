@@ -1,7 +1,7 @@
 ---
 {
   "editLink": false,
-  "titleTemplate": ":title · Examples · References · Tuist"
+  "titleTemplate": ":title · Generated Projects · Examples · Guides · Tuist"
 }
 ---
 <script setup>
@@ -9,9 +9,8 @@ import { useData } from 'vitepress'
 
 // params is a Vue ref
 const { params } = useData()
+
 </script>
-
-
 
 <!-- @content -->
 

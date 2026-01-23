@@ -145,6 +145,18 @@ También necesitarás una solución para almacenar archivos (p. ej., binarios de
 frameworks y bibliotecas). Actualmente admitimos cualquier almacenamiento
 compatible con S3.
 
+::: tip OPTIMIZED CACHING
+<!-- -->
+Si tu objetivo principal es traer tu propio depósito para almacenar binarios y
+reducir la latencia de la caché, es posible que no necesites autohospedar todo
+el servidor. Puedes autohospedar nodos de caché y conectarlos al servidor Tuist
+alojado o a tu servidor autohospedado.
+
+Consulte la <LocalizedLink href="/guides/cache/self-host">guía de
+autoalojamiento de caché</LocalizedLink>.
+<!-- -->
+:::
+
 ## Configuración {#configuration}
 
 La configuración del servicio se realiza en tiempo de ejecución a través de
@@ -285,7 +297,8 @@ aplicación como interna.
 Puedes habilitar la autenticación con Okta a través del protocolo [OAuth
 2.0](https://oauth.net/2/). Tendrás que [crear una
 app](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta)
-en Okta siguiendo <LocalizedLink href="/guides/integrations/sso#okta">estas instrucciones</LocalizedLink>.
+en Okta siguiendo <LocalizedLink href="/guides/integrations/sso#okta">estas
+instrucciones</LocalizedLink>.
 
 Deberá configurar las siguientes variables de entorno una vez que obtenga el id
 de cliente y el secreto durante la configuración de la aplicación Okta:
@@ -385,7 +398,8 @@ requerir confirmación por email cuando el email está configurado, establece
 
 ### Configuración de la plataforma Git {#git-platform-configuration}
 
-Tuist puede <LocalizedLink href="/guides/server/authentication">integrarse con plataformas Git</LocalizedLink> para proporcionar funciones extra como la
+Tuist puede <LocalizedLink href="/guides/server/authentication">integrarse con
+plataformas Git</LocalizedLink> para proporcionar funciones extra como la
 publicación automática de comentarios en tus pull requests.
 
 #### GitHub {#plataforma-github}
@@ -623,7 +637,7 @@ expone métricas detalladas sobre las peticiones HTTP:
 - `tuist_prom_ex_finch_queue_duration_milliseconds` - Tiempo de espera en la
   cola del pool de conexiones (histograma)
   - Etiquetas: `finch_name`, `scheme`, `host`, `port`, `pool`
-  - Cubos: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s
+  - Cubos: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms
 - `tuist_prom_ex_finch_queue_idle_time_milliseconds` - Tiempo que la conexión
   pasó inactiva antes de ser utilizada (histograma)
   - Etiquetas: `finch_name`, `scheme`, `host`, `port`, `pool`
@@ -645,7 +659,7 @@ expone métricas detalladas sobre las peticiones HTTP:
 - `tuist_prom_ex_finch_send_duration_milliseconds` - Tiempo empleado en enviar
   la solicitud (histograma)
   - Etiquetas: `finch_name`, `método`, `esquema`, `host`, `puerto`, `error`
-  - Cubos: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s
+  - Cubos: 1ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms
 - `tuist_prom_ex_finch_send_idle_time_milliseconds` - Tiempo de inactividad de
   la conexión antes del envío (histograma)
   - Etiquetas: `finch_name`, `método`, `esquema`, `host`, `puerto`, `error`

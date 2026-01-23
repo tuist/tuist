@@ -5,27 +5,27 @@
   "description": "Learn how Tuist organizes its configuration, cache, and state directories."
 }
 ---
-# 디렉토리 {#directories}
+# 디렉터리 {#directories}
 
-Tuist는 [XDG 기본 디렉토리
-사양](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html)에
-따라 시스템의 여러 디렉터리에 파일을 구성합니다. 이는 구성, 캐시 및 상태 파일을 관리하기 위한 깔끔하고 표준적인 방법을 제공합니다.
+Tuist는 [XDG 기본 디렉터리
+사양](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html)을
+따라 시스템 내 여러 디렉터리에 파일을 구성합니다. 이는 설정, 캐시, 상태 파일을 관리하는 깔끔하고 표준화된 방식을 제공합니다.
 
 ## 지원되는 환경 변수 {#supported-environment-variables}
 
-투이스트는 표준 XDG 변수와 투이스트 전용 접두사가 붙은 변수를 모두 지원합니다. Tuist 전용 변형( `TUIST_`)이 우선적으로
-적용되므로 다른 애플리케이션과 별도로 Tuist를 구성할 수 있습니다.
+Tuist는 표준 XDG 변수와 Tuist 전용 접두사 변형을 모두 지원합니다. Tuist 전용 변형( `TUIST_` 접두사)이 우선 적용되어
+다른 애플리케이션과 별도로 Tuist를 구성할 수 있습니다.
 
 ### 구성 디렉터리 {#configuration-directory}
 
 **환경 변수:**
-- `TUIST_XDG_CONFIG_HOME` (우선 적용)
-- `xdg_config_home`
+- `TUIST_XDG_CONFIG_HOME` (우선 적용됨)
+- `XDG_CONFIG_HOME`
 
 **기본값:** `~/.config/tuist`
 
-**사용 용도:**
-- 서버 자격 증명 (`credentials/{host}.json`)
+**사용처:**
+- 서버 인증 정보 (`credentials/{host}.json`)
 
 **예시:**
 ```bash
@@ -41,20 +41,20 @@ tuist auth login
 ### 캐시 디렉터리 {#cache-directory}
 
 **환경 변수:**
-- `TUIST_XDG_CACHE_HOME` (우선 순위)
+- `TUIST_XDG_CACHE_HOME` (우선 적용됨)
 - `XDG_CACHE_HOME`
 
 **기본값:** `~/.cache/tuist`
 
-**사용 용도:**
-- **플러그인**: 플러그인 캐시 다운로드 및 컴파일
-- **프로젝트 설명 헬퍼**: 컴파일된 프로젝트 설명 도우미
-- **매니페스트**: 캐시된 적하목록 파일
+**사용처:**
+- **플러그인**: 다운로드 및 컴파일된 플러그인 캐시
+- **ProjectDescriptionHelpers**: 컴파일된 프로젝트 설명 헬퍼
+- **매니페스트**: 캐시된 매니페스트 파일
 - **프로젝트**: 생성된 자동화 프로젝트 캐시
-- **편집 프로젝트**: 편집 명령 캐시
-- **실행**: 실행 분석 데이터 테스트 및 구축
-- **바이너리**: 아티팩트 바이너리 빌드(환경 간에 공유할 수 없음)
-- **셀렉티브 테스트**: 선택적 테스트 캐시
+- **EditProjects**: 편집 명령어 캐시
+- **** 실행: 테스트 및 빌드 실행 분석 데이터
+- **바이너리**: 빌드 아티팩트 바이너리 생성 (환경 간 공유 불가)
+- **SelectiveTests**: 선택적 테스트 캐시
 
 **예시:**
 ```bash
@@ -67,17 +67,17 @@ export XDG_CACHE_HOME=/tmp/cache
 tuist cache
 ```
 
-### 상태 디렉토리 {#state-directory}
+### 주 디렉터리 {#state-directory}
 
 **환경 변수:**
-- `TUIST_XDG_STATE_HOME` (우선 적용)
+- `TUIST_XDG_STATE_HOME` (우선 적용됨)
 - `XDG_STATE_HOME`
 
 **기본값:** `~/.local/state/tuist`
 
-**사용 용도:**
-- **로그**: 로그 파일 (`logs/{uuid}.log`)
-- **잠금**: 인증 잠금 파일 (`{handle}.sock`)
+**사용처:**
+- **** 로그: 로그 파일 ( logs/{uuid}.log )``
+- ****: 인증 잠금 파일 ( {handle}.sock )``
 
 **예시:**
 ```bash
@@ -90,24 +90,24 @@ export XDG_STATE_HOME=/var/log
 tuist generate
 ```
 
-## 우선 순위 {#precedence-order}
+## 우선순위 순서 {#precedence-order}
 
-사용할 디렉터리를 결정할 때 Tuist는 다음 순서로 환경 변수를 확인합니다:
+사용할 디렉터리를 결정할 때 Tuist는 환경 변수를 다음 순서로 확인합니다:
 
-1. **튜이스트 전용 변수** (예: `TUIST_XDG_CONFIG_HOME`)
+1. **Tuist 전용 변수** (예: `TUIST_XDG_CONFIG_HOME`)
 2. **표준 XDG 변수** (예: `XDG_CONFIG_HOME`)
-3. **기본 위치** (예: `~/.config/tuist`)
+3. **기본 위치:** (예: `~/.config/tuist`)
 
-이를 통해 다음을 수행할 수 있습니다:
+이를 통해 다음과 같은 작업을 수행할 수 있습니다:
 - 표준 XDG 변수를 사용하여 모든 애플리케이션을 일관되게 구성하세요
-- 다른 위치가 필요한 경우 Tuist 전용 변수로 재정의하기
+- Tuist 전용 변수로 덮어쓰기: Tuist에 다른 위치가 필요한 경우
 - 별도의 설정 없이 합리적인 기본값을 사용하세요
 
 ## 일반적인 사용 사례 {#common-use-cases}
 
-### 프로젝트별로 Tuist 격리하기 {#isolating-tuist-per-project}
+### 프로젝트별 Tuist 분리 {#isolating-tuist-per-project}
 
-프로젝트별로 Tuist의 캐시와 상태를 분리하고 싶을 수도 있습니다:
+프로젝트별로 Tuist의 캐시와 상태를 분리하는 것이 좋습니다:
 
 ```bash
 # In your project's .envrc (using direnv)
@@ -140,9 +140,9 @@ jobs:
           path: /tmp/tuist-state/logs/*.log
 ```
 
-### 격리된 디렉터리로 디버깅하기 {#debugging-with-isolated-directories}
+### 분리된 디렉터리로 디버깅하기 {#debugging-with-isolated-directories}
 
-문제를 디버깅할 때는 백지 상태가 필요할 수 있습니다:
+디버깅 시에는 깨끗한 상태로 시작하고 싶을 수 있습니다:
 
 ```bash
 # Create temporary directories for debugging

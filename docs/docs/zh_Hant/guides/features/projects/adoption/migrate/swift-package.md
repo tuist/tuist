@@ -7,35 +7,36 @@
 ---
 # 遷移 Swift 套件{#migrate-a-swift-package}
 
-Swift Package Manager 是作為 Swift 程式碼的相依性管理器而出現的，它無意中發現自己解決了管理專案的問題，並支援
-Objective-C 等其他程式語言。由於這個工具的設計目的不同，要使用它來管理規模化的專案可能會很有挑戰性，因為它缺乏 Tuist
-所提供的彈性、效能和功能。這一點在【Scaling iOS at
-Bumble】(https://medium.com/bumble-tech/scaling-ios-at-bumble-239e0fa009f2)一文中得到了很好的體現，其中包括下表對
-Swift Package Manager 和原生 Xcode 專案性能的比較：
+Swift Package Manager 作為 Swift 程式碼的依賴管理工具，意外地解決了專案管理與支援 Objective-C
+等其他程式語言的問題。由於該工具最初設計目的不同，若用於大規模專案管理將面臨挑戰，其靈活性、效能與功能皆不及 Tuist 所提供的解決方案。
+此現象在[Bumble 的 iOS
+擴展規模](https://medium.com/bumble-tech/scaling-ios-at-bumble-239e0fa009f2)一文中得到精闢闡述，其中包含以下比較
+Swift Package Manager 與原生 Xcode 專案效能的對照表：
 
 <img style="max-width: 400px;" alt="A table that compares the regression in performance when using SPM over native Xcode projects" src="/images/guides/start/migrate/performance-table.webp">
 
-我們經常遇到開發人員和組織質疑是否需要 Tuist，因為 Swift Package Manager
-也可以扮演類似的專案管理角色。有些人冒險進行遷移，但後來卻發現他們的開發人員體驗顯著下降。例如，重新命名檔案可能需要 15 秒才能重新索引。15 秒！
+我們經常遇到質疑 Tuist 必要性的開發者與組織，認為 Swift Package Manager
+也能承擔類似的專案管理功能。有些團隊嘗試遷移後，才發現開發體驗大幅退化。舉例來說，重新索引一個檔案的重命名操作，可能耗時長達 15 秒。15 秒！
 
-**Apple 是否會讓 Swift Package Manager 成為專為大型專案而設計的管理程式，目前還不確定。**
-然而，我們並沒有看到任何跡象顯示這正在發生。事實上，我們看到的恰恰相反。他們正在做一些受到 Xcode
-啟發的決定，例如透過隱含的配置來達到便利性，<LocalizedLink href="/guides/features/projects/cost-of-convenience">如您所知，</LocalizedLink>這正是規模複雜性的來源。我們認為蘋果應該遵循第一原則，重新檢視一些作為依賴管理者而非專案管理者的決策，例如使用編譯語言作為定義專案的介面。
+**蘋果是否會將 Swift Package Manager 打造成大規模專案管理工具尚屬未知。**
+然而目前並無跡象顯示此計畫正在推進，實際情況恰恰相反。他們正採取類似 Xcode
+的決策模式，例如透過隱式配置實現便利性——<LocalizedLink href="/guides/features/projects/cost-of-convenience">如您所知，</LocalizedLink>這正是大規模運作中問題的根源。
+我們認為蘋果需回歸第一性原理，重新審視某些作為依賴管理器合理、但作為專案管理器卻不適用的決策——例如採用編譯語言作為定義專案的介面。
 
 ::: tip SPM AS JUST A DEPENDENCY MANAGER
 <!-- -->
 Tuist 將 Swift Package Manager
-視為相依性管理器，而且是很棒的相依性管理器。我們用它來解決相依性並建立相依性。我們不用它來定義專案，因為它不是為此而設計的。
+視為依賴管理工具，且表現優異。我們運用它來解析依賴關係並進行建置，但不會用它來定義專案，因為其設計初衷並非如此。
 <!-- -->
 :::
 
-## 從 Swift 套件管理員遷移至 Tuist{#migrating-from-swift-package-manager-to-tuist}
+## 從 Swift Package Manager 遷移至 Tuist{#migrating-from-swift-package-manager-to-tuist}
 
-Swift Package Manager 與 Tuist 之間的相似性讓遷移過程變得簡單直接。主要差別在於您將使用 Tuist 的 DSL
-定義專案，而非`Package.swift` 。
+Swift Package Manager 與 Tuist 之間的相似性使遷移過程相當直觀。主要差異在於您將使用 Tuist 的 DSL
+來定義專案，而非透過`Package.swift` 進行設定。
 
-首先，在`Package.swift` 檔案旁建立`Project.swift` 檔案。`Project.swift`
-檔案將包含專案的定義。以下是`Project.swift` 檔案的範例，它定義了一個只有單一目標的專案：
+首先，在您的`Package.swift` 檔案旁建立`Project.swift` 檔案。該`Project.swift`
+檔案將包含專案定義。以下為定義單一目標專案的範例`Project.swift` 檔案：
 
 ```swift
 import ProjectDescription
@@ -54,13 +55,13 @@ let project = Project(
 )
 ```
 
-有些事情需要注意：
+注意事項：
 
-- **ProjectDescription** ：不使用`PackageDescription` ，而使用`ProjectDescription` 。
-- **專案：** 您匯出的不是`套件` 範例，而是`專案` 範例。
-- **Xcode 語言：** 您用來定義專案的基元會模仿 Xcode 的語言，因此您會發現方案、目標和建立階段等等。
+- ** `ProjectDescription**: 請改用`ProjectDescription` ，而非` PackageDescription 。
+- **專案：** 您將匯出的是`專案` 實例，而非`套件` 實例。
+- **Xcode 語言：** 您用來定義專案的原始語法模仿 Xcode 的語言，因此您會發現方案、目標、建置階段等元素。
 
-然後建立`Tuist.swift` 檔案，內容如下：
+接著建立名為 Tuist.swift 的檔案（位於`目錄下），內容如下：`
 
 ```swift
 import ProjectDescription
@@ -68,15 +69,17 @@ import ProjectDescription
 let tuist = Tuist()
 ```
 
-`Tuist.swift` 包含專案的設定，其路徑可作為判定專案根目錄的參考。您可以查看
-<LocalizedLink href="/guides/features/projects/directory-structure"> 目錄結構</LocalizedLink>文件，瞭解更多關於 Tuist 專案結構的資訊。
+`Tuist.swift` 包含專案設定，其路徑將作為判定專案根目錄的參照依據。您可參閱
+<LocalizedLink href="/guides/features/projects/directory-structure">目錄結構</LocalizedLink>文件以深入了解
+Tuist 專案的架構。
 
 ## 編輯專案{#editing-the-project}
 
-您可以使用 <LocalizedLink href="/guides/features/projects/editing">`tuist edit`</LocalizedLink> 在 Xcode 中編輯專案。該指令會產生一個 Xcode 專案，您可以開啟並開始工作。
+您可使用 <LocalizedLink href="/guides/features/projects/editing">`tuist
+edit`</LocalizedLink> 在 Xcode 中編輯專案。此指令將生成可開啟並開始作業的 Xcode 專案。
 
 ```bash
 tuist edit
 ```
 
-根據專案的大小，您可以考慮一次過使用或逐步使用。我們建議您先從小型專案開始，以熟悉 DSL 和工作流程。我們的建議是從最依賴的目標開始，一直到頂層目標。
+根據專案規模，您可選擇一次性或分階段執行。建議從小型專案開始熟悉 DSL 與工作流程。我們的建議是：從最依賴的目標開始，逐步向上推演至頂層目標。

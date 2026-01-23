@@ -7,16 +7,16 @@
 ---
 # Dodaj zależności {#add-dependencies}
 
-Często zdarza się, że projekty zależą od bibliotek innych firm w celu
-zapewnienia dodatkowej funkcjonalności. Aby to zrobić, uruchom następujące
-polecenie, aby uzyskać najlepsze wrażenia z edycji projektu:
+Projekty często korzystają z bibliotek stron trzecich, aby zapewnić dodatkową
+funkcjonalność. Aby to zrobić, uruchom następujące polecenie, aby uzyskać
+najlepsze wrażenia podczas edycji projektu:
 
 ```bash
 tuist edit
 ```
 
 Otworzy się projekt Xcode zawierający pliki projektu. Edytuj plik
-`Package.swift` i dodaj plik
+`Package.swift` i dodaj
 
 ```swift
 // swift-tools-version: 5.9
@@ -44,8 +44,8 @@ let package = Package(
 )
 ```
 
-Następnie edytuj cel aplikacji w swoim projekcie, aby zadeklarować `Kingfisher`
-jako zależność:
+Następnie edytuj cel aplikacji w projekcie, aby zadeklarować `Kingfisher` jako
+zależność:
 
 ```swift
 import ProjectDescription
@@ -90,29 +90,30 @@ Następnie uruchom `tuist install`, aby rozwiązać i pobrać zależności za po
 
 ::: info SPM AS A DEPENDENCY RESOLVER
 <!-- -->
-Zalecane przez Tuist podejście do zależności wykorzystuje Swift Package Manager
-(SPM) wyłącznie do rozwiązywania zależności. Następnie Tuist konwertuje je na
-projekty Xcode i obiekty docelowe w celu zapewnienia maksymalnej
-konfigurowalności i kontroli.
+Tuist zaleca podejście do zależności polegające na używaniu Swift Package
+Manager (SPM) wyłącznie do rozwiązywania zależności. Następnie Tuist konwertuje
+je na projekty Xcode i cele, aby zapewnić maksymalną konfigurowalność i
+kontrolę.
 <!-- -->
 :::
 
-## Wizualizacja projektu {#visualize-the-project}
+## Wizualizuj projekt {#visualize-the-project}
 
-Strukturę projektu można zwizualizować, uruchamiając ją:
+Możesz wyświetlić strukturę projektu, uruchamiając:
 
 ```bash
 tuist graph
 ```
 
-Polecenie wyświetli i otworzy plik `graph.png` w katalogu projektu:
+Polecenie spowoduje wyświetlenie i otwarcie pliku `graph.png` w katalogu
+projektu:
 
 ![Wykres projektu](/images/guides/quick-start/graph.png)
 
 ## Użyj zależności {#use-the-dependency}
 
-Uruchom `tuist generate`, aby otworzyć projekt w Xcode i wprowadź następujące
-zmiany w pliku `ContentView.swift`:
+Uruchom polecenie „ `” tuist generate`, aby otworzyć projekt w Xcode, a
+następnie wprowadź następujące zmiany w pliku „ `ContentView.swift”`:
 
 ```swift
 import SwiftUI

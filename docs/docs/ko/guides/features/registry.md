@@ -27,7 +27,7 @@ tuist registry setup
 
 이 명령은 프로젝트의 레지스트리를 활성화하는 레지스트리 구성 파일을 생성합니다. 팀도 레지스트리를 활용할 수 있도록 이 파일을 커밋해야 합니다.
 
-### 인증(선택 사항) {#authentication}
+### 인증(선택 사항) {#인증}
 
 인증은 **선택 사항** 입니다. 인증하지 않으면 IP 주소당 **분당 요청 수 1,000건** 의 속도 제한으로 레지스트리를 사용할 수
 있습니다. 더 높은 속도 제한인 **분당 20,000 요청** 을 실행하여 인증할 수 있습니다:
@@ -38,20 +38,26 @@ tuist registry login
 
 ::: info Mise란?
 <!-- -->
-인증하려면 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 계정과 프로젝트</LocalizedLink>가 필요합니다.
+인증하려면 <LocalizedLink href="/guides/server/accounts-and-projects">Tuist 계정과
+프로젝트</LocalizedLink>가 필요합니다.
 <!-- -->
 :::
 
 ### 종속성 해결 {#resolving-dependencies}
 
 소스 컨트롤 대신 레지스트리에서 종속성을 해결하려면 프로젝트 설정에 따라 계속 읽으세요:
-- <LocalizedLink href="/guides/features/registry/xcode-project">Xcode 프로젝트</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/generated-project">Xcode 패키지 통합으로 생성된 프로젝트</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">XcodeProj 기반 패키지 통합으로 생성된 프로젝트</LocalizedLink>
-- <LocalizedLink href="/guides/features/registry/swift-package">Swift 패키지</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/xcode-project">Xcode
+  프로젝트</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/generated-project">Xcode 패키지
+  통합으로 생성된 프로젝트</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/xcodeproj-integration">XcodeProj
+  기반 패키지 통합으로 생성된 프로젝트</LocalizedLink>
+- <LocalizedLink href="/guides/features/registry/swift-package">Swift
+  패키지</LocalizedLink>
 
 CI에서 레지스트리를 설정하려면 이 가이드를 따르세요:
-<LocalizedLink href="/guides/features/registry/continuous-integration">연속 통합</LocalizedLink>.
+<LocalizedLink href="/guides/features/registry/continuous-integration">연속
+통합</LocalizedLink>.
 
 ### 패키지 레지스트리 식별자 {#package-registry-identifiers}
 

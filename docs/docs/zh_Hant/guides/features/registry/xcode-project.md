@@ -7,13 +7,14 @@
 ---
 # Xcode 專案{#xcode-project}
 
-要在 Xcode 專案中使用註冊表新增套件，請使用預設的 Xcode UI。您可以按一下 Xcode 中`Package Dependencies`
-標籤中的`+` 按鈕，在註冊表中搜尋套件。如果套件在註冊表中可用，您會在右上方看到`tuist.dev` 註冊表：
+要在 Xcode 專案中使用註冊表新增套件，請使用預設的 Xcode 使用者介面。您可透過點擊 Xcode 的「`」&gt;「Package
+Dependencies」&gt;「` 」標籤頁中的「` 」+「`
+」按鈕，在註冊表中搜尋套件。若該套件存在於註冊表中，您將在右上角看到「`」tuist.dev` 註冊表：
 
-新增套件相依性](/images/guides/features/build/registry/registry-add-package.png)。
+![新增套件依賴項](/images/guides/features/build/registry/registry-add-package.png)
 
 ::: info
 <!-- -->
-Xcode 目前不支援將原始碼控制套件自動取代為其相對應的註冊表套件。您需要手動移除原始碼控制套件並新增註冊表套件，以加快解析速度。
+Xcode 目前不支援自動將原始碼控制套件替換為其登錄檔對應版本。您需手動移除原始碼控制套件並新增登錄檔套件，以加速問題解決進程。
 <!-- -->
 :::

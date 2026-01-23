@@ -103,6 +103,14 @@ Dockerイメージのエントリーポイントは、サービスを開始す�
 
 また、ファイル（フレームワークやライブラリのバイナリなど）を保存するソリューションも必要です。現在、私たちはS3に準拠したストレージをサポートしています。
 
+::: tip OPTIMIZED CACHING
+<!-- -->
+バイナリ保存用の専用バケットを用意し、キャッシュレイテンシを削減することが主な目的であれば、サーバー全体を自己ホストする必要はないかもしれません。キャッシュノードを自己ホストし、それらをホストされたTuistサーバーまたは自己ホストサーバーに接続できます。
+
+<LocalizedLink href="/guides/cache/self-host">キャッシュのセルフホスティングガイド</LocalizedLink>を参照してください。
+<!-- -->
+:::
+
 ## コンフィギュレーション {#configuration}
 
 サービスのコンフィギュレーションは、環境変数を通して実行時に行われます。これらの変数は機密性が高いため、暗号化して安全なパスワード管理ソリューションに保存することをお勧めします。ご安心ください、Tuistはこれらの変数を細心の注意を払って扱い、ログに表示されることがないようにしています。
@@ -212,7 +220,7 @@ OAuth
 
 #### Okta {#okta}
 
-[OAuth2.0](https://oauth.net/2/)プロトコルにより、Oktaで認証を有効にすることができます。<LocalizedLink href="/guides/integrations/sso#okta">以下の手順</LocalizedLink>に従って、Okta上で[アプリを作成](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta)する必要があります。
+OAuth2.0](https://oauth.net/2/)プロトコルにより、Oktaで認証を有効にすることができます。3}以下の手順に従って、Okta上で[アプリを作成](https://developer.okta.com/docs/en/guides/implement-oauth-for-okta/main/#create-an-oauth-2-0-app-in-okta)する必要があります</LocalizedLink>。
 
 Oktaアプリケーションのセットアップ時にクライアントIDとシークレットを取得したら、以下の環境変数を設定する必要があります：
 
@@ -233,22 +241,22 @@ TuistはAPIを通じてアップロードされた成果物を格納するスト
 アーティファクトの保存には、任意の S3
 準拠のストレージ・プロバイダを使用できます。ストレージプロバイダとの統合を認証および構成するには、以下の環境変数が必要です：
 
-| 環境変数                                                    | 説明                                                                         | 必須  | デフォルト           | 例                                                         |
-| ------------------------------------------------------- | -------------------------------------------------------------------------- | --- | --------------- | --------------------------------------------------------- |
-| `TUIST_S3_ACCESS_KEY_ID` または`AWS_ACCESS_KEY_ID`         | ストレージ・プロバイダに対して認証するためのアクセス・キーID。                                           | はい  |                 | `アキアイオスフォード`                                              |
-| `TUIST_S3_SECRET_ACCESS_KEY` または`AWS_SECRET_ACCESS_KEY` | ストレージ・プロバイダに対して認証するための秘密のアクセス・キー。                                          | はい  |                 | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`                |
-| `TUIST_S3_REGION` または`AWS_REGION`                       | バケツがある地域                                                                   | いいえ | `オート`           | `米西2`                                                     |
-| `TUIST_S3_ENDPOINT` または`AWS_ENDPOINT`                   | ストレージ・プロバイダのエンドポイント                                                        | はい  |                 | `https://s3.us-west-2.amazonaws.com`                      |
-| `tuist_s3_バケット名`                                        | 成果物が保存されるバケツの名前                                                            | はい  |                 | `ツイスト・アーティファクト`                                           |
-| `tuist_s3_ca_cert_pem`                                  | S3 HTTPS 接続を検証するための PEM エンコードされた CA 証明書。自己署名証明書または内部認証局を使用するエアギャップ環境に便利です。 | いいえ | システム CA バンドル    | `-----BEGIN CERTIFICATE-----...ⅳ-END CERTIFICATE-----...` |
-| `tuist_s3_connect_timeout`                              | ストレージ・プロバイダへの接続を確立するためのタイムアウト（ミリ秒）。                                        | いいえ | `3000`          | `3000`                                                    |
-| `tuist_s3_receive_timeout`                              | ストレージ・プロバイダからデータを受信するタイムアウト（ミリ秒単位                                          | いいえ | `5000`          | `5000`                                                    |
-| `tuist_s3_pool_timeout`                                 | ストレージ・プロバイダへの接続プールのタイムアウト（ミリ秒）。タイムアウトなしの場合は`infinity` を使用します。              | いいえ | `5000`          | `5000`                                                    |
-| `tuist_s3_pool_max_idle_time`                           | プール内の接続の最大アイドル時間 (ミリ秒単位)。接続を無期限に維持するには`infinity` を使用する。                    | いいえ | `インフィニティ`       | `60000`                                                   |
-| `tuist_s3_pool_size`                                    | プールあたりの最大接続数                                                               | いいえ | `500`           | `500`                                                     |
-| `tuist_s3_pool_count`                                   | 使用するコネクションプールの数                                                            | いいえ | システム・スケジューラの数   | `4`                                                       |
-| `tuist_s3_protocol`                                     | ストレージ・プロバイダに接続する際に使用するプロトコル (`http1` または`http2`)                           | いいえ | `エイチティーティーピーワン` | `エイチティーティーピーワン`                                           |
-| `tuist_s3_virtual_host`                                 | バケツ名をサブドメイン(バーチャルホスト)として URL を構築するかどうか。                                    | いいえ | `擬似`            | `1`                                                       |
+| 環境変数                                                    | 説明                                                                         | 必須  | デフォルト         | 例                                                         |
+| ------------------------------------------------------- | -------------------------------------------------------------------------- | --- | ------------- | --------------------------------------------------------- |
+| `TUIST_S3_ACCESS_KEY_ID` または`AWS_ACCESS_KEY_ID`         | ストレージ・プロバイダに対して認証するためのアクセス・キーID。                                           | はい  |               | `アキアイオスフォード`                                              |
+| `TUIST_S3_SECRET_ACCESS_KEY` または`AWS_SECRET_ACCESS_KEY` | ストレージ・プロバイダに対して認証するための秘密のアクセス・キー。                                          | はい  |               | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`                |
+| `TUIST_S3_REGION` または`AWS_REGION`                       | バケツがある地域                                                                   | いいえ | `オート`         | `米西2`                                                     |
+| `TUIST_S3_ENDPOINT` または`AWS_ENDPOINT`                   | ストレージ・プロバイダのエンドポイント                                                        | はい  |               | `https://s3.us-west-2.amazonaws.com`                      |
+| `tuist_s3_バケット名`                                        | 成果物が保存されるバケツの名前                                                            | はい  |               | `ツイスト・アーティファクト`                                           |
+| `tuist_s3_ca_cert_pem`                                  | S3 HTTPS 接続を検証するための PEM エンコードされた CA 証明書。自己署名証明書または内部認証局を使用するエアギャップ環境に便利です。 | いいえ | システム CA バンドル  | `-----BEGIN CERTIFICATE-----...ⅳ-END CERTIFICATE-----...` |
+| `tuist_s3_connect_timeout`                              | ストレージ・プロバイダへの接続を確立するためのタイムアウト（ミリ秒）。                                        | いいえ | `3000`        | `3000`                                                    |
+| `tuist_s3_receive_timeout`                              | ストレージ・プロバイダからデータを受信するタイムアウト（ミリ秒単位                                          | いいえ | `5000`        | `5000`                                                    |
+| `tuist_s3_pool_timeout`                                 | ストレージ・プロバイダへの接続プールのタイムアウト（ミリ秒）。タイムアウトなしの場合は`infinity` を使用します。              | いいえ | `5000`        | `5000`                                                    |
+| `tuist_s3_pool_max_idle_time`                           | プール内の接続の最大アイドル時間 (ミリ秒単位)。接続を無期限に維持するには`infinity` を使用する。                    | いいえ | `インフィニティ`     | `60000`                                                   |
+| `tuist_s3_pool_size`                                    | プールあたりの最大接続数                                                               | いいえ | `500`         | `500`                                                     |
+| `tuist_s3_pool_count`                                   | 使用するコネクションプールの数                                                            | いいえ | システム・スケジューラの数 | `4`                                                       |
+| `tuist_s3_protocol`                                     | ストレージ・プロバイダに接続する際に使用するプロトコル (`http1` または`http2`)                           | いいえ | `http1`       | `http1`                                                   |
+| `tuist_s3_virtual_host`                                 | バケツ名をサブドメイン(バーチャルホスト)として URL を構築するかどうか。                                    | いいえ | `擬似`          | `1`                                                       |
 
 ::: 環境変数からWeb Identity Tokenを使ったAWS認証の情報
 <!-- -->
@@ -510,7 +518,7 @@ TuistはHTTPクライアントとして[Finch](https://github.com/sneako/finch)�
 - `tuist_prom_ex_finch_queue_duration_milliseconds` - 接続プールのキューで待機していた時間
   (ヒストグラム)
   - ラベル：`フィンチ名` 、`スキーム` 、`ホスト` 、`ポート` 、`プール`
-  - バケット1ms、5ms、10ms、25ms、50ms、100ms、250ms、500ms、1s
+  - バケット1ms、5ms、10ms、25ms、50ms、100ms、250ms、500ms
 - `tuist_prom_ex_finch_queue_idle_time_milliseconds` -
   接続が使用される前にアイドル状態であった時間（ヒストグラム）。
   - ラベル：`フィンチ名` 、`スキーム` 、`ホスト` 、`ポート` 、`プール`
@@ -528,7 +536,7 @@ TuistはHTTPクライアントとして[Finch](https://github.com/sneako/finch)�
 #### メトリクスの送信
 - `tuist_prom_ex_finch_send_duration_milliseconds` - リクエスト送信に要した時間（ヒストグラム）。
   - ラベル：`フィンチ名`,`方法`,`スキーム`,`ホスト`,`ポート`,`エラー`
-  - バケット1ms、5ms、10ms、25ms、50ms、100ms、250ms、500ms、1s
+  - バケット1ms、5ms、10ms、25ms、50ms、100ms、250ms、500ms
 - `tuist_prom_ex_finch_send_idle_time_milliseconds` -
   接続が送信前にアイドル状態であった時間（ヒストグラム）。
   - ラベル：`フィンチ名`,`方法`,`スキーム`,`ホスト`,`ポート`,`エラー`

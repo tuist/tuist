@@ -64,4 +64,5 @@ TuistはSPMパッケージプロジェクトもサポートしている。SPMパ
 
 始めるには、SPMパッケージで`tuist install` と`tuist generate`
 を実行してください。これで、あなたのプロジェクトは、バニラXcode
-SPM統合で表示されるのと同じスキームとファイルをすべて持つようになります。しかし、<LocalizedLink href="/guides/features/cache">`tuist cache`</LocalizedLink>を実行し、SPMの依存関係とモジュールの大部分をプリコンパイルすることもできます。
+SPM統合で表示されるのと同じスキームとファイルをすべて持つようになります。しかし、<LocalizedLink href="/guides/features/cache">`tuist
+cache`</LocalizedLink>を実行し、SPMの依存関係とモジュールの大部分をプリコンパイルすることもできます。

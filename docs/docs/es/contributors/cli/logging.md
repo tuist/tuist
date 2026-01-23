@@ -8,10 +8,10 @@
 # Registro {#logging}
 
 La CLI adopta la interfaz [swift-log](https://github.com/apple/swift-log) para
-el registro. El paquete abstrae los detalles de implementación de registro,
-permitiendo a la CLI ser agnóstica al backend de registro. El registrador se
-inyecta en la dependencia utilizando tareas locales y se puede acceder en
-cualquier lugar utilizando:
+el registro. El paquete abstrae los detalles de implementación del registro, lo
+que permite que la CLI sea independiente del backend de registro. El registrador
+se inyecta como dependencia mediante variables locales de tarea y se puede
+acceder a él desde cualquier lugar utilizando:
 
 ```bash
 Logger.current
@@ -20,8 +20,8 @@ Logger.current
 ::: info
 <!-- -->
 Las tareas locales no propagan el valor cuando se utiliza `Dispatch` o tareas
-separadas, por lo que si las utiliza, tendrá que obtenerlo y pasarlo a la
-operación asíncrona.
+separadas, por lo que si las utiliza, deberá obtenerlo y pasarlo a la operación
+asíncrona.
 <!-- -->
 :::
 
@@ -29,8 +29,7 @@ operación asíncrona.
 
 Los registros no son la interfaz de usuario de la CLI. Son una herramienta para
 diagnosticar problemas cuando surgen. Por lo tanto, cuanta más información
-proporcione, mejor. Cuando construyas nuevas funcionalidades, ponte en el lugar
-de un desarrollador que se encuentra con un comportamiento inesperado, y piensa
-qué información le sería útil. Asegúrate de que utilizas el [nivel de
-registro](https://www.swift.org/documentation/server/guides/libraries/log-levels.html)
+proporciones, mejor. Cuando crees nuevas funciones, ponte en el lugar de un
+desarrollador que se encuentra con un comportamiento inesperado y piensa qué
+información le resultaría útil. Asegúrate de utilizar el [nivel de registro]
 adecuado. De lo contrario, los desarrolladores no podrán filtrar el ruido.

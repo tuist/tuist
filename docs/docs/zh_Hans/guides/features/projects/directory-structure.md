@@ -59,4 +59,5 @@ Tuist 还支持 SPM 软件包项目。如果您正在开发 SPM 软件包，则�
 ，Tuist 的所有功能都会像`Project.swift` 清单一样工作。
 
 要开始使用，请在您的 SPM 包中运行`tuist install` 和`tuist generate` 。现在，您的项目应该拥有与 Xcode SPM
-集成中相同的方案和文件。不过，现在您还可以运行 <LocalizedLink href="/guides/features/cache">`tuist cache`</LocalizedLink> 并对大部分 SPM 依赖项和模块进行预编译，从而使后续的编译速度极快。
+集成中相同的方案和文件。不过，现在您还可以运行 <LocalizedLink href="/guides/features/cache">`tuist
+cache`</LocalizedLink> 并对大部分 SPM 依赖项和模块进行预编译，从而使后续的编译速度极快。

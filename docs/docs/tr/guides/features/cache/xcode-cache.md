@@ -7,47 +7,48 @@
 ---
 # Xcode önbelleği {#xcode-cache}
 
-Tuist, derleme sisteminin önbelleğe alma özelliklerinden yararlanarak ekiplerin
-derleme eserlerini paylaşmasına olanak tanıyan Xcode derleme önbelleği için
-destek sağlar.
+Tuist, Xcode derleme önbelleği için destek sağlar. Bu sayede ekipler, derleme
+sisteminin önbellek özelliklerinden yararlanarak derleme çıktılarını
+paylaşabilir.
 
 ## Kurulum {#setup}
 
 ::: warning REQUIREMENTS
 <!-- -->
-- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve projesi</LocalizedLink>
+- A <LocalizedLink href="/guides/server/accounts-and-projects">Tuist hesabı ve
+  projesi</LocalizedLink>
 - Xcode 26.0 veya üstü
 <!-- -->
 :::
 
-Henüz bir Tuist hesabınız ve projeniz yoksa, çalıştırarak bir tane
-oluşturabilirsiniz:
+Henüz bir Tuist hesabınız ve projeniz yoksa, aşağıdaki komutu çalıştırarak bir
+tane oluşturabilirsiniz:
 
 ```bash
 tuist init
 ```
 
-Bir `Tuist.swift` dosyanız olduğunda, `fullHandle` dosyanızı referans alarak,
-projeniz için önbelleğe almayı çalıştırarak ayarlayabilirsiniz:
+`Tuist.swift` dosyası ile `fullHandle` dosyasını referansladıktan sonra,
+aşağıdaki komutu çalıştırarak projeniz için önbelleklemeyi ayarlayabilirsiniz:
 
 ```bash
 tuist setup cache
 ```
 
-Bu komut, Swift [build system](https://github.com/swiftlang/swift-build) derleme
-eserlerini paylaşmak için kullandığı yerel bir önbellek hizmetini başlangıçta
-çalıştırmak için bir
+Bu komut, Swift [derleme sistemi](https://github.com/swiftlang/swift-build)
+tarafından derleme artefaktlarını paylaşmak için kullanılan yerel önbellek
+hizmetini başlangıçta çalıştırmak üzere bir
 [LaunchAgent](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html)
-oluşturur. Bu komutun hem yerel hem de CI ortamlarınızda bir kez çalıştırılması
-gerekir.
+oluşturur. Bu komut, hem yerel hem de CI ortamlarınızda bir kez
+çalıştırılmalıdır.
 
 CI'da önbelleği ayarlamak için
-<LocalizedLink href="/guides/integrations/continuous-integration#authentication">authenticated</LocalizedLink>
-olduğunuzdan emin olun.
+<LocalizedLink href="/guides/integrations/continuous-integration#authentication">kimlik
+doğrulaması</LocalizedLink> yapıldığından emin olun.
 
-### Xcode Derleme Ayarlarını Yapılandırma {#configure-xcode-build-settings}
+### Xcode Derleme Ayarlarını Yapılandırın {#configure-xcode-build-settings}
 
-Xcode projenize aşağıdaki derleme ayarlarını ekleyin:
+Xcode projenize aşağıdaki yapı ayarlarını ekleyin:
 
 ```
 COMPILATION_CACHE_ENABLE_CACHING = YES
@@ -56,21 +57,20 @@ COMPILATION_CACHE_ENABLE_PLUGIN = YES
 COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS = YES
 ```
 
-`COMPILATION_CACHE_REMOTE_SERVICE_PATH` ve `COMPILATION_CACHE_ENABLE_PLUGIN`
-öğelerinin, Xcode'un derleme ayarları kullanıcı arayüzünde doğrudan
-gösterilmedikleri için **kullanıcı tanımlı derleme ayarları** olarak eklenmesi
-gerektiğini unutmayın:
+`COMPILATION_CACHE_REMOTE_SERVICE_PATH` ve `COMPILATION_CACHE_ENABLE_PLUGIN`,
+Xcode'un derleme ayarları kullanıcı arayüzünde doğrudan gösterilmediğinden,
+**kullanıcı tanımlı derleme ayarları** olarak eklenmesi gerektiğini unutmayın.
 
 ::: info SOCKET PATH
 <!-- -->
-Soket yolu `tuist setup cache` adresini çalıştırdığınızda görüntülenecektir.
-Projenizin tam tanıtıcısına dayanır ve eğik çizgiler alt çizgilerle
+`tuist setup cache` komutunu çalıştırdığınızda soket yolu görüntülenir. Bu yol,
+projenizin tam tanıtıcısına dayanır ve eğik çizgiler alt çizgilerle
 değiştirilir.
 <!-- -->
 :::
 
-Bu ayarları `xcodebuild` adresini çalıştırırken aşağıdaki gibi bayraklar
-ekleyerek de belirtebilirsiniz:
+`xcodebuild` komutunu çalıştırırken aşağıdaki bayrakları ekleyerek bu ayarları
+da belirtebilirsiniz:
 
 ```
 xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
@@ -82,11 +82,11 @@ xcodebuild build -project YourProject.xcodeproj -scheme YourScheme \
 
 ::: info GENERATED PROJECTS
 <!-- -->
-Projeniz Tuist tarafından oluşturulduysa ayarların manuel olarak yapılması
+Projeniz Tuist tarafından oluşturulmuşsa, ayarları manuel olarak yapmanız
 gerekmez.
 
-Bu durumda tek yapmanız gereken `enableCaching: true` ifadesini `Tuist.swift`
-dosyanıza eklemektir:
+Bu durumda, tek yapmanız gereken `enableCaching: true` dosyasını `Tuist.swift`
+dosyasına eklemektir:
 ```swift
 import ProjectDescription
 
@@ -104,26 +104,36 @@ let tuist = Tuist(
 
 ### Sürekli entegrasyon #{continuous-integration}
 
-CI ortamınızda önbelleğe almayı etkinleştirmek için yerel ortamlarda olduğu gibi
+CI ortamınızda önbelleklemeyi etkinleştirmek için, yerel ortamlarda olduğu gibi
 aynı komutu çalıştırmanız gerekir: `tuist setup cache`.
 
-Ayrıca, `TUIST_TOKEN` ortam değişkeninin ayarlandığından emin olmanız gerekir.
-Buradaki <LocalizedLink href="/guides/server/authentication#as-a-project"> belgeleri takip ederek bir tane oluşturabilirsiniz</LocalizedLink>. `
-TUIST_TOKEN` ortam değişkeni _derleme adımınız için_ mevcut olmalıdır, ancak
-bunu tüm CI iş akışı için ayarlamanızı öneririz.
+Kimlik doğrulama için
+<LocalizedLink href="/guides/server/authentication#oidc-tokens">OIDC kimlik
+doğrulama</LocalizedLink> (desteklenen CI sağlayıcıları için önerilir) veya
+`TUIST_TOKEN` ortam değişkeni aracılığıyla
+<LocalizedLink href="/guides/server/authentication#account-tokens">hesap
+jetonu</LocalizedLink> kullanabilirsiniz.
 
-GitHub Eylemleri için örnek bir iş akışı şu şekilde olabilir:
+OIDC kimlik doğrulamasını kullanan GitHub Actions için örnek bir iş akışı:
 ```yaml
 name: Build
 
-env:
-  TUIST_TOKEN: ${{ secrets.TUIST_TOKEN }}
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   build:
+    runs-on: macos-latest
     steps:
-      - # Your set up steps...
-      - name: Set up Tuist Cache
-        run: tuist setup cache
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - run: tuist auth login
+      - run: tuist setup cache
       - # Your build steps
 ```
+
+Token tabanlı kimlik doğrulama ve Xcode Cloud, CircleCI, Bitrise ve Codemagic
+gibi diğer CI platformları dahil olmak üzere daha fazla örnek için
+<LocalizedLink href="/guides/integrations/continuous-integration">Sürekli
+Entegrasyon kılavuzuna</LocalizedLink> bakın.

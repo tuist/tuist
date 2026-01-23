@@ -24,7 +24,7 @@ estáticamente el código de tu proyecto. El siguiente comando mostrará las
 dependencias implícitas de tu proyecto:
 
 ```bash
-tuist inspect implicit-imports
+tuist inspect dependencies --only implicit
 ```
 
 Si el comando detecta alguna importación implícita, sale con un código de salida
@@ -33,7 +33,8 @@ distinto de cero.
 ::: tip VALIDAR EN CI
 <!-- -->
 Recomendamos encarecidamente ejecutar este comando como parte de su
-<LocalizedLink href="/guides/features/automate/continuous-integration">comando de integración continua</LocalizedLink> cada vez que se publique nuevo código.
+<LocalizedLink href="/guides/features/automate/continuous-integration">comando
+de integración continua</LocalizedLink> cada vez que se publique nuevo código.
 <!-- -->
 :::
 
