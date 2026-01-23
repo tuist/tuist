@@ -502,9 +502,9 @@
           }
 
           &[data-color="information"] {
-            background: var(--noora-icon-information-background);
+            background: var(--noora-icon-info-background);
             & svg {
-              color: var(--noora-icon-information-label);
+              color: var(--noora-icon-info-label);
             }
           }
         }
