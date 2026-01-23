@@ -32,7 +32,6 @@ defmodule Tuist.Runs.TestCaseEvent do
   schema "test_case_events" do
     field :test_case_id, Ecto.UUID
     field :event_type, Ch, type: "LowCardinality(String)"
-    field :actor_type, Ch, type: "LowCardinality(String)"
     field :actor_id, Ch, type: "Nullable(Int64)"
     field :inserted_at, Ch, type: "DateTime64(6)"
 
@@ -41,25 +40,8 @@ defmodule Tuist.Runs.TestCaseEvent do
 
   def changeset(event, attrs) do
     event
-    |> cast(attrs, [:id, :test_case_id, :event_type, :actor_type, :actor_id, :inserted_at])
-    |> validate_required([:id, :test_case_id, :event_type, :actor_type])
-    |> validate_actor()
-  end
-
-  defp validate_actor(changeset) do
-    actor_type = get_field(changeset, :actor_type)
-    actor_id = get_field(changeset, :actor_id)
-
-    case {actor_type, actor_id} do
-      {"user", nil} ->
-        add_error(changeset, :actor_id, "is required when actor_type is user")
-
-      {"system", id} when not is_nil(id) ->
-        add_error(changeset, :actor_id, "must be nil when actor_type is system")
-
-      _ ->
-        changeset
-    end
+    |> cast(attrs, [:id, :test_case_id, :event_type, :actor_id, :inserted_at])
+    |> validate_required([:id, :test_case_id, :event_type])
   end
 
   @doc """

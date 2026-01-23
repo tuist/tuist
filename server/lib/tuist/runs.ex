@@ -719,7 +719,6 @@ defmodule Tuist.Runs do
             id: UUIDv7.generate(),
             test_case_id: test_case_id,
             event_type: to_string(event_type),
-            actor_type: to_string(actor.type),
             actor_id: actor.id,
             inserted_at: now
           }
@@ -1123,7 +1122,6 @@ defmodule Tuist.Runs do
             id: TestCaseEvent.first_run_id(run.test_case_id),
             test_case_id: run.test_case_id,
             event_type: "first_run",
-            actor_type: "system",
             actor_id: nil,
             inserted_at: now
           }
@@ -1622,7 +1620,6 @@ defmodule Tuist.Runs do
             id: UUIDv7.generate(),
             test_case_id: test_case.id,
             event_type: "unmarked_flaky",
-            actor_type: "system",
             actor_id: nil,
             inserted_at: now
           }

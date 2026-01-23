@@ -5309,7 +5309,6 @@ defmodule Tuist.RunsTest do
           id: event1_id,
           test_case_id: test_case_id,
           event_type: "marked_flaky",
-          actor_type: "user",
           actor_id: user.account.id,
           inserted_at: now
         },
@@ -5317,7 +5316,6 @@ defmodule Tuist.RunsTest do
           id: event2_id,
           test_case_id: test_case_id,
           event_type: "quarantined",
-          actor_type: "system",
           actor_id: nil,
           inserted_at: now
         }
@@ -5345,7 +5343,6 @@ defmodule Tuist.RunsTest do
             id: Ecto.UUID.generate(),
             test_case_id: test_case_id,
             event_type: "marked_flaky",
-            actor_type: "system",
             actor_id: nil,
             inserted_at: now
           }
@@ -5374,8 +5371,7 @@ defmodule Tuist.RunsTest do
           id: Ecto.UUID.generate(),
           test_case_id: test_case_id,
           event_type: "marked_flaky",
-          actor_type: "user",
-          actor_id: user.account.id,
+                    actor_id: user.account.id,
           inserted_at: now
         }
       ])
@@ -5451,7 +5447,7 @@ defmodule Tuist.RunsTest do
       {events, _meta} = Runs.list_test_case_events(test_case.id)
       assert length(events) == 1
       assert hd(events).event_type == "quarantined"
-      assert hd(events).actor_type == "system"
+      assert is_nil(hd(events).actor)
     end
 
     test "creates multiple events when both is_flaky and is_quarantined change" do

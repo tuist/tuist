@@ -49,7 +49,6 @@ defmodule Tuist.IngestRepo.Migrations.BackfillFirstRunEvents do
           id: TestCaseEvent.first_run_id(test_case_id),
           test_case_id: test_case_id,
           event_type: "first_run",
-          actor_type: "system",
           actor_id: nil,
           inserted_at: first_ran_at || now
         }
@@ -60,7 +59,6 @@ defmodule Tuist.IngestRepo.Migrations.BackfillFirstRunEvents do
         id: :uuid,
         test_case_id: :uuid,
         event_type: "LowCardinality(String)",
-        actor_type: "LowCardinality(String)",
         actor_id: "Nullable(Int64)",
         inserted_at: "DateTime64(6)"
       }

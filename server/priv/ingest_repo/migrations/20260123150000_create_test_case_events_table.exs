@@ -10,7 +10,6 @@ defmodule Tuist.IngestRepo.Migrations.CreateTestCaseEventsTable do
       add :id, :uuid, null: false
       add :test_case_id, :uuid, null: false
       add :event_type, :"LowCardinality(String)", null: false
-      add :actor_type, :"LowCardinality(String)", null: false
       add :actor_id, :"Nullable(Int64)"
       add :inserted_at, :"DateTime64(6)", default: fragment("now()")
     end
