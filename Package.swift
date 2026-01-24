@@ -549,7 +549,7 @@ let targets: [Target] = [
             "TuistCASAnalytics",
             .product(name: "GRPCCore", package: "grpc.grpc-swift-2"),
             .product(name: "GRPCProtobuf", package: "grpc.grpc-swift-protobuf"),
-            .product(name: "SwiftProtobuf", package: "swift-protobuf"),
+            .product(name: "SwiftProtobuf", package: "apple.swift-protobuf"),
             .product(name: "libzstd", package: "facebook.zstd"),
             mockableDependency,
             pathDependency,
@@ -764,10 +764,7 @@ let package = Package(
             .upToNextMajor(from: "1.1.0")
         ),
         .package(id: "grpc.grpc-swift-2", from: "2.0.0"),
-        .package(
-            url: "https://github.com/apple/swift-protobuf.git",
-            from: "1.32.0"
-        ),
+        .package(id: "apple.swift-protobuf", exact: "1.33.3"),
         .package(id: "grpc.grpc-swift-protobuf", from: "2.0.0"),
         .package(id: "grpc.grpc-swift-nio-transport", from: "2.0.0"),
         .package(id: "facebook.zstd", from: "1.5.0"),
