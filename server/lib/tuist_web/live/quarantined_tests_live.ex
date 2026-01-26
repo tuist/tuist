@@ -13,6 +13,9 @@ defmodule TuistWeb.QuarantinedTestsLive do
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
+  @allowed_sort_fields ~w(name last_ran_at)
+  @default_sort_field "last_ran_at"
+
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     slug = "#{account.name}/#{project.name}"
 
@@ -168,9 +171,6 @@ defmodule TuistWeb.QuarantinedTestsLive do
   def handle_info(_event, socket) do
     {:noreply, socket}
   end
-
-  @allowed_sort_fields ~w(name last_ran_at)
-  @default_sort_field "last_ran_at"
 
   defp assign_quarantined_tests(%{assigns: %{selected_project: project}} = socket, params) do
     filters =
