@@ -1,10 +1,5 @@
 import Config
 
-config :sentry,
-  enable_source_code_context: true,
-  root_source_code_paths: [File.cwd!()],
-  filter: Cache.SentryEventFilter
-
 config :cache, Cache.PromEx,
   disabled: false,
   manual_metrics_start_delay: :no_delay,
@@ -66,6 +61,11 @@ config :logger, :console,
   metadata: [:request_id]
 
 config :phoenix, :json_library, Jason
+
+config :sentry,
+  enable_source_code_context: true,
+  root_source_code_paths: [File.cwd!()],
+  filter: Cache.SentryEventFilter
 
 config :tuist_common, finch_name: Cache.Finch
 

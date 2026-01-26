@@ -1,8 +1,5 @@
 import Config
 
-# Disable Sentry in tests
-config :sentry, dsn: nil
-
 # Only in tests, remove the complexity from the password hashing algorithm
 config :bcrypt_elixir, :log_rounds, 1
 
@@ -11,6 +8,9 @@ config :logger, level: :warning
 
 # Initialize plugs at runtime for faster test compilation
 config :phoenix, :plug_init_mode, :runtime
+
+# Disable Sentry in tests
+config :sentry, dsn: nil
 
 # Oban
 config :tuist, Oban, testing: :manual
