@@ -5,6 +5,7 @@ defmodule TuistWeb.TestRunLive do
 
   import TuistWeb.Helpers.FailureMessage
   import TuistWeb.Helpers.VCSLinks
+  import TuistWeb.Runs.ModuleCacheTab
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
@@ -86,6 +87,9 @@ defmodule TuistWeb.TestRunLive do
         {"overview", "test-modules"} ->
           {socket.assigns.test_modules_available_filters, socket.assigns.test_modules_active_filters}
 
+        {"module-cache", _} ->
+          {socket.assigns.binary_cache_available_filters, socket.assigns.binary_cache_active_filters}
+
         _ ->
           {[], []}
       end
@@ -156,6 +160,21 @@ defmodule TuistWeb.TestRunLive do
     {:noreply, socket}
   end
 
+  def handle_event(
+        "toggle-expand",
+        %{"row-key" => target_name},
+        %{assigns: %{expanded_target_names: expanded_target_names}} = socket
+      ) do
+    updated_expanded_names =
+      if MapSet.member?(expanded_target_names, target_name) do
+        MapSet.delete(expanded_target_names, target_name)
+      else
+        MapSet.put(expanded_target_names, target_name)
+      end
+
+    {:noreply, assign(socket, :expanded_target_names, updated_expanded_names)}
+  end
+
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
     updated_params =
       filter_id
@@ -224,6 +243,9 @@ defmodule TuistWeb.TestRunLive do
     |> assign(:selective_testing_page_count, 0)
     |> assign(:binary_cache_analytics, %{})
     |> assign(:binary_cache_page_count, 0)
+    |> assign(:binary_cache_available_filters, define_binary_cache_filters())
+    |> assign(:binary_cache_active_filters, [])
+    |> assign(:expanded_target_names, MapSet.new())
   end
 
   defp assign_initial_test_cases_state(socket) do
@@ -274,17 +296,23 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp reset_test_tab_page(params, socket) do
-    test_tab = URI.decode_query(socket.assigns.uri.query)["test-tab"] || "test-cases"
+    selected_tab = socket.assigns.selected_tab
 
-    page_param =
-      case test_tab do
-        "test-cases" -> "test-cases-page"
-        "test-suites" -> "test-suites-page"
-        "test-modules" -> "test-modules-page"
-        _ -> "test-cases-page"
-      end
+    if selected_tab == "module-cache" do
+      Map.put(params, "binary-cache-page", "1")
+    else
+      test_tab = URI.decode_query(socket.assigns.uri.query)["test-tab"] || "test-cases"
 
-    Map.put(params, page_param, "1")
+      page_param =
+        case test_tab do
+          "test-cases" -> "test-cases-page"
+          "test-suites" -> "test-suites-page"
+          "test-modules" -> "test-modules-page"
+          _ -> "test-cases-page"
+        end
+
+      Map.put(params, page_param, "1")
+    end
   end
 
   defp assign_tab_data(socket, "test-optimizations", params) do
@@ -296,7 +324,7 @@ defmodule TuistWeb.TestRunLive do
     end
   end
 
-  defp assign_tab_data(socket, "compilation-optimizations", params) do
+  defp assign_tab_data(socket, "module-cache", params) do
     if socket.assigns.command_event do
       {analytics, meta} = load_binary_cache_data(socket.assigns.command_event, params)
       assign_binary_cache_data(socket, analytics, meta, params)
@@ -372,11 +400,14 @@ defmodule TuistWeb.TestRunLive do
   end
 
   defp assign_binary_cache_data(socket, analytics, meta, params) do
+    filters = Filter.Operations.decode_filters_from_query(params, socket.assigns.binary_cache_available_filters)
+
     socket
     |> assign(:binary_cache_analytics, analytics)
     |> assign(:binary_cache_meta, meta)
     |> assign(:binary_cache_page_count, meta.total_pages)
     |> assign(:binary_cache_filter, params["binary-cache-filter"] || "")
+    |> assign(:binary_cache_active_filters, filters)
     |> assign(:binary_cache_page, String.to_integer(params["binary-cache-page"] || "1"))
     |> assign(:binary_cache_sort_by, params["binary-cache-sort-by"] || "name")
     |> assign(:binary_cache_sort_order, params["binary-cache-sort-order"] || "asc")
@@ -392,6 +423,7 @@ defmodule TuistWeb.TestRunLive do
     socket
     |> assign(:binary_cache_analytics, socket.assigns.binary_cache_analytics)
     |> assign(:binary_cache_page_count, socket.assigns.binary_cache_page_count)
+    |> assign(:binary_cache_active_filters, [])
   end
 
   defp assign_test_cases_data(socket, test_cases, meta, params) do
@@ -438,12 +470,16 @@ defmodule TuistWeb.TestRunLive do
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp assign_param_defaults(socket, params) do
+    binary_cache_filters =
+      Filter.Operations.decode_filters_from_query(params, socket.assigns.binary_cache_available_filters)
+
     socket
     |> assign(:selective_testing_filter, params["selective-testing-filter"] || "")
     |> assign(:selective_testing_page, String.to_integer(params["selective-testing-page"] || "1"))
     |> assign(:selective_testing_sort_by, params["selective-testing-sort-by"] || "name")
     |> assign(:selective_testing_sort_order, params["selective-testing-sort-order"] || "desc")
     |> assign(:binary_cache_filter, params["binary-cache-filter"] || "")
+    |> assign(:binary_cache_active_filters, binary_cache_filters)
     |> assign(:binary_cache_page, String.to_integer(params["binary-cache-page"] || "1"))
     |> assign(:binary_cache_sort_by, params["binary-cache-sort-by"] || "name")
     |> assign(:binary_cache_sort_order, params["binary-cache-sort-order"] || "desc")
@@ -473,9 +509,13 @@ defmodule TuistWeb.TestRunLive do
 
   defp load_binary_cache_data(run, params) do
     counts = Xcode.binary_cache_counts(run)
+    filters = Filter.Operations.decode_filters_from_query(params, define_binary_cache_filters())
+
+    text_filters = build_flop_filters(params["binary-cache-filter"])
+    filter_flop_filters = build_binary_cache_flop_filters(filters)
 
     flop_params = %{
-      filters: build_flop_filters(params["binary-cache-filter"]),
+      filters: text_filters ++ filter_flop_filters,
       page: String.to_integer(params["binary-cache-page"] || "1"),
       page_size: @table_page_size,
       order_by: [ensure_allowed_params("binary-cache-sort-by", params)],
@@ -906,5 +946,38 @@ defmodule TuistWeb.TestRunLive do
         value: nil
       }
     ]
+  end
+
+  defp define_binary_cache_filters do
+    [
+      %Filter.Filter{
+        id: "binary_cache_hit",
+        field: :binary_cache_hit,
+        display_name: dgettext("dashboard_builds", "Hit"),
+        type: :option,
+        options: [:local, :remote, :miss],
+        options_display_names: %{
+          remote: dgettext("dashboard_builds", "Remote"),
+          local: dgettext("dashboard_builds", "Local"),
+          miss: dgettext("dashboard_builds", "Missed")
+        },
+        operator: :==,
+        value: nil
+      }
+    ]
+  end
+
+  defp build_binary_cache_flop_filters(filters) do
+    filters
+    |> Enum.map(fn filter ->
+      case filter.id do
+        "binary_cache_hit" ->
+          %{filter | value: if(filter.value, do: Atom.to_string(filter.value))}
+
+        _ ->
+          filter
+      end
+    end)
+    |> Filter.Operations.convert_filters_to_flop()
   end
 end
