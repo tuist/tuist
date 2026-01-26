@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-23 12:12+0000\n"
+"PO-Revision-Date: 2026-01-26 13:31+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Polish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/pl/>\n"
@@ -781,41 +781,55 @@ msgstr "Kwarantanna"
 msgid "Unquarantine"
 msgstr "Wycofaj z kwarantanny"
 
+#, fuzzy
 msgid "Automatically by Tuist"
-msgstr ""
+msgstr "Automatycznie przez Tuist"
 
+#, fuzzy
 msgid "Event"
-msgstr ""
+msgstr "Wydarzenie"
 
+#, fuzzy
 msgid "Events will appear here when the test case status changes."
 msgstr ""
+"Wydarzenia pojawią się tutaj, gdy status przypadku testowego ulegnie zmianie."
 
+#, fuzzy
 msgid "First run of this test"
-msgstr ""
+msgstr "Pierwsze uruchomienie tego testu"
 
+#, fuzzy
 msgid "Load more"
-msgstr ""
+msgstr "Załaduj więcej"
 
+#, fuzzy
 msgid "Manually by @%{name}"
-msgstr ""
+msgstr "Ręcznie przez @%{name}"
 
+#, fuzzy
 msgid "Marked as flaky"
-msgstr ""
+msgstr "Oznaczone jako niestabilne"
 
+#, fuzzy
 msgid "Marked as quarantined"
-msgstr ""
+msgstr "Oznaczone jako poddane kwarantannie"
 
+#, fuzzy
 msgid "Marked as unquarantined"
-msgstr ""
+msgstr "Oznaczone jako niepoddane kwarantannie"
 
+#, fuzzy
 msgid "No history available"
-msgstr ""
+msgstr "Brak dostępnej historii"
 
+#, fuzzy
 msgid "Test History"
-msgstr ""
+msgstr "Historia testów"
 
+#, fuzzy
 msgid "Test history"
-msgstr ""
+msgstr "Historia testów"
 
+#, fuzzy
 msgid "Unmarked as flaky"
-msgstr ""
+msgstr "Oznaczone jako niestabilne"
