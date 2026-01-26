@@ -757,3 +757,42 @@ msgstr ""
 
 msgid "Unquarantine"
 msgstr ""
+
+msgid "Automatically by Tuist"
+msgstr ""
+
+msgid "Event"
+msgstr ""
+
+msgid "Events will appear here when the test case status changes."
+msgstr ""
+
+msgid "First run of this test"
+msgstr ""
+
+msgid "Load more"
+msgstr ""
+
+msgid "Manually by @%{name}"
+msgstr ""
+
+msgid "Marked as flaky"
+msgstr ""
+
+msgid "Marked as quarantined"
+msgstr ""
+
+msgid "Marked as unquarantined"
+msgstr ""
+
+msgid "No history available"
+msgstr ""
+
+msgid "Test History"
+msgstr ""
+
+msgid "Test history"
+msgstr ""
+
+msgid "Unmarked as flaky"
+msgstr ""
