@@ -1365,9 +1365,19 @@ defmodule Tuist.Runs do
   end
 
   defp build_quarantined_test_cases_query(project_id, search_term, quarantined_by_filter) do
+    # First, get the IDs of quarantined test cases (with deduplication)
+    # This is a small set that we use to filter the expensive test_case_runs aggregation
+    quarantined_ids_subquery =
+      from(tc in TestCase,
+        where: tc.project_id == ^project_id and tc.is_quarantined == true,
+        group_by: tc.id,
+        select: tc.id
+      )
+
+    # Only compute last_run stats for quarantined test cases (not all test cases)
     last_run_subquery =
       from(test_case_run in TestCaseRun,
-        where: test_case_run.project_id == ^project_id,
+        where: test_case_run.test_case_id in subquery(quarantined_ids_subquery),
         group_by: test_case_run.test_case_id,
         select: %{
           test_case_id: test_case_run.test_case_id,
@@ -1378,7 +1388,7 @@ defmodule Tuist.Runs do
 
     latest_test_case_subquery =
       from(test_case in TestCase,
-        where: test_case.project_id == ^project_id,
+        where: test_case.project_id == ^project_id and test_case.is_quarantined == true,
         group_by: test_case.id,
         select: %{id: test_case.id, max_inserted_at: max(test_case.inserted_at)}
       )
@@ -1425,9 +1435,10 @@ defmodule Tuist.Runs do
   end
 
   defp build_quarantined_test_cases_count_query(project_id, search_term, quarantined_by_filter) do
+    # Only scan quarantined test cases, not all test cases
     latest_test_case_subquery =
       from(test_case in TestCase,
-        where: test_case.project_id == ^project_id,
+        where: test_case.project_id == ^project_id and test_case.is_quarantined == true,
         group_by: test_case.id,
         select: %{id: test_case.id, max_inserted_at: max(test_case.inserted_at)}
       )
