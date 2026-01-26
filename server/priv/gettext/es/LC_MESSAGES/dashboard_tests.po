@@ -3,8 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-23 12:12+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"PO-Revision-Date: 2026-01-26 13:31+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Spanish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/es/>\n"
 "Language: es\n"
@@ -146,7 +146,7 @@ msgstr "Duración del comando"
 
 #, fuzzy
 msgid "Commit"
-msgstr "Comunidad"
+msgstr "Confirmar"
 
 #, fuzzy
 msgid "Compilation Optimizations"
@@ -237,7 +237,7 @@ msgstr "Hash"
 
 #, fuzzy
 msgid "Hit"
-msgstr "Accesos"
+msgstr "Aceptar"
 
 #, fuzzy
 msgid "Issue recorded"
@@ -377,7 +377,7 @@ msgstr "Esquema"
 
 #, fuzzy
 msgid "Search..."
-msgstr "Busca"
+msgstr "Buscar..."
 
 #, fuzzy
 msgid "Selective Testing"
@@ -389,7 +389,7 @@ msgstr "Eficacia de las pruebas selectivas"
 
 #, fuzzy
 msgid "Selective test hits"
-msgstr "Selective testing"
+msgstr "Resultados selectivos de la prueba"
 
 #, fuzzy
 msgid ""
@@ -772,50 +772,65 @@ msgstr "Desmarcar como inestable."
 msgid "New"
 msgstr "Nuevo"
 
+#, fuzzy
 msgid "Quarantine"
-msgstr ""
+msgstr "Cuarentena"
 
+#, fuzzy
 msgid "Quarantined"
-msgstr ""
+msgstr "En cuarentena"
 
+#, fuzzy
 msgid "Unquarantine"
-msgstr ""
+msgstr "Desactivar cuarentena"
 
+#, fuzzy
 msgid "Automatically by Tuist"
-msgstr ""
+msgstr "Automáticamente por Tuist."
 
+#, fuzzy
 msgid "Event"
-msgstr ""
+msgstr "Evento"
 
+#, fuzzy
 msgid "Events will appear here when the test case status changes."
-msgstr ""
+msgstr "Los eventos aparecerán aquí cuando cambie el estado del caso de prueba."
 
+#, fuzzy
 msgid "First run of this test"
-msgstr ""
+msgstr "Primera ejecución de esta prueba."
 
 msgid "Load more"
 msgstr ""
 
+#, fuzzy
 msgid "Manually by @%{name}"
-msgstr ""
+msgstr "Manualmente por @%{name}"
 
+#, fuzzy
 msgid "Marked as flaky"
-msgstr ""
+msgstr "Marcado como inestable."
 
+#, fuzzy
 msgid "Marked as quarantined"
-msgstr ""
+msgstr "Marcado como en cuarentena."
 
+#, fuzzy
 msgid "Marked as unquarantined"
-msgstr ""
+msgstr "Marcado como no puesto en cuarentena."
 
+#, fuzzy
 msgid "No history available"
-msgstr ""
+msgstr "No hay historial disponible."
 
+#, fuzzy
 msgid "Test History"
-msgstr ""
+msgstr "Historial de pruebas"
 
+#, fuzzy
 msgid "Test history"
-msgstr ""
+msgstr "Historial de pruebas"
 
+#, fuzzy
 msgid "Unmarked as flaky"
-msgstr ""
+msgstr "Desmarcado como inestable."
