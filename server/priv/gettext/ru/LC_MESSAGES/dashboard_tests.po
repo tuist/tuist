@@ -3,9 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-23 12:12+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"PO-Revision-Date: 2026-01-26 13:31+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Russian <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/ru/>\n"
 "Language: ru\n"
@@ -148,7 +147,7 @@ msgstr "Продолжительность команды"
 
 #, fuzzy
 msgid "Commit"
-msgstr "Сообщество"
+msgstr "Сохранить"
 
 #, fuzzy
 msgid "Compilation Optimizations"
@@ -239,7 +238,7 @@ msgstr "Хеш"
 
 #, fuzzy
 msgid "Hit"
-msgstr "Обращения"
+msgstr "Нажмите"
 
 #, fuzzy
 msgid "Issue recorded"
@@ -371,7 +370,7 @@ msgstr "Последние тестовые запуски"
 
 #, fuzzy
 msgid "Remote"
-msgstr "Удалить"
+msgstr "Удаленный"
 
 #, fuzzy
 msgid "Scheme"
@@ -379,7 +378,7 @@ msgstr "Схема"
 
 #, fuzzy
 msgid "Search..."
-msgstr "Поиск"
+msgstr "Поиск..."
 
 #, fuzzy
 msgid "Selective Testing"
@@ -391,7 +390,7 @@ msgstr "Эффективность выборочного тестировани
 
 #, fuzzy
 msgid "Selective test hits"
-msgstr "Выборочное тестирование"
+msgstr "Выборочные тестовые результаты"
 
 #, fuzzy
 msgid ""
@@ -455,7 +454,7 @@ msgstr "Тестовые сценарии"
 
 #, fuzzy
 msgid "Test Case Runs"
-msgstr "Тестовые сценарии"
+msgstr "Запуск тестовых случаев"
 
 #, fuzzy
 msgid "Test Cases"
@@ -487,7 +486,7 @@ msgstr "Наборы тестов"
 
 #, fuzzy
 msgid "Test case"
-msgstr "Тестовые сценарии"
+msgstr "Тестовый случай"
 
 #, fuzzy
 msgid "Test case not found."
@@ -507,7 +506,7 @@ msgstr ""
 
 #, fuzzy
 msgid "Test cases"
-msgstr "Тестовые сценарии"
+msgstr "Тестовые случаи"
 
 #, fuzzy
 msgid "Test reliability"
@@ -772,50 +771,65 @@ msgstr "Снять пометку «нестабильный»"
 msgid "New"
 msgstr "Новое"
 
+#, fuzzy
 msgid "Quarantine"
-msgstr ""
+msgstr "Карантин"
 
+#, fuzzy
 msgid "Quarantined"
-msgstr ""
+msgstr "Карантин"
 
+#, fuzzy
 msgid "Unquarantine"
-msgstr ""
+msgstr "Снять карантин"
 
+#, fuzzy
 msgid "Automatically by Tuist"
-msgstr ""
+msgstr "Автоматически с помощью Tuist"
 
+#, fuzzy
 msgid "Event"
-msgstr ""
+msgstr "Событие"
 
+#, fuzzy
 msgid "Events will appear here when the test case status changes."
-msgstr ""
+msgstr "События появятся здесь, когда статус тестового случая изменится."
 
+#, fuzzy
 msgid "First run of this test"
-msgstr ""
+msgstr "Первый запуск этого теста"
 
 msgid "Load more"
 msgstr ""
 
+#, fuzzy
 msgid "Manually by @%{name}"
-msgstr ""
+msgstr "Вручную с помощью @%{name}"
 
+#, fuzzy
 msgid "Marked as flaky"
-msgstr ""
+msgstr "Помечено как нестабильное"
 
+#, fuzzy
 msgid "Marked as quarantined"
-msgstr ""
+msgstr "Помечено как изолированное"
 
+#, fuzzy
 msgid "Marked as unquarantined"
-msgstr ""
+msgstr "Помечено как не подлежащее карантину"
 
+#, fuzzy
 msgid "No history available"
-msgstr ""
+msgstr "История недоступна"
 
+#, fuzzy
 msgid "Test History"
-msgstr ""
+msgstr "История тестирования"
 
+#, fuzzy
 msgid "Test history"
-msgstr ""
+msgstr "История тестирования"
 
+#, fuzzy
 msgid "Unmarked as flaky"
-msgstr ""
+msgstr "Отмечено как нестабильное"
