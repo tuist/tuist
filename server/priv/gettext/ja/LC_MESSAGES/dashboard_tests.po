@@ -3,8 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-23 12:12+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"PO-Revision-Date: 2026-01-26 13:31+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Japanese <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/ja/>\n"
 "Language: ja\n"
@@ -143,7 +143,7 @@ msgstr "コマンドの持続時間"
 
 #, fuzzy
 msgid "Commit"
-msgstr "コミュニティ"
+msgstr "コミット"
 
 #, fuzzy
 msgid "Compilation Optimizations"
@@ -232,7 +232,7 @@ msgstr "ハッシュ"
 
 #, fuzzy
 msgid "Hit"
-msgstr "ヒット数"
+msgstr "Hit"
 
 #, fuzzy
 msgid "Issue recorded"
@@ -372,7 +372,7 @@ msgstr "Scheme"
 
 #, fuzzy
 msgid "Search..."
-msgstr "検索"
+msgstr "検索..."
 
 #, fuzzy
 msgid "Selective Testing"
@@ -384,7 +384,7 @@ msgstr "選択的テストの有効性"
 
 #, fuzzy
 msgid "Selective test hits"
-msgstr "選択的テスト"
+msgstr "選択的テストヒット"
 
 #, fuzzy
 msgid ""
@@ -759,50 +759,65 @@ msgstr "フラッキーとしてマークを解除"
 msgid "New"
 msgstr "新規"
 
+#, fuzzy
 msgid "Quarantine"
-msgstr ""
+msgstr "Quarantine"
 
+#, fuzzy
 msgid "Quarantined"
-msgstr ""
+msgstr "Quarantined"
 
+#, fuzzy
 msgid "Unquarantine"
-msgstr ""
+msgstr "検疫解除"
 
+#, fuzzy
 msgid "Automatically by Tuist"
-msgstr ""
+msgstr "Tuistによる自動翻訳"
 
+#, fuzzy
 msgid "Event"
-msgstr ""
+msgstr "イベント"
 
+#, fuzzy
 msgid "Events will appear here when the test case status changes."
-msgstr ""
+msgstr "テストケースのステータスが変更されると、ここにイベントが表示されます。"
 
+#, fuzzy
 msgid "First run of this test"
-msgstr ""
+msgstr "このテストの初回実行"
 
 msgid "Load more"
 msgstr ""
 
+#, fuzzy
 msgid "Manually by @%{name}"
-msgstr ""
+msgstr "手動で @%{name} により"
 
+#, fuzzy
 msgid "Marked as flaky"
-msgstr ""
+msgstr "不安定な状態としてマーク済み"
 
+#, fuzzy
 msgid "Marked as quarantined"
-msgstr ""
+msgstr "検疫対象としてマーク済み"
 
+#, fuzzy
 msgid "Marked as unquarantined"
-msgstr ""
+msgstr "検疫解除済みとしてマーク"
 
+#, fuzzy
 msgid "No history available"
-msgstr ""
+msgstr "履歴は利用できません"
 
+#, fuzzy
 msgid "Test History"
-msgstr ""
+msgstr "テスト履歴"
 
+#, fuzzy
 msgid "Test history"
-msgstr ""
+msgstr "テスト履歴"
 
+#, fuzzy
 msgid "Unmarked as flaky"
-msgstr ""
+msgstr "不安定な状態を解除"
