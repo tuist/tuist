@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2026-01-26 13:31+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Spanish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/es/>\n"
 "Language: es\n"
@@ -800,8 +801,9 @@ msgstr "Los eventos aparecerán aquí cuando cambie el estado del caso de prueba
 msgid "First run of this test"
 msgstr "Primera ejecución de esta prueba."
 
+#, fuzzy
 msgid "Load more"
-msgstr ""
+msgstr "Cargar más"
 
 #, fuzzy
 msgid "Manually by @%{name}"
