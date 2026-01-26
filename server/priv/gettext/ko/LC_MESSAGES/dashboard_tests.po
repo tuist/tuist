@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
-"PO-Revision-Date: 2026-01-23 12:12+0000\n"
+"PO-Revision-Date: 2026-01-26 13:31+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/ko/>\n"
@@ -614,41 +614,51 @@ msgstr "격리됨"
 msgid "Unquarantine"
 msgstr "검역 해제"
 
+#, fuzzy
 msgid "Automatically by Tuist"
-msgstr ""
+msgstr "Tuist에 의해 자동 생성됨"
 
+#, fuzzy
 msgid "Event"
-msgstr ""
+msgstr "이벤트"
 
+#, fuzzy
 msgid "Events will appear here when the test case status changes."
-msgstr ""
+msgstr "테스트 케이스 상태가 변경되면 이벤트가 여기에 표시됩니다."
 
+#, fuzzy
 msgid "First run of this test"
-msgstr ""
+msgstr "이 테스트의 첫 실행"
 
 msgid "Load more"
 msgstr ""
 
+#, fuzzy
 msgid "Manually by @%{name}"
-msgstr ""
+msgstr "수동으로 @%{name}"
 
 msgid "Marked as flaky"
 msgstr ""
 
+#, fuzzy
 msgid "Marked as quarantined"
-msgstr ""
+msgstr "검역 처리됨"
 
+#, fuzzy
 msgid "Marked as unquarantined"
-msgstr ""
+msgstr "검역 해제됨"
 
+#, fuzzy
 msgid "No history available"
-msgstr ""
+msgstr "사용 가능한 기록이 없습니다"
 
+#, fuzzy
 msgid "Test History"
-msgstr ""
+msgstr "테스트 기록"
 
+#, fuzzy
 msgid "Test history"
-msgstr ""
+msgstr "테스트 기록"
 
 msgid "Unmarked as flaky"
 msgstr ""
