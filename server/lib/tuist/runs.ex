@@ -1479,44 +1479,39 @@ defmodule Tuist.Runs do
   Used to populate the "Quarantined by" filter dropdown.
   """
   def get_quarantine_actors(project_id) do
-    # Get all quarantined test case IDs for the project
-    quarantined_test_case_ids =
+    # Get distinct quarantined test case IDs (with deduplication for ReplacingMergeTree)
+    quarantined_ids_subquery =
+      from(tc in TestCase,
+        where: tc.project_id == ^project_id and tc.is_quarantined == true,
+        group_by: tc.id,
+        select: tc.id
+      )
+
+    # Get the latest quarantine event for each test case
+    latest_quarantine_subquery =
+      from(e in TestCaseEvent,
+        where: e.test_case_id in subquery(quarantined_ids_subquery),
+        where: e.event_type == "quarantined",
+        group_by: e.test_case_id,
+        select: %{test_case_id: e.test_case_id, max_inserted_at: max(e.inserted_at)}
+      )
+
+    # Get distinct actor_ids from those latest events (single ClickHouse query with subqueries)
+    actor_ids =
       ClickHouseRepo.all(
-        from(tc in TestCase,
-          where: tc.project_id == ^project_id and tc.is_quarantined == true,
-          group_by: tc.id,
-          select: tc.id
+        from(e in TestCaseEvent,
+          join: latest in subquery(latest_quarantine_subquery),
+          on: e.test_case_id == latest.test_case_id and e.inserted_at == latest.max_inserted_at,
+          where: not is_nil(e.actor_id),
+          select: e.actor_id,
+          distinct: true
         )
       )
 
-    if Enum.empty?(quarantined_test_case_ids) do
-      []
+    if Enum.any?(actor_ids) do
+      Repo.all(from(a in Account, where: a.id in ^actor_ids))
     else
-      # Get the latest quarantine event for each test case
-      latest_quarantine_subquery =
-        from(e in TestCaseEvent,
-          where: e.test_case_id in ^quarantined_test_case_ids,
-          where: e.event_type == "quarantined",
-          group_by: e.test_case_id,
-          select: %{test_case_id: e.test_case_id, max_inserted_at: max(e.inserted_at)}
-        )
-
-      actor_ids =
-        ClickHouseRepo.all(
-          from(e in TestCaseEvent,
-            join: latest in subquery(latest_quarantine_subquery),
-            on: e.test_case_id == latest.test_case_id and e.inserted_at == latest.max_inserted_at,
-            where: not is_nil(e.actor_id),
-            select: e.actor_id,
-            distinct: true
-          )
-        )
-
-      if Enum.any?(actor_ids) do
-        Repo.all(from(a in Account, where: a.id in ^actor_ids))
-      else
-        []
-      end
+      []
     end
   end
 

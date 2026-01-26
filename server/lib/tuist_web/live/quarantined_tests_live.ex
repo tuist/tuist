@@ -10,7 +10,6 @@ defmodule TuistWeb.QuarantinedTestsLive do
   alias Tuist.Runs
   alias Tuist.Runs.Analytics
   alias TuistWeb.Helpers.DatePicker
-  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
   @allowed_sort_fields ~w(name last_ran_at)
