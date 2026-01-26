@@ -92,8 +92,15 @@
 
   & [data-part="test-case-details-section"] {
     display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-8);
+    flex-direction: row;
+    gap: var(--noora-spacing-5);
+
+    & [data-part="summary-main"] {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      gap: var(--noora-spacing-8);
+    }
 
     & [data-part="metadata-grid"] {
       display: flex;
@@ -138,19 +145,125 @@
 
   & [data-part="test-case-details"] {
     & [data-part="widgets"] {
-      display: flex;
-      flex-direction: row;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
       gap: var(--noora-spacing-4);
       background-color: var(--noora-surface-background-primary);
 
-      & > * {
-        flex-grow: 1;
-      }
-
       @media (max-width: 768px) {
         & {
-          flex-direction: column;
+          grid-template-columns: 1fr;
         }
+      }
+    }
+  }
+
+  & [data-part="test-case-details-section"] {
+    & [data-part="overview-history"] {
+      display: flex;
+      flex: 0 0 40%;
+      flex-direction: column;
+      gap: var(--noora-spacing-5);
+      border-left: 1px solid var(--noora-surface-border-primary);
+      padding-left: var(--noora-spacing-5);
+
+      & [data-part="overview-history-title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+
+      & [data-part="overview-history-timeline"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-5);
+      }
+
+      & [data-part="overview-history-item"] {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 10px;
+        box-shadow: var(--noora-light-border-default);
+        border-radius: var(--noora-radius-large);
+        background: var(--noora-surface-background-primary);
+        padding: var(--noora-spacing-5);
+
+        & [data-part="overview-history-icon"] {
+          display: flex;
+          flex-shrink: 0;
+          justify-content: center;
+          align-items: center;
+          border-radius: var(--noora-radius-large);
+          padding: var(--noora-spacing-3);
+
+          & svg {
+            width: var(--noora-icon-size-large);
+            height: var(--noora-icon-size-large);
+          }
+
+          &[data-color="primary"] {
+            background: var(--noora-icon-primary-background);
+            & svg {
+              color: var(--noora-icon-primary-label);
+            }
+          }
+
+          &[data-color="success"] {
+            background: var(--noora-icon-success-background);
+            & svg {
+              color: var(--noora-icon-success-label);
+            }
+          }
+
+          &[data-color="warning"] {
+            background: var(--noora-icon-warning-background);
+            & svg {
+              color: var(--noora-icon-warning-label);
+            }
+          }
+
+          &[data-color="destructive"] {
+            background: var(--noora-icon-destructive-background);
+            & svg {
+              color: var(--noora-icon-destructive-label);
+            }
+          }
+
+          &[data-color="information"] {
+            background: var(--noora-icon-info-background);
+            & svg {
+              color: var(--noora-icon-info-label);
+            }
+          }
+        }
+
+        & [data-part="overview-history-content"] {
+          display: flex;
+          flex: 1;
+          flex-direction: column;
+          gap: var(--noora-spacing-2);
+
+          & [data-part="overview-history-item-title"] {
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+          }
+
+          & [data-part="overview-history-item-subtitle"] {
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+          }
+        }
+
+        & [data-part="overview-history-time"] {
+          flex-shrink: 0;
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+        }
+      }
+
+      & [data-part="overview-history-footer"] {
+        display: flex;
+        justify-content: center;
       }
     }
   }
@@ -434,6 +547,140 @@
           align-items: center;
           gap: var(--noora-spacing-4);
         }
+      }
+    }
+  }
+
+  & [data-part="test-history-card"] {
+    & [data-part="test-history-section"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-5);
+      padding: var(--noora-spacing-8) var(--noora-spacing-8) var(--noora-spacing-8) 0;
+
+      & [data-part="timeline"] {
+        display: flex;
+        position: relative;
+        flex-direction: column;
+        gap: var(--noora-spacing-5);
+        padding-left: 48px;
+
+        &::before {
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          left: 24px;
+          background: var(--noora-surface-border-primary);
+          width: 1px;
+          content: "";
+        }
+      }
+
+      & [data-part="timeline-item"] {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 10px;
+        box-shadow: var(--noora-light-border-default);
+        border-radius: var(--noora-radius-large);
+        background: var(--noora-surface-background-primary);
+        padding: var(--noora-spacing-5);
+
+        & [data-part="timeline-icon"] {
+          display: flex;
+          flex-shrink: 0;
+          justify-content: center;
+          align-items: center;
+          border-radius: var(--noora-radius-large);
+          padding: var(--noora-spacing-3);
+
+          & svg {
+            width: var(--noora-icon-size-large);
+            height: var(--noora-icon-size-large);
+          }
+
+          &[data-color="primary"] {
+            background: var(--noora-icon-primary-background);
+            & svg {
+              color: var(--noora-icon-primary-label);
+            }
+          }
+
+          &[data-color="success"] {
+            background: var(--noora-icon-success-background);
+            & svg {
+              color: var(--noora-icon-success-label);
+            }
+          }
+
+          &[data-color="warning"] {
+            background: var(--noora-icon-warning-background);
+            & svg {
+              color: var(--noora-icon-warning-label);
+            }
+          }
+
+          &[data-color="destructive"] {
+            background: var(--noora-icon-destructive-background);
+            & svg {
+              color: var(--noora-icon-destructive-label);
+            }
+          }
+
+          &[data-color="information"] {
+            background: var(--noora-icon-info-background);
+            & svg {
+              color: var(--noora-icon-info-label);
+            }
+          }
+        }
+
+        & [data-part="timeline-content"] {
+          display: flex;
+          flex: 1;
+          flex-direction: column;
+          gap: var(--noora-spacing-2);
+
+          & [data-part="timeline-title"] {
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+          }
+
+          & [data-part="timeline-subtitle"] {
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+          }
+        }
+
+        & [data-part="timeline-time"] {
+          flex-shrink: 0;
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+        }
+      }
+
+      & [data-part="timeline-empty"] {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: var(--noora-spacing-3);
+        padding: var(--noora-spacing-10);
+        text-align: center;
+
+        & [data-part="title"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        }
+
+        & [data-part="subtitle"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+        }
+      }
+
+      & [data-part="load-more-button"] {
+        align-self: center;
       }
     }
   }
