@@ -19,6 +19,7 @@ defmodule Tuist.Runs do
 
   import Ecto.Query
 
+  alias Tuist.Accounts.Account
   alias Tuist.Alerts.Workers.FlakyThresholdCheckWorker
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
@@ -1469,12 +1470,13 @@ defmodule Tuist.Runs do
   def get_quarantine_actors(project_id) do
     # Get all quarantined test case IDs for the project
     quarantined_test_case_ids =
-      from(tc in TestCase,
-        where: tc.project_id == ^project_id and tc.is_quarantined == true,
-        group_by: tc.id,
-        select: tc.id
+      ClickHouseRepo.all(
+        from(tc in TestCase,
+          where: tc.project_id == ^project_id and tc.is_quarantined == true,
+          group_by: tc.id,
+          select: tc.id
+        )
       )
-      |> ClickHouseRepo.all()
 
     if Enum.empty?(quarantined_test_case_ids) do
       []
@@ -1489,18 +1491,18 @@ defmodule Tuist.Runs do
         )
 
       actor_ids =
-        from(e in TestCaseEvent,
-          join: latest in subquery(latest_quarantine_subquery),
-          on: e.test_case_id == latest.test_case_id and e.inserted_at == latest.max_inserted_at,
-          where: not is_nil(e.actor_id),
-          select: e.actor_id,
-          distinct: true
+        ClickHouseRepo.all(
+          from(e in TestCaseEvent,
+            join: latest in subquery(latest_quarantine_subquery),
+            on: e.test_case_id == latest.test_case_id and e.inserted_at == latest.max_inserted_at,
+            where: not is_nil(e.actor_id),
+            select: e.actor_id,
+            distinct: true
+          )
         )
-        |> ClickHouseRepo.all()
 
       if Enum.any?(actor_ids) do
-        from(a in Tuist.Accounts.Account, where: a.id in ^actor_ids)
-        |> Repo.all()
+        Repo.all(from(a in Account, where: a.id in ^actor_ids))
       else
         []
       end
@@ -1535,7 +1537,7 @@ defmodule Tuist.Runs do
 
     accounts =
       if Enum.any?(actor_ids) do
-        from(a in Tuist.Accounts.Account, where: a.id in ^actor_ids)
+        from(a in Account, where: a.id in ^actor_ids)
         |> Repo.all()
         |> Map.new(&{&1.id, &1})
       else
@@ -1559,11 +1561,9 @@ defmodule Tuist.Runs do
   defp apply_quarantined_order(query, :last_ran_at, :asc),
     do: from([test_case: tc, stats: stats] in query, order_by: [asc: coalesce(stats.last_ran_at, tc.last_ran_at)])
 
-  defp apply_quarantined_order(query, :name, :desc),
-    do: from([test_case: tc] in query, order_by: [desc: tc.name])
+  defp apply_quarantined_order(query, :name, :desc), do: from([test_case: tc] in query, order_by: [desc: tc.name])
 
-  defp apply_quarantined_order(query, :name, :asc),
-    do: from([test_case: tc] in query, order_by: [asc: tc.name])
+  defp apply_quarantined_order(query, :name, :asc), do: from([test_case: tc] in query, order_by: [asc: tc.name])
 
   defp apply_quarantined_order(query, _, _),
     do: from([test_case: tc, stats: stats] in query, order_by: [desc: coalesce(stats.last_ran_at, tc.last_ran_at)])

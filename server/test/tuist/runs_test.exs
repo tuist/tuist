@@ -5468,4 +5468,410 @@ defmodule Tuist.RunsTest do
       assert "quarantined" in event_types
     end
   end
+
+  describe "list_quarantined_test_cases/2" do
+    test "returns empty list when no quarantined test cases exist" do
+      project = ProjectsFixtures.project_fixture()
+
+      {quarantined_tests, meta} = Runs.list_quarantined_test_cases(project.id, %{})
+
+      assert quarantined_tests == []
+      assert meta.total_count == 0
+      assert meta.total_pages == 0
+    end
+
+    test "returns quarantined test cases for a project" do
+      project = ProjectsFixtures.project_fixture()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "quarantinedTest",
+          module_name: "QuarantineModule",
+          is_quarantined: true
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "quarantined"
+      )
+
+      {quarantined_tests, meta} = Runs.list_quarantined_test_cases(project.id, %{})
+
+      assert length(quarantined_tests) == 1
+      assert meta.total_count == 1
+
+      quarantined_test = hd(quarantined_tests)
+      assert quarantined_test.name == "quarantinedTest"
+      assert quarantined_test.module_name == "QuarantineModule"
+    end
+
+    test "supports pagination" do
+      project = ProjectsFixtures.project_fixture()
+
+      for i <- 1..3 do
+        test_case =
+          RunsFixtures.test_case_fixture(
+            project_id: project.id,
+            name: "quarantinedTest#{i}",
+            is_quarantined: true
+          )
+
+        IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+        RunsFixtures.test_case_event_fixture(
+          test_case_id: test_case.id,
+          event_type: "quarantined"
+        )
+      end
+
+      {page1, meta1} = Runs.list_quarantined_test_cases(project.id, %{page: 1, page_size: 2})
+      assert length(page1) == 2
+      assert meta1.total_count == 3
+      assert meta1.total_pages == 2
+      assert meta1.current_page == 1
+
+      {page2, meta2} = Runs.list_quarantined_test_cases(project.id, %{page: 2, page_size: 2})
+      assert length(page2) == 1
+      assert meta2.current_page == 2
+    end
+
+    test "supports search filtering by name" do
+      project = ProjectsFixtures.project_fixture()
+
+      for name <- ["loginTest", "logoutTest", "profileTest"] do
+        test_case =
+          RunsFixtures.test_case_fixture(
+            project_id: project.id,
+            name: name,
+            is_quarantined: true
+          )
+
+        IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+        RunsFixtures.test_case_event_fixture(
+          test_case_id: test_case.id,
+          event_type: "quarantined"
+        )
+      end
+
+      {results, meta} =
+        Runs.list_quarantined_test_cases(project.id, %{
+          filters: [%{field: :name, op: :ilike_and, value: "log"}]
+        })
+
+      assert length(results) == 2
+      assert meta.total_count == 2
+      names = Enum.map(results, & &1.name)
+      assert "loginTest" in names
+      assert "logoutTest" in names
+    end
+
+    test "supports ordering by name" do
+      project = ProjectsFixtures.project_fixture()
+
+      for name <- ["zebra", "alpha", "beta"] do
+        test_case =
+          RunsFixtures.test_case_fixture(
+            project_id: project.id,
+            name: name,
+            is_quarantined: true
+          )
+
+        IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+        RunsFixtures.test_case_event_fixture(
+          test_case_id: test_case.id,
+          event_type: "quarantined"
+        )
+      end
+
+      {asc_results, _} =
+        Runs.list_quarantined_test_cases(project.id, %{order_by: [:name], order_directions: [:asc]})
+
+      assert Enum.map(asc_results, & &1.name) == ["alpha", "beta", "zebra"]
+
+      {desc_results, _} =
+        Runs.list_quarantined_test_cases(project.id, %{order_by: [:name], order_directions: [:desc]})
+
+      assert Enum.map(desc_results, & &1.name) == ["zebra", "beta", "alpha"]
+    end
+
+    test "does not return test cases from other projects" do
+      project1 = ProjectsFixtures.project_fixture()
+      project2 = ProjectsFixtures.project_fixture()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project1.id,
+          name: "quarantinedTest",
+          is_quarantined: true
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "quarantined"
+      )
+
+      {project1_results, _} = Runs.list_quarantined_test_cases(project1.id, %{})
+      assert length(project1_results) == 1
+
+      {project2_results, _} = Runs.list_quarantined_test_cases(project2.id, %{})
+      assert project2_results == []
+    end
+
+    test "filters by quarantined_by tuist (automatic quarantine)" do
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+
+      # Create a test case quarantined by Tuist (no actor_id)
+      tuist_test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "tuistQuarantinedTest",
+          is_quarantined: true
+        )
+
+      IngestRepo.insert_all(TestCase, [tuist_test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: tuist_test_case.id,
+        event_type: "quarantined",
+        actor_id: nil
+      )
+
+      # Create a test case quarantined by a user
+      user_test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "userQuarantinedTest",
+          is_quarantined: true
+        )
+
+      IngestRepo.insert_all(TestCase, [user_test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: user_test_case.id,
+        event_type: "quarantined",
+        actor_id: user.account.id
+      )
+
+      # Filter by Tuist
+      {tuist_results, _} =
+        Runs.list_quarantined_test_cases(project.id, %{
+          filters: [%{field: :quarantined_by, op: :==, value: :tuist}]
+        })
+
+      assert length(tuist_results) == 1
+      assert hd(tuist_results).name == "tuistQuarantinedTest"
+    end
+
+    test "filters by quarantined_by specific user" do
+      project = ProjectsFixtures.project_fixture()
+      user1 = AccountsFixtures.user_fixture(preload: [:account])
+      user2 = AccountsFixtures.user_fixture(preload: [:account])
+
+      # Create a test case quarantined by user1
+      user1_test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "user1QuarantinedTest",
+          is_quarantined: true
+        )
+
+      IngestRepo.insert_all(TestCase, [user1_test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: user1_test_case.id,
+        event_type: "quarantined",
+        actor_id: user1.account.id
+      )
+
+      # Create a test case quarantined by user2
+      user2_test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "user2QuarantinedTest",
+          is_quarantined: true
+        )
+
+      IngestRepo.insert_all(TestCase, [user2_test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: user2_test_case.id,
+        event_type: "quarantined",
+        actor_id: user2.account.id
+      )
+
+      # Filter by user1
+      {user1_results, _} =
+        Runs.list_quarantined_test_cases(project.id, %{
+          filters: [%{field: :quarantined_by, op: :==, value: user1.account.id}]
+        })
+
+      assert length(user1_results) == 1
+      assert hd(user1_results).name == "user1QuarantinedTest"
+    end
+  end
+
+  describe "get_quarantine_actors/1" do
+    test "returns empty list when no quarantined test cases exist" do
+      project = ProjectsFixtures.project_fixture()
+
+      actors = Runs.get_quarantine_actors(project.id)
+
+      assert actors == []
+    end
+
+    test "returns empty list when all quarantined tests are automatic (no actor_id)" do
+      project = ProjectsFixtures.project_fixture()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "autoQuarantinedTest",
+          is_quarantined: true
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "quarantined",
+        actor_id: nil
+      )
+
+      actors = Runs.get_quarantine_actors(project.id)
+
+      assert actors == []
+    end
+
+    test "returns accounts that have quarantined test cases" do
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "userQuarantinedTest",
+          is_quarantined: true
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "quarantined",
+        actor_id: user.account.id
+      )
+
+      actors = Runs.get_quarantine_actors(project.id)
+
+      assert length(actors) == 1
+      assert hd(actors).id == user.account.id
+    end
+
+    test "returns unique accounts even if they quarantined multiple tests" do
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+
+      for i <- 1..3 do
+        test_case =
+          RunsFixtures.test_case_fixture(
+            project_id: project.id,
+            name: "quarantinedTest#{i}",
+            is_quarantined: true
+          )
+
+        IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+        RunsFixtures.test_case_event_fixture(
+          test_case_id: test_case.id,
+          event_type: "quarantined",
+          actor_id: user.account.id
+        )
+      end
+
+      actors = Runs.get_quarantine_actors(project.id)
+
+      assert length(actors) == 1
+      assert hd(actors).id == user.account.id
+    end
+
+    test "returns multiple accounts when different users quarantined tests" do
+      project = ProjectsFixtures.project_fixture()
+      user1 = AccountsFixtures.user_fixture(preload: [:account])
+      user2 = AccountsFixtures.user_fixture(preload: [:account])
+
+      # User1 quarantines a test
+      test_case1 =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "user1QuarantinedTest",
+          is_quarantined: true
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case1 |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case1.id,
+        event_type: "quarantined",
+        actor_id: user1.account.id
+      )
+
+      # User2 quarantines a test
+      test_case2 =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "user2QuarantinedTest",
+          is_quarantined: true
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case2 |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case2.id,
+        event_type: "quarantined",
+        actor_id: user2.account.id
+      )
+
+      actors = Runs.get_quarantine_actors(project.id)
+
+      assert length(actors) == 2
+      actor_ids = Enum.map(actors, & &1.id)
+      assert user1.account.id in actor_ids
+      assert user2.account.id in actor_ids
+    end
+
+    test "does not return actors from other projects" do
+      project1 = ProjectsFixtures.project_fixture()
+      project2 = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project1.id,
+          name: "quarantinedTest",
+          is_quarantined: true
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "quarantined",
+        actor_id: user.account.id
+      )
+
+      actors1 = Runs.get_quarantine_actors(project1.id)
+      assert length(actors1) == 1
+
+      actors2 = Runs.get_quarantine_actors(project2.id)
+      assert actors2 == []
+    end
+  end
 end

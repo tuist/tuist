@@ -87,6 +87,31 @@ defmodule TuistWeb.QuarantinedTestsLiveTest do
       # Then
       assert has_element?(lv, "[data-part='quarantined-tests']")
     end
+
+    test "shows quarantined_by column with Tuist label for automatic quarantine", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given: Create a test quarantined by Tuist (no actor)
+      tuist_test_case = create_quarantined_test_case(project, "tuistQuarantinedTest")
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: tuist_test_case.id,
+        event_type: "quarantined",
+        actor_id: nil
+      )
+
+      Process.sleep(100)
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/quarantined-tests")
+
+      # Then
+      assert has_element?(lv, "#quarantined-tests-table", "tuistQuarantinedTest")
+      assert has_element?(lv, "#quarantined-tests-table", "Tuist")
+    end
   end
 
   defp create_quarantined_test_case(project, name) do

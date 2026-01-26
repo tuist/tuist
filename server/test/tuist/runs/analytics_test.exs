@@ -4,6 +4,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
   alias Tuist.IngestRepo
   alias Tuist.Runs.Analytics
+  alias Tuist.Runs.TestCase
   alias Tuist.Runs.TestCaseRun
   alias Tuist.Xcode.XcodeGraph
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
@@ -3994,7 +3995,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           inserted_at: ~N[2024-04-01 00:00:00.000000]
         )
 
-      IngestRepo.insert_all(Tuist.Runs.TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       RunsFixtures.test_case_event_fixture(
         test_case_id: test_case.id,
@@ -4034,7 +4035,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           inserted_at: ~N[2024-04-01 00:00:00.000000]
         )
 
-      IngestRepo.insert_all(Tuist.Runs.TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       # Quarantine on April 10
       RunsFixtures.test_case_event_fixture(
@@ -4074,11 +4075,15 @@ defmodule Tuist.Runs.AnalyticsTest do
 
       # Between April 10 and April 19: should be 1
       values_between = Enum.slice(got.values, april_10_index..(april_20_index - 1))
-      assert Enum.all?(values_between, &(&1 == 1)), "Values between quarantine and unquarantine should be 1, got: #{inspect(values_between)}"
+
+      assert Enum.all?(values_between, &(&1 == 1)),
+             "Values between quarantine and unquarantine should be 1, got: #{inspect(values_between)}"
 
       # April 20 onwards: should be 0
       values_after_20 = Enum.drop(got.values, april_20_index)
-      assert Enum.all?(values_after_20, &(&1 == 0)), "Values after unquarantine should be 0, got: #{inspect(values_after_20)}"
+
+      assert Enum.all?(values_after_20, &(&1 == 0)),
+             "Values after unquarantine should be 0, got: #{inspect(values_after_20)}"
     end
 
     test "multiple quarantine/unquarantine cycles are tracked correctly" do
@@ -4093,7 +4098,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           inserted_at: ~N[2024-04-01 00:00:00.000000]
         )
 
-      IngestRepo.insert_all(Tuist.Runs.TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       # First quarantine on April 5
       RunsFixtures.test_case_event_fixture(
@@ -4131,9 +4136,9 @@ defmodule Tuist.Runs.AnalyticsTest do
       april_10_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-10]))
       april_20_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-20]))
 
-      assert april_05_index != nil
-      assert april_10_index != nil
-      assert april_20_index != nil
+      assert april_05_index
+      assert april_10_index
+      assert april_20_index
 
       # Before April 5: should be 0
       values_before_5 = Enum.take(got.values, april_05_index)
@@ -4164,7 +4169,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           inserted_at: ~N[2024-03-01 00:00:00.000000]
         )
 
-      IngestRepo.insert_all(Tuist.Runs.TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
 
       # Quarantine BEFORE the period (March 15)
       RunsFixtures.test_case_event_fixture(
@@ -4207,7 +4212,7 @@ defmodule Tuist.Runs.AnalyticsTest do
           inserted_at: ~N[2024-04-01 00:00:00.000000]
         )
 
-      IngestRepo.insert_all(Tuist.Runs.TestCase, [
+      IngestRepo.insert_all(TestCase, [
         test_case_1 |> Map.from_struct() |> Map.delete(:__meta__),
         test_case_2 |> Map.from_struct() |> Map.delete(:__meta__)
       ])
@@ -4248,9 +4253,9 @@ defmodule Tuist.Runs.AnalyticsTest do
       april_15_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-15]))
       april_20_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-20]))
 
-      assert april_10_index != nil
-      assert april_15_index != nil
-      assert april_20_index != nil
+      assert april_10_index
+      assert april_15_index
+      assert april_20_index
 
       # Before April 10: should be 0
       values_before_10 = Enum.take(got.values, april_10_index)

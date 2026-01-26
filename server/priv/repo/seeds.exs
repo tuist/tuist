@@ -716,8 +716,7 @@ flaky_test_case_defs =
   |> Enum.reject(fn {_def, id, _is_quarantined} -> is_nil(id) end)
 
 flaky_test_case_updates =
-  flaky_test_case_defs
-  |> Enum.map(fn {def, id, is_quarantined} ->
+  Enum.map(flaky_test_case_defs, fn {def, id, is_quarantined} ->
     now = NaiveDateTime.utc_now()
 
     %{
@@ -742,14 +741,16 @@ flaky_test_case_updates =
   flaky_test_case_defs
   |> Enum.split_with(fn {_def, _id, is_quarantined} -> is_quarantined end)
   |> then(fn {quarantined, unquarantined} ->
-    {Enum.map(quarantined, fn {_def, id, _} -> id end),
-     Enum.map(unquarantined, fn {_def, id, _} -> id end)}
+    {Enum.map(quarantined, fn {_def, id, _} -> id end), Enum.map(unquarantined, fn {_def, id, _} -> id end)}
   end)
 
 quarantined_test_cases =
   if length(flaky_test_case_updates) > 0 do
     IngestRepo.insert_all(Tuist.Runs.TestCase, flaky_test_case_updates, timeout: 120_000)
-    IO.puts("Updated #{length(flaky_test_case_updates)} test cases as flaky (#{length(quarantined_ids)} quarantined, #{length(unquarantined_ids)} unquarantined)")
+
+    IO.puts(
+      "Updated #{length(flaky_test_case_updates)} test cases as flaky (#{length(quarantined_ids)} quarantined, #{length(unquarantined_ids)} unquarantined)"
+    )
 
     # Keep track of quarantined test cases for ensuring they get test runs
     flaky_test_case_updates
@@ -1019,8 +1020,7 @@ IO.puts("Generating test case events for quarantine history...")
 
 # Generate events for quarantined test cases (odd number of events, ending with "quarantined")
 quarantined_events =
-  quarantined_ids
-  |> Enum.flat_map(fn test_case_id ->
+  Enum.flat_map(quarantined_ids, fn test_case_id ->
     # Odd number of events so it ends with "quarantined"
     num_events = Enum.random([1, 3, 5, 7])
     base_date = DateTime.utc_now()
@@ -1051,8 +1051,7 @@ quarantined_events =
 
 # Generate events for unquarantined test cases (even number of events, ending with "unquarantined")
 unquarantined_events =
-  unquarantined_ids
-  |> Enum.flat_map(fn test_case_id ->
+  Enum.flat_map(unquarantined_ids, fn test_case_id ->
     # Even number of events so it ends with "unquarantined"
     num_events = Enum.random([2, 4, 6])
     base_date = DateTime.utc_now()
