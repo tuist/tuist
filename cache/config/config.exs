@@ -1,12 +1,9 @@
 import Config
 
-# Bandit.TransportError is raised when the client disconnects mid-request (e.g. cancelled upload).
-# These are expected and not actionable errors.
-config :appsignal, :config,
-  otp_app: :cache,
-  name: "Cache",
-  active: true,
-  ignore_errors: ["Bandit.TransportError"]
+config :sentry,
+  enable_source_code_context: true,
+  root_source_code_paths: [File.cwd!()],
+  filter: Cache.SentryEventFilter
 
 config :cache, Cache.PromEx,
   disabled: false,

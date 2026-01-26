@@ -1,6 +1,6 @@
 import Config
 
-config :appsignal, :config, active: false
+config :sentry, dsn: nil
 
 config :cache, Cache.Guardian,
   issuer: "tuist",

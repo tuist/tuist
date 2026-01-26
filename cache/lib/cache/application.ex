@@ -14,6 +14,7 @@ defmodule Cache.Application do
     end
 
     Oban.Telemetry.attach_default_logger()
+    start_sentry_logger()
 
     base_children = [
       Cache.Repo,
@@ -46,6 +47,14 @@ defmodule Cache.Application do
 
     for repo <- repos do
       {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :up, all: true))
+    end
+  end
+
+  defp start_sentry_logger do
+    if Application.get_env(:sentry, :dsn) do
+      :logger.add_handler(:sentry_handler, Sentry.LoggerHandler, %{
+        config: %{metadata: [:file, :line]}
+      })
     end
   end
 

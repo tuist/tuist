@@ -25,8 +25,8 @@ defmodule Cache.MixProject do
 
   defp deps do
     [
-      {:appsignal, "~> 2.8"},
-      {:appsignal_phoenix, "~> 2.7.0"},
+      {:sentry, "~> 10.2.0"},
+      {:hackney, "~> 1.8"},
       # Using fork with client disconnect detection during body read timeouts
       # PR: https://github.com/mtrudel/bandit/pull/564
       {:bandit, git: "https://github.com/tuist/bandit", branch: "detect-client-disconnect-on-timeout", override: true},
