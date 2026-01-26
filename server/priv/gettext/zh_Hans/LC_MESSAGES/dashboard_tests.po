@@ -3,8 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-23 12:12+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"PO-Revision-Date: 2026-01-26 13:32+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_tests/zh_Hans/>\n"
 "Language: zh_Hans\n"
@@ -143,7 +143,7 @@ msgstr "指令持续时间"
 
 #, fuzzy
 msgid "Commit"
-msgstr "社区"
+msgstr "提交"
 
 #, fuzzy
 msgid "Compilation Optimizations"
@@ -230,7 +230,7 @@ msgstr "#"
 
 #, fuzzy
 msgid "Hit"
-msgstr "命中次数"
+msgstr "点击"
 
 #, fuzzy
 msgid "Issue recorded"
@@ -370,7 +370,7 @@ msgstr "Scheme"
 
 #, fuzzy
 msgid "Search..."
-msgstr "搜索"
+msgstr "搜索..."
 
 #, fuzzy
 msgid "Selective Testing"
@@ -382,7 +382,7 @@ msgstr "选择性测试效果"
 
 #, fuzzy
 msgid "Selective test hits"
-msgstr "选择性测试"
+msgstr "选择性测试命中"
 
 #, fuzzy
 msgid ""
@@ -540,7 +540,7 @@ msgstr "失败的测试运行次数。"
 
 #, fuzzy
 msgid "The total number of test runs."
-msgstr "Tuist 运行的总次数。"
+msgstr "测试运行的总次数。"
 
 #, fuzzy
 msgid "Total modules"
@@ -699,7 +699,7 @@ msgstr "不稳定运行"
 
 #, fuzzy
 msgid "Flaky Tests"
-msgstr "不规则测试"
+msgstr "不稳定的测试"
 
 #, fuzzy
 msgid "Flaky runs"
@@ -707,11 +707,11 @@ msgstr "不稳定运行"
 
 #, fuzzy
 msgid "Flaky test cases"
-msgstr "不规则测试"
+msgstr "不稳定的测试用例"
 
 #, fuzzy
 msgid "Flaky test runs"
-msgstr "不规则测试"
+msgstr "不稳定的测试运行"
 
 #, fuzzy
 msgid "Last flaky run"
@@ -727,7 +727,7 @@ msgstr "最常出现的测试失败情况"
 
 #, fuzzy
 msgid "No flaky tests"
-msgstr "不规则测试"
+msgstr "禁止使用不可靠的测试"
 
 #, fuzzy
 msgid "Number of test cases that passed after retry."
@@ -749,50 +749,65 @@ msgstr "取消标记为不稳定"
 msgid "New"
 msgstr "新"
 
+#, fuzzy
 msgid "Quarantine"
-msgstr ""
+msgstr "隔离区"
 
+#, fuzzy
 msgid "Quarantined"
-msgstr ""
+msgstr "隔离区"
 
+#, fuzzy
 msgid "Unquarantine"
-msgstr ""
+msgstr "解除隔离"
 
+#, fuzzy
 msgid "Automatically by Tuist"
-msgstr ""
+msgstr "由 Tuist 自动生成"
 
+#, fuzzy
 msgid "Event"
-msgstr ""
+msgstr "事件"
 
+#, fuzzy
 msgid "Events will appear here when the test case status changes."
-msgstr ""
+msgstr "当测试用例状态变更时，事件将在此处显示。"
 
+#, fuzzy
 msgid "First run of this test"
-msgstr ""
+msgstr "首次运行此测试"
 
 msgid "Load more"
 msgstr ""
 
+#, fuzzy
 msgid "Manually by @%{name}"
-msgstr ""
+msgstr "手动由 @%{name} 处理"
 
+#, fuzzy
 msgid "Marked as flaky"
-msgstr ""
+msgstr "标记为不稳定"
 
+#, fuzzy
 msgid "Marked as quarantined"
-msgstr ""
+msgstr "标记为隔离状态"
 
+#, fuzzy
 msgid "Marked as unquarantined"
-msgstr ""
+msgstr "标记为未隔离"
 
+#, fuzzy
 msgid "No history available"
-msgstr ""
+msgstr "无历史记录可用"
 
+#, fuzzy
 msgid "Test History"
-msgstr ""
+msgstr "测试历史"
 
+#, fuzzy
 msgid "Test history"
-msgstr ""
+msgstr "测试历史"
 
+#, fuzzy
 msgid "Unmarked as flaky"
-msgstr ""
+msgstr "取消标记为不稳定"
