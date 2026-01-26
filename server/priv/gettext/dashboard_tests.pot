@@ -426,7 +426,7 @@ msgid "Missed"
 msgstr ""
 
 #: lib/tuist_web/live/flaky_tests_live.ex:37
-#: lib/tuist_web/live/quarantined_tests_live.ex:40
+#: lib/tuist_web/live/quarantined_tests_live.ex:41
 #: lib/tuist_web/live/test_case_live.html.heex:56
 #: lib/tuist_web/live/test_cases_live.ex:52
 #: lib/tuist_web/live/test_run_live.html.heex:998
@@ -698,7 +698,7 @@ msgid "Success rate based on runs from the %{branch} branch. Falls back to all b
 msgstr ""
 
 #: lib/tuist_web/live/flaky_tests_live.ex:45
-#: lib/tuist_web/live/quarantined_tests_live.ex:48
+#: lib/tuist_web/live/quarantined_tests_live.ex:49
 #: lib/tuist_web/live/test_case_live.html.heex:63
 #: lib/tuist_web/live/test_cases_live.ex:60
 #, elixir-autogen, elixir-format
@@ -1333,14 +1333,14 @@ msgstr ""
 msgid "No quarantined tests"
 msgstr ""
 
-#: lib/tuist_web/live/quarantined_tests_live.ex:21
+#: lib/tuist_web/live/quarantined_tests_live.ex:23
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:64
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:147
 #, elixir-autogen, elixir-format
 msgid "Quarantined Tests"
 msgstr ""
 
-#: lib/tuist_web/live/quarantined_tests_live.ex:59
+#: lib/tuist_web/live/quarantined_tests_live.ex:60
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:242
 #, elixir-autogen, elixir-format
 msgid "Quarantined by"
@@ -1351,7 +1351,7 @@ msgstr ""
 msgid "Quarantined tests"
 msgstr ""
 
-#: lib/tuist_web/live/quarantined_tests_live.ex:64
+#: lib/tuist_web/live/quarantined_tests_live.ex:65
 #: lib/tuist_web/live/quarantined_tests_live.html.heex:245
 #, elixir-autogen, elixir-format
 msgid "Tuist"
