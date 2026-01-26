@@ -19,6 +19,7 @@ alias Tuist.QA.Run
 alias Tuist.Repo
 alias Tuist.Runs.Build
 alias Tuist.Runs.Test
+alias Tuist.Runs.TestCaseEvent
 alias Tuist.Runs.TestModuleRun
 alias Tuist.Runs.TestSuiteRun
 alias Tuist.Slack.Installation
@@ -683,19 +684,82 @@ test_case_definitions =
   for module_name <- module_names,
       suite_name <- suite_names,
       test_case_name <- test_case_names do
+    # ~20% of test cases are marked as flaky (and also quarantined)
+    is_flaky = Enum.random([false, false, false, false, true])
+
     %{
       name: test_case_name,
       module_name: module_name,
       suite_name: suite_name,
       status: Enum.random(["success", "failure", "skipped"]),
-      # ~20% of test cases are marked as flaky
-      is_flaky: Enum.random([false, false, false, false, true]),
+      is_flaky: is_flaky,
+      is_quarantined: is_flaky,
       duration: Enum.random(10..500),
       ran_at: NaiveDateTime.utc_now()
     }
   end
 
 {test_case_id_map, _test_cases_with_flaky_run} = Tuist.Runs.create_test_cases(tuist_project.id, test_case_definitions)
+
+# Update flaky test cases to be marked as is_flaky
+# ~70% stay quarantined, ~30% get unquarantined (to show chart going down)
+# (create_test_cases doesn't set these from input, so we insert updated rows)
+flaky_test_case_defs =
+  test_case_definitions
+  |> Enum.filter(& &1.is_flaky)
+  |> Enum.map(fn def ->
+    id = test_case_id_map[{def.name, def.module_name, def.suite_name}]
+    # ~30% will be unquarantined
+    is_quarantined = Enum.random(1..10) > 3
+    {def, id, is_quarantined}
+  end)
+  |> Enum.reject(fn {_def, id, _is_quarantined} -> is_nil(id) end)
+
+flaky_test_case_updates =
+  flaky_test_case_defs
+  |> Enum.map(fn {def, id, is_quarantined} ->
+    now = NaiveDateTime.utc_now()
+
+    %{
+      id: id,
+      name: def.name,
+      module_name: def.module_name,
+      suite_name: def.suite_name,
+      project_id: project_id,
+      last_status: def.status,
+      last_duration: def.duration,
+      last_ran_at: def.ran_at,
+      is_flaky: true,
+      is_quarantined: is_quarantined,
+      inserted_at: now,
+      recent_durations: [def.duration],
+      avg_duration: def.duration
+    }
+  end)
+
+# Track which test cases are quarantined vs unquarantined for event generation
+{quarantined_ids, unquarantined_ids} =
+  flaky_test_case_defs
+  |> Enum.split_with(fn {_def, _id, is_quarantined} -> is_quarantined end)
+  |> then(fn {quarantined, unquarantined} ->
+    {Enum.map(quarantined, fn {_def, id, _} -> id end),
+     Enum.map(unquarantined, fn {_def, id, _} -> id end)}
+  end)
+
+quarantined_test_cases =
+  if length(flaky_test_case_updates) > 0 do
+    IngestRepo.insert_all(Tuist.Runs.TestCase, flaky_test_case_updates, timeout: 120_000)
+    IO.puts("Updated #{length(flaky_test_case_updates)} test cases as flaky (#{length(quarantined_ids)} quarantined, #{length(unquarantined_ids)} unquarantined)")
+
+    # Keep track of quarantined test cases for ensuring they get test runs
+    flaky_test_case_updates
+    |> Enum.filter(& &1.is_quarantined)
+    |> Enum.map(fn tc ->
+      %{id: tc.id, name: tc.name, module_name: tc.module_name, suite_name: tc.suite_name}
+    end)
+  else
+    []
+  end
 
 # Convert to a list of test cases grouped by module/suite for fast lookup
 _test_cases_by_module_suite =
@@ -732,6 +796,7 @@ failure_counter = :counters.new(1, [:atomics])
 
 # Pre-compute all static data
 all_test_cases_list = Enum.to_list(all_test_cases)
+quarantined_test_cases_list = Enum.to_list(quarantined_test_cases)
 
 # Chunk generator function - processes one chunk and inserts to DB immediately
 chunk_processor = fn chunk_indices ->
@@ -834,7 +899,14 @@ chunk_processor = fn chunk_indices ->
 
                 {case_list_inner, fail_list_inner} =
                   Enum.reduce(1..case_count, {[], []}, fn _, {cl_inner, fl_inner} ->
-                    test_case = Enum.random(all_test_cases_list)
+                    # Ensure quarantined test cases get test_case_runs (10% chance to pick from quarantined)
+                    # This ensures they have last_run_id populated for proper link rendering
+                    test_case =
+                      if length(quarantined_test_cases_list) > 0 and Enum.random(1..10) == 1 do
+                        Enum.random(quarantined_test_cases_list)
+                      else
+                        Enum.random(all_test_cases_list)
+                      end
 
                     case_status =
                       if suite_status == 0,
@@ -935,6 +1007,89 @@ IO.puts("  - Module runs: #{:counters.get(module_run_counter, 1)}")
 IO.puts("  - Suite runs: #{:counters.get(suite_run_counter, 1)}")
 IO.puts("  - Case runs: #{:counters.get(case_run_counter, 1)}")
 IO.puts("  - Failures: #{:counters.get(failure_counter, 1)}")
+
+# =============================================================================
+# Test Case Events (Quarantine History)
+# =============================================================================
+#
+# Create historical quarantine/unquarantine events for test cases to populate
+# the quarantined tests analytics chart. Events match the final quarantine state.
+
+IO.puts("Generating test case events for quarantine history...")
+
+# Generate events for quarantined test cases (odd number of events, ending with "quarantined")
+quarantined_events =
+  quarantined_ids
+  |> Enum.flat_map(fn test_case_id ->
+    # Odd number of events so it ends with "quarantined"
+    num_events = Enum.random([1, 3, 5, 7])
+    base_date = DateTime.utc_now()
+
+    event_timestamps =
+      1..num_events
+      |> Enum.map(fn _ -> Enum.random(1..400) end)
+      |> Enum.sort(:desc)
+      |> Enum.map(fn day_offset ->
+        base_date |> DateTime.add(-day_offset, :day) |> DateTime.to_naive()
+      end)
+
+    event_timestamps
+    |> Enum.with_index()
+    |> Enum.map(fn {inserted_at, index} ->
+      event_type = if rem(index, 2) == 0, do: "quarantined", else: "unquarantined"
+      actor_id = if Enum.random(1..10) <= 7, do: nil, else: user_account_id
+
+      %{
+        id: UUIDv7.generate(),
+        test_case_id: test_case_id,
+        event_type: event_type,
+        actor_id: actor_id,
+        inserted_at: inserted_at
+      }
+    end)
+  end)
+
+# Generate events for unquarantined test cases (even number of events, ending with "unquarantined")
+unquarantined_events =
+  unquarantined_ids
+  |> Enum.flat_map(fn test_case_id ->
+    # Even number of events so it ends with "unquarantined"
+    num_events = Enum.random([2, 4, 6])
+    base_date = DateTime.utc_now()
+
+    event_timestamps =
+      1..num_events
+      |> Enum.map(fn _ -> Enum.random(1..400) end)
+      |> Enum.sort(:desc)
+      |> Enum.map(fn day_offset ->
+        base_date |> DateTime.add(-day_offset, :day) |> DateTime.to_naive()
+      end)
+
+    event_timestamps
+    |> Enum.with_index()
+    |> Enum.map(fn {inserted_at, index} ->
+      event_type = if rem(index, 2) == 0, do: "quarantined", else: "unquarantined"
+      actor_id = if Enum.random(1..10) <= 7, do: nil, else: user_account_id
+
+      %{
+        id: UUIDv7.generate(),
+        test_case_id: test_case_id,
+        event_type: event_type,
+        actor_id: actor_id,
+        inserted_at: inserted_at
+      }
+    end)
+  end)
+
+test_case_events = quarantined_events ++ unquarantined_events
+
+# Insert test case events
+if length(test_case_events) > 0 do
+  IngestRepo.insert_all(TestCaseEvent, test_case_events, timeout: 120_000)
+end
+
+IO.puts("  - Test case events: #{length(test_case_events)}")
+IO.puts("  - Currently quarantined: #{length(quarantined_ids)}, unquarantined: #{length(unquarantined_ids)}")
 
 IO.puts("Generating #{seed_config.command_events} command events in parallel...")
 
