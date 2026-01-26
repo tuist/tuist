@@ -32,8 +32,6 @@ defmodule TuistWeb.QuarantinedTestsLiveTest do
       # Given
       create_quarantined_test_case(project, "testQuarantinedExample")
 
-      Process.sleep(100)
-
       # When
       {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/quarantined-tests")
 
@@ -50,8 +48,6 @@ defmodule TuistWeb.QuarantinedTestsLiveTest do
       # Given
       create_quarantined_test_case(project, "testFirstQuarantined")
       create_quarantined_test_case(project, "testSecondQuarantined")
-
-      Process.sleep(100)
 
       # When
       {:ok, lv, _html} =
@@ -101,8 +97,6 @@ defmodule TuistWeb.QuarantinedTestsLiveTest do
         event_type: "quarantined",
         actor_id: nil
       )
-
-      Process.sleep(100)
 
       # When
       {:ok, lv, _html} =
