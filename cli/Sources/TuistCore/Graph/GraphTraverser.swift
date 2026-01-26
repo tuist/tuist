@@ -433,6 +433,32 @@ public class GraphTraverser: GraphTraversing {
             }
         )
 
+        // Static precompiled XCFrameworks with resources (e.g., from cache)
+        // These need to be embedded so the bundle accessor can find them at runtime
+        let staticXCFrameworksWithResources = filterDependencies(
+            from: .target(name: name, path: path),
+            test: { dependency in
+                guard case let .xcframework(xcframework) = dependency,
+                      xcframework.linking == .static
+                else { return false }
+                let xcframeworkDependencies = self.graph.dependencies[dependency, default: []]
+                return xcframeworkDependencies.contains { dep in
+                    if case .bundle = dep { return true }
+                    return false
+                }
+            },
+            skip: or(canDependencyEmbedBinaries, isDependencyPrecompiledMacro)
+        )
+
+        references.formUnionPreferringRequiredStatus(
+            staticXCFrameworksWithResources.lazy.compactMap {
+                self.dependencyReference(
+                    to: $0,
+                    from: .target(name: name, path: path)
+                )
+            }
+        )
+
         // Exclude any products embed in unit test host apps
         if target.target.product == .unitTests {
             if let hostApp = unitTestHost(path: path, name: name) {
