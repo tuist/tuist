@@ -1,5 +1,5 @@
 ---
-title: "Flaky Tests: The Silent Productivity Killer"
+title: "Stop Flaky Tests from Blocking Your PRs"
 category: "product"
 tags: ["product", "test-insights"]
 excerpt: "Flaky tests waste engineering hours and block PR throughput. Learn how Tuist automatically detects, tracks, and quarantines flaky tests so your team can ship faster."
