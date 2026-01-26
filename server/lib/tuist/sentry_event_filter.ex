@@ -8,6 +8,7 @@ defmodule Tuist.SentryEventFilter do
 
   @ignored_exceptions [
     Bandit.TransportError,
+    Phoenix.Router.NoRouteError,
     TuistWeb.Errors.BadRequestError,
     TuistWeb.Errors.NotFoundError,
     TuistWeb.Errors.TooManyRequestsError,

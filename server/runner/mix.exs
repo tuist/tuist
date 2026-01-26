@@ -24,7 +24,7 @@ defmodule Runner.MixProject do
 
   defp deps do
     [
-      {:burrito, "~> 1.0"},
+      {:burrito, "== 1.4.0"},
       {:langchain, "~> 0.4"},
       {:briefly, "~> 0.5.0"},
       {:slipstream, "~> 1.2.0"},

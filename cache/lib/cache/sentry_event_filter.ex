@@ -7,7 +7,8 @@ defmodule Cache.SentryEventFilter do
   @behaviour Sentry.EventFilter
 
   @ignored_exceptions [
-    Bandit.TransportError
+    Bandit.TransportError,
+    Phoenix.Router.NoRouteError
   ]
 
   @impl Sentry.EventFilter
