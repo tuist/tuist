@@ -58,9 +58,9 @@ defmodule Tuist.MixProject do
       # Using fork with client disconnect detection during body read timeouts
       # PR: https://github.com/mtrudel/bandit/pull/564
       {:bandit, git: "https://github.com/tuist/bandit", branch: "detect-client-disconnect-on-timeout", override: true},
-      {:credo, "~> 1.7.13", only: [:dev, :test], runtime: false},
-      {:appsignal, "~> 2.15.0"},
-      {:appsignal_phoenix, "~> 2.5"},
+      {:credo, "== 1.7.13", only: [:dev, :test], runtime: false},
+      {:sentry, "~> 10.2.0"},
+      {:hackney, "~> 1.8"},
       {:castore, "~> 1.0.12"},
       {:uniq, "~> 0.6"},
       {:encrypted_secrets, "~> 0.3.0"},
@@ -139,7 +139,7 @@ defmodule Tuist.MixProject do
       {:tuist_common, path: "../tuist_common"},
       {:slipstream, "~> 1.2.0"},
       {:lazy_html, ">= 0.1.0", only: :test},
-      {:peep, "~> 4.2", override: true},
+      {:peep, "4.2.1", override: true},
       {:langchain, "~> 0.4"},
       {:earmark, "~> 1.4"},
       {:html_sanitize_ex, "~> 1.4"},

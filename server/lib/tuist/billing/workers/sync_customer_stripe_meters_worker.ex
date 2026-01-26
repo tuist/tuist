@@ -4,8 +4,6 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorker do
   """
   use Oban.Worker
 
-  import Tuist.Environment, only: [run_if_error_tracking_enabled: 1]
-
   alias Tuist.Accounts
   alias Tuist.Billing
 
@@ -15,15 +13,11 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorker do
     date = Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")
     idempotency_key = "#{customer_id}-#{date}"
 
-    run_if_error_tracking_enabled do
-      Appsignal.Span.set_sample_data(
-        Appsignal.Tracer.root_span(),
-        "tags",
-        %{
-          customer_id: customer_id,
-          date: date
-        }
-      )
+    if Tuist.Environment.error_tracking_enabled?() do
+      Sentry.Context.set_extra_context(%{
+        customer_id: customer_id,
+        date: date
+      })
     end
 
     {:ok, account} = Accounts.get_account_from_customer_id(customer_id)

@@ -11,8 +11,6 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorker do
     ],
     max_attempts: 3
 
-  import Tuist.Environment, only: [run_if_error_tracking_enabled: 1]
-
   alias Tuist.Environment
   alias Tuist.Registry.Swift.Packages
 
@@ -22,15 +20,11 @@ defmodule Tuist.Registry.Swift.Workers.CreatePackageReleaseWorker do
   def perform(%Oban.Job{args: %{"scope" => scope, "name" => name, "version" => version}}) do
     Logger.info("Creating package release for #{scope}/#{name}@#{version}")
 
-    run_if_error_tracking_enabled do
-      Appsignal.Span.set_sample_data(
-        Appsignal.Tracer.root_span(),
-        "tags",
-        %{
-          package: scope <> "/" <> name,
-          version: version
-        }
-      )
+    if Environment.error_tracking_enabled?() do
+      Sentry.Context.set_extra_context(%{
+        package: scope <> "/" <> name,
+        version: version
+      })
     end
 
     case Packages.get_package_by_scope_and_name(%{scope: scope, name: name}) do

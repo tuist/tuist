@@ -5,4 +5,4 @@ servers:
 env:
   clear:
     SERVER_URL: https://canary.tuist.dev
-    APPSIGNAL_ENV: can
+    SENTRY_ENV: can
