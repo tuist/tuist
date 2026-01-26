@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2026-01-26 13:31+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/tr/>\n"
 "Language: tr\n"
@@ -792,8 +793,9 @@ msgstr "Test durumu değiştiğinde olaylar burada görünecektir."
 msgid "First run of this test"
 msgstr "Bu testin ilk çalıştırılması"
 
+#, fuzzy
 msgid "Load more"
-msgstr ""
+msgstr "Daha fazla yükle"
 
 #, fuzzy
 msgid "Manually by @%{name}"
