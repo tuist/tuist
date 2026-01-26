@@ -3,6 +3,7 @@ defmodule TuistWeb.RunDetailLive do
   use TuistWeb, :live_view
   use Noora
 
+  import Ecto.Query
   import Noora.Filter
   import TuistWeb.Runs.CacheEndpointFormatter
   import TuistWeb.Runs.RanByBadge
@@ -202,8 +203,21 @@ defmodule TuistWeb.RunDetailLive do
   defp assign_binary_cache_data(socket, analytics, meta, params) do
     filters = Filter.Operations.decode_filters_from_query(params, socket.assigns.available_filters)
 
+    upload_stats = CommandEvents.get_cache_upload_stats([socket.assigns.run.id])
+    run_upload_stats = Map.get(upload_stats, socket.assigns.run.id, %{uploaded_count: 0, not_uploaded_count: 0})
+
+    enriched_targets = enrich_targets_with_upload_status(
+      Map.get(analytics, :cacheable_targets, []),
+      socket.assigns.run
+    )
+
+    analytics_with_uploads =
+      analytics
+      |> Map.merge(run_upload_stats)
+      |> Map.put(:cacheable_targets, enriched_targets)
+
     socket
-    |> assign(:binary_cache_analytics, analytics)
+    |> assign(:binary_cache_analytics, analytics_with_uploads)
     |> assign(:binary_cache_meta, meta)
     |> assign(:binary_cache_page_count, meta.total_pages)
     |> assign(:binary_cache_filter, params["binary-cache-filter"] || "")
@@ -406,6 +420,47 @@ defmodule TuistWeb.RunDetailLive do
 
       _ ->
         [0, 0, 0, 0]
+    end
+  end
+
+  defp enrich_targets_with_upload_status(targets, run) do
+    if is_nil(run.build_run_id) do
+      Enum.map(targets, fn target -> Map.put(target, :uploaded, false) end)
+    else
+      cacheable_tasks =
+        from(ct in Tuist.Runs.CacheableTask,
+          where: ct.build_run_id == ^run.build_run_id,
+          select: %{description: ct.description, status: ct.status, cas_output_node_ids: ct.cas_output_node_ids}
+        )
+        |> Tuist.ClickHouseRepo.all()
+
+      upload_node_ids =
+        if Enum.empty?(cacheable_tasks) do
+          MapSet.new()
+        else
+          from(co in Tuist.Runs.CASOutput,
+            where: co.build_run_id == ^run.build_run_id and co.operation == "upload",
+            distinct: co.node_id,
+            select: co.node_id
+          )
+          |> Tuist.ClickHouseRepo.all()
+          |> MapSet.new()
+        end
+
+      upload_map =
+        cacheable_tasks
+        |> Enum.map(fn task ->
+          uploaded =
+            task.status == "miss" &&
+              Enum.any?(task.cas_output_node_ids, &MapSet.member?(upload_node_ids, &1))
+
+          {task.description, uploaded}
+        end)
+        |> Map.new()
+
+      Enum.map(targets, fn target ->
+        Map.put(target, :uploaded, Map.get(upload_map, target.name, false))
+      end)
     end
   end
 end

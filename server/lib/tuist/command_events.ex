@@ -921,4 +921,71 @@ defmodule Tuist.CommandEvents do
       {run.id, user_name}
     end)
   end
+
+  @doc """
+  Gets cache upload statistics for command events with associated build runs.
+  Returns a map of command_event_id => %{uploaded_count: integer(), not_uploaded_count: integer()}
+  """
+  def get_cache_upload_stats(command_event_ids) when is_list(command_event_ids) do
+    if Enum.empty?(command_event_ids) do
+      %{}
+    else
+      events_with_builds =
+        from(e in Event,
+          where: e.id in ^command_event_ids and not is_nil(e.build_run_id),
+          select: %{id: e.id, build_run_id: e.build_run_id, cacheable_targets: e.cacheable_targets}
+        )
+        |> ClickHouseRepo.all()
+
+      build_run_ids = Enum.map(events_with_builds, & &1.build_run_id)
+
+      uploads_by_build =
+        if Enum.empty?(build_run_ids) do
+          %{}
+        else
+          from(co in Tuist.Runs.CASOutput,
+            where: co.build_run_id in ^build_run_ids and co.operation == "upload",
+            distinct: [co.build_run_id, co.node_id],
+            select: %{build_run_id: co.build_run_id, node_id: co.node_id}
+          )
+          |> ClickHouseRepo.all()
+          |> Enum.group_by(& &1.build_run_id, & &1.node_id)
+        end
+
+      cacheable_tasks_by_build =
+        if Enum.empty?(build_run_ids) do
+          %{}
+        else
+          from(ct in Tuist.Runs.CacheableTask,
+            where: ct.build_run_id in ^build_run_ids,
+            select: %{
+              build_run_id: ct.build_run_id,
+              description: ct.description,
+              status: ct.status,
+              cas_output_node_ids: ct.cas_output_node_ids
+            }
+          )
+          |> ClickHouseRepo.all()
+          |> Enum.group_by(& &1.build_run_id)
+        end
+
+      Map.new(events_with_builds, fn event ->
+        build_run_id = event.build_run_id
+        uploads = Map.get(uploads_by_build, build_run_id, []) |> MapSet.new()
+        tasks = Map.get(cacheable_tasks_by_build, build_run_id, [])
+
+        {uploaded, not_uploaded} =
+          Enum.split_with(tasks, fn task ->
+            task.status == "miss" &&
+              Enum.any?(task.cas_output_node_ids, &MapSet.member?(uploads, &1))
+          end)
+
+        {event.id,
+         %{
+           uploaded_count: length(uploaded),
+           not_uploaded_count: length(not_uploaded)
+         }}
+      end)
+    end
+  end
 end
