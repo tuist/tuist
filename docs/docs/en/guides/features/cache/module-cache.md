@@ -126,6 +126,11 @@ The above suggestions are part of the <LocalizedLink href="/guides/features/proj
 
 We recommend having a CI job that **runs in every commit in the main branch** to warm the cache. This will ensure the cache always contains binaries for the changes in `main` so local and CI branch build incrementally upon them.
 
+::: tip KEEP CACHE WARMING ISOLATED
+<!-- -->
+Run `tuist cache` in a dedicated CI step without subsequent steps that depend on the generated workspace. Since `tuist cache` modifies the workspace for cache building purposes, any CI steps that need the workspace should run `tuist generate` first to get a fresh, usable workspace.
+<!-- -->:::
+
 ::: tip CACHE WARMING USES BINARIES
 <!-- -->
 The `tuist cache` command also makes use of the binary cache to speed up the warming.
