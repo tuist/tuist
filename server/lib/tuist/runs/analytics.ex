@@ -13,6 +13,7 @@ defmodule Tuist.Runs.Analytics do
   alias Tuist.Runs.Build
   alias Tuist.Runs.Test
   alias Tuist.Runs.TestCase
+  alias Tuist.Runs.TestCaseEvent
   alias Tuist.Runs.TestCaseRun
   alias Tuist.Tasks
   alias Tuist.Xcode.XcodeGraph
@@ -1282,8 +1283,6 @@ defmodule Tuist.Runs.Analytics do
   tracking quarantine/unquarantine events from the test_case_events table.
   """
   def quarantined_tests_analytics(project_id, opts \\ []) do
-    alias Tuist.Runs.TestCaseEvent
-
     start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
 
@@ -1346,8 +1345,6 @@ defmodule Tuist.Runs.Analytics do
   end
 
   defp quarantined_count_before(project_id, datetime) do
-    alias Tuist.Runs.TestCaseEvent
-
     # Get distinct test_case_ids for this project to avoid counting events multiple times
     # due to ClickHouse ReplacingMergeTree not immediately deduplicating rows
     project_test_case_ids_subquery =
