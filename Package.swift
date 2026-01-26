@@ -723,7 +723,7 @@ let package = Package(
         ),
         .package(id: "tuist.Path", .upToNextMajor(from: "0.3.0")),
         .package(id: "tuist.XcodeGraph", .upToNextMajor(from: "1.31.0")),
-        .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.11.0")),
+        .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.14.10")),
         .package(id: "tuist.Command", .upToNextMajor(from: "0.8.0")),
         .package(id: "sparkle-project.Sparkle", from: "2.6.4"),
         // swift-collections 1.3.0 requires Swift 6.2.0
