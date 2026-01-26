@@ -1,7 +1,18 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.130.2<!-- RELEASE NOTES START -->
+## What's Changed in 4.131.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add test quarantine and automations settings by [@fortmarek](https://github.com/fortmarek) in [#9175](https://github.com/tuist/tuist/pull/9175)
+### 🐛 Bug Fixes
+
+* restore mapper order for selective testing and fix parseAsRoot by [@fortmarek](https://github.com/fortmarek) in [#9234](https://github.com/tuist/tuist/pull/9234)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.130.3...4.131.0
+
+## What's Changed in 4.130.3<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
 
@@ -12,7 +23,7 @@ All notable changes to this project will be documented in this file.
 
 * add intent layer nodes by [@pepicrft](https://github.com/pepicrft) in [#9042](https://github.com/tuist/tuist/pull/9042)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.130.1...4.130.2
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.130.1...4.130.3
 
 ## What's Changed in 4.130.1<!-- RELEASE NOTES START -->
 

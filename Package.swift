@@ -361,7 +361,7 @@ let targets: [Target] = [
             pathDependency,
             .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
             .product(name: "HTTPTypes", package: "apple.swift-http-types"),
-            .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
+            .product(name: "OpenAPIURLSession", package: "apple.swift-openapi-urlsession"),
             .product(name: "Rosalind", package: "tuist.Rosalind"),
         ],
         path: "cli/Sources/TuistServer",
@@ -428,7 +428,7 @@ let targets: [Target] = [
             xcodeGraphDependency,
             "TuistHasher",
             .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
-            .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
+            .product(name: "OpenAPIURLSession", package: "apple.swift-openapi-urlsession"),
         ],
         path: "cli/Sources/TuistCache",
         exclude: ["OpenAPI/cache.yml", "AGENTS.md"],
@@ -549,7 +549,7 @@ let targets: [Target] = [
             "TuistCASAnalytics",
             .product(name: "GRPCCore", package: "grpc.grpc-swift-2"),
             .product(name: "GRPCProtobuf", package: "grpc.grpc-swift-protobuf"),
-            .product(name: "SwiftProtobuf", package: "swift-protobuf"),
+            .product(name: "SwiftProtobuf", package: "apple.swift-protobuf"),
             .product(name: "libzstd", package: "facebook.zstd"),
             mockableDependency,
             pathDependency,
@@ -719,8 +719,7 @@ let package = Package(
             id: "apple.swift-http-types", .upToNextMajor(from: "1.3.0")
         ),
         .package(
-            url: "https://github.com/tuist/swift-openapi-urlsession",
-            branch: "fix/wroteFinalChunk-closed-state-crash"
+            id: "apple.swift-openapi-urlsession", .upToNextMajor(from: "1.0.2")
         ),
         .package(id: "tuist.Path", .upToNextMajor(from: "0.3.0")),
         .package(id: "tuist.XcodeGraph", .upToNextMajor(from: "1.31.0")),
@@ -765,10 +764,7 @@ let package = Package(
             .upToNextMajor(from: "1.1.0")
         ),
         .package(id: "grpc.grpc-swift-2", from: "2.0.0"),
-        .package(
-            url: "https://github.com/apple/swift-protobuf.git",
-            from: "1.32.0"
-        ),
+        .package(id: "apple.swift-protobuf", exact: "1.33.3"),
         .package(id: "grpc.grpc-swift-protobuf", from: "2.0.0"),
         .package(id: "grpc.grpc-swift-nio-transport", from: "2.0.0"),
         .package(id: "facebook.zstd", from: "1.5.0"),
