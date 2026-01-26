@@ -3,8 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-23 12:12+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"PO-Revision-Date: 2026-01-26 13:32+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_tests/zh_Hant/>\n"
 "Language: zh_Hant\n"
@@ -143,7 +143,7 @@ msgstr "指令持續時間"
 
 #, fuzzy
 msgid "Commit"
-msgstr "社群"
+msgstr "提交"
 
 #, fuzzy
 msgid "Compilation Optimizations"
@@ -230,7 +230,7 @@ msgstr "井號"
 
 #, fuzzy
 msgid "Hit"
-msgstr "命中數"
+msgstr "擊擊擊擊擊擊擊擊擊擊擊擊擊擊擊擊擊擊擊擊擊擊擊"
 
 #, fuzzy
 msgid "Issue recorded"
@@ -382,7 +382,7 @@ msgstr "選擇性測試有效性"
 
 #, fuzzy
 msgid "Selective test hits"
-msgstr "選擇性測試"
+msgstr "選擇性測試命中"
 
 #, fuzzy
 msgid ""
@@ -750,50 +750,65 @@ msgstr "取消標記為不穩定"
 msgid "New"
 msgstr "新"
 
+#, fuzzy
 msgid "Quarantine"
-msgstr ""
+msgstr "隔離區"
 
+#, fuzzy
 msgid "Quarantined"
-msgstr ""
+msgstr "隔離區"
 
+#, fuzzy
 msgid "Unquarantine"
-msgstr ""
+msgstr "解除隔離"
 
+#, fuzzy
 msgid "Automatically by Tuist"
-msgstr ""
+msgstr "由 Tuist 自動生成"
 
+#, fuzzy
 msgid "Event"
-msgstr ""
+msgstr "事件"
 
+#, fuzzy
 msgid "Events will appear here when the test case status changes."
-msgstr ""
+msgstr "當測試案例狀態變更時，事件將顯示於此處。"
 
+#, fuzzy
 msgid "First run of this test"
-msgstr ""
+msgstr "首次執行此測試"
 
 msgid "Load more"
 msgstr ""
 
+#, fuzzy
 msgid "Manually by @%{name}"
-msgstr ""
+msgstr "手動由 @%{name} 處理"
 
+#, fuzzy
 msgid "Marked as flaky"
-msgstr ""
+msgstr "標記為不穩定"
 
+#, fuzzy
 msgid "Marked as quarantined"
-msgstr ""
+msgstr "標記為隔離狀態"
 
+#, fuzzy
 msgid "Marked as unquarantined"
-msgstr ""
+msgstr "標記為解除隔離"
 
+#, fuzzy
 msgid "No history available"
-msgstr ""
+msgstr "無可用歷史紀錄"
 
+#, fuzzy
 msgid "Test History"
-msgstr ""
+msgstr "測試歷史"
 
+#, fuzzy
 msgid "Test history"
-msgstr ""
+msgstr "測試歷史"
 
+#, fuzzy
 msgid "Unmarked as flaky"
-msgstr ""
+msgstr "取消標記為不穩定"
