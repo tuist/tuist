@@ -25,7 +25,7 @@ defmodule Runner.MixProject do
   defp deps do
     [
       {:burrito, "~> 1.0"},
-      {:langchain, git: "https://github.com/brainlid/langchain", branch: "main"},
+      {:langchain, "~> 0.4"},
       {:briefly, "~> 0.5.0"},
       {:slipstream, "~> 1.2.0"},
       {:web_driver_client, "~> 0.2.0"},
