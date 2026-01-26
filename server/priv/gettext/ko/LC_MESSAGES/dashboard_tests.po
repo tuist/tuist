@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
 "PO-Revision-Date: 2026-01-26 13:31+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/ko/>\n"
 "Language: ko\n"
@@ -630,15 +631,17 @@ msgstr "테스트 케이스 상태가 변경되면 이벤트가 여기에 표시
 msgid "First run of this test"
 msgstr "이 테스트의 첫 실행"
 
+#, fuzzy
 msgid "Load more"
-msgstr ""
+msgstr "더 불러오기"
 
 #, fuzzy
 msgid "Manually by @%{name}"
 msgstr "수동으로 @%{name}"
 
+#, fuzzy
 msgid "Marked as flaky"
-msgstr ""
+msgstr "불규칙으로 표시"
 
 #, fuzzy
 msgid "Marked as quarantined"
@@ -660,5 +663,6 @@ msgstr "테스트 기록"
 msgid "Test history"
 msgstr "테스트 기록"
 
+#, fuzzy
 msgid "Unmarked as flaky"
-msgstr ""
+msgstr "불규칙 표시 해제"
