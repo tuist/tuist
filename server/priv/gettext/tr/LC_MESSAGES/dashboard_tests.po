@@ -3,8 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-23 12:12+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"PO-Revision-Date: 2026-01-26 13:31+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/tr/>\n"
 "Language: tr\n"
@@ -144,7 +144,7 @@ msgstr "Komut süresi"
 
 #, fuzzy
 msgid "Commit"
-msgstr "Topluluk"
+msgstr "Kaydet"
 
 #, fuzzy
 msgid "Compilation Optimizations"
@@ -234,7 +234,7 @@ msgstr "Hash"
 
 #, fuzzy
 msgid "Hit"
-msgstr "İstek Sayısı"
+msgstr "Hit"
 
 #, fuzzy
 msgid "Issue recorded"
@@ -374,7 +374,7 @@ msgstr "Şema"
 
 #, fuzzy
 msgid "Search..."
-msgstr "Arama"
+msgstr "Ara..."
 
 #, fuzzy
 msgid "Selective Testing"
@@ -386,7 +386,7 @@ msgstr "Seçici test etkinliği"
 
 #, fuzzy
 msgid "Selective test hits"
-msgstr "Seçmeli test"
+msgstr "Seçici test sonuçları"
 
 #, fuzzy
 msgid ""
@@ -764,50 +764,65 @@ msgstr "Kararsız olarak işaretlemeyi kaldır"
 msgid "New"
 msgstr "Yeni"
 
+#, fuzzy
 msgid "Quarantine"
-msgstr ""
+msgstr "Karantina"
 
+#, fuzzy
 msgid "Quarantined"
-msgstr ""
+msgstr "Karantinaya alınmış"
 
+#, fuzzy
 msgid "Unquarantine"
-msgstr ""
+msgstr "Karantinadan Çıkar"
 
+#, fuzzy
 msgid "Automatically by Tuist"
-msgstr ""
+msgstr "Tuist tarafından otomatik olarak"
 
+#, fuzzy
 msgid "Event"
-msgstr ""
+msgstr "Etkinlik"
 
+#, fuzzy
 msgid "Events will appear here when the test case status changes."
-msgstr ""
+msgstr "Test durumu değiştiğinde olaylar burada görünecektir."
 
+#, fuzzy
 msgid "First run of this test"
-msgstr ""
+msgstr "Bu testin ilk çalıştırılması"
 
 msgid "Load more"
 msgstr ""
 
+#, fuzzy
 msgid "Manually by @%{name}"
-msgstr ""
+msgstr "@%{name} tarafından manuel olarak"
 
+#, fuzzy
 msgid "Marked as flaky"
-msgstr ""
+msgstr "Kararsız olarak işaretlendi"
 
+#, fuzzy
 msgid "Marked as quarantined"
-msgstr ""
+msgstr "Karantina olarak işaretlendi"
 
+#, fuzzy
 msgid "Marked as unquarantined"
-msgstr ""
+msgstr "Karantinadan çıkarılmış olarak işaretlendi"
 
+#, fuzzy
 msgid "No history available"
-msgstr ""
+msgstr "Geçmiş mevcut değil"
 
+#, fuzzy
 msgid "Test History"
-msgstr ""
+msgstr "Test Geçmişi"
 
+#, fuzzy
 msgid "Test history"
-msgstr ""
+msgstr "Test geçmişi"
 
+#, fuzzy
 msgid "Unmarked as flaky"
-msgstr ""
+msgstr "Kararsız olarak işaretlenmemiş"
