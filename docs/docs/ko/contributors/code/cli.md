@@ -29,7 +29,7 @@ CLI는 Tuist의 핵심입니다. 프로젝트 생성, 자동화 워크플로(테
 - `git clone git@github.com:tuist/tuist.git`로 소스를 받으세요
 - Mise는 [공식 설치 스크립트](https://mise.jdx.dev/getting-started.html) (Homebrew 아님)을
   사용해 설치하고 `mise install을 실행하세요.`
-- Tuist 종속성 설치: `tuist install`
+- Tuist 의존성 설치: `tuist install`
 - 워크스페이스 생성: `tuist generate`
 
 생성된 프로젝트가 자동으로 열립니다. 나중에 다시 열어야 할 경우, `open Tuist.xcworkspace` 를 실행하세요.
