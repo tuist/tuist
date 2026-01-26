@@ -3,8 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-23 12:12+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"PO-Revision-Date: 2026-01-26 13:31+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Arabic <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/ar/>\n"
 "Language: ar\n"
@@ -374,7 +374,7 @@ msgstr "المخطط"
 
 #, fuzzy
 msgid "Search..."
-msgstr "بحث"
+msgstr "بحث..."
 
 #, fuzzy
 msgid "Selective Testing"
@@ -552,7 +552,7 @@ msgstr "عدد مرات فشل الاختبار."
 
 #, fuzzy
 msgid "The total number of test runs."
-msgstr "إجمالي عدد مرات تشغيل تويست."
+msgstr "العدد الإجمالي لعمليات الاختبار."
 
 #, fuzzy
 msgid "Total modules"
@@ -765,50 +765,66 @@ msgstr "إلغاء تحديد \"غير موثوق\""
 msgid "New"
 msgstr "جديد"
 
+#, fuzzy
 msgid "Quarantine"
-msgstr ""
+msgstr "الحجر الصحي"
 
+#, fuzzy
 msgid "Quarantined"
-msgstr ""
+msgstr "محجوز"
 
+#, fuzzy
 msgid "Unquarantine"
-msgstr ""
+msgstr "إلغاء الحجر الصحي"
 
+#, fuzzy
 msgid "Automatically by Tuist"
-msgstr ""
+msgstr "تلقائيًا بواسطة Tuist"
 
+#, fuzzy
 msgid "Event"
-msgstr ""
+msgstr "حدث"
 
+#, fuzzy
 msgid "Events will appear here when the test case status changes."
-msgstr ""
+msgstr "ستظهر الأحداث هنا عندما تتغير حالة حالة الاختبار."
 
+#, fuzzy
 msgid "First run of this test"
-msgstr ""
+msgstr "أول مرة يتم إجراء هذا الاختبار"
 
+#, fuzzy
 msgid "Load more"
-msgstr ""
+msgstr "تحميل المزيد"
 
+#, fuzzy
 msgid "Manually by @%{name}"
-msgstr ""
+msgstr "يدويًا بواسطة @%{name}"
 
+#, fuzzy
 msgid "Marked as flaky"
-msgstr ""
+msgstr "تم وضع علامة \"غير موثوق\""
 
+#, fuzzy
 msgid "Marked as quarantined"
-msgstr ""
+msgstr "تم وضع علامة \"في الحجر الصحي\""
 
+#, fuzzy
 msgid "Marked as unquarantined"
-msgstr ""
+msgstr "تم وضع علامة \"غير معزول\""
 
+#, fuzzy
 msgid "No history available"
-msgstr ""
+msgstr "لا يوجد سجل متاح"
 
+#, fuzzy
 msgid "Test History"
-msgstr ""
+msgstr "سجل الاختبارات"
 
+#, fuzzy
 msgid "Test history"
-msgstr ""
+msgstr "سجل الاختبارات"
 
+#, fuzzy
 msgid "Unmarked as flaky"
-msgstr ""
+msgstr "إلغاء وضع علامة \"غير موثوق\""
