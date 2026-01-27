@@ -37,11 +37,14 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
         val resolvedExecutablePath = configuration.executablePath ?: findTuistInPath()
             ?: throw BuildCacheException("Could not find 'tuist' executable. Please install Tuist or set executablePath in the tuist extension.")
 
-        return TuistBuildCacheService(
+        val configurationProvider = TuistCommandConfigurationProvider(
             fullHandle = configuration.fullHandle,
-            executablePath = resolvedExecutablePath,
-            isPushEnabled = configuration.isPush,
-            allowInsecureProtocol = configuration.allowInsecureProtocol
+            executablePath = resolvedExecutablePath
+        )
+
+        return TuistBuildCacheService(
+            configurationProvider = configurationProvider,
+            isPushEnabled = configuration.isPush
         )
     }
 
@@ -61,16 +64,53 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
 }
 
 /**
+ * Provides cache configuration, typically by running `tuist cache config`.
+ */
+fun interface ConfigurationProvider {
+    fun getConfiguration(): TuistCacheConfiguration?
+}
+
+/**
+ * Default configuration provider that runs `tuist cache config` command.
+ */
+class TuistCommandConfigurationProvider(
+    private val fullHandle: String,
+    private val executablePath: String
+) : ConfigurationProvider {
+
+    override fun getConfiguration(): TuistCacheConfiguration? {
+        val command = listOf(executablePath, "cache", "config", fullHandle, "--json")
+
+        val process = ProcessBuilder(command)
+            .redirectErrorStream(false)
+            .start()
+
+        val output = BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
+            reader.readText()
+        }
+
+        val exitCode = process.waitFor()
+        if (exitCode != 0) {
+            return null
+        }
+
+        return try {
+            Gson().fromJson(output, TuistCacheConfiguration::class.java)
+        } catch (e: Exception) {
+            null
+        }
+    }
+}
+
+/**
  * Custom BuildCacheService that handles authentication and automatic token refresh.
  *
  * When a 401 Unauthorized response is received, this service automatically
- * re-runs `tuist cache config` to refresh the token and retries the request.
+ * refreshes the configuration and retries the request.
  */
 class TuistBuildCacheService(
-    private val fullHandle: String,
-    private val executablePath: String,
-    private val isPushEnabled: Boolean,
-    private val allowInsecureProtocol: Boolean
+    private val configurationProvider: ConfigurationProvider,
+    private val isPushEnabled: Boolean
 ) : BuildCacheService {
 
     @Volatile
@@ -157,36 +197,13 @@ class TuistBuildCacheService(
 
     private fun refreshConfig(): TuistCacheConfiguration? {
         synchronized(configLock) {
-            val newConfig = executeTuistCommand()
+            val newConfig = configurationProvider.getConfiguration()
             cachedConfig = newConfig
             return newConfig
         }
     }
 
-    private fun executeTuistCommand(): TuistCacheConfiguration? {
-        val command = listOf(executablePath, "cache", "config", fullHandle, "--json")
-
-        val process = ProcessBuilder(command)
-            .redirectErrorStream(false)
-            .start()
-
-        val output = BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
-            reader.readText()
-        }
-
-        val exitCode = process.waitFor()
-        if (exitCode != 0) {
-            return null
-        }
-
-        return try {
-            Gson().fromJson(output, TuistCacheConfiguration::class.java)
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    private fun buildCacheUrl(config: TuistCacheConfiguration, cacheKey: String): URI {
+    internal fun buildCacheUrl(config: TuistCacheConfiguration, cacheKey: String): URI {
         val baseUri = URI.create(config.url.trimEnd('/'))
         return URI(
             baseUri.scheme,
