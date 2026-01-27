@@ -66,7 +66,8 @@ defmodule TuistWeb.Endpoint do
     handler: GitHubController,
     secret: {Tuist.Environment, :github_app_webhook_secret, []},
     signature_header: "x-hub-signature-256",
-    signature_prefix: "sha256="
+    signature_prefix: "sha256=",
+    read_timeout: 60_000
 
   plug WebhookPlug,
     at: "/webhooks/cache",
