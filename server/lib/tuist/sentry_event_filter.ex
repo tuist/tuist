@@ -4,21 +4,14 @@ defmodule Tuist.SentryEventFilter do
   This module is used to exclude expected errors that are not actionable.
   """
 
-  @behaviour Sentry.EventFilter
-
-  @ignored_exceptions [
-    Bandit.TransportError,
-    Phoenix.Router.NoRouteError,
+  @additional_ignored_exceptions [
     TuistWeb.Errors.BadRequestError,
     TuistWeb.Errors.NotFoundError,
     TuistWeb.Errors.TooManyRequestsError,
     TuistWeb.Errors.UnauthorizedError
   ]
 
-  @impl Sentry.EventFilter
-  def exclude_exception?(%{original_exception: exception}, :plug) do
-    exception.__struct__ in @ignored_exceptions
+  def before_send(event) do
+    TuistCommon.SentryEventFilter.before_send(event, @additional_ignored_exceptions)
   end
-
-  def exclude_exception?(_, _), do: false
 end
