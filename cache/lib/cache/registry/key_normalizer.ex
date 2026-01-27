@@ -28,6 +28,7 @@ defmodule Cache.Registry.KeyNormalizer do
   - Strips leading "v" prefix
   - Adds trailing zeros for incomplete versions (1 -> 1.0.0, 1.2 -> 1.2.0)
   - Converts pre-release dot separator to plus (1.0.0-alpha.1 -> 1.0.0-alpha+1)
+  - Versions with multiple hyphens are passed through with only trailing zeros added
 
   ## Examples
 
@@ -45,6 +46,9 @@ defmodule Cache.Registry.KeyNormalizer do
 
       iex> Cache.Registry.KeyNormalizer.normalize_version("v2.0.0-beta.2")
       "2.0.0-beta+2"
+
+      iex> Cache.Registry.KeyNormalizer.normalize_version("0.20.0-prerelease-5")
+      "0.20.0-prerelease-5"
   """
   def normalize_version(version) when is_binary(version) do
     version = String.trim_leading(version, "v")
@@ -55,8 +59,8 @@ defmodule Cache.Registry.KeyNormalizer do
         base = add_trailing_semantic_version_zeros(base)
         "#{base}-#{prerelease_with_plus}"
 
-      [base] ->
-        add_trailing_semantic_version_zeros(base)
+      _ ->
+        add_trailing_semantic_version_zeros(version)
     end
   end
 
