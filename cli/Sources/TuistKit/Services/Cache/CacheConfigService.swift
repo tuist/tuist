@@ -5,7 +5,7 @@ import TuistLoader
 import TuistServer
 import TuistSupport
 
-protocol GradleCacheServicing {
+protocol CacheConfigServicing {
     func run(
         fullHandle: String,
         json: Bool,
@@ -13,7 +13,7 @@ protocol GradleCacheServicing {
     ) async throws
 }
 
-final class GradleCacheService: GradleCacheServicing {
+final class CacheConfigService: CacheConfigServicing {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let cacheURLStore: CacheURLStoring
@@ -49,16 +49,14 @@ final class GradleCacheService: GradleCacheServicing {
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
 
         guard let token = try await serverAuthenticationController.authenticationToken(serverURL: serverURL) else {
-            throw GradleCacheServiceError.notAuthenticated
+            throw CacheConfigServiceError.notAuthenticated
         }
 
         let accountHandle = fullHandle.split(separator: "/").first.map(String.init)
         let cacheURL = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
 
-        let gradleCacheURL = cacheURL.appendingPathComponent("api/cache/gradle")
-
-        let result = GradleCacheConfiguration(
-            endpoint: gradleCacheURL.absoluteString,
+        let result = CacheConfiguration(
+            url: cacheURL.absoluteString,
             token: token.value,
             accountHandle: accountHandle ?? "",
             projectHandle: fullHandle.split(separator: "/").dropFirst().joined(separator: "/")
@@ -71,37 +69,24 @@ final class GradleCacheService: GradleCacheServicing {
             )
         } else {
             Logger.current.info("""
-            Gradle Build Cache Configuration:
-              Endpoint: \(result.endpoint)
+            Remote Cache Configuration:
+              URL: \(result.url)
               Token: \(String(result.token.prefix(20)))...
               Account: \(result.accountHandle)
               Project: \(result.projectHandle)
-
-            Add the following to your settings.gradle.kts:
-
-              buildCache {
-                  remote<HttpBuildCache> {
-                      url = uri("\(result.endpoint)")
-                      credentials {
-                          username = "tuist"
-                          password = "\(result.token)"
-                      }
-                      isPush = true
-                  }
-              }
             """)
         }
     }
 }
 
-struct GradleCacheConfiguration: Codable {
-    let endpoint: String
+struct CacheConfiguration: Codable {
+    let url: String
     let token: String
     let accountHandle: String
     let projectHandle: String
 }
 
-enum GradleCacheServiceError: LocalizedError, Equatable {
+enum CacheConfigServiceError: LocalizedError, Equatable {
     case notAuthenticated
 
     var errorDescription: String? {
