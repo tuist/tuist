@@ -108,7 +108,8 @@ struct SwiftPackageManagerGraphLoaderTests {
                 let got = try await subject.load(
                     packagePath: temporaryDirectory.appending(component: "Package.swift"),
                     packageSettings: packageSettings,
-                    disableSandbox: true
+                    disableSandbox: true,
+                    buildFolder: nil
                 )
 
                 // Then
@@ -207,7 +208,8 @@ struct SwiftPackageManagerGraphLoaderTests {
                 let got = try await subject.load(
                     packagePath: temporaryDirectory.appending(component: "Package.swift"),
                     packageSettings: packageSettings,
-                    disableSandbox: true
+                    disableSandbox: true,
+                    buildFolder: nil
                 )
 
                 // Then
@@ -270,7 +272,8 @@ struct SwiftPackageManagerGraphLoaderTests {
                 _ = try await subject.load(
                     packagePath: temporaryDirectory.appending(component: "Package.swift"),
                     packageSettings: packageSettings,
-                    disableSandbox: true
+                    disableSandbox: true,
+                    buildFolder: nil
                 )
 
                 // Then

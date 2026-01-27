@@ -24,7 +24,7 @@ struct HashSelectiveTestingCommandServiceTests {
         generatorFactory = MockGeneratorFactorying()
         generator = .init()
         given(generatorFactory)
-            .defaultGenerator(config: .any, includedTargets: .any)
+            .defaultGenerator(config: .any, includedTargets: .any, buildFolder: .any)
             .willReturn(generator)
 
         configLoader = .init()
@@ -51,7 +51,8 @@ struct HashSelectiveTestingCommandServiceTests {
             given(configLoader).loadConfig(path: .value(path)).willReturn(config)
             given(generatorFactory).defaultGenerator(
                 config: .value(config),
-                includedTargets: .value([])
+                includedTargets: .value([]),
+                buildFolder: .any
             ).willReturn(generator)
             given(generator).load(path: .value(path), options: .any).willReturn(graph)
             given(selectiveTestingGraphHasher).hash(
@@ -77,7 +78,8 @@ struct HashSelectiveTestingCommandServiceTests {
             given(configLoader).loadConfig(path: .value(path)).willReturn(config)
             given(generatorFactory).defaultGenerator(
                 config: .value(config),
-                includedTargets: .value([])
+                includedTargets: .value([]),
+                buildFolder: .any
             ).willReturn(generator)
             given(generator).load(path: .value(path), options: .any).willReturn(graph)
             given(selectiveTestingGraphHasher).hash(
