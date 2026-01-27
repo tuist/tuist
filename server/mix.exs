@@ -58,16 +58,13 @@ defmodule Tuist.MixProject do
       # Using fork with client disconnect detection during body read timeouts
       # PR: https://github.com/mtrudel/bandit/pull/564
       {:bandit, git: "https://github.com/tuist/bandit", branch: "detect-client-disconnect-on-timeout", override: true},
-      {:credo, "~> 1.7.13", only: [:dev, :test], runtime: false},
-      {:appsignal, "~> 2.15.0"},
-      {:appsignal_phoenix, "~> 2.5"},
+      {:credo, "== 1.7.13", only: [:dev, :test], runtime: false},
+      {:sentry, "~> 10.2.0"},
+      {:hackney, "~> 1.8"},
       {:castore, "~> 1.0.12"},
       {:uniq, "~> 0.6"},
       {:encrypted_secrets, "~> 0.3.0"},
-      # The trunk version of ex_aws has a bug that causes pre-fixing the bucket name to the object key
-      # when using custom domains:
-      # Fix: https://github.com/ex-aws/ex_aws/pull/1162/
-      {:ex_aws, git: "https://github.com/tuist/ex_aws/", ref: "76b39d8651408a40e6ca40eec63bb49d1dde5713", override: true},
+      {:ex_aws, "~> 2.6"},
       {:ex_aws_s3,
        git: "https://github.com/tuist/ex_aws_s3/", ref: "7f3278bef49cc3fa6b4138a4077804d328a41c9c", override: true},
       {:number, "~> 1.0"},
@@ -97,9 +94,7 @@ defmodule Tuist.MixProject do
       {:guardian_db, "~> 3.0"},
       {:uuidv7, "~> 1.0"},
       {:decorator, "~> 1.4"},
-      # Temporarily using PR #180 branch for OTP 28 compatibility fix
-      # TODO: Switch back to hex version once jose 1.12.0 is released
-      {:jose, git: "https://github.com/jtdowney/erlang-jose.git", branch: "fix-otp28-compatibility", override: true},
+      {:jose, "~> 1.11"},
       {:ecto_psql_extras, "~> 0.8.1"},
       {:cachex, "~> 4.0.4"},
       {:excellent_migrations, "~> 0.1.8"},
@@ -135,7 +130,7 @@ defmodule Tuist.MixProject do
       {:ecto_ch, "~> 0.8.3"},
       (System.get_env("NOORA_LOCAL") &&
          {:noora, path: "../../Noora/web"}) ||
-        {:noora, "== 0.57.0"},
+        {:noora, "== 0.59.0"},
       {:zstream, "~> 0.6"},
       {:cloak_ecto, "~> 1.3.0"},
       {:boruta, git: "https://github.com/malach-it/boruta_auth", branch: "master"},
@@ -144,12 +139,8 @@ defmodule Tuist.MixProject do
       {:tuist_common, path: "../tuist_common"},
       {:slipstream, "~> 1.2.0"},
       {:lazy_html, ">= 0.1.0", only: :test},
-      # peep assumes all telemetry events' data conforms to the String.Chars,
-      # causing runime errors when processing the telemetry events. We opened
-      # a PR (https://github.com/rkallos/peep/pull/54) but it's still pending to
-      # be merged.
-      {:peep, git: "https://github.com/pepicrft/peep", ref: "cae2ddd2349ae0766352d106c4ebebc29949f110", override: true},
-      {:langchain, git: "https://github.com/brainlid/langchain", branch: "main"},
+      {:peep, "4.2.1", override: true},
+      {:langchain, "~> 0.4"},
       {:earmark, "~> 1.4"},
       {:html_sanitize_ex, "~> 1.4"},
       {:posthog, "~> 1.0", runtime: false}

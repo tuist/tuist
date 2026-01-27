@@ -185,18 +185,49 @@ defmodule TuistWeb.PreviewController do
       ) do
     app_builds = preview.app_builds
 
-    conn =
-      conn
-      |> put_resp_content_type("application/zip")
-      |> put_resp_header(
-        "content-disposition",
-        "attachment; filename=\"preview-#{preview.id}.zip\""
-      )
-      |> send_chunked(200)
+    case ensure_preview_objects_exist(app_builds, account_handle, project_handle, account) do
+      :ok ->
+        conn =
+          conn
+          |> put_resp_content_type("application/zip")
+          |> put_resp_header(
+            "content-disposition",
+            "attachment; filename=\"preview-#{preview.id}.zip\""
+          )
+          |> send_chunked(200)
 
-    zip_stream =
-      app_builds
-      |> Enum.map(fn app_build ->
+        zip_stream =
+          app_builds
+          |> Enum.map(fn app_build ->
+            storage_key =
+              AppBuilds.storage_key(%{
+                account_handle: account_handle,
+                project_handle: project_handle,
+                app_build_id: app_build.id
+              })
+
+            content_stream = Storage.stream_object(storage_key, account)
+            filename = "#{app_build.id}.zip"
+
+            Zstream.entry(filename, content_stream)
+          end)
+          |> Zstream.zip()
+
+        Enum.reduce_while(zip_stream, conn, fn chunk, conn ->
+          case chunk(conn, chunk) do
+            {:ok, conn} -> {:cont, conn}
+            {:error, _reason} -> {:halt, conn}
+          end
+        end)
+
+      {:error, :missing_object} ->
+        raise NotFoundError, "The preview download doesn't exist or has expired."
+    end
+  end
+
+  defp ensure_preview_objects_exist(app_builds, account_handle, project_handle, account) do
+    all_exist? =
+      Enum.all?(app_builds, fn app_build ->
         storage_key =
           AppBuilds.storage_key(%{
             account_handle: account_handle,
@@ -204,19 +235,14 @@ defmodule TuistWeb.PreviewController do
             app_build_id: app_build.id
           })
 
-        content_stream = Storage.stream_object(storage_key, account)
-        filename = "#{app_build.id}.zip"
-
-        Zstream.entry(filename, content_stream)
+        Storage.object_exists?(storage_key, account)
       end)
-      |> Zstream.zip()
 
-    Enum.reduce_while(zip_stream, conn, fn chunk, conn ->
-      case chunk(conn, chunk) do
-        {:ok, conn} -> {:cont, conn}
-        {:error, _reason} -> {:halt, conn}
-      end
-    end)
+    if all_exist? do
+      :ok
+    else
+      {:error, :missing_object}
+    end
   end
 
   defp assign_current_preview(%{params: %{"id" => preview_id}} = conn, _opts) do

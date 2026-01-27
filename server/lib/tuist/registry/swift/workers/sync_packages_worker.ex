@@ -14,8 +14,6 @@ defmodule Tuist.Registry.Swift.Workers.SyncPackagesWorker do
     ],
     max_attempts: 10
 
-  import Tuist.Environment, only: [run_if_error_tracking_enabled: 1]
-
   alias Tuist.Environment
   alias Tuist.Registry.Swift.Packages
   alias Tuist.Registry.Swift.Workers.CreatePackageReleaseWorker
@@ -131,14 +129,10 @@ defmodule Tuist.Registry.Swift.Workers.SyncPackagesWorker do
       Enum.flat_map(packages, fn package ->
         Logger.info("Finding missing package releases for #{package.scope}/#{package.name}")
 
-        run_if_error_tracking_enabled do
-          Appsignal.Span.set_sample_data(
-            Appsignal.Tracer.root_span(),
-            "tags",
-            %{
-              package: package.scope <> "/" <> package.name
-            }
-          )
+        if Environment.error_tracking_enabled?() do
+          Sentry.Context.set_extra_context(%{
+            package: package.scope <> "/" <> package.name
+          })
         end
 
         missing_versions =

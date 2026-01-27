@@ -1,4 +1,5 @@
 defmodule TuistWeb.Endpoint do
+  use Sentry.PlugCapture
   use Phoenix.Endpoint, otp_app: :tuist
 
   # The session will be stored in the cookie and signed,
@@ -52,8 +53,7 @@ defmodule TuistWeb.Endpoint do
 
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
-  plug TuistCommon.Plugs.RequestContextPlug, enabled_fn: &Tuist.Environment.error_tracking_enabled?/0
-  plug TuistCommon.Plugs.AppsignalSamplingPlug, sampled_controllers: [TuistWeb.API.CacheController]
+  plug Sentry.PlugContext
   plug TuistWeb.Plugs.CloseConnectionOnErrorPlug
 
   plug Stripe.WebhookPlug,

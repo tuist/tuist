@@ -433,6 +433,33 @@ public class GraphTraverser: GraphTraversing {
             }
         )
 
+        // Static precompiled XCFrameworks (e.g., from cache)
+        // These need to be embedded so the bundle accessor can find resources at runtime.
+        // We embed all static XCFrameworks because we cannot determine at generation time
+        // whether they contain resources. The binary is already statically linked, so
+        // embedding it is redundant but harmless (only resources are needed at runtime).
+        // We skip traversing through dynamic precompiled binaries because they link static
+        // dependencies themselves.
+        let staticXCFrameworks = filterDependencies(
+            from: .target(name: name, path: path),
+            test: { dependency in
+                guard case let .xcframework(xcframework) = dependency,
+                      xcframework.linking == .static
+                else { return false }
+                return true
+            },
+            skip: { self.canDependencyEmbedBinaries(dependency: $0) || $0.isPrecompiledMacro || $0.isDynamicPrecompiled }
+        )
+
+        references.formUnionPreferringRequiredStatus(
+            staticXCFrameworks.lazy.compactMap {
+                self.dependencyReference(
+                    to: $0,
+                    from: .target(name: name, path: path)
+                )
+            }
+        )
+
         // Exclude any products embed in unit test host apps
         if target.target.product == .unitTests {
             if let hostApp = unitTestHost(path: path, name: name) {

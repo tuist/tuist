@@ -79,10 +79,12 @@ defmodule CacheWeb.CASController do
             |> send_resp(:ok, "")
 
           {:error, reason} ->
-            Appsignal.send_error(%RuntimeError{message: "Failed to presign S3 url"}, %{
-              key: key,
-              reason: reason
-            })
+            Sentry.capture_message("Failed to presign S3 url",
+              extra: %{
+                key: key,
+                reason: reason
+              }
+            )
 
             :telemetry.execute([:cache, :cas, :download, :error], %{}, %{reason: inspect(reason)})
 

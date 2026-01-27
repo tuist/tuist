@@ -115,124 +115,190 @@
     </div>
   </div>
 
+  <.tab_menu_horizontal>
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_tests", "Overview")}
+      selected={@selected_tab == "overview"}
+      patch={"?#{Query.put(@uri.query, "tab", "overview")}"}
+      replace={true}
+    />
+    <.tab_menu_horizontal_item
+      :if={Enum.any?(@flaky_runs_grouped)}
+      label={dgettext("dashboard_tests", "Flaky Runs")}
+      selected={@selected_tab == "flaky-runs"}
+      patch={"?#{Query.put(@uri.query, "tab", "flaky-runs")}"}
+      replace={true}
+    />
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_tests", "Test History")}
+      selected={@selected_tab == "history"}
+      patch={"?#{Query.put(@uri.query, "tab", "history")}"}
+      replace={true}
+    />
+  </.tab_menu_horizontal>
+
   <.card
+    :if={@selected_tab == "overview"}
     title={dgettext("dashboard_tests", "Summary")}
     icon="chart_arcs"
     data-part="test-case-details"
   >
     <.card_section data-part="test-case-details-section">
-      <div data-part="metadata-grid">
-        <div data-part="metadata-row">
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_tests", "Last Status")}</div>
-            <.badge
-              :if={@test_case_detail.last_status == "success"}
-              label={dgettext("dashboard_tests", "Passed")}
-              color="success"
-              style="fill"
-              size="large"
-            />
-            <.badge
-              :if={@test_case_detail.last_status == "failure"}
-              label={dgettext("dashboard_tests", "Failed")}
-              color="destructive"
-              style="fill"
-              size="large"
-            />
-            <.badge
-              :if={@test_case_detail.last_status == "skipped"}
-              label={dgettext("dashboard_tests", "Skipped")}
-              color="warning"
-              style="fill"
-              size="large"
-            />
-          </div>
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_tests", "Last run duration")}</div>
-            <span data-part="value">
-              <.history />
-              {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                @test_case_detail.last_duration
-              )}
-            </span>
-          </div>
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_tests", "Last ran at")}</div>
-            <span data-part="value">
-              {Tuist.Utilities.DateFormatter.format_with_timezone(
-                @test_case_detail.last_ran_at,
-                @user_timezone
-              )}
-            </span>
+      <div data-part="summary-main">
+        <div data-part="metadata-grid">
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Last Status")}</div>
+              <.badge
+                :if={@test_case_detail.last_status == "success"}
+                label={dgettext("dashboard_tests", "Passed")}
+                color="success"
+                style="fill"
+                size="large"
+              />
+              <.badge
+                :if={@test_case_detail.last_status == "failure"}
+                label={dgettext("dashboard_tests", "Failed")}
+                color="destructive"
+                style="fill"
+                size="large"
+              />
+              <.badge
+                :if={@test_case_detail.last_status == "skipped"}
+                label={dgettext("dashboard_tests", "Skipped")}
+                color="warning"
+                style="fill"
+                size="large"
+              />
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Last run duration")}</div>
+              <span data-part="value">
+                <.history />
+                {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  @test_case_detail.last_duration
+                )}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_tests", "Last ran at")}</div>
+              <span data-part="value">
+                {Tuist.Utilities.DateFormatter.format_with_timezone(
+                  @test_case_detail.last_ran_at,
+                  @user_timezone
+                )}
+              </span>
+            </div>
           </div>
         </div>
+        <div data-part="widgets">
+          <.widget
+            :if={@flakiness_rate && @flakiness_rate > 0}
+            title={dgettext("dashboard_tests", "Flakiness rate")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Percentage of test runs that were flaky in the last 30 days."
+              )
+            }
+            value={"#{@flakiness_rate}%"}
+            id="widget-flakiness-rate"
+          />
+          <.widget
+            title={dgettext("dashboard_tests", "Test reliability")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Success rate based on runs from the %{branch} branch. Falls back to all branches if no runs exist on %{branch}.",
+                branch: @selected_project.default_branch
+              )
+            }
+            value={"#{@reliability}%"}
+            id="widget-test-reliability"
+            empty={is_nil(@reliability)}
+            empty_label={dgettext("dashboard_tests", "No data")}
+          />
+          <.widget
+            title={dgettext("dashboard_tests", "Test case runs")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Total number of times this test case has been executed."
+              )
+            }
+            value={Number.Delimit.number_to_delimited(@analytics.total_count, precision: 0)}
+            id="widget-test-case-runs"
+            empty={@analytics.total_count == 0}
+          />
+          <.widget
+            title={dgettext("dashboard_tests", "Failed test case runs")}
+            description={
+              dgettext("dashboard_tests", "Number of times this test case has failed.")
+            }
+            value={Number.Delimit.number_to_delimited(@analytics.failed_count, precision: 0)}
+            id="widget-failed-test-case-runs"
+            empty={@analytics.total_count == 0}
+          />
+          <.widget
+            title={dgettext("dashboard_tests", "Avg. test case run duration")}
+            description={
+              dgettext(
+                "dashboard_tests",
+                "Average duration of this test case across the last 50 runs."
+              )
+            }
+            value={
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @analytics.avg_duration
+              )
+            }
+            id="widget-avg-duration"
+            empty={@analytics.total_count == 0}
+            empty_label={dgettext("dashboard_tests", "No data")}
+          />
+        </div>
       </div>
-      <div data-part="widgets">
-        <.widget
-          :if={@flakiness_rate && @flakiness_rate > 0}
-          title={dgettext("dashboard_tests", "Flakiness rate")}
-          description={
-            dgettext(
-              "dashboard_tests",
-              "Percentage of test runs that were flaky in the last 30 days."
-            )
-          }
-          value={"#{@flakiness_rate}%"}
-          id="widget-flakiness-rate"
-        />
-        <.widget
-          title={dgettext("dashboard_tests", "Test reliability")}
-          description={
-            dgettext(
-              "dashboard_tests",
-              "Success rate based on runs from the %{branch} branch. Falls back to all branches if no runs exist on %{branch}.",
-              branch: @selected_project.default_branch
-            )
-          }
-          value={"#{@reliability}%"}
-          id="widget-test-reliability"
-          empty={is_nil(@reliability)}
-          empty_label={dgettext("dashboard_tests", "No data")}
-        />
-        <.widget
-          title={dgettext("dashboard_tests", "Test case runs")}
-          description={
-            dgettext("dashboard_tests", "Total number of times this test case has been executed.")
-          }
-          value={Number.Delimit.number_to_delimited(@analytics.total_count, precision: 0)}
-          id="widget-test-case-runs"
-          empty={@analytics.total_count == 0}
-        />
-        <.widget
-          title={dgettext("dashboard_tests", "Failed test case runs")}
-          description={dgettext("dashboard_tests", "Number of times this test case has failed.")}
-          value={Number.Delimit.number_to_delimited(@analytics.failed_count, precision: 0)}
-          id="widget-failed-test-case-runs"
-          empty={@analytics.total_count == 0}
-        />
-        <.widget
-          title={dgettext("dashboard_tests", "Avg. test case run duration")}
-          description={
-            dgettext(
-              "dashboard_tests",
-              "Average duration of this test case across the last 50 runs."
-            )
-          }
-          value={
-            Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-              @analytics.avg_duration
-            )
-          }
-          id="widget-avg-duration"
-          empty={@analytics.total_count == 0}
-          empty_label={dgettext("dashboard_tests", "No data")}
-        />
+
+      <div
+        :if={Enum.any?(@overview_history_events)}
+        data-part="overview-history"
+      >
+        <div data-part="overview-history-title">
+          {dgettext("dashboard_tests", "Test history")}
+        </div>
+        <div data-part="overview-history-timeline">
+          <div
+            :for={event <- @overview_history_events}
+            data-part="overview-history-item"
+          >
+            <div data-part="overview-history-icon" data-color={event_color(event.event_type)}>
+              <.icon name={event_icon(event.event_type)} />
+            </div>
+            <div data-part="overview-history-content">
+              <span data-part="overview-history-item-title">{event_title(event.event_type)}</span>
+              <span :if={format_event_subtitle(event)} data-part="overview-history-item-subtitle">
+                {format_event_subtitle(event)}
+              </span>
+            </div>
+            <div data-part="overview-history-time">
+              {Timex.from_now(event.inserted_at)}
+            </div>
+          </div>
+        </div>
+        <div :if={@overview_history_has_more} data-part="overview-history-footer">
+          <.button
+            label={dgettext("dashboard_tests", "View more")}
+            variant="secondary"
+            size="small"
+            patch={"?#{Query.put(@uri.query, "tab", "history")}"}
+          />
+        </div>
       </div>
     </.card_section>
   </.card>
 
   <.card
-    :if={Enum.any?(@flaky_runs_grouped)}
+    :if={@selected_tab == "flaky-runs" and Enum.any?(@flaky_runs_grouped)}
     title={dgettext("dashboard_tests", "Flaky Runs")}
     icon="alert_triangle"
     data-part="flaky-runs-card"
@@ -375,6 +441,7 @@
   </.card>
 
   <.card
+    :if={@selected_tab == "overview"}
     title={dgettext("dashboard_tests", "Test Case Runs")}
     icon="exchange"
     data-part="test-case-runs-card"
@@ -528,6 +595,59 @@
             "?#{Query.put(@uri.query, "page", page)}"
           end
         }
+      />
+    </.card_section>
+  </.card>
+
+  <.card
+    :if={@selected_tab == "history"}
+    title={dgettext("dashboard_tests", "Test History")}
+    icon="timeline_event"
+    data-part="test-history-card"
+  >
+    <.card_section data-part="test-history-section">
+      <div data-part="timeline">
+        <div
+          :for={event <- @history_events}
+          data-part="timeline-item"
+        >
+          <div data-part="timeline-icon" data-color={event_color(event.event_type)}>
+            <.icon name={event_icon(event.event_type)} />
+          </div>
+          <div data-part="timeline-content">
+            <span data-part="timeline-title">
+              {event_title(event.event_type)}
+            </span>
+            <span :if={format_event_subtitle(event)} data-part="timeline-subtitle">
+              {format_event_subtitle(event)}
+            </span>
+          </div>
+          <span data-part="timeline-time">
+            {Timex.from_now(event.inserted_at)}
+          </span>
+        </div>
+
+        <div
+          :if={Enum.empty?(@history_events)}
+          data-part="timeline-empty"
+        >
+          <span data-part="title">{dgettext("dashboard_tests", "No history available")}</span>
+          <span data-part="subtitle">
+            {dgettext(
+              "dashboard_tests",
+              "Events will appear here when the test case status changes."
+            )}
+          </span>
+        </div>
+      </div>
+
+      <.button
+        :if={@history_page < @history_meta.total_pages}
+        label={dgettext("dashboard_tests", "Load more")}
+        variant="secondary"
+        size="medium"
+        phx-click="load-more-history"
+        data-part="load-more-button"
       />
     </.card_section>
   </.card>

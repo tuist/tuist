@@ -25,8 +25,8 @@ defmodule Cache.MixProject do
 
   defp deps do
     [
-      {:appsignal, "~> 2.8"},
-      {:appsignal_phoenix, "~> 2.7.0"},
+      {:sentry, "~> 10.2.0"},
+      {:hackney, "~> 1.8"},
       # Using fork with client disconnect detection during body read timeouts
       # PR: https://github.com/mtrudel/bandit/pull/564
       {:bandit, git: "https://github.com/tuist/bandit", branch: "detect-client-disconnect-on-timeout", override: true},
@@ -41,7 +41,7 @@ defmodule Cache.MixProject do
       {:ex_aws_s3, "~> 2.0"},
       {:guardian, "~> 2.3"},
       {:jason, "~> 1.4"},
-      {:jose, git: "https://github.com/jtdowney/erlang-jose.git", branch: "fix-otp28-compatibility", override: true},
+      {:jose, "~> 1.11"},
       {:mimic, "~> 1.7", only: :test},
       {:oban, "~> 2.17"},
       {:oban_web, "~> 2.10"},

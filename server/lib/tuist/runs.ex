@@ -33,6 +33,7 @@ defmodule Tuist.Runs do
   alias Tuist.Runs.FlakyTestCase
   alias Tuist.Runs.Test
   alias Tuist.Runs.TestCase
+  alias Tuist.Runs.TestCaseEvent
   alias Tuist.Runs.TestCaseFailure
   alias Tuist.Runs.TestCaseRun
   alias Tuist.Runs.TestCaseRunRepetition
@@ -678,10 +679,18 @@ defmodule Tuist.Runs do
   ClickHouse ReplacingMergeTree will keep the most recent row.
 
   Only `is_flaky` and `is_quarantined` are valid update attributes.
+
+  Creates test case events to track the state change.
+
+  ## Parameters
+  - `test_case_id` - the test case UUID to update
+  - `update_attrs` - map with `:is_flaky` and/or `:is_quarantined` boolean values
+  - `opts` - optional keyword list with `:actor_id` (account_id for user actions, nil for system)
   """
-  def update_test_case(test_case_id, update_attrs) when is_map(update_attrs) do
+  def update_test_case(test_case_id, update_attrs, opts \\ []) when is_map(update_attrs) do
     valid_keys = [:is_flaky, :is_quarantined]
     filtered_attrs = Map.take(update_attrs, valid_keys)
+    actor_id = Keyword.get(opts, :actor_id)
 
     with {:ok, test_case} <- get_test_case_by_id(test_case_id) do
       attrs =
@@ -693,8 +702,65 @@ defmodule Tuist.Runs do
 
       {1, nil} = IngestRepo.insert_all(TestCase, [attrs])
 
+      create_events_for_test_case_changes(test_case_id, test_case, filtered_attrs, actor_id)
+
       {:ok, Map.merge(test_case, filtered_attrs)}
     end
+  end
+
+  defp create_events_for_test_case_changes(test_case_id, old_test_case, new_attrs, actor_id) do
+    event_types = determine_test_case_events(old_test_case, new_attrs)
+
+    if Enum.any?(event_types) do
+      now = NaiveDateTime.utc_now()
+
+      events =
+        Enum.map(event_types, fn event_type ->
+          %{
+            id: UUIDv7.generate(),
+            test_case_id: test_case_id,
+            event_type: to_string(event_type),
+            actor_id: actor_id,
+            inserted_at: now
+          }
+        end)
+
+      IngestRepo.insert_all(TestCaseEvent, events)
+    end
+  end
+
+  defp determine_test_case_events(old_test_case, new_attrs) do
+    events = []
+
+    events =
+      case {Map.get(old_test_case, :is_flaky, false), Map.get(new_attrs, :is_flaky)} do
+        {false, true} -> [:marked_flaky | events]
+        {true, false} -> [:unmarked_flaky | events]
+        _ -> events
+      end
+
+    events =
+      case {Map.get(old_test_case, :is_quarantined, false), Map.get(new_attrs, :is_quarantined)} do
+        {false, true} -> [:quarantined | events]
+        {true, false} -> [:unquarantined | events]
+        _ -> events
+      end
+
+    events
+  end
+
+  @doc """
+  Lists test case events for a specific test case with pagination using Flop.
+  Returns {events, meta} where meta is a Flop.Meta struct.
+  """
+  def list_test_case_events(test_case_id, attrs \\ %{}) do
+    {events, meta} =
+      Tuist.ClickHouseFlop.validate_and_run!(from(e in TestCaseEvent, where: e.test_case_id == ^test_case_id), attrs,
+        for: TestCaseEvent
+      )
+
+    events = Repo.preload(events, :actor)
+    {events, meta}
   end
 
   @doc """
@@ -1040,7 +1106,30 @@ defmodule Tuist.Runs do
       IngestRepo.insert_all(TestCaseRunRepetition, all_repetitions)
     end
 
+    create_first_run_events(test_case_runs)
+
     test_case_ids_with_flaky_run
+  end
+
+  defp create_first_run_events(test_case_runs) do
+    new_test_case_runs = Enum.filter(test_case_runs, & &1.is_new)
+
+    if Enum.any?(new_test_case_runs) do
+      now = NaiveDateTime.utc_now()
+
+      events =
+        Enum.map(new_test_case_runs, fn run ->
+          %{
+            id: TestCaseEvent.first_run_id(run.test_case_id),
+            test_case_id: run.test_case_id,
+            event_type: "first_run",
+            actor_id: nil,
+            inserted_at: now
+          }
+        end)
+
+      IngestRepo.insert_all(TestCaseEvent, events)
+    end
   end
 
   defp calculate_avg_test_case_duration(test_cases) do
@@ -1524,6 +1613,21 @@ defmodule Tuist.Runs do
       end)
 
     IngestRepo.insert_all(TestCase, test_cases_to_update)
+
+    if Enum.any?(stale_test_cases) do
+      events =
+        Enum.map(stale_test_cases, fn test_case ->
+          %{
+            id: UUIDv7.generate(),
+            test_case_id: test_case.id,
+            event_type: "unmarked_flaky",
+            actor_id: nil,
+            inserted_at: now
+          }
+        end)
+
+      IngestRepo.insert_all(TestCaseEvent, events)
+    end
 
     {:ok, length(test_cases_to_update)}
   end

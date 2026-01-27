@@ -4,8 +4,6 @@ defmodule Tuist.Application do
   use Application
   use Boundary, top_level?: true, deps: [Tuist, TuistWeb]
 
-  import Tuist.Environment, only: [run_if_error_tracking_enabled: 1]
-
   alias Tuist.CommandEvents
   alias Tuist.DBConnection.TelemetryListener
   alias Tuist.Environment
@@ -22,8 +20,8 @@ defmodule Tuist.Application do
 
     load_secrets_in_application()
     start_posthog()
-    start_error_tracking()
     start_telemetry()
+    start_sentry_logger()
 
     application =
       Supervisor.start_link(get_children(), strategy: :one_for_one, name: Tuist.Supervisor)
@@ -54,16 +52,17 @@ defmodule Tuist.Application do
     end
   end
 
-  defp start_error_tracking do
-    run_if_error_tracking_enabled do
-      Appsignal.Phoenix.LiveView.attach()
-      Appsignal.Ecto.attach(:tuist, Tuist.ClickHouseRepo)
-    end
-  end
-
   defp start_telemetry do
     Oban.Telemetry.attach_default_logger()
     ReqTelemetry.attach_default_logger(:pipeline)
+  end
+
+  defp start_sentry_logger do
+    if Environment.error_tracking_enabled?() do
+      :logger.add_handler(:sentry_handler, Sentry.LoggerHandler, %{
+        config: %{metadata: [:file, :line]}
+      })
+    end
   end
 
   defp get_children do

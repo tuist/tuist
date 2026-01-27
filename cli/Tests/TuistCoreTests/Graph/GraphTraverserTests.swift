@@ -3361,6 +3361,87 @@ final class GraphTraverserTests: TuistUnitTestCase {
         }
     }
 
+    func test_embeddableFrameworks_when_dependencyIsStaticXCFramework() throws {
+        // Given
+        // App depends on a static XCFramework directly
+        // Static XCFrameworks should be embedded so resources are accessible at runtime
+        let app = Target.test(name: "App", platform: .iOS, product: .app)
+        let project = Project.test(targets: [app])
+
+        let staticXCFramework: GraphDependency = .testXCFramework(
+            path: "/xcframeworks/StaticFramework.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "ios-arm64",
+                path: try RelativePath(validating: "StaticFramework.framework"),
+                architectures: [.arm64]
+            )]),
+            linking: .static,
+            status: .required
+        )
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: project.path): [staticXCFramework],
+            staticXCFramework: [],
+        ]
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.embeddableFrameworks(path: project.path, name: app.name).sorted()
+
+        // Then
+        XCTAssertEqual(got.count, 1)
+        XCTAssertEqual(got, [GraphDependencyReference(staticXCFramework)])
+    }
+
+    func test_embeddableFrameworks_when_dependencyIsTransitiveStaticXCFramework() throws {
+        // Given
+        // App depends on a dynamic framework target which depends on a static XCFramework
+        // Both the dynamic framework AND the static XCFramework should be embedded:
+        // - The dynamic framework is embedded because it's dynamic
+        // - The static XCFramework is embedded so its resources are accessible at runtime
+        //   (the binary will be stripped by Xcode's REMOVE_STATIC_EXECUTABLES_FROM_EMBEDDED_BUNDLES)
+        let app = Target.test(name: "App", platform: .iOS, product: .app)
+        let dynamicFramework = Target.test(name: "DynamicFramework", platform: .iOS, product: .framework)
+        let project = Project.test(targets: [app, dynamicFramework])
+
+        let staticXCFramework: GraphDependency = .testXCFramework(
+            path: "/xcframeworks/StaticFramework.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "ios-arm64",
+                path: try RelativePath(validating: "StaticFramework.framework"),
+                architectures: [.arm64]
+            )]),
+            linking: .static,
+            status: .required
+        )
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: project.path): [.target(name: dynamicFramework.name, path: project.path)],
+            .target(name: dynamicFramework.name, path: project.path): [staticXCFramework],
+            staticXCFramework: [],
+        ]
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.embeddableFrameworks(path: project.path, name: app.name).sorted()
+
+        // Then
+        // Both should be embedded - the dynamic framework and the static XCFramework
+        XCTAssertEqual(got.count, 2)
+        XCTAssertEqual(got, [
+            .product(target: "DynamicFramework", productName: "DynamicFramework.framework"),
+            GraphDependencyReference(staticXCFramework),
+        ])
+    }
+
     func test_linkableDependencies_when_dependencyIsAFramework() throws {
         // Given
         let frameworkPath = try AbsolutePath(validating: "/test/test.framework")
