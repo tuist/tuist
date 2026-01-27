@@ -42,7 +42,7 @@ final class HashSelectiveTestingCommandService {
         let absolutePath = try absolutePath(path)
 
         let config = try await configLoader.loadConfig(path: absolutePath)
-        let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
+        let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [], buildFolder: nil)
         let graph = try await generator.load(
             path: absolutePath,
             options: config.project.generatedProject?.generationOptions

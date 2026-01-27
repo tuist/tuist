@@ -37,6 +37,7 @@ final class GenerateService {
 
     func run(
         path: String?,
+        buildFolder: String?,
         includedTargets: Set<TargetQuery>,
         noOpen: Bool,
         configuration: String?,
@@ -45,6 +46,7 @@ final class GenerateService {
     ) async throws {
         let timer = clock.startTimer()
         let path = try self.path(path)
+        let buildFolder = try self.buildFolder(buildFolder)
         let config = try await configLoader.loadConfig(path: path)
             .assertingIsGeneratedProjectOrSwiftPackage(
                 errorMessageOverride:
@@ -63,7 +65,8 @@ final class GenerateService {
             includedTargets: includedTargets,
             configuration: configuration,
             cacheProfile: resolvedCacheProfile,
-            cacheStorage: cacheStorage
+            cacheStorage: cacheStorage,
+            buildFolder: buildFolder
         )
         let (workspacePath, _, _) = try await generator.generateWithGraph(
             path: path,
@@ -83,6 +86,14 @@ final class GenerateService {
             return try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
         } else {
             return FileHandler.shared.currentPath
+        }
+    }
+
+    private func buildFolder(_ buildFolder: String?) throws -> AbsolutePath? {
+        if let buildFolder {
+            return try AbsolutePath(validating: buildFolder, relativeTo: FileHandler.shared.currentPath)
+        } else {
+            return nil
         }
     }
 }
