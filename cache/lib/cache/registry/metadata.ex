@@ -290,17 +290,13 @@ defmodule Cache.Registry.Metadata do
     }
   end
 
-  defp etag_from_headers(headers) when is_list(headers) do
+  defp etag_from_headers(headers) when is_map(headers) do
     headers
-    |> Enum.find_value(fn {key, value} ->
-      if String.downcase(key) == "etag" do
-        normalize_etag(value)
-      else
-        nil
-      end
-    end)
+    |> Map.get("etag", Map.get(headers, "ETag"))
+    |> normalize_etag()
   end
 
+  defp normalize_etag(nil), do: nil
   defp normalize_etag([value | _]), do: normalize_etag(value)
 
   defp normalize_etag(value) when is_binary(value) do
