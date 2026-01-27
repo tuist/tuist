@@ -28,11 +28,11 @@ tasks.test {
 
 gradlePlugin {
     plugins {
-        create("tuistBuildCache") {
-            id = "dev.tuist.build-cache"
-            displayName = "Tuist Build Cache"
-            description = "Configures Gradle remote build cache with Tuist"
-            implementationClass = "dev.tuist.gradle.TuistBuildCachePlugin"
+        create("tuist") {
+            id = "dev.tuist"
+            displayName = "Tuist"
+            description = "Integrates Gradle projects with Tuist services including remote build caching and analytics"
+            implementationClass = "dev.tuist.gradle.TuistPlugin"
         }
     }
 }
