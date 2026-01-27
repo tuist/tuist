@@ -1,94 +1,22 @@
 package dev.tuist.gradle
 
 import com.google.gson.Gson
-import org.gradle.api.Plugin
-import org.gradle.api.initialization.Settings
 import org.gradle.caching.BuildCacheEntryReader
 import org.gradle.caching.BuildCacheEntryWriter
 import org.gradle.caching.BuildCacheException
 import org.gradle.caching.BuildCacheKey
 import org.gradle.caching.BuildCacheService
 import org.gradle.caching.BuildCacheServiceFactory
-import org.gradle.caching.configuration.BuildCache
+import org.gradle.caching.configuration.AbstractBuildCache
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URI
 
 /**
- * Gradle Settings Plugin that configures remote build cache with Tuist.
- *
- * This plugin executes `tuist cache config` to retrieve the cache endpoint
- * and authentication token, then configures a custom BuildCacheService that
- * automatically refreshes credentials when they expire.
- *
- * Usage in settings.gradle.kts:
- * ```
- * plugins {
- *     id("dev.tuist.build-cache") version "0.1.0"
- * }
- *
- * tuistBuildCache {
- *     fullHandle = "account/project"
- * }
- * ```
- */
-class TuistBuildCachePlugin : Plugin<Settings> {
-
-    override fun apply(settings: Settings) {
-        val extension = settings.extensions.create(
-            "tuistBuildCache",
-            TuistBuildCacheExtension::class.java
-        )
-
-        settings.buildCache.registerBuildCacheService(
-            TuistBuildCache::class.java,
-            TuistBuildCacheServiceFactory::class.java
-        )
-
-        settings.gradle.settingsEvaluated {
-            configureBuildCache(settings, extension)
-        }
-    }
-
-    private fun configureBuildCache(settings: Settings, extension: TuistBuildCacheExtension) {
-        val fullHandle = extension.fullHandle
-        if (fullHandle.isBlank()) {
-            settings.gradle.rootProject {
-                logger.warn("Tuist: fullHandle not configured. Remote build cache not enabled.")
-            }
-            return
-        }
-
-        settings.buildCache {
-            remote(TuistBuildCache::class.java) {
-                this.fullHandle = extension.fullHandle
-                this.tuistPath = extension.tuistPath
-                this.push = extension.push
-                this.allowInsecureProtocol = extension.allowInsecureProtocol
-            }
-        }
-
-        settings.gradle.rootProject {
-            logger.lifecycle("Tuist: Remote build cache configured for $fullHandle")
-        }
-    }
-}
-
-/**
- * Extension for configuring the Tuist build cache plugin.
- */
-open class TuistBuildCacheExtension {
-    var fullHandle: String = ""
-    var tuistPath: String = "tuist"
-    var push: Boolean = true
-    var allowInsecureProtocol: Boolean = false
-}
-
-/**
  * Build cache configuration type for Tuist.
  */
-open class TuistBuildCache : BuildCache() {
+open class TuistBuildCache : AbstractBuildCache() {
     var fullHandle: String = ""
     var tuistPath: String = "tuist"
     var allowInsecureProtocol: Boolean = false
@@ -117,6 +45,9 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
 
 /**
  * Custom BuildCacheService that handles authentication and automatic token refresh.
+ *
+ * When a 401 Unauthorized response is received, this service automatically
+ * re-runs `tuist cache config` to refresh the token and retries the request.
  */
 class TuistBuildCacheService(
     private val fullHandle: String,

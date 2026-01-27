@@ -17,15 +17,21 @@ dependencyResolutionManagement {
 rootProject.name = "SimpleAndroidApp"
 include(":app")
 
-// Configure Gradle build cache with Tuist using the Tuist Gradle Plugin
-// The plugin will execute `tuist cache config` to get the cache configuration.
+// Configure Tuist integration using the Tuist Gradle Plugin.
+// The plugin will execute `tuist cache config` to get the cache configuration
+// and automatically refresh credentials when they expire.
 //
 // plugins {
-//     id("dev.tuist.build-cache") version "0.1.0"
+//     id("dev.tuist") version "0.1.0"
 // }
 //
-// tuistBuildCache {
+// tuist {
 //     fullHandle = "account/project"
+//
+//     buildCache {
+//         enabled = true
+//         push = true
+//     }
 // }
 
 // For e2e testing, we use environment variables directly
