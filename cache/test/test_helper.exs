@@ -16,5 +16,6 @@ Mimic.copy(Cache.Registry.Metadata)
 Mimic.copy(Cache.Registry.GitHub)
 Mimic.copy(Cache.Registry.Lock)
 Mimic.copy(Cache.Registry.SwiftPackageIndex)
+Mimic.copy(Cache.Registry.SyncCursor)
 
 ExUnit.start()

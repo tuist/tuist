@@ -70,15 +70,43 @@ if config_env() == :prod do
     registry_sync_limit: Cache.Config.int_env("REGISTRY_SYNC_LIMIT", 350),
     registry_sync_min_interval_seconds: Cache.Config.int_env("REGISTRY_SYNC_MIN_INTERVAL_SECONDS", 21_600)
 
+  s3_endpoint = System.get_env("S3_ENDPOINT")
+
+  {s3_scheme, s3_host} =
+    case s3_endpoint do
+      nil ->
+        {"https://", System.get_env("S3_HOST")}
+
+      "" ->
+        {"https://", System.get_env("S3_HOST")}
+
+      endpoint ->
+        uri = URI.parse(endpoint)
+
+        host =
+          case {uri.host, uri.port} do
+            {nil, _} -> System.get_env("S3_HOST")
+            {host, nil} -> host
+            {host, port} -> "#{host}:#{port}"
+          end
+
+        scheme = (uri.scheme || "https") <> "://"
+        {scheme, host}
+    end
+
+  s3_access_key_id = System.get_env("S3_ACCESS_KEY_ID") || System.get_env("AWS_ACCESS_KEY_ID")
+  s3_secret_access_key = System.get_env("S3_SECRET_ACCESS_KEY") || System.get_env("AWS_SECRET_ACCESS_KEY")
+  s3_region = System.get_env("S3_REGION") || System.get_env("AWS_REGION")
+
   config :ex_aws, :s3,
-    scheme: "https://",
-    host: System.get_env("S3_HOST"),
-    region: System.get_env("S3_REGION")
+    scheme: s3_scheme,
+    host: s3_host,
+    region: s3_region
 
   config :ex_aws,
-    access_key_id: System.get_env("S3_ACCESS_KEY_ID"),
-    secret_access_key: System.get_env("S3_SECRET_ACCESS_KEY"),
-    region: System.get_env("S3_REGION"),
+    access_key_id: s3_access_key_id,
+    secret_access_key: s3_secret_access_key,
+    region: s3_region,
     http_client: TuistCommon.AWS.Client
 
   config :tuist_common, finch_name: Cache.Finch

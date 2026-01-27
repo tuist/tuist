@@ -6,6 +6,7 @@ defmodule Cache.Registry.SyncWorkerTest do
   alias Cache.Registry.Lock
   alias Cache.Registry.Metadata
   alias Cache.Registry.ReleaseWorker
+  alias Cache.Registry.SyncCursor
   alias Cache.Registry.SyncWorker
   alias Cache.Registry.SwiftPackageIndex
 
@@ -27,6 +28,9 @@ defmodule Cache.Registry.SyncWorkerTest do
     expect(SwiftPackageIndex, :list_packages, fn "token" ->
       {:ok, [%{scope: "apple", name: "swift-argument-parser", repository_full_handle: "apple/swift-argument-parser"}]}
     end)
+
+    expect(SyncCursor, :get, fn -> 0 end)
+    expect(SyncCursor, :put, fn 0 -> :ok end)
 
     expect(Metadata, :get_package, fn "apple", "swift-argument-parser" -> {:error, :not_found} end)
     expect(Metadata, :put_package, fn "apple", "swift-argument-parser", _metadata -> :ok end)

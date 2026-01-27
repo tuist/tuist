@@ -19,7 +19,7 @@ defmodule Cache.Registry.ReleaseWorkerTest do
   test "skips when release already exists" do
     expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ -> {:ok, :acquired} end)
 
-    expect(Metadata, :get_package, fn "apple", "swift-argument-parser" ->
+    expect(Metadata, :get_package, fn "apple", "swift-argument-parser", _opts ->
       {:ok, %{"releases" => %{"1.0.0" => %{"checksum" => "abc", "manifests" => []}}}}
     end)
 

@@ -14,6 +14,7 @@ defmodule Cache.Registry.ReleaseWorker do
 
   @alternate_manifest_regex ~r/\APackage@swift-(\d+)(?:\.(\d+))?(?:\.(\d+))?\.swift\z/
   @lock_ttl_seconds 1_800
+  @metadata_lock_ttl_seconds 300
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"scope" => scope, "name" => name, "repository_full_handle" => full_handle, "tag" => tag}}) do
@@ -41,24 +42,23 @@ defmodule Cache.Registry.ReleaseWorker do
     else
       normalized_version = KeyNormalizer.normalize_version(tag)
 
-      case Metadata.get_package(scope, name) do
+      case Metadata.get_package(scope, name, fresh: true) do
         {:ok, metadata} ->
           releases = Map.get(metadata, "releases", %{})
 
           if Map.has_key?(releases, normalized_version) do
             :ok
           else
-            sync_release(scope, name, full_handle, tag, normalized_version, token, metadata)
+            sync_release(scope, name, full_handle, tag, normalized_version, token)
           end
 
         {:error, :not_found} ->
-          metadata = %{"scope" => scope, "name" => name, "repository_full_handle" => full_handle, "releases" => %{}}
-          sync_release(scope, name, full_handle, tag, normalized_version, token, metadata)
+          sync_release(scope, name, full_handle, tag, normalized_version, token)
       end
     end
   end
 
-  defp sync_release(scope, name, full_handle, tag, version, token, metadata) do
+  defp sync_release(scope, name, full_handle, tag, version, token) do
     tmp_dir = temp_dir()
     archive_path = Path.join(tmp_dir, "source_archive.zip")
 
@@ -67,19 +67,7 @@ defmodule Cache.Registry.ReleaseWorker do
            {:ok, checksum} <- checksum_for_file(archive_path),
            :ok <- upload_source_archive(scope, name, version, archive_path),
            {:ok, manifests} <- fetch_and_upload_manifests(scope, name, version, full_handle, tag, token) do
-        updated_metadata =
-          metadata
-          |> Map.put("repository_full_handle", full_handle)
-          |> Map.put("updated_at", DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601())
-          |> Map.put("releases", Map.put(Map.get(metadata, "releases", %{}), version, %{
-            "checksum" => checksum,
-            "manifests" => manifests
-          }))
-
-        case Metadata.put_package(scope, name, updated_metadata) do
-          :ok -> :ok
-          {:error, reason} -> {:error, reason}
-        end
+        update_metadata_with_release(scope, name, full_handle, version, checksum, manifests)
       else
         {:error, reason} ->
           Logger.warning("Failed to sync release #{scope}/#{name}@#{tag}: #{inspect(reason)}")
@@ -92,7 +80,9 @@ defmodule Cache.Registry.ReleaseWorker do
 
   defp fetch_source_archive(full_handle, tag, token, tmp_dir, archive_path) do
     if has_submodules?(full_handle, tag, token) do
-      clone_with_submodules(full_handle, tag, token, tmp_dir, archive_path)
+      with {:ok, source_directory} <- clone_with_submodules(full_handle, tag, token, tmp_dir) do
+        zip_directory(source_directory, archive_path)
+      end
     else
       GitHub.download_zipball(full_handle, token, tag, archive_path)
     end
@@ -106,7 +96,8 @@ defmodule Cache.Registry.ReleaseWorker do
     end
   end
 
-  defp clone_with_submodules(full_handle, tag, token, tmp_dir, archive_path) do
+
+  defp clone_with_submodules(full_handle, tag, token, tmp_dir) do
     repo_name = full_handle |> String.split("/") |> List.last()
     clone_dest = Path.join(tmp_dir, "#{repo_name}-#{String.replace(tag, "/", "-")}")
     clone_url = "https://#{token}@github.com/#{full_handle}.git"
@@ -127,18 +118,71 @@ defmodule Cache.Registry.ReleaseWorker do
            stderr_to_stdout: true
          ) do
       {_, 0} ->
-        update_submodules(clone_dest)
-        remove_git_metadata(clone_dest)
-        zip_directory(clone_dest, archive_path)
+        case update_submodules(%{destination: clone_dest, repository_full_handle: full_handle, tag: tag}) do
+          :ok ->
+            remove_git_metadata(clone_dest)
+            {:ok, clone_dest}
+
+          {:error, reason} ->
+            {:error, reason}
+        end
 
       {_output, status} ->
         {:error, {:git_clone_failed, status}}
     end
   end
 
-  defp update_submodules(directory) do
-    _ = System.cmd("git", ["submodule", "update", "--init", "--recursive"], cd: directory, stderr_to_stdout: true)
-    :ok
+  defp update_submodules(%{destination: destination, repository_full_handle: full_handle, tag: tag}) do
+    destination
+    |> submodule_paths()
+    |> Enum.reduce_while(:ok, fn submodule_path, :ok ->
+      case System.cmd(
+             "git",
+             [
+               "-c",
+               "url.https://github.com/.insteadOf=git@github.com:",
+               "-C",
+               destination,
+               "submodule",
+               "update",
+               "--init",
+               "--recursive",
+               "--depth",
+               "1",
+               submodule_path
+             ],
+             stderr_to_stdout: true
+           ) do
+        {_, 0} ->
+          {:cont, :ok}
+
+        {output, status} ->
+          if private_submodule_error?(output) do
+            Logger.info("Skipping private submodule #{submodule_path} for #{full_handle}@#{tag}")
+            {:cont, :ok}
+          else
+            {:halt, {:error, {:git_submodule_failed, status, output}}}
+          end
+      end
+    end)
+  end
+
+  defp submodule_paths(destination) do
+    gitmodules_path = Path.join(destination, ".gitmodules")
+
+    if File.exists?(gitmodules_path) do
+      gitmodules_content = File.read!(gitmodules_path)
+
+      ~r/^\s*path\s*=\s*(.+)\s*$/m
+      |> Regex.scan(gitmodules_content)
+      |> Enum.map(fn [_, path] -> String.trim(path) end)
+    else
+      []
+    end
+  end
+
+  defp private_submodule_error?(output) do
+    String.contains?(output, "fatal: could not read Username for")
   end
 
   defp remove_git_metadata(directory) do
@@ -191,6 +235,53 @@ defmodule Cache.Registry.ReleaseWorker do
         |> Enum.reject(&is_nil/1)
 
       {:ok, manifests}
+    end
+  end
+
+  defp update_metadata_with_release(scope, name, full_handle, version, checksum, manifests) do
+    lock_key = {:package, scope, name}
+
+    case Lock.try_acquire(lock_key, @metadata_lock_ttl_seconds) do
+      {:ok, :acquired} ->
+        try do
+          metadata =
+            case Metadata.get_package(scope, name, fresh: true) do
+              {:ok, metadata} ->
+                metadata
+
+              {:error, :not_found} ->
+                %{"scope" => scope, "name" => name, "repository_full_handle" => full_handle, "releases" => %{}}
+
+              {:error, reason} ->
+                {:error, reason}
+            end
+
+          case metadata do
+            {:error, reason} ->
+              {:error, reason}
+
+            metadata ->
+              updated_metadata =
+                metadata
+                |> Map.put_new("scope", scope)
+                |> Map.put_new("name", name)
+                |> Map.put("repository_full_handle", full_handle)
+                |> Map.put("updated_at", DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601())
+                |> Map.update("releases", %{version => %{"checksum" => checksum, "manifests" => manifests}}, fn releases ->
+                  Map.put(releases || %{}, version, %{
+                    "checksum" => checksum,
+                    "manifests" => manifests
+                  })
+                end)
+
+              Metadata.put_package(scope, name, updated_metadata)
+          end
+        after
+          Lock.release(lock_key)
+        end
+
+      {:error, :already_locked} ->
+        {:error, :already_locked}
     end
   end
 
