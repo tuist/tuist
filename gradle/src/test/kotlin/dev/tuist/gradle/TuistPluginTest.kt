@@ -54,7 +54,7 @@ class TuistPluginTest {
     }
 
     @Test
-    fun `plugin extension allows custom tuist path`() {
+    fun `plugin extension allows custom executable path`() {
         settingsFile.writeText("""
             plugins {
                 id("dev.tuist")
@@ -62,7 +62,7 @@ class TuistPluginTest {
 
             tuist {
                 fullHandle = "test-account/test-project"
-                tuistPath = "/usr/local/bin/tuist"
+                executablePath = "/usr/local/bin/tuist"
 
                 buildCache {
                     push = false
