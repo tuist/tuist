@@ -216,6 +216,7 @@ final class DumpServiceTests: TuistTestCase {
                     "enforceExplicitDependencies": false,
                     "includeGenerateScheme": true,
                     "optionalAuthentication": false,
+                    "registryEnabled": false,
                     "resolveDependenciesWithSystemScm": false,
                     "staticSideEffectsWarningTargets": {
                       "all": {

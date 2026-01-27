@@ -47,7 +47,8 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 testInsightsDisabled: true,
                 disableSandbox: true,
                 includeGenerateScheme: false,
-                enableCaching: false
+                enableCaching: false,
+                registryEnabled: false
             ),
             installOptions: .init(passthroughSwiftPackageManagerArguments: []),
             cacheOptions: CacheOptions(keepSourceTargets: false, profiles: .init([:], default: .onlyExternal))
@@ -78,6 +79,7 @@ extension TuistGeneratedProjectOptions {
         public let disableSandbox: Bool
         public let includeGenerateScheme: Bool
         public let enableCaching: Bool
+        public let registryEnabled: Bool
 
         public init(
             resolveDependenciesWithSystemScm: Bool,
@@ -92,7 +94,8 @@ extension TuistGeneratedProjectOptions {
             testInsightsDisabled: Bool,
             disableSandbox: Bool,
             includeGenerateScheme: Bool,
-            enableCaching: Bool = false
+            enableCaching: Bool = false,
+            registryEnabled: Bool = false
         ) {
             self.resolveDependenciesWithSystemScm = resolveDependenciesWithSystemScm
             self.disablePackageVersionLocking = disablePackageVersionLocking
@@ -107,6 +110,7 @@ extension TuistGeneratedProjectOptions {
             self.disableSandbox = disableSandbox
             self.includeGenerateScheme = includeGenerateScheme
             self.enableCaching = enableCaching
+            self.registryEnabled = registryEnabled
         }
     }
 
@@ -179,7 +183,8 @@ extension TuistGeneratedProjectOptions {
             testInsightsDisabled: Bool = true,
             disableSandbox: Bool = true,
             includeGenerateScheme: Bool = true,
-            enableCaching: Bool = false
+            enableCaching: Bool = false,
+            registryEnabled: Bool = false
         ) -> Self {
             .init(
                 resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
@@ -194,7 +199,8 @@ extension TuistGeneratedProjectOptions {
                 testInsightsDisabled: testInsightsDisabled,
                 disableSandbox: disableSandbox,
                 includeGenerateScheme: includeGenerateScheme,
-                enableCaching: enableCaching
+                enableCaching: enableCaching,
+                registryEnabled: registryEnabled
             )
         }
     }
