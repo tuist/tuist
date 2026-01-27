@@ -9,10 +9,10 @@ struct CacheConfigCommand: AsyncParsableCommand {
             abstract: "Get remote cache configuration for your project.",
             discussion: """
             Returns the cache endpoint URL and authentication token for configuring
-            a build system's HTTP cache with Tuist.
+            remote build caching with Tuist.
 
             The output includes the endpoint URL and authentication credentials that can
-            be used to configure build caches for various build systems (Gradle, Bazel, etc).
+            be used to configure build caches for supported build systems like Gradle.
             """
         )
     }
@@ -36,11 +36,19 @@ struct CacheConfigCommand: AsyncParsableCommand {
     )
     var path: String?
 
+    @Option(
+        name: .long,
+        help: "The URL of the server. If not provided, it will be read from the project configuration or default to the Tuist server.",
+        envKey: .cacheConfigServerURL
+    )
+    var serverURL: String?
+
     func run() async throws {
         try await CacheConfigService().run(
             fullHandle: fullHandle,
             json: json,
-            directory: path
+            directory: path,
+            serverURL: serverURL
         )
     }
 }

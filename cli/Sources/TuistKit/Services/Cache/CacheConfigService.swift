@@ -9,7 +9,8 @@ protocol CacheConfigServicing {
     func run(
         fullHandle: String,
         json: Bool,
-        directory: String?
+        directory: String?,
+        serverURL: String?
     ) async throws
 }
 
@@ -34,26 +35,29 @@ final class CacheConfigService: CacheConfigServicing {
     func run(
         fullHandle: String,
         json: Bool,
-        directory: String?
+        directory: String?,
+        serverURL: String?
     ) async throws {
-        let directoryPath: AbsolutePath
-        if let directory {
-            directoryPath = try AbsolutePath(
-                validating: directory, relativeTo: FileHandler.shared.currentPath
-            )
+        let resolvedServerURL: URL
+
+        if let serverURL {
+            guard let url = URL(string: serverURL) else {
+                throw CacheConfigServiceError.invalidServerURL(serverURL)
+            }
+            resolvedServerURL = url
         } else {
-            directoryPath = FileHandler.shared.currentPath
+            let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(directory)
+            let config = try await configLoader.loadConfig(path: directoryPath)
+            resolvedServerURL = try serverEnvironmentService.url(configServerURL: config.url)
         }
 
-        let config = try await configLoader.loadConfig(path: directoryPath)
-        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-
-        guard let token = try await serverAuthenticationController.authenticationToken(serverURL: serverURL) else {
+        guard let token = try await serverAuthenticationController.authenticationToken(serverURL: resolvedServerURL)
+        else {
             throw CacheConfigServiceError.notAuthenticated
         }
 
         let accountHandle = fullHandle.split(separator: "/").first.map(String.init)
-        let cacheURL = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
+        let cacheURL = try await cacheURLStore.getCacheURL(for: resolvedServerURL, accountHandle: accountHandle)
 
         let result = CacheConfiguration(
             url: cacheURL.absoluteString,
@@ -88,11 +92,14 @@ struct CacheConfiguration: Codable {
 
 enum CacheConfigServiceError: LocalizedError, Equatable {
     case notAuthenticated
+    case invalidServerURL(String)
 
     var errorDescription: String? {
         switch self {
         case .notAuthenticated:
             return "You are not authenticated. Please run `tuist auth` first."
+        case let .invalidServerURL(url):
+            return "Invalid server URL: \(url)"
         }
     }
 }
