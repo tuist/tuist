@@ -388,4 +388,46 @@ struct GenerateServiceTests {
             )
         }
     }
+
+    @Test func passes_custom_build_folder_to_generator_factory() async throws {
+        // Given
+        let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
+        let customBuildFolder = try AbsolutePath(validating: "/custom/build/folder")
+        let environment = MapperEnvironment()
+        given(configLoader).loadConfig(path: .any).willReturn(
+            .test(project: .testGeneratedProject())
+        )
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willReturn(
+                (
+                    workspacePath,
+                    .test(),
+                    environment
+                )
+            )
+
+        // When
+        try await subject.run(
+            path: nil,
+            buildFolder: customBuildFolder.pathString,
+            includedTargets: [],
+            noOpen: true,
+            configuration: nil,
+            ignoreBinaryCache: false,
+            cacheProfile: nil
+        )
+
+        // Then
+        verify(generatorFactory)
+            .generation(
+                config: .any,
+                includedTargets: .any,
+                configuration: .any,
+                cacheProfile: .any,
+                cacheStorage: .any,
+                buildFolder: .value(customBuildFolder)
+            )
+            .called(1)
+    }
 }

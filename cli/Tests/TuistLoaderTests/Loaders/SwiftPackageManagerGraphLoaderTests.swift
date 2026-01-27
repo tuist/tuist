@@ -284,4 +284,101 @@ struct SwiftPackageManagerGraphLoaderTests {
             }
         }
     }
+
+    @Test
+    func load_withCustomBuildFolder() async throws {
+        try await withMockedDependencies {
+            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+                temporaryDirectory in
+                // Given
+                let packageSettings = PackageSettings.test()
+                let customBuildFolder = temporaryDirectory.appending(component: "custom-build")
+
+                let workspacePath = customBuildFolder.appending(component: "workspace-state.json")
+                try await fileSystem.makeDirectory(at: customBuildFolder)
+                try await fileSystem.writeText(
+                    """
+                    {
+                      "object" : {
+                        "artifacts" : [],
+                        "dependencies" : [
+                          {
+                            "basedOn" : null,
+                            "packageRef" : {
+                              "identity" : "Alamofire.Alamofire",
+                              "kind" : "registry",
+                              "location" : "Alamofire.Alamofire",
+                              "name" : "Alamofire.Alamofire"
+                            },
+                            "state" : {
+                              "name" : "registryDownload",
+                              "version" : "5.10.2"
+                            },
+                            "subpath" : "Alamofire/Alamofire/5.10.2"
+                          }
+                        ],
+                      }
+                    }
+                    """,
+                    at: workspacePath
+                )
+
+                try await fileSystem.makeDirectory(
+                    at: customBuildFolder.appending(component: "Derived")
+                )
+                try await fileSystem.touch(
+                    customBuildFolder.appending(components: ["Derived", "Package.resolved"])
+                )
+                try await fileSystem.touch(
+                    temporaryDirectory.appending(component: "Package.resolved")
+                )
+
+                given(packageInfoMapper)
+                    .resolveExternalDependencies(
+                        path: .any,
+                        packageInfos: .any,
+                        packageToFolder: .any,
+                        packageToTargetsToArtifactPaths: .any,
+                        packageModuleAliases: .any
+                    )
+                    .willReturn([:])
+
+                // When
+                let got = try await subject.load(
+                    packagePath: temporaryDirectory.appending(component: "Package.swift"),
+                    packageSettings: packageSettings,
+                    disableSandbox: true,
+                    buildFolder: customBuildFolder
+                )
+
+                // Then
+                #expect(
+                    got.externalProjects.values.map(\.hash) == [
+                        "Alamofire.Alamofire-5.10.2",
+                    ]
+                )
+            }
+        }
+    }
+
+    @Test
+    func load_withCustomBuildFolder_throwsWhenWorkspaceStateNotFound() async throws {
+        try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+            temporaryDirectory in
+            // Given
+            let packageSettings = PackageSettings.test()
+            let customBuildFolder = temporaryDirectory.appending(component: "custom-build")
+            try await fileSystem.makeDirectory(at: customBuildFolder)
+
+            // When / Then
+            await #expect(throws: SwiftPackageManagerGraphGeneratorError.installRequired) {
+                _ = try await subject.load(
+                    packagePath: temporaryDirectory.appending(component: "Package.swift"),
+                    packageSettings: packageSettings,
+                    disableSandbox: true,
+                    buildFolder: customBuildFolder
+                )
+            }
+        }
+    }
 }
