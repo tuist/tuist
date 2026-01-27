@@ -49,7 +49,7 @@ class TuistBuildCachePlugin : Plugin<Settings> {
 
         settings.buildCache {
             remote(HttpBuildCache::class.java) {
-                url = URI.create(buildCacheUrl(config, extension))
+                url = buildCacheUri(config)
                 credentials {
                     username = "tuist"
                     password = config.token
@@ -64,28 +64,20 @@ class TuistBuildCachePlugin : Plugin<Settings> {
         }
     }
 
-    private fun buildCacheUrl(config: TuistCacheConfiguration, extension: TuistBuildCacheExtension): String {
-        val baseUrl = config.url.trimEnd('/')
-        return "$baseUrl/api/cache/gradle?account_handle=${config.accountHandle}&project_handle=${config.projectHandle}"
+    private fun buildCacheUri(config: TuistCacheConfiguration): URI {
+        val baseUri = URI.create(config.url.trimEnd('/'))
+        return URI(
+            baseUri.scheme,
+            baseUri.userInfo,
+            baseUri.host,
+            baseUri.port,
+            "${baseUri.path}/api/cache/gradle",
+            "account_handle=${config.accountHandle}&project_handle=${config.projectHandle}",
+            null
+        )
     }
 
     private fun getCacheConfiguration(extension: TuistBuildCacheExtension): TuistCacheConfiguration? {
-        // First, try environment variables as fallback
-        val envEndpoint = System.getenv("TUIST_CACHE_URL")
-        val envToken = System.getenv("TUIST_TOKEN")
-
-        if (!envEndpoint.isNullOrBlank() && !envToken.isNullOrBlank()) {
-            val fullHandle = extension.fullHandle
-            val parts = fullHandle.split("/", limit = 2)
-            return TuistCacheConfiguration(
-                url = envEndpoint,
-                token = envToken,
-                accountHandle = parts.getOrElse(0) { "" },
-                projectHandle = parts.getOrElse(1) { "" }
-            )
-        }
-
-        // Try to execute tuist command
         val fullHandle = extension.fullHandle
         if (fullHandle.isBlank()) {
             return null
