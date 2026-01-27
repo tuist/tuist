@@ -115,12 +115,15 @@ struct RegistrySetupCommandService {
     private func registryConfigurationJSON(
         serverURL: URL
     ) -> String {
-        let registryHost = if serverURL.host() == "tuist.dev" {
-            "registry.tuist.dev"
+        let registryURL = if serverURL.host() == "tuist.dev" {
+            "https://registry.tuist.dev/api/registry/swift"
         } else {
-            serverURL.host() ?? "tuist.dev"
+            var components = URLComponents(url: serverURL, resolvingAgainstBaseURL: false)
+            components?.path = "/api/registry/swift"
+            components?.query = nil
+            components?.fragment = nil
+            return components?.string ?? "\(serverURL.absoluteString.dropSuffix("/"))/api/registry/swift"
         }
-        let registryURL = "https://\(registryHost)/api/registry/swift"
 
         return """
         {

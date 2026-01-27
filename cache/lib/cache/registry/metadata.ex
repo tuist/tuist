@@ -102,6 +102,7 @@ defmodule Cache.Registry.Metadata do
   """
   @spec get_package(String.t(), String.t()) :: {:ok, map()} | {:error, :not_found}
   def get_package(scope, name) do
+    {scope, name} = normalize_scope_name(scope, name)
     cache_key = cache_key(scope, name)
 
     case Cachex.get(cache_name(), cache_key) do
@@ -118,6 +119,7 @@ defmodule Cache.Registry.Metadata do
   """
   @spec put_package(String.t(), String.t(), map()) :: :ok | {:error, term()}
   def put_package(scope, name, metadata) do
+    {scope, name} = normalize_scope_name(scope, name)
     key = s3_key(scope, name)
     bucket = bucket()
     json_body = Jason.encode!(metadata)
@@ -142,6 +144,7 @@ defmodule Cache.Registry.Metadata do
   """
   @spec delete_package(String.t(), String.t()) :: :ok | {:error, term()}
   def delete_package(scope, name) do
+    {scope, name} = normalize_scope_name(scope, name)
     key = s3_key(scope, name)
     bucket = bucket()
 
@@ -162,7 +165,7 @@ defmodule Cache.Registry.Metadata do
   Lists all package metadata keys in S3.
 
   Returns a list of `{scope, name}` tuples for all packages stored in S3.
-  Used for sync comparison with the server.
+  Used for cache registry sync and diagnostics.
   """
   @spec list_all_packages() :: [{String.t(), String.t()}]
   def list_all_packages do
@@ -206,6 +209,10 @@ defmodule Cache.Registry.Metadata do
   defp s3_key(scope, name), do: "registry/metadata/#{scope}/#{name}/index.json"
 
   defp cache_key(scope, name), do: {scope, name}
+
+  defp normalize_scope_name(scope, name) do
+    {String.downcase(scope), name |> String.replace(".", "_") |> String.downcase()}
+  end
 
   defp bucket, do: Application.get_env(:cache, :s3)[:bucket]
 
