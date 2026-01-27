@@ -11,7 +11,29 @@ As the number of dependencies grows, so does the time to resolve them. While oth
 
 ## Usage {#usage}
 
-To set up the registry, run the following command in your project's directory:
+There are two ways to set up the registry:
+
+### Option 1: Automatic setup during generation (recommended) {#automatic-setup}
+
+If you're using Tuist to generate your project, you can enable the registry by setting the `registryEnabled` option in your `Tuist.swift` configuration:
+
+```swift
+import ProjectDescription
+
+let tuist = Tuist(
+    project: .tuist(
+        generationOptions: .options(
+            registryEnabled: true
+        )
+    )
+)
+```
+
+With this option, `tuist generate` will automatically create the registry configuration file in your workspace. This eliminates the need to run `tuist registry setup` separately.
+
+### Option 2: Manual setup {#manual-setup}
+
+To set up the registry manually, run the following command in your project's directory:
 
 ```bash
 tuist registry setup
