@@ -1,5 +1,6 @@
 package dev.tuist.gradle
 
+import com.google.gson.Gson
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
@@ -47,8 +48,7 @@ class TuistBuildCacheTest {
         tuistFile.writeText("#!/bin/bash\necho 'tuist'")
         tuistFile.setExecutable(true)
 
-        val factory = TuistBuildCacheServiceFactoryTestHelper()
-        val result = factory.findTuistInPathWithCustomPath(binDir.absolutePath)
+        val result = findTuistInPathWithCustomPath(binDir.absolutePath)
 
         assertNotNull(result)
         assertEquals(tuistFile.absolutePath, result)
@@ -59,8 +59,7 @@ class TuistBuildCacheTest {
         val emptyDir = File(tempDir, "empty")
         emptyDir.mkdirs()
 
-        val factory = TuistBuildCacheServiceFactoryTestHelper()
-        val result = factory.findTuistInPathWithCustomPath(emptyDir.absolutePath)
+        val result = findTuistInPathWithCustomPath(emptyDir.absolutePath)
 
         assertNull(result)
     }
@@ -73,8 +72,7 @@ class TuistBuildCacheTest {
         tuistFile.writeText("not executable")
         tuistFile.setExecutable(false)
 
-        val factory = TuistBuildCacheServiceFactoryTestHelper()
-        val result = factory.findTuistInPathWithCustomPath(binDir.absolutePath)
+        val result = findTuistInPathWithCustomPath(binDir.absolutePath)
 
         assertNull(result)
     }
@@ -90,23 +88,129 @@ class TuistBuildCacheTest {
         tuistInSecond.writeText("#!/bin/bash\necho 'tuist'")
         tuistInSecond.setExecutable(true)
 
-        val factory = TuistBuildCacheServiceFactoryTestHelper()
         val pathSeparator = System.getProperty("path.separator") ?: ":"
-        val result = factory.findTuistInPathWithCustomPath(
+        val result = findTuistInPathWithCustomPath(
             "${firstDir.absolutePath}${pathSeparator}${secondDir.absolutePath}"
         )
 
         assertNotNull(result)
         assertEquals(tuistInSecond.absolutePath, result)
     }
-}
 
-/**
- * Test helper that exposes findTuistInPath with a custom PATH value.
- */
-class TuistBuildCacheServiceFactoryTestHelper {
+    @Test
+    fun `buildCacheUrl constructs correct URL with simple base URL`() {
+        val config = TuistCacheConfiguration(
+            url = "https://cache.tuist.dev",
+            token = "test-token",
+            accountHandle = "my-account",
+            projectHandle = "my-project"
+        )
 
-    fun findTuistInPathWithCustomPath(customPath: String): String? {
+        val result = buildCacheUrl(config, "abc123def456")
+
+        assertEquals("https", result.scheme)
+        assertEquals("cache.tuist.dev", result.host)
+        assertEquals("/api/cache/gradle/abc123def456", result.path)
+        assertEquals("account_handle=my-account&project_handle=my-project", result.query)
+    }
+
+    @Test
+    fun `buildCacheUrl constructs correct URL with trailing slash in base URL`() {
+        val config = TuistCacheConfiguration(
+            url = "https://cache.tuist.dev/",
+            token = "test-token",
+            accountHandle = "my-account",
+            projectHandle = "my-project"
+        )
+
+        val result = buildCacheUrl(config, "abc123")
+
+        assertEquals("/api/cache/gradle/abc123", result.path)
+    }
+
+    @Test
+    fun `buildCacheUrl constructs correct URL with port`() {
+        val config = TuistCacheConfiguration(
+            url = "http://localhost:8181",
+            token = "test-token",
+            accountHandle = "tuist",
+            projectHandle = "gradle"
+        )
+
+        val result = buildCacheUrl(config, "hash123")
+
+        assertEquals("http", result.scheme)
+        assertEquals("localhost", result.host)
+        assertEquals(8181, result.port)
+        assertEquals("/api/cache/gradle/hash123", result.path)
+        assertEquals("account_handle=tuist&project_handle=gradle", result.query)
+    }
+
+    @Test
+    fun `buildCacheUrl constructs correct URL with existing path in base URL`() {
+        val config = TuistCacheConfiguration(
+            url = "https://api.example.com/v1",
+            token = "test-token",
+            accountHandle = "org",
+            projectHandle = "repo"
+        )
+
+        val result = buildCacheUrl(config, "cachekey")
+
+        assertEquals("/v1/api/cache/gradle/cachekey", result.path)
+    }
+
+    @Test
+    fun `TuistCacheConfiguration parses JSON correctly`() {
+        val json = """
+            {
+                "url": "https://cache.tuist.dev",
+                "token": "tuist_test_token_12345",
+                "accountHandle": "my-account",
+                "projectHandle": "my-project"
+            }
+        """.trimIndent()
+
+        val config = Gson().fromJson(json, TuistCacheConfiguration::class.java)
+
+        assertEquals("https://cache.tuist.dev", config.url)
+        assertEquals("tuist_test_token_12345", config.token)
+        assertEquals("my-account", config.accountHandle)
+        assertEquals("my-project", config.projectHandle)
+    }
+
+    @Test
+    fun `TuistCacheConfiguration handles empty values in JSON`() {
+        val json = """
+            {
+                "url": "",
+                "token": "",
+                "accountHandle": "",
+                "projectHandle": ""
+            }
+        """.trimIndent()
+
+        val config = Gson().fromJson(json, TuistCacheConfiguration::class.java)
+
+        assertEquals("", config.url)
+        assertEquals("", config.token)
+        assertEquals("", config.accountHandle)
+        assertEquals("", config.projectHandle)
+    }
+
+    @Test
+    fun `TuistCacheConfiguration handles real-world JSON format`() {
+        val json = """{"url":"http://localhost:8181","token":"tuist_01234567-89ab-cdef-0123-456789abcdef_gradlecachedevtoken","accountHandle":"tuist","projectHandle":"gradle"}"""
+
+        val config = Gson().fromJson(json, TuistCacheConfiguration::class.java)
+
+        assertEquals("http://localhost:8181", config.url)
+        assertEquals("tuist_01234567-89ab-cdef-0123-456789abcdef_gradlecachedevtoken", config.token)
+        assertEquals("tuist", config.accountHandle)
+        assertEquals("gradle", config.projectHandle)
+    }
+
+    private fun findTuistInPathWithCustomPath(customPath: String): String? {
         val pathSeparator = System.getProperty("path.separator") ?: ":"
         val executableName = if (System.getProperty("os.name").lowercase().contains("win")) "tuist.exe" else "tuist"
 
@@ -117,5 +221,18 @@ class TuistBuildCacheServiceFactoryTestHelper {
             }
         }
         return null
+    }
+
+    private fun buildCacheUrl(config: TuistCacheConfiguration, cacheKey: String): URI {
+        val baseUri = URI.create(config.url.trimEnd('/'))
+        return URI(
+            baseUri.scheme,
+            baseUri.userInfo,
+            baseUri.host,
+            baseUri.port,
+            "${baseUri.path}/api/cache/gradle/$cacheKey",
+            "account_handle=${config.accountHandle}&project_handle=${config.projectHandle}",
+            null
+        )
     }
 }
