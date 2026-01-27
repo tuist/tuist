@@ -151,9 +151,6 @@ public class Generator: Generating {
                 at: configurationPath,
                 serverURL: config.url
             )
-            Logger.current.notice(
-                "Generated registry configuration at \(configurationPath.appending(component: "registries.json").relative(to: graphTraverser.path).pathString)"
-            )
         }
     }
 

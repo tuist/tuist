@@ -110,5 +110,4 @@ struct RegistrySetupCommandService {
             )
         )
     }
-
 }
