@@ -44,10 +44,10 @@ config :cache, Oban,
     {Oban.Plugins.Pruner, interval: to_timeout(minute: 5), max_age: to_timeout(day: 1)},
     {Oban.Plugins.Cron,
      crontab: [
-        {"*/10 * * * *", Cache.DiskEvictionWorker},
-        {"* * * * *", Cache.S3TransferWorker},
-        {"0 * * * *", Cache.Registry.SyncWorker}
-      ]}
+       {"*/10 * * * *", Cache.DiskEvictionWorker},
+       {"* * * * *", Cache.S3TransferWorker},
+       {"0 * * * *", Cache.Registry.SyncWorker}
+     ]}
   ]
 
 config :cache, ecto_repos: [Cache.Repo]

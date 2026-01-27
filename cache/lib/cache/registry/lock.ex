@@ -3,6 +3,8 @@ defmodule Cache.Registry.Lock do
   Distributed lock backed by S3 objects for registry sync coordination.
   """
 
+  alias Cache.Config
+
   require Logger
 
   @spec try_acquire(term(), pos_integer()) :: {:ok, :acquired} | {:error, :already_locked}
@@ -10,7 +12,7 @@ defmodule Cache.Registry.Lock do
     lock_key = lock_key(key)
     now = System.system_time(:second)
     expires_at = now + ttl_seconds
-    body = Jason.encode!(%{acquired_at: now, expires_at: expires_at, node: node() |> to_string()})
+    body = Jason.encode!(%{acquired_at: now, expires_at: expires_at, node: to_string(node())})
 
     case put_lock(lock_key, body, if_none_match: "*") do
       {:ok, _} ->
@@ -71,8 +73,11 @@ defmodule Cache.Registry.Lock do
           {:ok, lock, etag_from_headers(headers)}
         end
 
-      {:error, {:http_error, 404, _}} -> {:error, :not_found}
-      {:error, reason} -> {:error, reason}
+      {:error, {:http_error, 404, _}} ->
+        {:error, :not_found}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -96,7 +101,7 @@ defmodule Cache.Registry.Lock do
 
   defp lock_key(other), do: "registry/locks/#{other}.json"
 
-  defp bucket, do: Application.get_env(:cache, :s3)[:bucket]
+  defp bucket, do: Config.registry_bucket()
 
   defp etag_from_headers(headers) do
     etag_value = Map.get(headers, "etag") || Map.get(headers, "ETag")

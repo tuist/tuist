@@ -3,16 +3,37 @@ defmodule Cache.S3 do
   S3 helper functions for presigned URLs, uploads, and downloads.
 
   Isolated behind a module for easy testing without mutating global config.
+
+  This module operates on the cache bucket (CAS and module artifacts).
+  For registry-specific operations, use the registry-prefixed functions.
   """
 
+  alias Cache.Config
   alias ExAws.S3.Upload
 
   require Logger
 
-  def presign_download_url(key) when is_binary(key) do
-    bucket = Application.get_env(:cache, :s3)[:bucket]
-    config = ExAws.Config.new(:s3)
-    ExAws.S3.presigned_url(config, :get, bucket, key, expires_in: 600)
+  @doc """
+  Generates a presigned download URL for an artifact.
+
+  ## Options
+
+    * `:type` - The storage type, either `:cache` (default) or `:registry`
+
+  Returns `{:ok, url}` on success or `{:error, reason}` on failure.
+  Returns `{:error, :registry_disabled}` if type is `:registry` and registry storage is not configured.
+  """
+  def presign_download_url(key, opts \\ []) when is_binary(key) do
+    type = Keyword.get(opts, :type, :cache)
+
+    case bucket_for_type(type) do
+      nil ->
+        {:error, :registry_disabled}
+
+      bucket ->
+        config = ExAws.Config.new(:s3)
+        ExAws.S3.presigned_url(config, :get, bucket, key, expires_in: 600)
+    end
   end
 
   @doc """
@@ -37,32 +58,47 @@ defmodule Cache.S3 do
     end
   end
 
-  def exists?(key) when is_binary(key) do
-    bucket = Application.get_env(:cache, :s3)[:bucket]
+  @doc """
+  Checks if an artifact exists in S3.
 
-    {duration, result} =
-      :timer.tc(fn ->
-        bucket
-        |> ExAws.S3.head_object(key)
-        |> ExAws.request(http_opts: [receive_timeout: 2_000])
-      end)
+  ## Options
 
-    case result do
-      {:ok, _response} ->
-        :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :found})
-        true
+    * `:type` - The storage type, either `:cache` (default) or `:registry`
 
-      {:error, {:http_error, 404, _}} ->
-        :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :not_found})
+  Returns `false` if type is `:registry` and registry storage is not configured.
+  """
+  def exists?(key, opts \\ []) when is_binary(key) do
+    type = Keyword.get(opts, :type, :cache)
+
+    case bucket_for_type(type) do
+      nil ->
         false
 
-      {:error, {:http_error, 429, _}} ->
-        :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :rate_limited})
-        false
+      bucket ->
+        {duration, result} =
+          :timer.tc(fn ->
+            bucket
+            |> ExAws.S3.head_object(key)
+            |> ExAws.request(http_opts: [receive_timeout: 2_000])
+          end)
 
-      {:error, _reason} ->
-        :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :error})
-        false
+        case result do
+          {:ok, _response} ->
+            :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :found})
+            true
+
+          {:error, {:http_error, 404, _}} ->
+            :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :not_found})
+            false
+
+          {:error, {:http_error, 429, _}} ->
+            :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :rate_limited})
+            false
+
+          {:error, _reason} ->
+            :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :error})
+            false
+        end
     end
   end
 
@@ -95,7 +131,7 @@ defmodule Cache.S3 do
 
   defp upload_file(key, local_path) do
     if File.exists?(local_path) do
-      bucket = Application.get_env(:cache, :s3)[:bucket]
+      bucket = Config.cache_bucket()
 
       {duration, result} =
         :timer.tc(fn ->
@@ -162,7 +198,7 @@ defmodule Cache.S3 do
   end
 
   defp check_exists(key) do
-    bucket = Application.get_env(:cache, :s3)[:bucket]
+    bucket = Config.cache_bucket()
 
     {duration, result} =
       :timer.tc(fn ->
@@ -191,7 +227,7 @@ defmodule Cache.S3 do
   end
 
   defp download_file(key, local_path) do
-    bucket = Application.get_env(:cache, :s3)[:bucket]
+    bucket = Config.cache_bucket()
 
     local_path |> Path.dirname() |> File.mkdir_p!()
 
@@ -218,13 +254,13 @@ defmodule Cache.S3 do
   end
 
   @doc """
-  Deletes all objects with the given prefix from S3.
+  Deletes all objects with the given prefix from S3 (cache bucket).
 
   Lists all objects matching the prefix and deletes them in batches.
   Returns {:ok, deleted_count} on success, or {:error, reason} on failure.
   """
   def delete_all_with_prefix(prefix) do
-    bucket = Application.get_env(:cache, :s3)[:bucket]
+    bucket = Config.cache_bucket()
 
     Logger.info("Deleting all S3 objects with prefix: #{prefix}")
 
@@ -261,4 +297,7 @@ defmodule Cache.S3 do
       end
     end)
   end
+
+  defp bucket_for_type(:cache), do: Config.cache_bucket()
+  defp bucket_for_type(:registry), do: Config.registry_bucket()
 end

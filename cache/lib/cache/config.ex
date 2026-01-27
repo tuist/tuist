@@ -15,7 +15,9 @@ defmodule Cache.Config do
 
   def list_env(name) when is_binary(name) do
     case System.get_env(name) do
-      nil -> nil
+      nil ->
+        nil
+
       value ->
         value
         |> String.split(",")
@@ -71,6 +73,31 @@ defmodule Cache.Config do
   def oban_web_credentials do
     Application.get_env(:cache, :oban_web_basic_auth, [])
   end
+
+  @doc """
+  Returns the bucket for cache artifacts (CAS and module).
+  """
+  def cache_bucket, do: Application.get_env(:cache, :s3)[:bucket]
+
+  @doc """
+  Returns the bucket for registry artifacts, or nil if not configured.
+  """
+  def registry_bucket, do: Application.get_env(:cache, :s3)[:registry_bucket]
+
+  @doc """
+  Returns the GitHub token for registry sync, or nil if not configured.
+  """
+  def registry_github_token do
+    case Application.get_env(:cache, :registry_github_token) do
+      token when is_binary(token) and token != "" -> token
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Returns true if registry is fully configured (bucket and GitHub token).
+  """
+  def registry_enabled?, do: registry_bucket() != nil and registry_github_token() != nil
 
   defp parse_float(nil, default), do: default
 

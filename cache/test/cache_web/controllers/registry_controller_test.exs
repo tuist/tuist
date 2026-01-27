@@ -11,6 +11,8 @@ defmodule CacheWeb.RegistryControllerTest do
   setup :set_mimic_from_context
 
   setup do
+    Application.put_env(:cache, :registry_github_token, "test-token")
+    on_exit(fn -> Application.delete_env(:cache, :registry_github_token) end)
     stub(CacheArtifacts, :track_artifact_access, fn _key -> :ok end)
     :ok
   end
@@ -302,11 +304,11 @@ defmodule CacheWeb.RegistryControllerTest do
 
       expect(Disk, :registry_exists?, fn ^scope, ^name, ^version, "source_archive.zip" -> false end)
 
-      expect(S3, :exists?, fn _key -> true end)
+      expect(S3, :exists?, fn _key, _opts -> true end)
 
       expect(S3Transfers, :enqueue_registry_download, fn _key -> {:ok, %{}} end)
 
-      expect(S3, :presign_download_url, fn _key ->
+      expect(S3, :presign_download_url, fn _key, _opts ->
         {:ok, "https://s3.example.com/registry/swift/apple/swift-argument-parser/1.0.0/source_archive.zip?signed=true"}
       end)
 
@@ -330,11 +332,11 @@ defmodule CacheWeb.RegistryControllerTest do
 
       expect(Disk, :registry_exists?, fn ^scope, ^name, ^version, "source_archive.zip" -> false end)
 
-      expect(S3, :exists?, fn _key -> true end)
+      expect(S3, :exists?, fn _key, _opts -> true end)
 
       expect(S3Transfers, :enqueue_registry_download, fn _key -> {:ok, %{}} end)
 
-      expect(S3, :presign_download_url, fn _key -> {:error, :not_found} end)
+      expect(S3, :presign_download_url, fn _key, _opts -> {:error, :not_found} end)
 
       conn =
         conn
@@ -352,7 +354,7 @@ defmodule CacheWeb.RegistryControllerTest do
 
       expect(Disk, :registry_exists?, fn ^scope, ^name, ^version, "source_archive.zip" -> false end)
 
-      expect(S3, :exists?, fn _key -> false end)
+      expect(S3, :exists?, fn _key, _opts -> false end)
 
       conn =
         conn
@@ -418,7 +420,7 @@ defmodule CacheWeb.RegistryControllerTest do
 
       expect(Disk, :registry_exists?, fn ^scope, ^name, ^version, "Package@swift-5.8.swift" -> false end)
 
-      expect(S3, :exists?, fn _key -> false end)
+      expect(S3, :exists?, fn _key, _opts -> false end)
 
       conn =
         conn
@@ -440,13 +442,13 @@ defmodule CacheWeb.RegistryControllerTest do
 
       expect(Disk, :registry_exists?, fn ^scope, ^name, ^version, "Package.swift" -> false end)
 
-      expect(S3, :exists?, fn _key -> true end)
+      expect(S3, :exists?, fn _key, _opts -> true end)
 
       expect(Metadata, :get_package, fn ^scope, ^name -> {:error, :not_found} end)
 
       expect(S3Transfers, :enqueue_registry_download, fn _key -> {:ok, %{}} end)
 
-      expect(S3, :presign_download_url, fn _key ->
+      expect(S3, :presign_download_url, fn _key, _opts ->
         {:ok, "https://s3.example.com/registry/swift/apple/swift-argument-parser/1.0.0/Package.swift?signed=true"}
       end)
 
@@ -471,7 +473,7 @@ defmodule CacheWeb.RegistryControllerTest do
 
       expect(Disk, :registry_exists?, fn ^scope, ^name, ^version, "Package.swift" -> false end)
 
-      expect(S3, :exists?, fn _key -> false end)
+      expect(S3, :exists?, fn _key, _opts -> false end)
 
       conn =
         conn
