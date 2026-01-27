@@ -246,41 +246,10 @@ defmodule Cache.Registry.ReleaseWorker do
     case Lock.try_acquire(lock_key, @metadata_lock_ttl_seconds) do
       {:ok, :acquired} ->
         try do
-          metadata =
-            case Metadata.get_package(scope, name, fresh: true) do
-              {:ok, metadata} ->
-                metadata
-
-              {:error, :not_found} ->
-                %{"scope" => scope, "name" => name, "repository_full_handle" => full_handle, "releases" => %{}}
-
-              {:error, reason} ->
-                {:error, reason}
-            end
-
-          case metadata do
-            {:error, reason} ->
-              {:error, reason}
-
-            metadata ->
-              updated_metadata =
-                metadata
-                |> Map.put_new("scope", scope)
-                |> Map.put_new("name", name)
-                |> Map.put("repository_full_handle", full_handle)
-                |> Map.put("updated_at", DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601())
-                |> Map.update(
-                  "releases",
-                  %{version => %{"checksum" => checksum, "manifests" => manifests}},
-                  fn releases ->
-                    Map.put(releases || %{}, version, %{
-                      "checksum" => checksum,
-                      "manifests" => manifests
-                    })
-                  end
-                )
-
-              Metadata.put_package(scope, name, updated_metadata)
+          with {:ok, metadata} <- get_or_create_metadata(scope, name, full_handle),
+               {:ok, updated_metadata} <-
+                 build_updated_metadata(metadata, scope, name, full_handle, version, checksum, manifests) do
+            Metadata.put_package(scope, name, updated_metadata)
           end
         after
           Lock.release(lock_key)
@@ -289,6 +258,40 @@ defmodule Cache.Registry.ReleaseWorker do
       {:error, :already_locked} ->
         {:error, :already_locked}
     end
+  end
+
+  defp get_or_create_metadata(scope, name, full_handle) do
+    case Metadata.get_package(scope, name, fresh: true) do
+      {:ok, metadata} ->
+        {:ok, metadata}
+
+      {:error, :not_found} ->
+        {:ok, %{"scope" => scope, "name" => name, "repository_full_handle" => full_handle, "releases" => %{}}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp build_updated_metadata(metadata, scope, name, full_handle, version, checksum, manifests) do
+    updated_metadata =
+      metadata
+      |> Map.put_new("scope", scope)
+      |> Map.put_new("name", name)
+      |> Map.put("repository_full_handle", full_handle)
+      |> Map.put("updated_at", DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601())
+      |> Map.update(
+        "releases",
+        %{version => %{"checksum" => checksum, "manifests" => manifests}},
+        fn releases ->
+          Map.put(releases || %{}, version, %{
+            "checksum" => checksum,
+            "manifests" => manifests
+          })
+        end
+      )
+
+    {:ok, updated_metadata}
   end
 
   defp upload_manifest(scope, name, version, filename, content) do

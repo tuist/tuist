@@ -7,7 +7,6 @@ defmodule Cache.Registry.Lock do
 
   require Logger
 
-  @spec try_acquire(term(), pos_integer()) :: {:ok, :acquired} | {:error, :already_locked}
   def try_acquire(key, ttl_seconds) when is_integer(ttl_seconds) and ttl_seconds > 0 do
     lock_key = lock_key(key)
     now = System.system_time(:second)
@@ -43,22 +42,30 @@ defmodule Cache.Registry.Lock do
     case read_lock(lock_key) do
       {:ok, %{"expires_at" => expires_at}, etag}
       when is_integer(expires_at) and expires_at <= now and is_binary(etag) ->
-        case put_lock(lock_key, body, if_match: if_match_value(etag)) do
-          {:ok, _} -> {:ok, :acquired}
-          {:error, _reason} -> {:error, :already_locked}
-        end
+        try_replace_with_etag(lock_key, body, etag)
 
       {:error, :not_found} ->
-        case put_lock(lock_key, body, if_none_match: "*") do
-          {:ok, _} -> {:ok, :acquired}
-          {:error, _reason} -> {:error, :already_locked}
-        end
+        try_create_lock(lock_key, body)
 
       {:ok, _lock, _etag} ->
         {:error, :already_locked}
 
       _ ->
         {:error, :already_locked}
+    end
+  end
+
+  defp try_replace_with_etag(lock_key, body, etag) do
+    case put_lock(lock_key, body, if_match: if_match_value(etag)) do
+      {:ok, _} -> {:ok, :acquired}
+      {:error, _reason} -> {:error, :already_locked}
+    end
+  end
+
+  defp try_create_lock(lock_key, body) do
+    case put_lock(lock_key, body, if_none_match: "*") do
+      {:ok, _} -> {:ok, :acquired}
+      {:error, _reason} -> {:error, :already_locked}
     end
   end
 

@@ -107,7 +107,6 @@ defmodule Cache.Registry.Metadata do
 
     * `:fresh` - when true, bypasses the cache and reads from S3 directly.
   """
-  @spec get_package(String.t(), String.t(), Keyword.t()) :: {:ok, map()} | {:error, :not_found}
   def get_package(scope, name, opts \\ []) do
     fresh = Keyword.get(opts, :fresh, false)
     {scope, name} = normalize_scope_name(scope, name)
@@ -137,7 +136,6 @@ defmodule Cache.Registry.Metadata do
 
   Returns `:ok` on success, `{:error, reason}` on failure.
   """
-  @spec put_package(String.t(), String.t(), map()) :: :ok | {:error, term()}
   def put_package(scope, name, metadata) do
     {scope, name} = normalize_scope_name(scope, name)
     key = s3_key(scope, name)
@@ -162,7 +160,6 @@ defmodule Cache.Registry.Metadata do
 
   Returns `:ok` on success, `{:error, reason}` on failure.
   """
-  @spec delete_package(String.t(), String.t()) :: :ok | {:error, term()}
   def delete_package(scope, name) do
     {scope, name} = normalize_scope_name(scope, name)
     key = s3_key(scope, name)
@@ -187,7 +184,6 @@ defmodule Cache.Registry.Metadata do
   Returns a list of `{scope, name}` tuples for all packages stored in S3.
   Used for cache registry sync and diagnostics.
   """
-  @spec list_all_packages() :: [{String.t(), String.t()}]
   def list_all_packages do
     bucket = bucket()
     prefix = "registry/metadata/"

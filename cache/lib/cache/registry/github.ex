@@ -7,7 +7,6 @@ defmodule Cache.Registry.GitHub do
   @per_page 100
   @user_agent "tuist-cache-registry"
 
-  @spec list_tags(String.t(), String.t()) :: {:ok, [String.t()]} | {:error, term()}
   def list_tags(repository_full_handle, token) do
     url = "#{@api_base}/repos/#{repository_full_handle}/tags?per_page=#{@per_page}"
 
@@ -19,7 +18,6 @@ defmodule Cache.Registry.GitHub do
     end
   end
 
-  @spec list_repository_contents(String.t(), String.t(), String.t()) :: {:ok, [map()]} | {:error, term()}
   def list_repository_contents(repository_full_handle, token, ref) do
     url = "#{@api_base}/repos/#{repository_full_handle}/contents"
 
@@ -33,7 +31,6 @@ defmodule Cache.Registry.GitHub do
     end
   end
 
-  @spec get_file_content(String.t(), String.t(), String.t(), String.t()) :: {:ok, String.t()} | {:error, term()}
   def get_file_content(repository_full_handle, token, path, ref) do
     url = "#{@api_base}/repos/#{repository_full_handle}/contents/#{path}"
 
@@ -60,7 +57,6 @@ defmodule Cache.Registry.GitHub do
     end
   end
 
-  @spec download_zipball(String.t(), String.t(), String.t(), String.t()) :: :ok | {:error, term()}
   def download_zipball(repository_full_handle, token, tag, destination_path) do
     url = "#{@api_base}/repos/#{repository_full_handle}/zipball/refs/tags/#{tag}"
 
