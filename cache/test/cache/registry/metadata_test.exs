@@ -59,14 +59,14 @@ defmodule Cache.Registry.MetadataTest do
       end)
 
       expect(ExAws, :request, fn %S3{} ->
-        {:ok, %{body: json_body}}
+        {:ok, %{body: json_body, headers: [{"etag", "\"etag\""}]}}
       end)
 
       assert {:ok, metadata} = Metadata.get_package(scope, name)
       assert metadata == @sample_metadata
 
       assert {:ok, cached} = Cachex.get(Metadata.cache_name(), {scope, name})
-      assert cached == @sample_metadata
+      assert cached.metadata == @sample_metadata
     end
 
     test "returns :not_found when S3 returns 404" do
@@ -111,7 +111,7 @@ defmodule Cache.Registry.MetadataTest do
       end)
 
       expect(ExAws, :request, fn %S3{} ->
-        {:ok, %{body: "invalid json {"}}
+        {:ok, %{body: "invalid json {", headers: [{"etag", "\"etag\""}]}}
       end)
 
       assert {:error, :not_found} = Metadata.get_package(scope, name)

@@ -84,6 +84,7 @@ defmodule Cache.Registry.Metadata do
 
   @cache_name :registry_metadata_cache
   @ttl to_timeout(minute: 10)
+  @revalidate_interval_seconds 60
 
   def child_spec(_opts) do
     %{
@@ -99,16 +100,33 @@ defmodule Cache.Registry.Metadata do
 
   Returns `{:ok, metadata_map}` on success, `{:error, :not_found}` if the package
   doesn't exist in S3.
+
+  ## Options
+
+    * `:fresh` - when true, bypasses the cache and reads from S3 directly.
   """
-  @spec get_package(String.t(), String.t()) :: {:ok, map()} | {:error, :not_found}
-  def get_package(scope, name) do
+  @spec get_package(String.t(), String.t(), Keyword.t()) :: {:ok, map()} | {:error, :not_found}
+  def get_package(scope, name, opts \\ []) do
+    fresh = Keyword.get(opts, :fresh, false)
     {scope, name} = normalize_scope_name(scope, name)
     cache_key = cache_key(scope, name)
 
-    case Cachex.get(cache_name(), cache_key) do
-      {:ok, nil} -> fetch_from_s3(scope, name, cache_key)
-      {:ok, metadata} -> {:ok, metadata}
-      _ -> fetch_from_s3(scope, name, cache_key)
+    if fresh do
+      fetch_from_s3(scope, name, cache_key)
+    else
+      case Cachex.get(cache_name(), cache_key) do
+        {:ok, nil} ->
+          fetch_from_s3(scope, name, cache_key)
+
+        {:ok, %{metadata: metadata} = cached} ->
+          maybe_revalidate(scope, name, cache_key, cached, metadata)
+
+        {:ok, metadata} when is_map(metadata) ->
+          {:ok, metadata}
+
+        _ ->
+          fetch_from_s3(scope, name, cache_key)
+      end
     end
   end
 
@@ -188,10 +206,11 @@ defmodule Cache.Registry.Metadata do
     case bucket
          |> ExAws.S3.get_object(key)
          |> ExAws.request() do
-      {:ok, %{body: body}} ->
+      {:ok, %{body: body, headers: headers}} ->
         case Jason.decode(body) do
           {:ok, metadata} ->
-            Cachex.put(cache_name(), cache_key, metadata, ttl: @ttl)
+            etag = etag_from_headers(headers)
+            Cachex.put(cache_name(), cache_key, cache_value(metadata, etag), ttl: @ttl)
             {:ok, metadata}
 
           {:error, _reason} ->
@@ -206,6 +225,53 @@ defmodule Cache.Registry.Metadata do
     end
   end
 
+  defp maybe_revalidate(scope, name, cache_key, cached, metadata) do
+    case Map.get(cached, :checked_at) do
+      %DateTime{} = checked_at ->
+        if DateTime.diff(DateTime.utc_now(), checked_at) >= @revalidate_interval_seconds do
+          revalidate_cached(scope, name, cache_key, cached, metadata)
+        else
+          {:ok, metadata}
+        end
+
+      _ ->
+        revalidate_cached(scope, name, cache_key, cached, metadata)
+    end
+  end
+
+  defp revalidate_cached(scope, name, cache_key, cached, metadata) do
+    cached_etag = Map.get(cached, :etag)
+
+    case head_etag(scope, name) do
+      {:ok, ^cached_etag} when is_binary(cached_etag) ->
+        Cachex.put(cache_name(), cache_key, cache_value(metadata, cached_etag), ttl: @ttl)
+        {:ok, metadata}
+
+      {:ok, _etag} ->
+        fetch_from_s3(scope, name, cache_key)
+
+      {:error, :not_found} ->
+        Cachex.del(cache_name(), cache_key)
+        {:error, :not_found}
+
+      {:error, _reason} ->
+        {:ok, metadata}
+    end
+  end
+
+  defp head_etag(scope, name) do
+    key = s3_key(scope, name)
+    bucket = bucket()
+
+    case bucket
+         |> ExAws.S3.head_object(key)
+         |> ExAws.request() do
+      {:ok, %{headers: headers}} -> {:ok, etag_from_headers(headers)}
+      {:error, {:http_error, 404, _}} -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
   defp s3_key(scope, name), do: "registry/metadata/#{scope}/#{name}/index.json"
 
   defp cache_key(scope, name), do: {scope, name}
@@ -215,6 +281,34 @@ defmodule Cache.Registry.Metadata do
   end
 
   defp bucket, do: Application.get_env(:cache, :s3)[:bucket]
+
+  defp cache_value(metadata, etag) do
+    %{
+      metadata: metadata,
+      etag: etag,
+      checked_at: DateTime.utc_now() |> DateTime.truncate(:second)
+    }
+  end
+
+  defp etag_from_headers(headers) when is_list(headers) do
+    headers
+    |> Enum.find_value(fn {key, value} ->
+      if String.downcase(key) == "etag" do
+        normalize_etag(value)
+      else
+        nil
+      end
+    end)
+  end
+
+  defp normalize_etag([value | _]), do: normalize_etag(value)
+
+  defp normalize_etag(value) when is_binary(value) do
+    value
+    |> String.trim()
+    |> String.trim_leading("\"")
+    |> String.trim_trailing("\"")
+  end
 
   defp parse_s3_key(key) do
     case Regex.run(~r{^registry/metadata/([^/]+)/([^/]+)/index\.json$}, key) do

@@ -10,6 +10,7 @@ defmodule Cache.Registry.SyncWorker do
   alias Cache.Registry.Lock
   alias Cache.Registry.Metadata
   alias Cache.Registry.ReleaseWorker
+  alias Cache.Registry.SyncCursor
   alias Cache.Registry.SwiftPackageIndex
 
   require Logger
@@ -47,10 +48,18 @@ defmodule Cache.Registry.SyncWorker do
 
     case SwiftPackageIndex.list_packages(token) do
       {:ok, packages} ->
-        packages
-        |> apply_allowlist(allowlist)
-        |> Enum.take(limit)
-        |> Enum.each(&sync_package(&1, token))
+        packages = apply_allowlist(packages, allowlist)
+
+        case packages do
+          [] ->
+            :ok
+
+          _ ->
+            {batch, next_cursor} = take_batch(packages, limit)
+            Enum.each(batch, &sync_package(&1, token))
+            _ = SyncCursor.put(next_cursor)
+            :ok
+        end
 
         :ok
 
@@ -169,6 +178,20 @@ defmodule Cache.Registry.SyncWorker do
         matches_pattern?(package.repository_full_handle, pattern)
       end)
     end)
+  end
+
+  defp take_batch(packages, limit) do
+    total = length(packages)
+    safe_limit = max(min(limit, total), 0)
+    cursor = SyncCursor.get()
+    cursor = if total == 0, do: 0, else: rem(max(cursor, 0), total)
+
+    {prefix, suffix} = Enum.split(packages, cursor)
+    rotated = suffix ++ prefix
+    batch = Enum.take(rotated, safe_limit)
+    next_cursor = if total == 0, do: 0, else: rem(cursor + safe_limit, total)
+
+    {batch, next_cursor}
   end
 
   defp matches_pattern?(handle, pattern) do

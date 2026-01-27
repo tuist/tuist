@@ -34,11 +34,12 @@ Set environment variables for local testing:
 
 ```bash
 export S3_BUCKET=tuist-cache
-  export S3_ENDPOINT=http://localhost:9000
-  export AWS_ACCESS_KEY_ID=minioadmin
-  export AWS_SECRET_ACCESS_KEY=minioadmin
-  export SERVER_URL=https://tuist.dev  # For cache authentication
-  export REGISTRY_GITHUB_TOKEN=...     # For registry sync (GitHub API)
+export S3_ENDPOINT=http://localhost:9000
+export S3_REGION=us-east-1
+export AWS_ACCESS_KEY_ID=minioadmin
+export AWS_SECRET_ACCESS_KEY=minioadmin
+export SERVER_URL=https://tuist.dev  # For cache authentication
+export REGISTRY_GITHUB_TOKEN=...     # For registry sync (GitHub API)
 ```
 
 ### 3. Start Cache Server
