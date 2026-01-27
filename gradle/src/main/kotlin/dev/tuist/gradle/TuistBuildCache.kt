@@ -18,7 +18,7 @@ import java.net.URI
  */
 open class TuistBuildCache : AbstractBuildCache() {
     var fullHandle: String = ""
-    var tuistPath: String = "tuist"
+    var executablePath: String? = null
     var allowInsecureProtocol: Boolean = false
 }
 
@@ -34,12 +34,29 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
             .type("Tuist")
             .config("fullHandle", configuration.fullHandle)
 
+        val resolvedExecutablePath = configuration.executablePath ?: findTuistInPath()
+            ?: throw BuildCacheException("Could not find 'tuist' executable. Please install Tuist or set executablePath in the tuist extension.")
+
         return TuistBuildCacheService(
             fullHandle = configuration.fullHandle,
-            tuistPath = configuration.tuistPath,
+            executablePath = resolvedExecutablePath,
             isPushEnabled = configuration.isPush,
             allowInsecureProtocol = configuration.allowInsecureProtocol
         )
+    }
+
+    private fun findTuistInPath(): String? {
+        val pathEnv = System.getenv("PATH") ?: return null
+        val pathSeparator = System.getProperty("path.separator") ?: ":"
+        val executableName = if (System.getProperty("os.name").lowercase().contains("win")) "tuist.exe" else "tuist"
+
+        for (dir in pathEnv.split(pathSeparator)) {
+            val file = java.io.File(dir, executableName)
+            if (file.exists() && file.canExecute()) {
+                return file.absolutePath
+            }
+        }
+        return null
     }
 }
 
@@ -51,7 +68,7 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
  */
 class TuistBuildCacheService(
     private val fullHandle: String,
-    private val tuistPath: String,
+    private val executablePath: String,
     private val isPushEnabled: Boolean,
     private val allowInsecureProtocol: Boolean
 ) : BuildCacheService {
@@ -147,7 +164,7 @@ class TuistBuildCacheService(
     }
 
     private fun executeTuistCommand(): TuistCacheConfiguration? {
-        val command = listOf(tuistPath, "cache", "config", fullHandle, "--json")
+        val command = listOf(executablePath, "cache", "config", fullHandle, "--json")
 
         val process = ProcessBuilder(command)
             .redirectErrorStream(false)
