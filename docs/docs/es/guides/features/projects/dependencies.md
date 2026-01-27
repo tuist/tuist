@@ -101,7 +101,7 @@ integrar paquetes Swift en tu proyecto utilizando los objetivos de XcodeProj.
 Gracias a ello, no sólo podemos darte más control sobre la integración, sino
 también hacerla compatible con flujos de trabajo como
 <LocalizedLink href="/guides/features/cache">caching</LocalizedLink> y
-<LocalizedLink href="/guides/features/test/selective-testing">ejecuciones de prueba selectivas</LocalizedLink>.
+<LocalizedLink href="/guides/features/selective-testing">ejecuciones de prueba selectivas</LocalizedLink>.
 
 Es más probable que la integración de XcodeProj lleve más tiempo para soportar
 nuevas características de Swift Package o manejar más configuraciones de

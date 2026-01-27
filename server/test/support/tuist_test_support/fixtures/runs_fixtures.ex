@@ -151,6 +151,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       last_duration: Keyword.get(attrs, :last_duration, 100),
       last_ran_at: Keyword.get(attrs, :last_ran_at, NaiveDateTime.utc_now()),
       is_flaky: Keyword.get(attrs, :is_flaky, false),
+      is_quarantined: Keyword.get(attrs, :is_quarantined, false),
       inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now()),
       avg_duration: Keyword.get(attrs, :avg_duration, 100)
     }

@@ -3,8 +3,6 @@ defmodule Cache.Application do
 
   use Application
 
-  alias TuistCommon.Appsignal.ErrorFilter
-
   @impl true
   def start(_type, _args) do
     if System.get_env("SKIP_MIGRATIONS") != "true" do
@@ -16,7 +14,7 @@ defmodule Cache.Application do
     end
 
     Oban.Telemetry.attach_default_logger()
-    attach_appsignal_error_filter()
+    start_sentry_logger()
 
     base_children = [
       Cache.Repo,
@@ -52,11 +50,12 @@ defmodule Cache.Application do
     end
   end
 
-  defp attach_appsignal_error_filter do
-    :logger.add_primary_filter(
-      :appsignal_error_filter,
-      {&ErrorFilter.filter/2, []}
-    )
+  defp start_sentry_logger do
+    if Application.get_env(:sentry, :dsn) do
+      :logger.add_handler(:sentry_handler, Sentry.LoggerHandler, %{
+        config: %{metadata: [:file, :line]}
+      })
+    end
   end
 
   @impl true

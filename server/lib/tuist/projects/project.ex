@@ -35,6 +35,13 @@ defmodule Tuist.Projects.Project do
     field :report_schedule_time, :utc_datetime
     field :report_timezone, :string
 
+    field :auto_quarantine_flaky_tests, :boolean, default: true
+    field :flaky_test_alerts_enabled, :boolean, default: false
+    field :flaky_test_alerts_slack_channel_id, :string
+    field :flaky_test_alerts_slack_channel_name, :string
+    field :auto_mark_flaky_tests, :boolean, default: true
+    field :auto_mark_flaky_threshold, :integer, default: 1
+
     belongs_to :account, Account
 
     has_many :previews, Preview
@@ -82,9 +89,16 @@ defmodule Tuist.Projects.Project do
       :report_frequency,
       :report_days_of_week,
       :report_schedule_time,
-      :report_timezone
+      :report_timezone,
+      :auto_quarantine_flaky_tests,
+      :flaky_test_alerts_enabled,
+      :flaky_test_alerts_slack_channel_id,
+      :flaky_test_alerts_slack_channel_name,
+      :auto_mark_flaky_tests,
+      :auto_mark_flaky_threshold
     ])
     |> validate_name()
+    |> validate_number(:auto_mark_flaky_threshold, greater_than: 0)
     |> validate_inclusion(:visibility, [:private, :public])
     |> validate_inclusion(:default_previews_visibility, [:private, :public])
   end

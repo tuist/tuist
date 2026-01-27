@@ -12,6 +12,7 @@ defmodule TuistWeb.TestCaseLive do
   alias Tuist.Accounts
   alias Tuist.Runs
   alias Tuist.Runs.Analytics
+  alias Tuist.Slack
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
 
@@ -106,14 +107,69 @@ defmodule TuistWeb.TestCaseLive do
 
   def handle_params(params, _uri, socket) do
     uri = URI.new!("?" <> URI.encode_query(params))
+    selected_tab = params["tab"] || "overview"
 
     socket =
       socket
       |> assign(:uri, uri)
+      |> assign(:selected_tab, selected_tab)
       |> assign_analytics()
       |> assign_test_case_runs(params)
+      |> assign_history_tab(selected_tab)
+      |> assign_overview_history()
 
     {:noreply, socket}
+  end
+
+  defp assign_history_tab(socket, "history") do
+    test_case_id = socket.assigns.test_case_id
+    page = 1
+
+    {events, meta} = Runs.list_test_case_events(test_case_id, %{page: page, page_size: 20})
+
+    socket
+    |> assign(:history_events, events)
+    |> assign(:history_meta, meta)
+    |> assign(:history_page, page)
+  end
+
+  defp assign_history_tab(socket, _other_tab) do
+    socket
+    |> assign(:history_events, [])
+    |> assign(:history_meta, %Flop.Meta{
+      total_count: 0,
+      total_pages: 0,
+      current_page: 1,
+      page_size: 20,
+      has_next_page?: false
+    })
+    |> assign(:history_page, 1)
+  end
+
+  defp assign_overview_history(socket) do
+    test_case_id = socket.assigns.test_case_id
+
+    {events, meta} = Runs.list_test_case_events(test_case_id, %{page: 1, page_size: 3})
+
+    has_more = meta.total_count > 3
+
+    socket
+    |> assign(:overview_history_events, events)
+    |> assign(:overview_history_has_more, has_more)
+  end
+
+  defp refresh_history_events(%{assigns: %{selected_tab: "history", test_case_id: test_case_id}} = socket) do
+    {events, meta} = Runs.list_test_case_events(test_case_id, %{page: 1, page_size: 20})
+
+    socket
+    |> assign(:history_events, events)
+    |> assign(:history_meta, meta)
+    |> assign(:history_page, 1)
+    |> assign_overview_history()
+  end
+
+  defp refresh_history_events(socket) do
+    assign_overview_history(socket)
   end
 
   def handle_event(
@@ -162,24 +218,115 @@ defmodule TuistWeb.TestCaseLive do
   def handle_event(
         "unmark-as-flaky",
         _params,
-        %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail}} = socket
+        %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user}} = socket
       ) do
-    {:ok, updated_test_case} = Runs.set_test_case_flaky(test_case_id, false)
+    {:ok, updated_test_case} =
+      Runs.update_test_case(
+        test_case_id,
+        %{is_flaky: false},
+        actor_id: current_user.account.id
+      )
 
     {:noreply,
      socket
      |> assign(:test_case_detail, %{test_case_detail | is_flaky: updated_test_case.is_flaky})
-     |> assign(:flaky_runs_grouped, [])}
+     |> assign(:flaky_runs_grouped, [])
+     |> refresh_history_events()}
   end
 
   def handle_event(
         "mark-as-flaky",
         _params,
-        %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail}} = socket
+        %{
+          assigns: %{
+            test_case_id: test_case_id,
+            test_case_detail: test_case_detail,
+            selected_project: project,
+            current_user: current_user
+          }
+        } = socket
       ) do
-    {:ok, updated_test_case} = Runs.set_test_case_flaky(test_case_id, true)
+    {:ok, updated_test_case} =
+      Runs.update_test_case(
+        test_case_id,
+        %{is_flaky: true},
+        actor_id: current_user.account.id
+      )
 
-    {:noreply, assign(socket, :test_case_detail, %{test_case_detail | is_flaky: updated_test_case.is_flaky})}
+    test_case_detail = %{test_case_detail | is_flaky: updated_test_case.is_flaky}
+
+    {test_case_detail, was_auto_quarantined} =
+      if project.auto_quarantine_flaky_tests do
+        {:ok, quarantined_test_case} =
+          Runs.update_test_case(
+            test_case_id,
+            %{is_quarantined: true},
+            actor_id: current_user.account.id
+          )
+
+        {%{test_case_detail | is_quarantined: quarantined_test_case.is_quarantined}, true}
+      else
+        {test_case_detail, false}
+      end
+
+    # Send Slack notification for manual flaky marking
+    send_manual_flaky_alert(project, updated_test_case, current_user, was_auto_quarantined)
+
+    {:noreply,
+     socket
+     |> assign(:test_case_detail, test_case_detail)
+     |> refresh_history_events()}
+  end
+
+  def handle_event(
+        "quarantine",
+        _params,
+        %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user}} = socket
+      ) do
+    {:ok, updated_test_case} =
+      Runs.update_test_case(
+        test_case_id,
+        %{is_quarantined: true},
+        actor_id: current_user.account.id
+      )
+
+    {:noreply,
+     socket
+     |> assign(:test_case_detail, %{test_case_detail | is_quarantined: updated_test_case.is_quarantined})
+     |> refresh_history_events()}
+  end
+
+  def handle_event(
+        "unquarantine",
+        _params,
+        %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user}} = socket
+      ) do
+    {:ok, updated_test_case} =
+      Runs.update_test_case(
+        test_case_id,
+        %{is_quarantined: false},
+        actor_id: current_user.account.id
+      )
+
+    {:noreply,
+     socket
+     |> assign(:test_case_detail, %{test_case_detail | is_quarantined: updated_test_case.is_quarantined})
+     |> refresh_history_events()}
+  end
+
+  def handle_event(
+        "load-more-history",
+        _params,
+        %{assigns: %{test_case_id: test_case_id, history_page: current_page, history_events: current_events}} = socket
+      ) do
+    next_page = current_page + 1
+    {new_events, meta} = Runs.list_test_case_events(test_case_id, %{page: next_page, page_size: 20})
+
+    {:noreply,
+     socket
+     |> assign(:history_events, current_events ++ new_events)
+     |> assign(:history_meta, meta)
+     |> assign(:history_page, next_page)}
   end
 
   def handle_info({:test_created, %{name: "test"}}, socket) do
@@ -312,4 +459,39 @@ defmodule TuistWeb.TestCaseLive do
 
     "?#{assigns.uri.query |> Query.put("sort_by", column) |> Query.put("sort_order", new_order) |> Query.drop("page")}"
   end
+
+  defp send_manual_flaky_alert(project, test_case, user, was_auto_quarantined) do
+    if project.flaky_test_alerts_enabled and project.flaky_test_alerts_slack_channel_id do
+      :ok = Slack.send_manual_flaky_test_alert(project, test_case, user, was_auto_quarantined)
+    end
+
+    :ok
+  end
+
+  defp event_icon("first_run"), do: "info_circle"
+  defp event_icon("marked_flaky"), do: "alert_triangle"
+  defp event_icon("unmarked_flaky"), do: "circle_check"
+  defp event_icon("quarantined"), do: "lock"
+  defp event_icon("unquarantined"), do: "lock_open_2"
+  defp event_icon(_), do: "info_circle"
+
+  defp event_color("first_run"), do: "primary"
+  defp event_color("marked_flaky"), do: "warning"
+  defp event_color("unmarked_flaky"), do: "success"
+  defp event_color("quarantined"), do: "destructive"
+  defp event_color("unquarantined"), do: "information"
+  defp event_color(_), do: "primary"
+
+  defp event_title("first_run"), do: dgettext("dashboard_tests", "First run of this test")
+  defp event_title("marked_flaky"), do: dgettext("dashboard_tests", "Marked as flaky")
+  defp event_title("unmarked_flaky"), do: dgettext("dashboard_tests", "Unmarked as flaky")
+  defp event_title("quarantined"), do: dgettext("dashboard_tests", "Marked as quarantined")
+  defp event_title("unquarantined"), do: dgettext("dashboard_tests", "Marked as unquarantined")
+  defp event_title(_), do: dgettext("dashboard_tests", "Event")
+
+  defp format_event_subtitle(%{event_type: "first_run"}), do: nil
+
+  defp format_event_subtitle(%{actor: nil}), do: dgettext("dashboard_tests", "Automatically by Tuist")
+
+  defp format_event_subtitle(%{actor: actor}), do: dgettext("dashboard_tests", "Manually by @%{name}", name: actor.name)
 end

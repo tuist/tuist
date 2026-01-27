@@ -40,7 +40,7 @@ concurrency:
 jobs:
   test-docker-compose:
     name: Test Docker Compose
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-default
     timeout-minutes: 15
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -48,8 +48,8 @@ jobs:
       - name: Test docker-compose configuration
         run: ./docs/test-docker-compose.sh
 
-  build-deploy:
-    name: Build & Deploy
+  generate-cli-docs:
+    name: Generate CLI Docs
     runs-on: macos-26
     timeout-minutes: 80
     if: github.event.pull_request.head.repo.fork != true && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
@@ -67,14 +67,7 @@ jobs:
         id: docs-node-modules-cache
         with:
           path: docs/node_modules
-          key: docs-node-modules-${{ hashFiles('docs/package.json') }}
-      - name: Restore VitePress cache
-        uses: actions/cache@v4
-        id: vitepress-cache
-        with:
-          path: docs/.vitepress/cache
-          key: vitepress-cache-${{ hashFiles('docs/package.json') }}
-          restore-keys: vitepress-cache-
+          key: docs-node-modules-${{ runner.os }}-${{ hashFiles('docs/package.json') }}
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Restore cache
@@ -92,7 +85,7 @@ jobs:
       - name: Setup Tuist cache
         run: tuist setup cache
       - name: Install Tuist dependencies
-        if: steps.cache-restore.outputs.cache-matched-key == ''
+        if: steps.cache-restore.outputs.cache-hit != 'true'
         run: tuist install
       - name: Generate CLI docs
         working-directory: docs
@@ -100,6 +93,54 @@ jobs:
       - name: Generate manifest docs
         working-directory: docs
         run: mise run generate-manifests-docs
+      - name: Upload generated docs
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-generated
+          path: docs/docs/generated
+      - name: Save cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+
+  build-deploy:
+    name: Build and deploy docs
+    runs-on: namespace-profile-default
+    timeout-minutes: 80
+    needs: [generate-cli-docs]
+    if: github.event.pull_request.head.repo.fork != true && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download generated docs
+        uses: actions/download-artifact@v4
+        with:
+          name: docs-generated
+          path: docs/docs/generated
+      - name: Restore PNPM Cache
+        uses: actions/cache@v3
+        id: pnpm-cache
+        with:
+          path: |
+            ~/.pnpm/store
+          key: pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Restore docs node_modules cache
+        uses: actions/cache@v4
+        id: docs-node-modules-cache
+        with:
+          path: docs/node_modules
+          key: docs-node-modules-${{ runner.os }}-${{ hashFiles('docs/package.json') }}
+      - name: Restore VitePress cache
+        uses: actions/cache/restore@v4
+        id: vitepress-cache
+        with:
+          path: docs/.vitepress/cache
+          key: vitepress-cache-${{ hashFiles('docs/package.json') }}
+          restore-keys: vitepress-cache-
+      - uses: jdx/mise-action@v2
+        with:
+          working_directory: docs
       - name: Lint localization
         working-directory: docs
         run: mise run lint-localization
@@ -122,6 +163,12 @@ jobs:
           DOCS_LOCALES: ${{ github.ref != 'refs/heads/main' && 'en' || '' }}
         working-directory: docs
         run: mise run build
+      - name: Save VitePress cache
+        if: ${{ hashFiles('docs/.vitepress/cache/**') != '' }}
+        uses: actions/cache/save@v4
+        with:
+          path: docs/.vitepress/cache
+          key: ${{ steps.vitepress-cache.outputs.cache-primary-key }}
       - uses: 1password/install-cli-action@v2
         if: github.ref == 'refs/heads/main'
       - name: Deploy to Cloudflare Pages
@@ -133,9 +180,3 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: op://tuist/Cloudflare/CLOUDFLARE_ACCOUNT_ID
         run: |
           op run -- wrangler pages deploy --commit-hash ${{ github.sha }} --branch ${{ github.ref_name }} --project-name tuist-docs .vitepress/dist
-      - name: Save cache
-        id: cache-save
-        uses: actions/cache/save@v4
-        with:
-          path: .build
-          key: ${{ steps.cache-restore.outputs.cache-primary-key }}

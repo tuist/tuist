@@ -649,6 +649,10 @@ defmodule TuistWeb.Marketing.MarketingController do
 
     page = Enum.find(Pages.get_pages(), &(&1.slug == String.trim_trailing(request_path, "/")))
 
+    if is_nil(page) do
+      raise NotFoundError, dgettext("errors", "Page not found")
+    end
+
     head_title = page.head_title || "#{page.title} · Tuist"
     head_description = page.head_description || page.excerpt
 

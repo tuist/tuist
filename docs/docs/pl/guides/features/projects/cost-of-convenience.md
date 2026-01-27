@@ -82,7 +82,7 @@ kompiluje się z grafem, który nie jest dobrze zdefiniowany.
 ::: tip TUIST DETECTION OF IMPLICIT DEPENDENCIES
 <!-- -->
 Tuist udostępnia polecenie
-<LocalizedLink href="/guides/features/inspect/implicit-dependencies"></LocalizedLink>
+<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies"></LocalizedLink>
 do wykrywania niejawnych zależności. Możesz użyć tego polecenia, aby sprawdzić w
 CI, czy wszystkie zależności są jawne.
 <!-- -->

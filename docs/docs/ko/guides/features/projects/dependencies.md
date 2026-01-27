@@ -79,7 +79,7 @@ Xcode의 기본 통합은 가장 편리하지만 중대형 프로젝트에 필�
 XcodeProj의 타깃을 사용하여 프로젝트에 Swift 패키지를 통합할 수 있는 XcodeProj 기반 통합을 제공합니다. 덕분에 통합을 더
 잘 제어할 수 있을 뿐만 아니라
 <LocalizedLink href="/guides/features/cache">캐싱</LocalizedLink> 및
-<LocalizedLink href="/guides/features/test/selective-testing">선택적 테스트 실행</LocalizedLink>과 같은 워크플로우와 호환되도록 만들 수 있습니다.
+<LocalizedLink href="/guides/features/selective-testing">선택적 테스트 실행</LocalizedLink>과 같은 워크플로우와 호환되도록 만들 수 있습니다.
 
 XcodeProj의 통합은 새로운 Swift 패키지 기능을 지원하거나 더 많은 패키지 구성을 처리하는 데 더 많은 시간이 걸릴 가능성이
 높습니다. 그러나 Swift 패키지와 XcodeProj 대상 간의 매핑 로직은 오픈 소스이며 커뮤니티에서 기여할 수 있습니다. 이는 비공개

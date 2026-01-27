@@ -1092,7 +1092,12 @@ public enum Module: String, CaseIterable {
             bundleId: "dev.tuist.\(name)",
             deploymentTargets: deploymentTargets,
             infoPlist: .default,
-            buildableFolders: [.folder("\(rootFolder)/\(name)/")],
+            buildableFolders: [
+                .folder(
+                    "\(rootFolder)/\(name)/",
+                    exceptions: [.exception(excluded: ["AGENTS.md"])]
+                ),
+            ],
             dependencies: dependencies,
             settings: settings,
             metadata: .metadata(tags: tags)

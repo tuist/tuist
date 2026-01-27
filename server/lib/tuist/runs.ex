@@ -19,7 +19,7 @@ defmodule Tuist.Runs do
 
   import Ecto.Query
 
-  alias Tuist.Alerts.Workers.FlakyTestAlertWorker
+  alias Tuist.Alerts.Workers.FlakyThresholdCheckWorker
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
@@ -33,6 +33,7 @@ defmodule Tuist.Runs do
   alias Tuist.Runs.FlakyTestCase
   alias Tuist.Runs.Test
   alias Tuist.Runs.TestCase
+  alias Tuist.Runs.TestCaseEvent
   alias Tuist.Runs.TestCaseFailure
   alias Tuist.Runs.TestCaseRun
   alias Tuist.Runs.TestCaseRunRepetition
@@ -507,7 +508,9 @@ defmodule Tuist.Runs do
          |> Test.create_changeset(attrs)
          |> IngestRepo.insert() do
       {:ok, test} ->
-        create_test_modules(test, test_modules)
+        test_case_ids_with_flaky_run = create_test_modules(test, test_modules)
+
+        schedule_flaky_threshold_check(test.project_id, test_case_ids_with_flaky_run)
 
         project = Tuist.Projects.get_project_by_id(test.project_id)
 
@@ -522,6 +525,16 @@ defmodule Tuist.Runs do
       {:error, changeset} ->
         {:error, changeset}
     end
+  end
+
+  defp schedule_flaky_threshold_check(_project_id, []), do: :ok
+
+  defp schedule_flaky_threshold_check(project_id, test_case_ids) do
+    %{project_id: project_id, test_case_ids: test_case_ids}
+    |> FlakyThresholdCheckWorker.new(schedule_in: 5)
+    |> Oban.insert!()
+
+    :ok
   end
 
   defp has_any_flaky_test_case?(test_modules) do
@@ -559,7 +572,8 @@ defmodule Tuist.Runs do
 
     existing_data = get_project_test_cases(project_id, test_case_ids)
 
-    {test_cases, newly_flaky_test_case_ids} =
+    # Track test cases that had a flaky run but aren't already marked as flaky
+    {test_cases, test_cases_with_flaky_run} =
       Enum.map_reduce(test_case_ids_with_data, [], fn {id, data}, acc ->
         existing = Map.get(existing_data, id, %{recent_durations: []})
         new_durations = Enum.take([data.duration | existing.recent_durations], 50)
@@ -569,9 +583,8 @@ defmodule Tuist.Runs do
             do: 0,
             else: div(Enum.sum(new_durations), length(new_durations))
 
-        current_is_flaky = Map.get(data, :is_flaky, false)
+        current_run_is_flaky = Map.get(data, :is_flaky, false)
         existing_is_flaky = Map.get(existing, :is_flaky, false)
-        newly_flaky = current_is_flaky and not existing_is_flaky
 
         test_case = %{
           id: id,
@@ -582,35 +595,24 @@ defmodule Tuist.Runs do
           last_status: data.status,
           last_duration: data.duration,
           last_ran_at: data.ran_at,
-          is_flaky: current_is_flaky or existing_is_flaky,
+          is_flaky: existing_is_flaky,
           inserted_at: now,
           recent_durations: new_durations,
           avg_duration: new_avg
         }
 
-        acc = if newly_flaky, do: [id | acc], else: acc
+        acc = if current_run_is_flaky and not existing_is_flaky, do: [id | acc], else: acc
         {test_case, acc}
       end)
 
     IngestRepo.insert_all(TestCase, test_cases)
 
-    enqueue_flaky_test_alert_jobs(project_id, newly_flaky_test_case_ids)
+    test_case_id_map =
+      Map.new(test_cases, fn tc ->
+        {{tc.name, tc.module_name, tc.suite_name}, tc.id}
+      end)
 
-    Map.new(test_cases, fn tc ->
-      {{tc.name, tc.module_name, tc.suite_name}, tc.id}
-    end)
-  end
-
-  defp enqueue_flaky_test_alert_jobs(_project_id, []), do: :ok
-
-  defp enqueue_flaky_test_alert_jobs(project_id, test_case_ids) do
-    for test_case_id <- test_case_ids do
-      %{test_case_id: test_case_id, project_id: project_id}
-      |> FlakyTestAlertWorker.new()
-      |> Oban.insert!()
-    end
-
-    :ok
+    {test_case_id_map, test_cases_with_flaky_run}
   end
 
   defp get_project_test_cases(_project_id, []), do: %{}
@@ -673,21 +675,92 @@ defmodule Tuist.Runs do
   end
 
   @doc """
-  Sets the flaky status of a test case by inserting a new row with the given is_flaky value.
+  Updates a test case by inserting a new row with the given attributes.
   ClickHouse ReplacingMergeTree will keep the most recent row.
+
+  Only `is_flaky` and `is_quarantined` are valid update attributes.
+
+  Creates test case events to track the state change.
+
+  ## Parameters
+  - `test_case_id` - the test case UUID to update
+  - `update_attrs` - map with `:is_flaky` and/or `:is_quarantined` boolean values
+  - `opts` - optional keyword list with `:actor_id` (account_id for user actions, nil for system)
   """
-  def set_test_case_flaky(test_case_id, is_flaky) when is_boolean(is_flaky) do
+  def update_test_case(test_case_id, update_attrs, opts \\ []) when is_map(update_attrs) do
+    valid_keys = [:is_flaky, :is_quarantined]
+    filtered_attrs = Map.take(update_attrs, valid_keys)
+    actor_id = Keyword.get(opts, :actor_id)
+
     with {:ok, test_case} <- get_test_case_by_id(test_case_id) do
       attrs =
         test_case
         |> Map.from_struct()
         |> Map.delete(:__meta__)
-        |> Map.merge(%{is_flaky: is_flaky, inserted_at: NaiveDateTime.utc_now()})
+        |> Map.merge(filtered_attrs)
+        |> Map.put(:inserted_at, NaiveDateTime.utc_now())
 
       {1, nil} = IngestRepo.insert_all(TestCase, [attrs])
 
-      {:ok, %{test_case | is_flaky: is_flaky}}
+      create_events_for_test_case_changes(test_case_id, test_case, filtered_attrs, actor_id)
+
+      {:ok, Map.merge(test_case, filtered_attrs)}
     end
+  end
+
+  defp create_events_for_test_case_changes(test_case_id, old_test_case, new_attrs, actor_id) do
+    event_types = determine_test_case_events(old_test_case, new_attrs)
+
+    if Enum.any?(event_types) do
+      now = NaiveDateTime.utc_now()
+
+      events =
+        Enum.map(event_types, fn event_type ->
+          %{
+            id: UUIDv7.generate(),
+            test_case_id: test_case_id,
+            event_type: to_string(event_type),
+            actor_id: actor_id,
+            inserted_at: now
+          }
+        end)
+
+      IngestRepo.insert_all(TestCaseEvent, events)
+    end
+  end
+
+  defp determine_test_case_events(old_test_case, new_attrs) do
+    events = []
+
+    events =
+      case {Map.get(old_test_case, :is_flaky, false), Map.get(new_attrs, :is_flaky)} do
+        {false, true} -> [:marked_flaky | events]
+        {true, false} -> [:unmarked_flaky | events]
+        _ -> events
+      end
+
+    events =
+      case {Map.get(old_test_case, :is_quarantined, false), Map.get(new_attrs, :is_quarantined)} do
+        {false, true} -> [:quarantined | events]
+        {true, false} -> [:unquarantined | events]
+        _ -> events
+      end
+
+    events
+  end
+
+  @doc """
+  Lists test case events for a specific test case with pagination using Flop.
+  Returns {events, meta} where meta is a Flop.Meta struct.
+  """
+  def list_test_case_events(test_case_id, attrs \\ %{}) do
+    {events, meta} =
+      Tuist.ClickHouseFlop.validate_and_run!(from(e in TestCaseEvent, where: e.test_case_id == ^test_case_id), attrs,
+        for: TestCaseEvent
+      )
+
+    events = Repo.preload(events, :actor)
+    {events, meta}
   end
 
   @doc """
@@ -710,7 +783,7 @@ defmodule Tuist.Runs do
   defp create_test_modules(test, test_modules) do
     test_case_run_data = get_test_case_run_data(test, test_modules)
 
-    Enum.each(test_modules, fn module_attrs ->
+    Enum.flat_map(test_modules, fn module_attrs ->
       module_id = UUIDv7.generate()
       module_name = Map.get(module_attrs, :name)
 
@@ -953,7 +1026,7 @@ defmodule Tuist.Runs do
       |> Enum.uniq_by(fn data -> {data.name, data.module_name, data.suite_name} end)
 
     # Create test cases (duplicates handled by ReplacingMergeTree)
-    test_case_id_map = create_test_cases(test.project_id, test_case_data_list)
+    {test_case_id_map, test_case_ids_with_flaky_run} = create_test_cases(test.project_id, test_case_data_list)
 
     {test_case_runs, all_failures, all_repetitions} =
       Enum.reduce(test_cases, {[], [], []}, fn case_attrs, {runs_acc, failures_acc, reps_acc} ->
@@ -1031,6 +1104,31 @@ defmodule Tuist.Runs do
 
     if Enum.any?(all_repetitions) do
       IngestRepo.insert_all(TestCaseRunRepetition, all_repetitions)
+    end
+
+    create_first_run_events(test_case_runs)
+
+    test_case_ids_with_flaky_run
+  end
+
+  defp create_first_run_events(test_case_runs) do
+    new_test_case_runs = Enum.filter(test_case_runs, & &1.is_new)
+
+    if Enum.any?(new_test_case_runs) do
+      now = NaiveDateTime.utc_now()
+
+      events =
+        Enum.map(new_test_case_runs, fn run ->
+          %{
+            id: TestCaseEvent.first_run_id(run.test_case_id),
+            test_case_id: run.test_case_id,
+            event_type: "first_run",
+            actor_id: nil,
+            inserted_at: now
+          }
+        end)
+
+      IngestRepo.insert_all(TestCaseEvent, events)
     end
   end
 
@@ -1248,6 +1346,25 @@ defmodule Tuist.Runs do
       )
 
     ClickHouseRepo.one(query) || 0
+  end
+
+  @doc """
+  Returns a map of test_case_id => count of unique flaky run groups for multiple test cases.
+  """
+  def get_flaky_runs_groups_counts_for_test_cases([]), do: %{}
+
+  def get_flaky_runs_groups_counts_for_test_cases(test_case_ids) do
+    query =
+      from(tcr in TestCaseRun,
+        where: tcr.test_case_id in ^test_case_ids,
+        where: tcr.is_flaky == true,
+        group_by: tcr.test_case_id,
+        select: {tcr.test_case_id, fragment("count(DISTINCT (scheme, git_commit_sha))")}
+      )
+
+    query
+    |> ClickHouseRepo.all()
+    |> Map.new()
   end
 
   @doc """
@@ -1496,6 +1613,21 @@ defmodule Tuist.Runs do
       end)
 
     IngestRepo.insert_all(TestCase, test_cases_to_update)
+
+    if Enum.any?(stale_test_cases) do
+      events =
+        Enum.map(stale_test_cases, fn test_case ->
+          %{
+            id: UUIDv7.generate(),
+            test_case_id: test_case.id,
+            event_type: "unmarked_flaky",
+            actor_id: nil,
+            inserted_at: now
+          }
+        end)
+
+      IngestRepo.insert_all(TestCaseEvent, events)
+    end
 
     {:ok, length(test_cases_to_update)}
   end

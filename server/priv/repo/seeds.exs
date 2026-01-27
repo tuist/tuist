@@ -3,7 +3,6 @@ import Ecto.Query
 alias Tuist.Accounts
 alias Tuist.Alerts.Alert
 alias Tuist.Alerts.AlertRule
-alias Tuist.Alerts.FlakyTestAlertRule
 alias Tuist.AppBuilds.AppBuild
 alias Tuist.AppBuilds.Preview
 alias Tuist.Billing
@@ -696,7 +695,7 @@ test_case_definitions =
     }
   end
 
-test_case_id_map = Tuist.Runs.create_test_cases(tuist_project.id, test_case_definitions)
+{test_case_id_map, _test_cases_with_flaky_run} = Tuist.Runs.create_test_cases(tuist_project.id, test_case_definitions)
 
 # Convert to a list of test cases grouped by module/suite for fast lookup
 _test_cases_by_module_suite =
@@ -1757,11 +1756,15 @@ if slack_installation do
     report_frequency: :daily,
     report_days_of_week: [1, 2, 3, 4, 5],
     report_schedule_time: ~U[2024-01-01 09:00:00Z],
-    report_timezone: "Europe/Berlin"
+    report_timezone: "Europe/Berlin",
+    # Flaky test alert settings
+    flaky_test_alerts_enabled: true,
+    flaky_test_alerts_slack_channel_id: "C0A598PACRG",
+    flaky_test_alerts_slack_channel_name: "test"
   })
   |> Repo.update!()
 
-  IO.puts("Updated tuist project with Slack report settings")
+  IO.puts("Updated tuist project with Slack report and flaky test alert settings")
 end
 
 # Create alert rules for the tuist project (only if Slack is configured)
@@ -1835,26 +1838,6 @@ if slack_installation do
     Repo.insert_all(Alert, sample_alerts)
     IO.puts("Created #{length(sample_alerts)} sample alerts")
   end
-
-  # Create flaky test alert rule
-  flaky_test_alert_rule =
-    case Repo.get_by(FlakyTestAlertRule, project_id: tuist_project.id, name: "Flaky Test Alert") do
-      nil ->
-        %FlakyTestAlertRule{}
-        |> FlakyTestAlertRule.changeset(%{
-          project_id: tuist_project.id,
-          name: "Flaky Test Alert",
-          trigger_threshold: 3,
-          slack_channel_id: "C0A598PACRG",
-          slack_channel_name: "test"
-        })
-        |> Repo.insert!()
-
-      existing_rule ->
-        existing_rule
-    end
-
-  IO.puts("Created flaky test alert rule: #{flaky_test_alert_rule.name}")
 end
 
 IO.puts("")

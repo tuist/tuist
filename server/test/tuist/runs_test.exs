@@ -2,10 +2,10 @@ defmodule Tuist.RunsTest do
   use TuistTestSupport.Cases.DataCase
   use Mimic
 
-  alias Tuist.Alerts.Workers.FlakyTestAlertWorker
   alias Tuist.IngestRepo
   alias Tuist.Runs
   alias Tuist.Runs.TestCase
+  alias Tuist.Runs.TestCaseEvent
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -2530,9 +2530,11 @@ defmodule Tuist.RunsTest do
       assert flaky_case.status == "success"
       assert flaky_case.is_flaky == true
 
-      # Verify the TestCase record is also marked as flaky (CI run)
-      {:ok, test_case} = Runs.get_test_case_by_id(flaky_case.test_case_id)
-      assert test_case.is_flaky == true
+      # Verify that a FlakyThresholdCheckWorker was enqueued to mark the test_case as flaky
+      assert_enqueued(
+        worker: Tuist.Alerts.Workers.FlakyThresholdCheckWorker,
+        args: %{project_id: project.id, test_case_ids: [flaky_case.test_case_id]}
+      )
     end
 
     test "marks test_case_run as flaky but not test_case for non-CI runs with repetitions" do
@@ -2656,7 +2658,10 @@ defmodule Tuist.RunsTest do
       ci_run = hd(ci_test_case_runs)
       test_case_id = ci_run.test_case_id
 
-      # Verify TestCase is marked as flaky after CI run
+      # Manually mark the test case as flaky (simulating what the FlakyThresholdCheckWorker would do)
+      {:ok, _} = Runs.update_test_case(test_case_id, %{is_flaky: true})
+
+      # Verify TestCase is marked as flaky
       {:ok, test_case_after_ci} = Runs.get_test_case_by_id(test_case_id)
       assert test_case_after_ci.is_flaky == true
 
@@ -3267,7 +3272,7 @@ defmodule Tuist.RunsTest do
     end
   end
 
-  describe "set_test_case_flaky/2" do
+  describe "update_test_case/3" do
     test "marks a test case as flaky" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -3291,7 +3296,7 @@ defmodule Tuist.RunsTest do
       assert test_case.is_flaky == false
 
       # When
-      result = Runs.set_test_case_flaky(test_case.id, true)
+      result = Runs.update_test_case(test_case.id, %{is_flaky: true})
 
       # Then
       assert {:ok, updated_test_case} = result
@@ -3308,7 +3313,7 @@ defmodule Tuist.RunsTest do
       non_existent_id = UUIDv7.generate()
 
       # When
-      result = Runs.set_test_case_flaky(non_existent_id, true)
+      result = Runs.update_test_case(non_existent_id, %{is_flaky: true})
 
       # Then
       assert result == {:error, :not_found}
@@ -3336,10 +3341,10 @@ defmodule Tuist.RunsTest do
       {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
 
       # Mark as flaky first
-      {:ok, _} = Runs.set_test_case_flaky(test_case.id, true)
+      {:ok, _} = Runs.update_test_case(test_case.id, %{is_flaky: true})
 
       # When - mark as flaky again
-      result = Runs.set_test_case_flaky(test_case.id, true)
+      result = Runs.update_test_case(test_case.id, %{is_flaky: true})
 
       # Then
       assert {:ok, updated_test_case} = result
@@ -3368,12 +3373,12 @@ defmodule Tuist.RunsTest do
       {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
 
       # Mark as flaky first
-      {:ok, _} = Runs.set_test_case_flaky(test_case.id, true)
+      {:ok, _} = Runs.update_test_case(test_case.id, %{is_flaky: true})
       {:ok, flaky_test_case} = Runs.get_test_case_by_id(test_case.id)
       assert flaky_test_case.is_flaky == true
 
       # When
-      result = Runs.set_test_case_flaky(test_case.id, false)
+      result = Runs.update_test_case(test_case.id, %{is_flaky: false})
 
       # Then
       assert {:ok, updated_test_case} = result
@@ -3390,7 +3395,7 @@ defmodule Tuist.RunsTest do
       non_existent_id = UUIDv7.generate()
 
       # When
-      result = Runs.set_test_case_flaky(non_existent_id, false)
+      result = Runs.update_test_case(non_existent_id, %{is_flaky: false})
 
       # Then
       assert result == {:error, :not_found}
@@ -3419,11 +3424,86 @@ defmodule Tuist.RunsTest do
       assert test_case.is_flaky == false
 
       # When - unmark when already not flaky
-      result = Runs.set_test_case_flaky(test_case.id, false)
+      result = Runs.update_test_case(test_case.id, %{is_flaky: false})
 
       # Then
       assert {:ok, updated_test_case} = result
       assert updated_test_case.is_flaky == false
+    end
+  end
+
+  describe "update_test_case/3 quarantine" do
+    test "marks a test case as quarantined" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "testOne", status: "success", duration: 100}
+              ]
+            }
+          ]
+        )
+
+      {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
+      assert test_case.is_quarantined == false
+
+      result = Runs.update_test_case(test_case.id, %{is_quarantined: true})
+
+      assert {:ok, updated_test_case} = result
+      assert updated_test_case.is_quarantined == true
+      assert updated_test_case.id == test_case.id
+
+      {:ok, fetched_test_case} = Runs.get_test_case_by_id(test_case.id)
+      assert fetched_test_case.is_quarantined == true
+    end
+
+    test "returns error when test case does not exist" do
+      non_existent_id = UUIDv7.generate()
+
+      result = Runs.update_test_case(non_existent_id, %{is_quarantined: true})
+
+      assert result == {:error, :not_found}
+    end
+
+    test "unquarantines a test case" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{name: "testOne", status: "success", duration: 100}
+              ]
+            }
+          ]
+        )
+
+      {[test_case], _meta} = Runs.list_test_cases(project.id, %{})
+
+      {:ok, _} = Runs.update_test_case(test_case.id, %{is_quarantined: true})
+      {:ok, quarantined_test_case} = Runs.get_test_case_by_id(test_case.id)
+      assert quarantined_test_case.is_quarantined == true
+
+      result = Runs.update_test_case(test_case.id, %{is_quarantined: false})
+
+      assert {:ok, updated_test_case} = result
+      assert updated_test_case.is_quarantined == false
+      assert updated_test_case.id == test_case.id
+
+      {:ok, fetched_test_case} = Runs.get_test_case_by_id(test_case.id)
+      assert fetched_test_case.is_quarantined == false
     end
   end
 
@@ -3440,7 +3520,6 @@ defmodule Tuist.RunsTest do
 
     test "returns flaky test cases for a project" do
       project = ProjectsFixtures.project_fixture()
-      test_case_id = Ecto.UUID.generate()
 
       test_modules = fn status ->
         [
@@ -3448,12 +3527,12 @@ defmodule Tuist.RunsTest do
             name: "TestModule",
             status: status,
             duration: 500,
-            test_cases: [%{name: "flakyTest", status: status, duration: 250, test_case_id: test_case_id}]
+            test_cases: [%{name: "flakyTest", status: status, duration: 250}]
           }
         ]
       end
 
-      {:ok, _first_test} =
+      {:ok, first_test} =
         RunsFixtures.test_fixture(
           project_id: project.id,
           account_id: project.account_id,
@@ -3475,6 +3554,13 @@ defmodule Tuist.RunsTest do
           test_modules: test_modules.("failure")
         )
 
+      # Get the actual test_case_id from the created test_case_run
+      {[test_case_run | _], _} =
+        Runs.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: first_test.id}]})
+
+      # Mark the test_case as flaky (simulating what the FlakyThresholdCheckWorker would do)
+      {:ok, _} = Runs.update_test_case(test_case_run.test_case_id, %{is_flaky: true})
+
       RunsFixtures.optimize_test_case_runs()
 
       {flaky_tests, meta} = Runs.list_flaky_test_cases(project.id, %{})
@@ -3491,41 +3577,51 @@ defmodule Tuist.RunsTest do
     test "supports pagination" do
       project = ProjectsFixtures.project_fixture()
 
-      for i <- 1..3 do
-        test_case_id = Ecto.UUID.generate()
+      test_case_ids =
+        for i <- 1..3 do
+          test_modules = fn status ->
+            [
+              %{
+                name: "TestModule",
+                status: status,
+                duration: 500,
+                test_cases: [%{name: "flakyTest#{i}", status: status, duration: 250}]
+              }
+            ]
+          end
 
-        test_modules = fn status ->
-          [
-            %{
-              name: "TestModule",
-              status: status,
-              duration: 500,
-              test_cases: [%{name: "flakyTest#{i}", status: status, duration: 250, test_case_id: test_case_id}]
-            }
-          ]
+          {:ok, first_test} =
+            RunsFixtures.test_fixture(
+              project_id: project.id,
+              account_id: project.account_id,
+              git_commit_sha: "commit#{i}",
+              is_ci: true,
+              status: "success",
+              ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+              test_modules: test_modules.("success")
+            )
+
+          {:ok, _} =
+            RunsFixtures.test_fixture(
+              project_id: project.id,
+              account_id: project.account_id,
+              git_commit_sha: "commit#{i}",
+              is_ci: true,
+              status: "failure",
+              ran_at: NaiveDateTime.utc_now(),
+              test_modules: test_modules.("failure")
+            )
+
+          # Get the actual test_case_id from the created test_case_run
+          {[test_case_run | _], _} =
+            Runs.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: first_test.id}]})
+
+          test_case_run.test_case_id
         end
 
-        {:ok, _} =
-          RunsFixtures.test_fixture(
-            project_id: project.id,
-            account_id: project.account_id,
-            git_commit_sha: "commit#{i}",
-            is_ci: true,
-            status: "success",
-            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
-            test_modules: test_modules.("success")
-          )
-
-        {:ok, _} =
-          RunsFixtures.test_fixture(
-            project_id: project.id,
-            account_id: project.account_id,
-            git_commit_sha: "commit#{i}",
-            is_ci: true,
-            status: "failure",
-            ran_at: NaiveDateTime.utc_now(),
-            test_modules: test_modules.("failure")
-          )
+      # Mark all test_cases as flaky (simulating what the FlakyThresholdCheckWorker would do)
+      for test_case_id <- test_case_ids do
+        {:ok, _} = Runs.update_test_case(test_case_id, %{is_flaky: true})
       end
 
       RunsFixtures.optimize_test_case_runs()
@@ -3544,41 +3640,51 @@ defmodule Tuist.RunsTest do
     test "supports search filtering by name" do
       project = ProjectsFixtures.project_fixture()
 
-      for {name, i} <- [{"loginTest", 1}, {"logoutTest", 2}, {"profileTest", 3}] do
-        test_case_id = Ecto.UUID.generate()
+      test_case_ids =
+        for {name, i} <- [{"loginTest", 1}, {"logoutTest", 2}, {"profileTest", 3}] do
+          test_modules = fn status ->
+            [
+              %{
+                name: "TestModule",
+                status: status,
+                duration: 500,
+                test_cases: [%{name: name, status: status, duration: 250}]
+              }
+            ]
+          end
 
-        test_modules = fn status ->
-          [
-            %{
-              name: "TestModule",
-              status: status,
-              duration: 500,
-              test_cases: [%{name: name, status: status, duration: 250, test_case_id: test_case_id}]
-            }
-          ]
+          {:ok, first_test} =
+            RunsFixtures.test_fixture(
+              project_id: project.id,
+              account_id: project.account_id,
+              git_commit_sha: "commit#{i}",
+              is_ci: true,
+              status: "success",
+              ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+              test_modules: test_modules.("success")
+            )
+
+          {:ok, _} =
+            RunsFixtures.test_fixture(
+              project_id: project.id,
+              account_id: project.account_id,
+              git_commit_sha: "commit#{i}",
+              is_ci: true,
+              status: "failure",
+              ran_at: NaiveDateTime.utc_now(),
+              test_modules: test_modules.("failure")
+            )
+
+          # Get the actual test_case_id from the created test_case_run
+          {[test_case_run | _], _} =
+            Runs.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: first_test.id}]})
+
+          test_case_run.test_case_id
         end
 
-        {:ok, _} =
-          RunsFixtures.test_fixture(
-            project_id: project.id,
-            account_id: project.account_id,
-            git_commit_sha: "commit#{i}",
-            is_ci: true,
-            status: "success",
-            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
-            test_modules: test_modules.("success")
-          )
-
-        {:ok, _} =
-          RunsFixtures.test_fixture(
-            project_id: project.id,
-            account_id: project.account_id,
-            git_commit_sha: "commit#{i}",
-            is_ci: true,
-            status: "failure",
-            ran_at: NaiveDateTime.utc_now(),
-            test_modules: test_modules.("failure")
-          )
+      # Mark all test_cases as flaky (simulating what the FlakyThresholdCheckWorker would do)
+      for test_case_id <- test_case_ids do
+        {:ok, _} = Runs.update_test_case(test_case_id, %{is_flaky: true})
       end
 
       RunsFixtures.optimize_test_case_runs()
@@ -3598,41 +3704,51 @@ defmodule Tuist.RunsTest do
     test "supports ordering by name" do
       project = ProjectsFixtures.project_fixture()
 
-      for {name, i} <- [{"zebra", 1}, {"alpha", 2}, {"beta", 3}] do
-        test_case_id = Ecto.UUID.generate()
+      test_case_ids =
+        for {name, i} <- [{"zebra", 1}, {"alpha", 2}, {"beta", 3}] do
+          test_modules = fn status ->
+            [
+              %{
+                name: "TestModule",
+                status: status,
+                duration: 500,
+                test_cases: [%{name: name, status: status, duration: 250}]
+              }
+            ]
+          end
 
-        test_modules = fn status ->
-          [
-            %{
-              name: "TestModule",
-              status: status,
-              duration: 500,
-              test_cases: [%{name: name, status: status, duration: 250, test_case_id: test_case_id}]
-            }
-          ]
+          {:ok, first_test} =
+            RunsFixtures.test_fixture(
+              project_id: project.id,
+              account_id: project.account_id,
+              git_commit_sha: "commit#{i}",
+              is_ci: true,
+              status: "success",
+              ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+              test_modules: test_modules.("success")
+            )
+
+          {:ok, _} =
+            RunsFixtures.test_fixture(
+              project_id: project.id,
+              account_id: project.account_id,
+              git_commit_sha: "commit#{i}",
+              is_ci: true,
+              status: "failure",
+              ran_at: NaiveDateTime.utc_now(),
+              test_modules: test_modules.("failure")
+            )
+
+          # Get the actual test_case_id from the created test_case_run
+          {[test_case_run | _], _} =
+            Runs.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: first_test.id}]})
+
+          test_case_run.test_case_id
         end
 
-        {:ok, _} =
-          RunsFixtures.test_fixture(
-            project_id: project.id,
-            account_id: project.account_id,
-            git_commit_sha: "commit#{i}",
-            is_ci: true,
-            status: "success",
-            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
-            test_modules: test_modules.("success")
-          )
-
-        {:ok, _} =
-          RunsFixtures.test_fixture(
-            project_id: project.id,
-            account_id: project.account_id,
-            git_commit_sha: "commit#{i}",
-            is_ci: true,
-            status: "failure",
-            ran_at: NaiveDateTime.utc_now(),
-            test_modules: test_modules.("failure")
-          )
+      # Mark all test_cases as flaky (simulating what the FlakyThresholdCheckWorker would do)
+      for test_case_id <- test_case_ids do
+        {:ok, _} = Runs.update_test_case(test_case_id, %{is_flaky: true})
       end
 
       RunsFixtures.optimize_test_case_runs()
@@ -3651,7 +3767,6 @@ defmodule Tuist.RunsTest do
     test "does not return test cases from other projects" do
       project1 = ProjectsFixtures.project_fixture()
       project2 = ProjectsFixtures.project_fixture()
-      test_case_id = Ecto.UUID.generate()
 
       test_modules = fn status ->
         [
@@ -3659,12 +3774,12 @@ defmodule Tuist.RunsTest do
             name: "TestModule",
             status: status,
             duration: 500,
-            test_cases: [%{name: "flakyTest", status: status, duration: 250, test_case_id: test_case_id}]
+            test_cases: [%{name: "flakyTest", status: status, duration: 250}]
           }
         ]
       end
 
-      {:ok, _} =
+      {:ok, first_test} =
         RunsFixtures.test_fixture(
           project_id: project1.id,
           account_id: project1.account_id,
@@ -3685,6 +3800,13 @@ defmodule Tuist.RunsTest do
           ran_at: NaiveDateTime.utc_now(),
           test_modules: test_modules.("failure")
         )
+
+      # Get the actual test_case_id from the created test_case_run
+      {[test_case_run | _], _} =
+        Runs.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: first_test.id}]})
+
+      # Mark the test_case as flaky (simulating what the FlakyThresholdCheckWorker would do)
+      {:ok, _} = Runs.update_test_case(test_case_run.test_case_id, %{is_flaky: true})
 
       RunsFixtures.optimize_test_case_runs()
 
@@ -3789,6 +3911,224 @@ defmodule Tuist.RunsTest do
 
       # 2 groups: (default_scheme, commit1) and (default_scheme, commit2)
       assert count == 2
+    end
+  end
+
+  describe "get_flaky_runs_groups_counts_for_test_cases/1" do
+    test "returns empty map for empty list" do
+      result = Runs.get_flaky_runs_groups_counts_for_test_cases([])
+      assert result == %{}
+    end
+
+    test "returns empty map when no flaky runs exist for given test_case_ids" do
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          status: "success",
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 500,
+              test_cases: [%{name: "testSomething", status: "success", duration: 250}]
+            }
+          ]
+        )
+
+      {[test_case_run | _], _} =
+        Runs.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: test.id}]})
+
+      result = Runs.get_flaky_runs_groups_counts_for_test_cases([test_case_run.test_case_id])
+      assert result == %{}
+    end
+
+    test "returns correct counts for multiple test cases" do
+      project = ProjectsFixtures.project_fixture()
+
+      # Create flaky runs for test_case_1 on 2 commits
+      test_modules_1 = fn status ->
+        [
+          %{
+            name: "TestModule",
+            status: status,
+            duration: 500,
+            test_cases: [%{name: "flakyTest1", status: status, duration: 250}]
+          }
+        ]
+      end
+
+      {:ok, test1} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "commit1",
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -7200),
+          test_modules: test_modules_1.("success")
+        )
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "commit1",
+          is_ci: true,
+          status: "failure",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          test_modules: test_modules_1.("failure")
+        )
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "commit2",
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -1800),
+          test_modules: test_modules_1.("success")
+        )
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "commit2",
+          is_ci: true,
+          status: "failure",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -900),
+          test_modules: test_modules_1.("failure")
+        )
+
+      # Create flaky runs for test_case_2 on 1 commit
+      test_modules_2 = fn status ->
+        [
+          %{
+            name: "TestModule",
+            status: status,
+            duration: 500,
+            test_cases: [%{name: "flakyTest2", status: status, duration: 250}]
+          }
+        ]
+      end
+
+      {:ok, test2} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "commit3",
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -600),
+          test_modules: test_modules_2.("success")
+        )
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "commit3",
+          is_ci: true,
+          status: "failure",
+          ran_at: NaiveDateTime.utc_now(),
+          test_modules: test_modules_2.("failure")
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {[test_case_run_1 | _], _} =
+        Runs.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: test1.id}]})
+
+      {[test_case_run_2 | _], _} =
+        Runs.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: test2.id}]})
+
+      result =
+        Runs.get_flaky_runs_groups_counts_for_test_cases([
+          test_case_run_1.test_case_id,
+          test_case_run_2.test_case_id
+        ])
+
+      assert result[test_case_run_1.test_case_id] == 2
+      assert result[test_case_run_2.test_case_id] == 1
+    end
+
+    test "only includes test_case_ids that have flaky runs" do
+      project = ProjectsFixtures.project_fixture()
+
+      # Create flaky test case
+      test_modules_flaky = fn status ->
+        [
+          %{
+            name: "TestModule",
+            status: status,
+            duration: 500,
+            test_cases: [%{name: "flakyTest", status: status, duration: 250}]
+          }
+        ]
+      end
+
+      {:ok, flaky_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "commit1",
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -3600),
+          test_modules: test_modules_flaky.("success")
+        )
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "commit1",
+          is_ci: true,
+          status: "failure",
+          ran_at: NaiveDateTime.utc_now(),
+          test_modules: test_modules_flaky.("failure")
+        )
+
+      # Create non-flaky test case (all runs succeed)
+      {:ok, non_flaky_test} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: "commit2",
+          is_ci: true,
+          status: "success",
+          ran_at: NaiveDateTime.utc_now(),
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "success",
+              duration: 500,
+              test_cases: [%{name: "stableTest", status: "success", duration: 250}]
+            }
+          ]
+        )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      {[flaky_run | _], _} =
+        Runs.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: flaky_test.id}]})
+
+      {[non_flaky_run | _], _} =
+        Runs.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: non_flaky_test.id}]})
+
+      result =
+        Runs.get_flaky_runs_groups_counts_for_test_cases([
+          flaky_run.test_case_id,
+          non_flaky_run.test_case_id
+        ])
+
+      assert Map.has_key?(result, flaky_run.test_case_id)
+      refute Map.has_key?(result, non_flaky_run.test_case_id)
+      assert result[flaky_run.test_case_id] == 1
     end
   end
 
@@ -4656,113 +4996,6 @@ defmodule Tuist.RunsTest do
     end
   end
 
-  describe "create_test_cases/2 enqueuing flaky test alert jobs" do
-    test "enqueues job when test case becomes newly flaky" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      # When
-      Runs.create_test_cases(project.id, [
-        %{
-          name: "testFlaky",
-          module_name: "MyTests",
-          suite_name: "TestSuite",
-          status: "success",
-          duration: 100,
-          is_flaky: true,
-          ran_at: NaiveDateTime.utc_now()
-        }
-      ])
-
-      # Then
-      assert_enqueued(worker: FlakyTestAlertWorker, args: %{project_id: project.id})
-    end
-
-    test "does not enqueue job when test case is not flaky" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      # When
-      Runs.create_test_cases(project.id, [
-        %{
-          name: "testNonFlaky",
-          module_name: "MyTests",
-          suite_name: "TestSuite",
-          status: "success",
-          duration: 100,
-          is_flaky: false,
-          ran_at: NaiveDateTime.utc_now()
-        }
-      ])
-
-      # Then
-      refute_enqueued(worker: FlakyTestAlertWorker)
-    end
-
-    test "does not enqueue job when test case was already flaky" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      Runs.create_test_cases(project.id, [
-        %{
-          name: "testAlreadyFlaky",
-          module_name: "MyTests",
-          suite_name: "TestSuite",
-          status: "success",
-          duration: 100,
-          is_flaky: true,
-          ran_at: NaiveDateTime.utc_now()
-        }
-      ])
-
-      # When - create the same test case again as flaky
-      Runs.create_test_cases(project.id, [
-        %{
-          name: "testAlreadyFlaky",
-          module_name: "MyTests",
-          suite_name: "TestSuite",
-          status: "success",
-          duration: 100,
-          is_flaky: true,
-          ran_at: NaiveDateTime.utc_now()
-        }
-      ])
-
-      # Then - only one job should be enqueued (from first creation)
-      assert length(all_enqueued(worker: FlakyTestAlertWorker)) == 1
-    end
-
-    test "enqueues jobs for multiple newly flaky test cases" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      # When
-      Runs.create_test_cases(project.id, [
-        %{
-          name: "testFlaky1",
-          module_name: "MyTests",
-          suite_name: "TestSuite",
-          status: "success",
-          duration: 100,
-          is_flaky: true,
-          ran_at: NaiveDateTime.utc_now()
-        },
-        %{
-          name: "testFlaky2",
-          module_name: "MyTests",
-          suite_name: "TestSuite",
-          status: "success",
-          duration: 100,
-          is_flaky: true,
-          ran_at: NaiveDateTime.utc_now()
-        }
-      ])
-
-      # Then
-      assert length(all_enqueued(worker: FlakyTestAlertWorker)) == 2
-    end
-  end
-
   describe "is_new detection for test case runs" do
     test "marks test_case_run as new when no prior CI run exists on default branch" do
       # Given - a project with default_branch "main"
@@ -5059,6 +5292,180 @@ defmodule Tuist.RunsTest do
 
       assert existing_run.is_new == false
       assert new_run.is_new == true
+    end
+  end
+
+  describe "list_test_case_events/2" do
+    test "lists events for a test case ordered by inserted_at desc" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      test_case_id = Ecto.UUID.generate()
+      event1_id = Ecto.UUID.generate()
+      event2_id = Ecto.UUID.generate()
+      now = NaiveDateTime.utc_now()
+
+      IngestRepo.insert_all(TestCaseEvent, [
+        %{
+          id: event1_id,
+          test_case_id: test_case_id,
+          event_type: "marked_flaky",
+          actor_id: user.account.id,
+          inserted_at: now
+        },
+        %{
+          id: event2_id,
+          test_case_id: test_case_id,
+          event_type: "quarantined",
+          actor_id: nil,
+          inserted_at: now
+        }
+      ])
+
+      # When
+      {events, meta} = Runs.list_test_case_events(test_case_id)
+
+      # Then
+      assert length(events) == 2
+      assert meta.total_count == 2
+      event_ids = Enum.map(events, & &1.id)
+      assert event1_id in event_ids
+      assert event2_id in event_ids
+    end
+
+    test "paginates events correctly" do
+      # Given
+      test_case_id = Ecto.UUID.generate()
+      now = NaiveDateTime.utc_now()
+
+      events =
+        for _ <- 1..5 do
+          %{
+            id: Ecto.UUID.generate(),
+            test_case_id: test_case_id,
+            event_type: "marked_flaky",
+            actor_id: nil,
+            inserted_at: now
+          }
+        end
+
+      IngestRepo.insert_all(TestCaseEvent, events)
+
+      # When
+      {events, meta} = Runs.list_test_case_events(test_case_id, %{page: 1, page_size: 2})
+
+      # Then
+      assert length(events) == 2
+      assert meta.total_count == 5
+      assert meta.total_pages == 3
+      assert meta.current_page == 1
+    end
+
+    test "loads actor" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      test_case_id = Ecto.UUID.generate()
+      now = NaiveDateTime.utc_now()
+
+      IngestRepo.insert_all(TestCaseEvent, [
+        %{
+          id: Ecto.UUID.generate(),
+          test_case_id: test_case_id,
+          event_type: "marked_flaky",
+          actor_id: user.account.id,
+          inserted_at: now
+        }
+      ])
+
+      # When
+      {[event], _meta} = Runs.list_test_case_events(test_case_id)
+
+      # Then
+      assert event.actor.id == user.account.id
+      assert event.actor.name == user.account.name
+    end
+  end
+
+  describe "update_test_case/3 with event creation" do
+    test "creates marked_flaky event when is_flaky changes from false to true" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # When
+      {:ok, _updated} =
+        Runs.update_test_case(
+          test_case.id,
+          %{is_flaky: true},
+          actor_id: user.account.id
+        )
+
+      # Then
+      {events, _meta} = Runs.list_test_case_events(test_case.id)
+      assert length(events) == 1
+      assert hd(events).event_type == "marked_flaky"
+      assert hd(events).actor_id == user.account.id
+    end
+
+    test "creates unmarked_flaky event when is_flaky changes from true to false" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: true)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # When
+      {:ok, _updated} =
+        Runs.update_test_case(
+          test_case.id,
+          %{is_flaky: false},
+          actor_id: user.account.id
+        )
+
+      # Then
+      {events, _meta} = Runs.list_test_case_events(test_case.id)
+      assert length(events) == 1
+      assert hd(events).event_type == "unmarked_flaky"
+    end
+
+    test "creates quarantined event when is_quarantined changes from false to true" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_quarantined: false)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # When
+      {:ok, _updated} = Runs.update_test_case(test_case.id, %{is_quarantined: true})
+
+      # Then
+      {events, _meta} = Runs.list_test_case_events(test_case.id)
+      assert length(events) == 1
+      assert hd(events).event_type == "quarantined"
+      assert is_nil(hd(events).actor)
+    end
+
+    test "creates multiple events when both is_flaky and is_quarantined change" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false, is_quarantined: false)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # When
+      {:ok, _updated} =
+        Runs.update_test_case(
+          test_case.id,
+          %{is_flaky: true, is_quarantined: true},
+          actor_id: user.account.id
+        )
+
+      # Then
+      {events, _meta} = Runs.list_test_case_events(test_case.id)
+      assert length(events) == 2
+      event_types = Enum.map(events, & &1.event_type)
+      assert "marked_flaky" in event_types
+      assert "quarantined" in event_types
     end
   end
 end

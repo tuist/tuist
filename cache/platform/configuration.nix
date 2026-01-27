@@ -83,9 +83,11 @@
     };
   };
 
-  systemd.extraConfig = ''
-    DefaultLimitNOFILE=65535
-  '';
+  systemd.settings = {
+    Manager = {
+      DefaultLimitNOFILE = "65535";
+    };
+  };
 
   environment.systemPackages = map lib.lowPrio [
     pkgs.curl

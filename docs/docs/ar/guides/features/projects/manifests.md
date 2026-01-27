@@ -100,7 +100,7 @@ Git ليست مشكلة. ولذلك، فإن قرار استخدام مشروع 
 ## تويست.سويفت {#tuistswift}
 
 يوفّر تويست
-<LocalizedLink href="/contributors/principles.html#default-to-conventions">
+<LocalizedLink href="/contributors/principles#default-to-conventions">
 إعدادات افتراضية </LocalizedLink> لتبسيط تكوين المشروع. ومع ذلك، يمكنك تخصيص
 التهيئة عن طريق تحديد
 <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>

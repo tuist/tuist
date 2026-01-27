@@ -28,7 +28,7 @@ env:
 
   secret:
     - SECRET_KEY_BASE
-    - APPSIGNAL_PUSH_API_KEY
+    - SENTRY_DSN_CACHE
     - S3_BUCKET
     - S3_HOST
     - S3_ACCESS_KEY_ID

@@ -100,7 +100,7 @@ integrację pakietów Swift w projekcie przy użyciu celów XcodeProj. Dzięki t
 możemy nie tylko zapewnić większą kontrolę nad integracją, ale także uczynić ją
 kompatybilną z przepływami pracy, takimi jak
 <LocalizedLink href="/guides/features/cache">caching</LocalizedLink> i
-<LocalizedLink href="/guides/features/test/selective-testing">selektywne uruchamianie testów</LocalizedLink>.
+<LocalizedLink href="/guides/features/selective-testing">selektywne uruchamianie testów</LocalizedLink>.
 
 Integracja XcodeProj może zająć więcej czasu, aby obsługiwać nowe funkcje
 pakietów Swift lub obsługiwać więcej konfiguracji pakietów. Jednak logika

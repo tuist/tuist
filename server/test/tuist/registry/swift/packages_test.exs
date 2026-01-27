@@ -618,6 +618,11 @@ defmodule Tuist.Registry.Swift.PackagesTest do
       File.mkdir_p!(clone_dir)
       File.write!(Path.join(clone_dir, "Package.swift"), "// swift-tools-version:5.9\ncontent")
 
+      File.write!(
+        Path.join(clone_dir, ".gitmodules"),
+        "[submodule \"protobuf\"]\n\tpath = protobuf\n\turl = ../protobuf.git"
+      )
+
       stub(VCS, :get_repository_content, fn
         _, [reference: "1.0.0", path: ".gitmodules"] ->
           {:ok,
@@ -695,6 +700,83 @@ defmodule Tuist.Registry.Swift.PackagesTest do
 
       # Then
       assert {:error, "Git clone failed (exit 128): fatal: repository not found"} = result
+    end
+
+    test "skips private submodules when authentication fails", %{temp_dir: temp_dir} do
+      # Given
+      package =
+        PackagesFixtures.package_fixture(
+          scope: "tuist",
+          name: "tuist",
+          repository_full_handle: "tuist/tuist"
+        )
+
+      clone_dir = Path.join(temp_dir, "tuist-4.59.0")
+      File.mkdir_p!(clone_dir)
+      File.write!(Path.join(clone_dir, "Package.swift"), "// swift-tools-version:5.9\ncontent")
+
+      File.write!(
+        Path.join(clone_dir, ".gitmodules"),
+        "[submodule \"cli/TuistCacheEE\"]\n\tpath = cli/TuistCacheEE\n\turl = https://github.com/tuist/TuistCacheEE/"
+      )
+
+      stub(VCS, :get_repository_content, fn
+        _, [reference: "4.59.0", path: ".gitmodules"] ->
+          {:ok,
+           %Content{
+             content:
+               "[submodule \"cli/TuistCacheEE\"]\n\tpath = cli/TuistCacheEE\n\turl = https://github.com/tuist/TuistCacheEE/",
+             path: ".gitmodules"
+           }}
+
+        _, [reference: "4.59.0", path: "Package.swift"] ->
+          {:ok, %Content{content: "// swift-tools-version:5.9\ncontent", path: "Package.swift"}}
+
+        _, [reference: "4.59.0"] ->
+          {:ok, [%Content{content: nil, path: "Package.swift"}]}
+      end)
+
+      stub(Briefly, :create, fn [type: :directory] ->
+        {:ok, temp_dir}
+      end)
+
+      stub(System, :cmd, fn
+        "git", ["-c", "url.https://github.com/.insteadOf=git@github.com:", "clone" | _], [stderr_to_stdout: true] ->
+          {"Cloning...", 0}
+
+        "git",
+        [
+          "-c",
+          "url.https://github.com/.insteadOf=git@github.com:",
+          "-C",
+          ^clone_dir,
+          "submodule",
+          "update",
+          "--init",
+          "--recursive",
+          "--depth",
+          "1",
+          "cli/TuistCacheEE"
+        ],
+        [stderr_to_stdout: true] ->
+          {"fatal: could not read Username for 'https://github.com': No such device or address\nfatal: clone of 'https://github.com/tuist/TuistCacheEE/' failed",
+           1}
+
+        "zip", [_, "-r", archive_path, _], [cd: _] ->
+          File.write!(archive_path, "PK\x03\x04minimal zip content")
+          {"", 0}
+      end)
+
+      # When
+      package_release =
+        Packages.create_package_release(%{
+          package: package,
+          version: "4.59.0",
+          token: "test_token"
+        })
+
+      # Then
+      assert package_release.version == "4.59.0"
     end
   end
 end

@@ -9,7 +9,7 @@ defmodule Cache.KeyValueEntry do
     field :key, :string
     field :json_payload, :string
 
-    timestamps()
+    timestamps(type: :utc_datetime)
   end
 
   @doc false

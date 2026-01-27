@@ -69,8 +69,12 @@ public enum TuistTest {
         }
 
         let run = {
-            var parsedCommand = try command.parse(arguments)
-            try await parsedCommand.run()
+            var parsedCommand = try command.parseAsRoot(arguments)
+            if var asyncCommand = parsedCommand as? AsyncParsableCommand {
+                try await asyncCommand.run()
+            } else {
+                try parsedCommand.run()
+            }
         }
         if let mockEnvironment = Environment.mocked {
             mockEnvironment.processId = UUID().uuidString

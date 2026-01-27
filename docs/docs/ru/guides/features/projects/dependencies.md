@@ -98,7 +98,7 @@ Xcode или с помощью интеграции на основе XcodeProj 
 этому мы можем не только предоставить вам больше контроля над интеграцией, но и
 сделать ее совместимой с такими рабочими процессами, как
 <LocalizedLink href="/guides/features/cache">кэширование</LocalizedLink> и
-<LocalizedLink href="/guides/features/test/selective-testing">выборочный прогон тестов</LocalizedLink>.
+<LocalizedLink href="/guides/features/selective-testing">выборочный прогон тестов</LocalizedLink>.
 
 Интеграция в XcodeProj, скорее всего, потребует больше времени для поддержки
 новых функций Swift Package или дескриптора большего количества конфигураций

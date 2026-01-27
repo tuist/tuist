@@ -92,11 +92,11 @@ defmodule TuistWeb.CacheRunsLive do
             field: :ran_by,
             display_name: dgettext("dashboard_cache", "Ran by"),
             type: :option,
-            options: [:ci] ++ Enum.map(users, fn user -> user.account.id end),
+            options: [:ci] ++ Enum.map(users, fn user -> user.id end),
             options_display_names:
               Map.merge(
                 %{ci: "CI"},
-                Map.new(users, fn user -> {user.account.id, user.account.name} end)
+                Map.new(users, fn user -> {user.id, user.account.name} end)
               ),
             operator: :==,
             value: nil

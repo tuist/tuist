@@ -81,7 +81,7 @@ Tuist 将解析依赖关系图，并将依赖关系的项目包含在工作区�
 ## Tuist.swift{#tuistswift}
 
 Tuist 提供了
-<LocalizedLink href="/contributors/principles.html#default-to-conventions"> 合理的默认值</LocalizedLink>，以简化项目配置。不过，您也可以通过在项目根目录下定义一个
+<LocalizedLink href="/contributors/principles#default-to-conventions"> 合理的默认值</LocalizedLink>，以简化项目配置。不过，您也可以通过在项目根目录下定义一个
 <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>
 来自定义配置，Tuist 会使用它来确定项目的根目录。
 

@@ -28,10 +28,10 @@ interact with it:
 
 - **Generate:** This is a foundational workflow. Use it to create an Xcode
   project that's compatible with Xcode.
-- **<LocalizedLink href="/guides/features/build">Build</LocalizedLink>:** This
+- **<LocalizedLink href="/cli/build">Build</LocalizedLink>:** This
   workflow not only generates the Xcode project but also employs `xcodebuild` to
   compile it.
-- **<LocalizedLink href="/guides/features/test">Test</LocalizedLink>:**
+- **<LocalizedLink href="/cli/test">Test</LocalizedLink>:**
   Operating much like the build workflow, this not only generates the Xcode
   project but utilizes `xcodebuild` to test it.
 

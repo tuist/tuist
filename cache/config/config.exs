@@ -1,20 +1,18 @@
 import Config
 
-# Bandit.TransportError is raised when the client disconnects mid-request (e.g. cancelled upload).
-# These are expected and not actionable errors.
-config :appsignal, :config,
-  otp_app: :cache,
-  name: "Cache",
-  active: true,
-  ignore_errors: ["Bandit.TransportError"]
-
 config :cache, Cache.PromEx,
   disabled: false,
   manual_metrics_start_delay: :no_delay,
   drop_metrics_groups: [],
   grafana: :disabled
 
-config :cache, Cache.Repo, busy_timeout: 10_000
+config :cache, Cache.Repo,
+  busy_timeout: 30_000,
+  journal_mode: :wal,
+  synchronous: :normal,
+  temp_store: :memory,
+  queue_target: 1_000,
+  queue_interval: 1_000
 
 config :cache, CacheWeb.Endpoint,
   url: [host: "localhost"],
@@ -63,6 +61,11 @@ config :logger, :console,
   metadata: [:request_id]
 
 config :phoenix, :json_library, Jason
+
+config :sentry,
+  enable_source_code_context: true,
+  root_source_code_paths: [File.cwd!()],
+  filter: Cache.SentryEventFilter
 
 config :tuist_common, finch_name: Cache.Finch
 

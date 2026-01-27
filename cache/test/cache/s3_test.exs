@@ -111,7 +111,7 @@ defmodule Cache.S3Test do
 
       expect(Upload, :stream_file, fn ^local_path -> {:stream, local_path} end)
 
-      expect(ExAws.S3, :upload, fn {:stream, ^local_path}, "test-bucket", ^key ->
+      expect(ExAws.S3, :upload, fn {:stream, ^local_path}, "test-bucket", ^key, [timeout: 120_000] ->
         {:upload_operation, "test-bucket", key}
       end)
 
@@ -145,7 +145,7 @@ defmodule Cache.S3Test do
 
       expect(Upload, :stream_file, fn ^local_path -> {:stream, local_path} end)
 
-      expect(ExAws.S3, :upload, fn {:stream, ^local_path}, "test-bucket", ^key ->
+      expect(ExAws.S3, :upload, fn {:stream, ^local_path}, "test-bucket", ^key, [timeout: 120_000] ->
         {:upload_operation, "test-bucket", key}
       end)
 
@@ -169,7 +169,7 @@ defmodule Cache.S3Test do
 
       expect(Upload, :stream_file, fn ^local_path -> {:stream, local_path} end)
 
-      expect(ExAws.S3, :upload, fn {:stream, ^local_path}, "test-bucket", ^key ->
+      expect(ExAws.S3, :upload, fn {:stream, ^local_path}, "test-bucket", ^key, [timeout: 120_000] ->
         {:upload_operation, "test-bucket", key}
       end)
 

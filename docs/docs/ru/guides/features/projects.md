@@ -30,10 +30,10 @@ Tuist использует объявления проектов для упро
 
 - **Сгенерировать:** Это основной рабочий процесс. Используйте его для генерации
   проекта совместимого с Xcode.
-- **<LocalizedLink href="/guides/features/build">Build</LocalizedLink>:** Этот
+- **<LocalizedLink href="/cli/build">Build</LocalizedLink>:** Этот
   рабочий процесс не только генерирует Xcode-проект, но и использует
   `xcodebuild` для его компиляции.
-- **<LocalizedLink href="/guides/features/test">Test</LocalizedLink>:** Рабочий
+- **<LocalizedLink href="/cli/test">Test</LocalizedLink>:** Рабочий
   процесс, выполняющийся аналогично сборке: он не только генерирует
   Xcode-проект, но и использует `xcodebuild` для его тестирования.
 

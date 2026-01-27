@@ -21,7 +21,7 @@ tuist inspect implicit-imports
 
 ::: tip VALIDATE IN CI
 <!-- -->
-我们强烈建议每次向上游推送新代码时，都将此命令作为<LocalizedLink href="/guides/features/automate/continuous-integration">持续集成</LocalizedLink>命令的一部分运行。
+我们强烈建议每次向上游推送新代码时，都将此命令作为<LocalizedLink href="/guides/integrations/continuous-integration">持续集成</LocalizedLink>命令的一部分运行。
 <!-- -->
 :::
 

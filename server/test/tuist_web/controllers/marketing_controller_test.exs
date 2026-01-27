@@ -61,6 +61,16 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     end
   end
 
+  describe "GET /page" do
+    test "raises NotFoundError when page is not found", %{conn: conn} do
+      assert_raise TuistWeb.Errors.NotFoundError, fn ->
+        conn
+        |> Map.put(:request_path, "//terms")
+        |> TuistWeb.Marketing.MarketingController.page(%{})
+      end
+    end
+  end
+
   describe "GET /newsletter/verify" do
     test "successfully verifies email with valid token", %{conn: conn} do
       # Given

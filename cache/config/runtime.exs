@@ -30,12 +30,13 @@ if config_env() == :prod do
         ]
     end
 
-  appsignal_push_api_key = System.get_env("APPSIGNAL_PUSH_API_KEY")
+  sentry_dsn = System.get_env("SENTRY_DSN_CACHE")
 
-  config :appsignal, :config,
-    push_api_key: appsignal_push_api_key,
-    env: System.get_env("APPSIGNAL_ENV"),
-    active: appsignal_push_api_key != nil
+  if sentry_dsn do
+    config :sentry,
+      dsn: sentry_dsn,
+      environment_name: System.get_env("SENTRY_ENV") || "production"
+  end
 
   config :cache, Cache.Guardian,
     issuer: "tuist",
@@ -43,7 +44,7 @@ if config_env() == :prod do
 
   config :cache, Cache.Repo,
     database: "/data/repo.sqlite",
-    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
+    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "2"),
     show_sensitive_data_on_connection_error: false
 
   config :cache, CacheWeb.Endpoint,

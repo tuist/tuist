@@ -97,7 +97,7 @@ integrate Swift Packages in your project using XcodeProj's targets. Thanks to
 that, we can not only give you more control over the integration but also make
 it compatible with workflows like
 <LocalizedLink href="/guides/features/cache">caching</LocalizedLink> and
-<LocalizedLink href="/guides/features/test/selective-testing">selective test runs</LocalizedLink>.
+<LocalizedLink href="/guides/features/selective-testing">selective test runs</LocalizedLink>.
 
 XcodeProj's integration is more likely to take more time to support new Swift
 Package features or handle more package configurations. However, the mapping

@@ -102,7 +102,7 @@ aplikacji, co jest bardziej zgodne z zalecaną strukturą projektu Xcode.
 ## Tuist.swift {#tuistswift}
 
 Tuist zapewnia
-<LocalizedLink href="/contributors/principles.html#default-to-conventions">sensowne ustawienia domyślne</LocalizedLink> w celu uproszczenia konfiguracji projektu.
+<LocalizedLink href="/contributors/principles#default-to-conventions">sensowne ustawienia domyślne</LocalizedLink> w celu uproszczenia konfiguracji projektu.
 Można jednak dostosować konfigurację, definiując
 <LocalizedLink href="/references/project-description/structs/tuist">`Tuist.swift`</LocalizedLink>
 w katalogu głównym projektu, który jest używany przez Tuist do określenia

@@ -203,31 +203,12 @@ if Enum.member?([:prod, :stag, :can, :dev], env) do
 end
 
 if Tuist.Environment.error_tracking_enabled?() do
-  appsignal_name = "Tuist"
-
-  config :appsignal, :config,
-    otp_app: :tuist,
-    name: appsignal_name,
-    push_api_key: Tuist.Environment.app_signal_push_api_key(secrets),
-    env: env,
-    active: true,
-    ignore_errors: [
-      # Bandit.TransportError is raised when the client disconnects mid-request.
-      # These are expected and not actionable errors.
-      "Bandit.TransportError",
-      "TuistWeb.Errors.BadRequestError",
-      "TuistWeb.Errors.NotFoundError",
-      "TuistWeb.Errors.TooManyRequestsError",
-      "TuistWeb.Errors.UnauthorizedError"
-    ],
-    request_headers: ~w(
-      accept accept-charset accept-encoding accept-language cache-control
-      connection content-length path-info range request-method
-      request-uri server-name server-port server-protocol
-      x-request-id
-      x-tuist-cloud-cli-version x-tuist-cloud-cli-release-date
-      x-tuist-cli-version x-tuist-cli-release-date
-    )
+  config :sentry,
+    dsn: Tuist.Environment.sentry_dsn(secrets),
+    environment_name: env,
+    enable_source_code_context: true,
+    root_source_code_paths: [File.cwd!()],
+    filter: Tuist.SentryEventFilter
 end
 
 # Ex.AWS

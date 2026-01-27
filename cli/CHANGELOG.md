@@ -1,6 +1,38 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.131.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add test quarantine and automations settings by [@fortmarek](https://github.com/fortmarek) in [#9175](https://github.com/tuist/tuist/pull/9175)
+### 🐛 Bug Fixes
+
+* restore mapper order for selective testing and fix parseAsRoot by [@fortmarek](https://github.com/fortmarek) in [#9234](https://github.com/tuist/tuist/pull/9234)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.130.3...4.131.0
+
+## What's Changed in 4.130.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* ensure consistent mapper order between automation and cache pipelines by [@fortmarek](https://github.com/fortmarek) in [#9228](https://github.com/tuist/tuist/pull/9228)
+* filter out dependencies with unsatisfied trait conditions by [@pepicrft](https://github.com/pepicrft) in [#9219](https://github.com/tuist/tuist/pull/9219)
+* fix bundle accessor for Obj-C external static frameworks with resources by [@pepicrft](https://github.com/pepicrft) in [#9210](https://github.com/tuist/tuist/pull/9210)
+### 📚 Documentation
+
+* add intent layer nodes by [@pepicrft](https://github.com/pepicrft) in [#9042](https://github.com/tuist/tuist/pull/9042)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.130.1...4.130.3
+
+## What's Changed in 4.130.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* correct static xcframework paths when depending on cached targets by [@fortmarek](https://github.com/fortmarek) in [#9203](https://github.com/tuist/tuist/pull/9203)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.130.0...4.130.1
+
 ## What's Changed in 4.130.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features

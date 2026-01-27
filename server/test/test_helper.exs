@@ -1,6 +1,6 @@
 Mimic.copy(Redix)
-Mimic.copy(Appsignal.Span)
-Mimic.copy(Appsignal.Tracer)
+Mimic.copy(Sentry)
+Mimic.copy(Sentry.Context)
 Mimic.copy(Base)
 Mimic.copy(Briefly)
 Mimic.copy(Bcrypt)
@@ -103,4 +103,3 @@ Mimic.copy(Port)
 
 ExUnit.start(exclude: [:skip])
 Ecto.Adapters.SQL.Sandbox.mode(Tuist.Repo, :manual)
-Credo.Application.start([], [])

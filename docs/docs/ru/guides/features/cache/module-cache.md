@@ -212,7 +212,7 @@ tuist generate
 запусками.
 
 Также убедитесь, что цель не зависит прямо или косвенно от
-<LocalizedLink href="/guides/features/cache/generated-project#supported-products">некэшируемой цели</LocalizedLink>.
+<LocalizedLink href="/guides/features/cache/module-cache#supported-products">некэшируемой цели</LocalizedLink>.
 
 ### Отсутствующие символы {#missing-symbols}
 

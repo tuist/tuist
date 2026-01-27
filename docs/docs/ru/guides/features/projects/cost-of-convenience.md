@@ -78,7 +78,7 @@ Xcode использует каталог внутри Derived Data для ка�
 ::: tip TUIST DETECTION OF IMPLICIT DEPENDENCIES
 <!-- -->
 Tuist предоставляет
-<LocalizedLink href="/guides/features/inspect/implicit-dependencies">команду</LocalizedLink>
+<LocalizedLink href="/guides/features/projects/inspect/implicit-dependencies">команду</LocalizedLink>
 для обнаружения неявных зависимостей. С её помощью можно проверять в CI, что все
 зависимости указаны явно.
 <!-- -->

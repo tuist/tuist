@@ -6,8 +6,6 @@ defmodule Tuist.Alerts do
 
   alias Tuist.Alerts.Alert
   alias Tuist.Alerts.AlertRule
-  alias Tuist.Alerts.FlakyTestAlert
-  alias Tuist.Alerts.FlakyTestAlertRule
   alias Tuist.Cache.Analytics, as: CacheAnalytics
   alias Tuist.Projects.Project
   alias Tuist.Repo
@@ -151,41 +149,5 @@ defmodule Tuist.Alerts do
     |> order_by([a], desc: a.inserted_at)
     |> limit(1)
     |> Repo.one()
-  end
-
-  def get_project_flaky_test_alert_rules(%Project{id: project_id}) do
-    FlakyTestAlertRule
-    |> where([a], a.project_id == ^project_id)
-    |> order_by([a], asc: a.inserted_at)
-    |> Repo.all()
-  end
-
-  def get_flaky_test_alert_rule(id) do
-    case Repo.get(FlakyTestAlertRule, id) do
-      nil -> {:error, :not_found}
-      rule -> {:ok, rule}
-    end
-  end
-
-  def create_flaky_test_alert_rule(attrs) do
-    %FlakyTestAlertRule{}
-    |> FlakyTestAlertRule.changeset(attrs)
-    |> Repo.insert()
-  end
-
-  def update_flaky_test_alert_rule(%FlakyTestAlertRule{} = rule, attrs) do
-    rule
-    |> FlakyTestAlertRule.changeset(attrs)
-    |> Repo.update()
-  end
-
-  def delete_flaky_test_alert_rule(%FlakyTestAlertRule{} = rule) do
-    Repo.delete(rule)
-  end
-
-  def create_flaky_test_alert(attrs) do
-    %FlakyTestAlert{}
-    |> FlakyTestAlert.changeset(attrs)
-    |> Repo.insert()
   end
 end

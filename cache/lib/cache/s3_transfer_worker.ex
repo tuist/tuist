@@ -42,7 +42,7 @@ defmodule Cache.S3TransferWorker do
             {transfer, result}
           end,
           max_concurrency: @concurrency,
-          timeout: 60_000,
+          timeout: to_timeout(minute: 5),
           on_timeout: :kill_task
         )
         |> Enum.map(&handle_result(type, &1))
