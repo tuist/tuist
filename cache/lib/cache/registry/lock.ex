@@ -98,17 +98,12 @@ defmodule Cache.Registry.Lock do
 
   defp bucket, do: Application.get_env(:cache, :s3)[:bucket]
 
-  defp etag_from_headers(headers) when is_list(headers) do
-    headers
-    |> Enum.find_value(fn {key, value} ->
-      if String.downcase(key) == "etag" do
-        normalize_etag(value)
-      else
-        nil
-      end
-    end)
+  defp etag_from_headers(headers) do
+    etag_value = Map.get(headers, "etag") || Map.get(headers, "ETag")
+    normalize_etag(etag_value)
   end
 
+  defp normalize_etag(nil), do: nil
   defp normalize_etag([value | _]), do: normalize_etag(value)
 
   defp normalize_etag(value) when is_binary(value) do
