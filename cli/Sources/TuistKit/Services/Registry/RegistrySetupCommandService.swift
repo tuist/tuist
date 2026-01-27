@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Noora
 import Path
+import TuistGenerator
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -95,9 +96,7 @@ struct RegistrySetupCommandService {
             try await fileSystem.remove(configurationJSONPath)
         }
         try await fileSystem.writeText(
-            registryConfigurationJSON(
-                serverURL: serverURL
-            ),
+            RegistryConfigurationGenerator.registryConfigurationJSON(serverURL: serverURL),
             at: configurationJSONPath
         )
 
@@ -112,33 +111,4 @@ struct RegistrySetupCommandService {
         )
     }
 
-    private func registryConfigurationJSON(
-        serverURL: URL
-    ) -> String {
-        """
-        {
-          "security": {
-            "default": {
-              "signing": {
-                "onUnsigned": "silentAllow"
-              }
-            }
-          },
-          "authentication": {
-            "\(serverURL.host() ?? Constants.URLs.production.host()!)": {
-              "loginAPIPath": "/api/registry/swift/login",
-              "type": "token"
-            }
-          },
-          "registries": {
-            "[default]": {
-              "supportsAvailability": false,
-              "url": "\(serverURL.absoluteString.dropSuffix("/"))/api/registry/swift"
-            }
-          },
-          "version": 1
-        }
-
-        """
-    }
 }

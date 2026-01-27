@@ -5,7 +5,7 @@ import TuistSupport
 
 public protocol RegistryConfigurationGenerating {
     func generate(
-        workspacePath: AbsolutePath,
+        at configurationPath: AbsolutePath,
         serverURL: URL
     ) async throws
 }
@@ -18,12 +18,9 @@ public final class RegistryConfigurationGenerator: RegistryConfigurationGenerati
     }
 
     public func generate(
-        workspacePath: AbsolutePath,
+        at configurationPath: AbsolutePath,
         serverURL: URL
     ) async throws {
-        let configurationPath = workspacePath.appending(
-            components: "xcshareddata", "swiftpm", "configuration"
-        )
         let registriesJSONPath = configurationPath.appending(component: "registries.json")
 
         if try await !fileSystem.exists(configurationPath) {
@@ -35,16 +32,12 @@ public final class RegistryConfigurationGenerator: RegistryConfigurationGenerati
         }
 
         try await fileSystem.writeText(
-            registryConfigurationJSON(serverURL: serverURL),
+            Self.registryConfigurationJSON(serverURL: serverURL),
             at: registriesJSONPath
-        )
-
-        Logger.current.notice(
-            "Generated registry configuration at \(registriesJSONPath.relative(to: workspacePath.parentDirectory).pathString)"
         )
     }
 
-    private func registryConfigurationJSON(serverURL: URL) -> String {
+    public static func registryConfigurationJSON(serverURL: URL) -> String {
         """
         {
           "security": {

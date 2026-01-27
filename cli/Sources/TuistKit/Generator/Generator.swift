@@ -144,10 +144,15 @@ public class Generator: Generating {
         )
 
         if configGeneratedProjectOptions.generationOptions.registryEnabled {
-            let workspacePath = graphTraverser.path.appending(component: workspaceName)
+            let configurationPath = graphTraverser.path
+                .appending(component: workspaceName)
+                .appending(components: "xcshareddata", "swiftpm", "configuration")
             try await registryConfigurationGenerator.generate(
-                workspacePath: workspacePath,
+                at: configurationPath,
                 serverURL: config.url
+            )
+            Logger.current.notice(
+                "Generated registry configuration at \(configurationPath.appending(component: "registries.json").relative(to: graphTraverser.path).pathString)"
             )
         }
     }
