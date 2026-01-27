@@ -7,6 +7,10 @@ defmodule CacheWeb.Router do
     plug :accepts, ["json"]
   end
 
+  pipeline :api_registry_swift do
+    plug :accepts, ["swift-registry-v1-json", "swift-registry-v1-zip", "swift-registry-v1-api"]
+  end
+
   pipeline :project_auth do
     plug CacheWeb.Plugs.AuthPlug
   end
@@ -68,9 +72,12 @@ defmodule CacheWeb.Router do
   end
 
   scope "/api/registry/swift", CacheWeb do
-    pipe_through [:api_json]
+    pipe_through [:api_registry_swift]
 
     get "/", RegistryController, :availability
+    get "/availability", RegistryController, :availability
+    get "/identifiers", RegistryController, :identifiers
+    post "/login", RegistryController, :login
     get "/:scope/:name", RegistryController, :list_releases
     get "/:scope/:name/:version", RegistryController, :show_release
     get "/:scope/:name/:version/Package.swift", RegistryController, :show_manifest

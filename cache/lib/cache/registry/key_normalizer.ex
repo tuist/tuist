@@ -49,7 +49,7 @@ defmodule Cache.Registry.KeyNormalizer do
   def normalize_version(version) when is_binary(version) do
     version = String.trim_leading(version, "v")
 
-    case String.split(version, "-", parts: 2) do
+    case String.split(version, "-") do
       [base, prerelease] ->
         prerelease_with_plus = String.replace(prerelease, ".", "+")
         base = add_trailing_semantic_version_zeros(base)

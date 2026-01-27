@@ -7,6 +7,23 @@ defmodule Cache.Config do
     |> parse_float(default)
   end
 
+  def int_env(name, default) when is_binary(name) do
+    name
+    |> System.get_env()
+    |> parse_int(default)
+  end
+
+  def list_env(name) when is_binary(name) do
+    case System.get_env(name) do
+      nil -> nil
+      value ->
+        value
+        |> String.split(",")
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == ""))
+    end
+  end
+
   @doc """
   Returns true if analytics/usage reporting is enabled (API key is configured).
   """
@@ -60,6 +77,15 @@ defmodule Cache.Config do
   defp parse_float(value, default) do
     case Float.parse(value) do
       {float, _} -> float
+      :error -> default
+    end
+  end
+
+  defp parse_int(nil, default), do: default
+
+  defp parse_int(value, default) do
+    case Integer.parse(value) do
+      {integer, _} -> integer
       :error -> default
     end
   end

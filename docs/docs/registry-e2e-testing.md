@@ -34,10 +34,11 @@ Set environment variables for local testing:
 
 ```bash
 export S3_BUCKET=tuist-cache
-export S3_ENDPOINT=http://localhost:9000
-export AWS_ACCESS_KEY_ID=minioadmin
-export AWS_SECRET_ACCESS_KEY=minioadmin
-export SERVER_URL=https://tuist.dev  # For syncing metadata
+  export S3_ENDPOINT=http://localhost:9000
+  export AWS_ACCESS_KEY_ID=minioadmin
+  export AWS_SECRET_ACCESS_KEY=minioadmin
+  export SERVER_URL=https://tuist.dev  # For cache authentication
+  export REGISTRY_GITHUB_TOKEN=...     # For registry sync (GitHub API)
 ```
 
 ### 3. Start Cache Server
@@ -54,7 +55,7 @@ The server will start on `http://localhost:4000`.
 
 ### Scenario 1: Package Exists in Registry
 
-**Setup**: Ensure a package exists in the registry metadata.
+**Setup**: Ensure the registry sync worker has populated metadata.
 
 **Test**:
 ```bash
@@ -81,7 +82,7 @@ curl -s http://localhost:4000/api/registry/swift/nonexistent/package
 
 ### Scenario 3: Cold Cache (First Request)
 
-**Setup**: Clear local disk cache and ensure package exists in S3.
+**Setup**: Clear local disk cache and ensure package exists in S3 (sync worker has completed at least once).
 
 **Test**:
 ```bash
@@ -92,12 +93,12 @@ rm -rf /cas/registry/
 curl -I http://localhost:4000/api/registry/swift/apple/swift-argument-parser/1.2.0.zip
 
 # 3. Check cache server logs for S3 download
-# Expected log: "Downloading from S3: registry/swift/apple/swift-argument-parser/1.2.0/source_archive.zip"
+# Expected log: "Starting S3 download for artifact: registry/swift/apple/swift-argument-parser/1.2.0/source_archive.zip"
 ```
 
 **Verification**:
-- First request may return 404 (triggers background S3 download)
-- Subsequent request should return 200 with the file
+- First request should return 200 and be proxied from S3
+- Subsequent request should return 200 with the file served from disk
 - Check logs for "S3 download" or "enqueue_registry_download" messages
 
 ### Scenario 4: Warm Cache (Subsequent Requests)
@@ -176,9 +177,9 @@ swift package resolve
 
 ### Cold Cache Indicators
 
-- Cache server logs show: `Downloading from S3: registry/swift/...`
+- Cache server logs show: `Starting S3 download for artifact: registry/swift/...`
 - S3 transfer queue has pending downloads
-- First request may return 404 or take longer
+- First request is slower but should succeed via S3
 
 ### Warm Cache Indicators
 
@@ -197,8 +198,8 @@ swift package resolve
 ### Package Not Found
 
 1. Verify metadata exists in S3: `registry/metadata/{scope}/{name}/index.json`
-2. Check sync worker has run: Look for `SyncWorker` logs
-3. Verify leader election: Check `registry/sync/leader.lock` in S3
+2. Verify registry artifacts exist in S3: `registry/swift/{scope}/{name}/{version}/...`
+3. Ensure `REGISTRY_GITHUB_TOKEN` is set and the sync worker has run
 
 ### Source Archive Download Fails
 

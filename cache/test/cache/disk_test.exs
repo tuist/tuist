@@ -208,7 +208,6 @@ end
 
 defmodule Cache.DiskRegistryTest do
   use ExUnit.Case, async: true
-  use Mimic
 
   alias Cache.Disk
 
@@ -220,33 +219,11 @@ defmodule Cache.DiskRegistryTest do
   setup do
     {:ok, test_storage_dir} = Briefly.create(directory: true)
 
-    Disk
-    |> stub(:storage_dir, fn -> test_storage_dir end)
-    |> stub(:artifact_path, fn key -> Path.join(test_storage_dir, key) end)
-    |> stub(:registry_put, fn scope, name, version, filename, data ->
-      key = Disk.registry_key(scope, name, version, filename)
-      path = Path.join(test_storage_dir, key)
+    original_storage_dir = Application.get_env(:cache, :storage_dir)
+    Application.put_env(:cache, :storage_dir, test_storage_dir)
 
-      case data do
-        {:file, tmp_path} ->
-          File.mkdir_p!(Path.dirname(path))
-          File.rename(tmp_path, path)
-          :ok
-
-        binary when is_binary(binary) ->
-          File.mkdir_p!(Path.dirname(path))
-          File.write!(path, binary)
-          :ok
-      end
-    end)
-    |> stub(:registry_exists?, fn scope, name, version, filename ->
-      key = Disk.registry_key(scope, name, version, filename)
-      test_storage_dir |> Path.join(key) |> File.exists?()
-    end)
-    |> stub(:registry_stat, fn scope, name, version, filename ->
-      key = Disk.registry_key(scope, name, version, filename)
-      path = Path.join(test_storage_dir, key)
-      File.stat(path)
+    on_exit(fn ->
+      Application.put_env(:cache, :storage_dir, original_storage_dir)
     end)
 
     {:ok, test_storage_dir: test_storage_dir}

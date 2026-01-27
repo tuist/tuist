@@ -1,111 +1,201 @@
 defmodule Cache.Registry.SyncWorker do
   @moduledoc """
-  Oban worker that periodically syncs Swift package registry metadata from the server.
-
-  Runs every 60 minutes and uses leader election to ensure only one cache node
-  performs the sync at a time. This respects GitHub rate limits by preventing
-  multiple nodes from fetching package data simultaneously.
-
-  ## Algorithm
-
-  1. Attempt to acquire leader lock via `LeaderElection.try_acquire_lock/0`
-  2. If not leader, skip sync and return `:ok`
-  3. If leader:
-     a. Fetch package list from server API
-     b. For each package, enqueue a `ReleaseWorker` job
-     c. Release the leader lock
+  Periodically syncs Swift package registry metadata and enqueues missing releases.
   """
 
   use Oban.Worker, queue: :registry_sync
 
-  alias Cache.Registry.LeaderElection
+  alias Cache.Registry.GitHub
+  alias Cache.Registry.KeyNormalizer
+  alias Cache.Registry.Lock
+  alias Cache.Registry.Metadata
   alias Cache.Registry.ReleaseWorker
+  alias Cache.Registry.SwiftPackageIndex
 
   require Logger
 
+  @default_limit 350
+  @default_sync_interval_seconds 21_600
+  @sync_lock_ttl_seconds 3_000
+  @package_lock_ttl_seconds 900
+
   @impl Oban.Worker
-  def perform(%Oban.Job{}) do
-    case LeaderElection.try_acquire_lock() do
+  def perform(%Oban.Job{args: args}) do
+    token = registry_token()
+
+    if is_nil(token) or token == "" do
+      Logger.warning("Registry sync skipped: REGISTRY_GITHUB_TOKEN is not configured")
+      :ok
+    else
+      with {:ok, :acquired} <- Lock.try_acquire(:sync, @sync_lock_ttl_seconds) do
+        try do
+          sync_packages(args, token)
+        after
+          Lock.release(:sync)
+        end
+      else
+        {:error, :already_locked} ->
+          Logger.debug("Registry sync skipped: another node is the leader")
+          :ok
+      end
+    end
+  end
+
+  defp sync_packages(args, token) do
+    limit = Map.get(args, "limit", registry_sync_limit())
+    allowlist = registry_sync_allowlist()
+
+    case SwiftPackageIndex.list_packages(token) do
+      {:ok, packages} ->
+        packages
+        |> apply_allowlist(allowlist)
+        |> Enum.take(limit)
+        |> Enum.each(&sync_package(&1, token))
+
+        :ok
+
+      {:error, reason} ->
+        Logger.error("Failed to fetch SPI package list: #{inspect(reason)}")
+        {:error, reason}
+    end
+  end
+
+  defp sync_package(%{scope: scope, name: name, repository_full_handle: full_handle}, token) do
+    lock_key = {:package, scope, name}
+
+    case Lock.try_acquire(lock_key, @package_lock_ttl_seconds) do
       {:ok, :acquired} ->
         try do
-          sync_packages()
+          do_sync_package(scope, name, full_handle, token)
         after
-          LeaderElection.release_lock()
+          Lock.release(lock_key)
         end
 
       {:error, :already_locked} ->
-        Logger.debug("Registry sync skipped: another node is the leader")
         :ok
     end
   end
 
-  defp sync_packages do
-    case fetch_packages_from_server() do
-      {:ok, packages} ->
-        Logger.info("Fetched #{length(packages)} packages from server, enqueueing release workers")
-        enqueue_release_workers(packages)
-        :ok
-
-      {:error, reason} ->
-        Logger.error("Failed to fetch packages from server: #{inspect(reason)}")
-        {:error, reason}
-    end
-  end
-
-  defp fetch_packages_from_server do
-    server_url = server_url()
-    url = "#{server_url}/api/registry/swift/packages"
-
-    case Req.get(url, receive_timeout: 60_000) do
-      {:ok, %Req.Response{status: 200, body: body}} when is_list(body) ->
-        {:ok, body}
-
-      {:ok, %Req.Response{status: 200, body: body}} when is_map(body) ->
-        packages = Map.get(body, "packages", Map.get(body, "data", []))
-        {:ok, packages}
-
-      {:ok, %Req.Response{status: status, body: body}} ->
-        {:error, {:http_error, status, body}}
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
-  defp enqueue_release_workers(packages) do
-    Enum.each(packages, fn package ->
-      scope = package["scope"] || extract_scope(package)
-      name = package["name"] || extract_name(package)
-
-      if scope && name do
-        %{scope: scope, name: name}
-        |> ReleaseWorker.new()
-        |> Oban.insert()
-      else
-        Logger.warning("Skipping package with missing scope or name: #{inspect(package)}")
+  defp do_sync_package(scope, name, full_handle, token) do
+    {metadata, should_sync?} =
+      case Metadata.get_package(scope, name) do
+        {:ok, metadata} -> {metadata, not recently_synced?(metadata)}
+        {:error, :not_found} -> {empty_metadata(scope, name, full_handle), true}
       end
+
+    if should_sync? do
+      case GitHub.list_tags(full_handle, token) do
+        {:ok, tags} ->
+          missing_versions = missing_versions(tags, metadata)
+          updated_metadata = update_metadata(metadata, scope, name, full_handle)
+          :ok = Metadata.put_package(scope, name, updated_metadata)
+          enqueue_release_workers(scope, name, full_handle, missing_versions)
+          :ok
+
+        {:error, reason} ->
+          Logger.warning("Failed to fetch tags for #{scope}/#{name}: #{inspect(reason)}")
+          :ok
+      end
+    else
+      :ok
+    end
+  end
+
+  defp missing_versions(tags, metadata) do
+    releases = Map.get(metadata, "releases", %{})
+
+    tags
+    |> Enum.filter(&valid_semver?/1)
+    |> Enum.reject(&String.contains?(&1, "-dev"))
+    |> Enum.uniq_by(&KeyNormalizer.normalize_version/1)
+    |> Enum.filter(fn tag ->
+      normalized = KeyNormalizer.normalize_version(tag)
+      not Map.has_key?(releases, normalized)
     end)
   end
 
-  defp extract_scope(%{"repository_full_handle" => handle}) when is_binary(handle) do
-    case String.split(handle, "/", parts: 2) do
-      [scope, _name] -> scope
-      _ -> nil
+  defp enqueue_release_workers(scope, name, full_handle, versions) do
+    Enum.each(versions, fn tag ->
+      %{scope: scope, name: name, repository_full_handle: full_handle, tag: tag}
+      |> ReleaseWorker.new()
+      |> Oban.insert()
+    end)
+  end
+
+  defp update_metadata(metadata, scope, name, full_handle) do
+    metadata
+    |> Map.put_new("scope", scope)
+    |> Map.put_new("name", name)
+    |> Map.put("repository_full_handle", full_handle)
+    |> Map.put_new("releases", Map.get(metadata, "releases", %{}))
+    |> Map.put("updated_at", DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601())
+  end
+
+  defp empty_metadata(scope, name, full_handle) do
+    %{
+      "scope" => scope,
+      "name" => name,
+      "repository_full_handle" => full_handle,
+      "releases" => %{},
+      "updated_at" => DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
+    }
+  end
+
+  defp valid_semver?(version) do
+    Regex.match?(
+      ~r/^v?\d+\.\d+(\.\d+)?(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/,
+      version
+    )
+  end
+
+  defp recently_synced?(%{"updated_at" => updated_at}) when is_binary(updated_at) do
+    case DateTime.from_iso8601(updated_at) do
+      {:ok, datetime, _offset} ->
+        DateTime.diff(DateTime.utc_now(), datetime) < registry_sync_min_interval_seconds()
+
+      _ ->
+        false
     end
   end
 
-  defp extract_scope(_), do: nil
+  defp recently_synced?(_), do: false
 
-  defp extract_name(%{"repository_full_handle" => handle}) when is_binary(handle) do
-    case String.split(handle, "/", parts: 2) do
-      [_scope, name] -> name
-      _ -> nil
+  defp apply_allowlist(packages, nil), do: packages
+  defp apply_allowlist(packages, []), do: packages
+
+  defp apply_allowlist(packages, allowlist) when is_list(allowlist) do
+    Enum.filter(packages, fn package ->
+      Enum.any?(allowlist, fn pattern ->
+        matches_pattern?(package.repository_full_handle, pattern)
+      end)
+    end)
+  end
+
+  defp matches_pattern?(handle, pattern) do
+    handle = String.downcase(handle)
+    pattern = String.downcase(pattern)
+
+    if String.ends_with?(pattern, "*") do
+      prefix = String.trim_trailing(pattern, "*")
+      String.starts_with?(handle, prefix)
+    else
+      handle == pattern
     end
   end
 
-  defp extract_name(_), do: nil
+  defp registry_token do
+    Application.get_env(:cache, :registry_github_token)
+  end
 
-  defp server_url do
-    Application.get_env(:cache, :server_url, "http://localhost:4000")
+  defp registry_sync_allowlist do
+    Application.get_env(:cache, :registry_sync_allowlist)
+  end
+
+  defp registry_sync_limit do
+    Application.get_env(:cache, :registry_sync_limit, @default_limit)
+  end
+
+  defp registry_sync_min_interval_seconds do
+    Application.get_env(:cache, :registry_sync_min_interval_seconds, @default_sync_interval_seconds)
   end
 end
