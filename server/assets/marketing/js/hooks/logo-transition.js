@@ -198,5 +198,5 @@ export const LogoTransition = {
     this.cleanupDesktop();
     this.cleanupMobile();
     window.removeEventListener("resize", this.handleResize);
-  }
+  },
 };
