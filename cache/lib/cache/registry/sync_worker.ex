@@ -5,13 +5,14 @@ defmodule Cache.Registry.SyncWorker do
 
   use Oban.Worker, queue: :registry_sync
 
+  alias Cache.Config
   alias Cache.Registry.GitHub
   alias Cache.Registry.KeyNormalizer
   alias Cache.Registry.Lock
   alias Cache.Registry.Metadata
   alias Cache.Registry.ReleaseWorker
-  alias Cache.Registry.SyncCursor
   alias Cache.Registry.SwiftPackageIndex
+  alias Cache.Registry.SyncCursor
 
   require Logger
 
@@ -22,23 +23,22 @@ defmodule Cache.Registry.SyncWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: args}) do
-    token = registry_token()
+    if Config.registry_enabled?() do
+      case Lock.try_acquire(:sync, @sync_lock_ttl_seconds) do
+        {:ok, :acquired} ->
+          try do
+            sync_packages(args, Config.registry_github_token())
+          after
+            Lock.release(:sync)
+          end
 
-    if is_nil(token) or token == "" do
-      Logger.warning("Registry sync skipped: REGISTRY_GITHUB_TOKEN is not configured")
-      :ok
-    else
-      with {:ok, :acquired} <- Lock.try_acquire(:sync, @sync_lock_ttl_seconds) do
-        try do
-          sync_packages(args, token)
-        after
-          Lock.release(:sync)
-        end
-      else
         {:error, :already_locked} ->
           Logger.debug("Registry sync skipped: another node is the leader")
           :ok
       end
+    else
+      Logger.debug("Registry sync skipped: registry is not configured")
+      :ok
     end
   end
 
@@ -204,10 +204,6 @@ defmodule Cache.Registry.SyncWorker do
     else
       handle == pattern
     end
-  end
-
-  defp registry_token do
-    Application.get_env(:cache, :registry_github_token)
   end
 
   defp registry_sync_allowlist do

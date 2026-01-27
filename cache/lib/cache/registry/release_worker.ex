@@ -5,6 +5,7 @@ defmodule Cache.Registry.ReleaseWorker do
 
   use Oban.Worker, queue: :registry_sync
 
+  alias Cache.Config
   alias Cache.Registry.GitHub
   alias Cache.Registry.KeyNormalizer
   alias Cache.Registry.Lock
@@ -17,7 +18,9 @@ defmodule Cache.Registry.ReleaseWorker do
   @metadata_lock_ttl_seconds 300
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"scope" => scope, "name" => name, "repository_full_handle" => full_handle, "tag" => tag}}) do
+  def perform(%Oban.Job{
+        args: %{"scope" => scope, "name" => name, "repository_full_handle" => full_handle, "tag" => tag}
+      }) do
     lock_key = {:release, scope, name, KeyNormalizer.normalize_version(tag)}
 
     case Lock.try_acquire(lock_key, @lock_ttl_seconds) do
@@ -34,27 +37,27 @@ defmodule Cache.Registry.ReleaseWorker do
   end
 
   defp do_sync_release(scope, name, full_handle, tag) do
-    token = registry_token()
+    case Config.registry_github_token() do
+      nil ->
+        Logger.warning("Registry release sync skipped for #{scope}/#{name}@#{tag}: missing token")
+        :ok
 
-    if is_nil(token) or token == "" do
-      Logger.warning("Registry release sync skipped for #{scope}/#{name}@#{tag}: missing token")
-      :ok
-    else
-      normalized_version = KeyNormalizer.normalize_version(tag)
+      token ->
+        normalized_version = KeyNormalizer.normalize_version(tag)
 
-      case Metadata.get_package(scope, name, fresh: true) do
-        {:ok, metadata} ->
-          releases = Map.get(metadata, "releases", %{})
+        case Metadata.get_package(scope, name, fresh: true) do
+          {:ok, metadata} ->
+            releases = Map.get(metadata, "releases", %{})
 
-          if Map.has_key?(releases, normalized_version) do
-            :ok
-          else
+            if Map.has_key?(releases, normalized_version) do
+              :ok
+            else
+              sync_release(scope, name, full_handle, tag, normalized_version, token)
+            end
+
+          {:error, :not_found} ->
             sync_release(scope, name, full_handle, tag, normalized_version, token)
-          end
-
-        {:error, :not_found} ->
-          sync_release(scope, name, full_handle, tag, normalized_version, token)
-      end
+        end
     end
   end
 
@@ -95,7 +98,6 @@ defmodule Cache.Registry.ReleaseWorker do
       {:error, _reason} -> false
     end
   end
-
 
   defp clone_with_submodules(full_handle, tag, token, tmp_dir) do
     repo_name = full_handle |> String.split("/") |> List.last()
@@ -267,12 +269,16 @@ defmodule Cache.Registry.ReleaseWorker do
                 |> Map.put_new("name", name)
                 |> Map.put("repository_full_handle", full_handle)
                 |> Map.put("updated_at", DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601())
-                |> Map.update("releases", %{version => %{"checksum" => checksum, "manifests" => manifests}}, fn releases ->
-                  Map.put(releases || %{}, version, %{
-                    "checksum" => checksum,
-                    "manifests" => manifests
-                  })
-                end)
+                |> Map.update(
+                  "releases",
+                  %{version => %{"checksum" => checksum, "manifests" => manifests}},
+                  fn releases ->
+                    Map.put(releases || %{}, version, %{
+                      "checksum" => checksum,
+                      "manifests" => manifests
+                    })
+                  end
+                )
 
               Metadata.put_package(scope, name, updated_metadata)
           end
@@ -291,7 +297,7 @@ defmodule Cache.Registry.ReleaseWorker do
   end
 
   defp upload_file(key, path, content_type) do
-    bucket = Application.get_env(:cache, :s3)[:bucket]
+    bucket = Config.registry_bucket()
 
     case path
          |> ExAws.S3.Upload.stream_file()
@@ -303,7 +309,7 @@ defmodule Cache.Registry.ReleaseWorker do
   end
 
   defp upload_content(key, content, content_type) do
-    bucket = Application.get_env(:cache, :s3)[:bucket]
+    bucket = Config.registry_bucket()
 
     case bucket
          |> ExAws.S3.put_object(key, content, content_type: content_type)
@@ -340,7 +346,7 @@ defmodule Cache.Registry.ReleaseWorker do
   defp checksum_for_file(path) do
     hash =
       path
-      |> File.stream!([], 2048)
+      |> File.stream!(2048, [])
       |> Enum.reduce(:crypto.hash_init(:sha256), fn chunk, acc ->
         :crypto.hash_update(acc, chunk)
       end)
@@ -358,9 +364,5 @@ defmodule Cache.Registry.ReleaseWorker do
     path = Path.join(base, "tuist-registry-#{unique}")
     File.mkdir_p!(path)
     path
-  end
-
-  defp registry_token do
-    Application.get_env(:cache, :registry_github_token)
   end
 end

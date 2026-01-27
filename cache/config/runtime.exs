@@ -38,38 +38,6 @@ if config_env() == :prod do
       environment_name: System.get_env("SENTRY_ENV") || "production"
   end
 
-  config :cache, Cache.Guardian,
-    issuer: "tuist",
-    secret_key: System.get_env("GUARDIAN_SECRET_KEY")
-
-  config :cache, Cache.Repo,
-    database: "/data/repo.sqlite",
-    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "2"),
-    show_sensitive_data_on_connection_error: false
-
-  config :cache, CacheWeb.Endpoint,
-    server: true,
-    url: [host: host, port: 443, scheme: "https"],
-    http: http_config,
-    secret_key_base: secret_key_base
-
-  config :cache, :oban_web_basic_auth,
-    username: System.get_env("OBAN_WEB_USERNAME"),
-    password: System.get_env("OBAN_WEB_PASSWORD")
-
-  config :cache, :s3, bucket: System.get_env("S3_BUCKET") || raise("environment variable S3_BUCKET is missing")
-
-  config :cache,
-    server_url: System.get_env("SERVER_URL") || "https://tuist.dev",
-    storage_dir: System.get_env("STORAGE_DIR") || raise("environment variable STORAGE_DIR is missing"),
-    disk_usage_high_watermark_percent: Cache.Config.float_env("DISK_HIGH_WATERMARK_PERCENT", 85.0),
-    disk_usage_target_percent: Cache.Config.float_env("DISK_TARGET_PERCENT", 70.0),
-    api_key: System.get_env("TUIST_CACHE_API_KEY"),
-    registry_github_token: System.get_env("REGISTRY_GITHUB_TOKEN"),
-    registry_sync_allowlist: Cache.Config.list_env("REGISTRY_SYNC_ALLOWLIST"),
-    registry_sync_limit: Cache.Config.int_env("REGISTRY_SYNC_LIMIT", 350),
-    registry_sync_min_interval_seconds: Cache.Config.int_env("REGISTRY_SYNC_MIN_INTERVAL_SECONDS", 21_600)
-
   s3_endpoint = System.get_env("S3_ENDPOINT")
 
   {s3_scheme, s3_host} =
@@ -97,6 +65,40 @@ if config_env() == :prod do
   s3_access_key_id = System.get_env("S3_ACCESS_KEY_ID") || System.get_env("AWS_ACCESS_KEY_ID")
   s3_secret_access_key = System.get_env("S3_SECRET_ACCESS_KEY") || System.get_env("AWS_SECRET_ACCESS_KEY")
   s3_region = System.get_env("S3_REGION") || System.get_env("AWS_REGION")
+
+  config :cache, Cache.Guardian,
+    issuer: "tuist",
+    secret_key: System.get_env("GUARDIAN_SECRET_KEY")
+
+  config :cache, Cache.Repo,
+    database: "/data/repo.sqlite",
+    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "2"),
+    show_sensitive_data_on_connection_error: false
+
+  config :cache, CacheWeb.Endpoint,
+    server: true,
+    url: [host: host, port: 443, scheme: "https"],
+    http: http_config,
+    secret_key_base: secret_key_base
+
+  config :cache, :oban_web_basic_auth,
+    username: System.get_env("OBAN_WEB_USERNAME"),
+    password: System.get_env("OBAN_WEB_PASSWORD")
+
+  config :cache, :s3,
+    bucket: System.get_env("S3_BUCKET") || raise("environment variable S3_BUCKET is missing"),
+    registry_bucket: System.get_env("S3_REGISTRY_BUCKET")
+
+  config :cache,
+    server_url: System.get_env("SERVER_URL") || "https://tuist.dev",
+    storage_dir: System.get_env("STORAGE_DIR") || raise("environment variable STORAGE_DIR is missing"),
+    disk_usage_high_watermark_percent: Cache.Config.float_env("DISK_HIGH_WATERMARK_PERCENT", 85.0),
+    disk_usage_target_percent: Cache.Config.float_env("DISK_TARGET_PERCENT", 70.0),
+    api_key: System.get_env("TUIST_CACHE_API_KEY"),
+    registry_github_token: System.get_env("REGISTRY_GITHUB_TOKEN"),
+    registry_sync_allowlist: Cache.Config.list_env("REGISTRY_SYNC_ALLOWLIST"),
+    registry_sync_limit: Cache.Config.int_env("REGISTRY_SYNC_LIMIT", 350),
+    registry_sync_min_interval_seconds: Cache.Config.int_env("REGISTRY_SYNC_MIN_INTERVAL_SECONDS", 21_600)
 
   config :ex_aws, :s3,
     scheme: s3_scheme,

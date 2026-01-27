@@ -2,11 +2,26 @@ defmodule CacheWeb.RegistryController do
   use CacheWeb, :controller
 
   alias Cache.CacheArtifacts
+  alias Cache.Config
   alias Cache.Disk
   alias Cache.Registry.KeyNormalizer
   alias Cache.Registry.Metadata
   alias Cache.S3
   alias Cache.S3Transfers
+
+  plug :ensure_registry_enabled
+
+  defp ensure_registry_enabled(conn, _opts) do
+    if Config.registry_enabled?() do
+      conn
+    else
+      conn
+      |> put_resp_header("content-version", "1")
+      |> put_status(:not_found)
+      |> json(%{message: "Registry is not available on this cache node."})
+      |> halt()
+    end
+  end
 
   def availability(conn, _params) do
     conn
@@ -141,11 +156,11 @@ defmodule CacheWeb.RegistryController do
       |> put_resp_header("content-disposition", "attachment; filename=\"#{name}-#{normalized_version}.zip\"")
       |> send_resp(:ok, "")
     else
-      if S3.exists?(key) do
+      if S3.exists?(key, type: :registry) do
         S3Transfers.enqueue_registry_download(key)
         :ok = CacheArtifacts.track_artifact_access(key)
 
-        case S3.presign_download_url(key) do
+        case S3.presign_download_url(key, type: :registry) do
           {:ok, url} ->
             conn
             |> put_resp_header("content-version", "1")
@@ -184,7 +199,7 @@ defmodule CacheWeb.RegistryController do
           {:halt,
            {:served, serve_manifest_from_disk(conn, scope, name, normalized_version, filename, swift_version, key)}}
 
-        S3.exists?(key) ->
+        S3.exists?(key, type: :registry) ->
           {:halt,
            {:served, serve_manifest_from_s3(conn, scope, name, normalized_version, filename, swift_version, key)}}
 
@@ -227,7 +242,7 @@ defmodule CacheWeb.RegistryController do
     S3Transfers.enqueue_registry_download(key)
     :ok = CacheArtifacts.track_artifact_access(key)
 
-    case S3.presign_download_url(key) do
+    case S3.presign_download_url(key, type: :registry) do
       {:ok, url} ->
         conn
         |> put_resp_header("content-version", "1")

@@ -54,12 +54,12 @@ defmodule Cache.Registry.MetadataTest do
       s3_key = "registry/metadata/#{scope}/#{name}/index.json"
       json_body = Jason.encode!(@sample_metadata)
 
-      expect(ExAws.S3, :get_object, fn "test-bucket", ^s3_key ->
-        %S3{bucket: "test-bucket", path: s3_key}
+      expect(ExAws.S3, :get_object, fn "test-registry-bucket", ^s3_key ->
+        %S3{bucket: "test-registry-bucket", path: s3_key}
       end)
 
       expect(ExAws, :request, fn %S3{} ->
-        {:ok, %{body: json_body, headers: [{"etag", "\"etag\""}]}}
+        {:ok, %{body: json_body, headers: %{"etag" => "\"etag\""}}}
       end)
 
       assert {:ok, metadata} = Metadata.get_package(scope, name)
@@ -74,8 +74,8 @@ defmodule Cache.Registry.MetadataTest do
       name = "package"
       s3_key = "registry/metadata/#{scope}/#{name}/index.json"
 
-      expect(ExAws.S3, :get_object, fn "test-bucket", ^s3_key ->
-        %S3{bucket: "test-bucket", path: s3_key}
+      expect(ExAws.S3, :get_object, fn "test-registry-bucket", ^s3_key ->
+        %S3{bucket: "test-registry-bucket", path: s3_key}
       end)
 
       expect(ExAws, :request, fn %S3{} ->
@@ -90,8 +90,8 @@ defmodule Cache.Registry.MetadataTest do
       name = "swift-argument-parser"
       s3_key = "registry/metadata/#{scope}/#{name}/index.json"
 
-      expect(ExAws.S3, :get_object, fn "test-bucket", ^s3_key ->
-        %S3{bucket: "test-bucket", path: s3_key}
+      expect(ExAws.S3, :get_object, fn "test-registry-bucket", ^s3_key ->
+        %S3{bucket: "test-registry-bucket", path: s3_key}
       end)
 
       expect(ExAws, :request, fn %S3{} ->
@@ -106,12 +106,12 @@ defmodule Cache.Registry.MetadataTest do
       name = "swift-argument-parser"
       s3_key = "registry/metadata/#{scope}/#{name}/index.json"
 
-      expect(ExAws.S3, :get_object, fn "test-bucket", ^s3_key ->
-        %S3{bucket: "test-bucket", path: s3_key}
+      expect(ExAws.S3, :get_object, fn "test-registry-bucket", ^s3_key ->
+        %S3{bucket: "test-registry-bucket", path: s3_key}
       end)
 
       expect(ExAws, :request, fn %S3{} ->
-        {:ok, %{body: "invalid json {", headers: [{"etag", "\"etag\""}]}}
+        {:ok, %{body: "invalid json {", headers: %{"etag" => "\"etag\""}}}
       end)
 
       assert {:error, :not_found} = Metadata.get_package(scope, name)
@@ -126,10 +126,10 @@ defmodule Cache.Registry.MetadataTest do
 
       Cachex.put(Metadata.cache_name(), {scope, name}, %{"old" => "data"})
 
-      expect(ExAws.S3, :put_object, fn "test-bucket", ^s3_key, body, opts ->
+      expect(ExAws.S3, :put_object, fn "test-registry-bucket", ^s3_key, body, opts ->
         assert Jason.decode!(body) == @sample_metadata
         assert Keyword.get(opts, :content_type) == "application/json"
-        %S3{bucket: "test-bucket", path: s3_key}
+        %S3{bucket: "test-registry-bucket", path: s3_key}
       end)
 
       expect(ExAws, :request, fn %S3{} ->
@@ -146,8 +146,8 @@ defmodule Cache.Registry.MetadataTest do
       name = "swift-argument-parser"
       s3_key = "registry/metadata/#{scope}/#{name}/index.json"
 
-      expect(ExAws.S3, :put_object, fn "test-bucket", ^s3_key, _body, _opts ->
-        %S3{bucket: "test-bucket", path: s3_key}
+      expect(ExAws.S3, :put_object, fn "test-registry-bucket", ^s3_key, _body, _opts ->
+        %S3{bucket: "test-registry-bucket", path: s3_key}
       end)
 
       expect(ExAws, :request, fn %S3{} ->
@@ -166,8 +166,8 @@ defmodule Cache.Registry.MetadataTest do
 
       Cachex.put(Metadata.cache_name(), {scope, name}, @sample_metadata)
 
-      expect(ExAws.S3, :delete_object, fn "test-bucket", ^s3_key ->
-        %S3{bucket: "test-bucket", path: s3_key}
+      expect(ExAws.S3, :delete_object, fn "test-registry-bucket", ^s3_key ->
+        %S3{bucket: "test-registry-bucket", path: s3_key}
       end)
 
       expect(ExAws, :request, fn %S3{} ->
@@ -184,8 +184,8 @@ defmodule Cache.Registry.MetadataTest do
       name = "swift-argument-parser"
       s3_key = "registry/metadata/#{scope}/#{name}/index.json"
 
-      expect(ExAws.S3, :delete_object, fn "test-bucket", ^s3_key ->
-        %S3{bucket: "test-bucket", path: s3_key}
+      expect(ExAws.S3, :delete_object, fn "test-registry-bucket", ^s3_key ->
+        %S3{bucket: "test-registry-bucket", path: s3_key}
       end)
 
       expect(ExAws, :request, fn %S3{} ->
@@ -198,9 +198,9 @@ defmodule Cache.Registry.MetadataTest do
 
   describe "list_all_packages/0" do
     test "returns list of scope/name tuples from S3" do
-      expect(ExAws.S3, :list_objects_v2, fn "test-bucket", opts ->
+      expect(ExAws.S3, :list_objects_v2, fn "test-registry-bucket", opts ->
         assert Keyword.get(opts, :prefix) == "registry/metadata/"
-        %S3{bucket: "test-bucket", path: "registry/metadata/"}
+        %S3{bucket: "test-registry-bucket", path: "registry/metadata/"}
       end)
 
       expect(ExAws, :stream!, fn %S3{} ->
@@ -220,8 +220,8 @@ defmodule Cache.Registry.MetadataTest do
     end
 
     test "returns empty list when no packages exist" do
-      expect(ExAws.S3, :list_objects_v2, fn "test-bucket", _opts ->
-        %S3{bucket: "test-bucket", path: "registry/metadata/"}
+      expect(ExAws.S3, :list_objects_v2, fn "test-registry-bucket", _opts ->
+        %S3{bucket: "test-registry-bucket", path: "registry/metadata/"}
       end)
 
       expect(ExAws, :stream!, fn %S3{} ->

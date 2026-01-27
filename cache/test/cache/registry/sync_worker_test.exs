@@ -6,9 +6,9 @@ defmodule Cache.Registry.SyncWorkerTest do
   alias Cache.Registry.Lock
   alias Cache.Registry.Metadata
   alias Cache.Registry.ReleaseWorker
+  alias Cache.Registry.SwiftPackageIndex
   alias Cache.Registry.SyncCursor
   alias Cache.Registry.SyncWorker
-  alias Cache.Registry.SwiftPackageIndex
 
   setup :set_mimic_from_context
 
@@ -49,6 +49,7 @@ defmodule Cache.Registry.SyncWorkerTest do
     )
   end
 
+  @tag capture_log: true
   test "skips sync when token is missing" do
     Application.put_env(:cache, :registry_github_token, nil)
 

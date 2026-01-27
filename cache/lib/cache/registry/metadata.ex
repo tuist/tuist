@@ -80,6 +80,8 @@ defmodule Cache.Registry.Metadata do
   Example: `registry/metadata/apple/swift-argument-parser/index.json`
   """
 
+  alias Cache.Config
+
   require Logger
 
   @cache_name :registry_metadata_cache
@@ -280,13 +282,13 @@ defmodule Cache.Registry.Metadata do
     {String.downcase(scope), name |> String.replace(".", "_") |> String.downcase()}
   end
 
-  defp bucket, do: Application.get_env(:cache, :s3)[:bucket]
+  defp bucket, do: Config.registry_bucket()
 
   defp cache_value(metadata, etag) do
     %{
       metadata: metadata,
       etag: etag,
-      checked_at: DateTime.utc_now() |> DateTime.truncate(:second)
+      checked_at: DateTime.truncate(DateTime.utc_now(), :second)
     }
   end
 

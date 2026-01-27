@@ -1,12 +1,14 @@
 defmodule Cache.Registry.SyncCursor do
   @moduledoc false
 
+  alias Cache.Config
+
   require Logger
 
   @key "registry/state/sync_cursor.json"
 
   def get do
-    bucket = bucket()
+    bucket = Config.registry_bucket()
 
     case bucket
          |> ExAws.S3.get_object(@key)
@@ -33,7 +35,7 @@ defmodule Cache.Registry.SyncCursor do
         updated_at: DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
       })
 
-    case bucket()
+    case Config.registry_bucket()
          |> ExAws.S3.put_object(@key, body, content_type: "application/json")
          |> ExAws.request() do
       {:ok, _response} ->
@@ -44,6 +46,4 @@ defmodule Cache.Registry.SyncCursor do
         {:error, reason}
     end
   end
-
-  defp bucket, do: Application.get_env(:cache, :s3)[:bucket]
 end
