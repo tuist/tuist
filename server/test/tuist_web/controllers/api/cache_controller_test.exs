@@ -46,6 +46,11 @@ defmodule TuistWeb.API.CacheControllerTest do
       # Given
       stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
       stub(Tuist.Environment, :cache_endpoints, fn -> [] end)
+
+      stub(Tuist.License, :get_license, fn ->
+        {:ok, %Tuist.License{id: "test", features: [], expiration_date: nil, valid: true}}
+      end)
+
       user = AccountsFixtures.user_fixture()
 
       conn = Authentication.put_current_user(conn, user)
