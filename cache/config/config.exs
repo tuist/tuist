@@ -65,7 +65,7 @@ config :phoenix, :json_library, Jason
 config :sentry,
   enable_source_code_context: true,
   root_source_code_paths: [File.cwd!()],
-  filter: Cache.SentryEventFilter
+  before_send: {TuistCommon.SentryEventFilter, :before_send}
 
 config :tuist_common, finch_name: Cache.Finch
 
