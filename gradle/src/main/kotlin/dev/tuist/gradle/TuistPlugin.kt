@@ -68,7 +68,7 @@ class TuistPlugin : Plugin<Settings> {
         settings.buildCache {
             remote(TuistBuildCache::class.java) {
                 this.fullHandle = extension.fullHandle
-                this.tuistPath = extension.tuistPath
+                this.executablePath = extension.executablePath
                 isPush = buildCacheConfig.push
                 this.allowInsecureProtocol = buildCacheConfig.allowInsecureProtocol
             }
@@ -91,9 +91,10 @@ open class TuistExtension {
     var fullHandle: String = ""
 
     /**
-     * Path to the tuist executable. Defaults to "tuist".
+     * Path to the tuist executable. When null, the plugin will look for
+     * 'tuist' in the system PATH.
      */
-    var tuistPath: String = "tuist"
+    var executablePath: String? = null
 
     /**
      * Build cache configuration.
