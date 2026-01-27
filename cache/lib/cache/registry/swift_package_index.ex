@@ -7,7 +7,6 @@ defmodule Cache.Registry.SwiftPackageIndex do
 
   require Logger
 
-  @spec list_packages(String.t()) :: {:ok, [map()]} | {:error, term()}
   def list_packages(token) do
     with {:ok, json} <- GitHub.fetch_packages_json(token),
          {:ok, urls} <- Jason.decode(json) do
