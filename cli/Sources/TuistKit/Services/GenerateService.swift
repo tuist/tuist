@@ -77,7 +77,7 @@ final class GenerateService {
         }
         if let buildFolder {
             AlertController.current.warning(.alert(
-                "Project generated using custom build folder at \(buildFolder.pathString).",
+                "Project generated using custom build folder: \(buildFolder.pathString)",
                 takeaway: "Ensure the build folder has the same resolved dependencies."
             ))
         }
