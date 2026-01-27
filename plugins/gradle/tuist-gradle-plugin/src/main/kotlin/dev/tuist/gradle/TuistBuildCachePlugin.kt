@@ -11,7 +11,7 @@ import java.net.URI
 /**
  * Gradle Settings Plugin that configures remote build cache with Tuist.
  *
- * This plugin executes `tuist gradle cache` to retrieve the cache endpoint
+ * This plugin executes `tuist cache config` to retrieve the cache endpoint
  * and authentication token, then configures Gradle's HttpBuildCache accordingly.
  *
  * Usage in settings.gradle.kts:
@@ -60,13 +60,13 @@ class TuistBuildCachePlugin : Plugin<Settings> {
         }
 
         settings.gradle.rootProject {
-            logger.lifecycle("Tuist: Remote build cache configured at ${config.endpoint}")
+            logger.lifecycle("Tuist: Remote build cache configured at ${config.url}")
         }
     }
 
     private fun buildCacheUrl(config: TuistCacheConfiguration, extension: TuistBuildCacheExtension): String {
-        val baseUrl = config.endpoint.trimEnd('/')
-        return "$baseUrl?account_handle=${config.accountHandle}&project_handle=${config.projectHandle}"
+        val baseUrl = config.url.trimEnd('/')
+        return "$baseUrl/api/cache/gradle?account_handle=${config.accountHandle}&project_handle=${config.projectHandle}"
     }
 
     private fun getCacheConfiguration(extension: TuistBuildCacheExtension): TuistCacheConfiguration? {
@@ -78,7 +78,7 @@ class TuistBuildCachePlugin : Plugin<Settings> {
             val fullHandle = extension.fullHandle
             val parts = fullHandle.split("/", limit = 2)
             return TuistCacheConfiguration(
-                endpoint = envEndpoint,
+                url = envEndpoint,
                 token = envToken,
                 accountHandle = parts.getOrElse(0) { "" },
                 projectHandle = parts.getOrElse(1) { "" }
@@ -99,7 +99,7 @@ class TuistBuildCachePlugin : Plugin<Settings> {
     }
 
     private fun executeTuistCommand(fullHandle: String, tuistPath: String): TuistCacheConfiguration? {
-        val command = listOf(tuistPath, "gradle", "cache", fullHandle, "--json")
+        val command = listOf(tuistPath, "cache", "config", fullHandle, "--json")
 
         val process = ProcessBuilder(command)
             .redirectErrorStream(false)
@@ -148,10 +148,10 @@ open class TuistBuildCacheExtension {
 }
 
 /**
- * Data class representing the cache configuration returned by `tuist gradle cache --json`.
+ * Data class representing the cache configuration returned by `tuist cache config --json`.
  */
 data class TuistCacheConfiguration(
-    val endpoint: String,
+    val url: String,
     val token: String,
     val accountHandle: String,
     val projectHandle: String

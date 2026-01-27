@@ -2,17 +2,17 @@ import ArgumentParser
 import Foundation
 import Path
 
-struct GradleCacheCommand: AsyncParsableCommand {
+struct CacheConfigCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
-            commandName: "cache",
-            abstract: "Get Gradle build cache configuration for your project.",
+            commandName: "config",
+            abstract: "Get remote cache configuration for your project.",
             discussion: """
             Returns the cache endpoint URL and authentication token for configuring
-            Gradle's HTTP build cache with Tuist.
+            a build system's HTTP cache with Tuist.
 
-            The output can be used to configure the Tuist Gradle plugin or to manually
-            set up Gradle's build cache in your settings.gradle file.
+            The output includes the endpoint URL and authentication credentials that can
+            be used to configure build caches for various build systems (Gradle, Bazel, etc).
             """
         )
     }
@@ -24,7 +24,7 @@ struct GradleCacheCommand: AsyncParsableCommand {
 
     @Flag(
         help: "Output the result in JSON format.",
-        envKey: .gradleCacheJson
+        envKey: .cacheConfigJson
     )
     var json: Bool = false
 
@@ -32,12 +32,12 @@ struct GradleCacheCommand: AsyncParsableCommand {
         name: .shortAndLong,
         help: "The path to the directory or a subdirectory of the project.",
         completion: .directory,
-        envKey: .gradleCachePath
+        envKey: .cacheConfigPath
     )
     var path: String?
 
     func run() async throws {
-        try await GradleCacheService().run(
+        try await CacheConfigService().run(
             fullHandle: fullHandle,
             json: json,
             directory: path
