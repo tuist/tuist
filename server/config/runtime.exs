@@ -215,6 +215,9 @@ if Tuist.Environment.error_tracking_enabled?() do
       # Bandit.TransportError is raised when the client disconnects mid-request.
       # These are expected and not actionable errors.
       "Bandit.TransportError",
+      # Phoenix.Router.NoRouteError is raised when a request hits a non-existent route.
+      # Users see a proper 404 page, so these are not actionable.
+      "Phoenix.Router.NoRouteError",
       "TuistWeb.Errors.BadRequestError",
       "TuistWeb.Errors.NotFoundError",
       "TuistWeb.Errors.TooManyRequestsError",

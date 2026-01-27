@@ -1,12 +1,13 @@
 import Config
 
 # Bandit.TransportError is raised when the client disconnects mid-request (e.g. cancelled upload).
+# Phoenix.Router.NoRouteError is raised when a request hits a non-existent route (e.g. bots scanning).
 # These are expected and not actionable errors.
 config :appsignal, :config,
   otp_app: :cache,
   name: "Cache",
   active: true,
-  ignore_errors: ["Bandit.TransportError"]
+  ignore_errors: ["Bandit.TransportError", "Phoenix.Router.NoRouteError"]
 
 config :cache, Cache.PromEx,
   disabled: false,
