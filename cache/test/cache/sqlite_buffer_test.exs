@@ -22,6 +22,11 @@ defmodule Cache.SQLiteBufferTest do
     :ok = KeyValueBuffer.flush()
     :ok = CacheArtifactsBuffer.flush()
     :ok = S3TransfersBuffer.flush()
+
+    Repo.delete_all(S3Transfer)
+    Repo.delete_all(CacheArtifact)
+    Repo.delete_all(KeyValueEntry)
+
     :ok
   end
 
