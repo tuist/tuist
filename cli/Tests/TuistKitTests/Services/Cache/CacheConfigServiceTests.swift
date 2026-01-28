@@ -11,7 +11,6 @@ import TuistTesting
 @testable import TuistKit
 @testable import TuistOIDC
 
-@Suite(.serialized)
 struct CacheConfigServiceTests {
     private let serverURL = URL(string: "https://test.tuist.dev")!
     private let cacheURL = URL(string: "https://cache.tuist.dev")!
@@ -77,7 +76,7 @@ struct CacheConfigServiceTests {
             .called(0)
     }
 
-    @Test
+    @Test(.withMockedEnvironment())
     func run_uses_existing_token_when_authenticated() async throws {
         // Given
         given(serverAuthenticationController)
@@ -102,7 +101,7 @@ struct CacheConfigServiceTests {
             .called(0)
     }
 
-    @Test(.withMockedDependencies())
+    @Test(.withMockedEnvironment(), .withMockedDependencies())
     func run_authenticates_with_oidc_when_not_authenticated() async throws {
         // Given
         given(serverAuthenticationController)
@@ -147,7 +146,7 @@ struct CacheConfigServiceTests {
             .called(1)
     }
 
-    @Test
+    @Test(.withMockedEnvironment())
     func run_throws_when_not_authenticated_and_oidc_not_available() async throws {
         // Given
         given(serverAuthenticationController)
@@ -169,7 +168,7 @@ struct CacheConfigServiceTests {
         }
     }
 
-    @Test
+    @Test(.withMockedEnvironment())
     func run_uses_custom_server_url_when_provided() async throws {
         // Given
         let customServerURL = "https://custom.tuist.dev"
@@ -196,7 +195,7 @@ struct CacheConfigServiceTests {
             .called(1)
     }
 
-    @Test
+    @Test(.withMockedEnvironment())
     func run_throws_when_server_url_is_invalid() async throws {
         // Given - no mocks needed, error occurs before any service calls
 
@@ -211,7 +210,7 @@ struct CacheConfigServiceTests {
         }
     }
 
-    @Test
+    @Test(.withMockedEnvironment())
     func run_parses_full_handle_correctly() async throws {
         // Given
         given(serverAuthenticationController)
