@@ -124,13 +124,13 @@ class TuistBuildCacheTest {
     }
 
     @Test
-    fun `TuistCacheConfiguration parses JSON correctly`() {
+    fun `TuistCacheConfiguration parses JSON correctly with snake_case`() {
         val json = """
             {
                 "url": "https://cache.tuist.dev",
                 "token": "tuist_test_token_12345",
-                "accountHandle": "my-account",
-                "projectHandle": "my-project"
+                "account_handle": "my-account",
+                "project_handle": "my-project"
             }
         """.trimIndent()
 
