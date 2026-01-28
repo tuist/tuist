@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2026-01-28 11:16+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Polish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/pl/>\n"
 "Language: pl\n"
@@ -259,8 +259,9 @@ msgstr "Brak podglądu"
 msgid "No recent builds yet"
 msgstr "Brak najnowszych kompilacji"
 
+#, fuzzy
 msgid "Only organization members"
-msgstr ""
+msgstr "Tylko członkowie organizacji"
 
 #, fuzzy
 msgid "Or set up a new organization"
