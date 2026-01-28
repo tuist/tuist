@@ -601,8 +601,8 @@ jobs:
           # Run timescaledb_move.sh to install extension files to PostgreSQL
           /opt/homebrew/bin/timescaledb_move.sh || true
           # Configure TimescaleDB using timescaledb-tune (modifies postgresql.conf)
-          /opt/homebrew/opt/postgresql@17/bin/timescaledb-tune --quiet --yes || timescaledb-tune --quiet --yes || true
-          # Restart PostgreSQL to apply changes (needs restart after timescaledb-tune)
+          timescaledb-tune --quiet --yes
+          # IMPORTANT: Restart PostgreSQL AFTER timescaledb-tune to load shared_preload_libraries
           brew services restart postgresql@17
           # Wait for PostgreSQL to start (check via TCP, not socket)
           for i in {1..30}; do
@@ -612,14 +612,10 @@ jobs:
             echo "Waiting for PostgreSQL to start... ($i/30)"
             sleep 2
           done
-          # Show PostgreSQL status for debugging
-          brew services list | grep postgresql || true
-          # Check if PostgreSQL is accepting connections, show log if not
-          /opt/homebrew/opt/postgresql@17/bin/pg_isready -h localhost -p 5432 || (cat /opt/homebrew/var/log/postgresql@17.log && exit 1)
           # Create runner user for database access
           /opt/homebrew/opt/postgresql@17/bin/createuser -h localhost -s runner || true
           # Verify TimescaleDB extension is available
-          /opt/homebrew/opt/postgresql@17/bin/psql -h localhost -d postgres -c "CREATE EXTENSION IF NOT EXISTS timescaledb; DROP EXTENSION timescaledb;" || echo "TimescaleDB extension check failed"
+          /opt/homebrew/opt/postgresql@17/bin/psql -h localhost -d postgres -c "CREATE EXTENSION IF NOT EXISTS timescaledb; SELECT extversion FROM pg_extension WHERE extname = 'timescaledb';"
       - uses: jdx/mise-action@v3.2.0
         with:
           working_directory: .
