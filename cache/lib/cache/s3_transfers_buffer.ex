@@ -67,10 +67,8 @@ defmodule Cache.S3TransfersBuffer do
 
   @impl true
   def handle_event(state, {:s3_delete, ids}) do
-    ids_set = MapSet.new(ids)
-    s3_inserts = Map.reject(state.s3_inserts, fn {_key, entry} -> MapSet.member?(ids_set, entry.id) end)
     s3_deletes = Enum.reduce(ids, state.s3_deletes, &MapSet.put(&2, &1))
-    %{state | s3_inserts: s3_inserts, s3_deletes: s3_deletes}
+    %{state | s3_deletes: s3_deletes}
   end
 
   @impl true
@@ -78,21 +76,12 @@ defmodule Cache.S3TransfersBuffer do
     {inserts_batch, inserts_rest} = SQLiteBuffer.take_map_batch(state.s3_inserts, max_batch_size)
     {deletes_batch, deletes_rest} = SQLiteBuffer.take_set_batch(state.s3_deletes, max_batch_size)
 
-    operations = []
-
     operations =
-      if map_size(inserts_batch) == 0 do
-        operations
-      else
-        operations ++ [{:s3_inserts, inserts_batch}]
-      end
-
-    operations =
-      if deletes_batch == [] do
-        operations
-      else
-        operations ++ [{:s3_deletes, deletes_batch}]
-      end
+      [
+        if(map_size(inserts_batch) > 0, do: {:s3_inserts, inserts_batch}),
+        if(deletes_batch != [], do: {:s3_deletes, deletes_batch})
+      ]
+      |> Enum.reject(&is_nil/1)
 
     {operations, %{state | s3_inserts: inserts_rest, s3_deletes: deletes_rest}}
   end

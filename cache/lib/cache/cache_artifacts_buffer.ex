@@ -66,21 +66,12 @@ defmodule Cache.CacheArtifactsBuffer do
     {accesses_batch, accesses_rest} = SQLiteBuffer.take_map_batch(state.cas_accesses, max_batch_size)
     {deletes_batch, deletes_rest} = SQLiteBuffer.take_set_batch(state.cas_deletes, max_batch_size)
 
-    operations = []
-
     operations =
-      if map_size(accesses_batch) == 0 do
-        operations
-      else
-        operations ++ [{:cas_accesses, accesses_batch}]
-      end
-
-    operations =
-      if deletes_batch == [] do
-        operations
-      else
-        operations ++ [{:cas_deletes, deletes_batch}]
-      end
+      [
+        if(map_size(accesses_batch) > 0, do: {:cas_accesses, accesses_batch}),
+        if(deletes_batch != [], do: {:cas_deletes, deletes_batch})
+      ]
+      |> Enum.reject(&is_nil/1)
 
     {operations, %{state | cas_accesses: accesses_rest, cas_deletes: deletes_rest}}
   end
