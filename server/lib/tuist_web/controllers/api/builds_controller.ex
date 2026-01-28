@@ -103,11 +103,11 @@ defmodule TuistWeb.API.BuildsController do
                    duration: %Schema{type: :integer, description: "Build duration in milliseconds."},
                    status: %Schema{type: :string, enum: ["success", "failure"], description: "Build status."},
                    category: %Schema{
-                    type: :string,
-                    enum: ["clean", "incremental"],
-                    nullable: true,
-                    description: "Build category."
-                  },
+                     type: :string,
+                     enum: ["clean", "incremental"],
+                     nullable: true,
+                     description: "Build category."
+                   },
                    scheme: %Schema{type: :string, nullable: true, description: "The scheme that was built."},
                    configuration: %Schema{type: :string, nullable: true, description: "The configuration used."},
                    xcode_version: %Schema{type: :string, nullable: true, description: "Xcode version."},
@@ -124,16 +124,16 @@ defmodule TuistWeb.API.BuildsController do
                    url: %Schema{type: :string, description: "URL to view the build in the dashboard."}
                  },
                  required: [
-                  :id,
-                  :duration,
-                  :status,
-                  :is_ci,
-                  :cacheable_tasks_count,
-                  :cacheable_task_local_hits_count,
-                  :cacheable_task_remote_hits_count,
-                  :inserted_at,
-                  :url
-                ]
+                   :id,
+                   :duration,
+                   :status,
+                   :is_ci,
+                   :cacheable_tasks_count,
+                   :cacheable_task_local_hits_count,
+                   :cacheable_task_remote_hits_count,
+                   :inserted_at,
+                   :url
+                 ]
                }
              },
              pagination_metadata: PaginationMetadata
@@ -227,7 +227,12 @@ defmodule TuistWeb.API.BuildsController do
              id: %Schema{type: :string, format: :uuid, description: "The build ID."},
              duration: %Schema{type: :integer, description: "Build duration in milliseconds."},
              status: %Schema{type: :string, enum: ["success", "failure"], description: "Build status."},
-             category: %Schema{type: :string, enum: ["clean", "incremental"], nullable: true, description: "Build category."},
+             category: %Schema{
+               type: :string,
+               enum: ["clean", "incremental"],
+               nullable: true,
+               description: "Build category."
+             },
              scheme: %Schema{type: :string, nullable: true, description: "The scheme that was built."},
              configuration: %Schema{type: :string, nullable: true, description: "The configuration used."},
              xcode_version: %Schema{type: :string, nullable: true, description: "Xcode version."},
