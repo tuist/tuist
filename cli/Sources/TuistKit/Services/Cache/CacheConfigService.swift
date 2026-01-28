@@ -127,6 +127,13 @@ struct CacheConfiguration: Codable {
     let token: String
     let accountHandle: String
     let projectHandle: String
+
+    enum CodingKeys: String, CodingKey {
+        case url
+        case token
+        case accountHandle = "account_handle"
+        case projectHandle = "project_handle"
+    }
 }
 
 enum CacheConfigServiceError: LocalizedError, Equatable {

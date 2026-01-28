@@ -328,6 +328,8 @@ class TuistBuildCacheService(
 data class TuistCacheConfiguration(
     val url: String,
     val token: String,
+    @com.google.gson.annotations.SerializedName("account_handle")
     val accountHandle: String,
+    @com.google.gson.annotations.SerializedName("project_handle")
     val projectHandle: String
 )
