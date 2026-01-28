@@ -124,7 +124,10 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
 
     private fun getTuistVersion(command: List<String>): String? {
         return try {
+            // Run from temp directory to avoid tuist detecting project context
+            val tempDir = System.getProperty("java.io.tmpdir")
             val process = ProcessBuilder(command + "version")
+                .directory(java.io.File(tempDir))
                 .redirectErrorStream(true)
                 .start()
 
@@ -158,7 +161,10 @@ class TuistCommandConfigurationProvider(
     override fun getConfiguration(): TuistCacheConfiguration? {
         val fullCommand = command + listOf("cache", "config", fullHandle, "--json")
 
+        // Run from temp directory to avoid tuist detecting project context
+        val tempDir = System.getProperty("java.io.tmpdir")
         val process = ProcessBuilder(fullCommand)
+            .directory(java.io.File(tempDir))
             .redirectErrorStream(false)
             .start()
 
