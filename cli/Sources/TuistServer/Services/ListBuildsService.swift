@@ -4,37 +4,37 @@ import OpenAPIURLSession
 import TuistHTTP
 
 @Mockable
-public protocol ListBundlesServicing: Sendable {
-    func listBundles(
+public protocol ListBuildsServicing: Sendable {
+    func listBuilds(
         fullHandle: String,
+        serverURL: URL,
         gitBranch: String?,
+        status: String?,
+        scheme: String?,
+        configuration: String?,
         page: Int?,
-        pageSize: Int?,
-        serverURL: URL
-    ) async throws -> Operations.listBundles.Output.Ok.Body.jsonPayload
+        pageSize: Int
+    ) async throws -> Operations.listBuilds.Output.Ok.Body.jsonPayload
 }
 
-enum ListBundlesServiceError: LocalizedError {
+enum ListBuildsServiceError: LocalizedError {
     case unknownError(Int)
-    case unauthorized(String)
     case forbidden(String)
 
     var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
-            return "The bundles could not be listed due to an unknown Tuist response of \(statusCode)."
-        case let .unauthorized(message):
-            return message
+            return "We could not list the builds due to an unknown Tuist response of \(statusCode)."
         case let .forbidden(message):
             return message
         }
     }
 }
 
-public final class ListBundlesService: ListBundlesServicing {
+public struct ListBuildsService: ListBuildsServicing {
     private let fullHandleService: FullHandleServicing
 
-    public convenience init() {
+    public init() {
         self.init(
             fullHandleService: FullHandleService()
         )
@@ -46,26 +46,33 @@ public final class ListBundlesService: ListBundlesServicing {
         self.fullHandleService = fullHandleService
     }
 
-    public func listBundles(
+    public func listBuilds(
         fullHandle: String,
+        serverURL: URL,
         gitBranch: String?,
+        status: String?,
+        scheme: String?,
+        configuration: String?,
         page: Int?,
-        pageSize: Int?,
-        serverURL: URL
-    ) async throws -> Operations.listBundles.Output.Ok.Body.jsonPayload {
+        pageSize: Int
+    ) async throws -> Operations.listBuilds.Output.Ok.Body.jsonPayload {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
 
-        let response = try await client.listBundles(
+        let response = try await client.listBuilds(
             .init(
                 path: .init(
                     account_handle: handles.accountHandle,
                     project_handle: handles.projectHandle
                 ),
                 query: .init(
-                    page: page,
+                    status: status.flatMap { Operations.listBuilds.Input.Query.statusPayload(rawValue: $0) },
+                    category: nil,
+                    scheme: scheme,
+                    configuration: configuration,
+                    git_branch: gitBranch,
                     page_size: pageSize,
-                    git_branch: gitBranch
+                    page: page
                 )
             )
         )
@@ -76,18 +83,13 @@ public final class ListBundlesService: ListBundlesServicing {
             case let .json(json):
                 return json
             }
-        case let .unauthorized(unauthorized):
-            switch unauthorized.body {
-            case let .json(error):
-                throw ListBundlesServiceError.unauthorized(error.message)
-            }
         case let .forbidden(forbidden):
             switch forbidden.body {
             case let .json(error):
-                throw ListBundlesServiceError.forbidden(error.message)
+                throw ListBuildsServiceError.forbidden(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
-            throw ListBundlesServiceError.unknownError(statusCode)
+            throw ListBuildsServiceError.unknownError(statusCode)
         }
     }
 }

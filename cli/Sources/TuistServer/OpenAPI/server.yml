@@ -183,7 +183,7 @@ components:
     TestCasesIndexPageSize:
       default: 20
       description: The maximum number of test cases to return in a single page.
-      maximum: 100
+      maximum: 500
       minimum: 1
       title: TestCasesIndexPageSize
       type: integer
@@ -330,6 +330,14 @@ components:
       title: CommandEvent
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.CommandEvent
+      x-validate:
+    BuildCategory:
+      enum:
+        - clean
+        - incremental
+      title: BuildCategory
+      type: string
+      x-struct:
       x-validate:
     CacheActionItemUploadParams:
       properties:
@@ -716,6 +724,15 @@ components:
         - meta
       title: AccountTokens
       type: object
+      x-struct:
+      x-validate:
+    BuildsIndexPageSize:
+      default: 20
+      description: The maximum number of builds to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: BuildsIndexPageSize
+      type: integer
       x-struct:
       x-validate:
     LatestPreviewResponse:
@@ -1895,6 +1912,14 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.BundleArtifact
       x-validate:
+    BuildStatus:
+      enum:
+        - success
+        - failure
+      title: BuildStatus
+      type: string
+      x-struct:
+      x-validate:
     RunsBuild:
       description: Represents a single build run.
       properties:
@@ -1955,6 +1980,14 @@ components:
       title: ProjectToken
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ProjectToken
+      x-validate:
+    BuildsIndexPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: BuildsIndexPage
+      type: integer
+      x-struct:
       x-validate:
     TestRun:
       properties:
@@ -4010,6 +4043,177 @@ paths:
       summary: Create a a new command analytics event
       tags:
         - Analytics
+  /api/projects/{account_handle}/{project_handle}/builds/{build_id}:
+    get:
+      callbacks: {}
+      operationId: getBuild
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the build.
+          in: path
+          name: build_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  cacheable_task_local_hits_count:
+                    description: Local cache hits.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  cacheable_task_remote_hits_count:
+                    description: Remote cache hits.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  cacheable_tasks_count:
+                    description: Total cacheable tasks.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  category:
+                    description: Build category.
+                    enum:
+                      - clean
+                      - incremental
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  configuration:
+                    description: The configuration used.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  duration:
+                    description: Build duration in milliseconds.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  git_branch:
+                    description: Git branch.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  git_commit_sha:
+                    description: Git commit SHA.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  git_ref:
+                    description: Git ref.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  id:
+                    description: The build ID.
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                  inserted_at:
+                    description: When the build was created.
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  is_ci:
+                    description: Whether the build ran on CI.
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  macos_version:
+                    description: macOS version.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  model_identifier:
+                    description: Machine model identifier.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  scheme:
+                    description: The scheme that was built.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  status:
+                    description: Build status.
+                    enum:
+                      - success
+                      - failure
+                    type: string
+                    x-struct:
+                    x-validate:
+                  url:
+                    description: URL to view the build in the dashboard.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  xcode_version:
+                    description: Xcode version.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - duration
+                  - status
+                  - is_ci
+                  - cacheable_tasks_count
+                  - cacheable_task_local_hits_count
+                  - cacheable_task_remote_hits_count
+                  - inserted_at
+                  - url
+                type: object
+                x-struct:
+                x-validate:
+          description: Build details
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Build not found
+      summary: Get a build by ID.
+      tags:
+        - Builds
   /api/projects/{account_handle}/{project_handle}/previews/start:
     post:
       callbacks: {}
@@ -4355,14 +4559,6 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: Page number for pagination.
-          in: query
-          name: page
-          required: false
-          schema:
-            type: integer
-            x-struct:
-            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -4371,12 +4567,20 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
+        - description: Page number for pagination.
+          in: query
+          name: page
+          required: false
+          schema:
+            type: integer
             x-struct:
             x-validate:
         - description: Number of items per page.
@@ -4387,10 +4591,10 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
           schema:
             type: string
             x-struct:
@@ -6019,6 +6223,220 @@ paths:
       summary: It generates a signed URL for uploading a part.
       tags:
         - Previews
+  /api/projects/{account_handle}/{project_handle}/builds:
+    get:
+      callbacks: {}
+      operationId: listBuilds
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by build status.
+          in: query
+          name: status
+          required: false
+          schema:
+            enum:
+              - success
+              - failure
+            title: BuildStatus
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by build category.
+          in: query
+          name: category
+          required: false
+          schema:
+            enum:
+              - clean
+              - incremental
+            title: BuildCategory
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by scheme name.
+          in: query
+          name: scheme
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by configuration name.
+          in: query
+          name: configuration
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of builds to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: BuildsIndexPageSize
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: BuildsIndexPage
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  builds:
+                    items:
+                      properties:
+                        category:
+                          description: Build category.
+                          enum:
+                            - clean
+                            - incremental
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        configuration:
+                          description: The configuration used.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        duration:
+                          description: Build duration in milliseconds.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        git_branch:
+                          description: Git branch.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_commit_sha:
+                          description: Git commit SHA.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          description: The build ID.
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                        inserted_at:
+                          description: When the build was created.
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        is_ci:
+                          description: Whether the build ran on CI.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        macos_version:
+                          description: macOS version.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        scheme:
+                          description: The scheme that was built.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        status:
+                          description: Build status.
+                          enum:
+                            - success
+                            - failure
+                          type: string
+                          x-struct:
+                          x-validate:
+                        url:
+                          description: URL to view the build in the dashboard.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        xcode_version:
+                          description: Xcode version.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - duration
+                        - status
+                        - is_ci
+                        - inserted_at
+                        - url
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                required:
+                  - builds
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of builds
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+      summary: List builds associated with a given project.
+      tags:
+        - Builds
   /api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}:
     get:
       callbacks: {}
@@ -6032,20 +6450,20 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: The ID of the bundle.
           in: path
           name: bundle_id
           required: true
           schema:
             format: uuid
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
-          schema:
             type: string
             x-struct:
             x-validate:
@@ -6684,7 +7102,7 @@ paths:
           schema:
             default: 20
             description: The maximum number of test cases to return in a single page.
-            maximum: 100
+            maximum: 500
             minimum: 1
             title: TestCasesIndexPageSize
             type: integer
