@@ -12,7 +12,7 @@ export SERVER_STARTUP_TIMEOUT="${SERVER_STARTUP_TIMEOUT:-60}"
 
 # Cache server configuration
 export CACHE_SERVER_PID_FILE="${TMPDIR:-/tmp}/tuist-e2e-cache-server.pid"
-export CACHE_SERVER_URL="${CACHE_SERVER_URL:-http://localhost:8181}"
+export CACHE_SERVER_URL="${CACHE_SERVER_URL:-http://localhost:8087}"
 
 # Check if server is running
 server_is_running() {
@@ -139,4 +139,28 @@ cache_server_wait() {
         elapsed=$((elapsed + 2))
     done
     echo "# Cache server is ready" >&3
+}
+
+# Build tuist CLI binary via xcodebuild.
+# Returns the path to the built binary on stdout.
+build_tuist_cli() {
+    local repo_root="$1"
+    local build_dir="${repo_root}/build/DerivedData"
+    local binary="${build_dir}/Build/Products/Debug/tuist"
+
+    if [[ -f "$binary" ]]; then
+        echo "$binary"
+        return 0
+    fi
+
+    echo "# Building tuist CLI..." >&3
+    cd "$repo_root"
+    tuist generate --no-open 2>&1 >&3 || true
+    xcodebuild build \
+        -workspace Tuist.xcworkspace \
+        -scheme tuist \
+        -configuration Debug \
+        -derivedDataPath "$build_dir" \
+        -quiet 2>&1 >&3
+    echo "$binary"
 }
