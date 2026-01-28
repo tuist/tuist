@@ -163,17 +163,17 @@ open class TuistAcceptanceTestCase: XCTestCase {
         try await run(command, arguments)
     }
 
-    public func run(_ command: GenerateCommand.Type, _ arguments: String...) async throws {
-        try await run(command, arguments)
+    public func run(_: GenerateCommand.Type, _ arguments: String...) async throws {
+        try await run(GenerateCommand.self, Array(arguments))
     }
 
-    public func run(_ command: GenerateCommand.Type, _ arguments: [String] = []) async throws {
+    public func run(_: GenerateCommand.Type, _ arguments: [String] = []) async throws {
         let arguments = [
             "--no-open",
             "--path", fixturePath.pathString,
         ] + arguments
 
-        let parsedCommand = try command.parse(arguments)
+        var parsedCommand = try GenerateRunCommand.parse(arguments)
         try await parsedCommand.run()
 
         xcodeprojPath = try FileHandler.shared.contentsOfDirectory(fixturePath)
