@@ -40,6 +40,11 @@ setup_file() {
     if [[ -z "${TUIST_TOKEN:-}" ]]; then
         echo "# Authenticating with Tuist server..." >&3
 
+        # Run from a temp directory to avoid tuist trying to generate workspace in repo root
+        local tmp_dir
+        tmp_dir=$(mktemp -d)
+        cd "$tmp_dir"
+
         # Login with fixture credentials
         "$TUIST_EXECUTABLE" auth login --email tuistrocks@tuist.dev --password tuistrocks 2>&1 >&3 || true
 
@@ -48,6 +53,10 @@ setup_file() {
         TUIST_TOKEN=$("$TUIST_EXECUTABLE" account tokens create tuist \
             --scopes project:cache:read --scopes project:cache:write \
             --name "gradle-e2e-test-$(date +%s)" 2>/dev/null | grep -o 'tuist_[a-zA-Z0-9_-]*')
+
+        # Clean up temp directory
+        cd "$REPO_ROOT"
+        rm -rf "$tmp_dir"
 
         if [[ -z "$TUIST_TOKEN" ]]; then
             echo "# Failed to create account token, test may fail" >&3

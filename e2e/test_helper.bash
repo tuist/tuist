@@ -19,9 +19,13 @@ server_is_running() {
     curl -sf "$SERVER_URL" >/dev/null 2>&1
 }
 
-# Check if cache server is running
+# Check if cache server is running (use nc to check if port is open since cache server has no root route)
 cache_server_is_running() {
-    curl -sf "${CACHE_SERVER_URL}/" >/dev/null 2>&1 || curl -sf -o /dev/null -w "%{http_code}" "${CACHE_SERVER_URL}/" 2>/dev/null | grep -q "^[234]"
+    local host port
+    # Extract host and port from CACHE_SERVER_URL
+    host=$(echo "$CACHE_SERVER_URL" | sed -E 's|^https?://||' | cut -d: -f1)
+    port=$(echo "$CACHE_SERVER_URL" | sed -E 's|^https?://||' | cut -d: -f2 | cut -d/ -f1)
+    nc -z "$host" "$port" 2>/dev/null
 }
 
 # Start the Phoenix server
