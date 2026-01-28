@@ -598,13 +598,25 @@ jobs:
         run: |
           brew tap timescale/tap
           brew install timescaledb
-          # TimescaleDB installs postgresql@17 as a dependency
-          # Run timescaledb-tune to configure PostgreSQL
-          echo "shared_preload_libraries = 'timescaledb'" >> /opt/homebrew/var/postgresql@17/postgresql.conf
+          # Run timescaledb_move.sh to install extension files
+          /opt/homebrew/bin/timescaledb_move.sh
+          # Configure TimescaleDB using timescaledb-tune
+          timescaledb-tune --quiet --yes
+          # Start PostgreSQL
           brew services start postgresql@17
-          for i in {1..15}; do /opt/homebrew/opt/postgresql@17/bin/pg_isready && break; sleep 2; done
+          # Wait for PostgreSQL to start (check via TCP, not socket)
+          for i in {1..30}; do
+            if /opt/homebrew/opt/postgresql@17/bin/pg_isready -h localhost -p 5432; then
+              break
+            fi
+            echo "Waiting for PostgreSQL to start... ($i/30)"
+            sleep 2
+          done
+          # Show PostgreSQL status for debugging
+          brew services list | grep postgresql || true
+          /opt/homebrew/opt/postgresql@17/bin/pg_isready -h localhost -p 5432 || cat /opt/homebrew/var/log/postgresql@17.log
           # Create runner user for database access
-          /opt/homebrew/opt/postgresql@17/bin/createuser -s runner || true
+          /opt/homebrew/opt/postgresql@17/bin/createuser -h localhost -s runner || true
       - uses: jdx/mise-action@v3.2.0
         with:
           working_directory: .
