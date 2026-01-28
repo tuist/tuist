@@ -64,11 +64,10 @@ defmodule CacheWeb.GradleController do
       }) do
     :telemetry.execute([:cache, :gradle, :download, :hit], %{}, %{})
     key = Disk.gradle_key(account_handle, project_handle, cache_key)
-    :ok = CacheArtifacts.track_artifact_access(key)
 
     case Disk.gradle_stat(account_handle, project_handle, cache_key) do
       {:ok, %File.Stat{size: size}} ->
-        local_path = Disk.gradle_local_accel_path(account_handle, project_handle, cache_key)
+        :ok = CacheArtifacts.track_artifact_access(key)
 
         :telemetry.execute([:cache, :gradle, :download, :disk_hit], %{size: size}, %{
           cache_key: cache_key,
@@ -76,32 +75,43 @@ defmodule CacheWeb.GradleController do
           project_handle: project_handle
         })
 
-        conn
-        |> put_resp_header("x-accel-redirect", local_path)
-        |> send_resp(:ok, "")
+        # In dev mode (MIX_ENV=dev), serve file directly since there's no nginx
+        # In production, use X-Accel-Redirect for efficient file serving via nginx
+        if Application.get_env(:cache, :env) == :dev do
+          file_path = Disk.artifact_path(key)
+          send_download(conn, {:file, file_path}, content_type: "application/octet-stream")
+        else
+          local_path = Disk.gradle_local_accel_path(account_handle, project_handle, cache_key)
+
+          conn
+          |> put_resp_header("x-accel-redirect", local_path)
+          |> send_resp(:ok, "")
+        end
 
       {:error, _} ->
         :telemetry.execute([:cache, :gradle, :download, :disk_miss], %{}, %{})
 
-        S3Transfers.enqueue_gradle_download(account_handle, project_handle, key)
+        # In dev mode, just return 404 since there's no S3
+        if Application.get_env(:cache, :env) == :dev do
+          send_resp(conn, :not_found, "")
+        else
+          S3Transfers.enqueue_gradle_download(account_handle, project_handle, key)
 
-        case S3.presign_download_url(key) do
-          {:ok, url} ->
-            conn
-            |> put_resp_header("x-accel-redirect", S3.remote_accel_path(url))
-            |> send_resp(:ok, "")
+          case S3.presign_download_url(key) do
+            {:ok, url} ->
+              conn
+              |> put_resp_header("x-accel-redirect", S3.remote_accel_path(url))
+              |> send_resp(:ok, "")
 
-          {:error, reason} ->
-            Appsignal.send_error(%RuntimeError{message: "Failed to presign S3 url for Gradle"}, %{
-              key: key,
-              reason: reason
-            })
+            {:error, reason} ->
+              Logger.warning("Failed to presign S3 url for Gradle: #{inspect(reason)}")
 
-            :telemetry.execute([:cache, :gradle, :download, :error], %{}, %{
-              reason: inspect(reason)
-            })
+              :telemetry.execute([:cache, :gradle, :download, :error], %{}, %{
+                reason: inspect(reason)
+              })
 
-            send_resp(conn, :not_found, "")
+              send_resp(conn, :not_found, "")
+          end
         end
     end
   end
