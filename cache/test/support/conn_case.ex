@@ -17,9 +17,12 @@ defmodule CacheWeb.ConnCase do
 
   use ExUnit.CaseTemplate
 
-  alias Cache.Repo
+  alias Cache.CacheArtifact
   alias Cache.CacheArtifactsBuffer
   alias Cache.KeyValueBuffer
+  alias Cache.KeyValueEntry
+  alias Cache.Repo
+  alias Cache.S3Transfer
   alias Cache.S3TransfersBuffer
   alias Ecto.Adapters.SQL.Sandbox
 
@@ -42,6 +45,10 @@ defmodule CacheWeb.ConnCase do
     allow_buffer(KeyValueBuffer)
     allow_buffer(CacheArtifactsBuffer)
     allow_buffer(S3TransfersBuffer)
+
+    Repo.delete_all(S3Transfer)
+    Repo.delete_all(CacheArtifact)
+    Repo.delete_all(KeyValueEntry)
 
     Cachex.clear(:cache_keyvalue_store)
     Cachex.clear(:cas_auth_cache)

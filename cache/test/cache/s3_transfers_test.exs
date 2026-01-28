@@ -16,6 +16,8 @@ defmodule Cache.S3TransfersTest do
       S3TransfersBuffer.reset()
     end
 
+    Repo.delete_all(S3Transfer)
+
     :ok
   end
 

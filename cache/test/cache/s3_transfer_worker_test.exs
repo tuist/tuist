@@ -11,6 +11,8 @@ defmodule Cache.S3TransferWorkerTest do
   alias Cache.S3TransferWorker
   alias Ecto.Adapters.SQL.Sandbox
 
+  setup :set_mimic_global
+
   setup do
     :ok = Sandbox.checkout(Repo)
     Sandbox.mode(Repo, {:shared, self()})
@@ -19,6 +21,8 @@ defmodule Cache.S3TransferWorkerTest do
       Sandbox.allow(Repo, self(), pid)
       S3TransfersBuffer.reset()
     end
+
+    Repo.delete_all(S3Transfer)
 
     :ok
   end

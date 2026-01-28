@@ -15,7 +15,6 @@ defmodule Cache.S3TransferWorker do
   alias Cache.Disk
   alias Cache.S3
   alias Cache.S3Transfers
-  alias Cache.S3TransfersBuffer
 
   require Logger
 
@@ -24,13 +23,12 @@ defmodule Cache.S3TransferWorker do
 
   @impl Oban.Worker
   def perform(_job) do
-    S3TransfersBuffer.flush()
-    process_batch(:upload, &S3.upload/1)
-    process_batch(:download, &S3.download/1)
+    process_batch(:upload)
+    process_batch(:download)
     :ok
   end
 
-  defp process_batch(type, operation_fn) do
+  defp process_batch(type) do
     transfers = S3Transfers.pending(type, @batch_size)
 
     if transfers != [] do
@@ -40,7 +38,7 @@ defmodule Cache.S3TransferWorker do
         transfers
         |> Task.async_stream(
           fn transfer ->
-            result = operation_fn.(transfer.key)
+            result = execute_transfer(type, transfer.key)
             {transfer, result}
           end,
           max_concurrency: @concurrency,
@@ -54,6 +52,9 @@ defmodule Cache.S3TransferWorker do
       Logger.info("Completed #{length(processed_ids)} S3 #{type}s")
     end
   end
+
+  defp execute_transfer(:upload, key), do: S3.upload(key)
+  defp execute_transfer(:download, key), do: S3.download(key)
 
   defp handle_result(_type, {:ok, {transfer, :ok}}), do: transfer.id
 
