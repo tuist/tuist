@@ -360,6 +360,7 @@ IO.puts("Gradle project created: tuist/gradle (build_systems: [:gradle])")
 
 # Create an account token for Gradle e2e tests
 gradle_token_name = "gradle-e2e-test"
+
 gradle_token =
   case Accounts.get_account_token_by_name(organization.account, gradle_token_name) do
     {:ok, token} ->
