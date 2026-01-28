@@ -377,7 +377,7 @@ gradle_token =
         Accounts.create_account_token(%{
           account: organization.account,
           name: gradle_token_name,
-          scopes: [:project_cache_read, :project_cache_write],
+          scopes: ["project:cache:read", "project:cache:write"],
           all_projects: false,
           project_ids: [gradle_project.id]
         })
