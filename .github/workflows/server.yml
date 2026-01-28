@@ -602,11 +602,15 @@ jobs:
           /opt/homebrew/bin/timescaledb_move.sh || true
           # Configure TimescaleDB using timescaledb-tune (modifies postgresql.conf)
           timescaledb-tune --quiet --yes
-          # IMPORTANT: Restart PostgreSQL AFTER timescaledb-tune to load shared_preload_libraries
-          brew services restart postgresql@17
-          # Wait for PostgreSQL to start (check via TCP, not socket)
+          # Stop PostgreSQL completely before starting with new config
+          brew services stop postgresql@17 || true
+          sleep 2
+          # Start PostgreSQL with the new shared_preload_libraries config
+          brew services start postgresql@17
+          # Wait for PostgreSQL to start (check via TCP)
           for i in {1..30}; do
             if /opt/homebrew/opt/postgresql@17/bin/pg_isready -h localhost -p 5432; then
+              echo "PostgreSQL is ready"
               break
             fi
             echo "Waiting for PostgreSQL to start... ($i/30)"
