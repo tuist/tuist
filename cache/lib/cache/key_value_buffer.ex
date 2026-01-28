@@ -46,7 +46,7 @@ defmodule Cache.KeyValueBuffer do
 
   @impl true
   def flush_batches(state, max_batch_size) do
-    {batch, rest} = take_map_batch(state.entries, max_batch_size)
+    {batch, rest} = SQLiteBuffer.take_map_batch(state.entries, max_batch_size)
 
     operations =
       if map_size(batch) == 0 do
@@ -69,7 +69,7 @@ defmodule Cache.KeyValueBuffer do
 
   @impl true
   def write_batch(:key_values, entries) do
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    now = DateTime.truncate(DateTime.utc_now(), :second)
 
     rows =
       Enum.map(entries, fn {_key, entry} ->
@@ -85,10 +85,5 @@ defmodule Cache.KeyValueBuffer do
       conflict_target: :key,
       on_conflict: {:replace, [:json_payload, :updated_at]}
     )
-  end
-
-  defp take_map_batch(queue, max_batch_size) do
-    {batch_list, rest_list} = Enum.split(queue, max_batch_size)
-    {Map.new(batch_list), Map.new(rest_list)}
   end
 end

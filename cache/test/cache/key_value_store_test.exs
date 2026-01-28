@@ -1,10 +1,10 @@
 defmodule Cache.KeyValueStoreTest do
   use ExUnit.Case, async: false
 
+  alias Cache.KeyValueBuffer
   alias Cache.KeyValueEntry
   alias Cache.KeyValueStore
   alias Cache.Repo
-  alias Cache.KeyValueBuffer
   alias Ecto.Adapters.SQL.Sandbox
 
   @account_handle "test-account"

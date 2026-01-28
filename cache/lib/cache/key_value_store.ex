@@ -6,9 +6,9 @@ defmodule Cache.KeyValueStore do
 
   import Cachex.Spec, only: [expiration: 1]
 
+  alias Cache.KeyValueBuffer
   alias Cache.KeyValueEntry
   alias Cache.Repo
-  alias Cache.KeyValueBuffer
 
   @cache_name :cache_keyvalue_store
   # 1 week

@@ -1,4 +1,5 @@
 defmodule Cache.SQLiteBuffer.PromExPlugin do
+  @moduledoc false
   use PromEx.Plugin
 
   @duration_buckets [1, 5, 10, 25, 50, 100, 250, 500, 1000, 2000, 5000]
@@ -7,17 +8,6 @@ defmodule Cache.SQLiteBuffer.PromExPlugin do
   @impl true
   def event_metrics(_opts) do
     Event.build(:cache_sqlite_buffer_event_metrics, [
-      counter([:tuist_cache, :sqlite_writer, :retries, :total],
-        event_name: [:cache, :sqlite_writer, :retry],
-        description: "SQLite writer retries due to busy database.",
-        tags: [:operation, :buffer],
-        tag_values: fn metadata ->
-          %{
-            operation: to_string(Map.get(metadata, :operation, :unknown)),
-            buffer: to_string(Map.get(metadata, :buffer, :unknown))
-          }
-        end
-      ),
       distribution([:tuist_cache, :sqlite_writer, :flush, :duration, :ms],
         event_name: [:cache, :sqlite_writer, :flush],
         measurement: :duration_ms,

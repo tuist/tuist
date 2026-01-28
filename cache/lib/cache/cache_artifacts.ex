@@ -6,9 +6,9 @@ defmodule Cache.CacheArtifacts do
   import Ecto.Query
 
   alias Cache.CacheArtifact
+  alias Cache.CacheArtifactsBuffer
   alias Cache.Disk
   alias Cache.Repo
-  alias Cache.CacheArtifactsBuffer
 
   @default_batch_size 500
 
@@ -17,8 +17,6 @@ defmodule Cache.CacheArtifacts do
   """
 
   def oldest(limit \\ @default_batch_size) do
-    _ = CacheArtifactsBuffer.flush()
-
     CacheArtifact
     |> order_by([a], asc: a.last_accessed_at)
     |> limit(^limit)
@@ -30,9 +28,7 @@ defmodule Cache.CacheArtifacts do
   """
 
   def delete_by_key(key) do
-    _ = CacheArtifactsBuffer.enqueue_deletes([key])
-    _ = CacheArtifactsBuffer.flush()
-    :ok
+    CacheArtifactsBuffer.enqueue_deletes([key])
   end
 
   @doc """
@@ -40,9 +36,7 @@ defmodule Cache.CacheArtifacts do
   """
 
   def delete_by_keys(keys) when is_list(keys) do
-    _ = CacheArtifactsBuffer.enqueue_deletes(keys)
-    _ = CacheArtifactsBuffer.flush()
-    :ok
+    CacheArtifactsBuffer.enqueue_deletes(keys)
   end
 
   @doc """
@@ -68,5 +62,4 @@ defmodule Cache.CacheArtifacts do
       _ -> nil
     end
   end
-
 end

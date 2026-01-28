@@ -6,10 +6,10 @@ defmodule Cache.DiskEvictionWorkerTest do
 
   alias Cache.CacheArtifact
   alias Cache.CacheArtifacts
+  alias Cache.CacheArtifactsBuffer
   alias Cache.Disk
   alias Cache.DiskEvictionWorker
   alias Cache.Repo
-  alias Cache.CacheArtifactsBuffer
   alias Ecto.Adapters.SQL.Sandbox
 
   setup do
@@ -86,6 +86,7 @@ defmodule Cache.DiskEvictionWorkerTest do
     end)
 
     assert :ok = DiskEvictionWorker.perform(%Oban.Job{args: %{}})
+    :ok = CacheArtifactsBuffer.flush()
 
     refute File.exists?(older)
     assert File.exists?(newer)

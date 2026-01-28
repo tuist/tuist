@@ -55,12 +55,10 @@ defmodule Cache.SQLiteBuffer do
        buffer_module: buffer_module,
        buffer_state: buffer_module.init_state(),
        timer_ref: nil,
-       flush_interval_ms:
-         config_value(buffer_module, :flush_interval_ms, @default_flush_interval_ms),
-       flush_timeout_ms:
-         config_value(buffer_module, :flush_timeout_ms, @default_flush_timeout_ms),
-        max_batch_size: config_value(buffer_module, :max_batch_size, @default_max_batch_size)
-      }}
+       flush_interval_ms: config_value(buffer_module, :flush_interval_ms, @default_flush_interval_ms),
+       flush_timeout_ms: config_value(buffer_module, :flush_timeout_ms, @default_flush_timeout_ms),
+       max_batch_size: config_value(buffer_module, :max_batch_size, @default_max_batch_size)
+     }}
   end
 
   @impl true
@@ -192,5 +190,18 @@ defmodule Cache.SQLiteBuffer do
 
   defp flush_timeout_ms(server) do
     config_value(server, :flush_timeout_ms, @default_flush_timeout_ms)
+  end
+
+  @doc false
+  def take_map_batch(queue, max_batch_size) do
+    {batch_list, rest_list} = Enum.split(queue, max_batch_size)
+    {Map.new(batch_list), Map.new(rest_list)}
+  end
+
+  @doc false
+  def take_set_batch(queue, max_batch_size) do
+    items = MapSet.to_list(queue)
+    {batch_list, rest_list} = Enum.split(items, max_batch_size)
+    {batch_list, MapSet.new(rest_list)}
   end
 end
