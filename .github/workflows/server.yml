@@ -602,6 +602,12 @@ jobs:
       - uses: jdx/mise-action@v3.2.0
         with:
           working_directory: .
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          working_directory: server
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          working_directory: cache
       - uses: android-actions/setup-android@v3
       - name: Run Gradle cache acceptance test
         working-directory: .
