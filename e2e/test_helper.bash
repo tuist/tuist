@@ -166,14 +166,14 @@ build_tuist_cli() {
     # Check if tuist is available (installed via mise)
     if command -v tuist &>/dev/null; then
         echo "# Generating Xcode project with tuist..." >&3
-        if tuist generate --no-open 2>&1 >&3; then
+        if tuist generate --no-open >&3 2>&1; then
             echo "# Building with xcodebuild..." >&3
             if xcodebuild build \
                 -workspace Tuist.xcworkspace \
                 -scheme tuist \
                 -configuration Debug \
                 -derivedDataPath "$build_dir" \
-                -quiet 2>&1 >&3; then
+                -quiet >&3 2>&1; then
                 echo "$binary"
                 return 0
             fi
