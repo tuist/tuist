@@ -83,10 +83,7 @@ defmodule Cache.KeyValueStore do
   end
 
   defp persist_entry(key, json) do
-    case KeyValueBuffer.enqueue(key, json) do
-      :ok -> :ok
-      {:error, reason} -> {:error, reason}
-    end
+    :ok = KeyValueBuffer.enqueue(key, json)
   end
 
   defp load_from_persistence(key) do

@@ -28,7 +28,8 @@ defmodule Cache.CacheArtifacts do
   """
 
   def delete_by_key(key) do
-    CacheArtifactsBuffer.enqueue_deletes([key])
+    Repo.delete_all(from(a in CacheArtifact, where: a.key == ^key))
+    :ok
   end
 
   @doc """
@@ -36,7 +37,8 @@ defmodule Cache.CacheArtifacts do
   """
 
   def delete_by_keys(keys) when is_list(keys) do
-    CacheArtifactsBuffer.enqueue_deletes(keys)
+    Repo.delete_all(from(a in CacheArtifact, where: a.key in ^keys))
+    :ok
   end
 
   @doc """
