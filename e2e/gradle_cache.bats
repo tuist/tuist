@@ -40,11 +40,20 @@ setup_file() {
     if [[ -z "${TUIST_TOKEN:-}" ]]; then
         echo "# Authenticating with Tuist server..." >&3
 
-        # Use a temp directory with --path to avoid tuist looking for project config
+        # Create a minimal tuist project structure to satisfy CLI requirements
         local tmp_dir
         tmp_dir=$(mktemp -d)
+        mkdir -p "$tmp_dir/Tuist"
+        cat > "$tmp_dir/Tuist/Config.swift" <<'SWIFT'
+import ProjectDescription
+let config = Config()
+SWIFT
+        cat > "$tmp_dir/Project.swift" <<'SWIFT'
+import ProjectDescription
+let project = Project(name: "Temp", targets: [])
+SWIFT
 
-        # Login with fixture credentials (use --path to force using temp dir as project root)
+        # Login with fixture credentials
         local auth_output
         auth_output=$("$TUIST_EXECUTABLE" auth login \
             --email tuistrocks@tuist.dev \
