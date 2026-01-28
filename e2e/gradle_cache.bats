@@ -40,25 +40,29 @@ setup_file() {
     if [[ -z "${TUIST_TOKEN:-}" ]]; then
         echo "# Authenticating with Tuist server..." >&3
 
-        # Run from a temp directory to avoid tuist trying to generate workspace in repo root
+        # Use a temp directory with --path to avoid tuist looking for project config
         local tmp_dir
         tmp_dir=$(mktemp -d)
-        cd "$tmp_dir"
 
-        # Login with fixture credentials
-        "$TUIST_EXECUTABLE" auth login --email tuistrocks@tuist.dev --password tuistrocks 2>&1 >&3 || true
+        # Login with fixture credentials (use --path to force using temp dir as project root)
+        local auth_output
+        auth_output=$("$TUIST_EXECUTABLE" auth login \
+            --email tuistrocks@tuist.dev \
+            --password tuistrocks \
+            --path "$tmp_dir" 2>&1) || true
+        echo "# Auth output: $auth_output" >&3
 
         # Create an account token for cache access
         echo "# Creating account token for Gradle cache..." >&3
         local token_output
         token_output=$("$TUIST_EXECUTABLE" account tokens create tuist \
             --scopes project:cache:read --scopes project:cache:write \
-            --name "gradle-e2e-test-$(date +%s)" 2>&1) || true
+            --name "gradle-e2e-test-$(date +%s)" \
+            --path "$tmp_dir" 2>&1) || true
         echo "# Token command output: $token_output" >&3
         TUIST_TOKEN=$(echo "$token_output" | grep -o 'tuist_[a-zA-Z0-9_-]*' || echo "")
 
         # Clean up temp directory
-        cd "$REPO_ROOT"
         rm -rf "$tmp_dir"
 
         if [[ -z "$TUIST_TOKEN" ]]; then
