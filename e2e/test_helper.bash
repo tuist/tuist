@@ -164,3 +164,24 @@ build_tuist_cli() {
         -quiet 2>&1 >&3
     echo "$binary"
 }
+
+# Setup the main server database and dependencies
+setup_main_server() {
+    local server_dir="$1"
+    echo "# Setting up main server..." >&3
+    cd "$server_dir" || return 1
+
+    mix deps.get 2>&1 >&3
+    mix ecto.reset 2>&1 >&3 || mix ecto.setup 2>&1 >&3
+    mix run priv/repo/seeds.exs 2>&1 >&3
+}
+
+# Setup the cache node database and dependencies
+setup_cache_node() {
+    local cache_dir="$1"
+    echo "# Setting up cache node..." >&3
+    cd "$cache_dir" || return 1
+
+    mix deps.get 2>&1 >&3
+    mix ecto.setup 2>&1 >&3 || true
+}
