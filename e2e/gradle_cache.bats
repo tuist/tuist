@@ -36,48 +36,15 @@ setup_file() {
         cache_server_start "$REPO_ROOT/cache"
     fi
 
-    # Authenticate with the server and create an account token for the test
+    # Read account token from file created by seeds, or use environment variable
     if [[ -z "${TUIST_TOKEN:-}" ]]; then
-        echo "# Authenticating with Tuist server..." >&3
-
-        # Create a minimal tuist project structure to satisfy CLI requirements
-        local tmp_dir
-        tmp_dir=$(mktemp -d)
-        mkdir -p "$tmp_dir/Tuist"
-        cat > "$tmp_dir/Tuist/Config.swift" <<'SWIFT'
-import ProjectDescription
-let config = Config()
-SWIFT
-        cat > "$tmp_dir/Project.swift" <<'SWIFT'
-import ProjectDescription
-let project = Project(name: "Temp", targets: [])
-SWIFT
-
-        # Login with fixture credentials
-        local auth_output
-        auth_output=$("$TUIST_EXECUTABLE" auth login \
-            --email tuistrocks@tuist.dev \
-            --password tuistrocks \
-            --path "$tmp_dir" 2>&1) || true
-        echo "# Auth output: $auth_output" >&3
-
-        # Create an account token for cache access
-        echo "# Creating account token for Gradle cache..." >&3
-        local token_output
-        token_output=$("$TUIST_EXECUTABLE" account tokens create tuist \
-            --scopes project:cache:read --scopes project:cache:write \
-            --name "gradle-e2e-test-$(date +%s)" \
-            --path "$tmp_dir" 2>&1) || true
-        echo "# Token command output: $token_output" >&3
-        TUIST_TOKEN=$(echo "$token_output" | grep -o 'tuist_[a-zA-Z0-9_-]*' || echo "")
-
-        # Clean up temp directory
-        rm -rf "$tmp_dir"
-
-        if [[ -z "$TUIST_TOKEN" ]]; then
-            echo "# Failed to create account token, test may fail" >&3
+        local token_file="/tmp/gradle-e2e-token.txt"
+        if [[ -f "$token_file" ]]; then
+            TUIST_TOKEN=$(cat "$token_file")
+            echo "# Using token from seed file: ${TUIST_TOKEN:0:25}..." >&3
         else
-            echo "# Account token created successfully: ${TUIST_TOKEN:0:20}..." >&3
+            echo "# Token file not found at $token_file" >&3
+            echo "# Make sure to run 'mix run priv/repo/seeds.exs' first" >&3
         fi
         export TUIST_TOKEN
     fi
