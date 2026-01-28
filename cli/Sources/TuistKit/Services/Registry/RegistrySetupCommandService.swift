@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Noora
 import Path
+import TuistGenerator
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -19,7 +20,7 @@ enum RegistryCommandSetupServiceError: Equatable, LocalizedError {
         switch self {
         case let .noProjectFound(path):
             return
-                "We couldn't find an Xcode, SwiftPM, or Tuist project at \(path.pathString). Make sure you're in the right directory."
+                "We couldn't find a Package.swift (including Tuist/Package.swift), .xcworkspace, or .xcodeproj at \(path.pathString). The registry setup doesn't use Tuist.swift, so run it from a directory containing one of those files or pass --path to one."
         }
     }
 }
@@ -95,9 +96,7 @@ struct RegistrySetupCommandService {
             try await fileSystem.remove(configurationJSONPath)
         }
         try await fileSystem.writeText(
-            registryConfigurationJSON(
-                serverURL: serverURL
-            ),
+            RegistryConfigurationGenerator.registryConfigurationJSON(serverURL: serverURL),
             at: configurationJSONPath
         )
 
@@ -110,35 +109,5 @@ struct RegistrySetupCommandService {
                 ]
             )
         )
-    }
-
-    private func registryConfigurationJSON(
-        serverURL: URL
-    ) -> String {
-        """
-        {
-          "security": {
-            "default": {
-              "signing": {
-                "onUnsigned": "silentAllow"
-              }
-            }
-          },
-          "authentication": {
-            "\(serverURL.host() ?? Constants.URLs.production.host()!)": {
-              "loginAPIPath": "/api/registry/swift/login",
-              "type": "token"
-            }
-          },
-          "registries": {
-            "[default]": {
-              "supportsAvailability": false,
-              "url": "\(serverURL.absoluteString.dropSuffix("/"))/api/registry/swift"
-            }
-          },
-          "version": 1
-        }
-
-        """
     }
 }

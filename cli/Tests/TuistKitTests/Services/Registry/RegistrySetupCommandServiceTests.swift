@@ -103,6 +103,38 @@ struct RegistrySetupCommandServiceTests {
         }
     }
 
+    @Test func setup_when_a_tuist_package_manifest_is_found() async throws {
+        try await withMockedDependencies {
+            try await fileSystem.runInTemporaryDirectory(prefix: "setup") { temporaryPath in
+                // Given
+                given(configLoader)
+                    .loadConfig(path: .any)
+                    .willReturn(.test())
+                given(serverEnvironmentService)
+                    .url(configServerURL: .any)
+                    .willReturn(.test())
+                let tuistDirectory = temporaryPath.appending(component: "Tuist")
+                try await fileSystem.makeDirectory(at: tuistDirectory)
+                given(manifestFilesLocator)
+                    .locatePackageManifest(at: .any)
+                    .willReturn(tuistDirectory.appending(component: "Package.swift"))
+
+                // When
+                try await subject.run(path: temporaryPath.pathString)
+
+                // Then
+                let configurationPath = tuistDirectory.appending(
+                    components: ".swiftpm", "configuration", "registries.json"
+                )
+                let exists = try await fileSystem.exists(configurationPath)
+                #expect(exists)
+                verify(defaultsController)
+                    .setPackageDendencySCMToRegistryTransformation(.any)
+                    .called(0)
+            }
+        }
+    }
+
     @Test func setup_when_an_xcode_project_is_found() async throws {
         try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: "setup") { temporaryPath in
