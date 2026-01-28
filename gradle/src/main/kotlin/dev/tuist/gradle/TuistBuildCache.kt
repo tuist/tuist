@@ -108,10 +108,32 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
     }
 
     private fun validateTuistVersion(command: List<String>) {
+        // First, verify the executable exists
+        val executablePath = command.firstOrNull()
+        if (executablePath != null) {
+            val executableFile = java.io.File(executablePath)
+            if (!executableFile.exists()) {
+                throw BuildCacheException(
+                    "Tuist CLI not found at path: $executablePath. " +
+                    "Please install Tuist (https://docs.tuist.dev/guides/quick-start/install-tuist) " +
+                    "or set 'executablePath' or 'executableCommand' in the tuist extension."
+                )
+            }
+            if (!executableFile.canExecute()) {
+                throw BuildCacheException(
+                    "Tuist CLI at path $executablePath is not executable."
+                )
+            }
+        }
+
         val version = getTuistVersion(command)
-            ?: throw BuildCacheException(
-                "Failed to determine Tuist version. Please ensure Tuist is correctly installed. Command: ${command.joinToString(" ")}"
-            )
+        if (version == null) {
+            // Version check failed, but the executable exists.
+            // This can happen when running in a Tuist project directory where
+            // dependencies haven't been installed. Log a warning but don't fail.
+            println("Tuist: Warning - Could not determine Tuist version. Proceeding without version validation.")
+            return
+        }
 
         if (!TuistVersion.isVersionSufficient(version)) {
             throw BuildCacheException(
