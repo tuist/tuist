@@ -600,11 +600,11 @@ jobs:
           brew install timescaledb
           # Run timescaledb_move.sh to install extension files to PostgreSQL
           /opt/homebrew/bin/timescaledb_move.sh || true
-          # Configure TimescaleDB using timescaledb-tune (modifies postgresql.conf)
-          timescaledb-tune --quiet --yes
-          # Stop PostgreSQL completely before starting with new config
+          # Stop PostgreSQL before configuring
           brew services stop postgresql@17 || true
           sleep 2
+          # Configure TimescaleDB - specify the correct PostgreSQL 17 config path
+          timescaledb-tune --quiet --yes --pg-config /opt/homebrew/opt/postgresql@17/bin/pg_config
           # Start PostgreSQL with the new shared_preload_libraries config
           brew services start postgresql@17
           # Wait for PostgreSQL to start (check via TCP)
