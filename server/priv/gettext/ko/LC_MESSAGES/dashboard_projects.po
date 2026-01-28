@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
-"PO-Revision-Date: 2026-01-23 12:12+0000\n"
+"PO-Revision-Date: 2026-01-28 11:16+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/ko/>\n"
@@ -199,8 +199,9 @@ msgstr "아직 미리보기 없음"
 msgid "No recent builds yet"
 msgstr "아직 최신 빌드가 없습니다"
 
+#, fuzzy
 msgid "Only organization members"
-msgstr ""
+msgstr "조직 구성원만"
 
 msgid "Or set up a new organization"
 msgstr "또는 새 조직을 만드세요"
@@ -395,7 +396,7 @@ msgstr "통계"
 
 #, fuzzy
 msgid "Test duration"
-msgstr "테스트 기간"
+msgstr "시험 시간"
 
 #, fuzzy
 msgid "Rolling window"
@@ -479,7 +480,7 @@ msgstr "캐시 일치율"
 
 #, fuzzy
 msgid "test time"
-msgstr "테스트 소요 시간"
+msgstr "테스트 시간"
 
 #, fuzzy
 msgid "tests"
