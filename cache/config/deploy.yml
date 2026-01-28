@@ -7,8 +7,8 @@ servers:
     options:
       network-alias: cache-app
 
-ssh:
-  user: github-actions
+# ssh:
+#   user: github-actions
 
 registry:
   server: ghcr.io

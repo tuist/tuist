@@ -21,7 +21,7 @@ defmodule Cache.CacheArtifactsBuffer do
     SQLiteBuffer.enqueue(__MODULE__, {:cas_access, key, size_bytes, last_accessed_at})
   end
 
-  def enqueue_deletes(keys) when is_list(keys) do
+  def enqueue_deletes(keys) do
     SQLiteBuffer.enqueue(__MODULE__, {:cas_delete, keys})
   end
 
@@ -66,10 +66,21 @@ defmodule Cache.CacheArtifactsBuffer do
     {accesses_batch, accesses_rest} = take_map_batch(state.cas_accesses, max_batch_size)
     {deletes_batch, deletes_rest} = take_set_batch(state.cas_deletes, max_batch_size)
 
+    operations = []
+
     operations =
-      []
-      |> add_operation(:cas_accesses, accesses_batch)
-      |> add_operation(:cas_deletes, deletes_batch)
+      if map_size(accesses_batch) == 0 do
+        operations
+      else
+        operations ++ [{:cas_accesses, accesses_batch}]
+      end
+
+    operations =
+      if deletes_batch == [] do
+        operations
+      else
+        operations ++ [{:cas_deletes, deletes_batch}]
+      end
 
     {operations,
      %{state | cas_accesses: accesses_rest, cas_deletes: deletes_rest}}
@@ -112,12 +123,8 @@ defmodule Cache.CacheArtifactsBuffer do
   end
 
   defp take_map_batch(queue, max_batch_size) do
-    if map_size(queue) <= max_batch_size do
-      {queue, %{}}
-    else
-      {batch_list, rest_list} = Enum.split(queue, max_batch_size)
-      {Map.new(batch_list), Map.new(rest_list)}
-    end
+    {batch_list, rest_list} = Enum.split(queue, max_batch_size)
+    {Map.new(batch_list), Map.new(rest_list)}
   end
 
   defp take_set_batch(queue, max_batch_size) do
@@ -125,7 +132,4 @@ defmodule Cache.CacheArtifactsBuffer do
     {batch_list, rest_list} = Enum.split(items, max_batch_size)
     {batch_list, MapSet.new(rest_list)}
   end
-
-  defp add_operation(operations, _operation, empty) when empty == %{} or empty == [], do: operations
-  defp add_operation(operations, operation, entries), do: operations ++ [{operation, entries}]
 end
