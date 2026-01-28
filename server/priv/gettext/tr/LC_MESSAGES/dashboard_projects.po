@@ -3,8 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-23 12:12+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"PO-Revision-Date: 2026-01-28 11:16+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/tr/>\n"
 "Language: tr\n"
@@ -257,8 +257,9 @@ msgstr "Henüz önizleme yok"
 msgid "No recent builds yet"
 msgstr "Henüz yeni sürüm yok"
 
+#, fuzzy
 msgid "Only organization members"
-msgstr ""
+msgstr "Sadece organizasyon üyeleri"
 
 #, fuzzy
 msgid "Or set up a new organization"
@@ -429,201 +430,269 @@ msgstr "son nokta"
 msgid "since yesterday"
 msgstr "dünden beri"
 
+#, fuzzy
 msgid "Channel"
-msgstr ""
+msgstr "Kanal"
 
+#, fuzzy
 msgid "Configure"
-msgstr ""
+msgstr "Yapılandır"
 
+#, fuzzy
 msgid "Daily"
-msgstr ""
+msgstr "Günlük"
 
+#, fuzzy
 msgid "Frequency"
-msgstr ""
+msgstr "Sıklık"
 
+#, fuzzy
 msgid "Never"
-msgstr ""
+msgstr "Asla"
 
+#, fuzzy
 msgid "Save"
-msgstr ""
+msgstr "Kaydet"
 
+#, fuzzy
 msgid "Send test report"
-msgstr ""
+msgstr "Test raporunu gönder"
 
+#, fuzzy
 msgid "Time"
-msgstr ""
+msgstr "Zaman"
 
+#, fuzzy
 msgid "All days"
-msgstr ""
+msgstr "Tüm günler"
 
+#, fuzzy
 msgid "Select days"
-msgstr ""
+msgstr "Günleri seçin"
 
+#, fuzzy
 msgid "Average"
-msgstr ""
+msgstr "Ortalama"
 
+#, fuzzy
 msgid "Build duration"
-msgstr ""
+msgstr "Yapım süresi"
 
+#, fuzzy
 msgid "Cache hit rate"
-msgstr ""
+msgstr "Önbellek isabet oranı"
 
+#, fuzzy
 msgid "Category"
-msgstr ""
+msgstr "Kategori"
 
+#, fuzzy
 msgid "Get notified when metrics regress"
-msgstr ""
+msgstr "Metriklerde gerileme olduğunda bildirim alın"
 
 msgid "Metric"
 msgstr ""
 
+#, fuzzy
 msgid "Test duration"
-msgstr ""
+msgstr "Test süresi"
 
+#, fuzzy
 msgid "Rolling window"
-msgstr ""
+msgstr "Yuvarlanan pencere"
 
+#, fuzzy
 msgid "Add alert rule"
-msgstr ""
+msgstr "Uyarı kuralı ekle"
 
+#, fuzzy
 msgid "Alert name"
-msgstr ""
+msgstr "Uyarı adı"
 
+#, fuzzy
 msgid "Alert rules"
-msgstr ""
+msgstr "Uyarı kuralları"
 
+#, fuzzy
 msgid "Configure schedule"
-msgstr ""
+msgstr "Programı yapılandırın"
 
+#, fuzzy
 msgid "Configure your report notifications"
-msgstr ""
+msgstr "Rapor bildirimlerinizi yapılandırın"
 
+#, fuzzy
 msgid "Connect Slack"
-msgstr ""
+msgstr "Slack'i bağlayın"
 
+#, fuzzy
 msgid "Deviation (%)"
-msgstr ""
+msgstr "Sapma (%)"
 
+#, fuzzy
 msgid "Notifications"
-msgstr ""
+msgstr "Bildirimler"
 
+#, fuzzy
 msgid "Repeat"
-msgstr ""
+msgstr "Tekrarla"
 
+#, fuzzy
 msgid "Reports"
-msgstr ""
+msgstr "Raporlar"
 
+#, fuzzy
 msgid "Schedule"
-msgstr ""
+msgstr "Program"
 
 #, fuzzy
 msgid "Slack"
 msgstr "Slack"
 
+#, fuzzy
 msgid "Select channel"
-msgstr ""
+msgstr "Kanal seçin"
 
+#, fuzzy
 msgid "Update channel"
-msgstr ""
+msgstr "Kanalı güncelle"
 
+#, fuzzy
 msgid "Slack channel"
-msgstr ""
+msgstr "Slack kanalı"
 
+#, fuzzy
 msgid "average"
-msgstr ""
+msgstr "ortalama"
 
+#, fuzzy
 msgid "build time"
-msgstr ""
+msgstr "derleme süresi"
 
 #, fuzzy
 msgid "builds"
-msgstr "Derlemeler"
+msgstr "builds"
 
+#, fuzzy
 msgid "cache hit rate"
-msgstr ""
+msgstr "önbellek isabet oranı"
 
+#, fuzzy
 msgid "test time"
-msgstr ""
+msgstr "test zamanı"
 
+#, fuzzy
 msgid "tests"
-msgstr ""
+msgstr "testler"
 
+#, fuzzy
 msgid "Create"
-msgstr ""
+msgstr "Oluştur"
 
+#, fuzzy
 msgid "Create alert rule"
-msgstr ""
+msgstr "Uyarı kuralı oluşturun"
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{metric_category}</strong> of the last "
 "<strong>%{rolling_window_size} %{unit}</strong> has decreased by "
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
+"<strong>%{metric_category}</strong> son <strong>%{rolling_window_size} %"
+"{unit}</strong> önceki <strong>%{rolling_window_size} %{unit}</strong> ile "
+"karşılaştırıldığında <strong>%{deviation}%</strong> azaldığında uyarı verin."
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{metric_category}</strong> of the last "
 "<strong>%{rolling_window_size} %{unit}</strong> has increased by "
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
+"<strong>%{metric_category}</strong> son <strong>%{rolling_window_size} %"
+"{unit}</strong> önceki <strong>%{rolling_window_size} %{unit}</strong> ile "
+"karşılaştırıldığında <strong>%{deviation}%</strong> arttığında uyarı verin."
 
+#, fuzzy
 msgid "Connect your Slack account before selecting channels."
-msgstr ""
+msgstr "Kanalları seçmeden önce Slack hesabınızı bağlayın."
 
+#, fuzzy
 msgid "Deviation"
-msgstr ""
+msgstr "Sapma"
 
+#, fuzzy
 msgid "None"
-msgstr ""
+msgstr "Yok"
 
+#, fuzzy
 msgid "Update"
-msgstr ""
+msgstr "Güncelle"
 
+#, fuzzy
 msgid "Update alert rule"
-msgstr ""
+msgstr "Uyarı kuralını güncelle"
 
 #, fuzzy
 msgid "Metrics"
 msgstr "Metrikler"
 
+#, fuzzy
 msgid "Create an alert rule to get notified when metrics regress"
 msgstr ""
+"Metriklerde gerileme olduğunda bildirim almak için bir uyarı kuralı "
+"oluşturun."
 
+#, fuzzy
 msgid "No alert rules"
-msgstr ""
+msgstr "Uyarı kuralı yok"
 
+#, fuzzy
 msgid "Auto-mark tests as flaky"
-msgstr ""
+msgstr "Testleri otomatik olarak hatalı olarak işaretleyin"
 
+#, fuzzy
 msgid "Auto-quarantine flaky tests"
-msgstr ""
+msgstr "Kararsız testleri otomatik olarak karantinaya alın"
 
+#, fuzzy
 msgid "Automatically quarantine tests when they are detected as flaky"
 msgstr ""
+"Kararsız olduğu tespit edilen testleri otomatik olarak karantinaya alın."
 
+#, fuzzy
 msgid "Automations"
-msgstr ""
+msgstr "Otomasyonlar"
 
+#, fuzzy
 msgid "Flaky test detection"
-msgstr ""
+msgstr "Düzensiz test algılama"
 
+#, fuzzy
 msgid "Get notified when tests are flagged as flaky"
-msgstr ""
+msgstr "Testler hatalı olarak işaretlendiğinde bildirim alın"
 
+#, fuzzy
 msgid "Minimum occurrences"
-msgstr ""
+msgstr "Minimum kullanım sayısı"
 
+#, fuzzy
 msgid "Slack notifications"
-msgstr ""
+msgstr "Slack bildirimleri"
 
+#, fuzzy
 msgid "Test quarantine"
-msgstr ""
+msgstr "Karantina testi"
 
+#, fuzzy
 msgid ""
 "Tests will be marked as flaky after the specified number of flaky "
 "occurrences within the last 30 days"
 msgstr ""
+"Son 30 gün içinde belirtilen sayıda hatalı sonuç ortaya çıktıktan sonra "
+"testler hatalı olarak işaretlenecektir."
 
 #, fuzzy
 #~ msgid "Only people with access"
