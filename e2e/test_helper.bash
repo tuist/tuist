@@ -141,27 +141,21 @@ cache_server_wait() {
     echo "# Cache server is ready" >&3
 }
 
-# Build tuist CLI binary via xcodebuild.
+# Build tuist CLI binary via swift build.
 # Returns the path to the built binary on stdout.
 build_tuist_cli() {
     local repo_root="$1"
-    local build_dir="${repo_root}/build/DerivedData"
-    local binary="${build_dir}/Build/Products/Debug/tuist"
+    local build_dir="${repo_root}/.build/release"
+    local binary="${build_dir}/tuist"
 
     if [[ -f "$binary" ]]; then
         echo "$binary"
         return 0
     fi
 
-    echo "# Building tuist CLI..." >&3
+    echo "# Building tuist CLI with swift build..." >&3
     cd "$repo_root"
-    tuist generate --no-open 2>&1 >&3 || true
-    xcodebuild build \
-        -workspace Tuist.xcworkspace \
-        -scheme tuist \
-        -configuration Debug \
-        -derivedDataPath "$build_dir" \
-        -quiet 2>&1 >&3
+    swift build -c release --product tuist 2>&1 >&3
     echo "$binary"
 }
 
