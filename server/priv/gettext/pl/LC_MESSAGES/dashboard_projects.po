@@ -259,9 +259,8 @@ msgstr "Brak podglądu"
 msgid "No recent builds yet"
 msgstr "Brak najnowszych kompilacji"
 
-#, fuzzy
-msgid "Only people with access"
-msgstr "Tylko osoby z dostępem"
+msgid "Only organization members"
+msgstr ""
 
 #, fuzzy
 msgid "Or set up a new organization"
@@ -602,10 +601,10 @@ msgid ""
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
-"Powiadomienie, gdy <strong>%{metric_category}</strong> ostatniego <strong>%"
-"{rolling_window_size} %{unit}</strong> spadło o <strong>%{deviation}%</"
-"strong> w porównaniu z poprzednim <strong>%{rolling_window_size} %{unit}</"
-"strong>."
+"Powiadomienie, gdy <strong>%{metric_category}</strong> ostatniego "
+"<strong>%{rolling_window_size} %{unit}</strong> spadło o "
+"<strong>%{deviation}%</strong> w porównaniu z poprzednim "
+"<strong>%{rolling_window_size} %{unit}</strong>."
 
 #, fuzzy
 msgid ""
@@ -614,10 +613,10 @@ msgid ""
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
-"Powiadomienie, gdy <strong>%{metric_category}</strong> z ostatniego <strong>%"
-"{rolling_window_size} %{unit}</strong> wzrosło o <strong>%{deviation}%</"
-"strong> w porównaniu z poprzednim <strong>%{rolling_window_size} %{unit}</"
-"strong>."
+"Powiadomienie, gdy <strong>%{metric_category}</strong> z ostatniego "
+"<strong>%{rolling_window_size} %{unit}</strong> wzrosło o "
+"<strong>%{deviation}%</strong> w porównaniu z poprzednim "
+"<strong>%{rolling_window_size} %{unit}</strong>."
 
 #, fuzzy
 msgid "Connect your Slack account before selecting channels."
@@ -698,3 +697,7 @@ msgid ""
 msgstr ""
 "Testy zostaną oznaczone jako niestabilne po określonej liczbie niestabilnych "
 "wystąpień w ciągu ostatnich 30 dni."
+
+#, fuzzy
+#~ msgid "Only people with access"
+#~ msgstr "Tylko osoby z dostępem"

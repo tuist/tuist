@@ -251,9 +251,8 @@ msgstr "暂无预览"
 msgid "No recent builds yet"
 msgstr "尚无最新构建版本"
 
-#, fuzzy
-msgid "Only people with access"
-msgstr "仅限有权限者"
+msgid "Only organization members"
+msgstr ""
 
 #, fuzzy
 msgid "Or set up a new organization"
@@ -616,3 +615,7 @@ msgid ""
 "Tests will be marked as flaky after the specified number of flaky "
 "occurrences within the last 30 days"
 msgstr ""
+
+#, fuzzy
+#~ msgid "Only people with access"
+#~ msgstr "仅限有权限者"
