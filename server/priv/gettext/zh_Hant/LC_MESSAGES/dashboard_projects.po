@@ -3,8 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-23 12:12+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"PO-Revision-Date: 2026-01-28 11:16+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_projects/zh_Hant/>\n"
 "Language: zh_Hant\n"
@@ -251,8 +251,9 @@ msgstr "暫無預覽"
 msgid "No recent builds yet"
 msgstr "目前尚無近期版本"
 
+#, fuzzy
 msgid "Only organization members"
-msgstr ""
+msgstr "僅限組織成員"
 
 #, fuzzy
 msgid "Or set up a new organization"
@@ -420,200 +421,265 @@ msgstr "自上次句點以來"
 msgid "since yesterday"
 msgstr "自昨日起"
 
+#, fuzzy
 msgid "Channel"
-msgstr ""
+msgstr "頻道"
 
+#, fuzzy
 msgid "Configure"
-msgstr ""
+msgstr "設定"
 
+#, fuzzy
 msgid "Daily"
-msgstr ""
+msgstr "每日"
 
+#, fuzzy
 msgid "Frequency"
-msgstr ""
+msgstr "頻率"
 
+#, fuzzy
 msgid "Never"
-msgstr ""
+msgstr "切勿"
 
+#, fuzzy
 msgid "Save"
-msgstr ""
+msgstr "儲存"
 
+#, fuzzy
 msgid "Send test report"
-msgstr ""
+msgstr "發送測試報告"
 
+#, fuzzy
 msgid "Time"
-msgstr ""
+msgstr "時間"
 
+#, fuzzy
 msgid "All days"
-msgstr ""
+msgstr "所有日期"
 
+#, fuzzy
 msgid "Select days"
-msgstr ""
+msgstr "選擇日期"
 
+#, fuzzy
 msgid "Average"
-msgstr ""
+msgstr "平均"
 
+#, fuzzy
 msgid "Build duration"
-msgstr ""
+msgstr "建置時間"
 
+#, fuzzy
 msgid "Cache hit rate"
-msgstr ""
+msgstr "快取命中率"
 
+#, fuzzy
 msgid "Category"
-msgstr ""
+msgstr "類別"
 
+#, fuzzy
 msgid "Get notified when metrics regress"
-msgstr ""
+msgstr "當指標退化時接收通知"
 
+#, fuzzy
 msgid "Metric"
-msgstr ""
+msgstr "計量單位"
 
+#, fuzzy
 msgid "Test duration"
-msgstr ""
+msgstr "測試時長"
 
+#, fuzzy
 msgid "Rolling window"
-msgstr ""
+msgstr "滾動視窗"
 
+#, fuzzy
 msgid "Add alert rule"
-msgstr ""
+msgstr "新增警示規則"
 
+#, fuzzy
 msgid "Alert name"
-msgstr ""
+msgstr "警示名稱"
 
+#, fuzzy
 msgid "Alert rules"
-msgstr ""
+msgstr "警示規則"
 
+#, fuzzy
 msgid "Configure schedule"
-msgstr ""
+msgstr "設定排程"
 
+#, fuzzy
 msgid "Configure your report notifications"
-msgstr ""
+msgstr "設定您的報告通知"
 
+#, fuzzy
 msgid "Connect Slack"
-msgstr ""
+msgstr "連接 Slack"
 
+#, fuzzy
 msgid "Deviation (%)"
-msgstr ""
+msgstr "偏差率 (%)"
 
+#, fuzzy
 msgid "Notifications"
-msgstr ""
+msgstr "通知"
 
+#, fuzzy
 msgid "Repeat"
-msgstr ""
+msgstr "重複"
 
+#, fuzzy
 msgid "Reports"
-msgstr ""
+msgstr "報告"
 
+#, fuzzy
 msgid "Schedule"
-msgstr ""
+msgstr "日程安排"
 
 #, fuzzy
 msgid "Slack"
 msgstr "Slack"
 
+#, fuzzy
 msgid "Select channel"
-msgstr ""
+msgstr "選擇頻道"
 
+#, fuzzy
 msgid "Update channel"
-msgstr ""
+msgstr "更新頻道"
 
+#, fuzzy
 msgid "Slack channel"
-msgstr ""
+msgstr "Slack 頻道"
 
+#, fuzzy
 msgid "average"
-msgstr ""
+msgstr "平均"
 
+#, fuzzy
 msgid "build time"
-msgstr ""
+msgstr "建置時間"
 
 #, fuzzy
 msgid "builds"
 msgstr "建置"
 
+#, fuzzy
 msgid "cache hit rate"
-msgstr ""
+msgstr "快取命中率"
 
+#, fuzzy
 msgid "test time"
-msgstr ""
+msgstr "測試時間"
 
+#, fuzzy
 msgid "tests"
-msgstr ""
+msgstr "測試"
 
+#, fuzzy
 msgid "Create"
-msgstr ""
+msgstr "建立"
 
+#, fuzzy
 msgid "Create alert rule"
-msgstr ""
+msgstr "建立警示規則"
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{metric_category}</strong> of the last "
 "<strong>%{rolling_window_size} %{unit}</strong> has decreased by "
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
+"當<strong>%{metric_category}</strong> 於過去<strong>%{rolling_window_size} %"
+"{unit}</strong> 期間，相較於先前<strong>%{rolling_window_size} %{unit}</"
+"strong> 的數值下降達<strong>%{deviation}%</strong> 時發出警示。"
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{metric_category}</strong> of the last "
 "<strong>%{rolling_window_size} %{unit}</strong> has increased by "
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
+"當<strong>%{metric_category}</strong> 於過去<strong>%{rolling_window_size} %"
+"{unit}</strong> 期間，相較於前次<strong>%{rolling_window_size} %{unit}</"
+"strong> 的數值增加<strong>%{deviation}%</strong> 時發出警示。"
 
+#, fuzzy
 msgid "Connect your Slack account before selecting channels."
-msgstr ""
+msgstr "請先連結您的 Slack 帳戶，再選擇頻道。"
 
+#, fuzzy
 msgid "Deviation"
-msgstr ""
+msgstr "偏差"
 
+#, fuzzy
 msgid "None"
-msgstr ""
+msgstr "無"
 
+#, fuzzy
 msgid "Update"
-msgstr ""
+msgstr "更新"
 
+#, fuzzy
 msgid "Update alert rule"
-msgstr ""
+msgstr "更新警示規則"
 
+#, fuzzy
 msgid "Metrics"
-msgstr ""
+msgstr "指標"
 
+#, fuzzy
 msgid "Create an alert rule to get notified when metrics regress"
-msgstr ""
+msgstr "建立警示規則，以便在指標退化時收到通知"
 
+#, fuzzy
 msgid "No alert rules"
-msgstr ""
+msgstr "無警示規則"
 
+#, fuzzy
 msgid "Auto-mark tests as flaky"
-msgstr ""
+msgstr "自動標記測試為不穩定"
 
+#, fuzzy
 msgid "Auto-quarantine flaky tests"
-msgstr ""
+msgstr "自動隔離不穩定測試"
 
+#, fuzzy
 msgid "Automatically quarantine tests when they are detected as flaky"
-msgstr ""
+msgstr "當檢測到測試結果不穩定時，自動將其隔離"
 
+#, fuzzy
 msgid "Automations"
-msgstr ""
+msgstr "自動化"
 
+#, fuzzy
 msgid "Flaky test detection"
-msgstr ""
+msgstr "不穩定測試檢測"
 
+#, fuzzy
 msgid "Get notified when tests are flagged as flaky"
-msgstr ""
+msgstr "當測試標記為不穩定時接收通知"
 
+#, fuzzy
 msgid "Minimum occurrences"
-msgstr ""
+msgstr "最低出現次數"
 
+#, fuzzy
 msgid "Slack notifications"
-msgstr ""
+msgstr "Slack 通知"
 
+#, fuzzy
 msgid "Test quarantine"
-msgstr ""
+msgstr "測試隔離區"
 
+#, fuzzy
 msgid ""
 "Tests will be marked as flaky after the specified number of flaky "
 "occurrences within the last 30 days"
-msgstr ""
+msgstr "若測試在過去30天內出現超過指定次數的反覆性問題，將標記為不穩定測試"
 
 #, fuzzy
 #~ msgid "Only people with access"
