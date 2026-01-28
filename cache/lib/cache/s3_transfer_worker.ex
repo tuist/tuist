@@ -94,5 +94,4 @@ defmodule Cache.S3TransferWorker do
     Logger.warning("S3 #{type} task exited: #{inspect(reason)}")
     nil
   end
-
 end

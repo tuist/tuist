@@ -99,7 +99,8 @@ defmodule CacheWeb.ModuleCacheControllerTest do
              ]
 
       # Verify S3 download was enqueued via S3Transfers table
-      transfer = S3Transfers.pending(:download, 10) |> List.first()
+      :ok = Cache.S3TransfersBuffer.flush()
+      transfer = :download |> S3Transfers.pending(10) |> List.first()
       assert transfer.type == :download
       assert transfer.account_handle == "test-account"
       assert transfer.project_handle == "test-project"
@@ -395,7 +396,8 @@ defmodule CacheWeb.ModuleCacheControllerTest do
       assert {:error, :not_found} = MultipartUploads.get_upload(upload_id)
 
       # Verify S3 upload was enqueued via S3Transfers table
-      transfer = S3Transfers.pending(:upload, 10) |> List.first()
+      :ok = Cache.S3TransfersBuffer.flush()
+      transfer = :upload |> S3Transfers.pending(10) |> List.first()
       assert transfer.type == :upload
       assert transfer.account_handle == "test-account"
       assert transfer.project_handle == "test-project"

@@ -2,9 +2,9 @@ defmodule Cache.S3TransfersTest do
   use ExUnit.Case, async: false
 
   alias Cache.Repo
-  alias Cache.S3TransfersBuffer
   alias Cache.S3Transfer
   alias Cache.S3Transfers
+  alias Cache.S3TransfersBuffer
   alias Ecto.Adapters.SQL.Sandbox
 
   setup do
@@ -132,6 +132,7 @@ defmodule Cache.S3TransfersTest do
       :ok = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact1")
       :ok = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact2")
       :ok = S3Transfers.enqueue_cas_download("account", "project", "account/project/cas/ar/ti/artifact3")
+      :ok = S3TransfersBuffer.flush()
 
       uploads = S3Transfers.pending(:upload, 10)
       downloads = S3Transfers.pending(:download, 10)
@@ -147,6 +148,8 @@ defmodule Cache.S3TransfersTest do
       for i <- 1..5 do
         S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact#{i}")
       end
+
+      :ok = S3TransfersBuffer.flush()
 
       transfers = S3Transfers.pending(:upload, 3)
       assert length(transfers) == 3
@@ -165,7 +168,8 @@ defmodule Cache.S3TransfersTest do
 
       transfer = Repo.get_by!(S3Transfer, key: "account/project/cas/AB/CD/artifact123", type: :upload)
 
-      :ok = S3Transfers.delete(transfer.id)
+      S3Transfers.delete(transfer.id)
+      :ok = S3TransfersBuffer.flush()
 
       count = Repo.aggregate(S3Transfer, :count, :id)
       assert count == 0
@@ -177,8 +181,9 @@ defmodule Cache.S3TransfersTest do
 
       transfer = Repo.get_by!(S3Transfer, key: "account/project/cas/AB/CD/artifact123", type: :upload)
 
-      :ok = S3Transfers.delete(transfer.id)
-      :ok = S3Transfers.delete(transfer.id)
+      S3Transfers.delete(transfer.id)
+      S3Transfers.delete(transfer.id)
+      :ok = S3TransfersBuffer.flush()
 
       count = Repo.aggregate(S3Transfer, :count, :id)
       assert count == 0
@@ -194,7 +199,8 @@ defmodule Cache.S3TransfersTest do
 
       [t1, t2 | _] = S3Transfers.pending(:upload, 10)
 
-      :ok = S3Transfers.delete_all([t1.id, t2.id])
+      S3Transfers.delete_all([t1.id, t2.id])
+      :ok = S3TransfersBuffer.flush()
 
       remaining = S3Transfers.pending(:upload, 10)
       assert length(remaining) == 1
@@ -205,7 +211,7 @@ defmodule Cache.S3TransfersTest do
       :ok = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact1")
       :ok = S3TransfersBuffer.flush()
 
-      :ok = S3Transfers.delete_all([])
+      S3Transfers.delete_all([])
 
       count = Repo.aggregate(S3Transfer, :count, :id)
       assert count == 1

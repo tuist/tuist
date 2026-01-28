@@ -67,14 +67,16 @@ defmodule Cache.S3TransfersBuffer do
 
   @impl true
   def handle_event(state, {:s3_delete, ids}) do
+    ids_set = MapSet.new(ids)
+    s3_inserts = Map.reject(state.s3_inserts, fn {_key, entry} -> MapSet.member?(ids_set, entry.id) end)
     s3_deletes = Enum.reduce(ids, state.s3_deletes, &MapSet.put(&2, &1))
-    %{state | s3_deletes: s3_deletes}
+    %{state | s3_inserts: s3_inserts, s3_deletes: s3_deletes}
   end
 
   @impl true
   def flush_batches(state, max_batch_size) do
-    {inserts_batch, inserts_rest} = take_map_batch(state.s3_inserts, max_batch_size)
-    {deletes_batch, deletes_rest} = take_set_batch(state.s3_deletes, max_batch_size)
+    {inserts_batch, inserts_rest} = SQLiteBuffer.take_map_batch(state.s3_inserts, max_batch_size)
+    {deletes_batch, deletes_rest} = SQLiteBuffer.take_set_batch(state.s3_deletes, max_batch_size)
 
     operations = []
 
@@ -127,18 +129,8 @@ defmodule Cache.S3TransfersBuffer do
     )
   end
 
+  @impl true
   def write_batch(:s3_deletes, ids) do
     Repo.delete_all(from(t in S3Transfer, where: t.id in ^ids))
-  end
-
-  defp take_map_batch(queue, max_batch_size) do
-    {batch_list, rest_list} = Enum.split(queue, max_batch_size)
-    {Map.new(batch_list), Map.new(rest_list)}
-  end
-
-  defp take_set_batch(queue, max_batch_size) do
-    items = MapSet.to_list(queue)
-    {batch_list, rest_list} = Enum.split(items, max_batch_size)
-    {batch_list, MapSet.new(rest_list)}
   end
 end

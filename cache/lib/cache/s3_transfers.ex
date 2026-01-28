@@ -52,8 +52,6 @@ defmodule Cache.S3Transfers do
   Returns a list of pending transfers for the given type, ordered by insertion time (FIFO).
   """
   def pending(type, limit) when type in [:upload, :download] do
-    _ = S3TransfersBuffer.flush()
-
     S3Transfer
     |> where([t], t.type == ^type)
     |> order_by([t], asc: t.inserted_at, asc: t.id)
@@ -65,20 +63,14 @@ defmodule Cache.S3Transfers do
   Deletes a single transfer by ID.
   """
   def delete(id) do
-    _ = S3TransfersBuffer.enqueue_deletes([id])
-    _ = S3TransfersBuffer.flush()
-
-    :ok
+    S3TransfersBuffer.enqueue_deletes([id])
   end
 
   @doc """
   Deletes multiple transfers by their IDs.
   """
   def delete_all(ids) when is_list(ids) do
-    _ = S3TransfersBuffer.enqueue_deletes(ids)
-    _ = S3TransfersBuffer.flush()
-
-    :ok
+    S3TransfersBuffer.enqueue_deletes(ids)
   end
 
   defp enqueue(type, account_handle, project_handle, artifact_type, key) do

@@ -63,8 +63,8 @@ defmodule Cache.CacheArtifactsBuffer do
 
   @impl true
   def flush_batches(state, max_batch_size) do
-    {accesses_batch, accesses_rest} = take_map_batch(state.cas_accesses, max_batch_size)
-    {deletes_batch, deletes_rest} = take_set_batch(state.cas_deletes, max_batch_size)
+    {accesses_batch, accesses_rest} = SQLiteBuffer.take_map_batch(state.cas_accesses, max_batch_size)
+    {deletes_batch, deletes_rest} = SQLiteBuffer.take_set_batch(state.cas_deletes, max_batch_size)
 
     operations = []
 
@@ -82,8 +82,7 @@ defmodule Cache.CacheArtifactsBuffer do
         operations ++ [{:cas_deletes, deletes_batch}]
       end
 
-    {operations,
-     %{state | cas_accesses: accesses_rest, cas_deletes: deletes_rest}}
+    {operations, %{state | cas_accesses: accesses_rest, cas_deletes: deletes_rest}}
   end
 
   @impl true
@@ -99,7 +98,7 @@ defmodule Cache.CacheArtifactsBuffer do
 
   @impl true
   def write_batch(:cas_accesses, entries) do
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    now = DateTime.truncate(DateTime.utc_now(), :second)
 
     rows =
       Enum.map(entries, fn {_key, entry} ->
@@ -118,18 +117,8 @@ defmodule Cache.CacheArtifactsBuffer do
     )
   end
 
+  @impl true
   def write_batch(:cas_deletes, keys) do
     Repo.delete_all(from(a in CacheArtifact, where: a.key in ^keys))
-  end
-
-  defp take_map_batch(queue, max_batch_size) do
-    {batch_list, rest_list} = Enum.split(queue, max_batch_size)
-    {Map.new(batch_list), Map.new(rest_list)}
-  end
-
-  defp take_set_batch(queue, max_batch_size) do
-    items = MapSet.to_list(queue)
-    {batch_list, rest_list} = Enum.split(items, max_batch_size)
-    {batch_list, MapSet.new(rest_list)}
   end
 end
