@@ -182,6 +182,19 @@ open class TuistAcceptanceTestCase: XCTestCase {
             .first(where: { $0.extension == "xcworkspace" })
     }
 
+    public func run(_: CacheCommand.Type, _ arguments: String...) async throws {
+        try await run(CacheCommand.self, Array(arguments))
+    }
+
+    public func run(_: CacheCommand.Type, _ arguments: [String] = []) async throws {
+        let arguments = [
+            "--path", fixturePath.pathString,
+        ] + arguments
+
+        var parsedCommand = try CacheWarmCommand.parse(arguments)
+        try await parsedCommand.run()
+    }
+
     public func run(_ command: XcodeBuildBuildCommand.Type, _ arguments: String...) async throws {
         try await run(command, arguments)
     }
