@@ -8,6 +8,9 @@ All notable changes to this project will be documented in this file.
 * add test quarantine and automations settings by [@fortmarek](https://github.com/fortmarek) in [#9175](https://github.com/tuist/tuist/pull/9175)
 ### 🐛 Bug Fixes
 
+* set default cache concurrency limit to 100 by [@fortmarek](https://github.com/fortmarek) in [#9235](https://github.com/tuist/tuist/pull/9235)
+* support BITRISE_IDENTITY_TOKEN env var for Bitrise OIDC auth by [@pepicrft](https://github.com/pepicrft) in [#9257](https://github.com/tuist/tuist/pull/9257)
+* embed static XCFrameworks to support resources by [@pepicrft](https://github.com/pepicrft) in [#9240](https://github.com/tuist/tuist/pull/9240)
 * restore mapper order for selective testing and fix parseAsRoot by [@fortmarek](https://github.com/fortmarek) in [#9234](https://github.com/tuist/tuist/pull/9234)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.130.3...4.131.0
