@@ -18,6 +18,57 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
+class TuistVersionTest {
+
+    @Test
+    fun `parseVersion parses valid version strings`() {
+        assertEquals(listOf(4, 31, 0), TuistVersion.parseVersion("4.31.0"))
+        assertEquals(listOf(1, 0, 0), TuistVersion.parseVersion("1.0.0"))
+        assertEquals(listOf(10, 20, 30), TuistVersion.parseVersion("10.20.30"))
+        assertEquals(listOf(4, 31), TuistVersion.parseVersion("4.31"))
+    }
+
+    @Test
+    fun `parseVersion returns null for invalid versions`() {
+        assertNull(TuistVersion.parseVersion(""))
+        assertNull(TuistVersion.parseVersion("abc"))
+        assertNull(TuistVersion.parseVersion("1.2.abc"))
+    }
+
+    @Test
+    fun `isVersionSufficient returns true for equal versions`() {
+        assertTrue(TuistVersion.isVersionSufficient("4.31.0", "4.31.0"))
+        assertTrue(TuistVersion.isVersionSufficient("1.0.0", "1.0.0"))
+    }
+
+    @Test
+    fun `isVersionSufficient returns true for newer versions`() {
+        assertTrue(TuistVersion.isVersionSufficient("4.32.0", "4.31.0"))
+        assertTrue(TuistVersion.isVersionSufficient("5.0.0", "4.31.0"))
+        assertTrue(TuistVersion.isVersionSufficient("4.31.1", "4.31.0"))
+    }
+
+    @Test
+    fun `isVersionSufficient returns false for older versions`() {
+        assertFalse(TuistVersion.isVersionSufficient("4.30.0", "4.31.0"))
+        assertFalse(TuistVersion.isVersionSufficient("3.0.0", "4.31.0"))
+        assertFalse(TuistVersion.isVersionSufficient("4.30.99", "4.31.0"))
+    }
+
+    @Test
+    fun `isVersionSufficient handles versions with different segment counts`() {
+        assertTrue(TuistVersion.isVersionSufficient("4.32", "4.31.0"))
+        assertTrue(TuistVersion.isVersionSufficient("4.31.0", "4.31"))
+        assertFalse(TuistVersion.isVersionSufficient("4.30", "4.31.0"))
+    }
+
+    @Test
+    fun `isVersionSufficient returns false for invalid versions`() {
+        assertFalse(TuistVersion.isVersionSufficient("invalid", "4.31.0"))
+        assertFalse(TuistVersion.isVersionSufficient("4.31.0", "invalid"))
+    }
+}
+
 class TuistBuildCacheTest {
 
     private lateinit var mockServer: MockWebServer
@@ -39,6 +90,7 @@ class TuistBuildCacheTest {
 
         assertEquals("", cache.fullHandle)
         assertNull(cache.executablePath)
+        assertNull(cache.executableCommand)
         assertEquals(false, cache.allowInsecureProtocol)
         assertEquals(false, cache.isPush)
     }
@@ -55,6 +107,19 @@ class TuistBuildCacheTest {
         assertEquals("my-account/my-project", cache.fullHandle)
         assertEquals("/custom/path/tuist", cache.executablePath)
         assertEquals(true, cache.allowInsecureProtocol)
+        assertEquals(true, cache.isPush)
+    }
+
+    @Test
+    fun `TuistBuildCache can be configured with executableCommand`() {
+        val cache = TuistBuildCache().apply {
+            fullHandle = "my-account/my-project"
+            executableCommand = listOf("swift", "run", "tuist")
+            isPush = true
+        }
+
+        assertEquals("my-account/my-project", cache.fullHandle)
+        assertEquals(listOf("swift", "run", "tuist"), cache.executableCommand)
         assertEquals(true, cache.isPush)
     }
 
@@ -119,11 +184,7 @@ class TuistBuildCacheTest {
 
         val request = mockServer.takeRequest()
         val authHeader = request.getHeader("Authorization")
-        assertTrue(authHeader!!.startsWith("Basic "))
-
-        val encoded = authHeader.substring("Basic ".length)
-        val decoded = String(java.util.Base64.getDecoder().decode(encoded))
-        assertEquals("tuist:test-token", decoded)
+        assertEquals("Bearer test-token", authHeader)
     }
 
     @Test
