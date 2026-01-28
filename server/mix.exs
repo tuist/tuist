@@ -59,7 +59,7 @@ defmodule Tuist.MixProject do
       # PR: https://github.com/mtrudel/bandit/pull/564
       {:bandit, git: "https://github.com/tuist/bandit", branch: "detect-client-disconnect-on-timeout", override: true},
       {:credo, "== 1.7.13", only: [:dev, :test], runtime: false},
-      {:sentry, "~> 10.2.0"},
+      {:sentry, "~> 11.0.4"},
       {:hackney, "~> 1.8"},
       {:castore, "~> 1.0.12"},
       {:uniq, "~> 0.6"},
