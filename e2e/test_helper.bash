@@ -141,22 +141,52 @@ cache_server_wait() {
     echo "# Cache server is ready" >&3
 }
 
-# Build tuist CLI binary via swift build.
+# Build tuist CLI binary via xcodebuild.
 # Returns the path to the built binary on stdout.
+# Falls back to the mise-installed tuist if build fails.
 build_tuist_cli() {
     local repo_root="$1"
-    local build_dir="${repo_root}/.build/release"
-    local binary="${build_dir}/tuist"
+    local build_dir="${repo_root}/build/DerivedData"
+    local binary="${build_dir}/Build/Products/Debug/tuist"
 
+    # If we already have a built binary, use it
     if [[ -f "$binary" ]]; then
         echo "$binary"
         return 0
     fi
 
-    echo "# Building tuist CLI with swift build..." >&3
+    # Try to build using tuist generate + xcodebuild
+    echo "# Building tuist CLI..." >&3
     cd "$repo_root"
-    swift build -c release --product tuist 2>&1 >&3
-    echo "$binary"
+
+    # Check if tuist is available (installed via mise)
+    if command -v tuist &>/dev/null; then
+        echo "# Generating Xcode project with tuist..." >&3
+        if tuist generate --no-open 2>&1 >&3; then
+            echo "# Building with xcodebuild..." >&3
+            if xcodebuild build \
+                -workspace Tuist.xcworkspace \
+                -scheme tuist \
+                -configuration Debug \
+                -derivedDataPath "$build_dir" \
+                -quiet 2>&1 >&3; then
+                echo "$binary"
+                return 0
+            fi
+        fi
+    fi
+
+    # Fall back to mise-installed tuist
+    echo "# Using mise-installed tuist..." >&3
+    local mise_tuist
+    mise_tuist=$(mise which tuist 2>/dev/null || which tuist 2>/dev/null || echo "")
+    if [[ -n "$mise_tuist" && -x "$mise_tuist" ]]; then
+        echo "$mise_tuist"
+        return 0
+    fi
+
+    echo "# ERROR: Could not find or build tuist CLI" >&3
+    return 1
 }
 
 # Setup the main server database and dependencies
