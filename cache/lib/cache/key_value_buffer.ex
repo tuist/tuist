@@ -49,8 +49,11 @@ defmodule Cache.KeyValueBuffer do
     {batch, rest} = take_map_batch(state.entries, max_batch_size)
 
     operations =
-      []
-      |> add_operation(:key_values, batch)
+      if map_size(batch) == 0 do
+        []
+      else
+        [{:key_values, batch}]
+      end
 
     {operations, %{state | entries: rest}}
   end
@@ -85,14 +88,7 @@ defmodule Cache.KeyValueBuffer do
   end
 
   defp take_map_batch(queue, max_batch_size) do
-    if map_size(queue) <= max_batch_size do
-      {queue, %{}}
-    else
-      {batch_list, rest_list} = Enum.split(queue, max_batch_size)
-      {Map.new(batch_list), Map.new(rest_list)}
-    end
+    {batch_list, rest_list} = Enum.split(queue, max_batch_size)
+    {Map.new(batch_list), Map.new(rest_list)}
   end
-
-  defp add_operation(operations, _operation, empty) when empty == %{} or empty == [], do: operations
-  defp add_operation(operations, operation, entries), do: operations ++ [{operation, entries}]
 end

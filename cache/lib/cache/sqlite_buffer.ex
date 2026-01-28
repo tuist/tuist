@@ -5,14 +5,9 @@ defmodule Cache.SQLiteBuffer do
 
   use GenServer
 
-  require Logger
-
   @default_flush_interval_ms 200
   @default_flush_timeout_ms 30_000
   @default_max_batch_size 1000
-  @default_retry_max_attempts 5
-  @default_retry_base_delay_ms 50
-  @default_retry_max_delay_ms 2000
   @default_shutdown_ms 30_000
 
   def start_link(opts) do
@@ -64,14 +59,8 @@ defmodule Cache.SQLiteBuffer do
          config_value(buffer_module, :flush_interval_ms, @default_flush_interval_ms),
        flush_timeout_ms:
          config_value(buffer_module, :flush_timeout_ms, @default_flush_timeout_ms),
-       max_batch_size: config_value(buffer_module, :max_batch_size, @default_max_batch_size),
-       retry_max_attempts:
-         config_value(buffer_module, :retry_max_attempts, @default_retry_max_attempts),
-       retry_base_delay_ms:
-         config_value(buffer_module, :retry_base_delay_ms, @default_retry_base_delay_ms),
-       retry_max_delay_ms:
-         config_value(buffer_module, :retry_max_delay_ms, @default_retry_max_delay_ms)
-     }}
+        max_batch_size: config_value(buffer_module, :max_batch_size, @default_max_batch_size)
+      }}
   end
 
   @impl true
@@ -136,12 +125,7 @@ defmodule Cache.SQLiteBuffer do
 
     {duration_ms, _} =
       :timer.tc(fn ->
-        with_retry(
-          fn -> state.buffer_module.write_batch(operation, entries) end,
-          operation,
-          buffer_name,
-          state
-        )
+        state.buffer_module.write_batch(operation, entries)
       end)
 
     emit_flush_metrics(buffer_name, operation, duration_ms, batch_size)
@@ -180,80 +164,12 @@ defmodule Cache.SQLiteBuffer do
   end
 
   defp build_queue_stats(state) do
-    state.buffer_module.queue_stats(state.buffer_state) |> ensure_total()
-  end
-
-  defp ensure_total(stats) do
-    if Map.has_key?(stats, :total) do
-      stats
-    else
-      total =
-        stats
-        |> Enum.reject(fn {key, _value} -> key == :total end)
-        |> Enum.reduce(0, fn {_key, value}, acc -> acc + value end)
-
-      Map.put(stats, :total, total)
-    end
+    state.buffer_module.queue_stats(state.buffer_state)
   end
 
   defp should_flush_now?(stats, max_batch_size) do
-    group_counts = Map.delete(stats, :total)
-
-    if map_size(group_counts) == 0 do
-      Map.get(stats, :total, 0) >= max_batch_size
-    else
-      Enum.any?(group_counts, fn {_key, value} -> value >= max_batch_size end)
-    end
+    stats.total >= max_batch_size
   end
-
-  defp with_retry(fun, operation, buffer_name, state) do
-    do_with_retry(fun, operation, buffer_name, 0, state)
-  end
-
-  defp do_with_retry(fun, operation, buffer_name, attempt, state) do
-    fun.()
-  rescue
-    error ->
-      if busy_error?(error) and attempt < state.retry_max_attempts do
-        :telemetry.execute(
-          [:cache, :sqlite_writer, :retry],
-          %{count: 1},
-          %{operation: operation, attempt: attempt + 1, buffer: buffer_name}
-        )
-
-        Process.sleep(backoff_ms(state, attempt))
-        do_with_retry(fun, operation, buffer_name, attempt + 1, state)
-      else
-        Logger.warning(
-          "SQLite buffer #{buffer_name} #{operation} failed: #{Exception.message(error)}"
-        )
-
-        :ok
-      end
-  end
-
-  defp backoff_ms(state, attempt) do
-    base = state.retry_base_delay_ms
-    max_delay = state.retry_max_delay_ms
-    delay = trunc(base * :math.pow(2, attempt))
-    min(delay, max_delay)
-  end
-
-  defp busy_error?(%Exqlite.Error{} = error) do
-    error.message
-    |> to_string()
-    |> String.downcase()
-    |> String.contains?("busy")
-  end
-
-  defp busy_error?(%DBConnection.ConnectionError{} = error) do
-    error.message
-    |> to_string()
-    |> String.downcase()
-    |> String.contains?("busy")
-  end
-
-  defp busy_error?(_error), do: false
 
   defp emit_flush_metrics(buffer_name, operation, duration_microseconds, batch_size) do
     :telemetry.execute(

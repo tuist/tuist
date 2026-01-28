@@ -17,15 +17,14 @@ defmodule Cache.S3TransfersBuffer do
     SQLiteBuffer.child_spec(Keyword.merge(opts, name: __MODULE__, buffer_module: __MODULE__))
   end
 
-  def enqueue(type, account_handle, project_handle, artifact_type, key)
-      when type in [:upload, :download] and artifact_type in [:cas, :module] do
+  def enqueue(type, account_handle, project_handle, artifact_type, key) do
     SQLiteBuffer.enqueue(
       __MODULE__,
       {:s3_insert, type, account_handle, project_handle, artifact_type, key}
     )
   end
 
-  def enqueue_deletes(ids) when is_list(ids) do
+  def enqueue_deletes(ids) do
     SQLiteBuffer.enqueue(__MODULE__, {:s3_delete, ids})
   end
 
@@ -77,10 +76,21 @@ defmodule Cache.S3TransfersBuffer do
     {inserts_batch, inserts_rest} = take_map_batch(state.s3_inserts, max_batch_size)
     {deletes_batch, deletes_rest} = take_set_batch(state.s3_deletes, max_batch_size)
 
+    operations = []
+
     operations =
-      []
-      |> add_operation(:s3_inserts, inserts_batch)
-      |> add_operation(:s3_deletes, deletes_batch)
+      if map_size(inserts_batch) == 0 do
+        operations
+      else
+        operations ++ [{:s3_inserts, inserts_batch}]
+      end
+
+    operations =
+      if deletes_batch == [] do
+        operations
+      else
+        operations ++ [{:s3_deletes, deletes_batch}]
+      end
 
     {operations, %{state | s3_inserts: inserts_rest, s3_deletes: deletes_rest}}
   end
@@ -122,12 +132,8 @@ defmodule Cache.S3TransfersBuffer do
   end
 
   defp take_map_batch(queue, max_batch_size) do
-    if map_size(queue) <= max_batch_size do
-      {queue, %{}}
-    else
-      {batch_list, rest_list} = Enum.split(queue, max_batch_size)
-      {Map.new(batch_list), Map.new(rest_list)}
-    end
+    {batch_list, rest_list} = Enum.split(queue, max_batch_size)
+    {Map.new(batch_list), Map.new(rest_list)}
   end
 
   defp take_set_batch(queue, max_batch_size) do
@@ -135,7 +141,4 @@ defmodule Cache.S3TransfersBuffer do
     {batch_list, rest_list} = Enum.split(items, max_batch_size)
     {batch_list, MapSet.new(rest_list)}
   end
-
-  defp add_operation(operations, _operation, empty) when empty == %{} or empty == [], do: operations
-  defp add_operation(operations, operation, entries), do: operations ++ [{operation, entries}]
 end
