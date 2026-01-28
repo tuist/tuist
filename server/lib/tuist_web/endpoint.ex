@@ -75,10 +75,14 @@ defmodule TuistWeb.Endpoint do
     secret: {Tuist.Environment, :cache_api_key, []},
     signature_header: "x-cache-signature"
 
+  # The /api/runs endpoint can receive large payloads (files, cacheable_tasks, cas_outputs)
+  # for projects with thousands of files. 50MB should accommodate most projects.
+  # TODO: Consider streaming large arrays instead of loading everything into memory.
   plug Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
-    json_decoder: Phoenix.json_library()
+    json_decoder: Phoenix.json_library(),
+    length: 50_000_000
 
   plug Plug.MethodOverride
   plug Plug.Head
