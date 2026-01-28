@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 
 ### ⛰️  Features
 
+* add registryEnabled generation option by [@pepicrft](https://github.com/pepicrft) in [#9258](https://github.com/tuist/tuist/pull/9258)
 * add test quarantine and automations settings by [@fortmarek](https://github.com/fortmarek) in [#9175](https://github.com/tuist/tuist/pull/9175)
 ### 🐛 Bug Fixes
 
