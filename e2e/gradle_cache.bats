@@ -23,6 +23,7 @@ setup_file() {
         TUIST_EXECUTABLE=$(build_tuist_cli "$REPO_ROOT")
         export TUIST_EXECUTABLE
     fi
+    echo "# TUIST_EXECUTABLE is set to: $TUIST_EXECUTABLE" >&3
 
     # Setup and start the main server if not already running
     if ! server_is_running; then
