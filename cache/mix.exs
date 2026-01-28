@@ -25,7 +25,7 @@ defmodule Cache.MixProject do
 
   defp deps do
     [
-      {:sentry, "~> 10.2.0"},
+      {:sentry, "~> 11.0.4"},
       {:hackney, "~> 1.8"},
       # Using fork with client disconnect detection during body read timeouts
       # PR: https://github.com/mtrudel/bandit/pull/564

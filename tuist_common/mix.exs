@@ -24,7 +24,7 @@ defmodule TuistCommon.MixProject do
 
   defp deps do
     [
-      {:sentry, "~> 10.2.0"},
+      {:sentry, "~> 11.0.4"},
       {:bandit, "~> 1.0"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ex_aws, "~> 2.0"},
