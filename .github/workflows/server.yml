@@ -633,6 +633,9 @@ jobs:
       - name: Start ClickHouse
         working-directory: server
         run: mise run clickhouse:start
+      - name: Publish Gradle plugin to mavenLocal
+        working-directory: gradle
+        run: ./gradlew publishToMavenLocal
       - name: Run Gradle cache acceptance test
         working-directory: .
         run: mise run e2e gradle_cache
