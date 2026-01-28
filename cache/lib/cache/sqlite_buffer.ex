@@ -5,6 +5,8 @@ defmodule Cache.SQLiteBuffer do
 
   use GenServer
 
+  require Logger
+
   @default_flush_interval_ms 200
   @default_flush_timeout_ms 30_000
   @default_max_batch_size 1000
@@ -99,6 +101,8 @@ defmodule Cache.SQLiteBuffer do
 
   @impl true
   def terminate(_reason, state) do
+    buffer_name = state.buffer_module.buffer_name()
+    Logger.notice("Flushing #{buffer_name} buffer before shutdown...")
     _ = flush_state(state, :drain)
     :ok
   end
@@ -120,6 +124,8 @@ defmodule Cache.SQLiteBuffer do
   defp execute_operation({operation, entries}, state) do
     batch_size = batch_size(entries)
     buffer_name = state.buffer_module.buffer_name()
+
+    Logger.notice("Flushing #{batch_size} row(s) from #{buffer_name} (#{operation})")
 
     {duration_ms, _} =
       :timer.tc(fn ->
@@ -155,6 +161,8 @@ defmodule Cache.SQLiteBuffer do
     stats = build_queue_stats(state)
 
     if should_flush_now?(stats, state.max_batch_size) do
+      buffer_name = state.buffer_module.buffer_name()
+      Logger.notice("#{buffer_name} buffer full, flushing to SQLite")
       send(self(), :flush)
     end
 
