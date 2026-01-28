@@ -2,6 +2,7 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
+import SwiftyJSON
 import Testing
 import TuistSupport
 
@@ -30,10 +31,11 @@ struct RegistryConfigurationGeneratorTests {
         #expect(exists)
 
         let content = try await fileSystem.readTextFile(at: registriesJSONPath)
-        #expect(content.contains("\"url\": \"https://tuist.dev/api/registry/swift\""))
-        #expect(content.contains("\"tuist.dev\""))
-        #expect(content.contains("\"loginAPIPath\": \"/api/registry/swift/login\""))
-        #expect(content.contains("\"version\": 1"))
+        let json = try JSON(data: Data(content.utf8))
+
+        #expect(json["registries"]["[default]"]["url"].string == "https://tuist.dev/api/registry/swift")
+        #expect(json["authentication"]["tuist.dev"]["loginAPIPath"].string == "/api/registry/swift/login")
+        #expect(json["version"].int == 1)
     }
 
     @Test(.inTemporaryDirectory)
@@ -47,7 +49,7 @@ struct RegistryConfigurationGeneratorTests {
         let registriesJSONPath = configurationPath.appending(component: "registries.json")
         try await fileSystem.writeText("old content", at: registriesJSONPath)
 
-        let serverURL = try #require(URL(string: "https://cloud.tuist.io"))
+        let serverURL = try #require(URL(string: "https://tuist.dev"))
 
         try await subject.generate(
             at: configurationPath,
@@ -55,7 +57,9 @@ struct RegistryConfigurationGeneratorTests {
         )
 
         let content = try await fileSystem.readTextFile(at: registriesJSONPath)
-        #expect(content.contains("\"url\": \"https://cloud.tuist.io/api/registry/swift\""))
+        let json = try JSON(data: Data(content.utf8))
+
+        #expect(json["registries"]["[default]"]["url"].string == "https://tuist.dev/api/registry/swift")
         #expect(!content.contains("old content"))
     }
 
@@ -76,19 +80,21 @@ struct RegistryConfigurationGeneratorTests {
 
         let registriesJSONPath = configurationPath.appending(component: "registries.json")
         let content = try await fileSystem.readTextFile(at: registriesJSONPath)
-        #expect(content.contains("\"url\": \"https://tuist.dev/api/registry/swift\""))
+        let json = try JSON(data: Data(content.utf8))
+
+        #expect(json["registries"]["[default]"]["url"].string == "https://tuist.dev/api/registry/swift")
     }
 
     @Test
     func registryConfigurationJSON_generatesCorrectJSON() throws {
         let serverURL = try #require(URL(string: "https://tuist.dev"))
 
-        let json = RegistryConfigurationGenerator.registryConfigurationJSON(serverURL: serverURL)
+        let jsonString = RegistryConfigurationGenerator.registryConfigurationJSON(serverURL: serverURL)
+        let json = try JSON(data: Data(jsonString.utf8))
 
-        #expect(json.contains("\"url\": \"https://tuist.dev/api/registry/swift\""))
-        #expect(json.contains("\"tuist.dev\""))
-        #expect(json.contains("\"loginAPIPath\": \"/api/registry/swift/login\""))
-        #expect(json.contains("\"version\": 1"))
-        #expect(json.contains("\"onUnsigned\": \"silentAllow\""))
+        #expect(json["registries"]["[default]"]["url"].string == "https://tuist.dev/api/registry/swift")
+        #expect(json["authentication"]["tuist.dev"]["loginAPIPath"].string == "/api/registry/swift/login")
+        #expect(json["version"].int == 1)
+        #expect(json["security"]["default"]["signing"]["onUnsigned"].string == "silentAllow")
     }
 }

@@ -31,6 +31,24 @@ let tuist = Tuist(
 
 With this option, `tuist generate` will automatically create the registry configuration file in your workspace. This eliminates the need to run `tuist registry setup` separately.
 
+::: tip
+<!-- -->
+If you want to integrate dependencies through Xcode's default Swift Package Manager integration (rather than Tuist's XcodeProj-based integration), enabling `registryEnabled` in your generated projects will configure them to use the registry automatically:
+
+```swift
+import ProjectDescription
+
+let tuist = Tuist(
+    project: .tuist(
+        generationOptions: .options(
+            registryEnabled: true
+        )
+    )
+)
+```
+<!-- -->
+:::
+
 ### Option 2: Manual setup {#manual-setup}
 
 To set up the registry manually, run the following command in your project's directory:
