@@ -609,6 +609,9 @@ jobs:
         with:
           working_directory: cache
       - uses: android-actions/setup-android@v3
+      - name: Start ClickHouse
+        working-directory: server
+        run: mise run clickhouse:start
       - name: Run Gradle cache acceptance test
         working-directory: .
         run: mise run e2e gradle_cache
