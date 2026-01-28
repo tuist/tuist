@@ -129,10 +129,17 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
             // a directory tree that contains a Tuist project.
             val tempDir = java.nio.file.Files.createTempDirectory("tuist-gradle-").toFile()
             try {
-                val process = ProcessBuilder(command + "version")
+                val processBuilder = ProcessBuilder(command + "version")
                     .directory(tempDir)
                     .redirectErrorStream(true)
-                    .start()
+
+                // Clear environment variables that might leak project context to tuist
+                val env = processBuilder.environment()
+                env.remove("PWD")
+                env.remove("TUIST_CONFIG_PATH")
+                env.remove("TUIST_CURRENT_DIRECTORY")
+
+                val process = processBuilder.start()
 
                 val output = BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
                     reader.readText().trim()
@@ -170,10 +177,17 @@ class TuistCommandConfigurationProvider(
         // Create a unique temp directory to avoid tuist detecting any project context.
         val tempDir = java.nio.file.Files.createTempDirectory("tuist-gradle-").toFile()
         try {
-            val process = ProcessBuilder(fullCommand)
+            val processBuilder = ProcessBuilder(fullCommand)
                 .directory(tempDir)
                 .redirectErrorStream(false)
-                .start()
+
+            // Clear environment variables that might leak project context to tuist
+            val env = processBuilder.environment()
+            env.remove("PWD")
+            env.remove("TUIST_CONFIG_PATH")
+            env.remove("TUIST_CURRENT_DIRECTORY")
+
+            val process = processBuilder.start()
 
             val output = BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
                 reader.readText()
