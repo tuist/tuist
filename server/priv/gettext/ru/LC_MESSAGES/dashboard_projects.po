@@ -3,8 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-23 12:12+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"PO-Revision-Date: 2026-01-28 11:16+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Russian <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/ru/>\n"
 "Language: ru\n"
@@ -257,8 +257,9 @@ msgstr "Пока нет предварительных просмотров"
 msgid "No recent builds yet"
 msgstr "Пока нет последних сборок"
 
+#, fuzzy
 msgid "Only organization members"
-msgstr ""
+msgstr "Только члены организации"
 
 #, fuzzy
 msgid "Or set up a new organization"
@@ -430,203 +431,271 @@ msgstr "с последней точкой"
 msgid "since yesterday"
 msgstr "с вчерашнего дня"
 
+#, fuzzy
 msgid "Channel"
-msgstr ""
+msgstr "Канал"
 
+#, fuzzy
 msgid "Configure"
-msgstr ""
+msgstr "Настройка"
 
+#, fuzzy
 msgid "Daily"
-msgstr ""
+msgstr "Ежедневно"
 
+#, fuzzy
 msgid "Frequency"
-msgstr ""
+msgstr "Частота"
 
+#, fuzzy
 msgid "Never"
-msgstr ""
+msgstr "Никогда"
 
 #, fuzzy
 msgid "Save"
 msgstr "Сохранить"
 
+#, fuzzy
 msgid "Send test report"
-msgstr ""
+msgstr "Отправить тестовый отчет"
 
+#, fuzzy
 msgid "Time"
-msgstr ""
+msgstr "Время"
 
+#, fuzzy
 msgid "All days"
-msgstr ""
+msgstr "Все дни"
 
+#, fuzzy
 msgid "Select days"
-msgstr ""
+msgstr "Выберите дни"
 
+#, fuzzy
 msgid "Average"
-msgstr ""
+msgstr "Среднее"
 
+#, fuzzy
 msgid "Build duration"
-msgstr ""
+msgstr "Продолжительность сборки"
 
+#, fuzzy
 msgid "Cache hit rate"
-msgstr ""
+msgstr "Коэффициент попадания в кэш"
 
+#, fuzzy
 msgid "Category"
-msgstr ""
+msgstr "Категория"
 
+#, fuzzy
 msgid "Get notified when metrics regress"
-msgstr ""
+msgstr "Получайте уведомления о снижении показателей"
 
 msgid "Metric"
 msgstr ""
 
+#, fuzzy
 msgid "Test duration"
-msgstr ""
+msgstr "Продолжительность теста"
 
+#, fuzzy
 msgid "Rolling window"
-msgstr ""
+msgstr "Подвижное окно"
 
+#, fuzzy
 msgid "Add alert rule"
-msgstr ""
+msgstr "Добавить правило оповещения"
 
+#, fuzzy
 msgid "Alert name"
-msgstr ""
+msgstr "Название предупреждения"
 
+#, fuzzy
 msgid "Alert rules"
-msgstr ""
+msgstr "Правила оповещений"
 
+#, fuzzy
 msgid "Configure schedule"
-msgstr ""
+msgstr "Настройте расписание"
 
+#, fuzzy
 msgid "Configure your report notifications"
-msgstr ""
+msgstr "Настройте уведомления о отчетах"
 
+#, fuzzy
 msgid "Connect Slack"
-msgstr ""
+msgstr "Подключите Slack"
 
+#, fuzzy
 msgid "Deviation (%)"
-msgstr ""
+msgstr "Отклонение (%)"
 
+#, fuzzy
 msgid "Notifications"
-msgstr ""
+msgstr "Уведомления"
 
+#, fuzzy
 msgid "Repeat"
-msgstr ""
+msgstr "Повторить"
 
+#, fuzzy
 msgid "Reports"
-msgstr ""
+msgstr "Отчеты"
 
+#, fuzzy
 msgid "Schedule"
-msgstr ""
+msgstr "Расписание"
 
 #, fuzzy
 msgid "Slack"
 msgstr "Slack"
 
+#, fuzzy
 msgid "Select channel"
-msgstr ""
+msgstr "Выберите канал"
 
+#, fuzzy
 msgid "Update channel"
-msgstr ""
+msgstr "Канал обновлений"
 
+#, fuzzy
 msgid "Slack channel"
-msgstr ""
+msgstr "Канал Slack"
 
+#, fuzzy
 msgid "average"
-msgstr ""
+msgstr "средний"
 
+#, fuzzy
 msgid "build time"
-msgstr ""
+msgstr "время сборки"
 
 #, fuzzy
 msgid "builds"
-msgstr "Сборки"
+msgstr "builds"
 
+#, fuzzy
 msgid "cache hit rate"
-msgstr ""
+msgstr "коэффициент попадания в кэш"
 
+#, fuzzy
 msgid "test time"
-msgstr ""
+msgstr "время тестирования"
 
 #, fuzzy
 msgid "tests"
-msgstr "Тесты"
+msgstr "тесты"
 
+#, fuzzy
 msgid "Create"
-msgstr ""
+msgstr "Создать"
 
+#, fuzzy
 msgid "Create alert rule"
-msgstr ""
+msgstr "Создать правило оповещения"
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{metric_category}</strong> of the last "
 "<strong>%{rolling_window_size} %{unit}</strong> has decreased by "
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
+"Предупреждение, когда <strong>%{metric_category}</strong> последнего <strong>"
+"%{rolling_window_size} %{unit}</strong> уменьшился на <strong>%{deviation}%</"
+"strong> по сравнению с предыдущим <strong>%{rolling_window_size} %{unit}</"
+"strong>."
 
+#, fuzzy
 msgid ""
 "Alert when the <strong>%{metric_category}</strong> of the last "
 "<strong>%{rolling_window_size} %{unit}</strong> has increased by "
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
+"Предупреждение, когда <strong>%{metric_category}</strong> последнего <strong>"
+"%{rolling_window_size} %{unit}</strong> увеличился на <strong>%{deviation}%</"
+"strong> по сравнению с предыдущим <strong>%{rolling_window_size} %{unit}</"
+"strong>."
 
+#, fuzzy
 msgid "Connect your Slack account before selecting channels."
-msgstr ""
+msgstr "Подключите свою учетную запись Slack, прежде чем выбирать каналы."
 
+#, fuzzy
 msgid "Deviation"
-msgstr ""
+msgstr "Отклонение"
 
+#, fuzzy
 msgid "None"
-msgstr ""
+msgstr "Нет"
 
+#, fuzzy
 msgid "Update"
-msgstr ""
+msgstr "Обновление"
 
+#, fuzzy
 msgid "Update alert rule"
-msgstr ""
+msgstr "Правило оповещения об обновлениях"
 
 #, fuzzy
 msgid "Metrics"
 msgstr "Метрики"
 
+#, fuzzy
 msgid "Create an alert rule to get notified when metrics regress"
 msgstr ""
+"Создайте правило оповещения, чтобы получать уведомления о регрессии метрик."
 
+#, fuzzy
 msgid "No alert rules"
-msgstr ""
+msgstr "Нет правил оповещения"
 
+#, fuzzy
 msgid "Auto-mark tests as flaky"
-msgstr ""
+msgstr "Автоматически помечайте тесты как нестабильные"
 
+#, fuzzy
 msgid "Auto-quarantine flaky tests"
-msgstr ""
+msgstr "Автоматическая карантина нестабильных тестов"
 
+#, fuzzy
 msgid "Automatically quarantine tests when they are detected as flaky"
 msgstr ""
+"Автоматически помещайте тесты в карантин, если они были признаны "
+"нестабильными."
 
+#, fuzzy
 msgid "Automations"
-msgstr ""
+msgstr "Автоматизация"
 
+#, fuzzy
 msgid "Flaky test detection"
-msgstr ""
+msgstr "Обнаружение нестабильных тестов"
 
+#, fuzzy
 msgid "Get notified when tests are flagged as flaky"
-msgstr ""
+msgstr "Получайте уведомления, когда тесты помечаются как нестабильные"
 
+#, fuzzy
 msgid "Minimum occurrences"
-msgstr ""
+msgstr "Минимальное количество вхождений"
 
+#, fuzzy
 msgid "Slack notifications"
-msgstr ""
+msgstr "Уведомления Slack"
 
+#, fuzzy
 msgid "Test quarantine"
-msgstr ""
+msgstr "Тестовая карантинная зона"
 
+#, fuzzy
 msgid ""
 "Tests will be marked as flaky after the specified number of flaky "
 "occurrences within the last 30 days"
 msgstr ""
+"Тесты будут помечены как нестабильные после указанного количества "
+"нестабильных результатов за последние 30 дней."
 
 #, fuzzy
 #~ msgid "Only people with access"
