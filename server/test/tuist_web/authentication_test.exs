@@ -521,6 +521,5 @@ defmodule TuistWeb.AuthenticationTest do
 
       assert Authentication.get_authorization_token_from_conn(conn) == nil
     end
-
   end
 end
