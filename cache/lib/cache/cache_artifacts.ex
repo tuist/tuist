@@ -8,7 +8,7 @@ defmodule Cache.CacheArtifacts do
   alias Cache.CacheArtifact
   alias Cache.Disk
   alias Cache.Repo
-  alias Cache.SQLiteWriter
+  alias Cache.CacheArtifactsBuffer
 
   @default_batch_size 500
 
@@ -17,7 +17,7 @@ defmodule Cache.CacheArtifacts do
   """
 
   def oldest(limit \\ @default_batch_size) do
-    _ = SQLiteWriter.flush(:cas_artifacts)
+    _ = CacheArtifactsBuffer.flush()
 
     CacheArtifact
     |> order_by([a], asc: a.last_accessed_at)
@@ -30,8 +30,8 @@ defmodule Cache.CacheArtifacts do
   """
 
   def delete_by_key(key) do
-    _ = SQLiteWriter.enqueue_cas_deletes([key])
-    _ = SQLiteWriter.flush(:cas_artifacts)
+    _ = CacheArtifactsBuffer.enqueue_deletes([key])
+    _ = CacheArtifactsBuffer.flush()
     :ok
   end
 
@@ -40,8 +40,8 @@ defmodule Cache.CacheArtifacts do
   """
 
   def delete_by_keys(keys) when is_list(keys) do
-    _ = SQLiteWriter.enqueue_cas_deletes(keys)
-    _ = SQLiteWriter.flush(:cas_artifacts)
+    _ = CacheArtifactsBuffer.enqueue_deletes(keys)
+    _ = CacheArtifactsBuffer.flush()
     :ok
   end
 
@@ -55,7 +55,7 @@ defmodule Cache.CacheArtifacts do
     size_bytes = file_size_for(key)
     last_accessed_at = DateTime.utc_now()
 
-    _ = SQLiteWriter.enqueue_cas_access(key, size_bytes, last_accessed_at)
+    _ = CacheArtifactsBuffer.enqueue_access(key, size_bytes, last_accessed_at)
     :ok
   end
 

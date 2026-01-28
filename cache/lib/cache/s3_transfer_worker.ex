@@ -15,7 +15,7 @@ defmodule Cache.S3TransferWorker do
   alias Cache.Disk
   alias Cache.S3
   alias Cache.S3Transfers
-  alias Cache.SQLiteWriter
+  alias Cache.S3TransfersBuffer
 
   require Logger
 
@@ -24,7 +24,7 @@ defmodule Cache.S3TransferWorker do
 
   @impl Oban.Worker
   def perform(_job) do
-    SQLiteWriter.flush(:s3_transfers)
+    S3TransfersBuffer.flush()
     process_batch(:upload, &S3.upload/1)
     process_batch(:download, &S3.download/1)
     :ok
@@ -93,4 +93,5 @@ defmodule Cache.S3TransferWorker do
     Logger.warning("S3 #{type} task exited: #{inspect(reason)}")
     nil
   end
+
 end

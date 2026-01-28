@@ -10,7 +10,7 @@ defmodule Cache.S3Transfers do
 
   alias Cache.Repo
   alias Cache.S3Transfer
-  alias Cache.SQLiteWriter
+  alias Cache.S3TransfersBuffer
 
   @doc """
   Enqueues a CAS artifact for upload to S3.
@@ -52,7 +52,7 @@ defmodule Cache.S3Transfers do
   Returns a list of pending transfers for the given type, ordered by insertion time (FIFO).
   """
   def pending(type, limit) when type in [:upload, :download] do
-    _ = SQLiteWriter.flush(:s3_transfers)
+    _ = S3TransfersBuffer.flush()
 
     S3Transfer
     |> where([t], t.type == ^type)
@@ -65,8 +65,8 @@ defmodule Cache.S3Transfers do
   Deletes a single transfer by ID.
   """
   def delete(id) do
-    _ = SQLiteWriter.enqueue_s3_transfer_deletes([id])
-    _ = SQLiteWriter.flush(:s3_transfers)
+    _ = S3TransfersBuffer.enqueue_deletes([id])
+    _ = S3TransfersBuffer.flush()
 
     :ok
   end
@@ -75,13 +75,13 @@ defmodule Cache.S3Transfers do
   Deletes multiple transfers by their IDs.
   """
   def delete_all(ids) when is_list(ids) do
-    _ = SQLiteWriter.enqueue_s3_transfer_deletes(ids)
-    _ = SQLiteWriter.flush(:s3_transfers)
+    _ = S3TransfersBuffer.enqueue_deletes(ids)
+    _ = S3TransfersBuffer.flush()
 
     :ok
   end
 
   defp enqueue(type, account_handle, project_handle, artifact_type, key) do
-    SQLiteWriter.enqueue_s3_transfer(type, account_handle, project_handle, artifact_type, key)
+    S3TransfersBuffer.enqueue(type, account_handle, project_handle, artifact_type, key)
   end
 end
