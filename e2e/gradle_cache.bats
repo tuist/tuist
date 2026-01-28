@@ -50,9 +50,12 @@ setup_file() {
 
         # Create an account token for cache access
         echo "# Creating account token for Gradle cache..." >&3
-        TUIST_TOKEN=$("$TUIST_EXECUTABLE" account tokens create tuist \
+        local token_output
+        token_output=$("$TUIST_EXECUTABLE" account tokens create tuist \
             --scopes project:cache:read --scopes project:cache:write \
-            --name "gradle-e2e-test-$(date +%s)" 2>/dev/null | grep -o 'tuist_[a-zA-Z0-9_-]*')
+            --name "gradle-e2e-test-$(date +%s)" 2>&1) || true
+        echo "# Token command output: $token_output" >&3
+        TUIST_TOKEN=$(echo "$token_output" | grep -o 'tuist_[a-zA-Z0-9_-]*' || echo "")
 
         # Clean up temp directory
         cd "$REPO_ROOT"
@@ -61,7 +64,7 @@ setup_file() {
         if [[ -z "$TUIST_TOKEN" ]]; then
             echo "# Failed to create account token, test may fail" >&3
         else
-            echo "# Account token created successfully" >&3
+            echo "# Account token created successfully: ${TUIST_TOKEN:0:20}..." >&3
         fi
         export TUIST_TOKEN
     fi
