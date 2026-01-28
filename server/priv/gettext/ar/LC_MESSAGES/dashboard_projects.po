@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-23 12:12+0000\n"
+"PO-Revision-Date: 2026-01-28 11:16+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Arabic <https://translate.tuist.dev/projects/tuist/"
 "dashboard_projects/ar/>\n"
@@ -257,8 +257,9 @@ msgstr "لا توجد معاينات حتى الآن"
 msgid "No recent builds yet"
 msgstr "لا توجد إصدارات حديثة حتى الآن"
 
+#, fuzzy
 msgid "Only organization members"
-msgstr ""
+msgstr "أعضاء المنظمة فقط"
 
 #, fuzzy
 msgid "Or set up a new organization"
