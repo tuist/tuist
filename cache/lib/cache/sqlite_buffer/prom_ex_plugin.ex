@@ -8,11 +8,11 @@ defmodule Cache.SQLiteBuffer.PromExPlugin do
   @impl true
   def event_metrics(_opts) do
     Event.build(:cache_sqlite_buffer_event_metrics, [
-      distribution([:tuist_cache, :sqlite_writer, :flush, :duration, :ms],
-        event_name: [:cache, :sqlite_writer, :flush],
+      distribution([:tuist_cache, :sqlite_buffer, :flush, :duration, :ms],
+        event_name: [:cache, :sqlite_buffer, :flush],
         measurement: :duration_ms,
         unit: :millisecond,
-        description: "SQLite writer flush durations.",
+        description: "SQLite buffer flush durations.",
         tags: [:operation, :buffer],
         tag_values: fn metadata ->
           %{
@@ -22,10 +22,10 @@ defmodule Cache.SQLiteBuffer.PromExPlugin do
         end,
         reporter_options: [buckets: @duration_buckets]
       ),
-      sum([:tuist_cache, :sqlite_writer, :flush, :batch_size],
-        event_name: [:cache, :sqlite_writer, :flush],
+      sum([:tuist_cache, :sqlite_buffer, :flush, :batch_size],
+        event_name: [:cache, :sqlite_buffer, :flush],
         measurement: :batch_size,
-        description: "SQLite writer rows flushed per operation.",
+        description: "SQLite buffer rows flushed per operation.",
         tags: [:operation, :buffer],
         tag_values: fn metadata ->
           %{
@@ -46,23 +46,23 @@ defmodule Cache.SQLiteBuffer.PromExPlugin do
       poll_rate,
       {__MODULE__, :execute_queue_metrics, []},
       [
-        last_value([:tuist_cache, :sqlite_writer, :pending, :total],
-          event_name: [:cache, :prom_ex, :sqlite_writer, :queue],
+        last_value([:tuist_cache, :sqlite_buffer, :pending, :total],
+          event_name: [:cache, :prom_ex, :sqlite_buffer, :queue],
           measurement: :total,
-          description: "Total queued SQLite writer entries."
+          description: "Total queued SQLite buffer entries."
         ),
-        last_value([:tuist_cache, :sqlite_writer, :pending, :key_values],
-          event_name: [:cache, :prom_ex, :sqlite_writer, :queue],
+        last_value([:tuist_cache, :sqlite_buffer, :pending, :key_values],
+          event_name: [:cache, :prom_ex, :sqlite_buffer, :queue],
           measurement: :key_values,
           description: "Queued key-value upserts."
         ),
-        last_value([:tuist_cache, :sqlite_writer, :pending, :cas_artifacts],
-          event_name: [:cache, :prom_ex, :sqlite_writer, :queue],
+        last_value([:tuist_cache, :sqlite_buffer, :pending, :cas_artifacts],
+          event_name: [:cache, :prom_ex, :sqlite_buffer, :queue],
           measurement: :cas_artifacts,
           description: "Queued CAS artifact updates and deletes."
         ),
-        last_value([:tuist_cache, :sqlite_writer, :pending, :s3_transfers],
-          event_name: [:cache, :prom_ex, :sqlite_writer, :queue],
+        last_value([:tuist_cache, :sqlite_buffer, :pending, :s3_transfers],
+          event_name: [:cache, :prom_ex, :sqlite_buffer, :queue],
           measurement: :s3_transfers,
           description: "Queued S3 transfer inserts and deletes."
         )
@@ -90,7 +90,7 @@ defmodule Cache.SQLiteBuffer.PromExPlugin do
       s3_transfers = Map.get(stats_by_buffer[Cache.S3TransfersBuffer] || %{}, :s3_transfers, 0)
 
       :telemetry.execute(
-        [:cache, :prom_ex, :sqlite_writer, :queue],
+        [:cache, :prom_ex, :sqlite_buffer, :queue],
         %{
           total: key_values + cas_artifacts + s3_transfers,
           key_values: key_values,

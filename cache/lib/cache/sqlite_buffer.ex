@@ -171,7 +171,7 @@ defmodule Cache.SQLiteBuffer do
 
   defp emit_flush_metrics(buffer_name, operation, duration_microseconds, batch_size) do
     :telemetry.execute(
-      [:cache, :sqlite_writer, :flush],
+      [:cache, :sqlite_buffer, :flush],
       %{duration_ms: duration_microseconds / 1000, batch_size: batch_size},
       %{operation: operation, buffer: buffer_name}
     )
