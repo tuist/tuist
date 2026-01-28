@@ -594,9 +594,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat $GITHUB_WORKSPACE/.xcode-version).app
-      - name: Set up PostgreSQL
+      - name: Set up PostgreSQL with TimescaleDB
         run: |
-          brew install postgresql@16
+          brew tap timescale/tap
+          brew install timescaledb
+          # TimescaleDB installs postgresql@16 as a dependency
+          # Run timescaledb-tune to configure PostgreSQL
+          echo "shared_preload_libraries = 'timescaledb'" >> /opt/homebrew/var/postgresql@16/postgresql.conf
           brew services start postgresql@16
           for i in {1..15}; do /opt/homebrew/opt/postgresql@16/bin/pg_isready && break; sleep 2; done
       - uses: jdx/mise-action@v3.2.0
