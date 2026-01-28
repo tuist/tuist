@@ -7,7 +7,6 @@ setup_file() {
 
     # Configuration
     export GRADLE_PROJECT_DIR="${REPO_ROOT}/examples/gradle/simple_android_app"
-    export TUIST_TOKEN="${TUIST_TOKEN:-tuist_01234567-89ab-cdef-0123-456789abcdef_gradlecachedevtoken}"
     export TUIST_URL="${SERVER_URL}"
 
     # Verify prerequisites
@@ -35,6 +34,27 @@ setup_file() {
     if ! cache_server_is_running; then
         setup_cache_node "$REPO_ROOT/cache"
         cache_server_start "$REPO_ROOT/cache"
+    fi
+
+    # Authenticate with the server and create an account token for the test
+    if [[ -z "${TUIST_TOKEN:-}" ]]; then
+        echo "# Authenticating with Tuist server..." >&3
+
+        # Login with fixture credentials
+        "$TUIST_EXECUTABLE" auth login --email tuistrocks@tuist.dev --password tuistrocks 2>&1 >&3 || true
+
+        # Create an account token for cache access
+        echo "# Creating account token for Gradle cache..." >&3
+        TUIST_TOKEN=$("$TUIST_EXECUTABLE" account tokens create tuist \
+            --scopes project:cache:read --scopes project:cache:write \
+            --name "gradle-e2e-test-$(date +%s)" 2>/dev/null | grep -o 'tuist_[a-zA-Z0-9_-]*')
+
+        if [[ -z "$TUIST_TOKEN" ]]; then
+            echo "# Failed to create account token, test may fail" >&3
+        else
+            echo "# Account token created successfully" >&3
+        fi
+        export TUIST_TOKEN
     fi
 }
 
