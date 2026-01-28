@@ -257,9 +257,8 @@ msgstr "لا توجد معاينات حتى الآن"
 msgid "No recent builds yet"
 msgstr "لا توجد إصدارات حديثة حتى الآن"
 
-#, fuzzy
-msgid "Only people with access"
-msgstr "فقط الأشخاص الذين لديهم حق الوصول"
+msgid "Only organization members"
+msgstr ""
 
 #, fuzzy
 msgid "Or set up a new organization"
@@ -600,9 +599,9 @@ msgid ""
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
-"تنبيه عندما ينخفض مؤشر <strong>%{metric_category}</strong> لآخر <strong>%"
-"{rolling_window_size} %{unit}</strong> بنسبة <strong>%{deviation}%</strong> "
-"مقارنةً بـ <strong>%{rolling_window_size} %{unit}</strong>."
+"تنبيه عندما ينخفض مؤشر <strong>%{metric_category}</strong> لآخر "
+"<strong>%{rolling_window_size} %{unit}</strong> بنسبة <strong>%{deviation}%</"
+"strong> مقارنةً بـ <strong>%{rolling_window_size} %{unit}</strong>."
 
 #, fuzzy
 msgid ""
@@ -611,9 +610,9 @@ msgid ""
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
-"تنبيه عندما يزداد مؤشر <strong>%{metric_category}</strong> لآخر <strong>%"
-"{rolling_window_size} %{unit}</strong> بنسبة <strong>%{deviation}%</strong> "
-"مقارنةً بـ <strong>%{rolling_window_size} %{unit}</strong>."
+"تنبيه عندما يزداد مؤشر <strong>%{metric_category}</strong> لآخر "
+"<strong>%{rolling_window_size} %{unit}</strong> بنسبة <strong>%{deviation}%</"
+"strong> مقارنةً بـ <strong>%{rolling_window_size} %{unit}</strong>."
 
 #, fuzzy
 msgid "Connect your Slack account before selecting channels."
@@ -688,5 +687,9 @@ msgid ""
 "Tests will be marked as flaky after the specified number of flaky "
 "occurrences within the last 30 days"
 msgstr ""
-"سيتم وضع علامة \"غير مستقر\" على الاختبارات بعد عدد محدد من حالات عدم الاستقرار "
-"خلال آخر 30 يومًا."
+"سيتم وضع علامة \"غير مستقر\" على الاختبارات بعد عدد محدد من حالات عدم "
+"الاستقرار خلال آخر 30 يومًا."
+
+#, fuzzy
+#~ msgid "Only people with access"
+#~ msgstr "فقط الأشخاص الذين لديهم حق الوصول"

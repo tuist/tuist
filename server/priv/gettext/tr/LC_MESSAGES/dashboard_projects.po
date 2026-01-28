@@ -257,9 +257,8 @@ msgstr "Henüz önizleme yok"
 msgid "No recent builds yet"
 msgstr "Henüz yeni sürüm yok"
 
-#, fuzzy
-msgid "Only people with access"
-msgstr "Yalnızca erişimi olan kişiler"
+msgid "Only organization members"
+msgstr ""
 
 #, fuzzy
 msgid "Or set up a new organization"
@@ -625,3 +624,7 @@ msgid ""
 "Tests will be marked as flaky after the specified number of flaky "
 "occurrences within the last 30 days"
 msgstr ""
+
+#, fuzzy
+#~ msgid "Only people with access"
+#~ msgstr "Yalnızca erişimi olan kişiler"

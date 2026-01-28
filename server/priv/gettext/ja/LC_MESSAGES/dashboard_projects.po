@@ -256,9 +256,8 @@ msgstr "まだプレビューはありません"
 msgid "No recent builds yet"
 msgstr "まだ最新のビルドはありません"
 
-#, fuzzy
-msgid "Only people with access"
-msgstr "アクセス権限を持つ者のみ"
+msgid "Only organization members"
+msgstr ""
 
 #, fuzzy
 msgid "Or set up a new organization"
@@ -598,8 +597,8 @@ msgid ""
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
-"<strong>%{metric_category}</strong> の直近<strong>%{rolling_window_size} %"
-"{unit}</strong> が、前回の<strong>%{rolling_window_size} %{unit}</strong> と"
+"<strong>%{metric_category}</strong> の直近<strong>%{rolling_window_size} "
+"%{unit}</strong> が、前回の<strong>%{rolling_window_size} %{unit}</strong> と"
 "比較して<strong>%{deviation}%</strong> 減少した場合にアラートを通知する。"
 
 #, fuzzy
@@ -609,8 +608,8 @@ msgid ""
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
-"<strong>%{metric_category}</strong> の直近<strong>%{rolling_window_size} %"
-"{unit}</strong> が、前回の<strong>%{rolling_window_size} %{unit}</strong> と"
+"<strong>%{metric_category}</strong> の直近<strong>%{rolling_window_size} "
+"%{unit}</strong> が、前回の<strong>%{rolling_window_size} %{unit}</strong> と"
 "比較して<strong>%{deviation}%</strong> 増加した場合にアラートを通知する。"
 
 #, fuzzy
@@ -688,3 +687,7 @@ msgid ""
 msgstr ""
 "過去30日間のフラッキー発生回数が指定回数を超えた場合、テストはフラッキーとし"
 "てマークされます"
+
+#, fuzzy
+#~ msgid "Only people with access"
+#~ msgstr "アクセス権限を持つ者のみ"
