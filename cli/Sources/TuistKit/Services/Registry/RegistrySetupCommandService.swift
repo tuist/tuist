@@ -20,7 +20,7 @@ enum RegistryCommandSetupServiceError: Equatable, LocalizedError {
         switch self {
         case let .noProjectFound(path):
             return
-                "We couldn't find an Xcode, SwiftPM, or Tuist project at \(path.pathString). Make sure you're in the right directory."
+                "We couldn't find a Package.swift (including Tuist/Package.swift), .xcworkspace, or .xcodeproj at \(path.pathString). The registry setup doesn't use Tuist.swift, so run it from a directory containing one of those files or pass --path to one."
         }
     }
 }
