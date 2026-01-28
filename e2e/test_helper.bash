@@ -21,7 +21,7 @@ server_is_running() {
 
 # Check if cache server is running
 cache_server_is_running() {
-    curl -sf "${CACHE_SERVER_URL}/up" >/dev/null 2>&1
+    curl -sf "${CACHE_SERVER_URL}/" >/dev/null 2>&1 || curl -sf -o /dev/null -w "%{http_code}" "${CACHE_SERVER_URL}/" 2>/dev/null | grep -q "^[234]"
 }
 
 # Start the Phoenix server
