@@ -188,6 +188,42 @@ class TuistPluginTest {
     }
 
     @Test
+    fun `plugin extension allows custom executable command`() {
+        settingsFile.writeText("""
+            plugins {
+                id("dev.tuist")
+            }
+
+            tuist {
+                fullHandle = "test-account/test-project"
+                executableCommand = listOf("swift", "run", "tuist")
+
+                buildCache {
+                    push = false
+                }
+            }
+
+            rootProject.name = "test-project"
+        """.trimIndent())
+
+        buildFile.writeText("""
+            tasks.register("hello") {
+                doLast {
+                    println("Hello!")
+                }
+            }
+        """.trimIndent())
+
+        val result = GradleRunner.create()
+            .withProjectDir(testProjectDir)
+            .withArguments("hello")
+            .withPluginClasspath()
+            .build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":hello")?.outcome)
+    }
+
+    @Test
     fun `build cache push can be disabled`() {
         settingsFile.writeText("""
             plugins {
