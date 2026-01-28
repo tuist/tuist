@@ -69,6 +69,11 @@ teardown_file() {
 
     # First build: should push to cache via the Tuist plugin
     run ./gradlew assembleDebug --build-cache --info
+    if [ "$status" -ne 0 ]; then
+        echo "# Gradle build failed with status $status" >&3
+        echo "# Output:" >&3
+        echo "$output" >&3
+    fi
     [ "$status" -eq 0 ]
 
     # Verify the plugin configured the remote cache
@@ -92,6 +97,11 @@ teardown_file() {
 
     # Second build: should pull from cache
     run ./gradlew assembleDebug --build-cache --info
+    if [ "$status" -ne 0 ]; then
+        echo "# Gradle build failed with status $status" >&3
+        echo "# Output:" >&3
+        echo "$output" >&3
+    fi
     [ "$status" -eq 0 ]
 
     # Verify cache was used
