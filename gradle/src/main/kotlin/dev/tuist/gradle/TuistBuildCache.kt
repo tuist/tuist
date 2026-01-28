@@ -124,19 +124,25 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
 
     private fun getTuistVersion(command: List<String>): String? {
         return try {
-            // Run from temp directory to avoid tuist detecting project context
-            val tempDir = System.getProperty("java.io.tmpdir")
-            val process = ProcessBuilder(command + "version")
-                .directory(java.io.File(tempDir))
-                .redirectErrorStream(true)
-                .start()
+            // Create a unique temp directory to avoid tuist detecting any project context.
+            // We need an isolated directory because the system temp dir might be within
+            // a directory tree that contains a Tuist project.
+            val tempDir = java.nio.file.Files.createTempDirectory("tuist-gradle-").toFile()
+            try {
+                val process = ProcessBuilder(command + "version")
+                    .directory(tempDir)
+                    .redirectErrorStream(true)
+                    .start()
 
-            val output = BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
-                reader.readText().trim()
+                val output = BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
+                    reader.readText().trim()
+                }
+
+                val exitCode = process.waitFor()
+                if (exitCode == 0) output else null
+            } finally {
+                tempDir.delete()
             }
-
-            val exitCode = process.waitFor()
-            if (exitCode == 0) output else null
         } catch (e: Exception) {
             null
         }
@@ -161,26 +167,30 @@ class TuistCommandConfigurationProvider(
     override fun getConfiguration(): TuistCacheConfiguration? {
         val fullCommand = command + listOf("cache", "config", fullHandle, "--json")
 
-        // Run from temp directory to avoid tuist detecting project context
-        val tempDir = System.getProperty("java.io.tmpdir")
-        val process = ProcessBuilder(fullCommand)
-            .directory(java.io.File(tempDir))
-            .redirectErrorStream(false)
-            .start()
+        // Create a unique temp directory to avoid tuist detecting any project context.
+        val tempDir = java.nio.file.Files.createTempDirectory("tuist-gradle-").toFile()
+        try {
+            val process = ProcessBuilder(fullCommand)
+                .directory(tempDir)
+                .redirectErrorStream(false)
+                .start()
 
-        val output = BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
-            reader.readText()
-        }
+            val output = BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
+                reader.readText()
+            }
 
-        val exitCode = process.waitFor()
-        if (exitCode != 0) {
-            return null
-        }
+            val exitCode = process.waitFor()
+            if (exitCode != 0) {
+                return null
+            }
 
-        return try {
-            Gson().fromJson(output, TuistCacheConfiguration::class.java)
-        } catch (e: Exception) {
-            null
+            return try {
+                Gson().fromJson(output, TuistCacheConfiguration::class.java)
+            } catch (e: Exception) {
+                null
+            }
+        } finally {
+            tempDir.delete()
         }
     }
 }
