@@ -139,6 +139,46 @@ defmodule TuistWeb.PreviewLiveTest do
     assert has_element?(lv, "#preview-run-button span", "Run")
   end
 
+  test "it hides delete button for public preview when logged out", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    Authentication.log_out_user(conn)
+    preview = AppBuildsFixtures.preview_fixture(project: project, visibility: :public)
+    app_build = AppBuildsFixtures.app_build_fixture(preview: preview, type: :ipa)
+    AppBuilds.update_preview_with_app_build(preview.id, app_build)
+
+    # When
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+
+    # Then
+    refute has_element?(lv, "button[data-part='delete-button']")
+  end
+
+  test "it allows members to delete previews", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    preview = AppBuildsFixtures.preview_fixture(project: project)
+    app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+    AppBuilds.update_preview_with_app_build(preview.id, app_build)
+
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+
+    # When
+    lv |> element("button[data-part='delete-button']") |> render_click()
+
+    # Then
+    assert_redirect(lv, ~p"/#{organization.account.name}/#{project.name}/previews")
+    assert {:error, :not_found} = AppBuilds.preview_by_id(preview.id)
+  end
+
   test "raises not found error when the preview does not exist", %{conn: conn} do
     # When / Then
     assert_raise NotFoundError, fn ->

@@ -45,7 +45,7 @@
         id="preview-access-dropdown"
         label={
           if @selected_project.default_previews_visibility == :private do
-            dgettext("dashboard_projects", "Only people with access")
+            dgettext("dashboard_projects", "Only organization members")
           else
             dgettext("dashboard_projects", "Anyone with the link")
           end
@@ -59,7 +59,7 @@
         </:icon>
         <.dropdown_item
           value="private"
-          label={dgettext("dashboard_projects", "Only people with access")}
+          label={dgettext("dashboard_projects", "Only organization members")}
           phx-click="update_preview_access"
           phx-value-visibility="private"
           data-selected={@selected_project.default_previews_visibility == :private}
