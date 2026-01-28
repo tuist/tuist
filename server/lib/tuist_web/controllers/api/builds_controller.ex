@@ -102,7 +102,12 @@ defmodule TuistWeb.API.BuildsController do
                    id: %Schema{type: :string, format: :uuid, description: "The build ID."},
                    duration: %Schema{type: :integer, description: "Build duration in milliseconds."},
                    status: %Schema{type: :string, enum: ["success", "failure"], description: "Build status."},
-                   category: %Schema{type: :string, enum: ["clean", "incremental"], nullable: true, description: "Build category."},
+                   category: %Schema{
+                    type: :string,
+                    enum: ["clean", "incremental"],
+                    nullable: true,
+                    description: "Build category."
+                  },
                    scheme: %Schema{type: :string, nullable: true, description: "The scheme that was built."},
                    configuration: %Schema{type: :string, nullable: true, description: "The configuration used."},
                    xcode_version: %Schema{type: :string, nullable: true, description: "Xcode version."},
@@ -118,7 +123,17 @@ defmodule TuistWeb.API.BuildsController do
                    inserted_at: %Schema{type: :string, format: :"date-time", description: "When the build was created."},
                    url: %Schema{type: :string, description: "URL to view the build in the dashboard."}
                  },
-                 required: [:id, :duration, :status, :is_ci, :cacheable_tasks_count, :cacheable_task_local_hits_count, :cacheable_task_remote_hits_count, :inserted_at, :url]
+                 required: [
+                  :id,
+                  :duration,
+                  :status,
+                  :is_ci,
+                  :cacheable_tasks_count,
+                  :cacheable_task_local_hits_count,
+                  :cacheable_task_remote_hits_count,
+                  :inserted_at,
+                  :url
+                ]
                }
              },
              pagination_metadata: PaginationMetadata
@@ -228,17 +243,24 @@ defmodule TuistWeb.API.BuildsController do
              inserted_at: %Schema{type: :string, format: :"date-time", description: "When the build was created."},
              url: %Schema{type: :string, description: "URL to view the build in the dashboard."}
            },
-           required: [:id, :duration, :status, :is_ci, :cacheable_tasks_count, :cacheable_task_local_hits_count, :cacheable_task_remote_hits_count, :inserted_at, :url]
+           required: [
+             :id,
+             :duration,
+             :status,
+             :is_ci,
+             :cacheable_tasks_count,
+             :cacheable_task_local_hits_count,
+             :cacheable_task_remote_hits_count,
+             :inserted_at,
+             :url
+           ]
          }},
       not_found: {"Build not found", "application/json", Error},
       forbidden: {"You don't have permission to access this resource", "application/json", Error}
     }
   )
 
-  def show(
-        %{assigns: %{selected_project: selected_project}, params: %{build_id: build_id}} = conn,
-        _params
-      ) do
+  def show(%{assigns: %{selected_project: selected_project}, params: %{build_id: build_id}} = conn, _params) do
     case Runs.get_build(build_id) do
       nil ->
         conn
@@ -246,11 +268,7 @@ defmodule TuistWeb.API.BuildsController do
         |> json(%{message: "Build not found."})
 
       build ->
-        if build.project_id != selected_project.id do
-          conn
-          |> put_status(:not_found)
-          |> json(%{message: "Build not found."})
-        else
+        if build.project_id == selected_project.id do
           json(conn, %{
             id: build.id,
             duration: build.duration,
@@ -271,6 +289,10 @@ defmodule TuistWeb.API.BuildsController do
             inserted_at: build.inserted_at,
             url: ~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{build.id}"
           })
+        else
+          conn
+          |> put_status(:not_found)
+          |> json(%{message: "Build not found."})
         end
     end
   end
