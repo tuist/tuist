@@ -257,9 +257,8 @@ msgstr "Пока нет предварительных просмотров"
 msgid "No recent builds yet"
 msgstr "Пока нет последних сборок"
 
-#, fuzzy
-msgid "Only people with access"
-msgstr "Только люди с доступом"
+msgid "Only organization members"
+msgstr ""
 
 #, fuzzy
 msgid "Or set up a new organization"
@@ -628,3 +627,7 @@ msgid ""
 "Tests will be marked as flaky after the specified number of flaky "
 "occurrences within the last 30 days"
 msgstr ""
+
+#, fuzzy
+#~ msgid "Only people with access"
+#~ msgstr "Только люди с доступом"

@@ -194,7 +194,7 @@ msgstr ""
 msgid "No recent builds yet"
 msgstr ""
 
-msgid "Only people with access"
+msgid "Only organization members"
 msgstr ""
 
 msgid "Or set up a new organization"
