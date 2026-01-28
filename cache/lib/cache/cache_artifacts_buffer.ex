@@ -18,11 +18,11 @@ defmodule Cache.CacheArtifactsBuffer do
   end
 
   def enqueue_access(key, size_bytes, last_accessed_at) do
-    SQLiteBuffer.enqueue(__MODULE__, {:cas_access, key, size_bytes, last_accessed_at})
+    SQLiteBuffer.enqueue(__MODULE__, {:artifact_access, key, size_bytes, last_accessed_at})
   end
 
   def enqueue_deletes(keys) do
-    SQLiteBuffer.enqueue(__MODULE__, {:cas_delete, keys})
+    SQLiteBuffer.enqueue(__MODULE__, {:artifact_delete, keys})
   end
 
   def flush do
@@ -43,52 +43,52 @@ defmodule Cache.CacheArtifactsBuffer do
 
   @impl true
   def init_state do
-    %{cas_accesses: %{}, cas_deletes: MapSet.new()}
+    %{artifact_accesses: %{}, artifact_deletes: MapSet.new()}
   end
 
   @impl true
-  def handle_event(state, {:cas_access, key, size_bytes, last_accessed_at}) do
+  def handle_event(state, {:artifact_access, key, size_bytes, last_accessed_at}) do
     entry = %{key: key, size_bytes: size_bytes, last_accessed_at: last_accessed_at}
-    cas_accesses = Map.put(state.cas_accesses, key, entry)
-    cas_deletes = MapSet.delete(state.cas_deletes, key)
-    %{state | cas_accesses: cas_accesses, cas_deletes: cas_deletes}
+    artifact_accesses = Map.put(state.artifact_accesses, key, entry)
+    artifact_deletes = MapSet.delete(state.artifact_deletes, key)
+    %{state | artifact_accesses: artifact_accesses, artifact_deletes: artifact_deletes}
   end
 
   @impl true
-  def handle_event(state, {:cas_delete, keys}) do
-    cas_deletes = Enum.reduce(keys, state.cas_deletes, &MapSet.put(&2, &1))
-    cas_accesses = Map.drop(state.cas_accesses, keys)
-    %{state | cas_deletes: cas_deletes, cas_accesses: cas_accesses}
+  def handle_event(state, {:artifact_delete, keys}) do
+    artifact_deletes = Enum.reduce(keys, state.artifact_deletes, &MapSet.put(&2, &1))
+    artifact_accesses = Map.drop(state.artifact_accesses, keys)
+    %{state | artifact_deletes: artifact_deletes, artifact_accesses: artifact_accesses}
   end
 
   @impl true
   def flush_batches(state, max_batch_size) do
-    {accesses_batch, accesses_rest} = SQLiteBuffer.take_map_batch(state.cas_accesses, max_batch_size)
-    {deletes_batch, deletes_rest} = SQLiteBuffer.take_set_batch(state.cas_deletes, max_batch_size)
+    {accesses_batch, accesses_rest} = SQLiteBuffer.take_map_batch(state.artifact_accesses, max_batch_size)
+    {deletes_batch, deletes_rest} = SQLiteBuffer.take_set_batch(state.artifact_deletes, max_batch_size)
 
     operations =
       [
-        if(map_size(accesses_batch) > 0, do: {:cas_accesses, accesses_batch}),
-        if(deletes_batch != [], do: {:cas_deletes, deletes_batch})
+        if(map_size(accesses_batch) > 0, do: {:artifact_accesses, accesses_batch}),
+        if(deletes_batch != [], do: {:artifact_deletes, deletes_batch})
       ]
       |> Enum.reject(&is_nil/1)
 
-    {operations, %{state | cas_accesses: accesses_rest, cas_deletes: deletes_rest}}
+    {operations, %{state | artifact_accesses: accesses_rest, artifact_deletes: deletes_rest}}
   end
 
   @impl true
   def queue_stats(state) do
-    count = map_size(state.cas_accesses) + MapSet.size(state.cas_deletes)
+    count = map_size(state.artifact_accesses) + MapSet.size(state.artifact_deletes)
     %{cas_artifacts: count, total: count}
   end
 
   @impl true
   def queue_empty?(state) do
-    map_size(state.cas_accesses) == 0 and MapSet.size(state.cas_deletes) == 0
+    map_size(state.artifact_accesses) == 0 and MapSet.size(state.artifact_deletes) == 0
   end
 
   @impl true
-  def write_batch(:cas_accesses, entries) do
+  def write_batch(:artifact_accesses, entries) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
     rows =
@@ -109,7 +109,7 @@ defmodule Cache.CacheArtifactsBuffer do
   end
 
   @impl true
-  def write_batch(:cas_deletes, keys) do
+  def write_batch(:artifact_deletes, keys) do
     Repo.delete_all(from(a in CacheArtifact, where: a.key in ^keys))
   end
 end
