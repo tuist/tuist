@@ -19,23 +19,29 @@ extension GraphTraversing {
 
         var includedTargetNames = Set<String>()
         var includedTargetTags = Set<String>()
+        var includedTargetProducts = Set<Product>()
         for includedTarget in includedTargets {
             switch includedTarget {
             case let .named(name):
                 includedTargetNames.insert(name)
             case let .tagged(tag):
                 includedTargetTags.insert(tag)
+            case let .product(product):
+                includedTargetProducts.insert(product)
             }
         }
 
         var excludedTargetNames = Set<String>()
         var excludedTargetTags = Set<String>()
+        var excludedTargetProducts = Set<Product>()
         for excludedTarget in excludedTargets {
             switch excludedTarget {
             case let .named(name):
                 excludedTargetNames.insert(name)
             case let .tagged(tag):
                 excludedTargetTags.insert(tag)
+            case let .product(product):
+                excludedTargetProducts.insert(product)
             }
         }
 
@@ -48,12 +54,16 @@ extension GraphTraversing {
                 if !includedTargets.isEmpty {
                     return
                         includedTargetNames.contains(target.target.name) ||
-                        !includedTargetTags.isDisjoint(with: target.target.metadata.tags)
+                        !includedTargetTags.isDisjoint(with: target.target.metadata.tags) ||
+                        includedTargetProducts.contains(target.target.product)
                 }
                 if excludedTargetNames.contains(target.target.name) {
                     return false
                 }
                 if !excludedTargetTags.isDisjoint(with: target.target.metadata.tags) {
+                    return false
+                }
+                if excludedTargetProducts.contains(target.target.product) {
                     return false
                 }
                 return excludingExternalTargets ? allInternalTargets.contains(target.target.name) : true

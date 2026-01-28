@@ -4,10 +4,13 @@ public enum TargetQuery: Codable, Equatable, Sendable {
     case named(String)
     /// Match targets with the given metadata tag.
     case tagged(String)
+    /// Match targets with the given product type.
+    case product(Product)
 
     private enum CodingKeys: String, CodingKey {
         case named
         case tagged
+        case product
     }
 
     public init(from decoder: Decoder) throws {
@@ -16,6 +19,8 @@ public enum TargetQuery: Codable, Equatable, Sendable {
             self = .named(name)
         } else if let tag = try container.decodeIfPresent(String.self, forKey: .tagged) {
             self = .tagged(tag)
+        } else if let product = try container.decodeIfPresent(Product.self, forKey: .product) {
+            self = .product(product)
         } else {
             throw DecodingError.dataCorrupted(
                 .init(codingPath: decoder.codingPath, debugDescription: "Invalid TargetQuery encoding")
@@ -30,6 +35,8 @@ public enum TargetQuery: Codable, Equatable, Sendable {
             try container.encode(name, forKey: .named)
         case let .tagged(tag):
             try container.encode(tag, forKey: .tagged)
+        case let .product(product):
+            try container.encode(product, forKey: .product)
         }
     }
 }
@@ -37,8 +44,16 @@ public enum TargetQuery: Codable, Equatable, Sendable {
 extension TargetQuery: ExpressibleByStringLiteral {
     public init(stringLiteral value: String) {
         let tagPrefix = "tag:"
+        let productPrefix = "product:"
         if value.hasPrefix(tagPrefix) {
             self = .tagged(String(value.dropFirst(tagPrefix.count)))
+        } else if value.hasPrefix(productPrefix) {
+            let productValue = String(value.dropFirst(productPrefix.count))
+            if let product = Product(rawValue: productValue) {
+                self = .product(product)
+            } else {
+                self = .named(value)
+            }
         } else {
             self = .named(value)
         }
