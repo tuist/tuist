@@ -7,7 +7,7 @@ setup_file() {
 
     # Configuration
     export GRADLE_PROJECT_DIR="${REPO_ROOT}/examples/gradle/simple_android_app"
-    export TUIST_TOKEN="${GRADLE_TOKEN:-tuist_01234567-89ab-cdef-0123-456789abcdef_gradlecachedevtoken}"
+    export TUIST_TOKEN="${TUIST_TOKEN:-tuist_01234567-89ab-cdef-0123-456789abcdef_gradlecachedevtoken}"
     export TUIST_URL="${SERVER_URL}"
 
     # Verify prerequisites
@@ -25,13 +25,15 @@ setup_file() {
         export TUIST_EXECUTABLE
     fi
 
-    # Start the main server if not already running
+    # Setup and start the main server if not already running
     if ! server_is_running; then
+        setup_main_server "$REPO_ROOT/server"
         server_start "$REPO_ROOT/server"
     fi
 
-    # Start the cache server if not already running
+    # Setup and start the cache server if not already running
     if ! cache_server_is_running; then
+        setup_cache_node "$REPO_ROOT/cache"
         cache_server_start "$REPO_ROOT/cache"
     fi
 }

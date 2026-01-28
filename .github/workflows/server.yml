@@ -598,77 +598,11 @@ jobs:
         run: |
           brew install postgresql@16
           brew services start postgresql@16
-          export PATH="/opt/homebrew/opt/postgresql@16/bin:$PATH"
-          # Wait for PostgreSQL to be ready
-          for i in {1..15}; do
-            pg_isready && break
-            sleep 2
-          done
-          createdb tuist_dev || true
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        id: mix-cache
-        with:
-          path: |
-            server/deps
-            server/_build
-          key: mix-macos-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            mix-macos-
-      - name: Restore CLI build cache
-        uses: actions/cache@v4
-        id: cli-cache
-        with:
-          path: build/DerivedData
-          key: cli-build-${{ hashFiles('cli/**/*.swift', 'Package.resolved') }}
-          restore-keys: |
-            cli-build-
+          for i in {1..15}; do /opt/homebrew/opt/postgresql@16/bin/pg_isready && break; sleep 2; done
       - uses: jdx/mise-action@v3.2.0
         with:
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: server
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-      - run: mise run install
-      - run: mise run clickhouse:start
-      - run: mise run db:reset
-      - name: Run migrations
-        run: mix ecto.migrate
-      - name: Seed the database
-        run: mix run priv/repo/seeds.exs
-      - name: Build tuist CLI
-        working-directory: .
-        run: |
-          tuist generate --no-open
-          xcodebuild build \
-            -workspace Tuist.xcworkspace \
-            -scheme tuist \
-            -configuration Debug \
-            -derivedDataPath build/DerivedData \
-            -quiet
-      - name: Start main server
-        run: |
-          mix phx.server &
-          echo $! > /tmp/server.pid
-          for i in {1..30}; do
-            curl -sf http://localhost:8080 >/dev/null 2>&1 && break
-            sleep 2
-          done
-      - name: Start cache node
-        working-directory: cache
-        run: |
-          mix deps.get
-          mix ecto.setup
-          MIX_ENV=dev mix phx.server &
-          echo $! > /tmp/cache-server.pid
-          for i in {1..30}; do
-            curl -sf http://localhost:8087/up >/dev/null 2>&1 && break
-            sleep 2
-          done
+          working_directory: .
+      - uses: android-actions/setup-android@v3
       - name: Run Gradle cache acceptance test
         working-directory: .
-        env:
-          TUIST_EXECUTABLE: ${{ github.workspace }}/build/DerivedData/Build/Products/Debug/tuist
-          TUIST_TOKEN: tuist_01234567-89ab-cdef-0123-456789abcdef_gradlecachedevtoken
-          KEEP_SERVER: "true"
         run: mise run e2e gradle_cache
