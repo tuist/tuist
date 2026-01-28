@@ -145,7 +145,7 @@ defmodule TuistWeb.PreviewLiveTest do
     project: project
   } do
     # Given
-    conn = Authentication.log_out_user(conn)
+    Authentication.log_out_user(conn)
     preview = AppBuildsFixtures.preview_fixture(project: project, visibility: :public)
     app_build = AppBuildsFixtures.app_build_fixture(preview: preview, type: :ipa)
     AppBuilds.update_preview_with_app_build(preview.id, app_build)
