@@ -80,6 +80,9 @@ defmodule TuistWeb.API.BuildsControllerTest do
       assert first_build["duration"] == 5000
       assert first_build["scheme"] == "MyApp"
       assert first_build["configuration"] == "Debug"
+      assert first_build["cacheable_tasks_count"] == build.cacheable_tasks_count
+      assert first_build["cacheable_task_local_hits_count"] == build.cacheable_task_local_hits_count
+      assert first_build["cacheable_task_remote_hits_count"] == build.cacheable_task_remote_hits_count
     end
 
     test "filters builds by status", %{conn: conn, user: user, project: project} do

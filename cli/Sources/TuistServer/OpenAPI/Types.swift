@@ -17911,6 +17911,18 @@ public enum Operations {
                     public struct jsonPayload: Codable, Hashable, Sendable {
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload`.
                         public struct buildsPayloadPayload: Codable, Hashable, Sendable {
+                            /// Local cache hits.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/cacheable_task_local_hits_count`.
+                            public var cacheable_task_local_hits_count: Swift.Int
+                            /// Remote cache hits.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/cacheable_task_remote_hits_count`.
+                            public var cacheable_task_remote_hits_count: Swift.Int
+                            /// Total cacheable tasks.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/cacheable_tasks_count`.
+                            public var cacheable_tasks_count: Swift.Int
                             /// Build category.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/category`.
@@ -17938,6 +17950,10 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/git_commit_sha`.
                             public var git_commit_sha: Swift.String?
+                            /// Git ref.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/git_ref`.
+                            public var git_ref: Swift.String?
                             /// The build ID.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/id`.
@@ -17954,6 +17970,10 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/macos_version`.
                             public var macos_version: Swift.String?
+                            /// Machine model identifier.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/model_identifier`.
+                            public var model_identifier: Swift.String?
                             /// The scheme that was built.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/scheme`.
@@ -17980,58 +18000,78 @@ public enum Operations {
                             /// Creates a new `buildsPayloadPayload`.
                             ///
                             /// - Parameters:
+                            ///   - cacheable_task_local_hits_count: Local cache hits.
+                            ///   - cacheable_task_remote_hits_count: Remote cache hits.
+                            ///   - cacheable_tasks_count: Total cacheable tasks.
                             ///   - category: Build category.
                             ///   - configuration: The configuration used.
                             ///   - duration: Build duration in milliseconds.
                             ///   - git_branch: Git branch.
                             ///   - git_commit_sha: Git commit SHA.
+                            ///   - git_ref: Git ref.
                             ///   - id: The build ID.
                             ///   - inserted_at: When the build was created.
                             ///   - is_ci: Whether the build ran on CI.
                             ///   - macos_version: macOS version.
+                            ///   - model_identifier: Machine model identifier.
                             ///   - scheme: The scheme that was built.
                             ///   - status: Build status.
                             ///   - url: URL to view the build in the dashboard.
                             ///   - xcode_version: Xcode version.
                             public init(
+                                cacheable_task_local_hits_count: Swift.Int,
+                                cacheable_task_remote_hits_count: Swift.Int,
+                                cacheable_tasks_count: Swift.Int,
                                 category: Operations.listBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.categoryPayload? = nil,
                                 configuration: Swift.String? = nil,
                                 duration: Swift.Int,
                                 git_branch: Swift.String? = nil,
                                 git_commit_sha: Swift.String? = nil,
+                                git_ref: Swift.String? = nil,
                                 id: Swift.String,
                                 inserted_at: Foundation.Date,
                                 is_ci: Swift.Bool,
                                 macos_version: Swift.String? = nil,
+                                model_identifier: Swift.String? = nil,
                                 scheme: Swift.String? = nil,
                                 status: Operations.listBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.statusPayload,
                                 url: Swift.String,
                                 xcode_version: Swift.String? = nil
                             ) {
+                                self.cacheable_task_local_hits_count = cacheable_task_local_hits_count
+                                self.cacheable_task_remote_hits_count = cacheable_task_remote_hits_count
+                                self.cacheable_tasks_count = cacheable_tasks_count
                                 self.category = category
                                 self.configuration = configuration
                                 self.duration = duration
                                 self.git_branch = git_branch
                                 self.git_commit_sha = git_commit_sha
+                                self.git_ref = git_ref
                                 self.id = id
                                 self.inserted_at = inserted_at
                                 self.is_ci = is_ci
                                 self.macos_version = macos_version
+                                self.model_identifier = model_identifier
                                 self.scheme = scheme
                                 self.status = status
                                 self.url = url
                                 self.xcode_version = xcode_version
                             }
                             public enum CodingKeys: String, CodingKey {
+                                case cacheable_task_local_hits_count
+                                case cacheable_task_remote_hits_count
+                                case cacheable_tasks_count
                                 case category
                                 case configuration
                                 case duration
                                 case git_branch
                                 case git_commit_sha
+                                case git_ref
                                 case id
                                 case inserted_at
                                 case is_ci
                                 case macos_version
+                                case model_identifier
                                 case scheme
                                 case status
                                 case url

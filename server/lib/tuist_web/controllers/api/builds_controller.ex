@@ -107,13 +107,18 @@ defmodule TuistWeb.API.BuildsController do
                    configuration: %Schema{type: :string, nullable: true, description: "The configuration used."},
                    xcode_version: %Schema{type: :string, nullable: true, description: "Xcode version."},
                    macos_version: %Schema{type: :string, nullable: true, description: "macOS version."},
+                   model_identifier: %Schema{type: :string, nullable: true, description: "Machine model identifier."},
                    is_ci: %Schema{type: :boolean, description: "Whether the build ran on CI."},
                    git_branch: %Schema{type: :string, nullable: true, description: "Git branch."},
                    git_commit_sha: %Schema{type: :string, nullable: true, description: "Git commit SHA."},
+                   git_ref: %Schema{type: :string, nullable: true, description: "Git ref."},
+                   cacheable_tasks_count: %Schema{type: :integer, description: "Total cacheable tasks."},
+                   cacheable_task_local_hits_count: %Schema{type: :integer, description: "Local cache hits."},
+                   cacheable_task_remote_hits_count: %Schema{type: :integer, description: "Remote cache hits."},
                    inserted_at: %Schema{type: :string, format: :"date-time", description: "When the build was created."},
                    url: %Schema{type: :string, description: "URL to view the build in the dashboard."}
                  },
-                 required: [:id, :duration, :status, :is_ci, :inserted_at, :url]
+                 required: [:id, :duration, :status, :is_ci, :cacheable_tasks_count, :cacheable_task_local_hits_count, :cacheable_task_remote_hits_count, :inserted_at, :url]
                }
              },
              pagination_metadata: PaginationMetadata
@@ -152,9 +157,14 @@ defmodule TuistWeb.API.BuildsController do
             configuration: build.configuration,
             xcode_version: build.xcode_version,
             macos_version: build.macos_version,
+            model_identifier: build.model_identifier,
             is_ci: build.is_ci,
             git_branch: build.git_branch,
             git_commit_sha: build.git_commit_sha,
+            git_ref: build.git_ref,
+            cacheable_tasks_count: build.cacheable_tasks_count,
+            cacheable_task_local_hits_count: build.cacheable_task_local_hits_count,
+            cacheable_task_remote_hits_count: build.cacheable_task_remote_hits_count,
             inserted_at: build.inserted_at,
             url: ~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{build.id}"
           }

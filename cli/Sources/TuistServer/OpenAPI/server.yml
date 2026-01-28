@@ -6326,6 +6326,21 @@ paths:
                   builds:
                     items:
                       properties:
+                        cacheable_task_local_hits_count:
+                          description: Local cache hits.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        cacheable_task_remote_hits_count:
+                          description: Remote cache hits.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        cacheable_tasks_count:
+                          description: Total cacheable tasks.
+                          type: integer
+                          x-struct:
+                          x-validate:
                         category:
                           description: Build category.
                           enum:
@@ -6358,6 +6373,12 @@ paths:
                           type: string
                           x-struct:
                           x-validate:
+                        git_ref:
+                          description: Git ref.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
                         id:
                           description: The build ID.
                           format: uuid
@@ -6377,6 +6398,12 @@ paths:
                           x-validate:
                         macos_version:
                           description: macOS version.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        model_identifier:
+                          description: Machine model identifier.
                           nullable: true
                           type: string
                           x-struct:
@@ -6411,6 +6438,9 @@ paths:
                         - duration
                         - status
                         - is_ci
+                        - cacheable_tasks_count
+                        - cacheable_task_local_hits_count
+                        - cacheable_task_remote_hits_count
                         - inserted_at
                         - url
                       type: object
