@@ -119,7 +119,7 @@ struct TestCaseListCommandService: TestCaseListCommandServicing {
                 testCase.suite?.name ?? "-",
                 testCase.is_flaky ? "Yes" : "No",
                 testCase.is_quarantined ? "Yes" : "No",
-                formatDuration(testCase.avg_duration),
+                Formatters.formatDuration(testCase.avg_duration),
             ]
         }
 
@@ -149,19 +149,10 @@ struct TestCaseListCommandService: TestCaseListCommandServicing {
                         testCase.suite?.name ?? "-",
                         testCase.is_flaky ? "Yes" : "No",
                         testCase.is_quarantined ? "Yes" : "No",
-                        formatDuration(testCase.avg_duration),
+                        Formatters.formatDuration(testCase.avg_duration),
                     ]
                 }
             }
         )
-    }
-
-    private func formatDuration(_ milliseconds: Int) -> String {
-        if milliseconds < 1000 {
-            return "\(milliseconds)ms"
-        } else {
-            let seconds = Double(milliseconds) / 1000.0
-            return String(format: "%.2fs", seconds)
-        }
     }
 }
