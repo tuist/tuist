@@ -5,7 +5,7 @@ defmodule Cache.S3TransferWorkerTest do
   import ExUnit.CaptureLog
 
   alias Cache.Repo
-  alias Cache.SQLiteWriter
+  alias Cache.S3TransfersBuffer
   alias Cache.S3Transfer
   alias Cache.S3Transfers
   alias Cache.S3TransferWorker
@@ -15,9 +15,9 @@ defmodule Cache.S3TransferWorkerTest do
     :ok = Sandbox.checkout(Repo)
     Sandbox.mode(Repo, {:shared, self()})
 
-    if pid = Process.whereis(SQLiteWriter) do
+    if pid = Process.whereis(S3TransfersBuffer) do
       Sandbox.allow(Repo, self(), pid)
-      SQLiteWriter.reset()
+      S3TransfersBuffer.reset()
     end
 
     :ok

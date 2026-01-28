@@ -26,7 +26,7 @@ config :cache, :s3, bucket: "test-bucket"
 config :cache,
   server_url: "http://localhost:8080",
   storage_dir: "/tmp/test_cas",
-  api_key: "test-secret-key"
+  api_key: nil
 
 config :logger, level: :warning
 

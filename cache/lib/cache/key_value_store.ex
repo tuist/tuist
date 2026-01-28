@@ -8,7 +8,7 @@ defmodule Cache.KeyValueStore do
 
   alias Cache.KeyValueEntry
   alias Cache.Repo
-  alias Cache.SQLiteWriter
+  alias Cache.KeyValueBuffer
 
   @cache_name :cache_keyvalue_store
   # 1 week
@@ -83,7 +83,7 @@ defmodule Cache.KeyValueStore do
   end
 
   defp persist_entry(key, json) do
-    case SQLiteWriter.enqueue_key_value(key, json) do
+    case KeyValueBuffer.enqueue(key, json) do
       :ok -> :ok
       {:error, reason} -> {:error, reason}
     end

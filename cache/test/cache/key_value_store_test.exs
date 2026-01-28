@@ -4,7 +4,7 @@ defmodule Cache.KeyValueStoreTest do
   alias Cache.KeyValueEntry
   alias Cache.KeyValueStore
   alias Cache.Repo
-  alias Cache.SQLiteWriter
+  alias Cache.KeyValueBuffer
   alias Ecto.Adapters.SQL.Sandbox
 
   @account_handle "test-account"
@@ -15,9 +15,9 @@ defmodule Cache.KeyValueStoreTest do
     :ok = Sandbox.checkout(Repo)
     Sandbox.mode(Repo, {:shared, self()})
 
-    if pid = Process.whereis(SQLiteWriter) do
+    if pid = Process.whereis(KeyValueBuffer) do
       Sandbox.allow(Repo, self(), pid)
-      SQLiteWriter.reset()
+      KeyValueBuffer.reset()
     end
 
     Cachex.clear(:cache_keyvalue_store)
@@ -226,7 +226,7 @@ defmodule Cache.KeyValueStoreTest do
 
       assert :ok = KeyValueStore.put_key_value(@cas_id, @account_handle, @project_handle, values)
 
-      :ok = SQLiteWriter.flush(:key_values)
+      :ok = KeyValueBuffer.flush()
 
       key = "keyvalue:#{@account_handle}:#{@project_handle}:#{@cas_id}"
       record = Repo.get_by!(KeyValueEntry, key: key)
@@ -237,7 +237,7 @@ defmodule Cache.KeyValueStoreTest do
       values = ["value1", "value2"]
       assert :ok = KeyValueStore.put_key_value(@cas_id, @account_handle, @project_handle, values)
 
-      :ok = SQLiteWriter.flush(:key_values)
+      :ok = KeyValueBuffer.flush()
 
       # Simulate cache eviction to force DB lookup
       Cachex.clear(:cache_keyvalue_store)

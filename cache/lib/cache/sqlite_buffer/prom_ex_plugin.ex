@@ -1,32 +1,48 @@
-defmodule Cache.SQLiteWriter.PromExPlugin do
+defmodule Cache.SQLiteBuffer.PromExPlugin do
   use PromEx.Plugin
 
   @duration_buckets [1, 5, 10, 25, 50, 100, 250, 500, 1000, 2000, 5000]
+  @buffers [Cache.KeyValueBuffer, Cache.CacheArtifactsBuffer, Cache.S3TransfersBuffer]
 
   @impl true
   def event_metrics(_opts) do
-    Event.build(:cache_sqlite_writer_event_metrics, [
+    Event.build(:cache_sqlite_buffer_event_metrics, [
       counter([:tuist_cache, :sqlite_writer, :retries, :total],
         event_name: [:cache, :sqlite_writer, :retry],
         description: "SQLite writer retries due to busy database.",
-        tags: [:operation],
-        tag_values: fn metadata -> %{operation: to_string(Map.get(metadata, :operation, :unknown))} end
+        tags: [:operation, :buffer],
+        tag_values: fn metadata ->
+          %{
+            operation: to_string(Map.get(metadata, :operation, :unknown)),
+            buffer: to_string(Map.get(metadata, :buffer, :unknown))
+          }
+        end
       ),
       distribution([:tuist_cache, :sqlite_writer, :flush, :duration, :ms],
         event_name: [:cache, :sqlite_writer, :flush],
         measurement: :duration_ms,
         unit: :millisecond,
         description: "SQLite writer flush durations.",
-        tags: [:operation],
-        tag_values: fn metadata -> %{operation: to_string(Map.get(metadata, :operation, :unknown))} end,
+        tags: [:operation, :buffer],
+        tag_values: fn metadata ->
+          %{
+            operation: to_string(Map.get(metadata, :operation, :unknown)),
+            buffer: to_string(Map.get(metadata, :buffer, :unknown))
+          }
+        end,
         reporter_options: [buckets: @duration_buckets]
       ),
       sum([:tuist_cache, :sqlite_writer, :flush, :batch_size],
         event_name: [:cache, :sqlite_writer, :flush],
         measurement: :batch_size,
         description: "SQLite writer rows flushed per operation.",
-        tags: [:operation],
-        tag_values: fn metadata -> %{operation: to_string(Map.get(metadata, :operation, :unknown))} end
+        tags: [:operation, :buffer],
+        tag_values: fn metadata ->
+          %{
+            operation: to_string(Map.get(metadata, :operation, :unknown)),
+            buffer: to_string(Map.get(metadata, :buffer, :unknown))
+          }
+        end
       )
     ])
   end
@@ -36,7 +52,7 @@ defmodule Cache.SQLiteWriter.PromExPlugin do
     poll_rate = Keyword.get(opts, :poll_rate, 15_000)
 
     Polling.build(
-      :cache_sqlite_writer_polling_metrics,
+      :cache_sqlite_buffer_polling_metrics,
       poll_rate,
       {__MODULE__, :execute_queue_metrics, []},
       [
@@ -65,23 +81,34 @@ defmodule Cache.SQLiteWriter.PromExPlugin do
   end
 
   def execute_queue_metrics do
-    case Process.whereis(Cache.SQLiteWriter) do
-      nil ->
-        :ok
+    stats_by_buffer =
+      Enum.reduce(@buffers, %{}, fn buffer, acc ->
+        case Process.whereis(buffer) do
+          nil ->
+            acc
 
-      _pid ->
-        stats = Cache.SQLiteWriter.queue_stats()
+          _pid ->
+            Map.put(acc, buffer, buffer.queue_stats())
+        end
+      end)
 
-        :telemetry.execute(
-          [:cache, :prom_ex, :sqlite_writer, :queue],
-          %{
-            total: stats.total,
-            key_values: stats.key_values,
-            cas_artifacts: stats.cas_artifacts,
-            s3_transfers: stats.s3_transfers
-          },
-          %{}
-        )
+    if map_size(stats_by_buffer) == 0 do
+      :ok
+    else
+      key_values = Map.get(stats_by_buffer[Cache.KeyValueBuffer] || %{}, :key_values, 0)
+      cas_artifacts = Map.get(stats_by_buffer[Cache.CacheArtifactsBuffer] || %{}, :cas_artifacts, 0)
+      s3_transfers = Map.get(stats_by_buffer[Cache.S3TransfersBuffer] || %{}, :s3_transfers, 0)
+
+      :telemetry.execute(
+        [:cache, :prom_ex, :sqlite_writer, :queue],
+        %{
+          total: key_values + cas_artifacts + s3_transfers,
+          key_values: key_values,
+          cas_artifacts: cas_artifacts,
+          s3_transfers: s3_transfers
+        },
+        %{}
+      )
     end
   end
 end

@@ -2,7 +2,7 @@ defmodule Cache.S3TransfersTest do
   use ExUnit.Case, async: false
 
   alias Cache.Repo
-  alias Cache.SQLiteWriter
+  alias Cache.S3TransfersBuffer
   alias Cache.S3Transfer
   alias Cache.S3Transfers
   alias Ecto.Adapters.SQL.Sandbox
@@ -11,9 +11,9 @@ defmodule Cache.S3TransfersTest do
     :ok = Sandbox.checkout(Repo)
     Sandbox.mode(Repo, {:shared, self()})
 
-    if pid = Process.whereis(SQLiteWriter) do
+    if pid = Process.whereis(S3TransfersBuffer) do
       Sandbox.allow(Repo, self(), pid)
-      SQLiteWriter.reset()
+      S3TransfersBuffer.reset()
     end
 
     :ok
@@ -22,7 +22,7 @@ defmodule Cache.S3TransfersTest do
   describe "enqueue_cas_upload/3" do
     test "creates a new upload transfer" do
       :ok = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/AB/CD/artifact123")
-      :ok = SQLiteWriter.flush(:s3_transfers)
+      :ok = S3TransfersBuffer.flush()
 
       transfer = Repo.get_by!(S3Transfer, key: "account/project/cas/AB/CD/artifact123", type: :upload)
 
@@ -37,7 +37,7 @@ defmodule Cache.S3TransfersTest do
     test "does not create duplicate transfers" do
       :ok = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/AB/CD/artifact123")
       :ok = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/AB/CD/artifact123")
-      :ok = SQLiteWriter.flush(:s3_transfers)
+      :ok = S3TransfersBuffer.flush()
 
       count = Repo.aggregate(S3Transfer, :count, :id)
       assert count == 1
@@ -46,7 +46,7 @@ defmodule Cache.S3TransfersTest do
     test "allows same key for different types" do
       :ok = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/AB/CD/artifact123")
       :ok = S3Transfers.enqueue_cas_download("account", "project", "account/project/cas/AB/CD/artifact123")
-      :ok = SQLiteWriter.flush(:s3_transfers)
+      :ok = S3TransfersBuffer.flush()
 
       transfers = Repo.all(S3Transfer)
       assert Enum.uniq_by(transfers, & &1.id) == transfers
@@ -59,7 +59,7 @@ defmodule Cache.S3TransfersTest do
   describe "enqueue_cas_download/3" do
     test "creates a new download transfer" do
       :ok = S3Transfers.enqueue_cas_download("account", "project", "account/project/cas/AB/CD/artifact123")
-      :ok = SQLiteWriter.flush(:s3_transfers)
+      :ok = S3TransfersBuffer.flush()
 
       transfer = Repo.get_by!(S3Transfer, key: "account/project/cas/AB/CD/artifact123", type: :download)
 
@@ -74,7 +74,7 @@ defmodule Cache.S3TransfersTest do
     test "does not create duplicate transfers" do
       :ok = S3Transfers.enqueue_cas_download("account", "project", "account/project/cas/AB/CD/artifact123")
       :ok = S3Transfers.enqueue_cas_download("account", "project", "account/project/cas/AB/CD/artifact123")
-      :ok = SQLiteWriter.flush(:s3_transfers)
+      :ok = S3TransfersBuffer.flush()
 
       count = Repo.aggregate(S3Transfer, :count, :id)
       assert count == 1
@@ -86,7 +86,7 @@ defmodule Cache.S3TransfersTest do
       :ok =
         S3Transfers.enqueue_module_upload("account", "project", "account/project/module/builds/AB/CD/hash/name.zip")
 
-      :ok = SQLiteWriter.flush(:s3_transfers)
+      :ok = S3TransfersBuffer.flush()
 
       transfer =
         Repo.get_by!(S3Transfer,
@@ -108,7 +108,7 @@ defmodule Cache.S3TransfersTest do
       :ok =
         S3Transfers.enqueue_module_download("account", "project", "account/project/module/builds/AB/CD/hash/name.zip")
 
-      :ok = SQLiteWriter.flush(:s3_transfers)
+      :ok = S3TransfersBuffer.flush()
 
       transfer =
         Repo.get_by!(S3Transfer,
@@ -159,7 +159,7 @@ defmodule Cache.S3TransfersTest do
   describe "delete/1" do
     test "deletes a transfer by id" do
       :ok = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/AB/CD/artifact123")
-      :ok = SQLiteWriter.flush(:s3_transfers)
+      :ok = S3TransfersBuffer.flush()
 
       transfer = Repo.get_by!(S3Transfer, key: "account/project/cas/AB/CD/artifact123", type: :upload)
 
@@ -171,7 +171,7 @@ defmodule Cache.S3TransfersTest do
 
     test "is idempotent" do
       :ok = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/AB/CD/artifact123")
-      :ok = SQLiteWriter.flush(:s3_transfers)
+      :ok = S3TransfersBuffer.flush()
 
       transfer = Repo.get_by!(S3Transfer, key: "account/project/cas/AB/CD/artifact123", type: :upload)
 
@@ -188,7 +188,7 @@ defmodule Cache.S3TransfersTest do
       :ok = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact1")
       :ok = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact2")
       :ok = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact3")
-      :ok = SQLiteWriter.flush(:s3_transfers)
+      :ok = S3TransfersBuffer.flush()
 
       [t1, t2 | _] = S3Transfers.pending(:upload, 10)
 
@@ -201,7 +201,7 @@ defmodule Cache.S3TransfersTest do
 
     test "handles empty list" do
       :ok = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact1")
-      :ok = SQLiteWriter.flush(:s3_transfers)
+      :ok = S3TransfersBuffer.flush()
 
       :ok = S3Transfers.delete_all([])
 

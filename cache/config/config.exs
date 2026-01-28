@@ -14,7 +14,7 @@ config :cache, Cache.Repo,
   queue_target: 1_000,
   queue_interval: 1_000
 
-config :cache, :sqlite_writer,
+config :cache, Cache.SQLiteBuffer,
   flush_interval_ms: 200,
   flush_timeout_ms: 30_000,
   max_batch_size: 1000,

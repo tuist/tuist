@@ -68,6 +68,8 @@ defmodule Cache.CASEventsPipelineTest do
     end
 
     test "sends batch of events to the cache webhook successfully" do
+      stub(Cache.Config, :api_key, fn -> "test-secret-key" end)
+
       account_handle = "test-account"
       project_handle = "test-project"
 

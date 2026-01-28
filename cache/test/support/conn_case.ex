@@ -18,7 +18,9 @@ defmodule CacheWeb.ConnCase do
   use ExUnit.CaseTemplate
 
   alias Cache.Repo
-  alias Cache.SQLiteWriter
+  alias Cache.CacheArtifactsBuffer
+  alias Cache.KeyValueBuffer
+  alias Cache.S3TransfersBuffer
   alias Ecto.Adapters.SQL.Sandbox
 
   using do
@@ -37,14 +39,20 @@ defmodule CacheWeb.ConnCase do
   setup _tags do
     :ok = Sandbox.checkout(Repo)
 
-    if pid = Process.whereis(SQLiteWriter) do
-      Sandbox.allow(Repo, self(), pid)
-      SQLiteWriter.reset()
-    end
+    allow_buffer(KeyValueBuffer)
+    allow_buffer(CacheArtifactsBuffer)
+    allow_buffer(S3TransfersBuffer)
 
     Cachex.clear(:cache_keyvalue_store)
     Cachex.clear(:cas_auth_cache)
 
     {:ok, conn: Phoenix.ConnTest.build_conn()}
+  end
+
+  defp allow_buffer(buffer) do
+    if pid = Process.whereis(buffer) do
+      Sandbox.allow(Repo, self(), pid)
+      buffer.reset()
+    end
   end
 end
