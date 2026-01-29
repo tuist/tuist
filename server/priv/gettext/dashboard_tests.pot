@@ -187,9 +187,9 @@ msgstr ""
 #: lib/tuist_web/live/test_case_live.html.heex:466
 #: lib/tuist_web/live/test_case_live.html.heex:482
 #: lib/tuist_web/live/test_case_live.html.heex:548
-#: lib/tuist_web/live/test_run_live.ex:783
-#: lib/tuist_web/live/test_run_live.ex:839
-#: lib/tuist_web/live/test_run_live.ex:890
+#: lib/tuist_web/live/test_run_live.ex:823
+#: lib/tuist_web/live/test_run_live.ex:879
+#: lib/tuist_web/live/test_run_live.ex:930
 #: lib/tuist_web/live/test_run_live.html.heex:161
 #: lib/tuist_web/live/test_run_live.html.heex:617
 #: lib/tuist_web/live/test_run_live.html.heex:632
@@ -520,11 +520,6 @@ msgstr ""
 msgid "Passed runs"
 msgstr ""
 
-#: lib/tuist_web/live/test_run_live.html.heex:1362
-#, elixir-autogen, elixir-format
-msgid "Percentage of modules that were successfully retrieved from the cache."
-msgstr ""
-
 #: lib/tuist_web/live/test_case_live.html.heex:467
 #: lib/tuist_web/live/test_case_live.html.heex:474
 #: lib/tuist_web/live/test_case_live.html.heex:569
@@ -647,9 +642,9 @@ msgstr ""
 
 #: lib/tuist_web/live/test_case_live.ex:61
 #: lib/tuist_web/live/test_case_live.html.heex:526
-#: lib/tuist_web/live/test_run_live.ex:791
-#: lib/tuist_web/live/test_run_live.ex:847
-#: lib/tuist_web/live/test_run_live.ex:898
+#: lib/tuist_web/live/test_run_live.ex:831
+#: lib/tuist_web/live/test_run_live.ex:887
+#: lib/tuist_web/live/test_run_live.ex:938
 #: lib/tuist_web/live/test_run_live.html.heex:131
 #: lib/tuist_web/live/test_run_live.html.heex:915
 #: lib/tuist_web/live/test_run_live.html.heex:1146
