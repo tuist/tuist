@@ -20,6 +20,7 @@ alias Tuist.Repo
 alias Tuist.Runs.Build
 alias Tuist.Runs.Test
 alias Tuist.Runs.TestCaseEvent
+alias Tuist.Runs.TestCaseRun
 alias Tuist.Runs.TestModuleRun
 alias Tuist.Runs.TestSuiteRun
 alias Tuist.Slack.Installation
@@ -978,7 +979,7 @@ chunk_processor = fn chunk_indices ->
     end
 
     if length(case_runs) > 0 do
-      IngestRepo.insert_all(Tuist.Runs.TestCaseRun, case_runs, timeout: 120_000)
+      IngestRepo.insert_all(TestCaseRun, case_runs, timeout: 120_000)
       :counters.add(case_run_counter, 1, length(case_runs))
     end
 
@@ -1108,7 +1109,7 @@ if length(quarantined_test_cases) > 0 do
       }
     end)
 
-  IngestRepo.insert_all(Tuist.Runs.TestCaseRun, quarantined_case_runs, timeout: 120_000)
+  IngestRepo.insert_all(TestCaseRun, quarantined_case_runs, timeout: 120_000)
   IO.puts("  - Created #{length(quarantined_case_runs)} runs for quarantined test cases")
 end
 
