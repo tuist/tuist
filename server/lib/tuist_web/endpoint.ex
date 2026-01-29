@@ -31,7 +31,8 @@ defmodule TuistWeb.Endpoint do
   plug Plug.Static,
     at: "/",
     from: :tuist,
-    gzip: false,
+    gzip: true,
+    cache_control_for_etags: "public, max-age=31536000, immutable",
     only: TuistWeb.static_paths()
 
   if Code.ensure_loaded?(Tidewave) do

@@ -112,7 +112,12 @@ defmodule TuistWeb.LayoutComponents do
 
     posthog_opts =
       Map.merge(
-        %{api_host: Tuist.Environment.posthog_url(), person_profiles: "identified_only"},
+        %{
+          api_host: Tuist.Environment.posthog_url(),
+          person_profiles: "identified_only",
+          advanced_disable_feature_flags: true,
+          disable_surveys: true
+        },
         if(TuistWeb.Authentication.authenticated?(assigns),
           do: %{bootstrap: %{distinctID: TuistWeb.Authentication.current_user(assigns).id}},
           else: %{persistence: "memory"}
