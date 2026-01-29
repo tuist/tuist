@@ -1,12 +1,7 @@
 [env]
 TUIST_SECRET_KEY_BASE = "rpux4+W/oBey0drSFOctyIbppOG2A9VUUuTMC1WaM8xZgYxA6gg4yryG/LkOoqkj"
 
-[hooks]
-enter = "mise x pitchfork -- pitchfork supervisor start && mise x pitchfork -- pitchfork start clickhouse -q"
-leave = "mise x pitchfork -- pitchfork stop clickhouse"
-
 [tools]
-  pitchfork = "latest"
   pnpm = "10.17.1"
   node = "24.11.0"
   sops = "3.9.3"
