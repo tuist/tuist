@@ -795,7 +795,8 @@ msgstr "Evento"
 
 #, fuzzy
 msgid "Events will appear here when the test case status changes."
-msgstr "Los eventos aparecerán aquí cuando cambie el estado del caso de prueba."
+msgstr ""
+"Los eventos aparecerán aquí cuando cambie el estado del caso de prueba."
 
 #, fuzzy
 msgid "First run of this test"
@@ -836,3 +837,21 @@ msgstr "Historial de pruebas"
 #, fuzzy
 msgid "Unmarked as flaky"
 msgstr "Desmarcado como inestable."
+
+msgid "Last run"
+msgstr ""
+
+msgid "No quarantined tests"
+msgstr ""
+
+msgid "Quarantined Tests"
+msgstr ""
+
+msgid "Quarantined by"
+msgstr ""
+
+msgid "Quarantined tests"
+msgstr ""
+
+msgid "Tuist"
+msgstr ""

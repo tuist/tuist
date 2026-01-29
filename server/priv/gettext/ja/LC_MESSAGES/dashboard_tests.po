@@ -823,3 +823,21 @@ msgstr "テスト履歴"
 #, fuzzy
 msgid "Unmarked as flaky"
 msgstr "不安定な状態を解除"
+
+msgid "Last run"
+msgstr ""
+
+msgid "No quarantined tests"
+msgstr ""
+
+msgid "Quarantined Tests"
+msgstr ""
+
+msgid "Quarantined by"
+msgstr ""
+
+msgid "Quarantined tests"
+msgstr ""
+
+msgid "Tuist"
+msgstr ""

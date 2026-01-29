@@ -623,3 +623,21 @@ msgstr ""
 
 msgid "Unmarked as flaky"
 msgstr ""
+
+msgid "Last run"
+msgstr ""
+
+msgid "No quarantined tests"
+msgstr ""
+
+msgid "Quarantined Tests"
+msgstr ""
+
+msgid "Quarantined by"
+msgstr ""
+
+msgid "Quarantined tests"
+msgstr ""
+
+msgid "Tuist"
+msgstr ""

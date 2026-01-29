@@ -833,3 +833,21 @@ msgstr "Historia testów"
 #, fuzzy
 msgid "Unmarked as flaky"
 msgstr "Oznaczone jako niestabilne"
+
+msgid "Last run"
+msgstr ""
+
+msgid "No quarantined tests"
+msgstr ""
+
+msgid "Quarantined Tests"
+msgstr ""
+
+msgid "Quarantined by"
+msgstr ""
+
+msgid "Quarantined tests"
+msgstr ""
+
+msgid "Tuist"
+msgstr ""

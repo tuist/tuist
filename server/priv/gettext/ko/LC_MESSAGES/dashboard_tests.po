@@ -666,3 +666,21 @@ msgstr "테스트 기록"
 #, fuzzy
 msgid "Unmarked as flaky"
 msgstr "불규칙 표시 해제"
+
+msgid "Last run"
+msgstr ""
+
+msgid "No quarantined tests"
+msgstr ""
+
+msgid "Quarantined Tests"
+msgstr ""
+
+msgid "Quarantined by"
+msgstr ""
+
+msgid "Quarantined tests"
+msgstr ""
+
+msgid "Tuist"
+msgstr ""
