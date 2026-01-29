@@ -37,6 +37,7 @@
       </:icon_left>
     </.button>
     <.button
+      :if={@can_delete_preview}
       label={dgettext("dashboard_previews", "Delete preview")}
       data-part="delete-button"
       variant="secondary"

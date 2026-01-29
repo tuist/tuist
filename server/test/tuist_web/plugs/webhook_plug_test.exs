@@ -52,7 +52,7 @@ defmodule TuistWeb.Plugs.WebhookPlugTest do
       conn = webhook_request(:post, "/webhook/github", payload, secret, "x-hub-signature-256", "sha256=")
 
       # When
-      result = WebhookPlug.call(conn, options)
+      result = WebhookPlug.call(conn, WebhookPlug.init(options))
 
       # Then
       assert result.status == 200
@@ -79,7 +79,7 @@ defmodule TuistWeb.Plugs.WebhookPlugTest do
       conn = webhook_request(:post, "/webhook/github", payload, invalid_secret, "x-hub-signature-256", "sha256=")
 
       # When
-      result = WebhookPlug.call(conn, options)
+      result = WebhookPlug.call(conn, WebhookPlug.init(options))
 
       # Then
       assert result.status == 403
@@ -114,7 +114,7 @@ defmodule TuistWeb.Plugs.WebhookPlugTest do
         |> assign(:raw_body, [tampered_payload])
 
       # When
-      result = WebhookPlug.call(conn, options)
+      result = WebhookPlug.call(conn, WebhookPlug.init(options))
 
       # Then
       assert result.status == 403
@@ -137,7 +137,7 @@ defmodule TuistWeb.Plugs.WebhookPlugTest do
       conn = webhook_request(:post, "/webhooks/cache", payload, secret, "x-cache-signature")
 
       # When
-      result = WebhookPlug.call(conn, options)
+      result = WebhookPlug.call(conn, WebhookPlug.init(options))
 
       # Then
       assert result.status == 200
@@ -163,7 +163,7 @@ defmodule TuistWeb.Plugs.WebhookPlugTest do
       conn = webhook_request(:post, "/webhooks/cache", payload, invalid_secret, "x-cache-signature")
 
       # When
-      result = WebhookPlug.call(conn, options)
+      result = WebhookPlug.call(conn, WebhookPlug.init(options))
 
       # Then
       assert result.status == 403
@@ -193,7 +193,7 @@ defmodule TuistWeb.Plugs.WebhookPlugTest do
         |> assign(:raw_body, [payload])
 
       # When
-      result = WebhookPlug.call(conn, options)
+      result = WebhookPlug.call(conn, WebhookPlug.init(options))
 
       # Then
       assert result.status == 401
@@ -227,7 +227,7 @@ defmodule TuistWeb.Plugs.WebhookPlugTest do
         |> assign(:raw_body, [tampered_payload])
 
       # When
-      result = WebhookPlug.call(conn, options)
+      result = WebhookPlug.call(conn, WebhookPlug.init(options))
 
       # Then
       assert result.status == 403
@@ -254,7 +254,7 @@ defmodule TuistWeb.Plugs.WebhookPlugTest do
       conn = webhook_request(:post, "/other/path", payload, secret, "x-hub-signature-256")
 
       # When
-      result = WebhookPlug.call(conn, options)
+      result = WebhookPlug.call(conn, WebhookPlug.init(options))
 
       # Then
       refute result.halted

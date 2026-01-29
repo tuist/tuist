@@ -1,7 +1,5 @@
 import Config
 
-config :appsignal, :config, active: false
-
 config :cache, Cache.Guardian,
   issuer: "tuist",
   secret_key: "test_guardian_secret_key_at_least_64_characters_long_for_test_purposes"
@@ -33,3 +31,5 @@ config :cache,
 config :logger, level: :warning
 
 config :phoenix, :plug_init_mode, :runtime
+
+config :sentry, dsn: nil

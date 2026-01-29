@@ -21,15 +21,19 @@ defmodule TuistWeb.Plugs.WebhookPlug do
     end
   end
 
-  @plug_parser Plug.Parsers.init(
-                 parsers: [:json],
-                 body_reader: {CacheBodyReader, :read_body, []},
-                 json_decoder: Phoenix.json_library()
-               )
-
   @impl true
   def init(options) do
-    options
+    read_timeout = Keyword.get(options, :read_timeout, 15_000)
+
+    parser_opts =
+      Plug.Parsers.init(
+        parsers: [:json],
+        body_reader: {CacheBodyReader, :read_body, []},
+        json_decoder: Phoenix.json_library(),
+        read_timeout: read_timeout
+      )
+
+    Keyword.put(options, :parser_opts, parser_opts)
   end
 
   @doc """
@@ -53,8 +57,9 @@ defmodule TuistWeb.Plugs.WebhookPlug do
     module = get_config(options, :handler)
     signature_header = get_config(options, :signature_header) || "x-hub-signature-256"
     signature_prefix = get_config(options, :signature_prefix)
+    parser_opts = get_config(options, :parser_opts)
 
-    conn = Plug.Parsers.call(conn, @plug_parser)
+    conn = Plug.Parsers.call(conn, parser_opts)
     signature = conn |> get_req_header(signature_header) |> List.first()
 
     cond do

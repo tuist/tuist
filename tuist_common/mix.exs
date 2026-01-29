@@ -24,10 +24,11 @@ defmodule TuistCommon.MixProject do
 
   defp deps do
     [
-      {:appsignal, "~> 2.8"},
+      {:sentry, "~> 11.0.4"},
       {:bandit, "~> 1.0"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ex_aws, "~> 2.0"},
+      {:phoenix, "~> 1.7", only: :test},
       {:plug, "~> 1.14"},
       {:req, "~> 0.5"},
       {:mimic, "~> 1.7", only: :test}

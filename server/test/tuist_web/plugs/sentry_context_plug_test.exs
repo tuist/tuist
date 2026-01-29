@@ -1,4 +1,4 @@
-defmodule TuistWeb.Plugs.AppsignalAttributionPlugTest do
+defmodule TuistWeb.Plugs.SentryContextPlugTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
@@ -8,32 +8,29 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlugTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
-  alias TuistWeb.Plugs.AppsignalAttributionPlug
+  alias TuistWeb.Plugs.SentryContextPlug
 
   setup :set_mimic_from_context
 
   describe "call/2" do
     test "does nothing when error tracking is disabled" do
       stub(Tuist.Environment, :error_tracking_enabled?, fn -> false end)
-      reject(&Appsignal.Tracer.root_span/0)
-      reject(&Appsignal.Span.set_sample_data/3)
+      reject(&Sentry.Context.set_extra_context/1)
 
       conn =
         :get
         |> conn("/")
-        |> AppsignalAttributionPlug.call(%{})
+        |> SentryContextPlug.call(%{})
 
       assert conn
     end
 
-    test "sets auth tags immediately for authenticated user" do
+    test "sets auth context for authenticated user" do
       user = AccountsFixtures.user_fixture(preload: [:account])
-      span = make_ref()
 
       stub(Tuist.Environment, :error_tracking_enabled?, fn -> true end)
-      stub(Appsignal.Tracer, :root_span, fn -> span end)
 
-      expect(Appsignal.Span, :set_sample_data, fn ^span, "tags", data ->
+      expect(Sentry.Context, :set_extra_context, fn data ->
         assert data == %{
                  auth_user_id: user.id,
                  auth_account_id: user.account.id,
@@ -47,19 +44,17 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlugTest do
         :get
         |> conn("/")
         |> Authentication.put_current_user(user)
-        |> AppsignalAttributionPlug.call(%{})
+        |> SentryContextPlug.call(%{})
 
       assert conn
     end
 
-    test "sets auth tags immediately for authenticated project" do
+    test "sets auth context for authenticated project" do
       project = ProjectsFixtures.project_fixture(preload: [:account])
-      span = make_ref()
 
       stub(Tuist.Environment, :error_tracking_enabled?, fn -> true end)
-      stub(Appsignal.Tracer, :root_span, fn -> span end)
 
-      expect(Appsignal.Span, :set_sample_data, fn ^span, "tags", data ->
+      expect(Sentry.Context, :set_extra_context, fn data ->
         assert data == %{
                  auth_project_id: project.id,
                  auth_account_id: project.account.id,
@@ -73,20 +68,18 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlugTest do
         :get
         |> conn("/")
         |> Authentication.put_current_project(project)
-        |> AppsignalAttributionPlug.call(%{})
+        |> SentryContextPlug.call(%{})
 
       assert conn
     end
 
-    test "sets auth tags immediately for authenticated account" do
+    test "sets auth context for authenticated account" do
       account = AccountsFixtures.account_fixture()
       authenticated_account = %AuthenticatedAccount{account: account, scopes: [:registry_read]}
-      span = make_ref()
 
       stub(Tuist.Environment, :error_tracking_enabled?, fn -> true end)
-      stub(Appsignal.Tracer, :root_span, fn -> span end)
 
-      expect(Appsignal.Span, :set_sample_data, fn ^span, "tags", data ->
+      expect(Sentry.Context, :set_extra_context, fn data ->
         assert data == %{auth_account_id: account.id, auth_account_handle: account.name}
         :ok
       end)
@@ -95,32 +88,28 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlugTest do
         :get
         |> conn("/")
         |> Plug.Conn.assign(:current_subject, authenticated_account)
-        |> AppsignalAttributionPlug.call(%{})
+        |> SentryContextPlug.call(%{})
 
       assert conn
     end
 
-    test "does not set auth tags when no authentication" do
-      span = make_ref()
-
+    test "does not set auth context when no authentication" do
       stub(Tuist.Environment, :error_tracking_enabled?, fn -> true end)
-      stub(Appsignal.Tracer, :root_span, fn -> span end)
-      reject(&Appsignal.Span.set_sample_data/3)
+      reject(&Sentry.Context.set_extra_context/1)
 
       conn =
         :get
         |> conn("/")
-        |> AppsignalAttributionPlug.call(%{})
+        |> SentryContextPlug.call(%{})
 
       assert conn
     end
   end
 
-  describe "set_selection_tags/1" do
+  describe "set_selection_context/1" do
     test "does nothing when error tracking is disabled" do
       stub(Tuist.Environment, :error_tracking_enabled?, fn -> false end)
-      reject(&Appsignal.Tracer.root_span/0)
-      reject(&Appsignal.Span.set_sample_data/3)
+      reject(&Sentry.Context.set_extra_context/1)
 
       project = ProjectsFixtures.project_fixture(preload: [:account])
 
@@ -129,19 +118,17 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlugTest do
         |> conn("/")
         |> Plug.Conn.assign(:selected_project, project)
         |> Plug.Conn.assign(:selected_account, project.account)
-        |> AppsignalAttributionPlug.set_selection_tags()
+        |> SentryContextPlug.set_selection_context()
 
       assert conn
     end
 
-    test "sets selection tags for selected project and account" do
+    test "sets selection context for selected project and account" do
       project = ProjectsFixtures.project_fixture(preload: [:account])
-      span = make_ref()
 
       stub(Tuist.Environment, :error_tracking_enabled?, fn -> true end)
-      stub(Appsignal.Tracer, :root_span, fn -> span end)
 
-      expect(Appsignal.Span, :set_sample_data, fn ^span, "tags", data ->
+      expect(Sentry.Context, :set_extra_context, fn data ->
         assert data == %{
                  selected_project_id: project.id,
                  selected_project_handle: project.name,
@@ -158,19 +145,17 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlugTest do
         |> conn("/")
         |> Plug.Conn.assign(:selected_project, project)
         |> Plug.Conn.assign(:selected_account, project.account)
-        |> AppsignalAttributionPlug.set_selection_tags()
+        |> SentryContextPlug.set_selection_context()
 
       assert conn
     end
 
-    test "sets selection tags for only selected account" do
+    test "sets selection context for only selected account" do
       account = AccountsFixtures.account_fixture()
-      span = make_ref()
 
       stub(Tuist.Environment, :error_tracking_enabled?, fn -> true end)
-      stub(Appsignal.Tracer, :root_span, fn -> span end)
 
-      expect(Appsignal.Span, :set_sample_data, fn ^span, "tags", data ->
+      expect(Sentry.Context, :set_extra_context, fn data ->
         assert data == %{
                  selected_account_id: account.id,
                  selected_account_handle: account.name,
@@ -184,22 +169,19 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlugTest do
         :get
         |> conn("/")
         |> Plug.Conn.assign(:selected_account, account)
-        |> AppsignalAttributionPlug.set_selection_tags()
+        |> SentryContextPlug.set_selection_context()
 
       assert conn
     end
 
-    test "does not set tags when no selection" do
-      span = make_ref()
-
+    test "does not set context when no selection" do
       stub(Tuist.Environment, :error_tracking_enabled?, fn -> true end)
-      stub(Appsignal.Tracer, :root_span, fn -> span end)
-      reject(&Appsignal.Span.set_sample_data/3)
+      reject(&Sentry.Context.set_extra_context/1)
 
       conn =
         :get
         |> conn("/")
-        |> AppsignalAttributionPlug.set_selection_tags()
+        |> SentryContextPlug.set_selection_context()
 
       assert conn
     end

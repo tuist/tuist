@@ -10,7 +10,7 @@ defmodule TuistWeb.Router do
 
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.MarketingController
-  alias TuistWeb.Plugs.AppsignalAttributionPlug
+  alias TuistWeb.Plugs.SentryContextPlug
   alias TuistWeb.Plugs.UeberauthHostPlug
 
   pipeline :open_api do
@@ -33,7 +33,8 @@ defmodule TuistWeb.Router do
       script_src: "'self' 'nonce' 'wasm-unsafe-eval'",
       script_src_elem:
         "'self' 'nonce' https://d3js.org https://cdn.jsdelivr.net https://esm.sh https://chat.cdn-plain.com https://*.posthog.com https://marketing.tuist.dev",
-      font_src: "'self' https://fonts.gstatic.com data: https://fonts.scalar.com https://rsms.me",
+      font_src:
+        "'self' https://fonts.gstatic.com https://chat.cdn-plain.com data: https://fonts.scalar.com https://rsms.me",
       frame_src: "'self' https://chat.cdn-plain.com https://*.tuist.dev https://newassets.hcaptcha.com",
       connect_src: "'self' https://chat.cdn-plain.com  https://chat.uk.plain.com https://*.posthog.com"
   end
@@ -49,7 +50,7 @@ defmodule TuistWeb.Router do
     plug :put_secure_browser_headers
     plug UeberauthHostPlug
     plug :fetch_current_user
-    plug AppsignalAttributionPlug
+    plug SentryContextPlug
     plug :content_security_policy
   end
 
@@ -61,7 +62,7 @@ defmodule TuistWeb.Router do
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug :fetch_current_user
-    plug AppsignalAttributionPlug
+    plug SentryContextPlug
     plug :content_security_policy
   end
 
@@ -88,7 +89,7 @@ defmodule TuistWeb.Router do
     plug UeberauthHostPlug
     plug Ueberauth
     plug :fetch_current_user
-    plug AppsignalAttributionPlug
+    plug SentryContextPlug
     plug :content_security_policy
   end
 
@@ -104,7 +105,7 @@ defmodule TuistWeb.Router do
     plug UeberauthHostPlug
     plug Ueberauth
     plug :fetch_current_user
-    plug AppsignalAttributionPlug
+    plug SentryContextPlug
     plug :assign_current_path
     plug :content_security_policy
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
@@ -126,7 +127,7 @@ defmodule TuistWeb.Router do
   pipeline :api_registry_swift do
     plug :accepts, ["swift-registry-v1-json", "swift-registry-v1-zip", "swift-registry-v1-api"]
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
-    plug AppsignalAttributionPlug
+    plug SentryContextPlug
     plug TuistWeb.RateLimit.Registry
   end
 
@@ -136,12 +137,12 @@ defmodule TuistWeb.Router do
     plug TuistWeb.WarningsHeaderPlug
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
     plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :open_api}
-    plug AppsignalAttributionPlug
+    plug SentryContextPlug
   end
 
   pipeline :authenticated do
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
-    plug AppsignalAttributionPlug
+    plug SentryContextPlug
   end
 
   pipeline :on_premise_api do
@@ -761,6 +762,7 @@ defmodule TuistWeb.Router do
       live "/tests/test-cases", TestCasesLive
       live "/tests/test-cases/:test_case_id", TestCaseLive
       live "/tests/flaky-tests", FlakyTestsLive
+      live "/tests/quarantined-tests", QuarantinedTestsLive
       live "/module-cache", ModuleCacheLive
       live "/module-cache/cache-runs", CacheRunsLive
       live "/module-cache/generate-runs", GenerateRunsLive

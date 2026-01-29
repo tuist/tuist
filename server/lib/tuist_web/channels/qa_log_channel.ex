@@ -131,10 +131,12 @@ defmodule TuistWeb.QALogChannel do
       {:error, changeset} ->
         Logger.error("Failed to record token usage for QA run #{qa_run.id}: #{inspect(changeset.errors)}")
 
-        Appsignal.send_error(%RuntimeError{message: "Failed to record token usage"}, %{
-          qa_run_id: qa_run.id,
-          changeset_errors: inspect(changeset.errors)
-        })
+        Sentry.capture_message("Failed to record token usage",
+          extra: %{
+            qa_run_id: qa_run.id,
+            changeset_errors: inspect(changeset.errors)
+          }
+        )
     end
   end
 end

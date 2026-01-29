@@ -31,18 +31,6 @@ defmodule Tuist.Environment do
     @env == :prod
   end
 
-  defmacro run_if_error_tracking_enabled(block) do
-    enabled = error_tracking_enabled?()
-
-    if enabled do
-      block
-    else
-      quote do
-        :ok
-      end
-    end
-  end
-
   def truthy?(value) do
     Enum.member?(["1", "true", "TRUE", "yes", "YES"], value)
   end
@@ -682,8 +670,8 @@ defmodule Tuist.Environment do
     URI.to_string(%{uri | path: "/images/tuist_email.png"})
   end
 
-  def app_signal_push_api_key(secrets \\ secrets()) do
-    get([:app_signal, :push_api_key], secrets)
+  def sentry_dsn(secrets \\ secrets()) do
+    get([:sentry, :dsn], secrets)
   end
 
   def secret_key_base(secrets \\ secrets()) do

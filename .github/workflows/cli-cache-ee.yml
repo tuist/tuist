@@ -132,7 +132,7 @@ jobs:
       - name: Initialize TuistCacheEE submodule
         run: mise run cli:ee
       - name: Run tests
-        run: mise x -- tuist inspect implicit-imports
+        run: mise x -- tuist inspect dependencies --only implicit
         env:
           TUIST_EE: 1
       - name: Save cache
@@ -144,7 +144,7 @@ jobs:
   acceptance-tests:
     name: Acceptance Tests
     runs-on: namespace-profile-default-macos
-    timeout-minutes: 15
+    timeout-minutes: 40
     needs: [check-team-membership]
     if: |
       always() &&

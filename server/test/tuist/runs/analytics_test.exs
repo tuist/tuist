@@ -4,6 +4,7 @@ defmodule Tuist.Runs.AnalyticsTest do
 
   alias Tuist.IngestRepo
   alias Tuist.Runs.Analytics
+  alias Tuist.Runs.TestCase
   alias Tuist.Runs.TestCaseRun
   alias Tuist.Xcode.XcodeGraph
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
@@ -3960,6 +3961,317 @@ defmodule Tuist.Runs.AnalyticsTest do
 
       # Then - Only 1 flaky run in the last 30 days out of 1 total = 100%
       assert got == 100.0
+    end
+  end
+
+  describe "quarantined_tests_analytics/2" do
+    test "returns empty analytics when no quarantine events exist" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      got =
+        Analytics.quarantined_tests_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then
+      assert got.count == 0
+      assert Enum.all?(got.values, &(&1 == 0))
+    end
+
+    test "counts quarantined test correctly" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          is_quarantined: true,
+          inserted_at: ~N[2024-04-01 00:00:00.000000]
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "quarantined",
+        inserted_at: ~N[2024-04-15 12:00:00.000000]
+      )
+
+      # When
+      got =
+        Analytics.quarantined_tests_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then
+      assert got.count == 1
+
+      # Find index for April 15 (dates are Date structs)
+      april_15_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-15]))
+
+      if april_15_index do
+        values_after = Enum.drop(got.values, april_15_index)
+        assert Enum.all?(values_after, &(&1 == 1))
+      end
+    end
+
+    test "unquarantining a test decreases count by exactly one" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          is_quarantined: false,
+          inserted_at: ~N[2024-04-01 00:00:00.000000]
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # Quarantine on April 10
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "quarantined",
+        inserted_at: ~N[2024-04-10 12:00:00.000000]
+      )
+
+      # Unquarantine on April 20
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "unquarantined",
+        inserted_at: ~N[2024-04-20 12:00:00.000000]
+      )
+
+      # When
+      got =
+        Analytics.quarantined_tests_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then
+      assert got.count == 0
+
+      # Find indices for April 10 and April 20 (dates are Date structs)
+      april_10_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-10]))
+      april_20_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-20]))
+
+      assert april_10_index != nil, "April 10 should be in dates"
+      assert april_20_index != nil, "April 20 should be in dates"
+
+      # Before April 10: should be 0
+      values_before_10 = Enum.take(got.values, april_10_index)
+      assert Enum.all?(values_before_10, &(&1 == 0)), "Values before quarantine should be 0"
+
+      # Between April 10 and April 19: should be 1
+      values_between = Enum.slice(got.values, april_10_index..(april_20_index - 1))
+
+      assert Enum.all?(values_between, &(&1 == 1)),
+             "Values between quarantine and unquarantine should be 1, got: #{inspect(values_between)}"
+
+      # April 20 onwards: should be 0
+      values_after_20 = Enum.drop(got.values, april_20_index)
+
+      assert Enum.all?(values_after_20, &(&1 == 0)),
+             "Values after unquarantine should be 0, got: #{inspect(values_after_20)}"
+    end
+
+    test "multiple quarantine/unquarantine cycles are tracked correctly" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          is_quarantined: true,
+          inserted_at: ~N[2024-04-01 00:00:00.000000]
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # First quarantine on April 5
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "quarantined",
+        inserted_at: ~N[2024-04-05 12:00:00.000000]
+      )
+
+      # First unquarantine on April 10
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "unquarantined",
+        inserted_at: ~N[2024-04-10 12:00:00.000000]
+      )
+
+      # Second quarantine on April 20
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "quarantined",
+        inserted_at: ~N[2024-04-20 12:00:00.000000]
+      )
+
+      # When
+      got =
+        Analytics.quarantined_tests_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then
+      assert got.count == 1
+
+      april_05_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-05]))
+      april_10_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-10]))
+      april_20_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-20]))
+
+      assert april_05_index
+      assert april_10_index
+      assert april_20_index
+
+      # Before April 5: should be 0
+      values_before_5 = Enum.take(got.values, april_05_index)
+      assert Enum.all?(values_before_5, &(&1 == 0))
+
+      # April 5 to April 9: should be 1
+      values_5_to_10 = Enum.slice(got.values, april_05_index..(april_10_index - 1))
+      assert Enum.all?(values_5_to_10, &(&1 == 1))
+
+      # April 10 to April 19: should be 0
+      values_10_to_20 = Enum.slice(got.values, april_10_index..(april_20_index - 1))
+      assert Enum.all?(values_10_to_20, &(&1 == 0))
+
+      # April 20 onwards: should be 1
+      values_after_20 = Enum.drop(got.values, april_20_index)
+      assert Enum.all?(values_after_20, &(&1 == 1))
+    end
+
+    test "initial count includes events before the period" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      test_case =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          is_quarantined: true,
+          inserted_at: ~N[2024-03-01 00:00:00.000000]
+        )
+
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # Quarantine BEFORE the period (March 15)
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case.id,
+        event_type: "quarantined",
+        inserted_at: ~N[2024-03-15 12:00:00.000000]
+      )
+
+      # When
+      got =
+        Analytics.quarantined_tests_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then - all values should be 1 since test was quarantined before period started
+      assert got.count == 1
+      assert Enum.all?(got.values, &(&1 == 1))
+    end
+
+    test "multiple test cases are counted independently" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      test_case_1 =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "test1",
+          is_quarantined: false,
+          inserted_at: ~N[2024-04-01 00:00:00.000000]
+        )
+
+      test_case_2 =
+        RunsFixtures.test_case_fixture(
+          project_id: project.id,
+          name: "test2",
+          is_quarantined: true,
+          inserted_at: ~N[2024-04-01 00:00:00.000000]
+        )
+
+      IngestRepo.insert_all(TestCase, [
+        test_case_1 |> Map.from_struct() |> Map.delete(:__meta__),
+        test_case_2 |> Map.from_struct() |> Map.delete(:__meta__)
+      ])
+
+      # Quarantine test 1 on April 10
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case_1.id,
+        event_type: "quarantined",
+        inserted_at: ~N[2024-04-10 12:00:00.000000]
+      )
+
+      # Quarantine test 2 on April 15
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case_2.id,
+        event_type: "quarantined",
+        inserted_at: ~N[2024-04-15 12:00:00.000000]
+      )
+
+      # Unquarantine test 1 on April 20
+      RunsFixtures.test_case_event_fixture(
+        test_case_id: test_case_1.id,
+        event_type: "unquarantined",
+        inserted_at: ~N[2024-04-20 12:00:00.000000]
+      )
+
+      # When
+      got =
+        Analytics.quarantined_tests_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then - test_case_2 is quarantined at the end
+      assert got.count == 1
+
+      april_10_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-10]))
+      april_15_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-15]))
+      april_20_index = Enum.find_index(got.dates, &(&1 == ~D[2024-04-20]))
+
+      assert april_10_index
+      assert april_15_index
+      assert april_20_index
+
+      # Before April 10: should be 0
+      values_before_10 = Enum.take(got.values, april_10_index)
+      assert Enum.all?(values_before_10, &(&1 == 0))
+
+      # April 10 to April 14: should be 1 (only test 1)
+      values_10_to_15 = Enum.slice(got.values, april_10_index..(april_15_index - 1))
+      assert Enum.all?(values_10_to_15, &(&1 == 1))
+
+      # April 15 to April 19: should be 2 (both tests)
+      values_15_to_20 = Enum.slice(got.values, april_15_index..(april_20_index - 1))
+      assert Enum.all?(values_15_to_20, &(&1 == 2))
+
+      # April 20 onwards: should be 1 (only test 2)
+      values_after_20 = Enum.drop(got.values, april_20_index)
+      assert Enum.all?(values_after_20, &(&1 == 1))
     end
   end
 end

@@ -68,7 +68,7 @@ defmodule Tuist.KeyValueStore do
         # With the current setup, we can't assume a valid Redis connection available,
         # therefore we need a fallback mechanism in those cases.
         error in Redix.ConnectionError ->
-          Appsignal.set_error(error, __STACKTRACE__)
+          Sentry.capture_exception(error, stacktrace: __STACKTRACE__)
           get_or_update_from_cachex(cache_key, opts, func)
       end
     else
