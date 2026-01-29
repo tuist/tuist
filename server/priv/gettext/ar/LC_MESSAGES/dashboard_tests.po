@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-29 17:11+0000\n"
+"PO-Revision-Date: 2026-01-29 18:44+0000\n"
 "Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
 "Language-Team: Arabic <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/ar/>\n"
@@ -738,8 +738,9 @@ msgstr "محجوز"
 msgid "Unquarantine"
 msgstr "إلغاء الحجر الصحي"
 
+#, fuzzy
 msgid "Module Cache"
-msgstr ""
+msgstr "ذاكرة التخزين المؤقت للوحدة"
 
 #, fuzzy
 msgid "Automatically by Tuist"
