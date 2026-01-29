@@ -49,6 +49,12 @@ setup_file() {
         fi
         export TUIST_TOKEN
     fi
+
+    # Debug: test tuist cache config directly
+    echo "# Testing tuist cache config..." >&3
+    local cache_config_output
+    cache_config_output=$("$TUIST_EXECUTABLE" cache config tuist/gradle --json --server-url "$SERVER_URL" 2>&1) || true
+    echo "# tuist cache config output: $cache_config_output" >&3
 }
 
 teardown_file() {
