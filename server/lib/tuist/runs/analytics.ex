@@ -13,6 +13,7 @@ defmodule Tuist.Runs.Analytics do
   alias Tuist.Runs.Build
   alias Tuist.Runs.Test
   alias Tuist.Runs.TestCase
+  alias Tuist.Runs.TestCaseEvent
   alias Tuist.Runs.TestCaseRun
   alias Tuist.Tasks
   alias Tuist.Xcode.XcodeGraph
@@ -1275,6 +1276,123 @@ defmodule Tuist.Runs.Analytics do
   defp apply_test_status_filter(query, nil), do: query
   defp apply_test_status_filter(query, "failure"), do: where(query, [t], t.status == "failure")
   defp apply_test_status_filter(query, "success"), do: where(query, [t], t.status == "success")
+
+  @doc """
+  Returns analytics for quarantined tests count over time for a project.
+  This computes the number of quarantined tests at each time bucket by
+  tracking quarantine/unquarantine events from the test_case_events table.
+  """
+  def quarantined_tests_analytics(project_id, opts \\ []) do
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    time_bucket = time_bucket_for_date_period(date_period)
+    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
+
+    date_format = get_clickhouse_date_format(clickhouse_time_bucket)
+
+    # Get distinct test_case_ids for this project to avoid counting events multiple times
+    # due to ClickHouse ReplacingMergeTree not immediately deduplicating rows
+    project_test_case_ids_subquery =
+      from(tc in TestCase,
+        where: tc.project_id == ^project_id,
+        group_by: tc.id,
+        select: tc.id
+      )
+
+    events_in_period =
+      ClickHouseRepo.all(
+        from(e in TestCaseEvent,
+          where: e.test_case_id in subquery(project_test_case_ids_subquery),
+          where: e.event_type in ["quarantined", "unquarantined"],
+          where: e.inserted_at >= ^start_datetime,
+          where: e.inserted_at <= ^end_datetime,
+          group_by: fragment("formatDateTime(?, ?)", e.inserted_at, ^date_format),
+          select: %{
+            date: fragment("formatDateTime(?, ?)", e.inserted_at, ^date_format),
+            quarantined: count(fragment("CASE WHEN ? = 'quarantined' THEN 1 END", e.event_type)),
+            unquarantined: count(fragment("CASE WHEN ? = 'unquarantined' THEN 1 END", e.event_type))
+          },
+          order_by: fragment("formatDateTime(?, ?)", e.inserted_at, ^date_format)
+        )
+      )
+
+    initial_count = quarantined_count_before(project_id, start_datetime)
+
+    dates = date_range_for_date_period(date_period, start_datetime: start_datetime, end_datetime: end_datetime)
+
+    events_map =
+      Map.new(events_in_period, fn event ->
+        {normalise_date(event.date, date_period), {event.quarantined, event.unquarantined}}
+      end)
+
+    {values, _} =
+      Enum.map_reduce(dates, initial_count, fn date, running_count ->
+        normalized = normalise_date(date, date_period)
+        {quarantined, unquarantined} = Map.get(events_map, normalized, {0, 0})
+        new_count = max(running_count + quarantined - unquarantined, 0)
+        {new_count, new_count}
+      end)
+
+    current_count = quarantined_count_at(project_id, end_datetime)
+
+    %{
+      count: current_count,
+      values: values,
+      dates: dates
+    }
+  end
+
+  defp quarantined_count_before(project_id, datetime) do
+    # Get distinct test_case_ids for this project to avoid counting events multiple times
+    # due to ClickHouse ReplacingMergeTree not immediately deduplicating rows
+    project_test_case_ids_subquery =
+      from(tc in TestCase,
+        where: tc.project_id == ^project_id,
+        group_by: tc.id,
+        select: tc.id
+      )
+
+    events_query =
+      from(e in TestCaseEvent,
+        where: e.test_case_id in subquery(project_test_case_ids_subquery),
+        where: e.event_type in ["quarantined", "unquarantined"],
+        where: e.inserted_at < ^datetime,
+        select: %{
+          quarantined: count(fragment("CASE WHEN ? = 'quarantined' THEN 1 END", e.event_type)),
+          unquarantined: count(fragment("CASE WHEN ? = 'unquarantined' THEN 1 END", e.event_type))
+        }
+      )
+
+    result = ClickHouseRepo.one(events_query)
+
+    if result do
+      max((result.quarantined || 0) - (result.unquarantined || 0), 0)
+    else
+      0
+    end
+  end
+
+  defp quarantined_count_at(project_id, datetime) do
+    latest_test_case_subquery =
+      from(test_case in TestCase,
+        where: test_case.project_id == ^project_id,
+        where: test_case.inserted_at <= ^datetime,
+        group_by: test_case.id,
+        select: %{id: test_case.id, max_inserted_at: max(test_case.inserted_at)}
+      )
+
+    query =
+      from(test_case in TestCase,
+        join: latest in subquery(latest_test_case_subquery),
+        on: test_case.id == latest.id and test_case.inserted_at == latest.max_inserted_at,
+        where: test_case.is_quarantined == true,
+        select: count(test_case.id)
+      )
+
+    ClickHouseRepo.one(query) || 0
+  end
 
   def test_run_duration_analytics(project_id, opts \\ []) do
     start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))

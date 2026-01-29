@@ -75,8 +75,8 @@ defmodule TuistWeb.TestCaseLiveTest do
 
       html = lv |> element(~s|button[phx-click="unquarantine"]|) |> render_click()
 
-      refute html =~ "Quarantined"
-      assert html =~ "Quarantine"
+      refute html =~ "Unquarantine"
+      assert html =~ ~s|phx-click="quarantine"|
     end
   end
 end

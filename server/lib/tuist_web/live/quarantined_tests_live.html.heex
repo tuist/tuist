@@ -1,0 +1,313 @@
+<div id="quarantined-tests">
+  <.card title={dgettext("dashboard_tests", "Analytics")} icon="chart_arcs" data-part="analytics">
+    <:actions>
+      <.date_picker
+        id="quarantined-tests-analytics-date-range-picker"
+        name="analytics-date-range"
+        presets={[
+          %{
+            id: "last-24-hours",
+            label: dgettext("dashboard_tests", "Last 24 hours"),
+            period: {24, :hour}
+          },
+          %{
+            id: "last-7-days",
+            label: dgettext("dashboard_tests", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last-30-days",
+            label: dgettext("dashboard_tests", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{
+            id: "last-12-months",
+            label: dgettext("dashboard_tests", "Last 12 months"),
+            period: {12, :month}
+          },
+          %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
+        ]}
+        selected_preset={@analytics_preset}
+        period={@analytics_period}
+        on_period_change="analytics_period_changed"
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_tests", "Cancel")}
+            variant="secondary"
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel",
+                detail: %{id: "quarantined-tests-analytics-date-range-picker"}
+              )
+            }
+          />
+          <.button
+            label={dgettext("dashboard_tests", "Apply")}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply",
+                detail: %{id: "quarantined-tests-analytics-date-range-picker"}
+              )
+            }
+          />
+        </:actions>
+      </.date_picker>
+    </:actions>
+    <.card_section
+      :if={
+        @quarantined_analytics.count != 0 or Enum.any?(@quarantined_analytics.values, &(&1 > 0))
+      }
+      data-part="analytics-chart-section"
+    >
+      <div data-part="legends">
+        <.legend
+          title={dgettext("dashboard_tests", "Quarantined Tests")}
+          value={@quarantined_analytics.count}
+          style="destructive"
+        />
+      </div>
+      <.chart
+        id="quarantined-tests-chart"
+        type="line"
+        extra_options={
+          %{
+            grid: %{
+              width: "97%",
+              left: "0.4%",
+              height: "88%",
+              top: "5%"
+            },
+            xAxis: %{
+              boundaryGap: false,
+              type: "category",
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary",
+                formatter: "fn:toLocaleDate",
+                customValues: [
+                  @quarantined_analytics.dates |> List.first(),
+                  @quarantined_analytics.dates |> List.last()
+                ],
+                padding: [10, 0, 0, 0]
+              }
+            },
+            yAxis: %{
+              splitNumber: 4,
+              splitLine: %{
+                lineStyle: %{
+                  color: "var:noora-chart-lines"
+                }
+              },
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary"
+              }
+            },
+            legend: %{
+              show: false
+            },
+            tooltip:
+              if @analytics_preset == "last-24-hours" do
+                %{dateFormat: "hour"}
+              else
+                %{}
+              end
+          }
+        }
+        series={[
+          %{
+            color: "var:noora-chart-destructive",
+            data:
+              Enum.zip(
+                @quarantined_analytics.dates,
+                @quarantined_analytics.values
+              )
+              |> Enum.map(&Tuple.to_list/1),
+            name: dgettext("dashboard_tests", "Quarantined tests"),
+            type: "line",
+            smooth: 0.1,
+            symbol: "none"
+          }
+        ]}
+        y_axis_min={0}
+      />
+    </.card_section>
+    <.empty_card_section
+      :if={
+        @quarantined_analytics.count == 0 and Enum.all?(@quarantined_analytics.values, &(&1 == 0))
+      }
+      title={dgettext("dashboard_tests", "No data yet")}
+    >
+      <:image>
+        <img src="/images/empty_line_chart_light.png" data-theme="light" />
+        <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+      </:image>
+    </.empty_card_section>
+  </.card>
+
+  <.card
+    title={dgettext("dashboard_tests", "Quarantined Tests")}
+    icon="lock"
+    data-part="quarantined-tests"
+  >
+    <.card_section data-part="quarantined-tests-section">
+      <div data-part="filters">
+        <.form for={%{}} phx-change="search-quarantined-tests" phx-debounce="200">
+          <.text_input
+            type="search"
+            id="search-quarantined-tests"
+            name="search"
+            placeholder={dgettext("dashboard_tests", "Search...")}
+            show_suffix={false}
+            data-part="search"
+            value={@quarantined_tests_filter}
+          />
+        </.form>
+        <.dropdown
+          id="quarantined-tests-sort-by"
+          label={
+            case @quarantined_tests_sort_by do
+              "name" -> dgettext("dashboard_tests", "Test Case")
+              _ -> dgettext("dashboard_tests", "Last run")
+            end
+          }
+          secondary_text={dgettext("dashboard_tests", "Sort by:")}
+        >
+          <.dropdown_item
+            value="last_ran_at"
+            label={dgettext("dashboard_tests", "Last run")}
+            patch={sort_by_patch(@uri, "last_ran_at")}
+            data-selected={@quarantined_tests_sort_by == "last_ran_at"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="name"
+            label={dgettext("dashboard_tests", "Test Case")}
+            patch={sort_by_patch(@uri, "name")}
+            data-selected={@quarantined_tests_sort_by == "name"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+        <.filter_dropdown
+          id="filter-dropdown"
+          label={dgettext("dashboard_tests", "Filter")}
+          available_filters={@available_filters}
+          active_filters={@active_filters}
+        />
+      </div>
+      <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+        <.active_filter :for={filter <- @active_filters} filter={filter} />
+      </div>
+
+      <div :if={not Enum.empty?(@quarantined_tests)} data-part="quarantined-tests-table">
+        <.table
+          id="quarantined-tests-table"
+          rows={@quarantined_tests}
+          row_navigate={
+            fn test_case ->
+              url(
+                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/#{test_case.id}"
+              )
+            end
+          }
+        >
+          <:col
+            :let={test_case}
+            label={dgettext("dashboard_tests", "Test Case")}
+            patch={
+              @quarantined_tests_sort_by == "name" &&
+                column_sort_patch(assigns, "name")
+            }
+            icon={
+              @quarantined_tests_sort_by == "name" &&
+                sort_icon(@quarantined_tests_sort_order)
+            }
+          >
+            <.text_and_description_cell
+              label={test_case.name}
+              description={
+                case {test_case.module_name, test_case.suite_name} do
+                  {module_name, suite_name} when module_name != "" and suite_name != "" ->
+                    "#{module_name} \u2022 #{suite_name}"
+
+                  {module_name, _} when module_name != "" ->
+                    module_name
+
+                  _ ->
+                    nil
+                end
+              }
+            />
+          </:col>
+          <:col :let={test_case} label={dgettext("dashboard_tests", "Quarantined by")}>
+            <%= if is_nil(test_case.quarantined_by_account_id) do %>
+              <.badge
+                label={dgettext("dashboard_tests", "Tuist")}
+                color="primary"
+                style="light-fill"
+                size="large"
+              />
+            <% else %>
+              <.badge
+                label={"@#{test_case.quarantined_by_account_name || "unknown"}"}
+                color="information"
+                style="light-fill"
+                size="large"
+              />
+            <% end %>
+          </:col>
+          <:col
+            :let={test_case}
+            label={dgettext("dashboard_tests", "Last run")}
+            patch={
+              @quarantined_tests_sort_by == "last_ran_at" &&
+                column_sort_patch(assigns, "last_ran_at")
+            }
+            icon={
+              @quarantined_tests_sort_by == "last_ran_at" &&
+                sort_icon(@quarantined_tests_sort_order)
+            }
+          >
+            <.link_button
+              :if={test_case.last_run_id}
+              navigate={
+                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-runs/#{test_case.last_run_id}"
+              }
+              label={Tuist.Utilities.DateFormatter.from_now(test_case.last_ran_at)}
+              underline
+              variant="secondary"
+              size="large"
+              data-part="last-run-link"
+            />
+            <span :if={is_nil(test_case.last_run_id)}>
+              {Tuist.Utilities.DateFormatter.from_now(test_case.last_ran_at)}
+            </span>
+          </:col>
+        </.table>
+        <.pagination_group
+          :if={@quarantined_tests_meta.total_pages > 1}
+          current_page={@quarantined_tests_page}
+          number_of_pages={@quarantined_tests_meta.total_pages}
+          page_patch={
+            fn page ->
+              "?#{Query.put(@uri.query, "page", page)}"
+            end
+          }
+        />
+      </div>
+
+      <div :if={Enum.empty?(@quarantined_tests)} data-part="empty-quarantined-tests">
+        <.empty_card_section
+          title={dgettext("dashboard_tests", "No quarantined tests")}
+          get_started_href="https://docs.tuist.dev/en/guides/features/insights#tests"
+          data-part="empty-quarantined-tests-table-card-section"
+        >
+          <:image>
+            <img src="/images/empty_table_light.png" data-theme="light" />
+            <img src="/images/empty_table_dark.png" data-theme="dark" />
+          </:image>
+        </.empty_card_section>
+      </div>
+    </.card_section>
+  </.card>
+</div>
