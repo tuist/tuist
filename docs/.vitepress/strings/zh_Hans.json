@@ -144,6 +144,26 @@
                 },
                 "releases": {
                     "text": "运行"
+                },
+                "debugging": {
+                    "text": "调试"
+                },
+                "code": {
+                    "text": "代码",
+                    "items": {
+                        "handbook": {
+                            "text": "手册"
+                        },
+                        "cli": {
+                            "text": "CLI"
+                        },
+                        "server": {
+                            "text": "服务器"
+                        },
+                        "docs": {
+                            "text": "文档"
+                        }
+                    }
                 }
             }
         },
@@ -366,6 +386,14 @@
                         },
                         "qa": {
                             "text": "质量保证"
+                        },
+                        "test-insights": {
+                            "items": {
+                                "flaky-tests": {
+                                    "text": "不规则测试"
+                                }
+                            },
+                            "text": "测试洞察"
                         }
                     }
                 },
@@ -387,12 +415,15 @@
                             "text": "SSO"
                         },
                         "git-forges": {
-                            "text": "Git 锻造",
+                            "text": "Git 代码仓库",
                             "items": {
                                 "github": {
                                     "text": "GitHub"
                                 }
                             }
+                        },
+                        "slack": {
+                            "text": "Slack"
                         }
                     }
                 },
@@ -418,13 +449,13 @@
                             "text": "自主托管"
                         },
                         "accounts-and-projects": {
-                            "text": "Accounts and projects"
+                            "text": "账户和项目"
                         },
                         "authentication": {
-                            "text": "Authentication"
+                            "text": "验证"
                         }
                     },
-                    "text": "Server"
+                    "text": "服务器"
                 }
             }
         }
