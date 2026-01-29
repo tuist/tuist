@@ -1,6 +1,11 @@
 /*
  * Self-hosted fonts to avoid external CDN dependencies.
  * This replaces the imports from Google Fonts and rsms.me in noora/tokens.css
+ *
+ * Font sources:
+ * - DM Sans: https://fonts.google.com/specimen/DM+Sans
+ * - Geist Mono: https://vercel.com/font
+ * - Inter: https://rsms.me/inter/
  */
 
 /* DM Sans - Latin Extended */
