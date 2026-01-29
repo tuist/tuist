@@ -8,9 +8,8 @@ defmodule CacheWeb.ModuleCacheControllerTest do
   alias Cache.CacheArtifacts
   alias Cache.Disk
   alias Cache.MultipartUploads
-  alias Cache.Repo
   alias Cache.S3
-  alias Cache.S3Transfer
+  alias Cache.S3Transfers
 
   setup do
     {:ok, test_storage_dir} = Briefly.create(directory: true)
@@ -100,7 +99,8 @@ defmodule CacheWeb.ModuleCacheControllerTest do
              ]
 
       # Verify S3 download was enqueued via S3Transfers table
-      transfer = Repo.one(S3Transfer)
+      :ok = Cache.S3TransfersBuffer.flush()
+      transfer = :download |> S3Transfers.pending(10) |> List.first()
       assert transfer.type == :download
       assert transfer.account_handle == "test-account"
       assert transfer.project_handle == "test-project"
@@ -396,7 +396,8 @@ defmodule CacheWeb.ModuleCacheControllerTest do
       assert {:error, :not_found} = MultipartUploads.get_upload(upload_id)
 
       # Verify S3 upload was enqueued via S3Transfers table
-      transfer = Repo.one(S3Transfer)
+      :ok = Cache.S3TransfersBuffer.flush()
+      transfer = :upload |> S3Transfers.pending(10) |> List.first()
       assert transfer.type == :upload
       assert transfer.account_handle == "test-account"
       assert transfer.project_handle == "test-project"

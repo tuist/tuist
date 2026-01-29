@@ -6,6 +6,7 @@ defmodule Cache.DiskEvictionWorkerTest do
 
   alias Cache.CacheArtifact
   alias Cache.CacheArtifacts
+  alias Cache.CacheArtifactsBuffer
   alias Cache.Disk
   alias Cache.DiskEvictionWorker
   alias Cache.Repo
@@ -13,6 +14,11 @@ defmodule Cache.DiskEvictionWorkerTest do
 
   setup do
     :ok = Sandbox.checkout(Repo)
+
+    if pid = Process.whereis(CacheArtifactsBuffer) do
+      Sandbox.allow(Repo, self(), pid)
+      CacheArtifactsBuffer.reset()
+    end
 
     {:ok, storage_dir} = Briefly.create(directory: true)
 
@@ -29,6 +35,7 @@ defmodule Cache.DiskEvictionWorkerTest do
     File.write!(path, :binary.copy("a", 1024))
 
     :ok = CacheArtifacts.track_artifact_access(key)
+    :ok = CacheArtifactsBuffer.flush()
 
     expect(Disk, :usage, fn ^storage_dir ->
       {:ok,
@@ -62,6 +69,7 @@ defmodule Cache.DiskEvictionWorkerTest do
     :ok = CacheArtifacts.track_artifact_access(key_old)
     :ok = CacheArtifacts.track_artifact_access(key_new)
     :ok = CacheArtifacts.track_artifact_access(key_newest)
+    :ok = CacheArtifactsBuffer.flush()
 
     set_last_access(key_old, ~U[2024-01-01 00:00:00Z])
     set_last_access(key_new, ~U[2024-06-01 00:00:00Z])
@@ -78,6 +86,7 @@ defmodule Cache.DiskEvictionWorkerTest do
     end)
 
     assert :ok = DiskEvictionWorker.perform(%Oban.Job{args: %{}})
+    :ok = CacheArtifactsBuffer.flush()
 
     refute File.exists?(older)
     assert File.exists?(newer)
