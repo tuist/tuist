@@ -814,3 +814,21 @@ msgstr "測試歷史"
 #, fuzzy
 msgid "Unmarked as flaky"
 msgstr "取消標記為不穩定"
+
+msgid "Last run"
+msgstr ""
+
+msgid "No quarantined tests"
+msgstr ""
+
+msgid "Quarantined Tests"
+msgstr ""
+
+msgid "Quarantined by"
+msgstr ""
+
+msgid "Quarantined tests"
+msgstr ""
+
+msgid "Tuist"
+msgstr ""
