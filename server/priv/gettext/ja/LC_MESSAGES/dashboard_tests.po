@@ -87,18 +87,6 @@ msgid "Avg. test run duration"
 msgstr "平均テスト実行時間"
 
 #, fuzzy
-msgid "Binary Cache"
-msgstr "バイナリキャッシュ"
-
-#, fuzzy
-msgid "Binary cache hits"
-msgstr "バイナリキャッシュヒット"
-
-#, fuzzy
-msgid "Binary cache misses"
-msgstr "バイナリキャッシュミス"
-
-#, fuzzy
 msgid "Branch"
 msgstr "Branch"
 
@@ -113,10 +101,6 @@ msgstr "CI"
 #, fuzzy
 msgid "CI Run"
 msgstr "CI Run"
-
-#, fuzzy
-msgid "Cache hit rate"
-msgstr "キャッシュヒット率"
 
 #, fuzzy
 msgid "Caught error"
@@ -145,10 +129,6 @@ msgstr "コマンドの持続時間"
 #, fuzzy
 msgid "Commit"
 msgstr "コミット"
-
-#, fuzzy
-msgid "Compilation Optimizations"
-msgstr "コンパイル時の最適化"
 
 #, fuzzy
 msgid "Download result"
@@ -346,10 +326,6 @@ msgstr "合格"
 #, fuzzy
 msgid "Passed runs"
 msgstr "合格した実行"
-
-#, fuzzy
-msgid "Percentage of modules that were successfully retrieved from the cache."
-msgstr "キャッシュから正常に取得されたモジュールの割合。"
 
 #, fuzzy
 msgid "Ran at"
@@ -561,18 +537,6 @@ msgid "Total modules represents the total number of testable modules."
 msgstr "Total modules はテスト可能なモジュールの総数を表します。"
 
 #, fuzzy
-msgid ""
-"Total number of modules taken from either the local or the remote cache."
-msgstr ""
-"ローカルまたはリモートキャッシュのいずれかから取得されたモジュールの総数。"
-
-#, fuzzy
-msgid ""
-"Total number of modules that could have been taken from the cache if it was "
-"fully populated."
-msgstr "キャッシュが完全に充填されていた場合に取得可能だったモジュールの総数。"
-
-#, fuzzy
 msgid "Total number of test cases executed."
 msgstr "実行されたテストケースの総数。"
 
@@ -772,6 +736,9 @@ msgstr "Quarantined"
 msgid "Unquarantine"
 msgstr "検疫解除"
 
+msgid "Module Cache"
+msgstr ""
+
 #, fuzzy
 msgid "Automatically by Tuist"
 msgstr "Tuistによる自動翻訳"
@@ -847,3 +814,41 @@ msgstr "隔離されたテスト"
 #, fuzzy
 msgid "Tuist"
 msgstr "Tuist"
+
+#, fuzzy
+#~ msgid "Binary Cache"
+#~ msgstr "バイナリキャッシュ"
+
+#, fuzzy
+#~ msgid "Binary cache hits"
+#~ msgstr "バイナリキャッシュヒット"
+
+#, fuzzy
+#~ msgid "Binary cache misses"
+#~ msgstr "バイナリキャッシュミス"
+
+#, fuzzy
+#~ msgid "Cache hit rate"
+#~ msgstr "キャッシュヒット率"
+
+#, fuzzy
+#~ msgid "Compilation Optimizations"
+#~ msgstr "コンパイル時の最適化"
+
+#, fuzzy
+#~ msgid ""
+#~ "Percentage of modules that were successfully retrieved from the cache."
+#~ msgstr "キャッシュから正常に取得されたモジュールの割合。"
+
+#, fuzzy
+#~ msgid ""
+#~ "Total number of modules taken from either the local or the remote cache."
+#~ msgstr ""
+#~ "ローカルまたはリモートキャッシュのいずれかから取得されたモジュールの総数。"
+
+#, fuzzy
+#~ msgid ""
+#~ "Total number of modules that could have been taken from the cache if it "
+#~ "was fully populated."
+#~ msgstr ""
+#~ "キャッシュが完全に充填されていた場合に取得可能だったモジュールの総数。"
