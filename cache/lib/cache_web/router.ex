@@ -62,5 +62,8 @@ defmodule CacheWeb.Router do
     post "/module/complete", ModuleCacheController, :complete_multipart
 
     delete "/clean", CleanController, :clean
+
+    get "/gradle/:cache_key", GradleController, :download
+    put "/gradle/:cache_key", GradleController, :save
   end
 end
