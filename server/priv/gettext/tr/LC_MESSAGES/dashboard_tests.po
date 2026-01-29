@@ -3,9 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-29 17:11+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"PO-Revision-Date: 2026-01-29 18:44+0000\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
 "Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/tr/>\n"
 "Language: tr\n"
@@ -740,8 +739,9 @@ msgstr "Karantinaya alınmış"
 msgid "Unquarantine"
 msgstr "Karantinadan Çıkar"
 
+#, fuzzy
 msgid "Module Cache"
-msgstr ""
+msgstr "Modül önbelleği"
 
 #, fuzzy
 msgid "Automatically by Tuist"
