@@ -3,33 +3,35 @@ import Mockable
 import OpenAPIURLSession
 import TuistHTTP
 
+public typealias CacheRun = Operations.getCacheRun.Output.Ok.Body.jsonPayload
+
 @Mockable
-public protocol GetBundleServicing {
-    func getBundle(
+public protocol GetCacheRunServicing: Sendable {
+    func getCacheRun(
         fullHandle: String,
-        bundleId: String,
+        cacheRunId: String,
         serverURL: URL
-    ) async throws -> Components.Schemas.Bundle
+    ) async throws -> CacheRun
 }
 
-enum GetBundleServiceError: LocalizedError {
+enum GetCacheRunServiceError: LocalizedError {
     case unknownError(Int)
     case notFound(String)
     case forbidden(String)
-    case unauthorized(String)
-    case unprocessable(String)
 
     var errorDescription: String? {
         switch self {
         case let .unknownError(statusCode):
-            return "We could not get the bundle due to an unknown Tuist response of \(statusCode)."
-        case let .forbidden(message), let .notFound(message), let .unauthorized(message), let .unprocessable(message):
+            return "The cache run could not be fetched due to an unknown Tuist response of \(statusCode)."
+        case let .notFound(message):
+            return message
+        case let .forbidden(message):
             return message
         }
     }
 }
 
-public final class GetBundleService: GetBundleServicing {
+public final class GetCacheRunService: GetCacheRunServicing {
     private let fullHandleService: FullHandleServicing
 
     public convenience init() {
@@ -44,20 +46,20 @@ public final class GetBundleService: GetBundleServicing {
         self.fullHandleService = fullHandleService
     }
 
-    public func getBundle(
+    public func getCacheRun(
         fullHandle: String,
-        bundleId: String,
+        cacheRunId: String,
         serverURL: URL
-    ) async throws -> Components.Schemas.Bundle {
+    ) async throws -> CacheRun {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
 
-        let response = try await client.getBundle(
+        let response = try await client.getCacheRun(
             .init(
                 path: .init(
                     account_handle: handles.accountHandle,
                     project_handle: handles.projectHandle,
-                    bundle_id: bundleId
+                    cache_run_id: cacheRunId
                 )
             )
         )
@@ -65,31 +67,21 @@ public final class GetBundleService: GetBundleServicing {
         switch response {
         case let .ok(okResponse):
             switch okResponse.body {
-            case let .json(bundle):
-                return bundle
+            case let .json(json):
+                return json
             }
         case let .notFound(notFound):
             switch notFound.body {
             case let .json(error):
-                throw GetBundleServiceError.notFound(error.message)
+                throw GetCacheRunServiceError.notFound(error.message)
             }
         case let .forbidden(forbidden):
             switch forbidden.body {
             case let .json(error):
-                throw GetBundleServiceError.forbidden(error.message)
-            }
-        case let .unauthorized(unauthorized):
-            switch unauthorized.body {
-            case let .json(error):
-                throw GetBundleServiceError.unauthorized(error.message)
-            }
-        case let .unprocessableContent(unprocessable):
-            switch unprocessable.body {
-            case let .json(error):
-                throw GetBundleServiceError.unprocessable(error.message)
+                throw GetCacheRunServiceError.forbidden(error.message)
             }
         case let .undocumented(statusCode: statusCode, _):
-            throw GetBundleServiceError.unknownError(statusCode)
+            throw GetCacheRunServiceError.unknownError(statusCode)
         }
     }
 }
