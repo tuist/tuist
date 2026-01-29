@@ -54,6 +54,7 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorker do
         end
 
       {:ok, _updated_test_case} = Runs.update_test_case(test_case_id, update_attrs)
+
       enqueue_alert(project_id, test_case_id, flaky_count, auto_quarantine)
     else
       _ -> :ok

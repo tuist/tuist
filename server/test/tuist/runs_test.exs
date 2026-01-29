@@ -5,6 +5,7 @@ defmodule Tuist.RunsTest do
   alias Tuist.IngestRepo
   alias Tuist.Runs
   alias Tuist.Runs.TestCase
+  alias Tuist.Runs.TestCaseEvent
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -3271,7 +3272,7 @@ defmodule Tuist.RunsTest do
     end
   end
 
-  describe "update_test_case/2" do
+  describe "update_test_case/3" do
     test "marks a test case as flaky" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -3431,7 +3432,7 @@ defmodule Tuist.RunsTest do
     end
   end
 
-  describe "update_test_case/2 quarantine" do
+  describe "update_test_case/3 quarantine" do
     test "marks a test case as quarantined" do
       project = ProjectsFixtures.project_fixture()
 
@@ -5291,6 +5292,180 @@ defmodule Tuist.RunsTest do
 
       assert existing_run.is_new == false
       assert new_run.is_new == true
+    end
+  end
+
+  describe "list_test_case_events/2" do
+    test "lists events for a test case ordered by inserted_at desc" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      test_case_id = Ecto.UUID.generate()
+      event1_id = Ecto.UUID.generate()
+      event2_id = Ecto.UUID.generate()
+      now = NaiveDateTime.utc_now()
+
+      IngestRepo.insert_all(TestCaseEvent, [
+        %{
+          id: event1_id,
+          test_case_id: test_case_id,
+          event_type: "marked_flaky",
+          actor_id: user.account.id,
+          inserted_at: now
+        },
+        %{
+          id: event2_id,
+          test_case_id: test_case_id,
+          event_type: "quarantined",
+          actor_id: nil,
+          inserted_at: now
+        }
+      ])
+
+      # When
+      {events, meta} = Runs.list_test_case_events(test_case_id)
+
+      # Then
+      assert length(events) == 2
+      assert meta.total_count == 2
+      event_ids = Enum.map(events, & &1.id)
+      assert event1_id in event_ids
+      assert event2_id in event_ids
+    end
+
+    test "paginates events correctly" do
+      # Given
+      test_case_id = Ecto.UUID.generate()
+      now = NaiveDateTime.utc_now()
+
+      events =
+        for _ <- 1..5 do
+          %{
+            id: Ecto.UUID.generate(),
+            test_case_id: test_case_id,
+            event_type: "marked_flaky",
+            actor_id: nil,
+            inserted_at: now
+          }
+        end
+
+      IngestRepo.insert_all(TestCaseEvent, events)
+
+      # When
+      {events, meta} = Runs.list_test_case_events(test_case_id, %{page: 1, page_size: 2})
+
+      # Then
+      assert length(events) == 2
+      assert meta.total_count == 5
+      assert meta.total_pages == 3
+      assert meta.current_page == 1
+    end
+
+    test "loads actor" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      test_case_id = Ecto.UUID.generate()
+      now = NaiveDateTime.utc_now()
+
+      IngestRepo.insert_all(TestCaseEvent, [
+        %{
+          id: Ecto.UUID.generate(),
+          test_case_id: test_case_id,
+          event_type: "marked_flaky",
+          actor_id: user.account.id,
+          inserted_at: now
+        }
+      ])
+
+      # When
+      {[event], _meta} = Runs.list_test_case_events(test_case_id)
+
+      # Then
+      assert event.actor.id == user.account.id
+      assert event.actor.name == user.account.name
+    end
+  end
+
+  describe "update_test_case/3 with event creation" do
+    test "creates marked_flaky event when is_flaky changes from false to true" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # When
+      {:ok, _updated} =
+        Runs.update_test_case(
+          test_case.id,
+          %{is_flaky: true},
+          actor_id: user.account.id
+        )
+
+      # Then
+      {events, _meta} = Runs.list_test_case_events(test_case.id)
+      assert length(events) == 1
+      assert hd(events).event_type == "marked_flaky"
+      assert hd(events).actor_id == user.account.id
+    end
+
+    test "creates unmarked_flaky event when is_flaky changes from true to false" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: true)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # When
+      {:ok, _updated} =
+        Runs.update_test_case(
+          test_case.id,
+          %{is_flaky: false},
+          actor_id: user.account.id
+        )
+
+      # Then
+      {events, _meta} = Runs.list_test_case_events(test_case.id)
+      assert length(events) == 1
+      assert hd(events).event_type == "unmarked_flaky"
+    end
+
+    test "creates quarantined event when is_quarantined changes from false to true" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_quarantined: false)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # When
+      {:ok, _updated} = Runs.update_test_case(test_case.id, %{is_quarantined: true})
+
+      # Then
+      {events, _meta} = Runs.list_test_case_events(test_case.id)
+      assert length(events) == 1
+      assert hd(events).event_type == "quarantined"
+      assert is_nil(hd(events).actor)
+    end
+
+    test "creates multiple events when both is_flaky and is_quarantined change" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false, is_quarantined: false)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # When
+      {:ok, _updated} =
+        Runs.update_test_case(
+          test_case.id,
+          %{is_flaky: true, is_quarantined: true},
+          actor_id: user.account.id
+        )
+
+      # Then
+      {events, _meta} = Runs.list_test_case_events(test_case.id)
+      assert length(events) == 2
+      event_types = Enum.map(events, & &1.event_type)
+      assert "marked_flaky" in event_types
+      assert "quarantined" in event_types
     end
   end
 end

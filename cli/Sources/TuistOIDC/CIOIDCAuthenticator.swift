@@ -97,7 +97,9 @@ public struct CIOIDCAuthenticator: CIOIDCAuthenticating {
     }
 
     private func bitriseOIDCToken() throws -> String {
-        guard let token = Environment.current.variables["BITRISE_OIDC_ID_TOKEN"] else {
+        guard let token = Environment.current.variables["BITRISE_OIDC_ID_TOKEN"]
+            ?? Environment.current.variables["BITRISE_IDENTITY_TOKEN"]
+        else {
             throw CIOIDCAuthenticatorError.missingBitriseOIDCToken
         }
 

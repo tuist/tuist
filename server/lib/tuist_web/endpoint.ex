@@ -1,4 +1,5 @@
 defmodule TuistWeb.Endpoint do
+  use Sentry.PlugCapture
   use Phoenix.Endpoint, otp_app: :tuist
 
   # The session will be stored in the cookie and signed,
@@ -52,8 +53,7 @@ defmodule TuistWeb.Endpoint do
 
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
-  plug TuistCommon.Plugs.RequestContextPlug, enabled_fn: &Tuist.Environment.error_tracking_enabled?/0
-  plug TuistCommon.Plugs.AppsignalSamplingPlug, sampled_controllers: [TuistWeb.API.CacheController]
+  plug Sentry.PlugContext
   plug TuistWeb.Plugs.CloseConnectionOnErrorPlug
 
   plug Stripe.WebhookPlug,
@@ -66,7 +66,8 @@ defmodule TuistWeb.Endpoint do
     handler: GitHubController,
     secret: {Tuist.Environment, :github_app_webhook_secret, []},
     signature_header: "x-hub-signature-256",
-    signature_prefix: "sha256="
+    signature_prefix: "sha256=",
+    read_timeout: 60_000
 
   plug WebhookPlug,
     at: "/webhooks/cache",
@@ -74,10 +75,14 @@ defmodule TuistWeb.Endpoint do
     secret: {Tuist.Environment, :cache_api_key, []},
     signature_header: "x-cache-signature"
 
+  # The /api/runs endpoint can receive large payloads (files, cacheable_tasks, cas_outputs)
+  # for projects with thousands of files. 50MB should accommodate most projects.
+  # TODO: Consider streaming large arrays instead of loading everything into memory.
   plug Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
-    json_decoder: Phoenix.json_library()
+    json_decoder: Phoenix.json_library(),
+    length: 50_000_000
 
   plug Plug.MethodOverride
   plug Plug.Head

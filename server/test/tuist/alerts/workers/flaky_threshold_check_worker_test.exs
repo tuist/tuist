@@ -45,7 +45,7 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorkerTest do
       end)
 
       stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
-      reject(&Runs.update_test_case/2)
+      reject(&Runs.update_test_case/3)
 
       result =
         FlakyThresholdCheckWorker.perform(%Oban.Job{
@@ -144,7 +144,7 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorkerTest do
       end)
 
       stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
-      reject(&Runs.update_test_case/2)
+      reject(&Runs.update_test_case/3)
 
       result =
         FlakyThresholdCheckWorker.perform(%Oban.Job{

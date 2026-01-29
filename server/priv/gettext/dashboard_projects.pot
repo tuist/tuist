@@ -322,7 +322,7 @@ msgstr ""
 #: lib/tuist_web/live/project_settings_live.html.heex:48
 #: lib/tuist_web/live/project_settings_live.html.heex:62
 #, elixir-autogen, elixir-format
-msgid "Only people with access"
+msgid "Only organization members"
 msgstr ""
 
 #: lib/tuist_web/live/create_project_live.ex:99

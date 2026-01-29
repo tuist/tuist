@@ -11,5 +11,5 @@ else
     # Check mode: only report issues without fixing
     swiftformat cli/ app/ --lint
     swiftlint lint --quiet --config .swiftlint.yml cli/Sources
-    tuist inspect implicit-imports
+    tuist inspect dependencies --only implicit
 fi

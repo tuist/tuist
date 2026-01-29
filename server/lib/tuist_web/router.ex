@@ -10,7 +10,7 @@ defmodule TuistWeb.Router do
 
   alias TuistWeb.Marketing.Localization
   alias TuistWeb.Marketing.MarketingController
-  alias TuistWeb.Plugs.AppsignalAttributionPlug
+  alias TuistWeb.Plugs.SentryContextPlug
   alias TuistWeb.Plugs.UeberauthHostPlug
 
   pipeline :open_api do
@@ -49,7 +49,7 @@ defmodule TuistWeb.Router do
     plug :put_secure_browser_headers
     plug UeberauthHostPlug
     plug :fetch_current_user
-    plug AppsignalAttributionPlug
+    plug SentryContextPlug
     plug :content_security_policy
   end
 
@@ -61,7 +61,7 @@ defmodule TuistWeb.Router do
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug :fetch_current_user
-    plug AppsignalAttributionPlug
+    plug SentryContextPlug
     plug :content_security_policy
   end
 
@@ -88,7 +88,7 @@ defmodule TuistWeb.Router do
     plug UeberauthHostPlug
     plug Ueberauth
     plug :fetch_current_user
-    plug AppsignalAttributionPlug
+    plug SentryContextPlug
     plug :content_security_policy
   end
 
@@ -104,7 +104,7 @@ defmodule TuistWeb.Router do
     plug UeberauthHostPlug
     plug Ueberauth
     plug :fetch_current_user
-    plug AppsignalAttributionPlug
+    plug SentryContextPlug
     plug :assign_current_path
     plug :content_security_policy
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
@@ -126,7 +126,7 @@ defmodule TuistWeb.Router do
   pipeline :api_registry_swift do
     plug :accepts, ["swift-registry-v1-json", "swift-registry-v1-zip", "swift-registry-v1-api"]
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
-    plug AppsignalAttributionPlug
+    plug SentryContextPlug
     plug TuistWeb.RateLimit.Registry
   end
 
@@ -136,12 +136,12 @@ defmodule TuistWeb.Router do
     plug TuistWeb.WarningsHeaderPlug
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
     plug TuistWeb.AuthenticationPlug, {:require_authentication, response_type: :open_api}
-    plug AppsignalAttributionPlug
+    plug SentryContextPlug
   end
 
   pipeline :authenticated do
     plug TuistWeb.AuthenticationPlug, :load_authenticated_subject
-    plug AppsignalAttributionPlug
+    plug SentryContextPlug
   end
 
   pipeline :on_premise_api do

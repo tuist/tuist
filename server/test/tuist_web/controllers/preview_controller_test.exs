@@ -223,9 +223,23 @@ defmodule TuistWeb.PreviewControllerTest do
     test "redirects to presigned preview download url", %{conn: conn} do
       # Given
       preview = Tuist.Repo.preload(AppBuildsFixtures.preview_fixture(), project: :account)
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
 
       account_name = preview.project.account.name
       project_name = preview.project.name
+
+      storage_key =
+        Tuist.AppBuilds.storage_key(%{
+          account_handle: account_name,
+          project_handle: project_name,
+          app_build_id: app_build.id
+        })
+
+      expect(Storage, :object_exists?, fn ^storage_key, _actor -> true end)
+
+      stub(Storage, :stream_object, fn _object_key, _actor ->
+        Stream.map(["zip-content"], fn chunk -> chunk end)
+      end)
 
       stub(Zstream, :zip, fn _ -> ["zip-stream"] end)
 
@@ -235,6 +249,29 @@ defmodule TuistWeb.PreviewControllerTest do
       # Then
       response = response(conn, :ok)
       assert response == "zip-stream"
+    end
+
+    test "returns not found when a preview object is missing", %{conn: conn} do
+      # Given
+      preview = Tuist.Repo.preload(AppBuildsFixtures.preview_fixture(), project: :account)
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+
+      account_name = preview.project.account.name
+      project_name = preview.project.name
+
+      storage_key =
+        Tuist.AppBuilds.storage_key(%{
+          account_handle: account_name,
+          project_handle: project_name,
+          app_build_id: app_build.id
+        })
+
+      expect(Storage, :object_exists?, fn ^storage_key, _actor -> false end)
+
+      # When / Then
+      assert_error_sent :not_found, fn ->
+        get(conn, ~p"/#{account_name}/#{project_name}/previews/#{preview.id}/download")
+      end
     end
   end
 

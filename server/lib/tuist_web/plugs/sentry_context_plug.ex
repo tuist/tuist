@@ -1,6 +1,6 @@
-defmodule TuistWeb.Plugs.AppsignalAttributionPlug do
+defmodule TuistWeb.Plugs.SentryContextPlug do
   @moduledoc """
-  A plug that sets AppSignal attribution data based on the authenticated subject
+  A plug that sets Sentry context data based on the authenticated subject
   and selected resources. Only IDs are used to keep data anonymous.
   """
 
@@ -12,23 +12,21 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlug do
 
   def call(conn, _opts) do
     if Tuist.Environment.error_tracking_enabled?() do
-      span = Appsignal.Tracer.root_span()
       auth_data = get_auth_data(conn)
-      set_tags(span, auth_data)
+      set_context(auth_data)
     end
 
     conn
   end
 
   @doc """
-  Sets AppSignal tags for the selected project and/or account.
+  Sets Sentry context for the selected project and/or account.
   Call this after assigning :selected_project or :selected_account to the conn.
   """
-  def set_selection_tags(conn) do
+  def set_selection_context(conn) do
     if Tuist.Environment.error_tracking_enabled?() do
-      span = Appsignal.Tracer.root_span()
       selection_data = get_selection_data(conn)
-      set_tags(span, selection_data)
+      set_context(selection_data)
     end
 
     conn
@@ -84,12 +82,12 @@ defmodule TuistWeb.Plugs.AppsignalAttributionPlug do
     end
   end
 
-  defp set_tags(_span, tags) when tags == %{} do
+  defp set_context(context) when context == %{} do
     :ok
   end
 
-  defp set_tags(span, tags) do
-    Appsignal.Span.set_sample_data(span, "tags", tags)
+  defp set_context(context) do
+    Sentry.Context.set_extra_context(context)
   end
 
   defp maybe_put(map, _key, nil), do: map

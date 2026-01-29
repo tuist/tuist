@@ -35,7 +35,8 @@ extension TuistCore.TuistGeneratedProjectOptions.GenerationOptions {
             testInsightsDisabled: fullHandle == nil || manifest.testInsightsDisabled,
             disableSandbox: manifest.disableSandbox,
             includeGenerateScheme: manifest.includeGenerateScheme,
-            enableCaching: manifest.enableCaching
+            enableCaching: manifest.enableCaching,
+            registryEnabled: manifest.registryEnabled
         )
     }
 }
