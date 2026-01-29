@@ -91,18 +91,6 @@ msgid "Avg. test run duration"
 msgstr "Средняя продолжительность теста"
 
 #, fuzzy
-msgid "Binary Cache"
-msgstr "Двоичный кэш"
-
-#, fuzzy
-msgid "Binary cache hits"
-msgstr "Попадания в бинарный кэш"
-
-#, fuzzy
-msgid "Binary cache misses"
-msgstr "Пропуски двоичного кэша"
-
-#, fuzzy
 msgid "Branch"
 msgstr "Ветвь"
 
@@ -117,10 +105,6 @@ msgstr "CI"
 #, fuzzy
 msgid "CI Run"
 msgstr "CI Run"
-
-#, fuzzy
-msgid "Cache hit rate"
-msgstr "Коэффициент попадания в кэш"
 
 #, fuzzy
 msgid "Caught error"
@@ -149,10 +133,6 @@ msgstr "Продолжительность команды"
 #, fuzzy
 msgid "Commit"
 msgstr "Сохранить"
-
-#, fuzzy
-msgid "Compilation Optimizations"
-msgstr "Оптимизация компиляции"
 
 #, fuzzy
 msgid "Download result"
@@ -352,10 +332,6 @@ msgstr "Пройден"
 #, fuzzy
 msgid "Passed runs"
 msgstr "Пройденные прогоны"
-
-#, fuzzy
-msgid "Percentage of modules that were successfully retrieved from the cache."
-msgstr "Процент модулей, которые были успешно извлечены из кэша."
 
 #, fuzzy
 msgid "Ran at"
@@ -571,19 +547,6 @@ msgstr ""
 "подлежащих тестированию."
 
 #, fuzzy
-msgid ""
-"Total number of modules taken from either the local or the remote cache."
-msgstr "Общее количество модулей, взятых из локального или удаленного кэша."
-
-#, fuzzy
-msgid ""
-"Total number of modules that could have been taken from the cache if it was "
-"fully populated."
-msgstr ""
-"Общее количество модулей, которые могли бы быть взяты из кэша, если бы он "
-"был полностью заполнен."
-
-#, fuzzy
 msgid "Total number of test cases executed."
 msgstr "Общее количество выполненных тестовых случаев."
 
@@ -784,6 +747,9 @@ msgstr "Карантин"
 msgid "Unquarantine"
 msgstr "Снять карантин"
 
+msgid "Module Cache"
+msgstr ""
+
 #, fuzzy
 msgid "Automatically by Tuist"
 msgstr "Автоматически с помощью Tuist"
@@ -859,3 +825,41 @@ msgstr "Тесты в карантине"
 #, fuzzy
 msgid "Tuist"
 msgstr "Tuist"
+
+#, fuzzy
+#~ msgid "Binary Cache"
+#~ msgstr "Двоичный кэш"
+
+#, fuzzy
+#~ msgid "Binary cache hits"
+#~ msgstr "Попадания в бинарный кэш"
+
+#, fuzzy
+#~ msgid "Binary cache misses"
+#~ msgstr "Пропуски двоичного кэша"
+
+#, fuzzy
+#~ msgid "Cache hit rate"
+#~ msgstr "Коэффициент попадания в кэш"
+
+#, fuzzy
+#~ msgid "Compilation Optimizations"
+#~ msgstr "Оптимизация компиляции"
+
+#, fuzzy
+#~ msgid ""
+#~ "Percentage of modules that were successfully retrieved from the cache."
+#~ msgstr "Процент модулей, которые были успешно извлечены из кэша."
+
+#, fuzzy
+#~ msgid ""
+#~ "Total number of modules taken from either the local or the remote cache."
+#~ msgstr "Общее количество модулей, взятых из локального или удаленного кэша."
+
+#, fuzzy
+#~ msgid ""
+#~ "Total number of modules that could have been taken from the cache if it "
+#~ "was fully populated."
+#~ msgstr ""
+#~ "Общее количество модулей, которые могли бы быть взяты из кэша, если бы он "
+#~ "был полностью заполнен."

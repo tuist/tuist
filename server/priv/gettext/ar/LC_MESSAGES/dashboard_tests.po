@@ -87,18 +87,6 @@ msgid "Avg. test run duration"
 msgstr "متوسط مدة الاختبار"
 
 #, fuzzy
-msgid "Binary Cache"
-msgstr "ذاكرة التخزين المؤقت الثنائية"
-
-#, fuzzy
-msgid "Binary cache hits"
-msgstr "نتائج البحث في ذاكرة التخزين المؤقت الثنائية"
-
-#, fuzzy
-msgid "Binary cache misses"
-msgstr "أخطاء ذاكرة التخزين المؤقت الثنائية"
-
-#, fuzzy
 msgid "Branch"
 msgstr "فرع"
 
@@ -113,10 +101,6 @@ msgstr "CI"
 #, fuzzy
 msgid "CI Run"
 msgstr "تشغيل CI"
-
-#, fuzzy
-msgid "Cache hit rate"
-msgstr "معدل الوصول إلى ذاكرة التخزين المؤقت"
 
 #, fuzzy
 msgid "Caught error"
@@ -145,10 +129,6 @@ msgstr "مدة الأمر"
 #, fuzzy
 msgid "Commit"
 msgstr "التزام"
-
-#, fuzzy
-msgid "Compilation Optimizations"
-msgstr "تحسينات التجميع"
 
 #, fuzzy
 msgid "Download result"
@@ -346,11 +326,6 @@ msgstr "تمت الموافقة"
 #, fuzzy
 msgid "Passed runs"
 msgstr "المرات التي تم اجتيازها"
-
-#, fuzzy
-msgid "Percentage of modules that were successfully retrieved from the cache."
-msgstr ""
-"النسبة المئوية للوحدات التي تم استردادها بنجاح من ذاكرة التخزين المؤقت."
 
 #, fuzzy
 msgid "Ran at"
@@ -564,20 +539,6 @@ msgstr ""
 "يمثل إجمالي الوحدات النمطية العدد الإجمالي للوحدات النمطية القابلة للاختبار."
 
 #, fuzzy
-msgid ""
-"Total number of modules taken from either the local or the remote cache."
-msgstr ""
-"العدد الإجمالي للوحدات المأخوذة من ذاكرة التخزين المؤقتة المحلية أو البعيدة."
-
-#, fuzzy
-msgid ""
-"Total number of modules that could have been taken from the cache if it was "
-"fully populated."
-msgstr ""
-"العدد الإجمالي للوحدات النمطية التي كان من الممكن أخذها من ذاكرة التخزين "
-"المؤقتة إذا كانت ممتلئة بالكامل."
-
-#, fuzzy
 msgid "Total number of test cases executed."
 msgstr "العدد الإجمالي لحالات الاختبار المنفذة."
 
@@ -777,6 +738,9 @@ msgstr "محجوز"
 msgid "Unquarantine"
 msgstr "إلغاء الحجر الصحي"
 
+msgid "Module Cache"
+msgstr ""
+
 #, fuzzy
 msgid "Automatically by Tuist"
 msgstr "تلقائيًا بواسطة Tuist"
@@ -852,3 +816,44 @@ msgstr "الاختبارات المعزولة"
 #, fuzzy
 msgid "Tuist"
 msgstr "Tuist"
+
+#, fuzzy
+#~ msgid "Binary Cache"
+#~ msgstr "ذاكرة التخزين المؤقت الثنائية"
+
+#, fuzzy
+#~ msgid "Binary cache hits"
+#~ msgstr "نتائج البحث في ذاكرة التخزين المؤقت الثنائية"
+
+#, fuzzy
+#~ msgid "Binary cache misses"
+#~ msgstr "أخطاء ذاكرة التخزين المؤقت الثنائية"
+
+#, fuzzy
+#~ msgid "Cache hit rate"
+#~ msgstr "معدل الوصول إلى ذاكرة التخزين المؤقت"
+
+#, fuzzy
+#~ msgid "Compilation Optimizations"
+#~ msgstr "تحسينات التجميع"
+
+#, fuzzy
+#~ msgid ""
+#~ "Percentage of modules that were successfully retrieved from the cache."
+#~ msgstr ""
+#~ "النسبة المئوية للوحدات التي تم استردادها بنجاح من ذاكرة التخزين المؤقت."
+
+#, fuzzy
+#~ msgid ""
+#~ "Total number of modules taken from either the local or the remote cache."
+#~ msgstr ""
+#~ "العدد الإجمالي للوحدات المأخوذة من ذاكرة التخزين المؤقتة المحلية أو "
+#~ "البعيدة."
+
+#, fuzzy
+#~ msgid ""
+#~ "Total number of modules that could have been taken from the cache if it "
+#~ "was fully populated."
+#~ msgstr ""
+#~ "العدد الإجمالي للوحدات النمطية التي كان من الممكن أخذها من ذاكرة التخزين "
+#~ "المؤقتة إذا كانت ممتلئة بالكامل."
