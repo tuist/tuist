@@ -26,7 +26,7 @@ public struct GenerateCommand: AsyncParsableCommand, RecentPathRememberableComma
     @Argument(
         help: ArgumentHelp(
             """
-            Targets to focus on, specified by name or tag query (e.g. 'tag:feature'). \
+            Targets to focus on, specified by name, tag query (e.g. 'tag:feature'), or product type (e.g. 'product:unitTests'). \
             Other targets will be linked as binaries if possible. \
             If no target is specified, all the project targets will be generated (except external ones, such as Swift packages).
             """,
