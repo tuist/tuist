@@ -3,10 +3,10 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:51+0000\n"
-"PO-Revision-Date: 2026-01-22 13:04+0000\n"
+"PO-Revision-Date: 2026-01-29 17:11+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
-"Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/"
-"dashboard-1/tr/>\n"
+"Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/dashboard-"
+"1/tr/>\n"
 "Language: tr\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -366,17 +366,23 @@ msgstr "p90"
 msgid "p99"
 msgstr "p99"
 
+#, fuzzy
 msgid "Flaky Tests"
-msgstr ""
+msgstr "Kararsız Testler"
 
+#, fuzzy
 msgid "Ready to speed up your builds and unlock insights for your app?"
 msgstr ""
+"Uygulamanızın derleme hızını artırmaya ve yeni bilgiler elde etmeye hazır "
+"mısınız?"
 
 msgid "Talk to us"
 msgstr ""
 
+#, fuzzy
 msgid "This is a public dashboard for the tuist/tuist project."
-msgstr ""
+msgstr "Bu, tuist/tuist projesi için halka açık bir kontrol panelidir."
 
+#, fuzzy
 msgid "Quarantined Tests"
-msgstr ""
+msgstr "Karantinaya Alınan Testler"
