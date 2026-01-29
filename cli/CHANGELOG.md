@@ -1,7 +1,15 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.131.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.132.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* add authentication failure error for cache by [@cschmatzler](https://github.com/cschmatzler) in [#9280](https://github.com/tuist/tuist/pull/9280)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.132.0...4.132.1
+
+## What's Changed in 4.132.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -14,7 +22,7 @@ All notable changes to this project will be documented in this file.
 * embed static XCFrameworks to support resources by [@pepicrft](https://github.com/pepicrft) in [#9240](https://github.com/tuist/tuist/pull/9240)
 * restore mapper order for selective testing and fix parseAsRoot by [@fortmarek](https://github.com/fortmarek) in [#9234](https://github.com/tuist/tuist/pull/9234)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.130.3...4.131.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.130.3...4.132.0
 
 ## What's Changed in 4.130.3<!-- RELEASE NOTES START -->
 
