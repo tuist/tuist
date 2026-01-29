@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-26 13:31+0000\n"
+"PO-Revision-Date: 2026-01-29 17:11+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Polish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/pl/>\n"
@@ -834,20 +834,25 @@ msgstr "Historia testów"
 msgid "Unmarked as flaky"
 msgstr "Oznaczone jako niestabilne"
 
+#, fuzzy
 msgid "Last run"
-msgstr ""
+msgstr "Ostatnie uruchomienie"
 
+#, fuzzy
 msgid "No quarantined tests"
-msgstr ""
+msgstr "Brak testów poddanych kwarantannie"
 
+#, fuzzy
 msgid "Quarantined Tests"
-msgstr ""
+msgstr "Testy poddane kwarantannie"
 
+#, fuzzy
 msgid "Quarantined by"
-msgstr ""
+msgstr "Poddane kwarantannie przez"
 
+#, fuzzy
 msgid "Quarantined tests"
-msgstr ""
+msgstr "Testy poddane kwarantannie"
 
 msgid "Tuist"
 msgstr ""
