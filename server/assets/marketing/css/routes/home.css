@@ -376,6 +376,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
+    padding-bottom: var(--noora-spacing-10);
 
     & > h3 {
       color: var(--noora-surface-label-primary);
@@ -395,9 +396,11 @@
     overflow: hidden;
 
     @media (min-width: 1024px) {
+      position: relative;
       flex-direction: column;
       justify-content: center;
       gap: var(--noora-spacing-9);
+      min-height: 160px;
       overflow: visible;
     }
 
@@ -429,7 +432,62 @@
       }
     }
 
-    & > [data-part="rows"] {
+    & > [data-part="logo-group"] {
+      display: none;
+
+      @media (min-width: 1024px) {
+        display: flex;
+        position: absolute;
+        top: 0;
+        left: 0;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: var(--noora-spacing-9);
+        width: 100%;
+      }
+    }
+
+    &[data-animation-mode="desktop"] > [data-part="logo-group"] {
+      @media (min-width: 1024px) {
+        &[data-state="active"] {
+          opacity: 1;
+        }
+
+        &[data-state="hidden"] {
+          opacity: 0;
+        }
+
+        & [data-part="org-logo"] {
+          transition:
+            transform 0.5s ease-out,
+            opacity 0.5s ease-out,
+            filter 0.5s ease-out;
+          will-change: transform, opacity, filter;
+
+          &[data-state="visible"] {
+            transform: translateY(0);
+            opacity: 1;
+            filter: blur(0px);
+          }
+
+          &[data-state="hidden"] {
+            transform: translateY(20px);
+            opacity: 0;
+            filter: blur(4px);
+            transition: none;
+          }
+
+          &[data-state="exiting"] {
+            transform: translateY(-20px);
+            opacity: 0;
+            filter: blur(4px);
+          }
+        }
+      }
+    }
+
+    & [data-part="rows"] {
       display: flex;
       flex-shrink: 0;
       justify-content: center;
@@ -447,7 +505,7 @@
     justify-content: center;
     align-items: center;
     gap: var(--noora-spacing-2);
-    padding-top: var(--noora-spacing-13);
+    padding-top: var(--noora-spacing-15);
 
     & > h2 {
       display: flex;
@@ -831,7 +889,7 @@
         flex-direction: row;
         justify-content: center;
         gap: var(--noora-spacing-4);
-        padding-top: var(--noora-spacing-13);
+        padding-top: var(--noora-spacing-15);
       }
 
       & > :nth-child(2) {

@@ -103,86 +103,55 @@
     <section
       data-part="orgs-list"
       aria-label="Organizations using Tuist"
-      phx-hook="InfiniteScrollLogos"
+      phx-hook="LogoTransition"
       id="orgs-list-scroll"
     >
-      <div data-part="rows">
-        <%= if Gettext.get_locale() == "ko" do %>
-          <div
-            data-part="org-logo"
-            aria-label="Socar"
-          >
-            <.socar_org_logo />
-          </div>
-        <% else %>
-          <div
-            data-part="org-logo"
-            aria-label="Trendyol"
-          >
-            <.trendyol_org_logo />
-          </div>
-        <% end %>
-        <div
-          data-part="org-logo"
-          aria-label="Adidas"
-        >
+      <div data-part="logo-group">
+        <div data-part="rows">
           <%= if Gettext.get_locale() == "ko" do %>
-            <.adidas_org_logo_color />
+            <.org_logo name="socar" label="Socar" />
           <% else %>
-            <.adidas_org_logo />
+            <.org_logo name="trendyol" label="Trendyol" />
           <% end %>
+          <.org_logo name="adidas" label="Adidas" />
+          <.org_logo name="ford" label="Ford" />
+          <.org_logo name="target" label="Target" />
         </div>
-        <div
-          data-part="org-logo"
-          aria-label="monday.com"
-        >
-          <%= if Gettext.get_locale() == "ko" do %>
-            <.monday_org_logo_color />
-          <% else %>
-            <.monday_org_logo />
-          <% end %>
-        </div>
-        <div
-          data-part="org-logo"
-          aria-label="Chegg"
-        >
-          <%= if Gettext.get_locale() == "ko" do %>
-            <.chegg_org_logo_color />
-          <% else %>
-            <.chegg_org_logo />
-          <% end %>
+        <div data-part="rows">
+          <.org_logo name="etsy" label="Etsy" />
+          <.org_logo name="soundcloud" label="SoundCloud" />
+          <.org_logo name="zillow" label="Zillow" />
+          <.org_logo name="waze" label="Waze" />
         </div>
       </div>
-      <div data-part="rows">
-        <div
-          data-part="org-logo"
-          aria-label="Asana"
-        >
-          <%= if Gettext.get_locale() == "ko" do %>
-            <.asana_org_logo_color />
-          <% else %>
-            <.asana_org_logo />
-          <% end %>
+
+      <div data-part="logo-group">
+        <div data-part="rows">
+          <.org_logo name="monday" label="Monday.com" />
+          <.org_logo name="asana" label="Asana" />
+          <.org_logo name="justeat" label="Just Eat" />
+          <.org_logo name="monzo" label="Monzo" />
         </div>
-        <div
-          data-part="org-logo"
-          aria-label="Bending Spoons"
-        >
-          <%= if Gettext.get_locale() == "ko" do %>
-            <.bending_spoons_org_logo_color />
-          <% else %>
-            <.bending_spoons_org_logo />
-          <% end %>
+        <div data-part="rows">
+          <.org_logo name="getyourguide" label="GetYourGuide" />
+          <.org_logo name="depop" label="Depop" />
+          <.org_logo name="qonto" label="Qonto" />
+          <.org_logo name="chegg" label="Chegg" />
         </div>
-        <div
-          data-part="org-logo"
-          aria-label="Etsy"
-        >
-          <%= if Gettext.get_locale() == "ko" do %>
-            <.etsy_org_logo_color />
-          <% else %>
-            <.etsy_org_logo />
-          <% end %>
+      </div>
+
+      <div data-part="logo-group">
+        <div data-part="rows">
+          <.org_logo name="bending_spoons" label="Bending Spoons" />
+          <.org_logo name="acorns" label="Acorns" />
+          <.org_logo name="badoo" label="Badoo" />
+          <.org_logo name="tele2" label="Tele2" />
+        </div>
+        <div data-part="rows">
+          <.org_logo name="altel" label="Altel" />
+          <.org_logo name="zulily" label="Zulily" />
+          <.org_logo name="asana" label="Asana" />
+          <.org_logo name="adidas" label="Adidas" />
         </div>
       </div>
     </section>
