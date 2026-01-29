@@ -36,7 +36,7 @@ defmodule Tuist.Slack.Client do
       {"Content-Type", "application/json"}
     ]
 
-    body = JSON.encode!(%{channel: channel_id, blocks: blocks})
+    body = JSON.encode!(%{channel: channel_id, blocks: blocks, unfurl_links: false, unfurl_media: false})
 
     @chat_post_message_url
     |> Req.post(headers: headers, body: body)

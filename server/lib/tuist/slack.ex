@@ -157,7 +157,7 @@ defmodule Tuist.Slack do
         {"Content-Type", "application/json"}
       ]
 
-      body = Jason.encode!(%{channel: channel, blocks: blocks})
+      body = Jason.encode!(%{channel: channel, blocks: blocks, unfurl_links: false, unfurl_media: false})
 
       response =
         @api_url
