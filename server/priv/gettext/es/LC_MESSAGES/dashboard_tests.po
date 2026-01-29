@@ -3,9 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-26 13:31+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"PO-Revision-Date: 2026-01-29 17:11+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Spanish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/es/>\n"
 "Language: es\n"
@@ -838,20 +837,25 @@ msgstr "Historial de pruebas"
 msgid "Unmarked as flaky"
 msgstr "Desmarcado como inestable."
 
+#, fuzzy
 msgid "Last run"
-msgstr ""
+msgstr "Última ejecución"
 
+#, fuzzy
 msgid "No quarantined tests"
-msgstr ""
+msgstr "No hay pruebas en cuarentena."
 
+#, fuzzy
 msgid "Quarantined Tests"
-msgstr ""
+msgstr "Pruebas en cuarentena"
 
+#, fuzzy
 msgid "Quarantined by"
-msgstr ""
+msgstr "Puesto en cuarentena por"
 
+#, fuzzy
 msgid "Quarantined tests"
-msgstr ""
+msgstr "Pruebas en cuarentena"
 
 msgid "Tuist"
 msgstr ""
