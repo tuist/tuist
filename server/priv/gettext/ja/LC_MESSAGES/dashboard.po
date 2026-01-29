@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:51+0000\n"
-"PO-Revision-Date: 2026-01-22 13:05+0000\n"
+"PO-Revision-Date: 2026-01-29 17:11+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Japanese <https://translate.tuist.dev/projects/tuist/"
 "dashboard-1/ja/>\n"
@@ -364,17 +364,21 @@ msgstr "p90"
 msgid "p99"
 msgstr "p99"
 
+#, fuzzy
 msgid "Flaky Tests"
-msgstr ""
+msgstr "不安定なテスト"
 
+#, fuzzy
 msgid "Ready to speed up your builds and unlock insights for your app?"
-msgstr ""
+msgstr "ビルドを高速化し、アプリのインサイトを解き放つ準備はできていますか？"
 
 msgid "Talk to us"
 msgstr ""
 
+#, fuzzy
 msgid "This is a public dashboard for the tuist/tuist project."
-msgstr ""
+msgstr "これは tuist/tuist プロジェクトの公開ダッシュボードです。"
 
+#, fuzzy
 msgid "Quarantined Tests"
-msgstr ""
+msgstr "隔離されたテスト"
