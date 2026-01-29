@@ -889,16 +889,19 @@ public class GraphTraverser: GraphTraversing {
     public func allProjectDependencies(path: Path.AbsolutePath) throws -> Set<
         GraphDependencyReference
     > {
+        let projectName = projects[path]?.name ?? path.basename
         let targets = targets(at: path)
         if targets.isEmpty { return Set() }
         var references: Set<GraphDependencyReference> = Set()
 
+        Logger.current.debug("allProjectDependencies: \(projectName) with \(targets.count) targets")
         // Linkable dependencies
         for target in targets {
             try references.formUnion(linkableDependencies(path: path, name: target.target.name))
             references.formUnion(embeddableFrameworks(path: path, name: target.target.name))
             references.formUnion(copyProductDependencies(path: path, name: target.target.name))
         }
+        Logger.current.debug("allProjectDependencies: \(projectName) finished with \(references.count) refs")
         return references
     }
 

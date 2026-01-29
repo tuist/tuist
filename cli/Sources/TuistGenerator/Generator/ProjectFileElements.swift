@@ -117,7 +117,9 @@ class ProjectFileElements {
         }
 
         // Dependencies
+        Logger.current.debug("Fetching all project dependencies for \(project.name)")
         let dependencies = try graphTraverser.allProjectDependencies(path: project.path).sorted()
+        Logger.current.debug("Fetched \(dependencies.count) dependencies for \(project.name)")
 
         try generate(
             dependencyReferences: Set(directProducts + dependencies),
