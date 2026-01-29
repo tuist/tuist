@@ -33,7 +33,7 @@ defmodule TuistWeb.Router do
       script_src: "'self' 'nonce' 'wasm-unsafe-eval'",
       script_src_elem:
         "'self' 'nonce' https://d3js.org https://cdn.jsdelivr.net https://esm.sh https://chat.cdn-plain.com https://*.posthog.com https://marketing.tuist.dev",
-      font_src: "'self' https://fonts.gstatic.com data: https://fonts.scalar.com https://rsms.me",
+      font_src: "'self' https://fonts.gstatic.com https://chat.cdn-plain.com data: https://fonts.scalar.com https://rsms.me",
       frame_src: "'self' https://chat.cdn-plain.com https://*.tuist.dev https://newassets.hcaptcha.com",
       connect_src: "'self' https://chat.cdn-plain.com  https://chat.uk.plain.com https://*.posthog.com"
   end
