@@ -3442,6 +3442,44 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
+    func test_embeddableFrameworks_when_dependencyIsStaticXCFrameworkWithStaticLibrary() throws {
+        // Given
+        // App depends on a static XCFramework that contains a .a static library (not a .framework)
+        // Static XCFrameworks with .a libraries should NOT be embedded because they don't have
+        // an Info.plist and will fail to load at runtime with:
+        // "Failed to load Info.plist from bundle at path .../SomeLibrary.framework"
+        let app = Target.test(name: "App", platform: .iOS, product: .app)
+        let project = Project.test(targets: [app])
+
+        let staticXCFrameworkWithLibrary: GraphDependency = .testXCFramework(
+            path: "/xcframeworks/GoogleMapsCore.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "ios-arm64",
+                path: try RelativePath(validating: "GoogleMapsCore.a"),
+                architectures: [.arm64]
+            )]),
+            linking: .static,
+            status: .required
+        )
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: project.path): [staticXCFrameworkWithLibrary],
+            staticXCFrameworkWithLibrary: [],
+        ]
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.embeddableFrameworks(path: project.path, name: app.name).sorted()
+
+        // Then
+        // The static XCFramework with .a library should NOT be embedded
+        XCTAssertEqual(got.count, 0)
+    }
+
     func test_linkableDependencies_when_dependencyIsAFramework() throws {
         // Given
         let frameworkPath = try AbsolutePath(validating: "/test/test.framework")
