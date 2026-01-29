@@ -433,11 +433,12 @@ public class GraphTraverser: GraphTraversing {
             }
         )
 
-        // Static precompiled XCFrameworks (e.g., from cache)
+        // Static precompiled XCFrameworks that contain .framework bundles (e.g., from cache)
         // These need to be embedded so the bundle accessor can find resources at runtime.
-        // We embed all static XCFrameworks because we cannot determine at generation time
-        // whether they contain resources. The binary is already statically linked, so
-        // embedding it is redundant but harmless (only resources are needed at runtime).
+        // We only embed XCFrameworks that contain .framework bundles, not .a static libraries,
+        // because .a libraries don't have an Info.plist and will fail to load at runtime.
+        // The binary is already statically linked, so embedding it is redundant but harmless
+        // (only resources are needed at runtime).
         // We skip traversing through dynamic precompiled binaries because they link static
         // dependencies themselves.
         let staticXCFrameworks = filterDependencies(
@@ -446,7 +447,8 @@ public class GraphTraverser: GraphTraversing {
                 guard case let .xcframework(xcframework) = dependency,
                       xcframework.linking == .static
                 else { return false }
-                return true
+                // Only embed XCFrameworks that contain .framework bundles, not .a static libraries
+                return xcframework.infoPlist.libraries.contains { $0.path.extension == "framework" }
             },
             skip: { self.canDependencyEmbedBinaries(dependency: $0) || $0.isPrecompiledMacro || $0.isDynamicPrecompiled }
         )
