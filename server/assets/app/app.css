@@ -1,3 +1,6 @@
+/* Self-hosted fonts must be imported first to override noora's external imports */
+@import "./css/fonts.css";
+
 @import "./css/layouts.css";
 @import "./css/components.css";
 @import "./css/components/previews/app_preview.css";
