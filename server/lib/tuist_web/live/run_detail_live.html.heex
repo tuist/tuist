@@ -367,6 +367,17 @@
           value={"#{@binary_cache_analytics.cache_hit_rate}%"}
           id="widget-optimization-summary-cache-hit-rate"
         />
+        <.widget
+          title={dgettext("dashboard_builds", "Remotely cached")}
+          description={
+            dgettext(
+              "dashboard_builds",
+              "Number of modules that were uploaded to the remote cache after being built locally."
+            )
+          }
+          value={Map.get(@binary_cache_analytics, :uploaded_count, 0)}
+          id="widget-optimization-summary-uploaded"
+        />
       </.card_section>
     </.card>
     <.card
@@ -513,6 +524,109 @@
             }
           />
         </.card_section>
+        <.card_section
+          :if={
+            Map.get(@binary_cache_analytics, :uploaded_count, 0) > 0 or
+            Map.get(@binary_cache_analytics, :not_uploaded_count, 0) > 0
+          }
+          data-part="upload-targets-card-section"
+        >
+          <div data-part="title">
+            <span data-part="label">
+              {dgettext("dashboard_builds", "Remotely cached targets:")}
+            </span>
+            <span data-part="value">
+              {Map.get(@binary_cache_analytics, :uploaded_count, 0) +
+                Map.get(@binary_cache_analytics, :not_uploaded_count, 0)}
+            </span>
+          </div>
+          <%
+            uploaded_count = Map.get(@binary_cache_analytics, :uploaded_count, 0)
+            not_uploaded_count = Map.get(@binary_cache_analytics, :not_uploaded_count, 0)
+          %>
+          <.chart
+            id="upload-targets-breakdown-chart"
+            type="bar"
+            extra_options={
+              %{
+                tooltip: %{
+                  trigger: "axis",
+                  axisPointer: %{
+                    type: "none"
+                  }
+                },
+                legend: %{
+                  left: "-0.3%",
+                  top: "bottom",
+                  orient: "horizontal",
+                  textStyle: %{
+                    color: "var:noora-surface-label-primary",
+                    fontFamily: "monospace",
+                    fontWeight: 400,
+                    fontSize: 10,
+                    lineHeight: 12
+                  },
+                  icon:
+                    "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+                  itemWidth: 8,
+                  itemHeight: 4
+                },
+                grid: %{
+                  width: "99%",
+                  left: "0%",
+                  height: "60%",
+                  top: "0%"
+                },
+                xAxis: %{
+                  type: "value",
+                  axisLabel: %{
+                    show: false
+                  },
+                  splitLine: %{show: false}
+                },
+                yAxis: %{
+                  type: "category",
+                  data: [dgettext("dashboard_builds", "Remotely cached targets")],
+                  axisLabel: %{
+                    show: false
+                  }
+                }
+              }
+            }
+            series={[
+              %{
+                name: dgettext("dashboard_builds", "Already cached"),
+                type: "bar",
+                stack: "total",
+                emphasis: %{
+                  focus: "series"
+                },
+                data: [not_uploaded_count],
+                color: "var:hits-chart-legend-missed",
+                itemStyle: %{
+                  borderRadius:
+                    if(uploaded_count == 0, do: [6, 6, 6, 6], else: [6, 0, 0, 6])
+                }
+              },
+              %{
+                name: dgettext("dashboard_builds", "Uploaded"),
+                type: "bar",
+                stack: "total",
+                emphasis: %{
+                  focus: "series"
+                },
+                data: [uploaded_count],
+                color: "var:hits-chart-legend-remote",
+                itemStyle: %{
+                  borderRadius:
+                    if(not_uploaded_count == 0, do: [6, 6, 6, 6], else: [0, 6, 6, 0])
+                }
+              }
+            ]}
+            x_axis_min={0}
+            x_axis_max={uploaded_count + not_uploaded_count}
+          />
+        </.card_section>
         <div data-part="filters">
           <.form for={%{}} phx-change="search-binary-cache" phx-debounce="200">
             <.text_input
@@ -578,6 +692,17 @@
                   color="warning"
                   style="light-fill"
                 />
+            <% end %>
+          </:col>
+          <:col :let={binary_cache_module} label={dgettext("dashboard_builds", "Cached")}>
+            <%= if Map.get(binary_cache_module, :uploaded, false) do %>
+              <.badge_cell
+                label={dgettext("dashboard_builds", "Remote")}
+                color="focus"
+                style="light-fill"
+              />
+            <% else %>
+              <.text_cell label="-" />
             <% end %>
           </:col>
           <:col :let={binary_cache_module} label={dgettext("dashboard_builds", "Hash")}>
