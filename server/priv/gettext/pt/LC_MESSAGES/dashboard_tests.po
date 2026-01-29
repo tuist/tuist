@@ -71,15 +71,6 @@ msgstr ""
 msgid "Avg. test run duration"
 msgstr ""
 
-msgid "Binary Cache"
-msgstr ""
-
-msgid "Binary cache hits"
-msgstr ""
-
-msgid "Binary cache misses"
-msgstr ""
-
 msgid "Branch"
 msgstr ""
 
@@ -90,9 +81,6 @@ msgid "CI"
 msgstr ""
 
 msgid "CI Run"
-msgstr ""
-
-msgid "Cache hit rate"
 msgstr ""
 
 msgid "Caught error"
@@ -115,9 +103,6 @@ msgid "Command duration"
 msgstr ""
 
 msgid "Commit"
-msgstr ""
-
-msgid "Compilation Optimizations"
 msgstr ""
 
 msgid "Download result"
@@ -264,9 +249,6 @@ msgid "Passed"
 msgstr ""
 
 msgid "Passed runs"
-msgstr ""
-
-msgid "Percentage of modules that were successfully retrieved from the cache."
 msgstr ""
 
 msgid "Ran at"
@@ -425,15 +407,6 @@ msgstr ""
 msgid "Total modules represents the total number of testable modules."
 msgstr ""
 
-msgid ""
-"Total number of modules taken from either the local or the remote cache."
-msgstr ""
-
-msgid ""
-"Total number of modules that could have been taken from the cache if it was "
-"fully populated."
-msgstr ""
-
 msgid "Total number of test cases executed."
 msgstr ""
 
@@ -583,6 +556,9 @@ msgid "Quarantined"
 msgstr ""
 
 msgid "Unquarantine"
+msgstr ""
+
+msgid "Module Cache"
 msgstr ""
 
 msgid "Automatically by Tuist"

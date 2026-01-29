@@ -87,18 +87,6 @@ msgid "Avg. test run duration"
 msgstr "平均測試執行時間"
 
 #, fuzzy
-msgid "Binary Cache"
-msgstr "二進位快取"
-
-#, fuzzy
-msgid "Binary cache hits"
-msgstr "二進位快取命中"
-
-#, fuzzy
-msgid "Binary cache misses"
-msgstr "二進位快取未命中"
-
-#, fuzzy
 msgid "Branch"
 msgstr "分支"
 
@@ -113,10 +101,6 @@ msgstr "CI"
 #, fuzzy
 msgid "CI Run"
 msgstr "CI Run"
-
-#, fuzzy
-msgid "Cache hit rate"
-msgstr "快取命中率"
 
 #, fuzzy
 msgid "Caught error"
@@ -145,10 +129,6 @@ msgstr "指令持續時間"
 #, fuzzy
 msgid "Commit"
 msgstr "提交"
-
-#, fuzzy
-msgid "Compilation Optimizations"
-msgstr "編譯優化"
 
 #, fuzzy
 msgid "Download result"
@@ -344,10 +324,6 @@ msgstr "通過"
 #, fuzzy
 msgid "Passed runs"
 msgstr "通過的執行次數"
-
-#, fuzzy
-msgid "Percentage of modules that were successfully retrieved from the cache."
-msgstr "從快取中成功擷取模組的百分比。"
 
 #, fuzzy
 msgid "Ran at"
@@ -553,17 +529,6 @@ msgid "Total modules represents the total number of testable modules."
 msgstr "總模組數代表可測試模組的總數量。"
 
 #, fuzzy
-msgid ""
-"Total number of modules taken from either the local or the remote cache."
-msgstr "從本地或遠端快取中取用的模組總數。"
-
-#, fuzzy
-msgid ""
-"Total number of modules that could have been taken from the cache if it was "
-"fully populated."
-msgstr "若快取已完全填充，可從中提取的模組總數。"
-
-#, fuzzy
 msgid "Total number of test cases executed."
 msgstr "已執行的測試案例總數。"
 
@@ -763,6 +728,9 @@ msgstr "隔離區"
 msgid "Unquarantine"
 msgstr "解除隔離"
 
+msgid "Module Cache"
+msgstr ""
+
 #, fuzzy
 msgid "Automatically by Tuist"
 msgstr "由 Tuist 自動生成"
@@ -838,3 +806,39 @@ msgstr "隔離測試"
 #, fuzzy
 msgid "Tuist"
 msgstr "Tuist"
+
+#, fuzzy
+#~ msgid "Binary Cache"
+#~ msgstr "二進位快取"
+
+#, fuzzy
+#~ msgid "Binary cache hits"
+#~ msgstr "二進位快取命中"
+
+#, fuzzy
+#~ msgid "Binary cache misses"
+#~ msgstr "二進位快取未命中"
+
+#, fuzzy
+#~ msgid "Cache hit rate"
+#~ msgstr "快取命中率"
+
+#, fuzzy
+#~ msgid "Compilation Optimizations"
+#~ msgstr "編譯優化"
+
+#, fuzzy
+#~ msgid ""
+#~ "Percentage of modules that were successfully retrieved from the cache."
+#~ msgstr "從快取中成功擷取模組的百分比。"
+
+#, fuzzy
+#~ msgid ""
+#~ "Total number of modules taken from either the local or the remote cache."
+#~ msgstr "從本地或遠端快取中取用的模組總數。"
+
+#, fuzzy
+#~ msgid ""
+#~ "Total number of modules that could have been taken from the cache if it "
+#~ "was fully populated."
+#~ msgstr "若快取已完全填充，可從中提取的模組總數。"

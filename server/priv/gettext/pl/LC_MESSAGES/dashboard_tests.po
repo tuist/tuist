@@ -89,18 +89,6 @@ msgid "Avg. test run duration"
 msgstr "Średni czas trwania testu"
 
 #, fuzzy
-msgid "Binary Cache"
-msgstr "Pamięć podręczna binarna"
-
-#, fuzzy
-msgid "Binary cache hits"
-msgstr "Trafienia w pamięci podręcznej binarnej"
-
-#, fuzzy
-msgid "Binary cache misses"
-msgstr "Brak pamięci podręcznej binarnej"
-
-#, fuzzy
 msgid "Branch"
 msgstr "Oddział"
 
@@ -115,10 +103,6 @@ msgstr "CI"
 #, fuzzy
 msgid "CI Run"
 msgstr "CI Run"
-
-#, fuzzy
-msgid "Cache hit rate"
-msgstr "Wskaźnik trafień w pamięci podręcznej"
 
 #, fuzzy
 msgid "Caught error"
@@ -147,10 +131,6 @@ msgstr "Czas trwania polecenia"
 #, fuzzy
 msgid "Commit"
 msgstr "Zatwierdź"
-
-#, fuzzy
-msgid "Compilation Optimizations"
-msgstr "Optymalizacja kompilacji"
 
 #, fuzzy
 msgid "Download result"
@@ -349,10 +329,6 @@ msgstr "Zaliczone"
 #, fuzzy
 msgid "Passed runs"
 msgstr "Przebiegłe próby"
-
-#, fuzzy
-msgid "Percentage of modules that were successfully retrieved from the cache."
-msgstr "Odsetek modułów, które zostały pomyślnie pobrane z pamięci podręcznej."
 
 #, fuzzy
 msgid "Ran at"
@@ -567,20 +543,6 @@ msgstr ""
 "przetestować."
 
 #, fuzzy
-msgid ""
-"Total number of modules taken from either the local or the remote cache."
-msgstr ""
-"Całkowita liczba modułów pobranych z lokalnej lub zdalnej pamięci podręcznej."
-
-#, fuzzy
-msgid ""
-"Total number of modules that could have been taken from the cache if it was "
-"fully populated."
-msgstr ""
-"Całkowita liczba modułów, które mogłyby zostać pobrane z pamięci podręcznej, "
-"gdyby była ona w pełni zapełniona."
-
-#, fuzzy
 msgid "Total number of test cases executed."
 msgstr "Łączna liczba wykonanych przypadków testowych."
 
@@ -781,6 +743,9 @@ msgstr "Kwarantanna"
 msgid "Unquarantine"
 msgstr "Wycofaj z kwarantanny"
 
+msgid "Module Cache"
+msgstr ""
+
 #, fuzzy
 msgid "Automatically by Tuist"
 msgstr "Automatycznie przez Tuist"
@@ -857,3 +822,44 @@ msgstr "Testy poddane kwarantannie"
 #, fuzzy
 msgid "Tuist"
 msgstr "Tuist"
+
+#, fuzzy
+#~ msgid "Binary Cache"
+#~ msgstr "Pamięć podręczna binarna"
+
+#, fuzzy
+#~ msgid "Binary cache hits"
+#~ msgstr "Trafienia w pamięci podręcznej binarnej"
+
+#, fuzzy
+#~ msgid "Binary cache misses"
+#~ msgstr "Brak pamięci podręcznej binarnej"
+
+#, fuzzy
+#~ msgid "Cache hit rate"
+#~ msgstr "Wskaźnik trafień w pamięci podręcznej"
+
+#, fuzzy
+#~ msgid "Compilation Optimizations"
+#~ msgstr "Optymalizacja kompilacji"
+
+#, fuzzy
+#~ msgid ""
+#~ "Percentage of modules that were successfully retrieved from the cache."
+#~ msgstr ""
+#~ "Odsetek modułów, które zostały pomyślnie pobrane z pamięci podręcznej."
+
+#, fuzzy
+#~ msgid ""
+#~ "Total number of modules taken from either the local or the remote cache."
+#~ msgstr ""
+#~ "Całkowita liczba modułów pobranych z lokalnej lub zdalnej pamięci "
+#~ "podręcznej."
+
+#, fuzzy
+#~ msgid ""
+#~ "Total number of modules that could have been taken from the cache if it "
+#~ "was fully populated."
+#~ msgstr ""
+#~ "Całkowita liczba modułów, które mogłyby zostać pobrane z pamięci "
+#~ "podręcznej, gdyby była ona w pełni zapełniona."

@@ -88,18 +88,6 @@ msgid "Avg. test run duration"
 msgstr "Ortalama test süresi"
 
 #, fuzzy
-msgid "Binary Cache"
-msgstr "İkili Önbellek"
-
-#, fuzzy
-msgid "Binary cache hits"
-msgstr "İkili önbellek isabetleri"
-
-#, fuzzy
-msgid "Binary cache misses"
-msgstr "İkili önbellek hataları"
-
-#, fuzzy
 msgid "Branch"
 msgstr "Dal"
 
@@ -114,10 +102,6 @@ msgstr "CI"
 #, fuzzy
 msgid "CI Run"
 msgstr "CI Çalıştır"
-
-#, fuzzy
-msgid "Cache hit rate"
-msgstr "Önbellek isabet oranı"
 
 #, fuzzy
 msgid "Caught error"
@@ -146,10 +130,6 @@ msgstr "Komut süresi"
 #, fuzzy
 msgid "Commit"
 msgstr "Kaydet"
-
-#, fuzzy
-msgid "Compilation Optimizations"
-msgstr "Derleme Optimizasyonları"
 
 #, fuzzy
 msgid "Download result"
@@ -348,10 +328,6 @@ msgstr "Geçti"
 #, fuzzy
 msgid "Passed runs"
 msgstr "Geçen denemeler"
-
-#, fuzzy
-msgid "Percentage of modules that were successfully retrieved from the cache."
-msgstr "Önbellekten başarıyla alınan modüllerin yüzdesi."
 
 #, fuzzy
 msgid "Ran at"
@@ -565,19 +541,6 @@ msgstr ""
 "Toplam modül sayısı, test edilebilir modüllerin toplam sayısını temsil eder."
 
 #, fuzzy
-msgid ""
-"Total number of modules taken from either the local or the remote cache."
-msgstr "Yerel veya uzak önbellekten alınan toplam modül sayısı."
-
-#, fuzzy
-msgid ""
-"Total number of modules that could have been taken from the cache if it was "
-"fully populated."
-msgstr ""
-"Önbellek tamamen doldurulmuş olsaydı, önbellekten alınabilecek toplam modül "
-"sayısı."
-
-#, fuzzy
 msgid "Total number of test cases executed."
 msgstr "Yürütülen toplam test vakası sayısı."
 
@@ -777,6 +740,9 @@ msgstr "Karantinaya alınmış"
 msgid "Unquarantine"
 msgstr "Karantinadan Çıkar"
 
+msgid "Module Cache"
+msgstr ""
+
 #, fuzzy
 msgid "Automatically by Tuist"
 msgstr "Tuist tarafından otomatik olarak"
@@ -852,3 +818,41 @@ msgstr "Karantinaya alınan testler"
 #, fuzzy
 msgid "Tuist"
 msgstr "Tuist"
+
+#, fuzzy
+#~ msgid "Binary Cache"
+#~ msgstr "İkili Önbellek"
+
+#, fuzzy
+#~ msgid "Binary cache hits"
+#~ msgstr "İkili önbellek isabetleri"
+
+#, fuzzy
+#~ msgid "Binary cache misses"
+#~ msgstr "İkili önbellek hataları"
+
+#, fuzzy
+#~ msgid "Cache hit rate"
+#~ msgstr "Önbellek isabet oranı"
+
+#, fuzzy
+#~ msgid "Compilation Optimizations"
+#~ msgstr "Derleme Optimizasyonları"
+
+#, fuzzy
+#~ msgid ""
+#~ "Percentage of modules that were successfully retrieved from the cache."
+#~ msgstr "Önbellekten başarıyla alınan modüllerin yüzdesi."
+
+#, fuzzy
+#~ msgid ""
+#~ "Total number of modules taken from either the local or the remote cache."
+#~ msgstr "Yerel veya uzak önbellekten alınan toplam modül sayısı."
+
+#, fuzzy
+#~ msgid ""
+#~ "Total number of modules that could have been taken from the cache if it "
+#~ "was fully populated."
+#~ msgstr ""
+#~ "Önbellek tamamen doldurulmuş olsaydı, önbellekten alınabilecek toplam "
+#~ "modül sayısı."

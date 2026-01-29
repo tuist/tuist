@@ -71,15 +71,6 @@ msgstr "평균 테스트 케이스 실행 시간"
 msgid "Avg. test run duration"
 msgstr "평균 테스트 실행 시간"
 
-msgid "Binary Cache"
-msgstr "바이너리 캐시"
-
-msgid "Binary cache hits"
-msgstr "바이너리 캐시 일치건"
-
-msgid "Binary cache misses"
-msgstr "바이너리 캐시 미일치건"
-
 msgid "Branch"
 msgstr "Branch"
 
@@ -91,9 +82,6 @@ msgstr "CI"
 
 msgid "CI Run"
 msgstr "CI 실행"
-
-msgid "Cache hit rate"
-msgstr "캐시 일치율"
 
 msgid "Caught error"
 msgstr "오류 발견"
@@ -115,9 +103,6 @@ msgstr "명령 수행 시간"
 
 msgid "Commit"
 msgstr "Commit"
-
-msgid "Compilation Optimizations"
-msgstr "컴파일 최적화"
 
 msgid "Download result"
 msgstr "결과 다운로드"
@@ -269,9 +254,6 @@ msgstr "통과됨"
 
 msgid "Passed runs"
 msgstr "성공 건수"
-
-msgid "Percentage of modules that were successfully retrieved from the cache."
-msgstr "캐시에서 성공적으로 검색된 모듈의 비율입니다."
 
 msgid "Ran at"
 msgstr "실행 시기"
@@ -435,16 +417,6 @@ msgstr "총 모듈"
 
 msgid "Total modules represents the total number of testable modules."
 msgstr "총 모듈은 테스트 가능한 모듈의 총 개수를 나타냅니다."
-
-msgid ""
-"Total number of modules taken from either the local or the remote cache."
-msgstr "로컬 또는 원격 캐시에서 가져온 모듈의 총 개수입니다."
-
-msgid ""
-"Total number of modules that could have been taken from the cache if it was "
-"fully populated."
-msgstr ""
-"캐시가 완전히 채워졌을 경우 캐시에서 가져올 수 있었던 모듈의 총 개수입니다."
 
 msgid "Total number of test cases executed."
 msgstr "실행된 테스트 케이스의 총 개수입니다."
@@ -615,6 +587,9 @@ msgstr "격리됨"
 msgid "Unquarantine"
 msgstr "검역 해제"
 
+msgid "Module Cache"
+msgstr ""
+
 #, fuzzy
 msgid "Automatically by Tuist"
 msgstr "Tuist에 의해 자동 생성됨"
@@ -690,3 +665,33 @@ msgstr "격리된 테스트"
 #, fuzzy
 msgid "Tuist"
 msgstr "Tuist"
+
+#~ msgid "Binary Cache"
+#~ msgstr "바이너리 캐시"
+
+#~ msgid "Binary cache hits"
+#~ msgstr "바이너리 캐시 일치건"
+
+#~ msgid "Binary cache misses"
+#~ msgstr "바이너리 캐시 미일치건"
+
+#~ msgid "Cache hit rate"
+#~ msgstr "캐시 일치율"
+
+#~ msgid "Compilation Optimizations"
+#~ msgstr "컴파일 최적화"
+
+#~ msgid ""
+#~ "Percentage of modules that were successfully retrieved from the cache."
+#~ msgstr "캐시에서 성공적으로 검색된 모듈의 비율입니다."
+
+#~ msgid ""
+#~ "Total number of modules taken from either the local or the remote cache."
+#~ msgstr "로컬 또는 원격 캐시에서 가져온 모듈의 총 개수입니다."
+
+#~ msgid ""
+#~ "Total number of modules that could have been taken from the cache if it "
+#~ "was fully populated."
+#~ msgstr ""
+#~ "캐시가 완전히 채워졌을 경우 캐시에서 가져올 수 있었던 모듈의 총 개수입니"
+#~ "다."

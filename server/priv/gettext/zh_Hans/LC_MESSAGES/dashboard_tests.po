@@ -87,18 +87,6 @@ msgid "Avg. test run duration"
 msgstr "平均测试运行时长"
 
 #, fuzzy
-msgid "Binary Cache"
-msgstr "二进制缓存"
-
-#, fuzzy
-msgid "Binary cache hits"
-msgstr "二进制缓存命中"
-
-#, fuzzy
-msgid "Binary cache misses"
-msgstr "二进制缓存未命中"
-
-#, fuzzy
 msgid "Branch"
 msgstr "分支"
 
@@ -113,10 +101,6 @@ msgstr "CI"
 #, fuzzy
 msgid "CI Run"
 msgstr "CI Run"
-
-#, fuzzy
-msgid "Cache hit rate"
-msgstr "缓存命中率"
 
 #, fuzzy
 msgid "Caught error"
@@ -145,10 +129,6 @@ msgstr "指令持续时间"
 #, fuzzy
 msgid "Commit"
 msgstr "提交"
-
-#, fuzzy
-msgid "Compilation Optimizations"
-msgstr "编译优化"
 
 #, fuzzy
 msgid "Download result"
@@ -344,10 +324,6 @@ msgstr "通过"
 #, fuzzy
 msgid "Passed runs"
 msgstr "通过的运行"
-
-#, fuzzy
-msgid "Percentage of modules that were successfully retrieved from the cache."
-msgstr "从缓存中成功检索到的模块百分比。"
 
 #, fuzzy
 msgid "Ran at"
@@ -552,17 +528,6 @@ msgid "Total modules represents the total number of testable modules."
 msgstr "总模块数代表可测试模块的总数。"
 
 #, fuzzy
-msgid ""
-"Total number of modules taken from either the local or the remote cache."
-msgstr "从本地或远程缓存中获取的模块总数。"
-
-#, fuzzy
-msgid ""
-"Total number of modules that could have been taken from the cache if it was "
-"fully populated."
-msgstr "若缓存已完全填充，可从中提取的模块总数。"
-
-#, fuzzy
 msgid "Total number of test cases executed."
 msgstr "已执行的测试用例总数。"
 
@@ -762,6 +727,9 @@ msgstr "隔离区"
 msgid "Unquarantine"
 msgstr "解除隔离"
 
+msgid "Module Cache"
+msgstr ""
+
 #, fuzzy
 msgid "Automatically by Tuist"
 msgstr "由 Tuist 自动生成"
@@ -837,3 +805,39 @@ msgstr "隔离测试"
 #, fuzzy
 msgid "Tuist"
 msgstr "Tuist"
+
+#, fuzzy
+#~ msgid "Binary Cache"
+#~ msgstr "二进制缓存"
+
+#, fuzzy
+#~ msgid "Binary cache hits"
+#~ msgstr "二进制缓存命中"
+
+#, fuzzy
+#~ msgid "Binary cache misses"
+#~ msgstr "二进制缓存未命中"
+
+#, fuzzy
+#~ msgid "Cache hit rate"
+#~ msgstr "缓存命中率"
+
+#, fuzzy
+#~ msgid "Compilation Optimizations"
+#~ msgstr "编译优化"
+
+#, fuzzy
+#~ msgid ""
+#~ "Percentage of modules that were successfully retrieved from the cache."
+#~ msgstr "从缓存中成功检索到的模块百分比。"
+
+#, fuzzy
+#~ msgid ""
+#~ "Total number of modules taken from either the local or the remote cache."
+#~ msgstr "从本地或远程缓存中获取的模块总数。"
+
+#, fuzzy
+#~ msgid ""
+#~ "Total number of modules that could have been taken from the cache if it "
+#~ "was fully populated."
+#~ msgstr "若缓存已完全填充，可从中提取的模块总数。"
