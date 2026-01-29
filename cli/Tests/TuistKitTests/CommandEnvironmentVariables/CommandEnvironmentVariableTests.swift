@@ -37,7 +37,7 @@ struct CommandEnvironmentVariableTests {
         setVariable(.buildOptionsGenerateOnly, value: "true")
         setVariable(.buildOptionsPassthroughXcodeBuildArguments, value: "clean,-configuration,Release")
 
-        let buildCommandWithEnvVars = try BuildCommand.parse([])
+        let buildCommandWithEnvVars = try BuildRunCommand.parse([])
         #expect(buildCommandWithEnvVars.buildOptions.scheme == "Scheme1")
         #expect(buildCommandWithEnvVars.buildOptions.generate == true)
         #expect(buildCommandWithEnvVars.buildOptions.clean == true)
@@ -55,7 +55,7 @@ struct CommandEnvironmentVariableTests {
                 ["clean", "-configuration", "Release"]
         )
 
-        let buildCommandWithArgs = try BuildCommand.parse([
+        let buildCommandWithArgs = try BuildRunCommand.parse([
             "Scheme2",
             "--generate",
             "--no-clean",
