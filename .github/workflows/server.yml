@@ -637,10 +637,12 @@ jobs:
         working-directory: gradle
         run: ./gradlew publishToMavenLocal
       - name: Install dependencies and generate Xcode project
+        working-directory: .
         run: |
           tuist install
           tuist generate --no-open
       - name: Build tuist CLI
+        working-directory: .
         run: |
           xcodebuild build \
             -workspace Tuist.xcworkspace \
