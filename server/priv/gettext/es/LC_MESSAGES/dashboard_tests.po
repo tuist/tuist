@@ -90,18 +90,6 @@ msgid "Avg. test run duration"
 msgstr "Duración media de la prueba"
 
 #, fuzzy
-msgid "Binary Cache"
-msgstr "Caché binaria"
-
-#, fuzzy
-msgid "Binary cache hits"
-msgstr "Aciertos de caché binaria"
-
-#, fuzzy
-msgid "Binary cache misses"
-msgstr "Fallos de caché binaria"
-
-#, fuzzy
 msgid "Branch"
 msgstr "Rama"
 
@@ -116,10 +104,6 @@ msgstr "CI"
 #, fuzzy
 msgid "CI Run"
 msgstr "CI Run"
-
-#, fuzzy
-msgid "Cache hit rate"
-msgstr "Tasa de aciertos de la caché"
 
 #, fuzzy
 msgid "Caught error"
@@ -148,10 +132,6 @@ msgstr "Duración del comando"
 #, fuzzy
 msgid "Commit"
 msgstr "Confirmar"
-
-#, fuzzy
-msgid "Compilation Optimizations"
-msgstr "Optimizaciones de compilación"
 
 #, fuzzy
 msgid "Download result"
@@ -351,10 +331,6 @@ msgstr "Aprobado"
 #, fuzzy
 msgid "Passed runs"
 msgstr "Pruebas superadas"
-
-#, fuzzy
-msgid "Percentage of modules that were successfully retrieved from the cache."
-msgstr "Porcentaje de módulos que se recuperaron correctamente de la caché."
 
 #, fuzzy
 msgid "Ran at"
@@ -570,19 +546,6 @@ msgstr ""
 "evaluar."
 
 #, fuzzy
-msgid ""
-"Total number of modules taken from either the local or the remote cache."
-msgstr "Número total de módulos tomados de la caché local o remota."
-
-#, fuzzy
-msgid ""
-"Total number of modules that could have been taken from the cache if it was "
-"fully populated."
-msgstr ""
-"Número total de módulos que se podrían haber tomado de la caché si estuviera "
-"completamente poblada."
-
-#, fuzzy
 msgid "Total number of test cases executed."
 msgstr "Número total de casos de prueba ejecutados."
 
@@ -785,6 +748,9 @@ msgstr "En cuarentena"
 msgid "Unquarantine"
 msgstr "Desactivar cuarentena"
 
+msgid "Module Cache"
+msgstr ""
+
 #, fuzzy
 msgid "Automatically by Tuist"
 msgstr "Automáticamente por Tuist."
@@ -861,3 +827,41 @@ msgstr "Pruebas en cuarentena"
 #, fuzzy
 msgid "Tuist"
 msgstr "Tuist"
+
+#, fuzzy
+#~ msgid "Binary Cache"
+#~ msgstr "Caché binaria"
+
+#, fuzzy
+#~ msgid "Binary cache hits"
+#~ msgstr "Aciertos de caché binaria"
+
+#, fuzzy
+#~ msgid "Binary cache misses"
+#~ msgstr "Fallos de caché binaria"
+
+#, fuzzy
+#~ msgid "Cache hit rate"
+#~ msgstr "Tasa de aciertos de la caché"
+
+#, fuzzy
+#~ msgid "Compilation Optimizations"
+#~ msgstr "Optimizaciones de compilación"
+
+#, fuzzy
+#~ msgid ""
+#~ "Percentage of modules that were successfully retrieved from the cache."
+#~ msgstr "Porcentaje de módulos que se recuperaron correctamente de la caché."
+
+#, fuzzy
+#~ msgid ""
+#~ "Total number of modules taken from either the local or the remote cache."
+#~ msgstr "Número total de módulos tomados de la caché local o remota."
+
+#, fuzzy
+#~ msgid ""
+#~ "Total number of modules that could have been taken from the cache if it "
+#~ "was fully populated."
+#~ msgstr ""
+#~ "Número total de módulos que se podrían haber tomado de la caché si "
+#~ "estuviera completamente poblada."
