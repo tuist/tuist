@@ -43,11 +43,13 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
     private let graphMapper: GraphMapping
     private let packageSettingsLoader: PackageSettingsLoading
     private let manifestFilesLocator: ManifestFilesLocating
+    private let buildFolder: AbsolutePath?
 
     public convenience init(
         manifestLoader: ManifestLoading,
         workspaceMapper: WorkspaceMapping,
-        graphMapper: GraphMapping
+        graphMapper: GraphMapping,
+        buildFolder: AbsolutePath? = nil
     ) {
         self.init(
             configLoader: ConfigLoader(manifestLoader: manifestLoader),
@@ -64,7 +66,8 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
             workspaceMapper: workspaceMapper,
             graphMapper: graphMapper,
             packageSettingsLoader: PackageSettingsLoader(manifestLoader: manifestLoader),
-            manifestFilesLocator: ManifestFilesLocator()
+            manifestFilesLocator: ManifestFilesLocator(),
+            buildFolder: buildFolder
         )
     }
 
@@ -81,7 +84,8 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         workspaceMapper: WorkspaceMapping,
         graphMapper: GraphMapping,
         packageSettingsLoader: PackageSettingsLoading,
-        manifestFilesLocator: ManifestFilesLocating
+        manifestFilesLocator: ManifestFilesLocating,
+        buildFolder: AbsolutePath? = nil
     ) {
         self.configLoader = configLoader
         self.manifestLoader = manifestLoader
@@ -96,6 +100,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         self.graphMapper = graphMapper
         self.packageSettingsLoader = packageSettingsLoader
         self.manifestFilesLocator = manifestFilesLocator
+        self.buildFolder = buildFolder
     }
 
     // swiftlint:disable:next function_body_length
@@ -131,7 +136,8 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
             let manifestsDependencyGraph = try await swiftPackageManagerGraphLoader.load(
                 packagePath: packagePath,
                 packageSettings: loadedPackageSettings,
-                disableSandbox: disableSandbox
+                disableSandbox: disableSandbox,
+                buildFolder: buildFolder
             )
             dependenciesGraph = try await converter.convert(dependenciesGraph: manifestsDependencyGraph, path: path)
             packageSettings = loadedPackageSettings

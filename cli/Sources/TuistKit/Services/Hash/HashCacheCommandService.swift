@@ -102,7 +102,7 @@ final class HashCacheCommandService {
                     targetsToBinaryCache: []
                 )
             #else
-                let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
+                let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [], buildFolder: nil)
             #endif
             graph = try await generator.load(
                 path: absolutePath,
