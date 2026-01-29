@@ -165,18 +165,27 @@ build_tuist_cli() {
 
     # Check if tuist is available (installed via mise)
     if command -v tuist &>/dev/null; then
-        echo "# Generating Xcode project with tuist..." >&3
-        if tuist generate --no-open >&3 2>&1; then
-            echo "# Building with xcodebuild..." >&3
-            if xcodebuild build \
-                -workspace Tuist.xcworkspace \
-                -scheme tuist \
-                -configuration Debug \
-                -derivedDataPath "$build_dir" \
-                -quiet >&3 2>&1; then
-                echo "$binary"
-                return 0
+        echo "# Installing dependencies with tuist..." >&3
+        if tuist install >&3 2>&1; then
+            echo "# Generating Xcode project with tuist..." >&3
+            if tuist generate --no-open >&3 2>&1; then
+                echo "# Building with xcodebuild..." >&3
+                if xcodebuild build \
+                    -workspace Tuist.xcworkspace \
+                    -scheme tuist \
+                    -configuration Debug \
+                    -derivedDataPath "$build_dir" \
+                    -quiet >&3 2>&1; then
+                    echo "$binary"
+                    return 0
+                else
+                    echo "# xcodebuild failed" >&3
+                fi
+            else
+                echo "# tuist generate failed" >&3
             fi
+        else
+            echo "# tuist install failed" >&3
         fi
     fi
 

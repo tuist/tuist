@@ -636,6 +636,20 @@ jobs:
       - name: Publish Gradle plugin to mavenLocal
         working-directory: gradle
         run: ./gradlew publishToMavenLocal
+      - name: Install dependencies and generate Xcode project
+        run: |
+          tuist install
+          tuist generate --no-open
+      - name: Build tuist CLI
+        run: |
+          xcodebuild build \
+            -workspace Tuist.xcworkspace \
+            -scheme tuist \
+            -configuration Debug \
+            -derivedDataPath build/DerivedData \
+            -quiet
       - name: Run Gradle cache acceptance test
         working-directory: .
+        env:
+          TUIST_EXECUTABLE: ${{ github.workspace }}/build/DerivedData/Build/Products/Debug/tuist
         run: mise run e2e gradle_cache
