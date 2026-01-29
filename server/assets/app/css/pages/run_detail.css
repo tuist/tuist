@@ -146,7 +146,8 @@
       }
     }
 
-    & > [data-part="cacheable-targets-card-section"] {
+    & > [data-part="cacheable-targets-card-section"],
+    & > [data-part="upload-targets-card-section"] {
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-5);
