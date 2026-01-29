@@ -1,0 +1,49 @@
+/*
+ * Custom noora import that uses self-hosted fonts.
+ * This avoids external CDN requests by:
+ * 1. Importing our self-hosted font definitions
+ * 2. Importing a copy of noora's tokens.css without the @import statements
+ * 3. Importing all noora components via relative paths
+ */
+
+/* Our self-hosted fonts (must come before tokens for font-family to work) */
+@import "./fonts.css";
+
+/* Noora tokens without external font imports */
+@import "./noora-tokens-local.css";
+
+/* Import all noora components via relative path to deps */
+@import "../../../deps/noora/css/alert.css";
+@import "../../../deps/noora/css/avatar.css";
+@import "../../../deps/noora/css/badge.css";
+@import "../../../deps/noora/css/banner.css";
+@import "../../../deps/noora/css/breadcrumbs.css";
+@import "../../../deps/noora/css/button_group.css";
+@import "../../../deps/noora/css/button.css";
+@import "../../../deps/noora/css/card.css";
+@import "../../../deps/noora/css/chart.css";
+@import "../../../deps/noora/css/checkbox.css";
+@import "../../../deps/noora/css/checkbox_control.css";
+@import "../../../deps/noora/css/date_picker.css";
+@import "../../../deps/noora/css/dismiss_icon.css";
+@import "../../../deps/noora/css/dropdown.css";
+@import "../../../deps/noora/css/filter.css";
+@import "../../../deps/noora/css/hint_text.css";
+@import "../../../deps/noora/css/label.css";
+@import "../../../deps/noora/css/line_divider.css";
+@import "../../../deps/noora/css/modal.css";
+@import "../../../deps/noora/css/pagination_group.css";
+@import "../../../deps/noora/css/popover.css";
+@import "../../../deps/noora/css/progress_bar.css";
+@import "../../../deps/noora/css/select.css";
+@import "../../../deps/noora/css/shortcut_key.css";
+@import "../../../deps/noora/css/sidebar.css";
+@import "../../../deps/noora/css/tab_menu.css";
+@import "../../../deps/noora/css/table.css";
+@import "../../../deps/noora/css/tag.css";
+@import "../../../deps/noora/css/text_area.css";
+@import "../../../deps/noora/css/text_divider.css";
+@import "../../../deps/noora/css/text_input.css";
+@import "../../../deps/noora/css/time.css";
+@import "../../../deps/noora/css/toggle.css";
+@import "../../../deps/noora/css/tooltip.css";

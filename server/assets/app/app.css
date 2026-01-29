@@ -1,12 +1,10 @@
-/* Self-hosted fonts must be imported first to override noora's external imports */
-@import "./css/fonts.css";
+/* Noora with self-hosted fonts (no external CDN requests) */
+@import "./css/noora-without-external-fonts.css";
 
 @import "./css/layouts.css";
 @import "./css/components.css";
 @import "./css/components/previews/app_preview.css";
 @import "./css/pages.css";
-
-@import "noora/noora.css";
 
 :root * {
   --tuist-app-icon-radius: calc(var(--size) / 2 * 0.4453125);

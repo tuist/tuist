@@ -24,7 +24,7 @@ config :esbuild,
   version: "0.25.2",
   app: [
     args:
-      ~w(app.js --bundle --target=es2017 --outfile=../../priv/static/app/assets/bundle.js --external:/fonts/* --external:/images/*),
+      ~w(app.js --bundle --target=es2017 --outfile=../../priv/static/app/assets/bundle.js --external:/fonts/* --external:/images/* --external:/app/fonts/*),
     cd: Path.expand("../assets/app", __DIR__),
     env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
   ],
