@@ -77,11 +77,13 @@ defmodule Cache.S3TransfersBuffer do
     {deletes_batch, deletes_rest} = SQLiteBuffer.take_set_batch(state.s3_deletes, max_batch_size)
 
     operations =
-      [
-        if(map_size(inserts_batch) > 0, do: {:s3_inserts, inserts_batch}),
-        if(deletes_batch != [], do: {:s3_deletes, deletes_batch})
-      ]
-      |> Enum.reject(&is_nil/1)
+      Enum.reject(
+        [
+          if(map_size(inserts_batch) > 0, do: {:s3_inserts, inserts_batch}),
+          if(deletes_batch != [], do: {:s3_deletes, deletes_batch})
+        ],
+        &is_nil/1
+      )
 
     {operations, %{state | s3_inserts: inserts_rest, s3_deletes: deletes_rest}}
   end

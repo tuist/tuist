@@ -51,7 +51,7 @@ defmodule Cache.CacheArtifacts do
     size_bytes = file_size_for(key)
     last_accessed_at = DateTime.utc_now()
 
-    _ = CacheArtifactsBuffer.enqueue_access(key, size_bytes, last_accessed_at)
+    :ok = CacheArtifactsBuffer.enqueue_access(key, size_bytes, last_accessed_at)
     :ok
   end
 

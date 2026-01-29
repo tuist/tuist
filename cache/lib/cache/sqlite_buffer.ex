@@ -151,7 +151,13 @@ defmodule Cache.SQLiteBuffer do
 
   defp cancel_flush_timer(state) do
     if state.timer_ref do
-      Process.cancel_timer(state.timer_ref)
+      Process.cancel_timer(state.timer_ref, info: false)
+
+      receive do
+        :flush -> :ok
+      after
+        0 -> :ok
+      end
     end
 
     %{state | timer_ref: nil}
@@ -161,6 +167,7 @@ defmodule Cache.SQLiteBuffer do
     stats = build_queue_stats(state)
 
     if should_flush_now?(stats, state.max_batch_size) do
+      state = cancel_flush_timer(state)
       buffer_name = state.buffer_module.buffer_name()
       Logger.notice("#{buffer_name} buffer full, flushing to SQLite")
       send(self(), :flush)
