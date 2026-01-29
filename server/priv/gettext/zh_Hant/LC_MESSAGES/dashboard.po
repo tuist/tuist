@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:51+0000\n"
 "PO-Revision-Date: 2026-01-29 17:11+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard-1/zh_Hant/>\n"
 "Language: zh_Hant\n"
@@ -369,8 +370,9 @@ msgstr "不穩定測試"
 msgid "Ready to speed up your builds and unlock insights for your app?"
 msgstr "準備好加速您的建置流程並為應用程式解鎖洞察力了嗎？"
 
+#, fuzzy
 msgid "Talk to us"
-msgstr ""
+msgstr "與我們聯繫"
 
 #, fuzzy
 msgid "This is a public dashboard for the tuist/tuist project."
