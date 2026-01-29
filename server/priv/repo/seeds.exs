@@ -1010,6 +1010,109 @@ IO.puts("  - Case runs: #{:counters.get(case_run_counter, 1)}")
 IO.puts("  - Failures: #{:counters.get(failure_counter, 1)}")
 
 # =============================================================================
+# Ensure all quarantined test cases have at least one test case run
+# =============================================================================
+#
+# Quarantined test cases need associated runs for proper link rendering.
+# Create explicit runs for each quarantined test case to guarantee this.
+
+IO.puts("Ensuring all quarantined test cases have runs...")
+
+if length(quarantined_test_cases) > 0 do
+  # Create a test run to associate with quarantined test case runs
+  quarantine_test_run_id = UUIDv7.generate()
+  ran_at = DateTime.utc_now() |> DateTime.add(-1, :day) |> DateTime.to_naive()
+
+  quarantine_test_run = %{
+    id: quarantine_test_run_id,
+    duration: 30_000,
+    macos_version: "14.0",
+    xcode_version: "15.0",
+    is_ci: true,
+    is_flaky: true,
+    model_identifier: "MacBookPro14,2",
+    scheme: "AppTests",
+    status: "success",
+    git_branch: "main",
+    git_commit_sha: "abc123def456",
+    git_ref: "refs/heads/main",
+    ran_at: ran_at,
+    project_id: project_id,
+    account_id: org_account_id,
+    inserted_at: ran_at,
+    ci_run_id: "19500000000",
+    ci_project_handle: "tuist/tuist",
+    ci_host: "",
+    ci_provider: "github"
+  }
+
+  IngestRepo.insert_all(Test, [quarantine_test_run], timeout: 120_000)
+
+  # Create module and suite runs for the quarantined test cases
+  quarantine_module_id = UUIDv7.generate()
+  quarantine_suite_id = UUIDv7.generate()
+
+  quarantine_module_run = %{
+    id: quarantine_module_id,
+    name: "QuarantinedTests",
+    test_run_id: quarantine_test_run_id,
+    status: 0,
+    is_flaky: true,
+    duration: 5_000,
+    test_suite_count: 1,
+    test_case_count: length(quarantined_test_cases),
+    avg_test_case_duration: 50,
+    inserted_at: ran_at
+  }
+
+  quarantine_suite_run = %{
+    id: quarantine_suite_id,
+    name: "QuarantinedSuite",
+    test_run_id: quarantine_test_run_id,
+    test_module_run_id: quarantine_module_id,
+    status: 0,
+    is_flaky: true,
+    duration: 3_000,
+    test_case_count: length(quarantined_test_cases),
+    avg_test_case_duration: 30,
+    inserted_at: ran_at
+  }
+
+  IngestRepo.insert_all(TestModuleRun, [quarantine_module_run], timeout: 120_000)
+  IngestRepo.insert_all(TestSuiteRun, [quarantine_suite_run], timeout: 120_000)
+
+  # Create a test case run for each quarantined test case
+  quarantined_case_runs =
+    Enum.map(quarantined_test_cases, fn tc ->
+      %{
+        id: UUIDv7.generate(),
+        name: tc.name,
+        test_run_id: quarantine_test_run_id,
+        test_module_run_id: quarantine_module_id,
+        test_suite_run_id: quarantine_suite_id,
+        test_case_id: tc.id,
+        project_id: project_id,
+        is_ci: true,
+        scheme: "AppTests",
+        account_id: org_account_id,
+        ran_at: ran_at,
+        git_branch: "main",
+        git_commit_sha: "abc123def456",
+        status: 0,
+        is_flaky: true,
+        is_new: false,
+        duration: Enum.random(10..200),
+        module_name: tc.module_name,
+        suite_name: tc.suite_name,
+        inserted_at: ran_at
+      }
+    end)
+
+  IngestRepo.insert_all(Tuist.Runs.TestCaseRun, quarantined_case_runs, timeout: 120_000)
+  IO.puts("  - Created #{length(quarantined_case_runs)} runs for quarantined test cases")
+end
+
+# =============================================================================
 # Test Case Events (Quarantine History)
 # =============================================================================
 #
