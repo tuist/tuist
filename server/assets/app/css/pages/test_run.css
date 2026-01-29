@@ -167,7 +167,6 @@
     }
   }
 
-  & [data-part="binary-cache-section"],
   & [data-part="selective-testing-section"] {
     display: flex;
     flex-direction: column;
@@ -213,16 +212,6 @@
         align-items: center;
         gap: var(--noora-spacing-4);
       }
-    }
-  }
-
-  & [data-part="optimization-summary-section"] {
-    display: flex;
-    flex-direction: row;
-    gap: var(--noora-spacing-4);
-
-    & > * {
-      flex: 1;
     }
   }
 
