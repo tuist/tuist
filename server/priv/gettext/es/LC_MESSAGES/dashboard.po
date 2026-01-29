@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:51+0000\n"
 "PO-Revision-Date: 2026-01-29 17:11+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Spanish <https://translate.tuist.dev/projects/tuist/dashboard-"
 "1/es/>\n"
 "Language: es\n"
@@ -378,8 +379,9 @@ msgstr ""
 "¿Listo para acelerar tus compilaciones y descubrir información valiosa para "
 "tu aplicación?"
 
+#, fuzzy
 msgid "Talk to us"
-msgstr ""
+msgstr "Hable con nosotros"
 
 #, fuzzy
 msgid "This is a public dashboard for the tuist/tuist project."
