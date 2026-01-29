@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:51+0000\n"
-"PO-Revision-Date: 2026-01-22 13:04+0000\n"
+"PO-Revision-Date: 2026-01-29 17:11+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard-1/zh_Hant/>\n"
@@ -361,17 +361,21 @@ msgstr "p90"
 msgid "p99"
 msgstr "p99"
 
+#, fuzzy
 msgid "Flaky Tests"
-msgstr ""
+msgstr "不穩定測試"
 
+#, fuzzy
 msgid "Ready to speed up your builds and unlock insights for your app?"
-msgstr ""
+msgstr "準備好加速您的建置流程並為應用程式解鎖洞察力了嗎？"
 
 msgid "Talk to us"
 msgstr ""
 
+#, fuzzy
 msgid "This is a public dashboard for the tuist/tuist project."
-msgstr ""
+msgstr "此為 tuist/tuist 專案的公開儀表板。"
 
+#, fuzzy
 msgid "Quarantined Tests"
-msgstr ""
+msgstr "隔離測試"
