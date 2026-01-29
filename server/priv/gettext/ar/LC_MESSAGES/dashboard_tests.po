@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-26 13:31+0000\n"
+"PO-Revision-Date: 2026-01-29 17:11+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Arabic <https://translate.tuist.dev/projects/tuist/"
 "dashboard_tests/ar/>\n"
@@ -829,20 +829,25 @@ msgstr "سجل الاختبارات"
 msgid "Unmarked as flaky"
 msgstr "إلغاء وضع علامة \"غير موثوق\""
 
+#, fuzzy
 msgid "Last run"
-msgstr ""
+msgstr "آخر تشغيل"
 
+#, fuzzy
 msgid "No quarantined tests"
-msgstr ""
+msgstr "لا توجد اختبارات معزولة"
 
+#, fuzzy
 msgid "Quarantined Tests"
-msgstr ""
+msgstr "الاختبارات المعزولة"
 
+#, fuzzy
 msgid "Quarantined by"
-msgstr ""
+msgstr "تم عزلها بواسطة"
 
+#, fuzzy
 msgid "Quarantined tests"
-msgstr ""
+msgstr "الاختبارات المعزولة"
 
 msgid "Tuist"
 msgstr ""
