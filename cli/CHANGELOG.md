@@ -1,6 +1,15 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.133.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add TUIST_CACHE_ENDPOINT environment variable override by [@fortmarek](https://github.com/fortmarek) in [#9282](https://github.com/tuist/tuist/pull/9282)
+* add debug logging to diagnose generation hangs by [@fortmarek](https://github.com/fortmarek) in [#9284](https://github.com/tuist/tuist/pull/9284)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.132.1...4.133.0
+
 ## What's Changed in 4.132.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
