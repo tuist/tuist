@@ -4,8 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
 "PO-Revision-Date: 2026-01-29 17:11+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/dashboard-"
 "1/ko/>\n"
 "Language: ko\n"
@@ -288,15 +287,18 @@ msgstr "99 페이지"
 msgid "Flaky Tests"
 msgstr "불안정한 테스트"
 
+#, fuzzy
 msgid "Ready to speed up your builds and unlock insights for your app?"
-msgstr ""
+msgstr "빌드 속도를 높이고 앱에 대한 통찰력을 얻으실 준비가 되셨나요?"
 
 #, fuzzy
 msgid "Talk to us"
 msgstr "연락하세요"
 
+#, fuzzy
 msgid "This is a public dashboard for the tuist/tuist project."
-msgstr ""
+msgstr "이것은 tuist/tuist 프로젝트의 공개 대시보드입니다."
 
+#, fuzzy
 msgid "Quarantined Tests"
-msgstr ""
+msgstr "격리된 테스트"
