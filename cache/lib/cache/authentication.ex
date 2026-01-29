@@ -151,7 +151,9 @@ defmodule Cache.Authentication do
 
     case result do
       {:ok, %{status: 200, body: %{"projects" => projects}}} ->
-        {:commit, project_access_result(cache_key, projects), expire: success_ttl()}
+        result = project_access_result(cache_key, projects)
+        ttl = if result == :ok, do: success_ttl(), else: failure_ttl()
+        {:commit, result, expire: ttl}
 
       {:ok, %{status: 403}} ->
         :telemetry.execute([:cache, :auth, :server, :error], %{}, %{reason: :forbidden})
