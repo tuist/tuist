@@ -3,9 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-26 13:32+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"PO-Revision-Date: 2026-01-29 17:11+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_tests/zh_Hans/>\n"
 "Language: zh_Hans\n"
@@ -814,20 +813,25 @@ msgstr "测试历史"
 msgid "Unmarked as flaky"
 msgstr "取消标记为不稳定"
 
+#, fuzzy
 msgid "Last run"
-msgstr ""
+msgstr "最后一次运行"
 
+#, fuzzy
 msgid "No quarantined tests"
-msgstr ""
+msgstr "无隔离测试"
 
+#, fuzzy
 msgid "Quarantined Tests"
-msgstr ""
+msgstr "隔离测试"
 
+#, fuzzy
 msgid "Quarantined by"
-msgstr ""
+msgstr "由"
 
+#, fuzzy
 msgid "Quarantined tests"
-msgstr ""
+msgstr "隔离测试"
 
 msgid "Tuist"
 msgstr ""
