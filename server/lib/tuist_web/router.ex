@@ -410,16 +410,6 @@ defmodule TuistWeb.Router do
     end
 
     scope "/cache" do
-      scope "/keyvalue" do
-        put "/", Cache.KeyValueController, :put_value
-        get "/:cas_id", Cache.KeyValueController, :get_value
-      end
-
-      scope "/cas" do
-        get "/:id", CASController, :load
-        post "/:id", CASController, :save
-      end
-
       get "/endpoints", CacheController, :endpoints
       get "/", CacheController, :download
       get "/exists", CacheController, :exists
