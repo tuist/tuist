@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.133.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* only embed static XCFrameworks containing .framework bundles by [@pepicrft](https://github.com/pepicrft) in [#9288](https://github.com/tuist/tuist/pull/9288)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.133.0...4.133.1
+
 ## What's Changed in 4.133.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
