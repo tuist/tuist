@@ -82,4 +82,11 @@
   & .noora-pagination-group {
     margin-top: var(--noora-spacing-7);
   }
+
+  /* Fix for Noora filter popover indicator size - the SVG is a direct child
+     instead of being wrapped in a div like the dropdown variant */
+  & .noora-filter > [data-part="popover"] [data-part="indicator"] > svg {
+    width: var(--noora-icon-size-medium);
+    height: var(--noora-icon-size-medium);
+  }
 }
