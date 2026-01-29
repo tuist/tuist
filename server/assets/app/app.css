@@ -1,5 +1,6 @@
-/* Noora with self-hosted fonts (no external CDN requests) */
-@import "./css/noora-without-external-fonts.css";
+/* Self-hosted fonts (loaded before noora to override external font imports) */
+@import "./css/fonts.css";
+@import "noora/noora.css";
 
 @import "./css/layouts.css";
 @import "./css/components.css";
