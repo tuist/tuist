@@ -1323,10 +1323,12 @@ defmodule Tuist.Runs do
 
     search_term = extract_search_term(filters)
     quarantined_by_filter = extract_quarantined_by_filter(filters)
+    module_name_filter = extract_text_filter(filters, :module_name)
+    suite_name_filter = extract_text_filter(filters, :suite_name)
 
     results =
       project_id
-      |> build_quarantined_test_cases_query(search_term, quarantined_by_filter)
+      |> build_quarantined_test_cases_query(search_term, quarantined_by_filter, module_name_filter, suite_name_filter)
       |> apply_quarantined_order(order_by, order_direction)
       |> from(limit: ^page_size, offset: ^offset)
       |> ClickHouseRepo.all()
@@ -1342,7 +1344,12 @@ defmodule Tuist.Runs do
 
     total_count =
       project_id
-      |> build_quarantined_test_cases_count_query(search_term, quarantined_by_filter)
+      |> build_quarantined_test_cases_count_query(
+        search_term,
+        quarantined_by_filter,
+        module_name_filter,
+        suite_name_filter
+      )
       |> ClickHouseRepo.one()
 
     total_pages = if total_count > 0, do: ceil(total_count / page_size), else: 0
@@ -1364,7 +1371,25 @@ defmodule Tuist.Runs do
     end)
   end
 
-  defp build_quarantined_test_cases_query(project_id, search_term, quarantined_by_filter) do
+  defp extract_text_filter(filters, field) do
+    field_string = to_string(field)
+
+    Enum.find_value(filters, fn
+      %{field: f, value: value} when is_binary(value) and value != "" ->
+        if to_string(f) == field_string, do: value
+
+      _ ->
+        nil
+    end)
+  end
+
+  defp build_quarantined_test_cases_query(
+         project_id,
+         search_term,
+         quarantined_by_filter,
+         module_name_filter,
+         suite_name_filter
+       ) do
     # First, get the IDs of quarantined test cases (with deduplication)
     # This is a small set that we use to filter the expensive test_case_runs aggregation
     quarantined_ids_subquery =
@@ -1432,9 +1457,17 @@ defmodule Tuist.Runs do
     base_query
     |> apply_name_search(search_term)
     |> apply_quarantined_by_filter(quarantined_by_filter)
+    |> apply_module_name_filter(module_name_filter)
+    |> apply_suite_name_filter(suite_name_filter)
   end
 
-  defp build_quarantined_test_cases_count_query(project_id, search_term, quarantined_by_filter) do
+  defp build_quarantined_test_cases_count_query(
+         project_id,
+         search_term,
+         quarantined_by_filter,
+         module_name_filter,
+         suite_name_filter
+       ) do
     # Only scan quarantined test cases, not all test cases
     latest_test_case_subquery =
       from(test_case in TestCase,
@@ -1472,6 +1505,8 @@ defmodule Tuist.Runs do
     base_query
     |> apply_name_search(search_term)
     |> apply_quarantined_by_filter(quarantined_by_filter)
+    |> apply_module_name_filter(module_name_filter)
+    |> apply_suite_name_filter(suite_name_filter)
   end
 
   @doc """
@@ -1591,6 +1626,15 @@ defmodule Tuist.Runs do
     do: from([quarantine: quarantine] in query, where: quarantine.actor_id != ^user_id or is_nil(quarantine.actor_id))
 
   defp apply_quarantined_by_filter(query, _), do: query
+
+  defp apply_module_name_filter(query, nil), do: query
+
+  defp apply_module_name_filter(query, term),
+    do: from([test_case: tc] in query, where: ilike(tc.module_name, ^"%#{term}%"))
+
+  defp apply_suite_name_filter(query, nil), do: query
+
+  defp apply_suite_name_filter(query, term), do: from([test_case: tc] in query, where: ilike(tc.suite_name, ^"%#{term}%"))
 
   defp row_to_quarantined_test_case(row, quarantine_info) do
     %QuarantinedTestCase{

@@ -5716,6 +5716,80 @@ defmodule Tuist.RunsTest do
       assert length(user1_results) == 1
       assert hd(user1_results).name == "user1QuarantinedTest"
     end
+
+    test "filters by module_name" do
+      project = ProjectsFixtures.project_fixture()
+
+      for {name, module_name} <- [
+            {"test1", "AuthModule"},
+            {"test2", "AuthModule"},
+            {"test3", "PaymentModule"}
+          ] do
+        test_case =
+          RunsFixtures.test_case_fixture(
+            project_id: project.id,
+            name: name,
+            module_name: module_name,
+            is_quarantined: true
+          )
+
+        IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+        RunsFixtures.test_case_event_fixture(
+          test_case_id: test_case.id,
+          event_type: "quarantined"
+        )
+      end
+
+      # Uses string field to match real URL-decoded filter format
+      {results, meta} =
+        Runs.list_quarantined_test_cases(project.id, %{
+          filters: [%{field: "module_name", op: :=~, value: "Auth"}]
+        })
+
+      assert length(results) == 2
+      assert meta.total_count == 2
+      names = Enum.map(results, & &1.name)
+      assert "test1" in names
+      assert "test2" in names
+    end
+
+    test "filters by suite_name" do
+      project = ProjectsFixtures.project_fixture()
+
+      for {name, suite_name} <- [
+            {"test1", "LoginSuite"},
+            {"test2", "LoginSuite"},
+            {"test3", "LogoutSuite"}
+          ] do
+        test_case =
+          RunsFixtures.test_case_fixture(
+            project_id: project.id,
+            name: name,
+            suite_name: suite_name,
+            is_quarantined: true
+          )
+
+        IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+        RunsFixtures.test_case_event_fixture(
+          test_case_id: test_case.id,
+          event_type: "quarantined"
+        )
+      end
+
+      # Uses string field to match real URL-decoded filter format
+      {results, meta} =
+        Runs.list_quarantined_test_cases(project.id, %{
+          filters: [%{field: "suite_name", op: :=~, value: "Login"}]
+        })
+
+      assert length(results) == 2
+      assert meta.total_count == 2
+      names = Enum.map(results, & &1.name)
+      assert "test1" in names
+      assert "test2" in names
+    end
   end
 
   describe "get_quarantine_actors/1" do
