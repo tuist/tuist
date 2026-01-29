@@ -105,7 +105,16 @@ teardown_file() {
     fi
     [ "$status" -eq 0 ]
 
+    # Debug: Show cache-related output
+    echo "# Cache-related output from second build:" >&3
+    echo "$output" | grep -E "(cache|Cache|FROM-CACHE|Loaded|Stored)" >&3 || echo "# No cache-related lines found" >&3
+
     # Verify cache was used
+    if [[ "$output" != *"Loaded cache entry"* ]]; then
+        echo "# FAILED: 'Loaded cache entry' not found in output" >&3
+        echo "# Full output:" >&3
+        echo "$output" >&3
+    fi
     [[ "$output" == *"Loaded cache entry"* ]]
 
     # Count cache hits
