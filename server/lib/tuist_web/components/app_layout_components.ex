@@ -104,6 +104,17 @@ defmodule TuistWeb.AppLayoutComponents do
             )
           }
         />
+        <.sidebar_item
+          label={dgettext("dashboard", "Quarantined Tests")}
+          icon="lock"
+          navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/quarantined-tests"}
+          selected={
+            String.starts_with?(
+              @current_path,
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/quarantined-tests"
+            )
+          }
+        />
       </.sidebar_group>
       <.sidebar_group
         id="sidebar-module-cache"

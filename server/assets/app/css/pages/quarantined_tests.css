@@ -1,4 +1,4 @@
-#flaky-tests {
+#quarantined-tests {
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-6);
@@ -38,7 +38,7 @@
     }
   }
 
-  & [data-part="flaky-tests-section"] {
+  & [data-part="quarantined-tests-section"] {
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-8);
@@ -50,26 +50,27 @@
       gap: var(--noora-spacing-3);
     }
 
-    & [data-part="flaky-tests-table"] .noora-table {
+    & [data-part="quarantined-tests-table"] .noora-table {
       & th:nth-child(1),
       & td:nth-child(1) {
         width: 50%;
       }
 
+      & td:nth-child(2),
       & td:nth-child(3) {
         padding-left: var(--noora-spacing-7);
       }
     }
   }
 
-  & > [data-part="flaky-tests"] {
+  & > [data-part="quarantined-tests"] {
     overflow-x: hidden;
     & .noora-dropdown-item:not([data-selected]) svg {
       visibility: hidden;
     }
   }
 
-  & [data-part="empty-flaky-tests-table-card-section"] {
+  & [data-part="empty-quarantined-tests-table-card-section"] {
     & > [data-part="title"] {
       padding-top: var(--noora-spacing-5);
     }
@@ -80,5 +81,12 @@
 
   & .noora-pagination-group {
     margin-top: var(--noora-spacing-7);
+  }
+
+  /* Fix for Noora filter popover indicator size - the SVG is a direct child
+     instead of being wrapped in a div like the dropdown variant */
+  & .noora-filter > [data-part="popover"] [data-part="indicator"] > svg {
+    width: var(--noora-icon-size-medium);
+    height: var(--noora-icon-size-medium);
   }
 }

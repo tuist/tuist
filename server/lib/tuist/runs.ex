@@ -19,6 +19,7 @@ defmodule Tuist.Runs do
 
   import Ecto.Query
 
+  alias Tuist.Accounts.Account
   alias Tuist.Alerts.Workers.FlakyThresholdCheckWorker
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
@@ -31,6 +32,7 @@ defmodule Tuist.Runs do
   alias Tuist.Runs.CacheableTask
   alias Tuist.Runs.CASOutput
   alias Tuist.Runs.FlakyTestCase
+  alias Tuist.Runs.QuarantinedTestCase
   alias Tuist.Runs.Test
   alias Tuist.Runs.TestCase
   alias Tuist.Runs.TestCaseEvent
@@ -1304,6 +1306,346 @@ defmodule Tuist.Runs do
       flaky_runs_count: row.flaky_runs_count,
       last_flaky_at: row.last_flaky_at,
       last_flaky_run_id: row.last_flaky_run_id
+    }
+  end
+
+  @doc """
+  Lists test cases that are currently quarantined for a project.
+  Returns quarantined test cases with information about who quarantined them.
+  """
+  def list_quarantined_test_cases(project_id, attrs) do
+    page = Map.get(attrs, :page, 1)
+    page_size = Map.get(attrs, :page_size, 20)
+    order_by = attrs |> Map.get(:order_by, [:last_ran_at]) |> List.first()
+    order_direction = attrs |> Map.get(:order_directions, [:desc]) |> List.first()
+    filters = Map.get(attrs, :filters, [])
+    offset = (page - 1) * page_size
+
+    search_term = extract_search_term(filters)
+    quarantined_by_filter = extract_quarantined_by_filter(filters)
+    module_name_filter = extract_text_filter(filters, :module_name)
+    suite_name_filter = extract_text_filter(filters, :suite_name)
+
+    results =
+      project_id
+      |> build_quarantined_test_cases_query(search_term, quarantined_by_filter, module_name_filter, suite_name_filter)
+      |> apply_quarantined_order(order_by, order_direction)
+      |> from(limit: ^page_size, offset: ^offset)
+      |> ClickHouseRepo.all()
+
+    test_case_ids = Enum.map(results, & &1.id)
+    quarantine_info = get_quarantine_info_for_test_cases(test_case_ids)
+
+    quarantined_tests =
+      Enum.map(results, fn row ->
+        info = Map.get(quarantine_info, row.id, %{})
+        row_to_quarantined_test_case(row, info)
+      end)
+
+    total_count =
+      project_id
+      |> build_quarantined_test_cases_count_query(
+        search_term,
+        quarantined_by_filter,
+        module_name_filter,
+        suite_name_filter
+      )
+      |> ClickHouseRepo.one()
+
+    total_pages = if total_count > 0, do: ceil(total_count / page_size), else: 0
+
+    meta = %{
+      total_count: total_count,
+      total_pages: total_pages,
+      current_page: page,
+      page_size: page_size
+    }
+
+    {quarantined_tests, meta}
+  end
+
+  defp extract_quarantined_by_filter(filters) do
+    Enum.find_value(filters, fn
+      %{field: :quarantined_by, op: op, value: value} -> {op, value}
+      _ -> nil
+    end)
+  end
+
+  defp extract_text_filter(filters, field) do
+    field_string = to_string(field)
+
+    Enum.find_value(filters, fn
+      %{field: f, value: value} when is_binary(value) and value != "" ->
+        if to_string(f) == field_string, do: value
+
+      _ ->
+        nil
+    end)
+  end
+
+  defp build_quarantined_test_cases_query(
+         project_id,
+         search_term,
+         quarantined_by_filter,
+         module_name_filter,
+         suite_name_filter
+       ) do
+    # First, get the IDs of quarantined test cases (with deduplication)
+    # This is a small set that we use to filter the expensive test_case_runs aggregation
+    quarantined_ids_subquery =
+      from(tc in TestCase,
+        where: tc.project_id == ^project_id and tc.is_quarantined == true,
+        group_by: tc.id,
+        select: tc.id
+      )
+
+    # Only compute last_run stats for quarantined test cases (not all test cases)
+    last_run_subquery =
+      from(test_case_run in TestCaseRun,
+        where: test_case_run.test_case_id in subquery(quarantined_ids_subquery),
+        group_by: test_case_run.test_case_id,
+        select: %{
+          test_case_id: test_case_run.test_case_id,
+          last_ran_at: max(test_case_run.ran_at),
+          last_run_id: fragment("argMax(test_run_id, ran_at)")
+        }
+      )
+
+    latest_test_case_subquery =
+      from(test_case in TestCase,
+        where: test_case.project_id == ^project_id and test_case.is_quarantined == true,
+        group_by: test_case.id,
+        select: %{id: test_case.id, max_inserted_at: max(test_case.inserted_at)}
+      )
+
+    latest_quarantine_event_subquery =
+      from(e in TestCaseEvent,
+        where: e.event_type == "quarantined",
+        group_by: e.test_case_id,
+        select: %{test_case_id: e.test_case_id, max_inserted_at: max(e.inserted_at)}
+      )
+
+    quarantine_info_subquery =
+      from(e in TestCaseEvent,
+        join: latest in subquery(latest_quarantine_event_subquery),
+        on: e.test_case_id == latest.test_case_id and e.inserted_at == latest.max_inserted_at,
+        select: %{test_case_id: e.test_case_id, actor_id: e.actor_id}
+      )
+
+    base_query =
+      from(test_case in TestCase,
+        as: :test_case,
+        join: latest in subquery(latest_test_case_subquery),
+        on: test_case.id == latest.id and test_case.inserted_at == latest.max_inserted_at,
+        left_join: stats in subquery(last_run_subquery),
+        as: :stats,
+        on: test_case.id == stats.test_case_id,
+        left_join: quarantine in subquery(quarantine_info_subquery),
+        as: :quarantine,
+        on: test_case.id == quarantine.test_case_id,
+        where: test_case.is_quarantined == true,
+        select: %{
+          id: test_case.id,
+          name: test_case.name,
+          module_name: test_case.module_name,
+          suite_name: test_case.suite_name,
+          last_ran_at: coalesce(stats.last_ran_at, test_case.last_ran_at),
+          last_run_id: stats.last_run_id
+        }
+      )
+
+    base_query
+    |> apply_name_search(search_term)
+    |> apply_quarantined_by_filter(quarantined_by_filter)
+    |> apply_module_name_filter(module_name_filter)
+    |> apply_suite_name_filter(suite_name_filter)
+  end
+
+  defp build_quarantined_test_cases_count_query(
+         project_id,
+         search_term,
+         quarantined_by_filter,
+         module_name_filter,
+         suite_name_filter
+       ) do
+    # Only scan quarantined test cases, not all test cases
+    latest_test_case_subquery =
+      from(test_case in TestCase,
+        where: test_case.project_id == ^project_id and test_case.is_quarantined == true,
+        group_by: test_case.id,
+        select: %{id: test_case.id, max_inserted_at: max(test_case.inserted_at)}
+      )
+
+    latest_quarantine_event_subquery =
+      from(e in TestCaseEvent,
+        where: e.event_type == "quarantined",
+        group_by: e.test_case_id,
+        select: %{test_case_id: e.test_case_id, max_inserted_at: max(e.inserted_at)}
+      )
+
+    quarantine_info_subquery =
+      from(e in TestCaseEvent,
+        join: latest in subquery(latest_quarantine_event_subquery),
+        on: e.test_case_id == latest.test_case_id and e.inserted_at == latest.max_inserted_at,
+        select: %{test_case_id: e.test_case_id, actor_id: e.actor_id}
+      )
+
+    base_query =
+      from(test_case in TestCase,
+        as: :test_case,
+        join: latest in subquery(latest_test_case_subquery),
+        on: test_case.id == latest.id and test_case.inserted_at == latest.max_inserted_at,
+        left_join: quarantine in subquery(quarantine_info_subquery),
+        as: :quarantine,
+        on: test_case.id == quarantine.test_case_id,
+        where: test_case.is_quarantined == true,
+        select: count(test_case.id)
+      )
+
+    base_query
+    |> apply_name_search(search_term)
+    |> apply_quarantined_by_filter(quarantined_by_filter)
+    |> apply_module_name_filter(module_name_filter)
+    |> apply_suite_name_filter(suite_name_filter)
+  end
+
+  @doc """
+  Returns the list of accounts that have quarantined test cases for a project.
+  Used to populate the "Quarantined by" filter dropdown.
+  """
+  def get_quarantine_actors(project_id) do
+    # Get distinct quarantined test case IDs (with deduplication for ReplacingMergeTree)
+    quarantined_ids_subquery =
+      from(tc in TestCase,
+        where: tc.project_id == ^project_id and tc.is_quarantined == true,
+        group_by: tc.id,
+        select: tc.id
+      )
+
+    # Get the latest quarantine event for each test case
+    latest_quarantine_subquery =
+      from(e in TestCaseEvent,
+        where: e.test_case_id in subquery(quarantined_ids_subquery),
+        where: e.event_type == "quarantined",
+        group_by: e.test_case_id,
+        select: %{test_case_id: e.test_case_id, max_inserted_at: max(e.inserted_at)}
+      )
+
+    # Get distinct actor_ids from those latest events (single ClickHouse query with subqueries)
+    actor_ids =
+      ClickHouseRepo.all(
+        from(e in TestCaseEvent,
+          join: latest in subquery(latest_quarantine_subquery),
+          on: e.test_case_id == latest.test_case_id and e.inserted_at == latest.max_inserted_at,
+          where: not is_nil(e.actor_id),
+          select: e.actor_id,
+          distinct: true
+        )
+      )
+
+    if Enum.any?(actor_ids) do
+      Repo.all(from(a in Account, where: a.id in ^actor_ids))
+    else
+      []
+    end
+  end
+
+  defp get_quarantine_info_for_test_cases([]), do: %{}
+
+  defp get_quarantine_info_for_test_cases(test_case_ids) do
+    latest_quarantine_subquery =
+      from(e in TestCaseEvent,
+        where: e.test_case_id in ^test_case_ids,
+        where: e.event_type == "quarantined",
+        group_by: e.test_case_id,
+        select: %{test_case_id: e.test_case_id, max_inserted_at: max(e.inserted_at)}
+      )
+
+    query =
+      from(e in TestCaseEvent,
+        join: latest in subquery(latest_quarantine_subquery),
+        on: e.test_case_id == latest.test_case_id and e.inserted_at == latest.max_inserted_at,
+        select: %{test_case_id: e.test_case_id, actor_id: e.actor_id}
+      )
+
+    events = ClickHouseRepo.all(query)
+
+    actor_ids =
+      events
+      |> Enum.map(& &1.actor_id)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    accounts =
+      if Enum.any?(actor_ids) do
+        from(a in Account, where: a.id in ^actor_ids)
+        |> Repo.all()
+        |> Map.new(&{&1.id, &1})
+      else
+        %{}
+      end
+
+    Map.new(events, fn event ->
+      account = Map.get(accounts, event.actor_id)
+
+      {event.test_case_id,
+       %{
+         actor_id: event.actor_id,
+         actor_name: if(account, do: account.name)
+       }}
+    end)
+  end
+
+  defp apply_quarantined_order(query, :last_ran_at, :desc),
+    do: from([test_case: tc, stats: stats] in query, order_by: [desc: coalesce(stats.last_ran_at, tc.last_ran_at)])
+
+  defp apply_quarantined_order(query, :last_ran_at, :asc),
+    do: from([test_case: tc, stats: stats] in query, order_by: [asc: coalesce(stats.last_ran_at, tc.last_ran_at)])
+
+  defp apply_quarantined_order(query, :name, :desc), do: from([test_case: tc] in query, order_by: [desc: tc.name])
+
+  defp apply_quarantined_order(query, :name, :asc), do: from([test_case: tc] in query, order_by: [asc: tc.name])
+
+  defp apply_quarantined_order(query, _, _),
+    do: from([test_case: tc, stats: stats] in query, order_by: [desc: coalesce(stats.last_ran_at, tc.last_ran_at)])
+
+  defp apply_quarantined_by_filter(query, nil), do: query
+
+  # Filter by Tuist (automatic quarantine - actor_id is NULL)
+  defp apply_quarantined_by_filter(query, {:==, :tuist}),
+    do: from([quarantine: quarantine] in query, where: is_nil(quarantine.actor_id))
+
+  defp apply_quarantined_by_filter(query, {:!=, :tuist}),
+    do: from([quarantine: quarantine] in query, where: not is_nil(quarantine.actor_id))
+
+  # Filter by specific user ID
+  defp apply_quarantined_by_filter(query, {:==, user_id}) when is_integer(user_id),
+    do: from([quarantine: quarantine] in query, where: quarantine.actor_id == ^user_id)
+
+  defp apply_quarantined_by_filter(query, {:!=, user_id}) when is_integer(user_id),
+    do: from([quarantine: quarantine] in query, where: quarantine.actor_id != ^user_id or is_nil(quarantine.actor_id))
+
+  defp apply_quarantined_by_filter(query, _), do: query
+
+  defp apply_module_name_filter(query, nil), do: query
+
+  defp apply_module_name_filter(query, term),
+    do: from([test_case: tc] in query, where: ilike(tc.module_name, ^"%#{term}%"))
+
+  defp apply_suite_name_filter(query, nil), do: query
+
+  defp apply_suite_name_filter(query, term), do: from([test_case: tc] in query, where: ilike(tc.suite_name, ^"%#{term}%"))
+
+  defp row_to_quarantined_test_case(row, quarantine_info) do
+    %QuarantinedTestCase{
+      id: row.id,
+      name: row.name,
+      module_name: row.module_name,
+      suite_name: row.suite_name,
+      quarantined_by_account_id: Map.get(quarantine_info, :actor_id),
+      quarantined_by_account_name: Map.get(quarantine_info, :actor_name),
+      last_ran_at: row.last_ran_at,
+      last_run_id: row.last_run_id
     }
   end
 
