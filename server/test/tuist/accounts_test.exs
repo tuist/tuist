@@ -3906,6 +3906,23 @@ defmodule Tuist.AccountsTest do
       assert endpoints == default_endpoints
     end
 
+    test "returns environment endpoints when self-hosted" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> false end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, _} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache1.example.com"})
+      default_endpoints = ["https://cache-self-hosted.example.com"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+
+      # Then
+      assert endpoints == default_endpoints
+    end
+
     test "returns default endpoints when account handle does not exist" do
       # Given
       default_endpoints = ["https://default.tuist.dev"]
