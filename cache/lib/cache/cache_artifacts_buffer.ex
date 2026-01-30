@@ -23,11 +23,8 @@ defmodule Cache.CacheArtifactsBuffer do
     :ok
   end
 
-  def enqueue_deletes(keys) do
-    Enum.each(keys, fn key ->
-      true = :ets.insert(__MODULE__, {key, :delete})
-    end)
-
+  def enqueue_delete(key) do
+    true = :ets.insert(__MODULE__, {key, :delete})
     :ok
   end
 

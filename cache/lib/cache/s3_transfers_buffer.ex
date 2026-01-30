@@ -32,11 +32,8 @@ defmodule Cache.S3TransfersBuffer do
     :ok
   end
 
-  def enqueue_deletes(ids) do
-    Enum.each(ids, fn id ->
-      true = :ets.insert(__MODULE__, {{:delete, id}, :delete})
-    end)
-
+  def enqueue_delete(id) do
+    true = :ets.insert(__MODULE__, {{:delete, id}, :delete})
     :ok
   end
 

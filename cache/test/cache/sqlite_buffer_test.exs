@@ -56,7 +56,7 @@ defmodule Cache.SQLiteBufferTest do
     record = Repo.get_by!(CacheArtifact, key: key)
     assert record.size_bytes == 123
 
-    :ok = CacheArtifactsBuffer.enqueue_deletes([key])
+    :ok = CacheArtifactsBuffer.enqueue_delete(key)
     :ok = CacheArtifactsBuffer.flush()
 
     assert Repo.get_by(CacheArtifact, key: key) == nil
@@ -72,7 +72,7 @@ defmodule Cache.SQLiteBufferTest do
     transfers = Repo.all(S3Transfer)
     assert length(transfers) == 1
 
-    :ok = S3TransfersBuffer.enqueue_deletes([hd(transfers).id])
+    :ok = S3TransfersBuffer.enqueue_delete(hd(transfers).id)
     :ok = S3TransfersBuffer.flush()
 
     assert Repo.aggregate(S3Transfer, :count, :id) == 0
@@ -125,7 +125,7 @@ defmodule Cache.SQLiteBufferTest do
           if rem(i, 2) == 0 do
             CacheArtifactsBuffer.enqueue_access(key, i * 100, last_accessed_at)
           else
-            CacheArtifactsBuffer.enqueue_deletes([key])
+            CacheArtifactsBuffer.enqueue_delete(key)
           end
         end)
       end
