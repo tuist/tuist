@@ -47,6 +47,8 @@ defmodule CacheWeb.CASControllerTest do
         assert conn.resp_body == ""
       end)
 
+      :ok = Cache.S3TransfersBuffer.flush()
+
       uploads = S3Transfers.pending(:upload, 10)
       assert length(uploads) == 1
       upload = hd(uploads)
@@ -89,6 +91,8 @@ defmodule CacheWeb.CASControllerTest do
         assert conn.status == 204
         assert conn.resp_body == ""
       end)
+
+      :ok = Cache.S3TransfersBuffer.flush()
 
       uploads = S3Transfers.pending(:upload, 10)
       assert length(uploads) == 1
@@ -334,6 +338,8 @@ defmodule CacheWeb.CASControllerTest do
 
         assert conn.resp_body == ""
       end)
+
+      :ok = Cache.S3TransfersBuffer.flush()
 
       downloads = S3Transfers.pending(:download, 10)
       assert length(downloads) == 1
