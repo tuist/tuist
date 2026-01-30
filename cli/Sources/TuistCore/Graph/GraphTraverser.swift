@@ -25,7 +25,7 @@ public class GraphTraverser: GraphTraversing {
 
     private let graph: Graph
     private let conditionCache = ConditionCache()
-    private let conditionalTargets: ThreadSafe<Set<GraphDependency>> = ThreadSafe([])
+    private let conditionalTargets: Set<GraphDependency>
     private let swiftPluginExecutablesCache = GraphCache<GraphDependency, Set<String>>()
     private let systemFrameworkMetadataProvider: SystemFrameworkMetadataProviding =
         SystemFrameworkMetadataProvider()
@@ -34,6 +34,32 @@ public class GraphTraverser: GraphTraversing {
 
     public required init(graph: Graph) {
         self.graph = graph
+        conditionalTargets = Self.computeConditionalTargets(graph: graph)
+    }
+
+    private static func computeConditionalTargets(graph: Graph) -> Set<GraphDependency> {
+        if graph.dependencyConditions.isEmpty {
+            return []
+        }
+        let directConditionalTargets = Set(graph.dependencyConditions.keys.map { [$0.from, $0.to] }.joined())
+        var stack = Array(directConditionalTargets)
+        var visited = Set<GraphDependency>()
+        var references = Set<GraphDependency>()
+        while let node = stack.popLast() {
+            if visited.contains(node) {
+                continue
+            }
+            visited.insert(node)
+            if !directConditionalTargets.contains(node) {
+                references.insert(node)
+            }
+            if let deps = graph.dependencies[node] {
+                for dep in deps where !visited.contains(dep) {
+                    stack.append(dep)
+                }
+            }
+        }
+        return references.union(directConditionalTargets)
     }
 
     public var hasRemotePackages: Bool {
@@ -1212,16 +1238,7 @@ public class GraphTraverser: GraphTraversing {
             return .condition(nil)
         }
 
-        // Skip targets which are not in conditional part of the graph
-        let shouldSkip = conditionalTargets.mutate {
-            if $0.isEmpty {
-                let conditionalTargets = Set(graph.dependencyConditions.keys.map { [$0.from, $0.to] }.joined())
-                $0 = filterDependencies(from: conditionalTargets).union(conditionalTargets)
-            }
-            return !$0.contains(rootDependency) && !$0.contains(transitiveDependency)
-        }
-
-        if shouldSkip {
+        if !conditionalTargets.contains(rootDependency), !conditionalTargets.contains(transitiveDependency) {
             return .condition(nil)
         }
 
