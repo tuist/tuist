@@ -325,6 +325,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     packageFolder: path,
                     productTypes: productTypes,
                     productDestinations: packageSettings.productDestinations,
+                    baseSettings: packageSettings.baseSettings,
                     targetSettings: packageSettings.targetSettings,
                     packageModuleAliases: packageModuleAliases,
                     packageTraits: packageInfo.traits ?? [],
@@ -381,6 +382,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         packageFolder: AbsolutePath,
         productTypes: [String: XcodeGraph.Product],
         productDestinations: [String: XcodeGraph.Destinations],
+        baseSettings: XcodeGraph.Settings,
         targetSettings: [String: XcodeGraph.Settings],
         packageModuleAliases: [String: [String: String]],
         packageTraits: [PackageTrait],
@@ -579,6 +581,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             packageFolder: packageFolder,
             settings: target.settings,
             moduleMap: moduleMap,
+            baseSettings: baseSettings,
             targetSettings: targetSettings[target.name],
             dependencyModuleAliases: dependencyModuleAliases,
             packageTraits: packageTraits,
@@ -1053,6 +1056,7 @@ extension ProjectDescription.Settings {
         packageFolder: AbsolutePath,
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         moduleMap: ModuleMap?,
+        baseSettings: XcodeGraph.Settings,
         targetSettings: XcodeGraph.Settings?,
         dependencyModuleAliases: [String: String],
         packageTraits: [PackageTrait],
@@ -1193,9 +1197,8 @@ extension ProjectDescription.Settings {
             )
         }
 
-        if let defaultSettings = targetSettings?.defaultSettings {
-            result.defaultSettings = .from(defaultSettings: defaultSettings)
-        }
+        let defaultSettings = targetSettings?.defaultSettings ?? baseSettings.defaultSettings
+        result.defaultSettings = .from(defaultSettings: defaultSettings)
 
         for (index, configuration) in result.configurations.enumerated() {
             result.configurations[index].settings.merge(
@@ -1415,10 +1418,12 @@ extension PackageInfo {
                 )
             }
 
+        let defaultSettings = ProjectDescription.DefaultSettings.from(defaultSettings: baseSettings.defaultSettings)
+
         if configurations.isEmpty {
-            return .settings(base: settingsDictionary)
+            return .settings(base: settingsDictionary, defaultSettings: defaultSettings)
         } else {
-            return .settings(base: settingsDictionary, configurations: configurations)
+            return .settings(base: settingsDictionary, configurations: configurations, defaultSettings: defaultSettings)
         }
     }
 

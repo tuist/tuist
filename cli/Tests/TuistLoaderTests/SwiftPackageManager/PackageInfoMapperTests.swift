@@ -3170,6 +3170,123 @@ struct PackageInfoMapperTests {
         )
     }
 
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenBaseSettingsContainsDefaultSettingsExcluding_appliesExclusionToTargets() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
+        try await fileSystem.makeDirectory(at: sourcesPath)
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            packageSettings: .test(
+                baseSettings: .init(
+                    configurations: [.release: nil, .debug: nil],
+                    defaultSettings: .recommended(excluding: ["SWIFT_OPTIMIZATION_LEVEL"])
+                )
+            )
+        )
+
+        let targetSettings = try #require(project?.targets.first?.settings)
+        #expect(targetSettings.defaultSettings == .recommended(excluding: ["SWIFT_OPTIMIZATION_LEVEL"]))
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenBaseSettingsContainsDefaultSettingsExcluding_appliesExclusionToProject() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
+        try await fileSystem.makeDirectory(at: sourcesPath)
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            packageSettings: .test(
+                baseSettings: .init(
+                    configurations: [.release: nil, .debug: nil],
+                    defaultSettings: .recommended(excluding: ["SWIFT_OPTIMIZATION_LEVEL"])
+                )
+            )
+        )
+
+        let projectSettings = try #require(project?.settings)
+        #expect(projectSettings.defaultSettings == .recommended(excluding: ["SWIFT_OPTIMIZATION_LEVEL"]))
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenTargetSettingsOverridesBaseSettingsDefaultSettings_usesTargetSettings() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
+        try await fileSystem.makeDirectory(at: sourcesPath)
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            packageSettings: .test(
+                baseSettings: .init(
+                    configurations: [.release: nil, .debug: nil],
+                    defaultSettings: .recommended(excluding: ["SWIFT_OPTIMIZATION_LEVEL"])
+                ),
+                targetSettings: [
+                    "Target1": .test(defaultSettings: .essential(excluding: ["GCC_OPTIMIZATION_LEVEL"])),
+                ]
+            )
+        )
+
+        let targetSettings = try #require(project?.targets.first?.settings)
+        #expect(targetSettings.defaultSettings == .essential(excluding: ["GCC_OPTIMIZATION_LEVEL"]))
+    }
+
     @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func map_whenConditionalSetting() async throws {
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target1"))
