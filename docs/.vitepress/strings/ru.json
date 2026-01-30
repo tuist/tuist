@@ -46,7 +46,7 @@
                 },
                 "no-results-screen": {
                     "no-results-text": "Результаты не найдены",
-                    "suggested-query-text": "Вы можете попробовать запросить",
+                    "suggested-query-text": "Вы можете попробовать сделать запрос",
                     "report-missing-results-text": "Считаете, что этот запрос должен иметь результаты?",
                     "report-missing-results-link-text": "Нажмите, чтобы оставить отзыв"
                 }
