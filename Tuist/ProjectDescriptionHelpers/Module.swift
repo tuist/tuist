@@ -800,6 +800,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.launchctl.targetName),
                     .target(name: Module.oidc.targetName),
                     .target(name: Module.http.targetName),
+                    .target(name: Module.cas.targetName),
                     .external(name: "ArgumentParser"),
                     .external(name: "GraphViz"),
                     .external(name: "AnyCodable"),
