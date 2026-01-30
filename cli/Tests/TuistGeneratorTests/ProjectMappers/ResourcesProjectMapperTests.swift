@@ -459,6 +459,52 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
+    func mapWhenBuildableFolderContainsMetalFilesAndTargetDoesntSupportResources() async throws {
+        // Given
+        let metalFilePath = try AbsolutePath(validating: "/sources/Shader.metal")
+        let swiftFilePath = try AbsolutePath(validating: "/sources/File.swift")
+        let buildableFolders = [
+            BuildableFolder(
+                path: try AbsolutePath(validating: "/sources"),
+                exceptions: BuildableFolderExceptions(exceptions: []),
+                resolvedFiles: [
+                    BuildableFolderFile(path: swiftFilePath, compilerFlags: nil),
+                    BuildableFolderFile(path: metalFilePath, compilerFlags: nil),
+                ]
+            ),
+        ]
+        let target = Target.test(
+            product: .staticLibrary,
+            sources: [],
+            resources: ResourceFileElements([]),
+            buildableFolders: buildableFolders
+        )
+        let project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value(buildableFolders)).willReturn(false)
+        given(buildableFolderChecker).containsSources(.any).willReturn(true)
+
+        // When
+        let (gotProject, _) = try await subject.map(project: project)
+
+        // Then: A resource bundle target should be created for the Metal files
+        #expect(gotProject.targets.count == 2)
+
+        let resourcesTarget = try #require(gotProject.targets.values.first(where: { $0.product == .bundle }))
+        #expect(resourcesTarget.name == "\(project.name)_\(target.name)")
+        #expect(resourcesTarget.bundleId == "\(target.bundleId).generated.resources")
+
+        // The resource bundle's buildable folder should contain the Metal file (excluded from sources)
+        let resourceBuildableFolder = try #require(resourcesTarget.buildableFolders.first)
+        #expect(resourceBuildableFolder.resolvedFiles.contains(where: { $0.path.extension == "metal" }))
+
+        // The original target's buildable folder should exclude the Metal file
+        let gotTarget = try #require(gotProject.targets.values.first(where: { $0.product == .staticLibrary }))
+        let sourceBuildableFolder = try #require(gotTarget.buildableFolders.first)
+        #expect(!sourceBuildableFolder.resolvedFiles.contains(where: { $0.path.extension == "metal" }))
+        #expect(sourceBuildableFolder.resolvedFiles.contains(where: { $0.path.extension == "swift" }))
+    }
+
+    @Test
     func mapWhenTargetHasCoreDataModelsAndDoesntSupportThem() async throws {
         // Given
         let coreDataModels: [CoreDataModel] =
