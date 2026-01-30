@@ -16,7 +16,8 @@ defmodule Cache.KeyValueBuffer do
   end
 
   def enqueue(key, json_payload) do
-    SQLiteBuffer.enqueue(__MODULE__, {:key_value, key, json_payload})
+    true = :ets.insert(__MODULE__, {key, %{key: key, json_payload: json_payload}})
+    :ok
   end
 
   def flush do
@@ -36,36 +37,32 @@ defmodule Cache.KeyValueBuffer do
   def buffer_name, do: :key_values
 
   @impl true
-  def init_state, do: %{entries: %{}}
+  def flush_entries(table, max_batch_size) do
+    match_spec = [{{:"$1", :"$2"}, [], [{{:"$1", :"$2"}}]}]
 
-  @impl true
-  def handle_event(state, {:key_value, key, json_payload}) do
-    entries = Map.put(state.entries, key, %{key: key, json_payload: json_payload})
-    %{state | entries: entries}
-  end
+    case :ets.select(table, match_spec, max_batch_size) do
+      {entries, _continuation} ->
+        Enum.each(entries, &:ets.delete_object(table, &1))
 
-  @impl true
-  def flush_batches(state, max_batch_size) do
-    {batch, rest} = SQLiteBuffer.take_map_batch(state.entries, max_batch_size)
+        if entries == [] do
+          []
+        else
+          [{:key_values, Map.new(entries)}]
+        end
 
-    operations =
-      if map_size(batch) == 0 do
+      :"$end_of_table" ->
         []
-      else
-        [{:key_values, batch}]
-      end
-
-    {operations, %{state | entries: rest}}
+    end
   end
 
   @impl true
-  def queue_stats(state) do
-    count = map_size(state.entries)
+  def queue_stats(table) do
+    count = SQLiteBuffer.table_size(table)
     %{key_values: count, total: count}
   end
 
   @impl true
-  def queue_empty?(state), do: map_size(state.entries) == 0
+  def queue_empty?(table), do: SQLiteBuffer.table_size(table) == 0
 
   @impl true
   def write_batch(:key_values, entries) do

@@ -29,10 +29,6 @@ defmodule Cache.SQLiteBuffer do
     }
   end
 
-  def enqueue(server, event) do
-    GenServer.call(server, {:enqueue, event})
-  end
-
   def flush(server) do
     GenServer.call(server, :flush, flush_timeout_ms(server))
   end
@@ -51,25 +47,21 @@ defmodule Cache.SQLiteBuffer do
     Process.flag(:trap_exit, true)
 
     buffer_module = Keyword.fetch!(opts, :buffer_module)
+    name = Keyword.fetch!(opts, :name)
 
-    {:ok,
-     %{
-       buffer_module: buffer_module,
-       buffer_state: buffer_module.init_state(),
-       timer_ref: nil,
-       flush_interval_ms: config_value(buffer_module, :flush_interval_ms, @default_flush_interval_ms),
-       flush_timeout_ms: config_value(buffer_module, :flush_timeout_ms, @default_flush_timeout_ms),
-       max_batch_size: config_value(buffer_module, :max_batch_size, @default_max_batch_size)
-     }}
-  end
+    table =
+      :ets.new(name, [:set, :public, :named_table, {:write_concurrency, true}])
 
-  @impl true
-  def handle_call({:enqueue, event}, _from, state) do
-    buffer_state = state.buffer_module.handle_event(state.buffer_state, event)
-    state = %{state | buffer_state: buffer_state}
-    state = ensure_flush_timer(state)
-    state = maybe_request_flush(state)
-    {:reply, :ok, state}
+    state = %{
+      buffer_module: buffer_module,
+      table: table,
+      timer_ref: nil,
+      flush_interval_ms: config_value(buffer_module, :flush_interval_ms, @default_flush_interval_ms),
+      flush_timeout_ms: config_value(buffer_module, :flush_timeout_ms, @default_flush_timeout_ms),
+      max_batch_size: config_value(buffer_module, :max_batch_size, @default_max_batch_size)
+    }
+
+    {:ok, ensure_flush_timer(state)}
   end
 
   @impl true
@@ -88,7 +80,9 @@ defmodule Cache.SQLiteBuffer do
   @impl true
   def handle_call(:reset, _from, state) do
     state = cancel_flush_timer(state)
-    {:reply, :ok, %{state | buffer_state: state.buffer_module.init_state()}}
+    :ets.delete_all_objects(state.table)
+    state = ensure_flush_timer(state)
+    {:reply, :ok, state}
   end
 
   @impl true
@@ -108,13 +102,10 @@ defmodule Cache.SQLiteBuffer do
   end
 
   defp flush_state(state, mode) do
-    {batches, buffer_state} =
-      state.buffer_module.flush_batches(state.buffer_state, state.max_batch_size)
+    operations = state.buffer_module.flush_entries(state.table, state.max_batch_size)
+    state = Enum.reduce(operations, state, &execute_operation/2)
 
-    state = %{state | buffer_state: buffer_state}
-    state = Enum.reduce(batches, state, &execute_operation/2)
-
-    if mode == :drain and not state.buffer_module.queue_empty?(state.buffer_state) do
+    if mode == :drain and not state.buffer_module.queue_empty?(state.table) do
       flush_state(state, mode)
     else
       state
@@ -141,7 +132,7 @@ defmodule Cache.SQLiteBuffer do
   defp batch_size(_entries), do: 0
 
   defp ensure_flush_timer(state) do
-    if state.timer_ref == nil and not state.buffer_module.queue_empty?(state.buffer_state) do
+    if state.timer_ref == nil do
       ref = Process.send_after(self(), :flush, state.flush_interval_ms)
       %{state | timer_ref: ref}
     else
@@ -163,25 +154,8 @@ defmodule Cache.SQLiteBuffer do
     %{state | timer_ref: nil}
   end
 
-  defp maybe_request_flush(state) do
-    stats = build_queue_stats(state)
-
-    if should_flush_now?(stats, state.max_batch_size) do
-      state = cancel_flush_timer(state)
-      buffer_name = state.buffer_module.buffer_name()
-      Logger.notice("#{buffer_name} buffer full, flushing to SQLite")
-      send(self(), :flush)
-    end
-
-    state
-  end
-
   defp build_queue_stats(state) do
-    state.buffer_module.queue_stats(state.buffer_state)
-  end
-
-  defp should_flush_now?(stats, max_batch_size) do
-    stats.total >= max_batch_size
+    state.buffer_module.queue_stats(state.table)
   end
 
   defp emit_flush_metrics(buffer_name, operation, duration_microseconds, batch_size) do
@@ -207,16 +181,13 @@ defmodule Cache.SQLiteBuffer do
     config_value(server, :flush_timeout_ms, @default_flush_timeout_ms)
   end
 
-  @doc false
-  def take_map_batch(queue, max_batch_size) do
-    {batch_list, rest_list} = Enum.split(queue, max_batch_size)
-    {Map.new(batch_list), Map.new(rest_list)}
-  end
-
-  @doc false
-  def take_set_batch(queue, max_batch_size) do
-    items = MapSet.to_list(queue)
-    {batch_list, rest_list} = Enum.split(items, max_batch_size)
-    {batch_list, MapSet.new(rest_list)}
+  @doc """
+  Returns the size of an ETS table, returning 0 if the table doesn't exist.
+  """
+  def table_size(table) do
+    case :ets.info(table, :size) do
+      :undefined -> 0
+      size -> size
+    end
   end
 end

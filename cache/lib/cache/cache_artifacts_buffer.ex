@@ -18,11 +18,17 @@ defmodule Cache.CacheArtifactsBuffer do
   end
 
   def enqueue_access(key, size_bytes, last_accessed_at) do
-    SQLiteBuffer.enqueue(__MODULE__, {:artifact_access, key, size_bytes, last_accessed_at})
+    entry = %{key: key, size_bytes: size_bytes, last_accessed_at: last_accessed_at}
+    true = :ets.insert(__MODULE__, {key, {:access, entry}})
+    :ok
   end
 
   def enqueue_deletes(keys) do
-    SQLiteBuffer.enqueue(__MODULE__, {:artifact_delete, keys})
+    Enum.each(keys, fn key ->
+      true = :ets.insert(__MODULE__, {key, :delete})
+    end)
+
+    :ok
   end
 
   def flush do
@@ -42,52 +48,50 @@ defmodule Cache.CacheArtifactsBuffer do
   def buffer_name, do: :cas_artifacts
 
   @impl true
-  def init_state do
-    %{artifact_accesses: %{}, artifact_deletes: MapSet.new()}
-  end
+  def flush_entries(table, max_batch_size) do
+    access_spec = [{{:"$1", {:access, :"$2"}}, [], [:"$_"]}]
+    delete_spec = [{{:"$1", :delete}, [], [:"$_"]}]
 
-  @impl true
-  def handle_event(state, {:artifact_access, key, size_bytes, last_accessed_at}) do
-    entry = %{key: key, size_bytes: size_bytes, last_accessed_at: last_accessed_at}
-    artifact_accesses = Map.put(state.artifact_accesses, key, entry)
-    artifact_deletes = MapSet.delete(state.artifact_deletes, key)
-    %{state | artifact_accesses: artifact_accesses, artifact_deletes: artifact_deletes}
-  end
+    accesses =
+      case :ets.select(table, access_spec, max_batch_size) do
+        {entries, _continuation} ->
+          Enum.each(entries, &:ets.delete_object(table, &1))
+          Enum.map(entries, fn {key, {:access, entry}} -> {key, entry} end)
 
-  @impl true
-  def handle_event(state, {:artifact_delete, keys}) do
-    artifact_deletes = Enum.reduce(keys, state.artifact_deletes, &MapSet.put(&2, &1))
-    artifact_accesses = Map.drop(state.artifact_accesses, keys)
-    %{state | artifact_deletes: artifact_deletes, artifact_accesses: artifact_accesses}
-  end
+        :"$end_of_table" ->
+          []
+      end
 
-  @impl true
-  def flush_batches(state, max_batch_size) do
-    {accesses_batch, accesses_rest} = SQLiteBuffer.take_map_batch(state.artifact_accesses, max_batch_size)
-    {deletes_batch, deletes_rest} = SQLiteBuffer.take_set_batch(state.artifact_deletes, max_batch_size)
+    deletes =
+      case :ets.select(table, delete_spec, max_batch_size) do
+        {entries, _continuation} ->
+          Enum.each(entries, &:ets.delete_object(table, &1))
+          Enum.map(entries, fn {key, :delete} -> key end)
+
+        :"$end_of_table" ->
+          []
+      end
 
     operations =
       Enum.reject(
         [
-          if(map_size(accesses_batch) > 0, do: {:artifact_accesses, accesses_batch}),
-          if(deletes_batch != [], do: {:artifact_deletes, deletes_batch})
+          if(accesses != [], do: {:artifact_accesses, Map.new(accesses)}),
+          if(deletes != [], do: {:artifact_deletes, deletes})
         ],
         &is_nil/1
       )
 
-    {operations, %{state | artifact_accesses: accesses_rest, artifact_deletes: deletes_rest}}
+    operations
   end
 
   @impl true
-  def queue_stats(state) do
-    count = map_size(state.artifact_accesses) + MapSet.size(state.artifact_deletes)
+  def queue_stats(table) do
+    count = SQLiteBuffer.table_size(table)
     %{cas_artifacts: count, total: count}
   end
 
   @impl true
-  def queue_empty?(state) do
-    map_size(state.artifact_accesses) == 0 and MapSet.size(state.artifact_deletes) == 0
-  end
+  def queue_empty?(table), do: SQLiteBuffer.table_size(table) == 0
 
   @impl true
   def write_batch(:artifact_accesses, entries) do

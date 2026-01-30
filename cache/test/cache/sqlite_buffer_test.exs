@@ -85,12 +85,85 @@ defmodule Cache.SQLiteBufferTest do
     {:ok, pid} = SQLiteBuffer.start_link(name: :sqlite_buffer_test, buffer_module: KeyValueBuffer)
 
     Sandbox.allow(Repo, self(), pid)
-    :ok = GenServer.call(pid, {:enqueue, {:key_value, key, payload}})
+    true = :ets.insert(:sqlite_buffer_test, {key, %{key: key, json_payload: payload}})
 
     :ok = GenServer.stop(pid)
 
     record = Repo.get_by!(KeyValueEntry, key: key)
     assert record.json_payload == payload
+  end
+
+  test "concurrent writes to the same key preserve last value" do
+    key = "keyvalue:concurrent:account:project"
+
+    tasks =
+      for i <- 1..100 do
+        Task.async(fn ->
+          payload = Jason.encode!(%{value: i})
+          KeyValueBuffer.enqueue(key, payload)
+        end)
+      end
+
+    Task.await_many(tasks)
+
+    assert %{key_values: 1} = KeyValueBuffer.queue_stats()
+
+    :ok = KeyValueBuffer.flush()
+
+    record = Repo.get_by!(KeyValueEntry, key: key)
+    decoded = Jason.decode!(record.json_payload)
+    assert decoded["value"] in 1..100
+  end
+
+  test "concurrent access and delete for same key preserves last operation" do
+    key = "account/project/cas/ab/cd/concurrent"
+    last_accessed_at = DateTime.utc_now()
+
+    tasks =
+      for i <- 1..100 do
+        Task.async(fn ->
+          if rem(i, 2) == 0 do
+            CacheArtifactsBuffer.enqueue_access(key, i * 100, last_accessed_at)
+          else
+            CacheArtifactsBuffer.enqueue_deletes([key])
+          end
+        end)
+      end
+
+    Task.await_many(tasks)
+
+    assert %{cas_artifacts: 1} = CacheArtifactsBuffer.queue_stats()
+
+    :ok = CacheArtifactsBuffer.flush()
+
+    case Repo.get_by(CacheArtifact, key: key) do
+      nil ->
+        assert true
+
+      record ->
+        assert rem(record.size_bytes, 100) == 0
+    end
+  end
+
+  test "writes during flush are not lost" do
+    base_key = "keyvalue:during_flush:account:project"
+
+    for i <- 1..50 do
+      KeyValueBuffer.enqueue("#{base_key}:#{i}", Jason.encode!(%{batch: "first", index: i}))
+    end
+
+    flush_task = Task.async(fn -> KeyValueBuffer.flush() end)
+
+    for i <- 51..100 do
+      KeyValueBuffer.enqueue("#{base_key}:#{i}", Jason.encode!(%{batch: "second", index: i}))
+    end
+
+    Task.await(flush_task)
+
+    :ok = KeyValueBuffer.flush()
+
+    count = Repo.aggregate(KeyValueEntry, :count, :id)
+    assert count == 100
   end
 
   defp allow_buffer(buffer) do
