@@ -277,10 +277,36 @@ public class GraphTraverser: GraphTraversing {
             skip: canDependencyEmbedBundles
         )
 
+        let externalStaticFrameworkBundleResources: Set<GraphDependencyReference> = {
+            guard canEmbedBundles(target: target) else { return [] }
+            let externalStaticFrameworks = filterDependencies(
+                from: .target(name: name, path: path),
+                test: { dependency in
+                    guard let graphTarget = self.target(from: dependency) else { return false }
+                    guard case .external = graphTarget.project.type else { return false }
+                    return graphTarget.target.product == .staticFramework &&
+                        graphTarget.target.containsResources
+                },
+                skip: canDependencyEmbedBundles
+            )
+            var bundleReferences = Set<GraphDependencyReference>()
+            for dependency in externalStaticFrameworks {
+                guard let graphTarget = self.target(from: dependency) else { continue }
+                let condition = combinedCondition(to: dependency, from: .target(name: name, path: path))
+                guard case let .condition(platformCondition) = condition else { continue }
+                for resource in graphTarget.target.resources.resources {
+                    if resource.path.extension == "bundle" {
+                        bundleReferences.insert(.bundle(path: resource.path, condition: platformCondition))
+                    }
+                }
+            }
+            return bundleReferences
+        }()
+
         return Set(
             bundles.union(externalBundles)
                 .compactMap { dependencyReference(to: $0, from: .target(name: name, path: path)) }
-        )
+        ).union(externalStaticFrameworkBundleResources)
     }
 
     public func target(from dependency: GraphDependency) -> GraphTarget? {
