@@ -34,7 +34,7 @@ public class GraphTraverser: GraphTraversing {
 
     public required init(graph: Graph) {
         self.graph = graph
-        self.conditionalTargets = Self.computeConditionalTargets(graph: graph)
+        conditionalTargets = Self.computeConditionalTargets(graph: graph)
     }
 
     private static func computeConditionalTargets(graph: Graph) -> Set<GraphDependency> {
