@@ -46,7 +46,7 @@
                 },
                 "no-results-screen": {
                     "no-results-text": "Результаты не найдены",
-                    "suggested-query-text": "Вы можете попробовать сделать запрос",
+                    "suggested-query-text": "Вы можете попробовать запросить",
                     "report-missing-results-text": "Считаете, что этот запрос должен иметь результаты?",
                     "report-missing-results-link-text": "Нажмите, чтобы оставить отзыв"
                 }
@@ -110,7 +110,7 @@
                     "text": "Миграции",
                     "items": {
                         "from-v3-to-v4": {
-                            "text": "C версии v3 на версию v4"
+                            "text": "От v3 до версии v4"
                         }
                     }
                 }
