@@ -63,14 +63,14 @@ defmodule Cache.S3Transfers do
   Deletes a single transfer by ID.
   """
   def delete(id) do
-    S3TransfersBuffer.enqueue_deletes([id])
+    S3TransfersBuffer.enqueue_delete(id)
   end
 
   @doc """
   Deletes multiple transfers by their IDs.
   """
   def delete_all(ids) when is_list(ids) do
-    S3TransfersBuffer.enqueue_deletes(ids)
+    Enum.each(ids, &S3TransfersBuffer.enqueue_delete/1)
   end
 
   defp enqueue(type, account_handle, project_handle, artifact_type, key) do

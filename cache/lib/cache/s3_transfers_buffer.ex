@@ -18,14 +18,23 @@ defmodule Cache.S3TransfersBuffer do
   end
 
   def enqueue(type, account_handle, project_handle, artifact_type, key) do
-    SQLiteBuffer.enqueue(
-      __MODULE__,
-      {:s3_insert, type, account_handle, project_handle, artifact_type, key}
-    )
+    entry = %{
+      id: UUIDv7.generate(),
+      type: type,
+      account_handle: account_handle,
+      project_handle: project_handle,
+      artifact_type: artifact_type,
+      key: key,
+      inserted_at: DateTime.truncate(DateTime.utc_now(), :second)
+    }
+
+    true = :ets.insert(__MODULE__, {{:insert, type, key}, entry})
+    :ok
   end
 
-  def enqueue_deletes(ids) do
-    SQLiteBuffer.enqueue(__MODULE__, {:s3_delete, ids})
+  def enqueue_delete(id) do
+    true = :ets.insert(__MODULE__, {{:delete, id}, :delete})
+    :ok
   end
 
   def flush do
@@ -45,59 +54,50 @@ defmodule Cache.S3TransfersBuffer do
   def buffer_name, do: :s3_transfers
 
   @impl true
-  def init_state do
-    %{s3_inserts: %{}, s3_deletes: MapSet.new()}
-  end
+  def flush_entries(table, max_batch_size) do
+    insert_spec = [{{{:insert, :"$1", :"$2"}, :"$3"}, [], [:"$_"]}]
+    delete_spec = [{{{:delete, :"$1"}, :delete}, [], [:"$_"]}]
 
-  @impl true
-  def handle_event(state, {:s3_insert, type, account_handle, project_handle, artifact_type, key}) do
-    entry = %{
-      id: UUIDv7.generate(),
-      type: type,
-      account_handle: account_handle,
-      project_handle: project_handle,
-      artifact_type: artifact_type,
-      key: key,
-      inserted_at: DateTime.truncate(DateTime.utc_now(), :second)
-    }
+    inserts =
+      case :ets.select(table, insert_spec, max_batch_size) do
+        {entries, _continuation} ->
+          Enum.each(entries, &:ets.delete_object(table, &1))
+          entries
 
-    key_tuple = {type, key}
-    %{state | s3_inserts: Map.put(state.s3_inserts, key_tuple, entry)}
-  end
+        :"$end_of_table" ->
+          []
+      end
 
-  @impl true
-  def handle_event(state, {:s3_delete, ids}) do
-    s3_deletes = Enum.reduce(ids, state.s3_deletes, &MapSet.put(&2, &1))
-    %{state | s3_deletes: s3_deletes}
-  end
+    deletes =
+      case :ets.select(table, delete_spec, max_batch_size) do
+        {entries, _continuation} ->
+          Enum.each(entries, &:ets.delete_object(table, &1))
+          Enum.map(entries, fn {{:delete, id}, :delete} -> id end)
 
-  @impl true
-  def flush_batches(state, max_batch_size) do
-    {inserts_batch, inserts_rest} = SQLiteBuffer.take_map_batch(state.s3_inserts, max_batch_size)
-    {deletes_batch, deletes_rest} = SQLiteBuffer.take_set_batch(state.s3_deletes, max_batch_size)
+        :"$end_of_table" ->
+          []
+      end
 
     operations =
       Enum.reject(
         [
-          if(map_size(inserts_batch) > 0, do: {:s3_inserts, inserts_batch}),
-          if(deletes_batch != [], do: {:s3_deletes, deletes_batch})
+          if(inserts != [], do: {:s3_inserts, Map.new(inserts)}),
+          if(deletes != [], do: {:s3_deletes, deletes})
         ],
         &is_nil/1
       )
 
-    {operations, %{state | s3_inserts: inserts_rest, s3_deletes: deletes_rest}}
+    operations
   end
 
   @impl true
-  def queue_stats(state) do
-    count = map_size(state.s3_inserts) + MapSet.size(state.s3_deletes)
+  def queue_stats(table) do
+    count = SQLiteBuffer.table_size(table)
     %{s3_transfers: count, total: count}
   end
 
   @impl true
-  def queue_empty?(state) do
-    map_size(state.s3_inserts) == 0 and MapSet.size(state.s3_deletes) == 0
-  end
+  def queue_empty?(table), do: SQLiteBuffer.table_size(table) == 0
 
   @impl true
   def write_batch(:s3_inserts, entries) do
