@@ -198,14 +198,17 @@ struct CacheConfigServiceTests {
     @Test(.withMockedEnvironment())
     func run_throws_when_server_url_is_invalid() async throws {
         // Given - no mocks needed, error occurs before any service calls
+        // Note: URL(string:) is very permissive - spaces are percent-encoded.
+        // We need a string that actually fails URL initialization.
+        let invalidURL = "http://[invalid"
 
         // When/Then
-        await #expect(throws: CacheConfigServiceError.invalidServerURL("not a url")) {
+        await #expect(throws: CacheConfigServiceError.invalidServerURL(invalidURL)) {
             try await subject.run(
                 fullHandle: "my-account/my-project",
                 json: true,
                 directory: nil,
-                serverURL: "not a url"
+                serverURL: invalidURL
             )
         }
     }
