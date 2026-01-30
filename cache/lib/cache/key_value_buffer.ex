@@ -43,12 +43,7 @@ defmodule Cache.KeyValueBuffer do
     case :ets.select(table, match_spec, max_batch_size) do
       {entries, _continuation} ->
         Enum.each(entries, &:ets.delete_object(table, &1))
-
-        if entries == [] do
-          []
-        else
-          [{:key_values, Map.new(entries)}]
-        end
+        [{:key_values, Map.new(entries)}]
 
       :"$end_of_table" ->
         []
