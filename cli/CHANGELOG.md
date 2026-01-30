@@ -1,14 +1,24 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.133.1<!-- RELEASE NOTES START -->
+## What's Changed in 4.133.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* propagate .bundle resource files from external static frameworks to host app by [@pepicrft](https://github.com/pepicrft) in [#9294](https://github.com/tuist/tuist/pull/9294)
+* search host bundle paths in ObjC resource bundle accessor by [@pepicrft](https://github.com/pepicrft) in [#9295](https://github.com/tuist/tuist/pull/9295)
+* harden log cleanup by [@pepicrft](https://github.com/pepicrft) in [#9296](https://github.com/tuist/tuist/pull/9296)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.133.2...4.133.3
+
+## What's Changed in 4.133.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
 
 * eagerly compute conditional targets to prevent thread starvation during generation by [@pepicrft](https://github.com/pepicrft) in [#9292](https://github.com/tuist/tuist/pull/9292)
 * only embed static XCFrameworks containing .framework bundles by [@pepicrft](https://github.com/pepicrft) in [#9288](https://github.com/tuist/tuist/pull/9288)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.133.0...4.133.1
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.133.0...4.133.2
 
 ## What's Changed in 4.133.0<!-- RELEASE NOTES START -->
 
