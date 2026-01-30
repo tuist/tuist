@@ -1,3 +1,4 @@
+#if os(macOS)
 import Foundation
 import struct Logging.Logger
 @preconcurrency import os
@@ -76,3 +77,4 @@ extension OSLogType {
         }
     }
 }
+#endif

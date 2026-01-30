@@ -1,3 +1,4 @@
+#if os(macOS)
 import CryptoKit
 import Foundation
 import Path
@@ -379,3 +380,4 @@ public class FileHandler: FileHandling {
         )
     }
 }
+#endif

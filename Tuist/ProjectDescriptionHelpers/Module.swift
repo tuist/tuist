@@ -9,6 +9,9 @@ public enum Module: String, CaseIterable {
     case projectAutomation = "ProjectAutomation"
     case acceptanceTesting = "TuistAcceptanceTesting"
     case testing = "TuistTesting"
+    case constants = "TuistConstants"
+    case environment = "TuistEnvironment"
+    case logging = "TuistLogging"
     case support = "TuistSupport"
     case kit = "TuistKit"
     case core = "TuistCore"
@@ -244,7 +247,8 @@ public enum Module: String, CaseIterable {
         switch self {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
              .projectDescription,
-             .acceptanceTesting, .simulator, .testing, .process:
+             .acceptanceTesting, .simulator, .testing, .process,
+             .constants, .environment, .logging:
             return nil
         default:
             return "\(rawValue)Tests"
@@ -333,7 +337,8 @@ public enum Module: String, CaseIterable {
 
         // Domain tags
         switch self {
-        case .projectDescription, .projectAutomation, .support, .core:
+        case .projectDescription, .projectAutomation, .support, .core,
+             .constants, .environment, .logging:
             moduleTags.append("domain:foundation")
         case .generator, .hasher, .cache:
             moduleTags.append("domain:generation")
@@ -363,7 +368,8 @@ public enum Module: String, CaseIterable {
 
         // Layer tags
         switch self {
-        case .projectDescription, .projectAutomation, .support, .core:
+        case .projectDescription, .projectAutomation, .support, .core,
+             .constants, .environment, .logging:
             moduleTags.append("layer:foundation")
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator:
             moduleTags.append("layer:tool")
@@ -381,6 +387,17 @@ public enum Module: String, CaseIterable {
             switch self {
             case .process:
                 []
+            case .constants:
+                []
+            case .environment:
+                [
+                    .external(name: "FileSystem"),
+                ]
+            case .logging:
+                [
+                    .target(name: Module.environment.targetName),
+                    .external(name: "Logging"),
+                ]
             case .testing:
                 [
                     .target(name: Module.projectDescription.targetName),
@@ -444,6 +461,9 @@ public enum Module: String, CaseIterable {
                 []
             case .support:
                 [
+                    .target(name: Module.constants.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.logging.targetName),
                     .target(name: Module.projectDescription.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "SwiftToolsSupport"),
@@ -730,7 +750,8 @@ public enum Module: String, CaseIterable {
     public var unitTestDependencies: [TargetDependency] {
         var dependencies: [TargetDependency] =
             switch self {
-            case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .process:
+            case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .process,
+                 .constants, .environment, .logging:
                 []
             case .tuistFixtureGenerator:
                 [
