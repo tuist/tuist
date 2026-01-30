@@ -341,12 +341,22 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                                           nil];
 
             // Tuist: For static frameworks, resources are inside the embedded framework bundle.
-            // Add framework locations to search for the framework bundle itself.
+            // Search both the host bundle (bundleForClass:) and the main bundle so the framework
+            // is found regardless of whether the static framework is linked into the app or into
+            // an intermediate dynamic framework.
             NSString *frameworkName = @"\(target.productNameWithExtension)";
+            NSBundle *hostBundle = [NSBundle bundleForClass:\(targetName)BundleFinder.self];
+            if (hostBundle.privateFrameworksURL) {
+                [candidates addObject:[hostBundle.privateFrameworksURL URLByAppendingPathComponent:frameworkName]];
+            }
+            [candidates addObject:[[hostBundle bundleURL] URLByAppendingPathComponent:[@"Frameworks/" stringByAppendingString:frameworkName]]];
+            [candidates addObject:[[hostBundle bundleURL] URLByAppendingPathComponent:frameworkName]];
+            [candidates addObject:[hostBundle.bundleURL URLByDeletingLastPathComponent]];
             if ([NSBundle mainBundle].privateFrameworksURL) {
                 [candidates addObject:[[NSBundle mainBundle].privateFrameworksURL URLByAppendingPathComponent:frameworkName]];
             }
             [candidates addObject:[[[NSBundle mainBundle] bundleURL] URLByAppendingPathComponent:[@"Frameworks/" stringByAppendingString:frameworkName]]];
+            [candidates addObject:[[[NSBundle mainBundle] bundleURL] URLByAppendingPathComponent:frameworkName]];
 
             NSString* override = [[[NSProcessInfo processInfo] environment] objectForKey:@"PACKAGE_RESOURCE_BUNDLE_PATH"];
             if (override) {
