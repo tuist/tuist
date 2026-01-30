@@ -7,11 +7,9 @@ import XcodeGraph
 /// A project mapper that adds support for defining resources in targets that don't support it
 public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this type_body_length
     private let contentHasher: ContentHashing
-    private let buildableFolderChecker: BuildableFolderChecking
 
-    public init(contentHasher: ContentHashing, buildableFolderChecker: BuildableFolderChecking = BuildableFolderChecker()) {
+    public init(contentHasher: ContentHashing) {
         self.contentHasher = contentHasher
-        self.buildableFolderChecker = buildableFolderChecker
     }
 
     public func map(project: Project) async throws -> (Project, [SideEffectDescriptor]) {
@@ -37,7 +35,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
 
     // swiftlint:disable:next function_body_length
     public func mapTarget(_ target: Target, project: Project) async throws -> ([Target], [SideEffectDescriptor]) {
-        let containsResourcesInBuildableFolders = try await buildableFolderChecker.containsResources(target.buildableFolders)
+        let containsResourcesInBuildableFolders = target.buildableFoldersContainResources
         let containsSynthesizedResourcesInBuildableFolders = containsSynthesizedFilesInBuildableFolders(
             target: target,
             project: project
@@ -105,7 +103,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             additionalTargets.append(resourcesTarget)
         }
 
-        let containSourcesInBuildableFolders = try await buildableFolderChecker.containsSources(target.buildableFolders)
+        let containSourcesInBuildableFolders = target.buildableFoldersContainSources
         if target.sources.containsSwiftFiles || containSourcesInBuildableFolders {
             let (filePath, data) = synthesizedSwiftFile(
                 bundleName: bundleName,

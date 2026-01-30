@@ -1276,6 +1276,48 @@ final class GraphTraverserTests: TuistUnitTestCase {
         )
     }
 
+    func test_embeddableFrameworks_when_dependencyIsStaticFrameworkWithResourcesInBuildableFolders() throws {
+        // Given
+        let target = Target.test(name: "Main", product: .app)
+        let staticFramework = Target.test(
+            name: "StaticResourcesFramework",
+            product: .staticFramework,
+            resources: .init([]),
+            buildableFolders: [
+                BuildableFolder(
+                    path: "/path/to/StaticFramework",
+                    exceptions: BuildableFolderExceptions(exceptions: []),
+                    resolvedFiles: [
+                        BuildableFolderFile(path: "/path/to/StaticFramework/Resources/data.json", compilerFlags: nil),
+                    ]
+                ),
+            ]
+        )
+        let project = Project.test(targets: [target, staticFramework])
+
+        // Given: Value Graph
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(
+                    name: target.name,
+                    path: project.path
+                ): Set(arrayLiteral: .target(name: staticFramework.name, path: project.path)),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
+
+        // Then
+        XCTAssertEqual(
+            got, [
+                .product(target: "StaticResourcesFramework", productName: "StaticResourcesFramework.framework"),
+            ]
+        )
+    }
+
     func test_embeddableFrameworks_when_dependencyIsExternalStaticFrameworkWithResources() throws {
         // Given
         let app = Target.test(name: "Main", product: .app)

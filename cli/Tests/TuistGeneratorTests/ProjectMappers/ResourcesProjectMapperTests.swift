@@ -17,13 +17,11 @@ private func supportsResources(for target: Target) -> Bool {
 // swiftlint:disable:next type_body_length
 struct ResourcesProjectMapperTests {
     private let contentHasher: MockContentHashing
-    private let buildableFolderChecker: MockBuildableFolderChecking
     private let subject: ResourcesProjectMapper
 
     init() {
         contentHasher = MockContentHashing()
-        buildableFolderChecker = MockBuildableFolderChecking()
-        subject = ResourcesProjectMapper(contentHasher: contentHasher, buildableFolderChecker: buildableFolderChecker)
+        subject = ResourcesProjectMapper(contentHasher: contentHasher)
 
         given(contentHasher)
             .hash(Parameter<Data>.any)
@@ -36,8 +34,6 @@ struct ResourcesProjectMapperTests {
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
         let target = Target.test(product: .staticLibrary, sources: ["/Absolute/File.swift"], resources: .init(resources))
         let project = Project.test(targets: [target])
-        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
-        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // When
         let (gotProject, gotSideEffects) = try await subject.map(project: project)
@@ -107,8 +103,6 @@ struct ResourcesProjectMapperTests {
             metadata: TargetMetadata(tags: parentTags)
         )
         let project = Project.test(targets: [target])
-        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
-        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // When
         let (gotProject, _) = try await subject.map(project: project)
@@ -127,8 +121,6 @@ struct ResourcesProjectMapperTests {
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
         let target = Target.test(product: .framework, sources: ["/Absolute/File.m"], resources: .init(resources))
         let project = Project.test(targets: [target], type: .external(hash: nil))
-        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
-        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // When
         let (gotProject, gotSideEffects) = try await subject.map(project: project)
@@ -149,8 +141,6 @@ struct ResourcesProjectMapperTests {
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
         let target = Target.test(product: .staticLibrary, sources: ["/Absolute/File.swift"], resources: .init(resources))
         let project = Project.test(targets: [target], type: .external(hash: nil))
-        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
-        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // When
         let (gotProject, _) = try await subject.map(project: project)
@@ -173,8 +163,6 @@ struct ResourcesProjectMapperTests {
             ),
             targets: [target]
         )
-        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
-        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // When
         let (gotProject, gotSideEffects) = try await subject.map(project: project)
@@ -190,8 +178,6 @@ struct ResourcesProjectMapperTests {
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
         let target = Target.test(product: .staticLibrary, sources: [], resources: .init(resources))
         let project = Project.test(targets: [target])
-        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
-        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // When
         let (gotProject, gotSideEffects) = try await subject.map(project: project)
@@ -228,7 +214,9 @@ struct ResourcesProjectMapperTests {
         let buildableFolders = [BuildableFolder(
             path: try AbsolutePath(validating: "/sources"),
             exceptions: BuildableFolderExceptions(exceptions: []),
-            resolvedFiles: []
+            resolvedFiles: [
+                BuildableFolderFile(path: try AbsolutePath(validating: "/sources/File.swift"), compilerFlags: nil),
+            ]
         )]
         let target = Target.test(
             product: .staticLibrary,
@@ -237,8 +225,6 @@ struct ResourcesProjectMapperTests {
             buildableFolders: buildableFolders
         )
         let project = Project.test(targets: [target])
-        given(buildableFolderChecker).containsResources(.value(buildableFolders)).willReturn(true)
-        given(buildableFolderChecker).containsSources(.value(buildableFolders)).willReturn(true)
 
         // When
         let (gotProject, gotSideEffects) = try await subject.map(project: project)
@@ -316,8 +302,6 @@ struct ResourcesProjectMapperTests {
             buildableFolders: buildableFolders
         )
         let project = Project.test(targets: [target])
-        given(buildableFolderChecker).containsResources(.value(buildableFolders)).willReturn(true)
-        given(buildableFolderChecker).containsSources(.value(buildableFolders)).willReturn(true)
 
         // When
         let (gotProject, gotSideEffects) = try await subject.map(project: project)
@@ -389,8 +373,6 @@ struct ResourcesProjectMapperTests {
             buildableFolders: [buildableFolder]
         )
         let project = Project.test(targets: [target])
-        given(buildableFolderChecker).containsResources(.value([buildableFolder])).willReturn(true)
-        given(buildableFolderChecker).containsSources(.value([buildableFolder])).willReturn(true)
 
         // When
         let (gotProject, _) = try await subject.map(project: project)
@@ -445,8 +427,6 @@ struct ResourcesProjectMapperTests {
             buildableFolders: buildableFolders
         )
         let project = Project.test(targets: [target])
-        given(buildableFolderChecker).containsResources(.value(buildableFolders)).willReturn(true)
-        given(buildableFolderChecker).containsSources(.value(buildableFolders)).willReturn(true)
 
         // When
         let (gotProject, _) = try await subject.map(project: project)
@@ -465,8 +445,6 @@ struct ResourcesProjectMapperTests {
             [CoreDataModel(path: "/data.xcdatamodeld", versions: ["/data.xcdatamodeld"], currentVersion: "1")]
         let target = Target.test(product: .staticLibrary, sources: ["/Absolute/File.swift"], coreDataModels: coreDataModels)
         let project = Project.test(targets: [target])
-        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
-        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // When
         let (gotProject, gotSideEffects) = try await subject.map(project: project)
@@ -524,8 +502,6 @@ struct ResourcesProjectMapperTests {
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
         let target = Target.test(product: .framework, sources: ["/Absolute/File.swift"], resources: .init(resources))
         let project = Project.test(targets: [target])
-        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
-        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // When
         let (gotProject, gotSideEffects) = try await subject.map(project: project)
@@ -570,8 +546,6 @@ struct ResourcesProjectMapperTests {
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
         let target = Target.test(product: .staticFramework, sources: ["/Absolute/File.swift"], resources: .init(resources))
         let project = Project.test(targets: [target])
-        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
-        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // When
         let (gotProject, gotSideEffects) = try await subject.map(project: project)
@@ -619,8 +593,6 @@ struct ResourcesProjectMapperTests {
             resources: .init([])
         )
         let project = Project.test(targets: [target])
-        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
-        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // When
         let (gotProject, gotSideEffects) = try await subject.map(project: project)
@@ -665,8 +637,6 @@ struct ResourcesProjectMapperTests {
             [CoreDataModel(path: "/data.xcdatamodeld", versions: ["/data.xcdatamodeld"], currentVersion: "1")]
         let target = Target.test(product: .framework, sources: ["/Absolute/File.swift"], coreDataModels: coreDataModels)
         let project = Project.test(targets: [target])
-        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
-        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // When
         let (gotProject, gotSideEffects) = try await subject.map(project: project)
@@ -711,8 +681,6 @@ struct ResourcesProjectMapperTests {
         let resources: [ResourceFileElement] = []
         let target = Target.test(product: .framework, resources: .init(resources))
         let project = Project.test(targets: [target])
-        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
-        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // When
         let (gotProject, gotSideEffects) = try await subject.map(project: project)
@@ -731,8 +699,6 @@ struct ResourcesProjectMapperTests {
         ]
         let target = Target.test(product: .bundle, resources: .init(resources))
         let project = Project.test(targets: [target])
-        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
-        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // When
         let (gotProject, gotSideEffects) = try await subject.map(project: project)
@@ -753,8 +719,6 @@ struct ResourcesProjectMapperTests {
             resources: .init(resources)
         )
         let project = Project.test(targets: [target])
-        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
-        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // When
         let (_, gotSideEffects) = try await subject.map(project: project)
@@ -793,8 +757,6 @@ struct ResourcesProjectMapperTests {
             targets: [target],
             type: .external(hash: nil)
         )
-        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
-        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // When
         let (gotProject, gotSideEffects) = try await subject.map(project: project)
@@ -811,8 +773,6 @@ struct ResourcesProjectMapperTests {
         let resources: [ResourceFileElement] = []
         let target = Target.test(product: .staticLibrary, sources: sources, resources: .init(resources))
         let project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), targets: [target], type: .local)
-        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
-        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // When
         let (gotProject, gotSideEffects) = try await subject.map(project: project)
@@ -833,8 +793,6 @@ struct ResourcesProjectMapperTests {
             targets: [target],
             type: .external(hash: nil)
         )
-        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
-        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // When
         let (_, gotSideEffects) = try await subject.map(project: project)
@@ -853,8 +811,6 @@ struct ResourcesProjectMapperTests {
             targets: [target],
             type: .external(hash: nil)
         )
-        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
-        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // When
         let (_, gotSideEffects) = try await subject.map(project: project)
@@ -879,8 +835,6 @@ struct ResourcesProjectMapperTests {
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
         let target = Target.test(product: .staticLibrary, sources: sources, resources: .init(resources))
         let project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), targets: [target], type: .local)
-        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
-        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // When
         let (_, gotSideEffects) = try await subject.map(project: project)
@@ -902,8 +856,6 @@ struct ResourcesProjectMapperTests {
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
         let target = Target.test(name: "Target", product: .staticLibrary, sources: sources, resources: .init(resources))
         let project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), targets: [target], type: .local)
-        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
-        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // When
         let (_, gotSideEffects) = try await subject.map(project: project)
@@ -925,8 +877,6 @@ struct ResourcesProjectMapperTests {
             targets: [target],
             type: .external(hash: nil)
         )
-        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
-        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // When
         let (gotProject, gotSideEffects) = try await subject.map(project: project)
@@ -948,8 +898,6 @@ struct ResourcesProjectMapperTests {
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
         let target = Target.test(product: .staticLibrary, sources: sources, resources: .init(resources))
         let project = Project.test(path: try AbsolutePath(validating: "/AbsolutePath/Project"), targets: [target], type: .local)
-        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
-        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // When
         let (gotProject, gotSideEffects) = try await subject.map(project: project)
@@ -975,8 +923,6 @@ struct ResourcesProjectMapperTests {
             name: projectName,
             targets: [target]
         )
-        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
-        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // When
         let (gotProject, _) = try await subject.map(project: project)
