@@ -429,6 +429,50 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
+    func test_resourceBundleDependencies_when_app_depends_on_external_static_framework_with_bundle_resource_files() {
+        // Given
+        // App -> StaticFramework (External, has .bundle resource files)
+        let app = Target.test(name: "App", product: .app)
+        let bundlePath = try! AbsolutePath(validating: "/ExternalProject/YandexPaySDKResources.bundle")
+        let staticFramework = Target.test(
+            name: "StaticFramework",
+            product: .staticFramework,
+            resources: .init([.file(path: bundlePath)])
+        )
+        let project = Project.test(targets: [app])
+        let externalProject = Project.test(
+            path: try! AbsolutePath(validating: "/ExternalProject"),
+            targets: [staticFramework],
+            type: .external(hash: nil)
+        )
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: project.path): Set([.target(
+                name: staticFramework.name,
+                path: externalProject.path
+            )]),
+            .target(name: staticFramework.name, path: externalProject.path): Set([]),
+        ]
+
+        let graph = Graph.test(
+            path: project.path,
+            projects: [
+                project.path: project,
+                externalProject.path: externalProject,
+            ],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let appBundleDependencies = subject.resourceBundleDependencies(path: project.path, name: app.name).sorted()
+
+        // Then
+        XCTAssertEqual(appBundleDependencies, [
+            .bundle(path: bundlePath, condition: nil),
+        ])
+    }
+
     func test_resourceBundleDependencies_when_the_target_doesnt_support_resources() {
         // Given
         // StaticLibrary -> Bundle
