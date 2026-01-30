@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.133.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* handle Metal files in buildable folders for resource bundle generation by [@pepicrft](https://github.com/pepicrft) in [#9298](https://github.com/tuist/tuist/pull/9298)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.133.3...4.133.4
+
 ## What's Changed in 4.133.3<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
