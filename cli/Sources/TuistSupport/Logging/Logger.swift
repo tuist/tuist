@@ -1,7 +1,7 @@
 import FileLogging
 import Logging
 #if os(macOS)
-import LoggingOSLog
+    import LoggingOSLog
 #endif
 import Path
 import TuistLogging
@@ -16,7 +16,7 @@ public struct LoggingConfig {
         case console
         case detailed
         #if os(macOS)
-        case osLog
+            case osLog
         #endif
         case json
         case quiet
@@ -34,7 +34,7 @@ extension Logger {
             fileLogHandler.logLevel = .debug
             var loggers: [any LogHandler] = [fileLogHandler]
             #if os(macOS)
-            loggers.append(OSLogHandler.verbose(label: label))
+                loggers.append(OSLogHandler.verbose(label: label))
             #endif
             return MultiplexLogHandler(loggers)
         }
@@ -48,8 +48,8 @@ extension Logger {
 
         switch config.loggerType {
         #if os(macOS)
-        case .osLog:
-            handler = OSLogHandler.self
+            case .osLog:
+                handler = OSLogHandler.self
         #endif
         case .detailed:
             handler = DetailedLogHandler.self
@@ -100,7 +100,7 @@ extension LoggingConfig {
 
         let quiet = env[Constants.EnvironmentVariables.quiet] != nil
         #if os(macOS)
-        let osLog = env[Constants.EnvironmentVariables.osLog] != nil
+            let osLog = env[Constants.EnvironmentVariables.osLog] != nil
         #endif
         let detailed = env[Constants.EnvironmentVariables.detailedLog] != nil
         let verbose = quiet ? false : Environment.current.isVerbose
@@ -109,15 +109,14 @@ extension LoggingConfig {
             return .init(loggerType: .quiet, verbose: verbose)
         }
         #if os(macOS)
-        else if osLog {
-            return .init(loggerType: .osLog, verbose: verbose)
-        }
+            if osLog {
+                return .init(loggerType: .osLog, verbose: verbose)
+            }
         #endif
-        else if detailed {
+        if detailed {
             return .init(loggerType: .detailed, verbose: verbose)
-        } else {
-            return .init(loggerType: .console, verbose: verbose)
         }
+        return .init(loggerType: .console, verbose: verbose)
     }
 }
 
@@ -140,11 +139,11 @@ extension StandardLogHandler: VerboseLogHandler {
 }
 
 #if os(macOS)
-extension OSLogHandler: VerboseLogHandler {
-    public static func verbose(label: String) -> LogHandler {
-        OSLogHandler(label: label, logLevel: .debug)
+    extension OSLogHandler: VerboseLogHandler {
+        public static func verbose(label: String) -> LogHandler {
+            OSLogHandler(label: label, logLevel: .debug)
+        }
     }
-}
 #endif
 
 extension JSONLogHandler: VerboseLogHandler {

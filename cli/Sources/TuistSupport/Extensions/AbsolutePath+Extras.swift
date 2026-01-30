@@ -1,9 +1,11 @@
 #if os(Linux)
-import Glibc
-let systemGlob = Glibc.glob
+    import Glibc
+
+    let systemGlob = Glibc.glob
 #else
-import Darwin
-let systemGlob = Darwin.glob
+    import Darwin
+
+    let systemGlob = Darwin.glob
 #endif
 import Foundation
 import Path

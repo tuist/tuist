@@ -6,9 +6,9 @@ import NIOCore
 import Path
 
 #if os(Linux)
-import Glibc
+    import Glibc
 #else
-import Darwin
+    import Darwin
 #endif
 
 /// Protocol that defines the interface of a local environment controller.
@@ -299,30 +299,30 @@ public struct Environment: Environmenting {
 
     public static func currentExecutablePath() -> AbsolutePath? {
         #if os(macOS)
-        var buffer = [CChar](repeating: 0, count: Int(PATH_MAX))
-        var pathLength = UInt32(buffer.count)
-        if _NSGetExecutablePath(&buffer, &pathLength) == 0 {
-            let pathString = String(cString: buffer)
-            // When we run acceptance tests, where the CLI doesn't get compiled,
-            // this path returns the path to xctest:
-            // - /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Xcode/Agents/xctest
-            // In those cases we want to return nil and let the caller manage that scenario.
-            if pathString.hasSuffix("xctest") {
-                return nil
+            var buffer = [CChar](repeating: 0, count: Int(PATH_MAX))
+            var pathLength = UInt32(buffer.count)
+            if _NSGetExecutablePath(&buffer, &pathLength) == 0 {
+                let pathString = String(cString: buffer)
+                // When we run acceptance tests, where the CLI doesn't get compiled,
+                // this path returns the path to xctest:
+                // - /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Xcode/Agents/xctest
+                // In those cases we want to return nil and let the caller manage that scenario.
+                if pathString.hasSuffix("xctest") {
+                    return nil
+                } else {
+                    return try? AbsolutePath(validating: pathString)
+                }
             } else {
-                return try? AbsolutePath(validating: pathString)
+                return nil
             }
-        } else {
-            return nil
-        }
         #elseif os(Linux)
-        let path = "/proc/self/exe"
-        if let resolvedPath = try? FileManager.default.destinationOfSymbolicLink(atPath: path) {
-            return try? AbsolutePath(validating: resolvedPath)
-        }
-        return nil
+            let path = "/proc/self/exe"
+            if let resolvedPath = try? FileManager.default.destinationOfSymbolicLink(atPath: path) {
+                return try? AbsolutePath(validating: resolvedPath)
+            }
+            return nil
         #else
-        return nil
+            return nil
         #endif
     }
 

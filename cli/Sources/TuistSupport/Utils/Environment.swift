@@ -1,6 +1,6 @@
-@_exported import TuistEnvironment
 import Command
 import Path
+@_exported import TuistEnvironment
 
 extension Environmenting {
     public var isLegacyModuleCacheEnabled: Bool {
@@ -33,7 +33,6 @@ extension Environmenting {
                 validating: "Library/Developer/Xcode/DerivedData/"
             ))
     }
-
 }
 
 extension Environmenting {
