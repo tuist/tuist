@@ -34,7 +34,7 @@ struct BuildShowCommandServiceTests {
         // When
         await #expect(throws: BuildShowCommandServiceError.missingFullHandle, performing: {
             try await subject.run(
-                project: nil,
+                fullHandle: nil,
                 buildId: "build-123",
                 path: nil,
                 json: false
@@ -63,7 +63,7 @@ struct BuildShowCommandServiceTests {
 
         // When
         try await subject.run(
-            project: nil,
+            fullHandle: nil,
             buildId: buildId,
             path: nil,
             json: false
@@ -94,7 +94,7 @@ struct BuildShowCommandServiceTests {
 
         // When
         try await subject.run(
-            project: nil,
+            fullHandle: nil,
             buildId: buildId,
             path: nil,
             json: true
@@ -129,7 +129,7 @@ struct BuildShowCommandServiceTests {
 
         // When
         try await subject.run(
-            project: fullHandle,
+            fullHandle: fullHandle,
             buildId: buildId,
             path: nil,
             json: false
@@ -163,7 +163,7 @@ struct BuildShowCommandServiceTests {
 
         // When
         try await subject.run(
-            project: optionFullHandle,
+            fullHandle: optionFullHandle,
             buildId: buildId,
             path: nil,
             json: false

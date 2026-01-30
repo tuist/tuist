@@ -3,6 +3,11 @@ import Foundation
 import Path
 import TuistSupport
 
+enum BuildListStatus: String, ExpressibleByArgument, CaseIterable {
+    case success
+    case failure
+}
+
 struct BuildListCommand: AsyncParsableCommand, NooraReadyCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
@@ -16,7 +21,7 @@ struct BuildListCommand: AsyncParsableCommand, NooraReadyCommand {
         help: "The full handle of the project. Must be in the format of account-handle/project-handle.",
         envKey: .buildListFullHandle
     )
-    var project: String?
+    var fullHandle: String?
 
     @Option(
         name: .shortAndLong,
@@ -38,7 +43,7 @@ struct BuildListCommand: AsyncParsableCommand, NooraReadyCommand {
         help: "Filter builds by status (success or failure).",
         envKey: .buildListStatus
     )
-    var status: String?
+    var status: BuildListStatus?
 
     @Option(
         name: .long,
@@ -78,10 +83,10 @@ struct BuildListCommand: AsyncParsableCommand, NooraReadyCommand {
 
     func run() async throws {
         try await BuildListCommandService().run(
-            project: project,
+            fullHandle: fullHandle,
             path: path,
             gitBranch: gitBranch,
-            status: status,
+            status: status?.rawValue,
             scheme: scheme,
             configuration: configuration,
             page: page,

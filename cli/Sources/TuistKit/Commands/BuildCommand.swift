@@ -123,7 +123,7 @@ public struct BuildOptions: ParsableArguments {
 }
 
 /// Command to manage builds.
-public struct BuildCommand: ParsableCommand {
+public struct BuildCommand: AsyncParsableCommand {
     public init() {}
 
     public static var configuration: CommandConfiguration {

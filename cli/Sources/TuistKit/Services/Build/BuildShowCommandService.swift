@@ -9,7 +9,7 @@ import TuistSupport
 @Mockable
 protocol BuildShowCommandServicing {
     func run(
-        project: String?,
+        fullHandle: String?,
         buildId: String,
         path: String?,
         json: Bool
@@ -43,7 +43,7 @@ final class BuildShowCommandService: BuildShowCommandServicing {
     }
 
     func run(
-        project: String?,
+        fullHandle: String?,
         buildId: String,
         path: String?,
         json: Bool
@@ -51,7 +51,7 @@ final class BuildShowCommandService: BuildShowCommandServicing {
         let directoryPath: AbsolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
         let config = try await configLoader.loadConfig(path: directoryPath)
-        guard let resolvedFullHandle = project ?? config.fullHandle else {
+        guard let resolvedFullHandle = fullHandle ?? config.fullHandle else {
             throw BuildShowCommandServiceError.missingFullHandle
         }
 

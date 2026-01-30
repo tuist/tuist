@@ -7,7 +7,7 @@ import TuistSupport
 
 protocol BuildListCommandServicing {
     func run(
-        project: String?,
+        fullHandle: String?,
         path: String?,
         gitBranch: String?,
         status: String?,
@@ -46,7 +46,7 @@ struct BuildListCommandService: BuildListCommandServicing {
     }
 
     func run(
-        project: String?,
+        fullHandle: String?,
         path: String?,
         gitBranch: String?,
         status: String?,
@@ -59,7 +59,7 @@ struct BuildListCommandService: BuildListCommandServicing {
         let directoryPath: AbsolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
         let config = try await configLoader.loadConfig(path: directoryPath)
-        guard let resolvedFullHandle = project ?? config.fullHandle else {
+        guard let resolvedFullHandle = fullHandle ?? config.fullHandle else {
             throw BuildListCommandServiceError.missingFullHandle
         }
 

@@ -36,7 +36,7 @@ struct BuildListCommandServiceTests {
         // When
         await #expect(throws: BuildListCommandServiceError.missingFullHandle, performing: {
             try await subject.run(
-                project: nil,
+                fullHandle: nil,
                 path: nil,
                 gitBranch: nil,
                 status: nil,
@@ -106,7 +106,7 @@ struct BuildListCommandServiceTests {
 
         // When
         try await subject.run(
-            project: nil,
+            fullHandle: nil,
             path: nil,
             gitBranch: nil,
             status: nil,
@@ -160,7 +160,7 @@ struct BuildListCommandServiceTests {
 
         // When
         try await subject.run(
-            project: nil,
+            fullHandle: nil,
             path: nil,
             gitBranch: nil,
             status: nil,
@@ -210,7 +210,7 @@ struct BuildListCommandServiceTests {
 
         // When
         try await subject.run(
-            project: nil,
+            fullHandle: nil,
             path: nil,
             gitBranch: "main",
             status: "success",

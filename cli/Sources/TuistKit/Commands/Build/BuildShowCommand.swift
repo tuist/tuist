@@ -22,7 +22,7 @@ struct BuildShowCommand: AsyncParsableCommand, NooraReadyCommand {
         help: "The full handle of the project. Must be in the format of account-handle/project-handle.",
         envKey: .buildShowFullHandle
     )
-    var project: String?
+    var fullHandle: String?
 
     @Option(
         name: .shortAndLong,
@@ -42,7 +42,7 @@ struct BuildShowCommand: AsyncParsableCommand, NooraReadyCommand {
 
     func run() async throws {
         try await BuildShowCommandService().run(
-            project: project,
+            fullHandle: fullHandle,
             buildId: buildId,
             path: path,
             json: json
