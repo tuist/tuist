@@ -357,6 +357,16 @@ defmodule TuistWeb.Router do
               :complete_artifacts_uploads_project
         end
 
+        scope "/generations" do
+          get "/", GenerationsController, :index
+          get "/:generation_id", GenerationsController, :show
+        end
+
+        scope "/cache-runs" do
+          get "/", CacheRunsController, :index
+          get "/:cache_run_id", CacheRunsController, :show
+        end
+
         scope "/tests" do
           scope "/test-cases" do
             get "/", TestCasesController, :index
