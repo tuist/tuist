@@ -7,6 +7,14 @@
     recommendedProxySettings = true;
     recommendedTlsSettings = false;
 
+    appendConfig = ''
+      worker_processes auto;
+    '';
+
+    eventsConfig = ''
+      worker_connections 4096;
+    '';
+
     appendHttpConfig = ''
       http2 on;
       ssl_session_cache shared:SSL:50m;
