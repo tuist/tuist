@@ -347,22 +347,18 @@ public struct Environment: Environmenting {
     }
 
     public func architecture() async throws -> MacArchitecture {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/uname")
+        process.arguments = ["-m"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        try process.run()
+        process.waitUntilExit()
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
         #if os(Linux)
-            // On Linux, default to x86_64 or detect via uname
-            let unameOutput = try await Process.run(URL(fileURLWithPath: "/usr/bin/uname"), arguments: ["-m"]).utf8Output()
-            let arch = unameOutput.trimmingCharacters(in: .whitespacesAndNewlines)
-            return MacArchitecture(rawValue: arch) ?? .x8664
+            return MacArchitecture(rawValue: output) ?? .x8664
         #else
-            // On macOS, use uname to detect the architecture
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/uname")
-            process.arguments = ["-m"]
-            let pipe = Pipe()
-            process.standardOutput = pipe
-            try process.run()
-            process.waitUntilExit()
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             return MacArchitecture(rawValue: output) ?? .arm64
         #endif
     }
