@@ -365,7 +365,6 @@ public struct Environment: Environmenting {
 
     public func derivedDataDirectory() async throws -> AbsolutePath {
         #if os(macOS)
-            // Try to read the override location from Xcode defaults
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/defaults")
             process.arguments = ["read", "com.apple.dt.Xcode", "IDEDerivedDataPathOverride"]
@@ -385,7 +384,6 @@ public struct Environment: Environmenting {
                 }
             } catch {}
 
-            // Try to read the custom location from Xcode defaults
             let customProcess = Process()
             customProcess.executableURL = URL(fileURLWithPath: "/usr/bin/defaults")
             customProcess.arguments = ["read", "com.apple.dt.Xcode", "IDECustomDerivedDataLocation"]
@@ -406,7 +404,6 @@ public struct Environment: Environmenting {
             } catch {}
         #endif
 
-        // Default location
         return homeDirectory.appending(try RelativePath(validating: "Library/Developer/Xcode/DerivedData/"))
     }
 }
