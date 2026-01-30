@@ -150,6 +150,7 @@ public struct BuildRunCommand: AsyncParsableCommand, LogConfigurableCommand,
         CommandConfiguration(
             commandName: "run",
             abstract: "Builds a project (deprecated: Use 'tuist xcodebuild build' instead)",
+            discussion: "Use 'tuist build list' and 'tuist build show' to manage builds.",
             shouldDisplay: false
         )
     }
