@@ -1,6 +1,7 @@
 name: CLI Linux
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -43,8 +44,8 @@ jobs:
         with:
           path: .build/linux
           key: linux-cli-${{ hashFiles('Package.resolved') }}
-      - name: Build ProjectDescription
-        run: swift build --build-path .build/linux --target ProjectDescription
+      - name: Build cross-platform targets
+        run: swift build --build-path .build/linux --target ProjectDescription --target TuistConstants --target TuistEnvironment --target TuistLogging
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
