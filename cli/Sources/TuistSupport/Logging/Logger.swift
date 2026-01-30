@@ -1,13 +1,10 @@
 import FileLogging
-@_exported import Logging
+import Logging
+#if os(macOS)
 import LoggingOSLog
+#endif
 import Path
-
-import class Foundation.ProcessInfo
-
-extension Logger {
-    @TaskLocal public static var current: Logger = .init(label: "dev.tuist.logger")
-}
+import TuistLogging
 
 public struct LoggingConfig {
     public init(loggerType: LoggerType, verbose: Bool) {
@@ -18,7 +15,9 @@ public struct LoggingConfig {
     public enum LoggerType {
         case console
         case detailed
+        #if os(macOS)
         case osLog
+        #endif
         case json
         case quiet
     }
@@ -34,7 +33,9 @@ extension Logger {
             var fileLogHandler = FileLogHandler(label: label, fileLogger: fileLogger)
             fileLogHandler.logLevel = .debug
             var loggers: [any LogHandler] = [fileLogHandler]
+            #if os(macOS)
             loggers.append(OSLogHandler.verbose(label: label))
+            #endif
             return MultiplexLogHandler(loggers)
         }
     }
@@ -46,8 +47,10 @@ extension Logger {
         let handler: VerboseLogHandler.Type
 
         switch config.loggerType {
+        #if os(macOS)
         case .osLog:
             handler = OSLogHandler.self
+        #endif
         case .detailed:
             handler = DetailedLogHandler.self
         case .console:
@@ -70,7 +73,7 @@ extension Logger {
             // execution
             // within Xcode.
             // When run directly from a terminal, logs are not duplicated.
-            #if RELEASE
+            #if RELEASE && os(macOS)
                 loggers.append(LoggingOSLog(label: label))
             #endif
             return loggers
@@ -96,15 +99,21 @@ extension LoggingConfig {
         let env = Environment.current.variables
 
         let quiet = env[Constants.EnvironmentVariables.quiet] != nil
+        #if os(macOS)
         let osLog = env[Constants.EnvironmentVariables.osLog] != nil
+        #endif
         let detailed = env[Constants.EnvironmentVariables.detailedLog] != nil
         let verbose = quiet ? false : Environment.current.isVerbose
 
         if quiet {
             return .init(loggerType: .quiet, verbose: verbose)
-        } else if osLog {
+        }
+        #if os(macOS)
+        else if osLog {
             return .init(loggerType: .osLog, verbose: verbose)
-        } else if detailed {
+        }
+        #endif
+        else if detailed {
             return .init(loggerType: .detailed, verbose: verbose)
         } else {
             return .init(loggerType: .console, verbose: verbose)
@@ -130,11 +139,13 @@ extension StandardLogHandler: VerboseLogHandler {
     }
 }
 
+#if os(macOS)
 extension OSLogHandler: VerboseLogHandler {
     public static func verbose(label: String) -> LogHandler {
         OSLogHandler(label: label, logLevel: .debug)
     }
 }
+#endif
 
 extension JSONLogHandler: VerboseLogHandler {
     public static func verbose(label: String) -> LogHandler {

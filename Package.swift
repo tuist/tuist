@@ -145,8 +145,35 @@ let targets: [Target] = [
         exclude: ["AGENTS.md"]
     ),
     .target(
+        name: "TuistConstants",
+        dependencies: [
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistConstants"
+    ),
+    .target(
+        name: "TuistEnvironment",
+        dependencies: [
+            pathDependency,
+            fileSystemDependency,
+        ],
+        path: "cli/Sources/TuistEnvironment"
+    ),
+    .target(
+        name: "TuistLogging",
+        dependencies: [
+            pathDependency,
+            loggingDependency,
+            "TuistEnvironment",
+        ],
+        path: "cli/Sources/TuistLogging"
+    ),
+    .target(
         name: "TuistSupport",
         dependencies: [
+            "TuistConstants",
+            "TuistEnvironment",
+            "TuistLogging",
             pathDependency,
             loggingDependency,
             swiftToolsSupportDependency,
