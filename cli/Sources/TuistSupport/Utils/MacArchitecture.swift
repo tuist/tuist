@@ -1,6 +1,3 @@
-import Foundation
-
-public enum MacArchitecture: String, Codable {
-    case x8664 = "x86_64"
-    case arm64
-}
+// MacArchitecture is now defined in TuistEnvironment
+// Re-export it for backwards compatibility
+@_exported import enum TuistEnvironment.MacArchitecture

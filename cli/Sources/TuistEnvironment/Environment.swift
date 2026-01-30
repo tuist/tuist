@@ -79,6 +79,12 @@ public protocol Environmenting: Sendable {
 
     /// A cache socket path string for a given full handle with $HOME prefix to be environment-independent
     func cacheSocketPathString(for fullHandle: String) -> String
+
+    /// Returns the current architecture of the machine
+    func architecture() async throws -> MacArchitecture
+
+    /// Returns the derived data directory
+    func derivedDataDirectory() async throws -> AbsolutePath
 }
 
 private let truthyValues = ["1", "true", "TRUE", "yes", "YES"]
@@ -338,5 +344,73 @@ public struct Environment: Environmenting {
         } else {
             return socketPathString
         }
+    }
+
+    public func architecture() async throws -> MacArchitecture {
+        #if os(Linux)
+            // On Linux, default to x86_64 or detect via uname
+            let unameOutput = try await Process.run(URL(fileURLWithPath: "/usr/bin/uname"), arguments: ["-m"]).utf8Output()
+            let arch = unameOutput.trimmingCharacters(in: .whitespacesAndNewlines)
+            return MacArchitecture(rawValue: arch) ?? .x8664
+        #else
+            // On macOS, use uname to detect the architecture
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/uname")
+            process.arguments = ["-m"]
+            let pipe = Pipe()
+            process.standardOutput = pipe
+            try process.run()
+            process.waitUntilExit()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return MacArchitecture(rawValue: output) ?? .arm64
+        #endif
+    }
+
+    public func derivedDataDirectory() async throws -> AbsolutePath {
+        #if os(macOS)
+            // Try to read the override location from Xcode defaults
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/defaults")
+            process.arguments = ["read", "com.apple.dt.Xcode", "IDEDerivedDataPathOverride"]
+            let pipe = Pipe()
+            process.standardOutput = pipe
+            process.standardError = Pipe()
+            do {
+                try process.run()
+                process.waitUntilExit()
+                if process.terminationStatus == 0 {
+                    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                    if let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                       !output.isEmpty
+                    {
+                        return try AbsolutePath(validating: output)
+                    }
+                }
+            } catch {}
+
+            // Try to read the custom location from Xcode defaults
+            let customProcess = Process()
+            customProcess.executableURL = URL(fileURLWithPath: "/usr/bin/defaults")
+            customProcess.arguments = ["read", "com.apple.dt.Xcode", "IDECustomDerivedDataLocation"]
+            let customPipe = Pipe()
+            customProcess.standardOutput = customPipe
+            customProcess.standardError = Pipe()
+            do {
+                try customProcess.run()
+                customProcess.waitUntilExit()
+                if customProcess.terminationStatus == 0 {
+                    let data = customPipe.fileHandleForReading.readDataToEndOfFile()
+                    if let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                       !output.isEmpty
+                    {
+                        return try AbsolutePath(validating: output)
+                    }
+                }
+            } catch {}
+        #endif
+
+        // Default location
+        return homeDirectory.appending(try RelativePath(validating: "Library/Developer/Xcode/DerivedData/"))
     }
 }
