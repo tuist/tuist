@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2025-12-24 20:47+0000\n"
+"PO-Revision-Date: 2026-01-22 13:05+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Russian <https://translate.tuist.dev/projects/tuist/"
 "dashboard_account/ru/>\n"
@@ -13,7 +13,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
 "n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\n"
-"X-Generator: Weblate 5.15.1\n"
+"X-Generator: Weblate 5.15.2\n"
 
 ## This file is a PO Template file.
 ##
@@ -66,7 +66,7 @@ msgstr "Администратор"
 #: lib/tuist/billing.ex:37
 #: lib/tuist_web/live/billing_live.ex:187
 #: lib/tuist_web/live/billing_live.html.heex:58
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Air"
 msgstr "Air"
 
@@ -750,7 +750,7 @@ msgstr "Попробуйте изменить поисковый запрос"
 #: lib/tuist_web/live/create_organization_live.ex:26
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Tuist Logo"
-msgstr "Логотип Туист"
+msgstr "Логотип Tuist"
 
 #: lib/tuist_web/live/account_settings_live.ex:158
 #, elixir-autogen, elixir-format, fuzzy
@@ -765,7 +765,7 @@ msgstr "Неизвестный"
 #: lib/tuist/billing.ex:70
 #, elixir-autogen, elixir-format, fuzzy
 msgid "Unlimited projects"
-msgstr "Неограниченные проекты"
+msgstr "Неограниченное количество проектов"
 
 #: lib/tuist_web/live/billing_live.html.heex:325
 #, elixir-autogen, elixir-format, fuzzy
