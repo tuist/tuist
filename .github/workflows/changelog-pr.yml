@@ -1,0 +1,52 @@
+name: changelog-pr
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - 'server/priv/marketing/changelog/*.md'
+
+jobs:
+  add-pr-number:
+    name: Add PR number to changelog
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get changed changelog files
+        id: changed-files
+        uses: tj-actions/changed-files@v44
+        with:
+          files: server/priv/marketing/changelog/*.md
+
+      - name: Add PR number to changelog files
+        if: steps.changed-files.outputs.any_changed == 'true'
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
+        run: |
+          for file in $CHANGED_FILES; do
+            if [ -f "$file" ]; then
+              # Check if the file already has a pr: field
+              if ! grep -q "^pr:" "$file"; then
+                # Add pr: field after category: line in frontmatter
+                sed -i "/^category:/a pr: $PR_NUMBER" "$file"
+                echo "Added pr: $PR_NUMBER to $file"
+              else
+                echo "PR number already exists in $file"
+              fi
+            fi
+          done
+
+      - name: Commit changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git diff --quiet || (git add server/priv/marketing/changelog/*.md && git commit -m "chore: add PR number to changelog files" && git push)
