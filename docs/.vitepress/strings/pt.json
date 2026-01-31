@@ -144,6 +144,26 @@
                 },
                 "releases": {
                     "text": ""
+                },
+                "debugging": {
+                    "text": ""
+                },
+                "code": {
+                    "items": {
+                        "docs": {
+                            "text": ""
+                        },
+                        "handbook": {
+                            "text": ""
+                        },
+                        "cli": {
+                            "text": "CLI"
+                        },
+                        "server": {
+                            "text": "Server"
+                        }
+                    },
+                    "text": ""
                 }
             }
         },
@@ -366,6 +386,14 @@
                         },
                         "qa": {
                             "text": ""
+                        },
+                        "test-insights": {
+                            "items": {
+                                "flaky-tests": {
+                                    "text": ""
+                                }
+                            },
+                            "text": ""
                         }
                     }
                 },
@@ -392,6 +420,9 @@
                                     "text": ""
                                 }
                             },
+                            "text": ""
+                        },
+                        "slack": {
                             "text": ""
                         }
                     }

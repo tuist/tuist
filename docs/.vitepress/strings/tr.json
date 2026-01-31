@@ -144,6 +144,26 @@
                             "text": "Loglama"
                         }
                     }
+                },
+                "code": {
+                    "items": {
+                        "docs": {
+                            "text": "Dokümanlar"
+                        },
+                        "handbook": {
+                            "text": "El Kitabı"
+                        },
+                        "cli": {
+                            "text": "CLI"
+                        },
+                        "server": {
+                            "text": "Sunucu"
+                        }
+                    },
+                    "text": "Kod"
+                },
+                "debugging": {
+                    "text": "Hata ayıklama"
                 }
             }
         },
@@ -363,6 +383,14 @@
                         },
                         "qa": {
                             "text": "QA"
+                        },
+                        "test-insights": {
+                            "items": {
+                                "flaky-tests": {
+                                    "text": "Kararsız testler"
+                                }
+                            },
+                            "text": "Test bilgileri"
                         }
                     }
                 },
@@ -390,6 +418,9 @@
                                 }
                             },
                             "text": "Git forges"
+                        },
+                        "slack": {
+                            "text": "Slack"
                         }
                     }
                 },
