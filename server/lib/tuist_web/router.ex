@@ -363,6 +363,11 @@ defmodule TuistWeb.Router do
           end
         end
 
+        scope "/builds" do
+          get "/", BuildsController, :index
+          get "/:build_id", BuildsController, :show
+        end
+
         scope "/previews" do
           post "/start", PreviewsController, :multipart_start
           post "/generate-url", PreviewsController, :multipart_generate_url

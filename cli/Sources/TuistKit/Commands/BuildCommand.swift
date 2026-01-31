@@ -122,16 +122,35 @@ public struct BuildOptions: ParsableArguments {
     var passthroughXcodeBuildArguments: [String] = []
 }
 
+/// Command to manage builds.
+public struct BuildCommand: AsyncParsableCommand {
+    public init() {}
+
+    public static var configuration: CommandConfiguration {
+        CommandConfiguration(
+            commandName: "build",
+            abstract: "A set of commands to manage your project builds.",
+            subcommands: [
+                BuildRunCommand.self,
+                BuildListCommand.self,
+                BuildShowCommand.self,
+            ],
+            defaultSubcommand: BuildRunCommand.self
+        )
+    }
+}
+
 /// Command that builds a target from the project in the current directory.
-public struct BuildCommand: AsyncParsableCommand, LogConfigurableCommand,
+public struct BuildRunCommand: AsyncParsableCommand, LogConfigurableCommand,
     RecentPathRememberableCommand
 {
     public init() {}
 
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
-            commandName: "build",
+            commandName: "run",
             abstract: "Builds a project (deprecated: Use 'tuist xcodebuild build' instead)",
+            discussion: "Use 'tuist build list' and 'tuist build show' to manage builds.",
             shouldDisplay: false
         )
     }
