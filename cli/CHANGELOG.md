@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.134.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add build list and build show commands by [@pepicrft](https://github.com/pepicrft) in [#9272](https://github.com/tuist/tuist/pull/9272)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.133.4...4.134.0
+
 ## What's Changed in 4.133.4<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
