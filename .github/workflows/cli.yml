@@ -349,3 +349,27 @@ jobs:
         with:
           path: .build
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+
+  cli-linux-build:
+    name: Linux Build
+    runs-on: ubuntu-latest
+    container:
+      image: swift:6.1
+    timeout-minutes: 30
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build/linux
+          key: linux-cli-${{ hashFiles('Package.resolved') }}
+      - name: Build cross-platform targets
+        run: swift build --build-path .build/linux --target ProjectDescription --target TuistConstants --target TuistEnvironment --target TuistLogging
+      - name: Save cache
+        id: cache-save
+        uses: actions/cache/save@v4
+        with:
+          path: .build/linux
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
