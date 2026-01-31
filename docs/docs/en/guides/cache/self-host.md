@@ -106,17 +106,22 @@ curl http://localhost/up
 
 ## Configure the cache endpoint {#configure-endpoint}
 
-After deploying the cache service, register it in your Tuist server organization settings:
+After deploying the cache service, register it with your Tuist server:
 
-1. Navigate to your organization's **Settings** page
-2. Find the **Custom cache endpoints** section
-3. Add your cache service URL (for example, `https://cache.example.com`)
+- **Hosted Tuist server** (`https://tuist.dev`):
+  1. Navigate to your organization's **Settings** page.
+  2. Find the **Custom cache endpoints** section.
+  3. Add your cache service URL (for example, `https://cache.example.com`).
+
+- **Self-hosted Tuist server**:
+  1. Set `TUIST_CACHE_ENDPOINTS` to a comma-separated list of cache node URLs (for example, `https://cache-1.example.com,https://cache-2.example.com`).
+  2. Restart the Tuist server to apply the configuration.
 
 <!-- TODO: Add screenshot of organization settings page showing Custom cache endpoints section -->
 
 ```mermaid
 graph TD
-  A[Deploy cache service] --> B[Add custom cache endpoint in Settings]
+  A[Deploy cache service] --> B[Register cache endpoint]
   B --> C[Tuist CLI uses your endpoint]
 ```
 
