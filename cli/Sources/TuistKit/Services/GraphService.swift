@@ -6,8 +6,10 @@ import Path
 import ProjectAutomation
 import Tools
 import TuistCore
+import TuistEnvironment
 import TuistGenerator
 import TuistLoader
+import TuistLogging
 import TuistPlugin
 import TuistSupport
 import XcodeGraph

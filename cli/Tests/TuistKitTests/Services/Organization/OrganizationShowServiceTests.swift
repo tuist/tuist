@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import TuistLoader
+import TuistLogging
 import TuistServer
 import TuistSupport
 import TuistTesting

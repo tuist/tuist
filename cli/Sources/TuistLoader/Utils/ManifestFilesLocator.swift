@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import TuistConstants
 import TuistCore
 import TuistRootDirectoryLocator
 import TuistSupport

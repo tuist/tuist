@@ -1,6 +1,7 @@
 import Foundation
 import Logging
 import TuistCore
+import TuistEnvironment
 import TuistSupport
 import XcodeGraph
 

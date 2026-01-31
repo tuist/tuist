@@ -2,6 +2,7 @@ import Command
 import FileSystem
 import Testing
 import TuistAcceptanceTesting
+import TuistLogging
 import TuistSupport
 import TuistTesting
 import XcodeProj

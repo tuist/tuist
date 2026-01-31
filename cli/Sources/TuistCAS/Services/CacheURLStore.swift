@@ -1,6 +1,7 @@
 #if canImport(TuistSupport)
     import Foundation
     import Mockable
+    import TuistLogging
     import TuistServer
     import TuistSupport
 

@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import Path
 import TSCUtility
+import TuistEnvironment
 import TuistSupport
 
 @Mockable

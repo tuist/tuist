@@ -8,6 +8,7 @@ import ProjectDescription
 import Testing
 import TuistCore
 import struct TuistCore.Plugins
+import TuistEnvironment
 import TuistSupport
 import TuistTesting
 
@@ -177,7 +178,7 @@ class CachedManifestLoaderTests {
         let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "App")
         let project = Project.test(name: "App")
         try await stubProject(project, at: path)
-        let mockEnvironment = try #require(TuistSupport.Environment.mocked)
+        let mockEnvironment = try #require(TuistEnvironment.Environment.mocked)
         mockEnvironment.manifestLoadingVariables = ["NAME": "A"]
 
         // When
@@ -196,7 +197,7 @@ class CachedManifestLoaderTests {
         let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "App")
         let project = Project.test(name: "App")
         try await stubProject(project, at: path)
-        let mockEnvironment = try #require(TuistSupport.Environment.mocked)
+        let mockEnvironment = try #require(TuistEnvironment.Environment.mocked)
         mockEnvironment.manifestLoadingVariables = ["NAME": "A"]
         _ = try await subject.loadProject(at: path, disableSandbox: false)
 

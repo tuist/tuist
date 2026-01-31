@@ -2,6 +2,7 @@ import ArgumentParser
 import FileSystem
 import Foundation
 import Path
+import TuistEnvironment
 import TuistSupport
 
 public struct InitCommand: AsyncParsableCommand, NooraReadyCommand {

@@ -3,7 +3,10 @@ import FileSystem
 import Foundation
 import Path
 import ProjectDescription
+import TuistConstants
 import TuistCore
+import TuistEnvironment
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 

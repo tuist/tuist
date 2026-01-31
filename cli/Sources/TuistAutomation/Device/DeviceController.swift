@@ -3,6 +3,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 

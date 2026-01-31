@@ -5,6 +5,8 @@ import Mockable
     import FileSystem
     import Path
     import TSCBasic
+    import TuistEnvironment
+    import TuistLogging
     import TuistSupport
 #endif
 

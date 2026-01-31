@@ -3,6 +3,7 @@ import FileSystem
 import Foundation
 import Path
 import TSCUtility
+import TuistEnvironment
 import TuistSupport
 
 enum BenchmarkCommandError: LocalizedError {

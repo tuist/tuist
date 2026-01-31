@@ -4,6 +4,7 @@ import Mockable
 import Path
 import TuistCore
 import TuistGit
+import TuistLogging
 import TuistProcess
 import TuistServer
 import TuistSupport
@@ -140,7 +141,7 @@ private struct TestCommand: TrackableParsableCommand, ParsableCommand {
     enum TestError: FatalError, Equatable {
         case commandFailed
 
-        var type: TuistSupport.ErrorType {
+        var type: ErrorType {
             switch self {
             case .commandFailed:
                 return .abort

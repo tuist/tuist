@@ -1,6 +1,9 @@
 import Foundation
+import Logging
 import Path
 import TSCBasic
+import TuistEnvironment
+import TuistLogging
 
 extension ProcessResult {
     /// Throws a SystemError if the result is unsuccessful.

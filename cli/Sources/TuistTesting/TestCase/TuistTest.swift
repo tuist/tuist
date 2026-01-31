@@ -7,6 +7,8 @@ import Noora
 import Path
 import Testing
 import TuistCore
+import TuistEnvironment
+import TuistLogging
 import TuistServer
 import TuistSupport
 import XcodeProj

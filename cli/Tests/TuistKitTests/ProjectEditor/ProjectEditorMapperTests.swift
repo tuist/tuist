@@ -5,7 +5,9 @@ import Mockable
 import Path
 import Testing
 import TSCUtility
+import TuistConstants
 import TuistCore
+import TuistEnvironment
 import TuistLoader
 import TuistSupport
 import XcodeGraph

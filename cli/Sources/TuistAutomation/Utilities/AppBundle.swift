@@ -1,5 +1,6 @@
 import Path
 import TuistCore
+import TuistLogging
 import TuistSimulator
 import TuistSupport
 import XcodeGraph

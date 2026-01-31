@@ -1,7 +1,9 @@
 import FileSystem
 import Foundation
 import Path
+import TuistEnvironment
 import TuistLoader
+import TuistLogging
 import TuistServer
 import TuistSupport
 

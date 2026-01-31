@@ -1,11 +1,15 @@
 import _NIOFileSystem
-import Command
-import Darwin
 import FileSystem
 import Foundation
 import Mockable
 import NIOCore
 import Path
+
+#if os(Linux)
+    import Glibc
+#else
+    import Darwin
+#endif
 
 /// Protocol that defines the interface of a local environment controller.
 /// It manages the local directory where tuistenv stores the tuist versions and user settings.
@@ -13,12 +17,6 @@ import Path
 public protocol Environmenting: Sendable {
     /// Returns the home directory.
     var homeDirectory: AbsolutePath { get }
-
-    /// Returns the derived data directory selected in the environment.
-    func derivedDataDirectory() async throws -> AbsolutePath
-
-    /// Returns the system's architecture.
-    func architecture() async throws -> MacArchitecture
 
     /// It returns an ID that uniquely identifies the process.
     var processId: String { get }
@@ -81,6 +79,12 @@ public protocol Environmenting: Sendable {
 
     /// A cache socket path string for a given full handle with $HOME prefix to be environment-independent
     func cacheSocketPathString(for fullHandle: String) -> String
+
+    /// Returns the current architecture of the machine
+    func architecture() async throws -> MacArchitecture
+
+    /// Returns the derived data directory
+    func derivedDataDirectory() async throws -> AbsolutePath
 }
 
 private let truthyValues = ["1", "true", "TRUE", "yes", "YES"]
@@ -110,6 +114,10 @@ extension Environmenting {
         return variables.first(where: {
             ciPlatformVariables.contains($0.key)
         }) != nil
+    }
+
+    public var isLegacyModuleCacheEnabled: Bool {
+        isVariableTruthy("TUIST_LEGACY_MODULE_CACHE")
     }
 
     public func pathRelativeToWorkingDirectory(_ path: String?) async throws -> AbsolutePath {
@@ -300,54 +308,32 @@ public struct Environment: Environmenting {
     }
 
     public static func currentExecutablePath() -> AbsolutePath? {
-        var buffer = [CChar](repeating: 0, count: Int(PATH_MAX))
-        var pathLength = UInt32(buffer.count)
-        if _NSGetExecutablePath(&buffer, &pathLength) == 0 {
-            let pathString = String(cString: buffer)
-            // When we run acceptance tests, where the CLI doesn't get compiled,
-            // this path returns the path to xctest:
-            // - /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Xcode/Agents/xctest
-            // In those cases we want to return nil and let the caller manage that scenario.
-            if pathString.hasSuffix("xctest") {
-                return nil
+        #if os(macOS)
+            var buffer = [CChar](repeating: 0, count: Int(PATH_MAX))
+            var pathLength = UInt32(buffer.count)
+            if _NSGetExecutablePath(&buffer, &pathLength) == 0 {
+                let pathString = String(cString: buffer)
+                // When we run acceptance tests, where the CLI doesn't get compiled,
+                // this path returns the path to xctest:
+                // - /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Xcode/Agents/xctest
+                // In those cases we want to return nil and let the caller manage that scenario.
+                if pathString.hasSuffix("xctest") {
+                    return nil
+                } else {
+                    return try? AbsolutePath(validating: pathString)
+                }
             } else {
-                return try? AbsolutePath(validating: pathString)
+                return nil
             }
-        } else {
+        #elseif os(Linux)
+            let path = "/proc/self/exe"
+            if let resolvedPath = try? FileManager.default.destinationOfSymbolicLink(atPath: path) {
+                return try? AbsolutePath(validating: resolvedPath)
+            }
             return nil
-        }
-    }
-
-    public func derivedDataDirectory() async throws -> Path.AbsolutePath {
-        let commandRunner = CommandRunner()
-        if let overrideLocation = try? await commandRunner.run(arguments: [
-            "/usr/bin/defaults",
-            "read",
-            "com.apple.dt.Xcode IDEDerivedDataPathOverride",
-        ], environment: variables).concatenatedString().chomp() {
-            return try! AbsolutePath(validating: overrideLocation.chomp()) // swiftlint:disable:this force_try
-        }
-
-        if let customLocation = try? await commandRunner.run(arguments: [
-            "/usr/bin/defaults",
-            "read",
-            "com.apple.dt.Xcode IDECustomDerivedDataLocation",
-        ], environment: variables).concatenatedString().chomp() {
-            return try! AbsolutePath(validating: customLocation.chomp()) // swiftlint:disable:this force_try
-        }
-
-        // Default location
-        return homeDirectory
-            .appending(try! RelativePath( // swiftlint:disable:this force_try
-                validating: "Library/Developer/Xcode/DerivedData/"
-            ))
-    }
-
-    public func architecture() async throws -> MacArchitecture {
-        return await MacArchitecture(
-            rawValue: try CommandRunner()
-                .run(arguments: ["/usr/bin/uname", "-m"], environment: variables).concatenatedString().chomp()
-        )!
+        #else
+            return nil
+        #endif
     }
 
     public func cacheSocketPath(for fullHandle: String) -> AbsolutePath {
@@ -362,5 +348,66 @@ public struct Environment: Environmenting {
         } else {
             return socketPathString
         }
+    }
+
+    public func architecture() async throws -> MacArchitecture {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/uname")
+        process.arguments = ["-m"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        try process.run()
+        process.waitUntilExit()
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
+        #if os(Linux)
+            return MacArchitecture(rawValue: output) ?? .x8664
+        #else
+            return MacArchitecture(rawValue: output) ?? .arm64
+        #endif
+    }
+
+    public func derivedDataDirectory() async throws -> AbsolutePath {
+        #if os(macOS)
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/defaults")
+            process.arguments = ["read", "com.apple.dt.Xcode", "IDEDerivedDataPathOverride"]
+            let pipe = Pipe()
+            process.standardOutput = pipe
+            process.standardError = Pipe()
+            do {
+                try process.run()
+                process.waitUntilExit()
+                if process.terminationStatus == 0 {
+                    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                    if let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                       !output.isEmpty
+                    {
+                        return try AbsolutePath(validating: output)
+                    }
+                }
+            } catch {}
+
+            let customProcess = Process()
+            customProcess.executableURL = URL(fileURLWithPath: "/usr/bin/defaults")
+            customProcess.arguments = ["read", "com.apple.dt.Xcode", "IDECustomDerivedDataLocation"]
+            let customPipe = Pipe()
+            customProcess.standardOutput = customPipe
+            customProcess.standardError = Pipe()
+            do {
+                try customProcess.run()
+                customProcess.waitUntilExit()
+                if customProcess.terminationStatus == 0 {
+                    let data = customPipe.fileHandleForReading.readDataToEndOfFile()
+                    if let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                       !output.isEmpty
+                    {
+                        return try AbsolutePath(validating: output)
+                    }
+                }
+            } catch {}
+        #endif
+
+        return homeDirectory.appending(try RelativePath(validating: "Library/Developer/Xcode/DerivedData/"))
     }
 }

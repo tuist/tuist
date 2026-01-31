@@ -3,6 +3,7 @@ import Foundation
 import Path
 import ProjectDescription
 import TuistCore
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 

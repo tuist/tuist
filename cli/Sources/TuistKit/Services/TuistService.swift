@@ -1,7 +1,10 @@
 import Foundation
 import Path
+import TuistConstants
 import TuistCore
+import TuistEnvironment
 import TuistLoader
+import TuistLogging
 import TuistPlugin
 import TuistSupport
 

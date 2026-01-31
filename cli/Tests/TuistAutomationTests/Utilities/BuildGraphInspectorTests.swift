@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TuistConstants
 import TuistCore
 import TuistSupport
 import XcodeGraph

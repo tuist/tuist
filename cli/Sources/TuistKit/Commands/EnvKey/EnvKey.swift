@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import TuistEnvironment
 import TuistSupport
 
 public enum EnvKey: String, CaseIterable {

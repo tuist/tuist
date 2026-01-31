@@ -3,6 +3,7 @@ import Path
 import ProjectDescription
 import TSCUtility
 import TuistCore
+import TuistLogging
 import TuistSupport
 
 enum ConfigManifestMapperError: FatalError {

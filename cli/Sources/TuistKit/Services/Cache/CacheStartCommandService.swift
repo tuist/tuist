@@ -5,7 +5,9 @@ import GRPCNIOTransportHTTP2
 import Path
 import TuistCAS
 import TuistCore
+import TuistEnvironment
 import TuistLoader
+import TuistLogging
 import TuistRootDirectoryLocator
 import TuistServer
 import TuistSupport

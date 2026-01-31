@@ -1,6 +1,7 @@
 import Foundation
 import MachO
 import Path
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 

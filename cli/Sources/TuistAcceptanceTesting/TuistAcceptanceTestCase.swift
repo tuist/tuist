@@ -3,6 +3,7 @@ import FileSystem
 // swiftlint:disable force_try
 import Path
 import TuistCore
+import TuistEnvironment
 @_exported import TuistKit
 import XcodeProj
 import XCTest

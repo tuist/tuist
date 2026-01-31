@@ -1,6 +1,7 @@
 import Darwin
 import Foundation
 import Mockable
+import TuistEnvironment
 import TuistSupport
 
 @Mockable

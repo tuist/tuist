@@ -2,7 +2,9 @@ import FileSystem
 import Foundation
 import Mockable
 import TuistCache
+import TuistConstants
 import TuistCore
+import TuistEnvironment
 import TuistLoader
 import TuistRootDirectoryLocator
 import TuistServer

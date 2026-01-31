@@ -1,4 +1,5 @@
 import Foundation
+import Logging
 
 public protocol TimeTakenLoggerFormatting {
     func timeTakenMessage(for timer: ClockTimer) -> Logger.Message

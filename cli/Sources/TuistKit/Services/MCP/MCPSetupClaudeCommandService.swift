@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Path
 import SwiftyJSON
+import TuistEnvironment
 import TuistSupport
 
 struct MCPSetupClaudeCommandService {

@@ -1,3 +1,4 @@
+import TuistEnvironment
 import TuistSupport
 import XcbeautifyLib
 

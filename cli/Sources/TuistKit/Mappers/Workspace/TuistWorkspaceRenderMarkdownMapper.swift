@@ -1,5 +1,6 @@
 import Foundation
 import TuistCore
+import TuistLogging
 import TuistSupport
 
 /// Tuist Workspace Markdown render Mapper.

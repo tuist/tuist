@@ -1,6 +1,7 @@
 import Foundation
 import Path
 import Testing
+import TuistEnvironment
 import TuistSupport
 import XCTest
 
@@ -51,8 +52,8 @@ public final class MockEnvironment: Environmenting {
         directory.path.appending(components: "DerivedData")
     }
 
-    public var stubbedArchitecture: TuistSupport.MacArchitecture = .arm64
-    public func architecture() async throws -> TuistSupport.MacArchitecture {
+    public var stubbedArchitecture: MacArchitecture = .arm64
+    public func architecture() async throws -> MacArchitecture {
         return stubbedArchitecture
     }
 

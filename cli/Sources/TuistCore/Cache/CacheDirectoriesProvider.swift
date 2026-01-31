@@ -1,6 +1,7 @@
 import FileSystem
 import Mockable
 import Path
+import TuistEnvironment
 import TuistSupport
 
 @Mockable

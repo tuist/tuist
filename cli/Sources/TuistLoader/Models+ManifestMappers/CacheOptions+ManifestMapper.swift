@@ -1,5 +1,6 @@
 import ProjectDescription
 import TuistCore
+import TuistLogging
 import TuistSupport
 
 enum CacheOptionsManifestMapperError: FatalError, Equatable {

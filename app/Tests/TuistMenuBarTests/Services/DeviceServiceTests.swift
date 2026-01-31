@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import TuistAppStorage
 import TuistAutomation
+import TuistConstants
 import TuistCore
 import TuistServer
 import TuistSupport

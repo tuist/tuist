@@ -3,7 +3,9 @@ import Foundation
 import Mockable
 import Path
 import TuistCore
+import TuistEnvironment
 import TuistHasher
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 

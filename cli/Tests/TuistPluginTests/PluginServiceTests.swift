@@ -2,6 +2,7 @@ import Mockable
 import struct ProjectDescription.Plugin
 import struct ProjectDescription.PluginLocation
 import TSCBasic
+import TuistConstants
 import TuistCore
 import TuistGit
 import TuistLoader

@@ -1,4 +1,5 @@
 import Path
+import TuistConstants
 import TuistSupport
 import XcodeGraph
 

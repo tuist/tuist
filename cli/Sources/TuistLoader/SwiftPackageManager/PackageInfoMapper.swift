@@ -5,6 +5,7 @@ import Path
 import ProjectDescription
 import TSCUtility
 import TuistCore
+import TuistLogging
 import TuistRootDirectoryLocator
 import TuistSimulator
 import TuistSupport

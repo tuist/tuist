@@ -3,6 +3,8 @@ import FileSystem
 import Foundation
 import Noora
 import Path
+import TuistConstants
+import TuistEnvironment
 import TuistServer
 import TuistSupport
 

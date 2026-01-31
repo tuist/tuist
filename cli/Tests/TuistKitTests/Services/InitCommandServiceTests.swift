@@ -4,6 +4,7 @@ import Foundation
 import Mockable
 import Noora
 import Testing
+import TuistConstants
 import TuistServer
 import TuistSupport
 import TuistTesting

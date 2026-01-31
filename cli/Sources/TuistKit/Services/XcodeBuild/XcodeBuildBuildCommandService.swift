@@ -3,6 +3,7 @@ import Foundation
 import Path
 import TuistAutomation
 import TuistCore
+import TuistEnvironment
 import TuistLoader
 import TuistSupport
 import TuistXCActivityLog

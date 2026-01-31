@@ -4,6 +4,8 @@ import Mockable
 import Path
 import ProjectDescription
 import TuistCore
+import TuistEnvironment
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 

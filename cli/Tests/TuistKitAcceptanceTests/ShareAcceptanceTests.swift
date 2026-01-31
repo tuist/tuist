@@ -7,6 +7,7 @@ import SnapshotTesting
 import Testing
 import TuistAcceptanceTesting
 import TuistCore
+import TuistEnvironment
 import TuistSupport
 import TuistTesting
 

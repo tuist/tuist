@@ -4,6 +4,7 @@ import TuistCache
 import TuistCore
 import TuistHasher
 import TuistLoader
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 #if canImport(TuistCacheEE)

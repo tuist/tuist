@@ -1,4 +1,5 @@
 import Foundation
+import TuistLogging
 import TuistSupport
 
 public struct LintingError: FatalError, Equatable {

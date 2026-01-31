@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import TuistCore
+import TuistLogging
 import TuistSupport
 
 /// The protocol defines an interface for executing side effects.

@@ -1,7 +1,9 @@
 import Foundation
 import Mockable
 import Path
+import TuistConstants
 import TuistCore
+import TuistEnvironment
 import TuistGit
 import TuistSupport
 import XcodeGraph

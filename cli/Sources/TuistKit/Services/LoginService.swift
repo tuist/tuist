@@ -3,6 +3,7 @@ import Mockable
 import Noora
 import Path
 import TuistCore
+import TuistEnvironment
 import TuistLoader
 import TuistOIDC
 import TuistServer

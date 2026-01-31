@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Noora
 import Path
+import TuistEnvironment
 import TuistHTTP
 import TuistLoader
 import TuistServer

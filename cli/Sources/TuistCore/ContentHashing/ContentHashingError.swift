@@ -1,4 +1,5 @@
 import Path
+import TuistLogging
 import TuistSupport
 
 /// `ContentHashingError`

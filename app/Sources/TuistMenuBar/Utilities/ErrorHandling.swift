@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import OpenAPIRuntime
 import TuistHTTP
+import TuistLogging
 import TuistServer
 import TuistSupport
 

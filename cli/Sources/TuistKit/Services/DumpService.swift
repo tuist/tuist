@@ -3,6 +3,7 @@ import Path
 import TSCBasic
 import TuistCore
 import TuistLoader
+import TuistLogging
 import TuistPlugin
 import TuistSupport
 

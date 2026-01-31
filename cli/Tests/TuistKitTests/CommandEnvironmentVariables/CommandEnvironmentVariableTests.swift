@@ -3,6 +3,7 @@ import Difference
 import Foundation
 import Testing
 import TSCUtility
+import TuistEnvironment
 @testable import TuistCore
 @testable import TuistKit
 @testable import TuistSupport

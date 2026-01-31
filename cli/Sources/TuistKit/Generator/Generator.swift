@@ -7,6 +7,7 @@ import TuistCore
 import TuistDependencies
 import TuistGenerator
 import TuistLoader
+import TuistLogging
 import TuistPlugin
 import TuistRootDirectoryLocator
 import TuistSupport

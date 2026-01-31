@@ -4,6 +4,7 @@ import KeychainAccess
 import Mockable
 import Path
 #if canImport(TuistSupport)
+    import TuistEnvironment
     import TuistSupport
 #endif
 
