@@ -354,3 +354,27 @@
     gap: var(--noora-spacing-2);
   }
 }
+
+[data-part="terms-notice"] {
+  position: fixed;
+  bottom: var(--noora-spacing-8);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--noora-z-index-4);
+  text-align: center;
+
+  & span {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
+  }
+
+  & a {
+    color: var(--noora-surface-label-secondary);
+    text-decoration: underline;
+    transition: color 0.2s ease;
+
+    &:hover {
+      color: var(--noora-surface-label-primary);
+    }
+  }
+}
