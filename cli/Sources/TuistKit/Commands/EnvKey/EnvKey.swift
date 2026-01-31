@@ -45,6 +45,7 @@ public enum EnvKey: String, CaseIterable {
     case installPath = "TUIST_INSTALL_PATH"
     case installUpdate = "TUIST_INSTALL_UPDATE"
     case installPassthroughArguments = "TUIST_INSTALL_PASSTHROUGH_ARGUMENTS"
+    case installBuildFolder = "TUIST_INSTALL_BUILD_FOLDER"
 
     // GENERATE
 
@@ -52,6 +53,7 @@ public enum EnvKey: String, CaseIterable {
     case generateOpen = "TUIST_GENERATE_OPEN"
     case generateBinaryCache = "TUIST_GENERATE_BINARY_CACHE"
     case generateCacheProfile = "TUIST_GENERATE_CACHE_PROFILE"
+    case generateBuildFolder = "TUIST_GENERATE_BUILD_FOLDER"
 
     // GRAPH
 
