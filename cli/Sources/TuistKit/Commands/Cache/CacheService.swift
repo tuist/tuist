@@ -511,10 +511,17 @@ final class EmptyCacheService: CacheServicing {
                     "\(cacheableTarget.0.target.name).xcframework",
                 ])
 
-                let xcodebuildArguments: [String] = artifactsIncludingTarget
-                    .flatMap { artifactPath in
-                        ["-framework", artifactPath.pathString]
-                    } + ["-allow-internal-distribution"]
+                var xcodebuildArguments: [String] = []
+                for artifactPath in artifactsIncludingTarget {
+                    xcodebuildArguments.append(contentsOf: ["-framework", artifactPath.pathString])
+                    let dsymPath = artifactPath.parentDirectory.appending(
+                        component: "\(artifactPath.basename).dSYM"
+                    )
+                    if try await fileSystem.exists(dsymPath) {
+                        xcodebuildArguments.append(contentsOf: ["-debug-symbols", dsymPath.pathString])
+                    }
+                }
+                xcodebuildArguments.append("-allow-internal-distribution")
 
                 Logger.current.info("Creating XCFramework for \(cacheableTarget.0.target.name)", metadata: .section)
 
@@ -583,6 +590,8 @@ final class EmptyCacheService: CacheServicing {
                         .xcarg("CLANG_ENABLE_CODE_COVERAGE", "NO"),
                     ] : []),
                     passthroughXcodeBuildArguments: [
+                        "OTHER_SWIFT_FLAGS=$(inherited) -debug-prefix-map $(SRCROOT)=/tuist-cache/$(TARGET_NAME)",
+                        "OTHER_CFLAGS=$(inherited) -fdebug-prefix-map=$(SRCROOT)=/tuist-cache/$(TARGET_NAME)",
                         "-resultBundlePath",
                         derivedDataPath.appending(component: UUID().uuidString).pathString,
                     ]
@@ -643,6 +652,8 @@ final class EmptyCacheService: CacheServicing {
                 clean: false,
                 arguments: deviceArguments,
                 passthroughXcodeBuildArguments: [
+                    "OTHER_SWIFT_FLAGS=$(inherited) -debug-prefix-map $(SRCROOT)=/tuist-cache/$(TARGET_NAME)",
+                    "OTHER_CFLAGS=$(inherited) -fdebug-prefix-map=$(SRCROOT)=/tuist-cache/$(TARGET_NAME)",
                     "-resultBundlePath",
                     derivedDataPath.appending(component: UUID().uuidString).pathString,
                 ]
@@ -705,6 +716,8 @@ final class EmptyCacheService: CacheServicing {
                     .xcarg("CLANG_ENABLE_CODE_COVERAGE", "NO"),
                 ] : []),
                 passthroughXcodeBuildArguments: [
+                    "OTHER_SWIFT_FLAGS=$(inherited) -debug-prefix-map $(SRCROOT)=/tuist-cache/$(TARGET_NAME)",
+                    "OTHER_CFLAGS=$(inherited) -fdebug-prefix-map=$(SRCROOT)=/tuist-cache/$(TARGET_NAME)",
                     "-resultBundlePath",
                     derivedDataPath.appending(component: UUID().uuidString).pathString,
                 ]

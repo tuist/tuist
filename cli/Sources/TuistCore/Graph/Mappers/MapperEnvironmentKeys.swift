@@ -23,6 +23,10 @@ private struct TargetTestCacheItemsKey: MapperEnvironmentKey {
     static var defaultValue: [AbsolutePath: [String: CacheItem]] = [:]
 }
 
+private struct CacheLLDBInitFileKey: MapperEnvironmentKey {
+    static var defaultValue: AbsolutePath?
+}
+
 extension MapperEnvironment {
     /// Target hashes for the `test` action.
     public var targetTestHashes: [AbsolutePath: [String: String]] {
@@ -43,5 +47,10 @@ extension MapperEnvironment {
     public var initialGraphWithSources: Graph? {
         get { self[InitialGraphWithSourcesKey.self] }
         set { self[InitialGraphWithSourcesKey.self] = newValue }
+    }
+
+    public var cacheLLDBInitFile: AbsolutePath? {
+        get { self[CacheLLDBInitFileKey.self] }
+        set { self[CacheLLDBInitFileKey.self] = newValue }
     }
 }
