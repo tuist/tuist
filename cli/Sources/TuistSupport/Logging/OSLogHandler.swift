@@ -1,7 +1,7 @@
 #if os(macOS)
     import Foundation
-    import protocol Logging.LogHandler
     import struct Logging.Logger
+    import protocol Logging.LogHandler
     @preconcurrency import os
 
     public struct OSLogHandler: LogHandler {
