@@ -575,3 +575,83 @@ jobs:
         run: mix ecto.migrate
       - name: Seed the database
         run: mix run priv/repo/seeds.exs
+  gradle_cache_acceptance:
+    name: Gradle Cache Acceptance
+    runs-on: namespace-profile-default-macos
+    timeout-minutes: 30
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    env:
+      MIX_ENV: dev
+      DATABASE_HOST: localhost
+      DATABASE_USERNAME: runner
+      DATABASE_PASSWORD: ""
+      TUIST_SECRET_KEY_BASE: ci-test-secret-key-base-must-be-at-least-64-characters-long-for-phoenix-to-work
+      TUIST_SECRET_KEY_PASSWORD: ci-test-secret-key-password
+      TUIST_SECRET_KEY_TOKENS: ci-test-secret-key-tokens
+      TUIST_SECRET_KEY_ENCRYPTION: ci-test-encryption-key-32-bytes!
+      TUIST_CACHE_API_KEY: 7a3de63bb6136d94539e9976b1c54bfd553467c2c4775f84b7b2baf27f8b38c6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat $GITHUB_WORKSPACE/.xcode-version).app
+      - name: Set up PostgreSQL with TimescaleDB
+        run: |
+          brew tap timescale/tap
+          brew install timescaledb
+          # Run timescaledb_move.sh to install extension files to PostgreSQL
+          /opt/homebrew/bin/timescaledb_move.sh || true
+          # Stop PostgreSQL before configuring
+          brew services stop postgresql@17 || true
+          sleep 2
+          # Configure TimescaleDB - specify the correct PostgreSQL 17 config path
+          timescaledb-tune --quiet --yes --pg-config /opt/homebrew/opt/postgresql@17/bin/pg_config
+          # Start PostgreSQL with the new shared_preload_libraries config
+          brew services start postgresql@17
+          # Wait for PostgreSQL to start (check via TCP)
+          for i in {1..30}; do
+            if /opt/homebrew/opt/postgresql@17/bin/pg_isready -h localhost -p 5432; then
+              echo "PostgreSQL is ready"
+              break
+            fi
+            echo "Waiting for PostgreSQL to start... ($i/30)"
+            sleep 2
+          done
+          # Create runner user for database access
+          /opt/homebrew/opt/postgresql@17/bin/createuser -h localhost -s runner || true
+          # Verify TimescaleDB extension is available
+          /opt/homebrew/opt/postgresql@17/bin/psql -h localhost -d postgres -c "CREATE EXTENSION IF NOT EXISTS timescaledb; SELECT extversion FROM pg_extension WHERE extname = 'timescaledb';"
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          working_directory: .
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          working_directory: server
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          working_directory: cache
+      - uses: android-actions/setup-android@v3
+      - name: Start ClickHouse
+        working-directory: server
+        run: mise run clickhouse:start
+      - name: Publish Gradle plugin to mavenLocal
+        working-directory: gradle
+        run: ./gradlew publishToMavenLocal
+      - name: Install dependencies and generate Xcode project
+        working-directory: .
+        run: |
+          tuist install
+          tuist generate --no-open
+      - name: Build tuist CLI
+        working-directory: .
+        run: |
+          xcodebuild build \
+            -workspace Tuist.xcworkspace \
+            -scheme tuist \
+            -configuration Debug \
+            -derivedDataPath build/DerivedData \
+            -quiet
+      - name: Run Gradle cache acceptance test
+        working-directory: .
+        env:
+          TUIST_EXECUTABLE: ${{ github.workspace }}/build/DerivedData/Build/Products/Debug/tuist
+        run: mise run e2e gradle_cache

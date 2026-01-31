@@ -49,7 +49,9 @@ config :tuist, Tuist.Mailer, adapter: Bamboo.LocalAdapter
 
 # Configure your database
 config :tuist, Tuist.Repo,
-  hostname: "localhost",
+  username: System.get_env("DATABASE_USERNAME"),
+  password: System.get_env("DATABASE_PASSWORD"),
+  hostname: System.get_env("DATABASE_HOST", "localhost"),
   database: "tuist_development",
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,

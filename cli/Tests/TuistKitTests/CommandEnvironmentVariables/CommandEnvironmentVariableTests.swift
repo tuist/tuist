@@ -853,7 +853,7 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.path == "/new/logout/path")
     }
 
-    @Test(.withMockedEnvironment()) func cacheCommandUsesEnvVars() throws {
+    @Test(.withMockedEnvironment()) func cacheWarmCommandUsesEnvVars() throws {
         setVariable(.cacheExternalOnly, value: "true")
         setVariable(.cacheGenerateOnly, value: "true")
         setVariable(.cachePrintHashes, value: "true")
@@ -861,7 +861,7 @@ struct CommandEnvironmentVariableTests {
         setVariable(.cachePath, value: "/cache/path")
         setVariable(.cacheTargets, value: "Fmk1,Fmk2")
 
-        let commandWithEnvVars = try CacheCommand.parse([])
+        let commandWithEnvVars = try CacheWarmCommand.parse([])
         #expect(commandWithEnvVars.externalOnly == true)
         #expect(commandWithEnvVars.generateOnly == true)
         #expect(commandWithEnvVars.printHashes == true)
@@ -869,7 +869,7 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithEnvVars.path == "/cache/path")
         #expect(commandWithEnvVars.targets == ["Fmk1", "Fmk2"])
 
-        let commandWithArgs = try CacheCommand.parse([
+        let commandWithArgs = try CacheWarmCommand.parse([
             "--external-only",
             "--generate-only",
             "--print-hashes",
