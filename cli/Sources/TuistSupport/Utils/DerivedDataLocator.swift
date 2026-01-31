@@ -2,6 +2,7 @@ import CryptoKit
 import Foundation
 import Mockable
 import Path
+import TuistEnvironment
 
 @Mockable
 public protocol DerivedDataLocating {

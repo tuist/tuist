@@ -3,6 +3,7 @@ import FileSystemTesting
 import Foundation
 import Path
 import Testing
+import TuistEnvironment
 import TuistSupport
 import TuistTesting
 

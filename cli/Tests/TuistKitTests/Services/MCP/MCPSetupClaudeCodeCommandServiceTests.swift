@@ -4,6 +4,7 @@ import Mockable
 import Path
 import SwiftyJSON
 import Testing
+import TuistEnvironment
 import TuistSupport
 import TuistTesting
 

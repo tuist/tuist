@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TuistLogging
 import TuistSupport
 
 enum GraphLoadingError: FatalError, Equatable {

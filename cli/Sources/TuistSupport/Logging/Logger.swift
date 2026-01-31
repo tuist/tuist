@@ -4,6 +4,8 @@ import Logging
     import LoggingOSLog
 #endif
 import Path
+import TuistConstants
+import TuistEnvironment
 import TuistLogging
 
 public struct LoggingConfig {

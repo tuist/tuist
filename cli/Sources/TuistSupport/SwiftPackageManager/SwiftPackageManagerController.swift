@@ -1,6 +1,7 @@
 import Command
 import FileSystem
 import Foundation
+import Logging
 import Mockable
 import Path
 import TSCUtility

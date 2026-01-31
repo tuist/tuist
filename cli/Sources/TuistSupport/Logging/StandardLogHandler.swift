@@ -1,6 +1,7 @@
 import Foundation
 import Logging
 import Noora
+import TuistEnvironment
 
 public struct StandardLogHandler: LogHandler {
     public var logLevel: Logger.Level

@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import TuistLogging
 
 enum OpeningError: FatalError, Equatable {
     case notFound(AbsolutePath)

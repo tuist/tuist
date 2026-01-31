@@ -3,6 +3,7 @@ import Foundation
 import Path
 import struct TSCUtility.Version
 import TuistCore
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 

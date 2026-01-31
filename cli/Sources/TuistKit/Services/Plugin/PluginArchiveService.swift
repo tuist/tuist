@@ -4,6 +4,7 @@ import Path
 import ProjectDescription
 import TuistDependencies
 import TuistLoader
+import TuistLogging
 import TuistSupport
 
 final class PluginArchiveService {

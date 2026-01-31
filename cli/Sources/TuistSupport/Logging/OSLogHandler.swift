@@ -1,5 +1,6 @@
 #if os(macOS)
     import Foundation
+    import protocol Logging.LogHandler
     import struct Logging.Logger
     @preconcurrency import os
 

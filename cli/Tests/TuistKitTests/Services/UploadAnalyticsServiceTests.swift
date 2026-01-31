@@ -4,6 +4,7 @@ import Foundation
 import Mockable
 import Path
 import Testing
+import TuistConstants
 import TuistCore
 import TuistHTTP
 import TuistServer

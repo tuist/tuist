@@ -1,6 +1,8 @@
 import Foundation
 import Logging
 import Path
+import TuistConstants
+import TuistLogging
 import TuistSupport
 
 final class VersionService {

@@ -2,9 +2,11 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import TuistConstants
 import TuistCore
 import TuistGenerator
 import TuistLoader
+import TuistLogging
 import TuistScaffold
 import TuistSupport
 import XcodeGraph

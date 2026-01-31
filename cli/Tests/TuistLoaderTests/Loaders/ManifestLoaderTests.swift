@@ -1,5 +1,6 @@
 import FileSystem
 import Foundation
+import TuistConstants
 import XcodeGraph
 import XCTest
 

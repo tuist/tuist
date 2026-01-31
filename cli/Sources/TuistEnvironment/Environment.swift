@@ -116,6 +116,10 @@ extension Environmenting {
         }) != nil
     }
 
+    public var isLegacyModuleCacheEnabled: Bool {
+        isVariableTruthy("TUIST_LEGACY_MODULE_CACHE")
+    }
+
     public func pathRelativeToWorkingDirectory(_ path: String?) async throws -> AbsolutePath {
         let currentWorkingDirectory = try await currentWorkingDirectory()
         if let path {

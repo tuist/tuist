@@ -1,5 +1,7 @@
 import Foundation
+import Logging
 import Mockable
+import TuistLogging
 
 enum UserInputReaderError: FatalError, Equatable {
     case noValuesProvided(String)

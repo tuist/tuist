@@ -4,6 +4,7 @@ import Path
 import TuistAutomation
 import TuistCache
 import TuistCI
+import TuistConstants
 import TuistCore
 import TuistGit
 import TuistLoader

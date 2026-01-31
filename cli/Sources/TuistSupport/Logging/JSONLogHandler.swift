@@ -1,5 +1,6 @@
 import Foundation
 import Logging
+import TuistEnvironment
 
 public struct JSONLogHandler: LogHandler {
     public var logLevel: Logger.Level

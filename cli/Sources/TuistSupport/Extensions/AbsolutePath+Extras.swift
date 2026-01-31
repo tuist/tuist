@@ -9,6 +9,7 @@
 #endif
 import Foundation
 import Path
+import TuistLogging
 import UniformTypeIdentifiers
 
 public enum GlobError: FatalError, Equatable {

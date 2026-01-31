@@ -1,6 +1,7 @@
 import Foundation
 import Path
 import Testing
+@testable import TuistEnvironment
 @testable import TuistSupport
 @testable import TuistTesting
 

@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import TuistLogging
 
 public enum XcodeError: FatalError, Equatable {
     case infoPlistNotFound(AbsolutePath)

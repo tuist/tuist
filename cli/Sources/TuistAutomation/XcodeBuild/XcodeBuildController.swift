@@ -1,8 +1,10 @@
+import Command
 import Foundation
 import Path
 import TuistCore
+import TuistEnvironment
+import TuistLogging
 import TuistSupport
-import Command
 import XcodeGraph
 
 public final class XcodeBuildController: XcodeBuildControlling {

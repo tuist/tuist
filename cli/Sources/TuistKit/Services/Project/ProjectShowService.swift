@@ -2,13 +2,14 @@ import Foundation
 import Mockable
 import Path
 import TuistLoader
+import TuistLogging
 import TuistServer
 import TuistSupport
 
 enum ProjectShowServiceError: Equatable, FatalError {
     case missingFullHandle
 
-    var type: TuistSupport.ErrorType {
+    var type: ErrorType {
         switch self {
         case .missingFullHandle: .abort
         }

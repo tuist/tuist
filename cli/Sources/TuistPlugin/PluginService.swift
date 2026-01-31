@@ -1,10 +1,12 @@
 import FileSystem
 import Foundation
 import Path
+import TuistConstants
 import TuistCore
 import TuistGit
 import TuistHTTP
 import TuistLoader
+import TuistLogging
 import TuistScaffold
 import TuistSupport
 

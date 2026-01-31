@@ -1,6 +1,8 @@
 import Foundation
 import Mockable
 import Testing
+import TuistConstants
+import TuistEnvironment
 import TuistSupport
 import TuistTesting
 

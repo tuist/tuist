@@ -2,6 +2,7 @@ import Foundation
 import Logging
 import Path
 import TuistCore
+import TuistEnvironment
 import TuistSupport
 import XcodeGraph
 

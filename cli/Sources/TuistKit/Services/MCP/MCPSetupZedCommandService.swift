@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import TuistEnvironment
 import TuistSupport
 
 struct MCPSetupZedCommandService {

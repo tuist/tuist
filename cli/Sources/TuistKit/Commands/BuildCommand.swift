@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import Path
+import TuistLogging
 import TuistServer
 import TuistSupport
 import XcodeGraph

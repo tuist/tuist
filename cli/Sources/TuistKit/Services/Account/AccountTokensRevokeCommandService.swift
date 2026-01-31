@@ -1,6 +1,7 @@
 import Foundation
 import Noora
 import Path
+import TuistEnvironment
 import TuistLoader
 import TuistServer
 import TuistSupport

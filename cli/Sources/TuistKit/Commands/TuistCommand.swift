@@ -4,8 +4,10 @@ import Noora
 import OpenAPIRuntime
 import Path
 import TuistCore
+import TuistEnvironment
 import TuistHTTP
 import TuistLoader
+import TuistLogging
 import TuistServer
 import TuistSupport
 

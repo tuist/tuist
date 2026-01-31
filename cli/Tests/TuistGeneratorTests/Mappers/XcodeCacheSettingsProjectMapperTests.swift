@@ -2,7 +2,9 @@ import FileSystemTesting
 import Foundation
 import Path
 import Testing
+import TuistConstants
 import TuistCore
+import TuistEnvironment
 import TuistSupport
 import TuistTesting
 import XcodeGraph

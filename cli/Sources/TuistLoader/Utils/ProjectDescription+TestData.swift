@@ -1,4 +1,5 @@
 import Foundation
+import TuistConstants
 import TuistSupport
 
 #if DEBUG

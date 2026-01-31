@@ -2,6 +2,8 @@ import FileSystem
 import Foundation
 import Path
 import TuistCore
+import TuistEnvironment
+import TuistLogging
 import TuistSupport
 
 /// This protocol defines the interface to compile a temporary module with the

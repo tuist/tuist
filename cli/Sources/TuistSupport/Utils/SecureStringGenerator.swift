@@ -1,4 +1,5 @@
 import Foundation
+import TuistLogging
 
 enum SecureStringGeneratorError: FatalError {
     case unknownError

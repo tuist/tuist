@@ -3,9 +3,12 @@ import Foundation
 import Path
 import TuistAutomation
 import TuistCI
+import TuistConstants
 import TuistCore
+import TuistEnvironment
 import TuistGit
 import TuistLoader
+import TuistLogging
 import TuistRootDirectoryLocator
 import TuistServer
 import TuistSupport

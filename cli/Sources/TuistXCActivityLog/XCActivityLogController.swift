@@ -3,6 +3,7 @@ import Foundation
 import Mockable
 import Path
 import TuistCASAnalytics
+import TuistEnvironment
 import TuistGit
 import TuistRootDirectoryLocator
 import TuistSupport

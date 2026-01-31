@@ -2,6 +2,7 @@ import Foundation
 import Path
 
 #if os(macOS)
+    import TuistLogging
     import TuistSupport
 #endif
 
