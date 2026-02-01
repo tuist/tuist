@@ -363,13 +363,13 @@ jobs:
         id: cache-restore
         uses: actions/cache/restore@v4
         with:
-          path: .build/linux
+          path: .build
           key: linux-cli-${{ hashFiles('Package.resolved') }}
-      - name: Build cross-platform targets
-        run: swift build --build-path .build/linux --target ProjectDescription --target TuistConstants --target TuistEnvironment --target TuistLogging
+      - name: Build tuist CLI
+        run: swift build --target tuist
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4
         with:
-          path: .build/linux
+          path: .build
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
