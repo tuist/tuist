@@ -11,7 +11,7 @@ Eklentiler, Tuist artefaktlarını birden fazla projede paylaşmak ve yeniden
 kullanmak için bir araçtır. Aşağıdaki artefaktlar desteklenmektedir:
 
 - <LocalizedLink href="/guides/features/projects/code-sharing">Proje açıklaması
-  yardımcıları</LocalizedLink> birden fazla projede.
+  yardımcıları</LocalizedLink> birden fazla projeye yayılmış.
 - <LocalizedLink href="/guides/features/projects/templates">Birden fazla projede
   şablonlar</LocalizedLink>.
 - Birden fazla projeye yayılan görevler.
@@ -23,7 +23,7 @@ tasarlanmıştır. Bu nedenle, **dikkate alınması gereken bazı sınırlamalar
 vardır**:
 
 - Bir eklenti başka bir eklentiye bağımlı olamaz.
-- Bir eklenti, üçüncü taraf Swift paketlerine bağlı olamaz.
+- Bir eklenti, üçüncü taraf Swift package'lerine bağlı olamaz.
 - Bir eklenti, eklentiyi kullanan projedeki proje açıklaması yardımcılarını
   kullanamaz.
 
@@ -36,7 +36,7 @@ düşünün,
 
 ### Proje açıklaması yardımcı eklentisi {#project-description-helper-plugin}
 
-Proje açıklaması yardımcı eklentisi, eklentinin adını bildiren bir
+Proje açıklaması yardımcı eklentisi, eklentinin adını belirten bir
 `Plugin.swift` manifest dosyası ve yardımcı Swift dosyalarını içeren bir
 `ProjectDescriptionHelpers` dizini içeren bir dizinle temsil edilir.
 
@@ -119,15 +119,16 @@ inceleyin.
 Görevler, `$PATH`-exposed çalıştırılabilir dosyalardır ve `tuist` komutu ile
 çağrılabilirler, ancak `tuist-<task-name>` adlandırma kuralına uymaları gerekir.
 Önceki sürümlerde, Tuist `tuist plugin` altında `build`, `run`, `test` ve
-`archive` görevlerini temsil eden çalıştırılabilir dosyalar için bazı zayıf
-kurallar ve araçlar sağlıyordu, ancak bu özelliği, aracın bakım yükünü ve
-karmaşıklığını artırdığı için kullanımdan kaldırdık.</task-name>
+`archive` Swift Package'lerinde çalıştırılabilir dosyalarla temsil edilen
+görevler için bazı zayıf kurallar ve araçlar sağlıyordu, ancak bu özelliği,
+aracın bakım yükünü ve karmaşıklığını artırdığı için kullanımdan
+kaldırdık.</task-name>
 
 Görevleri dağıtmak için Tuist kullanıyorsanız,
 - Her Tuist sürümüyle birlikte dağıtılan `ProjectAutomation.xcframework`
   dosyasını kullanmaya devam ederek, mantığınızda `let graph = try
   Tuist.graph()` ile proje grafiğine erişebilirsiniz. Komut, `tuist` komutunu
-  çalıştırmak için sistem sürecini kullanır ve proje grafiğinin bellekteki
+  çalıştırmak için sistem sürecini kullanır ve proje grafiğinin bellek içi
   temsilini döndürür.
 - Görevleri dağıtmak için, GitHub sürümlerinde `arm64` ve `x86_64` destekleyen
   bir fat binary eklemenizi ve [Mise](https://mise.jdx.dev) kurulum aracını
@@ -141,7 +142,7 @@ Görevleri dağıtmak için Tuist kullanıyorsanız,
 ::: info THE FUTURE OF PROJECTAUTOMATION
 <!-- -->
 `ProjectAutomation` ve `XcodeGraph` modellerini, proje grafiğinin tamamını
-kullanıcıya gösteren tek bir geriye dönük uyumlu çerçeveye birleştirmek
+kullanıcıya gösteren tek bir geriye dönük uyumlu çerçeveye birleştirmeyi
 planlıyoruz. Ayrıca, oluşturma mantığını kendi CLI'nizden de kullanabileceğiniz
 yeni bir katmana, `XcodeGraph` çıkaracağız. Bunu kendi Tuist'inizi oluşturmak
 olarak düşünün.
