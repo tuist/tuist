@@ -7,9 +7,9 @@
 ---
 # Kimlik Doğrulama {#authentication}
 
-Sunucuyla etkileşim kurmak için CLI, [taşıyıcı kimlik
+Sunucuyla etkileşim kurmak için CLI'nın [taşıyıcı kimlik
 doğrulaması](https://swagger.io/docs/specification/authentication/bearer-authentication/)
-kullanarak istekleri doğrulamalıdır. CLI, kullanıcı, hesap veya OIDC jetonu
+kullanarak istekleri doğrulaması gerekir. CLI, kullanıcı, hesap veya OIDC jetonu
 kullanarak kimlik doğrulamayı destekler.
 
 ## Kullanıcı olarak {#as-a-user}
@@ -24,10 +24,10 @@ tuist auth login
 
 Komut sizi web tabanlı bir kimlik doğrulama akışına yönlendirecektir. Kimlik
 doğrulaması yaptıktan sonra, CLI uzun ömürlü bir yenileme jetonu ve kısa ömürlü
-bir erişim jetonunu `~/.config/tuist/credentials` altında saklayacaktır.
+bir erişim jetonunu `~/.config/tuist/credentials` altında depolayacaktır.
 Dizindeki her dosya, kimlik doğrulaması yaptığınız etki alanını temsil eder ve
-varsayılan olarak `tuist.dev.json` olmalıdır. Bu dizinde saklanan bilgiler
-hassastır, bu nedenle **bunları güvenli bir şekilde sakladığınızdan emin olun**.
+varsayılan olarak `tuist.dev.json` olmalıdır. Bu dizinde depolanan bilgiler
+hassastır, bu nedenle **güvenli bir şekilde sakladığınızdan emin olun**.
 
 CLI, sunucuya istek gönderirken kimlik bilgilerini otomatik olarak arar. Erişim
 belirtecinin süresi dolmuşsa, CLI yenileme belirtecini kullanarak yeni bir
@@ -54,9 +54,9 @@ token'ıyla değiştirir.
    kılavuzunu</LocalizedLink> izleyin.
 
 2. **`tuist auth login` komutunu çalıştırın**: CI iş akışınızda, kimlik
-   doğrulaması gerektiren herhangi bir komuttan önce `tuist auth login` komutunu
+   doğrulama gerektiren herhangi bir komuttan önce `tuist auth login` komutunu
    çalıştırın. CLI, CI ortamını otomatik olarak algılar ve OIDC kullanarak
-   kimlik doğrulaması yapar.
+   kimlik doğrulamasını gerçekleştirir.
 
 Sağlayıcıya özgü yapılandırma örnekleri için
 <LocalizedLink href="/guides/integrations/continuous-integration">Sürekli
@@ -77,7 +77,7 @@ OIDC kimlik doğrulama, uzun ömürlü tokenlerden daha güvenlidir çünkü:
 <!-- -->
 :::
 
-## Hesap belirteçleri {#account-tokens}
+## Hesap jetonları {#account-tokens}
 
 OIDC'yi desteklemeyen CI ortamları için veya izinler üzerinde ayrıntılı kontrol
 gerektiren durumlarda, hesap belirteçlerini kullanabilirsiniz. Hesap
@@ -100,7 +100,7 @@ Komut aşağıdaki seçenekleri kabul eder:
 | `--scopes`   | Gerekli. Token'a izin verilecek kapsamların virgülle ayrılmış listesi.                                                                                       |
 | `--name`     | Gerekli. Token için benzersiz bir tanımlayıcı (1-32 karakter, yalnızca alfasayısal, tire ve alt çizgi).                                                      |
 | `--expires`  | İsteğe bağlı. Jetonun ne zaman sona ereceği. `30d` (gün), `6m` (ay) veya `1y` (yıl) gibi bir format kullanın. Belirtilmezse, jetonun süresi asla sona ermez. |
-| `--projeler` | Token'ı belirli proje tanıtıcılarıyla sınırlandırın. Belirtilmezse token tüm projelere erişebilir.                                                           |
+| `--projeler` | Token'ı belirli proje tanıtıcılarıyla sınırlandırın. Belirtilmediği takdirde token tüm projelere erişebilir.                                                 |
 
 ### Kullanılabilir kapsamlar {#available-scopes}
 
@@ -108,8 +108,8 @@ Komut aşağıdaki seçenekleri kabul eder:
 | ------------------------- | ------------------------------------------ |
 | `hesap:üyeler:okuma`      | Hesap üyelerini okuyun                     |
 | `hesap:üyeler:yazma`      | Hesap üyelerini yönetme                    |
-| `hesap:Kayıt:okuma`       | Swift paketi kayıt defterinden okuyun      |
-| `hesap:Kayıt:yazma`       | Swift paketi kayıt defterine yayınlayın    |
+| `hesap:Kayıt:okuma`       | Swift package kayıt defterinden okuyun     |
+| `hesap:Kayıt:yazma`       | Swift package kayıt defterine yayınlayın   |
 | `proje:önizlemeler:okuma` | Önizlemeleri indirin                       |
 | `project:previews:write`  | Önizlemeleri yükleyin                      |
 | `project:admin:read`      | Proje ayarlarını okuyun                    |
@@ -138,7 +138,7 @@ bireysel kapsamları içerecek şekilde otomatik olarak genişler.
 ### Sürekli Entegrasyon (CI) {#continuous-integration-ci}
 
 OIDC'yi desteklemeyen CI ortamları için, CI iş akışlarınızı doğrulamak üzere
-`ci` kapsam grubu ile bir hesap jetonu oluşturabilirsiniz:
+`ci` kapsam grubu ile bir hesap belirteci oluşturabilirsiniz:
 
 ```bash
 tuist account tokens create my-account --scopes ci --name ci
