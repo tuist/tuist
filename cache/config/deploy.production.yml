@@ -5,6 +5,7 @@ servers:
       - cache-us-east.tuist.dev
       - cache-us-west.tuist.dev
       - cache-ap-southeast.tuist.dev
+      - cache-sa-west.tuist.dev
 
 env:
   clear:
