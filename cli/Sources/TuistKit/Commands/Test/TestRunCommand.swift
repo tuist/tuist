@@ -207,7 +207,7 @@ public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand,
 
     @Flag(
         name: .long,
-        help: "When passed, quarantined tests are not skipped.",
+        help: "When passed, the quarantine feature is disabled and tests run regardless of whether they are quarantined on the server.",
         envKey: .testSkipQuarantine
     )
     var skipQuarantine: Bool = false
