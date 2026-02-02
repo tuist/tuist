@@ -352,8 +352,8 @@ Tuist будет использовать этот метод с помощью 
 :::
 
 #### Google Cloud Storage {#google-cloud-storage}
-Для Google Cloud Storage следуйте [этим
-инструкциям](https://cloud.google.com/storage/docs/authentication/managing-hmackeys),
+Для Google Cloud Storage следуйте [этой
+документации](https://cloud.google.com/storage/docs/authentication/managing-hmackeys),
 чтобы получить пару `AWS_ACCESS_KEY_ID` и `AWS_SECRET_ACCESS_KEY`.
 `AWS_ENDPOINT` следует установить на `https://storage.googleapis.com`. Другие
 переменные среды такие же, как и для любого другого хранилища, совместимого с
