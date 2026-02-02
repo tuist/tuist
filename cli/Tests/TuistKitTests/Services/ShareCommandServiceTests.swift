@@ -15,6 +15,7 @@ import XcodeGraph
 
 @testable import TuistKit
 
+@Suite(.snapshots)
 struct ShareCommandServiceTests {
     private let subject: ShareCommandService
     private let xcodeProjectBuildDirectoryLocator: MockXcodeProjectBuildDirectoryLocating
