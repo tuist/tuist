@@ -582,7 +582,6 @@ msgstr ""
 msgid "Filter"
 msgstr ""
 
-#: lib/tuist_web/live/generate_runs_live.ex:21
 #: lib/tuist_web/live/generate_runs_live.html.heex:3
 #: lib/tuist_web/live/run_detail_live.html.heex:30
 #, elixir-autogen, elixir-format
@@ -1431,4 +1430,9 @@ msgstr ""
 #: lib/tuist_web/live/run_detail_live.html.heex:112
 #, elixir-autogen, elixir-format
 msgid "Cache Endpoint"
+msgstr ""
+
+#: lib/tuist_web/live/generate_runs_live.ex:21
+#, elixir-autogen, elixir-format
+msgid "Generations"
 msgstr ""

@@ -120,11 +120,6 @@ msgstr ""
 msgid "Flags"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:156
-#, elixir-autogen, elixir-format
-msgid "Generate Runs"
-msgstr ""
-
 #: lib/tuist_web/components/empty_card_section.ex:29
 #: lib/tuist_web/components/public_project_cta_banner.ex:38
 #, elixir-autogen, elixir-format
@@ -462,4 +457,9 @@ msgstr ""
 #: lib/tuist_web/components/app_layout_components.ex:108
 #, elixir-autogen, elixir-format
 msgid "Quarantined Tests"
+msgstr ""
+
+#: lib/tuist_web/components/app_layout_components.ex:156
+#, elixir-autogen, elixir-format
+msgid "Generations"
 msgstr ""
