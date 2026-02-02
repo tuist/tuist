@@ -103,11 +103,13 @@ func withLoggerForNoora(logFilePath: Path.AbsolutePath, _ action: () async throw
 }
 
 private func initSession() async throws -> (Logger, SessionPaths) {
-    let (loggerHandler, sessionPaths) = try await SessionController().setup(
+    let sessionController = SessionController()
+    let (loggerHandler, sessionPaths) = try await sessionController.setup(
         stateDirectory: Environment.current.stateDirectory
     )
     // This is the old initialization method and will eventually go away.
     LoggingSystem.bootstrap(loggerHandler)
+    sessionController.scheduleMaintenance(stateDirectory: Environment.current.stateDirectory)
     return (Logger(label: "dev.tuist.cli", factory: loggerHandler), sessionPaths)
 }
 
