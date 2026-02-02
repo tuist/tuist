@@ -83,10 +83,10 @@ When you run `tuist test`, quarantined tests are automatically skipped. Tuist fe
 tuist test
 ```
 
-If you want to run all tests including quarantined ones, use the `--no-skip-quarantined` flag:
+If you want to run all tests including quarantined ones, use the `--skip-quarantine` flag:
 
 ```bash
-tuist test --no-skip-quarantined
+tuist test --skip-quarantine
 ```
 
 #### With xcodebuild directly

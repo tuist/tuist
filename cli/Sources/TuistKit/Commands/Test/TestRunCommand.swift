@@ -207,10 +207,10 @@ public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand,
 
     @Flag(
         name: .long,
-        help: "Do not skip quarantined tests automatically.",
-        envKey: .testNoSkipQuarantined
+        help: "When passed, quarantined tests are not skipped.",
+        envKey: .testSkipQuarantine
     )
-    var noSkipQuarantined: Bool = false
+    var skipQuarantine: Bool = false
 
     @Argument(
         parsing: .postTerminator,
@@ -321,7 +321,7 @@ public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand,
             ignoreSelectiveTesting: !selectiveTesting,
             generateOnly: generateOnly,
             passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
-            noSkipQuarantined: noSkipQuarantined
+            skipQuarantine: skipQuarantine
         )
     }
 }

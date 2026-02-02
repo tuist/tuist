@@ -2628,7 +2628,7 @@ final class TestServiceTests: TuistUnitTestCase {
         }) == true)
     }
 
-    func test_run_does_not_fetch_quarantined_tests_when_noSkipQuarantined_is_true() async throws {
+    func test_run_does_not_fetch_quarantined_tests_when_skipQuarantine_is_true() async throws {
         // Given
         givenGenerator()
         let path = try temporaryPath()
@@ -2687,7 +2687,7 @@ final class TestServiceTests: TuistUnitTestCase {
             }
 
         // When
-        try await testRun(path: path, noSkipQuarantined: true)
+        try await testRun(path: path, skipQuarantine: true)
 
         // Then
         verify(listTestCasesService)
@@ -2903,7 +2903,7 @@ final class TestServiceTests: TuistUnitTestCase {
         testPlanConfiguration: TestPlanConfiguration? = nil,
         generateOnly: Bool = false,
         passthroughXcodeBuildArguments: [String] = [],
-        noSkipQuarantined: Bool = false
+        skipQuarantine: Bool = false
     ) async throws {
         try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
             try await subject.run(
@@ -2930,7 +2930,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreSelectiveTesting: false,
                 generateOnly: generateOnly,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
-                noSkipQuarantined: noSkipQuarantined
+                skipQuarantine: skipQuarantine
             )
         }
     }

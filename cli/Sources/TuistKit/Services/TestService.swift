@@ -253,7 +253,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         ignoreSelectiveTesting: Bool,
         generateOnly: Bool,
         passthroughXcodeBuildArguments: [String],
-        noSkipQuarantined: Bool = false
+        skipQuarantine: Bool = false
     ) async throws {
         if validateTestTargetsParameters {
             try Self.validateParameters(
@@ -300,7 +300,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         }
 
         var skipTestTargets = skipTestTargets
-        if !noSkipQuarantined, let fullHandle = config.fullHandle {
+        if !skipQuarantine, let fullHandle = config.fullHandle {
             do {
                 let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
                 let quarantinedTests = try await fetchQuarantinedTests(
