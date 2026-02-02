@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.135.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* generate registry config before resolving Swift packages by [@pepicrft](https://github.com/pepicrft) in [#9311](https://github.com/tuist/tuist/pull/9311)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.135.0...4.135.1
+
 ## What's Changed in 4.135.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
