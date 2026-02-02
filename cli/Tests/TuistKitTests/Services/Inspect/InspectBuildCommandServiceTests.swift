@@ -868,7 +868,7 @@ struct InspectBuildCommandServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func createsBuild_with_nil_custom_metadata_when_no_env_vars() async throws {
+    func createsBuild_with_empty_custom_metadata_when_no_env_vars() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
@@ -913,7 +913,10 @@ struct InspectBuildCommandServiceTests {
                 category: .any,
                 configuration: .any,
                 customMetadata: .matching { metadata in
-                    metadata == nil
+                    guard let metadata else { return false }
+                    let tags = metadata.tags ?? []
+                    let values = metadata.values?.additionalProperties ?? [:]
+                    return tags.isEmpty && values.isEmpty
                 },
                 duration: .any,
                 files: .any,

@@ -232,7 +232,7 @@ struct InspectBuildCommandService {
         }
     }
 
-    private func readCustomMetadata() -> BuildCustomMetadata? {
+    private func readCustomMetadata() -> BuildCustomMetadata {
         let env = Environment.current.variables
         var tags: [String] = []
         var values: [String: String] = [:]
@@ -250,10 +250,6 @@ struct InspectBuildCommandService {
         for (key, value) in env where key.hasPrefix("TUIST_BUILD_VALUE_") {
             let valueKey = String(key.dropFirst("TUIST_BUILD_VALUE_".count)).lowercased()
             values[valueKey] = value
-        }
-
-        if tags.isEmpty, values.isEmpty {
-            return nil
         }
 
         return BuildCustomMetadata(
