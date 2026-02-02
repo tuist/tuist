@@ -31,18 +31,10 @@ enum GetCacheRunServiceError: LocalizedError {
     }
 }
 
-public final class GetCacheRunService: GetCacheRunServicing {
+public struct GetCacheRunService: GetCacheRunServicing {
     private let fullHandleService: FullHandleServicing
 
-    public convenience init() {
-        self.init(
-            fullHandleService: FullHandleService()
-        )
-    }
-
-    init(
-        fullHandleService: FullHandleServicing
-    ) {
+    public init(fullHandleService: FullHandleServicing = FullHandleService()) {
         self.fullHandleService = fullHandleService
     }
 

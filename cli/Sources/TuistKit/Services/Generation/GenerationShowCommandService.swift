@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import Noora
-import OpenAPIURLSession
 import Path
 import TuistLoader
 import TuistServer
@@ -10,7 +9,7 @@ import TuistSupport
 @Mockable
 protocol GenerationShowCommandServicing {
     func run(
-        project: String?,
+        projectFullHandle: String?,
         generationId: String,
         path: String?,
         json: Bool
@@ -28,7 +27,7 @@ enum GenerationShowCommandServiceError: Equatable, LocalizedError {
     }
 }
 
-final class GenerationShowCommandService: GenerationShowCommandServicing {
+struct GenerationShowCommandService: GenerationShowCommandServicing {
     private let getGenerationService: GetGenerationServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
@@ -44,7 +43,7 @@ final class GenerationShowCommandService: GenerationShowCommandServicing {
     }
 
     func run(
-        project: String?,
+        projectFullHandle: String?,
         generationId: String,
         path: String?,
         json: Bool
@@ -52,7 +51,7 @@ final class GenerationShowCommandService: GenerationShowCommandServicing {
         let directoryPath: AbsolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
         let config = try await configLoader.loadConfig(path: directoryPath)
-        guard let resolvedFullHandle = project != nil ? project! : config.fullHandle else {
+        guard let resolvedFullHandle = projectFullHandle ?? config.fullHandle else {
             throw GenerationShowCommandServiceError.missingFullHandle
         }
 

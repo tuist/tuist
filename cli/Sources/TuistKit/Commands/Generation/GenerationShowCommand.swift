@@ -23,7 +23,7 @@ struct GenerationShowCommand: AsyncParsableCommand, NooraReadyCommand {
         help: "The full handle of the project. Must be in the format of account-handle/project-handle. If not provided, it will be read from the project's Tuist.swift.",
         envKey: .generationShowFullHandle
     )
-    var project: String?
+    var projectFullHandle: String?
 
     @Option(
         name: .shortAndLong,
@@ -42,7 +42,7 @@ struct GenerationShowCommand: AsyncParsableCommand, NooraReadyCommand {
 
     func run() async throws {
         try await GenerationShowCommandService().run(
-            project: project,
+            projectFullHandle: projectFullHandle,
             generationId: generationId,
             path: path,
             json: json

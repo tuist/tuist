@@ -30,18 +30,10 @@ enum ListCacheRunsServiceError: LocalizedError {
     }
 }
 
-public final class ListCacheRunsService: ListCacheRunsServicing {
+public struct ListCacheRunsService: ListCacheRunsServicing {
     private let fullHandleService: FullHandleServicing
 
-    public convenience init() {
-        self.init(
-            fullHandleService: FullHandleService()
-        )
-    }
-
-    init(
-        fullHandleService: FullHandleServicing
-    ) {
+    public init(fullHandleService: FullHandleServicing = FullHandleService()) {
         self.fullHandleService = fullHandleService
     }
 

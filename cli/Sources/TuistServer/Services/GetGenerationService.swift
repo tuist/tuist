@@ -31,18 +31,10 @@ enum GetGenerationServiceError: LocalizedError {
     }
 }
 
-public final class GetGenerationService: GetGenerationServicing {
+public struct GetGenerationService: GetGenerationServicing {
     private let fullHandleService: FullHandleServicing
 
-    public convenience init() {
-        self.init(
-            fullHandleService: FullHandleService()
-        )
-    }
-
-    init(
-        fullHandleService: FullHandleServicing
-    ) {
+    public init(fullHandleService: FullHandleServicing = FullHandleService()) {
         self.fullHandleService = fullHandleService
     }
 

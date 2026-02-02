@@ -1,6 +1,5 @@
 import Foundation
 import Noora
-import OpenAPIURLSession
 import Path
 import TuistLoader
 import TuistServer
@@ -8,7 +7,7 @@ import TuistSupport
 
 protocol CacheRunListCommandServicing {
     func run(
-        project: String?,
+        projectFullHandle: String?,
         path: String?,
         gitBranch: String?,
         json: Bool
@@ -26,7 +25,7 @@ enum CacheRunListCommandServiceError: Equatable, LocalizedError {
     }
 }
 
-final class CacheRunListCommandService: CacheRunListCommandServicing {
+struct CacheRunListCommandService: CacheRunListCommandServicing {
     private let listCacheRunsService: ListCacheRunsServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
@@ -42,7 +41,7 @@ final class CacheRunListCommandService: CacheRunListCommandServicing {
     }
 
     func run(
-        project: String?,
+        projectFullHandle: String?,
         path: String?,
         gitBranch: String?,
         json: Bool
@@ -50,11 +49,14 @@ final class CacheRunListCommandService: CacheRunListCommandServicing {
         let directoryPath: AbsolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
         let config = try await configLoader.loadConfig(path: directoryPath)
-        guard let resolvedFullHandle = project != nil ? project! : config.fullHandle else {
+        guard let resolvedFullHandle = projectFullHandle ?? config.fullHandle else {
             throw CacheRunListCommandServiceError.missingFullHandle
         }
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+
+        let pageSize = 10
+        let startPage = 0
 
         let response = try await listCacheRunsService.listCacheRuns(
             fullHandle: resolvedFullHandle,
@@ -62,8 +64,8 @@ final class CacheRunListCommandService: CacheRunListCommandServicing {
             gitBranch: gitBranch,
             gitCommitSha: nil,
             gitRef: nil,
-            page: nil,
-            pageSize: 50
+            page: startPage + 1,
+            pageSize: pageSize
         )
 
         if json {
@@ -71,30 +73,60 @@ final class CacheRunListCommandService: CacheRunListCommandServicing {
             return
         }
 
-        if response.cache_runs.isEmpty {
+        let cacheRuns = response.cache_runs
+
+        if cacheRuns.isEmpty {
             let branchFilter = gitBranch.map { " for branch '\($0)'" } ?? ""
             Noora.current.passthrough("No cache runs found for project \(resolvedFullHandle)\(branchFilter).")
             return
         }
 
-        try Noora.current.paginatedTable(TableData(columns: [
-            TableColumn(title: "ID", width: .auto),
-            TableColumn(title: "Status", width: .auto),
-            TableColumn(title: "Duration", width: .auto),
-            TableColumn(title: "CI", width: .auto),
-            TableColumn(title: "Branch", width: .auto),
-            TableColumn(title: "Date", width: .auto),
-            TableColumn(title: "URL", width: .auto),
-        ], rows: response.cache_runs.map { cacheRun in
-            return [
+        let totalPages = response.pagination_metadata.total_pages ?? 1
+
+        let initialRows = cacheRuns.map { cacheRun in
+            [
                 "\(cacheRun.id)",
                 "\(cacheRun.status)",
                 "\(Formatters.formatDuration(cacheRun.duration))",
-                "\(cacheRun.is_ci ? "Yes" : "No")",
-                "\(cacheRun.git_branch ?? "-")",
-                "\(Formatters.formatTimestamp(cacheRun.ran_at))",
-                "\(.link(title: "Link", href: cacheRun.url))",
+                cacheRun.is_ci ? "Yes" : "No",
+                cacheRun.git_branch ?? "-",
+                Formatters.formatTimestamp(cacheRun.ran_at),
+                cacheRun.url,
             ]
-        }), pageSize: 10)
+        }
+
+        try await Noora.current.paginatedTable(
+            headers: ["ID", "Status", "Duration", "CI", "Branch", "Date", "URL"],
+            pageSize: pageSize,
+            totalPages: totalPages,
+            startPage: startPage,
+            loadPage: { [self] pageIndex in
+                if pageIndex == startPage {
+                    return initialRows
+                }
+
+                let pageResponse = try await listCacheRunsService.listCacheRuns(
+                    fullHandle: resolvedFullHandle,
+                    serverURL: serverURL,
+                    gitBranch: gitBranch,
+                    gitCommitSha: nil,
+                    gitRef: nil,
+                    page: pageIndex + 1,
+                    pageSize: pageSize
+                )
+
+                return pageResponse.cache_runs.map { cacheRun in
+                    [
+                        "\(cacheRun.id)",
+                        "\(cacheRun.status)",
+                        "\(Formatters.formatDuration(cacheRun.duration))",
+                        cacheRun.is_ci ? "Yes" : "No",
+                        cacheRun.git_branch ?? "-",
+                        Formatters.formatTimestamp(cacheRun.ran_at),
+                        cacheRun.url,
+                    ]
+                }
+            }
+        )
     }
 }

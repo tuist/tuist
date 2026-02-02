@@ -17,7 +17,7 @@ struct CacheRunListCommand: AsyncParsableCommand, NooraReadyCommand {
         help: "The full handle of the project. Must be in the format of account-handle/project-handle. If not provided, it will be read from the project's Tuist.swift.",
         envKey: .cacheRunListFullHandle
     )
-    var project: String?
+    var projectFullHandle: String?
 
     @Option(
         name: .shortAndLong,
@@ -43,7 +43,7 @@ struct CacheRunListCommand: AsyncParsableCommand, NooraReadyCommand {
 
     func run() async throws {
         try await CacheRunListCommandService().run(
-            project: project,
+            projectFullHandle: projectFullHandle,
             path: path,
             gitBranch: gitBranch,
             json: json

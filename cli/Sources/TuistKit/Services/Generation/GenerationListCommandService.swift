@@ -1,6 +1,5 @@
 import Foundation
 import Noora
-import OpenAPIURLSession
 import Path
 import TuistLoader
 import TuistServer
@@ -8,7 +7,7 @@ import TuistSupport
 
 protocol GenerationListCommandServicing {
     func run(
-        project: String?,
+        projectFullHandle: String?,
         path: String?,
         gitBranch: String?,
         json: Bool
@@ -26,7 +25,7 @@ enum GenerationListCommandServiceError: Equatable, LocalizedError {
     }
 }
 
-final class GenerationListCommandService: GenerationListCommandServicing {
+struct GenerationListCommandService: GenerationListCommandServicing {
     private let listGenerationsService: ListGenerationsServicing
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
@@ -42,7 +41,7 @@ final class GenerationListCommandService: GenerationListCommandServicing {
     }
 
     func run(
-        project: String?,
+        projectFullHandle: String?,
         path: String?,
         gitBranch: String?,
         json: Bool
@@ -50,11 +49,14 @@ final class GenerationListCommandService: GenerationListCommandServicing {
         let directoryPath: AbsolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
         let config = try await configLoader.loadConfig(path: directoryPath)
-        guard let resolvedFullHandle = project != nil ? project! : config.fullHandle else {
+        guard let resolvedFullHandle = projectFullHandle ?? config.fullHandle else {
             throw GenerationListCommandServiceError.missingFullHandle
         }
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+
+        let pageSize = 10
+        let startPage = 0
 
         let response = try await listGenerationsService.listGenerations(
             fullHandle: resolvedFullHandle,
@@ -62,8 +64,8 @@ final class GenerationListCommandService: GenerationListCommandServicing {
             gitBranch: gitBranch,
             gitCommitSha: nil,
             gitRef: nil,
-            page: nil,
-            pageSize: 50
+            page: startPage + 1,
+            pageSize: pageSize
         )
 
         if json {
@@ -71,30 +73,60 @@ final class GenerationListCommandService: GenerationListCommandServicing {
             return
         }
 
-        if response.generations.isEmpty {
+        let generations = response.generations
+
+        if generations.isEmpty {
             let branchFilter = gitBranch.map { " for branch '\($0)'" } ?? ""
             Noora.current.passthrough("No generations found for project \(resolvedFullHandle)\(branchFilter).")
             return
         }
 
-        try Noora.current.paginatedTable(TableData(columns: [
-            TableColumn(title: "ID", width: .auto),
-            TableColumn(title: "Status", width: .auto),
-            TableColumn(title: "Duration", width: .auto),
-            TableColumn(title: "CI", width: .auto),
-            TableColumn(title: "Branch", width: .auto),
-            TableColumn(title: "Date", width: .auto),
-            TableColumn(title: "URL", width: .auto),
-        ], rows: response.generations.map { generation in
-            return [
+        let totalPages = response.pagination_metadata.total_pages ?? 1
+
+        let initialRows = generations.map { generation in
+            [
                 "\(generation.id)",
                 "\(generation.status)",
                 "\(Formatters.formatDuration(generation.duration))",
-                "\(generation.is_ci ? "Yes" : "No")",
-                "\(generation.git_branch ?? "-")",
-                "\(Formatters.formatTimestamp(generation.ran_at))",
-                "\(.link(title: "Link", href: generation.url))",
+                generation.is_ci ? "Yes" : "No",
+                generation.git_branch ?? "-",
+                Formatters.formatTimestamp(generation.ran_at),
+                generation.url,
             ]
-        }), pageSize: 10)
+        }
+
+        try await Noora.current.paginatedTable(
+            headers: ["ID", "Status", "Duration", "CI", "Branch", "Date", "URL"],
+            pageSize: pageSize,
+            totalPages: totalPages,
+            startPage: startPage,
+            loadPage: { [self] pageIndex in
+                if pageIndex == startPage {
+                    return initialRows
+                }
+
+                let pageResponse = try await listGenerationsService.listGenerations(
+                    fullHandle: resolvedFullHandle,
+                    serverURL: serverURL,
+                    gitBranch: gitBranch,
+                    gitCommitSha: nil,
+                    gitRef: nil,
+                    page: pageIndex + 1,
+                    pageSize: pageSize
+                )
+
+                return pageResponse.generations.map { generation in
+                    [
+                        "\(generation.id)",
+                        "\(generation.status)",
+                        "\(Formatters.formatDuration(generation.duration))",
+                        generation.is_ci ? "Yes" : "No",
+                        generation.git_branch ?? "-",
+                        Formatters.formatTimestamp(generation.ran_at),
+                        generation.url,
+                    ]
+                }
+            }
+        )
     }
 }

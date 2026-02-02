@@ -10,7 +10,8 @@ public struct GenerateRunCommand: AsyncParsableCommand, RecentPathRememberableCo
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "run",
-            abstract: "Generates an Xcode workspace to start working on the project."
+            abstract: "Generates an Xcode workspace to start working on the project.",
+            discussion: "Use 'tuist generate list' and 'tuist generate show' to inspect generation runs."
         )
     }
 

@@ -7,7 +7,7 @@ public struct GenerateCommand: ParsableCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "generate",
-            abstract: "A set of commands related to project generation.",
+            abstract: "Generate a project or inspect generation runs.",
             subcommands: [
                 GenerateRunCommand.self,
                 GenerationListCommand.self,
