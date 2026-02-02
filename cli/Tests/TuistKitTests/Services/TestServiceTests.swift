@@ -38,6 +38,8 @@ final class TestServiceTests: TuistUnitTestCase {
     private var createTestService: MockCreateTestServicing!
     private var gitController: MockGitControlling!
     private var ciController: MockCIControlling!
+    private var listTestCasesService: MockListTestCasesServicing!
+    private var serverEnvironmentService: MockServerEnvironmentServicing!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -57,6 +59,8 @@ final class TestServiceTests: TuistUnitTestCase {
         createTestService = .init()
         gitController = .init()
         ciController = .init()
+        listTestCasesService = .init()
+        serverEnvironmentService = .init()
 
         cacheStorageFactory = MockCacheStorageFactorying()
         given(cacheStorageFactory)
@@ -110,6 +114,10 @@ final class TestServiceTests: TuistUnitTestCase {
             .ciInfo()
             .willReturn(nil)
 
+        given(serverEnvironmentService)
+            .url(configServerURL: .any)
+            .willReturn(URL(string: "https://cloud.tuist.io")!)
+
         subject = TestService(
             generatorFactory: generatorFactory,
             cacheStorageFactory: cacheStorageFactory,
@@ -123,7 +131,9 @@ final class TestServiceTests: TuistUnitTestCase {
             inspectResultBundleService: inspectResultBundleService,
             derivedDataLocator: derivedDataLocator,
             createTestService: createTestService,
-            ciController: ciController
+            serverEnvironmentService: serverEnvironmentService,
+            ciController: ciController,
+            listTestCasesService: listTestCasesService
         )
 
         given(simulatorController)
@@ -189,6 +199,8 @@ final class TestServiceTests: TuistUnitTestCase {
         createTestService = nil
         gitController = nil
         ciController = nil
+        listTestCasesService = nil
+        serverEnvironmentService = nil
         subject = nil
         super.tearDown()
     }
@@ -2496,6 +2508,361 @@ final class TestServiceTests: TuistUnitTestCase {
         }
     }
 
+    func test_run_fetches_quarantined_tests_and_skips_them() async throws {
+        // Given
+        givenGenerator()
+        let path = try temporaryPath()
+        let fullHandle = "organization/project"
+        let serverURL = URL(string: "https://cloud.tuist.io")!
+
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: fullHandle))
+
+        given(serverEnvironmentService)
+            .url(configServerURL: .any)
+            .willReturn(serverURL)
+
+        let testCase1 = Components.Schemas.TestCase(
+            avg_duration: 100,
+            id: "1",
+            is_flaky: false,
+            is_quarantined: true,
+            module: .init(id: "mod1", name: "AppTests"),
+            name: "testQuarantined()",
+            suite: .init(id: "suite1", name: "QuarantinedSuite"),
+            url: "https://tuist.dev/test/1"
+        )
+        let testCase2 = Components.Schemas.TestCase(
+            avg_duration: 100,
+            id: "2",
+            is_flaky: false,
+            is_quarantined: true,
+            module: .init(id: "mod2", name: "CoreTests"),
+            name: "testAnotherQuarantined()",
+            suite: nil,
+            url: "https://tuist.dev/test/2"
+        )
+        let response = Operations.listTestCases.Output.Ok.Body.jsonPayload(
+            pagination_metadata: .init(
+                current_page: 1,
+                has_next_page: false,
+                has_previous_page: false,
+                page_size: 500,
+                total_count: 2,
+                total_pages: 1
+            ),
+            test_cases: [testCase1, testCase2]
+        )
+
+        given(listTestCasesService)
+            .listTestCases(
+                fullHandle: .value(fullHandle),
+                serverURL: .value(serverURL),
+                flaky: .value(nil),
+                quarantined: .value(true),
+                page: .value(1),
+                pageSize: .value(500)
+            )
+            .willReturn(response)
+
+        buildGraphInspector.reset()
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([Scheme.test(name: "ProjectScheme")])
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([Scheme.test(name: "ProjectScheme")])
+        given(buildGraphInspector)
+            .buildArguments(project: .any, target: .any, configuration: .any, skipSigning: .any)
+            .willReturn([])
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willReturn(.test())
+
+        given(generator)
+            .generateWithGraph(path: .value(path), options: .any)
+            .willProduce { path, _ in
+                (path, .test(workspace: .test(schemes: [.test(name: "ProjectScheme")])), MapperEnvironment())
+            }
+
+        var capturedSkipTestTargets: [TestIdentifier]?
+        xcodebuildController.reset()
+        given(xcodebuildController)
+            .test(
+                .any,
+                scheme: .any,
+                clean: .any,
+                destination: .any,
+                action: .any,
+                rosetta: .any,
+                derivedDataPath: .any,
+                resultBundlePath: .any,
+                arguments: .any,
+                retryCount: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                testPlanConfiguration: .any,
+                passthroughXcodeBuildArguments: .any
+            )
+            .willProduce { _, _, _, _, _, _, _, _, _, _, _, skipTestTargets, _, _ in
+                capturedSkipTestTargets = skipTestTargets
+            }
+
+        // When
+        try await testRun(path: path)
+
+        // Then
+        XCTAssertNotNil(capturedSkipTestTargets)
+        XCTAssertEqual(capturedSkipTestTargets?.count, 2)
+        XCTAssertTrue(capturedSkipTestTargets?.contains(where: {
+            $0.target == "AppTests" && $0.class == "QuarantinedSuite" && $0.method == "testQuarantined()"
+        }) == true)
+        XCTAssertTrue(capturedSkipTestTargets?.contains(where: {
+            $0.target == "CoreTests" && $0.class == "testAnotherQuarantined()"
+        }) == true)
+    }
+
+    func test_run_does_not_fetch_quarantined_tests_when_noSkipQuarantined_is_true() async throws {
+        // Given
+        givenGenerator()
+        let path = try temporaryPath()
+        let fullHandle = "organization/project"
+
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: fullHandle))
+
+        buildGraphInspector.reset()
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([Scheme.test(name: "ProjectScheme")])
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([Scheme.test(name: "ProjectScheme")])
+        given(buildGraphInspector)
+            .buildArguments(project: .any, target: .any, configuration: .any, skipSigning: .any)
+            .willReturn([])
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willReturn(.test())
+
+        given(generator)
+            .generateWithGraph(path: .value(path), options: .any)
+            .willProduce { path, _ in
+                (path, .test(workspace: .test(schemes: [.test(name: "ProjectScheme")])), MapperEnvironment())
+            }
+
+        var capturedSkipTestTargets: [TestIdentifier]?
+        xcodebuildController.reset()
+        given(xcodebuildController)
+            .test(
+                .any,
+                scheme: .any,
+                clean: .any,
+                destination: .any,
+                action: .any,
+                rosetta: .any,
+                derivedDataPath: .any,
+                resultBundlePath: .any,
+                arguments: .any,
+                retryCount: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                testPlanConfiguration: .any,
+                passthroughXcodeBuildArguments: .any
+            )
+            .willProduce { _, _, _, _, _, _, _, _, _, _, _, skipTestTargets, _, _ in
+                capturedSkipTestTargets = skipTestTargets
+            }
+
+        // When
+        try await testRun(path: path, noSkipQuarantined: true)
+
+        // Then
+        verify(listTestCasesService)
+            .listTestCases(
+                fullHandle: .any,
+                serverURL: .any,
+                flaky: .any,
+                quarantined: .any,
+                page: .any,
+                pageSize: .any
+            )
+            .called(0)
+        XCTAssertEqual(capturedSkipTestTargets, [])
+    }
+
+    func test_run_does_not_fetch_quarantined_tests_when_fullHandle_is_nil() async throws {
+        // Given
+        givenGenerator()
+        let path = try temporaryPath()
+
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: nil))
+
+        buildGraphInspector.reset()
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([Scheme.test(name: "ProjectScheme")])
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([Scheme.test(name: "ProjectScheme")])
+        given(buildGraphInspector)
+            .buildArguments(project: .any, target: .any, configuration: .any, skipSigning: .any)
+            .willReturn([])
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willReturn(.test())
+
+        given(generator)
+            .generateWithGraph(path: .value(path), options: .any)
+            .willProduce { path, _ in
+                (path, .test(workspace: .test(schemes: [.test(name: "ProjectScheme")])), MapperEnvironment())
+            }
+
+        var capturedSkipTestTargets: [TestIdentifier]?
+        xcodebuildController.reset()
+        given(xcodebuildController)
+            .test(
+                .any,
+                scheme: .any,
+                clean: .any,
+                destination: .any,
+                action: .any,
+                rosetta: .any,
+                derivedDataPath: .any,
+                resultBundlePath: .any,
+                arguments: .any,
+                retryCount: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                testPlanConfiguration: .any,
+                passthroughXcodeBuildArguments: .any
+            )
+            .willProduce { _, _, _, _, _, _, _, _, _, _, _, skipTestTargets, _, _ in
+                capturedSkipTestTargets = skipTestTargets
+            }
+
+        // When
+        try await testRun(path: path)
+
+        // Then
+        verify(listTestCasesService)
+            .listTestCases(
+                fullHandle: .any,
+                serverURL: .any,
+                flaky: .any,
+                quarantined: .any,
+                page: .any,
+                pageSize: .any
+            )
+            .called(0)
+        XCTAssertEqual(capturedSkipTestTargets, [])
+    }
+
+    func test_run_logs_warning_when_fetching_quarantined_tests_fails() async throws {
+        // Given
+        givenGenerator()
+        let path = try temporaryPath()
+        let fullHandle = "organization/project"
+        let serverURL = URL(string: "https://cloud.tuist.io")!
+
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: fullHandle))
+
+        given(serverEnvironmentService)
+            .url(configServerURL: .any)
+            .willReturn(serverURL)
+
+        given(listTestCasesService)
+            .listTestCases(
+                fullHandle: .any,
+                serverURL: .any,
+                flaky: .any,
+                quarantined: .any,
+                page: .any,
+                pageSize: .any
+            )
+            .willThrow(NSError(domain: "test", code: 500, userInfo: [NSLocalizedDescriptionKey: "Server error"]))
+
+        buildGraphInspector.reset()
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([Scheme.test(name: "ProjectScheme")])
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn([Scheme.test(name: "ProjectScheme")])
+        given(buildGraphInspector)
+            .buildArguments(project: .any, target: .any, configuration: .any, skipSigning: .any)
+            .willReturn([])
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willReturn(.test())
+
+        given(generator)
+            .generateWithGraph(path: .value(path), options: .any)
+            .willProduce { path, _ in
+                (path, .test(workspace: .test(schemes: [.test(name: "ProjectScheme")])), MapperEnvironment())
+            }
+
+        var capturedSkipTestTargets: [TestIdentifier]?
+        xcodebuildController.reset()
+        given(xcodebuildController)
+            .test(
+                .any,
+                scheme: .any,
+                clean: .any,
+                destination: .any,
+                action: .any,
+                rosetta: .any,
+                derivedDataPath: .any,
+                resultBundlePath: .any,
+                arguments: .any,
+                retryCount: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                testPlanConfiguration: .any,
+                passthroughXcodeBuildArguments: .any
+            )
+            .willProduce { _, _, _, _, _, _, _, _, _, _, _, skipTestTargets, _, _ in
+                capturedSkipTestTargets = skipTestTargets
+            }
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(path: path)
+
+            // Then
+            let warnings = AlertController.current.warnings()
+            XCTAssertEqual(warnings.count, 1)
+            XCTAssertTrue(warnings.first?.message.plain().contains("Failed to fetch quarantined tests") == true)
+            XCTAssertEqual(capturedSkipTestTargets, [])
+        }
+    }
+
     private func givenGenerator() {
         given(generatorFactory)
             .testing(
@@ -2535,7 +2902,8 @@ final class TestServiceTests: TuistUnitTestCase {
         skipTestTargets: [TestIdentifier] = [],
         testPlanConfiguration: TestPlanConfiguration? = nil,
         generateOnly: Bool = false,
-        passthroughXcodeBuildArguments: [String] = []
+        passthroughXcodeBuildArguments: [String] = [],
+        noSkipQuarantined: Bool = false
     ) async throws {
         try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
             try await subject.run(
@@ -2561,7 +2929,8 @@ final class TestServiceTests: TuistUnitTestCase {
                 ignoreBinaryCache: false,
                 ignoreSelectiveTesting: false,
                 generateOnly: generateOnly,
-                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+                passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
+                noSkipQuarantined: noSkipQuarantined
             )
         }
     }

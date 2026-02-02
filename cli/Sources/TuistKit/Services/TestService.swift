@@ -95,6 +95,7 @@ final class TestService { // swiftlint:disable:this type_body_length
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let ciController: CIControlling
     private let clock: Clock
+    private let listTestCasesService: ListTestCasesServicing
 
     convenience init(
         generatorFactory: GeneratorFactorying,
@@ -105,7 +106,8 @@ final class TestService { // swiftlint:disable:this type_body_length
         self.init(
             generatorFactory: generatorFactory,
             cacheStorageFactory: cacheStorageFactory,
-            configLoader: configLoader
+            configLoader: configLoader,
+            listTestCasesService: ListTestCasesService()
         )
     }
 
@@ -128,7 +130,8 @@ final class TestService { // swiftlint:disable:this type_body_length
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         ciController: CIControlling = CIController(),
-        clock: Clock = WallClock()
+        clock: Clock = WallClock(),
+        listTestCasesService: ListTestCasesServicing = ListTestCasesService()
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -149,6 +152,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         self.serverEnvironmentService = serverEnvironmentService
         self.ciController = ciController
         self.clock = clock
+        self.listTestCasesService = listTestCasesService
     }
 
     static func validateParameters(
@@ -248,7 +252,8 @@ final class TestService { // swiftlint:disable:this type_body_length
         ignoreBinaryCache: Bool,
         ignoreSelectiveTesting: Bool,
         generateOnly: Bool,
-        passthroughXcodeBuildArguments: [String]
+        passthroughXcodeBuildArguments: [String],
+        noSkipQuarantined: Bool = false
     ) async throws {
         if validateTestTargetsParameters {
             try Self.validateParameters(
@@ -264,6 +269,28 @@ final class TestService { // swiftlint:disable:this type_body_length
             )
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
 
+        var effectiveSkipTestTargets = skipTestTargets
+        if !noSkipQuarantined, let fullHandle = config.fullHandle {
+            do {
+                let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+                let quarantinedTests = try await fetchQuarantinedTests(
+                    fullHandle: fullHandle,
+                    serverURL: serverURL
+                )
+                effectiveSkipTestTargets.append(contentsOf: quarantinedTests)
+                if !quarantinedTests.isEmpty {
+                    Logger.current.notice(
+                        "Skipping \(quarantinedTests.count) quarantined test(s)",
+                        metadata: .subsection
+                    )
+                }
+            } catch {
+                AlertController.current.warning(
+                    .alert("Failed to fetch quarantined tests: \(error.localizedDescription). Running all tests.")
+                )
+            }
+        }
+
         let destination = try await destination(
             arguments: passthroughXcodeBuildArguments,
             deviceName: deviceName,
@@ -274,7 +301,7 @@ final class TestService { // swiftlint:disable:this type_body_length
             config: config,
             testPlan: testPlanConfiguration?.testPlan,
             includedTargets: Set(testTargets.map(\.target)),
-            excludedTargets: Set(skipTestTargets.filter { $0.class == nil }.map(\.target)),
+            excludedTargets: Set(effectiveSkipTestTargets.filter { $0.class == nil }.map(\.target)),
             skipUITests: skipUITests,
             skipUnitTests: skipUnitTests,
             configuration: configuration,
@@ -410,7 +437,7 @@ final class TestService { // swiftlint:disable:this type_body_length
                 derivedDataPath: derivedDataPath,
                 retryCount: retryCount,
                 testTargets: testTargets,
-                skipTestTargets: skipTestTargets,
+                skipTestTargets: effectiveSkipTestTargets,
                 testPlanConfiguration: testPlanConfiguration,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 config: config
@@ -1024,5 +1051,46 @@ final class TestService { // swiftlint:disable:this type_body_length
         )
 
         await RunMetadataStorage.current.update(testRunId: test.id)
+    }
+
+    private func fetchQuarantinedTests(
+        fullHandle: String,
+        serverURL: URL
+    ) async throws -> [TestIdentifier] {
+        var allTestCases: [Components.Schemas.TestCase] = []
+        var page = 1
+        let pageSize = 500
+
+        while true {
+            let response = try await listTestCasesService.listTestCases(
+                fullHandle: fullHandle,
+                serverURL: serverURL,
+                flaky: nil,
+                quarantined: true,
+                page: page,
+                pageSize: pageSize
+            )
+            allTestCases.append(contentsOf: response.test_cases)
+
+            if page >= (response.pagination_metadata.total_pages ?? 1) {
+                break
+            }
+            page += 1
+        }
+
+        return try allTestCases.map { testCase in
+            if let suiteName = testCase.suite?.name {
+                return try TestIdentifier(
+                    target: testCase.module.name,
+                    class: suiteName,
+                    method: testCase.name
+                )
+            } else {
+                return try TestIdentifier(
+                    target: testCase.module.name,
+                    class: testCase.name
+                )
+            }
+        }
     }
 }

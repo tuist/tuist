@@ -180,6 +180,7 @@ public enum EnvKey: String, CaseIterable {
     case testSelectiveTesting = "TUIST_TEST_SELECTIVE_TESTING"
     case testWithoutBuilding = "TUIST_TEST_WITHOUT_BUILDING"
     case testBuildOnly = "TUIST_TEST_BUILD_ONLY"
+    case testNoSkipQuarantined = "TUIST_TEST_NO_SKIP_QUARANTINED"
 
     // TEST CASE LIST
 
