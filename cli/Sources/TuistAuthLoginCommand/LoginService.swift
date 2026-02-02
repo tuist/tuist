@@ -4,39 +4,64 @@ import TuistEnvironment
 import TuistOIDC
 import TuistServer
 
-protocol LoginServicing: AnyObject {
+public protocol LoginServicing: AnyObject {
     func run(
         email: String?,
         password: String?,
-        serverURL: String?
+        serverURL: String?,
+        onEvent: @escaping (LoginServiceEvent) async -> Void
     ) async throws
 }
 
-final class LoginService: LoginServicing {
+public enum LoginServiceEvent: CustomStringConvertible {
+    case openingBrowser(URL)
+    case waitForAuthentication
+    case oidcAuthenticating
+    case completed
+
+    public var description: String {
+        switch self {
+        case let .openingBrowser(url):
+            "Opening \(url.absoluteString) to start the authentication flow"
+        case .waitForAuthentication:
+            "Press CTRL + C once to cancel the process."
+        case .oidcAuthenticating:
+            "Detected CI environment, authenticating with OIDC..."
+        case .completed:
+            "Successfully logged in."
+        }
+    }
+}
+
+public final class LoginService: LoginServicing {
     private let serverEnvironmentService: ServerEnvironmentServicing
+    private let serverSessionController: ServerSessionControlling
     private let userInputReader: UserInputReading
     private let authenticateService: AuthenticateServicing
     private let ciOIDCAuthenticator: CIOIDCAuthenticating
     private let exchangeOIDCTokenService: ExchangeOIDCTokenServicing
 
-    init(
+    public init(
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+        serverSessionController: ServerSessionControlling = ServerSessionController(),
         userInputReader: UserInputReading = UserInputReader(),
         authenticateService: AuthenticateServicing = AuthenticateService(),
         ciOIDCAuthenticator: CIOIDCAuthenticating = CIOIDCAuthenticator(),
         exchangeOIDCTokenService: ExchangeOIDCTokenServicing = ExchangeOIDCTokenService()
     ) {
         self.serverEnvironmentService = serverEnvironmentService
+        self.serverSessionController = serverSessionController
         self.userInputReader = userInputReader
         self.authenticateService = authenticateService
         self.ciOIDCAuthenticator = ciOIDCAuthenticator
         self.exchangeOIDCTokenService = exchangeOIDCTokenService
     }
 
-    func run(
+    public func run(
         email: String?,
         password: String?,
-        serverURL: String?
+        serverURL: String?,
+        onEvent: @escaping (LoginServiceEvent) async -> Void
     ) async throws {
         let resolvedServerURL: URL
 
@@ -60,15 +85,18 @@ final class LoginService: LoginServicing {
                 serverURL: resolvedServerURL
             )
         } else if Environment.current.isCI {
-            try await authenticateWithCIOIDC(serverURL: resolvedServerURL)
+            try await authenticateWithCIOIDC(serverURL: resolvedServerURL, onEvent: onEvent)
         } else {
-            throw LoginServiceError.browserLoginNotSupported
+            try await authenticateWithBrowserLogin(serverURL: resolvedServerURL, onEvent: onEvent)
         }
-        print("Successfully logged in.")
+        await onEvent(.completed)
     }
 
-    private func authenticateWithCIOIDC(serverURL: URL) async throws {
-        print("Detected CI environment, authenticating with OIDC...")
+    private func authenticateWithCIOIDC(
+        serverURL: URL,
+        onEvent: @escaping (LoginServiceEvent) async -> Void
+    ) async throws {
+        await onEvent(.oidcAuthenticating)
 
         let oidcToken = try await ciOIDCAuthenticator.fetchOIDCToken()
         let accessToken = try await exchangeOIDCTokenService.exchangeOIDCToken(
@@ -104,23 +132,48 @@ final class LoginService: LoginServicing {
             serverURL: serverURL
         )
     }
+
+    private func authenticateWithBrowserLogin(
+        serverURL: URL,
+        onEvent: @escaping (LoginServiceEvent) async -> Void
+    ) async throws {
+        try await serverSessionController.authenticate(
+            serverURL: serverURL,
+            deviceCodeType: .cli,
+            onOpeningBrowser: { authURL in
+                await onEvent(.openingBrowser(authURL))
+            },
+            onAuthWaitBegin: {
+                await onEvent(.waitForAuthentication)
+            }
+        )
+    }
+}
+
+public extension LoginServicing {
+    func run(
+        email: String? = nil,
+        password: String? = nil,
+        serverURL: String? = nil
+    ) async throws {
+        try await run(
+            email: email,
+            password: password,
+            serverURL: serverURL,
+            onEvent: { event in
+                print(event.description)
+            }
+        )
+    }
 }
 
 enum LoginServiceError: LocalizedError, Equatable {
     case invalidServerURL(String)
-    case browserLoginNotSupported
 
     var errorDescription: String? {
         switch self {
         case let .invalidServerURL(url):
             return "Invalid server URL: \(url)"
-        case .browserLoginNotSupported:
-            return """
-            Browser-based login is not supported on Linux. Please use one of the following methods:
-            - Pass --email and --password flags
-            - Run in a supported CI environment (GitHub Actions, CircleCI, Bitrise) with OIDC configured
-            - Set the TUIST_TOKEN environment variable with an account token
-            """
         }
     }
 }

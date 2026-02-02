@@ -12,11 +12,11 @@ enum TuistServiceError: Error {
     case taskUnavailable
 }
 
-final class TuistService: NSObject {
+public final class TuistService: NSObject {
     private let pluginService: PluginServicing
     private let configLoader: ConfigLoading
 
-    init(
+    public init(
         pluginService: PluginServicing = PluginService(),
         configLoader: ConfigLoading = ConfigLoader()
     ) {
@@ -24,7 +24,7 @@ final class TuistService: NSObject {
         self.configLoader = configLoader
     }
 
-    func run(
+    public func run(
         arguments: [String],
         tuistBinaryPath: String
     ) async throws {

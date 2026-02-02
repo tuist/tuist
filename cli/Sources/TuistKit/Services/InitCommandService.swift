@@ -3,6 +3,7 @@ import FileSystem
 import Foundation
 import Noora
 import Path
+import TuistAuthLoginCommand
 import TuistConstants
 import TuistEnvironment
 import TuistServer
@@ -211,7 +212,7 @@ public struct InitCommandService {
                     errorMessage: "Authentication failed",
                     visibleLines: 3,
                     task: { progress in
-                        try await loginService.run(email: nil, password: nil, directory: nil) {
+                        try await loginService.run(email: nil, password: nil, serverURL: nil) {
                             event in
                             switch event {
                             case let .openingBrowser(url):

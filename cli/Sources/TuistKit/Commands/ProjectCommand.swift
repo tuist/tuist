@@ -1,8 +1,10 @@
 import ArgumentParser
 import Foundation
 
-struct ProjectCommand: ParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct ProjectCommand: ParsableCommand {
+    public init() {}
+
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "project",
             abstract: "A set of commands to manage your Tuist projects.",

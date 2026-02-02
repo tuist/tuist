@@ -137,7 +137,7 @@ public struct BuildCommand: AsyncParsableCommand, LogConfigurableCommand,
         )
     }
 
-    var logFilePathDisplayStrategy: LogFilePathDisplayStrategy = .always
+    public var logFilePathDisplayStrategy: LogFilePathDisplayStrategy = .always
 
     @OptionGroup()
     var buildOptions: BuildOptions

@@ -29,7 +29,7 @@ public struct InitCommand: AsyncParsableCommand, NooraReadyCommand {
     )
     var answers: String?
 
-    var jsonThroughNoora: Bool = false
+    public var jsonThroughNoora: Bool = false
 
     public init() {}
 

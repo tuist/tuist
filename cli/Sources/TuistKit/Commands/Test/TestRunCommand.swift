@@ -23,7 +23,7 @@ public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand,
 
     var analyticsRequired: Bool { true }
 
-    var logFilePathDisplayStrategy: LogFilePathDisplayStrategy = .always
+    public var logFilePathDisplayStrategy: LogFilePathDisplayStrategy = .always
 
     @Argument(
         help:

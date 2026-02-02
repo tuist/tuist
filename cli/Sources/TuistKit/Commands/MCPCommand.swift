@@ -1,12 +1,11 @@
 #if os(macOS)
     import ArgumentParser
 
-    struct MCPCommand: AsyncParsableCommand, TrackableParsableCommand {
-        var analyticsRequired: Bool { false }
+    public struct MCPCommand: AsyncParsableCommand, TrackableParsableCommand {
+        public init() {}
+        public var analyticsRequired: Bool { false }
 
-        init() {}
-
-        static var configuration: CommandConfiguration {
+        public static var configuration: CommandConfiguration {
             CommandConfiguration(
                 commandName: "mcp",
                 abstract: "Commands for interfacing with Tuist's MCP server",

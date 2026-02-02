@@ -211,7 +211,7 @@ final class ProjectEditor: ProjectEditing {
         }
 
         // To be sure that we are using the same binary of Tuist that invoked `edit`
-        let tuistPath = try AbsolutePath(validating: TuistCommand.processArguments()!.first!)
+        let tuistPath = try AbsolutePath(validating: CommandArguments.processArguments()!.first!)
         let workspaceName = "Manifests"
 
         let graph = try await projectEditorMapper.map(

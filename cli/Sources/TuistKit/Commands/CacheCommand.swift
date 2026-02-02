@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import TuistCacheConfigCommand
 
 public struct CacheCommand: AsyncParsableCommand {
     public init() {}
@@ -10,7 +11,7 @@ public struct CacheCommand: AsyncParsableCommand {
             abstract: "Cache-related commands.",
             subcommands: [
                 CacheWarmCommand.self,
-                CacheConfigCommand.self,
+                TuistCacheConfigCommand.CacheConfigCommand.self,
             ],
             defaultSubcommand: CacheWarmCommand.self
         )
