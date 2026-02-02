@@ -32,6 +32,12 @@ public struct CacheConfigCommand: AsyncParsableCommand {
     var json: Bool = false
 
     @Option(
+        name: [.customShort("p"), .long],
+        help: "The path to the directory containing the Tuist project."
+    )
+    var path: String?
+
+    @Option(
         name: .long,
         help: "The URL of the server. Required on Linux unless TUIST_URL environment variable is set."
     )
@@ -41,6 +47,7 @@ public struct CacheConfigCommand: AsyncParsableCommand {
         try await CacheConfigService().run(
             fullHandle: fullHandle,
             json: json,
+            directory: path,
             serverURL: serverURL
         )
     }

@@ -3,7 +3,10 @@ import Difference
 import Foundation
 import Testing
 import TSCUtility
+import TuistAuthLoginCommand
+import TuistCacheConfigCommand
 import TuistEnvironment
+import TuistVersionCommand
 @testable import TuistCore
 @testable import TuistKit
 @testable import TuistSupport
@@ -816,18 +819,6 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.username == "newusername")
         #expect(commandWithArgs.role == "user")
         #expect(commandWithArgs.path == "/new/member/path")
-    }
-
-    @Test(.withMockedEnvironment()) func loginCommandUsesEnvVars() throws {
-        setVariable(.authPath, value: "/path/to/auth")
-
-        let commandWithEnvVars = try LoginCommand.parse([])
-        #expect(commandWithEnvVars.path == "/path/to/auth")
-
-        let commandWithArgs = try LoginCommand.parse([
-            "--path", "/new/auth/path",
-        ])
-        #expect(commandWithArgs.path == "/new/auth/path")
     }
 
     @Test(.withMockedEnvironment()) func whoamiCommandUsesEnvVars() throws {

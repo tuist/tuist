@@ -1,5 +1,6 @@
 import Foundation
 import Logging
+import Path
 import TSCBasic
 import TuistConstants
 import TuistEnvironment
@@ -7,38 +8,68 @@ import TuistLogging
 import TuistOIDC
 import TuistServer
 
-protocol CacheConfigServicing {
+#if os(macOS)
+    import TuistCAS
+    import TuistLoader
+#endif
+
+public protocol CacheConfigServicing {
     func run(
         fullHandle: String,
         json: Bool,
+        directory: String?,
         serverURL: String?
     ) async throws
 }
 
-final class CacheConfigService: CacheConfigServicing {
+public final class CacheConfigService: CacheConfigServicing {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let serverAuthenticationController: ServerAuthenticationControlling
-    private let cacheURLStore: CacheURLStoring
     private let ciOIDCAuthenticator: CIOIDCAuthenticating
     private let exchangeOIDCTokenService: ExchangeOIDCTokenServicing
+    #if os(macOS)
+        private let configLoader: ConfigLoading
+        private let cacheURLStore: TuistCAS.CacheURLStoring
+    #else
+        private let cacheURLStore: CacheURLStoring
+    #endif
 
-    init(
-        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
-        serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
-        cacheURLStore: CacheURLStoring = CacheURLStore(),
-        ciOIDCAuthenticator: CIOIDCAuthenticating = CIOIDCAuthenticator(),
-        exchangeOIDCTokenService: ExchangeOIDCTokenServicing = ExchangeOIDCTokenService()
-    ) {
-        self.serverEnvironmentService = serverEnvironmentService
-        self.serverAuthenticationController = serverAuthenticationController
-        self.cacheURLStore = cacheURLStore
-        self.ciOIDCAuthenticator = ciOIDCAuthenticator
-        self.exchangeOIDCTokenService = exchangeOIDCTokenService
-    }
+    #if os(macOS)
+        public init(
+            serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+            serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
+            cacheURLStore: TuistCAS.CacheURLStoring = TuistCAS.CacheURLStore(),
+            configLoader: ConfigLoading = ConfigLoader(),
+            ciOIDCAuthenticator: CIOIDCAuthenticating = CIOIDCAuthenticator(),
+            exchangeOIDCTokenService: ExchangeOIDCTokenServicing = ExchangeOIDCTokenService()
+        ) {
+            self.serverEnvironmentService = serverEnvironmentService
+            self.serverAuthenticationController = serverAuthenticationController
+            self.cacheURLStore = cacheURLStore
+            self.configLoader = configLoader
+            self.ciOIDCAuthenticator = ciOIDCAuthenticator
+            self.exchangeOIDCTokenService = exchangeOIDCTokenService
+        }
+    #else
+        public init(
+            serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+            serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
+            cacheURLStore: CacheURLStoring = CacheURLStore(),
+            ciOIDCAuthenticator: CIOIDCAuthenticating = CIOIDCAuthenticator(),
+            exchangeOIDCTokenService: ExchangeOIDCTokenServicing = ExchangeOIDCTokenService()
+        ) {
+            self.serverEnvironmentService = serverEnvironmentService
+            self.serverAuthenticationController = serverAuthenticationController
+            self.cacheURLStore = cacheURLStore
+            self.ciOIDCAuthenticator = ciOIDCAuthenticator
+            self.exchangeOIDCTokenService = exchangeOIDCTokenService
+        }
+    #endif
 
-    func run(
+    public func run(
         fullHandle: String,
         json: Bool,
+        directory: String?,
         serverURL: String?
     ) async throws {
         let resolvedServerURL: URL
@@ -48,12 +79,26 @@ final class CacheConfigService: CacheConfigServicing {
                 throw CacheConfigServiceError.invalidServerURL(serverURL)
             }
             resolvedServerURL = url
-        } else if let envURL = Environment.current.tuistVariables["URL"],
-                  let url = URL(string: envURL)
-        {
-            resolvedServerURL = try serverEnvironmentService.url(configServerURL: url)
         } else {
-            resolvedServerURL = Constants.URLs.production
+            #if os(macOS)
+                let directoryPath: Path.AbsolutePath
+                if let directory {
+                    let cwd = try await Environment.current.currentWorkingDirectory()
+                    directoryPath = try Path.AbsolutePath(validating: directory, relativeTo: cwd)
+                } else {
+                    directoryPath = try await Environment.current.currentWorkingDirectory()
+                }
+                let config = try await configLoader.loadConfig(path: directoryPath)
+                resolvedServerURL = try serverEnvironmentService.url(configServerURL: config.url)
+            #else
+                if let envURL = Environment.current.tuistVariables["URL"],
+                   let url = URL(string: envURL)
+                {
+                    resolvedServerURL = try serverEnvironmentService.url(configServerURL: url)
+                } else {
+                    resolvedServerURL = Constants.URLs.production
+                }
+            #endif
         }
 
         let token = try await getAuthenticationToken(serverURL: resolvedServerURL)
@@ -130,11 +175,11 @@ struct CacheConfiguration: Codable {
     }
 }
 
-enum CacheConfigServiceError: LocalizedError, Equatable {
+public enum CacheConfigServiceError: LocalizedError, Equatable {
     case notAuthenticated
     case invalidServerURL(String)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .notAuthenticated:
             return """

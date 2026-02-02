@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import Testing
 import TuistCAS
+import TuistCacheConfigCommand
 import TuistCore
 import TuistEnvironment
 import TuistLoader

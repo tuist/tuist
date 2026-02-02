@@ -1,9 +1,15 @@
 import Foundation
+#if os(macOS)
+    import Mockable
+#endif
 import TuistConstants
 import TuistEnvironment
 import TuistOIDC
 import TuistServer
 
+#if os(macOS)
+    @Mockable
+#endif
 public protocol LoginServicing: AnyObject {
     func run(
         email: String?,

@@ -4,6 +4,7 @@ import Foundation
 import Mockable
 import Noora
 import Testing
+import TuistAuthLoginCommand
 import TuistConstants
 import TuistServer
 import TuistSupport
@@ -75,7 +76,7 @@ struct InitCommandServiceTests {
                 serverURL: .value(Constants.URLs.production)
             ).willReturn(.test())
             given(loginService).run(
-                email: .value(nil), password: .value(nil), directory: .any, onEvent: .any
+                email: .value(nil), password: .value(nil), serverURL: .any, onEvent: .any
             ).willReturn()
             given(serverSessionController).whoami(serverURL: .value(Constants.URLs.production))
                 .willReturn("account")
@@ -173,7 +174,7 @@ struct InitCommandServiceTests {
             )
             .willReturn(.userAccount("account"))
             given(loginService).run(
-                email: .value(nil), password: .value(nil), directory: .any, onEvent: .any
+                email: .value(nil), password: .value(nil), serverURL: .any, onEvent: .any
             ).willReturn()
             given(serverSessionController).whoami(serverURL: .value(Constants.URLs.production))
                 .willReturn("account")
@@ -276,7 +277,7 @@ struct InitCommandServiceTests {
                 organizations: .value([organizationName])
             ).willReturn(.organization(organizationName))
             given(loginService).run(
-                email: .value(nil), password: .value(nil), directory: .any, onEvent: .any
+                email: .value(nil), password: .value(nil), serverURL: .any, onEvent: .any
             ).willReturn()
             given(serverSessionController).whoami(serverURL: .value(Constants.URLs.production))
                 .willReturn("account")

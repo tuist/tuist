@@ -38,6 +38,9 @@ public enum Module: String, CaseIterable {
     case casAnalytics = "TuistCASAnalytics"
     case launchctl = "TuistLaunchctl"
     case http = "TuistHTTP"
+    case cacheConfigCommand = "TuistCacheConfigCommand"
+    case authLoginCommand = "TuistAuthLoginCommand"
+    case versionCommand = "TuistVersionCommand"
 
     func forceStaticLinking() -> Bool {
         return Environment.forceStaticLinking.getBoolean(default: false)
@@ -248,7 +251,8 @@ public enum Module: String, CaseIterable {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
              .projectDescription,
              .acceptanceTesting, .simulator, .testing, .process,
-             .constants, .environment, .logging:
+             .constants, .environment, .logging,
+             .cacheConfigCommand, .authLoginCommand, .versionCommand:
             return nil
         default:
             return "\(rawValue)Tests"
@@ -364,6 +368,8 @@ public enum Module: String, CaseIterable {
             .process, .ci, .cas, .casAnalytics, .launchctl, .xcResultService, .xcodeProjectOrWorkspacePathLocator,
             .http:
             moduleTags.append("domain:infrastructure")
+        case .cacheConfigCommand, .authLoginCommand, .versionCommand:
+            moduleTags.append("domain:cli")
         }
 
         // Layer tags
@@ -473,7 +479,6 @@ public enum Module: String, CaseIterable {
                     .external(name: "ZIPFoundation"),
                     .external(name: "Difference"),
                     .external(name: "Command"),
-                    .external(name: "FileLogging"),
                     .external(name: "LoggingOSLog"),
                     .external(name: "Noora"),
                     .external(name: "XCLogParser"),
@@ -507,6 +512,9 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.launchctl.targetName),
                     .target(name: Module.oidc.targetName),
                     .target(name: Module.http.targetName),
+                    .target(name: Module.cacheConfigCommand.targetName),
+                    .target(name: Module.authLoginCommand.targetName),
+                    .target(name: Module.versionCommand.targetName),
                     .external(name: "MCP"),
                     .external(name: "FileSystem"),
                     .external(name: "SwiftToolsSupport"),
@@ -743,6 +751,34 @@ public enum Module: String, CaseIterable {
                     .external(name: "HTTPTypes"),
                     .external(name: "FileSystem"),
                 ]
+            case .cacheConfigCommand:
+                [
+                    .target(name: Module.constants.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.logging.targetName),
+                    .target(name: Module.oidc.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.loader.targetName),
+                    .target(name: Module.cas.targetName),
+                    .external(name: "ArgumentParser"),
+                    .external(name: "Logging"),
+                    .external(name: "SwiftToolsSupport"),
+                ]
+            case .authLoginCommand:
+                [
+                    .target(name: Module.constants.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.logging.targetName),
+                    .target(name: Module.oidc.targetName),
+                    .target(name: Module.server.targetName),
+                    .external(name: "ArgumentParser"),
+                    .external(name: "Logging"),
+                ]
+            case .versionCommand:
+                [
+                    .target(name: Module.constants.targetName),
+                    .external(name: "ArgumentParser"),
+                ]
             }
         if self != .projectDescription, self != .projectAutomation {
             dependencies.append(contentsOf: sharedDependencies)
@@ -754,7 +790,8 @@ public enum Module: String, CaseIterable {
         var dependencies: [TargetDependency] =
             switch self {
             case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .process,
-                 .constants, .environment, .logging:
+                 .constants, .environment, .logging,
+                 .cacheConfigCommand, .authLoginCommand, .versionCommand:
                 []
             case .tuistFixtureGenerator:
                 [

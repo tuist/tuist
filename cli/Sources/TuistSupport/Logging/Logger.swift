@@ -1,4 +1,4 @@
-import FileLogging
+import Foundation
 import Logging
 #if os(macOS)
     import LoggingOSLog
@@ -30,11 +30,11 @@ public struct LoggingConfig {
 
 extension Logger {
     public static func loggerHandlerForNoora(logFilePath: AbsolutePath) throws -> @Sendable (String) -> any LogHandler {
-        let fileLogger = try FileLogging(to: logFilePath.url)
+        let fileLogHandler = try SimpleFileLogHandler(label: "dev.tuist.cli", fileURL: logFilePath.url)
         return { label in
-            var fileLogHandler = FileLogHandler(label: label, fileLogger: fileLogger)
-            fileLogHandler.logLevel = .debug
-            var loggers: [any LogHandler] = [fileLogHandler]
+            var handler = fileLogHandler
+            handler.logLevel = .debug
+            var loggers: [any LogHandler] = [handler]
             #if os(macOS)
                 loggers.append(OSLogHandler.verbose(label: label))
             #endif
@@ -63,13 +63,13 @@ extension Logger {
             return quietLogHandler
         }
 
-        let fileLogger = try FileLogging(to: logFilePath.url)
+        let fileLogHandler = try SimpleFileLogHandler(label: "dev.tuist.cli", fileURL: logFilePath.url)
 
         let baseLoggers = { (label: String) -> [any LogHandler] in
-            var fileLogHandler = FileLogHandler(label: label, fileLogger: fileLogger)
-            fileLogHandler.logLevel = .debug
+            var handler = fileLogHandler
+            handler.logLevel = .debug
 
-            var loggers: [any LogHandler] = [fileLogHandler]
+            var loggers: [any LogHandler] = [handler]
             // OSLog is not needed in development.
             // If we include it, the Xcode console will show duplicated logs, making it harder for contributors to debug the
             // execution
@@ -92,6 +92,49 @@ extension Logger {
                 loggers.append(handler.init(label: label))
                 return MultiplexLogHandler(loggers)
             }
+        }
+    }
+}
+
+/// A simple cross-platform file log handler that writes to a file.
+public struct SimpleFileLogHandler: LogHandler, @unchecked Sendable {
+    private let fileHandle: FileHandle
+    private let label: String
+    private let lock = NSLock()
+    public var metadata: Logger.Metadata = [:]
+    public var logLevel: Logger.Level = .info
+
+    public init(label: String, fileURL: URL) throws {
+        self.label = label
+        if !FileManager.default.fileExists(atPath: fileURL.path) {
+            FileManager.default.createFile(atPath: fileURL.path, contents: nil)
+        }
+        self.fileHandle = try FileHandle(forWritingTo: fileURL)
+        self.fileHandle.seekToEndOfFile()
+    }
+
+    public subscript(metadataKey key: String) -> Logger.Metadata.Value? {
+        get { metadata[key] }
+        set { metadata[key] = newValue }
+    }
+
+    public func log(
+        level: Logger.Level,
+        message: Logger.Message,
+        metadata: Logger.Metadata?,
+        source: String,
+        file: String,
+        function: String,
+        line: UInt
+    ) {
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        let mergedMetadata = self.metadata.merging(metadata ?? [:]) { _, new in new }
+        let metadataString = mergedMetadata.isEmpty ? "" : " \(mergedMetadata)"
+        let logMessage = "[\(timestamp)] [\(level)] [\(source)] \(message)\(metadataString)\n"
+        if let data = logMessage.data(using: .utf8) {
+            lock.lock()
+            defer { lock.unlock() }
+            fileHandle.write(data)
         }
     }
 }
