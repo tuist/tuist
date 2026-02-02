@@ -58,6 +58,9 @@ You can also manually mark or unmark tests as flaky from the test case detail pa
 
 Quarantining allows you to isolate flaky tests so they don't block your CI pipeline while you work on fixing them. Quarantined tests can be skipped during test runs, preventing false failures from disrupting your team's workflow.
 
+> [!IMPORTANT]
+> Unless you're using `tuist test`, quarantining a test does not automatically skip it. You must explicitly pass the list of quarantined tests to xcodebuild using the `-skip-testing` flag.
+
 ### Automatic quarantine
 
 When enabled in your project's Automations settings, tests are automatically quarantined when they're marked as flaky. This ensures that newly detected flaky tests are immediately isolated without manual intervention.
