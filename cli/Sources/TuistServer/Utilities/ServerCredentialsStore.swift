@@ -1,12 +1,13 @@
 import FileSystem
 import Foundation
-import KeychainAccess
-import Mockable
-import Path
-#if canImport(TuistSupport)
+#if os(macOS)
+    import Combine
+    import KeychainAccess
     import TuistEnvironment
     import TuistSupport
 #endif
+import Mockable
+import Path
 
 public struct ServerCredentials: Sendable, Codable, Equatable {
     /// JWT access token
@@ -75,75 +76,69 @@ enum ServerCredentialsStoreError: LocalizedError {
 }
 
 public enum ServerCredentialsStoreBackend: Sendable {
-    #if os(macOS) || os(Linux) || os(Windows)
-        case fileSystem
+    case fileSystem
+    #if os(macOS)
+        case keychain
     #endif
-    case keychain
 }
 
-public final class ServerCredentialsStore: ServerCredentialsStoring, ObservableObject {
-    #if os(macOS) || os(Linux) || os(Windows)
+#if os(macOS)
+    public final class ServerCredentialsStore: ServerCredentialsStoring, ObservableObject {
         @TaskLocal public static var current: ServerCredentialsStoring = ServerCredentialsStore(backend: .fileSystem)
-    #else
-        @TaskLocal public static var current: ServerCredentialsStoring = ServerCredentialsStore(backend: .keychain)
-    #endif
 
-    private let backend: ServerCredentialsStoreBackend
-    private let fileSystem: FileSysteming
-    private let configDirectory: AbsolutePath?
-    private let credentialsChangedContinuation = AsyncStream<ServerCredentials?>.makeStream()
+        private let backend: ServerCredentialsStoreBackend
+        private let fileSystem: FileSysteming
+        private let configDirectory: AbsolutePath?
+        private let credentialsChangedContinuation = AsyncStream<ServerCredentials?>.makeStream()
 
-    public var credentialsChanged: AsyncStream<ServerCredentials?> {
-        credentialsChangedContinuation.stream
-    }
+        public var credentialsChanged: AsyncStream<ServerCredentials?> {
+            credentialsChangedContinuation.stream
+        }
 
-    public init(
-        backend: ServerCredentialsStoreBackend,
-        fileSystem: FileSysteming = FileSystem(),
-        configDirectory: AbsolutePath? = nil
-    ) {
-        self.backend = backend
-        self.configDirectory = configDirectory
-        self.fileSystem = fileSystem
-    }
+        public init(
+            backend: ServerCredentialsStoreBackend,
+            fileSystem: FileSysteming = FileSystem(),
+            configDirectory: AbsolutePath? = nil
+        ) {
+            self.backend = backend
+            self.configDirectory = configDirectory
+            self.fileSystem = fileSystem
+        }
 
-    // MARK: - CredentialsStoring
+        // MARK: - CredentialsStoring
 
-    public func store(credentials: ServerCredentials, serverURL: URL) async throws {
-        switch backend {
-        case .keychain:
-            if let refreshToken = credentials.refreshToken {
+        public func store(credentials: ServerCredentials, serverURL: URL) async throws {
+            switch backend {
+            case .keychain:
+                if let refreshToken = credentials.refreshToken {
+                    try keychain(serverURL: serverURL)
+                        .comment("Refresh token against \(serverURL.absoluteString)")
+                        .set(refreshToken, key: serverURL.absoluteString + "_refresh_token")
+                }
                 try keychain(serverURL: serverURL)
                     .comment("Refresh token against \(serverURL.absoluteString)")
-                    .set(refreshToken, key: serverURL.absoluteString + "_refresh_token")
-            }
-            try keychain(serverURL: serverURL)
-                .comment("Refresh token against \(serverURL.absoluteString)")
-                .set(credentials.accessToken, key: serverURL.absoluteString + "_access_token")
-        #if os(macOS) || os(Linux) || os(Windows)
+                    .set(credentials.accessToken, key: serverURL.absoluteString + "_access_token")
             case .fileSystem:
                 let path = try credentialsFilePath(serverURL: serverURL)
                 let data = try JSONEncoder().encode(credentials)
                 if try await !fileSystem.exists(path.parentDirectory) {
                     try await fileSystem.makeDirectory(at: path.parentDirectory)
                 }
-                try data.write(to: path.url, options: .atomic)
-        #endif
+                try data.write(to: URL(fileURLWithPath: path.pathString), options: .atomic)
+            }
+
+            credentialsChangedContinuation.continuation.yield(credentials)
         }
 
-        credentialsChangedContinuation.continuation.yield(credentials)
-    }
-
-    public func read(serverURL: URL) async throws -> ServerCredentials? {
-        switch backend {
-        case .keychain:
-            let refreshToken = try keychain(serverURL: serverURL).get(serverURL.absoluteString + "_refresh_token")!
-            let accessToken = try keychain(serverURL: serverURL).get(serverURL.absoluteString + "_access_token")!
-            return ServerCredentials(
-                accessToken: accessToken,
-                refreshToken: refreshToken
-            )
-        #if os(macOS) || os(Linux) || os(Windows)
+        public func read(serverURL: URL) async throws -> ServerCredentials? {
+            switch backend {
+            case .keychain:
+                let refreshToken = try keychain(serverURL: serverURL).get(serverURL.absoluteString + "_refresh_token")!
+                let accessToken = try keychain(serverURL: serverURL).get(serverURL.absoluteString + "_access_token")!
+                return ServerCredentials(
+                    accessToken: accessToken,
+                    refreshToken: refreshToken
+                )
             case .fileSystem:
                 let path = try credentialsFilePath(serverURL: serverURL)
                 guard try await fileSystem.exists(path) else { return nil }
@@ -153,60 +148,150 @@ public final class ServerCredentialsStore: ServerCredentialsStoring, ObservableO
                 // and the new schema doesn't align with the one that we expect. We could add logic to handle those gracefully,
                 // but since the user can recover from it by signing in again, I think it's ok not to add more complexity here.
                 return try? JSONDecoder().decode(ServerCredentials.self, from: data)
-        #endif
-        }
-    }
-
-    public func get(serverURL: URL) async throws -> ServerCredentials {
-        guard let credentials = try await read(serverURL: serverURL)
-        else {
-            throw ServerCredentialsStoreError.credentialsNotFound
+            }
         }
 
-        return credentials
-    }
+        public func get(serverURL: URL) async throws -> ServerCredentials {
+            guard let credentials = try await read(serverURL: serverURL)
+            else {
+                throw ServerCredentialsStoreError.credentialsNotFound
+            }
 
-    public func delete(serverURL: URL) async throws {
-        switch backend {
-        case .keychain:
-            let keychain = keychain(serverURL: serverURL)
-            try keychain.remove(serverURL.absoluteString + "_refresh_token")
-            try keychain.remove(serverURL.absoluteString + "_access_token")
-        #if os(macOS) || os(Linux) || os(Windows)
+            return credentials
+        }
+
+        public func delete(serverURL: URL) async throws {
+            switch backend {
+            case .keychain:
+                let keychain = keychain(serverURL: serverURL)
+                try keychain.remove(serverURL.absoluteString + "_refresh_token")
+                try keychain.remove(serverURL.absoluteString + "_access_token")
             case .fileSystem:
                 let path = try credentialsFilePath(serverURL: serverURL)
                 if try await fileSystem.exists(path) {
                     try await fileSystem.remove(path)
                 }
-        #endif
+            }
+
+            credentialsChangedContinuation.continuation.yield(nil)
         }
 
-        credentialsChangedContinuation.continuation.yield(nil)
-    }
-
-    fileprivate func credentialsFilePath(serverURL: URL) throws -> AbsolutePath {
-        guard let components = URLComponents(url: serverURL, resolvingAgainstBaseURL: false), let host = components.host else {
-            throw ServerCredentialsStoreError.invalidServerURL(serverURL.absoluteString)
-        }
-        let directory = if let configDirectory {
-            configDirectory
-        } else {
-            #if os(macOS) || os(Linux) || os(Windows)
+        fileprivate func credentialsFilePath(serverURL: URL) throws -> AbsolutePath {
+            guard let components = URLComponents(url: serverURL, resolvingAgainstBaseURL: false), let host = components.host else {
+                throw ServerCredentialsStoreError.invalidServerURL(serverURL.absoluteString)
+            }
+            let directory = if let configDirectory {
+                configDirectory
+            } else {
                 Environment.current.configDirectory
-            #else
-                fatalError("Can't obtain the configuration directory for the current destination.")
-            #endif
+            }
+            // swiftlint:disable:next force_try
+            return directory.appending(try! RelativePath(validating: "credentials/\(host).json"))
         }
-        // swiftlint:disable:next force_try
-        return directory.appending(try! RelativePath(validating: "credentials/\(host).json"))
-    }
 
-    fileprivate func keychain(serverURL: URL) -> Keychain {
-        Keychain(server: serverURL, protocolType: .https, authenticationType: .default)
-            .synchronizable(false)
-            .label("\(serverURL.absoluteString)")
+        fileprivate func keychain(serverURL: URL) -> Keychain {
+            Keychain(server: serverURL, protocolType: .https, authenticationType: .default)
+                .synchronizable(false)
+                .label("\(serverURL.absoluteString)")
+        }
     }
-}
+#else
+    public final class ServerCredentialsStore: ServerCredentialsStoring {
+        @TaskLocal public static var current: ServerCredentialsStoring = ServerCredentialsStore(
+            backend: .fileSystem,
+            configDirectory: defaultConfigDirectory()
+        )
+
+        private let backend: ServerCredentialsStoreBackend
+        private let fileSystem: FileSysteming
+        private let configDirectory: AbsolutePath
+        private let credentialsChangedContinuation = AsyncStream<ServerCredentials?>.makeStream()
+
+        public var credentialsChanged: AsyncStream<ServerCredentials?> {
+            credentialsChangedContinuation.stream
+        }
+
+        public init(
+            backend: ServerCredentialsStoreBackend,
+            fileSystem: FileSysteming = FileSystem(),
+            configDirectory: AbsolutePath
+        ) {
+            self.backend = backend
+            self.configDirectory = configDirectory
+            self.fileSystem = fileSystem
+        }
+
+        private static func defaultConfigDirectory() -> AbsolutePath {
+            let homeDirectory: String
+            #if os(Linux)
+                homeDirectory = ProcessInfo.processInfo.environment["HOME"] ?? "/tmp"
+            #else
+                homeDirectory = NSHomeDirectory()
+            #endif
+            // swiftlint:disable:next force_try
+            return try! AbsolutePath(validating: homeDirectory).appending(component: ".config").appending(component: "tuist")
+        }
+
+        // MARK: - CredentialsStoring
+
+        public func store(credentials: ServerCredentials, serverURL: URL) async throws {
+            switch backend {
+            case .fileSystem:
+                let path = try credentialsFilePath(serverURL: serverURL)
+                let data = try JSONEncoder().encode(credentials)
+                if try await !fileSystem.exists(path.parentDirectory) {
+                    try await fileSystem.makeDirectory(at: path.parentDirectory)
+                }
+                try data.write(to: URL(fileURLWithPath: path.pathString), options: .atomic)
+            }
+
+            credentialsChangedContinuation.continuation.yield(credentials)
+        }
+
+        public func read(serverURL: URL) async throws -> ServerCredentials? {
+            switch backend {
+            case .fileSystem:
+                let path = try credentialsFilePath(serverURL: serverURL)
+                guard try await fileSystem.exists(path) else { return nil }
+                let data = try await fileSystem.readFile(at: path)
+
+                // This might fail if we've migrated the schema, which is very unlikely, or if someone modifies the content in it
+                // and the new schema doesn't align with the one that we expect. We could add logic to handle those gracefully,
+                // but since the user can recover from it by signing in again, I think it's ok not to add more complexity here.
+                return try? JSONDecoder().decode(ServerCredentials.self, from: data)
+            }
+        }
+
+        public func get(serverURL: URL) async throws -> ServerCredentials {
+            guard let credentials = try await read(serverURL: serverURL)
+            else {
+                throw ServerCredentialsStoreError.credentialsNotFound
+            }
+
+            return credentials
+        }
+
+        public func delete(serverURL: URL) async throws {
+            switch backend {
+            case .fileSystem:
+                let path = try credentialsFilePath(serverURL: serverURL)
+                if try await fileSystem.exists(path) {
+                    try await fileSystem.remove(path)
+                }
+            }
+
+            credentialsChangedContinuation.continuation.yield(nil)
+        }
+
+        fileprivate func credentialsFilePath(serverURL: URL) throws -> AbsolutePath {
+            guard let components = URLComponents(url: serverURL, resolvingAgainstBaseURL: false), let host = components.host else {
+                throw ServerCredentialsStoreError.invalidServerURL(serverURL.absoluteString)
+            }
+            // swiftlint:disable:next force_try
+            return configDirectory.appending(try! RelativePath(validating: "credentials/\(host).json"))
+        }
+    }
+#endif
 
 #if DEBUG
     extension ServerCredentialsStore {

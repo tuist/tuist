@@ -366,7 +366,7 @@ jobs:
           path: .build
           key: linux-cli-${{ hashFiles('Package.resolved') }}
       - name: Build tuist CLI
-        run: swift build --target tuist
+        run: swift build --target tuist --replace-scm-with-registry
       - name: Save cache
         id: cache-save
         uses: actions/cache/save@v4

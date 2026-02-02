@@ -1,9 +1,10 @@
-import Foundation
-import Mockable
-import TuistHTTP
+#if canImport(TuistSimulator)
+    import Foundation
+    import Mockable
+    import TuistHTTP
 
-@Mockable
-public protocol GetPreviewServicing: Sendable {
+    @Mockable
+    public protocol GetPreviewServicing: Sendable {
     func getPreview(
         _ previewId: String,
         fullHandle: String,
@@ -96,3 +97,4 @@ public final class GetPreviewService: GetPreviewServicing {
         }
     }
 }
+#endif

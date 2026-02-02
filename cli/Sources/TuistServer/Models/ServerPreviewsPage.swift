@@ -1,6 +1,7 @@
-import Foundation
+#if canImport(TuistSimulator)
+    import Foundation
 
-public struct ServerPreviewsPage: Equatable {
+    public struct ServerPreviewsPage: Equatable {
     public let previews: [ServerPreview]
     public let paginationMetadata: ServerPaginationMetadata
 }
@@ -12,16 +13,17 @@ extension ServerPreviewsPage {
     }
 }
 
-#if DEBUG
-    extension ServerPreviewsPage {
-        public static func test(
-            previews: [ServerPreview] = [.test()],
-            paginationMetadata: ServerPaginationMetadata = .test()
-        ) -> ServerPreviewsPage {
-            ServerPreviewsPage(
-                previews: previews,
-                paginationMetadata: paginationMetadata
-            )
+    #if DEBUG
+        extension ServerPreviewsPage {
+            public static func test(
+                previews: [ServerPreview] = [.test()],
+                paginationMetadata: ServerPaginationMetadata = .test()
+            ) -> ServerPreviewsPage {
+                ServerPreviewsPage(
+                    previews: previews,
+                    paginationMetadata: paginationMetadata
+                )
+            }
         }
-    }
+    #endif
 #endif

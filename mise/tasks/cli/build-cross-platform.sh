@@ -9,12 +9,12 @@ else
 fi
 
 if [ "$usage_linux_vm" = "true" ]; then
+    # Use separate build path for Linux to avoid conflicts with macOS build artifacts
     $CONTAINER_ENGINE run --rm \
             --volume "$MISE_PROJECT_ROOT:/package" \
             --workdir "/package" \
-            swiftlang/swift:nightly-6.0-focal \
-            /bin/bash -c \
-            "swift build --target tuist"
+            swift:6.1 \
+            swift build --target tuist --build-path .build-linux --replace-scm-with-registry
 else
     swift build --target tuist
 fi

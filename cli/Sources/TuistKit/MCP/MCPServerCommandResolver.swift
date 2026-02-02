@@ -1,22 +1,24 @@
-import Darwin
-import Foundation
-import Mockable
-import TuistEnvironment
-import TuistSupport
+#if os(macOS)
+    import Darwin
+    import Foundation
+    import Mockable
+    import TuistEnvironment
+    import TuistSupport
 
-@Mockable
-protocol MCPServerCommandResolving {
-    func resolve() -> (String, [String])
-}
-
-struct MCPServerCommandResolver: MCPServerCommandResolving {
-    private let executablePath: String
-
-    init(executablePath: String = Environment.current.currentExecutablePath()?.pathString ?? "tuist") {
-        self.executablePath = executablePath
+    @Mockable
+    protocol MCPServerCommandResolving {
+        func resolve() -> (String, [String])
     }
 
-    func resolve() -> (String, [String]) {
-        return (executablePath, ["mcp", "start"])
+    struct MCPServerCommandResolver: MCPServerCommandResolving {
+        private let executablePath: String
+
+        init(executablePath: String = Environment.current.currentExecutablePath()?.pathString ?? "tuist") {
+            self.executablePath = executablePath
+        }
+
+        func resolve() -> (String, [String]) {
+            return (executablePath, ["mcp", "start"])
+        }
     }
-}
+#endif

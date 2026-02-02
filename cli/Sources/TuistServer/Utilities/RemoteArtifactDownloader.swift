@@ -1,8 +1,9 @@
-import Foundation
-import Mockable
-import Path
+#if os(macOS)
+    import Foundation
+    import Mockable
+    import Path
 
-enum RemoteArtifactDownloaderError: LocalizedError, Equatable {
+    enum RemoteArtifactDownloaderError: LocalizedError, Equatable {
     case urlSessionError(url: URL, httpMethod: String, description: String)
     case noURLResponse(URL?)
 
@@ -68,3 +69,4 @@ public struct RemoteArtifactDownloader: RemoteArtifactDownloading {
         }
     }
 }
+#endif

@@ -1,9 +1,10 @@
-#if canImport(Command)
+#if os(macOS)
     import Command
     import FileSystem
     import Foundation
     import Mockable
     import Path
+    import TuistSupport
 
     public struct MultipartUploadArtifactPart {
         public let number: Int
@@ -91,8 +92,8 @@
 
             var buffer = [UInt8](repeating: 0, count: partSize)
 
-            let uploadedParts: ThreadSafe<[(etag: String, partNumber: Int)]> = ThreadSafe([])
-            let partNumber = ThreadSafe(1)
+            let uploadedParts: TuistSupport.ThreadSafe<[(etag: String, partNumber: Int)]> = TuistSupport.ThreadSafe([])
+            let partNumber = TuistSupport.ThreadSafe(1)
 
             try await withThrowingTaskGroup(of: Void.self) { group in
                 while inputStream.hasBytesAvailable {

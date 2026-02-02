@@ -1,7 +1,6 @@
 import Foundation
 import OpenAPIRuntime
 import TuistHTTP
-import TuistSupport
 
 extension Error {
     /// Returns a user-friendly error description, with special handling for ClientError and ClientAuthenticationError

@@ -1,15 +1,17 @@
-import Foundation
-import libzstd
-import Logging
-import Mockable
+#if os(macOS)
+    import Foundation
+    import libzstd
+    import Logging
+    import Mockable
+    import TuistLogging
 
-@Mockable
-protocol DataCompressingServicing: Sendable {
-    func compress(_ data: Data) async throws -> Data
-    func decompress(_ data: Data) async throws -> Data
-}
+    @Mockable
+    protocol DataCompressingServicing: Sendable {
+        func compress(_ data: Data) async throws -> Data
+        func decompress(_ data: Data) async throws -> Data
+    }
 
-struct DataCompressingService: DataCompressingServicing {
+    struct DataCompressingService: DataCompressingServicing {
     @concurrent
     func compress(_ data: Data) async throws -> Data {
         let startTime = ProcessInfo.processInfo.systemUptime
@@ -100,3 +102,4 @@ enum DataCompressionError: Error, LocalizedError {
         }
     }
 }
+#endif

@@ -1,14 +1,15 @@
-import CryptoKit
-@preconcurrency import FileSystem
-import Foundation
-import GRPCCore
-import Logging
-import Path
-import TuistCache
-import TuistCASAnalytics
-import TuistServer
+#if os(macOS)
+    import CryptoKit
+    @preconcurrency import FileSystem
+    import Foundation
+    import GRPCCore
+    import Logging
+    import Path
+    import TuistCache
+    import TuistCASAnalytics
+    import TuistServer
 
-public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServiceProtocol {
+    public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServiceProtocol {
     private let fullHandle: String
     private let serverURL: URL
     private let cacheURLStore: CacheURLStoring
@@ -283,3 +284,4 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         }
     }
 }
+#endif

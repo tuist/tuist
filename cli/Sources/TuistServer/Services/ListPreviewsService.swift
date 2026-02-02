@@ -1,9 +1,10 @@
-import Foundation
-import Mockable
-import TuistHTTP
-import TuistSimulator
+#if canImport(TuistSimulator)
+    import Foundation
+    import Mockable
+    import TuistHTTP
+    import TuistSimulator
 
-public enum ListPreviewsDistinctField {
+    public enum ListPreviewsDistinctField {
     case bundleIdentifier
 }
 
@@ -138,3 +139,4 @@ extension Components.Schemas.PreviewSupportedPlatform {
         }
     }
 }
+#endif

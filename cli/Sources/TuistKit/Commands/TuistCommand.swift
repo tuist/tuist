@@ -14,72 +14,81 @@ import TuistSupport
 public struct TuistCommand: AsyncParsableCommand {
     public init() {}
 
+    private static var groupedSubcommands: [CommandGroup] {
+        var groups: [CommandGroup] = [
+            CommandGroup(
+                name: "Get started",
+                subcommands: [
+                    InitCommand.self,
+                ]
+            ),
+            CommandGroup(
+                name: "Develop",
+                subcommands: [
+                    HashCommand.self,
+                    BuildCommand.self,
+                    CacheCommand.self,
+                    CacheStartCommand.self,
+                    CleanCommand.self,
+                    DumpCommand.self,
+                    EditCommand.self,
+                    GenerateCommand.self,
+                    GraphCommand.self,
+                    InstallCommand.self,
+                    MigrationCommand.self,
+                    PluginCommand.self,
+                    RegistryCommand.self,
+                    RunCommand.self,
+                    ScaffoldCommand.self,
+                    SetupCommand.self,
+                    TestCommand.self,
+                    InspectCommand.self,
+                    XcodeBuildCommand.self,
+                ]
+            ),
+            CommandGroup(
+                name: "Share",
+                subcommands: [
+                    ShareCommand.self,
+                ]
+            ),
+        ]
+        #if os(macOS)
+            groups.append(CommandGroup(
+                name: "AI",
+                subcommands: [
+                    MCPCommand.self,
+                ]
+            ))
+        #endif
+        groups.append(contentsOf: [
+            CommandGroup(
+                name: "Account",
+                subcommands: [
+                    AccountCommand.self,
+                    ProjectCommand.self,
+                    BundleCommand.self,
+                    OrganizationCommand.self,
+                    AuthCommand.self,
+                ]
+            ),
+            CommandGroup(
+                name: "Other",
+                subcommands: [
+                    VersionCommand.self,
+                    AnalyticsUploadCommand.self,
+                ]
+            ),
+        ])
+        return groups
+    }
+
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "tuist",
             abstract: "Build better apps faster.",
             subcommands: [],
-            groupedSubcommands: [
-                CommandGroup(
-                    name: "Get started",
-                    subcommands: [
-                        InitCommand.self,
-                    ]
-                ),
-                CommandGroup(
-                    name: "Develop",
-                    subcommands: [
-                        HashCommand.self,
-                        BuildCommand.self,
-                        CacheCommand.self,
-                        CacheStartCommand.self,
-                        CleanCommand.self,
-                        DumpCommand.self,
-                        EditCommand.self,
-                        GenerateCommand.self,
-                        GraphCommand.self,
-                        InstallCommand.self,
-                        MigrationCommand.self,
-                        PluginCommand.self,
-                        RegistryCommand.self,
-                        RunCommand.self,
-                        ScaffoldCommand.self,
-                        SetupCommand.self,
-                        TestCommand.self,
-                        InspectCommand.self,
-                        XcodeBuildCommand.self,
-                    ]
-                ),
-                CommandGroup(
-                    name: "Share",
-                    subcommands: [
-                        ShareCommand.self,
-                    ]
-                ),
-                CommandGroup(
-                    name: "AI",
-                    subcommands: [
-                        MCPCommand.self,
-                    ]
-                ),
-                CommandGroup(
-                    name: "Account",
-                    subcommands: [
-                        AccountCommand.self,
-                        ProjectCommand.self,
-                        BundleCommand.self,
-                        OrganizationCommand.self,
-                        AuthCommand.self,
-                    ]
-                ),
-                CommandGroup(
-                    name: "Other",
-                    subcommands: [
-                        VersionCommand.self,
-                        AnalyticsUploadCommand.self,
-                    ]
-                ),
-            ]
+            groupedSubcommands: groupedSubcommands
         )
     }
 

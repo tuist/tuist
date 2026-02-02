@@ -1,10 +1,11 @@
-import Foundation
-import Mockable
-import OpenAPIRuntime
-import TuistHTTP
+#if canImport(TuistSimulator)
+    import Foundation
+    import Mockable
+    import OpenAPIRuntime
+    import TuistHTTP
 
-@Mockable
-public protocol MultipartUploadCompletePreviewsServicing {
+    @Mockable
+    public protocol MultipartUploadCompletePreviewsServicing {
     func completePreviewUpload(
         _ appBuildId: String,
         uploadId: String,
@@ -107,3 +108,4 @@ public final class MultipartUploadCompletePreviewsService: MultipartUploadComple
         }
     }
 }
+#endif

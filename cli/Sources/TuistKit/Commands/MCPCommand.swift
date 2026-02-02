@@ -1,18 +1,20 @@
-import ArgumentParser
+#if os(macOS)
+    import ArgumentParser
 
-struct MCPCommand: AsyncParsableCommand, TrackableParsableCommand {
-    var analyticsRequired: Bool { false }
+    struct MCPCommand: AsyncParsableCommand, TrackableParsableCommand {
+        var analyticsRequired: Bool { false }
 
-    init() {}
+        init() {}
 
-    static var configuration: CommandConfiguration {
-        CommandConfiguration(
-            commandName: "mcp",
-            abstract: "Commands for interfacing with Tuist's MCP server",
-            subcommands: [
-                MCPStartCommand.self,
-                MCPSetupCommand.self,
-            ]
-        )
+        static var configuration: CommandConfiguration {
+            CommandConfiguration(
+                commandName: "mcp",
+                abstract: "Commands for interfacing with Tuist's MCP server",
+                subcommands: [
+                    MCPStartCommand.self,
+                    MCPSetupCommand.self,
+                ]
+            )
+        }
     }
-}
+#endif

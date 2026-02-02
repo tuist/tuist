@@ -1,14 +1,15 @@
-@preconcurrency import FileSystem
-import Foundation
-import GRPCCore
-import Logging
-import Path
-import TuistCache
-import TuistCASAnalytics
-import TuistServer
-import TuistSupport
+#if os(macOS)
+    @preconcurrency import FileSystem
+    import Foundation
+    import GRPCCore
+    import Logging
+    import Path
+    import TuistCache
+    import TuistCASAnalytics
+    import TuistServer
+    import TuistSupport
 
-public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.SimpleServiceProtocol {
+    public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.SimpleServiceProtocol {
     private let fullHandle: String
     private let serverURL: URL
     private let cacheURLStore: CacheURLStoring
@@ -300,3 +301,4 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
         }
     }
 }
+#endif

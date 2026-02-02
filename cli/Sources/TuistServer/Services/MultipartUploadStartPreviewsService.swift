@@ -1,10 +1,11 @@
-import Foundation
-import Mockable
-import TuistHTTP
-import TuistSimulator
+#if canImport(TuistSimulator)
+    import Foundation
+    import Mockable
+    import TuistHTTP
+    import TuistSimulator
 
-@Mockable
-public protocol MultipartUploadStartPreviewsServicing {
+    @Mockable
+    public protocol MultipartUploadStartPreviewsServicing {
     func startPreviewsMultipartUpload(
         type: PreviewType,
         displayName: String,
@@ -136,3 +137,4 @@ public final class MultipartUploadStartPreviewsService: MultipartUploadStartPrev
         }
     }
 }
+#endif
