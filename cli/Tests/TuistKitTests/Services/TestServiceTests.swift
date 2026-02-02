@@ -116,7 +116,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
         given(serverEnvironmentService)
             .url(configServerURL: .any)
-            .willReturn(URL(string: "https://cloud.tuist.io")!)
+            .willReturn(URL(string: "https://tuist.dev")!)
 
         subject = TestService(
             generatorFactory: generatorFactory,
@@ -2513,7 +2513,7 @@ final class TestServiceTests: TuistUnitTestCase {
         givenGenerator()
         let path = try temporaryPath()
         let fullHandle = "organization/project"
-        let serverURL = URL(string: "https://cloud.tuist.io")!
+        let serverURL = URL(string: "https://tuist.dev")!
 
         configLoader.reset()
         given(configLoader)
@@ -2782,7 +2782,7 @@ final class TestServiceTests: TuistUnitTestCase {
         givenGenerator()
         let path = try temporaryPath()
         let fullHandle = "organization/project"
-        let serverURL = URL(string: "https://cloud.tuist.io")!
+        let serverURL = URL(string: "https://tuist.dev")!
 
         configLoader.reset()
         given(configLoader)
