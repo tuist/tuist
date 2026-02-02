@@ -1057,28 +1057,16 @@ final class TestService { // swiftlint:disable:this type_body_length
         fullHandle: String,
         serverURL: URL
     ) async throws -> [TestIdentifier] {
-        var allTestCases: [Components.Schemas.TestCase] = []
-        var page = 1
-        let pageSize = 500
+        let response = try await listTestCasesService.listTestCases(
+            fullHandle: fullHandle,
+            serverURL: serverURL,
+            flaky: nil,
+            quarantined: true,
+            page: 1,
+            pageSize: 500
+        )
 
-        while true {
-            let response = try await listTestCasesService.listTestCases(
-                fullHandle: fullHandle,
-                serverURL: serverURL,
-                flaky: nil,
-                quarantined: true,
-                page: page,
-                pageSize: pageSize
-            )
-            allTestCases.append(contentsOf: response.test_cases)
-
-            if page >= (response.pagination_metadata.total_pages ?? 1) {
-                break
-            }
-            page += 1
-        }
-
-        return try allTestCases.map { testCase in
+        return try response.test_cases.map { testCase in
             if let suiteName = testCase.suite?.name {
                 return try TestIdentifier(
                     target: testCase.module.name,
