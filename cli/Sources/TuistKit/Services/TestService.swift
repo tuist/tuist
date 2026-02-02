@@ -1067,18 +1067,11 @@ final class TestService { // swiftlint:disable:this type_body_length
         )
 
         return try response.test_cases.map { testCase in
-            if let suiteName = testCase.suite?.name {
-                return try TestIdentifier(
-                    target: testCase.module.name,
-                    class: suiteName,
-                    method: testCase.name
-                )
-            } else {
-                return try TestIdentifier(
-                    target: testCase.module.name,
-                    class: testCase.name
-                )
-            }
+            try TestIdentifier(
+                target: testCase.module.name,
+                class: testCase.suite?.name,
+                method: testCase.name
+            )
         }
     }
 }
