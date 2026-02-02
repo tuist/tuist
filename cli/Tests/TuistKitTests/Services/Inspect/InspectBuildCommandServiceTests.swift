@@ -598,7 +598,7 @@ struct InspectBuildCommandServiceTests {
                 configuration: .any,
                 customMetadata: .matching { metadata in
                     guard let metadata else { return false }
-                    guard let tags = metadata.tags else { return false }
+                    let tags = metadata.tags ?? []
                     return tags.contains("nightly") &&
                         tags.contains("release-candidate") &&
                         tags.contains("ios-team") &&
@@ -677,7 +677,7 @@ struct InspectBuildCommandServiceTests {
                 configuration: .any,
                 customMetadata: .matching { metadata in
                     guard let metadata else { return false }
-                    guard let tags = metadata.tags else { return false }
+                    let tags = metadata.tags ?? []
                     return tags.contains("ios-team") &&
                         tags.contains("nightly") &&
                         tags.count == 2
@@ -755,10 +755,10 @@ struct InspectBuildCommandServiceTests {
                 configuration: .any,
                 customMetadata: .matching { metadata in
                     guard let metadata else { return false }
-                    guard let values = metadata.values else { return false }
-                    return values.additionalProperties["ticket"] == "PROJ-1234" &&
-                        values.additionalProperties["pr_url"] == "https://github.com/tuist/tuist/pull/123" &&
-                        values.additionalProperties.count == 2
+                    let values = metadata.values?.additionalProperties ?? [:]
+                    return values["ticket"] == "PROJ-1234" &&
+                        values["pr_url"] == "https://github.com/tuist/tuist/pull/123" &&
+                        values.count == 2
                 },
                 duration: .any,
                 files: .any,
@@ -834,14 +834,14 @@ struct InspectBuildCommandServiceTests {
                 configuration: .any,
                 customMetadata: .matching { metadata in
                     guard let metadata else { return false }
-                    guard let tags = metadata.tags else { return false }
-                    guard let values = metadata.values else { return false }
+                    let tags = metadata.tags ?? []
+                    let values = metadata.values?.additionalProperties ?? [:]
                     return tags.contains("nightly") &&
                         tags.contains("release") &&
                         tags.contains("ios-team") &&
                         tags.count == 3 &&
-                        values.additionalProperties["ticket"] == "PROJ-1234" &&
-                        values.additionalProperties.count == 1
+                        values["ticket"] == "PROJ-1234" &&
+                        values.count == 1
                 },
                 duration: .any,
                 files: .any,

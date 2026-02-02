@@ -257,8 +257,8 @@ struct InspectBuildCommandService {
         }
 
         return BuildCustomMetadata(
-            tags: tags.isEmpty ? nil : tags,
-            values: values.isEmpty ? nil : .init(additionalProperties: values)
+            tags: tags,
+            values: .init(additionalProperties: values)
         )
     }
 }
