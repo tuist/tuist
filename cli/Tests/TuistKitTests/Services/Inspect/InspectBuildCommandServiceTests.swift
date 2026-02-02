@@ -549,4 +549,393 @@ struct InspectBuildCommandServiceTests {
             try await subject.run(path: projectPath.parentDirectory.pathString)
         }
     }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func createsBuild_with_custom_metadata_from_TUIST_BUILD_TAGS() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.workspacePath = projectPath
+        mockedEnvironment.variables["TUIST_BUILD_TAGS"] = "nightly, release-candidate, ios-team"
+
+        given(xcodeProjectOrWorkspacePathLocator)
+            .locate(from: .any)
+            .willReturn(projectPath)
+
+        let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
+        given(derivedDataLocator)
+            .locate(for: .any)
+            .willReturn(derivedDataPath)
+        let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
+        let activityLogPath = buildLogsPath.appending(
+            components: "\(UUID().uuidString).xcactivitylog"
+        )
+
+        given(xcActivityLogController)
+            .parse(.value(activityLogPath))
+            .willReturn(.test())
+        given(xcActivityLogController).mostRecentActivityLogFile(
+            projectDerivedDataDirectory: .value(derivedDataPath),
+            filter: .any
+        ).willReturn(
+            .test(
+                path: activityLogPath,
+                timeStoppedRecording: Date(timeIntervalSinceReferenceDate: 20)
+            )
+        )
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        verify(createBuildService)
+            .createBuild(
+                fullHandle: .any,
+                serverURL: .any,
+                id: .any,
+                category: .any,
+                configuration: .any,
+                customMetadata: .matching { metadata in
+                    guard let metadata else { return false }
+                    guard let tags = metadata.tags else { return false }
+                    return tags.contains("nightly") &&
+                        tags.contains("release-candidate") &&
+                        tags.contains("ios-team") &&
+                        tags.count == 3
+                },
+                duration: .any,
+                files: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                gitRemoteURLOrigin: .any,
+                isCI: .any,
+                issues: .any,
+                modelIdentifier: .any,
+                macOSVersion: .any,
+                scheme: .any,
+                targets: .any,
+                xcodeVersion: .any,
+                status: .any,
+                ciRunId: .any,
+                ciProjectHandle: .any,
+                ciHost: .any,
+                ciProvider: .any,
+                cacheableTasks: .any,
+                casOutputs: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func createsBuild_with_custom_metadata_from_TUIST_BUILD_TAG_prefix() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.workspacePath = projectPath
+        mockedEnvironment.variables["TUIST_BUILD_TAG_TEAM"] = "ios-team"
+        mockedEnvironment.variables["TUIST_BUILD_TAG_TYPE"] = "nightly"
+
+        given(xcodeProjectOrWorkspacePathLocator)
+            .locate(from: .any)
+            .willReturn(projectPath)
+
+        let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
+        given(derivedDataLocator)
+            .locate(for: .any)
+            .willReturn(derivedDataPath)
+        let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
+        let activityLogPath = buildLogsPath.appending(
+            components: "\(UUID().uuidString).xcactivitylog"
+        )
+
+        given(xcActivityLogController)
+            .parse(.value(activityLogPath))
+            .willReturn(.test())
+        given(xcActivityLogController).mostRecentActivityLogFile(
+            projectDerivedDataDirectory: .value(derivedDataPath),
+            filter: .any
+        ).willReturn(
+            .test(
+                path: activityLogPath,
+                timeStoppedRecording: Date(timeIntervalSinceReferenceDate: 20)
+            )
+        )
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        verify(createBuildService)
+            .createBuild(
+                fullHandle: .any,
+                serverURL: .any,
+                id: .any,
+                category: .any,
+                configuration: .any,
+                customMetadata: .matching { metadata in
+                    guard let metadata else { return false }
+                    guard let tags = metadata.tags else { return false }
+                    return tags.contains("ios-team") &&
+                        tags.contains("nightly") &&
+                        tags.count == 2
+                },
+                duration: .any,
+                files: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                gitRemoteURLOrigin: .any,
+                isCI: .any,
+                issues: .any,
+                modelIdentifier: .any,
+                macOSVersion: .any,
+                scheme: .any,
+                targets: .any,
+                xcodeVersion: .any,
+                status: .any,
+                ciRunId: .any,
+                ciProjectHandle: .any,
+                ciHost: .any,
+                ciProvider: .any,
+                cacheableTasks: .any,
+                casOutputs: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func createsBuild_with_custom_metadata_from_TUIST_BUILD_VALUE_prefix() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.workspacePath = projectPath
+        mockedEnvironment.variables["TUIST_BUILD_VALUE_TICKET"] = "PROJ-1234"
+        mockedEnvironment.variables["TUIST_BUILD_VALUE_PR_URL"] = "https://github.com/tuist/tuist/pull/123"
+
+        given(xcodeProjectOrWorkspacePathLocator)
+            .locate(from: .any)
+            .willReturn(projectPath)
+
+        let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
+        given(derivedDataLocator)
+            .locate(for: .any)
+            .willReturn(derivedDataPath)
+        let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
+        let activityLogPath = buildLogsPath.appending(
+            components: "\(UUID().uuidString).xcactivitylog"
+        )
+
+        given(xcActivityLogController)
+            .parse(.value(activityLogPath))
+            .willReturn(.test())
+        given(xcActivityLogController).mostRecentActivityLogFile(
+            projectDerivedDataDirectory: .value(derivedDataPath),
+            filter: .any
+        ).willReturn(
+            .test(
+                path: activityLogPath,
+                timeStoppedRecording: Date(timeIntervalSinceReferenceDate: 20)
+            )
+        )
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        verify(createBuildService)
+            .createBuild(
+                fullHandle: .any,
+                serverURL: .any,
+                id: .any,
+                category: .any,
+                configuration: .any,
+                customMetadata: .matching { metadata in
+                    guard let metadata else { return false }
+                    guard let values = metadata.values else { return false }
+                    return values.additionalProperties["ticket"] == "PROJ-1234" &&
+                        values.additionalProperties["pr_url"] == "https://github.com/tuist/tuist/pull/123" &&
+                        values.additionalProperties.count == 2
+                },
+                duration: .any,
+                files: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                gitRemoteURLOrigin: .any,
+                isCI: .any,
+                issues: .any,
+                modelIdentifier: .any,
+                macOSVersion: .any,
+                scheme: .any,
+                targets: .any,
+                xcodeVersion: .any,
+                status: .any,
+                ciRunId: .any,
+                ciProjectHandle: .any,
+                ciHost: .any,
+                ciProvider: .any,
+                cacheableTasks: .any,
+                casOutputs: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func createsBuild_with_combined_custom_metadata() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.workspacePath = projectPath
+        mockedEnvironment.variables["TUIST_BUILD_TAGS"] = "nightly,release"
+        mockedEnvironment.variables["TUIST_BUILD_TAG_TEAM"] = "ios-team"
+        mockedEnvironment.variables["TUIST_BUILD_VALUE_TICKET"] = "PROJ-1234"
+
+        given(xcodeProjectOrWorkspacePathLocator)
+            .locate(from: .any)
+            .willReturn(projectPath)
+
+        let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
+        given(derivedDataLocator)
+            .locate(for: .any)
+            .willReturn(derivedDataPath)
+        let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
+        let activityLogPath = buildLogsPath.appending(
+            components: "\(UUID().uuidString).xcactivitylog"
+        )
+
+        given(xcActivityLogController)
+            .parse(.value(activityLogPath))
+            .willReturn(.test())
+        given(xcActivityLogController).mostRecentActivityLogFile(
+            projectDerivedDataDirectory: .value(derivedDataPath),
+            filter: .any
+        ).willReturn(
+            .test(
+                path: activityLogPath,
+                timeStoppedRecording: Date(timeIntervalSinceReferenceDate: 20)
+            )
+        )
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        verify(createBuildService)
+            .createBuild(
+                fullHandle: .any,
+                serverURL: .any,
+                id: .any,
+                category: .any,
+                configuration: .any,
+                customMetadata: .matching { metadata in
+                    guard let metadata else { return false }
+                    guard let tags = metadata.tags else { return false }
+                    guard let values = metadata.values else { return false }
+                    return tags.contains("nightly") &&
+                        tags.contains("release") &&
+                        tags.contains("ios-team") &&
+                        tags.count == 3 &&
+                        values.additionalProperties["ticket"] == "PROJ-1234" &&
+                        values.additionalProperties.count == 1
+                },
+                duration: .any,
+                files: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                gitRemoteURLOrigin: .any,
+                isCI: .any,
+                issues: .any,
+                modelIdentifier: .any,
+                macOSVersion: .any,
+                scheme: .any,
+                targets: .any,
+                xcodeVersion: .any,
+                status: .any,
+                ciRunId: .any,
+                ciProjectHandle: .any,
+                ciHost: .any,
+                ciProvider: .any,
+                cacheableTasks: .any,
+                casOutputs: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func createsBuild_with_nil_custom_metadata_when_no_env_vars() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.workspacePath = projectPath
+
+        given(xcodeProjectOrWorkspacePathLocator)
+            .locate(from: .any)
+            .willReturn(projectPath)
+
+        let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
+        given(derivedDataLocator)
+            .locate(for: .any)
+            .willReturn(derivedDataPath)
+        let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
+        let activityLogPath = buildLogsPath.appending(
+            components: "\(UUID().uuidString).xcactivitylog"
+        )
+
+        given(xcActivityLogController)
+            .parse(.value(activityLogPath))
+            .willReturn(.test())
+        given(xcActivityLogController).mostRecentActivityLogFile(
+            projectDerivedDataDirectory: .value(derivedDataPath),
+            filter: .any
+        ).willReturn(
+            .test(
+                path: activityLogPath,
+                timeStoppedRecording: Date(timeIntervalSinceReferenceDate: 20)
+            )
+        )
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        verify(createBuildService)
+            .createBuild(
+                fullHandle: .any,
+                serverURL: .any,
+                id: .any,
+                category: .any,
+                configuration: .any,
+                customMetadata: .matching { metadata in
+                    metadata == nil
+                },
+                duration: .any,
+                files: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                gitRemoteURLOrigin: .any,
+                isCI: .any,
+                issues: .any,
+                modelIdentifier: .any,
+                macOSVersion: .any,
+                scheme: .any,
+                targets: .any,
+                xcodeVersion: .any,
+                status: .any,
+                ciRunId: .any,
+                ciProjectHandle: .any,
+                ciHost: .any,
+                ciProvider: .any,
+                cacheableTasks: .any,
+                casOutputs: .any
+            )
+            .called(1)
+    }
 }
