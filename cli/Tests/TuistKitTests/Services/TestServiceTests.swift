@@ -118,6 +118,29 @@ final class TestServiceTests: TuistUnitTestCase {
             .url(configServerURL: .any)
             .willReturn(URL(string: "https://tuist.dev")!)
 
+        given(listTestCasesService)
+            .listTestCases(
+                fullHandle: .any,
+                serverURL: .any,
+                flaky: .any,
+                quarantined: .any,
+                page: .any,
+                pageSize: .any
+            )
+            .willReturn(
+                Operations.listTestCases.Output.Ok.Body.jsonPayload(
+                    pagination_metadata: .init(
+                        current_page: 1,
+                        has_next_page: false,
+                        has_previous_page: false,
+                        page_size: 500,
+                        total_count: 0,
+                        total_pages: 1
+                    ),
+                    test_cases: []
+                )
+            )
+
         subject = TestService(
             generatorFactory: generatorFactory,
             cacheStorageFactory: cacheStorageFactory,
