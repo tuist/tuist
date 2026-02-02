@@ -64,12 +64,12 @@
               <h2 data-part="title">
                 <a href={"##{entry.id}"}>{entry.title}</a>
               </h2>
-              <div :if={entry.pr} data-part="pr">
+              <div :if={entry.pull_request} data-part="pr">
                 <.button
                   variant="secondary"
                   size="medium"
-                  label={"##{entry.pr}"}
-                  href={"https://github.com/tuist/tuist/pull/#{entry.pr}"}
+                  label={"##{entry.pull_request}"}
+                  href={"https://github.com/tuist/tuist/pull/#{entry.pull_request}"}
                   target="_blank"
                 >
                   <:icon_left>
