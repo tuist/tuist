@@ -15,14 +15,6 @@ enum Formatters {
         return formatter
     }()
 
-    private static let durationFormatter: DateComponentsFormatter = {
-        let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = [.hour, .minute, .second]
-        formatter.unitsStyle = .abbreviated
-        formatter.zeroFormattingBehavior = .dropLeading
-        return formatter
-    }()
-
     static func formatBytes(_ bytes: Int) -> String {
         byteCountFormatter.string(fromByteCount: Int64(bytes))
     }
@@ -32,11 +24,11 @@ enum Formatters {
     }
 
     static func formatDuration(_ milliseconds: Int) -> String {
-        let seconds = TimeInterval(milliseconds) / 1000.0
         if milliseconds < 1000 {
             return "\(milliseconds)ms"
         }
-        return durationFormatter.string(from: seconds) ?? "\(Int(seconds))s"
+        let seconds = Double(milliseconds) / 1000.0
+        return String(format: "%.2fs", seconds)
     }
 
     static func formatTimestamp(_ timestamp: Int) -> String {
