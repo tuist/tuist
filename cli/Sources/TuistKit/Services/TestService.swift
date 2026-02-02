@@ -300,26 +300,12 @@ final class TestService { // swiftlint:disable:this type_body_length
         }
 
         var skipTestTargets = skipTestTargets
-        if !skipQuarantine, let fullHandle = config.fullHandle {
-            do {
-                let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-                let quarantinedTests = try await fetchQuarantinedTests(
-                    fullHandle: fullHandle,
-                    serverURL: serverURL
-                )
-                skipTestTargets.append(contentsOf: quarantinedTests)
-                if !quarantinedTests.isEmpty {
-                    Logger.current.notice(
-                        "Skipping \(quarantinedTests.count) quarantined test(s)",
-                        metadata: .subsection
-                    )
-                }
-            } catch {
-                AlertController.current.warning(
-                    .alert("Failed to fetch quarantined tests: \(error.localizedDescription). Running all tests.")
-                )
-            }
-        }
+        skipTestTargets.append(
+            contentsOf: await quarantinedTestsToSkip(
+                skipQuarantine: skipQuarantine,
+                config: config
+            )
+        )
 
         let graphTraverser = GraphTraverser(graph: graph)
         let version = osVersion?.version()
@@ -1051,6 +1037,34 @@ final class TestService { // swiftlint:disable:this type_body_length
         )
 
         await RunMetadataStorage.current.update(testRunId: test.id)
+    }
+
+    private func quarantinedTestsToSkip(
+        skipQuarantine: Bool,
+        config: Tuist
+    ) async -> [TestIdentifier] {
+        guard !skipQuarantine, let fullHandle = config.fullHandle else {
+            return []
+        }
+        do {
+            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+            let quarantinedTests = try await fetchQuarantinedTests(
+                fullHandle: fullHandle,
+                serverURL: serverURL
+            )
+            if !quarantinedTests.isEmpty {
+                Logger.current.notice(
+                    "Skipping \(quarantinedTests.count) quarantined test(s)",
+                    metadata: .subsection
+                )
+            }
+            return quarantinedTests
+        } catch {
+            AlertController.current.warning(
+                .alert("Failed to fetch quarantined tests: \(error.localizedDescription). Running all tests.")
+            )
+            return []
+        }
     }
 
     private func fetchQuarantinedTests(
