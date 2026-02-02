@@ -191,10 +191,12 @@ let targets: [Target] = [
             .target(name: "TuistKit", condition: .when(platforms: [.macOS])),
             .target(name: "TuistSupport", condition: .when(platforms: [.macOS])),
             .target(name: "TuistLoader", condition: .when(platforms: [.macOS])),
-            "TuistKitLinux",
+            "TuistCacheConfigCommand",
+            "TuistAuthLoginCommand",
             "TuistConstants",
             "TuistEnvironment",
             "TuistLogging",
+            argumentParserDependency,
             .target(name: "ProjectDescription", condition: .when(platforms: [.macOS])),
             .target(name: "ProjectAutomation", condition: .when(platforms: [.macOS])),
             .product(name: "Noora", package: "tuist.Noora"),
@@ -241,7 +243,7 @@ let targets: [Target] = [
         path: "cli/Sources/TuistLogging"
     ),
     .target(
-        name: "TuistKitLinux",
+        name: "TuistCacheConfigCommand",
         dependencies: [
             pathDependency,
             argumentParserDependency,
@@ -253,7 +255,22 @@ let targets: [Target] = [
             "TuistServer",
             "TuistOIDC",
         ],
-        path: "cli/Sources/TuistKitLinux"
+        path: "cli/Sources/TuistCacheConfigCommand"
+    ),
+    .target(
+        name: "TuistAuthLoginCommand",
+        dependencies: [
+            pathDependency,
+            argumentParserDependency,
+            loggingDependency,
+            swiftToolsSupportDependency,
+            "TuistConstants",
+            "TuistEnvironment",
+            "TuistLogging",
+            "TuistServer",
+            "TuistOIDC",
+        ],
+        path: "cli/Sources/TuistAuthLoginCommand"
     ),
     .target(
         name: "TuistSupport",

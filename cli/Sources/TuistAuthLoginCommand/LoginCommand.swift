@@ -1,8 +1,10 @@
 import ArgumentParser
 import Foundation
 
-struct LoginCommand: AsyncParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct LoginCommand: AsyncParsableCommand {
+    public init() {}
+
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "login",
             _superCommandName: "auth",
@@ -26,7 +28,7 @@ struct LoginCommand: AsyncParsableCommand {
     )
     var serverURL: String?
 
-    func run() async throws {
+    public func run() async throws {
         try await LoginService().run(
             email: email,
             password: password,

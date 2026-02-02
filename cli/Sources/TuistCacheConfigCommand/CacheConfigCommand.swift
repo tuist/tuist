@@ -1,8 +1,10 @@
 import ArgumentParser
 import Foundation
 
-struct CacheConfigCommand: AsyncParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct CacheConfigCommand: AsyncParsableCommand {
+    public init() {}
+
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "config",
             abstract: "Get remote cache configuration for your project.",
@@ -35,7 +37,7 @@ struct CacheConfigCommand: AsyncParsableCommand {
     )
     var serverURL: String?
 
-    func run() async throws {
+    public func run() async throws {
         try await CacheConfigService().run(
             fullHandle: fullHandle,
             json: json,
