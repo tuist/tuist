@@ -34,11 +34,11 @@ jobs:
         run: |
           for file in $CHANGED_FILES; do
             if [ -f "$file" ]; then
-              # Check if the file already has a pr: field
-              if ! grep -q "^pr:" "$file"; then
-                # Add pr: field after category: line in frontmatter
-                sed -i "/^category:/a pr: $PR_NUMBER" "$file"
-                echo "Added pr: $PR_NUMBER to $file"
+              # Check if the file already has a pull_request: field
+              if ! grep -q "^pull_request:" "$file"; then
+                # Add pull_request: field after category: line in frontmatter
+                sed -i "/^category:/a pull_request: $PR_NUMBER" "$file"
+                echo "Added pull_request: $PR_NUMBER to $file"
               else
                 echo "PR number already exists in $file"
               fi
