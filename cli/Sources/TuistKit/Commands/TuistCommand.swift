@@ -106,8 +106,21 @@ public struct TuistCommand: AsyncParsableCommand {
             if processedArguments.first == ScaffoldCommand.configuration.commandName {
                 try await ScaffoldCommand.preprocess(processedArguments)
             }
-            let config = try await ConfigLoader().loadConfig(path: path)
-            let serverURL = try ServerEnvironmentService().url(configServerURL: config.url)
+            let shouldTrackAnalytics = processedArguments.prefix(2) != ["inspect", "build"]
+                && processedArguments.prefix(2) != ["inspect", "test"]
+                && processedArguments.prefix(2) != ["auth", "refresh-token"]
+                && processedArguments.first != "analytics-upload"
+
+            let config: TuistCore.Tuist?
+            let serverURL: URL?
+            if shouldTrackAnalytics {
+                let loadedConfig = try await ConfigLoader().loadConfig(path: path)
+                config = loadedConfig
+                serverURL = try ServerEnvironmentService().url(configServerURL: loadedConfig.url)
+            } else {
+                config = nil
+                serverURL = nil
+            }
             let command = try parseAsRoot(processedArguments)
 
             if command is RecentPathRememberableCommand {
@@ -123,15 +136,12 @@ public struct TuistCommand: AsyncParsableCommand {
                     command: command,
                     commandArguments: processedArguments
                 )
-                let shouldTrackAnalytics = processedArguments.prefix(2) != ["inspect", "build"]
-                    && processedArguments.prefix(2) != ["auth", "refresh-token"]
-                    && processedArguments.first != "analytics-upload"
                 if let nooraReadyCommand = command as? NooraReadyCommand {
                     let jsonThroughNoora = nooraReadyCommand.jsonThroughNoora
                     try await withLoggerForNoora(logFilePath: logFilePath) {
                         try await Noora.$current.withValue(initNoora(jsonThroughNoora: jsonThroughNoora)) {
                             try await trackableCommand.run(
-                                fullHandle: config.fullHandle,
+                                fullHandle: config?.fullHandle,
                                 serverURL: serverURL,
                                 shouldTrackAnalytics: shouldTrackAnalytics
                             )
@@ -139,7 +149,7 @@ public struct TuistCommand: AsyncParsableCommand {
                     }
                 } else {
                     try await trackableCommand.run(
-                        fullHandle: config.fullHandle,
+                        fullHandle: config?.fullHandle,
                         serverURL: serverURL,
                         shouldTrackAnalytics: shouldTrackAnalytics
                     )
