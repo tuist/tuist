@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.135.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* avoid stale auth token cache during long uploads by [@cschmatzler](https://github.com/cschmatzler) in [#9314](https://github.com/tuist/tuist/pull/9314)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.135.1...4.135.2
+
 ## What's Changed in 4.135.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
