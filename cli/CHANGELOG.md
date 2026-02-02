@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.135.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* auto-skip quarantined tests in tuist test by [@fortmarek](https://github.com/fortmarek) in [#9306](https://github.com/tuist/tuist/pull/9306)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.134.1...4.135.0
+
 ## What's Changed in 4.134.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
