@@ -173,6 +173,20 @@ public actor HARRecorder {
         )
 
         let resolvedHttpVersion = Self.formatHttpVersion(httpVersion)
+        let resolvedRequestHeadersSize = Self.resolveRequestHeadersSize(
+            requestHeadersSize,
+            method: method,
+            url: url,
+            httpVersion: resolvedHttpVersion,
+            headers: requestHeaders
+        )
+        let resolvedResponseHeadersSize = Self.resolveResponseHeadersSize(
+            responseHeadersSize,
+            httpVersion: resolvedHttpVersion,
+            statusCode: responseStatusCode,
+            statusText: responseStatusText,
+            headers: responseHeaders
+        )
 
         return HAR.Entry(
             startedDateTime: startTime,
@@ -185,7 +199,7 @@ public actor HARRecorder {
                 headers: filteredRequestHeaders,
                 queryString: extractQueryParameters(from: url),
                 postData: buildPostData(from: requestBody, headers: requestHeaders),
-                headersSize: requestHeadersSize ?? -1,
+                headersSize: resolvedRequestHeadersSize,
                 bodySize: requestBody?.count ?? 0
             ),
             response: HAR.Response(
@@ -196,7 +210,7 @@ public actor HARRecorder {
                 headers: filteredResponseHeaders,
                 content: buildContent(from: responseBody, headers: responseHeaders),
                 redirectURL: "",
-                headersSize: responseHeadersSize ?? -1,
+                headersSize: resolvedResponseHeadersSize,
                 bodySize: responseBody?.count ?? 0
             ),
             timings: entryTimings
@@ -226,6 +240,13 @@ public actor HARRecorder {
         )
 
         let resolvedHttpVersion = Self.formatHttpVersion(httpVersion)
+        let resolvedRequestHeadersSize = Self.resolveRequestHeadersSize(
+            requestHeadersSize,
+            method: method,
+            url: url,
+            httpVersion: resolvedHttpVersion,
+            headers: requestHeaders
+        )
 
         return HAR.Entry(
             startedDateTime: startTime,
@@ -238,7 +259,7 @@ public actor HARRecorder {
                 headers: filteredRequestHeaders,
                 queryString: extractQueryParameters(from: url),
                 postData: buildPostData(from: requestBody, headers: requestHeaders),
-                headersSize: requestHeadersSize ?? -1,
+                headersSize: resolvedRequestHeadersSize,
                 bodySize: requestBody?.count ?? 0
             ),
             response: HAR.Response(
@@ -258,6 +279,49 @@ public actor HARRecorder {
             ),
             timings: entryTimings
         )
+    }
+
+    private static func resolveRequestHeadersSize(
+        _ provided: Int?,
+        method: String,
+        url: URL,
+        httpVersion: String,
+        headers: [HAR.Header]
+    ) -> Int {
+        if let provided { return provided }
+        let requestLine = "\(method) \(requestTarget(for: url)) \(httpVersion)"
+        return calculateHeadersSize(startLine: requestLine, headers: headers)
+    }
+
+    private static func resolveResponseHeadersSize(
+        _ provided: Int?,
+        httpVersion: String,
+        statusCode: Int,
+        statusText: String,
+        headers: [HAR.Header]
+    ) -> Int {
+        if let provided { return provided }
+        let statusLine = statusText.isEmpty
+            ? "\(httpVersion) \(statusCode)"
+            : "\(httpVersion) \(statusCode) \(statusText)"
+        return calculateHeadersSize(startLine: statusLine, headers: headers)
+    }
+
+    private static func calculateHeadersSize(startLine: String, headers: [HAR.Header]) -> Int {
+        var size = startLine.utf8.count + 2
+        for header in headers {
+            size += header.name.utf8.count + 2 + header.value.utf8.count + 2
+        }
+        size += 2
+        return size
+    }
+
+    private static func requestTarget(for url: URL) -> String {
+        var target = url.path.isEmpty ? "/" : url.path
+        if let query = url.query, !query.isEmpty {
+            target += "?\(query)"
+        }
+        return target
     }
 
     private static func formatHttpVersion(_ protocolName: String?) -> String {

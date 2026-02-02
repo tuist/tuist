@@ -726,6 +726,8 @@ public enum Module: String, CaseIterable {
             case .har:
                 [
                     .target(name: Module.support.targetName),
+                    .external(name: "OpenAPIRuntime"),
+                    .external(name: "HTTPTypes"),
                 ]
             }
         if self != .projectDescription, self != .projectAutomation {

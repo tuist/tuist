@@ -40,14 +40,18 @@ public struct SessionController {
                 LoggingConfig.default()
             }
 
-        try await clean(stateDirectory: stateDirectory)
-        try await migrateOldLogs(stateDirectory: stateDirectory)
-
         let loggerHandler = try Logger.defaultLoggerHandler(
             config: loggingConfig, logFilePath: sessionPaths.logFilePath
         )
 
         return (loggerHandler, sessionPaths)
+    }
+
+    /// Schedules best-effort cleanup of old session directories.
+    public func scheduleMaintenance(stateDirectory: AbsolutePath) {
+        Task { [fileSystem] in
+            try? await Self.clean(fileSystem: fileSystem, stateDirectory: stateDirectory)
+        }
     }
 
     /// Creates a new session directory and returns the paths for logs and network recording.
@@ -84,7 +88,8 @@ public struct SessionController {
     ///   - stateDirectory: The base state directory.
     ///   - maxAge: Maximum age of sessions to keep (default: 7 days).
     ///   - maxSessions: Maximum number of sessions to keep (default: 50).
-    private func clean(
+    private static func clean(
+        fileSystem: FileSystem,
         stateDirectory: AbsolutePath,
         maxAge: TimeInterval = 7 * 24 * 60 * 60,
         maxSessions: Int = 50
@@ -114,31 +119,6 @@ public struct SessionController {
             for session in sessionsToRemove {
                 try await fileSystem.remove(session.path)
             }
-        }
-    }
-
-    /// Migrates old logs directory to the new sessions structure.
-    /// This ensures backward compatibility during the transition period.
-    /// - Parameter stateDirectory: The base state directory.
-    private func migrateOldLogs(stateDirectory: AbsolutePath) async throws {
-        let oldLogsDirectory = stateDirectory.appending(component: "logs")
-        guard try await fileSystem.exists(oldLogsDirectory) else { return }
-
-        let cutoffDate = Date().addingTimeInterval(-7 * 24 * 60 * 60)
-
-        for logPath in try await fileSystem.glob(directory: oldLogsDirectory, include: ["*.log"]).collect() {
-            if let creationDate = try FileManager.default.attributesOfItem(
-                atPath: logPath.pathString
-            )[.creationDate] as? Date,
-                creationDate < cutoffDate
-            {
-                try await fileSystem.remove(logPath)
-            }
-        }
-
-        let remainingFiles = try await fileSystem.glob(directory: oldLogsDirectory, include: ["*"]).collect()
-        if remainingFiles.isEmpty {
-            try await fileSystem.remove(oldLogsDirectory)
         }
     }
 }
