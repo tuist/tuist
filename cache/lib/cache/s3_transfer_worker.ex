@@ -18,7 +18,7 @@ defmodule Cache.S3TransferWorker do
 
   require Logger
 
-  @batch_size 5000
+  @batch_size 7500
   @concurrency 50
 
   @impl Oban.Worker
