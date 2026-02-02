@@ -104,25 +104,21 @@ defmodule Tuist.Runs.Build do
 
   defp validate_custom_tags(changeset) do
     changeset
-    |> validate_length(:custom_tags, max: 10, message: "cannot have more than 10 tags")
+    |> validate_length(:custom_tags, max: 50, message: "cannot have more than 50 tags")
     |> validate_change(:custom_tags, fn :custom_tags, tags ->
-      errors =
-        tags
-        |> Enum.with_index()
-        |> Enum.flat_map(fn {tag, _idx} ->
-          cond do
-            String.length(tag) > 50 ->
-              [{:custom_tags, "tag exceeds maximum length of 50 characters"}]
+      tags
+      |> Enum.flat_map(fn tag ->
+        cond do
+          String.length(tag) > 50 ->
+            [{:custom_tags, "tag exceeds maximum length of 50 characters"}]
 
-            not Regex.match?(~r/^[a-zA-Z0-9_-]+$/, tag) ->
-              [{:custom_tags, "tag contains invalid characters (only alphanumeric, hyphens, and underscores allowed)"}]
+          not Regex.match?(~r/^[a-zA-Z0-9_-]+$/, tag) ->
+            [{:custom_tags, "tag contains invalid characters (only alphanumeric, hyphens, and underscores allowed)"}]
 
-            true ->
-              []
-          end
-        end)
-
-      errors
+          true ->
+            []
+        end
+      end)
     end)
   end
 
