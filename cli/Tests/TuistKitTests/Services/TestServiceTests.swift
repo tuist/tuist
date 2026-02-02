@@ -2584,7 +2584,6 @@ final class TestServiceTests: TuistUnitTestCase {
                 (path, .test(workspace: .test(schemes: [.test(name: "ProjectScheme")])), MapperEnvironment())
             }
 
-        var capturedSkipTestTargets: [TestIdentifier]?
         xcodebuildController.reset()
         given(xcodebuildController)
             .test(
@@ -2603,22 +2602,34 @@ final class TestServiceTests: TuistUnitTestCase {
                 testPlanConfiguration: .any,
                 passthroughXcodeBuildArguments: .any
             )
-            .willProduce { _, _, _, _, _, _, _, _, _, _, _, skipTestTargets, _, _ in
-                capturedSkipTestTargets = skipTestTargets
-            }
+            .willReturn(())
 
         // When
         try await testRun(path: path)
 
         // Then
-        XCTAssertNotNil(capturedSkipTestTargets)
-        XCTAssertEqual(capturedSkipTestTargets?.count, 2)
-        XCTAssertTrue(capturedSkipTestTargets?.contains(where: {
-            $0.target == "AppTests" && $0.class == "QuarantinedSuite" && $0.method == "testQuarantined()"
-        }) == true)
-        XCTAssertTrue(capturedSkipTestTargets?.contains(where: {
-            $0.target == "CoreTests" && $0.class == "testAnotherQuarantined()"
-        }) == true)
+        let expectedSkipTestTargets = [
+            try TestIdentifier(target: "AppTests", class: "QuarantinedSuite", method: "testQuarantined()"),
+            try TestIdentifier(target: "CoreTests", class: nil, method: "testAnotherQuarantined()"),
+        ]
+        verify(xcodebuildController)
+            .test(
+                .any,
+                scheme: .any,
+                clean: .any,
+                destination: .any,
+                action: .any,
+                rosetta: .any,
+                derivedDataPath: .any,
+                resultBundlePath: .any,
+                arguments: .any,
+                retryCount: .any,
+                testTargets: .any,
+                skipTestTargets: .value(expectedSkipTestTargets),
+                testPlanConfiguration: .any,
+                passthroughXcodeBuildArguments: .any
+            )
+            .called(1)
     }
 
     func test_run_does_not_fetch_quarantined_tests_when_skipQuarantine_is_true() async throws {
@@ -2656,7 +2667,6 @@ final class TestServiceTests: TuistUnitTestCase {
                 (path, .test(workspace: .test(schemes: [.test(name: "ProjectScheme")])), MapperEnvironment())
             }
 
-        var capturedSkipTestTargets: [TestIdentifier]?
         xcodebuildController.reset()
         given(xcodebuildController)
             .test(
@@ -2675,9 +2685,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 testPlanConfiguration: .any,
                 passthroughXcodeBuildArguments: .any
             )
-            .willProduce { _, _, _, _, _, _, _, _, _, _, _, skipTestTargets, _, _ in
-                capturedSkipTestTargets = skipTestTargets
-            }
+            .willReturn(())
 
         // When
         try await testRun(path: path, skipQuarantine: true)
@@ -2693,7 +2701,24 @@ final class TestServiceTests: TuistUnitTestCase {
                 pageSize: .any
             )
             .called(0)
-        XCTAssertEqual(capturedSkipTestTargets, [])
+        verify(xcodebuildController)
+            .test(
+                .any,
+                scheme: .any,
+                clean: .any,
+                destination: .any,
+                action: .any,
+                rosetta: .any,
+                derivedDataPath: .any,
+                resultBundlePath: .any,
+                arguments: .any,
+                retryCount: .any,
+                testTargets: .any,
+                skipTestTargets: .value([]),
+                testPlanConfiguration: .any,
+                passthroughXcodeBuildArguments: .any
+            )
+            .called(1)
     }
 
     func test_run_does_not_fetch_quarantined_tests_when_fullHandle_is_nil() async throws {
@@ -2730,7 +2755,6 @@ final class TestServiceTests: TuistUnitTestCase {
                 (path, .test(workspace: .test(schemes: [.test(name: "ProjectScheme")])), MapperEnvironment())
             }
 
-        var capturedSkipTestTargets: [TestIdentifier]?
         xcodebuildController.reset()
         given(xcodebuildController)
             .test(
@@ -2749,9 +2773,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 testPlanConfiguration: .any,
                 passthroughXcodeBuildArguments: .any
             )
-            .willProduce { _, _, _, _, _, _, _, _, _, _, _, skipTestTargets, _, _ in
-                capturedSkipTestTargets = skipTestTargets
-            }
+            .willReturn(())
 
         // When
         try await testRun(path: path)
@@ -2767,7 +2789,24 @@ final class TestServiceTests: TuistUnitTestCase {
                 pageSize: .any
             )
             .called(0)
-        XCTAssertEqual(capturedSkipTestTargets, [])
+        verify(xcodebuildController)
+            .test(
+                .any,
+                scheme: .any,
+                clean: .any,
+                destination: .any,
+                action: .any,
+                rosetta: .any,
+                derivedDataPath: .any,
+                resultBundlePath: .any,
+                arguments: .any,
+                retryCount: .any,
+                testTargets: .any,
+                skipTestTargets: .value([]),
+                testPlanConfiguration: .any,
+                passthroughXcodeBuildArguments: .any
+            )
+            .called(1)
     }
 
     func test_run_logs_warning_when_fetching_quarantined_tests_fails() async throws {
@@ -2821,7 +2860,6 @@ final class TestServiceTests: TuistUnitTestCase {
                 (path, .test(workspace: .test(schemes: [.test(name: "ProjectScheme")])), MapperEnvironment())
             }
 
-        var capturedSkipTestTargets: [TestIdentifier]?
         xcodebuildController.reset()
         given(xcodebuildController)
             .test(
@@ -2840,9 +2878,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 testPlanConfiguration: .any,
                 passthroughXcodeBuildArguments: .any
             )
-            .willProduce { _, _, _, _, _, _, _, _, _, _, _, skipTestTargets, _, _ in
-                capturedSkipTestTargets = skipTestTargets
-            }
+            .willReturn(())
 
         // When
         try await AlertController.$current.withValue(AlertController()) {
@@ -2852,7 +2888,24 @@ final class TestServiceTests: TuistUnitTestCase {
             let warnings = AlertController.current.warnings()
             XCTAssertEqual(warnings.count, 1)
             XCTAssertTrue(warnings.first?.message.plain().contains("Failed to fetch quarantined tests") == true)
-            XCTAssertEqual(capturedSkipTestTargets, [])
+            verify(xcodebuildController)
+                .test(
+                    .any,
+                    scheme: .any,
+                    clean: .any,
+                    destination: .any,
+                    action: .any,
+                    rosetta: .any,
+                    derivedDataPath: .any,
+                    resultBundlePath: .any,
+                    arguments: .any,
+                    retryCount: .any,
+                    testTargets: .any,
+                    skipTestTargets: .value([]),
+                    testPlanConfiguration: .any,
+                    passthroughXcodeBuildArguments: .any
+                )
+                .called(1)
         }
     }
 
