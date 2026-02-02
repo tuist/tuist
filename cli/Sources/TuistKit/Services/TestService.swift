@@ -269,28 +269,6 @@ final class TestService { // swiftlint:disable:this type_body_length
             )
         let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
 
-        var effectiveSkipTestTargets = skipTestTargets
-        if !noSkipQuarantined, let fullHandle = config.fullHandle {
-            do {
-                let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-                let quarantinedTests = try await fetchQuarantinedTests(
-                    fullHandle: fullHandle,
-                    serverURL: serverURL
-                )
-                effectiveSkipTestTargets.append(contentsOf: quarantinedTests)
-                if !quarantinedTests.isEmpty {
-                    Logger.current.notice(
-                        "Skipping \(quarantinedTests.count) quarantined test(s)",
-                        metadata: .subsection
-                    )
-                }
-            } catch {
-                AlertController.current.warning(
-                    .alert("Failed to fetch quarantined tests: \(error.localizedDescription). Running all tests.")
-                )
-            }
-        }
-
         let destination = try await destination(
             arguments: passthroughXcodeBuildArguments,
             deviceName: deviceName,
@@ -319,6 +297,28 @@ final class TestService { // swiftlint:disable:this type_body_length
 
         if generateOnly {
             return
+        }
+
+        var skipTestTargets = skipTestTargets
+        if !noSkipQuarantined, let fullHandle = config.fullHandle {
+            do {
+                let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+                let quarantinedTests = try await fetchQuarantinedTests(
+                    fullHandle: fullHandle,
+                    serverURL: serverURL
+                )
+                skipTestTargets.append(contentsOf: quarantinedTests)
+                if !quarantinedTests.isEmpty {
+                    Logger.current.notice(
+                        "Skipping \(quarantinedTests.count) quarantined test(s)",
+                        metadata: .subsection
+                    )
+                }
+            } catch {
+                AlertController.current.warning(
+                    .alert("Failed to fetch quarantined tests: \(error.localizedDescription). Running all tests.")
+                )
+            }
         }
 
         let graphTraverser = GraphTraverser(graph: graph)
@@ -437,7 +437,7 @@ final class TestService { // swiftlint:disable:this type_body_length
                 derivedDataPath: derivedDataPath,
                 retryCount: retryCount,
                 testTargets: testTargets,
-                skipTestTargets: effectiveSkipTestTargets,
+                skipTestTargets: skipTestTargets,
                 testPlanConfiguration: testPlanConfiguration,
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 config: config
