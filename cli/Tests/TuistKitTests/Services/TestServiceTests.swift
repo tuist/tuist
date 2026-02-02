@@ -2572,6 +2572,7 @@ final class TestServiceTests: TuistUnitTestCase {
             test_cases: [testCase1, testCase2]
         )
 
+        listTestCasesService.reset()
         given(listTestCasesService)
             .listTestCases(
                 fullHandle: .value(fullHandle),
@@ -2848,6 +2849,7 @@ final class TestServiceTests: TuistUnitTestCase {
             .url(configServerURL: .any)
             .willReturn(serverURL)
 
+        listTestCasesService.reset()
         given(listTestCasesService)
             .listTestCases(
                 fullHandle: .any,
