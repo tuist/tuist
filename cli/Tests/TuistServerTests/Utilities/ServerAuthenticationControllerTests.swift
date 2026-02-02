@@ -292,7 +292,7 @@ struct ServerAuthenticationControllerTests {
         .withMockedEnvironment(),
         .withMockedDependencies()
     ) func executeRefresh_sets_cache_expiration_based_on_access_token() async throws {
-        let date = Date()
+        let date = Date(timeIntervalSince1970: TimeInterval(Int(Date().timeIntervalSince1970)))
         try await Date.$now.withValue({ date }) {
             // Given
             let serverURL: URL = .test()
