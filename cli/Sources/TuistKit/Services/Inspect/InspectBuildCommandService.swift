@@ -254,7 +254,7 @@ struct InspectBuildCommandService {
 
         return BuildCustomMetadata(
             tags: tags,
-            values: .init(additionalProperties: values)
+            values: BuildCustomMetadata.valuesPayload(additionalProperties: values)
         )
     }
 }
