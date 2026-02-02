@@ -59,7 +59,7 @@ You can also manually mark or unmark tests as flaky from the test case detail pa
 Quarantining allows you to isolate flaky tests so they don't block your CI pipeline while you work on fixing them. Quarantined tests can be skipped during test runs, preventing false failures from disrupting your team's workflow.
 
 > [!IMPORTANT]
-> Quarantining a test does not automatically skip it. You must explicitly pass the list of quarantined tests to xcodebuild using the `-skip-testing` flag.
+> Unless you're using `tuist test`, quarantining a test does not automatically skip it. You must explicitly pass the list of quarantined tests to xcodebuild using the `-skip-testing` flag.
 
 ### Automatic quarantine
 
@@ -76,9 +76,25 @@ You can also manually quarantine or unquarantine tests from the test case detail
 - You want to quarantine a test before it's automatically detected as flaky
 - You want to unquarantine a test after fixing the underlying issue
 
-### Skipping quarantined tests with xcodebuild {#skipping-quarantined-tests}
+### Skipping quarantined tests {#skipping-quarantined-tests}
 
-Use the `tuist test case list` command with the `--skip-testing` flag to get quarantined test identifiers formatted for xcodebuild:
+#### With tuist test
+
+When you run `tuist test`, quarantined tests are automatically skipped. Tuist fetches the list of quarantined tests from the server and passes them to xcodebuild using the `-skip-testing` flag.
+
+```bash
+tuist test
+```
+
+If you want to run all tests including quarantined ones, use the `--skip-quarantine` flag:
+
+```bash
+tuist test --skip-quarantine
+```
+
+#### With xcodebuild directly
+
+If you're using xcodebuild directly instead of `tuist test`, use the `tuist test case list` command with the `--skip-testing` flag to get quarantined test identifiers formatted for xcodebuild:
 
 ```bash
 xcodebuild test \
