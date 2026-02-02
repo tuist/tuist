@@ -206,7 +206,7 @@ public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand,
     var buildOnly: Bool = false
 
     @Flag(
-        name: .customLong("no-skip-quarantined"),
+        name: .long,
         help: "Do not skip quarantined tests automatically.",
         envKey: .testNoSkipQuarantined
     )
