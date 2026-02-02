@@ -29,7 +29,6 @@ When creating commits and pull requests, use these conventional commit scopes:
 - `docs` - Changes to documentation
 - `handbook` - Changes to the handbook/guides
 
-PR descriptions should be thorough. Include a clear summary, the reasoning or context behind the change, and explicit testing notes (including when not run).
 
 Examples:
 - `feat(server): add new telemetry sanitizer module`
