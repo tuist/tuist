@@ -25,6 +25,15 @@
         </div>
         <h1 data-part="label">{@run.scheme || dgettext("dashboard_builds", "Unknown scheme")}</h1>
       </div>
+      <div :if={Enum.any?(@run.custom_tags || [])} data-part="custom-tags">
+        <.badge
+          :for={tag <- @run.custom_tags}
+          label={tag}
+          color="neutral"
+          style="light-fill"
+          size="large"
+        />
+      </div>
       <.link_button
         :if={@test_run}
         navigate={
@@ -188,6 +197,22 @@
                 <.device_laptop />
                 {@run.macos_version}
               </span>
+            </div>
+          </div>
+          <div :if={map_size(@run.custom_values || %{}) > 0} data-part="custom-values-section">
+            <div data-part="metadata-row">
+              <div data-part="title">{dgettext("dashboard_builds", "Custom Values")}</div>
+            </div>
+            <div data-part="metadata-row">
+              <div :for={{key, value} <- @run.custom_values || %{}} data-part="metadata">
+                <div data-part="title">{key}</div>
+                <span :if={url?(value)} data-part="label">
+                  <a href={value} target="_blank" rel="noopener noreferrer">
+                    {truncate_url(value)}
+                  </a>
+                </span>
+                <span :if={not url?(value)} data-part="label">{value}</span>
+              </div>
             </div>
           </div>
         </div>

@@ -18,12 +18,13 @@ defmodule TuistWeb.BuildRunsLive do
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     slug = Projects.get_project_slug_from_id(project.id)
     configurations = Runs.project_build_configurations(project)
+    tags = Runs.project_build_tags(project)
 
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_builds", "Build Runs")} · #{slug} · Tuist")
       |> assign(OpenGraph.og_image_assigns("build-runs"))
-      |> assign(:available_filters, define_filters(project, configurations))
+      |> assign(:available_filters, define_filters(project, configurations, tags))
 
     if connected?(socket) do
       Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
@@ -199,6 +200,7 @@ defmodule TuistWeb.BuildRunsLive do
 
   defp build_flop_filters(filters) do
     {ran_by, filters} = Enum.split_with(filters, &(&1.id == "ran_by"))
+    {tags_filters, filters} = Enum.split_with(filters, &(&1.id == "custom_tags"))
     flop_filters = Filter.Operations.convert_filters_to_flop(filters)
 
     ran_by_flop_filters =
@@ -213,10 +215,19 @@ defmodule TuistWeb.BuildRunsLive do
           []
       end)
 
-    flop_filters ++ ran_by_flop_filters
+    tag_flop_filters =
+      Enum.flat_map(tags_filters, fn
+        %{value: value, operator: :contains} when not is_nil(value) ->
+          [%{field: :custom_tags, op: :contains, value: [value]}]
+
+        _ ->
+          []
+      end)
+
+    flop_filters ++ ran_by_flop_filters ++ tag_flop_filters
   end
 
-  defp define_filters(project, configurations) do
+  defp define_filters(project, configurations, tags) do
     base = [
       %Filter.Filter{
         id: "scheme",
@@ -288,6 +299,26 @@ defmodule TuistWeb.BuildRunsLive do
         value: ""
       }
     ]
+
+    tags_filter =
+      if Enum.any?(tags) do
+        [
+          %Filter.Filter{
+            id: "custom_tags",
+            field: :custom_tags,
+            display_name: dgettext("dashboard_builds", "Tags"),
+            type: :option,
+            options: tags,
+            options_display_names: Map.new(tags, &{&1, &1}),
+            operator: :contains,
+            value: nil
+          }
+        ]
+      else
+        []
+      end
+
+    base = base ++ tags_filter
 
     organization =
       if Accounts.organization?(project.account) do

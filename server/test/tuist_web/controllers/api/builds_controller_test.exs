@@ -155,6 +155,91 @@ defmodule TuistWeb.API.BuildsControllerTest do
 
       assert json_response(conn, :forbidden)
     end
+
+    test "returns custom_metadata in response", %{conn: conn, user: user, project: project} do
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: user.account.id,
+          custom_tags: ["nightly", "release"],
+          custom_values: %{"ticket" => "PROJ-1234"}
+        )
+
+      stub(Runs, :list_build_runs, fn _attrs, _opts ->
+        {[build],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 1,
+           total_pages: 1
+         }}
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds")
+
+      response = json_response(conn, 200)
+      first_build = hd(response["builds"])
+      assert first_build["custom_metadata"]["tags"] == ["nightly", "release"]
+      assert first_build["custom_metadata"]["values"] == %{"ticket" => "PROJ-1234"}
+    end
+
+    test "filters builds by tags", %{conn: conn, user: user, project: project} do
+      {:ok, tagged_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: user.account.id,
+          custom_tags: ["nightly", "release"]
+        )
+
+      expect(Runs, :list_build_runs, fn attrs, _opts ->
+        assert %{field: :custom_tags, op: :contains, value: ["nightly"]} in attrs.filters
+
+        {[tagged_build],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 1,
+           total_pages: 1
+         }}
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds?tags=nightly")
+
+      response = json_response(conn, 200)
+      assert length(response["builds"]) == 1
+    end
+
+    test "filters builds by multiple tags", %{conn: conn, user: user, project: project} do
+      {:ok, tagged_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: user.account.id,
+          custom_tags: ["nightly", "release"]
+        )
+
+      expect(Runs, :list_build_runs, fn attrs, _opts ->
+        assert %{field: :custom_tags, op: :contains, value: ["nightly", "release"]} in attrs.filters
+
+        {[tagged_build],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 1,
+           total_pages: 1
+         }}
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds?tags=nightly,release")
+
+      response = json_response(conn, 200)
+      assert length(response["builds"]) == 1
+    end
   end
 
   describe "GET /api/projects/:account_handle/:project_handle/builds/:build_id" do
@@ -237,6 +322,29 @@ defmodule TuistWeb.API.BuildsControllerTest do
       conn = get(conn, "/api/projects/#{project.account.name}/#{project.name}/builds/#{UUIDv7.generate()}")
 
       assert json_response(conn, :forbidden)
+    end
+
+    test "returns custom_metadata in response", %{conn: conn, user: user, project: project} do
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: user.account.id,
+          custom_tags: ["nightly", "staging"],
+          custom_values: %{"runner" => "macos-14", "jira" => "https://jira.example.com/PROJ-123"}
+        )
+
+      stub(Runs, :get_build, fn _id ->
+        build
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/#{build.id}")
+
+      response = json_response(conn, 200)
+      assert response["custom_metadata"]["tags"] == ["nightly", "staging"]
+      assert response["custom_metadata"]["values"] == %{
+               "runner" => "macos-14",
+               "jira" => "https://jira.example.com/PROJ-123"
+             }
     end
   end
 end

@@ -66,11 +66,6 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/bundles`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/bundles/post(createBundle)`.
     func createBundle(_ input: Operations.createBundle.Input) async throws -> Operations.createBundle.Output
-    /// Store cache key value entries.
-    ///
-    /// - Remark: HTTP `PUT /api/cache/keyvalue`.
-    /// - Remark: Generated from `#/paths//api/cache/keyvalue/put(putCacheValue)`.
-    func putCacheValue(_ input: Operations.putCacheValue.Input) async throws -> Operations.putCacheValue.Output
     /// Get a specific device code.
     ///
     /// This endpoint returns a token for a given device code if the device code is authenticated.
@@ -288,16 +283,6 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/tests/test-cases`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/test-cases/get(listTestCases)`.
     func listTestCases(_ input: Operations.listTestCases.Input) async throws -> Operations.listTestCases.Output
-    /// Download a CAS artifact.
-    ///
-    /// - Remark: HTTP `GET /api/cache/cas/{id}`.
-    /// - Remark: Generated from `#/paths//api/cache/cas/{id}/get(loadCacheCAS)`.
-    func loadCacheCAS(_ input: Operations.loadCacheCAS.Input) async throws -> Operations.loadCacheCAS.Output
-    /// Save a CAS artifact
-    ///
-    /// - Remark: HTTP `POST /api/cache/cas/{id}`.
-    /// - Remark: Generated from `#/paths//api/cache/cas/{id}/post(saveCacheCAS)`.
-    func saveCacheCAS(_ input: Operations.saveCacheCAS.Input) async throws -> Operations.saveCacheCAS.Output
     /// List previews.
     ///
     /// This endpoint returns a list of previews for a given project.
@@ -312,11 +297,6 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `GET /api/cache`.
     /// - Remark: Generated from `#/paths//api/cache/get(downloadCacheArtifact)`.
     func downloadCacheArtifact(_ input: Operations.downloadCacheArtifact.Input) async throws -> Operations.downloadCacheArtifact.Output
-    /// Get cache value.
-    ///
-    /// - Remark: HTTP `GET /api/cache/keyvalue/{cas_id}`.
-    /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/get(getCacheValue)`.
-    func getCacheValue(_ input: Operations.getCacheValue.Input) async throws -> Operations.getCacheValue.Output
     /// Get cache endpoints.
     ///
     /// Returns custom cache endpoints if configured for the account, otherwise returns default endpoints.
@@ -589,21 +569,6 @@ extension APIProtocol {
     ) async throws -> Operations.createBundle.Output {
         try await createBundle(Operations.createBundle.Input(
             path: path,
-            headers: headers,
-            body: body
-        ))
-    }
-    /// Store cache key value entries.
-    ///
-    /// - Remark: HTTP `PUT /api/cache/keyvalue`.
-    /// - Remark: Generated from `#/paths//api/cache/keyvalue/put(putCacheValue)`.
-    public func putCacheValue(
-        query: Operations.putCacheValue.Input.Query,
-        headers: Operations.putCacheValue.Input.Headers = .init(),
-        body: Operations.putCacheValue.Input.Body
-    ) async throws -> Operations.putCacheValue.Output {
-        try await putCacheValue(Operations.putCacheValue.Input(
-            query: query,
             headers: headers,
             body: body
         ))
@@ -1107,38 +1072,6 @@ extension APIProtocol {
             headers: headers
         ))
     }
-    /// Download a CAS artifact.
-    ///
-    /// - Remark: HTTP `GET /api/cache/cas/{id}`.
-    /// - Remark: Generated from `#/paths//api/cache/cas/{id}/get(loadCacheCAS)`.
-    public func loadCacheCAS(
-        path: Operations.loadCacheCAS.Input.Path,
-        query: Operations.loadCacheCAS.Input.Query,
-        headers: Operations.loadCacheCAS.Input.Headers = .init()
-    ) async throws -> Operations.loadCacheCAS.Output {
-        try await loadCacheCAS(Operations.loadCacheCAS.Input(
-            path: path,
-            query: query,
-            headers: headers
-        ))
-    }
-    /// Save a CAS artifact
-    ///
-    /// - Remark: HTTP `POST /api/cache/cas/{id}`.
-    /// - Remark: Generated from `#/paths//api/cache/cas/{id}/post(saveCacheCAS)`.
-    public func saveCacheCAS(
-        path: Operations.saveCacheCAS.Input.Path,
-        query: Operations.saveCacheCAS.Input.Query,
-        headers: Operations.saveCacheCAS.Input.Headers = .init(),
-        body: Operations.saveCacheCAS.Input.Body
-    ) async throws -> Operations.saveCacheCAS.Output {
-        try await saveCacheCAS(Operations.saveCacheCAS.Input(
-            path: path,
-            query: query,
-            headers: headers,
-            body: body
-        ))
-    }
     /// List previews.
     ///
     /// This endpoint returns a list of previews for a given project.
@@ -1167,21 +1100,6 @@ extension APIProtocol {
         headers: Operations.downloadCacheArtifact.Input.Headers = .init()
     ) async throws -> Operations.downloadCacheArtifact.Output {
         try await downloadCacheArtifact(Operations.downloadCacheArtifact.Input(
-            query: query,
-            headers: headers
-        ))
-    }
-    /// Get cache value.
-    ///
-    /// - Remark: HTTP `GET /api/cache/keyvalue/{cas_id}`.
-    /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/get(getCacheValue)`.
-    public func getCacheValue(
-        path: Operations.getCacheValue.Input.Path,
-        query: Operations.getCacheValue.Input.Query,
-        headers: Operations.getCacheValue.Input.Headers = .init()
-    ) async throws -> Operations.getCacheValue.Output {
-        try await getCacheValue(Operations.getCacheValue.Input(
-            path: path,
             query: query,
             headers: headers
         ))
@@ -3177,6 +3095,59 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/configuration`.
                 public var configuration: Swift.String?
+                /// Custom metadata for the build run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/custom_metadata`.
+                public struct custom_metadataPayload: Codable, Hashable, Sendable {
+                    /// Simple string labels for filtering/grouping (e.g., 'nightly', 'release').
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/custom_metadata/tags`.
+                    public var tags: [Swift.String]?
+                    /// Key-value pairs for structured data. URL values will auto-link in the UI.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/custom_metadata/values`.
+                    public struct valuesPayload: Codable, Hashable, Sendable {
+                        /// A container of undocumented properties.
+                        public var additionalProperties: [String: Swift.String]
+                        /// Creates a new `valuesPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - additionalProperties: A container of undocumented properties.
+                        public init(additionalProperties: [String: Swift.String] = .init()) {
+                            self.additionalProperties = additionalProperties
+                        }
+                        public init(from decoder: any Decoder) throws {
+                            additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                        }
+                        public func encode(to encoder: any Encoder) throws {
+                            try encoder.encodeAdditionalProperties(additionalProperties)
+                        }
+                    }
+                    /// Key-value pairs for structured data. URL values will auto-link in the UI.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/custom_metadata/values`.
+                    public var values: Components.Schemas.RunParams.Case1Payload.custom_metadataPayload.valuesPayload?
+                    /// Creates a new `custom_metadataPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - tags: Simple string labels for filtering/grouping (e.g., 'nightly', 'release').
+                    ///   - values: Key-value pairs for structured data. URL values will auto-link in the UI.
+                    public init(
+                        tags: [Swift.String]? = nil,
+                        values: Components.Schemas.RunParams.Case1Payload.custom_metadataPayload.valuesPayload? = nil
+                    ) {
+                        self.tags = tags
+                        self.values = values
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case tags
+                        case values
+                    }
+                }
+                /// Custom metadata for the build run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/custom_metadata`.
+                public var custom_metadata: Components.Schemas.RunParams.Case1Payload.custom_metadataPayload?
                 /// Duration of the run in milliseconds.
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/duration`.
@@ -3530,6 +3501,7 @@ public enum Components {
                 ///   - ci_provider: The CI provider.
                 ///   - ci_run_id: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
                 ///   - configuration: The build configuration (e.g., Debug, Release).
+                ///   - custom_metadata: Custom metadata for the build run.
                 ///   - duration: Duration of the run in milliseconds.
                 ///   - files: Compiled files associated with the build run.
                 ///   - git_branch: The git branch.
@@ -3555,6 +3527,7 @@ public enum Components {
                     ci_provider: Components.Schemas.RunParams.Case1Payload.ci_providerPayload? = nil,
                     ci_run_id: Swift.String? = nil,
                     configuration: Swift.String? = nil,
+                    custom_metadata: Components.Schemas.RunParams.Case1Payload.custom_metadataPayload? = nil,
                     duration: Swift.Int,
                     files: Components.Schemas.RunParams.Case1Payload.filesPayload? = nil,
                     git_branch: Swift.String? = nil,
@@ -3580,6 +3553,7 @@ public enum Components {
                     self.ci_provider = ci_provider
                     self.ci_run_id = ci_run_id
                     self.configuration = configuration
+                    self.custom_metadata = custom_metadata
                     self.duration = duration
                     self.files = files
                     self.git_branch = git_branch
@@ -3606,6 +3580,7 @@ public enum Components {
                     case ci_provider
                     case ci_run_id
                     case configuration
+                    case custom_metadata
                     case duration
                     case files
                     case git_branch
@@ -5833,6 +5808,59 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/BuildRun/configuration`.
             public var configuration: Swift.String?
+            /// Custom metadata for the build run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/custom_metadata`.
+            public struct custom_metadataPayload: Codable, Hashable, Sendable {
+                /// Simple string labels for filtering/grouping (e.g., 'nightly', 'release').
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/custom_metadata/tags`.
+                public var tags: [Swift.String]?
+                /// Key-value pairs for structured data. URL values will auto-link in the UI.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/custom_metadata/values`.
+                public struct valuesPayload: Codable, Hashable, Sendable {
+                    /// A container of undocumented properties.
+                    public var additionalProperties: [String: Swift.String]
+                    /// Creates a new `valuesPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - additionalProperties: A container of undocumented properties.
+                    public init(additionalProperties: [String: Swift.String] = .init()) {
+                        self.additionalProperties = additionalProperties
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                    }
+                    public func encode(to encoder: any Encoder) throws {
+                        try encoder.encodeAdditionalProperties(additionalProperties)
+                    }
+                }
+                /// Key-value pairs for structured data. URL values will auto-link in the UI.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/custom_metadata/values`.
+                public var values: Components.Schemas.BuildRun.custom_metadataPayload.valuesPayload?
+                /// Creates a new `custom_metadataPayload`.
+                ///
+                /// - Parameters:
+                ///   - tags: Simple string labels for filtering/grouping (e.g., 'nightly', 'release').
+                ///   - values: Key-value pairs for structured data. URL values will auto-link in the UI.
+                public init(
+                    tags: [Swift.String]? = nil,
+                    values: Components.Schemas.BuildRun.custom_metadataPayload.valuesPayload? = nil
+                ) {
+                    self.tags = tags
+                    self.values = values
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case tags
+                    case values
+                }
+            }
+            /// Custom metadata for the build run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/custom_metadata`.
+            public var custom_metadata: Components.Schemas.BuildRun.custom_metadataPayload?
             /// Duration of the run in milliseconds.
             ///
             /// - Remark: Generated from `#/components/schemas/BuildRun/duration`.
@@ -6186,6 +6214,7 @@ public enum Components {
             ///   - ci_provider: The CI provider.
             ///   - ci_run_id: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
             ///   - configuration: The build configuration (e.g., Debug, Release).
+            ///   - custom_metadata: Custom metadata for the build run.
             ///   - duration: Duration of the run in milliseconds.
             ///   - files: Compiled files associated with the build run.
             ///   - git_branch: The git branch.
@@ -6211,6 +6240,7 @@ public enum Components {
                 ci_provider: Components.Schemas.BuildRun.ci_providerPayload? = nil,
                 ci_run_id: Swift.String? = nil,
                 configuration: Swift.String? = nil,
+                custom_metadata: Components.Schemas.BuildRun.custom_metadataPayload? = nil,
                 duration: Swift.Int,
                 files: Components.Schemas.BuildRun.filesPayload? = nil,
                 git_branch: Swift.String? = nil,
@@ -6236,6 +6266,7 @@ public enum Components {
                 self.ci_provider = ci_provider
                 self.ci_run_id = ci_run_id
                 self.configuration = configuration
+                self.custom_metadata = custom_metadata
                 self.duration = duration
                 self.files = files
                 self.git_branch = git_branch
@@ -6262,6 +6293,7 @@ public enum Components {
                 case ci_provider
                 case ci_run_id
                 case configuration
+                case custom_metadata
                 case duration
                 case files
                 case git_branch
@@ -8034,6 +8066,53 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/configuration`.
                         public var configuration: Swift.String?
+                        /// Custom metadata for the build run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/custom_metadata`.
+                        public struct custom_metadataPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/custom_metadata/tags`.
+                            public var tags: [Swift.String]?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/custom_metadata/values`.
+                            public struct valuesPayload: Codable, Hashable, Sendable {
+                                /// A container of undocumented properties.
+                                public var additionalProperties: [String: Swift.String]
+                                /// Creates a new `valuesPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - additionalProperties: A container of undocumented properties.
+                                public init(additionalProperties: [String: Swift.String] = .init()) {
+                                    self.additionalProperties = additionalProperties
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                                }
+                                public func encode(to encoder: any Encoder) throws {
+                                    try encoder.encodeAdditionalProperties(additionalProperties)
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/custom_metadata/values`.
+                            public var values: Operations.getBuild.Output.Ok.Body.jsonPayload.custom_metadataPayload.valuesPayload?
+                            /// Creates a new `custom_metadataPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - tags:
+                            ///   - values:
+                            public init(
+                                tags: [Swift.String]? = nil,
+                                values: Operations.getBuild.Output.Ok.Body.jsonPayload.custom_metadataPayload.valuesPayload? = nil
+                            ) {
+                                self.tags = tags
+                                self.values = values
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case tags
+                                case values
+                            }
+                        }
+                        /// Custom metadata for the build run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/custom_metadata`.
+                        public var custom_metadata: Operations.getBuild.Output.Ok.Body.jsonPayload.custom_metadataPayload?
                         /// Build duration in milliseconds.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/duration`.
@@ -8101,6 +8180,7 @@ public enum Operations {
                         ///   - cacheable_tasks_count: Total cacheable tasks.
                         ///   - category: Build category.
                         ///   - configuration: The configuration used.
+                        ///   - custom_metadata: Custom metadata for the build run.
                         ///   - duration: Build duration in milliseconds.
                         ///   - git_branch: Git branch.
                         ///   - git_commit_sha: Git commit SHA.
@@ -8120,6 +8200,7 @@ public enum Operations {
                             cacheable_tasks_count: Swift.Int,
                             category: Operations.getBuild.Output.Ok.Body.jsonPayload.categoryPayload? = nil,
                             configuration: Swift.String? = nil,
+                            custom_metadata: Operations.getBuild.Output.Ok.Body.jsonPayload.custom_metadataPayload? = nil,
                             duration: Swift.Int,
                             git_branch: Swift.String? = nil,
                             git_commit_sha: Swift.String? = nil,
@@ -8139,6 +8220,7 @@ public enum Operations {
                             self.cacheable_tasks_count = cacheable_tasks_count
                             self.category = category
                             self.configuration = configuration
+                            self.custom_metadata = custom_metadata
                             self.duration = duration
                             self.git_branch = git_branch
                             self.git_commit_sha = git_commit_sha
@@ -8159,6 +8241,7 @@ public enum Operations {
                             case cacheable_tasks_count
                             case category
                             case configuration
+                            case custom_metadata
                             case duration
                             case git_branch
                             case git_commit_sha
@@ -10433,390 +10516,6 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            public init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            public var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            public static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
-    /// Store cache key value entries.
-    ///
-    /// - Remark: HTTP `PUT /api/cache/keyvalue`.
-    /// - Remark: Generated from `#/paths//api/cache/keyvalue/put(putCacheValue)`.
-    public enum putCacheValue {
-        public static let id: Swift.String = "putCacheValue"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/query`.
-            public struct Query: Sendable, Hashable {
-                /// The handle of the project's account.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/query/account_handle`.
-                public var account_handle: Swift.String
-                /// The handle of the project.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/query/project_handle`.
-                public var project_handle: Swift.String
-                /// Creates a new `Query`.
-                ///
-                /// - Parameters:
-                ///   - account_handle: The handle of the project's account.
-                ///   - project_handle: The handle of the project.
-                public init(
-                    account_handle: Swift.String,
-                    project_handle: Swift.String
-                ) {
-                    self.account_handle = account_handle
-                    self.project_handle = project_handle
-                }
-            }
-            public var query: Operations.putCacheValue.Input.Query
-            /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.putCacheValue.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.putCacheValue.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            public var headers: Operations.putCacheValue.Input.Headers
-            /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/requestBody`.
-            @frozen public enum Body: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/requestBody/json`.
-                public struct jsonPayload: Codable, Hashable, Sendable {
-                    /// The CAS identifier
-                    ///
-                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/requestBody/json/cas_id`.
-                    public var cas_id: Swift.String
-                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/requestBody/json/entriesPayload`.
-                    public struct entriesPayloadPayload: Codable, Hashable, Sendable {
-                        /// The value of the entry
-                        ///
-                        /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/requestBody/json/entriesPayload/value`.
-                        public var value: Swift.String
-                        /// Creates a new `entriesPayloadPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - value: The value of the entry
-                        public init(value: Swift.String) {
-                            self.value = value
-                        }
-                        public enum CodingKeys: String, CodingKey {
-                            case value
-                        }
-                    }
-                    /// Map of entry keys to encoded values
-                    ///
-                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/requestBody/json/entries`.
-                    public typealias entriesPayload = [Operations.putCacheValue.Input.Body.jsonPayload.entriesPayloadPayload]
-                    /// Map of entry keys to encoded values
-                    ///
-                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/requestBody/json/entries`.
-                    public var entries: Operations.putCacheValue.Input.Body.jsonPayload.entriesPayload
-                    /// Creates a new `jsonPayload`.
-                    ///
-                    /// - Parameters:
-                    ///   - cas_id: The CAS identifier
-                    ///   - entries: Map of entry keys to encoded values
-                    public init(
-                        cas_id: Swift.String,
-                        entries: Operations.putCacheValue.Input.Body.jsonPayload.entriesPayload
-                    ) {
-                        self.cas_id = cas_id
-                        self.entries = entries
-                    }
-                    public enum CodingKeys: String, CodingKey {
-                        case cas_id
-                        case entries
-                    }
-                }
-                /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/requestBody/content/application\/json`.
-                case json(Operations.putCacheValue.Input.Body.jsonPayload)
-            }
-            public var body: Operations.putCacheValue.Input.Body
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - query:
-            ///   - headers:
-            ///   - body:
-            public init(
-                query: Operations.putCacheValue.Input.Query,
-                headers: Operations.putCacheValue.Input.Headers = .init(),
-                body: Operations.putCacheValue.Input.Body
-            ) {
-                self.query = query
-                self.headers = headers
-                self.body = body
-            }
-        }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct NoContent: Sendable, Hashable {
-                /// Creates a new `NoContent`.
-                public init() {}
-            }
-            /// Value stored successfully
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/keyvalue/put(putCacheValue)/responses/204`.
-            ///
-            /// HTTP response code: `204 noContent`.
-            case noContent(Operations.putCacheValue.Output.NoContent)
-            /// Value stored successfully
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/keyvalue/put(putCacheValue)/responses/204`.
-            ///
-            /// HTTP response code: `204 noContent`.
-            public static var noContent: Self {
-                .noContent(.init())
-            }
-            /// The associated value of the enum case if `self` is `.noContent`.
-            ///
-            /// - Throws: An error if `self` is not `.noContent`.
-            /// - SeeAlso: `.noContent`.
-            public var noContent: Operations.putCacheValue.Output.NoContent {
-                get throws {
-                    switch self {
-                    case let .noContent(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "noContent",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct BadRequest: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/responses/400/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/responses/400/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.putCacheValue.Output.BadRequest.Body
-                /// Creates a new `BadRequest`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.putCacheValue.Output.BadRequest.Body) {
-                    self.body = body
-                }
-            }
-            /// The request is invalid
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/keyvalue/put(putCacheValue)/responses/400`.
-            ///
-            /// HTTP response code: `400 badRequest`.
-            case badRequest(Operations.putCacheValue.Output.BadRequest)
-            /// The associated value of the enum case if `self` is `.badRequest`.
-            ///
-            /// - Throws: An error if `self` is not `.badRequest`.
-            /// - SeeAlso: `.badRequest`.
-            public var badRequest: Operations.putCacheValue.Output.BadRequest {
-                get throws {
-                    switch self {
-                    case let .badRequest(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "badRequest",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/responses/401/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.putCacheValue.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.putCacheValue.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authenticated to access this resource
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/keyvalue/put(putCacheValue)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.putCacheValue.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            public var unauthorized: Operations.putCacheValue.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/responses/403/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.putCacheValue.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.putCacheValue.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// The authenticated subject is not authorized to perform this action
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/keyvalue/put(putCacheValue)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.putCacheValue.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            public var forbidden: Operations.putCacheValue.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/responses/404/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/PUT/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.putCacheValue.Output.NotFound.Body
-                /// Creates a new `NotFound`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.putCacheValue.Output.NotFound.Body) {
-                    self.body = body
-                }
-            }
-            /// The project was not found
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/keyvalue/put(putCacheValue)/responses/404`.
-            ///
-            /// HTTP response code: `404 notFound`.
-            case notFound(Operations.putCacheValue.Output.NotFound)
-            /// The associated value of the enum case if `self` is `.notFound`.
-            ///
-            /// - Throws: An error if `self` is not `.notFound`.
-            /// - SeeAlso: `.notFound`.
-            public var notFound: Operations.putCacheValue.Output.NotFound {
-                get throws {
-                    switch self {
-                    case let .notFound(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "notFound",
                             response: self
                         )
                     }
@@ -17838,6 +17537,14 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/query/git_branch`.
                 public var git_branch: Swift.String?
+                /// Filter by tags (comma-separated). Returns builds containing ALL specified tags.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/query/tags`.
+                public var tags: Swift.String?
+                /// Filter by custom values (comma-separated key:value pairs). Returns builds matching ALL specified values. Example: ticket:PROJ-1234,runner:macos-14
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/query/values`.
+                public var values: Swift.String?
                 ///
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/query/page_size`.
@@ -17854,6 +17561,8 @@ public enum Operations {
                 ///   - scheme: Filter by scheme name.
                 ///   - configuration: Filter by configuration name.
                 ///   - git_branch: Filter by git branch.
+                ///   - tags: Filter by tags (comma-separated). Returns builds containing ALL specified tags.
+                ///   - values: Filter by custom values (comma-separated key:value pairs). Returns builds matching ALL specified values. Example: ticket:PROJ-1234,runner:macos-14
                 ///   - page_size:
                 ///   - page:
                 public init(
@@ -17862,6 +17571,8 @@ public enum Operations {
                     scheme: Swift.String? = nil,
                     configuration: Swift.String? = nil,
                     git_branch: Swift.String? = nil,
+                    tags: Swift.String? = nil,
+                    values: Swift.String? = nil,
                     page_size: Swift.Int? = nil,
                     page: Swift.Int? = nil
                 ) {
@@ -17870,6 +17581,8 @@ public enum Operations {
                     self.scheme = scheme
                     self.configuration = configuration
                     self.git_branch = git_branch
+                    self.tags = tags
+                    self.values = values
                     self.page_size = page_size
                     self.page = page
                 }
@@ -17938,6 +17651,53 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/configuration`.
                             public var configuration: Swift.String?
+                            /// Custom metadata for the build run.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/custom_metadata`.
+                            public struct custom_metadataPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/custom_metadata/tags`.
+                                public var tags: [Swift.String]?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/custom_metadata/values`.
+                                public struct valuesPayload: Codable, Hashable, Sendable {
+                                    /// A container of undocumented properties.
+                                    public var additionalProperties: [String: Swift.String]
+                                    /// Creates a new `valuesPayload`.
+                                    ///
+                                    /// - Parameters:
+                                    ///   - additionalProperties: A container of undocumented properties.
+                                    public init(additionalProperties: [String: Swift.String] = .init()) {
+                                        self.additionalProperties = additionalProperties
+                                    }
+                                    public init(from decoder: any Decoder) throws {
+                                        additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                                    }
+                                    public func encode(to encoder: any Encoder) throws {
+                                        try encoder.encodeAdditionalProperties(additionalProperties)
+                                    }
+                                }
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/custom_metadata/values`.
+                                public var values: Operations.listBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.custom_metadataPayload.valuesPayload?
+                                /// Creates a new `custom_metadataPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - tags:
+                                ///   - values:
+                                public init(
+                                    tags: [Swift.String]? = nil,
+                                    values: Operations.listBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.custom_metadataPayload.valuesPayload? = nil
+                                ) {
+                                    self.tags = tags
+                                    self.values = values
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case tags
+                                    case values
+                                }
+                            }
+                            /// Custom metadata for the build run.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/custom_metadata`.
+                            public var custom_metadata: Operations.listBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.custom_metadataPayload?
                             /// Build duration in milliseconds.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/duration`.
@@ -18005,6 +17765,7 @@ public enum Operations {
                             ///   - cacheable_tasks_count: Total cacheable tasks.
                             ///   - category: Build category.
                             ///   - configuration: The configuration used.
+                            ///   - custom_metadata: Custom metadata for the build run.
                             ///   - duration: Build duration in milliseconds.
                             ///   - git_branch: Git branch.
                             ///   - git_commit_sha: Git commit SHA.
@@ -18024,6 +17785,7 @@ public enum Operations {
                                 cacheable_tasks_count: Swift.Int,
                                 category: Operations.listBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.categoryPayload? = nil,
                                 configuration: Swift.String? = nil,
+                                custom_metadata: Operations.listBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.custom_metadataPayload? = nil,
                                 duration: Swift.Int,
                                 git_branch: Swift.String? = nil,
                                 git_commit_sha: Swift.String? = nil,
@@ -18043,6 +17805,7 @@ public enum Operations {
                                 self.cacheable_tasks_count = cacheable_tasks_count
                                 self.category = category
                                 self.configuration = configuration
+                                self.custom_metadata = custom_metadata
                                 self.duration = duration
                                 self.git_branch = git_branch
                                 self.git_commit_sha = git_commit_sha
@@ -18063,6 +17826,7 @@ public enum Operations {
                                 case cacheable_tasks_count
                                 case category
                                 case configuration
+                                case custom_metadata
                                 case duration
                                 case git_branch
                                 case git_commit_sha
@@ -21248,676 +21012,6 @@ public enum Operations {
             }
         }
     }
-    /// Download a CAS artifact.
-    ///
-    /// - Remark: HTTP `GET /api/cache/cas/{id}`.
-    /// - Remark: Generated from `#/paths//api/cache/cas/{id}/get(loadCacheCAS)`.
-    public enum loadCacheCAS {
-        public static let id: Swift.String = "loadCacheCAS"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/path`.
-            public struct Path: Sendable, Hashable {
-                /// The artifact identifier.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/path/id`.
-                public var id: Swift.String
-                /// Creates a new `Path`.
-                ///
-                /// - Parameters:
-                ///   - id: The artifact identifier.
-                public init(id: Swift.String) {
-                    self.id = id
-                }
-            }
-            public var path: Operations.loadCacheCAS.Input.Path
-            /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/query`.
-            public struct Query: Sendable, Hashable {
-                /// The handle of the project's account.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/query/account_handle`.
-                public var account_handle: Swift.String
-                /// The handle of the project.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/query/project_handle`.
-                public var project_handle: Swift.String
-                /// Creates a new `Query`.
-                ///
-                /// - Parameters:
-                ///   - account_handle: The handle of the project's account.
-                ///   - project_handle: The handle of the project.
-                public init(
-                    account_handle: Swift.String,
-                    project_handle: Swift.String
-                ) {
-                    self.account_handle = account_handle
-                    self.project_handle = project_handle
-                }
-            }
-            public var query: Operations.loadCacheCAS.Input.Query
-            /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.loadCacheCAS.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.loadCacheCAS.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            public var headers: Operations.loadCacheCAS.Input.Headers
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - path:
-            ///   - query:
-            ///   - headers:
-            public init(
-                path: Operations.loadCacheCAS.Input.Path,
-                query: Operations.loadCacheCAS.Input.Query,
-                headers: Operations.loadCacheCAS.Input.Headers = .init()
-            ) {
-                self.path = path
-                self.query = query
-                self.headers = headers
-            }
-        }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/200/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/200/content/application\/octet-stream`.
-                    case binary(OpenAPIRuntime.HTTPBody)
-                    /// The associated value of the enum case if `self` is `.binary`.
-                    ///
-                    /// - Throws: An error if `self` is not `.binary`.
-                    /// - SeeAlso: `.binary`.
-                    public var binary: OpenAPIRuntime.HTTPBody {
-                        get throws {
-                            switch self {
-                            case let .binary(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.loadCacheCAS.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.loadCacheCAS.Output.Ok.Body) {
-                    self.body = body
-                }
-            }
-            /// Artifact content stream
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/get(loadCacheCAS)/responses/200`.
-            ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.loadCacheCAS.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
-            ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            public var ok: Operations.loadCacheCAS.Output.Ok {
-                get throws {
-                    switch self {
-                    case let .ok(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct BadRequest: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/400/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/400/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.loadCacheCAS.Output.BadRequest.Body
-                /// Creates a new `BadRequest`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.loadCacheCAS.Output.BadRequest.Body) {
-                    self.body = body
-                }
-            }
-            /// The request is invalid
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/get(loadCacheCAS)/responses/400`.
-            ///
-            /// HTTP response code: `400 badRequest`.
-            case badRequest(Operations.loadCacheCAS.Output.BadRequest)
-            /// The associated value of the enum case if `self` is `.badRequest`.
-            ///
-            /// - Throws: An error if `self` is not `.badRequest`.
-            /// - SeeAlso: `.badRequest`.
-            public var badRequest: Operations.loadCacheCAS.Output.BadRequest {
-                get throws {
-                    switch self {
-                    case let .badRequest(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "badRequest",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/401/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.loadCacheCAS.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.loadCacheCAS.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authenticated to access this resource
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/get(loadCacheCAS)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.loadCacheCAS.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            public var unauthorized: Operations.loadCacheCAS.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/403/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.loadCacheCAS.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.loadCacheCAS.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// The authenticated subject is not authorized to perform this action
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/get(loadCacheCAS)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.loadCacheCAS.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            public var forbidden: Operations.loadCacheCAS.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/404/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/cas/{id}/GET/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.loadCacheCAS.Output.NotFound.Body
-                /// Creates a new `NotFound`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.loadCacheCAS.Output.NotFound.Body) {
-                    self.body = body
-                }
-            }
-            /// Artifact does not exist
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/get(loadCacheCAS)/responses/404`.
-            ///
-            /// HTTP response code: `404 notFound`.
-            case notFound(Operations.loadCacheCAS.Output.NotFound)
-            /// The associated value of the enum case if `self` is `.notFound`.
-            ///
-            /// - Throws: An error if `self` is not `.notFound`.
-            /// - SeeAlso: `.notFound`.
-            public var notFound: Operations.loadCacheCAS.Output.NotFound {
-                get throws {
-                    switch self {
-                    case let .notFound(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "notFound",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case binary
-            case json
-            case other(Swift.String)
-            public init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/octet-stream":
-                    self = .binary
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            public var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .binary:
-                    return "application/octet-stream"
-                case .json:
-                    return "application/json"
-                }
-            }
-            public static var allCases: [Self] {
-                [
-                    .binary,
-                    .json
-                ]
-            }
-        }
-    }
-    /// Save a CAS artifact
-    ///
-    /// - Remark: HTTP `POST /api/cache/cas/{id}`.
-    /// - Remark: Generated from `#/paths//api/cache/cas/{id}/post(saveCacheCAS)`.
-    public enum saveCacheCAS {
-        public static let id: Swift.String = "saveCacheCAS"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/path`.
-            public struct Path: Sendable, Hashable {
-                /// The artifact identifier.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/path/id`.
-                public var id: Swift.String
-                /// Creates a new `Path`.
-                ///
-                /// - Parameters:
-                ///   - id: The artifact identifier.
-                public init(id: Swift.String) {
-                    self.id = id
-                }
-            }
-            public var path: Operations.saveCacheCAS.Input.Path
-            /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/query`.
-            public struct Query: Sendable, Hashable {
-                /// The handle of the project's account.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/query/account_handle`.
-                public var account_handle: Swift.String
-                /// The handle of the project.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/query/project_handle`.
-                public var project_handle: Swift.String
-                /// Creates a new `Query`.
-                ///
-                /// - Parameters:
-                ///   - account_handle: The handle of the project's account.
-                ///   - project_handle: The handle of the project.
-                public init(
-                    account_handle: Swift.String,
-                    project_handle: Swift.String
-                ) {
-                    self.account_handle = account_handle
-                    self.project_handle = project_handle
-                }
-            }
-            public var query: Operations.saveCacheCAS.Input.Query
-            /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.saveCacheCAS.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.saveCacheCAS.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            public var headers: Operations.saveCacheCAS.Input.Headers
-            /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/requestBody`.
-            @frozen public enum Body: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/requestBody/content/application\/octet-stream`.
-                case binary(OpenAPIRuntime.HTTPBody)
-            }
-            public var body: Operations.saveCacheCAS.Input.Body
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - path:
-            ///   - query:
-            ///   - headers:
-            ///   - body:
-            public init(
-                path: Operations.saveCacheCAS.Input.Path,
-                query: Operations.saveCacheCAS.Input.Query,
-                headers: Operations.saveCacheCAS.Input.Headers = .init(),
-                body: Operations.saveCacheCAS.Input.Body
-            ) {
-                self.path = path
-                self.query = query
-                self.headers = headers
-                self.body = body
-            }
-        }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct NoContent: Sendable, Hashable {
-                /// Creates a new `NoContent`.
-                public init() {}
-            }
-            /// Upload successful
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/post(saveCacheCAS)/responses/204`.
-            ///
-            /// HTTP response code: `204 noContent`.
-            case noContent(Operations.saveCacheCAS.Output.NoContent)
-            /// Upload successful
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/post(saveCacheCAS)/responses/204`.
-            ///
-            /// HTTP response code: `204 noContent`.
-            public static var noContent: Self {
-                .noContent(.init())
-            }
-            /// The associated value of the enum case if `self` is `.noContent`.
-            ///
-            /// - Throws: An error if `self` is not `.noContent`.
-            /// - SeeAlso: `.noContent`.
-            public var noContent: Operations.saveCacheCAS.Output.NoContent {
-                get throws {
-                    switch self {
-                    case let .noContent(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "noContent",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct BadRequest: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/responses/400/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/responses/400/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.saveCacheCAS.Output.BadRequest.Body
-                /// Creates a new `BadRequest`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.saveCacheCAS.Output.BadRequest.Body) {
-                    self.body = body
-                }
-            }
-            /// The request is invalid
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/post(saveCacheCAS)/responses/400`.
-            ///
-            /// HTTP response code: `400 badRequest`.
-            case badRequest(Operations.saveCacheCAS.Output.BadRequest)
-            /// The associated value of the enum case if `self` is `.badRequest`.
-            ///
-            /// - Throws: An error if `self` is not `.badRequest`.
-            /// - SeeAlso: `.badRequest`.
-            public var badRequest: Operations.saveCacheCAS.Output.BadRequest {
-                get throws {
-                    switch self {
-                    case let .badRequest(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "badRequest",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/responses/401/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.saveCacheCAS.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.saveCacheCAS.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authenticated to access this resource
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/post(saveCacheCAS)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.saveCacheCAS.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            public var unauthorized: Operations.saveCacheCAS.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/responses/403/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/cas/{id}/POST/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.saveCacheCAS.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.saveCacheCAS.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// The authenticated subject is not authorized to perform this action
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/cas/{id}/post(saveCacheCAS)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.saveCacheCAS.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            public var forbidden: Operations.saveCacheCAS.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            public init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            public var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            public static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
     /// List previews.
     ///
     /// This endpoint returns a list of previews for a given project.
@@ -22561,401 +21655,6 @@ public enum Operations {
             /// - Throws: An error if `self` is not `.notFound`.
             /// - SeeAlso: `.notFound`.
             public var notFound: Operations.downloadCacheArtifact.Output.NotFound {
-                get throws {
-                    switch self {
-                    case let .notFound(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "notFound",
-                            response: self
-                        )
-                    }
-                }
-            }
-            /// Undocumented response.
-            ///
-            /// A response with a code that is not documented in the OpenAPI document.
-            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
-        }
-        @frozen public enum AcceptableContentType: AcceptableProtocol {
-            case json
-            case other(Swift.String)
-            public init?(rawValue: Swift.String) {
-                switch rawValue.lowercased() {
-                case "application/json":
-                    self = .json
-                default:
-                    self = .other(rawValue)
-                }
-            }
-            public var rawValue: Swift.String {
-                switch self {
-                case let .other(string):
-                    return string
-                case .json:
-                    return "application/json"
-                }
-            }
-            public static var allCases: [Self] {
-                [
-                    .json
-                ]
-            }
-        }
-    }
-    /// Get cache value.
-    ///
-    /// - Remark: HTTP `GET /api/cache/keyvalue/{cas_id}`.
-    /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/get(getCacheValue)`.
-    public enum getCacheValue {
-        public static let id: Swift.String = "getCacheValue"
-        public struct Input: Sendable, Hashable {
-            /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/path`.
-            public struct Path: Sendable, Hashable {
-                /// The CAS identifier.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/path/cas_id`.
-                public var cas_id: Swift.String
-                /// Creates a new `Path`.
-                ///
-                /// - Parameters:
-                ///   - cas_id: The CAS identifier.
-                public init(cas_id: Swift.String) {
-                    self.cas_id = cas_id
-                }
-            }
-            public var path: Operations.getCacheValue.Input.Path
-            /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/query`.
-            public struct Query: Sendable, Hashable {
-                /// The handle of the project's account.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/query/account_handle`.
-                public var account_handle: Swift.String
-                /// The handle of the project.
-                ///
-                /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/query/project_handle`.
-                public var project_handle: Swift.String
-                /// Creates a new `Query`.
-                ///
-                /// - Parameters:
-                ///   - account_handle: The handle of the project's account.
-                ///   - project_handle: The handle of the project.
-                public init(
-                    account_handle: Swift.String,
-                    project_handle: Swift.String
-                ) {
-                    self.account_handle = account_handle
-                    self.project_handle = project_handle
-                }
-            }
-            public var query: Operations.getCacheValue.Input.Query
-            /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/header`.
-            public struct Headers: Sendable, Hashable {
-                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheValue.AcceptableContentType>]
-                /// Creates a new `Headers`.
-                ///
-                /// - Parameters:
-                ///   - accept:
-                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheValue.AcceptableContentType>] = .defaultValues()) {
-                    self.accept = accept
-                }
-            }
-            public var headers: Operations.getCacheValue.Input.Headers
-            /// Creates a new `Input`.
-            ///
-            /// - Parameters:
-            ///   - path:
-            ///   - query:
-            ///   - headers:
-            public init(
-                path: Operations.getCacheValue.Input.Path,
-                query: Operations.getCacheValue.Input.Query,
-                headers: Operations.getCacheValue.Input.Headers = .init()
-            ) {
-                self.path = path
-                self.query = query
-                self.headers = headers
-            }
-        }
-        @frozen public enum Output: Sendable, Hashable {
-            public struct Ok: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/200/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/200/content/json`.
-                    public struct jsonPayload: Codable, Hashable, Sendable {
-                        /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/200/content/json/entriesPayload`.
-                        public struct entriesPayloadPayload: Codable, Hashable, Sendable {
-                            /// The value of the entry
-                            ///
-                            /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/200/content/json/entriesPayload/value`.
-                            public var value: Swift.String
-                            /// Creates a new `entriesPayloadPayload`.
-                            ///
-                            /// - Parameters:
-                            ///   - value: The value of the entry
-                            public init(value: Swift.String) {
-                                self.value = value
-                            }
-                            public enum CodingKeys: String, CodingKey {
-                                case value
-                            }
-                        }
-                        /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/200/content/json/entries`.
-                        public typealias entriesPayload = [Operations.getCacheValue.Output.Ok.Body.jsonPayload.entriesPayloadPayload]
-                        /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/200/content/json/entries`.
-                        public var entries: Operations.getCacheValue.Output.Ok.Body.jsonPayload.entriesPayload
-                        /// Creates a new `jsonPayload`.
-                        ///
-                        /// - Parameters:
-                        ///   - entries:
-                        public init(entries: Operations.getCacheValue.Output.Ok.Body.jsonPayload.entriesPayload) {
-                            self.entries = entries
-                        }
-                        public enum CodingKeys: String, CodingKey {
-                            case entries
-                        }
-                    }
-                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/200/content/application\/json`.
-                    case json(Operations.getCacheValue.Output.Ok.Body.jsonPayload)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Operations.getCacheValue.Output.Ok.Body.jsonPayload {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.getCacheValue.Output.Ok.Body
-                /// Creates a new `Ok`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.getCacheValue.Output.Ok.Body) {
-                    self.body = body
-                }
-            }
-            /// Cache value retrieved successfully
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/get(getCacheValue)/responses/200`.
-            ///
-            /// HTTP response code: `200 ok`.
-            case ok(Operations.getCacheValue.Output.Ok)
-            /// The associated value of the enum case if `self` is `.ok`.
-            ///
-            /// - Throws: An error if `self` is not `.ok`.
-            /// - SeeAlso: `.ok`.
-            public var ok: Operations.getCacheValue.Output.Ok {
-                get throws {
-                    switch self {
-                    case let .ok(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "ok",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct BadRequest: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/400/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/400/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.getCacheValue.Output.BadRequest.Body
-                /// Creates a new `BadRequest`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.getCacheValue.Output.BadRequest.Body) {
-                    self.body = body
-                }
-            }
-            /// The request is invalid
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/get(getCacheValue)/responses/400`.
-            ///
-            /// HTTP response code: `400 badRequest`.
-            case badRequest(Operations.getCacheValue.Output.BadRequest)
-            /// The associated value of the enum case if `self` is `.badRequest`.
-            ///
-            /// - Throws: An error if `self` is not `.badRequest`.
-            /// - SeeAlso: `.badRequest`.
-            public var badRequest: Operations.getCacheValue.Output.BadRequest {
-                get throws {
-                    switch self {
-                    case let .badRequest(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "badRequest",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct Unauthorized: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/401/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/401/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.getCacheValue.Output.Unauthorized.Body
-                /// Creates a new `Unauthorized`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.getCacheValue.Output.Unauthorized.Body) {
-                    self.body = body
-                }
-            }
-            /// You need to be authenticated to access this resource
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/get(getCacheValue)/responses/401`.
-            ///
-            /// HTTP response code: `401 unauthorized`.
-            case unauthorized(Operations.getCacheValue.Output.Unauthorized)
-            /// The associated value of the enum case if `self` is `.unauthorized`.
-            ///
-            /// - Throws: An error if `self` is not `.unauthorized`.
-            /// - SeeAlso: `.unauthorized`.
-            public var unauthorized: Operations.getCacheValue.Output.Unauthorized {
-                get throws {
-                    switch self {
-                    case let .unauthorized(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "unauthorized",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct Forbidden: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/403/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/403/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.getCacheValue.Output.Forbidden.Body
-                /// Creates a new `Forbidden`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.getCacheValue.Output.Forbidden.Body) {
-                    self.body = body
-                }
-            }
-            /// The authenticated subject is not authorized to perform this action
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/get(getCacheValue)/responses/403`.
-            ///
-            /// HTTP response code: `403 forbidden`.
-            case forbidden(Operations.getCacheValue.Output.Forbidden)
-            /// The associated value of the enum case if `self` is `.forbidden`.
-            ///
-            /// - Throws: An error if `self` is not `.forbidden`.
-            /// - SeeAlso: `.forbidden`.
-            public var forbidden: Operations.getCacheValue.Output.Forbidden {
-                get throws {
-                    switch self {
-                    case let .forbidden(response):
-                        return response
-                    default:
-                        try throwUnexpectedResponseStatus(
-                            expectedStatus: "forbidden",
-                            response: self
-                        )
-                    }
-                }
-            }
-            public struct NotFound: Sendable, Hashable {
-                /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/404/content`.
-                @frozen public enum Body: Sendable, Hashable {
-                    /// - Remark: Generated from `#/paths/api/cache/keyvalue/{cas_id}/GET/responses/404/content/application\/json`.
-                    case json(Components.Schemas._Error)
-                    /// The associated value of the enum case if `self` is `.json`.
-                    ///
-                    /// - Throws: An error if `self` is not `.json`.
-                    /// - SeeAlso: `.json`.
-                    public var json: Components.Schemas._Error {
-                        get throws {
-                            switch self {
-                            case let .json(body):
-                                return body
-                            }
-                        }
-                    }
-                }
-                /// Received HTTP response body
-                public var body: Operations.getCacheValue.Output.NotFound.Body
-                /// Creates a new `NotFound`.
-                ///
-                /// - Parameters:
-                ///   - body: Received HTTP response body
-                public init(body: Operations.getCacheValue.Output.NotFound.Body) {
-                    self.body = body
-                }
-            }
-            /// No entries found for the given CAS ID
-            ///
-            /// - Remark: Generated from `#/paths//api/cache/keyvalue/{cas_id}/get(getCacheValue)/responses/404`.
-            ///
-            /// HTTP response code: `404 notFound`.
-            case notFound(Operations.getCacheValue.Output.NotFound)
-            /// The associated value of the enum case if `self` is `.notFound`.
-            ///
-            /// - Throws: An error if `self` is not `.notFound`.
-            /// - SeeAlso: `.notFound`.
-            public var notFound: Operations.getCacheValue.Output.NotFound {
                 get throws {
                     switch self {
                     case let .notFound(response):
@@ -26636,6 +25335,59 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/configuration`.
                         public var configuration: Swift.String?
+                        /// Custom metadata for the build run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/custom_metadata`.
+                        public struct custom_metadataPayload: Codable, Hashable, Sendable {
+                            /// Simple string labels for filtering/grouping (e.g., 'nightly', 'release').
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/custom_metadata/tags`.
+                            public var tags: [Swift.String]?
+                            /// Key-value pairs for structured data. URL values will auto-link in the UI.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/custom_metadata/values`.
+                            public struct valuesPayload: Codable, Hashable, Sendable {
+                                /// A container of undocumented properties.
+                                public var additionalProperties: [String: Swift.String]
+                                /// Creates a new `valuesPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - additionalProperties: A container of undocumented properties.
+                                public init(additionalProperties: [String: Swift.String] = .init()) {
+                                    self.additionalProperties = additionalProperties
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                                }
+                                public func encode(to encoder: any Encoder) throws {
+                                    try encoder.encodeAdditionalProperties(additionalProperties)
+                                }
+                            }
+                            /// Key-value pairs for structured data. URL values will auto-link in the UI.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/custom_metadata/values`.
+                            public var values: Operations.createRun.Input.Body.jsonPayload.Case1Payload.custom_metadataPayload.valuesPayload?
+                            /// Creates a new `custom_metadataPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - tags: Simple string labels for filtering/grouping (e.g., 'nightly', 'release').
+                            ///   - values: Key-value pairs for structured data. URL values will auto-link in the UI.
+                            public init(
+                                tags: [Swift.String]? = nil,
+                                values: Operations.createRun.Input.Body.jsonPayload.Case1Payload.custom_metadataPayload.valuesPayload? = nil
+                            ) {
+                                self.tags = tags
+                                self.values = values
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case tags
+                                case values
+                            }
+                        }
+                        /// Custom metadata for the build run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/custom_metadata`.
+                        public var custom_metadata: Operations.createRun.Input.Body.jsonPayload.Case1Payload.custom_metadataPayload?
                         /// Duration of the run in milliseconds.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/duration`.
@@ -26989,6 +25741,7 @@ public enum Operations {
                         ///   - ci_provider: The CI provider.
                         ///   - ci_run_id: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
                         ///   - configuration: The build configuration (e.g., Debug, Release).
+                        ///   - custom_metadata: Custom metadata for the build run.
                         ///   - duration: Duration of the run in milliseconds.
                         ///   - files: Compiled files associated with the build run.
                         ///   - git_branch: The git branch.
@@ -27014,6 +25767,7 @@ public enum Operations {
                             ci_provider: Operations.createRun.Input.Body.jsonPayload.Case1Payload.ci_providerPayload? = nil,
                             ci_run_id: Swift.String? = nil,
                             configuration: Swift.String? = nil,
+                            custom_metadata: Operations.createRun.Input.Body.jsonPayload.Case1Payload.custom_metadataPayload? = nil,
                             duration: Swift.Int,
                             files: Operations.createRun.Input.Body.jsonPayload.Case1Payload.filesPayload? = nil,
                             git_branch: Swift.String? = nil,
@@ -27039,6 +25793,7 @@ public enum Operations {
                             self.ci_provider = ci_provider
                             self.ci_run_id = ci_run_id
                             self.configuration = configuration
+                            self.custom_metadata = custom_metadata
                             self.duration = duration
                             self.files = files
                             self.git_branch = git_branch
@@ -27065,6 +25820,7 @@ public enum Operations {
                             case ci_provider
                             case ci_run_id
                             case configuration
+                            case custom_metadata
                             case duration
                             case files
                             case git_branch

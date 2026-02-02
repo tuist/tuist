@@ -94,5 +94,66 @@ defmodule Tuist.Runs.BuildTest do
       changeset = Build.create_changeset(%Build{}, attrs)
       assert changeset.valid?
     end
+
+    test "is valid with custom_tags" do
+      attrs = Map.put(@valid_attrs, :custom_tags, ["nightly", "release", "staging"])
+      changeset = Build.create_changeset(%Build{}, attrs)
+      assert changeset.valid?
+    end
+
+    test "is valid with custom_values" do
+      attrs = Map.put(@valid_attrs, :custom_values, %{"ticket" => "PROJ-1234", "runner" => "macos-14"})
+      changeset = Build.create_changeset(%Build{}, attrs)
+      assert changeset.valid?
+    end
+
+    test "rejects more than 10 custom_tags" do
+      tags = Enum.map(1..11, fn i -> "tag#{i}" end)
+      attrs = Map.put(@valid_attrs, :custom_tags, tags)
+      changeset = Build.create_changeset(%Build{}, attrs)
+      assert "cannot have more than 10 tags" in errors_on(changeset).custom_tags
+    end
+
+    test "rejects custom_tags longer than 50 characters" do
+      long_tag = String.duplicate("a", 51)
+      attrs = Map.put(@valid_attrs, :custom_tags, [long_tag])
+      changeset = Build.create_changeset(%Build{}, attrs)
+      assert "tag exceeds maximum length of 50 characters" in errors_on(changeset).custom_tags
+    end
+
+    test "rejects custom_tags with invalid characters" do
+      attrs = Map.put(@valid_attrs, :custom_tags, ["invalid tag!"])
+      changeset = Build.create_changeset(%Build{}, attrs)
+      assert "tag contains invalid characters (only alphanumeric, hyphens, and underscores allowed)" in errors_on(changeset).custom_tags
+    end
+
+    test "accepts custom_tags with alphanumeric, hyphens, and underscores" do
+      attrs = Map.put(@valid_attrs, :custom_tags, ["valid-tag", "valid_tag", "validTag123"])
+      changeset = Build.create_changeset(%Build{}, attrs)
+      assert changeset.valid?
+    end
+
+    test "rejects more than 20 custom_values" do
+      values = Map.new(1..21, fn i -> {"key#{i}", "value#{i}"} end)
+      attrs = Map.put(@valid_attrs, :custom_values, values)
+      changeset = Build.create_changeset(%Build{}, attrs)
+      assert "cannot have more than 20 key-value pairs" in errors_on(changeset).custom_values
+    end
+
+    test "rejects custom_values with keys longer than 50 characters" do
+      long_key = String.duplicate("a", 51)
+      attrs = Map.put(@valid_attrs, :custom_values, %{long_key => "value"})
+      changeset = Build.create_changeset(%Build{}, attrs)
+      errors = errors_on(changeset).custom_values
+      assert Enum.any?(errors, &String.contains?(&1, "exceeds maximum length of 50 characters"))
+    end
+
+    test "rejects custom_values with values longer than 500 characters" do
+      long_value = String.duplicate("a", 501)
+      attrs = Map.put(@valid_attrs, :custom_values, %{"key" => long_value})
+      changeset = Build.create_changeset(%Build{}, attrs)
+      errors = errors_on(changeset).custom_values
+      assert Enum.any?(errors, &String.contains?(&1, "exceeds maximum length of 500 characters"))
+    end
   end
 end

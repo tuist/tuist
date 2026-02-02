@@ -1207,6 +1207,34 @@ components:
               type: string
               x-struct:
               x-validate:
+            custom_metadata:
+              description: Custom metadata for the build run.
+              properties:
+                tags:
+                  description: "Simple string labels for filtering/grouping (e.g., 'nightly', 'release')."
+                  items:
+                    maxLength: 50
+                    pattern: ^[a-zA-Z0-9_-]+$
+                    type: string
+                    x-struct:
+                    x-validate:
+                  maxItems: 10
+                  type: array
+                  x-struct:
+                  x-validate:
+                values:
+                  additionalProperties:
+                    maxLength: 500
+                    type: string
+                    x-struct:
+                    x-validate:
+                  description: Key-value pairs for structured data. URL values will auto-link in the UI.
+                  type: object
+                  x-struct:
+                  x-validate:
+              type: object
+              x-struct:
+              x-validate:
             duration:
               description: Duration of the run in milliseconds.
               type: integer
@@ -2936,6 +2964,34 @@ components:
           type: string
           x-struct:
           x-validate:
+        custom_metadata:
+          description: Custom metadata for the build run.
+          properties:
+            tags:
+              description: "Simple string labels for filtering/grouping (e.g., 'nightly', 'release')."
+              items:
+                maxLength: 50
+                pattern: ^[a-zA-Z0-9_-]+$
+                type: string
+                x-struct:
+                x-validate:
+              maxItems: 10
+              type: array
+              x-struct:
+              x-validate:
+            values:
+              additionalProperties:
+                maxLength: 500
+                type: string
+                x-struct:
+                x-validate:
+              description: Key-value pairs for structured data. URL values will auto-link in the UI.
+              type: object
+              x-struct:
+              x-validate:
+          type: object
+          x-struct:
+          x-validate:
         duration:
           description: Duration of the run in milliseconds.
           type: integer
@@ -4108,6 +4164,28 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  custom_metadata:
+                    description: Custom metadata for the build run.
+                    properties:
+                      tags:
+                        items:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      values:
+                        additionalProperties:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: object
+                        x-struct:
+                        x-validate:
+                    type: object
+                    x-struct:
+                    x-validate:
                   duration:
                     description: Build duration in milliseconds.
                     type: integer
@@ -4559,6 +4637,14 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
+        - description: Page number for pagination.
+          in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+            x-struct:
+            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -4573,14 +4659,6 @@ paths:
           required: true
           schema:
             type: string
-            x-struct:
-            x-validate:
-        - description: Page number for pagination.
-          in: query
-          name: page
-          required: false
-          schema:
-            type: integer
             x-struct:
             x-validate:
         - description: Number of items per page.
@@ -4772,92 +4850,6 @@ paths:
       summary: Create a new bundle with artifacts
       tags:
         - Bundles
-  /api/cache/keyvalue:
-    put:
-      callbacks: {}
-      operationId: putCacheValue
-      parameters:
-        - description: The handle of the project's account.
-          in: query
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: query
-          name: project_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-      requestBody:
-        content:
-          application/json:
-            schema:
-              properties:
-                cas_id:
-                  description: The CAS identifier
-                  type: string
-                  x-struct:
-                  x-validate:
-                entries:
-                  description: Map of entry keys to encoded values
-                  items:
-                    properties:
-                      value:
-                        description: The value of the entry
-                        type: string
-                        x-struct:
-                        x-validate:
-                    required:
-                      - value
-                    type: object
-                    x-struct:
-                    x-validate:
-                  type: array
-                  x-struct:
-                  x-validate:
-              required:
-                - cas_id
-                - entries
-              type: object
-              x-struct:
-              x-validate:
-        description: CAS entries with CAS ID
-        required: true
-      responses:
-        '204':
-          description: Value stored successfully
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The request is invalid
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The project was not found
-      summary: Store cache key value entries.
-      tags:
-        - KeyValue
   /api/auth/device_code/{device_code}:
     get:
       callbacks: {}
@@ -6292,6 +6284,22 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: Filter by tags (comma-separated). Returns builds containing ALL specified tags.
+          in: query
+          name: tags
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: 'Filter by custom values (comma-separated key:value pairs). Returns builds matching ALL specified values. Example: ticket:PROJ-1234,runner:macos-14'
+          in: query
+          name: values
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: ''
           in: query
           name: page_size
@@ -6354,6 +6362,28 @@ paths:
                           description: The configuration used.
                           nullable: true
                           type: string
+                          x-struct:
+                          x-validate:
+                        custom_metadata:
+                          description: Custom metadata for the build run.
+                          properties:
+                            tags:
+                              items:
+                                type: string
+                                x-struct:
+                                x-validate:
+                              type: array
+                              x-struct:
+                              x-validate:
+                            values:
+                              additionalProperties:
+                                type: string
+                                x-struct:
+                                x-validate:
+                              type: object
+                              x-struct:
+                              x-validate:
+                          type: object
                           x-struct:
                           x-validate:
                         duration:
@@ -7180,124 +7210,6 @@ paths:
       summary: List test cases associated with a given project.
       tags:
         - Test Cases
-  /api/cache/cas/{id}:
-    get:
-      callbacks: {}
-      operationId: loadCacheCAS
-      parameters:
-        - description: The handle of the project's account.
-          in: query
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: query
-          name: project_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The artifact identifier.
-          in: path
-          name: id
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-      responses:
-        '200':
-          content:
-            application/octet-stream: {}
-          description: Artifact content stream
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The request is invalid
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Artifact does not exist
-      summary: Download a CAS artifact.
-      tags:
-        - CAS
-    post:
-      callbacks: {}
-      operationId: saveCacheCAS
-      parameters:
-        - description: The handle of the project's account.
-          in: query
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: query
-          name: project_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The artifact identifier.
-          in: path
-          name: id
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-      requestBody:
-        content:
-          application/octet-stream: {}
-        description: The CAS artifact data
-        required: true
-      responses:
-        '204':
-          description: Upload successful
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The request is invalid
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-      summary: Save a CAS artifact
-      tags:
-        - CAS
   /api/projects/{account_handle}/{project_handle}/previews:
     get:
       callbacks: {}
@@ -7490,90 +7402,6 @@ paths:
       summary: Downloads an artifact from the cache.
       tags:
         - Cache
-  /api/cache/keyvalue/{cas_id}:
-    get:
-      callbacks: {}
-      operationId: getCacheValue
-      parameters:
-        - description: The CAS identifier.
-          in: path
-          name: cas_id
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project's account.
-          in: query
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: query
-          name: project_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                properties:
-                  entries:
-                    items:
-                      properties:
-                        value:
-                          description: The value of the entry
-                          type: string
-                          x-struct:
-                          x-validate:
-                      required:
-                        - value
-                      type: object
-                      x-struct:
-                      x-validate:
-                    type: array
-                    x-struct:
-                    x-validate:
-                required:
-                  - entries
-                type: object
-                x-struct:
-                x-validate:
-          description: Cache value retrieved successfully
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The request is invalid
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: No entries found for the given CAS ID
-      summary: Get cache value.
-      tags:
-        - KeyValue
   /api/cache/endpoints:
     get:
       callbacks: {}
@@ -8513,6 +8341,34 @@ paths:
                     configuration:
                       description: The build configuration (e.g., Debug, Release).
                       type: string
+                      x-struct:
+                      x-validate:
+                    custom_metadata:
+                      description: Custom metadata for the build run.
+                      properties:
+                        tags:
+                          description: "Simple string labels for filtering/grouping (e.g., 'nightly', 'release')."
+                          items:
+                            maxLength: 50
+                            pattern: ^[a-zA-Z0-9_-]+$
+                            type: string
+                            x-struct:
+                            x-validate:
+                          maxItems: 10
+                          type: array
+                          x-struct:
+                          x-validate:
+                        values:
+                          additionalProperties:
+                            maxLength: 500
+                            type: string
+                            x-struct:
+                            x-validate:
+                          description: Key-value pairs for structured data. URL values will auto-link in the UI.
+                          type: object
+                          x-struct:
+                          x-validate:
+                      type: object
                       x-struct:
                       x-validate:
                     duration:

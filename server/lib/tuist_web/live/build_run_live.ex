@@ -1295,4 +1295,16 @@ defmodule TuistWeb.BuildRunLive do
         [0, 0, 0, 0]
     end
   end
+
+  defp url?(value) when is_binary(value) do
+    String.starts_with?(value, "http://") or String.starts_with?(value, "https://")
+  end
+
+  defp url?(_), do: false
+
+  defp truncate_url(url) when is_binary(url) do
+    if String.length(url) > 60, do: String.slice(url, 0, 57) <> "...", else: url
+  end
+
+  defp truncate_url(url), do: url
 end

@@ -416,8 +416,9 @@ defmodule Tuist.Runs do
 
   def list_build_runs(attrs, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
+    query = Keyword.get(opts, :query, Build)
 
-    Build
+    query
     |> preload(^preload)
     |> Flop.validate_and_run!(attrs, for: Build)
   end
@@ -459,6 +460,27 @@ defmodule Tuist.Runs do
     |> distinct([b], b.configuration)
     |> select([b], b.configuration)
     |> Repo.all()
+  end
+
+  def project_build_tags(%Project{} = project) do
+    from(b in Build)
+    |> where([b], b.project_id == ^project.id)
+    |> where([b], b.inserted_at > ^DateTime.add(DateTime.utc_now(), -30, :day))
+    |> where([b], fragment("cardinality(?) > 0", b.custom_tags))
+    |> select([b], b.custom_tags)
+    |> Repo.all()
+    |> List.flatten()
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
+  def apply_custom_values_filter(query, nil), do: query
+  def apply_custom_values_filter(query, values_map) when values_map == %{}, do: query
+
+  def apply_custom_values_filter(query, values_map) when is_map(values_map) do
+    Enum.reduce(values_map, query, fn {key, value}, q ->
+      from(b in q, where: fragment("? ->> ? = ?", b.custom_values, ^key, ^value))
+    end)
   end
 
   @doc """

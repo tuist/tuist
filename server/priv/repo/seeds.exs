@@ -359,6 +359,34 @@ build_generator = fn _i ->
   remote_hits = Enum.random(0..div(total_tasks, 2))
   local_hits = Enum.random(0..(total_tasks - remote_hits))
 
+  available_tags = [
+    "nightly",
+    "release",
+    "staging",
+    "production",
+    "ios-team",
+    "android-team",
+    "feature-x",
+    "hotfix",
+    "regression",
+    "performance"
+  ]
+
+  custom_tags = Enum.take_random(available_tags, Enum.random(0..4))
+
+  custom_values =
+    if Enum.random([true, false, false]) do
+      base = %{
+        "ticket" => "PROJ-#{Enum.random(1000..9999)}",
+        "runner" => Enum.random(["macos-14-xlarge", "macos-13-large", "self-hosted"]),
+        "jira" => "https://jira.company.com/browse/PROJ-#{Enum.random(1000..9999)}"
+      }
+
+      Map.take(base, Enum.take_random(Map.keys(base), Enum.random(1..3)))
+    else
+      %{}
+    end
+
   %{
     id: UUIDv7.generate(),
     duration: Enum.random(10_000..100_000),
@@ -378,7 +406,9 @@ build_generator = fn _i ->
     status: status,
     cacheable_tasks_count: total_tasks,
     cacheable_task_remote_hits_count: remote_hits,
-    cacheable_task_local_hits_count: local_hits
+    cacheable_task_local_hits_count: local_hits,
+    custom_tags: custom_tags,
+    custom_values: custom_values
   }
 end
 

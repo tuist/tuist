@@ -77,6 +77,20 @@
           <:col :let={build_run} label={dgettext("dashboard_builds", "Ran by")}>
             <.build_ran_by_badge_cell build={build_run} />
           </:col>
+          <:col :let={build_run} label={dgettext("dashboard_builds", "Tags")}>
+            <div :if={Enum.any?(build_run.custom_tags || [])} data-part="tags-cell">
+              <.badge
+                :for={tag <- Enum.take(build_run.custom_tags || [], 3)}
+                label={tag}
+                color="neutral"
+                style="light-fill"
+                size="small"
+              />
+              <span :if={length(build_run.custom_tags || []) > 3}>
+                +{length(build_run.custom_tags) - 3}
+              </span>
+            </div>
+          </:col>
           <:col
             :let={build_run}
             label={dgettext("dashboard_builds", "Duration")}
