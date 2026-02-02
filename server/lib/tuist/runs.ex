@@ -416,9 +416,10 @@ defmodule Tuist.Runs do
 
   def list_build_runs(attrs, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
-    query = Keyword.get(opts, :query, Build)
+    custom_values = Keyword.get(opts, :custom_values)
 
-    query
+    Build
+    |> apply_custom_values_filter(custom_values)
     |> preload(^preload)
     |> Flop.validate_and_run!(attrs, for: Build)
   end
@@ -474,10 +475,10 @@ defmodule Tuist.Runs do
     |> Enum.sort()
   end
 
-  def apply_custom_values_filter(query, nil), do: query
-  def apply_custom_values_filter(query, values_map) when values_map == %{}, do: query
+  defp apply_custom_values_filter(query, nil), do: query
+  defp apply_custom_values_filter(query, values_map) when values_map == %{}, do: query
 
-  def apply_custom_values_filter(query, values_map) when is_map(values_map) do
+  defp apply_custom_values_filter(query, values_map) when is_map(values_map) do
     Enum.reduce(values_map, query, fn {key, value}, q ->
       from(b in q, where: fragment("? ->> ? = ?", b.custom_values, ^key, ^value))
     end)

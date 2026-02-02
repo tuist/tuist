@@ -168,8 +168,7 @@ defmodule TuistWeb.API.BuildsController do
         _params
       ) do
     filters = build_filters(selected_project.id, params)
-    values_map = parse_values_param(Map.get(params, :values))
-    query = Runs.apply_custom_values_filter(Runs.Build, values_map)
+    custom_values = parse_values_param(Map.get(params, :values))
 
     attrs = %{
       filters: filters,
@@ -179,7 +178,7 @@ defmodule TuistWeb.API.BuildsController do
       page_size: page_size
     }
 
-    {builds, meta} = Runs.list_build_runs(attrs, preload: [:ran_by_account], query: query)
+    {builds, meta} = Runs.list_build_runs(attrs, preload: [:ran_by_account], custom_values: custom_values)
 
     json(conn, %{
       builds:

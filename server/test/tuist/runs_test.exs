@@ -214,29 +214,53 @@ defmodule Tuist.RunsTest do
     end
   end
 
-  describe "apply_custom_values_filter/2" do
-    alias Tuist.Runs.Build
-
-    test "returns query unchanged when values_map is nil" do
+  describe "list_build_runs/2 with custom_values filter" do
+    test "returns all builds when custom_values is nil" do
       # Given
-      query = Build
+      project = ProjectsFixtures.project_fixture()
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account_id,
+          custom_values: %{"ticket" => "PROJ-1234"}
+        )
 
       # When
-      result = Runs.apply_custom_values_filter(query, nil)
+      {builds, _meta} =
+        Runs.list_build_runs(
+          %{filters: [%{field: :project_id, op: :==, value: project.id}]},
+          custom_values: nil
+        )
 
       # Then
-      assert result == query
+      assert length(builds) == 1
+      assert hd(builds).id == build.id
     end
 
-    test "returns query unchanged when values_map is empty" do
+    test "returns all builds when custom_values is empty" do
       # Given
-      query = Build
+      project = ProjectsFixtures.project_fixture()
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account_id,
+          custom_values: %{"ticket" => "PROJ-1234"}
+        )
 
       # When
-      result = Runs.apply_custom_values_filter(query, %{})
+      {builds, _meta} =
+        Runs.list_build_runs(
+          %{filters: [%{field: :project_id, op: :==, value: project.id}]},
+          custom_values: %{}
+        )
 
       # Then
-      assert result == query
+      assert length(builds) == 1
+      assert hd(builds).id == build.id
     end
 
     test "filters builds by custom_values" do
@@ -259,11 +283,11 @@ defmodule Tuist.RunsTest do
         )
 
       # When
-      query =
-        Build
-        |> Runs.apply_custom_values_filter(%{"ticket" => "PROJ-1234"})
-
-      builds = Tuist.Repo.all(query)
+      {builds, _meta} =
+        Runs.list_build_runs(
+          %{filters: [%{field: :project_id, op: :==, value: project.id}]},
+          custom_values: %{"ticket" => "PROJ-1234"}
+        )
 
       # Then
       assert length(builds) == 1
@@ -290,11 +314,11 @@ defmodule Tuist.RunsTest do
         )
 
       # When
-      query =
-        Build
-        |> Runs.apply_custom_values_filter(%{"ticket" => "PROJ-1234", "runner" => "macos-14"})
-
-      builds = Tuist.Repo.all(query)
+      {builds, _meta} =
+        Runs.list_build_runs(
+          %{filters: [%{field: :project_id, op: :==, value: project.id}]},
+          custom_values: %{"ticket" => "PROJ-1234", "runner" => "macos-14"}
+        )
 
       # Then
       assert length(builds) == 1
