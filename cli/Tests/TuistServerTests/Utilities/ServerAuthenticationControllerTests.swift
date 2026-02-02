@@ -288,7 +288,10 @@ struct ServerAuthenticationControllerTests {
         }
     }
 
-    @Test(.withMockedEnvironment(), .withMockedDependencies()) func executeRefresh_sets_cache_expiration_based_on_access_token() async throws {
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedDependencies()
+    ) func executeRefresh_sets_cache_expiration_based_on_access_token() async throws {
         let date = Date()
         try await Date.$now.withValue({ date }) {
             // Given
