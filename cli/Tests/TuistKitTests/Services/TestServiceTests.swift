@@ -2524,25 +2524,18 @@ final class TestServiceTests: TuistUnitTestCase {
             .url(configServerURL: .any)
             .willReturn(serverURL)
 
-        let testCase1 = Components.Schemas.TestCase(
-            avg_duration: 100,
+        let testCase1 = Components.Schemas.TestCase.test(
             id: "1",
-            is_flaky: false,
-            is_quarantined: true,
-            module: .init(id: "mod1", name: "AppTests"),
+            isQuarantined: true,
+            module: .test(name: "AppTests"),
             name: "testQuarantined()",
-            suite: .init(id: "suite1", name: "QuarantinedSuite"),
-            url: "https://tuist.dev/test/1"
+            suite: .test(name: "QuarantinedSuite")
         )
-        let testCase2 = Components.Schemas.TestCase(
-            avg_duration: 100,
+        let testCase2 = Components.Schemas.TestCase.test(
             id: "2",
-            is_flaky: false,
-            is_quarantined: true,
-            module: .init(id: "mod2", name: "CoreTests"),
-            name: "testAnotherQuarantined()",
-            suite: nil,
-            url: "https://tuist.dev/test/2"
+            isQuarantined: true,
+            module: .test(name: "CoreTests"),
+            name: "testAnotherQuarantined()"
         )
         let response = Operations.listTestCases.Output.Ok.Body.jsonPayload(
             pagination_metadata: .init(
