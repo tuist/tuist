@@ -44,7 +44,7 @@ public protocol GeneratorFactorying {
     /// - Parameter configuration: The configuration to generate for.
     /// - Parameter cacheProfile: Cache profile to use for binary replacement.
     /// - Parameter cacheStorage: The cache storage instance.
-    /// - Parameter buildFolder: The custom build folder path for SPM dependencies.
+    /// - Parameter buildFolder: The custom build folder path for SwiftPM dependencies.
     /// - Returns: The generator for focused projects.
     func generation(
         config: Tuist,
@@ -72,7 +72,7 @@ public protocol GeneratorFactorying {
     /// Returns the default generator.
     /// - Parameter config: The project configuration.
     /// - Parameter includedTargets: The list of targets whose sources should be included.
-    /// - Parameter buildFolder: The custom build folder path for SPM dependencies.
+    /// - Parameter buildFolder: The custom build folder path for SwiftPM dependencies.
     /// - Returns: A Generator instance.
     func defaultGenerator(
         config: Tuist,
@@ -243,7 +243,7 @@ public class GeneratorFactory: GeneratorFactorying {
         /// - Parameter configuration: The configuration to generate for.
         /// - Parameter cacheProfile: Cache profile to use for binary replacement.
         /// - Parameter cacheStorage: The cache storage instance.
-        /// - Parameter buildFolder: The custom build folder path for SPM dependencies.
+        /// - Parameter buildFolder: The custom build folder path for SwiftPM dependencies.
         /// - Returns: The generator for focused projects.
         func generation(
             config: Tuist,
@@ -271,7 +271,7 @@ public class GeneratorFactory: GeneratorFactorying {
         /// Returns the default generator.
         /// - Parameter config: The project configuration.
         /// - Parameter includedTargets: The list of targets whose sources should be included.
-        /// - Parameter buildFolder: The custom build folder path for SPM dependencies.
+        /// - Parameter buildFolder: The custom build folder path for SwiftPM dependencies.
         /// - Returns: A Generator instance.
         func defaultGenerator(
             config: Tuist,

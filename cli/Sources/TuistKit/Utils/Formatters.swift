@@ -1,17 +1,38 @@
 import Foundation
 
 enum Formatters {
-    static func formatBytes(_ bytes: Int) -> String {
+    private static let byteCountFormatter: ByteCountFormatter = {
         let formatter = ByteCountFormatter()
         formatter.allowedUnits = [.useAll]
         formatter.countStyle = .file
-        return formatter.string(fromByteCount: Int64(bytes))
-    }
+        return formatter
+    }()
 
-    static func formatDate(_ date: Date) -> String {
+    private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
-        return formatter.string(from: date)
+        return formatter
+    }()
+
+    static func formatBytes(_ bytes: Int) -> String {
+        byteCountFormatter.string(fromByteCount: Int64(bytes))
+    }
+
+    static func formatDate(_ date: Date) -> String {
+        dateFormatter.string(from: date)
+    }
+
+    static func formatDuration(_ milliseconds: Int) -> String {
+        if milliseconds < 1000 {
+            return "\(milliseconds)ms"
+        }
+        let seconds = Double(milliseconds) / 1000.0
+        return String(format: "%.2fs", seconds)
+    }
+
+    static func formatTimestamp(_ timestamp: Int) -> String {
+        let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
+        return formatDate(date)
     }
 }
