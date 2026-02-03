@@ -92,6 +92,9 @@
                         },
                         "directories": {
                             "text": "Katalogi"
+                        },
+                        "debugging": {
+                            "text": "Debugowanie"
                         }
                     }
                 },
