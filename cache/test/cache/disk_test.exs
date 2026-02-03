@@ -18,7 +18,7 @@ defmodule Cache.DiskTest do
     Disk
     |> stub(:storage_dir, fn -> test_storage_dir end)
     |> stub(:artifact_path, fn key -> Path.join(test_storage_dir, key) end)
-    |> stub(:cas_put, fn account_handle, project_handle, id, data ->
+    |> stub(:xcode_cas_put, fn account_handle, project_handle, id, data ->
       key = "#{account_handle}/#{project_handle}/cas/#{id}"
       path = Path.join(test_storage_dir, key)
 
@@ -34,11 +34,11 @@ defmodule Cache.DiskTest do
           :ok
       end
     end)
-    |> stub(:cas_exists?, fn account_handle, project_handle, id ->
+    |> stub(:xcode_cas_exists?, fn account_handle, project_handle, id ->
       key = "#{account_handle}/#{project_handle}/cas/#{id}"
       test_storage_dir |> Path.join(key) |> File.exists?()
     end)
-    |> stub(:cas_get_local_path, fn account_handle, project_handle, id ->
+    |> stub(:xcode_cas_get_local_path, fn account_handle, project_handle, id ->
       key = "#{account_handle}/#{project_handle}/cas/#{id}"
       path = Path.join(test_storage_dir, key)
 
@@ -48,7 +48,7 @@ defmodule Cache.DiskTest do
         {:error, :not_found}
       end
     end)
-    |> stub(:cas_stat, fn account_handle, project_handle, id ->
+    |> stub(:xcode_cas_stat, fn account_handle, project_handle, id ->
       key = "#{account_handle}/#{project_handle}/cas/#{id}"
       path = Path.join(test_storage_dir, key)
       File.stat(path)
@@ -71,25 +71,25 @@ defmodule Cache.DiskTest do
     end
   end
 
-  describe "cas_exists?/3" do
+  describe "xcode_cas_exists?/3" do
     test "returns true when file exists" do
       path = Disk.artifact_path(@test_key)
       File.mkdir_p!(Path.dirname(path))
       File.write!(path, "test content")
 
-      assert Disk.cas_exists?(@test_account, @test_project, @test_id) == true
+      assert Disk.xcode_cas_exists?(@test_account, @test_project, @test_id) == true
     end
 
     test "returns false when file doesn't exist" do
-      assert Disk.cas_exists?("nonexistent", "project", "id") == false
+      assert Disk.xcode_cas_exists?("nonexistent", "project", "id") == false
     end
   end
 
-  describe "cas_put/4" do
+  describe "xcode_cas_put/4" do
     test "writes data to disk successfully" do
       data = "test artifact data"
 
-      assert Disk.cas_put(@test_account, @test_project, @test_id, data) == :ok
+      assert Disk.xcode_cas_put(@test_account, @test_project, @test_id, data) == :ok
 
       path = Disk.artifact_path(@test_key)
       assert File.exists?(path)
@@ -99,7 +99,7 @@ defmodule Cache.DiskTest do
     test "creates parent directories if they don't exist" do
       data = "nested artifact"
 
-      assert Disk.cas_put("account", "project", "deeply/nested/artifact", data) == :ok
+      assert Disk.xcode_cas_put("account", "project", "deeply/nested/artifact", data) == :ok
 
       path = Disk.artifact_path("account/project/cas/deeply/nested/artifact")
       assert File.exists?(path)
@@ -112,7 +112,7 @@ defmodule Cache.DiskTest do
       File.write!(path, "old content")
 
       new_data = "new content"
-      assert Disk.cas_put(@test_account, @test_project, @test_id, new_data) == :ok
+      assert Disk.xcode_cas_put(@test_account, @test_project, @test_id, new_data) == :ok
 
       assert File.read!(path) == new_data
     end
@@ -120,65 +120,65 @@ defmodule Cache.DiskTest do
     test "handles binary data" do
       binary_data = <<1, 2, 3, 4, 5, 255, 0, 128>>
 
-      assert Disk.cas_put(@test_account, @test_project, @test_id, binary_data) == :ok
+      assert Disk.xcode_cas_put(@test_account, @test_project, @test_id, binary_data) == :ok
 
       path = Disk.artifact_path(@test_key)
       assert File.read!(path) == binary_data
     end
   end
 
-  describe "cas_get_local_path/3" do
+  describe "xcode_cas_get_local_path/3" do
     test "returns path when file exists" do
       data = "test content"
-      assert Disk.cas_put(@test_account, @test_project, @test_id, data) == :ok
+      assert Disk.xcode_cas_put(@test_account, @test_project, @test_id, data) == :ok
 
-      result = Disk.cas_get_local_path(@test_account, @test_project, @test_id)
+      result = Disk.xcode_cas_get_local_path(@test_account, @test_project, @test_id)
       assert {:ok, path} = result
       assert path == Disk.artifact_path(@test_key)
       assert File.read!(path) == data
     end
 
     test "returns error when file doesn't exist" do
-      result = Disk.cas_get_local_path("nonexistent", "project", "id")
+      result = Disk.xcode_cas_get_local_path("nonexistent", "project", "id")
       assert result == {:error, :not_found}
     end
   end
 
-  describe "cas_stat/3" do
+  describe "xcode_cas_stat/3" do
     test "returns file stat for existing artifact" do
       data = "test content for stat"
-      assert Disk.cas_put(@test_account, @test_project, @test_id, data) == :ok
+      assert Disk.xcode_cas_put(@test_account, @test_project, @test_id, data) == :ok
 
-      assert {:ok, stat} = Disk.cas_stat(@test_account, @test_project, @test_id)
+      assert {:ok, stat} = Disk.xcode_cas_stat(@test_account, @test_project, @test_id)
       assert %File.Stat{} = stat
       assert stat.size == byte_size(data)
       assert stat.type == :regular
     end
 
     test "returns error for non-existent artifact" do
-      assert {:error, :enoent} = Disk.cas_stat("nonexistent", "project", "id")
+      assert {:error, :enoent} = Disk.xcode_cas_stat("nonexistent", "project", "id")
     end
   end
 
-  describe "cas_local_accel_path/3" do
+  describe "xcode_cas_local_accel_path/3" do
     test "builds internal X-Accel-Redirect path with sharded structure" do
-      path = Disk.cas_local_accel_path(@test_account, @test_project, @test_id)
+      path = Disk.xcode_cas_local_accel_path(@test_account, @test_project, @test_id)
       assert path == "/internal/local/#{@test_account}/#{@test_project}/cas/ab/c1/#{@test_id}"
     end
 
     test "builds internal path for nested id with sharded structure" do
       nested_id = "deeply/nested/artifact"
-      path = Disk.cas_local_accel_path(@test_account, @test_project, nested_id)
+      path = Disk.xcode_cas_local_accel_path(@test_account, @test_project, nested_id)
       assert path == "/internal/local/#{@test_account}/#{@test_project}/cas/de/ep/#{nested_id}"
     end
   end
 
   describe "integration test" do
-    test "cas_put and cas_exists? roundtrip" do
+    test "xcode_cas_put and xcode_cas_exists? roundtrip" do
       original_data = "This is test artifact content for roundtrip testing"
 
-      assert Disk.cas_put(@test_account, @test_project, @test_id, original_data) == :ok
-      assert Disk.cas_exists?(@test_account, @test_project, @test_id) == true
+      assert Disk.xcode_cas_put(@test_account, @test_project, @test_id, original_data) == :ok
+      assert Disk.xcode_cas_exists?(@test_account, @test_project, @test_id) == true
     end
   end
 
@@ -331,15 +331,15 @@ defmodule Cache.DiskIntegrationTest do
       account = unique_account()
       project = "test_project"
 
-      Disk.cas_put(account, project, "hash1", "content1")
-      Disk.cas_put(account, project, "hash2", "content2")
-      assert Disk.cas_exists?(account, project, "hash1")
-      assert Disk.cas_exists?(account, project, "hash2")
+      Disk.xcode_cas_put(account, project, "hash1", "content1")
+      Disk.xcode_cas_put(account, project, "hash2", "content2")
+      assert Disk.xcode_cas_exists?(account, project, "hash1")
+      assert Disk.xcode_cas_exists?(account, project, "hash2")
 
       assert :ok = Disk.delete_project(account, project)
 
-      refute Disk.cas_exists?(account, project, "hash1")
-      refute Disk.cas_exists?(account, project, "hash2")
+      refute Disk.xcode_cas_exists?(account, project, "hash1")
+      refute Disk.xcode_cas_exists?(account, project, "hash2")
     end
 
     test "returns :ok when project directory does not exist" do
