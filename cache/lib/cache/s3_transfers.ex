@@ -36,7 +36,7 @@ defmodule Cache.S3Transfers do
   Entries are queued and flushed in batches to reduce SQLite contention.
   """
   def enqueue_module_upload(account_handle, project_handle, key) do
-    enqueue(:upload, account_handle, project_handle, :module, key)
+    enqueue(:upload, account_handle, project_handle, :xcode_tuist_module, key)
   end
 
   @doc """
@@ -45,7 +45,7 @@ defmodule Cache.S3Transfers do
   Entries are queued and flushed in batches to reduce SQLite contention.
   """
   def enqueue_module_download(account_handle, project_handle, key) do
-    enqueue(:download, account_handle, project_handle, :module, key)
+    enqueue(:download, account_handle, project_handle, :xcode_tuist_module, key)
   end
 
   @doc """
