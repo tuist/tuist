@@ -92,6 +92,9 @@
                         },
                         "shell-completions": {
                             "text": "Shell 自動補全"
+                        },
+                        "debugging": {
+                            "text": "除錯"
                         }
                     }
                 },
