@@ -346,51 +346,6 @@ if is_nil(Repo.get_by(QA.LaunchArgumentGroup, project_id: tuist_project.id, name
   |> Repo.insert!()
 end
 
-# Create a Gradle project for testing
-gradle_project =
-  case Projects.get_project_by_slug("tuist/gradle") do
-    {:ok, project} ->
-      project
-
-    {:error, _} ->
-      Projects.create_project!(
-        %{
-          name: "gradle",
-          account: %{id: organization.account.id}
-        },
-        build_systems: [:gradle]
-      )
-  end
-
-IO.puts("Gradle project created: tuist/gradle (build_systems: [:gradle])")
-
-# Create an account token for Gradle e2e tests
-gradle_token_name = "gradle-e2e-test"
-
-gradle_token =
-  case Accounts.get_account_token_by_name(organization.account, gradle_token_name) do
-    {:ok, token} ->
-      IO.puts("Gradle e2e test token already exists")
-      token
-
-    {:error, _} ->
-      {:ok, {token, full_token}} =
-        Accounts.create_account_token(%{
-          account: organization.account,
-          name: gradle_token_name,
-          scopes: ["project:cache:read", "project:cache:write"],
-          all_projects: false,
-          project_ids: [gradle_project.id]
-        })
-
-      IO.puts("Gradle e2e test token created: #{full_token}")
-      # Store the token in a file for e2e tests to use
-      File.write!("/tmp/gradle-e2e-token.txt", full_token)
-      token
-  end
-
-_ = gradle_token
-
 IO.puts("Generating #{seed_config.build_runs} build runs in parallel...")
 
 org_account_id = organization.account.id
