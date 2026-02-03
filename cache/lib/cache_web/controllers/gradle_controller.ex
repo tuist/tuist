@@ -135,8 +135,7 @@ defmodule CacheWeb.GradleController do
         description: "The handle of the project"
       ]
     ],
-    request_body:
-      {"The Gradle build cache artifact data", "application/octet-stream", nil, required: true},
+    request_body: {"The Gradle build cache artifact data", "application/octet-stream", nil, required: true},
     responses: %{
       ok: {"Upload successful (artifact existed)", nil, nil},
       created: {"Upload successful (new artifact)", nil, nil},
