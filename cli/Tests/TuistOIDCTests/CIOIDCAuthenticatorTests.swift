@@ -1,13 +1,12 @@
-import Foundation
-import Mockable
-import Testing
-import TuistEnvironment
-import TuistSupport
-import TuistTesting
+#if os(macOS)
+    import Foundation
+    import Mockable
+    import Testing
+    import TuistEnvironment
 
-@testable import TuistOIDC
+    @testable import TuistOIDC
 
-struct CIOIDCAuthenticatorTests {
+    struct CIOIDCAuthenticatorTests {
     private let oidcTokenFetcher: MockOIDCTokenFetching
     private let subject: CIOIDCAuthenticator
 
@@ -178,3 +177,4 @@ struct CIOIDCAuthenticatorTests {
         #expect(token == "bitrise-identity-token")
     }
 }
+#endif

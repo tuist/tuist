@@ -5,6 +5,7 @@ import SnapshotTesting
 import Testing
 import TuistCache
 import TuistCore
+import TuistGenerator
 import TuistHasher
 import TuistLoader
 import TuistSupport

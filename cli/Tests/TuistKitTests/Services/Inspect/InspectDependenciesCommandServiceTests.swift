@@ -3,6 +3,7 @@ import Mockable
 import Path
 import Testing
 import TuistCore
+import TuistGenerator
 import TuistLoader
 import TuistSupport
 import TuistTesting

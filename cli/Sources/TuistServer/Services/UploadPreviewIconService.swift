@@ -1,14 +1,12 @@
-import FileSystem
-import Foundation
-#if canImport(FoundationNetworking)
-    import FoundationNetworking
-#endif
-import Mockable
-import OpenAPIURLSession
-import Path
-import TuistHTTP
+#if os(macOS)
+    import FileSystem
+    import Foundation
+    import Mockable
+    import OpenAPIURLSession
+    import Path
+    import TuistHTTP
 
-@Mockable
+    @Mockable
 public protocol UploadPreviewIconServicing {
     func uploadPreviewIcon(
         _ icon: AbsolutePath,
@@ -131,3 +129,4 @@ public final class UploadPreviewIconService: UploadPreviewIconServicing {
         return request
     }
 }
+#endif

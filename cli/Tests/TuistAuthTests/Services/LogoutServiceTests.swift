@@ -42,6 +42,6 @@ final class LogoutServiceTests: TuistUnitTestCase {
             .willReturn(())
 
         // When / Then
-        try await subject.logout(directory: nil)
+        try await subject.logout(directory: nil, serverURL: nil)
     }
 }

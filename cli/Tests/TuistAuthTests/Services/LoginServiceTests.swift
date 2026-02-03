@@ -2,18 +2,19 @@ import Foundation
 import Mockable
 import Testing
 import TuistCore
+import TuistEnvironment
 import TuistLoader
 import TuistOIDC
 import TuistServer
 import TuistSupport
 import TuistTesting
+import TuistUserInputReader
 
 @testable import TuistAuth
 
 struct LoginServiceTests {
     private let serverURL = URL(string: "https://test.tuist.dev")!
     private let serverSessionController: MockServerSessionControlling
-    private let configLoader: MockConfigLoading
     private let serverEnvironmentService: MockServerEnvironmentServicing
     private let userInputReader: MockUserInputReading
     private let authenticateService: MockAuthenticateServicing
@@ -23,25 +24,19 @@ struct LoginServiceTests {
 
     init() {
         serverSessionController = MockServerSessionControlling()
-        configLoader = MockConfigLoading()
         serverEnvironmentService = MockServerEnvironmentServicing()
         userInputReader = MockUserInputReading()
         authenticateService = MockAuthenticateServicing()
         ciOIDCAuthenticator = MockCIOIDCAuthenticating()
         exchangeOIDCTokenService = MockExchangeOIDCTokenServicing()
 
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.test(url: serverURL))
-
         given(serverEnvironmentService)
             .url(configServerURL: .any)
             .willReturn(serverURL)
 
         subject = LoginService(
-            serverSessionController: serverSessionController,
             serverEnvironmentService: serverEnvironmentService,
-            configLoader: configLoader,
+            serverSessionController: serverSessionController,
             userInputReader: userInputReader,
             authenticateService: authenticateService,
             ciOIDCAuthenticator: ciOIDCAuthenticator,
@@ -65,7 +60,7 @@ struct LoginServiceTests {
         try await subject.run(
             email: nil,
             password: nil,
-            directory: nil
+            serverURL: serverURL.absoluteString
         )
 
         // Then
@@ -116,7 +111,7 @@ struct LoginServiceTests {
         try await subject.run(
             email: nil,
             password: "password",
-            directory: nil
+            serverURL: serverURL.absoluteString
         )
 
         // Then
@@ -166,7 +161,7 @@ struct LoginServiceTests {
         try await subject.run(
             email: "email@tuist.dev",
             password: nil,
-            directory: nil
+            serverURL: serverURL.absoluteString
         )
 
         // Then
@@ -212,7 +207,7 @@ struct LoginServiceTests {
         try await subject.run(
             email: "email@tuist.dev",
             password: "password",
-            directory: nil
+            serverURL: serverURL.absoluteString
         )
 
         // Then
@@ -259,7 +254,7 @@ struct LoginServiceTests {
         try await subject.run(
             email: nil,
             password: nil,
-            directory: nil
+            serverURL: serverURL.absoluteString
         )
 
         // Then

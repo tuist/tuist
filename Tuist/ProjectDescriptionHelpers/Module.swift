@@ -46,6 +46,7 @@ public enum Module: String, CaseIterable {
     case tuistExtension = "TuistExtension"
     case alert = "TuistAlert"
     case threadSafe = "TuistThreadSafe"
+    case userInputReader = "TuistUserInputReader"
 
     func forceStaticLinking() -> Bool {
         return Environment.forceStaticLinking.getBoolean(default: false)
@@ -347,7 +348,7 @@ public enum Module: String, CaseIterable {
         // Domain tags
         switch self {
         case .projectDescription, .projectAutomation, .support, .core,
-             .constants, .environment, .logging:
+             .constants, .environment, .logging, .userInputReader:
             moduleTags.append("domain:foundation")
         case .generator, .hasher, .cache:
             moduleTags.append("domain:generation")
@@ -484,6 +485,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.logging.targetName),
                     .target(name: Module.noora.targetName),
                     .target(name: Module.projectDescription.targetName),
+                    .target(name: Module.userInputReader.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "AnyCodable"),
@@ -564,6 +566,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.rootDirectoryLocator.targetName),
+                    .target(name: Module.loader.targetName),
+                    .target(name: Module.server.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "XcodeGraph"),
                     .external(name: "SwiftGenKit"),
@@ -791,6 +795,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.envKey.targetName),
                     .target(name: Module.oidc.targetName),
                     .target(name: Module.server.targetName),
+                    .target(name: Module.userInputReader.targetName),
                     .target(name: Module.loader.targetName, condition: .when([.macos])),
                     .target(name: Module.support.targetName, condition: .when([.macos])),
                     .external(name: "ArgumentParser"),
@@ -819,6 +824,12 @@ public enum Module: String, CaseIterable {
                 ]
             case .threadSafe:
                 []
+            case .userInputReader:
+                [
+                    .target(name: Module.logging.targetName),
+                    .external(name: "Logging"),
+                    .external(name: "Mockable"),
+                ]
             case .tuistExtension:
                 [
                     .target(name: Module.cache.targetName),
@@ -839,7 +850,7 @@ public enum Module: String, CaseIterable {
         var dependencies: [TargetDependency] =
             switch self {
             case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .process,
-                 .constants, .environment, .logging,
+                 .constants, .environment, .logging, .userInputReader,
                  .cacheCommand, .envKey, .versionCommand, .noora, .tuistExtension, .alert, .threadSafe:
                 []
             case .auth:
@@ -1133,7 +1144,7 @@ public enum Module: String, CaseIterable {
 
     private var destinations: Destinations {
         switch self {
-        case .simulator, .server, .http:
+        case .simulator, .server, .http, .threadSafe:
             [.mac, .iPhone, .iPad]
         default:
             [.mac]
@@ -1142,7 +1153,7 @@ public enum Module: String, CaseIterable {
 
     private var deploymentTargets: DeploymentTargets {
         switch self {
-        case .simulator, .server, .http: .multiplatform(iOS: "18.0", macOS: "15.0")
+        case .simulator, .server, .http, .threadSafe: .multiplatform(iOS: "18.0", macOS: "15.0")
         default: .macOS("15.0")
         }
     }

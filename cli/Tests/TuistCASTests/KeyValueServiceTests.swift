@@ -1,15 +1,15 @@
-import Foundation
-import GRPCCore
-import Mockable
-import OpenAPIRuntime
-import Testing
-import TuistCache
-import TuistHTTP
-import TuistServer
-import TuistSupport
-import TuistTesting
-@testable import TuistCAS
-@testable import TuistCASAnalytics
+#if os(macOS)
+    import Foundation
+    import GRPCCore
+    import Mockable
+    import OpenAPIRuntime
+    import Testing
+    import TuistCache
+    import TuistHTTP
+    import TuistServer
+    import TuistSupport
+    @testable import TuistCAS
+    @testable import TuistCASAnalytics
 
 struct KeyValueServiceTests {
     private let subject: KeyValueService
@@ -550,17 +550,18 @@ struct KeyValueServiceTests {
     }
 }
 
-extension ServerContext {
-    fileprivate static func test() -> ServerContext {
-        let serviceDescriptor = ServiceDescriptor(fullyQualifiedService: "CompilationCacheService.Keyvalue.V1.KeyValueDB")
-        let methodDescriptor = MethodDescriptor(service: serviceDescriptor, method: "test")
-        let cancellationHandle = ServerContext.RPCCancellationHandle()
+    extension ServerContext {
+        fileprivate static func test() -> ServerContext {
+            let serviceDescriptor = ServiceDescriptor(fullyQualifiedService: "CompilationCacheService.Keyvalue.V1.KeyValueDB")
+            let methodDescriptor = MethodDescriptor(service: serviceDescriptor, method: "test")
+            let cancellationHandle = ServerContext.RPCCancellationHandle()
 
-        return ServerContext(
-            descriptor: methodDescriptor,
-            remotePeer: "test:client",
-            localPeer: "test:server",
-            cancellation: cancellationHandle
-        )
+            return ServerContext(
+                descriptor: methodDescriptor,
+                remotePeer: "test:client",
+                localPeer: "test:server",
+                cancellation: cancellationHandle
+            )
+        }
     }
-}
+#endif

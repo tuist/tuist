@@ -1,17 +1,18 @@
-import CryptoKit
-import FileSystem
-import Foundation
-import GRPCCore
-import Mockable
-import OpenAPIRuntime
-import Path
-import Testing
-import TuistCache
-import TuistCASAnalytics
-import TuistHTTP
-import TuistServer
-import TuistSupport
-@testable import TuistCAS
+#if os(macOS)
+    import CryptoKit
+    import FileSystem
+    import Foundation
+    import GRPCCore
+    import Mockable
+    import OpenAPIRuntime
+    import Path
+    import Testing
+    import TuistCache
+    import TuistCASAnalytics
+    import TuistHTTP
+    import TuistServer
+    import TuistSupport
+    @testable import TuistCAS
 
 struct CASServiceTests {
     private let subject: CASService
@@ -339,17 +340,18 @@ struct CASServiceTests {
     }
 }
 
-extension ServerContext {
-    fileprivate static func test() -> ServerContext {
-        let serviceDescriptor = ServiceDescriptor(fullyQualifiedService: "CompilationCacheService.Cas.V1.CASDBService")
-        let methodDescriptor = MethodDescriptor(service: serviceDescriptor, method: "test")
-        let cancellationHandle = ServerContext.RPCCancellationHandle()
+    extension ServerContext {
+        fileprivate static func test() -> ServerContext {
+            let serviceDescriptor = ServiceDescriptor(fullyQualifiedService: "CompilationCacheService.Cas.V1.CASDBService")
+            let methodDescriptor = MethodDescriptor(service: serviceDescriptor, method: "test")
+            let cancellationHandle = ServerContext.RPCCancellationHandle()
 
-        return ServerContext(
-            descriptor: methodDescriptor,
-            remotePeer: "test:client",
-            localPeer: "test:server",
-            cancellation: cancellationHandle
-        )
+            return ServerContext(
+                descriptor: methodDescriptor,
+                remotePeer: "test:client",
+                localPeer: "test:server",
+                cancellation: cancellationHandle
+            )
+        }
     }
-}
+#endif

@@ -43,7 +43,7 @@ final class WhoamiServiceTests: TuistUnitTestCase {
                 .willReturn("tuist@tuist.dev")
 
             // When
-            try await subject.run(directory: nil)
+            try await subject.run(directory: nil, serverURL: nil)
 
             // Then
             XCTAssertPrinterOutputContains("tuist@tuist.dev")
@@ -58,7 +58,7 @@ final class WhoamiServiceTests: TuistUnitTestCase {
                 .willThrow(ServerSessionControllerError.unauthenticated)
 
             await XCTAssertThrowsSpecific(
-                try await subject.run(directory: nil), ServerSessionControllerError.unauthenticated
+                try await subject.run(directory: nil, serverURL: nil), ServerSessionControllerError.unauthenticated
             )
         }
     }

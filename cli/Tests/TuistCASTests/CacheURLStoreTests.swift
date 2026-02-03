@@ -1,8 +1,8 @@
 import Foundation
 import Mockable
 import Testing
+import TuistEnvironment
 import TuistServer
-import TuistSupport
 
 @testable import TuistCAS
 

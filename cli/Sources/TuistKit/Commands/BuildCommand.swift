@@ -2,6 +2,7 @@ import ArgumentParser
 import Foundation
 import Path
 import TuistExtension
+import TuistGenerator
 import TuistLogging
 import TuistServer
 import TuistSupport

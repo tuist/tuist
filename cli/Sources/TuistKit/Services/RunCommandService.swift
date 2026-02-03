@@ -6,6 +6,7 @@ import struct TSCUtility.Version
 import TuistAutomation
 import TuistConstants
 import TuistCore
+import TuistGenerator
 import TuistLoader
 import TuistLogging
 import TuistServer

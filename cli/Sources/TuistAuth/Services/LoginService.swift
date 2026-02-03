@@ -6,6 +6,7 @@ import TuistConstants
 import TuistEnvironment
 import TuistOIDC
 import TuistServer
+import TuistUserInputReader
 
 #if os(macOS)
     @Mockable

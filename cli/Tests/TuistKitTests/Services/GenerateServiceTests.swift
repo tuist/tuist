@@ -4,6 +4,7 @@ import Path
 import Testing
 import TuistCache
 import TuistCore
+import TuistGenerator
 import TuistServer
 import TuistSupport
 import XcodeProj

@@ -59,7 +59,7 @@ public enum Extension {
         @TaskLocal public static var selectiveTestingGraphHasher: SelectiveTestingGraphHashing = SelectiveTestingGraphHasher()
     #else
         @TaskLocal public static var cacheStorageFactory: CacheStorageFactorying = EmptyCacheStorageFactory()
-        @TaskLocal public static var generatorFactory: GeneratorFactorying = GeneratorFactory()
+        @TaskLocal public static var generatorFactory: GeneratorFactorying = EmptyGeneratorFactory()
         @TaskLocal public static var selectiveTestingService: SelectiveTestingServicing = EmptySelectiveTestingService()
         @TaskLocal public static var selectiveTestingGraphHasher: SelectiveTestingGraphHashing =
             EmptySelectiveTestingGraphHasher()
