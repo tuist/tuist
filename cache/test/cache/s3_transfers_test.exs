@@ -129,23 +129,27 @@ defmodule Cache.S3TransfersTest do
 
   describe "enqueue_registry_upload/1" do
     test "creates a new upload transfer with sentinel handles" do
-      {:ok, transfer} =
-        S3Transfers.enqueue_registry_upload("registry/swift/apple/parser/1.0.0/source_archive.zip")
+      key = "registry/swift/apple/parser/1.0.0/source_archive.zip"
+
+      :ok = S3Transfers.enqueue_registry_upload(key)
+      :ok = S3TransfersBuffer.flush()
+
+      transfer = Repo.get_by!(S3Transfer, key: key, type: :upload)
 
       assert transfer.type == :upload
       assert transfer.account_handle == "registry"
       assert transfer.project_handle == "registry"
       assert transfer.artifact_type == :registry
-      assert transfer.key == "registry/swift/apple/parser/1.0.0/source_archive.zip"
+      assert transfer.key == key
       assert transfer.inserted_at
     end
 
     test "does not create duplicate transfers" do
-      {:ok, _transfer1} =
-        S3Transfers.enqueue_registry_upload("registry/swift/apple/parser/1.0.0/source_archive.zip")
+      key = "registry/swift/apple/parser/1.0.0/source_archive.zip"
 
-      {:ok, _transfer2} =
-        S3Transfers.enqueue_registry_upload("registry/swift/apple/parser/1.0.0/source_archive.zip")
+      :ok = S3Transfers.enqueue_registry_upload(key)
+      :ok = S3Transfers.enqueue_registry_upload(key)
+      :ok = S3TransfersBuffer.flush()
 
       count = Repo.aggregate(S3Transfer, :count, :id)
       assert count == 1
@@ -154,23 +158,27 @@ defmodule Cache.S3TransfersTest do
 
   describe "enqueue_registry_download/1" do
     test "creates a new download transfer with sentinel handles" do
-      {:ok, transfer} =
-        S3Transfers.enqueue_registry_download("registry/swift/apple/parser/1.0.0/source_archive.zip")
+      key = "registry/swift/apple/parser/1.0.0/source_archive.zip"
+
+      :ok = S3Transfers.enqueue_registry_download(key)
+      :ok = S3TransfersBuffer.flush()
+
+      transfer = Repo.get_by!(S3Transfer, key: key, type: :download)
 
       assert transfer.type == :download
       assert transfer.account_handle == "registry"
       assert transfer.project_handle == "registry"
       assert transfer.artifact_type == :registry
-      assert transfer.key == "registry/swift/apple/parser/1.0.0/source_archive.zip"
+      assert transfer.key == key
       assert transfer.inserted_at
     end
 
     test "does not create duplicate transfers" do
-      {:ok, _transfer1} =
-        S3Transfers.enqueue_registry_download("registry/swift/apple/parser/1.0.0/source_archive.zip")
+      key = "registry/swift/apple/parser/1.0.0/source_archive.zip"
 
-      {:ok, _transfer2} =
-        S3Transfers.enqueue_registry_download("registry/swift/apple/parser/1.0.0/source_archive.zip")
+      :ok = S3Transfers.enqueue_registry_download(key)
+      :ok = S3Transfers.enqueue_registry_download(key)
+      :ok = S3TransfersBuffer.flush()
 
       count = Repo.aggregate(S3Transfer, :count, :id)
       assert count == 1
