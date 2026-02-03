@@ -10,6 +10,8 @@ defmodule Cache.Registry.ReleaseWorker do
   alias Cache.Registry.KeyNormalizer
   alias Cache.Registry.Lock
   alias Cache.Registry.Metadata
+  alias ExAws.S3
+  alias ExAws.S3.Upload
 
   require Logger
 
@@ -303,8 +305,8 @@ defmodule Cache.Registry.ReleaseWorker do
     bucket = Config.registry_bucket()
 
     case path
-         |> ExAws.S3.Upload.stream_file()
-         |> ExAws.S3.upload(bucket, key, content_type: content_type, timeout: 120_000)
+         |> Upload.stream_file()
+         |> S3.upload(bucket, key, content_type: content_type, timeout: 120_000)
          |> ExAws.request() do
       {:ok, _response} -> :ok
       {:error, reason} -> {:error, reason}
@@ -315,7 +317,7 @@ defmodule Cache.Registry.ReleaseWorker do
     bucket = Config.registry_bucket()
 
     case bucket
-         |> ExAws.S3.put_object(key, content, content_type: content_type)
+         |> S3.put_object(key, content, content_type: content_type)
          |> ExAws.request() do
       {:ok, _response} -> :ok
       {:error, reason} -> {:error, reason}
