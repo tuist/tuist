@@ -216,17 +216,15 @@ defmodule Cache.DiskRegistryTest do
   @test_version "1.0.0"
   @test_filename "source_archive.zip"
 
-  setup do
-    {:ok, test_storage_dir} = Briefly.create(directory: true)
+  defp unique_component(prefix) do
+    "#{prefix}_#{:erlang.unique_integer([:positive, :monotonic])}"
+  end
 
-    original_storage_dir = Application.get_env(:cache, :storage_dir)
-    Application.put_env(:cache, :storage_dir, test_storage_dir)
-
-    on_exit(fn ->
-      Application.put_env(:cache, :storage_dir, original_storage_dir)
-    end)
-
-    {:ok, test_storage_dir: test_storage_dir}
+  defp cleanup_registry_key(key) do
+    key
+    |> Path.dirname()
+    |> then(&Path.join(Disk.storage_dir(), &1))
+    |> File.rm_rf()
   end
 
   describe "registry_key/4" do
@@ -252,13 +250,20 @@ defmodule Cache.DiskRegistryTest do
   end
 
   describe "registry_exists?/4" do
-    test "returns true when file exists", %{test_storage_dir: test_storage_dir} do
-      key = Disk.registry_key(@test_scope, @test_name, @test_version, @test_filename)
-      path = Path.join(test_storage_dir, key)
+    test "returns true when file exists" do
+      scope = unique_component("scope")
+      name = unique_component("name")
+      version = "1.0.0"
+      filename = "source_archive.zip"
+
+      key = Disk.registry_key(scope, name, version, filename)
+      path = Disk.artifact_path(key)
       File.mkdir_p!(Path.dirname(path))
       File.write!(path, "test content")
 
-      assert Disk.registry_exists?(@test_scope, @test_name, @test_version, @test_filename) == true
+      on_exit(fn -> cleanup_registry_key(key) end)
+
+      assert Disk.registry_exists?(scope, name, version, filename) == true
     end
 
     test "returns false when file doesn't exist" do
@@ -267,50 +272,80 @@ defmodule Cache.DiskRegistryTest do
   end
 
   describe "registry_put/5" do
-    test "writes binary data to disk", %{test_storage_dir: test_storage_dir} do
+    test "writes binary data to disk" do
+      scope = unique_component("scope")
+      name = unique_component("name")
+      version = "1.0.0"
+      filename = "source_archive.zip"
       data = "test artifact data"
 
-      assert Disk.registry_put(@test_scope, @test_name, @test_version, @test_filename, data) == :ok
+      assert Disk.registry_put(scope, name, version, filename, data) == :ok
 
-      key = Disk.registry_key(@test_scope, @test_name, @test_version, @test_filename)
-      path = Path.join(test_storage_dir, key)
+      key = Disk.registry_key(scope, name, version, filename)
+      path = Disk.artifact_path(key)
+
+      on_exit(fn -> cleanup_registry_key(key) end)
+
       assert File.exists?(path)
       assert File.read!(path) == data
     end
 
-    test "creates parent directories if they don't exist", %{test_storage_dir: test_storage_dir} do
+    test "creates parent directories if they don't exist" do
       data = "nested artifact"
 
-      assert Disk.registry_put("new_scope", "new_package", "2.0.0", "file.zip", data) == :ok
+      scope = unique_component("scope")
+      name = unique_component("name")
+      version = "2.0.0"
+      filename = "file.zip"
 
-      key = Disk.registry_key("new_scope", "new_package", "2.0.0", "file.zip")
-      path = Path.join(test_storage_dir, key)
+      assert Disk.registry_put(scope, name, version, filename, data) == :ok
+
+      key = Disk.registry_key(scope, name, version, filename)
+      path = Disk.artifact_path(key)
+
+      on_exit(fn -> cleanup_registry_key(key) end)
+
       assert File.exists?(path)
       assert File.read!(path) == data
     end
 
-    test "handles file tuple input", %{test_storage_dir: test_storage_dir} do
+    test "handles file tuple input" do
       {:ok, tmp_path} = Briefly.create()
       File.write!(tmp_path, "file content")
 
-      assert Disk.registry_put(@test_scope, @test_name, @test_version, @test_filename, {:file, tmp_path}) == :ok
+      scope = unique_component("scope")
+      name = unique_component("name")
+      version = "1.0.0"
+      filename = "source_archive.zip"
 
-      key = Disk.registry_key(@test_scope, @test_name, @test_version, @test_filename)
-      path = Path.join(test_storage_dir, key)
+      assert Disk.registry_put(scope, name, version, filename, {:file, tmp_path}) == :ok
+
+      key = Disk.registry_key(scope, name, version, filename)
+      path = Disk.artifact_path(key)
+
+      on_exit(fn -> cleanup_registry_key(key) end)
+
       assert File.exists?(path)
       assert File.read!(path) == "file content"
     end
   end
 
   describe "registry_stat/4" do
-    test "returns file stat for existing artifact", %{test_storage_dir: test_storage_dir} do
+    test "returns file stat for existing artifact" do
+      scope = unique_component("scope")
+      name = unique_component("name")
+      version = "1.0.0"
+      filename = "source_archive.zip"
       data = "test content for stat"
-      key = Disk.registry_key(@test_scope, @test_name, @test_version, @test_filename)
-      path = Path.join(test_storage_dir, key)
+
+      key = Disk.registry_key(scope, name, version, filename)
+      path = Disk.artifact_path(key)
       File.mkdir_p!(Path.dirname(path))
       File.write!(path, data)
 
-      assert {:ok, stat} = Disk.registry_stat(@test_scope, @test_name, @test_version, @test_filename)
+      on_exit(fn -> cleanup_registry_key(key) end)
+
+      assert {:ok, stat} = Disk.registry_stat(scope, name, version, filename)
       assert %File.Stat{} = stat
       assert stat.size == byte_size(data)
       assert stat.type == :regular
@@ -353,12 +388,8 @@ defmodule Cache.DiskIntegrationTest do
     Disk.artifact_path(Disk.module_key(account, project, category, hash, name))
   end
 
-  setup do
-    on_exit(fn ->
-      File.rm_rf!(Disk.storage_dir())
-      File.mkdir_p!(Disk.storage_dir())
-    end)
-
+  defp cleanup_project(account_handle, project_handle) do
+    Disk.delete_project(account_handle, project_handle)
     :ok
   end
 
@@ -373,6 +404,8 @@ defmodule Cache.DiskIntegrationTest do
       File.write!(part3, "PART3")
 
       account = unique_account()
+      on_exit(fn -> cleanup_project(account, "project") end)
+
       hash = unique_hash("abcd")
       assert :ok = Disk.module_put_from_parts(account, "project", "builds", hash, "test.zip", [part1, part2, part3])
 
@@ -386,6 +419,8 @@ defmodule Cache.DiskIntegrationTest do
       File.write!(part1, "SINGLE_PART_CONTENT")
 
       account = unique_account()
+      on_exit(fn -> cleanup_project(account, "project") end)
+
       hash = unique_hash("efgh")
       assert :ok = Disk.module_put_from_parts(account, "project", "builds", hash, "single.zip", [part1])
 
@@ -405,6 +440,8 @@ defmodule Cache.DiskIntegrationTest do
       File.write!(part2, binary2)
 
       account = unique_account()
+      on_exit(fn -> cleanup_project(account, "project") end)
+
       hash = unique_hash("ijkl")
       assert :ok = Disk.module_put_from_parts(account, "project", "builds", hash, "binary.zip", [part1, part2])
 
@@ -414,6 +451,8 @@ defmodule Cache.DiskIntegrationTest do
 
     test "returns error when destination already exists" do
       account = unique_account()
+      on_exit(fn -> cleanup_project(account, "project") end)
+
       hash = unique_hash("mnop")
       dest_path = dest_path_for(account, "project", "builds", hash, "existing.zip")
       File.mkdir_p!(Path.dirname(dest_path))
@@ -429,6 +468,8 @@ defmodule Cache.DiskIntegrationTest do
 
     test "returns error when part file doesn't exist" do
       account = unique_account()
+      on_exit(fn -> cleanup_project(account, "project") end)
+
       hash = unique_hash("qrst")
       dest_path = dest_path_for(account, "project", "builds", hash, "missing.zip")
 
@@ -446,6 +487,8 @@ defmodule Cache.DiskIntegrationTest do
       File.write!(part1, "content")
 
       account = unique_account()
+      on_exit(fn -> cleanup_project(account, "project") end)
+
       hash = unique_hash("uvwx")
       assert :ok = Disk.module_put_from_parts(account, "project", "tests", hash, "new.zip", [part1])
 
