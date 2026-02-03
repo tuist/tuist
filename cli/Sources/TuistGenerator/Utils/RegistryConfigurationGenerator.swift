@@ -39,17 +39,7 @@ public final class RegistryConfigurationGenerator: RegistryConfigurationGenerati
     }
 
     public static func registryConfigurationJSON(serverURL: URL) -> String {
-        let registryURL = if serverURL.host() == "tuist.dev" {
-            "https://registry.tuist.dev/api/registry/swift"
-        } else {
-            var components = URLComponents(url: serverURL, resolvingAgainstBaseURL: false)
-            components?.path = "/api/registry/swift"
-            components?.query = nil
-            components?.fragment = nil
-            return components?.string ?? "\(serverURL.absoluteString.dropSuffix("/"))/api/registry/swift"
-        }
-
-        return """
+        """
         {
           "security": {
             "default": {
@@ -67,7 +57,7 @@ public final class RegistryConfigurationGenerator: RegistryConfigurationGenerati
           "registries": {
             "[default]": {
               "supportsAvailability": false,
-              "url": "\(registryURL)"
+              "url": "\(serverURL.absoluteString.dropSuffix("/"))/api/registry/swift"
             }
           },
           "version": 1
