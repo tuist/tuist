@@ -1,5 +1,5 @@
 ---
-title: "Codex migrated Mastodon iOS to Tuist, cutting clean builds 80%"
+title: "Codex cut Mastodon iOS clean builds 80%"
 category: "engineering"
 tags: ["tuist", "migration", "ios", "codex", "cache"]
 excerpt: "We gave Codex the Mastodon iOS client and asked it to migrate the project to Tuist generated projects, enable caching, and benchmark the results. Here is what happened."
@@ -92,7 +92,7 @@ The fix was adding `-ObjC` to `OTHER_LDFLAGS` in the shared project xcconfig, wh
 
 The most valuable output of this migration isn't the Mastodon workspace itself. It is the skill file that captures how to do this again.
 
-The agent wrote `skill.md` as a migration guide that starts where a real engineer would start: with a baseline build, a target inventory, and a realistic set of constraints. It focuses on what tends to go wrong, how to detect it, and how to keep the generated project aligned with the original. It intentionally avoids caching instructions so it stays focused on migration mechanics.
+The agent wrote `skill.md` as a migration guide that starts where a real engineer would start: with a baseline build, a target inventory, and a realistic set of constraints. It focuses on what tends to go wrong, how to detect it, and how to keep the generated project aligned with the original. It intentionally avoids caching instructions so it stays focused on migration mechanics. The published version of that skill lives at [tuist.dev/skills/migrate/SKILL.md](https://tuist.dev/skills/migrate/SKILL.md), and the installation steps are documented in our [Skills guide](https://docs.tuist.dev/en/guides/features/agentic-coding/skills).
 
 This is the part that compounds. The agent does the work, but the skill makes the work repeatable.
 
