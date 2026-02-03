@@ -188,11 +188,9 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         }
 
         // Apply graph mappers
-        var mapperEnvironment = MapperEnvironment()
-        mapperEnvironment.externalDependencies = dependenciesGraph.externalDependencies
         let (mappedGraph, graphMapperSideEffects, environment) = try await graphMapper.map(
             graph: graph,
-            environment: mapperEnvironment
+            environment: MapperEnvironment()
         )
 
         return (

@@ -23,10 +23,6 @@ private struct TargetTestCacheItemsKey: MapperEnvironmentKey {
     static var defaultValue: [AbsolutePath: [String: CacheItem]] = [:]
 }
 
-private struct ExternalDependenciesKey: MapperEnvironmentKey {
-    static var defaultValue: [String: [TargetDependency]] = [:]
-}
-
 extension MapperEnvironment {
     /// Target hashes for the `test` action.
     public var targetTestHashes: [AbsolutePath: [String: String]] {
@@ -47,10 +43,5 @@ extension MapperEnvironment {
     public var initialGraphWithSources: Graph? {
         get { self[InitialGraphWithSourcesKey.self] }
         set { self[InitialGraphWithSourcesKey.self] = newValue }
-    }
-
-    public var externalDependencies: [String: [TargetDependency]] {
-        get { self[ExternalDependenciesKey.self] }
-        set { self[ExternalDependenciesKey.self] = newValue }
     }
 }
