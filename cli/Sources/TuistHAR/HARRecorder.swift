@@ -210,8 +210,11 @@ public actor HARRecorder {
         }
     }
 
-    // MARK: - Entry Building
+}
 
+// MARK: - Entry Building
+
+extension HARRecorder {
     private func buildEntry(
         url: URL,
         method: String,
@@ -349,73 +352,6 @@ public actor HARRecorder {
         )
     }
 
-    private static func resolveRequestHeadersSize(
-        _ provided: Int?,
-        method: String,
-        url: URL,
-        httpVersion: String,
-        headers: [HAR.Header]
-    ) -> Int {
-        if let provided { return provided }
-        let requestLine = "\(method) \(requestTarget(for: url)) \(httpVersion)"
-        return calculateHeadersSize(startLine: requestLine, headers: headers)
-    }
-
-    private static func resolveResponseHeadersSize(
-        _ provided: Int?,
-        httpVersion: String,
-        statusCode: Int,
-        statusText: String,
-        headers: [HAR.Header]
-    ) -> Int {
-        if let provided { return provided }
-        let statusLine = statusText.isEmpty
-            ? "\(httpVersion) \(statusCode)"
-            : "\(httpVersion) \(statusCode) \(statusText)"
-        return calculateHeadersSize(startLine: statusLine, headers: headers)
-    }
-
-    private static func headers(from request: URLRequest) -> [HAR.Header] {
-        (request.allHTTPHeaderFields ?? [:]).map { HAR.Header(name: $0.key, value: $0.value) }
-    }
-
-    private static func headers(from response: HTTPURLResponse) -> [HAR.Header] {
-        (response.allHeaderFields as? [String: String] ?? [:]).map { HAR.Header(name: $0.key, value: $0.value) }
-    }
-
-    private static func calculateHeadersSize(startLine: String, headers: [HAR.Header]) -> Int {
-        var size = startLine.utf8.count + 2
-        for header in headers {
-            size += header.name.utf8.count + 2 + header.value.utf8.count + 2
-        }
-        size += 2
-        return size
-    }
-
-    private static func requestTarget(for url: URL) -> String {
-        var target = url.path.isEmpty ? "/" : url.path
-        if let query = url.query, !query.isEmpty {
-            target += "?\(query)"
-        }
-        return target
-    }
-
-    private static func formatHttpVersion(_ protocolName: String?) -> String {
-        guard let protocolName else { return "HTTP/1.1" }
-        switch protocolName.lowercased() {
-        case "h2", "http/2", "http/2.0":
-            return "HTTP/2"
-        case "h3", "http/3", "http/3.0":
-            return "HTTP/3"
-        case "http/1.1":
-            return "HTTP/1.1"
-        case "http/1.0":
-            return "HTTP/1.0"
-        default:
-            return protocolName.uppercased()
-        }
-    }
-
     private func extractQueryParameters(from url: URL) -> [HAR.QueryParameter] {
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: true),
               let queryItems = components.queryItems
@@ -454,5 +390,76 @@ public actor HARRecorder {
                 encoding: "base64"
             )
         }
+    }
+}
+
+// MARK: - Static Helpers
+
+extension HARRecorder {
+    static func headers(from request: URLRequest) -> [HAR.Header] {
+        (request.allHTTPHeaderFields ?? [:]).map { HAR.Header(name: $0.key, value: $0.value) }
+    }
+
+    static func headers(from response: HTTPURLResponse) -> [HAR.Header] {
+        (response.allHeaderFields as? [String: String] ?? [:]).map { HAR.Header(name: $0.key, value: $0.value) }
+    }
+
+    private static func calculateHeadersSize(startLine: String, headers: [HAR.Header]) -> Int {
+        var size = startLine.utf8.count + 2
+        for header in headers {
+            size += header.name.utf8.count + 2 + header.value.utf8.count + 2
+        }
+        size += 2
+        return size
+    }
+
+    private static func requestTarget(for url: URL) -> String {
+        var target = url.path.isEmpty ? "/" : url.path
+        if let query = url.query, !query.isEmpty {
+            target += "?\(query)"
+        }
+        return target
+    }
+
+    private static func formatHttpVersion(_ protocolName: String?) -> String {
+        guard let protocolName else { return "HTTP/1.1" }
+        switch protocolName.lowercased() {
+        case "h2", "http/2", "http/2.0":
+            return "HTTP/2"
+        case "h3", "http/3", "http/3.0":
+            return "HTTP/3"
+        case "http/1.1":
+            return "HTTP/1.1"
+        case "http/1.0":
+            return "HTTP/1.0"
+        default:
+            return protocolName.uppercased()
+        }
+    }
+
+    private static func resolveRequestHeadersSize(
+        _ provided: Int?,
+        method: String,
+        url: URL,
+        httpVersion: String,
+        headers: [HAR.Header]
+    ) -> Int {
+        if let provided { return provided }
+        let requestLine = "\(method) \(requestTarget(for: url)) \(httpVersion)"
+        return calculateHeadersSize(startLine: requestLine, headers: headers)
+    }
+
+    private static func resolveResponseHeadersSize(
+        _ provided: Int?,
+        httpVersion: String,
+        statusCode: Int,
+        statusText: String,
+        headers: [HAR.Header]
+    ) -> Int {
+        if let provided { return provided }
+        let statusLine = statusText.isEmpty
+            ? "\(httpVersion) \(statusCode)"
+            : "\(httpVersion) \(statusCode) \(statusText)"
+        return calculateHeadersSize(startLine: statusLine, headers: headers)
     }
 }
