@@ -108,7 +108,7 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
                 .start()
 
             val output = BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
-                reader.readText().trim()
+                reader.readLine()?.trim() ?: ""
             }
 
             val exitCode = process.waitFor()
