@@ -2,41 +2,6 @@
 
 @preconcurrency import PackageDescription
 
-// macOS-only packages that don't compile on Linux (have Obj-C code or macOS-only APIs)
-#if os(macOS)
-let macOSOnlyPackages: [Package.Dependency] = [
-    .package(id: "sparkle-project.Sparkle", from: "2.6.4"),
-    .package(
-        id: "chrisaljoudi.swift-log-oslog",
-        .upToNextMajor(from: "0.2.2")
-    ),
-    .package(
-        id: "MobileNativeFoundation.XCLogParser",
-        .upToNextMajor(from: "0.2.45")
-    ),
-    .package(
-        id: "modelcontextprotocol.swift-sdk",
-        .upToNextMajor(from: "0.9.0")
-    ),
-    .package(id: "swiftyJSON.SwiftyJSON", .upToNextMajor(from: "5.0.2")),
-    .package(
-        id: "tuist.Rosalind",
-        .upToNextMajor(from: "0.6.0")
-    ),
-    .package(id: "kean.Nuke", .upToNextMajor(from: "12.8.0")),
-    .package(
-        url: "https://github.com/lfroms/fluid-menu-bar-extra",
-        .upToNextMajor(from: "1.1.0")
-    ),
-    .package(id: "tuist.sdk", .upToNextMajor(from: "0.2.0")),
-    // SwiftGen depends on XCGLogger which has Obj-C code
-    .package(id: "swiftGen.StencilSwiftKit", exact: "2.10.1"),
-    .package(id: "swiftGen.SwiftGen", exact: "6.6.2"),
-]
-#else
-let macOSOnlyPackages: [Package.Dependency] = []
-#endif
-
 let swiftToolsSupportDependency: Target.Dependency = .product(
     name: "SwiftToolsSupport-auto", package: "swiftlang.swift-tools-support-core"
 )
@@ -55,38 +20,6 @@ let stencilDependency: Target.Dependency = .product(name: "Stencil", package: "s
 let graphVizDependency: Target.Dependency = .product(name: "GraphViz", package: "tuist.GraphViz")
 let differenceDependency: Target.Dependency = .product(name: "Difference", package: "krzysztofzablocki.Difference")
 let anyCodableDependency: Target.Dependency = .product(name: "AnyCodable", package: "flight-school.AnyCodable")
-
-// macOS-only target dependencies (empty arrays on other platforms)
-#if os(macOS)
-let tuistKitMacOSDependencies: [Target.Dependency] = [
-    .product(name: "MCP", package: "modelcontextprotocol.swift-sdk"),
-    .product(name: "SwiftyJSON", package: "swiftyJSON.SwiftyJSON"),
-    .product(name: "Rosalind", package: "tuist.Rosalind"),
-]
-let tuistSupportMacOSDependencies: [Target.Dependency] = [
-    .product(name: "LoggingOSLog", package: "chrisaljoudi.swift-log-oslog"),
-]
-let tuistServerMacOSDependencies: [Target.Dependency] = [
-    .product(name: "Rosalind", package: "tuist.Rosalind"),
-]
-let tuistXCActivityLogMacOSDependencies: [Target.Dependency] = [
-    .product(name: "XCLogParser", package: "MobileNativeFoundation.XCLogParser"),
-]
-let tuistGeneratorMacOSDependencies: [Target.Dependency] = [
-    .product(name: "SwiftGenKit", package: "swiftGen.SwiftGen"),
-    .product(name: "StencilSwiftKit", package: "swiftGen.StencilSwiftKit"),
-]
-let tuistScaffoldMacOSDependencies: [Target.Dependency] = [
-    .product(name: "StencilSwiftKit", package: "swiftGen.StencilSwiftKit"),
-]
-#else
-let tuistKitMacOSDependencies: [Target.Dependency] = []
-let tuistSupportMacOSDependencies: [Target.Dependency] = []
-let tuistServerMacOSDependencies: [Target.Dependency] = []
-let tuistXCActivityLogMacOSDependencies: [Target.Dependency] = []
-let tuistGeneratorMacOSDependencies: [Target.Dependency] = []
-let tuistScaffoldMacOSDependencies: [Target.Dependency] = []
-#endif
 
 let targets: [Target] = [
     .executableTarget(
@@ -179,7 +112,10 @@ let targets: [Target] = [
             .product(name: "XcodeGraphMapper", package: "tuist.XcodeGraph", condition: .when(platforms: [.macOS])),
             .product(name: "AnyCodable", package: "flight-school.AnyCodable", condition: .when(platforms: [.macOS])),
             .product(name: "GRPCNIOTransportHTTP2", package: "grpc.grpc-swift-nio-transport", condition: .when(platforms: [.macOS])),
-        ] + tuistKitMacOSDependencies,
+            .product(name: "MCP", package: "modelcontextprotocol.swift-sdk", condition: .when(platforms: [.macOS])),
+            .product(name: "SwiftyJSON", package: "swiftyJSON.SwiftyJSON", condition: .when(platforms: [.macOS])),
+            .product(name: "Rosalind", package: "tuist.Rosalind", condition: .when(platforms: [.macOS])),
+        ],
         path: "cli/Sources/TuistKit",
         exclude: ["AGENTS.md"],
         swiftSettings: [
@@ -328,7 +264,8 @@ let targets: [Target] = [
             "TuistNoora",
             .product(name: "Noora", package: "tuist.Noora"),
             .product(name: "OrderedSet", package: "frazer-rbsn.OrderedSet"),
-        ] + tuistSupportMacOSDependencies,
+            .product(name: "LoggingOSLog", package: "chrisaljoudi.swift-log-oslog", condition: .when(platforms: [.macOS])),
+        ],
         path: "cli/Sources/TuistSupport",
         exclude: ["AGENTS.md"],
         swiftSettings: [
@@ -382,7 +319,9 @@ let targets: [Target] = [
             fileSystemDependency,
             stencilDependency,
             "TuistRootDirectoryLocator",
-        ] + tuistGeneratorMacOSDependencies,
+            .product(name: "SwiftGenKit", package: "swiftGen.SwiftGen", condition: .when(platforms: [.macOS])),
+            .product(name: "StencilSwiftKit", package: "swiftGen.StencilSwiftKit", condition: .when(platforms: [.macOS])),
+        ],
         path: "cli/Sources/TuistGenerator",
         exclude: ["AGENTS.md"],
         swiftSettings: [
@@ -400,7 +339,8 @@ let targets: [Target] = [
             mockableDependency,
             fileSystemDependency,
             "TuistRootDirectoryLocator",
-        ] + tuistScaffoldMacOSDependencies,
+            .product(name: "StencilSwiftKit", package: "swiftGen.StencilSwiftKit", condition: .when(platforms: [.macOS])),
+        ],
         path: "cli/Sources/TuistScaffold",
         exclude: ["AGENTS.md"],
         swiftSettings: [
@@ -531,7 +471,8 @@ let targets: [Target] = [
             .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
             .product(name: "HTTPTypes", package: "apple.swift-http-types"),
             .product(name: "OpenAPIURLSession", package: "apple.swift-openapi-urlsession"),
-        ] + tuistServerMacOSDependencies,
+            .product(name: "Rosalind", package: "tuist.Rosalind", condition: .when(platforms: [.macOS])),
+        ],
         path: "cli/Sources/TuistServer",
         exclude: ["OpenAPI/server.yml", "AGENTS.md"],
         swiftSettings: [
@@ -634,7 +575,8 @@ let targets: [Target] = [
             fileSystemDependency,
             swiftToolsSupportDependency,
             pathDependency,
-        ] + tuistXCActivityLogMacOSDependencies,
+            .product(name: "XCLogParser", package: "MobileNativeFoundation.XCLogParser", condition: .when(platforms: [.macOS])),
+        ],
         path: "cli/Sources/TuistXCActivityLog",
         exclude: ["AGENTS.md"],
         swiftSettings: [
@@ -897,27 +839,24 @@ let package = Package(
         .package(id: "tuist.XcodeGraph", .upToNextMajor(from: "1.31.0")),
         .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.14.11")),
         .package(url: "https://github.com/tuist/Command.git", .upToNextMajor(from: "0.8.0")),
-        // swift-collections 1.3.0 requires Swift 6.2.0
-        .package(id: "apple.swift-collections", "1.1.4"..<"1.3.0"),
-        .package(
-            id: "apple.swift-service-context", .upToNextMajor(from: "1.0.0")
-        ),
         .package(id: "apple.swift-nio", from: "2.70.0"),
         .package(id: "tuist.Noora", from: "0.54.0"),
         .package(
             id: "frazer-rbsn.OrderedSet", .upToNextMajor(from: "2.0.0")
         ),
-        .package(
-            id: "pointfreeco.swift-snapshot-testing",
-            .upToNextMajor(from: "1.18.1")
-        ),
-        .package(id: "leif-ibsen.SwiftECC", exact: "5.5.0"),
         .package(id: "grpc.grpc-swift-2", from: "2.0.0"),
         .package(id: "apple.swift-protobuf", exact: "1.32.0"),
         .package(id: "grpc.grpc-swift-protobuf", from: "2.0.0"),
         .package(id: "grpc.grpc-swift-nio-transport", from: "2.0.0"),
         .package(id: "facebook.zstd", from: "1.5.0"),
-    ] + macOSOnlyPackages,
+        .package(id: "chrisaljoudi.swift-log-oslog", .upToNextMajor(from: "0.2.2")),
+        .package(id: "MobileNativeFoundation.XCLogParser", .upToNextMajor(from: "0.2.45")),
+        .package(id: "modelcontextprotocol.swift-sdk", .upToNextMajor(from: "0.9.0")),
+        .package(id: "swiftyJSON.SwiftyJSON", .upToNextMajor(from: "5.0.2")),
+        .package(id: "tuist.Rosalind", .upToNextMajor(from: "0.6.0")),
+        .package(id: "swiftGen.StencilSwiftKit", exact: "2.10.1"),
+        .package(id: "swiftGen.SwiftGen", exact: "6.6.2"),
+    ],
     targets: targets,
     swiftLanguageModes: [.v5]
 )

@@ -17,7 +17,7 @@ private enum TuistCLI {
             #if os(macOS)
                 try await TuistCommand.main(logFilePath: logFilePath)
             #else
-                try await TuistCommand.main()
+                await TuistCommand.main()
             #endif
         }
     }
