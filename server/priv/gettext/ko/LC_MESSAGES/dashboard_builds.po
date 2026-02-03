@@ -764,3 +764,6 @@ msgstr "어제부터"
 #, fuzzy
 msgid "Cache Endpoint"
 msgstr "캐시 주소"
+
+msgid "Generations"
+msgstr ""

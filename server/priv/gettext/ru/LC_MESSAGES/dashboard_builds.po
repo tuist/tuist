@@ -1014,3 +1014,6 @@ msgstr "с вчерашнего дня"
 #, fuzzy
 msgid "Cache Endpoint"
 msgstr "Конечная точка кэша"
+
+msgid "Generations"
+msgstr ""
