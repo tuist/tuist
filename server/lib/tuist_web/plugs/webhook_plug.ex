@@ -15,9 +15,23 @@ defmodule TuistWeb.Plugs.WebhookPlug do
     @moduledoc false
 
     def read_body(conn, opts) do
-      {:ok, body, conn} = Plug.Conn.read_body(conn, opts)
-      conn = update_in(conn.assigns[:raw_body], &[body | &1 || []])
-      {:ok, body, conn}
+      case Plug.Conn.read_body(conn, opts) do
+        {:ok, body, conn} ->
+          {:ok, body, cache_raw_body(conn, body)}
+
+        {:more, body, conn} ->
+          {:more, body, cache_raw_body(conn, body)}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+    end
+
+    defp cache_raw_body(conn, body) do
+      update_in(conn.assigns[:raw_body], fn
+        nil -> body
+        existing -> [existing, body]
+      end)
     end
   end
 
@@ -59,7 +73,23 @@ defmodule TuistWeb.Plugs.WebhookPlug do
     signature_prefix = get_config(options, :signature_prefix)
     parser_opts = get_config(options, :parser_opts)
 
-    conn = Plug.Parsers.call(conn, parser_opts)
+    conn =
+      try do
+        Plug.Parsers.call(conn, parser_opts)
+      rescue
+        error in Bandit.HTTPError ->
+          if error.plug_status == :request_timeout do
+            conn
+            |> send_resp(408, "Request Timeout")
+            |> halt()
+          else
+            reraise error, __STACKTRACE__
+          end
+      end
+
+    if conn.halted do
+      conn
+    else
     signature = conn |> get_req_header(signature_header) |> List.first()
 
     cond do
@@ -69,7 +99,7 @@ defmodule TuistWeb.Plugs.WebhookPlug do
         |> halt()
 
       conn.assigns.raw_body
-      |> List.flatten()
+      |> List.wrap()
       |> IO.iodata_to_binary()
       |> verify_signature(
         secret,
@@ -82,6 +112,7 @@ defmodule TuistWeb.Plugs.WebhookPlug do
         conn
         |> send_resp(403, "Invalid signature")
         |> halt()
+    end
     end
   end
 
