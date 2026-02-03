@@ -1,5 +1,5 @@
 ---
-title: "4 Hours of Codex 5.2 Brought Mastodon a 63.9% Cache Improvement"
+title: "4 Hours of Codex 5.2 Brought Mastodon a 51.6% Cache Improvement"
 category: "engineering"
 tags: ["tuist", "migration", "ios", "codex", "cache"]
 excerpt: "A long-form story of migrating the Mastodon iOS client to Tuist generated projects with Codex, including the plan, the setbacks, the fixes, and the cache-backed benchmark results."
@@ -48,25 +48,25 @@ The second fix involved `MetaTextKit`. The ambiguous `XMLElement` error is a rea
 
 Codex also updated Swift package mapping to sanitize the `+` character when deriving bundle identifiers, preventing invalid bundle IDs for packages like `UITextView+Placeholder`. Those changes were made directly in the Tuist codebase, with tests, and then pushed as a PR.
 
-With those resolved, Codex warmed the cache using `tuist cache` and regenerated with the `all-possible` profile to maximize binary reuse. Then Codex benchmarked clean builds using hyperfine. The baseline was a clean build of the original Xcode project. A single run took 362.020 seconds. The cached build was run three times with a clean workspace build and a preserved module cache. The mean time was 130.741 seconds, with a minimum of 120.861 seconds and a maximum of 141.355 seconds. That is a 2.77x speedup and a 63.9% improvement. The magnitude of the gain matters less than the repeatability: it is now the default in the generated workflow.
+With those resolved, Codex warmed the cache using `tuist cache` and regenerated with the `all-possible` profile to maximize binary reuse. Then Codex benchmarked clean builds using hyperfine. The baseline was a clean build of the Tuist-generated workspace with the cache profile set to `none`, with derived data wiped between runs so there was no module cache and no reused build products. The cached build used the `all-possible` profile so the only targets built from source were the app and its extensions, and it kept Xcode module cache in place between runs. Both benchmarks were run three times. The no-cache mean time was 123.100 seconds, with a minimum of 115.991 seconds and a maximum of 129.261 seconds. The cached mean time was 59.574 seconds, with a minimum of 51.119 seconds and a maximum of 67.874 seconds. That is a 2.07x speedup and a 51.6% improvement. The magnitude of the gain matters less than the repeatability: it is now the default in the generated workflow.
 
-We were careful about the benchmarking mechanics. We treated each run as a clean build, using `xcodebuild clean build` with a dedicated `-derivedDataPath` for each scenario. We warmed Tuist binaries once with `tuist cache`, then generated with `--cache-profile all-possible` so that the cached run used as many prebuilt modules as possible. For the no cache case we generated with `--cache-profile none`. We did not wipe Xcode's module cache between runs so the comparison reflected a realistic developer loop, but we did clean build products each time so the link and copy phases were fully exercised. Hyperfine made the sequencing repeatable and recorded the mean, min, and max.
+We were careful about the benchmarking mechanics. We treated each run as a clean build using `xcodebuild clean build` with a dedicated `-derivedDataPath` per scenario. For the no-cache case we wiped derived data between runs to remove module cache and build products, and generated with `--cache-profile none` so every target compiled from source. For the cached case we warmed Tuist binaries once with `tuist cache`, generated with `--cache-profile all-possible`, and preserved derived data between runs so Xcode's module cache remained warm. Hyperfine made the sequencing repeatable and recorded the mean, min, and max.
 
 The commands Codex used looked like this:
 
 ```bash
 tuist cache
 
-hyperfine --warmup 1 \
-  --prepare 'tuist generate --no-open --cache-profile none' \
+hyperfine --runs 3 --warmup 1 \
+  --prepare 'python -c "import shutil; shutil.rmtree(\"DerivedData-NoCache\", ignore_errors=True)" && tuist generate --no-open --cache-profile none' \
   'xcodebuild clean build -workspace Mastodon-Tuist.xcworkspace -scheme Mastodon -configuration Debug -destination "platform=iOS Simulator,name=iPhone 17" -derivedDataPath ./DerivedData-NoCache'
 
-hyperfine --warmup 1 \
+hyperfine --runs 3 --warmup 1 \
   --prepare 'tuist generate --no-open --cache-profile all-possible' \
   'xcodebuild clean build -workspace Mastodon-Tuist.xcworkspace -scheme Mastodon -configuration Debug -destination "platform=iOS Simulator,name=iPhone 17" -derivedDataPath ./DerivedData-Cache'
 ```
 
-The migration took about four hours end to end. At our measured savings, each clean build saves about 231 seconds, or roughly 3.9 minutes. That means it takes about 62 clean builds to break even on the time cost of the migration. For a team of ten running two clean builds per developer per day, that is about three working days. If you translate that into cost using the [US Bureau of Labor Statistics median hourly wage for software developers, $63.59 in May 2023](https://www.bls.gov/oes/2023/may/oes151252.htm), the savings are about $80 per day or about $400 per week for that example team. This is an illustration, but it shows why teams are willing to pay a one time migration cost to unlock a faster loop that compounds on every build.
+The migration took about four hours end to end. At our measured savings, each clean build saves about 63.5 seconds, or roughly 1.1 minutes. That means it takes about 227 clean builds to break even on the time cost of the migration. For a team of ten running two clean builds per developer per day, that is about eleven working days. If you translate that into cost using the [US Bureau of Labor Statistics median hourly wage for software developers, $63.59 in May 2023](https://www.bls.gov/oes/2023/may/oes151252.htm), the savings are about $22 per day or about $110 per week for that example team. This is an illustration, but it shows why teams are willing to pay a one time migration cost to unlock a faster loop that compounds on every build.
 
 ## Runtime validation
 
@@ -74,7 +74,7 @@ The moment that matters most is not the build. It is the launch. After the works
 
 ## The timeline and the model
 
-This migration took about four hours end to end. The baseline build alone took about six minutes. Warming the cache took under seven minutes. The cached clean builds averaged just over two minutes. The rest of the time was spent iterating on failures, regenerating the workspace, and validating runtime behavior.
+This migration took about four hours end to end. The no-cache clean build averaged just over two minutes. Warming the cache was already done when we ran the benchmark, so `tuist cache` returned quickly. The cached clean builds averaged about one minute. The rest of the time was spent iterating on failures, regenerating the workspace, and validating runtime behavior.
 
 We ran the work on February 2, 2026 using Codex 5.2 with GPT-5 as the underlying model. That matters because a migration like this is not just about compiling; it is about understanding feedback loops and holding state across errors. The model needs to be capable of managing that complexity without constant human supervision. This run showed that it can.
 
