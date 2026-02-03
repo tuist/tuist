@@ -257,7 +257,7 @@ public enum Module: String, CaseIterable {
              .projectDescription,
              .acceptanceTesting, .simulator, .testing, .process,
              .constants, .environment, .logging,
-             .cacheCommand, .auth, .envKey, .versionCommand:
+             .cacheCommand, .envKey, .versionCommand:
             return nil
         default:
             return "\(rawValue)Tests"
@@ -647,6 +647,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.constants.targetName, condition: .when([.macos])),
                     .target(name: Module.environment.targetName, condition: .when([.macos])),
                     .target(name: Module.logging.targetName, condition: .when([.macos])),
+                    .target(name: Module.threadSafe.targetName),
                     .target(name: Module.xcActivityLog.targetName, condition: .when([.macos])),
                     .target(name: Module.xcResultService.targetName, condition: .when([.macos])),
                     .target(name: Module.simulator.targetName, condition: .when([.macos])),
@@ -832,8 +833,19 @@ public enum Module: String, CaseIterable {
             switch self {
             case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .process,
                  .constants, .environment, .logging,
-                 .cacheCommand, .auth, .envKey, .versionCommand, .noora, .tuistExtension, .alert, .threadSafe:
+                 .cacheCommand, .envKey, .versionCommand, .noora, .tuistExtension, .alert, .threadSafe:
                 []
+            case .auth:
+                [
+                    .target(name: Module.support.targetName),
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.loader.targetName),
+                    .target(name: Module.oidc.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.testing.targetName),
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
+                ]
             case .tuistFixtureGenerator:
                 [
                     .target(name: Module.projectDescription.targetName),
