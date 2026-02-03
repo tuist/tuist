@@ -19,6 +19,7 @@ public class Generator: Generating {
     private let writer: XcodeProjWriting = XcodeProjWriter()
     private let swiftPackageManagerInteractor: TuistGenerator.SwiftPackageManagerInteracting = TuistGenerator
         .SwiftPackageManagerInteractor()
+    private let registryConfigurationGenerator: RegistryConfigurationGenerating = RegistryConfigurationGenerator()
     private let sideEffectDescriptorExecutor: SideEffectDescriptorExecuting
     private let configLoader: ConfigLoading
     private let manifestGraphLoader: ManifestGraphLoading
@@ -121,10 +122,20 @@ public class Generator: Generating {
     }
 
     private func postGenerationActions(graphTraverser: GraphTraversing, workspaceName: String) async throws {
-        guard let configGeneratedProjectOptions = (try await configLoader.loadConfig(path: graphTraverser.path)).project
-            .generatedProject
+        let config = try await configLoader.loadConfig(path: graphTraverser.path)
+        guard let configGeneratedProjectOptions = config.project.generatedProject
         else {
             return
+        }
+
+        if configGeneratedProjectOptions.generationOptions.registryEnabled {
+            let configurationPath = graphTraverser.path
+                .appending(component: workspaceName)
+                .appending(components: "xcshareddata", "swiftpm", "configuration")
+            try await registryConfigurationGenerator.generate(
+                at: configurationPath,
+                serverURL: config.url
+            )
         }
 
         try await swiftPackageManagerInteractor.install(

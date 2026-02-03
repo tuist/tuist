@@ -45,8 +45,12 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             project: project
         )
         let supportsResources = target.supportsResources
+        let containsMetalInBuildableFolders = target.buildableFolders.contains(where: { folder in
+            folder.resolvedFiles.contains(where: { $0.path.extension == "metal" })
+        })
         if target.resources.resources.isEmpty, target.coreDataModels.isEmpty,
            !target.sources.contains(where: { $0.path.extension == "metal" }),
+           !containsMetalInBuildableFolders,
            !containsResourcesInBuildableFolders,
            !containsSynthesizedResourcesInBuildableFolders
         { return (
@@ -343,12 +347,22 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                                           nil];
 
             // Tuist: For static frameworks, resources are inside the embedded framework bundle.
-            // Add framework locations to search for the framework bundle itself.
+            // Search both the host bundle (bundleForClass:) and the main bundle so the framework
+            // is found regardless of whether the static framework is linked into the app or into
+            // an intermediate dynamic framework.
             NSString *frameworkName = @"\(target.productNameWithExtension)";
+            NSBundle *hostBundle = [NSBundle bundleForClass:\(targetName)BundleFinder.self];
+            if (hostBundle.privateFrameworksURL) {
+                [candidates addObject:[hostBundle.privateFrameworksURL URLByAppendingPathComponent:frameworkName]];
+            }
+            [candidates addObject:[[hostBundle bundleURL] URLByAppendingPathComponent:[@"Frameworks/" stringByAppendingString:frameworkName]]];
+            [candidates addObject:[[hostBundle bundleURL] URLByAppendingPathComponent:frameworkName]];
+            [candidates addObject:[hostBundle.bundleURL URLByDeletingLastPathComponent]];
             if ([NSBundle mainBundle].privateFrameworksURL) {
                 [candidates addObject:[[NSBundle mainBundle].privateFrameworksURL URLByAppendingPathComponent:frameworkName]];
             }
             [candidates addObject:[[[NSBundle mainBundle] bundleURL] URLByAppendingPathComponent:[@"Frameworks/" stringByAppendingString:frameworkName]]];
+            [candidates addObject:[[[NSBundle mainBundle] bundleURL] URLByAppendingPathComponent:frameworkName]];
 
             NSString* override = [[[NSProcessInfo processInfo] environment] objectForKey:@"PACKAGE_RESOURCE_BUNDLE_PATH"];
             if (override) {
@@ -590,9 +604,11 @@ extension BuildableFolder {
     }
 
     /// Splits the folder contents into source-like and resource-like entries.
+    /// Metal files (.metal) are classified as resource-like here because their compilation produces
+    /// `default.metallib`, a resource that must live in a dedicated bundle to avoid duplicate library conflicts.
     private func splitFilesByKind() -> (sources: [BuildableFolderFile], resources: [BuildableFolderFile]) {
-        let sources = resolvedFiles.filter(\.path.isSourceLike)
-        let resources = resolvedFiles.filter { !$0.path.isSourceLike }
+        let sources = resolvedFiles.filter { $0.path.isSourceLike && $0.path.extension != "metal" }
+        let resources = resolvedFiles.filter { !$0.path.isSourceLike || $0.path.extension == "metal" }
         return (sources, resources)
     }
 

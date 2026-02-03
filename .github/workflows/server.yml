@@ -629,6 +629,10 @@ jobs:
       - uses: jdx/mise-action@v3.2.0
         with:
           working_directory: cache
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
       - uses: android-actions/setup-android@v3
       - name: Start ClickHouse
         working-directory: server
@@ -650,8 +654,42 @@ jobs:
             -configuration Debug \
             -derivedDataPath build/DerivedData \
             -quiet
+      - name: Setup main server
+        working-directory: server
+        run: |
+          mix deps.get
+          mix ecto.reset
+          mix run priv/repo/seeds.exs
+      - name: Setup cache node
+        working-directory: cache
+        run: mix deps.get
+      - name: Start main server
+        working-directory: server
+        run: |
+          MIX_ENV=dev mix phx.server &
+          for i in {1..30}; do
+            if curl -sf http://localhost:8080 >/dev/null 2>&1; then
+              echo "Main server is ready"
+              break
+            fi
+            echo "Waiting for main server... ($i/30)"
+            sleep 2
+          done
+      - name: Start cache server
+        working-directory: cache
+        run: |
+          MIX_ENV=dev mix phx.server &
+          for i in {1..30}; do
+            if nc -z localhost 8087 2>/dev/null; then
+              echo "Cache server is ready"
+              break
+            fi
+            echo "Waiting for cache server... ($i/30)"
+            sleep 2
+          done
       - name: Run Gradle cache acceptance test
         working-directory: .
         env:
           TUIST_EXECUTABLE: ${{ github.workspace }}/build/DerivedData/Build/Products/Debug/tuist
+          SERVER_URL: http://localhost:8080
         run: mise run e2e gradle_cache

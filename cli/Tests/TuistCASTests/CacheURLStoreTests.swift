@@ -188,4 +188,36 @@ import TuistServer
             .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value(accountHandle))
             .called(1)
     }
+
+    @Test(.withMockedEnvironment())
+    func uses_override_endpoint_when_environment_variable_set() async throws {
+        // Given
+        let serverURL = URL(string: "https://tuist.dev")!
+        let overrideEndpoint = "https://override.example.com"
+        Environment.mocked?.variables["TUIST_CACHE_ENDPOINT"] = overrideEndpoint
+
+        // When
+        let result = try await subject.getCacheURL(for: serverURL, accountHandle: nil)
+
+        // Then
+        #expect(result.absoluteString == overrideEndpoint)
+        verify(getCacheEndpoints)
+            .getCacheEndpoints(serverURL: .any, accountHandle: .any)
+            .called(0)
+        verify(latencyService)
+            .measureLatency(for: .any)
+            .called(0)
+    }
+
+    @Test(.withMockedEnvironment())
+    func throws_when_override_endpoint_is_invalid_url() async throws {
+        // Given
+        let serverURL = URL(string: "https://tuist.dev")!
+        Environment.mocked?.variables["TUIST_CACHE_ENDPOINT"] = ""
+
+        // When/Then
+        await #expect(throws: CacheURLStoreError.invalidURL("")) {
+            _ = try await subject.getCacheURL(for: serverURL, accountHandle: nil)
+        }
+    }
 }

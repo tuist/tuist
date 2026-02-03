@@ -55,6 +55,10 @@
       & td:nth-child(1) {
         width: 50%;
       }
+
+      & td:nth-child(3) {
+        padding-left: var(--noora-spacing-7);
+      }
     }
   }
 

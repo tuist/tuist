@@ -33,7 +33,8 @@ defmodule TuistWeb.Router do
       script_src: "'self' 'nonce' 'wasm-unsafe-eval'",
       script_src_elem:
         "'self' 'nonce' https://d3js.org https://cdn.jsdelivr.net https://esm.sh https://chat.cdn-plain.com https://*.posthog.com https://marketing.tuist.dev",
-      font_src: "'self' https://fonts.gstatic.com data: https://fonts.scalar.com https://rsms.me",
+      font_src:
+        "'self' https://fonts.gstatic.com https://chat.cdn-plain.com data: https://fonts.scalar.com https://rsms.me",
       frame_src: "'self' https://chat.cdn-plain.com https://*.tuist.dev https://newassets.hcaptcha.com",
       connect_src: "'self' https://chat.cdn-plain.com  https://chat.uk.plain.com https://*.posthog.com"
   end
@@ -356,10 +357,25 @@ defmodule TuistWeb.Router do
               :complete_artifacts_uploads_project
         end
 
+        scope "/generations" do
+          get "/", GenerationsController, :index
+          get "/:generation_id", GenerationsController, :show
+        end
+
+        scope "/cache-runs" do
+          get "/", CacheRunsController, :index
+          get "/:cache_run_id", CacheRunsController, :show
+        end
+
         scope "/tests" do
           scope "/test-cases" do
             get "/", TestCasesController, :index
           end
+        end
+
+        scope "/builds" do
+          get "/", BuildsController, :index
+          get "/:build_id", BuildsController, :show
         end
 
         scope "/previews" do
@@ -409,16 +425,6 @@ defmodule TuistWeb.Router do
     end
 
     scope "/cache" do
-      scope "/keyvalue" do
-        put "/", Cache.KeyValueController, :put_value
-        get "/:cas_id", Cache.KeyValueController, :get_value
-      end
-
-      scope "/cas" do
-        get "/:id", CASController, :load
-        post "/:id", CASController, :save
-      end
-
       get "/endpoints", CacheController, :endpoints
       get "/", CacheController, :download
       get "/exists", CacheController, :exists
@@ -761,6 +767,7 @@ defmodule TuistWeb.Router do
       live "/tests/test-cases", TestCasesLive
       live "/tests/test-cases/:test_case_id", TestCaseLive
       live "/tests/flaky-tests", FlakyTestsLive
+      live "/tests/quarantined-tests", QuarantinedTestsLive
       live "/module-cache", ModuleCacheLive
       live "/module-cache/cache-runs", CacheRunsLive
       live "/module-cache/generate-runs", GenerateRunsLive

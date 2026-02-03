@@ -25,7 +25,7 @@ public class GraphTraverser: GraphTraversing {
 
     private let graph: Graph
     private let conditionCache = ConditionCache()
-    private let conditionalTargets: ThreadSafe<Set<GraphDependency>> = ThreadSafe([])
+    private let conditionalTargets: Set<GraphDependency>
     private let swiftPluginExecutablesCache = GraphCache<GraphDependency, Set<String>>()
     private let systemFrameworkMetadataProvider: SystemFrameworkMetadataProviding =
         SystemFrameworkMetadataProvider()
@@ -34,6 +34,32 @@ public class GraphTraverser: GraphTraversing {
 
     public required init(graph: Graph) {
         self.graph = graph
+        conditionalTargets = Self.computeConditionalTargets(graph: graph)
+    }
+
+    private static func computeConditionalTargets(graph: Graph) -> Set<GraphDependency> {
+        if graph.dependencyConditions.isEmpty {
+            return []
+        }
+        let directConditionalTargets = Set(graph.dependencyConditions.keys.map { [$0.from, $0.to] }.joined())
+        var stack = Array(directConditionalTargets)
+        var visited = Set<GraphDependency>()
+        var references = Set<GraphDependency>()
+        while let node = stack.popLast() {
+            if visited.contains(node) {
+                continue
+            }
+            visited.insert(node)
+            if !directConditionalTargets.contains(node) {
+                references.insert(node)
+            }
+            if let deps = graph.dependencies[node] {
+                for dep in deps where !visited.contains(dep) {
+                    stack.append(dep)
+                }
+            }
+        }
+        return references.union(directConditionalTargets)
     }
 
     public var hasRemotePackages: Bool {
@@ -277,10 +303,36 @@ public class GraphTraverser: GraphTraversing {
             skip: canDependencyEmbedBundles
         )
 
+        let externalStaticFrameworkBundleResources: Set<GraphDependencyReference> = {
+            guard canEmbedBundles(target: target) else { return [] }
+            let externalStaticFrameworks = filterDependencies(
+                from: .target(name: name, path: path),
+                test: { dependency in
+                    guard let graphTarget = self.target(from: dependency) else { return false }
+                    guard case .external = graphTarget.project.type else { return false }
+                    return graphTarget.target.product == .staticFramework &&
+                        graphTarget.target.containsResources
+                },
+                skip: canDependencyEmbedBundles
+            )
+            var bundleReferences = Set<GraphDependencyReference>()
+            for dependency in externalStaticFrameworks {
+                guard let graphTarget = self.target(from: dependency) else { continue }
+                let condition = combinedCondition(to: dependency, from: .target(name: name, path: path))
+                guard case let .condition(platformCondition) = condition else { continue }
+                for resource in graphTarget.target.resources.resources {
+                    if resource.path.extension == "bundle" {
+                        bundleReferences.insert(.bundle(path: resource.path, condition: platformCondition))
+                    }
+                }
+            }
+            return bundleReferences
+        }()
+
         return Set(
             bundles.union(externalBundles)
                 .compactMap { dependencyReference(to: $0, from: .target(name: name, path: path)) }
-        )
+        ).union(externalStaticFrameworkBundleResources)
     }
 
     public func target(from dependency: GraphDependency) -> GraphTarget? {
@@ -433,11 +485,12 @@ public class GraphTraverser: GraphTraversing {
             }
         )
 
-        // Static precompiled XCFrameworks (e.g., from cache)
+        // Static precompiled XCFrameworks that contain .framework bundles (e.g., from cache)
         // These need to be embedded so the bundle accessor can find resources at runtime.
-        // We embed all static XCFrameworks because we cannot determine at generation time
-        // whether they contain resources. The binary is already statically linked, so
-        // embedding it is redundant but harmless (only resources are needed at runtime).
+        // We only embed XCFrameworks that contain .framework bundles, not .a static libraries,
+        // because .a libraries don't have an Info.plist and will fail to load at runtime.
+        // The binary is already statically linked, so embedding it is redundant but harmless
+        // (only resources are needed at runtime).
         // We skip traversing through dynamic precompiled binaries because they link static
         // dependencies themselves.
         let staticXCFrameworks = filterDependencies(
@@ -446,7 +499,8 @@ public class GraphTraverser: GraphTraversing {
                 guard case let .xcframework(xcframework) = dependency,
                       xcframework.linking == .static
                 else { return false }
-                return true
+                // Only embed XCFrameworks that contain .framework bundles, not .a static libraries
+                return xcframework.infoPlist.libraries.contains { $0.path.extension == "framework" }
             },
             skip: { self.canDependencyEmbedBinaries(dependency: $0) || $0.isPrecompiledMacro || $0.isDynamicPrecompiled }
         )
@@ -889,16 +943,19 @@ public class GraphTraverser: GraphTraversing {
     public func allProjectDependencies(path: Path.AbsolutePath) throws -> Set<
         GraphDependencyReference
     > {
+        let projectName = projects[path]?.name ?? path.basename
         let targets = targets(at: path)
         if targets.isEmpty { return Set() }
         var references: Set<GraphDependencyReference> = Set()
 
+        Logger.current.debug("allProjectDependencies: \(projectName) with \(targets.count) targets")
         // Linkable dependencies
         for target in targets {
             try references.formUnion(linkableDependencies(path: path, name: target.target.name))
             references.formUnion(embeddableFrameworks(path: path, name: target.target.name))
             references.formUnion(copyProductDependencies(path: path, name: target.target.name))
         }
+        Logger.current.debug("allProjectDependencies: \(projectName) finished with \(references.count) refs")
         return references
     }
 
@@ -1207,16 +1264,7 @@ public class GraphTraverser: GraphTraversing {
             return .condition(nil)
         }
 
-        // Skip targets which are not in conditional part of the graph
-        let shouldSkip = conditionalTargets.mutate {
-            if $0.isEmpty {
-                let conditionalTargets = Set(graph.dependencyConditions.keys.map { [$0.from, $0.to] }.joined())
-                $0 = filterDependencies(from: conditionalTargets).union(conditionalTargets)
-            }
-            return !$0.contains(rootDependency) && !$0.contains(transitiveDependency)
-        }
-
-        if shouldSkip {
+        if !conditionalTargets.contains(rootDependency), !conditionalTargets.contains(transitiveDependency) {
             return .condition(nil)
         }
 

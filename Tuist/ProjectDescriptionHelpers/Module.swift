@@ -956,6 +956,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                     .external(name: "XcodeMetadata"),
+                    .external(name: "SwiftyJSON"),
                 ]
             case .scaffold:
                 [

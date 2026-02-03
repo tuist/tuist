@@ -1,5 +1,5 @@
 {
-  "originHash" : "fbaae21b795ed0c5ea2f02153798f2c7829c973b1fc1dfc3618873f876b0ff5c",
+  "originHash" : "84adff5f21bd7b289b5d8ec025e44a92bc75c2da0d7580ecf972b6f34805dd86",
   "pins" : [
     {
       "identity" : "aexml",
@@ -118,6 +118,15 @@
       }
     },
     {
+      "identity" : "colorizer",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/getGuaka/Colorizer.git",
+      "state" : {
+        "revision" : "2ccc99bf1715e73c4139e8d40b6e6b30be975586",
+        "version" : "0.2.1"
+      }
+    },
+    {
       "identity" : "command",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/Command.git",
@@ -131,7 +140,15 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "3.1.4"
+        "version" : "3.1.1"
+      }
+    },
+    {
+      "identity" : "crspybits.swift-log-file",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.1.0"
       }
     },
     {
@@ -191,8 +208,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/lfroms/fluid-menu-bar-extra",
       "state" : {
-        "revision" : "81c7af7a2bc7ba0e9d8cd0d7faf58a8c870306fa",
-        "version" : "1.2.0"
+        "revision" : "e152a3a1a25aca24906217f8d4d63afbb08d7f97",
+        "version" : "1.1.0"
       }
     },
     {
@@ -217,7 +234,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "2.2.1"
+        "version" : "2.2.0"
       }
     },
     {
@@ -225,7 +242,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "2.4.0"
+        "version" : "2.3.0"
       }
     },
     {
@@ -233,7 +250,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "2.1.2"
+        "version" : "2.1.1"
       }
     },
     {
@@ -369,7 +386,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.18.9"
+        "version" : "1.18.7"
       }
     },
     {
@@ -711,7 +728,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.6.128"
+        "version" : "0.6.63"
       }
     },
     {
@@ -727,7 +744,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "1.31.11"
+        "version" : "1.31.0"
       }
     },
     {
@@ -747,6 +764,15 @@
       }
     },
     {
+      "identity" : "xcglogger",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/DaveWoodCom/XCGLogger.git",
+      "state" : {
+        "revision" : "4def3c1c772ca90ad5e7bfc8ac437c3b0b4276cf",
+        "version" : "7.1.5"
+      }
+    },
+    {
       "identity" : "xcodeproj",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tuist/XcodeProj",
@@ -760,8 +786,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/xctest-dynamic-overlay",
       "state" : {
-        "revision" : "34e463e98ab8541c604af706c99bed7160f5ec70",
-        "version" : "1.8.1"
+        "revision" : "4c27acf5394b645b70d8ba19dc249c0472d5f618",
+        "version" : "1.7.0"
       }
     },
     {

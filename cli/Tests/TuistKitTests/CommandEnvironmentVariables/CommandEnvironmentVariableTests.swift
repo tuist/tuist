@@ -42,7 +42,7 @@ struct CommandEnvironmentVariableTests {
         setVariable(.buildOptionsGenerateOnly, value: "true")
         setVariable(.buildOptionsPassthroughXcodeBuildArguments, value: "clean,-configuration,Release")
 
-        let buildCommandWithEnvVars = try BuildCommand.parse([])
+        let buildCommandWithEnvVars = try BuildRunCommand.parse([])
         #expect(buildCommandWithEnvVars.buildOptions.scheme == "Scheme1")
         #expect(buildCommandWithEnvVars.buildOptions.generate == true)
         #expect(buildCommandWithEnvVars.buildOptions.clean == true)
@@ -60,7 +60,7 @@ struct CommandEnvironmentVariableTests {
                 ["clean", "-configuration", "Release"]
         )
 
-        let buildCommandWithArgs = try BuildCommand.parse([
+        let buildCommandWithArgs = try BuildRunCommand.parse([
             "Scheme2",
             "--generate",
             "--no-clean",
@@ -147,13 +147,13 @@ struct CommandEnvironmentVariableTests {
         setVariable(.generateBinaryCache, value: "false")
         setVariable(.generateCacheProfile, value: "development")
 
-        let generateCommandWithEnvVars = try GenerateCommand.parse([])
+        let generateCommandWithEnvVars = try GenerateRunCommand.parse([])
         #expect(generateCommandWithEnvVars.path == "/path/to/generate")
         #expect(generateCommandWithEnvVars.open == false)
         #expect(generateCommandWithEnvVars.binaryCache == false)
         #expect(generateCommandWithEnvVars.cacheProfile == "development")
 
-        let generateCommandWithArgs = try GenerateCommand.parse([
+        let generateCommandWithArgs = try GenerateRunCommand.parse([
             "--path", "/new/generate/path",
             "--open",
             "--binary-cache",

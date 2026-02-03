@@ -41,7 +41,11 @@ public struct LogsController {
                 LoggingConfig.default()
             }
 
-        try await clean(logsDirectory: logFilePath!.parentDirectory)
+        try await clean(logsDirectory: logFilePath!.parentDirectory, excluding: logFilePath)
+
+        if try await !fileSystem.exists(logFilePath!, isDirectory: false) {
+            try await fileSystem.touch(logFilePath!)
+        }
 
         let loggerHandler = try Logger.defaultLoggerHandler(
             config: loggingConfig, logFilePath: logFilePath!
@@ -50,13 +54,16 @@ public struct LogsController {
         return (loggerHandler, logFilePath!)
     }
 
-    private func clean(logsDirectory: AbsolutePath) async throws {
+    private func clean(logsDirectory: AbsolutePath, excluding logFilePath: AbsolutePath? = nil) async throws {
         let fiveDaysAgo = Calendar.current.date(byAdding: .day, value: -5, to: Date())!
 
         for logPath in try await fileSystem.glob(directory: logsDirectory, include: ["*"]).collect() {
-            if let creationDate = try FileManager.default.attributesOfItem(atPath: logPath.pathString)[.creationDate] as? Date,
-               creationDate < fiveDaysAgo
-            {
+            if logPath == logFilePath { continue }
+
+            let attributes = try FileManager.default.attributesOfItem(atPath: logPath.pathString)
+            let date = (attributes[.modificationDate] as? Date) ?? (attributes[.creationDate] as? Date)
+
+            if let date, date < fiveDaysAgo {
                 try await fileSystem.remove(logPath)
             }
         }

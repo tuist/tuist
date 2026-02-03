@@ -98,7 +98,11 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         Logger.current.debug("Starting concurrent generation of \(projectCount) projects")
         let projects = try await Array(graphTraverser.projects.values)
             .concurrentCompactMap { project -> ProjectDescriptor? in
-                try await self.projectDescriptorGenerator.generate(project: project, graphTraverser: graphTraverser)
+                let threadId = Thread.current.description
+                Logger.current.debug("Task STARTED for project \(project.name) on thread \(threadId)")
+                let result = try await self.projectDescriptorGenerator.generate(project: project, graphTraverser: graphTraverser)
+                Logger.current.debug("Task COMPLETED for project \(project.name) on thread \(threadId)")
+                return result
             }
             .sorted(by: { $0.path < $1.path })
         Logger.current.debug("Finished concurrent generation of \(projects.count) projects")

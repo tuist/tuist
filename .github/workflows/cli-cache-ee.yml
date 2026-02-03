@@ -132,7 +132,7 @@ jobs:
       - name: Initialize TuistCacheEE submodule
         run: mise run cli:ee
       - name: Run tests
-        run: mise x -- tuist inspect implicit-imports
+        run: mise x -- tuist inspect dependencies --only implicit
         env:
           TUIST_EE: 1
       - name: Save cache

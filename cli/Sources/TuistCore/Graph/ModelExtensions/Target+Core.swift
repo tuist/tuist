@@ -144,7 +144,13 @@ extension Target {
     }
 
     public var containsResources: Bool {
-        !resources.resources.isEmpty || !coreDataModels.isEmpty
+        if !resources.resources.isEmpty || !coreDataModels.isEmpty {
+            return true
+        }
+        let resourceExtensions = Target.validResourceExtensions + Target.validResourceCompatibleFolderExtensions
+        return buildableFolders.contains(where: { folder in
+            folder.resolvedFiles.contains(where: { resourceExtensions.contains($0.path.extension ?? "") })
+        })
     }
 
     public var containsMetalFiles: Bool {

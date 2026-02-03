@@ -2,6 +2,15 @@
 components:
   responses: {}
   schemas:
+    CacheRunsIndexPageSize:
+      default: 20
+      description: The maximum number of cache runs to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: CacheRunsIndexPageSize
+      type: integer
+      x-struct:
+      x-validate:
     AccountTokenCreated:
       description: A newly created account token.
       properties:
@@ -183,7 +192,7 @@ components:
     TestCasesIndexPageSize:
       default: 20
       description: The maximum number of test cases to return in a single page.
-      maximum: 100
+      maximum: 500
       minimum: 1
       title: TestCasesIndexPageSize
       type: integer
@@ -331,6 +340,14 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.CommandEvent
       x-validate:
+    BuildCategory:
+      enum:
+        - clean
+        - incremental
+      title: BuildCategory
+      type: string
+      x-struct:
+      x-validate:
     CacheActionItemUploadParams:
       properties:
         hash:
@@ -340,6 +357,14 @@ components:
           x-validate:
       title: CacheActionItemUploadParams
       type: object
+      x-struct:
+      x-validate:
+    CacheRunsIndexPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: CacheRunsIndexPage
+      type: integer
       x-struct:
       x-validate:
     ArtifactMultipartUploadPart:
@@ -509,6 +534,14 @@ components:
       description: The page number to return.
       minimum: 1
       title: PreviewIndexPage
+      type: integer
+      x-struct:
+      x-validate:
+    GenerationsIndexPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: GenerationsIndexPage
       type: integer
       x-struct:
       x-validate:
@@ -716,6 +749,15 @@ components:
         - meta
       title: AccountTokens
       type: object
+      x-struct:
+      x-validate:
+    BuildsIndexPageSize:
+      default: 20
+      description: The maximum number of builds to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: BuildsIndexPageSize
+      type: integer
       x-struct:
       x-validate:
     LatestPreviewResponse:
@@ -1895,6 +1937,14 @@ components:
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.BundleArtifact
       x-validate:
+    BuildStatus:
+      enum:
+        - success
+        - failure
+      title: BuildStatus
+      type: string
+      x-struct:
+      x-validate:
     RunsBuild:
       description: Represents a single build run.
       properties:
@@ -1955,6 +2005,14 @@ components:
       title: ProjectToken
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ProjectToken
+      x-validate:
+    BuildsIndexPage:
+      default: 1
+      description: The page number to return.
+      minimum: 1
+      title: BuildsIndexPage
+      type: integer
+      x-struct:
       x-validate:
     TestRun:
       properties:
@@ -2567,6 +2625,15 @@ components:
       title: Run
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.Run
+      x-validate:
+    GenerationsIndexPageSize:
+      default: 20
+      description: The maximum number of generations to return in a single page.
+      maximum: 100
+      minimum: 1
+      title: GenerationsIndexPageSize
+      type: integer
+      x-struct:
       x-validate:
     BundleSupportedPlatform:
       description: A platform that a bundle can support (e.g. iOS)
@@ -4010,6 +4077,177 @@ paths:
       summary: Create a a new command analytics event
       tags:
         - Analytics
+  /api/projects/{account_handle}/{project_handle}/builds/{build_id}:
+    get:
+      callbacks: {}
+      operationId: getBuild
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the build.
+          in: path
+          name: build_id
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  cacheable_task_local_hits_count:
+                    description: Local cache hits.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  cacheable_task_remote_hits_count:
+                    description: Remote cache hits.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  cacheable_tasks_count:
+                    description: Total cacheable tasks.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  category:
+                    description: Build category.
+                    enum:
+                      - clean
+                      - incremental
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  configuration:
+                    description: The configuration used.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  duration:
+                    description: Build duration in milliseconds.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  git_branch:
+                    description: Git branch.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  git_commit_sha:
+                    description: Git commit SHA.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  git_ref:
+                    description: Git ref.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  id:
+                    description: The build ID.
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                  inserted_at:
+                    description: When the build was created.
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  is_ci:
+                    description: Whether the build ran on CI.
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  macos_version:
+                    description: macOS version.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  model_identifier:
+                    description: Machine model identifier.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  scheme:
+                    description: The scheme that was built.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  status:
+                    description: Build status.
+                    enum:
+                      - success
+                      - failure
+                    type: string
+                    x-struct:
+                    x-validate:
+                  url:
+                    description: URL to view the build in the dashboard.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  xcode_version:
+                    description: Xcode version.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - duration
+                  - status
+                  - is_ci
+                  - cacheable_tasks_count
+                  - cacheable_task_local_hits_count
+                  - cacheable_task_remote_hits_count
+                  - inserted_at
+                  - url
+                type: object
+                x-struct:
+                x-validate:
+          description: Build details
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Build not found
+      summary: Get a build by ID.
+      tags:
+        - Builds
   /api/projects/{account_handle}/{project_handle}/previews/start:
     post:
       callbacks: {}
@@ -4355,14 +4593,6 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: Page number for pagination.
-          in: query
-          name: page
-          required: false
-          schema:
-            type: integer
-            x-struct:
-            x-validate:
         - description: The handle of the account.
           in: path
           name: account_handle
@@ -4371,12 +4601,20 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
           schema:
             type: string
+            x-struct:
+            x-validate:
+        - description: Page number for pagination.
+          in: query
+          name: page
+          required: false
+          schema:
+            type: integer
             x-struct:
             x-validate:
         - description: Number of items per page.
@@ -4387,10 +4625,10 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
           schema:
             type: string
             x-struct:
@@ -4568,92 +4806,6 @@ paths:
       summary: Create a new bundle with artifacts
       tags:
         - Bundles
-  /api/cache/keyvalue:
-    put:
-      callbacks: {}
-      operationId: putCacheValue
-      parameters:
-        - description: The handle of the project's account.
-          in: query
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: query
-          name: project_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-      requestBody:
-        content:
-          application/json:
-            schema:
-              properties:
-                cas_id:
-                  description: The CAS identifier
-                  type: string
-                  x-struct:
-                  x-validate:
-                entries:
-                  description: Map of entry keys to encoded values
-                  items:
-                    properties:
-                      value:
-                        description: The value of the entry
-                        type: string
-                        x-struct:
-                        x-validate:
-                    required:
-                      - value
-                    type: object
-                    x-struct:
-                    x-validate:
-                  type: array
-                  x-struct:
-                  x-validate:
-              required:
-                - cas_id
-                - entries
-              type: object
-              x-struct:
-              x-validate:
-        description: CAS entries with CAS ID
-        required: true
-      responses:
-        '204':
-          description: Value stored successfully
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The request is invalid
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The project was not found
-      summary: Store cache key value entries.
-      tags:
-        - KeyValue
   /api/auth/device_code/{device_code}:
     get:
       callbacks: {}
@@ -6019,6 +6171,415 @@ paths:
       summary: It generates a signed URL for uploading a part.
       tags:
         - Previews
+  /api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}:
+    get:
+      callbacks: {}
+      operationId: getCacheRun
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the cache run.
+          in: path
+          name: cache_run_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  cacheable_targets:
+                    description: Cacheable targets.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  command_arguments:
+                    description: Command arguments used.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  duration:
+                    description: Cache run duration in milliseconds.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  git_branch:
+                    description: Git branch.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  git_commit_sha:
+                    description: Git commit SHA.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  git_ref:
+                    description: Git ref.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  id:
+                    description: The cache run ID.
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                  is_ci:
+                    description: Whether the cache run ran on CI.
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  local_cache_target_hits:
+                    description: Local cache target hits.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  macos_version:
+                    description: macOS version.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  ran_at:
+                    description: Unix timestamp when the cache run executed.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  remote_cache_target_hits:
+                    description: Remote cache target hits.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  status:
+                    description: Cache run status.
+                    enum:
+                      - success
+                      - failure
+                    type: string
+                    x-struct:
+                    x-validate:
+                  swift_version:
+                    description: Swift version used.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  tuist_version:
+                    description: Tuist version used.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  url:
+                    description: URL to view the cache run in the dashboard.
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - duration
+                  - status
+                  - is_ci
+                  - ran_at
+                  - url
+                type: object
+                x-struct:
+                x-validate:
+          description: Cache run details
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Cache run not found
+      summary: Get a cache run by ID.
+      tags:
+        - Cache Runs
+  /api/projects/{account_handle}/{project_handle}/builds:
+    get:
+      callbacks: {}
+      operationId: listBuilds
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by build status.
+          in: query
+          name: status
+          required: false
+          schema:
+            enum:
+              - success
+              - failure
+            title: BuildStatus
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by build category.
+          in: query
+          name: category
+          required: false
+          schema:
+            enum:
+              - clean
+              - incremental
+            title: BuildCategory
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by scheme name.
+          in: query
+          name: scheme
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by configuration name.
+          in: query
+          name: configuration
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of builds to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: BuildsIndexPageSize
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: BuildsIndexPage
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  builds:
+                    items:
+                      properties:
+                        cacheable_task_local_hits_count:
+                          description: Local cache hits.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        cacheable_task_remote_hits_count:
+                          description: Remote cache hits.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        cacheable_tasks_count:
+                          description: Total cacheable tasks.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        category:
+                          description: Build category.
+                          enum:
+                            - clean
+                            - incremental
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        configuration:
+                          description: The configuration used.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        duration:
+                          description: Build duration in milliseconds.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        git_branch:
+                          description: Git branch.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_commit_sha:
+                          description: Git commit SHA.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_ref:
+                          description: Git ref.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          description: The build ID.
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                        inserted_at:
+                          description: When the build was created.
+                          format: date-time
+                          type: string
+                          x-struct:
+                          x-validate:
+                        is_ci:
+                          description: Whether the build ran on CI.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        macos_version:
+                          description: macOS version.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        model_identifier:
+                          description: Machine model identifier.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        scheme:
+                          description: The scheme that was built.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        status:
+                          description: Build status.
+                          enum:
+                            - success
+                            - failure
+                          type: string
+                          x-struct:
+                          x-validate:
+                        url:
+                          description: URL to view the build in the dashboard.
+                          type: string
+                          x-struct:
+                          x-validate:
+                        xcode_version:
+                          description: Xcode version.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - duration
+                        - status
+                        - is_ci
+                        - cacheable_tasks_count
+                        - cacheable_task_local_hits_count
+                        - cacheable_task_remote_hits_count
+                        - inserted_at
+                        - url
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                required:
+                  - builds
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of builds
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+      summary: List builds associated with a given project.
+      tags:
+        - Builds
   /api/projects/{account_handle}/{project_handle}/bundles/{bundle_id}:
     get:
       callbacks: {}
@@ -6032,20 +6593,20 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: The ID of the bundle.
           in: path
           name: bundle_id
           required: true
           schema:
             format: uuid
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
-          schema:
             type: string
             x-struct:
             x-validate:
@@ -6684,7 +7245,7 @@ paths:
           schema:
             default: 20
             description: The maximum number of test cases to return in a single page.
-            maximum: 100
+            maximum: 500
             minimum: 1
             title: TestCasesIndexPageSize
             type: integer
@@ -6732,124 +7293,6 @@ paths:
       summary: List test cases associated with a given project.
       tags:
         - Test Cases
-  /api/cache/cas/{id}:
-    get:
-      callbacks: {}
-      operationId: loadCacheCAS
-      parameters:
-        - description: The handle of the project's account.
-          in: query
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: query
-          name: project_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The artifact identifier.
-          in: path
-          name: id
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-      responses:
-        '200':
-          content:
-            application/octet-stream: {}
-          description: Artifact content stream
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The request is invalid
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Artifact does not exist
-      summary: Download a CAS artifact.
-      tags:
-        - CAS
-    post:
-      callbacks: {}
-      operationId: saveCacheCAS
-      parameters:
-        - description: The handle of the project's account.
-          in: query
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: query
-          name: project_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The artifact identifier.
-          in: path
-          name: id
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-      requestBody:
-        content:
-          application/octet-stream: {}
-        description: The CAS artifact data
-        required: true
-      responses:
-        '204':
-          description: Upload successful
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The request is invalid
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-      summary: Save a CAS artifact
-      tags:
-        - CAS
   /api/projects/{account_handle}/{project_handle}/previews:
     get:
       callbacks: {}
@@ -7042,90 +7485,6 @@ paths:
       summary: Downloads an artifact from the cache.
       tags:
         - Cache
-  /api/cache/keyvalue/{cas_id}:
-    get:
-      callbacks: {}
-      operationId: getCacheValue
-      parameters:
-        - description: The CAS identifier.
-          in: path
-          name: cas_id
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project's account.
-          in: query
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: query
-          name: project_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                properties:
-                  entries:
-                    items:
-                      properties:
-                        value:
-                          description: The value of the entry
-                          type: string
-                          x-struct:
-                          x-validate:
-                      required:
-                        - value
-                      type: object
-                      x-struct:
-                      x-validate:
-                    type: array
-                    x-struct:
-                    x-validate:
-                required:
-                  - entries
-                type: object
-                x-struct:
-                x-validate:
-          description: Cache value retrieved successfully
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The request is invalid
-        '401':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: You need to be authenticated to access this resource
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: The authenticated subject is not authorized to perform this action
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: No entries found for the given CAS ID
-      summary: Get cache value.
-      tags:
-        - KeyValue
   /api/cache/endpoints:
     get:
       callbacks: {}
@@ -8791,6 +9150,378 @@ paths:
       summary: Updates a member in an organization
       tags:
         - Organizations
+  /api/projects/{account_handle}/{project_handle}/cache-runs:
+    get:
+      callbacks: {}
+      operationId: listCacheRuns
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by git ref.
+          in: query
+          name: git_ref
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by git commit SHA.
+          in: query
+          name: git_commit_sha
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of cache runs to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: CacheRunsIndexPageSize
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: CacheRunsIndexPage
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  cache_runs:
+                    items:
+                      properties:
+                        cacheable_targets:
+                          description: Cacheable targets.
+                          items:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
+                        duration:
+                          description: Cache run duration in milliseconds.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        git_branch:
+                          description: Git branch.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_commit_sha:
+                          description: Git commit SHA.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_ref:
+                          description: Git ref.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          description: The cache run ID.
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                        is_ci:
+                          description: Whether the cache run ran on CI.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        local_cache_target_hits:
+                          description: Local cache target hits.
+                          items:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
+                        macos_version:
+                          description: macOS version.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        ran_at:
+                          description: Unix timestamp when the cache run executed.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        remote_cache_target_hits:
+                          description: Remote cache target hits.
+                          items:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
+                        status:
+                          description: Cache run status.
+                          enum:
+                            - success
+                            - failure
+                          type: string
+                          x-struct:
+                          x-validate:
+                        swift_version:
+                          description: Swift version used.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        tuist_version:
+                          description: Tuist version used.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        url:
+                          description: URL to view the cache run in the dashboard.
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - duration
+                        - status
+                        - is_ci
+                        - ran_at
+                        - url
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                required:
+                  - cache_runs
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of cache runs
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+      summary: List cache runs associated with a given project.
+      tags:
+        - Cache Runs
+  /api/projects/{account_handle}/{project_handle}/generations/{generation_id}:
+    get:
+      callbacks: {}
+      operationId: getGeneration
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The ID of the generation.
+          in: path
+          name: generation_id
+          required: true
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  cacheable_targets:
+                    description: Cacheable targets.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  command_arguments:
+                    description: Command arguments used.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  duration:
+                    description: Generation duration in milliseconds.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  git_branch:
+                    description: Git branch.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  git_commit_sha:
+                    description: Git commit SHA.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  git_ref:
+                    description: Git ref.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  id:
+                    description: The generation ID.
+                    format: uuid
+                    type: string
+                    x-struct:
+                    x-validate:
+                  is_ci:
+                    description: Whether the generation ran on CI.
+                    type: boolean
+                    x-struct:
+                    x-validate:
+                  local_cache_target_hits:
+                    description: Local cache target hits.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  macos_version:
+                    description: macOS version.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  ran_at:
+                    description: Unix timestamp when the generation ran.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  remote_cache_target_hits:
+                    description: Remote cache target hits.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  status:
+                    description: Generation status.
+                    enum:
+                      - success
+                      - failure
+                    type: string
+                    x-struct:
+                    x-validate:
+                  swift_version:
+                    description: Swift version used.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  tuist_version:
+                    description: Tuist version used.
+                    nullable: true
+                    type: string
+                    x-struct:
+                    x-validate:
+                  url:
+                    description: URL to view the generation in the dashboard.
+                    type: string
+                    x-struct:
+                    x-validate:
+                required:
+                  - id
+                  - duration
+                  - status
+                  - is_ci
+                  - ran_at
+                  - url
+                type: object
+                x-struct:
+                x-validate:
+          description: Generation details
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Generation not found
+      summary: Get a generation by ID.
+      tags:
+        - Generations
   /api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons:
     post:
       callbacks: {}
@@ -8926,6 +9657,213 @@ paths:
       summary: It completes a multi-part upload.
       tags:
         - Previews
+  /api/projects/{account_handle}/{project_handle}/generations:
+    get:
+      callbacks: {}
+      operationId: listGenerations
+      parameters:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by git ref.
+          in: query
+          name: git_ref
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: Filter by git commit SHA.
+          in: query
+          name: git_commit_sha
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page_size
+          required: false
+          schema:
+            default: 20
+            description: The maximum number of generations to return in a single page.
+            maximum: 100
+            minimum: 1
+            title: GenerationsIndexPageSize
+            type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: page
+          required: false
+          schema:
+            default: 1
+            description: The page number to return.
+            minimum: 1
+            title: GenerationsIndexPage
+            type: integer
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  generations:
+                    items:
+                      properties:
+                        cacheable_targets:
+                          description: Cacheable targets.
+                          items:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
+                        duration:
+                          description: Generation duration in milliseconds.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        git_branch:
+                          description: Git branch.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_commit_sha:
+                          description: Git commit SHA.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        git_ref:
+                          description: Git ref.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        id:
+                          description: The generation ID.
+                          format: uuid
+                          type: string
+                          x-struct:
+                          x-validate:
+                        is_ci:
+                          description: Whether the generation ran on CI.
+                          type: boolean
+                          x-struct:
+                          x-validate:
+                        local_cache_target_hits:
+                          description: Local cache target hits.
+                          items:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
+                        macos_version:
+                          description: macOS version.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        ran_at:
+                          description: Unix timestamp when the generation ran.
+                          type: integer
+                          x-struct:
+                          x-validate:
+                        remote_cache_target_hits:
+                          description: Remote cache target hits.
+                          items:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          type: array
+                          x-struct:
+                          x-validate:
+                        status:
+                          description: Generation status.
+                          enum:
+                            - success
+                            - failure
+                          type: string
+                          x-struct:
+                          x-validate:
+                        swift_version:
+                          description: Swift version used.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        tuist_version:
+                          description: Tuist version used.
+                          nullable: true
+                          type: string
+                          x-struct:
+                          x-validate:
+                        url:
+                          description: URL to view the generation in the dashboard.
+                          type: string
+                          x-struct:
+                          x-validate:
+                      required:
+                        - id
+                        - duration
+                        - status
+                        - is_ci
+                        - ran_at
+                        - url
+                      type: object
+                      x-struct:
+                      x-validate:
+                    type: array
+                    x-struct:
+                    x-validate:
+                  pagination_metadata:
+                    $ref: '#/components/schemas/PaginationMetadata'
+                required:
+                  - generations
+                  - pagination_metadata
+                type: object
+                x-struct:
+                x-validate:
+          description: List of generations
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: You don't have permission to access this resource
+      summary: List generations associated with a given project.
+      tags:
+        - Generations
   /api/projects/{id}:
     delete:
       callbacks: {}

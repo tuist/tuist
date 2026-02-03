@@ -14,6 +14,12 @@ config :cache, Cache.Repo,
   queue_target: 1_000,
   queue_interval: 1_000
 
+config :cache, Cache.SQLiteBuffer,
+  flush_interval_ms: 500,
+  flush_timeout_ms: 30_000,
+  max_batch_size: 1000,
+  shutdown_ms: 30_000
+
 config :cache, CacheWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,
@@ -63,6 +69,7 @@ config :logger, :console,
 config :phoenix, :json_library, Jason
 
 config :sentry,
+  client: TuistCommon.SentryHTTPClient,
   enable_source_code_context: true,
   root_source_code_paths: [File.cwd!()],
   before_send: {TuistCommon.SentryEventFilter, :before_send}

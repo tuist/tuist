@@ -31,7 +31,8 @@ defmodule TuistWeb.Endpoint do
   plug Plug.Static,
     at: "/",
     from: :tuist,
-    gzip: false,
+    gzip: true,
+    cache_control_for_etags: "public, max-age=31536000, immutable",
     only: TuistWeb.static_paths()
 
   if Code.ensure_loaded?(Tidewave) do
@@ -66,7 +67,8 @@ defmodule TuistWeb.Endpoint do
     handler: GitHubController,
     secret: {Tuist.Environment, :github_app_webhook_secret, []},
     signature_header: "x-hub-signature-256",
-    signature_prefix: "sha256="
+    signature_prefix: "sha256=",
+    read_timeout: 60_000
 
   plug WebhookPlug,
     at: "/webhooks/cache",
@@ -74,10 +76,14 @@ defmodule TuistWeb.Endpoint do
     secret: {Tuist.Environment, :cache_api_key, []},
     signature_header: "x-cache-signature"
 
+  # The /api/runs endpoint can receive large payloads (files, cacheable_tasks, cas_outputs)
+  # for projects with thousands of files. 50MB should accommodate most projects.
+  # TODO: Consider streaming large arrays instead of loading everything into memory.
   plug Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
-    json_decoder: Phoenix.json_library()
+    json_decoder: Phoenix.json_library(),
+    length: 50_000_000
 
   plug Plug.MethodOverride
   plug Plug.Head

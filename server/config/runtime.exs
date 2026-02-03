@@ -204,6 +204,7 @@ end
 
 if Tuist.Environment.error_tracking_enabled?() do
   config :sentry,
+    client: TuistCommon.SentryHTTPClient,
     dsn: Tuist.Environment.sentry_dsn(secrets),
     environment_name: env,
     enable_source_code_context: true,

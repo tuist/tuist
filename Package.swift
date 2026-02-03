@@ -900,6 +900,7 @@ let package = Package(
         .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.14.11")),
         .package(url: "https://github.com/tuist/Command.git", .upToNextMajor(from: "0.8.0")),
         .package(id: "apple.swift-nio", from: "2.70.0"),
+        .package(id: "crspybits.swift-log-file", .upToNextMajor(from: "0.1.0")),
         .package(id: "tuist.Noora", from: "0.54.0"),
         .package(
             id: "frazer-rbsn.OrderedSet", .upToNextMajor(from: "2.0.0")

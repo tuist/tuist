@@ -3,6 +3,7 @@ import Foundation
     import FoundationNetworking
 #endif
 import Mockable
+import TuistEnvironment
 import TuistLogging
 import TuistServer
 
@@ -45,6 +46,14 @@ public struct CacheURLStore: CacheURLStoring {
     }
 
     public func getCacheURL(for serverURL: URL, accountHandle: String?) async throws -> URL {
+        if let overrideEndpoint = Environment.current.variables["TUIST_CACHE_ENDPOINT"] {
+            guard let url = URL(string: overrideEndpoint) else {
+                throw CacheURLStoreError.invalidURL(overrideEndpoint)
+            }
+            Logger.current.debug("Using cache endpoint override: \(overrideEndpoint)")
+            return url
+        }
+
         let key = "cache_url_\(serverURL.absoluteString)_\(accountHandle ?? "global")"
         let nsKey = key as NSString
 

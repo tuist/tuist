@@ -344,8 +344,8 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                             return (token, nil as Date?)
                         case let .account(accessToken):
                             return (token, accessToken.expiryDate)
-                        case let .user(accessToken: _, refreshToken: refreshToken):
-                            return (token, refreshToken.expiryDate)
+                        case let .user(accessToken: accessToken, refreshToken: _):
+                            return (token, accessToken.expiryDate)
                         }
                     }
                 #else
@@ -372,8 +372,8 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                         return (token, nil as Date?)
                     case let .account(accessToken):
                         return (token, accessToken.expiryDate)
-                    case let .user(accessToken: _, refreshToken: refreshToken):
-                        return (token, refreshToken.expiryDate)
+                    case let .user(accessToken: accessToken, refreshToken: _):
+                        return (token, accessToken.expiryDate)
                     }
                 }
             #else
@@ -559,6 +559,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                     expiresAt = accessToken.expiryDate
                 }
             }
+
             return (value: upToDateToken, expiresAt: expiresAt)
         }
     }

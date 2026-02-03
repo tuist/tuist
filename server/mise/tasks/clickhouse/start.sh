@@ -17,4 +17,3 @@ EOF
 # Start ClickHouse in background (--daemon flag doesn't pick up config.d correctly)
 # Set keep_alive_timeout to 30 seconds to prevent connection issues
 TZ=UTC nohup clickhouse server -- --keep_alive_timeout=30 > /dev/null 2>&1 &
-echo $! > .clickhouse.pid

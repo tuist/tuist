@@ -6,6 +6,7 @@ defmodule Cache.KeyValueStore do
 
   import Cachex.Spec, only: [expiration: 1]
 
+  alias Cache.KeyValueBuffer
   alias Cache.KeyValueEntry
   alias Cache.Repo
 
@@ -82,21 +83,7 @@ defmodule Cache.KeyValueStore do
   end
 
   defp persist_entry(key, json) do
-    attrs = %{
-      key: key,
-      json_payload: json
-    }
-
-    %KeyValueEntry{}
-    |> KeyValueEntry.changeset(attrs)
-    |> Repo.insert(
-      conflict_target: :key,
-      on_conflict: {:replace, [:json_payload, :updated_at]}
-    )
-    |> case do
-      {:ok, _record} -> :ok
-      {:error, reason} -> {:error, reason}
-    end
+    :ok = KeyValueBuffer.enqueue(key, json)
   end
 
   defp load_from_persistence(key) do

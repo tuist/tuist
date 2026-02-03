@@ -99,6 +99,7 @@ final class TestService { // swiftlint:disable:this type_body_length
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let ciController: CIControlling
     private let clock: Clock
+    private let listTestCasesService: ListTestCasesServicing
 
     convenience init(
         generatorFactory: GeneratorFactorying,
@@ -109,7 +110,8 @@ final class TestService { // swiftlint:disable:this type_body_length
         self.init(
             generatorFactory: generatorFactory,
             cacheStorageFactory: cacheStorageFactory,
-            configLoader: configLoader
+            configLoader: configLoader,
+            listTestCasesService: ListTestCasesService()
         )
     }
 
@@ -132,7 +134,8 @@ final class TestService { // swiftlint:disable:this type_body_length
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         ciController: CIControlling = CIController(),
-        clock: Clock = WallClock()
+        clock: Clock = WallClock(),
+        listTestCasesService: ListTestCasesServicing = ListTestCasesService()
     ) {
         self.generatorFactory = generatorFactory
         self.cacheStorageFactory = cacheStorageFactory
@@ -153,6 +156,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         self.serverEnvironmentService = serverEnvironmentService
         self.ciController = ciController
         self.clock = clock
+        self.listTestCasesService = listTestCasesService
     }
 
     static func validateParameters(
@@ -252,7 +256,8 @@ final class TestService { // swiftlint:disable:this type_body_length
         ignoreBinaryCache: Bool,
         ignoreSelectiveTesting: Bool,
         generateOnly: Bool,
-        passthroughXcodeBuildArguments: [String]
+        passthroughXcodeBuildArguments: [String],
+        skipQuarantine: Bool = false
     ) async throws {
         if validateTestTargetsParameters {
             try Self.validateParameters(
@@ -297,6 +302,14 @@ final class TestService { // swiftlint:disable:this type_body_length
         if generateOnly {
             return
         }
+
+        var skipTestTargets = skipTestTargets
+        skipTestTargets.append(
+            contentsOf: await quarantinedTestsToSkip(
+                skipQuarantine: skipQuarantine,
+                config: config
+            )
+        )
 
         let graphTraverser = GraphTraverser(graph: graph)
         let version = osVersion?.version()
@@ -1028,5 +1041,55 @@ final class TestService { // swiftlint:disable:this type_body_length
         )
 
         await RunMetadataStorage.current.update(testRunId: test.id)
+    }
+
+    private func quarantinedTestsToSkip(
+        skipQuarantine: Bool,
+        config: Tuist
+    ) async -> [TestIdentifier] {
+        guard !skipQuarantine, let fullHandle = config.fullHandle else {
+            return []
+        }
+        do {
+            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+            let quarantinedTests = try await fetchQuarantinedTests(
+                fullHandle: fullHandle,
+                serverURL: serverURL
+            )
+            if !quarantinedTests.isEmpty {
+                Logger.current.notice(
+                    "Skipping \(quarantinedTests.count) quarantined test(s)",
+                    metadata: .subsection
+                )
+            }
+            return quarantinedTests
+        } catch {
+            AlertController.current.warning(
+                .alert("Failed to fetch quarantined tests: \(error.localizedDescription). Running all tests.")
+            )
+            return []
+        }
+    }
+
+    private func fetchQuarantinedTests(
+        fullHandle: String,
+        serverURL: URL
+    ) async throws -> [TestIdentifier] {
+        let response = try await listTestCasesService.listTestCases(
+            fullHandle: fullHandle,
+            serverURL: serverURL,
+            flaky: nil,
+            quarantined: true,
+            page: 1,
+            pageSize: 500
+        )
+
+        return try response.test_cases.map { testCase in
+            try TestIdentifier(
+                target: testCase.module.name,
+                class: testCase.suite?.name,
+                method: testCase.name
+            )
+        }
     }
 }

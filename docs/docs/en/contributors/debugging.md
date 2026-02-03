@@ -11,6 +11,22 @@ Being open is a practical advantage: the code is available, you can run it local
 
 If you find missing or incomplete documentation while debugging, update the English docs under `docs/` and open a PR.
 
+## Capture thread dumps on CI {#thread-dump-ci}
+
+When the CLI hangs intermittently, you can capture a thread dump without stopping the process. Enable the signal handler and send `SIGUSR1` to the running `tuist` process.
+
+```bash
+export TUIST_THREAD_DUMP_SIGNAL=1
+export TUIST_THREAD_DUMP_SAMPLE=1 # macOS only, captures all threads via /usr/bin/sample
+tuist generate &
+TUIST_PID=$!
+sleep 600
+kill -USR1 "$TUIST_PID"
+wait "$TUIST_PID"
+```
+
+If `TUIST_THREAD_DUMP_SAMPLE` is not set, the handler prints the current thread stack. The output is written to stderr, so it shows up in CI logs.
+
 ## Use coding agents {#use-coding-agents}
 
 Coding agents are useful for:

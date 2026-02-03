@@ -56,8 +56,8 @@ public final class GetBundleService: GetBundleServicing {
             .init(
                 path: .init(
                     account_handle: handles.accountHandle,
-                    bundle_id: bundleId,
-                    project_handle: handles.projectHandle
+                    project_handle: handles.projectHandle,
+                    bundle_id: bundleId
                 )
             )
         )

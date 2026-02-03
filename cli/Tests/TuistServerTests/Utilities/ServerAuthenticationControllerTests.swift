@@ -289,4 +289,32 @@ struct ServerAuthenticationControllerTests {
             }
         }
     }
+
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedDependencies()
+    ) func executeRefresh_sets_cache_expiration_based_on_access_token() async throws {
+        let date = Date(timeIntervalSince1970: TimeInterval(Int(Date().timeIntervalSince1970)))
+        try await Date.$now.withValue({ date }) {
+            // Given
+            let serverURL: URL = .test()
+            let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
+
+            let accessToken = try JWT.make(expiryDate: date.addingTimeInterval(+600), typ: "access")
+            let refreshToken = try JWT.make(expiryDate: date.addingTimeInterval(+3600), typ: "refresh")
+            let storeCredentials: ServerCredentials = .test(
+                accessToken: accessToken.token,
+                refreshToken: refreshToken.token
+            )
+
+            given(serverCredentialsStore).read(serverURL: .value(serverURL)).willReturn(storeCredentials)
+
+            // When
+            let result = try await subject.executeRefresh(serverURL: serverURL, forceRefresh: false)
+
+            // Then
+            let expiresAt = try #require(result?.expiresAt)
+            #expect(expiresAt == date.addingTimeInterval(+600))
+        }
+    }
 }

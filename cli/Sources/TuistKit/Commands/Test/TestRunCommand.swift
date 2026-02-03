@@ -207,6 +207,13 @@ public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand,
     )
     var buildOnly: Bool = false
 
+    @Flag(
+        name: .long,
+        help: "When passed, the quarantine feature is disabled and tests run regardless of whether they are quarantined on the server.",
+        envKey: .testSkipQuarantine
+    )
+    var skipQuarantine: Bool = false
+
     @Argument(
         parsing: .postTerminator,
         help: "Arguments that will be passed through to xcodebuild. Use -- followed by xcodebuild arguments. Example: tuist test -- -destination 'platform=iOS Simulator,name=iPhone 15' -parallel-testing-enabled YES"
@@ -315,7 +322,8 @@ public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand,
             ignoreBinaryCache: !binaryCache,
             ignoreSelectiveTesting: !selectiveTesting,
             generateOnly: generateOnly,
-            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
+            skipQuarantine: skipQuarantine
         )
     }
 }

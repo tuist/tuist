@@ -429,6 +429,50 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
+    func test_resourceBundleDependencies_when_app_depends_on_external_static_framework_with_bundle_resource_files() {
+        // Given
+        // App -> StaticFramework (External, has .bundle resource files)
+        let app = Target.test(name: "App", product: .app)
+        let bundlePath = try! AbsolutePath(validating: "/ExternalProject/YandexPaySDKResources.bundle")
+        let staticFramework = Target.test(
+            name: "StaticFramework",
+            product: .staticFramework,
+            resources: .init([.file(path: bundlePath)])
+        )
+        let project = Project.test(targets: [app])
+        let externalProject = Project.test(
+            path: try! AbsolutePath(validating: "/ExternalProject"),
+            targets: [staticFramework],
+            type: .external(hash: nil)
+        )
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: project.path): Set([.target(
+                name: staticFramework.name,
+                path: externalProject.path
+            )]),
+            .target(name: staticFramework.name, path: externalProject.path): Set([]),
+        ]
+
+        let graph = Graph.test(
+            path: project.path,
+            projects: [
+                project.path: project,
+                externalProject.path: externalProject,
+            ],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let appBundleDependencies = subject.resourceBundleDependencies(path: project.path, name: app.name).sorted()
+
+        // Then
+        XCTAssertEqual(appBundleDependencies, [
+            .bundle(path: bundlePath, condition: nil),
+        ])
+    }
+
     func test_resourceBundleDependencies_when_the_target_doesnt_support_resources() {
         // Given
         // StaticLibrary -> Bundle
@@ -1272,6 +1316,49 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(
             got, [
                 .product(target: "StaticResourcesFramework", productName: "StaticResourcesFramework.framework"),
+            ]
+        )
+    }
+
+    func test_embeddableFrameworks_when_dependencyIsStaticFrameworkWithBuildableFolderResources() throws {
+        // Given
+        let target = Target.test(name: "Main", product: .app)
+        let resourcesPath = try AbsolutePath(validating: "/Absolute/Resources")
+        let assetCatalogPath = resourcesPath.appending(component: "Assets.xcassets")
+        let buildableFolder = BuildableFolder(
+            path: resourcesPath,
+            exceptions: BuildableFolderExceptions(exceptions: []),
+            resolvedFiles: [BuildableFolderFile(path: assetCatalogPath, compilerFlags: nil)]
+        )
+        let staticFramework = Target.test(
+            name: "StaticBuildableResourcesFramework",
+            product: .staticFramework,
+            buildableFolders: [buildableFolder]
+        )
+        let project = Project.test(targets: [target, staticFramework])
+
+        // Given: Value Graph
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(
+                    name: target.name,
+                    path: project.path
+                ): Set(arrayLiteral: .target(name: staticFramework.name, path: project.path)),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
+
+        // Then
+        XCTAssertEqual(
+            got, [
+                .product(
+                    target: "StaticBuildableResourcesFramework",
+                    productName: "StaticBuildableResourcesFramework.framework"
+                ),
             ]
         )
     }
@@ -3440,6 +3527,44 @@ final class GraphTraverserTests: TuistUnitTestCase {
             .product(target: "DynamicFramework", productName: "DynamicFramework.framework"),
             GraphDependencyReference(staticXCFramework),
         ])
+    }
+
+    func test_embeddableFrameworks_when_dependencyIsStaticXCFrameworkWithStaticLibrary() throws {
+        // Given
+        // App depends on a static XCFramework that contains a .a static library (not a .framework)
+        // Static XCFrameworks with .a libraries should NOT be embedded because they don't have
+        // an Info.plist and will fail to load at runtime with:
+        // "Failed to load Info.plist from bundle at path .../SomeLibrary.framework"
+        let app = Target.test(name: "App", platform: .iOS, product: .app)
+        let project = Project.test(targets: [app])
+
+        let staticXCFrameworkWithLibrary: GraphDependency = .testXCFramework(
+            path: "/xcframeworks/GoogleMapsCore.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "ios-arm64",
+                path: try RelativePath(validating: "GoogleMapsCore.a"),
+                architectures: [.arm64]
+            )]),
+            linking: .static,
+            status: .required
+        )
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: project.path): [staticXCFrameworkWithLibrary],
+            staticXCFrameworkWithLibrary: [],
+        ]
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.embeddableFrameworks(path: project.path, name: app.name).sorted()
+
+        // Then
+        // The static XCFramework with .a library should NOT be embedded
+        XCTAssertEqual(got.count, 0)
     }
 
     func test_linkableDependencies_when_dependencyIsAFramework() throws {
