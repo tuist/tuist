@@ -14,11 +14,7 @@ import Path
 private enum TuistCLI {
     static func main() async throws {
         try await initDependencies { logFilePath in
-            #if os(macOS)
-                try await TuistCommand.main(logFilePath: logFilePath)
-            #else
-                await TuistCommand.main()
-            #endif
+            try await TuistCommand.main(logFilePath: logFilePath)
         }
     }
 }

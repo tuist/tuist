@@ -1,14 +1,14 @@
 @_exported import ArgumentParser
 import Foundation
+import Noora
+import Path
 import TuistAuth
 import TuistCacheCommand
 import TuistEnvironment
 import TuistVersionCommand
 
 #if os(macOS)
-    import Noora
     import OpenAPIRuntime
-    import Path
     import TuistCore
     import TuistHTTP
     import TuistKit
@@ -43,7 +43,7 @@ public struct TuistCommand: AsyncParsableCommand {
                     subcommands: [
                         HashCommand.self,
                         BuildCommand.self,
-                        TuistCacheCommand.CacheCommand.self,
+                        CacheCommand.self,
                         CacheStartCommand.self,
                         CleanCommand.self,
                         DumpCommand.self,
@@ -100,10 +100,10 @@ public struct TuistCommand: AsyncParsableCommand {
                 ProjectCommand.self,
                 BundleCommand.self,
                 OrganizationCommand.self,
-                TuistAuth.AuthCommand.self,
+                AuthCommand.self,
             ]
         #else
-            [TuistAuth.AuthCommand.self]
+            [AuthCommand.self]
         #endif
     }
 
@@ -115,12 +115,14 @@ public struct TuistCommand: AsyncParsableCommand {
         #endif
     }
 
-    #if os(macOS)
-        public static func main(
-            logFilePath: AbsolutePath,
-            _ arguments: [String]? = nil,
-            parseAsRoot: ((_ arguments: [String]?) throws -> ParsableCommand) = Self.parseAsRoot
-        ) async throws {
+    public static func main(
+        logFilePath: AbsolutePath,
+        _ arguments: [String]? = nil,
+        parseAsRoot: ((_ arguments: [String]?) throws -> ParsableCommand) = Self.parseAsRoot
+    ) async throws {
+        let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
+
+        #if os(macOS)
             let path: AbsolutePath
             if let argumentIndex = CommandLine.arguments.firstIndex(of: "--path") {
                 path = try AbsolutePath(
@@ -133,7 +135,6 @@ public struct TuistCommand: AsyncParsableCommand {
             try await CacheDirectoriesProvider.bootstrap()
 
             let executeCommand: () async throws -> Void
-            let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
             var parsingError: Error?
             var logFilePathDisplayStrategy: LogFilePathDisplayStrategy = .onError
 
@@ -206,8 +207,25 @@ public struct TuistCommand: AsyncParsableCommand {
                     }
                 }
             }
-        }
+        #else
+            try await withLoggerForNoora(logFilePath: logFilePath) {
+                try await Noora.$current.withValue(initNoora()) {
+                    do {
+                        let command = try parseAsRoot(processedArguments)
+                        if var asyncCommand = command as? AsyncParsableCommand {
+                            try await asyncCommand.run()
+                        } else {
+                            try command.run()
+                        }
+                    } catch {
+                        exit(withError: error)
+                    }
+                }
+            }
+        #endif
+    }
 
+    #if os(macOS)
         private static func onError(_ error: Error, isParsingError: Bool, logFilePath: AbsolutePath) {
             var errorAlertMessage: TerminalText?
             var errorAlertNextSteps: [TerminalText] = [
