@@ -3,7 +3,7 @@ import Mockable
 import Testing
 import TuistCAS
 import TuistCore
-import TuistLoader
+import TuistHTTP
 import TuistServer
 import TuistSupport
 import TuistTesting
@@ -11,42 +11,35 @@ import TuistTesting
 @testable import TuistKit
 @testable import TuistOIDC
 
-struct CacheConfigServiceTests {
+struct CacheConfigCommandServiceTests {
     private let serverURL = URL(string: "https://test.tuist.dev")!
     private let cacheURL = URL(string: "https://cache.tuist.dev")!
-    private let serverEnvironmentService: MockServerEnvironmentServicing
-    private let serverAuthenticationController: MockServerAuthenticationControlling
-    private let cacheURLStore: MockCacheURLStoring
-    private let configLoader: MockConfigLoading
-    private let ciOIDCAuthenticator: MockCIOIDCAuthenticating
-    private let exchangeOIDCTokenService: MockExchangeOIDCTokenServicing
-    private let subject: CacheConfigService
+    private let serverEnvironmentService = MockServerEnvironmentServicing()
+    private let serverAuthenticationController = MockServerAuthenticationControlling()
+    private let cacheURLStore = MockCacheURLStoring()
+    private let fullHandleService = MockFullHandleServicing()
+    private let ciOIDCAuthenticator = MockCIOIDCAuthenticating()
+    private let exchangeOIDCTokenService = MockExchangeOIDCTokenServicing()
+    private let subject: CacheConfigCommandService
 
     init() {
-        serverEnvironmentService = MockServerEnvironmentServicing()
-        serverAuthenticationController = MockServerAuthenticationControlling()
-        cacheURLStore = MockCacheURLStoring()
-        configLoader = MockConfigLoading()
-        ciOIDCAuthenticator = MockCIOIDCAuthenticating()
-        exchangeOIDCTokenService = MockExchangeOIDCTokenServicing()
-
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.test(url: serverURL))
-
         given(serverEnvironmentService)
-            .url(configServerURL: .any)
+            .url()
             .willReturn(serverURL)
+
+        given(fullHandleService)
+            .parse(.any)
+            .willReturn((accountHandle: "my-account", projectHandle: "my-project"))
 
         given(cacheURLStore)
             .getCacheURL(for: .any, accountHandle: .any)
             .willReturn(cacheURL)
 
-        subject = CacheConfigService(
+        subject = CacheConfigCommandService(
             serverEnvironmentService: serverEnvironmentService,
             serverAuthenticationController: serverAuthenticationController,
             cacheURLStore: cacheURLStore,
-            configLoader: configLoader,
+            fullHandleService: fullHandleService,
             ciOIDCAuthenticator: ciOIDCAuthenticator,
             exchangeOIDCTokenService: exchangeOIDCTokenService
         )
@@ -62,8 +55,8 @@ struct CacheConfigServiceTests {
         try await subject.run(
             fullHandle: "my-account/my-project",
             json: true,
-            directory: nil,
-            serverURL: nil
+            forceRefresh: false,
+            url: nil
         )
 
         // Then
@@ -87,8 +80,8 @@ struct CacheConfigServiceTests {
         try await subject.run(
             fullHandle: "my-account/my-project",
             json: true,
-            directory: nil,
-            serverURL: nil
+            forceRefresh: false,
+            url: nil
         )
 
         // Then
@@ -132,8 +125,8 @@ struct CacheConfigServiceTests {
         try await subject.run(
             fullHandle: "my-account/my-project",
             json: true,
-            directory: nil,
-            serverURL: nil
+            forceRefresh: false,
+            url: nil
         )
 
         // Then
@@ -158,12 +151,12 @@ struct CacheConfigServiceTests {
             .willThrow(CIOIDCAuthenticatorError.unsupportedCIEnvironment)
 
         // When/Then
-        await #expect(throws: CacheConfigServiceError.notAuthenticated) {
+        await #expect(throws: CacheConfigCommandServiceError.notAuthenticated) {
             try await subject.run(
                 fullHandle: "my-account/my-project",
                 json: true,
-                directory: nil,
-                serverURL: nil
+                forceRefresh: false,
+                url: nil
             )
         }
     }
@@ -181,15 +174,11 @@ struct CacheConfigServiceTests {
         try await subject.run(
             fullHandle: "my-account/my-project",
             json: true,
-            directory: nil,
-            serverURL: customServerURL
+            forceRefresh: false,
+            url: customServerURL
         )
 
         // Then
-        verify(configLoader)
-            .loadConfig(path: .any)
-            .called(0)
-
         verify(serverAuthenticationController)
             .authenticationToken(serverURL: .value(URL(string: customServerURL)!))
             .called(1)
@@ -197,15 +186,13 @@ struct CacheConfigServiceTests {
 
     @Test(.withMockedEnvironment())
     func run_throws_when_server_url_is_invalid() async throws {
-        // Given - no mocks needed, error occurs before any service calls
-
         // When/Then
-        await #expect(throws: CacheConfigServiceError.invalidServerURL("not a url")) {
+        await #expect(throws: CacheConfigCommandServiceError.invalidServerURL("not a url")) {
             try await subject.run(
                 fullHandle: "my-account/my-project",
                 json: true,
-                directory: nil,
-                serverURL: "not a url"
+                forceRefresh: false,
+                url: "not a url"
             )
         }
     }
@@ -221,11 +208,15 @@ struct CacheConfigServiceTests {
         try await subject.run(
             fullHandle: "my-account/my-project",
             json: true,
-            directory: nil,
-            serverURL: nil
+            forceRefresh: false,
+            url: nil
         )
 
         // Then
+        verify(fullHandleService)
+            .parse(.value("my-account/my-project"))
+            .called(1)
+
         verify(cacheURLStore)
             .getCacheURL(for: .any, accountHandle: .value("my-account"))
             .called(1)

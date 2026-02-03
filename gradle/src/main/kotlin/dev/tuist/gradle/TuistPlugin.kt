@@ -69,7 +69,6 @@ class TuistPlugin : Plugin<Settings> {
             remote(TuistBuildCache::class.java) {
                 this.fullHandle = extension.fullHandle
                 this.executablePath = extension.executablePath
-                this.executableCommand = extension.executableCommand
                 isPush = buildCacheConfig.push
                 this.allowInsecureProtocol = buildCacheConfig.allowInsecureProtocol
             }
@@ -96,13 +95,6 @@ open class TuistExtension {
      * 'tuist' in the system PATH.
      */
     var executablePath: String? = null
-
-    /**
-     * Command to run tuist as a list of arguments.
-     * For example: listOf("swift", "run", "tuist") for running from source.
-     * When set, this takes precedence over executablePath.
-     */
-    var executableCommand: List<String>? = null
 
     /**
      * Build cache configuration.
