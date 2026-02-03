@@ -47,21 +47,29 @@ public struct AppBundleLoader: AppBundleLoading {
     }
 
     public func load(ipa: AbsolutePath) async throws -> AppBundle {
-        let unarchivedIPA = try fileArchiverFactory.makeFileUnarchiver(for: ipa).unzip()
+        let unarchiver = try fileArchiverFactory.makeFileUnarchiver(for: ipa)
+        let unarchivedIPA = try unarchiver.unzip()
 
-        guard let appBundlePath = try await fileSystem.glob(
-            directory: unarchivedIPA,
-            include: ["**/*.app"]
-        )
-        .collect()
-        .first
-        else { throw AppBundleLoaderError.appBundleInIPANotFound(ipa) }
+        do {
+            guard let appBundlePath = try await fileSystem.glob(
+                directory: unarchivedIPA,
+                include: ["**/*.app"]
+            )
+            .collect()
+            .first
+            else { throw AppBundleLoaderError.appBundleInIPANotFound(ipa) }
 
-        let appBundleInfoPlist = try await load(appBundlePath).infoPlist
-        return AppBundle(
-            path: ipa,
-            infoPlist: appBundleInfoPlist
-        )
+            let appBundleInfoPlist = try await load(appBundlePath).infoPlist
+            let appBundle = AppBundle(
+                path: ipa,
+                infoPlist: appBundleInfoPlist
+            )
+            try? await unarchiver.delete()
+            return appBundle
+        } catch {
+            try? await unarchiver.delete()
+            throw error
+        }
     }
 
     public func load(_ appBundle: AbsolutePath) async throws -> AppBundle {

@@ -288,7 +288,7 @@ struct RunCommandService {
         for destination: DestinationType,
         preview: ServerPreview,
         previewLink: URL
-    ) async throws -> AppBundle {
+    ) async throws -> (appBundle: AppBundle, temporaryDirectory: AbsolutePath) {
         guard let url = preview.appBuilds.first(where: { $0.supportedPlatforms.contains(destination) })?.url else {
             throw RunCommandServiceError.noCompatibleAppBuild(destination: destination.description)
         }
@@ -297,17 +297,23 @@ struct RunCommandService {
         }
         guard let archivePath else { throw RunCommandServiceError.appNotFound(previewLink.absoluteString) }
 
-        let unarchivedDirectory = try fileArchiverFactory.makeFileUnarchiver(for: archivePath).unzip()
+        let unarchiver = try fileArchiverFactory.makeFileUnarchiver(for: archivePath)
+        let unarchivedDirectory = try unarchiver.unzip()
 
-        try await fileSystem.remove(archivePath)
+        do {
+            try await fileSystem.remove(archivePath)
 
-        guard let appBundlePath = try await
-            fileSystem.glob(directory: unarchivedDirectory, include: ["*.app", "Payload/*.app"])
-            .collect()
-            .first
-        else { throw RunCommandServiceError.appBundleNotFoundInArchive }
-        let appBundle = try await appBundleLoader.load(appBundlePath)
-        return appBundle
+            guard let appBundlePath = try await
+                fileSystem.glob(directory: unarchivedDirectory, include: ["*.app", "Payload/*.app"])
+                .collect()
+                .first
+            else { throw RunCommandServiceError.appBundleNotFoundInArchive }
+            let appBundle = try await appBundleLoader.load(appBundlePath)
+            return (appBundle: appBundle, temporaryDirectory: unarchivedDirectory)
+        } catch {
+            try? await fileSystem.remove(unarchivedDirectory)
+            throw error
+        }
     }
 
     private func runScheme(
@@ -414,22 +420,28 @@ struct RunCommandService {
         case let .simulator(simulator):
             destination = .simulator(try simulator.runtime.platform())
         }
-        let appBundle = try await appBundle(
+        let preparedAppBundle = try await appBundle(
             for: destination,
             preview: preview,
             previewLink: previewLink
         )
-        switch destinationDevice {
-        case let .physical(physicalDevice):
-            try await runApp(
-                on: physicalDevice,
-                appBundle: appBundle
-            )
-        case let .simulator(simulatorDevice):
-            try await runApp(
-                on: simulatorDevice.device,
-                appBundle: appBundle
-            )
+        do {
+            switch destinationDevice {
+            case let .physical(physicalDevice):
+                try await runApp(
+                    on: physicalDevice,
+                    appBundle: preparedAppBundle.appBundle
+                )
+            case let .simulator(simulatorDevice):
+                try await runApp(
+                    on: simulatorDevice.device,
+                    appBundle: preparedAppBundle.appBundle
+                )
+            }
+            try? await fileSystem.remove(preparedAppBundle.temporaryDirectory)
+        } catch {
+            try? await fileSystem.remove(preparedAppBundle.temporaryDirectory)
+            throw error
         }
     }
 

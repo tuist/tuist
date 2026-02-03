@@ -112,24 +112,27 @@
             switch previewUploadType {
             case let .ipa(bundle):
                 let buildVersion = resolvedBuildVersion(bundle.infoPlist.buildVersion)
-                let binaryId = try await ipaBinaryId(at: bundle.path)
-                let preview = try await uploadPreview(
-                    buildPath: bundle.path,
-                    previewType: .ipa,
-                    displayName: bundle.infoPlist.name,
-                    version: bundle.infoPlist.version,
-                    buildVersion: buildVersion,
-                    bundleIdentifier: bundle.infoPlist.bundleId,
-                    icon: iconPaths(for: previewUploadType).first,
-                    supportedPlatforms: bundle.infoPlist.supportedPlatforms,
-                    gitInfo: gitInfo,
-                    binaryId: binaryId,
-                    fullHandle: fullHandle,
-                    serverURL: serverURL,
-                    track: track,
-                    updateProgress: updateProgress
-                )
-                return preview
+                return try await withUnarchivedIPA(at: bundle.path) { unarchivedDirectory in
+                    let appPath = try await appBundlePath(in: unarchivedDirectory, ipaPath: bundle.path)
+                    let binaryId = try appBundleBinaryId(at: appPath, name: appPath.basenameWithoutExt)
+                    let icon = try await iconPaths(for: bundle, at: appPath).first
+                    return try await uploadPreview(
+                        buildPath: bundle.path,
+                        previewType: .ipa,
+                        displayName: bundle.infoPlist.name,
+                        version: bundle.infoPlist.version,
+                        buildVersion: buildVersion,
+                        bundleIdentifier: bundle.infoPlist.bundleId,
+                        icon: icon,
+                        supportedPlatforms: bundle.infoPlist.supportedPlatforms,
+                        gitInfo: gitInfo,
+                        binaryId: binaryId,
+                        fullHandle: fullHandle,
+                        serverURL: serverURL,
+                        track: track,
+                        updateProgress: updateProgress
+                    )
+                }
 
             case let .appBundles(bundles):
                 var preview: ServerPreview!
@@ -137,30 +140,35 @@
                 for (index, bundle) in bundles.enumerated() {
                     let progressOffset = Double(index) / Double(bundles.count)
                     let progressScale = 1.0 / Double(bundles.count)
-                    let bundleArchivePath = try await fileArchiver
-                        .makeFileArchiver(for: [bundle.path])
-                        .zip(name: bundle.path.basename)
+                    let archiver = try fileArchiver.makeFileArchiver(for: [bundle.path])
+                    let bundleArchivePath = try await archiver.zip(name: bundle.path.basename)
                     let buildVersion = resolvedBuildVersion(bundle.infoPlist.buildVersion)
                     let binaryId = try appBundleBinaryId(at: bundle.path, name: bundle.infoPlist.name)
 
-                    preview = try await uploadPreview(
-                        buildPath: bundleArchivePath,
-                        previewType: .appBundle,
-                        displayName: bundle.infoPlist.name,
-                        version: bundle.infoPlist.version,
-                        buildVersion: buildVersion,
-                        bundleIdentifier: bundle.infoPlist.bundleId,
-                        icon: iconPaths(for: bundle).first,
-                        supportedPlatforms: bundle.infoPlist.supportedPlatforms,
-                        gitInfo: gitInfo,
-                        binaryId: binaryId,
-                        fullHandle: fullHandle,
-                        serverURL: serverURL,
-                        track: track,
-                        updateProgress: { progress in
-                            updateProgress(progressOffset + progress * progressScale)
-                        }
-                    )
+                    do {
+                        preview = try await uploadPreview(
+                            buildPath: bundleArchivePath,
+                            previewType: .appBundle,
+                            displayName: bundle.infoPlist.name,
+                            version: bundle.infoPlist.version,
+                            buildVersion: buildVersion,
+                            bundleIdentifier: bundle.infoPlist.bundleId,
+                            icon: iconPaths(for: bundle).first,
+                            supportedPlatforms: bundle.infoPlist.supportedPlatforms,
+                            gitInfo: gitInfo,
+                            binaryId: binaryId,
+                            fullHandle: fullHandle,
+                            serverURL: serverURL,
+                            track: track,
+                            updateProgress: { progress in
+                                updateProgress(progressOffset + progress * progressScale)
+                            }
+                        )
+                        try? await archiver.delete()
+                    } catch {
+                        try? await archiver.delete()
+                        throw error
+                    }
                 }
 
                 return preview
@@ -254,31 +262,51 @@
             return preview
         }
 
-        private func iconPaths(for previewUploadType: PreviewUploadType) async throws -> [AbsolutePath] {
-            switch previewUploadType {
-            case let .appBundles(appBundles):
-                return try await appBundles.concurrentMap { try await iconPaths(for: $0) }.flatMap { $0 }
-            case let .ipa(appBundle):
-                let unarchiver = try fileArchiver.makeFileUnarchiver(for: appBundle.path)
-                guard let appPath = try await fileSystem.glob(directory: unarchiver.unzip(), include: ["*.app", "Payload/*.app"])
-                    .collect()
-                    .first
-                else {
-                    return []
-                }
-
-                return try await (appBundle.infoPlist.bundleIcons?.primaryIcon?.iconFiles ?? [])
-                    // This is a convention for iOS icons. We might need to adjust this for other platforms in the future.
-                    .map { appPath.appending(component: $0 + "@2x.png") }
-                    .concurrentFilter {
-                        try await fileSystem.exists($0)
-                    }
-                    .concurrentMap { icon in
-                        let outputPath = appPath.appending(component: icon.basenameWithoutExt + "-reverted.png")
-                        try await revertiPhoneOptimizations(of: icon, to: outputPath)
-                        return outputPath
-                    }
+        private func appBundlePath(
+            in unarchivedDirectory: AbsolutePath,
+            ipaPath: AbsolutePath
+        ) async throws -> AbsolutePath {
+            guard let appPath = try await fileSystem
+                .glob(directory: unarchivedDirectory, include: ["*.app", "Payload/*.app"])
+                .collect()
+                .first
+            else {
+                throw PreviewsUploadServiceError.appBundleNotFound(ipaPath)
             }
+            return appPath
+        }
+
+        private func withUnarchivedIPA<T>(
+            at ipaPath: AbsolutePath,
+            _ action: (AbsolutePath) async throws -> T
+        ) async throws -> T {
+            let unarchiver = try fileArchiver.makeFileUnarchiver(for: ipaPath)
+            let unarchivedDirectory = try unarchiver.unzip()
+            do {
+                let result = try await action(unarchivedDirectory)
+                try? await unarchiver.delete()
+                return result
+            } catch {
+                try? await unarchiver.delete()
+                throw error
+            }
+        }
+
+        private func iconPaths(
+            for appBundle: AppBundle,
+            at appPath: AbsolutePath
+        ) async throws -> [AbsolutePath] {
+            try await (appBundle.infoPlist.bundleIcons?.primaryIcon?.iconFiles ?? [])
+                // This is a convention for iOS icons. We might need to adjust this for other platforms in the future.
+                .map { appPath.appending(component: $0 + "@2x.png") }
+                .concurrentFilter {
+                    try await fileSystem.exists($0)
+                }
+                .concurrentMap { icon in
+                    let outputPath = appPath.appending(component: icon.basenameWithoutExt + "-reverted.png")
+                    try await revertiPhoneOptimizations(of: icon, to: outputPath)
+                    return outputPath
+                }
         }
 
         private func iconPaths(for appBundle: AppBundle) async throws -> [AbsolutePath] {
@@ -303,21 +331,6 @@
                     outputPath.pathString,
                 ])
                 .awaitCompletion()
-        }
-
-        private func ipaBinaryId(at path: AbsolutePath) async throws -> String {
-            let unarchiver = try fileArchiver.makeFileUnarchiver(for: path)
-            let unzippedPath = try unarchiver.unzip()
-
-            guard let appPath = try await fileSystem.glob(directory: unzippedPath, include: ["Payload/*.app"])
-                .collect()
-                .first
-            else {
-                throw PreviewsUploadServiceError.appBundleNotFound(path)
-            }
-
-            let appName = appPath.basenameWithoutExt
-            return try appBundleBinaryId(at: appPath, name: appName)
         }
 
         private func appBundleBinaryId(at path: AbsolutePath, name: String) throws -> String {

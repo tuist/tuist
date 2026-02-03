@@ -151,50 +151,62 @@
         ) async throws {
             let passedArtifactPath = artifactPath
             let artifactPath: AbsolutePath
+            var archiver: FileArchiving?
 
             switch artifact.type {
             case .resultBundle:
-                artifactPath = try await fileArchiver.makeFileArchiver(for: [passedArtifactPath])
-                    .zip(name: passedArtifactPath.basenameWithoutExt)
+                let createdArchiver = try fileArchiver.makeFileArchiver(for: [passedArtifactPath])
+                archiver = createdArchiver
+                artifactPath = try await createdArchiver.zip(name: passedArtifactPath.basenameWithoutExt)
             case .invocationRecord, .resultBundleObject:
                 artifactPath = passedArtifactPath
             }
 
-            try await retryProvider.runWithRetries { [self] in
-                let uploadId = try await multipartUploadStartAnalyticsService.uploadAnalyticsArtifact(
-                    artifact,
-                    accountHandle: accountHandle,
-                    projectHandle: projectHandle,
-                    commandEventId: commandEventId,
-                    serverURL: serverURL
-                )
+            do {
+                try await retryProvider.runWithRetries { [self] in
+                    let uploadId = try await multipartUploadStartAnalyticsService.uploadAnalyticsArtifact(
+                        artifact,
+                        accountHandle: accountHandle,
+                        projectHandle: projectHandle,
+                        commandEventId: commandEventId,
+                        serverURL: serverURL
+                    )
 
-                let parts = try await multipartUploadArtifactService.multipartUploadArtifact(
-                    artifactPath: artifactPath,
-                    generateUploadURL: { part in
-                        try await self.multipartUploadGenerateURLAnalyticsService.uploadAnalytics(
-                            artifact,
-                            accountHandle: accountHandle,
-                            projectHandle: projectHandle,
-                            commandEventId: commandEventId,
-                            partNumber: part.number,
-                            uploadId: uploadId,
-                            serverURL: serverURL,
-                            contentLength: part.contentLength
-                        )
-                    },
-                    updateProgress: { _ in }
-                )
+                    let parts = try await multipartUploadArtifactService.multipartUploadArtifact(
+                        artifactPath: artifactPath,
+                        generateUploadURL: { part in
+                            try await self.multipartUploadGenerateURLAnalyticsService.uploadAnalytics(
+                                artifact,
+                                accountHandle: accountHandle,
+                                projectHandle: projectHandle,
+                                commandEventId: commandEventId,
+                                partNumber: part.number,
+                                uploadId: uploadId,
+                                serverURL: serverURL,
+                                contentLength: part.contentLength
+                            )
+                        },
+                        updateProgress: { _ in }
+                    )
 
-                try await multipartUploadCompleteAnalyticsService.uploadAnalyticsArtifact(
-                    artifact,
-                    accountHandle: accountHandle,
-                    projectHandle: projectHandle,
-                    commandEventId: commandEventId,
-                    uploadId: uploadId,
-                    parts: parts,
-                    serverURL: serverURL
-                )
+                    try await multipartUploadCompleteAnalyticsService.uploadAnalyticsArtifact(
+                        artifact,
+                        accountHandle: accountHandle,
+                        projectHandle: projectHandle,
+                        commandEventId: commandEventId,
+                        uploadId: uploadId,
+                        parts: parts,
+                        serverURL: serverURL
+                    )
+                }
+                if let archiver {
+                    try? await archiver.delete()
+                }
+            } catch {
+                if let archiver {
+                    try? await archiver.delete()
+                }
+                throw error
             }
         }
     }

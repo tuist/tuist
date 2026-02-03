@@ -28,27 +28,23 @@ public enum Tuist {
     /// - parameter path: the path which graph should be loaded. If nil, the current path is used.
     public static func graph(at path: String? = nil) throws -> Graph {
         let temporaryDirectory = try createTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
 
-        do {
-            let graphPath = temporaryDirectory.appendingPathComponent("graph.json")
-            var arguments = [
-                "tuist",
-                "graph",
-                "--format", "legacyJSON",
-                "--output-path", temporaryDirectory.path,
-            ]
-            if let path {
-                arguments += ["--path", path]
-            }
-            try run(
-                arguments
-            )
-            let graphData = try Data(contentsOf: graphPath)
-            return try JSONDecoder().decode(Graph.self, from: graphData)
-        } catch {
-            try FileManager.default.removeItem(at: temporaryDirectory)
-            throw error
+        let graphPath = temporaryDirectory.appendingPathComponent("graph.json")
+        var arguments = [
+            "tuist",
+            "graph",
+            "--format", "legacyJSON",
+            "--output-path", temporaryDirectory.path,
+        ]
+        if let path {
+            arguments += ["--path", path]
         }
+        try run(
+            arguments
+        )
+        let graphData = try Data(contentsOf: graphPath)
+        return try JSONDecoder().decode(Graph.self, from: graphData)
     }
 
     private static func createTemporaryDirectory() throws -> URL {

@@ -33,10 +33,14 @@ struct AnalyticsUploadCommandService {
 
     func run(eventFilePath: String, fullHandle: String, serverURL: String) async throws {
         let eventPath = try AbsolutePath(validating: eventFilePath)
+        let eventDirectory = eventPath.parentDirectory
 
         defer {
             Task {
                 try await fileSystem.remove(eventPath)
+                if eventDirectory.basename.hasPrefix("analytics-") {
+                    try? await fileSystem.remove(eventDirectory)
+                }
             }
         }
 
