@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.137.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* record network requests to HAR files for debugging by [@pepicrft](https://github.com/pepicrft) in [#9192](https://github.com/tuist/tuist/pull/9192)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.136.0...4.137.0
+
 ## What's Changed in 4.136.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
