@@ -14,9 +14,6 @@ public struct CacheConfigCommand: AsyncParsableCommand {
 
             The output includes the endpoint URL and authentication credentials that can
             be used to configure build caches for supported build systems like Gradle.
-
-            On Linux, the server URL must be specified via the --server-url flag or TUIST_URL
-            environment variable since configuration file loading is not supported.
             """
         )
     }
