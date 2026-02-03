@@ -110,10 +110,6 @@ msgid "Flags"
 msgstr "フラグ"
 
 #, fuzzy
-msgid "Generate Runs"
-msgstr "実行を生成"
-
-#, fuzzy
 msgid "Get started"
 msgstr "始める"
 
@@ -384,3 +380,10 @@ msgstr "これは tuist/tuist プロジェクトの公開ダッシュボード�
 #, fuzzy
 msgid "Quarantined Tests"
 msgstr "隔離されたテスト"
+
+msgid "Generations"
+msgstr ""
+
+#, fuzzy
+#~ msgid "Generate Runs"
+#~ msgstr "実行を生成"
