@@ -56,7 +56,36 @@
           }
         >
           <:col :let={build_run} label={dgettext("dashboard_builds", "Scheme")}>
-            <.text_cell label={build_run.scheme || "None"} />
+            <div data-part="cell" data-type="text">
+              <div data-part="scheme-with-tags" style="display: flex; align-items: center; gap: 8px;">
+                <span data-part="label"><%= build_run.scheme || "None" %></span>
+                <%= if Enum.any?(build_run.custom_tags || []) do %>
+                  <.badge
+                    label={List.first(build_run.custom_tags)}
+                    color="success"
+                    style="light-fill"
+                    size="large"
+                  />
+                  <%= cond do %>
+                    <% length(build_run.custom_tags) == 2 -> %>
+                      <.badge
+                        label={Enum.at(build_run.custom_tags, 1)}
+                        color="information"
+                        style="light-fill"
+                        size="large"
+                      />
+                    <% length(build_run.custom_tags) > 2 -> %>
+                      <.badge
+                        label={"+#{length(build_run.custom_tags) - 1}"}
+                        color="information"
+                        style="light-fill"
+                        size="large"
+                      />
+                    <% true -> %>
+                  <% end %>
+                <% end %>
+              </div>
+            </div>
           </:col>
           <:col :let={build_run} label={dgettext("dashboard_builds", "Configuration")}>
             <.text_cell label={build_run.configuration || dgettext("dashboard_builds", "Unknown")} />
@@ -76,20 +105,6 @@
           </:col>
           <:col :let={build_run} label={dgettext("dashboard_builds", "Ran by")}>
             <.build_ran_by_badge_cell build={build_run} />
-          </:col>
-          <:col :let={build_run} label={dgettext("dashboard_builds", "Tags")}>
-            <div :if={Enum.any?(build_run.custom_tags || [])} data-part="tags-cell">
-              <.badge
-                :for={tag <- Enum.take(build_run.custom_tags || [], 3)}
-                label={tag}
-                color="neutral"
-                style="light-fill"
-                size="small"
-              />
-              <span :if={length(build_run.custom_tags || []) > 3}>
-                +{length(build_run.custom_tags) - 3}
-              </span>
-            </div>
           </:col>
           <:col
             :let={build_run}
