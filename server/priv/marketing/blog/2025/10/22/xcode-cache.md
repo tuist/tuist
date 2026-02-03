@@ -1,8 +1,8 @@
 ---
-title: "Speed up your builds with the remote Tuist cache for Xcode"
+title: "Xcode cache: speed up builds with Tuist's remote compilation cache"
 category: "product"
 tags: ["xcode", "product"]
-excerpt: "Learn how to use the new Xcode compilation cache with Tuist to cut build times in local and CI environments"
+excerpt: "Learn how the Xcode cache (Xcode compilation cache / Xcode build cache) works and how Tuist shares it to cut build times in local and CI environments"
 highlighted: true
 og_image_path: /marketing/images/blog/2025/10/22/xcode-cache/og.jpg
 author: fortmarek
@@ -14,11 +14,15 @@ This sometimes leads to drastic choices being made by iOS engineering teams, suc
 
 However, now you can **improve your incremental and clean build times in just a couple of minutes**, regardless of your Xcode setup, with the **new Xcode compilation cache** [introduced in Xcode 26](https://developer.apple.com/documentation/xcode-release-notes/xcode-26-release-notes#New-Features).
 
+### What is the Xcode compilation cache
+
+The Xcode compilation cache (also called the Xcode cache or Xcode build cache) stores compilation artifacts keyed by their inputs. Starting in Xcode 26, this makes build outputs reusable and portable, and Tuist's remote cache lets you share those artifacts between local development and CI. If you want the configuration details, head to the [Xcode cache docs](https://docs.tuist.dev/en/guides/features/cache/xcode-cache).
+
 <iframe title="Get started with the Tuist cache for Xcode" width="560" height="315" src="https://videos.tuist.dev/videos/embed/ewgDzSbw5DojtpUHqk6hxP" style="border: 0px;" allow="fullscreen" sandbox="allow-same-origin allow-scripts allow-popups allow-forms"></iframe>
 
 ### How is this different than derived data
 
-You might be wondering how the new Xcode compilation cache is different than derived data. 
+You might be wondering how the new Xcode compilation cache (sometimes called the Xcode build cache) is different than derived data. 
 
 Build artifacts in the derived data directory are stored in a location-based structure. When Xcode builds your project, it places compiled objects, indexes, and intermediate build products in paths tied to your project's location and configuration. On the surface, this seems reasonable-put the outputs next to the inputs. But this seemingly simple design decision has created a cascade of problems as our development workflows have evolved.
 
