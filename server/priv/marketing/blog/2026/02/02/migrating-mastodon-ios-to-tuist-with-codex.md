@@ -1,98 +1,109 @@
 ---
-title: "Codex 5.2 cut Mastodon iOS build time 79.9% in 4 hours"
+title: "We used Codex to migrate Mastodon iOS to Tuist and cut clean builds by 80%"
 category: "engineering"
 tags: ["tuist", "migration", "ios", "codex", "cache"]
-excerpt: "A long-form story of migrating the Mastodon iOS client to Tuist generated projects with Codex, including the plan, the setbacks, the fixes, and the cache-backed benchmark results."
-author: codex
+excerpt: "We gave Codex the Mastodon iOS client and asked it to migrate the project to Tuist generated projects, enable caching, and benchmark the results. Here is what happened."
+author: pepicrft
 og_image_path: /marketing/images/blog/2026/02/02/migrating-mastodon-ios-to-tuist-with-codex/og.jpg
-highlighted: false
+highlighted: true
 ---
 
-Many people asked us why we have not built an automated migration to Tuist generated projects. The reason is simple. Real world projects can be intricate, full of implicit configuration, and packed with one off decisions that are hard to detect and harder to migrate safely. For years, that kept migrations manual and made teams hesitant to adopt generated projects, even though they wanted access to a very performant module cache. This post is our attempt to change that story.
+People have asked us many times why we haven't built an automated migration path to [Tuist generated projects](https://docs.tuist.dev/en/guides/features/projects). The honest answer is that real-world Xcode projects are messy. They are full of implicit configuration, one-off build settings, and decisions that made sense at the time but are hard to detect from the outside. For years, that kept migrations manual and made teams hesitant to adopt generated projects, even when they wanted the [module cache](https://docs.tuist.dev/en/guides/develop/build/cache) and the productivity gains that come with it.
 
-We still believe coding agents can migrate existing apps to Tuist generated projects so teams can benefit from Xcode caching and module caching without giving up the fidelity of their existing setups. If we are right, Tuist gets to manage the complexity of Xcode projects while agents take on the mechanical parts of adoption, and developers get faster workflows with less day to day friction. That is the bet.
+We've been thinking about this differently since coding agents became capable enough to hold context across long feedback loops. What if the agent could do the mechanical work of migration while we focus on defining the constraints and validating the output? If that works, Tuist handles the complexity of Xcode projects, agents handle the tedium of adoption, and developers get faster workflows without the friction of a manual migration.
 
-We tested that bet on the Mastodon iOS client. The goal was ambitious by design. We wanted a real migration, not a demo. We wanted a generated workspace that builds and runs. We wanted caching turned on and doing real work. We wanted a benchmark with clean builds before and after. And we wanted the output to be reusable: a skill that can guide future migrations and a blog post that captures the reality of the process, not just the highlight reel.
+We decided to test this on the [Mastodon iOS client](https://github.com/mastodon/mastodon-ios). The resulting project is [public on GitHub](https://github.com/tuist/mastodon-ios-tuist). Not a toy project, not a demo. A real app with multiple frameworks, extensions, third-party dependencies, and all the quirks that come with a production codebase. The goal was a generated workspace that builds, runs, and benefits from caching. We also wanted to capture the process in a reusable [skill](https://docs.tuist.dev/en/guides/features/agentic-coding/skills) so the next migration doesn't start from scratch.
 
-## The plan we gave Codex
+## What we asked Codex to do
 
-The plan wasn't a checklist of commands. It was a set of outcomes and constraints. Codex had to deliver a Tuist-generated project that stayed as close as possible to the original, with the goal of integrating dependencies through Xcode project primitives so that we could cache those as binaries, and a runtime validation that proved the app actually launches. We also asked Codex to output a `skill.md` that captures what matters during migration so the next project benefits from the same hard earned context.
+We didn't hand Codex a step-by-step checklist. We gave it a set of outcomes: produce a Tuist-generated project that stays as close as possible to the original, integrate dependencies through Xcode project primitives so they can be cached as binaries, validate that the app actually launches on a simulator, and write a `skill.md` that captures the migration knowledge for future use.
 
-## The migration, as it actually happened
+The work ran on February 2, 2026 using [Codex](https://openai.com/codex/) 5.2 with GPT-5 as the underlying model. That detail matters because a migration like this isn't just about compiling. It requires understanding feedback loops, holding state across errors, and making judgment calls when things break. This was a good test of whether the model could handle that without constant human supervision.
 
-We began with the baseline. The original Xcode project compiled and the app launched. That baseline mattered for two reasons. First, it gave us a reality check: the original setup was already healthy. Second, it gave us a point of comparison for the eventual benchmark. Codex executed the baseline build and captured the exact commands so the generated workspace could be validated the same way.
+## How it actually went
 
-From there, Codex extracted build settings into `.xcconfig` files, then wired those configs back into the target definitions in `Project.swift`. This follows our migration guidance in [the docs](https://docs.tuist.dev/en/guides/features/projects/adoption/migrate/xcode-project), which explains why xcconfig extraction makes large projects easier to migrate and maintain. This was not just a mechanical reformat; it preserved the settings hierarchy, kept configurations aligned across targets, and made it easier to match the original Xcode project without cluttering the manifest.
+The first step was establishing a baseline. The original Xcode project compiled and the app launched on the simulator. Having that baseline gave us a reference point for the benchmark and confirmed we were starting from something healthy.
 
-Codex then created the initial `Tuist.swift`, `Project.swift`, and `Tuist/Package.swift` files, mapping each target from the Xcode project into the Tuist graph and integrating dependencies through Xcode project primitives so they could be cached as binaries. When those manifests were in place, Codex generated the workspace with `tuist generate --no-open` and ran `xcodebuild` to validate the first compile.
+From there, the agent extracted build settings into `.xcconfig` files and wired them back into the target definitions in `Project.swift`. This follows our [migration guidance](https://docs.tuist.dev/en/guides/features/projects/adoption/migrate/xcode-project), which recommends xcconfig extraction because it preserves the settings hierarchy and keeps the manifest readable. Then it created the initial `Tuist.swift`, `Project.swift`, and `Tuist/Package.swift`, mapping each target into the Tuist graph.
 
-That early build compiled, but we quickly ran into the kind of migration issue that only shows up when you are strict about "staying close."
+The first `tuist generate --no-open` produced a workspace. The first `xcodebuild` run compiled. And then things started breaking, which is exactly what happens in real migrations.
 
 ### The missing class that wasn't missing
 
-The first real failure was a missing `TimelineListViewController`. The error was surfaced by `DiscoveryViewModel`, which referenced it directly. Codex had excluded the "In Progress New Layout and Datamodel" directory because it looked like unfinished work and the Xcode project contained exception sets that implied selective inclusion. That decision was wrong. The class lived in that directory, and it was needed. Codex fixed it by mirroring the pbx exception set exactly: include the directory and exclude only the explicit file that the project excluded. Once that change landed, the compile errors disappeared.
+The first failure was a missing `TimelineListViewController` referenced by `DiscoveryViewModel`. The agent had excluded a directory called "In Progress New Layout and Datamodel" because it looked like unfinished work. Reasonable assumption, wrong conclusion. The class lived in that directory, and the original Xcode project included it while excluding only one specific file from the folder.
 
-This was the first moment where the agent's behavior mattered. It did not guess. It followed the errors, inspected the pbx structure, and changed the source glob accordingly. No human input was required for the fix.
+What was interesting here was watching the agent work through it. It didn't guess. It went back to the pbx structure, inspected the exception set, and adjusted the source glob to mirror exactly what the original project did. The compile errors disappeared.
 
-### Resources, sources, and intent definitions
+### Resources, sources, and boundary confusion
 
-The second set of errors was subtler. `.intentdefinition` files were being treated as resources when they needed to be sources. `.xcstrings` files were being shadowed by `.strings` globs under a broader resource directory. Settings bundles were being treated as files rather than folder references. Codex corrected each of these in `Project.swift`, regenerated the workspace, and re-ran the build to confirm they were resolved. Each issue was easy to fix once discovered, but they were instructive: migration mistakes are often about boundaries, not about code.
+The second round of errors was subtler. `.intentdefinition` files were being treated as resources when they needed to be sources. `.xcstrings` files were getting shadowed by `.strings` globs under a broader resource directory. Settings bundles were being treated as individual files rather than folder references.
 
-## Why caching was the point and what it took to unlock it
+Each of these was straightforward to fix once identified, but they are a good illustration of why migrations are tricky. The mistakes aren't about code logic. They are about boundaries: where sources end and resources begin, what counts as a file versus a folder reference, which build phase something belongs to.
 
-A lot of companies have a goal of using caching so their agents and developers get faster clean builds and tighter iteration loops. This migration was about making that possible, not just generating a new workspace. That goal also meant we had to resolve the dependency issues that only surfaced once Tuist took over package integration and cache warming.
+## Unlocking cache, the whole point
 
-The first fix involved `UITextView+Placeholder`. It shipped an invalid bundle identifier. This was invisible in the original Xcode project and only surfaced once Tuist took over package integration. Codex solved it by vendoring a local copy into `External/UITextView-Placeholder` and overriding the bundle ID through package settings. It restored a valid configuration without diverging from upstream code.
+The migration was never just about ending up with a more manageable modular project. It was about bringing optimizations like caching so that clean builds become fast by default. And the dependency issues that surfaced during cache warming were some of the most instructive parts of the process.
 
-The second fix involved `MetaTextKit`. The ambiguous `XMLElement` error is a real compilation issue, not a caching artifact. It would have failed a normal build too, but we encountered it while warming the cache. Codex fixed it by vendoring a local copy of MetaTextKit and explicitly typing `Fuzi.XMLElement`. Again, this was a minimal patch, but it unlocked the cache. Both dependency issues were found by the agent and resolved without human input once the failures became visible.
+`UITextView+Placeholder` produced an invalid product name because the `+` character wasn't being sanitized the way SwiftPM does it. This was completely invisible in the original Xcode project and only surfaced once Tuist took over package integration. It turned out to be a bug in Tuist's target name sanitization. We fixed it directly in the Tuist codebase as part of [the same PR](https://github.com/tuist/tuist/pull/9326) where we wrote this blog post. We like that. The migration improved the tool itself.
 
-Codex also updated Swift package mapping to sanitize the `+` character when deriving bundle identifiers, preventing invalid bundle IDs for packages like `UITextView+Placeholder`. Those changes were made directly in the Tuist codebase, with tests, and then pushed as a PR.
+With those fixes in place, `tuist cache` warmed the binaries and `tuist setup cache` enabled the [Xcode compilation cache](https://docs.tuist.dev/en/guides/features/cache). Then we benchmarked.
 
-With those resolved, Codex warmed the cache using `tuist cache` and enabled the Xcode compilation cache through `tuist setup cache`, then ran a warm build to populate CAS artifacts. The benchmark was then run with hyperfine. The baseline was a clean build of the Tuist-generated workspace with the cache profile set to `none`, derived data wiped between runs, and Xcode compilation cache disabled. The cached build used the `all-possible` profile so the only targets built from source were the app and its extensions, and Xcode compilation cache was enabled. Both benchmarks were run three times. The no-cache mean time was 110.797 seconds, with a minimum of 95.538 seconds and a maximum of 132.831 seconds. The cached mean time was 22.260 seconds, with a minimum of 21.006 seconds and a maximum of 24.527 seconds. That is a 4.98x speedup and a 79.9% improvement. The magnitude of the gain matters less than the repeatability: it is now the default in the generated workflow.
+## The benchmark
 
-We were careful about the benchmarking mechanics. We treated each run as a clean build using `xcodebuild clean build` with a dedicated `-derivedDataPath` per scenario. For the no-cache case we wiped derived data between runs to remove module cache, build products, and the Xcode compilation cache directory, and we explicitly disabled compilation caching at build time. For the cached case we warmed Tuist binaries once with `tuist cache`, enabled the Xcode compilation cache with `tuist setup cache`, and generated with `--cache-profile all-possible`. Before each cached run, Codex removed `~/.tuist/Binaries` and the local compilation cache directory so that binaries were fetched from the remote cache and CAS artifacts were pulled from the cache service. Hyperfine made the sequencing repeatable and recorded the mean, min, and max.
+We used [hyperfine](https://github.com/sharkdp/hyperfine) for repeatability. Both scenarios ran three times as clean builds with `xcodebuild clean build` and a dedicated `-derivedDataPath` per scenario.
 
-The commands Codex used looked like this:
+**No-cache baseline:** the Tuist-generated workspace with the cache profile set to `none`, derived data wiped between runs, and Xcode compilation cache disabled.
+
+**Cached build:** the `all-possible` cache profile so only the app and its extensions built from source, with Xcode compilation cache enabled. Before each run, local binaries and the compilation cache directory were removed so artifacts were pulled from the remote cache.
+
+The commands looked like this:
 
 ```bash
 tuist setup cache
 tuist cache
 
 hyperfine --runs 3 --warmup 1 \
-  --prepare 'python -c "import shutil; shutil.rmtree(\"DerivedData-NoCache\", ignore_errors=True)" && tuist generate --no-open --cache-profile none' \
+  --prepare 'rm -rf DerivedData-NoCache && tuist generate --no-open --cache-profile none' \
   'xcodebuild clean build -workspace Mastodon-Tuist.xcworkspace -scheme Mastodon -configuration Debug -destination "platform=iOS Simulator,name=iPhone 17" -derivedDataPath ./DerivedData-NoCache COMPILATION_CACHE_ENABLE_CACHING=NO COMPILATION_CACHE_ENABLE_PLUGIN=NO'
 
 hyperfine --runs 3 --warmup 1 \
-  --prepare 'python -c "import os, shutil; shutil.rmtree(\"DerivedData-Cache\", ignore_errors=True); shutil.rmtree(os.path.expanduser(\"~/.tuist/Binaries\"), ignore_errors=True); shutil.rmtree(os.path.expanduser(\"~/Library/Developer/Xcode/CompilationCache.noindex\"), ignore_errors=True); shutil.rmtree(os.path.expanduser(\"~/Library/Caches/com.apple.dt.Xcode/CompilationCache.noindex\"), ignore_errors=True)" && tuist generate --no-open --cache-profile all-possible' \
+  --prepare 'rm -rf DerivedData-Cache ~/.tuist/Binaries ~/Library/Developer/Xcode/CompilationCache.noindex ~/Library/Caches/com.apple.dt.Xcode/CompilationCache.noindex && tuist generate --no-open --cache-profile all-possible' \
   'xcodebuild clean build -workspace Mastodon-Tuist.xcworkspace -scheme Mastodon -configuration Debug -destination "platform=iOS Simulator,name=iPhone 17" -derivedDataPath ./DerivedData-Cache COMPILATION_CACHE_ENABLE_CACHING=YES COMPILATION_CACHE_ENABLE_PLUGIN=YES'
 ```
 
-One more caveat is worth stating plainly. Cache effectiveness depends on how modularized the project already is. If most code lives in a single app target, there is less to cache and less to reuse. Mastodon has several internal frameworks, but the app target is still large, so the gains reflect that reality. Teams that invest in smaller targets and clearer boundaries should see a larger payoff from the same caching approach.
+**Results:**
 
-The migration took about four hours end to end. At our measured savings, each clean build saves about 88.5 seconds, or roughly 1.5 minutes. That means it takes about 163 clean builds to break even on the time cost of the migration. For a team of ten running two clean builds per developer per day, that is about eight working days. If you translate that into cost using the [US Bureau of Labor Statistics median hourly wage for software developers, $63.59 in May 2023](https://www.bls.gov/oes/2023/may/oes151252.htm), the savings are about $31 per day or about $156 per week for that example team. This is an illustration, but it shows why teams are willing to pay a one time migration cost to unlock a faster loop that compounds on every build.
+| Scenario | Mean | Min | Max |
+|----------|------|-----|-----|
+| No cache | 110.8s | 95.5s | 132.8s |
+| Cached | 22.3s | 21.0s | 24.5s |
 
-## Runtime validation
+That is a **4.98x speedup** and a **79.9% reduction** in clean build time.
 
-The moment that matters most is not the build. It is the launch. After the workspace built, Codex installed the app on the simulator and launched it. The first run crashed with an unrecognized selector, `processCompletedCount`, coming off `NSUserDefaults`. Codex traced it to ObjC categories defined in a static framework that were being stripped at link time. Codex fixed it by adding `-ObjC` to `OTHER_LDFLAGS` in the shared project xcconfig, rebuilt, reinstalled, and launched again. This time the app came up and stayed up. That is the difference between a build that looks fine and an app that actually works. We now treat runtime validation as a non-negotiable part of the process because it catches issues that static analysis will never surface.
+A caveat worth being honest about: cache effectiveness depends on how modularized the project already is. If most of your code lives in a single app target, there is less to cache. Mastodon has several internal frameworks, but the app target itself is still large. Teams that invest in smaller targets and clearer module boundaries should see even larger gains.
 
-## The timeline and the model
+## The launch matters more than the build
 
-This migration took about four hours end to end. The no-cache clean build averaged just under two minutes. Warming the Tuist and Xcode caches took additional time up front, and then the cached clean builds averaged about twenty two seconds. The rest of the time was spent iterating on failures, regenerating the workspace, and validating runtime behavior.
+A project that compiles is not the same as an app that works. After the workspace built successfully, the agent installed the app on the simulator and launched it. It crashed immediately with an unrecognized selector, `processCompletedCount`, coming off `NSUserDefaults`. Since Tuist integrates dependencies as Xcode-native targets and defaults to static linking, the linker was stripping object files that contained only Objective-C categories without class definitions. The category methods simply disappeared from the binary. As [Apple Technical Q&A QA1490](https://developer.apple.com/library/archive/qa/qa1490/_index.html) explains, this is expected behavior. Our [dependency documentation](https://docs.tuist.dev/en/guides/features/projects/dependencies#objectivec-dependencies) covers this in more detail.
 
-We ran the work on February 2, 2026 using Codex 5.2 with GPT-5 as the underlying model. That matters because a migration like this is not just about compiling; it is about understanding feedback loops and holding state across errors. The model needs to be capable of managing that complexity without constant human supervision. This run showed that it can.
+The fix was adding `-ObjC` to `OTHER_LDFLAGS` in the shared project xcconfig, which forces the linker to load all object files from static libraries. After that, the app launched and stayed up. This is why we treat runtime validation as a non-negotiable step. It catches the class of issues that no amount of static analysis will surface.
 
-## The skill that outlives the migration
+## The skill that outlives the project
 
-The output of this migration is not just a working project. It is the skill that captures how to do this again. Codex wrote `skill.md` as a migration guide that starts where a real engineer starts: with a baseline build, a target inventory, and a realistic set of constraints. It emphasizes what tends to go wrong, how to detect it, and how to keep the generated project aligned with the original. It intentionally avoids caching instructions so it stays focused on the core migration, while the blog captures the caching and benchmarking detail.
+The most valuable output of this migration isn't the Mastodon workspace itself. It is the skill file that captures how to do this again.
 
-We also added a skills page to the docs that describes how to use the skills we publish, including this migration skill. It lists each skill with a `SKILL_NAME` and `SKILL_URL`, then shows how to install it for different agents. For Codex, the flow is to create a `.codex/skills/$SKILL_NAME` directory and download the `SKILL.md` file into it, as described in the [skills documentation](https://docs.tuist.dev/en/guides/features/agentic-coding/skills). The same page shows equivalent commands for Claude Code, Amp, and OpenCode. The point is not just the one migration we did here. It is the reusable instruction set that lets the next migration start from something that has already been tested in a real project.
+The agent wrote `skill.md` as a migration guide that starts where a real engineer would start: with a baseline build, a target inventory, and a realistic set of constraints. It focuses on what tends to go wrong, how to detect it, and how to keep the generated project aligned with the original. It intentionally avoids caching instructions so it stays focused on migration mechanics.
 
-This is the part that compounds. Each migration adds new edges, new fixes, and a cleaner playbook for the next one. The agent does the work, but the skill makes the work repeatable.
+This is the part that compounds. The agent does the work, but the skill makes the work repeatable.
 
-## What we learned
+## What we took away from this
 
-Generated projects reward precision. Small mismatches in resource handling or source sets show up as runtime failures. Cache workflows are powerful, but they surface platform-specific issues that never appear in a basic iOS build. And keeping a migration close to the original is not a philosophical stance; it is a practical way to keep risk low and failures localized.
+If this story reads like a sequence of obstacles, that is because real migrations are. But stepping back, what stands out is that we have tools today that simply didn't exist a year ago. A coding agent took a production iOS app, migrated it to generated projects, resolved dependency bugs, validated the app at runtime, and helped us shave 80% off clean builds. The whole thing took about four hours.
 
-If this story reads like a sequence of obstacles, it is because real migrations are. But the pattern is clear. With a careful plan and a disciplined feedback loop, a coding agent can take a large production app, migrate it to Tuist generated projects, enable caching, and ship the outcome with benchmarks and documentation.
+That changes the calculus for teams. Migrating used to mean weeks of careful manual work, which is why many teams never got around to it even when they knew the gains were there. Now a few hours of agent time can get you to a place where both your developers and your CI hardware are being used more efficiently. The humans spend less time waiting on builds, and the machines spend less time rebuilding things that haven't changed.
 
-We are going to run this playbook again. Each time we do, the skill will get sharper, the edge cases will get smaller, and the speedups will become more predictable. That is the kind of progress that makes tooling adoption feel inevitable rather than risky.
+We're going to run this playbook again on other projects. Each time we do, the skill gets sharper, the edge cases get smaller, and the process gets more predictable.
+
+## Want us to migrate your project?
+
+If you have an iOS project and would like us to run this same process on it for free, we'd love to hear from you. It doesn't have to be open source. The only thing we ask is that we can write about the experience, keeping any sensitive information private. We get to sharpen the skill and share the story, and your project gets faster builds with caching enabled. Reach out at [contact@tuist.dev](mailto:contact@tuist.dev).
