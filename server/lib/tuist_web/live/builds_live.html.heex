@@ -13,7 +13,7 @@
       >
         <.dropdown_item
           value="any"
-          label={dgettext("dashboard_builds", "Any")}
+          label={dgettext("dashboard_builds", "All")}
           patch={"?#{Query.put(@uri.query, "analytics-build-tag", "any")}"}
           data-selected={@analytics_build_tag == "any"}
         >

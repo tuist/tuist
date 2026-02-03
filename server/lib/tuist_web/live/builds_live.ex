@@ -359,7 +359,7 @@ defmodule TuistWeb.BuildsLive do
   defp build_configuration_label("any"), do: dgettext("dashboard_builds", "Any")
   defp build_configuration_label(configuration), do: configuration
 
-  defp build_tag_label("any"), do: dgettext("dashboard_builds", "Any")
+  defp build_tag_label("any"), do: dgettext("dashboard_builds", "All")
   defp build_tag_label(tag), do: tag
 
   defp type_labels(type, configuration_insights_analytics) do
