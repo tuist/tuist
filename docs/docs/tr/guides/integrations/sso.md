@@ -44,7 +44,7 @@ yapılandırmanız gerekir:
 6. "Görevler" altında, SSO Uygulamasına istediğiniz erişim kontrolünü seçin ve
    kaydedin.
 7. Kaydettikten sonra, uygulamanın genel ayarları kullanılabilir hale
-   gelecektir. "Müşteri Kimliği" ve "Müşteri Gizli Anahtarı"nı kopyalayın.
+   gelecektir. "İstemci Kimliği" ve "İstemci Gizli Anahtarı"nı kopyalayın.
    Ayrıca Okta kuruluşunuzun URL'sini de not edin (ör.
    `https://your-company.okta.com`) – tüm bunları irtibat kişinizle güvenli bir
    şekilde paylaşmanız gerekecektir.
