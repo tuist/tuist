@@ -1,6 +1,5 @@
 import ArgumentParser
 import Foundation
-import TuistSupport
 
 extension Option {
     public init<T>(
@@ -57,7 +56,7 @@ extension Option {
         }
     }
 
-    init(
+    public init(
         wrappedValue value: Value,
         name: NameSpecification = .long,
         parsing parsingStrategy: SingleValueParsingStrategy = .next,
@@ -85,7 +84,7 @@ extension Option {
         }
     }
 
-    init(
+    public init(
         name: NameSpecification = .long,
         parsing parsingStrategy: SingleValueParsingStrategy = .next,
         help: ArgumentHelp? = nil,
@@ -137,10 +136,8 @@ extension Flag where Value == Bool {
     }
 }
 
-// Argument Extensions
-
 extension Argument {
-    init<T>(
+    public init<T>(
         wrappedValue value: [T] = [],
         parsing parsingStrategy: ArgumentArrayParsingStrategy = .remaining,
         help: ArgumentHelp? = nil,
@@ -165,7 +162,7 @@ extension Argument {
         }
     }
 
-    init(
+    public init(
         help: ArgumentHelp? = nil,
         completion: CompletionKind? = nil,
         envKey: EnvKey
@@ -178,7 +175,7 @@ extension Argument {
         }
     }
 
-    init(
+    public init(
         wrappedValue value: Value,
         help: ArgumentHelp? = nil,
         envKey: EnvKey
@@ -214,7 +211,7 @@ extension Argument {
 }
 
 extension ArgumentHelp {
-    func withEnvKey(_ envKey: EnvKey) -> ArgumentHelp {
+    public func withEnvKey(_ envKey: EnvKey) -> ArgumentHelp {
         var help = self
         help.abstract += " (env: \(envKey.rawValue))"
         return help

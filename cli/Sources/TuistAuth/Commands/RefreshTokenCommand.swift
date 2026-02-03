@@ -1,8 +1,11 @@
 import ArgumentParser
 import Foundation
+import TuistEnvKey
 
-struct RefreshTokenCommand: AsyncParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct RefreshTokenCommand: AsyncParsableCommand {
+    public init() {}
+
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "refresh-token",
             _superCommandName: "auth",
@@ -17,7 +20,7 @@ struct RefreshTokenCommand: AsyncParsableCommand {
     )
     var serverURL: String
 
-    func run() async throws {
+    public func run() async throws {
         try await AuthRefreshTokenService().run(serverURL: serverURL)
     }
 }

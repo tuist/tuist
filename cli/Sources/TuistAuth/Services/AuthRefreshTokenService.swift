@@ -2,14 +2,13 @@ import FileSystem
 import Foundation
 import Path
 import TuistServer
-import TuistSupport
 
-enum AuthRefreshTokenServiceError: Equatable, LocalizedError {
+public enum AuthRefreshTokenServiceError: Equatable, LocalizedError {
     case invalidServerURL(String)
     case tokenRefreshFailed(String)
     case lockFileRemovalFailed(AbsolutePath)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case let .invalidServerURL(url):
             return "The server URL \(url) is not a valid URL."
@@ -21,11 +20,11 @@ enum AuthRefreshTokenServiceError: Equatable, LocalizedError {
     }
 }
 
-struct AuthRefreshTokenService {
+public struct AuthRefreshTokenService {
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let fileSystem: FileSysteming
 
-    init(
+    public init(
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
         fileSystem: FileSysteming = FileSystem()
     ) {
@@ -33,7 +32,7 @@ struct AuthRefreshTokenService {
         self.fileSystem = fileSystem
     }
 
-    func run(serverURL: String) async throws {
+    public func run(serverURL: String) async throws {
         guard let url = URL(string: serverURL) else {
             throw AuthRefreshTokenServiceError.invalidServerURL(serverURL)
         }

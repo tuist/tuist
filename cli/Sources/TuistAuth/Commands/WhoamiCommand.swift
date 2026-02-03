@@ -1,8 +1,11 @@
 import ArgumentParser
 import Foundation
+import TuistEnvKey
 
-struct WhoamiCommand: AsyncParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct WhoamiCommand: AsyncParsableCommand {
+    public init() {}
+
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "whoami",
             _superCommandName: "auth",
@@ -18,9 +21,16 @@ struct WhoamiCommand: AsyncParsableCommand {
     )
     var path: String?
 
-    func run() async throws {
+    @Option(
+        name: .long,
+        help: "The URL of the server. Required on Linux unless TUIST_URL environment variable is set."
+    )
+    var serverURL: String?
+
+    public func run() async throws {
         try await WhoamiService().run(
-            directory: path
+            directory: path,
+            serverURL: serverURL
         )
     }
 }

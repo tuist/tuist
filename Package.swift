@@ -142,10 +142,11 @@ let targets: [Target] = [
             "TuistConstants",
             "TuistEnvironment",
             "TuistLogging",
+            "TuistEnvKey",
             "TuistServer",
             "TuistOIDC",
             "TuistCacheConfigCommand",
-            "TuistAuthLoginCommand",
+            "TuistAuth",
             "TuistVersionCommand",
             .product(name: "Noora", package: "tuist.Noora"),
             .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
@@ -198,7 +199,7 @@ let targets: [Target] = [
             "TuistLogging",
             "TuistNoora",
             .product(name: "Noora", package: "tuist.Noora"),
-            "TuistAuthLoginCommand",
+            "TuistAuth",
             "TuistCacheConfigCommand",
             "TuistVersionCommand",
             argumentParserDependency,
@@ -256,6 +257,14 @@ let targets: [Target] = [
         path: "cli/Sources/TuistNoora"
     ),
     .target(
+        name: "TuistEnvKey",
+        dependencies: [
+            argumentParserDependency,
+            "TuistEnvironment",
+        ],
+        path: "cli/Sources/TuistEnvKey"
+    ),
+    .target(
         name: "TuistCacheConfigCommand",
         dependencies: [
             pathDependency,
@@ -273,20 +282,24 @@ let targets: [Target] = [
         path: "cli/Sources/TuistCacheConfigCommand"
     ),
     .target(
-        name: "TuistAuthLoginCommand",
+        name: "TuistAuth",
         dependencies: [
             pathDependency,
             argumentParserDependency,
             loggingDependency,
             swiftToolsSupportDependency,
+            fileSystemDependency,
             "TuistConstants",
             "TuistEnvironment",
             "TuistLogging",
+            "TuistEnvKey",
             "TuistServer",
             "TuistOIDC",
             .product(name: "Mockable", package: "kolos65.Mockable", condition: .when(platforms: [.macOS])),
+            .target(name: "TuistLoader", condition: .when(platforms: [.macOS])),
+            .target(name: "TuistSupport", condition: .when(platforms: [.macOS])),
         ],
-        path: "cli/Sources/TuistAuthLoginCommand",
+        path: "cli/Sources/TuistAuth",
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]

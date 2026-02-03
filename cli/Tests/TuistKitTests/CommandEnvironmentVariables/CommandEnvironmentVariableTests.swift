@@ -3,9 +3,10 @@ import Difference
 import Foundation
 import Testing
 import TSCUtility
-import TuistAuthLoginCommand
+import TuistAuth
 import TuistCacheConfigCommand
 import TuistEnvironment
+import TuistEnvKey
 import TuistVersionCommand
 @testable import TuistCore
 @testable import TuistKit

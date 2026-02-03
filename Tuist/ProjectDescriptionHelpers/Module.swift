@@ -39,7 +39,8 @@ public enum Module: String, CaseIterable {
     case launchctl = "TuistLaunchctl"
     case http = "TuistHTTP"
     case cacheConfigCommand = "TuistCacheConfigCommand"
-    case authLoginCommand = "TuistAuthLoginCommand"
+    case auth = "TuistAuth"
+    case envKey = "TuistEnvKey"
     case versionCommand = "TuistVersionCommand"
 
     func forceStaticLinking() -> Bool {
@@ -252,7 +253,7 @@ public enum Module: String, CaseIterable {
              .projectDescription,
              .acceptanceTesting, .simulator, .testing, .process,
              .constants, .environment, .logging,
-             .cacheConfigCommand, .authLoginCommand, .versionCommand:
+             .cacheConfigCommand, .auth, .envKey, .versionCommand:
             return nil
         default:
             return "\(rawValue)Tests"
@@ -368,7 +369,7 @@ public enum Module: String, CaseIterable {
             .process, .ci, .cas, .casAnalytics, .launchctl, .xcResultService, .xcodeProjectOrWorkspacePathLocator,
             .http:
             moduleTags.append("domain:infrastructure")
-        case .cacheConfigCommand, .authLoginCommand, .versionCommand:
+        case .cacheConfigCommand, .auth, .envKey, .versionCommand:
             moduleTags.append("domain:cli")
         }
 
@@ -513,7 +514,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.oidc.targetName),
                     .target(name: Module.http.targetName),
                     .target(name: Module.cacheConfigCommand.targetName),
-                    .target(name: Module.authLoginCommand.targetName),
+                    .target(name: Module.auth.targetName),
+                    .target(name: Module.envKey.targetName),
                     .target(name: Module.versionCommand.targetName),
                     .external(name: "MCP"),
                     .external(name: "FileSystem"),
@@ -764,15 +766,24 @@ public enum Module: String, CaseIterable {
                     .external(name: "Logging"),
                     .external(name: "SwiftToolsSupport"),
                 ]
-            case .authLoginCommand:
+            case .auth:
                 [
                     .target(name: Module.constants.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
+                    .target(name: Module.envKey.targetName),
                     .target(name: Module.oidc.targetName),
                     .target(name: Module.server.targetName),
+                    .target(name: Module.loader.targetName, condition: .when([.macos])),
+                    .target(name: Module.support.targetName, condition: .when([.macos])),
                     .external(name: "ArgumentParser"),
                     .external(name: "Logging"),
+                    .external(name: "FileSystem"),
+                ]
+            case .envKey:
+                [
+                    .target(name: Module.environment.targetName),
+                    .external(name: "ArgumentParser"),
                 ]
             case .versionCommand:
                 [
@@ -791,7 +802,7 @@ public enum Module: String, CaseIterable {
             switch self {
             case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .process,
                  .constants, .environment, .logging,
-                 .cacheConfigCommand, .authLoginCommand, .versionCommand:
+                 .cacheConfigCommand, .auth, .versionCommand:
                 []
             case .tuistFixtureGenerator:
                 [

@@ -3,7 +3,7 @@ import FileSystem
 import Foundation
 import Noora
 import Path
-import TuistAuthLoginCommand
+import TuistAuth
 import TuistConstants
 import TuistEnvironment
 import TuistServer

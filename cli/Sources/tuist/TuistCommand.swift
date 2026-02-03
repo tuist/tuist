@@ -1,6 +1,6 @@
 @_exported import ArgumentParser
 import Foundation
-import TuistAuthLoginCommand
+import TuistAuth
 import TuistCacheConfigCommand
 import TuistEnvironment
 import TuistVersionCommand
@@ -35,7 +35,7 @@ public struct TuistCommand: AsyncParsableCommand {
             []
         #else
             [
-                AuthCommand.self,
+                TuistAuth.AuthCommand.self,
                 CacheCommand.self,
                 VersionCommand.self,
             ]
@@ -94,7 +94,7 @@ public struct TuistCommand: AsyncParsableCommand {
                         ProjectCommand.self,
                         BundleCommand.self,
                         OrganizationCommand.self,
-                        AuthCommand.self,
+                        TuistAuth.AuthCommand.self,
                     ]
                 ),
                 CommandGroup(
@@ -307,18 +307,6 @@ public struct TuistCommand: AsyncParsableCommand {
 }
 
 #if !os(macOS)
-    struct AuthCommand: ParsableCommand {
-        static var configuration: CommandConfiguration {
-            CommandConfiguration(
-                commandName: "auth",
-                abstract: "Manage authentication",
-                subcommands: [
-                    LoginCommand.self,
-                ]
-            )
-        }
-    }
-
     struct CacheCommand: AsyncParsableCommand {
         static var configuration: CommandConfiguration {
             CommandConfiguration(
