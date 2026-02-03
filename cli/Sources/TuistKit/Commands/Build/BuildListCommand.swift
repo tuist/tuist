@@ -61,17 +61,17 @@ struct BuildListCommand: AsyncParsableCommand, NooraReadyCommand {
 
     @Option(
         name: .long,
-        help: "Filter builds by tags (comma-separated). Returns builds containing ALL specified tags.",
-        envKey: .buildListTags
+        parsing: .upToNextOption,
+        help: "Filter builds by tags. Returns builds containing ALL specified tags."
     )
-    var tags: String?
+    var tags: [String] = []
 
     @Option(
         name: .long,
-        help: "Filter builds by custom values (comma-separated key=value pairs). Returns builds matching ALL specified values. Example: ticket=PROJ-1234,runner=macos-14",
-        envKey: .buildListValues
+        parsing: .upToNextOption,
+        help: "Filter builds by custom values (key=value format). Returns builds matching ALL specified values."
     )
-    var values: String?
+    var values: [String] = []
 
     @Option(
         name: .long,
@@ -103,8 +103,8 @@ struct BuildListCommand: AsyncParsableCommand, NooraReadyCommand {
             status: status?.rawValue,
             scheme: scheme,
             configuration: configuration,
-            tags: tags,
-            values: values?.replacingOccurrences(of: "=", with: ":"),
+            tags: tags.isEmpty ? nil : tags,
+            values: values.isEmpty ? nil : values.map { $0.replacingOccurrences(of: "=", with: ":") },
             page: page,
             pageSize: pageSize,
             json: json

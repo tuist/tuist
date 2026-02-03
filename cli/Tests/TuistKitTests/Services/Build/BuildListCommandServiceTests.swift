@@ -273,8 +273,8 @@ struct BuildListCommandServiceTests {
             status: .value(nil),
             scheme: .value(nil),
             configuration: .value(nil),
-            tags: .value("ci,nightly"),
-            values: .value("ticket:PROJ-1234,runner:macos-14"),
+            tags: .value(["ci", "nightly"]),
+            values: .value(["ticket:PROJ-1234", "runner:macos-14"]),
             page: .value(1),
             pageSize: .value(10)
         ).willReturn(response)
@@ -287,8 +287,8 @@ struct BuildListCommandServiceTests {
             status: nil,
             scheme: nil,
             configuration: nil,
-            tags: "ci,nightly",
-            values: "ticket:PROJ-1234,runner:macos-14",
+            tags: ["ci", "nightly"],
+            values: ["ticket:PROJ-1234", "runner:macos-14"],
             page: nil,
             pageSize: nil,
             json: false
@@ -298,7 +298,7 @@ struct BuildListCommandServiceTests {
         #expect(
             ui()
                 .contains(
-                    "No builds found for project \(fullHandle) with filters: tags: ci,nightly, values: ticket:PROJ-1234,runner:macos-14"
+                    "No builds found for project \(fullHandle) with filters: tags: ci, nightly, values: ticket:PROJ-1234, runner:macos-14"
                 )
         )
     }

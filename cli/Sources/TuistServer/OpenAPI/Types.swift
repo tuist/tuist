@@ -17537,14 +17537,14 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/query/git_branch`.
                 public var git_branch: Swift.String?
-                /// Filter by tags (comma-separated). Returns builds containing ALL specified tags.
+                /// Filter by tags. Returns builds containing ALL specified tags.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/query/tags`.
-                public var tags: Swift.String?
-                /// Filter by custom values (comma-separated key:value pairs). Returns builds matching ALL specified values. Example: ticket:PROJ-1234,runner:macos-14
+                public var tags: [Swift.String]?
+                /// Filter by custom values (key:value format). Returns builds matching ALL specified values. Example: ticket:PROJ-1234
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/query/values`.
-                public var values: Swift.String?
+                public var values: [Swift.String]?
                 ///
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/query/page_size`.
@@ -17561,8 +17561,8 @@ public enum Operations {
                 ///   - scheme: Filter by scheme name.
                 ///   - configuration: Filter by configuration name.
                 ///   - git_branch: Filter by git branch.
-                ///   - tags: Filter by tags (comma-separated). Returns builds containing ALL specified tags.
-                ///   - values: Filter by custom values (comma-separated key:value pairs). Returns builds matching ALL specified values. Example: ticket:PROJ-1234,runner:macos-14
+                ///   - tags: Filter by tags. Returns builds containing ALL specified tags.
+                ///   - values: Filter by custom values (key:value format). Returns builds matching ALL specified values. Example: ticket:PROJ-1234
                 ///   - page_size:
                 ///   - page:
                 public init(
@@ -17571,8 +17571,8 @@ public enum Operations {
                     scheme: Swift.String? = nil,
                     configuration: Swift.String? = nil,
                     git_branch: Swift.String? = nil,
-                    tags: Swift.String? = nil,
-                    values: Swift.String? = nil,
+                    tags: [Swift.String]? = nil,
+                    values: [Swift.String]? = nil,
                     page_size: Swift.Int? = nil,
                     page: Swift.Int? = nil
                 ) {

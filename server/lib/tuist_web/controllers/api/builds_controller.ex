@@ -68,14 +68,14 @@ defmodule TuistWeb.API.BuildsController do
       ],
       tags: [
         in: :query,
-        type: :string,
-        description: "Filter by tags (comma-separated). Returns builds containing ALL specified tags."
+        type: %Schema{type: :array, items: %Schema{type: :string}},
+        description: "Filter by tags. Returns builds containing ALL specified tags."
       ],
       values: [
         in: :query,
-        type: :string,
+        type: %Schema{type: :array, items: %Schema{type: :string}},
         description:
-          "Filter by custom values (comma-separated key:value pairs). Returns builds matching ALL specified values. Example: ticket:PROJ-1234,runner:macos-14"
+          "Filter by custom values (key:value format). Returns builds matching ALL specified values. Example: ticket:PROJ-1234"
       ],
       page_size: [
         in: :query,
@@ -378,20 +378,18 @@ defmodule TuistWeb.API.BuildsController do
         filters
       end
 
-    if Map.get(params, :tags) do
-      tags = params.tags |> String.split(",") |> Enum.map(&String.trim/1)
-      filters ++ [%{field: :custom_tags, op: :contains, value: tags}]
-    else
-      filters
+    case Map.get(params, :tags) do
+      nil -> filters
+      [] -> filters
+      tags -> filters ++ [%{field: :custom_tags, op: :contains, value: tags}]
     end
   end
 
   defp parse_values_param(nil), do: nil
+  defp parse_values_param([]), do: nil
 
-  defp parse_values_param(values_param) do
-    values_param
-    |> String.split(",")
-    |> Enum.map(&String.trim/1)
+  defp parse_values_param(values_list) do
+    values_list
     |> Enum.map(fn pair ->
       case String.split(pair, ":", parts: 2) do
         [key, value] -> {String.trim(key), String.trim(value)}

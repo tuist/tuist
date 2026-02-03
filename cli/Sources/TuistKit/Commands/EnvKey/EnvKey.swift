@@ -308,8 +308,6 @@ public enum EnvKey: String, CaseIterable {
     case buildListConfiguration = "TUIST_BUILD_LIST_CONFIGURATION"
     case buildListPage = "TUIST_BUILD_LIST_PAGE"
     case buildListPageSize = "TUIST_BUILD_LIST_PAGE_SIZE"
-    case buildListTags = "TUIST_BUILD_LIST_TAGS"
-    case buildListValues = "TUIST_BUILD_LIST_VALUES"
     case buildListJson = "TUIST_BUILD_LIST_JSON"
 
     // BUILD SHOW

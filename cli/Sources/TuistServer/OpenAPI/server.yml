@@ -4653,14 +4653,6 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: Number of items per page.
           in: query
           name: page_size
@@ -4673,6 +4665,14 @@ paths:
           in: query
           name: git_branch
           required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
           schema:
             type: string
             x-struct:
@@ -6284,20 +6284,28 @@ paths:
             type: string
             x-struct:
             x-validate:
-        - description: Filter by tags (comma-separated). Returns builds containing ALL specified tags.
+        - description: Filter by tags. Returns builds containing ALL specified tags.
           in: query
           name: tags
           required: false
           schema:
-            type: string
+            items:
+              type: string
+              x-struct:
+              x-validate:
+            type: array
             x-struct:
             x-validate:
-        - description: 'Filter by custom values (comma-separated key:value pairs). Returns builds matching ALL specified values. Example: ticket:PROJ-1234,runner:macos-14'
+        - description: 'Filter by custom values (key:value format). Returns builds matching ALL specified values. Example: ticket:PROJ-1234'
           in: query
           name: values
           required: false
           schema:
-            type: string
+            items:
+              type: string
+              x-struct:
+              x-validate:
+            type: array
             x-struct:
             x-validate:
         - description: ''

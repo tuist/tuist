@@ -13,8 +13,8 @@ protocol BuildListCommandServicing {
         status: String?,
         scheme: String?,
         configuration: String?,
-        tags: String?,
-        values: String?,
+        tags: [String]?,
+        values: [String]?,
         page: Int?,
         pageSize: Int?,
         json: Bool
@@ -54,8 +54,8 @@ struct BuildListCommandService: BuildListCommandServicing {
         status: String?,
         scheme: String?,
         configuration: String?,
-        tags: String?,
-        values: String?,
+        tags: [String]?,
+        values: [String]?,
         page: Int?,
         pageSize: Int?,
         json: Bool
@@ -98,8 +98,8 @@ struct BuildListCommandService: BuildListCommandServicing {
             if let status { filters.append("status: \(status)") }
             if let scheme { filters.append("scheme: \(scheme)") }
             if let configuration { filters.append("configuration: \(configuration)") }
-            if let tags { filters.append("tags: \(tags)") }
-            if let values { filters.append("values: \(values)") }
+            if let tags, !tags.isEmpty { filters.append("tags: \(tags.joined(separator: ", "))") }
+            if let values, !values.isEmpty { filters.append("values: \(values.joined(separator: ", "))") }
             let filterDescription = filters.isEmpty ? "" : " with filters: \(filters.joined(separator: ", "))"
             if let page {
                 Noora.current
