@@ -92,6 +92,9 @@
                         },
                         "directories": {
                             "text": "目录"
+                        },
+                        "debugging": {
+                            "text": "调试"
                         }
                     }
                 },
