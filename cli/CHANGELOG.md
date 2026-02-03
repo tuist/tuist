@@ -1,6 +1,18 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.136.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add generations and cache runs API endpoints and CLI commands by [@pepicrft](https://github.com/pepicrft) in [#9277](https://github.com/tuist/tuist/pull/9277)
+### 🐛 Bug Fixes
+
+* embed static frameworks with buildable-folder resources by [@pepicrft](https://github.com/pepicrft) in [#9317](https://github.com/tuist/tuist/pull/9317)
+* skip config loading for inspect commands by [@fortmarek](https://github.com/fortmarek) in [#9315](https://github.com/tuist/tuist/pull/9315)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.135.2...4.136.0
+
 ## What's Changed in 4.135.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
