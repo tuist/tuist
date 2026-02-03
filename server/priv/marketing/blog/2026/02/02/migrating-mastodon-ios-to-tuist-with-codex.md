@@ -50,6 +50,22 @@ Codex also updated Swift package mapping to sanitize the `+` character when deri
 
 With those resolved, Codex warmed the cache using `tuist cache` and regenerated with the `all-possible` profile to maximize binary reuse. Then Codex benchmarked clean builds using hyperfine. The baseline was a clean build of the original Xcode project. A single run took 362.020 seconds. The cached build was run three times with a clean workspace build and a preserved module cache. The mean time was 130.741 seconds, with a minimum of 120.861 seconds and a maximum of 141.355 seconds. That is a 2.77x speedup and a 63.9% improvement. The magnitude of the gain matters less than the repeatability: it is now the default in the generated workflow.
 
+We were careful about the benchmarking mechanics. We treated each run as a clean build, using `xcodebuild clean build` with a dedicated `-derivedDataPath` for each scenario. We warmed Tuist binaries once with `tuist cache`, then generated with `--cache-profile all-possible` so that the cached run used as many prebuilt modules as possible. For the no cache case we generated with `--cache-profile none`. We did not wipe Xcode's module cache between runs so the comparison reflected a realistic developer loop, but we did clean build products each time so the link and copy phases were fully exercised. Hyperfine made the sequencing repeatable and recorded the mean, min, and max.
+
+The commands Codex used looked like this:
+
+```bash
+tuist cache
+
+hyperfine --warmup 1 \
+  --prepare 'tuist generate --no-open --cache-profile none' \
+  'xcodebuild clean build -workspace Mastodon-Tuist.xcworkspace -scheme Mastodon -configuration Debug -destination "platform=iOS Simulator,name=iPhone 17" -derivedDataPath ./DerivedData-NoCache'
+
+hyperfine --warmup 1 \
+  --prepare 'tuist generate --no-open --cache-profile all-possible' \
+  'xcodebuild clean build -workspace Mastodon-Tuist.xcworkspace -scheme Mastodon -configuration Debug -destination "platform=iOS Simulator,name=iPhone 17" -derivedDataPath ./DerivedData-Cache'
+```
+
 The migration took about four hours end to end. At our measured savings, each clean build saves about 231 seconds, or roughly 3.9 minutes. That means it takes about 62 clean builds to break even on the time cost of the migration. For a team of ten running two clean builds per developer per day, that is about three working days. If you translate that into cost using the [US Bureau of Labor Statistics median hourly wage for software developers, $63.59 in May 2023](https://www.bls.gov/oes/2023/may/oes151252.htm), the savings are about $80 per day or about $400 per week for that example team. This is an illustration, but it shows why teams are willing to pay a one time migration cost to unlock a faster loop that compounds on every build.
 
 ## Runtime validation
