@@ -820,7 +820,14 @@ public enum Module: String, CaseIterable {
             case .threadSafe:
                 []
             case .tuistExtension:
-                []
+                [
+                    .target(name: Module.cache.targetName),
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.generator.targetName),
+                    .target(name: Module.hasher.targetName),
+                    .target(name: Module.server.targetName),
+                    .external(name: "XcodeGraph"),
+                ]
             }
         if self != .projectDescription, self != .projectAutomation {
             dependencies.append(contentsOf: sharedDependencies)

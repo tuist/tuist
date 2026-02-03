@@ -241,7 +241,14 @@ let targets: [Target] = [
     ),
     .target(
         name: "TuistExtension",
-        dependencies: [],
+        dependencies: [
+            .target(name: "TuistCache", condition: .when(platforms: [.macOS])),
+            .target(name: "TuistCore", condition: .when(platforms: [.macOS])),
+            .target(name: "TuistGenerator", condition: .when(platforms: [.macOS])),
+            .target(name: "TuistHasher", condition: .when(platforms: [.macOS])),
+            .target(name: "TuistServer", condition: .when(platforms: [.macOS])),
+            .product(name: "XcodeGraph", package: "tuist.XcodeGraph", condition: .when(platforms: [.macOS])),
+        ],
         path: "cli/Sources/TuistExtension"
     ),
     .target(

@@ -72,8 +72,8 @@ public struct GenerateCommand: AsyncParsableCommand, RecentPathRememberableComma
         }
 
         try await GenerateService(
-            cacheStorageFactory: TuistKitExtension.cacheStorageFactory,
-            generatorFactory: TuistKitExtension.generatorFactory
+            cacheStorageFactory: Extension.cacheStorageFactory,
+            generatorFactory: Extension.generatorFactory
         ).run(
             path: path,
             includedTargets: Set(includedTargets),

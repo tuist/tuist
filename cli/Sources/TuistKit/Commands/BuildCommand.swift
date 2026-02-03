@@ -179,8 +179,8 @@ public struct BuildCommand: AsyncParsableCommand, LogConfigurableCommand,
             }
 
         try await BuildService(
-            generatorFactory: TuistKitExtension.generatorFactory,
-            cacheStorageFactory: TuistKitExtension.cacheStorageFactory
+            generatorFactory: Extension.generatorFactory,
+            cacheStorageFactory: Extension.cacheStorageFactory
         ).run(
             schemeName: buildOptions.scheme,
             generate: buildOptions.generate,

@@ -278,8 +278,8 @@ public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand,
             }
 
         try await TestService(
-            generatorFactory: TuistKitExtension.generatorFactory,
-            cacheStorageFactory: TuistKitExtension.cacheStorageFactory
+            generatorFactory: Extension.generatorFactory,
+            cacheStorageFactory: Extension.cacheStorageFactory
         ).run(
             runId: RunMetadataStorage.current.runId,
             schemeName: scheme,
