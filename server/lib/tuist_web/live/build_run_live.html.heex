@@ -24,15 +24,21 @@
           </div>
         </div>
         <h1 data-part="label">{@run.scheme || dgettext("dashboard_builds", "Unknown scheme")}</h1>
-      </div>
-      <div :if={Enum.any?(@run.custom_tags || [])} data-part="custom-tags">
-        <.badge
-          :for={tag <- @run.custom_tags}
-          label={tag}
-          color="neutral"
-          style="light-fill"
-          size="large"
-        />
+        <%= if Enum.any?(@run.custom_tags || []) do %>
+          <.badge
+            label={List.first(@run.custom_tags)}
+            color="success"
+            style="light-fill"
+            size="large"
+          />
+          <.badge
+            :for={tag <- Enum.slice(@run.custom_tags, 1..-1//1)}
+            label={tag}
+            color="information"
+            style="light-fill"
+            size="large"
+          />
+        <% end %>
       </div>
       <.link_button
         :if={@test_run}
@@ -199,22 +205,27 @@
               </span>
             </div>
           </div>
-          <div :if={map_size(@run.custom_values || %{}) > 0} data-part="custom-values-section">
-            <div data-part="metadata-row">
-              <div data-part="title">{dgettext("dashboard_builds", "Custom Values")}</div>
-            </div>
-            <div data-part="metadata-row">
-              <div :for={{key, value} <- @run.custom_values || %{}} data-part="metadata">
-                <div data-part="title">{key}</div>
-                <span :if={url?(value)} data-part="label">
-                  <a href={value} target="_blank" rel="noopener noreferrer">
-                    {truncate_url(value)}
-                  </a>
-                </span>
-                <span :if={not url?(value)} data-part="label">{value}</span>
-              </div>
-            </div>
-          </div>
+        </div>
+        <div :if={map_size(@run.custom_values || %{}) > 0} data-part="custom-metadata-section">
+          <span data-part="custom-metadata-label">{dgettext("dashboard_builds", "Custom metadata")}</span>
+          <.table
+            id="custom-metadata-table"
+            rows={Map.to_list(@run.custom_values || %{})}
+            row_key={fn {key, _value} -> key end}
+          >
+            <:col :let={{key, _value}} label={dgettext("dashboard_builds", "Key")}>
+              <.text_cell label={key} />
+            </:col>
+            <:col :let={{_key, value}} label={dgettext("dashboard_builds", "Value")}>
+              <%= if url?(value) do %>
+                <a href={value} target="_blank" rel="noopener noreferrer" data-part="custom-metadata-link">
+                  {value}
+                </a>
+              <% else %>
+                <.text_cell label={value} />
+              <% end %>
+            </:col>
+          </.table>
         </div>
       </.card_section>
     </.card>
