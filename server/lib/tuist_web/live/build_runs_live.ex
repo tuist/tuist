@@ -217,8 +217,9 @@ defmodule TuistWeb.BuildRunsLive do
 
     tag_flop_filters =
       Enum.flat_map(tags_filters, fn
-        %{value: value, operator: :contains} when not is_nil(value) ->
-          [%{field: :custom_tags, op: :contains, value: [value]}]
+        %{value: value, operator: op} when not is_nil(value) and value != "" and op in [:contains, :not_contains] ->
+          tag_string = if is_atom(value), do: Atom.to_string(value), else: value
+          [%{field: :custom_tags, op: op, value: tag_string}]
 
         _ ->
           []
@@ -302,14 +303,17 @@ defmodule TuistWeb.BuildRunsLive do
 
     tags_filter =
       if Enum.any?(tags) do
+        tag_atoms = Enum.map(tags, &String.to_atom/1)
+
         [
           %Filter.Filter{
             id: "custom_tags",
             field: :custom_tags,
             display_name: dgettext("dashboard_builds", "Tags"),
             type: :option,
-            options: tags,
-            options_display_names: Map.new(tags, &{&1, &1}),
+            options: tag_atoms,
+            options_display_names: Map.new(tag_atoms, fn atom -> {atom, Atom.to_string(atom)} end),
+            operators: [:contains, :not_contains],
             operator: :contains,
             value: nil
           }
