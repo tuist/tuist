@@ -155,7 +155,9 @@ defmodule Tuist.Ops.DailySlackReportWorker do
 
   defp percentage_increase(current_count, previous_count) do
     increase = (current_count - previous_count) / previous_count * 100
-    Float.round(increase, 1)
+    rounded = Float.round(increase, 1)
+    truncated = trunc(rounded)
+    if rounded == truncated, do: truncated, else: rounded
   end
 
   defp growth_command_events({beginning_of_this_week, today, beginning_of_last_week, same_weekday_last_week}) do
