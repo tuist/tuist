@@ -26,7 +26,7 @@ defmodule Tuist.Projects.Workers.CleanProjectWorkerTest do
       binaries_objects = "#{project_slug}/builds"
       tests_objects = "#{project_slug}/tests"
       expected_paths = MapSet.new([cas_objects, binaries_objects, tests_objects])
-      paths_table = :ets.new(:clean_project_paths, [:set])
+      paths_table = :ets.new(:clean_project_paths, [:set, :public])
 
       expect(Storage, :delete_all_objects, 3, fn path, _actor ->
         :ets.insert(paths_table, {path, true})
