@@ -2,12 +2,14 @@
 {
   "title": "Xcode cache",
   "titleTemplate": ":title · Cache · Features · Guides · Tuist",
-  "description": "Enable Xcode compilation cache for your existing Xcode projects to improve build times both locally and on the CI."
+  "description": "Enable Xcode cache (Xcode compilation cache / Xcode build cache) to improve build times locally and on CI."
 }
 ---
 # Xcode cache {#xcode-cache}
 
 Tuist provides support for the Xcode compilation cache, which allows teams to share compilation artifacts by leveraging the build system's caching capabilities.
+
+The Xcode cache was introduced in Xcode 26. You might also see it referred to as the Xcode build cache; it reuses compilation artifacts keyed by their inputs, and Tuist's remote cache makes those artifacts shareable across machines.
 
 ## Setup {#setup}
 
@@ -109,3 +111,17 @@ jobs:
 ```
 
 See the <LocalizedLink href="/guides/integrations/continuous-integration">Continuous Integration guide</LocalizedLink> for more examples, including token-based authentication and other CI platforms like Xcode Cloud, CircleCI, Bitrise, and Codemagic.
+
+## FAQ {#faq}
+
+### What are Xcode caches? {#what-are-xcode-caches}
+
+Xcode caches are local build artifacts and indexes that speed up builds on a single machine. The Xcode compilation cache is the newest cache in Xcode 26 and is designed to be safely reusable across environments when paired with a remote cache.
+
+### Is Xcode cache the same as derived data? {#xcode-cache-vs-derived-data}
+
+No. Derived data is a location-based store of build outputs, while the Xcode compilation cache is content-addressed and designed to be portable across machines.
+
+### How do I clear the Xcode build cache? {#clear-xcode-build-cache}
+
+Xcode doesn't expose a single "clear compilation cache" button. If you suspect stale build artifacts (sometimes called the Xcode build cache), the usual first step is to Clean Build Folder or delete Derived Data, then rebuild. The compilation cache and Tuist remote cache will repopulate as needed.
