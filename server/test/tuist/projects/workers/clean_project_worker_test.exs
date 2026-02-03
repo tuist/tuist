@@ -42,8 +42,7 @@ defmodule Tuist.Projects.Workers.CleanProjectWorkerTest do
       received_paths =
         paths_table
         |> :ets.tab2list()
-        |> Enum.map(&elem(&1, 0))
-        |> MapSet.new()
+        |> MapSet.new(&elem(&1, 0))
 
       assert received_paths == expected_paths
     end
