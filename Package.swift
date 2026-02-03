@@ -404,6 +404,7 @@ let targets: [Target] = [
         name: "TuistHTTP",
         dependencies: [
             "TuistSupport",
+            .target(name: "TuistHAR", condition: .when(platforms: [.macOS])),
             pathDependency,
             mockableDependency,
             .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
@@ -411,6 +412,19 @@ let targets: [Target] = [
         ],
         path: "cli/Sources/TuistHTTP",
         exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug))
+        ]
+    ),
+    .target(
+        name: "TuistHAR",
+        dependencies: [
+            "TuistSupport",
+            pathDependency,
+            .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
+            .product(name: "HTTPTypes", package: "apple.swift-http-types"),
+        ],
+        path: "cli/Sources/TuistHAR",
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug))
         ]
