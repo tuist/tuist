@@ -66,6 +66,8 @@ hyperfine --runs 3 --warmup 1 \
   'xcodebuild clean build -workspace Mastodon-Tuist.xcworkspace -scheme Mastodon -configuration Debug -destination "platform=iOS Simulator,name=iPhone 17" -derivedDataPath ./DerivedData-Cache'
 ```
 
+One more caveat is worth stating plainly. Cache effectiveness depends on how modularized the project already is. If most code lives in a single app target, there is less to cache and less to reuse. Mastodon has several internal frameworks, but the app target is still large, so the gains reflect that reality. Teams that invest in smaller targets and clearer boundaries should see a larger payoff from the same caching approach.
+
 The migration took about four hours end to end. At our measured savings, each clean build saves about 63.5 seconds, or roughly 1.1 minutes. That means it takes about 227 clean builds to break even on the time cost of the migration. For a team of ten running two clean builds per developer per day, that is about eleven working days. If you translate that into cost using the [US Bureau of Labor Statistics median hourly wage for software developers, $63.59 in May 2023](https://www.bls.gov/oes/2023/may/oes151252.htm), the savings are about $22 per day or about $110 per week for that example team. This is an illustration, but it shows why teams are willing to pay a one time migration cost to unlock a faster loop that compounds on every build.
 
 ## Runtime validation
