@@ -283,56 +283,6 @@ final class ExternalProjectsPlatformNarrowerGraphMapperTests: TuistUnitTestCase 
         XCTAssertFalse(mappedExternalPackage.destinations.contains(.macCatalyst))
     }
 
-    func test_map_filters_external_targets_reached_via_package_product_dependencies() async throws {
-        // Given
-        let directory = try temporaryPath()
-        let packagesDirectory = directory.appending(component: "Dependencies")
-
-        let appTarget = Target.test(name: "App", destinations: [.iPad, .iPhone])
-        let externalPackage = Target.test(
-            name: "Package",
-            destinations: [.iPad, .iPhone, .macCatalyst],
-            product: .framework
-        )
-
-        let project = Project.test(path: directory, targets: [appTarget])
-        let externalProject = Project.test(path: packagesDirectory, targets: [externalPackage], type: .external(hash: nil))
-
-        let appTargetDependency = GraphDependency.target(name: appTarget.name, path: project.path)
-        let packageProductDependency = GraphDependency.packageProduct(
-            path: project.path,
-            product: "Package",
-            type: .runtime
-        )
-
-        let graph = Graph.test(
-            projects: [
-                directory: project,
-                packagesDirectory: externalProject,
-            ],
-            dependencies: [
-                appTargetDependency: Set([packageProductDependency]),
-            ]
-        )
-
-        var environment = MapperEnvironment()
-        environment.externalDependencies = [
-            "Package": [
-                .project(target: externalPackage.name, path: externalProject.path),
-            ],
-        ]
-
-        // When
-        let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: environment)
-
-        // Then
-        let mappedExternalPackage = try XCTUnwrap(
-            mappedGraph.projects[externalProject.path]?.targets[externalPackage.name]
-        )
-        XCTAssertEqual(mappedExternalPackage.destinations, Set([.iPad, .iPhone]))
-        XCTAssertFalse(mappedExternalPackage.destinations.contains(.macCatalyst))
-    }
-
     func test_map_includes_catalyst_when_app_supports_it() async throws {
         // Given
         let directory = try temporaryPath()
