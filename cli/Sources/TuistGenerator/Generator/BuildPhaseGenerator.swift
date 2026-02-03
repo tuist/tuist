@@ -51,12 +51,6 @@ protocol BuildPhaseGenerating: AnyObject {
 
 // swiftlint:disable:next type_body_length
 final class BuildPhaseGenerator: BuildPhaseGenerating {
-    private let buildableFolderChecker: BuildableFolderChecking
-
-    init(buildableFolderChecker: BuildableFolderChecking = BuildableFolderChecker()) {
-        self.buildableFolderChecker = buildableFolderChecker
-    }
-
     // swiftlint:disable:next function_body_length
     func generateBuildPhases(
         path: AbsolutePath,
@@ -322,7 +316,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         pbxBuildFiles.forEach { pbxproj.add(object: $0) }
         sourcesBuildPhase.files = pbxBuildFiles
 
-        if try await buildableFolderChecker.containsSources(target.buildableFolders) {
+        if target.buildableFoldersContainSources {
             pbxproj.add(object: sourcesBuildPhase)
             pbxTarget.buildPhases.append(sourcesBuildPhase)
             return

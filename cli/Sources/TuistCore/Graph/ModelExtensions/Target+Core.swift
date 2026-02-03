@@ -143,7 +143,20 @@ extension Target {
     }
 
     public var containsResources: Bool {
-        !resources.resources.isEmpty || !coreDataModels.isEmpty
+        !resources.resources.isEmpty || !coreDataModels.isEmpty || buildableFoldersContainResources
+    }
+
+    public var buildableFoldersContainResources: Bool {
+        let extensions = Self.validResourceExtensions + Self.validResourceCompatibleFolderExtensions
+        return buildableFolders.contains { folder in
+            folder.resolvedFiles.contains { extensions.contains($0.path.extension ?? "") }
+        }
+    }
+
+    public var buildableFoldersContainSources: Bool {
+        buildableFolders.contains { folder in
+            folder.resolvedFiles.contains { Self.validSourceExtensions.contains($0.path.extension ?? "") }
+        }
     }
 
     public var containsMetalFiles: Bool {
