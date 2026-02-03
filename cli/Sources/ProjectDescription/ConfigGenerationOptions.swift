@@ -81,6 +81,10 @@ extension Tuist {
         /// When enabled, adds Xcode cache compilation settings to the project
         public var enableCaching: Bool
 
+        /// When enabled, generates the Swift Package Registry configuration file during project generation.
+        /// This eliminates the need to run `tuist registry setup` separately.
+        public var registryEnabled: Bool
+
         public static func options(
             disablePackageVersionLocking: Bool = false,
             staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all,
@@ -91,6 +95,7 @@ extension Tuist {
             disableSandbox: Bool = true,
             includeGenerateScheme: Bool = true,
             enableCaching: Bool = false,
+            registryEnabled: Bool = false,
             additionalPackageResolutionArguments: [String] = []
         ) -> Self {
             self.init(
@@ -106,10 +111,12 @@ extension Tuist {
                 testInsightsDisabled: testInsightsDisabled,
                 disableSandbox: disableSandbox,
                 includeGenerateScheme: includeGenerateScheme,
-                enableCaching: enableCaching
+                enableCaching: enableCaching,
+                registryEnabled: registryEnabled
             )
         }
 
+        @_disfavoredOverload
         @available(
             *,
             deprecated,
@@ -141,7 +148,8 @@ extension Tuist {
                 testInsightsDisabled: testInsightsDisabled,
                 disableSandbox: disableSandbox,
                 includeGenerateScheme: includeGenerateScheme,
-                enableCaching: enableCaching
+                enableCaching: enableCaching,
+                registryEnabled: false
             )
         }
 
@@ -172,7 +180,8 @@ extension Tuist {
                 testInsightsDisabled: false,
                 disableSandbox: true,
                 includeGenerateScheme: false,
-                enableCaching: false
+                enableCaching: false,
+                registryEnabled: false
             )
         }
     }

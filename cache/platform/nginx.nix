@@ -7,6 +7,14 @@
     recommendedProxySettings = true;
     recommendedTlsSettings = false;
 
+    appendConfig = ''
+      worker_processes auto;
+    '';
+
+    eventsConfig = ''
+      worker_connections 4096;
+    '';
+
     appendHttpConfig = ''
       http2 on;
       ssl_session_cache shared:SSL:50m;
@@ -106,6 +114,11 @@
         locations."~ ^/internal/remote/(.*?)/(.*?)/(.*)" = {
           extraConfig = ''
             internal;
+            # The cache download API contract expects application/octet-stream.
+            # When proxying a presigned S3 URL, nginx would otherwise forward S3's
+            # object metadata (often application/zip), which breaks strict clients.
+            proxy_hide_header Content-Type;
+            default_type application/octet-stream;
             resolver 1.1.1.1 ipv6=off;
             set $download_url $1://$2/$3;
             proxy_set_header Host $2;
@@ -120,6 +133,8 @@
         locations."@handle_remote_redirect" = {
           extraConfig = ''
             set $saved_redirect_location $upstream_http_location;
+            proxy_hide_header Content-Type;
+            default_type application/octet-stream;
             proxy_pass $saved_redirect_location;
           '';
         };

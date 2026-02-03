@@ -27,6 +27,7 @@ struct IgnoreOutputPipeline: StandardPipelining {
 
 public func initDependencies(_ action: (Path.AbsolutePath) async throws -> Void) async throws {
     try await initEnv()
+    ThreadDumpSignalHandler.installIfEnabled()
 
     let (logger, logFilePath) = try await initLogger()
 

@@ -10,12 +10,12 @@ defmodule Cache.S3Transfers do
 
   alias Cache.Repo
   alias Cache.S3Transfer
+  alias Cache.S3TransfersBuffer
 
   @doc """
   Enqueues a CAS artifact for upload to S3.
 
-  Uses INSERT with ON CONFLICT DO NOTHING to avoid duplicate entries.
-  This is a single atomic statement, avoiding SQLite contention under bursty load.
+  Entries are queued and flushed in batches to reduce SQLite contention.
   """
   def enqueue_cas_upload(account_handle, project_handle, key) do
     enqueue(:upload, account_handle, project_handle, :cas, key)
@@ -24,8 +24,7 @@ defmodule Cache.S3Transfers do
   @doc """
   Enqueues a CAS artifact for download from S3 to local disk.
 
-  Uses INSERT with ON CONFLICT DO NOTHING to avoid duplicate entries.
-  This is a single atomic statement, avoiding SQLite contention under bursty load.
+  Entries are queued and flushed in batches to reduce SQLite contention.
   """
   def enqueue_cas_download(account_handle, project_handle, key) do
     enqueue(:download, account_handle, project_handle, :cas, key)
@@ -34,8 +33,7 @@ defmodule Cache.S3Transfers do
   @doc """
   Enqueues a module cache artifact for upload to S3.
 
-  Uses INSERT with ON CONFLICT DO NOTHING to avoid duplicate entries.
-  This is a single atomic statement, avoiding SQLite contention under bursty load.
+  Entries are queued and flushed in batches to reduce SQLite contention.
   """
   def enqueue_module_upload(account_handle, project_handle, key) do
     enqueue(:upload, account_handle, project_handle, :module, key)
@@ -44,8 +42,7 @@ defmodule Cache.S3Transfers do
   @doc """
   Enqueues a module cache artifact for download from S3 to local disk.
 
-  Uses INSERT with ON CONFLICT DO NOTHING to avoid duplicate entries.
-  This is a single atomic statement, avoiding SQLite contention under bursty load.
+  Entries are queued and flushed in batches to reduce SQLite contention.
   """
   def enqueue_module_download(account_handle, project_handle, key) do
     enqueue(:download, account_handle, project_handle, :module, key)
@@ -66,37 +63,17 @@ defmodule Cache.S3Transfers do
   Deletes a single transfer by ID.
   """
   def delete(id) do
-    S3Transfer
-    |> where([t], t.id == ^id)
-    |> Repo.delete_all()
-
-    :ok
+    S3TransfersBuffer.enqueue_delete(id)
   end
 
   @doc """
   Deletes multiple transfers by their IDs.
   """
   def delete_all(ids) when is_list(ids) do
-    S3Transfer
-    |> where([t], t.id in ^ids)
-    |> Repo.delete_all()
-
-    :ok
+    Enum.each(ids, &S3TransfersBuffer.enqueue_delete/1)
   end
 
   defp enqueue(type, account_handle, project_handle, artifact_type, key) do
-    now = DateTime.truncate(DateTime.utc_now(), :second)
-
-    Repo.insert(
-      %S3Transfer{
-        type: type,
-        account_handle: account_handle,
-        project_handle: project_handle,
-        artifact_type: artifact_type,
-        key: key,
-        inserted_at: now
-      },
-      on_conflict: :nothing
-    )
+    S3TransfersBuffer.enqueue(type, account_handle, project_handle, artifact_type, key)
   end
 end

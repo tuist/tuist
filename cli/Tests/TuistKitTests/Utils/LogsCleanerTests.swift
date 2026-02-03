@@ -21,7 +21,10 @@ struct LogsControllerTests {
             try await fileSystem.touch(recentLogPath)
 
             try FileManager.default.setAttributes(
-                [FileAttributeKey.creationDate: oldDate],
+                [
+                    FileAttributeKey.creationDate: oldDate,
+                    FileAttributeKey.modificationDate: oldDate,
+                ],
                 ofItemAtPath: veryOldLogPath.pathString
             )
 
@@ -30,6 +33,7 @@ struct LogsControllerTests {
 
             // Then
             let got = try await fileSystem.glob(directory: temporaryDirectory, include: ["logs/*"]).collect()
+            #expect(got.contains(veryOldLogPath) == false)
             #expect(got.contains(recentLogPath) == true)
             #expect(got.contains(try #require(newLogFilePath)) == true)
         }

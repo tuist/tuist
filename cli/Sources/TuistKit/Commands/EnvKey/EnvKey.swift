@@ -182,6 +182,7 @@ public enum EnvKey: String, CaseIterable {
     case testSelectiveTesting = "TUIST_TEST_SELECTIVE_TESTING"
     case testWithoutBuilding = "TUIST_TEST_WITHOUT_BUILDING"
     case testBuildOnly = "TUIST_TEST_BUILD_ONLY"
+    case testSkipQuarantine = "TUIST_TEST_SKIP_QUARANTINE"
 
     // TEST CASE LIST
 
@@ -299,6 +300,25 @@ public enum EnvKey: String, CaseIterable {
     case bundleShowId = "TUIST_BUNDLE_SHOW_ID"
     case bundleShowPath = "TUIST_BUNDLE_SHOW_PATH"
     case bundleShowJson = "TUIST_BUNDLE_SHOW_JSON"
+
+    // BUILD LIST
+
+    case buildListFullHandle = "TUIST_BUILD_LIST_FULL_HANDLE"
+    case buildListPath = "TUIST_BUILD_LIST_PATH"
+    case buildListGitBranch = "TUIST_BUILD_LIST_GIT_BRANCH"
+    case buildListStatus = "TUIST_BUILD_LIST_STATUS"
+    case buildListScheme = "TUIST_BUILD_LIST_SCHEME"
+    case buildListConfiguration = "TUIST_BUILD_LIST_CONFIGURATION"
+    case buildListPage = "TUIST_BUILD_LIST_PAGE"
+    case buildListPageSize = "TUIST_BUILD_LIST_PAGE_SIZE"
+    case buildListJson = "TUIST_BUILD_LIST_JSON"
+
+    // BUILD SHOW
+
+    case buildShowFullHandle = "TUIST_BUILD_SHOW_FULL_HANDLE"
+    case buildShowId = "TUIST_BUILD_SHOW_ID"
+    case buildShowPath = "TUIST_BUILD_SHOW_PATH"
+    case buildShowJson = "TUIST_BUILD_SHOW_JSON"
 
     // ORGANIZATION UPDATE MEMBER
 

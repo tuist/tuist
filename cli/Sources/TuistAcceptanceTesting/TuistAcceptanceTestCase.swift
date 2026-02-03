@@ -133,7 +133,7 @@ open class TuistAcceptanceTestCase: XCTestCase {
         try await parsedCommand.run()
     }
 
-    public func run(_ command: BuildCommand.Type, _ arguments: [String] = []) async throws {
+    public func run(_: BuildCommand.Type, _ arguments: [String] = []) async throws {
         let terminatorIndex = arguments.firstIndex(of: "--") ?? arguments.endIndex
         let regularArguments = arguments.prefix(upTo: terminatorIndex)
         let arguments = regularArguments + [
@@ -141,7 +141,7 @@ open class TuistAcceptanceTestCase: XCTestCase {
             "--path", fixturePath.pathString,
         ] + arguments.suffix(from: terminatorIndex)
 
-        let parsedCommand = try command.parse(Array(arguments))
+        var parsedCommand = try BuildRunCommand.parse(Array(arguments))
         try await parsedCommand.run()
     }
 

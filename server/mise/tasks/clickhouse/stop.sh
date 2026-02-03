@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
-#MISE description="Start ClickHouse server as daemon"
+#MISE description="Stop ClickHouse server"
 
 set -euo pipefail
 
-kill $(cat .clickhouse.pid) || echo "ClickHouse is not running"
+if clickhouse client --query "SYSTEM SHUTDOWN" >/dev/null 2>&1; then
+  echo "ClickHouse stopped"
+else
+  echo "ClickHouse is not running"
+fi

@@ -19,6 +19,8 @@ alias Tuist.QA.Run
 alias Tuist.Repo
 alias Tuist.Runs.Build
 alias Tuist.Runs.Test
+alias Tuist.Runs.TestCaseEvent
+alias Tuist.Runs.TestCaseRun
 alias Tuist.Runs.TestModuleRun
 alias Tuist.Runs.TestSuiteRun
 alias Tuist.Slack.Installation
@@ -58,6 +60,10 @@ alias Tuist.Slack.Installation
 # as production data grows.
 #
 # =============================================================================
+
+alias Tuist.Xcode.XcodeGraph
+alias Tuist.Xcode.XcodeProject
+alias Tuist.Xcode.XcodeTarget
 
 # Scale presets
 seed_scale = System.get_env("SEED_SCALE", "small")
@@ -683,19 +689,83 @@ test_case_definitions =
   for module_name <- module_names,
       suite_name <- suite_names,
       test_case_name <- test_case_names do
+    # ~20% of test cases are marked as flaky (and also quarantined)
+    is_flaky = Enum.random([false, false, false, false, true])
+
     %{
       name: test_case_name,
       module_name: module_name,
       suite_name: suite_name,
       status: Enum.random(["success", "failure", "skipped"]),
-      # ~20% of test cases are marked as flaky
-      is_flaky: Enum.random([false, false, false, false, true]),
+      is_flaky: is_flaky,
+      is_quarantined: is_flaky,
       duration: Enum.random(10..500),
       ran_at: NaiveDateTime.utc_now()
     }
   end
 
 {test_case_id_map, _test_cases_with_flaky_run} = Tuist.Runs.create_test_cases(tuist_project.id, test_case_definitions)
+
+# Update flaky test cases to be marked as is_flaky
+# ~70% stay quarantined, ~30% get unquarantined (to show chart going down)
+# (create_test_cases doesn't set these from input, so we insert updated rows)
+flaky_test_case_defs =
+  test_case_definitions
+  |> Enum.filter(& &1.is_flaky)
+  |> Enum.map(fn def ->
+    id = test_case_id_map[{def.name, def.module_name, def.suite_name}]
+    # ~30% will be unquarantined
+    is_quarantined = Enum.random(1..10) > 3
+    {def, id, is_quarantined}
+  end)
+  |> Enum.reject(fn {_def, id, _is_quarantined} -> is_nil(id) end)
+
+flaky_test_case_updates =
+  Enum.map(flaky_test_case_defs, fn {def, id, is_quarantined} ->
+    now = NaiveDateTime.utc_now()
+
+    %{
+      id: id,
+      name: def.name,
+      module_name: def.module_name,
+      suite_name: def.suite_name,
+      project_id: project_id,
+      last_status: def.status,
+      last_duration: def.duration,
+      last_ran_at: def.ran_at,
+      is_flaky: true,
+      is_quarantined: is_quarantined,
+      inserted_at: now,
+      recent_durations: [def.duration],
+      avg_duration: def.duration
+    }
+  end)
+
+# Track which test cases are quarantined vs unquarantined for event generation
+{quarantined_ids, unquarantined_ids} =
+  flaky_test_case_defs
+  |> Enum.split_with(fn {_def, _id, is_quarantined} -> is_quarantined end)
+  |> then(fn {quarantined, unquarantined} ->
+    {Enum.map(quarantined, fn {_def, id, _} -> id end), Enum.map(unquarantined, fn {_def, id, _} -> id end)}
+  end)
+
+quarantined_test_cases =
+  if length(flaky_test_case_updates) > 0 do
+    IngestRepo.insert_all(Tuist.Runs.TestCase, flaky_test_case_updates, timeout: 120_000)
+
+    IO.puts(
+      "Updated #{length(flaky_test_case_updates)} test cases as flaky (#{length(quarantined_ids)} quarantined, #{length(unquarantined_ids)} unquarantined)"
+    )
+
+    # Keep track of quarantined test cases for ensuring they get test runs
+    flaky_test_case_updates
+    |> Enum.filter(& &1.is_quarantined)
+    |> Enum.map(fn tc ->
+      %{id: tc.id, name: tc.name, module_name: tc.module_name, suite_name: tc.suite_name}
+    end)
+  else
+    []
+  end
 
 # Convert to a list of test cases grouped by module/suite for fast lookup
 _test_cases_by_module_suite =
@@ -732,6 +802,7 @@ failure_counter = :counters.new(1, [:atomics])
 
 # Pre-compute all static data
 all_test_cases_list = Enum.to_list(all_test_cases)
+quarantined_test_cases_list = Enum.to_list(quarantined_test_cases)
 
 # Chunk generator function - processes one chunk and inserts to DB immediately
 chunk_processor = fn chunk_indices ->
@@ -834,7 +905,14 @@ chunk_processor = fn chunk_indices ->
 
                 {case_list_inner, fail_list_inner} =
                   Enum.reduce(1..case_count, {[], []}, fn _, {cl_inner, fl_inner} ->
-                    test_case = Enum.random(all_test_cases_list)
+                    # Ensure quarantined test cases get test_case_runs (10% chance to pick from quarantined)
+                    # This ensures they have last_run_id populated for proper link rendering
+                    test_case =
+                      if length(quarantined_test_cases_list) > 0 and Enum.random(1..10) == 1 do
+                        Enum.random(quarantined_test_cases_list)
+                      else
+                        Enum.random(all_test_cases_list)
+                      end
 
                     case_status =
                       if suite_status == 0,
@@ -905,7 +983,7 @@ chunk_processor = fn chunk_indices ->
     end
 
     if length(case_runs) > 0 do
-      IngestRepo.insert_all(Tuist.Runs.TestCaseRun, case_runs, timeout: 120_000)
+      IngestRepo.insert_all(TestCaseRun, case_runs, timeout: 120_000)
       :counters.add(case_run_counter, 1, length(case_runs))
     end
 
@@ -935,6 +1013,401 @@ IO.puts("  - Module runs: #{:counters.get(module_run_counter, 1)}")
 IO.puts("  - Suite runs: #{:counters.get(suite_run_counter, 1)}")
 IO.puts("  - Case runs: #{:counters.get(case_run_counter, 1)}")
 IO.puts("  - Failures: #{:counters.get(failure_counter, 1)}")
+
+# Generate command events with module cache data linked to test runs
+# This ensures test runs have binary cache analytics available
+IO.puts("Generating command events with module cache data for test runs...")
+
+# Query test runs from ClickHouse to get IDs for linking
+test_run_ids =
+  IngestRepo.all(
+    from(t in Test,
+      where: t.project_id == ^tuist_project.id,
+      select: %{id: t.id, ran_at: t.ran_at},
+      order_by: [desc: t.ran_at],
+      limit: 100
+    )
+  )
+
+# Query existing command events with test_run_ids to avoid duplicates
+existing_test_run_ids =
+  from(e in Event,
+    where: e.project_id == ^tuist_project.id and not is_nil(e.test_run_id),
+    select: e.test_run_id
+  )
+  |> IngestRepo.all()
+  |> MapSet.new()
+
+# Filter to only test runs without existing command events
+test_runs_without_events =
+  test_run_ids
+  |> Enum.reject(fn test_run -> MapSet.member?(existing_test_run_ids, test_run.id) end)
+  |> Enum.take(50)
+
+IO.puts("  - Found #{length(test_run_ids)} test runs, #{MapSet.size(existing_test_run_ids)} already have command events")
+IO.puts("  - Creating command events for #{length(test_runs_without_events)} test runs")
+
+# Helper function to create XcodeGraphs, Projects, and Targets for command events
+create_xcode_data_for_events = fn events, label ->
+  if length(events) > 0 do
+    xcode_target_names = ["App", "Framework", "Core", "UI", "Networking", "AppTests", "FrameworkTests"]
+    product_types = ["app", "framework", "static_library", "unit_test_bundle"]
+    dest_pool = [["iphone"], ["ipad"], ["mac"], ["iphone", "ipad"]]
+    hash_pool = Enum.map(1..100, fn _ -> SeedHelpers.random_hex(64) end)
+    subhash_pool = Enum.map(1..100, fn _ -> SeedHelpers.random_hex(32) end)
+
+    xcode_graphs =
+      Enum.map(events, fn event ->
+        %{
+          id: UUIDv7.generate(),
+          name: "Workspace",
+          command_event_id: event.id,
+          binary_build_duration: Enum.random(30_000..180_000),
+          inserted_at: NaiveDateTime.truncate(event.ran_at, :second)
+        }
+      end)
+
+    IngestRepo.insert_all(XcodeGraph, xcode_graphs, timeout: 120_000)
+
+    xcode_projects =
+      Enum.flat_map(xcode_graphs, fn graph ->
+        [
+          %{
+            id: UUIDv7.generate(),
+            name: "App",
+            path: "/App/App.xcodeproj",
+            xcode_graph_id: graph.id,
+            command_event_id: graph.command_event_id,
+            inserted_at: graph.inserted_at
+          },
+          %{
+            id: UUIDv7.generate(),
+            name: "Framework",
+            path: "/Framework/Framework.xcodeproj",
+            xcode_graph_id: graph.id,
+            command_event_id: graph.command_event_id,
+            inserted_at: graph.inserted_at
+          }
+        ]
+      end)
+
+    IngestRepo.insert_all(XcodeProject, xcode_projects, timeout: 120_000)
+
+    xcode_targets =
+      Enum.flat_map(xcode_projects, fn project ->
+        xcode_target_names
+        |> Enum.with_index()
+        |> Enum.map(fn {target_name, idx} ->
+          hit_value = rem(idx, 3)
+          is_external = rem(idx, 7) == 0
+          hash_idx = rem(idx, 100)
+
+          %{
+            id: UUIDv7.generate(),
+            name: "#{project.name}_#{target_name}",
+            binary_cache_hash: Enum.at(hash_pool, hash_idx),
+            binary_cache_hit: hit_value,
+            binary_build_duration: 5000 + rem(idx * 17, 25_000),
+            selective_testing_hash: nil,
+            selective_testing_hit: 0,
+            xcode_project_id: project.id,
+            command_event_id: project.command_event_id,
+            inserted_at: project.inserted_at,
+            product: Enum.at(product_types, rem(idx, length(product_types))),
+            bundle_id: "com.tuist.#{String.downcase(project.name)}.#{String.downcase(target_name)}",
+            product_name: target_name,
+            destinations: Enum.at(dest_pool, rem(idx, length(dest_pool))),
+            external_hash: if(is_external, do: Enum.at(subhash_pool, hash_idx), else: ""),
+            sources_hash: if(is_external, do: "", else: Enum.at(subhash_pool, rem(hash_idx + 1, 100))),
+            resources_hash:
+              if(rem(idx, 2) == 0 and not is_external, do: Enum.at(subhash_pool, rem(hash_idx + 2, 100)), else: ""),
+            copy_files_hash: "",
+            core_data_models_hash: "",
+            target_scripts_hash: if(rem(idx, 3) == 0, do: Enum.at(subhash_pool, rem(hash_idx + 3, 100)), else: ""),
+            environment_hash: if(is_external, do: "", else: Enum.at(subhash_pool, rem(hash_idx + 4, 100))),
+            headers_hash: "",
+            deployment_target_hash: if(is_external, do: "", else: Enum.at(subhash_pool, rem(hash_idx + 5, 100))),
+            info_plist_hash:
+              if(rem(idx, 2) == 0 and not is_external, do: Enum.at(subhash_pool, rem(hash_idx + 6, 100)), else: ""),
+            entitlements_hash: if(rem(idx, 4) == 0, do: Enum.at(subhash_pool, rem(hash_idx + 7, 100)), else: ""),
+            dependencies_hash: if(is_external, do: "", else: Enum.at(subhash_pool, rem(hash_idx + 8, 100))),
+            project_settings_hash: if(is_external, do: "", else: Enum.at(subhash_pool, rem(hash_idx + 9, 100))),
+            target_settings_hash: if(is_external, do: "", else: Enum.at(subhash_pool, rem(hash_idx + 10, 100))),
+            buildable_folders_hash: "",
+            additional_strings: []
+          }
+        end)
+      end)
+
+    IngestRepo.insert_all(XcodeTarget, xcode_targets, timeout: 120_000)
+
+    IO.puts(
+      "  - #{label}: #{length(xcode_graphs)} graphs, #{length(xcode_projects)} projects, #{length(xcode_targets)} targets"
+    )
+  end
+end
+
+# Create command events for test runs that don't have them yet
+test_run_command_events =
+  Enum.map(test_runs_without_events, fn test_run ->
+    %{
+      id: UUIDv7.generate(),
+      test_run_id: test_run.id,
+      name: "test",
+      duration: Enum.random(10_000..100_000),
+      tuist_version: "4.1.0",
+      project_id: tuist_project.id,
+      cacheable_targets: ["App", "Framework", "Core", "UI", "Networking"],
+      local_cache_target_hits: ["Framework", "Core"],
+      remote_cache_target_hits: ["UI"],
+      test_targets: ["AppTests", "FrameworkTests"],
+      local_test_target_hits: ["FrameworkTests"],
+      remote_test_target_hits: [],
+      swift_version: "5.9",
+      macos_version: "14.0",
+      subcommand: "",
+      command_arguments: "test --scheme App",
+      is_ci: Enum.random([true, false]),
+      user_id: nil,
+      client_id: "client-id",
+      status: Enum.random([0, 1]),
+      error_message: nil,
+      preview_id: nil,
+      git_ref: nil,
+      git_commit_sha: Enum.random(["a1b2c3d4e5f6", "f6e5d4c3b2a1"]),
+      git_branch: Enum.random(branches),
+      created_at: test_run.ran_at,
+      updated_at: test_run.ran_at,
+      ran_at: test_run.ran_at,
+      build_run_id: nil
+    }
+  end)
+
+if length(test_run_command_events) > 0 do
+  IngestRepo.insert_all(Event, test_run_command_events, timeout: 120_000)
+  IO.puts("  - Created #{length(test_run_command_events)} test command events")
+  create_xcode_data_for_events.(test_run_command_events, "Test runs")
+end
+
+# Also create command events with xcode data for generate and cache runs
+IO.puts("Generating command events with module cache data for generate and cache runs...")
+
+# Query existing generate/cache command events that have xcode data
+existing_events_with_xcode =
+  from(g in XcodeGraph,
+    join: e in Event,
+    on: g.command_event_id == e.id,
+    where: e.project_id == ^tuist_project.id and e.name in ["generate", "cache"],
+    select: e.id
+  )
+  |> IngestRepo.all()
+  |> MapSet.new()
+
+# Query generate/cache events without xcode data
+events_needing_xcode =
+  from(e in Event,
+    where: e.project_id == ^tuist_project.id and e.name in ["generate", "cache"],
+    select: %{id: e.id, name: e.name, ran_at: e.ran_at},
+    order_by: [desc: e.ran_at],
+    limit: 200
+  )
+  |> IngestRepo.all()
+  |> Enum.reject(fn event -> MapSet.member?(existing_events_with_xcode, event.id) end)
+  |> Enum.take(100)
+
+generate_events = events_needing_xcode |> Enum.filter(&(&1.name == "generate")) |> Enum.take(50)
+cache_events = events_needing_xcode |> Enum.filter(&(&1.name == "cache")) |> Enum.take(50)
+
+IO.puts(
+  "  - Found #{length(generate_events)} generate events and #{length(cache_events)} cache events needing xcode data"
+)
+
+create_xcode_data_for_events.(generate_events, "Generate runs")
+create_xcode_data_for_events.(cache_events, "Cache runs")
+
+# =============================================================================
+# Ensure all quarantined test cases have at least one test case run
+# =============================================================================
+#
+# Quarantined test cases need associated runs for proper link rendering.
+# Create explicit runs for each quarantined test case to guarantee this.
+
+IO.puts("Ensuring all quarantined test cases have runs...")
+
+if length(quarantined_test_cases) > 0 do
+  # Create a test run to associate with quarantined test case runs
+  quarantine_test_run_id = UUIDv7.generate()
+  ran_at = DateTime.utc_now() |> DateTime.add(-1, :day) |> DateTime.to_naive()
+
+  quarantine_test_run = %{
+    id: quarantine_test_run_id,
+    duration: 30_000,
+    macos_version: "14.0",
+    xcode_version: "15.0",
+    is_ci: true,
+    is_flaky: true,
+    model_identifier: "MacBookPro14,2",
+    scheme: "AppTests",
+    status: "success",
+    git_branch: "main",
+    git_commit_sha: "abc123def456",
+    git_ref: "refs/heads/main",
+    ran_at: ran_at,
+    project_id: project_id,
+    account_id: org_account_id,
+    inserted_at: ran_at,
+    ci_run_id: "19500000000",
+    ci_project_handle: "tuist/tuist",
+    ci_host: "",
+    ci_provider: "github"
+  }
+
+  IngestRepo.insert_all(Test, [quarantine_test_run], timeout: 120_000)
+
+  # Create module and suite runs for the quarantined test cases
+  quarantine_module_id = UUIDv7.generate()
+  quarantine_suite_id = UUIDv7.generate()
+
+  quarantine_module_run = %{
+    id: quarantine_module_id,
+    name: "QuarantinedTests",
+    test_run_id: quarantine_test_run_id,
+    status: 0,
+    is_flaky: true,
+    duration: 5_000,
+    test_suite_count: 1,
+    test_case_count: length(quarantined_test_cases),
+    avg_test_case_duration: 50,
+    inserted_at: ran_at
+  }
+
+  quarantine_suite_run = %{
+    id: quarantine_suite_id,
+    name: "QuarantinedSuite",
+    test_run_id: quarantine_test_run_id,
+    test_module_run_id: quarantine_module_id,
+    status: 0,
+    is_flaky: true,
+    duration: 3_000,
+    test_case_count: length(quarantined_test_cases),
+    avg_test_case_duration: 30,
+    inserted_at: ran_at
+  }
+
+  IngestRepo.insert_all(TestModuleRun, [quarantine_module_run], timeout: 120_000)
+  IngestRepo.insert_all(TestSuiteRun, [quarantine_suite_run], timeout: 120_000)
+
+  # Create a test case run for each quarantined test case
+  quarantined_case_runs =
+    Enum.map(quarantined_test_cases, fn tc ->
+      %{
+        id: UUIDv7.generate(),
+        name: tc.name,
+        test_run_id: quarantine_test_run_id,
+        test_module_run_id: quarantine_module_id,
+        test_suite_run_id: quarantine_suite_id,
+        test_case_id: tc.id,
+        project_id: project_id,
+        is_ci: true,
+        scheme: "AppTests",
+        account_id: org_account_id,
+        ran_at: ran_at,
+        git_branch: "main",
+        git_commit_sha: "abc123def456",
+        status: 0,
+        is_flaky: true,
+        is_new: false,
+        duration: Enum.random(10..200),
+        module_name: tc.module_name,
+        suite_name: tc.suite_name,
+        inserted_at: ran_at
+      }
+    end)
+
+  IngestRepo.insert_all(TestCaseRun, quarantined_case_runs, timeout: 120_000)
+  IO.puts("  - Created #{length(quarantined_case_runs)} runs for quarantined test cases")
+end
+
+# =============================================================================
+# Test Case Events (Quarantine History)
+# =============================================================================
+#
+# Create historical quarantine/unquarantine events for test cases to populate
+# the quarantined tests analytics chart. Events match the final quarantine state.
+
+IO.puts("Generating test case events for quarantine history...")
+
+# Generate events for quarantined test cases (odd number of events, ending with "quarantined")
+quarantined_events =
+  Enum.flat_map(quarantined_ids, fn test_case_id ->
+    # Odd number of events so it ends with "quarantined"
+    num_events = Enum.random([1, 3, 5, 7])
+    base_date = DateTime.utc_now()
+
+    event_timestamps =
+      1..num_events
+      |> Enum.map(fn _ -> Enum.random(1..400) end)
+      |> Enum.sort(:desc)
+      |> Enum.map(fn day_offset ->
+        base_date |> DateTime.add(-day_offset, :day) |> DateTime.to_naive()
+      end)
+
+    event_timestamps
+    |> Enum.with_index()
+    |> Enum.map(fn {inserted_at, index} ->
+      event_type = if rem(index, 2) == 0, do: "quarantined", else: "unquarantined"
+      actor_id = if Enum.random(1..10) <= 7, do: nil, else: user_account_id
+
+      %{
+        id: UUIDv7.generate(),
+        test_case_id: test_case_id,
+        event_type: event_type,
+        actor_id: actor_id,
+        inserted_at: inserted_at
+      }
+    end)
+  end)
+
+# Generate events for unquarantined test cases (even number of events, ending with "unquarantined")
+unquarantined_events =
+  Enum.flat_map(unquarantined_ids, fn test_case_id ->
+    # Even number of events so it ends with "unquarantined"
+    num_events = Enum.random([2, 4, 6])
+    base_date = DateTime.utc_now()
+
+    event_timestamps =
+      1..num_events
+      |> Enum.map(fn _ -> Enum.random(1..400) end)
+      |> Enum.sort(:desc)
+      |> Enum.map(fn day_offset ->
+        base_date |> DateTime.add(-day_offset, :day) |> DateTime.to_naive()
+      end)
+
+    event_timestamps
+    |> Enum.with_index()
+    |> Enum.map(fn {inserted_at, index} ->
+      event_type = if rem(index, 2) == 0, do: "quarantined", else: "unquarantined"
+      actor_id = if Enum.random(1..10) <= 7, do: nil, else: user_account_id
+
+      %{
+        id: UUIDv7.generate(),
+        test_case_id: test_case_id,
+        event_type: event_type,
+        actor_id: actor_id,
+        inserted_at: inserted_at
+      }
+    end)
+  end)
+
+test_case_events = quarantined_events ++ unquarantined_events
+
+# Insert test case events
+if length(test_case_events) > 0 do
+  IngestRepo.insert_all(TestCaseEvent, test_case_events, timeout: 120_000)
+end
+
+IO.puts("  - Test case events: #{length(test_case_events)}")
+IO.puts("  - Currently quarantined: #{length(quarantined_ids)}, unquarantined: #{length(unquarantined_ids)}")
 
 IO.puts("Generating #{seed_config.command_events} command events in parallel...")
 
@@ -980,11 +1453,14 @@ cmd_project_id = tuist_project.id
 cmd_user_id = user.id
 
 event_counter = :counters.new(1, [:atomics])
-generate_event_counter = :counters.new(1, [:atomics])
+generate_cache_event_counter = :counters.new(1, [:atomics])
 
 # Stream and insert command events in parallel chunks
 # Use larger chunks (100K) and higher concurrency for faster throughput
 cmd_chunk_size = 100_000
+
+# Collect generate and cache events for xcode data creation
+all_generate_cache_events = :ets.new(:generate_cache_events, [:bag, :public])
 
 # Process command events sequentially to avoid overwhelming ClickHouse connections
 # Using Stream.chunk_every for memory efficiency
@@ -1049,14 +1525,42 @@ cmd_chunk_size = 100_000
   IngestRepo.insert_all(Event, events, timeout: 120_000)
   :counters.add(event_counter, 1, length(events))
 
-  # Count generate events for later xcode graph generation
-  gen_count = Enum.count(events, &(&1.name == "generate"))
-  :counters.add(generate_event_counter, 1, gen_count)
+  # Collect generate and cache events for xcode data creation
+  generate_cache_events = Enum.filter(events, &(&1.name in ["generate", "cache"]))
+  Enum.each(generate_cache_events, fn event -> :ets.insert(all_generate_cache_events, {:event, event}) end)
+  :counters.add(generate_cache_event_counter, 1, length(generate_cache_events))
 
   IO.write("\r  Inserted: #{:counters.get(event_counter, 1)}")
 end)
 
-IO.puts("\n  Done. (#{:counters.get(generate_event_counter, 1)} generate events)")
+IO.puts("\n  Done. (#{:counters.get(generate_cache_event_counter, 1)} generate/cache events)")
+
+# Create xcode data for all generate and cache events
+IO.puts("Creating xcode data for all generate and cache command events...")
+
+collected_events =
+  all_generate_cache_events
+  |> :ets.tab2list()
+  |> Enum.map(fn {:event, event} -> event end)
+
+:ets.delete(all_generate_cache_events)
+
+# Group events by date to avoid ClickHouse partition limit (max 100 partitions per insert)
+# Process events in date-grouped batches (10 days at a time like main XcodeGraph generation)
+events_by_date =
+  collected_events
+  |> Enum.group_by(fn event -> NaiveDateTime.to_date(event.ran_at) end)
+  |> Enum.sort_by(fn {date, _events} -> date end, Date)
+
+events_by_date
+|> Enum.chunk_every(10)
+|> Enum.with_index(1)
+|> Enum.each(fn {date_batches, batch_idx} ->
+  events_in_batch = Enum.flat_map(date_batches, fn {_date, events} -> events end)
+  create_xcode_data_for_events.(events_in_batch, "Date batch #{batch_idx}")
+end)
+
+IO.puts("  - Total: #{length(collected_events)} events with xcode data")
 
 # Generate XcodeGraphs, Projects, and Targets in a fully streaming manner
 # Process graphs in chunks to avoid memory pressure with 40M+ targets
@@ -1189,7 +1693,7 @@ end
     end)
 
   # Insert graphs (all from ≤10 dates, safe for large batch)
-  IngestRepo.insert_all(Tuist.Xcode.XcodeGraph, graphs, timeout: 120_000)
+  IngestRepo.insert_all(XcodeGraph, graphs, timeout: 120_000)
   :counters.add(graph_counter, 1, length(graphs))
 
   # Generate all projects for this batch's graphs
@@ -1213,7 +1717,7 @@ end
   projects
   |> Enum.chunk_every(50_000)
   |> Enum.each(fn chunk ->
-    IngestRepo.insert_all(Tuist.Xcode.XcodeProject, chunk, timeout: 120_000)
+    IngestRepo.insert_all(XcodeProject, chunk, timeout: 120_000)
     :counters.add(project_counter, 1, length(chunk))
   end)
 
@@ -1229,7 +1733,7 @@ end
   end)
   |> Stream.chunk_every(100_000)
   |> Enum.each(fn chunk ->
-    IngestRepo.insert_all(Tuist.Xcode.XcodeTarget, chunk, timeout: 120_000)
+    IngestRepo.insert_all(XcodeTarget, chunk, timeout: 120_000)
     :counters.add(target_counter, 1, length(chunk))
   end)
 

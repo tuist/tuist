@@ -29,6 +29,7 @@ When creating commits and pull requests, use these conventional commit scopes:
 - `docs` - Changes to documentation
 - `handbook` - Changes to the handbook/guides
 
+
 Examples:
 - `feat(server): add new telemetry sanitizer module`
 - `fix(cli): resolve cache artifact upload issue`

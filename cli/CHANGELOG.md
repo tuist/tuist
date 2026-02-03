@@ -1,16 +1,104 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.131.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.135.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* avoid stale auth token cache during long uploads by [@cschmatzler](https://github.com/cschmatzler) in [#9314](https://github.com/tuist/tuist/pull/9314)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.135.1...4.135.2
+
+## What's Changed in 4.135.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* generate registry config before resolving Swift packages by [@pepicrft](https://github.com/pepicrft) in [#9311](https://github.com/tuist/tuist/pull/9311)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.135.0...4.135.1
+
+## What's Changed in 4.135.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
+* auto-skip quarantined tests in tuist test by [@fortmarek](https://github.com/fortmarek) in [#9306](https://github.com/tuist/tuist/pull/9306)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.134.1...4.135.0
+
+## What's Changed in 4.134.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Bump cache version for static framework copy layout by [@pepicrft](https://github.com/pepicrft) in [#9309](https://github.com/tuist/tuist/pull/9309)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.134.0...4.134.1
+
+## What's Changed in 4.134.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add build list and build show commands by [@pepicrft](https://github.com/pepicrft) in [#9272](https://github.com/tuist/tuist/pull/9272)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.133.4...4.134.0
+
+## What's Changed in 4.133.4<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* handle Metal files in buildable folders for resource bundle generation by [@pepicrft](https://github.com/pepicrft) in [#9298](https://github.com/tuist/tuist/pull/9298)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.133.3...4.133.4
+
+## What's Changed in 4.133.3<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* propagate .bundle resource files from external static frameworks to host app by [@pepicrft](https://github.com/pepicrft) in [#9294](https://github.com/tuist/tuist/pull/9294)
+* search host bundle paths in ObjC resource bundle accessor by [@pepicrft](https://github.com/pepicrft) in [#9295](https://github.com/tuist/tuist/pull/9295)
+* harden log cleanup by [@pepicrft](https://github.com/pepicrft) in [#9296](https://github.com/tuist/tuist/pull/9296)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.133.2...4.133.3
+
+## What's Changed in 4.133.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* eagerly compute conditional targets to prevent thread starvation during generation by [@pepicrft](https://github.com/pepicrft) in [#9292](https://github.com/tuist/tuist/pull/9292)
+* only embed static XCFrameworks containing .framework bundles by [@pepicrft](https://github.com/pepicrft) in [#9288](https://github.com/tuist/tuist/pull/9288)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.133.0...4.133.2
+
+## What's Changed in 4.133.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add TUIST_CACHE_ENDPOINT environment variable override by [@fortmarek](https://github.com/fortmarek) in [#9282](https://github.com/tuist/tuist/pull/9282)
+* add debug logging to diagnose generation hangs by [@fortmarek](https://github.com/fortmarek) in [#9284](https://github.com/tuist/tuist/pull/9284)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.132.1...4.133.0
+
+## What's Changed in 4.132.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* add authentication failure error for cache by [@cschmatzler](https://github.com/cschmatzler) in [#9280](https://github.com/tuist/tuist/pull/9280)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.132.0...4.132.1
+
+## What's Changed in 4.132.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add registryEnabled generation option by [@pepicrft](https://github.com/pepicrft) in [#9258](https://github.com/tuist/tuist/pull/9258)
 * add test quarantine and automations settings by [@fortmarek](https://github.com/fortmarek) in [#9175](https://github.com/tuist/tuist/pull/9175)
 ### 🐛 Bug Fixes
 
+* set default cache concurrency limit to 100 by [@fortmarek](https://github.com/fortmarek) in [#9235](https://github.com/tuist/tuist/pull/9235)
+* support BITRISE_IDENTITY_TOKEN env var for Bitrise OIDC auth by [@pepicrft](https://github.com/pepicrft) in [#9257](https://github.com/tuist/tuist/pull/9257)
+* embed static XCFrameworks to support resources by [@pepicrft](https://github.com/pepicrft) in [#9240](https://github.com/tuist/tuist/pull/9240)
 * restore mapper order for selective testing and fix parseAsRoot by [@fortmarek](https://github.com/fortmarek) in [#9234](https://github.com/tuist/tuist/pull/9234)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.130.3...4.131.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.130.3...4.132.0
 
 ## What's Changed in 4.130.3<!-- RELEASE NOTES START -->
 
