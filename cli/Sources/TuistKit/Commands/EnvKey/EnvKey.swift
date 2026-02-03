@@ -317,6 +317,33 @@ public enum EnvKey: String, CaseIterable {
     case buildShowId = "TUIST_BUILD_SHOW_ID"
     case buildShowPath = "TUIST_BUILD_SHOW_PATH"
     case buildShowJson = "TUIST_BUILD_SHOW_JSON"
+    // GENERATION LIST
+
+    case generationListFullHandle = "TUIST_GENERATION_LIST_FULL_HANDLE"
+    case generationListPath = "TUIST_GENERATION_LIST_PATH"
+    case generationListGitBranch = "TUIST_GENERATION_LIST_GIT_BRANCH"
+    case generationListJson = "TUIST_GENERATION_LIST_JSON"
+
+    // GENERATION SHOW
+
+    case generationShowFullHandle = "TUIST_GENERATION_SHOW_FULL_HANDLE"
+    case generationShowId = "TUIST_GENERATION_SHOW_ID"
+    case generationShowPath = "TUIST_GENERATION_SHOW_PATH"
+    case generationShowJson = "TUIST_GENERATION_SHOW_JSON"
+
+    // CACHE RUN LIST
+
+    case cacheRunListFullHandle = "TUIST_CACHE_RUN_LIST_FULL_HANDLE"
+    case cacheRunListPath = "TUIST_CACHE_RUN_LIST_PATH"
+    case cacheRunListGitBranch = "TUIST_CACHE_RUN_LIST_GIT_BRANCH"
+    case cacheRunListJson = "TUIST_CACHE_RUN_LIST_JSON"
+
+    // CACHE RUN SHOW
+
+    case cacheRunShowFullHandle = "TUIST_CACHE_RUN_SHOW_FULL_HANDLE"
+    case cacheRunShowId = "TUIST_CACHE_RUN_SHOW_ID"
+    case cacheRunShowPath = "TUIST_CACHE_RUN_SHOW_PATH"
+    case cacheRunShowJson = "TUIST_CACHE_RUN_SHOW_JSON"
 
     // ORGANIZATION UPDATE MEMBER
 

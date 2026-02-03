@@ -153,7 +153,7 @@ defmodule TuistWeb.AppLayoutComponents do
           }
         />
         <.sidebar_item
-          label={dgettext("dashboard", "Generate Runs")}
+          label={dgettext("dashboard", "Generations")}
           icon="filters"
           navigate={
             ~p"/#{@selected_account.name}/#{@selected_project.name}/module-cache/generate-runs"

@@ -64,6 +64,26 @@ public enum TuistTest {
     )
         async throws
     {
+        try await runCommand(command, arguments, options: options)
+    }
+
+    public static func run(
+        _ command: (some ParsableCommand).Type,
+        _ arguments: [String] = [],
+        options: Set<TuistTestRunOption> = Set()
+    )
+        async throws
+    {
+        try await runCommand(command, arguments, options: options)
+    }
+
+    private static func runCommand(
+        _ command: (some ParsableCommand).Type,
+        _ arguments: [String] = [],
+        options: Set<TuistTestRunOption> = Set()
+    )
+        async throws
+    {
         if let mockEnvironment = Environment.mocked {
             mockEnvironment.processId = UUID().uuidString
         }
