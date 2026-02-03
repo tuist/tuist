@@ -993,3 +993,6 @@ msgstr "自昨日起"
 #, fuzzy
 msgid "Cache Endpoint"
 msgstr "快取端點"
+
+msgid "Generations"
+msgstr ""
