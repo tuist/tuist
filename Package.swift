@@ -99,6 +99,13 @@ var targets: [Target] = [
         path: "cli/Sources/TuistThreadSafe"
     ),
     .target(
+        name: "TuistEncodable",
+        dependencies: [
+            swiftToolsSupportDependency,
+        ],
+        path: "cli/Sources/TuistEncodable"
+    ),
+    .target(
         name: "TuistAlert",
         dependencies: [
             .product(name: "Noora", package: "tuist.Noora"),
@@ -130,6 +137,7 @@ var targets: [Target] = [
             "TuistOIDC",
             "TuistEnvKey",
             "TuistCAS",
+            "TuistEncodable",
         ],
         path: "cli/Sources/TuistCacheCommand"
     ),
@@ -345,6 +353,7 @@ targets.append(contentsOf: [
             "TuistSimulator",
             "TuistCache",
             "TuistExtension",
+            "TuistEncodable",
             "TuistRootDirectoryLocator",
             "TuistXcodeProjectOrWorkspacePathLocator",
             "TuistXCResultService",
