@@ -14,6 +14,14 @@ defmodule TuistWeb.Plugs.WebhookPlugTest do
     end
   end
 
+  defmodule TimeoutBodyReader do
+    @moduledoc false
+
+    def read_body(_conn, _opts) do
+      raise Bandit.HTTPError, message: "Body read timeout", plug_status: :request_timeout
+    end
+  end
+
   defp generate_signature(payload, secret, prefix \\ nil) do
     signature = :hmac |> :crypto.mac(:sha256, secret, payload) |> Base.encode16(case: :lower)
 
@@ -118,6 +126,87 @@ defmodule TuistWeb.Plugs.WebhookPlugTest do
 
       # Then
       assert result.status == 403
+    end
+
+    test "processes payload split across multiple body reads" do
+      # Given
+      secret = "my-secret"
+      payload = ~s({"action": "opened", "body": "chunked-payload"})
+
+      parser_opts =
+        Plug.Parsers.init(
+          parsers: [:json],
+          body_reader: {WebhookPlug.CacheBodyReader, :read_body, []},
+          json_decoder: Phoenix.json_library(),
+          read_length: 8
+        )
+
+      options = [
+        at: "/webhook/github",
+        secret: secret,
+        handler: TestHandler,
+        signature_header: "x-hub-signature-256",
+        signature_prefix: "sha256=",
+        parser_opts: parser_opts
+      ]
+
+      signature = generate_signature(payload, secret, "sha256=")
+
+      conn =
+        :post
+        |> conn("/webhook/github", payload)
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("x-hub-signature-256", signature)
+
+      # When
+      result = WebhookPlug.call(conn, options)
+
+      # Then
+      assert result.status == 200
+      assert result.resp_body == "OK"
+      assert result.halted == true
+
+      assert_receive {:handled, _conn, %{"action" => "opened", "body" => "chunked-payload"}}
+    end
+
+    test "returns 408 when the body read times out" do
+      # Given
+      secret = "my-secret"
+      payload = ~s({"action": "opened"})
+
+      parser_opts =
+        Plug.Parsers.init(
+          parsers: [:json],
+          body_reader: {TimeoutBodyReader, :read_body, []},
+          json_decoder: Phoenix.json_library()
+        )
+
+      options = [
+        at: "/webhook/github",
+        secret: secret,
+        handler: TestHandler,
+        signature_header: "x-hub-signature-256",
+        signature_prefix: "sha256=",
+        parser_opts: parser_opts
+      ]
+
+      signature = generate_signature(payload, secret, "sha256=")
+
+      conn =
+        :post
+        |> conn("/webhook/github", payload)
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("x-hub-signature-256", signature)
+
+      # When
+      result = WebhookPlug.call(conn, options)
+
+      # Then
+      assert result.status == 408
+      assert result.resp_body == "Request Timeout"
+      assert result.halted == true
+
+      refute_receive {:handled, _conn, _payload}
     end
   end
 
