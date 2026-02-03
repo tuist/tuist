@@ -193,6 +193,7 @@ var targets: [Target] = [
         dependencies: [
             argumentParserDependency,
             "TuistConstants",
+            "TuistLogging",
         ],
         path: "cli/Sources/TuistVersionCommand"
     ),
@@ -466,6 +467,7 @@ targets.append(contentsOf: [
             "TuistSupport",
             "TuistServer",
             "TuistHTTP",
+            "TuistAlert",
             xcodeGraphDependency,
             pathDependency,
             differenceDependency,

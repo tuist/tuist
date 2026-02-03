@@ -427,6 +427,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.server.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.http.targetName),
+                    .target(name: Module.alert.targetName),
                     .external(name: "XcodeGraph"),
                     .external(name: "XcodeProj"),
                     .external(name: "Difference"),

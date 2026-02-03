@@ -32,7 +32,7 @@ public final class LogoutService: LogoutServicing {
         self.serverSessionController = serverSessionController
         self.serverEnvironmentService = serverEnvironmentService
         #if os(macOS)
-            self.configLoader = ConfigLoader()
+            configLoader = ConfigLoader()
         #endif
     }
 

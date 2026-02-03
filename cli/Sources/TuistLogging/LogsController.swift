@@ -29,7 +29,7 @@ public struct LogsController {
 
         let isCommandMachineReadable =
             CommandLine.arguments.count > 1
-            && machineReadableCommandNames.contains(CommandLine.arguments[1])
+                && machineReadableCommandNames.contains(CommandLine.arguments[1])
 
         let loggingConfig =
             if isCommandMachineReadable || CommandLine.arguments.contains("--json") {

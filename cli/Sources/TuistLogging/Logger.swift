@@ -64,8 +64,8 @@ public struct SimpleFileLogHandler: LogHandler, @unchecked Sendable {
         if !FileManager.default.fileExists(atPath: fileURL.path) {
             FileManager.default.createFile(atPath: fileURL.path, contents: nil)
         }
-        self.fileHandle = try FileHandle(forWritingTo: fileURL)
-        self.fileHandle.seekToEndOfFile()
+        fileHandle = try FileHandle(forWritingTo: fileURL)
+        fileHandle.seekToEndOfFile()
     }
 
     public subscript(metadataKey key: String) -> Logger.Metadata.Value? {
@@ -78,9 +78,9 @@ public struct SimpleFileLogHandler: LogHandler, @unchecked Sendable {
         message: Logger.Message,
         metadata: Logger.Metadata?,
         source: String,
-        file: String,
-        function: String,
-        line: UInt
+        file _: String,
+        function _: String,
+        line _: UInt
     ) {
         let timestamp = ISO8601DateFormatter().string(from: Date())
         let mergedMetadata = self.metadata.merging(metadata ?? [:]) { _, new in new }
@@ -133,12 +133,12 @@ extension JSONLogHandler: VerboseLogHandler {
         public var logLevel: Logger.Level
 
         public init(label: String) {
-            self.osLogHandler = LoggingOSLog(label: label)
-            self.logLevel = .info
+            osLogHandler = LoggingOSLog(label: label)
+            logLevel = .info
         }
 
         public init(label: String, logLevel: Logger.Level) {
-            self.osLogHandler = LoggingOSLog(label: label)
+            osLogHandler = LoggingOSLog(label: label)
             self.logLevel = logLevel
         }
 

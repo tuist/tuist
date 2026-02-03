@@ -153,8 +153,8 @@ public final class LoginService: LoginServicing {
     }
 }
 
-public extension LoginServicing {
-    func run(
+extension LoginServicing {
+    public func run(
         email: String? = nil,
         password: String? = nil,
         serverURL: String? = nil

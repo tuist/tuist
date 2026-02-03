@@ -32,7 +32,7 @@ struct InspectTestCommand: AsyncParsableCommand, NooraReadyCommand {
     )
     var resultBundlePath: String?
 
-    public var jsonThroughNoora: Bool = false
+    var jsonThroughNoora: Bool = false
 
     func run() async throws {
         try await InspectTestCommandService()

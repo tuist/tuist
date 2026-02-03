@@ -177,7 +177,9 @@ public enum ServerCredentialsStoreBackend: Sendable {
         }
 
         fileprivate func credentialsFilePath(serverURL: URL) throws -> AbsolutePath {
-            guard let components = URLComponents(url: serverURL, resolvingAgainstBaseURL: false), let host = components.host else {
+            guard let components = URLComponents(url: serverURL, resolvingAgainstBaseURL: false),
+                  let host = components.host
+            else {
                 throw ServerCredentialsStoreError.invalidServerURL(serverURL.absoluteString)
             }
             let directory = if let configDirectory {
@@ -284,7 +286,9 @@ public enum ServerCredentialsStoreBackend: Sendable {
         }
 
         fileprivate func credentialsFilePath(serverURL: URL) throws -> AbsolutePath {
-            guard let components = URLComponents(url: serverURL, resolvingAgainstBaseURL: false), let host = components.host else {
+            guard let components = URLComponents(url: serverURL, resolvingAgainstBaseURL: false),
+                  let host = components.host
+            else {
                 throw ServerCredentialsStoreError.invalidServerURL(serverURL.absoluteString)
             }
             // swiftlint:disable:next force_try

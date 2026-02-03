@@ -25,7 +25,7 @@ struct InspectBuildCommand: AsyncParsableCommand, NooraReadyCommand {
     )
     var derivedDataPath: String?
 
-    public var jsonThroughNoora: Bool = false
+    var jsonThroughNoora: Bool = false
 
     func run() async throws {
         try await InspectBuildCommandService()

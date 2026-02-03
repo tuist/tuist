@@ -50,7 +50,7 @@ private func initEnv() throws {
 
 private func initLogger() async throws -> (Logger, AbsolutePath) {
     #if os(macOS)
-        let machineReadableCommandNames = [DumpCommand.self].map { $0._commandName }
+        let machineReadableCommandNames = [DumpCommand.self].map(\._commandName)
     #else
         let machineReadableCommandNames: [String] = []
     #endif
@@ -96,25 +96,25 @@ func initDependencies(_ action: (AbsolutePath) async throws -> Void) async throw
 
 private func withPlatformDependencies(_ action: () async throws -> Void) async throws {
     #if os(macOS)
-    try await withAdditionalMiddlewares {
-        try await withInitializedManifestLoader {
-            try await RecentPathsStore.$current
-                .withValue(RecentPathsStore(storageDirectory: Environment.current.stateDirectory)) {
-                    try await Extension.$hashCacheService
-                        .withValue(HashCacheCommandService()) {
-                            try await action()
-                        }
-                }
+        try await withAdditionalMiddlewares {
+            try await withInitializedManifestLoader {
+                try await RecentPathsStore.$current
+                    .withValue(RecentPathsStore(storageDirectory: Environment.current.stateDirectory)) {
+                        try await Extension.$hashCacheService
+                            .withValue(HashCacheCommandService()) {
+                                try await action()
+                            }
+                    }
+            }
         }
-    }
     #else
-    try await action()
+        try await action()
     #endif
 }
 
 private func withSharedDependencies(
     logger: Logger,
-    logFilePath: AbsolutePath,
+    logFilePath _: AbsolutePath,
     _ action: () async throws -> Void
 ) async throws {
     try await ServerAuthenticationConfig.$current

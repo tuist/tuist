@@ -39,7 +39,7 @@ struct BundleListCommand: AsyncParsableCommand, NooraReadyCommand {
     )
     var json: Bool = false
 
-    public var jsonThroughNoora: Bool = true
+    var jsonThroughNoora: Bool = true
 
     func run() async throws {
         try await BundleListCommandService().run(
