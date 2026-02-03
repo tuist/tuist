@@ -7,16 +7,12 @@ import TuistEnvironment
 import TuistLogging
 import TuistServer
 
-// Use Path.AbsolutePath to avoid ambiguity with TSCBasic.AbsolutePath on macOS
-public typealias AbsolutePath = Path.AbsolutePath
-
 // Cross-platform Noora TaskLocal
 extension Noora {
     @TaskLocal static var current: Noorable = Noora()
 }
 
 #if os(macOS)
-    import TSCBasic
     import TuistKit
     import TuistLoader
     import TuistSupport
