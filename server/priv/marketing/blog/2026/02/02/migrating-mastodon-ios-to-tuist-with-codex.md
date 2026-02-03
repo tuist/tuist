@@ -1,5 +1,5 @@
 ---
-title: "We used Codex to migrate Mastodon iOS to Tuist and cut clean builds by 80%"
+title: "Codex migrated Mastodon iOS to Tuist, cutting clean builds 80%"
 category: "engineering"
 tags: ["tuist", "migration", "ios", "codex", "cache"]
 excerpt: "We gave Codex the Mastodon iOS client and asked it to migrate the project to Tuist generated projects, enable caching, and benchmark the results. Here is what happened."
