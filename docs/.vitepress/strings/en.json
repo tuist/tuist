@@ -385,6 +385,9 @@
           "items": {
             "mcp": {
               "text": "MCP"
+            },
+            "skills": {
+              "text": "Skills"
             }
           }
         },
