@@ -207,7 +207,7 @@ defmodule Cache.DiskTest do
 end
 
 defmodule Cache.DiskRegistryTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Cache.Disk
 
@@ -335,7 +335,7 @@ defmodule Cache.DiskRegistryTest do
 end
 
 defmodule Cache.DiskIntegrationTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   import ExUnit.CaptureLog
 
@@ -354,9 +354,13 @@ defmodule Cache.DiskIntegrationTest do
   end
 
   setup do
+    {:ok, test_storage_dir} = Briefly.create(directory: true)
+
+    original_storage_dir = Application.get_env(:cache, :storage_dir)
+    Application.put_env(:cache, :storage_dir, test_storage_dir)
+
     on_exit(fn ->
-      File.rm_rf!(Disk.storage_dir())
-      File.mkdir_p!(Disk.storage_dir())
+      Application.put_env(:cache, :storage_dir, original_storage_dir)
     end)
 
     :ok
