@@ -24,7 +24,7 @@ public struct LoginCommand: AsyncParsableCommand {
 
     @Option(
         name: .long,
-        help: "The URL of the server. Required on Linux unless TUIST_URL environment variable is set."
+        help: "The URL of the server."
     )
     var serverURL: String?
 
