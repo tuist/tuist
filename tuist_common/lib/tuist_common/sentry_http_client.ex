@@ -5,12 +5,18 @@ defmodule TuistCommon.SentryHTTPClient do
 
   @behaviour Sentry.HTTPClient
 
+  @finch_name TuistCommon.SentryFinch
+
+  @impl true
+  def child_spec do
+    Supervisor.child_spec({Finch, name: @finch_name}, id: @finch_name)
+  end
+
   @impl true
   def post(url, headers, body) do
-    finch_name = Application.get_env(:tuist_common, :finch_name)
     request = Finch.build(:post, url, headers, body)
 
-    case Finch.request(request, finch_name) do
+    case Finch.request(request, @finch_name) do
       {:ok, %Finch.Response{status: status, headers: headers, body: body}} ->
         {:ok, status, headers, body}
 
