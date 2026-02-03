@@ -5,8 +5,8 @@ msgstr ""
 "POT-Creation-Date: 2025-12-24 14:51+0000\n"
 "PO-Revision-Date: 2026-01-29 17:11+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
-"Language-Team: Polish <https://translate.tuist.dev/projects/tuist/dashboard-"
-"1/pl/>\n"
+"Language-Team: Polish <https://translate.tuist.dev/projects/tuist/"
+"dashboard-1/pl/>\n"
 "Language: pl\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -108,10 +108,6 @@ msgstr "Błędy"
 #, fuzzy
 msgid "Flags"
 msgstr "Flagi"
-
-#, fuzzy
-msgid "Generate Runs"
-msgstr "Generuj przebiegi"
 
 #, fuzzy
 msgid "Get started"
@@ -390,3 +386,10 @@ msgstr "Jest to publiczny pulpit nawigacyjny projektu tuist/tuist."
 #, fuzzy
 msgid "Quarantined Tests"
 msgstr "Testy poddane kwarantannie"
+
+msgid "Generations"
+msgstr ""
+
+#, fuzzy
+#~ msgid "Generate Runs"
+#~ msgstr "Generuj przebiegi"

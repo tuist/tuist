@@ -88,9 +88,6 @@ msgstr ""
 msgid "Flags"
 msgstr ""
 
-msgid "Generate Runs"
-msgstr ""
-
 #, fuzzy
 msgid "Get started"
 msgstr "Get started"
@@ -293,4 +290,7 @@ msgid "This is a public dashboard for the tuist/tuist project."
 msgstr ""
 
 msgid "Quarantined Tests"
+msgstr ""
+
+msgid "Generations"
 msgstr ""
