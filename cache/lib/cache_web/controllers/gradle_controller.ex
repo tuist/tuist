@@ -57,11 +57,7 @@ defmodule CacheWeb.GradleController do
     }
   )
 
-  def download(conn, %{
-        cache_key: cache_key,
-        account_handle: account_handle,
-        project_handle: project_handle
-      }) do
+  def download(conn, %{cache_key: cache_key, account_handle: account_handle, project_handle: project_handle}) do
     :telemetry.execute([:cache, :gradle, :download, :hit], %{}, %{})
     key = Disk.gradle_key(account_handle, project_handle, cache_key)
 
@@ -153,11 +149,7 @@ defmodule CacheWeb.GradleController do
     }
   )
 
-  def save(conn, %{
-        cache_key: cache_key,
-        account_handle: account_handle,
-        project_handle: project_handle
-      }) do
+  def save(conn, %{cache_key: cache_key, account_handle: account_handle, project_handle: project_handle}) do
     if Disk.gradle_exists?(account_handle, project_handle, cache_key) do
       handle_existing_artifact(conn)
     else
@@ -177,18 +169,7 @@ defmodule CacheWeb.GradleController do
   defp save_new_artifact(conn, account_handle, project_handle, cache_key) do
     case BodyReader.read(conn) do
       {:ok, data, conn_after} ->
-        size =
-          case data do
-            {:file, tmp_path} ->
-              case File.stat(tmp_path) do
-                {:ok, %File.Stat{size: sz}} -> sz
-                _ -> 0
-              end
-
-            bin when is_binary(bin) ->
-              byte_size(bin)
-          end
-
+        size = data_size(data)
         :telemetry.execute([:cache, :gradle, :upload, :attempt], %{size: size}, %{})
         persist_artifact(conn_after, account_handle, project_handle, cache_key, data, size)
 
@@ -235,6 +216,15 @@ defmodule CacheWeb.GradleController do
         send_error(conn, :internal_server_error, "Failed to persist artifact")
     end
   end
+
+  defp data_size({:file, tmp_path}) do
+    case File.stat(tmp_path) do
+      {:ok, %File.Stat{size: sz}} -> sz
+      _ -> 0
+    end
+  end
+
+  defp data_size(bin) when is_binary(bin), do: byte_size(bin)
 
   defp send_error(conn, status, message) do
     conn

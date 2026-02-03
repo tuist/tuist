@@ -65,8 +65,8 @@ defmodule Cache.SQLiteBufferTest do
   test "flush inserts and deletes s3 transfers with de-duplication" do
     key = "account/project/cas/ab/cd/key"
 
-    :ok = S3TransfersBuffer.enqueue(:upload, "account", "project", :cas, key)
-    :ok = S3TransfersBuffer.enqueue(:upload, "account", "project", :cas, key)
+    :ok = S3TransfersBuffer.enqueue(:upload, "account", "project", :xcode_cas, key)
+    :ok = S3TransfersBuffer.enqueue(:upload, "account", "project", :xcode_cas, key)
     :ok = S3TransfersBuffer.flush()
 
     transfers = Repo.all(S3Transfer)
