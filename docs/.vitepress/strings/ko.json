@@ -92,6 +92,9 @@
                         },
                         "directories": {
                             "text": "디렉토리"
+                        },
+                        "debugging": {
+                            "text": "디버깅"
                         }
                     }
                 },
