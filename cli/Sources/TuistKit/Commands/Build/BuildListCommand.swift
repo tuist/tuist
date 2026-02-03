@@ -61,6 +61,20 @@ struct BuildListCommand: AsyncParsableCommand, NooraReadyCommand {
 
     @Option(
         name: .long,
+        help: "Filter builds by tags (comma-separated). Returns builds containing ALL specified tags.",
+        envKey: .buildListTags
+    )
+    var tags: String?
+
+    @Option(
+        name: .long,
+        help: "Filter builds by custom values (comma-separated key=value pairs). Returns builds matching ALL specified values. Example: ticket=PROJ-1234,runner=macos-14",
+        envKey: .buildListValues
+    )
+    var values: String?
+
+    @Option(
+        name: .long,
         help: "The page number to fetch (1-indexed).",
         envKey: .buildListPage
     )
@@ -89,6 +103,8 @@ struct BuildListCommand: AsyncParsableCommand, NooraReadyCommand {
             status: status?.rawValue,
             scheme: scheme,
             configuration: configuration,
+            tags: tags,
+            values: values?.replacingOccurrences(of: "=", with: ":"),
             page: page,
             pageSize: pageSize,
             json: json
