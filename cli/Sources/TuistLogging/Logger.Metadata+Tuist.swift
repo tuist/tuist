@@ -1,4 +1,4 @@
-@_exported import Logging
+import Logging
 
 extension Logger.Metadata {
     public static let tuist: String = "is"
