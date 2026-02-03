@@ -1,4 +1,4 @@
-#if os(macOS)
+#if canImport(Command)
     import Command
     import FileSystem
     import Foundation
