@@ -185,6 +185,7 @@ let targets: [Target] = [
             "TuistConstants",
             "TuistEnvironment",
             "TuistAlert",
+            .product(name: "LoggingOSLog", package: "chrisaljoudi.swift-log-oslog", condition: .when(platforms: [.macOS])),
         ],
         path: "cli/Sources/TuistLogging"
     ),
@@ -240,14 +241,7 @@ let targets: [Target] = [
     ),
     .target(
         name: "TuistExtension",
-        dependencies: [
-            "TuistCache",
-            "TuistCore",
-            "TuistGenerator",
-            "TuistHasher",
-            "TuistServer",
-            xcodeGraphDependency,
-        ],
+        dependencies: [],
         path: "cli/Sources/TuistExtension"
     ),
     .target(
@@ -298,7 +292,6 @@ let targets: [Target] = [
             "TuistAlert",
             "TuistThreadSafe",
             .product(name: "Noora", package: "tuist.Noora"),
-            .product(name: "LoggingOSLog", package: "chrisaljoudi.swift-log-oslog", condition: .when(platforms: [.macOS])),
         ],
         path: "cli/Sources/TuistSupport",
         exclude: ["AGENTS.md"],

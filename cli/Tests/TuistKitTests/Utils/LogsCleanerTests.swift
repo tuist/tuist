@@ -2,7 +2,7 @@ import FileSystem
 import Foundation
 import Path
 import Testing
-import TuistKit
+import TuistLogging
 
 struct LogsControllerTests {
     private let fileSystem = FileSystem()

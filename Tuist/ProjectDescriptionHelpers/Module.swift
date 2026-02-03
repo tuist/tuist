@@ -38,10 +38,14 @@ public enum Module: String, CaseIterable {
     case casAnalytics = "TuistCASAnalytics"
     case launchctl = "TuistLaunchctl"
     case http = "TuistHTTP"
-    case cacheConfigCommand = "TuistCacheConfigCommand"
+    case cacheCommand = "TuistCacheCommand"
     case auth = "TuistAuth"
     case envKey = "TuistEnvKey"
     case versionCommand = "TuistVersionCommand"
+    case noora = "TuistNoora"
+    case tuistExtension = "TuistExtension"
+    case alert = "TuistAlert"
+    case threadSafe = "TuistThreadSafe"
 
     func forceStaticLinking() -> Bool {
         return Environment.forceStaticLinking.getBoolean(default: false)
@@ -253,7 +257,7 @@ public enum Module: String, CaseIterable {
              .projectDescription,
              .acceptanceTesting, .simulator, .testing, .process,
              .constants, .environment, .logging,
-             .cacheConfigCommand, .auth, .envKey, .versionCommand:
+             .cacheCommand, .auth, .envKey, .versionCommand:
             return nil
         default:
             return "\(rawValue)Tests"
@@ -369,14 +373,18 @@ public enum Module: String, CaseIterable {
             .process, .ci, .cas, .casAnalytics, .launchctl, .xcResultService, .xcodeProjectOrWorkspacePathLocator,
             .http:
             moduleTags.append("domain:infrastructure")
-        case .cacheConfigCommand, .auth, .envKey, .versionCommand:
+        case .cacheCommand, .auth, .envKey, .versionCommand:
             moduleTags.append("domain:cli")
+        case .noora, .alert, .threadSafe:
+            moduleTags.append("domain:foundation")
+        case .tuistExtension:
+            moduleTags.append("domain:generation")
         }
 
         // Layer tags
         switch self {
         case .projectDescription, .projectAutomation, .support, .core,
-             .constants, .environment, .logging:
+             .constants, .environment, .logging, .noora, .alert, .threadSafe:
             moduleTags.append("layer:foundation")
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator:
             moduleTags.append("layer:tool")
@@ -403,6 +411,7 @@ public enum Module: String, CaseIterable {
             case .logging:
                 [
                     .target(name: Module.environment.targetName),
+                    .target(name: Module.alert.targetName),
                     .external(name: "Logging"),
                 ]
             case .testing:
@@ -431,6 +440,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.support.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.core.targetName),
+                    .target(name: Module.auth.targetName),
+                    .target(name: Module.envKey.targetName),
                     .external(name: "XcodeProj"),
                     .external(name: "XcodeGraph"),
                     .external(name: "FileSystem"),
@@ -471,6 +482,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.constants.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
+                    .target(name: Module.noora.targetName),
                     .target(name: Module.projectDescription.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "SwiftToolsSupport"),
@@ -513,10 +525,11 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.launchctl.targetName),
                     .target(name: Module.oidc.targetName),
                     .target(name: Module.http.targetName),
-                    .target(name: Module.cacheConfigCommand.targetName),
+                    .target(name: Module.cacheCommand.targetName),
                     .target(name: Module.auth.targetName),
                     .target(name: Module.envKey.targetName),
                     .target(name: Module.versionCommand.targetName),
+                    .target(name: Module.tuistExtension.targetName),
                     .external(name: "MCP"),
                     .external(name: "FileSystem"),
                     .external(name: "SwiftToolsSupport"),
@@ -753,15 +766,18 @@ public enum Module: String, CaseIterable {
                     .external(name: "HTTPTypes"),
                     .external(name: "FileSystem"),
                 ]
-            case .cacheConfigCommand:
+            case .cacheCommand:
                 [
                     .target(name: Module.constants.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
+                    .target(name: Module.envKey.targetName),
                     .target(name: Module.oidc.targetName),
                     .target(name: Module.server.targetName),
-                    .target(name: Module.loader.targetName),
-                    .target(name: Module.cas.targetName),
+                    .target(name: Module.loader.targetName, condition: .when([.macos])),
+                    .target(name: Module.cas.targetName, condition: .when([.macos])),
+                    .target(name: Module.support.targetName, condition: .when([.macos])),
+                    .target(name: Module.tuistExtension.targetName, condition: .when([.macos])),
                     .external(name: "ArgumentParser"),
                     .external(name: "Logging"),
                     .external(name: "SwiftToolsSupport"),
@@ -790,6 +806,20 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.constants.targetName),
                     .external(name: "ArgumentParser"),
                 ]
+            case .noora:
+                [
+                    .external(name: "Noora"),
+                ]
+            case .alert:
+                [
+                    .target(name: Module.noora.targetName),
+                    .target(name: Module.threadSafe.targetName),
+                    .external(name: "Noora"),
+                ]
+            case .threadSafe:
+                []
+            case .tuistExtension:
+                []
             }
         if self != .projectDescription, self != .projectAutomation {
             dependencies.append(contentsOf: sharedDependencies)
@@ -802,7 +832,7 @@ public enum Module: String, CaseIterable {
             switch self {
             case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .process,
                  .constants, .environment, .logging,
-                 .cacheConfigCommand, .auth, .versionCommand:
+                 .cacheCommand, .auth, .envKey, .versionCommand, .noora, .tuistExtension, .alert, .threadSafe:
                 []
             case .tuistFixtureGenerator:
                 [

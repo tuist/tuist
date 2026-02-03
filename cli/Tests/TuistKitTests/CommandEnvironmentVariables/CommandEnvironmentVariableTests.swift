@@ -3,11 +3,11 @@ import Difference
 import Foundation
 import Testing
 import TSCUtility
-import TuistAuth
-import TuistCacheConfigCommand
 import TuistEnvironment
 import TuistEnvKey
 import TuistVersionCommand
+@testable import TuistAuth
+@testable import TuistCacheCommand
 @testable import TuistCore
 @testable import TuistKit
 @testable import TuistSupport

@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import Path
+import TuistExtension
 import TuistLogging
 import TuistServer
 import TuistSupport
@@ -178,8 +179,8 @@ public struct BuildCommand: AsyncParsableCommand, LogConfigurableCommand,
             }
 
         try await BuildService(
-            generatorFactory: Extension.generatorFactory,
-            cacheStorageFactory: Extension.cacheStorageFactory
+            generatorFactory: TuistKitExtension.generatorFactory,
+            cacheStorageFactory: TuistKitExtension.cacheStorageFactory
         ).run(
             schemeName: buildOptions.scheme,
             generate: buildOptions.generate,

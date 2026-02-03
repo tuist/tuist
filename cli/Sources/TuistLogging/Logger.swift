@@ -4,6 +4,10 @@ import Path
 import TuistConstants
 import TuistEnvironment
 
+#if canImport(LoggingOSLog)
+    import LoggingOSLog
+#endif
+
 extension Logger {
     @TaskLocal public static var current: Logger = .init(label: "dev.tuist.logger")
 }
@@ -120,16 +124,69 @@ extension JSONLogHandler: VerboseLogHandler {
     return StandardLogHandler(label: label, logLevel: .notice)
 }
 
+// MARK: - OSLog support
+
+#if canImport(LoggingOSLog)
+    public struct OSLogHandler: LogHandler, VerboseLogHandler {
+        private var osLogHandler: LoggingOSLog
+        public var metadata: Logger.Metadata = [:]
+        public var logLevel: Logger.Level
+
+        public init(label: String) {
+            self.osLogHandler = LoggingOSLog(label: label)
+            self.logLevel = .info
+        }
+
+        public init(label: String, logLevel: Logger.Level) {
+            self.osLogHandler = LoggingOSLog(label: label)
+            self.logLevel = logLevel
+        }
+
+        public static func verbose(label: String) -> LogHandler {
+            OSLogHandler(label: label, logLevel: .debug)
+        }
+
+        public subscript(metadataKey key: String) -> Logger.Metadata.Value? {
+            get { metadata[key] }
+            set { metadata[key] = newValue }
+        }
+
+        public func log(
+            level: Logger.Level,
+            message: Logger.Message,
+            metadata: Logger.Metadata?,
+            source: String,
+            file: String,
+            function: String,
+            line: UInt
+        ) {
+            osLogHandler.log(
+                level: level,
+                message: message,
+                metadata: metadata,
+                source: source,
+                file: file,
+                function: function,
+                line: line
+            )
+        }
+    }
+#endif
+
 // MARK: - Logger extensions
 
 extension Logger {
     public static func loggerHandlerForNoora(logFilePath: AbsolutePath) throws -> @Sendable (String) -> any LogHandler {
         let fileURL = URL(fileURLWithPath: logFilePath.pathString)
         let fileLogHandler = try SimpleFileLogHandler(label: "dev.tuist.cli", fileURL: fileURL)
-        return { _ in
+        return { label in
             var handler = fileLogHandler
             handler.logLevel = .debug
-            return MultiplexLogHandler([handler])
+            var loggers: [any LogHandler] = [handler]
+            #if canImport(LoggingOSLog)
+                loggers.append(OSLogHandler.verbose(label: label))
+            #endif
+            return MultiplexLogHandler(loggers)
         }
     }
 
@@ -153,10 +210,14 @@ extension Logger {
         let fileURL = URL(fileURLWithPath: logFilePath.pathString)
         let fileLogHandler = try SimpleFileLogHandler(label: "dev.tuist.cli", fileURL: fileURL)
 
-        let baseLoggers = { (_: String) -> [any LogHandler] in
+        let baseLoggers = { (label: String) -> [any LogHandler] in
             var handler = fileLogHandler
             handler.logLevel = .debug
-            return [handler]
+            var loggers: [any LogHandler] = [handler]
+            #if canImport(LoggingOSLog) && RELEASE
+                loggers.append(LoggingOSLog(label: label))
+            #endif
+            return loggers
         }
         if config.verbose {
             return { label in

@@ -3,7 +3,9 @@ import FileSystem
 import Foundation
 import Path
 import Testing
+import TuistAuth
 import TuistEnvironment
+import TuistEnvKey
 import TuistSupport
 import TuistTesting
 @testable import TuistKit

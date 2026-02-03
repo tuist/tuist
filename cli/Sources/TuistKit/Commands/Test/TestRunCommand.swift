@@ -2,6 +2,7 @@ import ArgumentParser
 import Foundation
 import Path
 import TuistCore
+import TuistExtension
 import TuistLogging
 import TuistServer
 import TuistSupport
@@ -277,8 +278,8 @@ public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand,
             }
 
         try await TestService(
-            generatorFactory: Extension.generatorFactory,
-            cacheStorageFactory: Extension.cacheStorageFactory
+            generatorFactory: TuistKitExtension.generatorFactory,
+            cacheStorageFactory: TuistKitExtension.cacheStorageFactory
         ).run(
             runId: RunMetadataStorage.current.runId,
             schemeName: scheme,

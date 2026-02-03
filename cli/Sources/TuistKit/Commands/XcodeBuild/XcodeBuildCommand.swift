@@ -38,21 +38,6 @@ public struct XcodeBuildCommand: AsyncParsableCommand, TrackableParsableCommand,
     public init() {}
 }
 
-struct EmptySelectiveTestingGraphHasher: SelectiveTestingGraphHashing {
-    func hash(graph _: Graph, additionalStrings _: [String]) async throws -> [GraphTarget: TargetContentHash] {
-        [:]
-    }
-}
-
-struct EmptySelectiveTestingService: SelectiveTestingServicing {
-    func cachedTests(
-        testableGraphTargets _: [GraphTarget],
-        selectiveTestingHashes _: [GraphTarget: String], selectiveTestingCacheItems _: [CacheItem]
-    ) async throws -> [TestIdentifier] {
-        []
-    }
-}
-
 #if canImport(TuistCacheEE)
 
     /// Tree-shakes testable targets which hashes have not changed from those in the tests cache directory

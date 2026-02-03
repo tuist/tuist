@@ -1,7 +1,7 @@
 @_exported import ArgumentParser
 import Foundation
 import TuistAuth
-import TuistCacheConfigCommand
+import TuistCacheCommand
 import TuistEnvironment
 import TuistVersionCommand
 
@@ -25,38 +25,25 @@ public struct TuistCommand: AsyncParsableCommand {
         CommandConfiguration(
             commandName: "tuist",
             abstract: "Build better apps faster.",
-            subcommands: subcommands,
             groupedSubcommands: groupedSubcommands
         )
     }
 
-    private static var subcommands: [ParsableCommand.Type] {
-        #if os(macOS)
-            []
-        #else
-            [
-                TuistAuth.AuthCommand.self,
-                CacheCommand.self,
-                VersionCommand.self,
-            ]
-        #endif
-    }
-
     private static var groupedSubcommands: [CommandGroup] {
+        var groups: [CommandGroup] = []
+
         #if os(macOS)
-            var groups: [CommandGroup] = [
+            groups += [
                 CommandGroup(
                     name: "Get started",
-                    subcommands: [
-                        InitCommand.self,
-                    ]
+                    subcommands: [InitCommand.self]
                 ),
                 CommandGroup(
                     name: "Develop",
                     subcommands: [
                         HashCommand.self,
                         BuildCommand.self,
-                        TuistKit.CacheCommand.self,
+                        TuistCacheCommand.CacheCommand.self,
                         CacheStartCommand.self,
                         CleanCommand.self,
                         DumpCommand.self,
@@ -77,37 +64,54 @@ public struct TuistCommand: AsyncParsableCommand {
                 ),
                 CommandGroup(
                     name: "Share",
-                    subcommands: [
-                        ShareCommand.self,
-                    ]
+                    subcommands: [ShareCommand.self]
                 ),
                 CommandGroup(
                     name: "AI",
-                    subcommands: [
-                        MCPCommand.self,
-                    ]
-                ),
-                CommandGroup(
-                    name: "Account",
-                    subcommands: [
-                        AccountCommand.self,
-                        ProjectCommand.self,
-                        BundleCommand.self,
-                        OrganizationCommand.self,
-                        TuistAuth.AuthCommand.self,
-                    ]
-                ),
-                CommandGroup(
-                    name: "Other",
-                    subcommands: [
-                        VersionCommand.self,
-                        AnalyticsUploadCommand.self,
-                    ]
+                    subcommands: [MCPCommand.self]
                 ),
             ]
-            return groups
+        #endif
+
+        groups.append(CommandGroup(
+            name: "Account",
+            subcommands: accountSubcommands
+        ))
+
+        #if !os(macOS)
+            groups.append(CommandGroup(
+                name: "Cache",
+                subcommands: [CacheCommand.self]
+            ))
+        #endif
+
+        groups.append(CommandGroup(
+            name: "Other",
+            subcommands: otherSubcommands
+        ))
+
+        return groups
+    }
+
+    private static var accountSubcommands: [ParsableCommand.Type] {
+        #if os(macOS)
+            [
+                AccountCommand.self,
+                ProjectCommand.self,
+                BundleCommand.self,
+                OrganizationCommand.self,
+                TuistAuth.AuthCommand.self,
+            ]
         #else
-            []
+            [TuistAuth.AuthCommand.self]
+        #endif
+    }
+
+    private static var otherSubcommands: [ParsableCommand.Type] {
+        #if os(macOS)
+            [VersionCommand.self, AnalyticsUploadCommand.self]
+        #else
+            [VersionCommand.self]
         #endif
     }
 
@@ -305,18 +309,3 @@ public struct TuistCommand: AsyncParsableCommand {
         return arguments.filter { $0 != "--verbose" && $0 != "--quiet" }
     }
 }
-
-#if !os(macOS)
-    struct CacheCommand: AsyncParsableCommand {
-        static var configuration: CommandConfiguration {
-            CommandConfiguration(
-                commandName: "cache",
-                abstract: "Cache-related commands.",
-                subcommands: [
-                    CacheConfigCommand.self,
-                ],
-                defaultSubcommand: CacheConfigCommand.self
-            )
-        }
-    }
-#endif

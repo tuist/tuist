@@ -5,6 +5,7 @@ import Path
 import TuistAutomation
 import TuistCache
 import TuistCore
+import TuistExtension
 import TuistLoader
 import TuistPlugin
 import TuistServer
@@ -14,30 +15,6 @@ import XcodeGraph
 #if canImport(TuistCacheEE)
     import TuistCacheEE
 #endif
-public protocol CacheServicing {
-    func run(
-        path directory: String?,
-        configuration: String?,
-        targetsToBinaryCache: Set<String>,
-        externalOnly: Bool,
-        generateOnly: Bool
-    ) async throws
-}
-
-final class EmptyCacheService: CacheServicing {
-    func run(
-        path _: String?,
-        configuration _: String?,
-        targetsToBinaryCache _: Set<String>,
-        externalOnly _: Bool,
-        generateOnly _: Bool
-    ) async throws {
-        Logger.current
-            .notice(
-                "Caching is currently not opensourced. Please, report issues with caching on GitHub and the Tuist team will take a look."
-            )
-    }
-}
 
 #if canImport(TuistCacheEE)
 

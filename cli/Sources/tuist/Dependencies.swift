@@ -9,6 +9,7 @@ import TuistNoora
 import TuistServer
 
 #if os(macOS)
+    import TuistExtension
     import TuistKit
     import TuistLoader
     import TuistSupport
@@ -99,7 +100,10 @@ private func withPlatformDependencies(_ action: () async throws -> Void) async t
         try await withInitializedManifestLoader {
             try await RecentPathsStore.$current
                 .withValue(RecentPathsStore(storageDirectory: Environment.current.stateDirectory)) {
-                    try await action()
+                    try await Extension.$hashCacheService
+                        .withValue(HashCacheCommandService()) {
+                            try await action()
+                        }
                 }
         }
     }

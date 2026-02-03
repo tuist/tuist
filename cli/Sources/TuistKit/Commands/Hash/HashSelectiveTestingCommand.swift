@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import TuistExtension
 import TuistHasher
 import TuistSupport
 
@@ -24,8 +25,9 @@ public struct HashSelectiveTestingCommand: AsyncParsableCommand {
     var path: String?
 
     public func run() async throws {
-        try await HashSelectiveTestingCommandService(selectiveTestingGraphHasher: Extension.selectiveTestingGraphHasher).run(
-            path: path
-        )
+        try await HashSelectiveTestingCommandService(selectiveTestingGraphHasher: TuistKitExtension.selectiveTestingGraphHasher)
+            .run(
+                path: path
+            )
     }
 }

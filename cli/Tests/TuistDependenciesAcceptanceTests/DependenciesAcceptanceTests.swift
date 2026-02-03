@@ -2,6 +2,7 @@ import Command
 import FileSystem
 import Testing
 import TuistAcceptanceTesting
+import TuistCacheCommand
 import TuistLogging
 import TuistSupport
 import TuistTesting

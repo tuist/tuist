@@ -2,6 +2,7 @@ import ArgumentParser
 import Foundation
 import TuistCore
 import TuistEnvironment
+import TuistExtension
 import TuistServer
 import TuistSupport
 
@@ -71,8 +72,8 @@ public struct GenerateCommand: AsyncParsableCommand, RecentPathRememberableComma
         }
 
         try await GenerateService(
-            cacheStorageFactory: Extension.cacheStorageFactory,
-            generatorFactory: Extension.generatorFactory
+            cacheStorageFactory: TuistKitExtension.cacheStorageFactory,
+            generatorFactory: TuistKitExtension.generatorFactory
         ).run(
             path: path,
             includedTargets: Set(includedTargets),
