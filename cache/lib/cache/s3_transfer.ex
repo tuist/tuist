@@ -15,7 +15,7 @@ defmodule Cache.S3Transfer do
     field :type, Ecto.Enum, values: [:upload, :download]
     field :account_handle, :string
     field :project_handle, :string
-    field :artifact_type, Ecto.Enum, values: [:cas, :module, :gradle]
+    field :artifact_type, Ecto.Enum, values: [:xcode_cas, :module, :gradle]
     field :key, :string
     field :inserted_at, :utc_datetime
   end
