@@ -2,7 +2,7 @@
 {
   "title": "Build Insights",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Get insights into your builds to maintain a productive developer environment."
+  "description": "Get Xcode build analytics with Tuist Build Insights to maintain a productive developer environment."
 }
 ---
 # Build Insights {#build-insights}
@@ -13,7 +13,7 @@
 <!-- -->
 :::
 
-Working on large projects shouldn't feel like a chore. In fact, it should be as enjoyable as working on a project you started just two weeks ago. One of the reasons it is not is because as the project grows, the developer experience suffers. The build times increase and tests become slow and flaky. It's often easy to overlook these issues until it gets to a point where they become unbearable – however, at that point, it's difficult to address them. Tuist Insights provides you with the tools to monitor the health of your project and maintain a productive developer environment as your project scales.
+Working on large projects shouldn't feel like a chore. In fact, it should be as enjoyable as working on a project you started just two weeks ago. One of the reasons it is not is because as the project grows, the developer experience suffers. The build times increase and tests become slow and flaky. It's often easy to overlook these issues until it gets to a point where they become unbearable – however, at that point, it's difficult to address them. Tuist Build Insights provides Xcode build analytics to monitor the health of your project and maintain a productive developer environment as your project scales.
 
 In other words, Tuist Insights helps you to answer questions such as:
 - Has the build time significantly increased in the last week?
