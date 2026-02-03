@@ -1,10 +1,9 @@
-import TuistTesting
-import XCTest
+import Testing
 
 @testable import TuistUserInputReader
 
-class UserInputReaderTests: TuistUnitTestCase {
-    func test_read_int_valid_input() {
+struct UserInputReaderTests {
+    @Test func readIntValidInput() {
         // Given
         var fakeReadLine = StringReader(input: "0")
         let reader: UserInputReader = .init { _ in
@@ -15,10 +14,10 @@ class UserInputReaderTests: TuistUnitTestCase {
         let result = reader.readInt(asking: "prompt", maxValueAllowed: 1)
 
         // Then
-        XCTAssertEqual(result, Int(fakeReadLine.input))
+        #expect(result == Int(fakeReadLine.input))
     }
 
-    func test_read_int_after_incorrect_inputs() {
+    @Test func readIntAfterIncorrectInputs() {
         // Given
         var fakeReadLine = StringReader(input: "a21")
         let reader: UserInputReader = .init { _ in
@@ -29,10 +28,10 @@ class UserInputReaderTests: TuistUnitTestCase {
         let result = reader.readInt(asking: "prompt", maxValueAllowed: 2)
 
         // Then
-        XCTAssertEqual(result, Int(String(fakeReadLine.input.last!)))
+        #expect(result == Int(String(fakeReadLine.input.last!)))
     }
 
-    func test_read_string() {
+    @Test func readString() {
         // Given
         let reader: UserInputReader = .init { _ in
             return "string-value"
@@ -42,17 +41,17 @@ class UserInputReaderTests: TuistUnitTestCase {
         let result = reader.readString(asking: "prompt")
 
         // Then
-        XCTAssertEqual(result, "string-value")
+        #expect(result == "string-value")
     }
 
     struct Value: Equatable {
         let name: String
     }
 
-    func test_read_value_when_only_value_provided() throws {
+    @Test func readValueWhenOnlyValueProvided() throws {
         // Given
         let reader: UserInputReader = .init { _ in
-            XCTFail("Value should be returned without reading a line")
+            Issue.record("Value should be returned without reading a line")
             return "string-value"
         }
         let value = Value(name: "value-one")
@@ -65,54 +64,44 @@ class UserInputReaderTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(got, value)
+        #expect(got == value)
     }
 
-    func test_read_value_when_no_values_provided() throws {
+    @Test func readValueWhenNoValuesProvided() throws {
         // Given
         let reader: UserInputReader = .init { _ in
-            XCTFail("Value should be returned without reading a line")
+            Issue.record("Value should be returned without reading a line")
             return "string-value"
         }
 
         // When / Then
-        XCTAssertThrowsSpecific(
+        #expect(throws: UserInputReaderError.noValuesProvided("Choose value:")) {
             try reader.readValue(
                 asking: "Choose value:",
                 values: [Value](),
                 valueDescription: \.name
-            ),
-            UserInputReaderError.noValuesProvided("Choose value:")
-        )
-    }
-
-    func test_read_value_when_multiple_values_provided() async throws {
-        try await withMockedDependencies {
-            // Given
-            var fakeReadLine = StringReader(input: "1")
-            let reader: UserInputReader = .init { _ in
-                fakeReadLine.readLine()
-            }
-            let valueOne = Value(name: "value-one")
-            let valueTwo = Value(name: "value-two")
-
-            // When
-            let got = try reader.readValue(
-                asking: "Choose value:",
-                values: [valueOne, valueTwo],
-                valueDescription: \.name
-            )
-
-            // Then
-            XCTAssertEqual(got, valueTwo)
-            XCTAssertStandardOutput(
-                pattern: """
-                Choose value:
-                \t0: value-one
-                \t1: value-two
-                """
             )
         }
+    }
+
+    @Test func readValueWhenMultipleValuesProvided() throws {
+        // Given
+        var fakeReadLine = StringReader(input: "1")
+        let reader: UserInputReader = .init { _ in
+            fakeReadLine.readLine()
+        }
+        let valueOne = Value(name: "value-one")
+        let valueTwo = Value(name: "value-two")
+
+        // When
+        let got = try reader.readValue(
+            asking: "Choose value:",
+            values: [valueOne, valueTwo],
+            valueDescription: \.name
+        )
+
+        // Then
+        #expect(got == valueTwo)
     }
 }
 

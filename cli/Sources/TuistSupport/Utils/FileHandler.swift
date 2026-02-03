@@ -3,6 +3,7 @@ import Foundation
 import Path
 import TSCBasic
 import TuistLogging
+import TuistThreadSafe
 import ZIPFoundation
 
 public enum FileHandlerError: FatalError, Equatable {

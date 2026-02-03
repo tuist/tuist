@@ -1,4 +1,5 @@
 import Foundation
+import TuistAlert
 import TuistLogging
 import TuistSupport
 

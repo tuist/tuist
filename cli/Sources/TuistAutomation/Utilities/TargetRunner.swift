@@ -4,6 +4,7 @@ import Path
 import struct TSCUtility.Version
 import TuistCore
 import TuistLogging
+import TuistOpener
 import TuistSupport
 import XcodeGraph
 

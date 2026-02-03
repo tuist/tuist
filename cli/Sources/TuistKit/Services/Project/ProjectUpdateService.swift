@@ -1,8 +1,10 @@
 import Foundation
 import Mockable
 import Path
+import TuistAlert
 import TuistLoader
 import TuistLogging
+import TuistOpener
 import TuistServer
 import TuistSupport
 

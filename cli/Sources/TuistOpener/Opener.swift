@@ -26,10 +26,10 @@ enum OpeningError: FatalError, Equatable {
 public protocol Opening: AnyObject {
     func open(path: AbsolutePath, wait: Bool) async throws
     func open(path: AbsolutePath) async throws
-    func open(path: AbsolutePath, application: AbsolutePath) throws
-    func open(path: AbsolutePath, application: AbsolutePath, wait: Bool) throws
     func open(url: URL) throws
     func open(target: String, wait: Bool) throws
+    func open(path: AbsolutePath, application: AbsolutePath) throws
+    func open(path: AbsolutePath, application: AbsolutePath, wait: Bool) throws
 }
 
 public class Opener: Opening {
@@ -59,12 +59,22 @@ public class Opener: Opening {
     }
 
     public func open(target: String, wait: Bool) throws {
-        var arguments: [String] = []
-        arguments.append(contentsOf: ["/usr/bin/open"])
-        if wait { arguments.append("-W") }
-        arguments.append(target)
-
-        try System.shared.run(arguments)
+        let process = Process()
+        #if os(macOS)
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+            if wait {
+                process.arguments = ["-W", target]
+            } else {
+                process.arguments = [target]
+            }
+        #elseif os(Linux)
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/xdg-open")
+            process.arguments = [target]
+        #endif
+        try process.run()
+        if wait {
+            process.waitUntilExit()
+        }
     }
 
     public func open(path: AbsolutePath, application: AbsolutePath) throws {
@@ -72,11 +82,22 @@ public class Opener: Opening {
     }
 
     public func open(path: AbsolutePath, application: AbsolutePath, wait: Bool) throws {
-        var arguments: [String] = []
-        arguments.append(contentsOf: ["/usr/bin/open"])
-        arguments.append(path.pathString)
-        arguments.append(contentsOf: ["-a", application.pathString])
-        if wait { arguments.append("-W") }
-        try System.shared.run(arguments)
+        let process = Process()
+        #if os(macOS)
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+            var arguments = [path.pathString, "-a", application.pathString]
+            if wait {
+                arguments.insert("-W", at: 0)
+            }
+            process.arguments = arguments
+        #elseif os(Linux)
+            // On Linux, run the application directly with the file as argument
+            process.executableURL = URL(fileURLWithPath: application.pathString)
+            process.arguments = [path.pathString]
+        #endif
+        try process.run()
+        if wait {
+            process.waitUntilExit()
+        }
     }
 }

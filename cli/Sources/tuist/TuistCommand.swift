@@ -1,19 +1,20 @@
 @_exported import ArgumentParser
 import Foundation
 import Noora
+import OpenAPIRuntime
 import Path
+import TuistAlert
 import TuistAuth
 import TuistCacheCommand
 import TuistEnvironment
+import TuistLogging
 import TuistVersionCommand
 
 #if os(macOS)
-    import OpenAPIRuntime
     import TuistCore
     import TuistHTTP
     import TuistKit
     import TuistLoader
-    import TuistLogging
     import TuistServer
     import TuistSupport
 #endif
@@ -211,109 +212,124 @@ public struct TuistCommand: AsyncParsableCommand {
             try await withLoggerForNoora(logFilePath: logFilePath) {
                 try await Noora.$current.withValue(initNoora()) {
                     do {
-                        let command = try parseAsRoot(processedArguments)
+                        var command = try parseAsRoot(processedArguments)
                         if var asyncCommand = command as? AsyncParsableCommand {
                             try await asyncCommand.run()
                         } else {
                             try command.run()
                         }
+                        outputCompletion(
+                            logFilePath: logFilePath,
+                            shouldOutputLogFilePath: false
+                        )
                     } catch {
-                        exit(withError: error)
+                        onError(error, isParsingError: false, logFilePath: logFilePath)
                     }
                 }
             }
         #endif
     }
 
-    #if os(macOS)
-        private static func onError(_ error: Error, isParsingError: Bool, logFilePath: AbsolutePath) {
-            var errorAlertMessage: TerminalText?
-            var errorAlertNextSteps: [TerminalText] = [
-                "If the error is actionable, address it",
-                "If the error is not actionable, let's discuss it in the \(.link(title: "Troubleshooting & how to", href: "https://community.tuist.dev/c/troubleshooting-how-to/6"))",
-                "If you are very certain it's a bug, \(.link(title: "file an issue", href: "https://github.com/tuist/tuist"))",
-            ]
-            let exitCode = exitCode(for: error).rawValue
+    private static func onError(_ error: Error, isParsingError: Bool, logFilePath: AbsolutePath) {
+        var errorAlertMessage: TerminalText?
+        var errorAlertNextSteps: [TerminalText] = [
+            "If the error is actionable, address it",
+            "If the error is not actionable, let's discuss it in the \(.link(title: "Troubleshooting & how to", href: "https://community.tuist.dev/c/troubleshooting-how-to/6"))",
+            "If you are very certain it's a bug, \(.link(title: "file an issue", href: "https://github.com/tuist/tuist"))",
+        ]
+        let exitCode = exitCode(for: error).rawValue
 
-            if error.localizedDescription.contains("ArgumentParser") {
-                exit(withError: error)
-            } else if let clientError = error as? ClientError,
-                      let underlyingAuthError = clientError.underlyingError
-                      as? ClientAuthenticationError
+        if error.localizedDescription.contains("ArgumentParser") {
+            exit(withError: error)
+        }
+
+        var errorHandled = false
+
+        #if os(macOS)
+            if let clientError = error as? ClientError,
+               let underlyingAuthError = clientError.underlyingError as? ClientAuthenticationError
             {
                 errorAlertMessage = "\(underlyingAuthError.errorDescription ?? "Unknown error")"
-            } else if let fatalError = error as? FatalError {
-                let isSilent = fatalError.type == .abortSilent || fatalError.type == .bugSilent
-                if !fatalError.description.isEmpty, !isSilent {
-                    errorAlertMessage = "\(fatalError.description)"
-                } else if fatalError.type == .bugSilent {
-                    errorAlertMessage = """
-                    An unexpected error happened and we believe it's a bug
-                    """
-                    errorAlertNextSteps = [
-                        "\(.link(title: "File an issue", href: "https://github.com/tuist/tuist")) including reproducible steps and logs.",
-                    ]
-                }
-            } else if isParsingError, self.exitCode(for: error).rawValue == 0 {
-                exit(withError: error)
-            } else if let localizedError = error as? LocalizedError {
-                errorAlertMessage =
-                    "\(localizedError.errorDescription ?? localizedError.localizedDescription)"
+                errorHandled = true
+            }
+        #endif
+
+        if !errorHandled, let fatalError = error as? FatalError {
+            let isSilent = fatalError.type == .abortSilent || fatalError.type == .bugSilent
+            if !fatalError.description.isEmpty, !isSilent {
+                errorAlertMessage = "\(fatalError.description)"
+            } else if fatalError.type == .bugSilent {
+                errorAlertMessage = """
+                An unexpected error happened and we believe it's a bug
+                """
+                errorAlertNextSteps = [
+                    "\(.link(title: "File an issue", href: "https://github.com/tuist/tuist")) including reproducible steps and logs.",
+                ]
+            }
+            errorHandled = true
+        }
+
+        if !errorHandled, isParsingError, self.exitCode(for: error).rawValue == 0 {
+            exit(withError: error)
+        } else if !errorHandled, let localizedError = error as? LocalizedError {
+            errorAlertMessage =
+                "\(localizedError.errorDescription ?? localizedError.localizedDescription)"
+        } else if !errorHandled {
+            errorAlertMessage = "\((error as CustomStringConvertible).description)"
+        }
+
+        outputCompletion(
+            logFilePath: logFilePath,
+            shouldOutputLogFilePath: true,
+            errorAlertMessage: errorAlertMessage,
+            errorAlertNextSteps: errorAlertNextSteps
+        )
+        _exit(exitCode)
+    }
+
+    private static func outputCompletion(
+        logFilePath: AbsolutePath,
+        shouldOutputLogFilePath: Bool,
+        errorAlertMessage: TerminalText? = nil,
+        errorAlertNextSteps: [TerminalText]? = nil
+    ) {
+        if Environment.current.isJSONOutput { return }
+
+        let errorAlert: ErrorAlert? =
+            if let errorAlertMessage {
+                .alert(errorAlertMessage, takeaways: errorAlertNextSteps ?? [])
             } else {
-                errorAlertMessage = "\((error as CustomStringConvertible).description)"
+                nil
             }
+        let successAlerts = AlertController.current.success()
+        let warningAlerts = AlertController.current.warnings()
+        let takeaways = AlertController.current.takeaways()
 
-            outputCompletion(
-                logFilePath: logFilePath,
-                shouldOutputLogFilePath: true,
-                errorAlertMessage: errorAlertMessage,
-                errorAlertNextSteps: errorAlertNextSteps
-            )
-            _exit(exitCode)
+        if !warningAlerts.isEmpty {
+            print("\n")
+            Noora.current.warning(warningAlerts)
         }
+        let logsNextStep: TerminalText = "Check out the logs at \(logFilePath.pathString)"
 
-        private static func outputCompletion(
-            logFilePath: AbsolutePath,
-            shouldOutputLogFilePath: Bool,
-            errorAlertMessage: TerminalText? = nil,
-            errorAlertNextSteps: [TerminalText]? = nil
-        ) {
-            if Environment.current.isJSONOutput { return }
-
-            let errorAlert: ErrorAlert? =
-                if let errorAlertMessage {
-                    .alert(errorAlertMessage, takeaways: errorAlertNextSteps ?? [])
-                } else {
-                    nil
-                }
-            let successAlerts = AlertController.current.success()
-            let warningAlerts = AlertController.current.warnings()
-            let takeaways = AlertController.current.takeaways()
-
-            if !warningAlerts.isEmpty {
-                print("\n")
-                Noora.current.warning(warningAlerts)
+        if let errorAlert {
+            print("\n")
+            var errorAlertNextSteps = errorAlert.takeaways
+            if shouldOutputLogFilePath {
+                errorAlertNextSteps.append(logsNextStep)
             }
-            let logsNextStep: TerminalText = "Check out the logs at \(logFilePath.pathString)"
-
-            if let errorAlert {
-                print("\n")
-                var errorAlertNextSteps = errorAlert.takeaways
-                if shouldOutputLogFilePath {
-                    errorAlertNextSteps.append(logsNextStep)
-                }
-                Noora.current.error(.alert(errorAlert.message, takeaways: errorAlertNextSteps))
-            } else if let successAlert = successAlerts.last {
-                var successAlertNextSteps = successAlert.takeaways
-                successAlertNextSteps.append(contentsOf: takeaways)
-                if shouldOutputLogFilePath {
-                    successAlertNextSteps.append(logsNextStep)
-                }
-                print("\n")
-                Noora.current.success(.alert(successAlert.message, takeaways: successAlertNextSteps))
+            Noora.current.error(.alert(errorAlert.message, takeaways: errorAlertNextSteps))
+        } else if let successAlert = successAlerts.last {
+            var successAlertNextSteps = successAlert.takeaways
+            successAlertNextSteps.append(contentsOf: takeaways)
+            if shouldOutputLogFilePath {
+                successAlertNextSteps.append(logsNextStep)
             }
+            print("\n")
+            Noora.current.success(.alert(successAlert.message, takeaways: successAlertNextSteps))
         }
+    }
 
+    #if os(macOS)
         private static func executeTask(with processedArguments: [String]) async throws {
             try await TuistService().run(
                 arguments: processedArguments,

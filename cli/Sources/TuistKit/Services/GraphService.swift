@@ -5,6 +5,7 @@ import GraphViz
 import Path
 import ProjectAutomation
 import Tools
+import TuistAlert
 import TuistCore
 import TuistEnvironment
 import TuistGenerator

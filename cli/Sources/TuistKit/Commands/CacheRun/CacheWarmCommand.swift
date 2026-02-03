@@ -1,5 +1,7 @@
 import ArgumentParser
 import Foundation
+import TuistAlert
+import TuistExtension
 import TuistSupport
 
 public struct CacheWarmCommand: AsyncParsableCommand {
@@ -70,7 +72,7 @@ public struct CacheWarmCommand: AsyncParsableCommand {
             return
         }
 
-        try await Extension.cacheService.run(
+        try await TuistExtension.Extension.cacheService.run(
             path: path,
             configuration: configuration,
             targetsToBinaryCache: Set(targets),

@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import Path
 import TSCUtility
+import TuistThreadSafe
 
 @Mockable
 public protocol XcodeControlling: Sendable {

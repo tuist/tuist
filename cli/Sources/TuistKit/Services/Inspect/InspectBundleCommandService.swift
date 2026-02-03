@@ -3,6 +3,7 @@ import Foundation
 import Noora
 import Path
 import Rosalind
+import TuistAlert
 import TuistEnvironment
 import TuistGit
 import TuistLoader

@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TuistAlert
 import TuistCache
 import TuistCore
 import TuistExtension

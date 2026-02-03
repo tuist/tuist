@@ -1,4 +1,5 @@
 import Foundation
+import TuistThreadSafe
 
 extension Array where Element: Sendable {
     /// Map (with execution context)

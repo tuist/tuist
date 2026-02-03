@@ -6,6 +6,7 @@ import TuistCore
 import TuistEnvironment
 import TuistLoader
 import TuistSupport
+import TuistUniqueIDGenerator
 import TuistXCActivityLog
 
 struct XcodeBuildBuildCommandService {

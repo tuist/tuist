@@ -1,5 +1,6 @@
 import FileSystem
 import Foundation
+import Mockable
 import Path
 import ProjectDescription
 import TuistCore
@@ -11,6 +12,15 @@ import TuistPlugin
 import TuistRootDirectoryLocator
 import TuistSupport
 import XcodeGraph
+
+@Mockable
+public protocol Generating {
+    @discardableResult
+    func load(path: AbsolutePath, options: TuistGeneratedProjectOptions.GenerationOptions?) async throws -> Graph
+    func generate(path: AbsolutePath, options: TuistGeneratedProjectOptions.GenerationOptions?) async throws -> AbsolutePath
+    func generateWithGraph(path: AbsolutePath, options: TuistGeneratedProjectOptions.GenerationOptions?) async throws
+        -> (AbsolutePath, Graph, MapperEnvironment)
+}
 
 public class Generator: Generating {
     private let graphLinter: GraphLinting = GraphLinter()

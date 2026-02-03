@@ -1,6 +1,8 @@
 import Foundation
 import Path
+import TuistLogging
 import TuistSupport
+import TuistThreadSafe
 import XcodeGraph
 
 import func TSCBasic.topologicalSort

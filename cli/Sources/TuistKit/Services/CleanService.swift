@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import TuistAlert
 import TuistCache
 import TuistConstants
 import TuistCore

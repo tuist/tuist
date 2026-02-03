@@ -4,6 +4,7 @@ import Path
 import TSCBasic
 import TuistCAS
 import TuistConstants
+import TuistEncodable
 import TuistEnvironment
 import TuistLogging
 import TuistOIDC

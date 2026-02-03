@@ -5,6 +5,7 @@ import TuistCore
 import TuistEnvironment
 import TuistLogging
 import TuistSupport
+import TuistThreadSafe
 
 /// This protocol defines the interface to compile a temporary module with the
 /// helper files under /Tuist/ProjectDescriptionHelpers that can be imported

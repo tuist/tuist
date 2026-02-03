@@ -1,6 +1,8 @@
 import Foundation
 import TuistCAS
+import TuistEnvironment
 import TuistHTTP
+import TuistLogging
 import TuistOIDC
 import TuistServer
 import TuistSupport

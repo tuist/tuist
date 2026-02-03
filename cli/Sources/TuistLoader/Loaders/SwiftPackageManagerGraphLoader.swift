@@ -3,6 +3,7 @@ import Foundation
 import Path
 import ProjectDescription
 import TSCUtility
+import TuistAlert
 import TuistConstants
 import TuistCore
 import TuistLogging

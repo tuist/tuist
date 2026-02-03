@@ -1,10 +1,12 @@
 import Foundation
 import Path
+import TuistAlert
 import TuistConstants
 import TuistCore
 import TuistGenerator
 import TuistLoader
 import TuistLogging
+import TuistOpener
 import TuistPlugin
 import TuistSupport
 

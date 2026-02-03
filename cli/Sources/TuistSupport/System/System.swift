@@ -4,6 +4,7 @@ import Path
 import TSCBasic
 import TuistEnvironment
 import TuistLogging
+import TuistThreadSafe
 
 extension ProcessResult {
     /// Throws a SystemError if the result is unsuccessful.

@@ -1,6 +1,7 @@
 #if os(macOS)
     import ArgumentParser
     import Foundation
+    import TuistAlert
     import TuistEnvKey
     import TuistExtension
     import TuistSupport

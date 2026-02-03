@@ -32,7 +32,9 @@ var targets: [Target] = [
             "TuistEnvironment",
             "TuistLogging",
             "TuistNoora",
+            "TuistAlert",
             .product(name: "Noora", package: "tuist.Noora"),
+            .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
             "TuistAuth",
             "TuistCacheCommand",
             "TuistVersionCommand",
@@ -116,6 +118,29 @@ var targets: [Target] = [
         path: "cli/Sources/TuistAlert"
     ),
     .target(
+        name: "TuistOpener",
+        dependencies: [
+            pathDependency,
+            fileSystemDependency,
+            mockableDependency,
+            "TuistLogging",
+        ],
+        path: "cli/Sources/TuistOpener",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistUniqueIDGenerator",
+        dependencies: [
+            mockableDependency,
+        ],
+        path: "cli/Sources/TuistUniqueIDGenerator",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
         name: "TuistEnvKey",
         dependencies: [
             argumentParserDependency,
@@ -179,6 +204,8 @@ var targets: [Target] = [
             "TuistLogging",
             "TuistHTTP",
             "TuistThreadSafe",
+            "TuistOpener",
+            "TuistUniqueIDGenerator",
             fileSystemDependency,
             mockableDependency,
             pathDependency,
@@ -275,8 +302,6 @@ var targets: [Target] = [
         name: "TuistUserInputReaderTests",
         dependencies: [
             "TuistUserInputReader",
-            "TuistTesting",
-            mockableDependency,
         ],
         path: "cli/Tests/TuistUserInputReaderTests"
     ),

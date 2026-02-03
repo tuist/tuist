@@ -1,4 +1,5 @@
 import Path
+import TuistAlert
 import TuistCore
 import TuistLoader
 import TuistLogging
