@@ -22,13 +22,30 @@ struct MCPSetupVSCodeCommandService {
 
         if global {
             // Global VS Code settings location
-            configPath = Environment.current.homeDirectory.appending(components: [
-                "Library",
-                "Application Support",
-                "Code",
-                "User",
-                "settings.json",
-            ])
+            #if os(macOS)
+                configPath = Environment.current.homeDirectory.appending(components: [
+                    "Library",
+                    "Application Support",
+                    "Code",
+                    "User",
+                    "settings.json",
+                ])
+            #elseif os(Linux)
+                configPath = Environment.current.homeDirectory.appending(components: [
+                    ".config",
+                    "Code",
+                    "User",
+                    "settings.json",
+                ])
+            #else
+                configPath = Environment.current.homeDirectory.appending(components: [
+                    "AppData",
+                    "Roaming",
+                    "Code",
+                    "User",
+                    "settings.json",
+                ])
+            #endif
         } else {
             // Local VS Code settings in workspace
             let basePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
