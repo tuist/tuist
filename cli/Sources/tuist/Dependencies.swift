@@ -132,6 +132,13 @@ private func withSharedDependencies(
         }
 }
 
+func withLoggerForNoora(logFilePath: AbsolutePath, _ action: () async throws -> Void) async throws {
+    let loggerHandler = try Logger.loggerHandlerForNoora(logFilePath: logFilePath)
+    try await Logger.$current.withValue(Logger(label: "dev.tuist.cli", factory: loggerHandler)) {
+        try await action()
+    }
+}
+
 #if os(macOS)
     func withAdditionalMiddlewares(_ action: () async throws -> Void) async throws {
         #if canImport(TuistCacheEE)
@@ -151,13 +158,6 @@ private func withSharedDependencies(
         }
         return try await ManifestLoader.$current.withValue(useCache ? CachedManifestLoader() : ManifestLoader()) {
             return try await action()
-        }
-    }
-
-    func withLoggerForNoora(logFilePath: AbsolutePath, _ action: () async throws -> Void) async throws {
-        let loggerHandler = try Logger.loggerHandlerForNoora(logFilePath: logFilePath)
-        try await Logger.$current.withValue(Logger(label: "dev.tuist.cli", factory: loggerHandler)) {
-            try await action()
         }
     }
 #endif
