@@ -3,7 +3,6 @@ import Path
 import TuistAlert
 import TuistAutomation
 import TuistCore
-import TuistGenerator
 import TuistLoader
 import TuistLogging
 import TuistServer

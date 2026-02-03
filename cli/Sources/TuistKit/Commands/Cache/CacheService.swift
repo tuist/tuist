@@ -6,7 +6,6 @@ import TuistAutomation
 import TuistCache
 import TuistCore
 import TuistExtension
-import TuistGenerator
 import TuistLoader
 import TuistPlugin
 import TuistServer

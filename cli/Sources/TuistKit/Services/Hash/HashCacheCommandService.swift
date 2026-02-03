@@ -4,7 +4,6 @@ import TuistAlert
 import TuistCache
 import TuistCore
 import TuistExtension
-import TuistGenerator
 import TuistHasher
 import TuistLoader
 import TuistLogging
