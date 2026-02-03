@@ -1,5 +1,5 @@
 ---
-title: "4 Hours of Codex 5.2 Brought Mastodon a 79.9% Cache Improvement"
+title: "Codex 5.2 cut Mastodon iOS build time 79.9% in 4 hours"
 category: "engineering"
 tags: ["tuist", "migration", "ios", "codex", "cache"]
 excerpt: "A long-form story of migrating the Mastodon iOS client to Tuist generated projects with Codex, including the plan, the setbacks, the fixes, and the cache-backed benchmark results."
@@ -84,6 +84,8 @@ We ran the work on February 2, 2026 using Codex 5.2 with GPT-5 as the underlying
 ## The skill that outlives the migration
 
 The output of this migration is not just a working project. It is the skill that captures how to do this again. Codex wrote `skill.md` as a migration guide that starts where a real engineer starts: with a baseline build, a target inventory, and a realistic set of constraints. It emphasizes what tends to go wrong, how to detect it, and how to keep the generated project aligned with the original. It intentionally avoids caching instructions so it stays focused on the core migration, while the blog captures the caching and benchmarking detail.
+
+We also added a skills page to the docs that describes how to use the skills we publish, including this migration skill. It lists each skill with a `SKILL_NAME` and `SKILL_URL`, then shows how to install it for different agents. For Codex, the flow is to create a `.codex/skills/$SKILL_NAME` directory and download the `SKILL.md` file into it, as described in the [skills documentation](https://docs.tuist.dev/en/guides/features/agentic-coding/skills). The same page shows equivalent commands for Claude Code, Amp, and OpenCode. The point is not just the one migration we did here. It is the reusable instruction set that lets the next migration start from something that has already been tested in a real project.
 
 This is the part that compounds. Each migration adds new edges, new fixes, and a cleaner playbook for the next one. The agent does the work, but the skill makes the work repeatable.
 
