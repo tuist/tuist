@@ -5,13 +5,13 @@
 let swiftToolsSupportDependency: Target.Dependency = .product(
     name: "SwiftToolsSupport-auto", package: "swiftlang.swift-tools-support-core"
 )
-let pathDependency: Target.Dependency = .product(name: "Path", package: "Path")
+let pathDependency: Target.Dependency = .product(name: "Path", package: "tuist.Path")
 let loggingDependency: Target.Dependency = .product(name: "Logging", package: "apple.swift-log")
 let argumentParserDependency: Target.Dependency = .product(
     name: "ArgumentParser", package: "apple.swift-argument-parser"
 )
-let fileSystemDependency: Target.Dependency = .product(name: "FileSystem", package: "FileSystem")
-let commandDependency: Target.Dependency = .product(name: "Command", package: "Command")
+let fileSystemDependency: Target.Dependency = .product(name: "FileSystem", package: "tuist.FileSystem")
+let commandDependency: Target.Dependency = .product(name: "Command", package: "tuist.Command")
 let xcodeGraphDependency: Target.Dependency = .product(name: "XcodeGraph", package: "tuist.XcodeGraph")
 let xcodeProjDependency: Target.Dependency = .product(name: "XcodeProj", package: "tuist.XcodeProj")
 let mockableDependency: Target.Dependency = .product(name: "Mockable", package: "kolos65.Mockable")
@@ -470,7 +470,7 @@ targets.append(contentsOf: [
             pathDependency,
             differenceDependency,
             fileSystemDependency,
-            .product(name: "FileSystemTesting", package: "FileSystem"),
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
             argumentParserDependency,
         ],
         path: "cli/Sources/TuistTesting",
@@ -938,10 +938,10 @@ let package = Package(
         .package(
             id: "apple.swift-openapi-urlsession", .upToNextMajor(from: "1.0.2")
         ),
-        .package(url: "https://github.com/tuist/Path.git", .upToNextMajor(from: "0.3.0")),
+        .package(id: "tuist.Path", .upToNextMajor(from: "0.3.0")),
         .package(id: "tuist.XcodeGraph", .upToNextMajor(from: "1.31.0")),
-        .package(url: "https://github.com/tuist/FileSystem.git", .upToNextMajor(from: "0.14.11")),
-        .package(url: "https://github.com/tuist/Command.git", .upToNextMajor(from: "0.8.0")),
+        .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.14.11")),
+        .package(id: "tuist.Command", .upToNextMajor(from: "0.8.0")),
         .package(id: "apple.swift-nio", from: "2.70.0"),
         .package(id: "crspybits.swift-log-file", .upToNextMajor(from: "0.1.0")),
         .package(id: "tuist.Noora", from: "0.54.0"),
