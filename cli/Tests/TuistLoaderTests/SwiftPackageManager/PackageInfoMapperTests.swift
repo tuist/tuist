@@ -920,6 +920,53 @@ struct PackageInfoMapperTests {
         )
     }
 
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenNameContainsPlus_sanitizesBundleID() async throws {
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = basePath.appending(try RelativePath(validating: "Package/Sources/Target+1"))
+        try await fileSystem.makeDirectory(at: sourcesPath)
+
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target+1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target+1"),
+                    ],
+                    platforms: [.ios],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        #expect(
+            project ==
+                .testWithDefaultConfigs(
+                    name: "Package",
+                    targets: [
+                        .test(
+                            "Target_1",
+                            basePath: basePath,
+                            customBundleID: "dev.tuist.Target.1",
+                            customSources: .custom(.sourceFilesList(globs: [
+                                basePath
+                                    .appending(try RelativePath(validating: "Package/Sources/Target+1/**"))
+                                    .pathString,
+                            ]))
+                        ),
+                    ]
+                )
+        )
+    }
+
     @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider) func map_whenSettingsDefinesContainsQuotes() async throws {
         // When having a manifest that includes a GCC definition like `FOO="BAR"`, SPM successfully maintains the quotes
         // and it will convert it to a compiler parameter like `-DFOO=\"BAR\"`.
