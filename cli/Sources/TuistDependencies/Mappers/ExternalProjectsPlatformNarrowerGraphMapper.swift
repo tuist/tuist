@@ -33,7 +33,11 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
 
         var graph = graph
         let graphTraverser = GraphTraverser(graph: graph)
-        let externalTargetSupportedDestinations = graphTraverser.externalTargetSupportedDestinations()
+        let externalTargetSupportedDestinations = externalTargetSupportedDestinations(
+            graph: graph,
+            graphTraverser: graphTraverser,
+            externalDependencies: environment.externalDependencies
+        )
 
         graph.projects = Dictionary(uniqueKeysWithValues: graph.projects.map { projectPath, project in
             var project = project
@@ -76,5 +80,189 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
             )
         }
         return target
+    }
+
+    private func externalTargetSupportedDestinations(
+        graph: Graph,
+        graphTraverser: GraphTraverser,
+        externalDependencies: [String: [TargetDependency]]
+    ) -> [GraphTarget: Set<Destination>] {
+        let normalizedExternalDependencies = normalizeExternalDependencies(externalDependencies)
+        let targetsWithExternalDependencies = targetsWithExternalDependencies(
+            graph: graph,
+            graphTraverser: graphTraverser,
+            externalDependencies: normalizedExternalDependencies
+        )
+        var destinations: [GraphTarget: Set<Destination>] = [:]
+
+        func traverse(target: GraphTarget, parentDestinations: Set<Destination>) {
+            let dependencies = directTargetDependencies(
+                for: target,
+                graph: graph,
+                graphTraverser: graphTraverser,
+                externalDependencies: normalizedExternalDependencies
+            )
+
+            for dependencyTargetReference in dependencies {
+                var destinationsToInsert: Set<Destination>?
+                let dependencyTarget = dependencyTargetReference.graphTarget
+                let inheritedDestinations: Set<Destination> =
+                    dependencyTarget.target.product == .macro
+                        ? Set<Destination>([.mac]) : parentDestinations
+                if let dependencyCondition = dependencyTargetReference.condition,
+                   let platformIntersection = PlatformCondition.when(
+                       target.target.dependencyPlatformFilters
+                   )?
+                   .intersection(dependencyCondition)
+                {
+                    switch platformIntersection {
+                    case .incompatible:
+                        break
+                    case let .condition(condition):
+                        if let condition {
+                            let allowedPlatformFilters = condition.platformFilters
+                            let dependencyDestinations = inheritedDestinations.filter { destination in
+                                allowedPlatformFilters.contains(destination.platformFilter)
+                            }
+                            destinationsToInsert = dependencyDestinations.intersection(
+                                dependencyTarget.target.destinations
+                            )
+                        }
+                    }
+                } else {
+                    destinationsToInsert = inheritedDestinations.intersection(
+                        dependencyTarget.target.destinations
+                    )
+                }
+
+                if let destinationsToInsert {
+                    var existingDestinations = destinations[dependencyTarget, default: Set()]
+                    let continueTraversing = !destinationsToInsert.isSubset(of: existingDestinations)
+                    existingDestinations.formUnion(destinationsToInsert)
+                    destinations[dependencyTarget] = existingDestinations
+
+                    if continueTraversing {
+                        traverse(
+                            target: dependencyTarget,
+                            parentDestinations: destinations[dependencyTarget, default: Set()]
+                        )
+                    }
+                }
+            }
+        }
+
+        for target in targetsWithExternalDependencies {
+            traverse(
+                target: target,
+                parentDestinations: target.target.destinations
+            )
+        }
+
+        return destinations
+    }
+
+    private func directTargetDependencies(
+        for target: GraphTarget,
+        graph: Graph,
+        graphTraverser: GraphTraverser,
+        externalDependencies: [String: [TargetDependency]]
+    ) -> Set<GraphTargetReference> {
+        var dependencies = graphTraverser.directTargetDependencies(path: target.path, name: target.target.name)
+        dependencies.formUnion(
+            packageProductDependencies(
+                for: target,
+                graph: graph,
+                externalDependencies: externalDependencies
+            )
+        )
+        return dependencies
+    }
+
+    private func packageProductDependencies(
+        for target: GraphTarget,
+        graph: Graph,
+        externalDependencies: [String: [TargetDependency]]
+    ) -> Set<GraphTargetReference> {
+        let graphDependency = GraphDependency.target(name: target.target.name, path: target.path)
+        guard let dependencies = graph.dependencies[graphDependency] else { return [] }
+
+        return Set(dependencies.flatMap { dependency in
+            guard case let .packageProduct(_, product, _) = dependency else { return [] }
+            let dependencyCondition = graph.dependencyConditions[(graphDependency, dependency)]
+            return externalTargetReferences(
+                forProduct: product,
+                dependencyCondition: dependencyCondition,
+                externalDependencies: externalDependencies,
+                graph: graph
+            )
+        })
+    }
+
+    private func externalTargetReferences(
+        forProduct product: String,
+        dependencyCondition: PlatformCondition?,
+        externalDependencies: [String: [TargetDependency]],
+        graph: Graph
+    ) -> [GraphTargetReference] {
+        guard let dependencies = externalDependencies[product] ?? externalDependencies[product.lowercased()] else { return [] }
+
+        return dependencies.compactMap { dependency in
+            guard case let .project(targetName, path, _, condition) = dependency else { return nil }
+            guard let project = graph.projects[path],
+                  let target = project.targets[targetName]
+            else { return nil }
+
+            let mergedCondition: PlatformCondition?
+            if let dependencyCondition, let condition {
+                switch dependencyCondition.intersection(condition) {
+                case .incompatible:
+                    return nil
+                case let .condition(condition):
+                    mergedCondition = condition
+                }
+            } else {
+                mergedCondition = dependencyCondition ?? condition
+            }
+
+            return GraphTargetReference(
+                target: GraphTarget(path: path, target: target, project: project),
+                condition: mergedCondition
+            )
+        }
+    }
+
+    private func targetsWithExternalDependencies(
+        graph: Graph,
+        graphTraverser: GraphTraverser,
+        externalDependencies: [String: [TargetDependency]]
+    ) -> Set<GraphTarget> {
+        let directTargets = graphTraverser.targetsWithExternalDependencies()
+        let packageProductTargets = graph.dependencies.compactMap { dependency, dependencies -> GraphTarget? in
+            guard case let .target(name, path, _) = dependency else { return nil }
+
+            let hasResolvedPackageProducts = dependencies.contains { dependency in
+                guard case let .packageProduct(_, product, _) = dependency else { return false }
+                return externalDependencies[product] != nil || externalDependencies[product.lowercased()] != nil
+            }
+
+            guard hasResolvedPackageProducts,
+                  let project = graph.projects[path],
+                  let target = project.targets[name]
+            else { return nil }
+
+            return GraphTarget(path: path, target: target, project: project)
+        }
+
+        return directTargets.union(packageProductTargets)
+    }
+
+    private func normalizeExternalDependencies(
+        _ externalDependencies: [String: [TargetDependency]]
+    ) -> [String: [TargetDependency]] {
+        var normalized = externalDependencies
+        for (key, value) in externalDependencies {
+            normalized[key.lowercased()] = value
+        }
+        return normalized
     }
 }
