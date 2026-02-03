@@ -98,6 +98,7 @@
 
   systemd.tmpfiles.rules = [
     "Z /cas 0755 cache cache - -"
+    "d /cas/tmp 1777 cache cache - -"
     "d /var/lib/cache 0755 cache cache - -"
     "d /run/cache 0777 root root - -"
   ];

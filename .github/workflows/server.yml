@@ -637,9 +637,6 @@ jobs:
       - name: Start ClickHouse
         working-directory: server
         run: mise run clickhouse:start
-      - name: Publish Gradle plugin to mavenLocal
-        working-directory: gradle
-        run: ./gradlew publishToMavenLocal
       - name: Install dependencies and generate Xcode project
         working-directory: .
         run: |
