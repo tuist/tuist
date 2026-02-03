@@ -1,6 +1,5 @@
 import ArgumentParser
 import Foundation
-import TuistConstants
 
 public struct VersionCommand: ParsableCommand {
     public init() {}
@@ -13,6 +12,6 @@ public struct VersionCommand: ParsableCommand {
     }
 
     public func run() throws {
-        print(Constants.version!)
+        try VersionService().run()
     }
 }
