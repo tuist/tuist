@@ -90,29 +90,29 @@ defmodule TuistWeb.Plugs.WebhookPlug do
     if conn.halted do
       conn
     else
-    signature = conn |> get_req_header(signature_header) |> List.first()
+      signature = conn |> get_req_header(signature_header) |> List.first()
 
-    cond do
-      is_nil(signature) ->
-        conn
-        |> send_resp(401, "Missing #{signature_header} header")
-        |> halt()
+      cond do
+        is_nil(signature) ->
+          conn
+          |> send_resp(401, "Missing #{signature_header} header")
+          |> halt()
 
-      conn.assigns.raw_body
-      |> List.wrap()
-      |> IO.iodata_to_binary()
-      |> verify_signature(
-        secret,
-        signature,
-        signature_prefix
-      ) ->
-        handle_verified_webhook(conn, module)
+        conn.assigns.raw_body
+        |> List.wrap()
+        |> IO.iodata_to_binary()
+        |> verify_signature(
+          secret,
+          signature,
+          signature_prefix
+        ) ->
+          handle_verified_webhook(conn, module)
 
-      true ->
-        conn
-        |> send_resp(403, "Invalid signature")
-        |> halt()
-    end
+        true ->
+          conn
+          |> send_resp(403, "Invalid signature")
+          |> halt()
+      end
     end
   end
 
