@@ -1,12 +1,12 @@
 ---
-title: "Why you might want to generate your Xcode projects in 2025"
+title: "Tuist Projects: why generate Xcode projects in 2025"
 category: "product"
 tags: ["project-generation", "modularization"]
-excerpt: "Learn why Xcode project generation is still relevant in 2025."
+excerpt: "Learn why Tuist Projects (Xcode project generation) are still relevant for scaling Xcode projects in 2025."
 author: pepicrft
 ---
 
-With Apple unifying and open-sourcing the [build system](https://www.swift.org/blog/the-next-chapter-in-swift-build-technologies/) across SwiftPM and Xcode, and [Xcode 16](https://developer.apple.com/documentation/xcode-release-notes/xcode-16-release-notes) addressing the frequent Git conflicts, you might wonder about the continued relevance of project generation. In this guide, we'll explore the current landscape and share our optimistic vision for the future of the ecosystem.
+With Apple unifying and open-sourcing the [build system](https://www.swift.org/blog/the-next-chapter-in-swift-build-technologies/) across SwiftPM and Xcode, and [Xcode 16](https://developer.apple.com/documentation/xcode-release-notes/xcode-16-release-notes) addressing the frequent Git conflicts, you might wonder about the continued relevance of Tuist Projects and Xcode project generation. In this guide, we'll explore the current landscape and share our optimistic vision for the future of the ecosystem.
 
 ## The challenges of modular Xcode projects
 

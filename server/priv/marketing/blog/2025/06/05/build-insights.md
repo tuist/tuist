@@ -1,8 +1,8 @@
 ---
-title: "Measure, analyze, and improve your build times with Tuist Build Insights"
+title: "Tuist Build Insights: Xcode build analytics"
 category: "product"
 tags: ["product"] 
-excerpt: "Use the new Tuist Build Insights to measure and analyze your local and CI builds"
+excerpt: "Get Xcode build analytics for local and CI builds with Tuist Build Insights."
 author: fortmarek
 og_image_path: /marketing/images/blog/2025/06/05/build-insights/og.jpg
 highlighted: true
@@ -16,7 +16,7 @@ While the toolchain provides data—like the [build graph](https://developer.app
 
 At Tuist, we don’t want to just help teams optimize workflows through better tooling; we also want to empower them with actionable data to make smarter decisions—whether to boost productivity or improve developer happiness.
 
-That’s why we’re thrilled to introduce [**Tuist Build Insights**](https://docs.tuist.dev/en/guides/develop/insights): our solution for collecting and analyzing build data from your Xcode projects, across any environment—including local development.
+That’s why we’re thrilled to introduce [**Tuist Build Insights**](https://docs.tuist.dev/en/guides/develop/insights): Xcode build analytics for collecting and analyzing build data across any environment—including local development.
 
 👉 If you’d like to see it in action, check out the video below:
 
