@@ -423,12 +423,12 @@ public enum Module: String, CaseIterable {
                 ]
             case .logging:
                 [
-                    .target(name: Module.constants.targetName),
+                    .target(name: Module.constants.targetName, condition: .when([.macos])),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.alert.targetName),
                     .external(name: "Logging"),
                     .external(name: "FileSystem"),
-                    .external(name: "LoggingOSLog"),
+                    .external(name: "LoggingOSLog", condition: .when([.macos])),
                 ]
             case .testing:
                 [
