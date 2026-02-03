@@ -366,6 +366,58 @@ jobs:
             build/SHASUMS512.txt
           retention-days: 1
 
+  release-cli-linux:
+    name: Release CLI (Linux ${{ matrix.arch }})
+    needs: check-releases
+    if: needs.check-releases.outputs.cli-should-release == 'true'
+    runs-on: ${{ matrix.runner }}
+    container:
+      image: swift:6.1
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .build
+          key: linux-${{ matrix.arch }}-cli-release-${{ hashFiles('Package.resolved') }}
+
+      - name: Update version in Constants.swift
+        run: |
+          sed -i "s/@TaskLocal public static var version: String! = \".*\"/@TaskLocal public static var version: String! = \"${{ needs.check-releases.outputs.cli-next-version }}\"/" "cli/Sources/TuistSupport/Constants.swift"
+
+      - name: Bundle CLI
+        run: ./mise/tasks/cli/bundle-linux.sh
+
+      - name: Save cache
+        uses: actions/cache/save@v4
+        with:
+          path: .build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+
+      - name: Upload CLI Linux artifacts
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-linux-${{ matrix.arch }}-artifacts
+          path: |
+            build/tuist-linux-${{ matrix.arch }}.tar.gz
+            build/SHASUMS256.txt
+            build/SHASUMS512.txt
+          retention-days: 1
+
   release-app:
     name: Release App
     needs: check-releases
@@ -677,6 +729,7 @@ jobs:
       [
         check-releases,
         release-cli,
+        release-cli-linux,
         release-app,
         release-ios,
         release-server,
@@ -705,6 +758,32 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: cli-artifacts
+
+      - name: Download CLI Linux x86_64 artifacts
+        if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli-linux.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-linux-x86_64-artifacts
+          path: build-linux-x86_64
+
+      - name: Download CLI Linux aarch64 artifacts
+        if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli-linux.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-linux-aarch64-artifacts
+          path: build-linux-aarch64
+
+      - name: Merge Linux artifacts into build directory
+        if: needs.check-releases.outputs.cli-should-release == 'true' && needs.release-cli-linux.result == 'success'
+        run: |
+          # Append Linux checksums to main checksum files
+          cat build-linux-x86_64/SHASUMS256.txt >> build/SHASUMS256.txt
+          cat build-linux-x86_64/SHASUMS512.txt >> build/SHASUMS512.txt
+          cat build-linux-aarch64/SHASUMS256.txt >> build/SHASUMS256.txt
+          cat build-linux-aarch64/SHASUMS512.txt >> build/SHASUMS512.txt
+          # Move Linux tarballs to build directory
+          mv build-linux-x86_64/tuist-linux-x86_64.tar.gz build/
+          mv build-linux-aarch64/tuist-linux-aarch64.tar.gz build/
 
       - name: Download App artifacts
         if: needs.check-releases.outputs.app-should-release == 'true' && needs.release-app.result == 'success'
@@ -752,6 +831,8 @@ jobs:
           body: ${{ needs.release-cli.outputs.release-notes }}
           files: |
             build/tuist.zip
+            build/tuist-linux-x86_64.tar.gz
+            build/tuist-linux-aarch64.tar.gz
             build/SHASUMS256.txt
             build/SHASUMS512.txt
             build/ProjectDescription.xcframework.zip
