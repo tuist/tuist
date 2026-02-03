@@ -659,9 +659,7 @@ jobs:
           mix run priv/repo/seeds.exs
       - name: Setup cache node
         working-directory: cache
-        run: |
-          mix deps.get
-          mix ecto.setup
+        run: mix deps.get
       - name: Start main server
         working-directory: server
         run: |
