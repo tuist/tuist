@@ -73,7 +73,7 @@ import Path
                 guard let httpResponse = response as? HTTPURLResponse else {
                     throw FileClientError.invalidResponse(request, nil)
                 }
-                Task.detached {
+                Task.detached(priority: .background) {
                     await Self.recordDownload(request: request, response: httpResponse)
                 }
                 if successStatusCodeRange.contains(httpResponse.statusCode) {
@@ -82,7 +82,7 @@ import Path
                     throw FileClientError.invalidResponse(request, nil)
                 }
             } catch {
-                Task.detached {
+                Task.detached(priority: .background) {
                     await Self.recordDownloadError(request: request, error: error)
                 }
                 if error is FileClientError {
@@ -102,7 +102,7 @@ import Path
                 guard let httpResponse = response as? HTTPURLResponse else {
                     throw FileClientError.invalidResponse(request, file)
                 }
-                Task.detached {
+                Task.detached(priority: .background) {
                     await Self.recordUpload(request: request, response: httpResponse, requestBodySize: Int(fileSize))
                 }
                 if successStatusCodeRange.contains(httpResponse.statusCode) {
@@ -111,7 +111,7 @@ import Path
                     throw FileClientError.serverSideError(request, httpResponse, file)
                 }
             } catch {
-                Task.detached {
+                Task.detached(priority: .background) {
                     await Self.recordUploadError(request: request, error: error, requestBodySize: Int(fileSize))
                 }
                 if error is FileClientError {
@@ -140,14 +140,9 @@ import Path
             guard let recorder = HARRecorder.current, let url = request.url else { return }
             let metadata = await retrieveHARMetadata(for: url)
             await recorder.recordRequest(
-                url: url,
-                method: request.httpMethod ?? "GET",
-                requestHeaders: (request.allHTTPHeaderFields ?? [:]).map { HAR.Header(name: $0.key, value: $0.value) },
+                request: request,
+                response: response,
                 requestBody: nil,
-                responseStatusCode: response.statusCode,
-                responseStatusText: HTTPURLResponse.localizedString(forStatusCode: response.statusCode),
-                responseHeaders: (response.allHeaderFields as? [String: String] ?? [:])
-                    .map { HAR.Header(name: $0.key, value: $0.value) },
                 responseBody: nil,
                 startTime: metadata.startTime,
                 endTime: metadata.endTime,
@@ -162,11 +157,9 @@ import Path
             guard let recorder = HARRecorder.current, let url = request.url else { return }
             let metadata = await retrieveHARMetadata(for: url)
             await recorder.recordError(
-                url: url,
-                method: request.httpMethod ?? "GET",
-                requestHeaders: (request.allHTTPHeaderFields ?? [:]).map { HAR.Header(name: $0.key, value: $0.value) },
-                requestBody: nil,
+                request: request,
                 error: error,
+                requestBody: nil,
                 startTime: metadata.startTime,
                 endTime: metadata.endTime,
                 timings: metadata.timings,
@@ -179,21 +172,17 @@ import Path
             guard let recorder = HARRecorder.current, let url = request.url else { return }
             let metadata = await retrieveHARMetadata(for: url)
             await recorder.recordRequest(
-                url: url,
-                method: request.httpMethod ?? "PUT",
-                requestHeaders: (request.allHTTPHeaderFields ?? [:]).map { HAR.Header(name: $0.key, value: $0.value) },
-                requestBody: Data(count: requestBodySize),
-                responseStatusCode: response.statusCode,
-                responseStatusText: HTTPURLResponse.localizedString(forStatusCode: response.statusCode),
-                responseHeaders: (response.allHeaderFields as? [String: String] ?? [:])
-                    .map { HAR.Header(name: $0.key, value: $0.value) },
+                request: request,
+                response: response,
+                requestBody: nil,
                 responseBody: nil,
                 startTime: metadata.startTime,
                 endTime: metadata.endTime,
                 timings: metadata.timings,
                 httpVersion: metadata.httpVersion,
                 requestHeadersSize: metadata.requestHeadersSize,
-                responseHeadersSize: metadata.responseHeadersSize
+                responseHeadersSize: metadata.responseHeadersSize,
+                requestBodySize: requestBodySize
             )
         }
 
@@ -201,16 +190,15 @@ import Path
             guard let recorder = HARRecorder.current, let url = request.url else { return }
             let metadata = await retrieveHARMetadata(for: url)
             await recorder.recordError(
-                url: url,
-                method: request.httpMethod ?? "PUT",
-                requestHeaders: (request.allHTTPHeaderFields ?? [:]).map { HAR.Header(name: $0.key, value: $0.value) },
-                requestBody: Data(count: requestBodySize),
+                request: request,
                 error: error,
+                requestBody: nil,
                 startTime: metadata.startTime,
                 endTime: metadata.endTime,
                 timings: metadata.timings,
                 httpVersion: metadata.httpVersion,
-                requestHeadersSize: metadata.requestHeadersSize
+                requestHeadersSize: metadata.requestHeadersSize,
+                requestBodySize: requestBodySize
             )
         }
 

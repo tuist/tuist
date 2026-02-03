@@ -49,7 +49,7 @@ public struct SessionController {
 
     /// Schedules best-effort cleanup of old session directories.
     public func scheduleMaintenance(stateDirectory: AbsolutePath) {
-        Task { [fileSystem] in
+        Task.detached(priority: .background) { [fileSystem] in
             try? await Self.clean(fileSystem: fileSystem, stateDirectory: stateDirectory)
         }
     }
@@ -86,12 +86,12 @@ public struct SessionController {
     /// Cleans up old session directories based on age and count limits.
     /// - Parameters:
     ///   - stateDirectory: The base state directory.
-    ///   - maxAge: Maximum age of sessions to keep (default: 7 days).
+    ///   - maxAge: Maximum age of sessions to keep (default: 5 days).
     ///   - maxSessions: Maximum number of sessions to keep (default: 50).
-    private static func clean(
+    static func clean(
         fileSystem: FileSystem,
         stateDirectory: AbsolutePath,
-        maxAge: TimeInterval = 7 * 24 * 60 * 60,
+        maxAge: TimeInterval = 5 * 24 * 60 * 60,
         maxSessions: Int = 50
     ) async throws {
         let sessionsDirectory = stateDirectory.appending(component: "sessions")

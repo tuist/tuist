@@ -62,7 +62,8 @@ public actor HARRecorder {
         timings: HAR.Timings? = nil,
         httpVersion: String? = nil,
         requestHeadersSize: Int? = nil,
-        responseHeadersSize: Int? = nil
+        responseHeadersSize: Int? = nil,
+        requestBodySize: Int? = nil
     ) async {
         let entry = buildEntry(
             url: url,
@@ -78,9 +79,44 @@ public actor HARRecorder {
             timings: timings,
             httpVersion: httpVersion,
             requestHeadersSize: requestHeadersSize,
-            responseHeadersSize: responseHeadersSize
+            responseHeadersSize: responseHeadersSize,
+            requestBodySize: requestBodySize
         )
         await record(entry)
+    }
+
+    /// Records an HTTP request and response from URLRequest/HTTPURLResponse.
+    public func recordRequest(
+        request: URLRequest,
+        response: HTTPURLResponse,
+        requestBody: Data?,
+        responseBody: Data?,
+        startTime: Date,
+        endTime: Date,
+        timings: HAR.Timings? = nil,
+        httpVersion: String? = nil,
+        requestHeadersSize: Int? = nil,
+        responseHeadersSize: Int? = nil,
+        requestBodySize: Int? = nil
+    ) async {
+        guard let url = request.url else { return }
+        await recordRequest(
+            url: url,
+            method: request.httpMethod ?? "GET",
+            requestHeaders: Self.headers(from: request),
+            requestBody: requestBody,
+            responseStatusCode: response.statusCode,
+            responseStatusText: HTTPURLResponse.localizedString(forStatusCode: response.statusCode),
+            responseHeaders: Self.headers(from: response),
+            responseBody: responseBody,
+            startTime: startTime,
+            endTime: endTime,
+            timings: timings,
+            httpVersion: httpVersion,
+            requestHeadersSize: requestHeadersSize,
+            responseHeadersSize: responseHeadersSize,
+            requestBodySize: requestBodySize
+        )
     }
 
     /// Records a failed HTTP request.
@@ -94,7 +130,8 @@ public actor HARRecorder {
         endTime: Date,
         timings: HAR.Timings? = nil,
         httpVersion: String? = nil,
-        requestHeadersSize: Int? = nil
+        requestHeadersSize: Int? = nil,
+        requestBodySize: Int? = nil
     ) async {
         let entry = buildErrorEntry(
             url: url,
@@ -106,9 +143,38 @@ public actor HARRecorder {
             endTime: endTime,
             timings: timings,
             httpVersion: httpVersion,
-            requestHeadersSize: requestHeadersSize
+            requestHeadersSize: requestHeadersSize,
+            requestBodySize: requestBodySize
         )
         await record(entry)
+    }
+
+    /// Records a failed HTTP request from URLRequest.
+    public func recordError(
+        request: URLRequest,
+        error: Error,
+        requestBody: Data?,
+        startTime: Date,
+        endTime: Date,
+        timings: HAR.Timings? = nil,
+        httpVersion: String? = nil,
+        requestHeadersSize: Int? = nil,
+        requestBodySize: Int? = nil
+    ) async {
+        guard let url = request.url else { return }
+        await recordError(
+            url: url,
+            method: request.httpMethod ?? "GET",
+            requestHeaders: Self.headers(from: request),
+            requestBody: requestBody,
+            error: error,
+            startTime: startTime,
+            endTime: endTime,
+            timings: timings,
+            httpVersion: httpVersion,
+            requestHeadersSize: requestHeadersSize,
+            requestBodySize: requestBodySize
+        )
     }
 
     /// Returns the current HAR log.
@@ -160,7 +226,8 @@ public actor HARRecorder {
         timings: HAR.Timings? = nil,
         httpVersion: String? = nil,
         requestHeadersSize: Int? = nil,
-        responseHeadersSize: Int? = nil
+        responseHeadersSize: Int? = nil,
+        requestBodySize: Int? = nil
     ) -> HAR.Entry {
         let durationMs = Int((endTime.timeIntervalSince(startTime)) * 1000)
         let filteredRequestHeaders = Self.filterSensitiveHeaders(requestHeaders)
@@ -200,7 +267,7 @@ public actor HARRecorder {
                 queryString: extractQueryParameters(from: url),
                 postData: buildPostData(from: requestBody, headers: requestHeaders),
                 headersSize: resolvedRequestHeadersSize,
-                bodySize: requestBody?.count ?? 0
+                bodySize: requestBodySize ?? requestBody?.count ?? 0
             ),
             response: HAR.Response(
                 status: responseStatusCode,
@@ -227,7 +294,8 @@ public actor HARRecorder {
         endTime: Date,
         timings: HAR.Timings? = nil,
         httpVersion: String? = nil,
-        requestHeadersSize: Int? = nil
+        requestHeadersSize: Int? = nil,
+        requestBodySize: Int? = nil
     ) -> HAR.Entry {
         let durationMs = Int((endTime.timeIntervalSince(startTime)) * 1000)
         let filteredRequestHeaders = Self.filterSensitiveHeaders(requestHeaders)
@@ -260,7 +328,7 @@ public actor HARRecorder {
                 queryString: extractQueryParameters(from: url),
                 postData: buildPostData(from: requestBody, headers: requestHeaders),
                 headersSize: resolvedRequestHeadersSize,
-                bodySize: requestBody?.count ?? 0
+                bodySize: requestBodySize ?? requestBody?.count ?? 0
             ),
             response: HAR.Response(
                 status: 0,
@@ -305,6 +373,14 @@ public actor HARRecorder {
             ? "\(httpVersion) \(statusCode)"
             : "\(httpVersion) \(statusCode) \(statusText)"
         return calculateHeadersSize(startLine: statusLine, headers: headers)
+    }
+
+    private static func headers(from request: URLRequest) -> [HAR.Header] {
+        (request.allHTTPHeaderFields ?? [:]).map { HAR.Header(name: $0.key, value: $0.value) }
+    }
+
+    private static func headers(from response: HTTPURLResponse) -> [HAR.Header] {
+        (response.allHeaderFields as? [String: String] ?? [:]).map { HAR.Header(name: $0.key, value: $0.value) }
     }
 
     private static func calculateHeadersSize(startLine: String, headers: [HAR.Header]) -> Int {

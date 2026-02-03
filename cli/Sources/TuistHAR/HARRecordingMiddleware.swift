@@ -32,7 +32,7 @@ public struct HARRecordingMiddleware: ClientMiddleware {
                 contentType: responseContentType
             )
 
-            Task.detached {
+            Task.detached(priority: .background) {
                 let fullURL = Self.buildURL(baseURL: baseURL, path: request.path)
                 let harMetadata = await Self.retrieveHARMetadata(for: fullURL)
 
@@ -56,7 +56,7 @@ public struct HARRecordingMiddleware: ClientMiddleware {
 
             return (response, responseBodyForNext)
         } catch {
-            Task.detached {
+            Task.detached(priority: .background) {
                 let fullURL = Self.buildURL(baseURL: baseURL, path: request.path)
                 let harMetadata = await Self.retrieveHARMetadata(for: fullURL)
 
