@@ -80,11 +80,13 @@ public protocol Environmenting: Sendable {
     /// A cache socket path string for a given full handle with $HOME prefix to be environment-independent
     func cacheSocketPathString(for fullHandle: String) -> String
 
-    /// Returns the current architecture of the machine
-    func architecture() async throws -> MacArchitecture
+    #if os(macOS)
+        /// Returns the current architecture of the machine
+        func architecture() async throws -> MacArchitecture
 
-    /// Returns the derived data directory
-    func derivedDataDirectory() async throws -> AbsolutePath
+        /// Returns the derived data directory
+        func derivedDataDirectory() async throws -> AbsolutePath
+    #endif
 }
 
 private let truthyValues = ["1", "true", "TRUE", "yes", "YES"]
@@ -350,25 +352,21 @@ public struct Environment: Environmenting {
         }
     }
 
-    public func architecture() async throws -> MacArchitecture {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/uname")
-        process.arguments = ["-m"]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        try process.run()
-        process.waitUntilExit()
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
-        #if os(Linux)
-            return MacArchitecture(rawValue: output) ?? .x8664
-        #else
+    #if os(macOS)
+        public func architecture() async throws -> MacArchitecture {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/uname")
+            process.arguments = ["-m"]
+            let pipe = Pipe()
+            process.standardOutput = pipe
+            try process.run()
+            process.waitUntilExit()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
             return MacArchitecture(rawValue: output) ?? .arm64
-        #endif
-    }
+        }
 
-    public func derivedDataDirectory() async throws -> AbsolutePath {
-        #if os(macOS)
+        public func derivedDataDirectory() async throws -> AbsolutePath {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/defaults")
             process.arguments = ["read", "com.apple.dt.Xcode", "IDEDerivedDataPathOverride"]
@@ -406,8 +404,8 @@ public struct Environment: Environmenting {
                     }
                 }
             } catch {}
-        #endif
 
-        return homeDirectory.appending(try RelativePath(validating: "Library/Developer/Xcode/DerivedData/"))
-    }
+            return homeDirectory.appending(try RelativePath(validating: "Library/Developer/Xcode/DerivedData/"))
+        }
+    #endif
 }
