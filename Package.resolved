@@ -1,5 +1,5 @@
 {
-  "originHash" : "84adff5f21bd7b289b5d8ec025e44a92bc75c2da0d7580ecf972b6f34805dd86",
+  "originHash" : "3bef6a2d0be68cfc8f1981d84c87afc3bb7de75dd9a4f0bd7cba75b481c85d4e",
   "pins" : [
     {
       "identity" : "aexml",
@@ -708,6 +708,22 @@
       }
     },
     {
+      "identity" : "tuist.Command",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.13.0"
+      }
+    },
+    {
+      "identity" : "tuist.FileSystem",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.14.14"
+      }
+    },
+    {
       "identity" : "tuist.GraphViz",
       "kind" : "registry",
       "location" : "",
@@ -721,6 +737,14 @@
       "location" : "",
       "state" : {
         "version" : "0.54.0"
+      }
+    },
+    {
+      "identity" : "tuist.Path",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.3.8"
       }
     },
     {
