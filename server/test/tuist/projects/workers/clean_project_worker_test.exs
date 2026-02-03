@@ -26,11 +26,10 @@ defmodule Tuist.Projects.Workers.CleanProjectWorkerTest do
       binaries_objects = "#{project_slug}/builds"
       tests_objects = "#{project_slug}/tests"
       expected_paths = MapSet.new([cas_objects, binaries_objects, tests_objects])
-      {:ok, paths_agent} = Agent.start_link(fn -> MapSet.new() end)
-      on_exit(fn -> Agent.stop(paths_agent) end)
+      paths_table = :ets.new(:clean_project_paths, [:set])
 
       expect(Storage, :delete_all_objects, 3, fn path, _actor ->
-        Agent.update(paths_agent, &MapSet.put(&1, path))
+        :ets.insert(paths_table, {path, true})
         :ok
       end)
 
@@ -40,7 +39,13 @@ defmodule Tuist.Projects.Workers.CleanProjectWorkerTest do
       # Then
       assert result == :ok
 
-      assert Agent.get(paths_agent, & &1) == expected_paths
+      received_paths =
+        paths_table
+        |> :ets.tab2list()
+        |> Enum.map(&elem(&1, 0))
+        |> MapSet.new()
+
+      assert received_paths == expected_paths
     end
 
     test "returns :ok when the project doesn't exist" do
