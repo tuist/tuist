@@ -171,4 +171,41 @@ final class GenerateCacheableSchemesGraphMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertFalse(updatedGraph.workspace.schemes.map(\.name).contains("Binaries-Cache-Catalyst"))
     }
+
+    func test_does_not_generate_catalyst_scheme_when_only_external_targets_support_catalyst() async throws {
+        // Given
+        let directory = try temporaryPath()
+
+        let localTarget = Target.test(name: "App", destinations: [.iPhone], product: .app)
+        let externalTarget = Target.test(
+            name: "ExternalFramework",
+            destinations: [.iPhone, .macCatalyst],
+            product: .framework
+        )
+
+        let subject = GenerateCacheableSchemesGraphMapper(targets: [:])
+        let localProjectPath = directory.appending(component: "App")
+        let externalProjectPath = directory.appending(component: "External")
+        let localProject = Project.test(path: localProjectPath, name: "App", targets: [localTarget], type: .local)
+        let externalProject = Project.test(
+            path: externalProjectPath,
+            name: "External",
+            targets: [externalTarget],
+            type: .external
+        )
+
+        let graph = Graph.test(
+            workspace: Workspace.test(projects: [localProjectPath, externalProjectPath]),
+            projects: [
+                localProjectPath: localProject,
+                externalProjectPath: externalProject,
+            ]
+        )
+
+        // When
+        let (updatedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        XCTAssertFalse(updatedGraph.workspace.schemes.map(\.name).contains("Binaries-Cache-Catalyst"))
+    }
 }
