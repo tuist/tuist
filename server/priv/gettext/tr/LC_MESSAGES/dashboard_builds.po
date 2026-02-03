@@ -1006,3 +1006,6 @@ msgstr "dünden beri"
 #, fuzzy
 msgid "Cache Endpoint"
 msgstr "Önbellek Uç Noktası"
+
+msgid "Generations"
+msgstr ""

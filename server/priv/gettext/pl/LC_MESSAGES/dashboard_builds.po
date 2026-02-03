@@ -1021,3 +1021,6 @@ msgstr "od wczoraj"
 #, fuzzy
 msgid "Cache Endpoint"
 msgstr "Punkt końcowy pamięci podręcznej"
+
+msgid "Generations"
+msgstr ""

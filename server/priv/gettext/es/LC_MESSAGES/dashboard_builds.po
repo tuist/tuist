@@ -1014,3 +1014,6 @@ msgstr "desde ayer"
 #, fuzzy
 msgid "Cache Endpoint"
 msgstr "Punto final de caché"
+
+msgid "Generations"
+msgstr ""

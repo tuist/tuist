@@ -762,3 +762,6 @@ msgstr ""
 
 msgid "Cache Endpoint"
 msgstr ""
+
+msgid "Generations"
+msgstr ""

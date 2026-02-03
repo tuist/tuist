@@ -1015,3 +1015,6 @@ msgstr "منذ أمس"
 #, fuzzy
 msgid "Cache Endpoint"
 msgstr "نقطة نهاية ذاكرة التخزين المؤقت"
+
+msgid "Generations"
+msgstr ""
