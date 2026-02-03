@@ -133,6 +133,9 @@
                         },
                         "directories": {
                             "text": "الدلائل"
+                        },
+                        "debugging": {
+                            "text": "تصحيح الأخطاء"
                         }
                     }
                 },
