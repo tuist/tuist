@@ -28,6 +28,7 @@ defmodule TuistCommon.MixProject do
       {:bandit, "~> 1.0"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:ex_aws, "~> 2.0"},
+      {:finch, "~> 0.20.0"},
       {:phoenix, "~> 1.7", only: :test},
       {:plug, "~> 1.14"},
       {:req, "~> 0.5"},
