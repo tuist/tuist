@@ -196,11 +196,12 @@ let targets: [Target] = [
             "TuistConstants",
             "TuistEnvironment",
             "TuistLogging",
+            "TuistNoora",
+            .product(name: "Noora", package: "tuist.Noora"),
             "TuistAuthLoginCommand",
             "TuistCacheConfigCommand",
             "TuistVersionCommand",
             argumentParserDependency,
-            .product(name: "Noora", package: "tuist.Noora"),
             "TuistServer",
             pathDependency,
             swiftToolsSupportDependency,
@@ -246,6 +247,13 @@ let targets: [Target] = [
             "TuistEnvironment",
         ],
         path: "cli/Sources/TuistLogging"
+    ),
+    .target(
+        name: "TuistNoora",
+        dependencies: [
+            .product(name: "Noora", package: "tuist.Noora"),
+        ],
+        path: "cli/Sources/TuistNoora"
     ),
     .target(
         name: "TuistCacheConfigCommand",
@@ -304,6 +312,7 @@ let targets: [Target] = [
             "TuistConstants",
             "TuistLogging",
             "TuistEnvironment",
+            "TuistNoora",
             .product(name: "Noora", package: "tuist.Noora"),
             .product(name: "OrderedSet", package: "frazer-rbsn.OrderedSet"),
         ] + tuistSupportMacOSDependencies,

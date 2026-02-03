@@ -5,12 +5,8 @@ import Path
 import TuistConstants
 import TuistEnvironment
 import TuistLogging
+import TuistNoora
 import TuistServer
-
-// Cross-platform Noora TaskLocal
-extension Noora {
-    @TaskLocal static var current: Noorable = Noora()
-}
 
 #if os(macOS)
     import TuistKit

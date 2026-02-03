@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import Noora
 import OrderedSet
+import TuistNoora
 
 enum Alert: Equatable, Hashable {
     case success(SuccessAlert)
