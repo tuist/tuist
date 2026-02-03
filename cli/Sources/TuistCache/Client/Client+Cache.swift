@@ -18,8 +18,7 @@ extension Client {
         .init(
             serverURL: cacheURL,
             transport: TuistURLSessionTransport(),
-            middlewares: [
-                HARRecordingMiddleware(),
+            middlewares: HARRecordingMiddlewareFactory.middlewares() + [
                 RequestIdMiddleware(),
                 CacheClientAuthenticationMiddleware(
                     authenticationURL: authenticationURL,

@@ -209,7 +209,6 @@ public actor HARRecorder {
             Logger.current.debug("Failed to persist HAR file: \(error)")
         }
     }
-
 }
 
 // MARK: - Entry Building

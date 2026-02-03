@@ -10,8 +10,7 @@ extension Client {
         .init(
             serverURL: serverURL,
             transport: TuistURLSessionTransport(),
-            middlewares: [
-                HARRecordingMiddleware(),
+            middlewares: HARRecordingMiddlewareFactory.middlewares() + [
                 RequestIdMiddleware(),
                 ServerClientCLIMetadataHeadersMiddleware(),
                 ServerClientAuthenticationMiddleware(authenticationURL: authenticationURL),
@@ -26,8 +25,7 @@ extension Client {
         .init(
             serverURL: serverURL,
             transport: TuistURLSessionTransport(),
-            middlewares: [
-                HARRecordingMiddleware(),
+            middlewares: HARRecordingMiddlewareFactory.middlewares() + [
                 RequestIdMiddleware(),
                 VerboseLoggingMiddleware(),
                 OutputWarningsMiddleware(),
