@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-22 18:01+0000\n"
+"PO-Revision-Date: 2026-02-03 09:33+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_builds/tr/>\n"
@@ -396,7 +396,7 @@ msgstr "Köprü başlığı %{path} ön derleme başarısız"
 
 #, fuzzy
 msgid "Failed processing %{path}"
-msgstr "%{path} işleme başarısız"
+msgstr "%{path} işlenemedi"
 
 #, fuzzy
 msgid "Failed validating %{path}"
@@ -1007,5 +1007,6 @@ msgstr "dünden beri"
 msgid "Cache Endpoint"
 msgstr "Önbellek Uç Noktası"
 
+#, fuzzy
 msgid "Generations"
-msgstr ""
+msgstr "Nesiller"
