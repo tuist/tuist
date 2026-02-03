@@ -1,66 +1,118 @@
+// Re-export logging utilities from TuistLogging for backwards compatibility
+@_exported import TuistLogging
+
 import Foundation
 import Logging
-#if os(macOS)
-    import LoggingOSLog
-#endif
+import LoggingOSLog
 import Path
 import TuistConstants
 import TuistEnvironment
-import TuistLogging
 
-public struct LoggingConfig {
-    public init(loggerType: LoggerType, verbose: Bool) {
-        self.loggerType = loggerType
-        self.verbose = verbose
-    }
+// MARK: - OSLog support for macOS
 
-    public enum LoggerType {
-        case console
-        case detailed
-        #if os(macOS)
-            case osLog
-        #endif
-        case json
-        case quiet
-    }
-
-    public var loggerType: LoggerType
-    public var verbose: Bool
+extension LoggingConfig.LoggerType {
+    public static let osLog = LoggingConfig.LoggerType.console // Fallback to console in base enum
 }
 
+public struct OSLogHandler: LogHandler, VerboseLogHandler {
+    private var osLogHandler: LoggingOSLog
+    public var metadata: Logger.Metadata = [:]
+    public var logLevel: Logger.Level
+
+    public init(label: String) {
+        self.osLogHandler = LoggingOSLog(label: label)
+        self.logLevel = .info
+    }
+
+    public init(label: String, logLevel: Logger.Level) {
+        self.osLogHandler = LoggingOSLog(label: label)
+        self.logLevel = logLevel
+    }
+
+    public static func verbose(label: String) -> LogHandler {
+        OSLogHandler(label: label, logLevel: .debug)
+    }
+
+    public subscript(metadataKey key: String) -> Logger.Metadata.Value? {
+        get { metadata[key] }
+        set { metadata[key] = newValue }
+    }
+
+    public func log(
+        level: Logger.Level,
+        message: Logger.Message,
+        metadata: Logger.Metadata?,
+        source: String,
+        file: String,
+        function: String,
+        line: UInt
+    ) {
+        osLogHandler.log(
+            level: level,
+            message: message,
+            metadata: metadata,
+            source: source,
+            file: file,
+            function: function,
+            line: line
+        )
+    }
+}
+
+// MARK: - macOS-specific LoggingConfig extension
+
+extension LoggingConfig {
+    public static func defaultWithOSLog() -> LoggingConfig {
+        let env = Environment.current.variables
+
+        let quiet = env[Constants.EnvironmentVariables.quiet] != nil
+        let osLog = env[Constants.EnvironmentVariables.osLog] != nil
+        let detailed = env[Constants.EnvironmentVariables.detailedLog] != nil
+        let verbose = quiet ? false : Environment.current.isVerbose
+
+        if quiet {
+            return .init(loggerType: .quiet, verbose: verbose)
+        }
+        if osLog {
+            // Use console as fallback since osLog isn't in the base enum
+            return .init(loggerType: .console, verbose: verbose)
+        }
+        if detailed {
+            return .init(loggerType: .detailed, verbose: verbose)
+        }
+        return .init(loggerType: .console, verbose: verbose)
+    }
+}
+
+// MARK: - macOS-specific Logger extensions
+
 extension Logger {
-    public static func loggerHandlerForNoora(logFilePath: AbsolutePath) throws -> @Sendable (String) -> any LogHandler {
+    public static func loggerHandlerForNooraWithOSLog(logFilePath: AbsolutePath) throws -> @Sendable (String) -> any LogHandler {
         let fileLogHandler = try SimpleFileLogHandler(label: "dev.tuist.cli", fileURL: logFilePath.url)
         return { label in
             var handler = fileLogHandler
             handler.logLevel = .debug
             var loggers: [any LogHandler] = [handler]
-            #if os(macOS)
-                loggers.append(OSLogHandler.verbose(label: label))
-            #endif
+            loggers.append(OSLogHandler.verbose(label: label))
             return MultiplexLogHandler(loggers)
         }
     }
 
-    public static func defaultLoggerHandler(
+    public static func defaultLoggerHandlerWithOSLog(
         config: LoggingConfig,
         logFilePath: AbsolutePath
     ) throws -> @Sendable (String) -> any LogHandler {
         let handler: VerboseLogHandler.Type
 
         switch config.loggerType {
-        #if os(macOS)
-            case .osLog:
-                handler = OSLogHandler.self
-        #endif
         case .detailed:
-            handler = DetailedLogHandler.self
+            handler = CrossPlatformDetailedLogHandler.self
         case .console:
-            handler = StandardLogHandler.self
+            handler = CrossPlatformStandardLogHandler.self
         case .json:
-            handler = JSONLogHandler.self
+            handler = CrossPlatformJSONLogHandler.self
         case .quiet:
-            return quietLogHandler
+            return { label in CrossPlatformStandardLogHandler(label: label, logLevel: .notice) }
         }
 
         let fileLogHandler = try SimpleFileLogHandler(label: "dev.tuist.cli", fileURL: logFilePath.url)
@@ -70,12 +122,7 @@ extension Logger {
             handler.logLevel = .debug
 
             var loggers: [any LogHandler] = [handler]
-            // OSLog is not needed in development.
-            // If we include it, the Xcode console will show duplicated logs, making it harder for contributors to debug the
-            // execution
-            // within Xcode.
-            // When run directly from a terminal, logs are not duplicated.
-            #if RELEASE && os(macOS)
+            #if RELEASE
                 loggers.append(LoggingOSLog(label: label))
             #endif
             return loggers
@@ -94,109 +141,4 @@ extension Logger {
             }
         }
     }
-}
-
-/// A simple cross-platform file log handler that writes to a file.
-public struct SimpleFileLogHandler: LogHandler, @unchecked Sendable {
-    private let fileHandle: FileHandle
-    private let label: String
-    private let lock = NSLock()
-    public var metadata: Logger.Metadata = [:]
-    public var logLevel: Logger.Level = .info
-
-    public init(label: String, fileURL: URL) throws {
-        self.label = label
-        if !FileManager.default.fileExists(atPath: fileURL.path) {
-            FileManager.default.createFile(atPath: fileURL.path, contents: nil)
-        }
-        self.fileHandle = try FileHandle(forWritingTo: fileURL)
-        self.fileHandle.seekToEndOfFile()
-    }
-
-    public subscript(metadataKey key: String) -> Logger.Metadata.Value? {
-        get { metadata[key] }
-        set { metadata[key] = newValue }
-    }
-
-    public func log(
-        level: Logger.Level,
-        message: Logger.Message,
-        metadata: Logger.Metadata?,
-        source: String,
-        file: String,
-        function: String,
-        line: UInt
-    ) {
-        let timestamp = ISO8601DateFormatter().string(from: Date())
-        let mergedMetadata = self.metadata.merging(metadata ?? [:]) { _, new in new }
-        let metadataString = mergedMetadata.isEmpty ? "" : " \(mergedMetadata)"
-        let logMessage = "[\(timestamp)] [\(level)] [\(source)] \(message)\(metadataString)\n"
-        if let data = logMessage.data(using: .utf8) {
-            lock.lock()
-            defer { lock.unlock() }
-            fileHandle.write(data)
-        }
-    }
-}
-
-extension LoggingConfig {
-    public static func `default`() -> LoggingConfig {
-        let env = Environment.current.variables
-
-        let quiet = env[Constants.EnvironmentVariables.quiet] != nil
-        #if os(macOS)
-            let osLog = env[Constants.EnvironmentVariables.osLog] != nil
-        #endif
-        let detailed = env[Constants.EnvironmentVariables.detailedLog] != nil
-        let verbose = quiet ? false : Environment.current.isVerbose
-
-        if quiet {
-            return .init(loggerType: .quiet, verbose: verbose)
-        }
-        #if os(macOS)
-            if osLog {
-                return .init(loggerType: .osLog, verbose: verbose)
-            }
-        #endif
-        if detailed {
-            return .init(loggerType: .detailed, verbose: verbose)
-        }
-        return .init(loggerType: .console, verbose: verbose)
-    }
-}
-
-/// A `VerboseLogHandler` allows for a LogHandler to be initialised with the `debug` logLevel.
-protocol VerboseLogHandler: LogHandler {
-    @Sendable static func verbose(label: String) -> LogHandler
-    @Sendable init(label: String)
-}
-
-extension DetailedLogHandler: VerboseLogHandler {
-    public static func verbose(label: String) -> LogHandler {
-        DetailedLogHandler(label: label, logLevel: .debug)
-    }
-}
-
-extension StandardLogHandler: VerboseLogHandler {
-    public static func verbose(label: String) -> LogHandler {
-        StandardLogHandler(label: label, logLevel: .debug)
-    }
-}
-
-#if os(macOS)
-    extension OSLogHandler: VerboseLogHandler {
-        public static func verbose(label: String) -> LogHandler {
-            OSLogHandler(label: label, logLevel: .debug)
-        }
-    }
-#endif
-
-extension JSONLogHandler: VerboseLogHandler {
-    public static func verbose(label: String) -> LogHandler {
-        StandardLogHandler(label: label, logLevel: .debug)
-    }
-}
-
-@Sendable private func quietLogHandler(label: String) -> LogHandler {
-    return StandardLogHandler(label: label, logLevel: .notice)
 }

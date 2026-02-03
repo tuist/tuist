@@ -1,17 +1,16 @@
 import Foundation
 import Mockable
 
-#if os(macOS)
+#if !os(iOS)
     import FileSystem
     import Path
     import TSCBasic
     import TuistEnvironment
     import TuistLogging
-    import TuistSupport
 #endif
 
 public enum CachedValueStoreBackend: Sendable {
-    #if os(macOS)
+    #if !os(iOS)
         case fileSystem
     #endif
     case inSystemProcess
@@ -27,7 +26,7 @@ public protocol CachedValueStoring: Sendable {
 }
 
 public actor CachedValueStore: CachedValueStoring {
-    #if os(macOS)
+    #if !os(iOS)
         @TaskLocal public static var current: CachedValueStoring = CachedValueStore(backend: .fileSystem)
     #else
         @TaskLocal public static var current: CachedValueStoring = CachedValueStore(backend: .inSystemProcess)
@@ -54,7 +53,7 @@ public actor CachedValueStore: CachedValueStoring {
     private var tasks: [String: Task<Any?, any Error>] = [:]
     private var cache: [String: Any] = [:]
 
-    #if os(macOS)
+    #if !os(iOS)
         private let fileSystem = FileSystem()
 
         /// Returns the path to the lock file for a given key
@@ -74,12 +73,12 @@ public actor CachedValueStore: CachedValueStoring {
         key: String,
         computeIfNeeded: @escaping () async throws -> (value: Value, expiresAt: Date?)?
     ) async throws -> Value? {
-        #if os(macOS)
+        #if !os(iOS)
             Logger.current.debug("Getting cached value for \(key)")
         #endif
         // Check if we have a cached value that isn't expired
         if let cacheEntry = cache[key] as? CacheEntry<Value>, !cacheEntry.isExpired {
-            #if os(macOS)
+            #if !os(iOS)
                 Logger.current.debug("\(key) is cached and not expired")
             #endif
             return cacheEntry.value
@@ -90,20 +89,20 @@ public actor CachedValueStore: CachedValueStoring {
         // and clears tasks[key] before we can await it
         let task: Task<Any?, any Error>
         if let existingTask = tasks[key] {
-            #if os(macOS)
+            #if !os(iOS)
                 Logger.current
                     .debug("\(key)'s value is already being computed from a different thread, waiting for it to complete...")
             #endif
             task = existingTask
         } else {
             let newTask = Task<Any?, any Error> {
-                #if os(macOS)
+                #if !os(iOS)
                     Logger.current.debug("Triggered a new task to compute value for \(key)")
                 #endif
                 defer { tasks[key] = nil }
 
                 switch backend {
-                #if os(macOS)
+                #if !os(iOS)
                     case .fileSystem:
                         // Use file-based lock for cross-process synchronization
                         let lockPath = lockFilePath(for: key)
@@ -173,7 +172,7 @@ public actor CachedValueStore: CachedValueStoring {
 
         // Wait for the task to complete and return its value
         let value = try await task.value as? Value
-        #if os(macOS)
+        #if !os(iOS)
             Logger.current.debug("Returning value for \(key)")
         #endif
         return value

@@ -2,8 +2,6 @@ import FileSystem
 import Foundation
 import Path
 import TuistEnvironment
-import TuistLogging
-import TuistSupport
 
 private actor AsyncLock {
     func withLock<T>(_ operation: @Sendable () async throws -> T) async rethrows -> T {
@@ -21,18 +19,18 @@ public struct LogsController {
 
     public func setup(
         stateDirectory: AbsolutePath,
-        logFilePath: AbsolutePath! = nil
+        logFilePath: AbsolutePath! = nil,
+        machineReadableCommandNames: [String] = []
     ) async throws -> (@Sendable (String) -> any LogHandler, AbsolutePath) {
         var logFilePath = logFilePath
         if logFilePath == nil {
             logFilePath = try await touchLogFile(stateDirectory: stateDirectory)
         }
-        let machineReadableCommands = [DumpCommand.self]
-        // swiftformat:disable all
+
         let isCommandMachineReadable =
             CommandLine.arguments.count > 1
-            && machineReadableCommands.map { $0._commandName }.contains(CommandLine.arguments[1])
-        // swiftformat:enable all
+            && machineReadableCommandNames.contains(CommandLine.arguments[1])
+
         let loggingConfig =
             if isCommandMachineReadable || CommandLine.arguments.contains("--json") {
                 LoggingConfig(

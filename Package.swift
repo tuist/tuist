@@ -200,8 +200,8 @@ let targets: [Target] = [
             "TuistCacheConfigCommand",
             "TuistVersionCommand",
             argumentParserDependency,
-            .product(name: "Noora", package: "tuist.Noora", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistServer", condition: .when(platforms: [.macOS])),
+            .product(name: "Noora", package: "tuist.Noora"),
+            "TuistServer",
             pathDependency,
             swiftToolsSupportDependency,
         ],
@@ -240,6 +240,9 @@ let targets: [Target] = [
         name: "TuistLogging",
         dependencies: [
             loggingDependency,
+            pathDependency,
+            fileSystemDependency,
+            "TuistConstants",
             "TuistEnvironment",
         ],
         path: "cli/Sources/TuistLogging"

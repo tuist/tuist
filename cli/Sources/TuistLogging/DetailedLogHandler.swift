@@ -60,11 +60,11 @@ public struct CrossPlatformDetailedLogHandler: LogHandler {
 }
 
 extension Collection {
-    var isNotEmpty: Bool { !isEmpty }
+    public var isNotEmpty: Bool { !isEmpty }
 }
 
 extension Logger.Metadata {
-    var prettyDescription: String {
+    public var prettyDescription: String {
         map { "\($0)=\($1)" }.joined(separator: " ")
     }
 }

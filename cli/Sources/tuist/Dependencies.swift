@@ -1,13 +1,21 @@
 import Foundation
 import Logging
+import Noora
 import Path
 import TuistConstants
 import TuistEnvironment
 import TuistLogging
 import TuistServer
 
+// Use Path.AbsolutePath to avoid ambiguity with TSCBasic.AbsolutePath on macOS
+public typealias AbsolutePath = Path.AbsolutePath
+
+// Cross-platform Noora TaskLocal
+extension Noora {
+    @TaskLocal static var current: Noorable = Noora()
+}
+
 #if os(macOS)
-    import Noora
     import TSCBasic
     import TuistKit
     import TuistLoader
@@ -29,36 +37,110 @@ private enum DependenciesError: LocalizedError {
     }
 }
 
-#if os(macOS)
-    struct IgnoreOutputPipeline: StandardPipelining {
-        func write(content _: String) {}
+private func initEnv() throws {
+    if CommandLine.arguments.contains("--quiet"), CommandLine.arguments.contains("--verbose") {
+        throw DependenciesError.exclusiveOptionError("quiet", "verbose")
     }
 
-    func initDependencies(_ action: (Path.AbsolutePath) async throws -> Void) async throws {
-        try await initEnv()
+    if CommandLine.arguments.contains("--quiet"), CommandLine.arguments.contains("--json") {
+        throw DependenciesError.exclusiveOptionError("quiet", "json")
+    }
 
-        let (logger, logFilePath) = try await initLogger()
+    if CommandLine.arguments.contains("--verbose") {
+        setenv("TUIST_CONFIG_VERBOSE", "true", 1)
+    }
 
-        try await withAdditionalMiddlewares {
-            try await withInitializedManifestLoader {
-                try await ServerAuthenticationConfig.$current.withValue(ServerAuthenticationConfig(backgroundRefresh: true)) {
-                    try await Noora.$current.withValue(initNoora()) {
-                        try await Logger.$current.withValue(logger) {
-                            try await ServerCredentialsStore.$current.withValue(ServerCredentialsStore(backend: .fileSystem)) {
-                                try await CachedValueStore.$current.withValue(CachedValueStore(backend: .fileSystem)) {
-                                    try await RecentPathsStore.$current
-                                        .withValue(RecentPathsStore(storageDirectory: Environment.current.stateDirectory)) {
-                                            try await action(logFilePath)
-                                        }
+    if CommandLine.arguments.contains("--quiet") {
+        setenv(Constants.EnvironmentVariables.quiet, "true", 1)
+    }
+}
+
+private func initLogger() async throws -> (Logger, AbsolutePath) {
+    #if os(macOS)
+        let machineReadableCommandNames = [DumpCommand.self].map { $0._commandName }
+    #else
+        let machineReadableCommandNames: [String] = []
+    #endif
+
+    let (loggerHandler, logFilePath) = try await LogsController().setup(
+        stateDirectory: Environment.current.stateDirectory,
+        machineReadableCommandNames: machineReadableCommandNames
+    )
+    LoggingSystem.bootstrap(loggerHandler)
+    return (Logger(label: "dev.tuist.cli", factory: loggerHandler), logFilePath)
+}
+
+struct IgnoreOutputPipeline: StandardPipelining {
+    func write(content _: String) {}
+}
+
+func initNoora(jsonThroughNoora: Bool = false) -> Noora {
+    if CommandLine.arguments.contains("--json") || CommandLine.arguments.contains("--quiet") {
+        Noora(
+            standardPipelines: jsonThroughNoora ? StandardPipelines() : StandardPipelines(
+                output: IgnoreOutputPipeline()
+            ),
+            logger: Logger.current
+        )
+    } else {
+        Noora(
+            logger: Logger.current
+        )
+    }
+}
+
+func initDependencies(_ action: (AbsolutePath) async throws -> Void) async throws {
+    try initEnv()
+
+    let (logger, logFilePath) = try await initLogger()
+
+    try await withPlatformDependencies {
+        try await withSharedDependencies(logger: logger, logFilePath: logFilePath) {
+            try await action(logFilePath)
+        }
+    }
+}
+
+private func withPlatformDependencies(_ action: () async throws -> Void) async throws {
+    #if os(macOS)
+    try await withAdditionalMiddlewares {
+        try await withInitializedManifestLoader {
+            try await RecentPathsStore.$current
+                .withValue(RecentPathsStore(storageDirectory: Environment.current.stateDirectory)) {
+                    try await action()
+                }
+        }
+    }
+    #else
+    try await action()
+    #endif
+}
+
+private func withSharedDependencies(
+    logger: Logger,
+    logFilePath: AbsolutePath,
+    _ action: () async throws -> Void
+) async throws {
+    try await ServerAuthenticationConfig.$current
+        .withValue(ServerAuthenticationConfig(backgroundRefresh: true)) {
+            try await Noora.$current.withValue(initNoora()) {
+                try await Logger.$current.withValue(logger) {
+                    try await ServerCredentialsStore.$current
+                        .withValue(ServerCredentialsStore(
+                            backend: .fileSystem,
+                            configDirectory: Environment.current.configDirectory
+                        )) {
+                            try await CachedValueStore.$current
+                                .withValue(CachedValueStore(backend: .fileSystem)) {
+                                    try await action()
                                 }
-                            }
                         }
-                    }
                 }
             }
         }
-    }
+}
 
+#if os(macOS)
     func withAdditionalMiddlewares(_ action: () async throws -> Void) async throws {
         #if canImport(TuistCacheEE)
             try await Client.$additionalMiddlewares.withValue([SignatureVerifierMiddleware()]) {
@@ -80,92 +162,10 @@ private enum DependenciesError: LocalizedError {
         }
     }
 
-    private func initEnv() async throws {
-        if CommandLine.arguments.contains("--quiet"), CommandLine.arguments.contains("--verbose") {
-            throw DependenciesError.exclusiveOptionError("quiet", "verbose")
-        }
-
-        if CommandLine.arguments.contains("--quiet"), CommandLine.arguments.contains("--json") {
-            throw DependenciesError.exclusiveOptionError("quiet", "json")
-        }
-
-        if CommandLine.arguments.contains("--verbose") {
-            try? ProcessEnv.setVar("TUIST_CONFIG_VERBOSE", value: "true")
-        }
-
-        if CommandLine.arguments.contains("--quiet") {
-            try? ProcessEnv.setVar(Constants.EnvironmentVariables.quiet, value: "true")
-        }
-    }
-
-    func withLoggerForNoora(logFilePath: Path.AbsolutePath, _ action: () async throws -> Void) async throws {
+    func withLoggerForNoora(logFilePath: AbsolutePath, _ action: () async throws -> Void) async throws {
         let loggerHandler = try Logger.loggerHandlerForNoora(logFilePath: logFilePath)
         try await Logger.$current.withValue(Logger(label: "dev.tuist.cli", factory: loggerHandler)) {
             try await action()
-        }
-    }
-
-    private func initLogger() async throws -> (Logger, Path.AbsolutePath) {
-        let (loggerHandler, logFilePath) = try await LogsController().setup(
-            stateDirectory: Environment.current.stateDirectory
-        )
-        LoggingSystem.bootstrap(loggerHandler)
-        return (Logger(label: "dev.tuist.cli", factory: loggerHandler), logFilePath)
-    }
-
-    func initNoora(jsonThroughNoora: Bool = false) -> Noora {
-        if CommandLine.arguments.contains("--json") || CommandLine.arguments.contains("--quiet") {
-            Noora(
-                standardPipelines: jsonThroughNoora ? StandardPipelines() : StandardPipelines(
-                    output: IgnoreOutputPipeline()
-                ),
-                logger: Logger.current
-            )
-        } else {
-            Noora(
-                logger: Logger.current
-            )
-        }
-    }
-#else
-    func initDependencies(_ action: () async throws -> Void) async throws {
-        try initEnv()
-
-        let logger = Logger(label: "dev.tuist.cli")
-        let configDirectory = defaultConfigDirectory()
-
-        try await Logger.$current.withValue(logger) {
-            try await ServerCredentialsStore.$current.withValue(
-                ServerCredentialsStore(backend: .fileSystem, configDirectory: configDirectory)
-            ) {
-                try await CachedValueStore.$current.withValue(CachedValueStore(backend: .inSystemProcess)) {
-                    try await action()
-                }
-            }
-        }
-    }
-
-    private func defaultConfigDirectory() -> AbsolutePath {
-        let homeDirectory = ProcessInfo.processInfo.environment["HOME"] ?? "/tmp"
-        // swiftlint:disable:next force_try
-        return try! AbsolutePath(validating: homeDirectory).appending(component: ".config").appending(component: "tuist")
-    }
-
-    private func initEnv() throws {
-        if CommandLine.arguments.contains("--quiet"), CommandLine.arguments.contains("--verbose") {
-            throw DependenciesError.exclusiveOptionError("quiet", "verbose")
-        }
-
-        if CommandLine.arguments.contains("--quiet"), CommandLine.arguments.contains("--json") {
-            throw DependenciesError.exclusiveOptionError("quiet", "json")
-        }
-
-        if CommandLine.arguments.contains("--verbose") {
-            setenv("TUIST_CONFIG_VERBOSE", "true", 1)
-        }
-
-        if CommandLine.arguments.contains("--quiet") {
-            setenv(Constants.EnvironmentVariables.quiet, "true", 1)
         }
     }
 #endif
