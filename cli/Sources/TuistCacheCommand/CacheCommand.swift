@@ -25,7 +25,7 @@ public struct CacheCommand: AsyncParsableCommand {
         #if os(macOS)
             CacheWarmCommand.self
         #else
-            CacheConfigCommand.self
+            nil
         #endif
     }
 }
