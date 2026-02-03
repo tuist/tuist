@@ -220,7 +220,7 @@ sırasında sistem yükünü azaltmak için yararlı olabilir.
 ortamlarda ve çalışmalarda deterministik</LocalizedLink> olduğundan emin olun.
 Bu, projenin örneğin mutlak yollar aracılığıyla ortama referanslar içermesi
 durumunda meydana gelebilir. `diff` komutunu kullanarak, `tuist generate`
-komutunun iki ardışık çağrısıyla oluşturulmuş projeleri karşılaştırabilirsiniz.
+komutunun iki ardışık çağrısıyla oluşturulan projeleri karşılaştırabilirsiniz.
 
 Ayrıca, hedefin doğrudan veya dolaylı olarak
 <LocalizedLink href="/guides/features/cache/generated-project#supported-products">önbelleğe
