@@ -26,9 +26,10 @@ defmodule Tuist.Projects.Workers.CleanProjectWorkerTest do
       binaries_objects = "#{project_slug}/builds"
       tests_objects = "#{project_slug}/tests"
       expected_paths = MapSet.new([cas_objects, binaries_objects, tests_objects])
+      parent = self()
 
       expect(Storage, :delete_all_objects, 3, fn path, _actor ->
-        send(self(), {:deleted_path, path})
+        send(parent, {:deleted_path, path})
         :ok
       end)
 
@@ -40,7 +41,7 @@ defmodule Tuist.Projects.Workers.CleanProjectWorkerTest do
 
       received_paths =
         for _ <- 1..3 do
-          assert_receive {:deleted_path, path}
+          assert_receive {:deleted_path, path}, 5_000
           path
         end
 
