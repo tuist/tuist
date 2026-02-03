@@ -54,7 +54,7 @@ The migration took about four hours end to end. At our measured savings, each cl
 
 ## Runtime validation
 
-The moment that matters most is not the build. It is the launch. After the workspace built, Codex installed the app on the simulator and launched it. The app came up. That step is easy to skip and hard to fake. It also tells you if you accidentally damaged entitlements, resources, or bundling during migration. We now treat it as a non-negotiable part of the process.
+The moment that matters most is not the build. It is the launch. After the workspace built, Codex installed the app on the simulator and launched it. The first run crashed with an unrecognized selector, `processCompletedCount`, coming off `NSUserDefaults`. Codex traced it to ObjC categories defined in a static framework that were being stripped at link time. Codex fixed it by adding `-ObjC` to `OTHER_LDFLAGS` in the shared project xcconfig, rebuilt, reinstalled, and launched again. This time the app came up and stayed up. That is the difference between a build that looks fine and an app that actually works. We now treat runtime validation as a non-negotiable part of the process because it catches issues that static analysis will never surface.
 
 ## The timeline and the model
 
