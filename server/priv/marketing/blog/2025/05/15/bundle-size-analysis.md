@@ -1,5 +1,5 @@
 ---
-title: "Tuist Bundle Analysis: track and inspect app bundle size"
+title: "Track and inspect your app bundle size with Tuist"
 category: "product"
 tags: ["product"] 
 excerpt: "Use Tuist Bundle Analysis (bundle size insights) to minimize install and download size."

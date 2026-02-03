@@ -1,5 +1,5 @@
 ---
-title: "Tuist Build Insights: Xcode build analytics"
+title: "Measure, analyze, and improve your build times with Tuist Build Insights"
 category: "product"
 tags: ["product"] 
 excerpt: "Get Xcode build analytics for local and CI builds with Tuist Build Insights."

@@ -25,7 +25,7 @@ While you can also use the new Xcode cache, this feature is currently optimized 
 
 ## Xcode cache {#xcode-cache}
 
-The Xcode cache (also called the Xcode compilation cache or Xcode build cache) stores compilation artifacts so Xcode can reuse them across builds. With Tuist, you can share those artifacts between local machines and CI environments to speed up clean builds.
+The Xcode cache (also called the Xcode compilation cache or Xcode build cache) stores compilation artifacts so Xcode can reuse them across builds. With Tuist, you can share those artifacts across environments, including local, CI, and agentic environments, to speed up clean builds.
 
 ::: warning STATE OF CACHE IN XCODE
 <!-- -->

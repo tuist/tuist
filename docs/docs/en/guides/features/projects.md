@@ -2,12 +2,12 @@
 {
   "title": "Projects",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Learn about Tuist Projects and Xcode project generation with Tuist's DSL."
+  "description": "Learn about Tuist Generated Projects and Xcode project generation with Tuist's DSL."
 }
 ---
 # Generated projects {#generated-projects}
 
-Tuist Projects (generated projects) are a viable alternative that helps to overcome these challenges while keeping complexity and costs at an acceptable level. It considers Xcode projects as a fundamental element, ensuring resilience against future Xcode updates, and leverages Xcode project generation to provide teams with a modularization-focused declarative API. Tuist uses the project declaration to simplify the complexities of modularization, optimize workflows like build or test across various environments, and facilitate and democratize the evolution of Xcode projects.
+Tuist Generated Projects are a viable alternative that helps to overcome these challenges while keeping complexity and costs at an acceptable level. It considers Xcode projects as a fundamental element, ensuring resilience against future Xcode updates, and leverages Xcode project generation to provide teams with a modularization-focused declarative API. Tuist uses the project declaration to simplify the complexities of modularization, optimize workflows like build or test across various environments, and facilitate and democratize the evolution of Xcode projects.
 
 ## How does it work? {#how-does-it-work}
 
