@@ -1009,6 +1009,14 @@ defmodule Tuist.Runs.Analytics do
         _ -> where(query, [e], e.category == ^category)
       end
 
+    tag = Keyword.get(opts, :tag)
+
+    query =
+      case tag do
+        nil -> query
+        _ -> where(query, [e], ^tag in e.custom_tags)
+      end
+
     status = Keyword.get(opts, :status)
 
     query =

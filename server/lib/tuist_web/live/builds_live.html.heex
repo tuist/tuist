@@ -6,6 +6,31 @@
   >
     <:actions>
       <.dropdown
+        :if={length(@build_tags) > 1}
+        id="builds-analytics-tag-dropdown"
+        label={build_tag_label(@analytics_build_tag)}
+        secondary_text={dgettext("dashboard_builds", "Tag:")}
+      >
+        <.dropdown_item
+          value="any"
+          label={dgettext("dashboard_builds", "Any")}
+          patch={"?#{Query.put(@uri.query, "analytics-build-tag", "any")}"}
+          data-selected={@analytics_build_tag == "any"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <%= for build_tag <- @build_tags do %>
+          <.dropdown_item
+            value={build_tag}
+            label={build_tag}
+            patch={"?#{Query.put(@uri.query, "analytics-build-tag", build_tag)}"}
+            data-selected={@analytics_build_tag == build_tag}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+        <% end %>
+      </.dropdown>
+      <.dropdown
         id="builds-analytics-scheme-dropdown"
         label={build_scheme_label(@analytics_build_scheme)}
         secondary_text={dgettext("dashboard_builds", "Scheme:")}

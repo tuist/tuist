@@ -1301,10 +1301,4 @@ defmodule TuistWeb.BuildRunLive do
   end
 
   defp url?(_), do: false
-
-  defp truncate_url(url) when is_binary(url) do
-    if String.length(url) > 60, do: String.slice(url, 0, 57) <> "...", else: url
-  end
-
-  defp truncate_url(url), do: url
 end

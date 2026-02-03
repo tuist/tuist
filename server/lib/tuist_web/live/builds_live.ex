@@ -44,6 +44,7 @@ defmodule TuistWeb.BuildsLive do
               "analytics-build-scheme",
               "analytics-build-configuration",
               "analytics-build-category",
+              "analytics-build-tag",
               "build-duration-type"
             ])
           )
@@ -69,6 +70,7 @@ defmodule TuistWeb.BuildsLive do
     analytics_build_scheme = params["analytics-build-scheme"] || "any"
     analytics_build_configuration = params["analytics-build-configuration"] || "any"
     analytics_build_category = params["analytics-build-category"] || "any"
+    analytics_build_tag = params["analytics-build-tag"] || "any"
 
     %{preset: preset, period: {start_datetime, end_datetime} = period} =
       DatePicker.date_picker_params(params, "analytics")
@@ -80,6 +82,7 @@ defmodule TuistWeb.BuildsLive do
       |> opts_with_analytics_build_scheme(analytics_build_scheme)
       |> opts_with_analytics_build_configuration(analytics_build_configuration)
       |> opts_with_analytics_build_category(analytics_build_category)
+      |> opts_with_analytics_build_tag(analytics_build_tag)
 
     opts =
       case analytics_environment do
@@ -120,8 +123,10 @@ defmodule TuistWeb.BuildsLive do
     |> assign(:analytics_build_scheme, analytics_build_scheme)
     |> assign(:analytics_build_configuration, analytics_build_configuration)
     |> assign(:analytics_build_category, analytics_build_category)
+    |> assign(:analytics_build_tag, analytics_build_tag)
     |> assign(:build_schemes, Runs.project_build_schemes(project))
     |> assign(:build_configurations, Runs.project_build_configurations(project))
+    |> assign(:build_tags, Runs.project_build_tags(project))
     |> assign(:selected_build_duration_type, params["build-duration-type"] || "avg")
   end
 
@@ -143,6 +148,13 @@ defmodule TuistWeb.BuildsLive do
     case analytics_build_category do
       "any" -> opts
       category -> Keyword.put(opts, :category, category)
+    end
+  end
+
+  defp opts_with_analytics_build_tag(opts, analytics_build_tag) do
+    case analytics_build_tag do
+      "any" -> opts
+      tag -> Keyword.put(opts, :tag, tag)
     end
   end
 
@@ -346,6 +358,9 @@ defmodule TuistWeb.BuildsLive do
 
   defp build_configuration_label("any"), do: dgettext("dashboard_builds", "Any")
   defp build_configuration_label(configuration), do: configuration
+
+  defp build_tag_label("any"), do: dgettext("dashboard_builds", "Any")
+  defp build_tag_label(tag), do: tag
 
   defp type_labels(type, configuration_insights_analytics) do
     labels = Enum.map(configuration_insights_analytics, & &1.category)
