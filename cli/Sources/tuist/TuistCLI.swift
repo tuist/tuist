@@ -1,14 +1,6 @@
 import Foundation
 import Path
 
-#if os(macOS)
-    import FileSystem
-    import Noora
-    import TSCBasic
-    import TuistKit
-    import TuistSupport
-#endif
-
 @main
 @_documentation(visibility: private)
 private enum TuistCLI {
