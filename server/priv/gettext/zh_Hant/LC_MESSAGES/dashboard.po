@@ -110,10 +110,6 @@ msgid "Flags"
 msgstr "旗幟"
 
 #, fuzzy
-msgid "Generate Runs"
-msgstr "生成執行階段"
-
-#, fuzzy
 msgid "Get started"
 msgstr "立即開始"
 
@@ -381,3 +377,10 @@ msgstr "此為 tuist/tuist 專案的公開儀表板。"
 #, fuzzy
 msgid "Quarantined Tests"
 msgstr "隔離測試"
+
+msgid "Generations"
+msgstr ""
+
+#, fuzzy
+#~ msgid "Generate Runs"
+#~ msgstr "生成執行階段"
