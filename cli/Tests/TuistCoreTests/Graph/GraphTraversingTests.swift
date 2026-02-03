@@ -222,4 +222,56 @@ final class GraphTraversingTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got, [graphTargetB])
     }
+
+    func test_filterIncludedTargets_when_included_targets_is_product() {
+        // Given
+        let targetA = Target.test(name: "a", product: .unitTests)
+        let targetB = Target.test(name: "b", product: .framework)
+        let project = Project.test(targets: [targetA, targetB])
+        let graphTargetA = GraphTarget(path: project.path, target: targetA, project: project)
+        let graphTargetB = GraphTarget(path: project.path, target: targetB, project: project)
+        let subject = MockGraphTraversing()
+
+        given(subject)
+            .allTargets()
+            .willReturn([graphTargetA, graphTargetB])
+
+        // When
+        let got = subject.filterIncludedTargets(
+            basedOn: subject.allTargets(),
+            testPlan: nil,
+            includedTargets: [.product(.unitTests)],
+            excludedTargets: [],
+            excludingExternalTargets: false
+        )
+
+        // Then
+        XCTAssertEqual(got, [graphTargetA])
+    }
+
+    func test_filterIncludedTargets_when_excluded_targets_is_product() {
+        // Given
+        let targetA = Target.test(name: "a", product: .unitTests)
+        let targetB = Target.test(name: "b", product: .framework)
+        let project = Project.test(targets: [targetA, targetB])
+        let graphTargetA = GraphTarget(path: project.path, target: targetA, project: project)
+        let graphTargetB = GraphTarget(path: project.path, target: targetB, project: project)
+        let subject = MockGraphTraversing()
+
+        given(subject)
+            .allTargets()
+            .willReturn([graphTargetA, graphTargetB])
+
+        // When
+        let got = subject.filterIncludedTargets(
+            basedOn: subject.allTargets(),
+            testPlan: nil,
+            includedTargets: [],
+            excludedTargets: [.product(.unitTests)],
+            excludingExternalTargets: false
+        )
+
+        // Then
+        XCTAssertEqual(got, [graphTargetB])
+    }
 }

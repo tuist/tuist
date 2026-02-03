@@ -77,6 +77,23 @@ tuist generate tag:feature:auth
 tuist generate tag:team:identity
 ```
 
+### Focus by product type
+
+Use the `product:` prefix to generate a project with all targets of a specific product type:
+
+```bash
+# Generate project with all unit test targets
+tuist generate product:unitTests
+
+# Generate project with all framework targets
+tuist generate product:framework
+
+# Generate project with all app targets
+tuist generate product:app
+```
+
+Available product types include: `app`, `staticLibrary`, `dynamicLibrary`, `framework`, `staticFramework`, `unitTests`, `uiTests`, `bundle`, `commandLineTool`, `appClip`, `appExtension`, `watch2App`, `watch2Extension`, `tvTopShelfExtension`, `messagesExtension`, `stickerPackExtension`, `xpc`, `systemExtension`, `extensionKitExtension`, and `macro`.
+
 ### Focus by name
 
 You can also focus on specific targets by name:
@@ -84,6 +101,18 @@ You can also focus on specific targets by name:
 ```bash
 # Generate project with the Authentication target
 tuist generate Authentication
+```
+
+### Combining queries
+
+You can combine multiple queries to focus on targets that match any of them:
+
+```bash
+# Generate project with the App target and all unit test targets
+tuist generate App product:unitTests
+
+# Generate project with all targets tagged as features and all UI test targets
+tuist generate tag:feature product:uiTests
 ```
 
 ### How focus works
