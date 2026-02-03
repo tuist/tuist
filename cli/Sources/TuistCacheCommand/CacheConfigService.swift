@@ -2,6 +2,7 @@ import Foundation
 import Logging
 import Path
 import TSCBasic
+import TuistCAS
 import TuistConstants
 import TuistEnvironment
 import TuistLogging
@@ -9,7 +10,6 @@ import TuistOIDC
 import TuistServer
 
 #if os(macOS)
-    import TuistCAS
     import TuistLoader
 #endif
 
@@ -27,18 +27,16 @@ public final class CacheConfigService: CacheConfigServicing {
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let ciOIDCAuthenticator: CIOIDCAuthenticating
     private let exchangeOIDCTokenService: ExchangeOIDCTokenServicing
+    private let cacheURLStore: CacheURLStoring
     #if os(macOS)
         private let configLoader: ConfigLoading
-        private let cacheURLStore: TuistCAS.CacheURLStoring
-    #else
-        private let cacheURLStore: CacheURLStoring
     #endif
 
     #if os(macOS)
         public init(
             serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
             serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
-            cacheURLStore: TuistCAS.CacheURLStoring = TuistCAS.CacheURLStore(),
+            cacheURLStore: CacheURLStoring = CacheURLStore(),
             configLoader: ConfigLoading = ConfigLoader(),
             ciOIDCAuthenticator: CIOIDCAuthenticating = CIOIDCAuthenticator(),
             exchangeOIDCTokenService: ExchangeOIDCTokenServicing = ExchangeOIDCTokenService()

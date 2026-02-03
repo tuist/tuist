@@ -1,10 +1,12 @@
+#if canImport(FoundationNetworking)
+    import FoundationNetworking
+#endif
 #if canImport(Command)
     import Command
     import FileSystem
     import Foundation
     import Mockable
     import Path
-    import TuistSupport
 
     public struct MultipartUploadArtifactPart {
         public let number: Int
@@ -79,7 +81,7 @@
             updateProgress: @escaping (Double) -> Void
         ) async throws -> [(etag: String, partNumber: Int)] {
             let partSize = 10 * 1024 * 1024
-            guard let inputStream = InputStream(url: artifactPath.url) else {
+            guard let inputStream = InputStream(url: URL(fileURLWithPath: artifactPath.pathString)) else {
                 throw MultipartUploadArtifactServiceError.cannotCreateInputStream(artifactPath)
             }
 
@@ -92,8 +94,8 @@
 
             var buffer = [UInt8](repeating: 0, count: partSize)
 
-            let uploadedParts: TuistSupport.ThreadSafe<[(etag: String, partNumber: Int)]> = TuistSupport.ThreadSafe([])
-            let partNumber = TuistSupport.ThreadSafe(1)
+            let uploadedParts: ThreadSafe<[(etag: String, partNumber: Int)]> = ThreadSafe([])
+            let partNumber = ThreadSafe(1)
 
             try await withThrowingTaskGroup(of: Void.self) { group in
                 while inputStream.hasBytesAvailable {
@@ -138,7 +140,7 @@
                 let body = String(data: data, encoding: .utf8) ?? ""
                 throw MultipartUploadArtifactServiceError.missingEtag(request.url, statusCode: urlResponse.statusCode, body: body)
             }
-            return etag.spm_chomp()
+            return etag.trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
         private func uploadRequest(url: URL, fileSize: UInt64, data: Data) -> URLRequest {
