@@ -171,5 +171,4 @@ final class GenerateCacheableSchemesGraphMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertFalse(updatedGraph.workspace.schemes.map(\.name).contains("Binaries-Cache-Catalyst"))
     }
-
 }
