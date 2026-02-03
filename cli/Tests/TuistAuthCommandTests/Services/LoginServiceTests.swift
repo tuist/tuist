@@ -10,7 +10,7 @@ import TuistSupport
 import TuistTesting
 import TuistUserInputReader
 
-@testable import TuistAuth
+@testable import TuistAuthCommand
 
 struct LoginServiceTests {
     private let serverURL = URL(string: "https://test.tuist.dev")!

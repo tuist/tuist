@@ -7,7 +7,7 @@ import Testing
 import TuistServer
 import TuistSupport
 
-@testable import TuistAuth
+@testable import TuistAuthCommand
 
 struct AuthRefreshTokenServiceTests {
     struct TestError: LocalizedError, Equatable {}

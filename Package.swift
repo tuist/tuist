@@ -35,7 +35,7 @@ var targets: [Target] = [
             "TuistAlert",
             .product(name: "Noora", package: "tuist.Noora"),
             .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
-            "TuistAuth",
+            "TuistAuthCommand",
             "TuistCacheCommand",
             "TuistVersionCommand",
             argumentParserDependency,
@@ -167,7 +167,7 @@ var targets: [Target] = [
         path: "cli/Sources/TuistCacheCommand"
     ),
     .target(
-        name: "TuistAuth",
+        name: "TuistAuthCommand",
         dependencies: [
             pathDependency,
             argumentParserDependency,
@@ -183,7 +183,7 @@ var targets: [Target] = [
             "TuistOIDC",
             "TuistUserInputReader",
         ],
-        path: "cli/Sources/TuistAuth",
+        path: "cli/Sources/TuistAuthCommand",
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]
@@ -368,7 +368,7 @@ targets.append(contentsOf: [
             "TuistServer",
             "TuistOIDC",
             "TuistCacheCommand",
-            "TuistAuth",
+            "TuistAuthCommand",
             "TuistVersionCommand",
             .product(name: "Noora", package: "tuist.Noora"),
             .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),

@@ -39,7 +39,7 @@ public enum Module: String, CaseIterable {
     case launchctl = "TuistLaunchctl"
     case http = "TuistHTTP"
     case cacheCommand = "TuistCacheCommand"
-    case auth = "TuistAuth"
+    case authCommand = "TuistAuthCommand"
     case envKey = "TuistEnvKey"
     case versionCommand = "TuistVersionCommand"
     case noora = "TuistNoora"
@@ -378,7 +378,7 @@ public enum Module: String, CaseIterable {
             .process, .ci, .cas, .casAnalytics, .launchctl, .xcResultService, .xcodeProjectOrWorkspacePathLocator,
             .http:
             moduleTags.append("domain:infrastructure")
-        case .cacheCommand, .auth, .envKey, .versionCommand:
+        case .cacheCommand, .authCommand, .envKey, .versionCommand:
             moduleTags.append("domain:cli")
         case .noora, .alert, .threadSafe, .encodable, .uniqueIDGenerator, .opener:
             moduleTags.append("domain:foundation")
@@ -446,7 +446,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.support.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.core.targetName),
-                    .target(name: Module.auth.targetName),
+                    .target(name: Module.authCommand.targetName),
                     .target(name: Module.envKey.targetName),
                     .external(name: "XcodeProj"),
                     .external(name: "XcodeGraph"),
@@ -535,7 +535,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.opener.targetName),
                     .target(name: Module.http.targetName),
                     .target(name: Module.cacheCommand.targetName),
-                    .target(name: Module.auth.targetName),
+                    .target(name: Module.authCommand.targetName),
                     .target(name: Module.envKey.targetName),
                     .target(name: Module.versionCommand.targetName),
                     .target(name: Module.tuistExtension.targetName),
@@ -815,7 +815,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "Logging"),
                     .external(name: "SwiftToolsSupport"),
                 ]
-            case .auth:
+            case .authCommand:
                 [
                     .target(name: Module.constants.targetName),
                     .target(name: Module.environment.targetName),
@@ -900,7 +900,7 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.testing.targetName),
                 ]
-            case .auth:
+            case .authCommand:
                 [
                     .target(name: Module.support.targetName),
                     .target(name: Module.core.targetName),

@@ -6,7 +6,7 @@ import TSCUtility
 import TuistEnvironment
 import TuistEnvKey
 import TuistVersionCommand
-@testable import TuistAuth
+@testable import TuistAuthCommand
 @testable import TuistCacheCommand
 @testable import TuistCore
 @testable import TuistKit

@@ -6,7 +6,7 @@ import TuistServer
 import TuistSupport
 import XCTest
 
-@testable import TuistAuth
+@testable import TuistAuthCommand
 @testable import TuistTesting
 
 final class WhoamiServiceTests: TuistUnitTestCase {

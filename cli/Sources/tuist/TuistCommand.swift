@@ -4,7 +4,7 @@ import Noora
 import OpenAPIRuntime
 import Path
 import TuistAlert
-import TuistAuth
+import TuistAuthCommand
 import TuistCacheCommand
 import TuistEnvironment
 import TuistLogging
