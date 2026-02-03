@@ -271,6 +271,15 @@ var targets: [Target] = [
         ],
         path: "cli/Tests/TuistHTTPTests"
     ),
+    .testTarget(
+        name: "TuistUserInputReaderTests",
+        dependencies: [
+            "TuistUserInputReader",
+            "TuistTesting",
+            mockableDependency,
+        ],
+        path: "cli/Tests/TuistUserInputReaderTests"
+    ),
 ]
 
 // MARK: - macOS-only targets

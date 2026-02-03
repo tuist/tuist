@@ -857,9 +857,13 @@ public enum Module: String, CaseIterable {
         var dependencies: [TargetDependency] =
             switch self {
             case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .process,
-                 .constants, .environment, .logging, .userInputReader,
+                 .constants, .environment, .logging,
                  .cacheCommand, .envKey, .versionCommand, .noora, .tuistExtension, .alert, .threadSafe, .encodable:
                 []
+            case .userInputReader:
+                [
+                    .target(name: Module.testing.targetName),
+                ]
             case .auth:
                 [
                     .target(name: Module.support.targetName),

@@ -1,8 +1,6 @@
 import Foundation
 import Logging
-#if os(macOS)
-    import Mockable
-#endif
+import Mockable
 import TuistLogging
 
 public enum UserInputReaderError: LocalizedError, Equatable {
@@ -16,9 +14,7 @@ public enum UserInputReaderError: LocalizedError, Equatable {
     }
 }
 
-#if os(macOS)
-    @Mockable
-#endif
+@Mockable
 public protocol UserInputReading {
     /// Reads an integer from the user.
     /// - Parameters:
