@@ -48,7 +48,6 @@ object TuistVersion {
 open class TuistBuildCache : AbstractBuildCache() {
     var fullHandle: String = ""
     var executablePath: String? = null
-    var executableCommand: List<String>? = null
     var allowInsecureProtocol: Boolean = false
 }
 
@@ -80,52 +79,10 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
     }
 
     private fun resolveCommand(configuration: TuistBuildCache): List<String> {
-        // If executableCommand is provided, use it directly
-        configuration.executableCommand?.let { return it }
-
-        // Otherwise, resolve the executable path
-        val resolvedPath = configuration.executablePath ?: findTuistInPath()
-            ?: throw BuildCacheException(
-                "Tuist CLI not found. Please install Tuist (https://docs.tuist.dev/guides/quick-start/install-tuist) " +
-                "or set 'executablePath' or 'executableCommand' in the tuist extension."
-            )
-
-        return listOf(resolvedPath)
-    }
-
-    private fun findTuistInPath(): String? {
-        val pathEnv = System.getenv("PATH") ?: return null
-        val pathSeparator = System.getProperty("path.separator") ?: ":"
-        val executableName = if (System.getProperty("os.name").lowercase().contains("win")) "tuist.exe" else "tuist"
-
-        for (dir in pathEnv.split(pathSeparator)) {
-            val file = java.io.File(dir, executableName)
-            if (file.exists() && file.canExecute()) {
-                return file.absolutePath
-            }
-        }
-        return null
+        return listOf(configuration.executablePath ?: "tuist")
     }
 
     private fun validateTuistVersion(command: List<String>) {
-        // First, verify the executable exists
-        val executablePath = command.firstOrNull()
-        if (executablePath != null) {
-            val executableFile = java.io.File(executablePath)
-            if (!executableFile.exists()) {
-                throw BuildCacheException(
-                    "Tuist CLI not found at path: $executablePath. " +
-                    "Please install Tuist (https://docs.tuist.dev/guides/quick-start/install-tuist) " +
-                    "or set 'executablePath' or 'executableCommand' in the tuist extension."
-                )
-            }
-            if (!executableFile.canExecute()) {
-                throw BuildCacheException(
-                    "Tuist CLI at path $executablePath is not executable."
-                )
-            }
-        }
-
         val version = getTuistVersion(command)
         if (version == null) {
             // Version check failed, but the executable exists.
@@ -146,32 +103,16 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
 
     private fun getTuistVersion(command: List<String>): String? {
         return try {
-            // Create a unique temp directory to avoid tuist detecting any project context.
-            // We need an isolated directory because the system temp dir might be within
-            // a directory tree that contains a Tuist project.
-            val tempDir = java.nio.file.Files.createTempDirectory("tuist-gradle-").toFile()
-            try {
-                val processBuilder = ProcessBuilder(command + "version")
-                    .directory(tempDir)
-                    .redirectErrorStream(true)
+            val process = ProcessBuilder(command + "version")
+                .redirectErrorStream(true)
+                .start()
 
-                // Clear environment variables that might leak project context to tuist
-                val env = processBuilder.environment()
-                env.remove("PWD")
-                env.remove("TUIST_CONFIG_PATH")
-                env.remove("TUIST_CURRENT_DIRECTORY")
-
-                val process = processBuilder.start()
-
-                val output = BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
-                    reader.readText().trim()
-                }
-
-                val exitCode = process.waitFor()
-                if (exitCode == 0) output else null
-            } finally {
-                tempDir.delete()
+            val output = BufferedReader(InputStreamReader(process.inputStream)).use { reader ->
+                reader.readText().trim()
             }
+
+            val exitCode = process.waitFor()
+            if (exitCode == 0) output else null
         } catch (e: Exception) {
             null
         }
@@ -181,8 +122,8 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
 /**
  * Provides cache configuration, typically by running `tuist cache config`.
  */
-fun interface ConfigurationProvider {
-    fun getConfiguration(): TuistCacheConfiguration?
+interface ConfigurationProvider {
+    fun getConfiguration(forceRefresh: Boolean = false): TuistCacheConfiguration?
 }
 
 /**
@@ -193,8 +134,10 @@ class TuistCommandConfigurationProvider(
     private val command: List<String>
 ) : ConfigurationProvider {
 
-    override fun getConfiguration(): TuistCacheConfiguration? {
-        val fullCommand = command + listOf("cache", "config", fullHandle, "--json")
+    override fun getConfiguration(forceRefresh: Boolean): TuistCacheConfiguration? {
+        val baseArgs = listOf("cache", "config", fullHandle, "--json")
+        val args = if (forceRefresh) baseArgs + "--force-refresh" else baseArgs
+        val fullCommand = command + args
 
         // Create a unique temp directory to avoid tuist detecting any project context.
         val tempDir = java.nio.file.Files.createTempDirectory("tuist-gradle-").toFile()
@@ -342,7 +285,7 @@ class TuistBuildCacheService(
     private fun invalidateAndRefreshConfig(): TuistCacheConfiguration? {
         // Must be called while holding configLock
         cachedConfig = null
-        val newConfig = configurationProvider.getConfiguration()
+        val newConfig = configurationProvider.getConfiguration(forceRefresh = true)
         cachedConfig = newConfig
         return newConfig
     }

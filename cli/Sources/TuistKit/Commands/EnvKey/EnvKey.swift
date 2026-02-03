@@ -420,7 +420,7 @@ public enum EnvKey: String, CaseIterable {
     // CACHE CONFIG
 
     case cacheConfigJson = "TUIST_CACHE_CONFIG_JSON"
-    case cacheConfigPath = "TUIST_CACHE_CONFIG_PATH"
+    case cacheConfigForceRefresh = "TUIST_CACHE_CONFIG_FORCE_REFRESH"
     case cacheConfigServerURL = "TUIST_CACHE_CONFIG_SERVER_URL"
 }
 

@@ -1,6 +1,5 @@
 import ArgumentParser
 import Foundation
-import Path
 
 struct CacheConfigCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
@@ -28,27 +27,25 @@ struct CacheConfigCommand: AsyncParsableCommand {
     )
     var json: Bool = false
 
-    @Option(
-        name: .shortAndLong,
-        help: "The path to the directory or a subdirectory of the project.",
-        completion: .directory,
-        envKey: .cacheConfigPath
+    @Flag(
+        help: "Force refresh the authentication token, ignoring any cached credentials.",
+        envKey: .cacheConfigForceRefresh
     )
-    var path: String?
+    var forceRefresh: Bool = false
 
     @Option(
         name: .long,
-        help: "The URL of the server. If not provided, it will be read from the project configuration or default to the Tuist server.",
+        help: "The URL of the server. If not provided, it defaults to the Tuist server.",
         envKey: .cacheConfigServerURL
     )
-    var serverURL: String?
+    var url: String?
 
     func run() async throws {
-        try await CacheConfigService().run(
+        try await CacheConfigCommandService().run(
             fullHandle: fullHandle,
             json: json,
-            directory: path,
-            serverURL: serverURL
+            forceRefresh: forceRefresh,
+            url: url
         )
     }
 }

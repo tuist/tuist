@@ -23,7 +23,7 @@ plugins {
 }
 
 tuist {
-    fullHandle = "tuist/gradle"
+    fullHandle = "tuist/tuist"
     executablePath = System.getenv("TUIST_EXECUTABLE")
 
     buildCache {
