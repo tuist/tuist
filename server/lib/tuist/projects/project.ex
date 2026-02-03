@@ -65,7 +65,7 @@ defmodule Tuist.Projects.Project do
       :name,
       :created_at,
       :visibility,
-      :default_previews_visibility,
+      :default_previews_visibility
     ])
     |> validate_inclusion(:visibility, [:private, :public])
     |> validate_required([:token, :account_id, :name])
