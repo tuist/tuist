@@ -78,7 +78,7 @@ let targets: [Target] = [
             "TuistEnvKey",
             "TuistServer",
             "TuistOIDC",
-            "TuistCacheConfigCommand",
+            "TuistCacheCommand",
             "TuistAuth",
             "TuistVersionCommand",
             .product(name: "Noora", package: "tuist.Noora"),
@@ -98,6 +98,7 @@ let targets: [Target] = [
             .target(name: "TuistPlugin", condition: .when(platforms: [.macOS])),
             .target(name: "TuistSimulator", condition: .when(platforms: [.macOS])),
             .target(name: "TuistCache", condition: .when(platforms: [.macOS])),
+            .target(name: "TuistExtension", condition: .when(platforms: [.macOS])),
             .target(name: "TuistRootDirectoryLocator", condition: .when(platforms: [.macOS])),
             .target(name: "TuistXcodeProjectOrWorkspacePathLocator", condition: .when(platforms: [.macOS])),
             .target(name: "TuistXCResultService", condition: .when(platforms: [.macOS])),
@@ -128,6 +129,7 @@ let targets: [Target] = [
             .target(name: "TuistKit", condition: .when(platforms: [.macOS])),
             .target(name: "TuistSupport", condition: .when(platforms: [.macOS])),
             .target(name: "TuistLoader", condition: .when(platforms: [.macOS])),
+            .target(name: "TuistExtension", condition: .when(platforms: [.macOS])),
             .target(name: "ProjectDescription", condition: .when(platforms: [.macOS])),
             .target(name: "ProjectAutomation", condition: .when(platforms: [.macOS])),
             "TuistConstants",
@@ -136,7 +138,7 @@ let targets: [Target] = [
             "TuistNoora",
             .product(name: "Noora", package: "tuist.Noora"),
             "TuistAuth",
-            "TuistCacheConfigCommand",
+            "TuistCacheCommand",
             "TuistVersionCommand",
             argumentParserDependency,
             "TuistServer",
@@ -182,6 +184,7 @@ let targets: [Target] = [
             fileSystemDependency,
             "TuistConstants",
             "TuistEnvironment",
+            "TuistAlert",
         ],
         path: "cli/Sources/TuistLogging"
     ),
@@ -193,6 +196,21 @@ let targets: [Target] = [
         path: "cli/Sources/TuistNoora"
     ),
     .target(
+        name: "TuistThreadSafe",
+        dependencies: [],
+        path: "cli/Sources/TuistThreadSafe"
+    ),
+    .target(
+        name: "TuistAlert",
+        dependencies: [
+            .product(name: "Noora", package: "tuist.Noora"),
+            .product(name: "OrderedSet", package: "frazer-rbsn.OrderedSet"),
+            "TuistNoora",
+            "TuistThreadSafe",
+        ],
+        path: "cli/Sources/TuistAlert"
+    ),
+    .target(
         name: "TuistEnvKey",
         dependencies: [
             argumentParserDependency,
@@ -201,7 +219,7 @@ let targets: [Target] = [
         path: "cli/Sources/TuistEnvKey"
     ),
     .target(
-        name: "TuistCacheConfigCommand",
+        name: "TuistCacheCommand",
         dependencies: [
             pathDependency,
             argumentParserDependency,
@@ -212,10 +230,25 @@ let targets: [Target] = [
             "TuistLogging",
             "TuistServer",
             "TuistOIDC",
+            "TuistEnvKey",
             .target(name: "TuistLoader", condition: .when(platforms: [.macOS])),
             .target(name: "TuistCAS", condition: .when(platforms: [.macOS])),
+            .target(name: "TuistSupport", condition: .when(platforms: [.macOS])),
+            .target(name: "TuistExtension", condition: .when(platforms: [.macOS])),
         ],
-        path: "cli/Sources/TuistCacheConfigCommand"
+        path: "cli/Sources/TuistCacheCommand"
+    ),
+    .target(
+        name: "TuistExtension",
+        dependencies: [
+            "TuistCache",
+            "TuistCore",
+            "TuistGenerator",
+            "TuistHasher",
+            "TuistServer",
+            xcodeGraphDependency,
+        ],
+        path: "cli/Sources/TuistExtension"
     ),
     .target(
         name: "TuistAuth",
@@ -262,8 +295,9 @@ let targets: [Target] = [
             "TuistLogging",
             "TuistEnvironment",
             "TuistNoora",
+            "TuistAlert",
+            "TuistThreadSafe",
             .product(name: "Noora", package: "tuist.Noora"),
-            .product(name: "OrderedSet", package: "frazer-rbsn.OrderedSet"),
             .product(name: "LoggingOSLog", package: "chrisaljoudi.swift-log-oslog", condition: .when(platforms: [.macOS])),
         ],
         path: "cli/Sources/TuistSupport",
@@ -856,6 +890,17 @@ let package = Package(
         .package(id: "tuist.Rosalind", .upToNextMajor(from: "0.6.0")),
         .package(id: "swiftGen.StencilSwiftKit", exact: "2.10.1"),
         .package(id: "swiftGen.SwiftGen", exact: "6.6.2"),
+        .package(id: "sparkle-project.Sparkle", from: "2.6.4"),
+        .package(id: "kean.Nuke", .upToNextMajor(from: "12.8.0")),
+        .package(
+            url: "https://github.com/lfroms/fluid-menu-bar-extra",
+            .upToNextMajor(from: "1.1.0")
+        ),
+        .package(id: "tuist.sdk", .upToNextMajor(from: "0.2.0")),
+        .package(id: "apple.swift-collections", "1.1.4"..<"1.3.0"),
+        .package(id: "apple.swift-service-context", .upToNextMajor(from: "1.0.0")),
+        .package(id: "pointfreeco.swift-snapshot-testing", .upToNextMajor(from: "1.18.1")),
+        .package(id: "leif-ibsen.SwiftECC", exact: "5.5.0"),
     ],
     targets: targets,
     swiftLanguageModes: [.v5]

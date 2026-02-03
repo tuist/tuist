@@ -1,8 +1,9 @@
 import Foundation
 import Logging
+import TuistAlert
 import TuistEnvironment
 
-public struct CrossPlatformStandardLogHandler: LogHandler {
+public struct StandardLogHandler: LogHandler {
     public var logLevel: Logger.Level
 
     public let label: String
@@ -43,7 +44,8 @@ public struct CrossPlatformStandardLogHandler: LogHandler {
                 case .error:
                     string = message.description.red()
                 case .warning:
-                    string = message.description.yellow()
+                    AlertController.current.warning(.alert("\(message.description)"))
+                    return
                 case .notice, .info, .debug, .trace:
                     string = message.description
                 }

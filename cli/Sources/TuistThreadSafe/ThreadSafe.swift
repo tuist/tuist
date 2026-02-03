@@ -2,12 +2,7 @@ import Foundation
 
 /// Type that ensures thread safe access to the underlying value.
 public final class ThreadSafe<T>: @unchecked Sendable {
-    private let _lock: UnsafeMutablePointer<os_unfair_lock> = {
-        let lock = UnsafeMutablePointer<os_unfair_lock>.allocate(capacity: 1)
-        lock.initialize(to: os_unfair_lock())
-        return lock
-    }()
-
+    private let lock = NSLock()
     private var _value: T
 
     /// Returns the value boxed by `ThreadSafe`
@@ -25,8 +20,8 @@ public final class ThreadSafe<T>: @unchecked Sendable {
     ///
     /// - Parameter body: block used to mutate the underlying value.
     public func mapping(_ body: (T) throws -> T) rethrows {
-        os_unfair_lock_lock(_lock)
-        defer { os_unfair_lock_unlock(_lock) }
+        lock.lock()
+        defer { lock.unlock() }
         _value = try body(_value)
     }
 
@@ -41,8 +36,8 @@ public final class ThreadSafe<T>: @unchecked Sendable {
     /// - Parameter body: Block used to mutate the underlying value.
     @discardableResult
     public func mutate<Result>(_ body: (inout T) throws -> Result) rethrows -> Result {
-        os_unfair_lock_lock(_lock)
-        defer { os_unfair_lock_unlock(_lock) }
+        lock.lock()
+        defer { lock.unlock() }
         return try body(&_value)
     }
 

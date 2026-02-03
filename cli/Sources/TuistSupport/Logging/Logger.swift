@@ -106,13 +106,13 @@ extension Logger {
 
         switch config.loggerType {
         case .detailed:
-            handler = CrossPlatformDetailedLogHandler.self
+            handler = DetailedLogHandler.self
         case .console:
-            handler = CrossPlatformStandardLogHandler.self
+            handler = StandardLogHandler.self
         case .json:
-            handler = CrossPlatformJSONLogHandler.self
+            handler = JSONLogHandler.self
         case .quiet:
-            return { label in CrossPlatformStandardLogHandler(label: label, logLevel: .notice) }
+            return { label in StandardLogHandler(label: label, logLevel: .notice) }
         }
 
         let fileLogHandler = try SimpleFileLogHandler(label: "dev.tuist.cli", fileURL: logFilePath.url)

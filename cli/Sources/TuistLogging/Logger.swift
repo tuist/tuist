@@ -98,26 +98,26 @@ public protocol VerboseLogHandler: LogHandler {
     @Sendable init(label: String)
 }
 
-extension CrossPlatformDetailedLogHandler: VerboseLogHandler {
+extension DetailedLogHandler: VerboseLogHandler {
     public static func verbose(label: String) -> LogHandler {
-        CrossPlatformDetailedLogHandler(label: label, logLevel: .debug)
+        DetailedLogHandler(label: label, logLevel: .debug)
     }
 }
 
-extension CrossPlatformStandardLogHandler: VerboseLogHandler {
+extension StandardLogHandler: VerboseLogHandler {
     public static func verbose(label: String) -> LogHandler {
-        CrossPlatformStandardLogHandler(label: label, logLevel: .debug)
+        StandardLogHandler(label: label, logLevel: .debug)
     }
 }
 
-extension CrossPlatformJSONLogHandler: VerboseLogHandler {
+extension JSONLogHandler: VerboseLogHandler {
     public static func verbose(label: String) -> LogHandler {
-        CrossPlatformStandardLogHandler(label: label, logLevel: .debug)
+        StandardLogHandler(label: label, logLevel: .debug)
     }
 }
 
 @Sendable private func quietLogHandler(label: String) -> LogHandler {
-    return CrossPlatformStandardLogHandler(label: label, logLevel: .notice)
+    return StandardLogHandler(label: label, logLevel: .notice)
 }
 
 // MARK: - Logger extensions
@@ -141,11 +141,11 @@ extension Logger {
 
         switch config.loggerType {
         case .detailed:
-            handler = CrossPlatformDetailedLogHandler.self
+            handler = DetailedLogHandler.self
         case .console:
-            handler = CrossPlatformStandardLogHandler.self
+            handler = StandardLogHandler.self
         case .json:
-            handler = CrossPlatformJSONLogHandler.self
+            handler = JSONLogHandler.self
         case .quiet:
             return quietLogHandler
         }

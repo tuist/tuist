@@ -1,7 +1,7 @@
 import Foundation
 import Logging
 
-public struct CrossPlatformDetailedLogHandler: LogHandler {
+public struct DetailedLogHandler: LogHandler {
     public let label: String
 
     private var stdout: LogHandler

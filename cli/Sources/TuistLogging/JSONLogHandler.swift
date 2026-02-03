@@ -2,7 +2,7 @@ import Foundation
 import Logging
 import TuistEnvironment
 
-public struct CrossPlatformJSONLogHandler: LogHandler {
+public struct JSONLogHandler: LogHandler {
     public var logLevel: Logger.Level
 
     public let label: String
