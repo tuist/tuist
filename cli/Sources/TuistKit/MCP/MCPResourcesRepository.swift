@@ -1,15 +1,14 @@
-#if os(macOS)
-    import FileSystem
-    import Foundation
-    import MCP
-    import Path
-    import SwiftyJSON
-    import TuistCore
-    import TuistGenerator
-    import TuistLoader
-    import TuistSupport
-    import XcodeGraph
-    import XcodeGraphMapper
+import FileSystem
+import Foundation
+import MCP
+import Path
+import SwiftyJSON
+import TuistCore
+import TuistGenerator
+import TuistLoader
+import TuistSupport
+import XcodeGraph
+import XcodeGraphMapper
 
 protocol MCPResourcesRepositorying {
     func list() async throws -> ListResources.Result
@@ -129,4 +128,3 @@ struct MCPResourcesRepository: MCPResourcesRepositorying {
         return graph
     }
 }
-#endif
