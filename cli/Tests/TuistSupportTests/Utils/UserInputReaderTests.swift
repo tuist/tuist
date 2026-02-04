@@ -1,4 +1,5 @@
 import TuistTesting
+import TuistUserInputReader
 import XCTest
 
 @testable import TuistSupport
