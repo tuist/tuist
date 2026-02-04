@@ -601,8 +601,10 @@ jobs:
           # Run timescaledb_move.sh to install extension files to PostgreSQL
           /opt/homebrew/bin/timescaledb_move.sh || true
           # Stop PostgreSQL before configuring
-          brew services stop postgresql@17 || true
-          sleep 2
+          if brew services list | grep -q "^postgresql@17\\s\\+started"; then
+            brew services stop postgresql@17
+            sleep 2
+          fi
           # Configure TimescaleDB - specify the correct PostgreSQL 17 config path
           timescaledb-tune --quiet --yes --pg-config /opt/homebrew/opt/postgresql@17/bin/pg_config
           # Start PostgreSQL with the new shared_preload_libraries config
@@ -629,19 +631,19 @@ jobs:
       - uses: jdx/mise-action@v3.2.0
         with:
           working_directory: cache
-      - uses: actions/setup-java@v4
+      - uses: jdx/mise-action@v3.2.0
         with:
-          distribution: temurin
-          java-version: '17'
+          working_directory: gradle
       - uses: android-actions/setup-android@v3
       - name: Start ClickHouse
         working-directory: server
         run: mise run clickhouse:start
-      - name: Install dependencies and generate Xcode project
+      - name: Install tuist dependencies
         working-directory: .
-        run: |
-          tuist install
-          tuist generate --no-open
+        run: tuist install
+      - name: Generate Xcode project
+        working-directory: .
+        run: tuist generate tuist --no-open
       - name: Build tuist CLI
         working-directory: .
         run: |
@@ -651,13 +653,29 @@ jobs:
             -configuration Debug \
             -derivedDataPath build/DerivedData \
             -quiet
+      - name: Restore server deps
+        uses: actions/cache@v4
+        with:
+          path: server/deps
+          key: server-deps-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            server-deps-
+      - name: Install server deps
+        working-directory: server
+        run: mix deps.get
       - name: Setup main server
         working-directory: server
         run: |
-          mix deps.get
           mix ecto.reset
           mix run priv/repo/seeds.exs
-      - name: Setup cache node
+      - name: Restore cache deps
+        uses: actions/cache@v4
+        with:
+          path: cache/deps
+          key: cache-deps-${{ hashFiles('cache/mix.lock') }}
+          restore-keys: |
+            cache-deps-
+      - name: Install cache deps
         working-directory: cache
         run: mix deps.get
       - name: Start main server
