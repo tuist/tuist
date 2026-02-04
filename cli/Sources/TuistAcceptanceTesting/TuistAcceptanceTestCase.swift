@@ -2,6 +2,7 @@ import FileSystem
 
 // swiftlint:disable force_try
 import Path
+import TuistCacheCommand
 import TuistCore
 import TuistEnvironment
 @_exported import TuistKit

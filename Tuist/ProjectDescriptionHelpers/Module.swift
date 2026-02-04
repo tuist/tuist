@@ -467,6 +467,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.testing.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.authCommand.targetName),
+                    .target(name: Module.cacheCommand.targetName),
                     .target(name: Module.envKey.targetName),
                     .target(name: Module.environment.targetName),
                     .external(name: "XcodeProj"),
