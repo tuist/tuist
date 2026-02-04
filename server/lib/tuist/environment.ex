@@ -108,7 +108,8 @@ defmodule Tuist.Environment do
               "https://cache-eu-central.tuist.dev",
               "https://cache-us-east.tuist.dev",
               "https://cache-us-west.tuist.dev",
-              "https://cache-ap-southeast.tuist.dev"
+              "https://cache-ap-southeast.tuist.dev",
+              "https://cache-sa-west.tuist.dev"
             ]
 
           stag?() ->

@@ -45,7 +45,7 @@ defmodule Tuist.Runs do
   def valid_ci_providers, do: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
 
   def get_build(id) do
-    Repo.get(Build, id)
+    Repo.one(from(b in Build, where: b.id == ^id, order_by: [desc: b.inserted_at], limit: 1))
   end
 
   def get_test(id, opts \\ []) do

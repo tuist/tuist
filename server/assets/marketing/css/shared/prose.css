@@ -5,10 +5,16 @@
   font: var(--noora-font-weight-regular) var(--noora-font-body-large);
 
   & code.inline {
+    box-shadow:
+      0 1px 1px 0 rgba(14, 14, 14, 0.05),
+      0 0 0 1px rgba(46, 51, 56, 0.08),
+      0 1px 1px 0 rgba(46, 51, 56, 0.1);
+    border-radius: var(--noora-radius-small);
+    background: var(--noora-surface-background-secondary);
+    padding: var(--noora-spacing-1);
     color: var(--surface-label-primary);
     font: var(--noora-font-weight-regular) var(--noora-font-code-large);
-    word-break: break-word;
-    overflow-wrap: break-word;
+    white-space: nowrap;
   }
 
   & blockquote {
