@@ -102,7 +102,7 @@
       patch={"?#{Query.put(@uri.query, "tab", "errors")}"}
     />
   </.tab_menu_horizontal>
-  <div :if={@selected_tab == "overview"}>
+  <%= if @selected_tab == "overview" do %>
     <.card
       title={dgettext("dashboard_builds", "Build Details")}
       icon="chart_arcs"
@@ -617,8 +617,8 @@
         />
       </.card_section>
     </.card>
-  </div>
-  <div :if={@selected_tab == "warnings"}>
+  <% end %>
+  <%= if @selected_tab == "warnings" do %>
     <.card
       title={dgettext("dashboard_builds", "Warnings")}
       icon="alert_hexagon"
@@ -658,8 +658,8 @@
         </div>
       </.card_section>
     </.card>
-  </div>
-  <div :if={@selected_tab == "errors"}>
+  <% end %>
+  <%= if @selected_tab == "errors" do %>
     <.card
       title={dgettext("dashboard_builds", "Errors")}
       icon="alert_circle"
@@ -701,8 +701,8 @@
         </div>
       </.card_section>
     </.card>
-  </div>
-  <div :if={@selected_tab == "xcode-cache"}>
+  <% end %>
+  <%= if @selected_tab == "xcode-cache" do %>
     <div data-part="cache">
       <.card
         title={dgettext("dashboard_builds", "Cache Summary")}
@@ -789,7 +789,7 @@
         icon="database"
       >
         <.card_section data-part="xcode-cache-card-section">
-          <div :if={@selected_cache_tab == "cacheable-tasks"}>
+          <%= if @selected_cache_tab == "cacheable-tasks" do %>
             <.card_section
               :if={@run.cacheable_tasks_count > 0}
               data-part="cacheable-tasks-card-section"
@@ -1191,8 +1191,8 @@
                 end
               }
             />
-          </div>
-          <div :if={@selected_cache_tab == "cas-outputs"}>
+          <% end %>
+          <%= if @selected_cache_tab == "cas-outputs" do %>
             <.card_section
               :if={@cas_metrics.download_count > 0 or @cas_metrics.upload_count > 0}
               data-part="cas-outputs-breakdown-card-section"
@@ -1499,9 +1499,9 @@
                 end
               }
             />
-          </div>
+          <% end %>
         </.card_section>
       </.card>
     </div>
-  </div>
+  <% end %>
 </div>

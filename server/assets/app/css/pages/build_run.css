@@ -280,6 +280,7 @@
             html[data-theme="dark"] &[data-theme="light"] {
               display: none;
             }
+
             &[data-theme="light"] {
               box-shadow:
                 0px 60px 16.667px 0px oklch(31.3% 0 0 / 0),
