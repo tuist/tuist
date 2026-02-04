@@ -78,7 +78,9 @@ public enum Module: String, CaseIterable {
                 infoPlist: .default,
                 buildableFolders: ["cli/TuistCacheEE/Sources/"],
                 dependencies: [
+                    .target(name: Module.alert.targetName),
                     .target(name: Module.core.targetName),
+                    .target(name: Module.logging.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.cache.targetName),
@@ -124,7 +126,9 @@ public enum Module: String, CaseIterable {
                 infoPlist: .default,
                 buildableFolders: [.folder("cli/Tests/TuistCacheEETests")],
                 dependencies: [
+                    .target(name: Module.alert.targetName),
                     .target(name: Module.core.targetName),
+                    .target(name: Module.logging.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.testing.targetName),
@@ -153,7 +157,9 @@ public enum Module: String, CaseIterable {
                 infoPlist: .default,
                 buildableFolders: ["cli/Tests/TuistCacheEEAcceptanceTests"],
                 dependencies: [
+                    .target(name: Module.alert.targetName),
                     .target(name: Module.core.targetName),
+                    .target(name: Module.logging.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.acceptanceTesting.targetName),
