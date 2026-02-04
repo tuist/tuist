@@ -1297,7 +1297,10 @@ defmodule TuistWeb.BuildRunLive do
   end
 
   defp url?(value) when is_binary(value) do
-    String.starts_with?(value, "http://") or String.starts_with?(value, "https://")
+    case URI.parse(value) do
+      %URI{scheme: scheme} when scheme in ["http", "https"] -> true
+      _ -> false
+    end
   end
 
   defp url?(_), do: false

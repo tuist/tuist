@@ -599,10 +599,7 @@ struct InspectBuildCommandServiceTests {
                 customMetadata: .matching { metadata in
                     guard let metadata else { return false }
                     let tags = metadata.tags ?? []
-                    return tags.contains("nightly") &&
-                        tags.contains("release-candidate") &&
-                        tags.contains("ios-team") &&
-                        tags.count == 3
+                    return tags.sorted() == ["ios-team", "nightly", "release-candidate"]
                 },
                 duration: .any,
                 files: .any,
@@ -678,9 +675,7 @@ struct InspectBuildCommandServiceTests {
                 customMetadata: .matching { metadata in
                     guard let metadata else { return false }
                     let tags = metadata.tags ?? []
-                    return tags.contains("ios-team") &&
-                        tags.contains("nightly") &&
-                        tags.count == 2
+                    return tags.sorted() == ["ios-team", "nightly"]
                 },
                 duration: .any,
                 files: .any,
@@ -756,9 +751,10 @@ struct InspectBuildCommandServiceTests {
                 customMetadata: .matching { metadata in
                     guard let metadata else { return false }
                     let values = metadata.values?.additionalProperties ?? [:]
-                    return values["ticket"] == "PROJ-1234" &&
-                        values["pr_url"] == "https://github.com/tuist/tuist/pull/123" &&
-                        values.count == 2
+                    return values == [
+                        "ticket": "PROJ-1234",
+                        "pr_url": "https://github.com/tuist/tuist/pull/123",
+                    ]
                 },
                 duration: .any,
                 files: .any,
@@ -836,12 +832,8 @@ struct InspectBuildCommandServiceTests {
                     guard let metadata else { return false }
                     let tags = metadata.tags ?? []
                     let values = metadata.values?.additionalProperties ?? [:]
-                    return tags.contains("nightly") &&
-                        tags.contains("release") &&
-                        tags.contains("ios-team") &&
-                        tags.count == 3 &&
-                        values["ticket"] == "PROJ-1234" &&
-                        values.count == 1
+                    return tags.sorted() == ["ios-team", "nightly", "release"] &&
+                        values == ["ticket": "PROJ-1234"]
                 },
                 duration: .any,
                 files: .any,
