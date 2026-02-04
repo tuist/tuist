@@ -32,8 +32,8 @@ config :tuist, Tuist.IngestRepo,
   pool_size: 5,
   # Workaround for ClickHouse lazy materialization bug with projections
   # https://github.com/ClickHouse/ClickHouse/issues/80201
-  # wait_for_async_insert ensures synchronous inserts in tests
-  settings: [query_plan_optimize_lazy_materialization: 0, wait_for_async_insert: 1]
+  # Disable async inserts in tests for reliable data visibility
+  settings: [query_plan_optimize_lazy_materialization: 0, async_insert: 0]
 
 # Configures Bamboo API Client
 config :tuist, Tuist.Mailer, adapter: Bamboo.TestAdapter
