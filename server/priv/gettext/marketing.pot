@@ -683,7 +683,7 @@ msgstr ""
 msgid "LinkedIn"
 msgstr ""
 
-#: lib/tuist_web/marketing/live/marketing_changelog_live.html.heex:77
+#: lib/tuist_web/marketing/live/marketing_changelog_live.html.heex:92
 #, elixir-autogen, elixir-format
 msgid "Load more"
 msgstr ""
