@@ -1232,6 +1232,34 @@ components:
               type: string
               x-struct:
               x-validate:
+            custom_metadata:
+              description: Custom metadata for the build run.
+              properties:
+                tags:
+                  description: "Simple string labels for filtering/grouping (e.g., 'nightly', 'release')."
+                  items:
+                    maxLength: 50
+                    pattern: ^[a-zA-Z0-9_-]+$
+                    type: string
+                    x-struct:
+                    x-validate:
+                  maxItems: 10
+                  type: array
+                  x-struct:
+                  x-validate:
+                values:
+                  additionalProperties:
+                    maxLength: 500
+                    type: string
+                    x-struct:
+                    x-validate:
+                  description: Key-value pairs for structured data. URL values will auto-link in the UI.
+                  type: object
+                  x-struct:
+                  x-validate:
+              type: object
+              x-struct:
+              x-validate:
             duration:
               description: Duration of the run in milliseconds.
               type: integer
@@ -2970,6 +2998,34 @@ components:
           type: string
           x-struct:
           x-validate:
+        custom_metadata:
+          description: Custom metadata for the build run.
+          properties:
+            tags:
+              description: "Simple string labels for filtering/grouping (e.g., 'nightly', 'release')."
+              items:
+                maxLength: 50
+                pattern: ^[a-zA-Z0-9_-]+$
+                type: string
+                x-struct:
+                x-validate:
+              maxItems: 10
+              type: array
+              x-struct:
+              x-validate:
+            values:
+              additionalProperties:
+                maxLength: 500
+                type: string
+                x-struct:
+                x-validate:
+              description: Key-value pairs for structured data. URL values will auto-link in the UI.
+              type: object
+              x-struct:
+              x-validate:
+          type: object
+          x-struct:
+          x-validate:
         duration:
           description: Duration of the run in milliseconds.
           type: integer
@@ -4142,6 +4198,28 @@ paths:
                     type: string
                     x-struct:
                     x-validate:
+                  custom_metadata:
+                    description: Custom metadata for the build run.
+                    properties:
+                      tags:
+                        items:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: array
+                        x-struct:
+                        x-validate:
+                      values:
+                        additionalProperties:
+                          type: string
+                          x-struct:
+                          x-validate:
+                        type: object
+                        x-struct:
+                        x-validate:
+                    type: object
+                    x-struct:
+                    x-validate:
                   duration:
                     description: Build duration in milliseconds.
                     type: integer
@@ -4593,28 +4671,20 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: The handle of the account.
-          in: path
-          name: account_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: Page number for pagination.
           in: query
           name: page
           required: false
           schema:
             type: integer
+            x-struct:
+            x-validate:
+        - description: The handle of the account.
+          in: path
+          name: account_handle
+          required: true
+          schema:
+            type: string
             x-struct:
             x-validate:
         - description: Number of items per page.
@@ -4629,6 +4699,14 @@ paths:
           in: query
           name: git_branch
           required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
           schema:
             type: string
             x-struct:
@@ -6405,6 +6483,34 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: Filter by tags. Returns builds containing ALL specified tags.
+          in: query
+          name: tags
+          required: false
+          style: form
+          explode: false
+          schema:
+            items:
+              type: string
+              x-struct:
+              x-validate:
+            type: array
+            x-struct:
+            x-validate:
+        - description: 'Filter by custom values (key:value format). Returns builds matching ALL specified values. Example: ticket:PROJ-1234'
+          in: query
+          name: values
+          required: false
+          style: form
+          explode: false
+          schema:
+            items:
+              type: string
+              x-struct:
+              x-validate:
+            type: array
+            x-struct:
+            x-validate:
         - description: ''
           in: query
           name: page_size
@@ -6467,6 +6573,28 @@ paths:
                           description: The configuration used.
                           nullable: true
                           type: string
+                          x-struct:
+                          x-validate:
+                        custom_metadata:
+                          description: Custom metadata for the build run.
+                          properties:
+                            tags:
+                              items:
+                                type: string
+                                x-struct:
+                                x-validate:
+                              type: array
+                              x-struct:
+                              x-validate:
+                            values:
+                              additionalProperties:
+                                type: string
+                                x-struct:
+                                x-validate:
+                              type: object
+                              x-struct:
+                              x-validate:
+                          type: object
                           x-struct:
                           x-validate:
                         duration:
@@ -8424,6 +8552,34 @@ paths:
                     configuration:
                       description: The build configuration (e.g., Debug, Release).
                       type: string
+                      x-struct:
+                      x-validate:
+                    custom_metadata:
+                      description: Custom metadata for the build run.
+                      properties:
+                        tags:
+                          description: "Simple string labels for filtering/grouping (e.g., 'nightly', 'release')."
+                          items:
+                            maxLength: 50
+                            pattern: ^[a-zA-Z0-9_-]+$
+                            type: string
+                            x-struct:
+                            x-validate:
+                          maxItems: 10
+                          type: array
+                          x-struct:
+                          x-validate:
+                        values:
+                          additionalProperties:
+                            maxLength: 500
+                            type: string
+                            x-struct:
+                            x-validate:
+                          description: Key-value pairs for structured data. URL values will auto-link in the UI.
+                          type: object
+                          x-struct:
+                          x-validate:
+                      type: object
                       x-struct:
                       x-validate:
                     duration:

@@ -249,6 +249,7 @@ var targets: [Target] = [
             .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
             .product(name: "HTTPTypes", package: "apple.swift-http-types"),
             .target(name: "TuistSupport", condition: .when(platforms: [.macOS])),
+            .target(name: "TuistHAR", condition: .when(platforms: [.macOS])),
         ],
         path: "cli/Sources/TuistHTTP",
         exclude: ["AGENTS.md"],
@@ -660,6 +661,19 @@ targets.append(contentsOf: [
         exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistHAR",
+        dependencies: [
+            "TuistSupport",
+            pathDependency,
+            .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
+            .product(name: "HTTPTypes", package: "apple.swift-http-types"),
+        ],
+        path: "cli/Sources/TuistHAR",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug))
         ]
     ),
     .target(

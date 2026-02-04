@@ -66,6 +66,21 @@ defmodule TuistWeb.API.BuildsController do
         type: :string,
         description: "Filter by git branch."
       ],
+      tags: [
+        in: :query,
+        type: %Schema{type: :array, items: %Schema{type: :string}},
+        style: :form,
+        explode: true,
+        description: "Filter by tags. Returns builds containing ALL specified tags."
+      ],
+      values: [
+        in: :query,
+        type: %Schema{type: :array, items: %Schema{type: :string}},
+        style: :form,
+        explode: true,
+        description:
+          "Filter by custom values (key:value format). Returns builds matching ALL specified values. Example: ticket:PROJ-1234"
+      ],
       page_size: [
         in: :query,
         type: %Schema{
@@ -121,7 +136,15 @@ defmodule TuistWeb.API.BuildsController do
                    cacheable_task_local_hits_count: %Schema{type: :integer, description: "Local cache hits."},
                    cacheable_task_remote_hits_count: %Schema{type: :integer, description: "Remote cache hits."},
                    inserted_at: %Schema{type: :string, format: :"date-time", description: "When the build was created."},
-                   url: %Schema{type: :string, description: "URL to view the build in the dashboard."}
+                   url: %Schema{type: :string, description: "URL to view the build in the dashboard."},
+                   custom_metadata: %Schema{
+                     type: :object,
+                     description: "Custom metadata for the build run.",
+                     properties: %{
+                       tags: %Schema{type: :array, items: %Schema{type: :string}},
+                       values: %Schema{type: :object, additionalProperties: %Schema{type: :string}}
+                     }
+                   }
                  },
                  required: [
                    :id,
@@ -149,6 +172,7 @@ defmodule TuistWeb.API.BuildsController do
         _params
       ) do
     filters = build_filters(selected_project.id, params)
+    custom_values = parse_values_param(Map.get(params, :values))
 
     attrs = %{
       filters: filters,
@@ -158,7 +182,7 @@ defmodule TuistWeb.API.BuildsController do
       page_size: page_size
     }
 
-    {builds, meta} = Runs.list_build_runs(attrs, preload: [:ran_by_account])
+    {builds, meta} = Runs.list_build_runs(attrs, preload: [:ran_by_account], custom_values: custom_values)
 
     json(conn, %{
       builds:
@@ -181,7 +205,11 @@ defmodule TuistWeb.API.BuildsController do
             cacheable_task_local_hits_count: build.cacheable_task_local_hits_count,
             cacheable_task_remote_hits_count: build.cacheable_task_remote_hits_count,
             inserted_at: build.inserted_at,
-            url: ~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{build.id}"
+            url: ~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{build.id}",
+            custom_metadata: %{
+              tags: build.custom_tags || [],
+              values: build.custom_values || %{}
+            }
           }
         end),
       pagination_metadata: %{
@@ -246,7 +274,15 @@ defmodule TuistWeb.API.BuildsController do
              cacheable_task_local_hits_count: %Schema{type: :integer, description: "Local cache hits."},
              cacheable_task_remote_hits_count: %Schema{type: :integer, description: "Remote cache hits."},
              inserted_at: %Schema{type: :string, format: :"date-time", description: "When the build was created."},
-             url: %Schema{type: :string, description: "URL to view the build in the dashboard."}
+             url: %Schema{type: :string, description: "URL to view the build in the dashboard."},
+             custom_metadata: %Schema{
+               type: :object,
+               description: "Custom metadata for the build run.",
+               properties: %{
+                 tags: %Schema{type: :array, items: %Schema{type: :string}},
+                 values: %Schema{type: :object, additionalProperties: %Schema{type: :string}}
+               }
+             }
            },
            required: [
              :id,
@@ -292,7 +328,11 @@ defmodule TuistWeb.API.BuildsController do
             cacheable_task_local_hits_count: build.cacheable_task_local_hits_count,
             cacheable_task_remote_hits_count: build.cacheable_task_remote_hits_count,
             inserted_at: build.inserted_at,
-            url: ~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{build.id}"
+            url: ~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{build.id}",
+            custom_metadata: %{
+              tags: build.custom_tags || [],
+              values: build.custom_values || %{}
+            }
           })
         else
           conn
@@ -335,10 +375,38 @@ defmodule TuistWeb.API.BuildsController do
         filters
       end
 
-    if Map.get(params, :git_branch) do
-      filters ++ [%{field: :git_branch, op: :==, value: params.git_branch}]
-    else
-      filters
+    filters =
+      if Map.get(params, :git_branch) do
+        filters ++ [%{field: :git_branch, op: :==, value: params.git_branch}]
+      else
+        filters
+      end
+
+    case Map.get(params, :tags) do
+      nil ->
+        filters
+
+      [] ->
+        filters
+
+      tags ->
+        tag_filters = Enum.map(tags, fn tag -> %{field: :custom_tags, op: :contains, value: tag} end)
+        filters ++ tag_filters
     end
+  end
+
+  defp parse_values_param(nil), do: nil
+  defp parse_values_param([]), do: nil
+
+  defp parse_values_param(values_list) do
+    values_list
+    |> Enum.map(fn pair ->
+      case String.split(pair, ":", parts: 2) do
+        [key, value] -> {String.trim(key), String.trim(value)}
+        _ -> nil
+      end
+    end)
+    |> Enum.reject(&is_nil/1)
+    |> Map.new()
   end
 end

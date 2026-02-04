@@ -416,8 +416,10 @@ defmodule Tuist.Runs do
 
   def list_build_runs(attrs, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
+    custom_values = Keyword.get(opts, :custom_values)
 
     Build
+    |> apply_custom_values_filter(custom_values)
     |> preload(^preload)
     |> Flop.validate_and_run!(attrs, for: Build)
   end
@@ -459,6 +461,26 @@ defmodule Tuist.Runs do
     |> distinct([b], b.configuration)
     |> select([b], b.configuration)
     |> Repo.all()
+  end
+
+  def project_build_tags(%Project{} = project) do
+    from(b in Build)
+    |> where([b], b.project_id == ^project.id)
+    |> where([b], b.inserted_at > ^DateTime.add(DateTime.utc_now(), -30, :day))
+    |> where([b], fragment("cardinality(?) > 0", b.custom_tags))
+    |> select([b], fragment("unnest(?)", b.custom_tags))
+    |> distinct(true)
+    |> Repo.all()
+    |> Enum.sort()
+  end
+
+  defp apply_custom_values_filter(query, nil), do: query
+  defp apply_custom_values_filter(query, values_map) when values_map == %{}, do: query
+
+  defp apply_custom_values_filter(query, values_map) when is_map(values_map) do
+    Enum.reduce(values_map, query, fn {key, value}, q ->
+      from(b in q, where: fragment("? ->> ? = ?", b.custom_values, ^key, ^value))
+    end)
   end
 
   @doc """

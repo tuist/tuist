@@ -38,6 +38,7 @@ public enum Module: String, CaseIterable {
     case casAnalytics = "TuistCASAnalytics"
     case launchctl = "TuistLaunchctl"
     case http = "TuistHTTP"
+    case har = "TuistHAR"
     case cacheCommand = "TuistCacheCommand"
     case authCommand = "TuistAuthCommand"
     case envKey = "TuistEnvKey"
@@ -390,7 +391,7 @@ public enum Module: String, CaseIterable {
             moduleTags.append("domain:plugins")
         case .simulator, .xcActivityLog, .git, .rootDirectoryLocator,
             .process, .ci, .cas, .casAnalytics, .launchctl, .xcResultService, .xcodeProjectOrWorkspacePathLocator,
-            .http:
+            .http, .har:
             moduleTags.append("domain:infrastructure")
         case .cacheCommand, .authCommand, .envKey, .versionCommand:
             moduleTags.append("domain:cli")
@@ -571,6 +572,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.oidc.targetName),
                     .target(name: Module.opener.targetName),
                     .target(name: Module.http.targetName),
+                    .target(name: Module.har.targetName),
                     .target(name: Module.cacheCommand.targetName),
                     .target(name: Module.authCommand.targetName),
                     .target(name: Module.envKey.targetName),
@@ -864,9 +866,16 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.alert.targetName, condition: .when([.macos])),
                     .target(name: Module.support.targetName, condition: .when([.macos])),
                     .target(name: Module.logging.targetName),
+                    .target(name: Module.har.targetName, condition: .when([.macos])),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "HTTPTypes"),
                     .external(name: "FileSystem"),
+                ]
+            case .har:
+                [
+                    .target(name: Module.support.targetName),
+                    .external(name: "OpenAPIRuntime"),
+                    .external(name: "HTTPTypes"),
                 ]
             case .cacheCommand:
                 [
@@ -983,6 +992,12 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.testing.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.userInputReader.targetName),
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
+                ]
+            case .har:
+                [
+                    .target(name: Module.testing.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                 ]
@@ -1290,6 +1305,7 @@ public enum Module: String, CaseIterable {
             case .http:
                 [
                     .target(name: Module.testing.targetName),
+                    .target(name: Module.support.targetName),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "HTTPTypes"),
                 ]

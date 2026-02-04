@@ -982,6 +982,7 @@ defmodule Tuist.Runs.Analytics do
   defp time_bucket_to_clickhouse_interval(%Interval{days: 1}), do: "1 day"
   defp time_bucket_to_clickhouse_interval(%Interval{months: 1}), do: "1 month"
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp add_filters(query, opts) do
     query = query_with_is_ci_filter(query, opts)
 
@@ -1007,6 +1008,14 @@ defmodule Tuist.Runs.Analytics do
       case category do
         nil -> query
         _ -> where(query, [e], e.category == ^category)
+      end
+
+    tag = Keyword.get(opts, :tag)
+
+    query =
+      case tag do
+        nil -> query
+        _ -> where(query, [e], ^tag in e.custom_tags)
       end
 
     status = Keyword.get(opts, :status)

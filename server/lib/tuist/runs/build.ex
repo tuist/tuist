@@ -20,7 +20,8 @@ defmodule Tuist.Runs.Build do
       :account_id,
       :is_ci,
       :ci_provider,
-      :cacheable_tasks_count
+      :cacheable_tasks_count,
+      :custom_tags
     ],
     sortable: [:inserted_at, :duration]
   }
@@ -51,6 +52,8 @@ defmodule Tuist.Runs.Build do
     has_many :issues, Tuist.Runs.BuildIssue, foreign_key: :build_run_id
     has_many :files, Tuist.Runs.BuildFile, foreign_key: :build_run_id
     has_many :targets, Tuist.Runs.BuildTarget, foreign_key: :build_run_id
+    field :custom_tags, {:array, :string}, default: []
+    field :custom_values, :map, default: %{}
 
     timestamps(type: :utc_datetime, updated_at: false)
   end
@@ -80,7 +83,9 @@ defmodule Tuist.Runs.Build do
       :ci_provider,
       :cacheable_task_remote_hits_count,
       :cacheable_task_local_hits_count,
-      :cacheable_tasks_count
+      :cacheable_tasks_count,
+      :custom_tags,
+      :custom_values
     ])
     |> validate_required([
       :id,
@@ -93,5 +98,65 @@ defmodule Tuist.Runs.Build do
     |> validate_inclusion(:status, [:success, :failure])
     |> validate_inclusion(:ci_provider, [:github, :gitlab, :bitrise, :circleci, :buildkite, :codemagic])
     |> unique_constraint(:id, match: :suffix, name: "build_runs_pkey")
+    |> validate_custom_tags()
+    |> validate_custom_values()
+  end
+
+  defp validate_custom_tags(changeset) do
+    changeset
+    |> validate_length(:custom_tags, max: 50, message: "cannot have more than 50 tags")
+    |> validate_change(:custom_tags, fn :custom_tags, tags ->
+      Enum.flat_map(tags, fn tag ->
+        cond do
+          String.length(tag) > 50 ->
+            [{:custom_tags, "tag exceeds maximum length of 50 characters"}]
+
+          not Regex.match?(~r/^[a-zA-Z0-9_-]+$/, tag) ->
+            [{:custom_tags, "tag contains invalid characters (only alphanumeric, hyphens, and underscores allowed)"}]
+
+          true ->
+            []
+        end
+      end)
+    end)
+  end
+
+  defp validate_custom_values(changeset) do
+    validate_change(changeset, :custom_values, fn :custom_values, values ->
+      if map_size(values) > 20 do
+        [{:custom_values, "cannot have more than 20 key-value pairs"}]
+      else
+        errors =
+          Enum.flat_map(values, fn {key, value} ->
+            key_errors =
+              cond do
+                not is_binary(key) ->
+                  [{:custom_values, "keys must be strings"}]
+
+                String.length(key) > 50 ->
+                  [{:custom_values, "key '#{String.slice(key, 0, 20)}...' exceeds maximum length of 50 characters"}]
+
+                true ->
+                  []
+              end
+
+            value_errors =
+              cond do
+                not is_binary(value) ->
+                  [{:custom_values, "values must be strings"}]
+
+                String.length(value) > 500 ->
+                  [{:custom_values, "value for key '#{key}' exceeds maximum length of 500 characters"}]
+
+                true ->
+                  []
+              end
+
+            key_errors ++ value_errors
+          end)
+
+        errors
+      end
+    end)
   end
 end

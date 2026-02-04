@@ -43,6 +43,8 @@ struct BuildListCommandServiceTests {
                 status: nil,
                 scheme: nil,
                 configuration: nil,
+                tags: [],
+                values: [],
                 page: nil,
                 pageSize: nil,
                 json: false
@@ -101,6 +103,8 @@ struct BuildListCommandServiceTests {
             status: .value(nil),
             scheme: .value(nil),
             configuration: .value(nil),
+            tags: .value([]),
+            values: .value([]),
             page: .value(1),
             pageSize: .value(10)
         ).willReturn(response)
@@ -113,6 +117,8 @@ struct BuildListCommandServiceTests {
             status: nil,
             scheme: nil,
             configuration: nil,
+            tags: [],
+            values: [],
             page: nil,
             pageSize: nil,
             json: true
@@ -155,6 +161,8 @@ struct BuildListCommandServiceTests {
             status: .value(nil),
             scheme: .value(nil),
             configuration: .value(nil),
+            tags: .value([]),
+            values: .value([]),
             page: .value(1),
             pageSize: .value(10)
         ).willReturn(response)
@@ -167,6 +175,8 @@ struct BuildListCommandServiceTests {
             status: nil,
             scheme: nil,
             configuration: nil,
+            tags: [],
+            values: [],
             page: nil,
             pageSize: nil,
             json: false
@@ -205,6 +215,8 @@ struct BuildListCommandServiceTests {
             status: .value("success"),
             scheme: .value("MyApp"),
             configuration: .value("Debug"),
+            tags: .value([]),
+            values: .value([]),
             page: .value(1),
             pageSize: .value(10)
         ).willReturn(response)
@@ -217,6 +229,8 @@ struct BuildListCommandServiceTests {
             status: "success",
             scheme: "MyApp",
             configuration: "Debug",
+            tags: [],
+            values: [],
             page: nil,
             pageSize: nil,
             json: false
@@ -227,6 +241,65 @@ struct BuildListCommandServiceTests {
             ui()
                 .contains(
                     "No builds found for project \(fullHandle) with filters: branch: main, status: success, scheme: MyApp, configuration: Debug"
+                )
+        )
+    }
+
+    @Test(
+        .withMockedEnvironment(),
+        .withMockedNoora
+    ) func run_with_tags_and_values() async throws {
+        // Given
+        let fullHandle = "\(UUID().uuidString)/\(UUID().uuidString)"
+        let tuist = Tuist.test(fullHandle: fullHandle)
+        let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
+        given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
+        let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
+        given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
+        let response = Operations.listBuilds.Output.Ok.Body.jsonPayload(
+            builds: [],
+            pagination_metadata: .init(
+                current_page: 1,
+                has_next_page: false,
+                has_previous_page: false,
+                page_size: 10,
+                total_count: 0,
+                total_pages: 0
+            )
+        )
+        given(listBuildsService).listBuilds(
+            fullHandle: .value(fullHandle),
+            serverURL: .value(serverURL),
+            gitBranch: .value(nil),
+            status: .value(nil),
+            scheme: .value(nil),
+            configuration: .value(nil),
+            tags: .value(["ci", "nightly"]),
+            values: .value(["ticket:PROJ-1234", "runner:macos-14"]),
+            page: .value(1),
+            pageSize: .value(10)
+        ).willReturn(response)
+
+        // When
+        try await subject.run(
+            fullHandle: nil,
+            path: nil,
+            gitBranch: nil,
+            status: nil,
+            scheme: nil,
+            configuration: nil,
+            tags: ["ci", "nightly"],
+            values: ["ticket:PROJ-1234", "runner:macos-14"],
+            page: nil,
+            pageSize: nil,
+            json: false
+        )
+
+        // Then
+        #expect(
+            ui()
+                .contains(
+                    "No builds found for project \(fullHandle) with filters: tags: ci, nightly, values: ticket:PROJ-1234, runner:macos-14"
                 )
         )
     }

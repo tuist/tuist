@@ -11,7 +11,8 @@ defmodule Tuist.Marketing.Changelog.Entry do
     :date,
     :title,
     :body,
-    :id
+    :id,
+    :pull_request
   ]
 
   def build(_filename, attrs, body) do
@@ -22,7 +23,8 @@ defmodule Tuist.Marketing.Changelog.Entry do
       date: attrs["date"],
       title: title,
       id: attrs["id"],
-      body: body
+      body: body,
+      pull_request: attrs["pull_request"]
     )
   end
 end

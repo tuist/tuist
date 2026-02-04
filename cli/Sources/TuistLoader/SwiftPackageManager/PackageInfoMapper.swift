@@ -368,8 +368,10 @@ public final class PackageInfoMapper: PackageInfoMapping {
     }
 
     fileprivate class func sanitize(targetName: String) -> String {
-        targetName.replacingOccurrences(of: ".", with: "_")
+        targetName
+            .replacingOccurrences(of: ".", with: "_")
             .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "+", with: "_")
     }
 
     // swiftlint:disable:next function_body_length
@@ -570,9 +572,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
         }
 
         let targetName = packageModuleAliases[packageInfo.name]?[target.name] ?? target.name
-        let productName = PackageInfoMapper
-            .sanitize(targetName: targetName)
-            .replacingOccurrences(of: "-", with: "_")
+        let sanitizedTargetName = PackageInfoMapper.sanitize(targetName: targetName)
+        let productName = sanitizedTargetName.replacingOccurrences(of: "-", with: "_")
 
         let settings = try await Settings.from(
             target: target,
@@ -587,11 +588,11 @@ public final class PackageInfoMapper: PackageInfoMapping {
         )
 
         return .target(
-            name: PackageInfoMapper.sanitize(targetName: targetName),
+            name: sanitizedTargetName,
             destinations: destinations,
             product: product,
             productName: productName,
-            bundleId: "dev.tuist.\(targetName.replacingOccurrences(of: "_", with: ".").replacingOccurrences(of: "/", with: "."))",
+            bundleId: "dev.tuist.\(sanitizedTargetName.replacingOccurrences(of: "_", with: "."))",
             deploymentTargets: deploymentTargets,
             infoPlist: .default,
             sources: sources,

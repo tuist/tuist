@@ -104,7 +104,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
       assert transfer.type == :download
       assert transfer.account_handle == "test-account"
       assert transfer.project_handle == "test-project"
-      assert transfer.artifact_type == :xcode_tuist_module
+      assert transfer.artifact_type == :xcode_module
       assert transfer.key == "test-account/test-project/module/builds/ab/c1/#{hash}/#{name}"
     end
 
@@ -401,7 +401,7 @@ defmodule CacheWeb.ModuleCacheControllerTest do
       assert transfer.type == :upload
       assert transfer.account_handle == "test-account"
       assert transfer.project_handle == "test-project"
-      assert transfer.artifact_type == :xcode_tuist_module
+      assert transfer.artifact_type == :xcode_module
       assert transfer.key == "test-account/test-project/module/builds/ab/c1/abc123/test.zip"
     end
 

@@ -1,0 +1,105 @@
+---
+title: "Codex cut Mastodon iOS clean builds 80%"
+category: "engineering"
+tags: ["tuist", "migration", "ios", "codex", "cache"]
+excerpt: "We gave Codex the Mastodon iOS client and asked it to migrate the project to Tuist generated projects, enable caching, and benchmark the results. Here is what happened."
+author: pepicrft
+og_image_path: /marketing/images/blog/2026/02/02/migrating-mastodon-ios-to-tuist-with-codex/og.jpg
+highlighted: true
+---
+
+People have asked us many times why we haven't built an automated migration path to [Tuist generated projects](https://docs.tuist.dev/en/guides/features/projects). The honest answer is that real-world Xcode projects are messy. They are full of implicit configuration, one-off build settings, and decisions that made sense at the time but are hard to detect from the outside. For years, that kept migrations manual and made teams hesitant to adopt generated projects, even when they wanted the [module cache](https://docs.tuist.dev/en/guides/develop/build/cache) and the productivity gains that come with it.
+
+We've been thinking about this differently since coding agents became capable enough to hold context across long feedback loops. What if the agent could do the mechanical work of migration while we focus on defining the constraints and validating the output? If that works, Tuist handles the complexity of Xcode projects, agents handle the tool adoption, and developers get faster workflows without the friction of a manual migration.
+
+We decided to test this on the [Mastodon iOS client](https://github.com/mastodon/mastodon-ios). A real app with multiple frameworks, extensions, third-party dependencies, and all the quirks that come with a production codebase. The goal was a generated workspace that builds, runs, and benefits from caching. You can find the resulting project [on GitHub](https://github.com/tuist/mastodon-ios-tuist). We also wanted captured the process in a reusable [skill](https://docs.tuist.dev/en/guides/features/agentic-coding/skills) that makes it easier for other teams to migrate without having to instruct the agent themselves on how to close the feedback loop.
+
+## What we asked Codex to do
+
+We didn't hand Codex a step-by-step checklist. We gave it a set of outcomes: produce a Tuist-generated project that stays as close as possible to the original, integrate dependencies through Xcode project primitives so they can be cached as binaries, validate that the app actually launches on a simulator, and write a `skill.md` that captures the migration knowledge for future use.
+
+A migration like this isn't just about compiling. It requires understanding feedback loops, holding state across errors, and making judgment calls when things break. We used [Codex](https://openai.com/codex/) 5.2 with GPT-5 as the underlying model because we wanted to test whether the model could handle that without constant human supervision.
+
+## How it actually went
+
+The first step was establishing a baseline. The original Xcode project compiled and the app launched on the simulator. Having that baseline gave us a reference point for the benchmark and confirmed we were starting from something healthy.
+
+From there, the agent extracted build settings into `.xcconfig` files and wired them back into the target definitions in `Project.swift`. This follows our [migration guidance](https://docs.tuist.dev/en/guides/features/projects/adoption/migrate/xcode-project), which recommends xcconfig extraction because it preserves the settings hierarchy and keeps the manifest readable. Then it created the initial `Tuist.swift`, `Project.swift`, and `Tuist/Package.swift`, mapping each target into the Tuist graph.
+
+The first `tuist generate` was successful, but then things started breaking, which is exactly what happens in real migrations.
+
+### The missing class that wasn't missing
+
+The first failure was a missing `TimelineListViewController` referenced by `DiscoveryViewModel`. The agent had excluded a directory called "In Progress New Layout and Datamodel" because it looked like unfinished work. Reasonable assumption, wrong conclusion. The class lived in that directory, and the original Xcode project included it while excluding only one specific file from the folder.
+
+The agent went back to the pbx structure, inspected the exception set, and adjusted the source glob to mirror exactly what the original project did. After the fix, those errors were gone.
+
+### Resources, sources, and boundary confusion
+
+The second round of errors was subtler. `.intentdefinition` files were being treated as resources when they needed to be sources. `.xcstrings` files were getting shadowed by `.strings` globs under a broader resource directory. Settings bundles were being treated as individual files rather than folder references.
+
+Each of these was straightforward to fix once identified, but they are a good illustration of why migrations are tricky. The mistakes aren't about code logic. They are about boundaries: where sources end and resources begin, what counts as a file versus a folder reference, which build phase something belongs to.
+
+### Making it launch
+
+After the workspace built successfully, the agent installed the app on the simulator and launched it. It crashed immediately with an unrecognized selector, `processCompletedCount`, coming off `NSUserDefaults`. Since Tuist integrates dependencies as Xcode-native targets and defaults to static linking, the linker was stripping object files that contained only Objective-C categories without class definitions. The category methods simply disappeared from the binary. As [Apple Technical Q&A QA1490](https://developer.apple.com/library/archive/qa/qa1490/_index.html) explains, this is expected behavior. Our [dependency documentation](https://docs.tuist.dev/en/guides/features/projects/dependencies#objectivec-dependencies) covers this in more detail.
+
+The fix was adding `-ObjC` to `OTHER_LDFLAGS` in the shared project xcconfig, which forces the linker to load all object files from static libraries. After that, the app launched and stayed up. This is why it's important to instruct the agent to actually run the app on a simulator and tell it how to do so. That way it can detect runtime failures on its own and close the feedback loop without human intervention.
+
+## Unlocking cache
+
+The whole point of migrating was to unlock caching. A modular generated project is nice, but what we really wanted was fast clean builds by default.
+
+Once everything compiled and ran, `tuist cache` warmed the binaries and `tuist setup cache` enabled the [Xcode compilation cache](https://docs.tuist.dev/en/guides/features/cache).
+
+## The benchmark
+
+We used [hyperfine](https://github.com/sharkdp/hyperfine) for repeatability. Both scenarios ran three times as clean builds with `xcodebuild clean build` and a dedicated `-derivedDataPath` per scenario.
+
+**No-cache baseline:** the Tuist-generated workspace with the cache profile set to `none`, derived data wiped between runs, and Xcode compilation cache disabled.
+
+**Cached build:** the `all-possible` cache profile so only the app and its extensions built from source, with Xcode compilation cache enabled. Before each run, local binaries and the compilation cache directory were removed so artifacts were pulled from the remote cache.
+
+The commands looked like this:
+
+```bash
+tuist setup cache
+tuist cache
+
+hyperfine --runs 3 --warmup 1 \
+  --prepare 'rm -rf DerivedData-NoCache && tuist generate --no-open --cache-profile none' \
+  'xcodebuild clean build -workspace Mastodon-Tuist.xcworkspace -scheme Mastodon -configuration Debug -destination "platform=iOS Simulator,name=iPhone 17" -derivedDataPath ./DerivedData-NoCache COMPILATION_CACHE_ENABLE_CACHING=NO COMPILATION_CACHE_ENABLE_PLUGIN=NO'
+
+hyperfine --runs 3 --warmup 1 \
+  --prepare 'rm -rf DerivedData-Cache ~/.tuist/Binaries ~/Library/Developer/Xcode/CompilationCache.noindex ~/Library/Caches/com.apple.dt.Xcode/CompilationCache.noindex && tuist generate --no-open --cache-profile all-possible' \
+  'xcodebuild clean build -workspace Mastodon-Tuist.xcworkspace -scheme Mastodon -configuration Debug -destination "platform=iOS Simulator,name=iPhone 17" -derivedDataPath ./DerivedData-Cache COMPILATION_CACHE_ENABLE_CACHING=YES COMPILATION_CACHE_ENABLE_PLUGIN=YES'
+```
+
+**Results:**
+
+| Scenario | Mean | Min | Max |
+|----------|------|-----|-----|
+| No cache | 110.8s | 95.5s | 132.8s |
+| Cached | 22.3s | 21.0s | 24.5s |
+
+That is a **4.98x speedup** and a **79.9% reduction** in clean build time.
+
+It's worth mentioning that cache effectiveness depends on how modularized the project already is. If most of your code lives in a single app target, there is less to cache. Mastodon has several internal frameworks, but the app target itself is still large. Teams that invest in smaller targets and clearer module boundaries should see even larger gains.
+
+## The skill
+
+The most valuable output of this migration isn't the Mastodon workspace itself. It is the skill file that captures how to do this again.
+
+The agent wrote `skill.md` as a migration guide that starts where a real engineer would start: with a baseline build, a target inventory, and a realistic set of constraints. It focuses on what tends to go wrong, how to detect it, and how to keep the generated project aligned with the original. It intentionally avoids caching instructions so it stays focused on migration mechanics. The published version of that skill lives at [tuist.dev/skills/migrate/SKILL.md](https://tuist.dev/skills/migrate/SKILL.md), and the installation steps are documented in our [Skills guide](https://docs.tuist.dev/en/guides/features/agentic-coding/skills).
+
+## What we took away from this
+
+A coding agent took a production iOS app, migrated it to generated projects, fixed a few issues along the way, confirmed the app runs, and got clean builds down by 80%.
+
+Manual migrations can take days or even weeks, which is why many teams never got around to it. This one took a few hours of agent time. With agents doing the heavy lifting, the cost of adopting generated projects drops significantly. Your developers wait less on builds, and your CI stops redoing work that hasn't changed.
+
+We're going to keep using this skill on more projects and refining it as we go.
+
+## Try it on your project
+
+If you want to migrate your project, you can get started with the [migration skill](https://docs.tuist.dev/en/guides/features/agentic-coding/skills) today. Point your coding agent at it and let it work through the feedback loop. If you run into issues or have feedback on the skill, we'd love to hear about it at [contact@tuist.dev](mailto:contact@tuist.dev) or in our [community forum](https://community.tuist.dev).

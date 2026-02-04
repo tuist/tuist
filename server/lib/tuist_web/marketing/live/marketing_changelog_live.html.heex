@@ -60,9 +60,24 @@
         <article data-part="entry" id={entry.id}>
           <header data-part="header">
             <.tag label={entry.category} data-part="category" />
-            <h2 data-part="title">
-              <a href={"##{entry.id}"}>{entry.title}</a>
-            </h2>
+            <div data-part="title-row">
+              <h2 data-part="title">
+                <a href={"##{entry.id}"}>{entry.title}</a>
+              </h2>
+              <div :if={not is_nil(entry.pull_request)} data-part="pr">
+                <.button
+                  variant="secondary"
+                  size="medium"
+                  label={"##{entry.pull_request}"}
+                  href={"https://github.com/tuist/tuist/pull/#{entry.pull_request}"}
+                  target="_blank"
+                >
+                  <:icon_left>
+                    <.git_merge />
+                  </:icon_left>
+                </.button>
+              </div>
+            </div>
           </header>
           <div data-part="body" data-prose>
             {raw(entry.body)}
