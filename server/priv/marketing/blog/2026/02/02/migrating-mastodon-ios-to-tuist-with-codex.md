@@ -50,7 +50,7 @@ The fix was adding `-ObjC` to `OTHER_LDFLAGS` in the shared project xcconfig, wh
 
 The whole point of migrating was to unlock caching. A modular generated project is nice, but what we really wanted was fast clean builds by default.
 
-When we ran `tuist cache` to warm the binaries, a few dependency issues surfaced. `UITextView+Placeholder` produced an invalid product name because the `+` character wasn't being sanitized the way SwiftPM does it. This was completely invisible in the original Xcode project and only surfaced once Tuist took over package integration. It turned out to be a bug in Tuist's target name sanitization. We fixed it directly in the Tuist codebase as part of [the same PR](https://github.com/tuist/tuist/pull/9326) where we wrote this blog post. The migration improved the tool itself.
+When we ran `tuist cache` to warm the binaries, a few dependency issues surfaced. `UITextView+Placeholder` produced an invalid product name because the `+` character wasn't being sanitized the way SwiftPM does it. This was completely invisible in the original Xcode project and only surfaced once Tuist took over package integration. It turned out to be a bug in Tuist's target name sanitization. We fixed it directly in the Tuist codebase as part of [the same PR](https://github.com/tuist/tuist/pull/9326) where we wrote this blog post.
 
 With those fixes in place, `tuist cache` warmed the binaries and `tuist setup cache` enabled the [Xcode compilation cache](https://docs.tuist.dev/en/guides/features/cache).
 
