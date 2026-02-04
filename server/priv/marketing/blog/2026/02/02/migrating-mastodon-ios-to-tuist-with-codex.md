@@ -18,7 +18,7 @@ We decided to test this on the [Mastodon iOS client](https://github.com/mastodon
 
 We didn't hand Codex a step-by-step checklist. We gave it a set of outcomes: produce a Tuist-generated project that stays as close as possible to the original, integrate dependencies through Xcode project primitives so they can be cached as binaries, validate that the app actually launches on a simulator, and write a `skill.md` that captures the migration knowledge for future use.
 
-The work ran on February 2, 2026 using [Codex](https://openai.com/codex/) 5.2 with GPT-5 as the underlying model. A migration like this isn't just about compiling. It requires understanding feedback loops, holding state across errors, and making judgment calls when things break. This was a good test of whether the model could handle that without constant human supervision.
+We used [Codex](https://openai.com/codex/) 5.2 with GPT-5 as the underlying model. A migration like this isn't just about compiling. It requires understanding feedback loops, holding state across errors, and making judgment calls when things break. This was a good test of whether the model could handle that without constant human supervision.
 
 ## How it actually went
 
@@ -94,11 +94,9 @@ The most valuable output of this migration isn't the Mastodon workspace itself. 
 
 The agent wrote `skill.md` as a migration guide that starts where a real engineer would start: with a baseline build, a target inventory, and a realistic set of constraints. It focuses on what tends to go wrong, how to detect it, and how to keep the generated project aligned with the original. It intentionally avoids caching instructions so it stays focused on migration mechanics. The published version of that skill lives at [tuist.dev/skills/migrate/SKILL.md](https://tuist.dev/skills/migrate/SKILL.md), and the installation steps are documented in our [Skills guide](https://docs.tuist.dev/en/guides/features/agentic-coding/skills).
 
-The agent does the work, but the skill makes the work repeatable.
-
 ## What we took away from this
 
-This was a sequence of obstacles, because real migrations are. But stepping back, what stands out is that a coding agent took a production iOS app, migrated it to generated projects, resolved dependency bugs, validated the app at runtime, and helped us cut 80% off clean builds.
+If this reads like a long list of things that went wrong, that's because migrations are like that. But stepping back, a coding agent took a production iOS app, migrated it to generated projects, resolved dependency bugs, validated the app at runtime, and helped us cut 80% off clean builds.
 
 For complex projects, migrating could take days of careful manual work, which is why many teams never got around to it even when they knew the gains were there. Now a few hours of agent time can get you to a place where both your developers and your CI are being used more efficiently. Developers spend less time waiting on builds, and CI stops rebuilding things that haven't changed.
 
