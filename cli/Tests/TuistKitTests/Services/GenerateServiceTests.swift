@@ -5,6 +5,7 @@ import Testing
 import TuistCache
 import TuistCore
 import TuistGenerator
+import TuistOpener
 import TuistServer
 import TuistSupport
 import XcodeProj
