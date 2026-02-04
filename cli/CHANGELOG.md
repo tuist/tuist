@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.137.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* guard log file creation for Noora by [@pepicrft](https://github.com/pepicrft) in [#9324](https://github.com/tuist/tuist/pull/9324)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.137.0...4.137.1
+
 ## What's Changed in 4.137.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
