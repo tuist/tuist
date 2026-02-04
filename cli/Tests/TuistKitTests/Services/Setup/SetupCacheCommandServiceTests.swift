@@ -7,6 +7,7 @@ import Testing
 import TuistConstants
 import TuistCore
 import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistLaunchctl
 import TuistLoader
 import TuistServer

@@ -3,6 +3,7 @@ import Path
 import Testing
 import TuistAcceptanceTesting
 import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistLogging
 import TuistSupport
 import TuistTesting

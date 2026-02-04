@@ -4,6 +4,7 @@ import Testing
 import TuistCAS
 import TuistCore
 import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistHTTP
 import TuistServer
 import TuistSupport

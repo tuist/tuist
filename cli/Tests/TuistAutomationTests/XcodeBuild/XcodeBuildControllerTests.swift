@@ -7,6 +7,7 @@ import Testing
 import TSCBasic
 import TuistCore
 import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistSupport
 
 @testable import TuistAutomation

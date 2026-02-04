@@ -3,6 +3,7 @@ import Mockable
 import Testing
 import TuistConstants
 import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistSupport
 import TuistTesting
 

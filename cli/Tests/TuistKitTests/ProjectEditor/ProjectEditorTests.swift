@@ -4,6 +4,7 @@ import Path
 import TuistConstants
 import TuistCore
 import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistGenerator
 import TuistLoader
 import TuistPlugin

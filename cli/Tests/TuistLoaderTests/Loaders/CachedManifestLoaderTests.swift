@@ -9,6 +9,7 @@ import Testing
 import TuistCore
 import struct TuistCore.Plugins
 import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistSupport
 import TuistTesting
 

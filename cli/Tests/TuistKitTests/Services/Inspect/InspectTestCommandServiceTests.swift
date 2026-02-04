@@ -5,6 +5,7 @@ import Path
 import Testing
 import TuistCore
 import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistLoader
 import TuistProcess
 import TuistServer

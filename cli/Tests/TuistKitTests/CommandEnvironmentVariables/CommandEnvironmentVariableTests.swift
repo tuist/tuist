@@ -4,6 +4,7 @@ import Foundation
 import Testing
 import TSCUtility
 import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistEnvKey
 import TuistVersionCommand
 @testable import TuistAuthCommand

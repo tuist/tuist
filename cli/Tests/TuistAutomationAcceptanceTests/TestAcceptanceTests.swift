@@ -4,6 +4,7 @@ import Foundation
 import Path
 import Testing
 import TuistAcceptanceTesting
+import TuistEnvironmentTesting
 import TuistSupport
 import TuistTesting
 import XCTest

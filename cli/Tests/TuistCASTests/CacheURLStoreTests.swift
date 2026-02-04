@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import Testing
 import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistServer
 
 @testable import TuistCAS

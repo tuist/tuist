@@ -5,6 +5,7 @@ import Testing
 import TuistConstants
 import TuistCore
 import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistSupport
 import TuistTesting
 import XcodeGraph
