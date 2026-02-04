@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-03 09:33+0000\n"
+"PO-Revision-Date: 2026-02-04 13:21+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Arabic <https://translate.tuist.dev/projects/tuist/"
 "dashboard_builds/ar/>\n"
@@ -1016,21 +1016,26 @@ msgstr "منذ أمس"
 msgid "Cache Endpoint"
 msgstr "نقطة نهاية ذاكرة التخزين المؤقت"
 
+#, fuzzy
 msgid "All"
-msgstr ""
+msgstr "الكل"
 
+#, fuzzy
 msgid "Custom metadata"
-msgstr ""
+msgstr "البيانات الوصفية المخصصة"
 
 #, fuzzy
 msgid "Generations"
 msgstr "الأجيال"
 
+#, fuzzy
 msgid "Tag:"
-msgstr ""
+msgstr "العلامة:"
 
+#, fuzzy
 msgid "Tags"
-msgstr ""
+msgstr "العلامات"
 
+#, fuzzy
 msgid "Value"
-msgstr ""
+msgstr "القيمة"
