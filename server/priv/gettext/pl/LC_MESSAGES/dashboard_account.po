@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-22 13:04+0000\n"
+"PO-Revision-Date: 2026-02-05 07:22+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Polish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_account/pl/>\n"
@@ -761,44 +761,67 @@ msgstr "opłata naliczona w dniu %{next_charge_date}"
 msgid "xxxx xxxx xxxx %{card_number}"
 msgstr "xxxx xxxx xxxx %{card_number}"
 
+#, fuzzy
 msgid "Add"
-msgstr ""
+msgstr "Dodaj"
 
+#, fuzzy
 msgid "Add cache endpoint"
-msgstr ""
+msgstr "Dodaj punkt końcowy pamięci podręcznej"
 
+#, fuzzy
 msgid "Add endpoint"
-msgstr ""
+msgstr "Dodaj punkt końcowy"
 
+#, fuzzy
 msgid "Endpoint URL"
-msgstr ""
+msgstr "Adres URL punktu końcowego"
 
+#, fuzzy
 msgid "URL"
-msgstr ""
+msgstr "URL"
 
+#, fuzzy
 msgid "Delete last cache endpoint?"
-msgstr ""
+msgstr "Usunąć ostatni punkt końcowy pamięci podręcznej?"
 
+#, fuzzy
 msgid ""
 "Removing the last custom cache endpoint will switch your organization back "
 "to Tuist-hosted caching. This affects all builds across your organization."
 msgstr ""
+"Usunięcie ostatniego niestandardowego punktu końcowego pamięci podręcznej "
+"spowoduje przywrócenie organizacji do buforowania hostowanego przez Tuist. "
+"Ma to wpływ na wszystkie kompilacje w całej organizacji."
 
+#, fuzzy
 msgid "Cache endpoints"
-msgstr ""
+msgstr "Punkty końcowe pamięci podręcznej"
 
+#, fuzzy
 msgid ""
 "Configure custom cache endpoints for self-hosted cache setups. When enabled, "
 "Tuist will read from and write to these endpoints instead of the default "
 "Tuist-hosted cache."
 msgstr ""
+"Skonfiguruj niestandardowe punkty końcowe pamięci podręcznej dla "
+"samodzielnie hostowanych konfiguracji pamięci podręcznej. Po włączeniu tej "
+"opcji Tuist będzie odczytywać i zapisywać dane w tych punktach końcowych "
+"zamiast w domyślnej pamięci podręcznej hostowanej przez Tuist."
 
+#, fuzzy
 msgid ""
 "Custom cache endpoints are disabled. Tuist will use the default Tuist-hosted "
 "cache."
 msgstr ""
+"Niestandardowe punkty końcowe pamięci podręcznej są wyłączone. Tuist będzie "
+"korzystać z domyślnej pamięci podręcznej hostowanej przez Tuist."
 
+#, fuzzy
 msgid ""
 "No custom cache endpoints configured. Tuist will use the default Tuist-"
 "hosted cache until endpoints are added."
 msgstr ""
+"Nie skonfigurowano żadnych niestandardowych punktów końcowych pamięci "
+"podręcznej. Tuist będzie korzystać z domyślnej pamięci podręcznej hostowanej "
+"przez Tuist do momentu dodania punktów końcowych."
