@@ -1,9 +1,9 @@
 import FileSystem
 import Foundation
-#if os(macOS)
-    import Combine
+#if !os(Linux)
     import KeychainAccess
-    import TuistEnvironment
+#endif
+#if canImport(TuistSupport)
     import TuistSupport
 #endif
 import Mockable
@@ -76,15 +76,19 @@ enum ServerCredentialsStoreError: LocalizedError {
 }
 
 public enum ServerCredentialsStoreBackend: Sendable {
-    case fileSystem
-    #if os(macOS)
-        case keychain
+    #if os(macOS) || os(Linux) || os(Windows)
+        case fileSystem
     #endif
+    case keychain
 }
 
-#if os(macOS)
+#if !os(Linux)
     public final class ServerCredentialsStore: ServerCredentialsStoring, ObservableObject {
-        @TaskLocal public static var current: ServerCredentialsStoring = ServerCredentialsStore(backend: .fileSystem)
+        #if os(macOS)
+            @TaskLocal public static var current: ServerCredentialsStoring = ServerCredentialsStore(backend: .fileSystem)
+        #else
+            @TaskLocal public static var current: ServerCredentialsStoring = ServerCredentialsStore(backend: .keychain)
+        #endif
 
         private let backend: ServerCredentialsStoreBackend
         private let fileSystem: FileSysteming
@@ -118,13 +122,15 @@ public enum ServerCredentialsStoreBackend: Sendable {
                 try keychain(serverURL: serverURL)
                     .comment("Refresh token against \(serverURL.absoluteString)")
                     .set(credentials.accessToken, key: serverURL.absoluteString + "_access_token")
-            case .fileSystem:
-                let path = try credentialsFilePath(serverURL: serverURL)
-                let data = try JSONEncoder().encode(credentials)
-                if try await !fileSystem.exists(path.parentDirectory) {
-                    try await fileSystem.makeDirectory(at: path.parentDirectory)
-                }
-                try data.write(to: URL(fileURLWithPath: path.pathString), options: .atomic)
+            #if os(macOS)
+                case .fileSystem:
+                    let path = try credentialsFilePath(serverURL: serverURL)
+                    let data = try JSONEncoder().encode(credentials)
+                    if try await !fileSystem.exists(path.parentDirectory) {
+                        try await fileSystem.makeDirectory(at: path.parentDirectory)
+                    }
+                    try data.write(to: URL(fileURLWithPath: path.pathString), options: .atomic)
+            #endif
             }
 
             credentialsChangedContinuation.continuation.yield(credentials)
@@ -139,15 +145,17 @@ public enum ServerCredentialsStoreBackend: Sendable {
                     accessToken: accessToken,
                     refreshToken: refreshToken
                 )
-            case .fileSystem:
-                let path = try credentialsFilePath(serverURL: serverURL)
-                guard try await fileSystem.exists(path) else { return nil }
-                let data = try await fileSystem.readFile(at: path)
+            #if os(macOS)
+                case .fileSystem:
+                    let path = try credentialsFilePath(serverURL: serverURL)
+                    guard try await fileSystem.exists(path) else { return nil }
+                    let data = try await fileSystem.readFile(at: path)
 
-                // This might fail if we've migrated the schema, which is very unlikely, or if someone modifies the content in it
-                // and the new schema doesn't align with the one that we expect. We could add logic to handle those gracefully,
-                // but since the user can recover from it by signing in again, I think it's ok not to add more complexity here.
-                return try? JSONDecoder().decode(ServerCredentials.self, from: data)
+                    // This might fail if we've migrated the schema, which is very unlikely, or if someone modifies the content in it
+                    // and the new schema doesn't align with the one that we expect. We could add logic to handle those gracefully,
+                    // but since the user can recover from it by signing in again, I think it's ok not to add more complexity here.
+                    return try? JSONDecoder().decode(ServerCredentials.self, from: data)
+            #endif
             }
         }
 
@@ -166,30 +174,34 @@ public enum ServerCredentialsStoreBackend: Sendable {
                 let keychain = keychain(serverURL: serverURL)
                 try keychain.remove(serverURL.absoluteString + "_refresh_token")
                 try keychain.remove(serverURL.absoluteString + "_access_token")
-            case .fileSystem:
-                let path = try credentialsFilePath(serverURL: serverURL)
-                if try await fileSystem.exists(path) {
-                    try await fileSystem.remove(path)
-                }
+            #if os(macOS)
+                case .fileSystem:
+                    let path = try credentialsFilePath(serverURL: serverURL)
+                    if try await fileSystem.exists(path) {
+                        try await fileSystem.remove(path)
+                    }
+            #endif
             }
 
             credentialsChangedContinuation.continuation.yield(nil)
         }
 
-        fileprivate func credentialsFilePath(serverURL: URL) throws -> AbsolutePath {
-            guard let components = URLComponents(url: serverURL, resolvingAgainstBaseURL: false),
-                  let host = components.host
-            else {
-                throw ServerCredentialsStoreError.invalidServerURL(serverURL.absoluteString)
+        #if os(macOS)
+            fileprivate func credentialsFilePath(serverURL: URL) throws -> AbsolutePath {
+                guard let components = URLComponents(url: serverURL, resolvingAgainstBaseURL: false),
+                      let host = components.host
+                else {
+                    throw ServerCredentialsStoreError.invalidServerURL(serverURL.absoluteString)
+                }
+                let directory = if let configDirectory {
+                    configDirectory
+                } else {
+                    Environment.current.configDirectory
+                }
+                // swiftlint:disable:next force_try
+                return directory.appending(try! RelativePath(validating: "credentials/\(host).json"))
             }
-            let directory = if let configDirectory {
-                configDirectory
-            } else {
-                Environment.current.configDirectory
-            }
-            // swiftlint:disable:next force_try
-            return directory.appending(try! RelativePath(validating: "credentials/\(host).json"))
-        }
+        #endif
 
         fileprivate func keychain(serverURL: URL) -> Keychain {
             Keychain(server: serverURL, protocolType: .https, authenticationType: .default)
@@ -224,12 +236,7 @@ public enum ServerCredentialsStoreBackend: Sendable {
         }
 
         private static func defaultConfigDirectory() -> AbsolutePath {
-            let homeDirectory: String
-            #if os(Linux)
-                homeDirectory = ProcessInfo.processInfo.environment["HOME"] ?? "/tmp"
-            #else
-                homeDirectory = NSHomeDirectory()
-            #endif
+            let homeDirectory = ProcessInfo.processInfo.environment["HOME"] ?? "/tmp"
             // swiftlint:disable:next force_try
             return try! AbsolutePath(validating: homeDirectory).appending(component: ".config").appending(component: "tuist")
         }
