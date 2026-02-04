@@ -405,6 +405,7 @@ public struct Environment: Environmenting {
 
             return homeDirectory.appending(try RelativePath(validating: "Library/Developer/Xcode/DerivedData/"))
         }
+
     #elseif os(Linux)
         public func architecture() async throws -> MacArchitecture {
             let process = Process()
