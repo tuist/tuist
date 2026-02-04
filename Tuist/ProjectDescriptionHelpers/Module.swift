@@ -423,7 +423,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .logging:
                 [
-                    .target(name: Module.constants.targetName, condition: .when([.macos])),
+                    .target(name: Module.constants.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.alert.targetName, condition: .when([.macos])),
                     .external(name: "Logging"),
@@ -1288,7 +1288,7 @@ public enum Module: String, CaseIterable {
 
     private var destinations: Destinations {
         switch self {
-        case .simulator, .server, .http, .threadSafe, .uniqueIDGenerator, .opener, .logging, .environment, .cas:
+        case .simulator, .server, .http, .threadSafe, .uniqueIDGenerator, .opener, .logging, .environment, .cas, .constants:
             [.mac, .iPhone, .iPad]
         default:
             [.mac]
@@ -1297,7 +1297,7 @@ public enum Module: String, CaseIterable {
 
     private var deploymentTargets: DeploymentTargets {
         switch self {
-        case .simulator, .server, .http, .threadSafe, .uniqueIDGenerator, .opener, .logging, .environment, .cas: .multiplatform(iOS: "18.0", macOS: "15.0")
+        case .simulator, .server, .http, .threadSafe, .uniqueIDGenerator, .opener, .logging, .environment, .cas, .constants: .multiplatform(iOS: "18.0", macOS: "15.0")
         default: .macOS("15.0")
         }
     }

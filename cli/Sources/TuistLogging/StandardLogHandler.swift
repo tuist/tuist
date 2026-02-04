@@ -2,7 +2,7 @@ import Foundation
 import Logging
 import TuistEnvironment
 
-#if os(macOS)
+#if canImport(TuistAlert)
     import TuistAlert
 #endif
 
@@ -47,7 +47,7 @@ public struct StandardLogHandler: LogHandler {
                 case .error:
                     string = message.description.red()
                 case .warning:
-                    #if os(macOS)
+                    #if canImport(TuistAlert)
                         AlertController.current.warning(.alert("\(message.description)"))
                         return
                     #else
