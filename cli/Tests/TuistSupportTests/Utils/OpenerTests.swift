@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TuistOpener
 import XCTest
 
 @testable import TuistSupport

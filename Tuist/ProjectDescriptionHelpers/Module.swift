@@ -987,6 +987,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.environment.targetName),
+                    .target(name: Module.opener.targetName),
                     .external(name: "XcodeGraph"),
                     .external(name: "SwiftToolsSupport"),
                     .external(name: "FileSystem"),
