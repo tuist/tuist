@@ -42,7 +42,7 @@ public enum Module: String, CaseIterable {
     case authCommand = "TuistAuthCommand"
     case envKey = "TuistEnvKey"
     case versionCommand = "TuistVersionCommand"
-    case noora = "TuistNoora"
+    case nooraExtension = "TuistNooraExtension"
     case tuistExtension = "TuistExtension"
     case alert = "TuistAlert"
     case threadSafe = "TuistThreadSafe"
@@ -387,7 +387,7 @@ public enum Module: String, CaseIterable {
             moduleTags.append("domain:infrastructure")
         case .cacheCommand, .authCommand, .envKey, .versionCommand:
             moduleTags.append("domain:cli")
-        case .noora, .alert, .threadSafe, .encodable, .uniqueIDGenerator, .opener:
+        case .nooraExtension, .alert, .threadSafe, .encodable, .uniqueIDGenerator, .opener:
             moduleTags.append("domain:foundation")
         case .tuistExtension:
             moduleTags.append("domain:generation")
@@ -396,7 +396,7 @@ public enum Module: String, CaseIterable {
         // Layer tags
         switch self {
         case .projectDescription, .projectAutomation, .support, .core,
-             .constants, .environment, .logging, .noora, .alert, .threadSafe, .encodable,
+             .constants, .environment, .logging, .nooraExtension, .alert, .threadSafe, .encodable,
              .uniqueIDGenerator, .opener:
             moduleTags.append("layer:foundation")
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator:
@@ -484,7 +484,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.tuistExtension.targetName),
                     .target(name: Module.http.targetName),
                     .target(name: Module.logging.targetName),
-                    .target(name: Module.noora.targetName),
+                    .target(name: Module.nooraExtension.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.versionCommand.targetName),
                     .external(name: "GraphViz"),
@@ -517,7 +517,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.constants.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
-                    .target(name: Module.noora.targetName),
+                    .target(name: Module.nooraExtension.targetName),
                     .target(name: Module.projectDescription.targetName),
                     .target(name: Module.threadSafe.targetName),
                     .target(name: Module.userInputReader.targetName),
@@ -904,13 +904,13 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.logging.targetName),
                     .external(name: "ArgumentParser"),
                 ]
-            case .noora:
+            case .nooraExtension:
                 [
                     .external(name: "Noora"),
                 ]
             case .alert:
                 [
-                    .target(name: Module.noora.targetName),
+                    .target(name: Module.nooraExtension.targetName),
                     .target(name: Module.threadSafe.targetName),
                     .external(name: "Noora"),
                     .external(name: "OrderedSet"),
@@ -958,7 +958,7 @@ public enum Module: String, CaseIterable {
             switch self {
             case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .process,
                  .constants, .environment, .logging,
-                 .cacheCommand, .envKey, .versionCommand, .noora, .tuistExtension, .alert, .threadSafe, .encodable,
+                 .cacheCommand, .envKey, .versionCommand, .nooraExtension, .tuistExtension, .alert, .threadSafe, .encodable,
                  .uniqueIDGenerator, .opener:
                 []
             case .userInputReader:
@@ -1288,7 +1288,7 @@ public enum Module: String, CaseIterable {
 
     private var destinations: Destinations {
         switch self {
-        case .simulator, .server, .http, .threadSafe, .uniqueIDGenerator, .opener, .logging, .environment, .alert, .noora, .cas:
+        case .simulator, .server, .http, .threadSafe, .uniqueIDGenerator, .opener, .logging, .environment, .alert, .nooraExtension, .cas:
             [.mac, .iPhone, .iPad]
         default:
             [.mac]
@@ -1297,7 +1297,7 @@ public enum Module: String, CaseIterable {
 
     private var deploymentTargets: DeploymentTargets {
         switch self {
-        case .simulator, .server, .http, .threadSafe, .uniqueIDGenerator, .opener, .logging, .environment, .alert, .noora, .cas: .multiplatform(iOS: "18.0", macOS: "15.0")
+        case .simulator, .server, .http, .threadSafe, .uniqueIDGenerator, .opener, .logging, .environment, .alert, .nooraExtension, .cas: .multiplatform(iOS: "18.0", macOS: "15.0")
         default: .macOS("15.0")
         }
     }

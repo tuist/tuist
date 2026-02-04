@@ -1,7 +1,7 @@
 import Foundation
 import Noora
 import OrderedSet
-import TuistNoora
+import TuistNooraExtension
 import TuistThreadSafe
 
 enum Alert: Equatable, Hashable {

@@ -5,7 +5,7 @@ import Path
 import TuistConstants
 import TuistEnvironment
 import TuistLogging
-import TuistNoora
+import TuistNooraExtension
 import TuistServer
 
 #if os(macOS)
