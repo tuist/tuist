@@ -262,7 +262,8 @@ public enum Module: String, CaseIterable {
              .acceptanceTesting, .simulator, .testing, .process,
              .constants, .environment, .logging,
              .cacheCommand, .envKey, .versionCommand, .encodable,
-             .uniqueIDGenerator, .opener:
+             .uniqueIDGenerator, .opener, .nooraExtension, .alert, .threadSafe,
+             .tuistExtension:
             return nil
         default:
             return "\(rawValue)Tests"
