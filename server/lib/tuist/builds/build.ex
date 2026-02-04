@@ -1,10 +1,10 @@
 defmodule Tuist.Builds.Build do
   @moduledoc """
   A build represents a single build run of a project, such as when building an app from Xcode.
+  This is a ClickHouse entity that stores build run data.
   """
   use Ecto.Schema
-
-  import Ecto.Changeset
+  use Tuist.Ingestion.Bufferable
 
   @derive {
     Flop.Schema,
@@ -26,137 +26,150 @@ defmodule Tuist.Builds.Build do
     sortable: [:inserted_at, :duration]
   }
 
-  @primary_key {:id, UUIDv7, autogenerate: false}
+  @primary_key {:id, Ch, type: "UUID", autogenerate: false}
   schema "build_runs" do
-    field :duration, :integer
-    field :macos_version, :string
-    field :xcode_version, :string
-    field :is_ci, :boolean
-    field :model_identifier, :string
-    field :scheme, :string
-    field :status, Ecto.Enum, values: [success: 0, failure: 1]
-    field :category, Ecto.Enum, values: [clean: 0, incremental: 1]
-    field :configuration, :string
-    field :git_branch, :string
-    field :git_commit_sha, :string
-    field :git_ref, :string
-    field :ci_run_id, :string
-    field :ci_project_handle, :string
-    field :ci_host, :string
-    field :ci_provider, Ecto.Enum, values: [github: 0, gitlab: 1, bitrise: 2, circleci: 3, buildkite: 4, codemagic: 5]
-    field :cacheable_task_remote_hits_count, :integer, default: 0
-    field :cacheable_task_local_hits_count, :integer, default: 0
-    field :cacheable_tasks_count, :integer, default: 0
-    belongs_to :project, Tuist.Projects.Project
-    belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id
+    field :duration, Ch, type: "Int32"
+    field :project_id, Ch, type: "Int64"
+    field :account_id, Ch, type: "Int64"
+    field :macos_version, Ch, type: "Nullable(String)"
+    field :xcode_version, Ch, type: "Nullable(String)"
+    field :is_ci, :boolean, default: false
+    field :model_identifier, Ch, type: "Nullable(String)"
+    field :scheme, Ch, type: "Nullable(String)"
+    field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1)"
+    field :category, Ch, type: "Nullable(Enum8('clean' = 0, 'incremental' = 1))"
+    field :configuration, Ch, type: "Nullable(String)"
+    field :git_branch, Ch, type: "Nullable(String)"
+    field :git_commit_sha, Ch, type: "Nullable(String)"
+    field :git_ref, Ch, type: "Nullable(String)"
+    field :ci_run_id, Ch, type: "Nullable(String)"
+    field :ci_project_handle, Ch, type: "Nullable(String)"
+    field :ci_host, Ch, type: "Nullable(String)"
+    field :ci_provider, Ch, type: "Nullable(Enum8('github' = 0, 'gitlab' = 1, 'bitrise' = 2, 'circleci' = 3, 'buildkite' = 4, 'codemagic' = 5))"
+    field :cacheable_task_remote_hits_count, Ch, type: "Int32", default: 0
+    field :cacheable_task_local_hits_count, Ch, type: "Int32", default: 0
+    field :cacheable_tasks_count, Ch, type: "Int32", default: 0
+    field :custom_tags, {:array, :string}, default: []
+    field :custom_values, Ch, type: "Map(String, String)", default: %{}
+    field :inserted_at, Ch, type: "DateTime64(6)"
+
+    belongs_to :project, Tuist.Projects.Project, define_field: false
+    belongs_to :ran_by_account, Tuist.Accounts.Account, foreign_key: :account_id, define_field: false
     has_many :issues, Tuist.Builds.BuildIssue, foreign_key: :build_run_id
     has_many :files, Tuist.Builds.BuildFile, foreign_key: :build_run_id
     has_many :targets, Tuist.Builds.BuildTarget, foreign_key: :build_run_id
-    field :custom_tags, {:array, :string}, default: []
-    field :custom_values, :map, default: %{}
-
-    timestamps(type: :utc_datetime, updated_at: false)
   end
 
-  def create_changeset(build, attrs) do
-    build
-    |> cast(attrs, [
-      :id,
-      :duration,
-      :macos_version,
-      :xcode_version,
-      :is_ci,
-      :model_identifier,
-      :scheme,
-      :project_id,
-      :account_id,
-      :inserted_at,
-      :status,
-      :category,
-      :configuration,
-      :git_branch,
-      :git_commit_sha,
-      :git_ref,
-      :ci_run_id,
-      :ci_project_handle,
-      :ci_host,
-      :ci_provider,
-      :cacheable_task_remote_hits_count,
-      :cacheable_task_local_hits_count,
-      :cacheable_tasks_count,
-      :custom_tags,
-      :custom_values
-    ])
-    |> validate_required([
-      :id,
-      :duration,
-      :is_ci,
-      :project_id,
-      :account_id,
-      :status
-    ])
-    |> validate_inclusion(:status, [:success, :failure])
-    |> validate_inclusion(:ci_provider, [:github, :gitlab, :bitrise, :circleci, :buildkite, :codemagic])
-    |> unique_constraint(:id, match: :suffix, name: "build_runs_pkey")
-    |> validate_custom_tags()
-    |> validate_custom_values()
+  def changeset(attrs) do
+    id = Map.get(attrs, :id) || UUIDv7.generate()
+    now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:microsecond)
+
+    attrs
+    |> Map.put(:id, id)
+    |> Map.put_new(:inserted_at, now)
+    |> normalize_status()
+    |> normalize_category()
+    |> normalize_ci_provider()
+    |> convert_datetime_field(:inserted_at)
+    |> ensure_defaults()
   end
 
-  defp validate_custom_tags(changeset) do
-    changeset
-    |> validate_length(:custom_tags, max: 50, message: "cannot have more than 50 tags")
-    |> validate_change(:custom_tags, fn :custom_tags, tags ->
-      Enum.flat_map(tags, fn tag ->
-        cond do
-          String.length(tag) > 50 ->
-            [{:custom_tags, "tag exceeds maximum length of 50 characters"}]
-
-          not Regex.match?(~r/^[a-zA-Z0-9_-]+$/, tag) ->
-            [{:custom_tags, "tag contains invalid characters (only alphanumeric, hyphens, and underscores allowed)"}]
-
-          true ->
-            []
-        end
-      end)
-    end)
+  defp normalize_status(attrs) do
+    case Map.get(attrs, :status) do
+      :success -> Map.put(attrs, :status, "success")
+      :failure -> Map.put(attrs, :status, "failure")
+      "success" -> attrs
+      "failure" -> attrs
+      0 -> Map.put(attrs, :status, "success")
+      1 -> Map.put(attrs, :status, "failure")
+      _ -> Map.put(attrs, :status, "success")
+    end
   end
 
-  defp validate_custom_values(changeset) do
-    validate_change(changeset, :custom_values, fn :custom_values, values ->
-      if map_size(values) > 20 do
-        [{:custom_values, "cannot have more than 20 key-value pairs"}]
-      else
-        errors =
-          Enum.flat_map(values, fn {key, value} ->
-            key_errors =
-              cond do
-                not is_binary(key) ->
-                  [{:custom_values, "keys must be strings"}]
-
-                String.length(key) > 50 ->
-                  [{:custom_values, "key '#{String.slice(key, 0, 20)}...' exceeds maximum length of 50 characters"}]
-
-                true ->
-                  []
-              end
-
-            value_errors =
-              cond do
-                not is_binary(value) ->
-                  [{:custom_values, "values must be strings"}]
-
-                String.length(value) > 500 ->
-                  [{:custom_values, "value for key '#{key}' exceeds maximum length of 500 characters"}]
-
-                true ->
-                  []
-              end
-
-            key_errors ++ value_errors
-          end)
-
-        errors
-      end
-    end)
+  defp normalize_category(attrs) do
+    case Map.get(attrs, :category) do
+      nil -> attrs
+      :clean -> Map.put(attrs, :category, "clean")
+      :incremental -> Map.put(attrs, :category, "incremental")
+      "clean" -> attrs
+      "incremental" -> attrs
+      0 -> Map.put(attrs, :category, "clean")
+      1 -> Map.put(attrs, :category, "incremental")
+      _ -> attrs
+    end
   end
+
+  defp normalize_ci_provider(attrs) do
+    case Map.get(attrs, :ci_provider) do
+      nil -> attrs
+      :github -> Map.put(attrs, :ci_provider, "github")
+      :gitlab -> Map.put(attrs, :ci_provider, "gitlab")
+      :bitrise -> Map.put(attrs, :ci_provider, "bitrise")
+      :circleci -> Map.put(attrs, :ci_provider, "circleci")
+      :buildkite -> Map.put(attrs, :ci_provider, "buildkite")
+      :codemagic -> Map.put(attrs, :ci_provider, "codemagic")
+      value when is_binary(value) -> attrs
+      0 -> Map.put(attrs, :ci_provider, "github")
+      1 -> Map.put(attrs, :ci_provider, "gitlab")
+      2 -> Map.put(attrs, :ci_provider, "bitrise")
+      3 -> Map.put(attrs, :ci_provider, "circleci")
+      4 -> Map.put(attrs, :ci_provider, "buildkite")
+      5 -> Map.put(attrs, :ci_provider, "codemagic")
+      _ -> attrs
+    end
+  end
+
+  defp convert_datetime_field(attrs, field) do
+    case Map.get(attrs, field) do
+      %DateTime{} = dt ->
+        Map.put(attrs, field, DateTime.to_naive(dt) |> ensure_microsecond_precision())
+
+      %NaiveDateTime{} = ndt ->
+        Map.put(attrs, field, ensure_microsecond_precision(ndt))
+
+      _ ->
+        attrs
+    end
+  end
+
+  defp ensure_microsecond_precision(%NaiveDateTime{} = ndt) do
+    %{ndt | microsecond: {elem(ndt.microsecond, 0), 6}}
+  end
+
+  defp ensure_defaults(attrs) do
+    attrs
+    |> Map.put_new(:is_ci, false)
+    |> Map.put_new(:cacheable_task_remote_hits_count, 0)
+    |> Map.put_new(:cacheable_task_local_hits_count, 0)
+    |> Map.put_new(:cacheable_tasks_count, 0)
+    |> Map.put_new(:custom_tags, [])
+    |> Map.put_new(:custom_values, %{})
+  end
+
+  def normalize_enums(build) do
+    %{
+      build
+      | status: status_string_to_atom(build.status),
+        category: category_string_to_atom(build.category),
+        ci_provider: ci_provider_string_to_atom(build.ci_provider)
+    }
+  end
+
+  defp status_string_to_atom("success"), do: :success
+  defp status_string_to_atom("failure"), do: :failure
+  defp status_string_to_atom(_), do: :success
+
+  defp category_string_to_atom(nil), do: nil
+  defp category_string_to_atom("clean"), do: :clean
+  defp category_string_to_atom("incremental"), do: :incremental
+  defp category_string_to_atom(_), do: nil
+
+  defp ci_provider_string_to_atom(nil), do: nil
+  defp ci_provider_string_to_atom("github"), do: :github
+  defp ci_provider_string_to_atom("gitlab"), do: :gitlab
+  defp ci_provider_string_to_atom("bitrise"), do: :bitrise
+  defp ci_provider_string_to_atom("circleci"), do: :circleci
+  defp ci_provider_string_to_atom("buildkite"), do: :buildkite
+  defp ci_provider_string_to_atom("codemagic"), do: :codemagic
+  defp ci_provider_string_to_atom(_), do: nil
 end

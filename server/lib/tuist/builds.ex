@@ -5,12 +5,14 @@ defmodule Tuist.Builds do
 
   import Ecto.Query
 
+  alias Tuist.Accounts.Account
   alias Tuist.Builds.Build
   alias Tuist.Builds.BuildFile
   alias Tuist.Builds.BuildIssue
   alias Tuist.Builds.BuildTarget
   alias Tuist.Builds.CacheableTask
   alias Tuist.Builds.CASOutput
+  alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
@@ -19,7 +21,39 @@ defmodule Tuist.Builds do
   def valid_ci_providers, do: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
 
   def get_build(id) do
-    Repo.one(from(b in Build, where: b.id == ^id, order_by: [desc: b.inserted_at], limit: 1))
+    query = from(b in Build, where: b.id == ^id, order_by: [desc: b.inserted_at], limit: 1)
+
+    case ClickHouseRepo.one(query) do
+      nil -> nil
+      build -> Build.normalize_enums(build)
+    end
+  end
+
+  def preload_postgres_associations(build, associations) do
+    associations
+    |> List.wrap()
+    |> Enum.reduce(build, fn
+      :project, acc ->
+        project = Repo.get(Project, acc.project_id)
+        %{acc | project: project}
+
+      :ran_by_account, acc ->
+        account =
+          if acc.account_id do
+            Repo.get(Account, acc.account_id)
+          else
+            nil
+          end
+
+        %{acc | ran_by_account: account}
+
+      {:project, nested_preloads}, acc ->
+        project = Repo.get(Project, acc.project_id) |> Repo.preload(nested_preloads)
+        %{acc | project: project}
+
+      _, acc ->
+        acc
+    end)
   end
 
   def create_build(attrs) do
@@ -38,33 +72,35 @@ defmodule Tuist.Builds do
 
     attrs = Map.merge(attrs, cacheable_task_counts)
 
-    case %Build{}
-         |> Build.create_changeset(attrs)
-         |> Repo.insert() do
+    build_data = Build.changeset(attrs)
+
+    case Build.Buffer.insert(build_data) do
       {:ok, build} ->
         Task.await_many(
           [
-            Task.async(fn -> create_build_issues(build, attrs.issues) end),
-            Task.async(fn -> create_build_files(build, attrs.files) end),
-            Task.async(fn -> create_build_targets(build, attrs.targets) end),
+            Task.async(fn -> create_build_issues(build, Map.get(attrs, :issues, [])) end),
+            Task.async(fn -> create_build_files(build, Map.get(attrs, :files, [])) end),
+            Task.async(fn -> create_build_targets(build, Map.get(attrs, :targets, [])) end),
             Task.async(fn -> create_cacheable_tasks(build, cacheable_tasks) end),
             Task.async(fn -> create_cas_outputs(build, cas_outputs) end)
           ],
           30_000
         )
 
-        build = Repo.preload(build, project: :account)
+        project = Repo.get(Project, build.project_id) |> Repo.preload(:account)
 
-        Tuist.PubSub.broadcast(
-          build,
-          "#{build.project.account.name}/#{build.project.name}",
-          :build_created
-        )
+        if project do
+          Tuist.PubSub.broadcast(
+            build,
+            "#{project.account.name}/#{project.name}",
+            :build_created
+          )
+        end
 
         {:ok, build}
 
-      {:error, changeset} ->
-        {:error, changeset}
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -190,19 +226,19 @@ defmodule Tuist.Builds do
   end
 
   def list_build_files(attrs) do
-    Tuist.ClickHouseFlop.validate_and_run!(BuildFile, attrs, for: BuildFile)
+    ClickHouseFlop.validate_and_run!(BuildFile, attrs, for: BuildFile)
   end
 
   def list_build_targets(attrs) do
-    Tuist.ClickHouseFlop.validate_and_run!(BuildTarget, attrs, for: BuildTarget)
+    ClickHouseFlop.validate_and_run!(BuildTarget, attrs, for: BuildTarget)
   end
 
   def list_cacheable_tasks(attrs) do
-    Tuist.ClickHouseFlop.validate_and_run!(CacheableTask, attrs, for: CacheableTask)
+    ClickHouseFlop.validate_and_run!(CacheableTask, attrs, for: CacheableTask)
   end
 
   def list_cas_outputs(attrs) do
-    Tuist.ClickHouseFlop.validate_and_run!(CASOutput, attrs, for: CASOutput)
+    ClickHouseFlop.validate_and_run!(CASOutput, attrs, for: CASOutput)
   end
 
   def get_cas_outputs_by_node_ids(build_run_id, node_ids, opts \\ []) when is_list(node_ids) do
@@ -309,60 +345,133 @@ defmodule Tuist.Builds do
     preload = Keyword.get(opts, :preload, [])
     custom_values = Keyword.get(opts, :custom_values)
 
-    Build
-    |> apply_custom_values_filter(custom_values)
-    |> preload(^preload)
-    |> Flop.validate_and_run!(attrs, for: Build)
+    base_query =
+      Build
+      |> apply_custom_values_filter(custom_values)
+
+    {results, meta} = ClickHouseFlop.validate_and_run!(base_query, attrs, for: Build)
+
+    results =
+      results
+      |> Enum.map(&Build.normalize_enums/1)
+      |> maybe_preload_accounts(preload)
+
+    {results, meta}
+  end
+
+  defp maybe_preload_accounts(builds, preload) when is_list(preload) do
+    if :ran_by_account in preload or preload == [:ran_by_account] do
+      preload_ran_by_accounts(builds)
+    else
+      builds
+    end
+  end
+
+  defp maybe_preload_accounts(builds, :ran_by_account) do
+    preload_ran_by_accounts(builds)
+  end
+
+  defp maybe_preload_accounts(builds, _), do: builds
+
+  defp preload_ran_by_accounts(builds) do
+    account_ids =
+      builds
+      |> Enum.map(& &1.account_id)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    accounts_map =
+      if Enum.empty?(account_ids) do
+        %{}
+      else
+        Account
+        |> where([a], a.id in ^account_ids)
+        |> Repo.all()
+        |> Map.new(&{&1.id, &1})
+      end
+
+    Enum.map(builds, fn build ->
+      account = Map.get(accounts_map, build.account_id)
+      %{build | ran_by_account: account}
+    end)
   end
 
   def recent_build_status_counts(project_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 40)
-    order = Keyword.get(opts, :order, :desc)
+    order_direction = if Keyword.get(opts, :order, :desc) == :desc, do: "DESC", else: "ASC"
 
-    subquery =
-      from(b in Build)
-      |> where([b], b.project_id == ^project_id)
-      |> order_by([b], [{^order, b.inserted_at}])
-      |> limit(^limit)
-      |> select([b], b.status)
+    query = """
+    SELECT
+      countIf(status = 'success') as successful_count,
+      countIf(status = 'failure') as failed_count
+    FROM (
+      SELECT status
+      FROM build_runs
+      WHERE project_id = {project_id:Int64}
+      ORDER BY inserted_at #{order_direction}
+      LIMIT {limit:UInt32}
+    )
+    """
 
-    from(s in subquery(subquery))
-    |> select([s], %{
-      successful_count: count(fragment("CASE WHEN ? = 0 THEN 1 END", s.status)),
-      failed_count: count(fragment("CASE WHEN ? = 1 THEN 1 END", s.status))
-    })
-    |> Repo.one()
+    {:ok, %{rows: [[successful_count, failed_count]]}} =
+      ClickHouseRepo.query(query, %{project_id: project_id, limit: limit})
+
+    %{
+      successful_count: successful_count,
+      failed_count: failed_count
+    }
   end
 
   def project_build_schemes(%Project{} = project) do
-    from(b in Build)
-    |> where([b], b.project_id == ^project.id)
-    |> where([b], not is_nil(b.scheme))
-    |> where([b], b.inserted_at > ^DateTime.add(DateTime.utc_now(), -30, :day))
-    |> distinct([b], b.scheme)
-    |> select([b], b.scheme)
-    |> Repo.all()
+    thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
+
+    query = """
+    SELECT DISTINCT scheme
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND scheme IS NOT NULL
+      AND inserted_at > {since:DateTime64(6)}
+    """
+
+    {:ok, %{rows: rows}} =
+      ClickHouseRepo.query(query, %{project_id: project.id, since: thirty_days_ago})
+
+    Enum.map(rows, fn [scheme] -> scheme end)
   end
 
   def project_build_configurations(%Project{} = project) do
-    from(b in Build)
-    |> where([b], b.project_id == ^project.id)
-    |> where([b], not is_nil(b.configuration))
-    |> where([b], b.inserted_at > ^DateTime.add(DateTime.utc_now(), -30, :day))
-    |> distinct([b], b.configuration)
-    |> select([b], b.configuration)
-    |> Repo.all()
+    thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
+
+    query = """
+    SELECT DISTINCT configuration
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND configuration IS NOT NULL
+      AND inserted_at > {since:DateTime64(6)}
+    """
+
+    {:ok, %{rows: rows}} =
+      ClickHouseRepo.query(query, %{project_id: project.id, since: thirty_days_ago})
+
+    Enum.map(rows, fn [configuration] -> configuration end)
   end
 
   def project_build_tags(%Project{} = project) do
-    from(b in Build)
-    |> where([b], b.project_id == ^project.id)
-    |> where([b], b.inserted_at > ^DateTime.add(DateTime.utc_now(), -30, :day))
-    |> where([b], fragment("cardinality(?) > 0", b.custom_tags))
-    |> select([b], fragment("unnest(?)", b.custom_tags))
-    |> distinct(true)
-    |> Repo.all()
-    |> Enum.sort()
+    thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
+
+    query = """
+    SELECT DISTINCT arrayJoin(custom_tags) as tag
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND length(custom_tags) > 0
+      AND inserted_at > {since:DateTime64(6)}
+    ORDER BY tag
+    """
+
+    {:ok, %{rows: rows}} =
+      ClickHouseRepo.query(query, %{project_id: project.id, since: thirty_days_ago})
+
+    Enum.map(rows, fn [tag] -> tag end)
   end
 
   defp apply_custom_values_filter(query, nil), do: query
@@ -370,7 +479,7 @@ defmodule Tuist.Builds do
 
   defp apply_custom_values_filter(query, values_map) when is_map(values_map) do
     Enum.reduce(values_map, query, fn {key, value}, q ->
-      from(b in q, where: fragment("? ->> ? = ?", b.custom_values, ^key, ^value))
+      from(b in q, where: fragment("custom_values[?] = ?", ^key, ^value))
     end)
   end
 
