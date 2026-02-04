@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import Noora
 import Path
@@ -98,6 +99,8 @@ private func initEnv() async throws {
 
 func withLoggerForNoora(logFilePath: Path.AbsolutePath, _ action: () async throws -> Void) async throws {
     do {
+        let fileSystem = FileSystem()
+        try await fileSystem.touch(logFilePath)
         let loggerHandler = try Logger.loggerHandlerForNoora(logFilePath: logFilePath)
         try await Logger.$current.withValue(Logger(label: "dev.tuist.cli", factory: loggerHandler)) {
             try await action()
