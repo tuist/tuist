@@ -773,6 +773,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.support.targetName),
                     .target(name: Module.automation.targetName),
                     .target(name: Module.cache.targetName),
+                    .target(name: Module.cas.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.scaffold.targetName),
                     .target(name: Module.loader.targetName),

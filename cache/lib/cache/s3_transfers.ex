@@ -13,21 +13,21 @@ defmodule Cache.S3Transfers do
   alias Cache.S3TransfersBuffer
 
   @doc """
-  Enqueues a CAS artifact for upload to S3.
+  Enqueues an Xcode compilation cache (CAS) artifact for upload to S3.
 
   Entries are queued and flushed in batches to reduce SQLite contention.
   """
   def enqueue_cas_upload(account_handle, project_handle, key) do
-    enqueue(:upload, account_handle, project_handle, :cas, key)
+    enqueue(:upload, account_handle, project_handle, :xcode_cas, key)
   end
 
   @doc """
-  Enqueues a CAS artifact for download from S3 to local disk.
+  Enqueues an Xcode compilation cache (CAS) artifact for download from S3 to local disk.
 
   Entries are queued and flushed in batches to reduce SQLite contention.
   """
   def enqueue_cas_download(account_handle, project_handle, key) do
-    enqueue(:download, account_handle, project_handle, :cas, key)
+    enqueue(:download, account_handle, project_handle, :xcode_cas, key)
   end
 
   @doc """
@@ -36,7 +36,7 @@ defmodule Cache.S3Transfers do
   Entries are queued and flushed in batches to reduce SQLite contention.
   """
   def enqueue_module_upload(account_handle, project_handle, key) do
-    enqueue(:upload, account_handle, project_handle, :module, key)
+    enqueue(:upload, account_handle, project_handle, :xcode_module, key)
   end
 
   @doc """
@@ -45,7 +45,27 @@ defmodule Cache.S3Transfers do
   Entries are queued and flushed in batches to reduce SQLite contention.
   """
   def enqueue_module_download(account_handle, project_handle, key) do
-    enqueue(:download, account_handle, project_handle, :module, key)
+    enqueue(:download, account_handle, project_handle, :xcode_module, key)
+  end
+
+  @doc """
+  Enqueues a Gradle build cache artifact for upload to S3.
+
+  Uses INSERT with ON CONFLICT DO NOTHING to avoid duplicate entries.
+  This is a single atomic statement, avoiding SQLite contention under bursty load.
+  """
+  def enqueue_gradle_upload(account_handle, project_handle, key) do
+    enqueue(:upload, account_handle, project_handle, :gradle, key)
+  end
+
+  @doc """
+  Enqueues a Gradle build cache artifact for download from S3 to local disk.
+
+  Uses INSERT with ON CONFLICT DO NOTHING to avoid duplicate entries.
+  This is a single atomic statement, avoiding SQLite contention under bursty load.
+  """
+  def enqueue_gradle_download(account_handle, project_handle, key) do
+    enqueue(:download, account_handle, project_handle, :gradle, key)
   end
 
   @doc """

@@ -21,7 +21,7 @@ config :cache, :oban_web_basic_auth, username: "admin", password: "admin"
 
 config :cache,
   server_url: "http://localhost:8080",
-  storage_dir: "tmp/cas",
+  storage_dir: System.get_env("STORAGE_DIR") || "/tmp/cache",
   api_key: System.get_env("TUIST_CACHE_API_KEY")
 
 config :logger, :console, format: "[$level] $message\n"

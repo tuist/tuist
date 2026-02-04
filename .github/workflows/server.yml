@@ -575,3 +575,143 @@ jobs:
         run: mix ecto.migrate
       - name: Seed the database
         run: mix run priv/repo/seeds.exs
+  gradle_cache_acceptance:
+    name: Gradle Cache Acceptance
+    runs-on: namespace-profile-default-macos
+    timeout-minutes: 30
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    env:
+      MIX_ENV: dev
+      DATABASE_HOST: localhost
+      DATABASE_USERNAME: runner
+      DATABASE_PASSWORD: ""
+      TUIST_SECRET_KEY_BASE: ci-test-secret-key-base-must-be-at-least-64-characters-long-for-phoenix-to-work
+      TUIST_SECRET_KEY_PASSWORD: ci-test-secret-key-password
+      TUIST_SECRET_KEY_TOKENS: ci-test-secret-key-tokens
+      TUIST_SECRET_KEY_ENCRYPTION: ci-test-encryption-key-32-bytes!
+      TUIST_CACHE_API_KEY: 7a3de63bb6136d94539e9976b1c54bfd553467c2c4775f84b7b2baf27f8b38c6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat $GITHUB_WORKSPACE/.xcode-version).app
+      - name: Set up PostgreSQL with TimescaleDB
+        run: |
+          brew tap timescale/tap
+          brew install timescaledb
+          # Run timescaledb_move.sh to install extension files to PostgreSQL
+          /opt/homebrew/bin/timescaledb_move.sh || true
+          # Stop PostgreSQL before configuring
+          if brew services list | grep -q "^postgresql@17\\s\\+started"; then
+            brew services stop postgresql@17
+            sleep 2
+          fi
+          # Configure TimescaleDB - specify the correct PostgreSQL 17 config path
+          timescaledb-tune --quiet --yes --pg-config /opt/homebrew/opt/postgresql@17/bin/pg_config
+          # Start PostgreSQL with the new shared_preload_libraries config
+          brew services start postgresql@17
+          # Wait for PostgreSQL to start (check via TCP)
+          for i in {1..30}; do
+            if /opt/homebrew/opt/postgresql@17/bin/pg_isready -h localhost -p 5432; then
+              echo "PostgreSQL is ready"
+              break
+            fi
+            echo "Waiting for PostgreSQL to start... ($i/30)"
+            sleep 2
+          done
+          # Create runner user for database access
+          /opt/homebrew/opt/postgresql@17/bin/createuser -h localhost -s runner || true
+          # Verify TimescaleDB extension is available
+          /opt/homebrew/opt/postgresql@17/bin/psql -h localhost -d postgres -c "CREATE EXTENSION IF NOT EXISTS timescaledb; SELECT extversion FROM pg_extension WHERE extname = 'timescaledb';"
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          working_directory: .
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          working_directory: server
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          working_directory: cache
+      - uses: jdx/mise-action@v3.2.0
+        with:
+          working_directory: gradle
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - name: Start ClickHouse
+        working-directory: server
+        run: mise run clickhouse:start
+      - name: Install tuist dependencies
+        working-directory: .
+        run: tuist install
+      - name: Generate Xcode project
+        working-directory: .
+        run: tuist generate tuist
+      - name: Build tuist CLI
+        working-directory: .
+        run: xcodebuild build -scheme tuist -workspace Tuist.xcworkspace -configuration Debug -quiet
+      - name: Restore server deps
+        uses: actions/cache@v4
+        with:
+          path: server/deps
+          key: server-deps-${{ hashFiles('server/mix.lock') }}
+          restore-keys: |
+            server-deps-
+      - name: Install server deps
+        working-directory: server
+        run: mix deps.get
+      - name: Setup main server
+        working-directory: server
+        run: |
+          mix ecto.create
+          mix run priv/repo/timezone.exs
+          mix ecto.load
+          mix ecto.migrate
+          mix run priv/repo/seeds.exs
+      - name: Restore cache deps
+        uses: actions/cache@v4
+        with:
+          path: cache/deps
+          key: cache-deps-${{ hashFiles('cache/mix.lock') }}
+          restore-keys: |
+            cache-deps-
+      - name: Install cache deps
+        working-directory: cache
+        run: mix deps.get
+      - name: Start main server
+        working-directory: server
+        run: |
+          MIX_ENV=dev mix phx.server &
+          for i in {1..30}; do
+            if curl -sf http://localhost:8080 >/dev/null 2>&1; then
+              echo "Main server is ready"
+              break
+            fi
+            echo "Waiting for main server... ($i/30)"
+            sleep 2
+          done
+      - name: Start cache server
+        working-directory: cache
+        run: |
+          MIX_ENV=dev mix phx.server &
+          for i in {1..30}; do
+            if nc -z localhost 8087 2>/dev/null; then
+              echo "Cache server is ready"
+              break
+            fi
+            echo "Waiting for cache server... ($i/30)"
+            sleep 2
+          done
+      - name: Resolve tuist binary path
+        id: tuist-binary
+        working-directory: .
+        run: |
+          BUILT_PRODUCTS_DIR=$(xcodebuild -workspace Tuist.xcworkspace -scheme tuist -configuration Debug -showBuildSettings 2>/dev/null | grep ' BUILT_PRODUCTS_DIR' | awk '{print $NF}')
+          echo "path=${BUILT_PRODUCTS_DIR}/tuist" >> "$GITHUB_OUTPUT"
+      - name: Run Gradle cache acceptance test
+        working-directory: .
+        env:
+          TUIST_EXECUTABLE: ${{ steps.tuist-binary.outputs.path }}
+          SERVER_URL: http://localhost:8080
+        run: mise run e2e gradle_cache

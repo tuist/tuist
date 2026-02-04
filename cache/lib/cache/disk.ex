@@ -1,6 +1,6 @@
 defmodule Cache.Disk do
   @moduledoc """
-  Local disk storage backend for CAS and module cache artifacts.
+  Local disk storage backend for Xcode compilation cache (CAS) and module cache artifacts.
 
   Stores artifacts on the local filesystem with configurable storage directory.
   Uses two-level directory sharding to prevent ext4 directory index overflow.
@@ -9,22 +9,22 @@ defmodule Cache.Disk do
   require Logger
 
   @doc """
-  Checks if a CAS artifact exists on disk.
+  Checks if a Xcode compilation cache (CAS) artifact exists on disk.
 
   ## Examples
 
-      iex> Cache.Disk.cas_exists?("account", "project", "abc123")
+      iex> Cache.Disk.xcode_cas_exists?("account", "project", "abc123")
       true
   """
-  def cas_exists?(account_handle, project_handle, id) do
+  def xcode_cas_exists?(account_handle, project_handle, id) do
     account_handle
-    |> cas_key(project_handle, id)
+    |> xcode_cas_key(project_handle, id)
     |> artifact_path()
     |> File.exists?()
   end
 
   @doc """
-  Writes CAS artifact data to disk for given account, project, and artifact ID.
+  Writes Xcode compilation cache (CAS) artifact data to disk for given account, project, and artifact ID.
 
   Accepts either binary data or a file path. For file paths, file is moved
   into place without reading into memory (efficient for large uploads).
@@ -33,22 +33,22 @@ defmodule Cache.Disk do
 
   ## Examples
 
-      iex> Cache.Disk.cas_put("account", "project", "abc123", <<1, 2, 3>>)
+      iex> Cache.Disk.xcode_cas_put("account", "project", "abc123", <<1, 2, 3>>)
       :ok
 
-      iex> Cache.Disk.cas_put("account", "project", "abc123", {:file, "/tmp/upload-123"})
+      iex> Cache.Disk.xcode_cas_put("account", "project", "abc123", {:file, "/tmp/upload-123"})
       :ok
   """
-  def cas_put(account_handle, project_handle, id, {:file, tmp_path}) do
-    path = account_handle |> cas_key(project_handle, id) |> artifact_path()
+  def xcode_cas_put(account_handle, project_handle, id, {:file, tmp_path}) do
+    path = account_handle |> xcode_cas_key(project_handle, id) |> artifact_path()
 
     with :ok <- ensure_directory(path) do
       move_file(tmp_path, path)
     end
   end
 
-  def cas_put(account_handle, project_handle, id, data) when is_binary(data) do
-    path = account_handle |> cas_key(project_handle, id) |> artifact_path()
+  def xcode_cas_put(account_handle, project_handle, id, data) when is_binary(data) do
+    path = account_handle |> xcode_cas_key(project_handle, id) |> artifact_path()
 
     with :ok <- ensure_directory(path),
          :ok <- File.write(path, data) do
@@ -61,7 +61,7 @@ defmodule Cache.Disk do
   end
 
   @doc """
-  Converts a CAS key to an absolute file system path.
+  Converts a cache key to an absolute file system path.
 
   ## Examples
 
@@ -73,17 +73,17 @@ defmodule Cache.Disk do
   end
 
   @doc """
-  Constructs a sharded CAS key from account handle, project handle, and artifact ID.
+  Constructs a sharded Xcode compilation cache (CAS) key from account handle, project handle, and artifact ID.
 
   Uses a two-level directory sharding based on the first 4 characters of the artifact ID
   to prevent directory index overflow on ext4 filesystems without `large_dir` enabled.
 
   ## Examples
 
-      iex> Cache.Disk.cas_key("account", "project", "ABCD1234")
+      iex> Cache.Disk.xcode_cas_key("account", "project", "ABCD1234")
       "account/project/cas/AB/CD/ABCD1234"
   """
-  def cas_key(account_handle, project_handle, id) do
+  def xcode_cas_key(account_handle, project_handle, id) do
     {shard1, shard2} = shards_for_id(id)
     "#{account_handle}/#{project_handle}/cas/#{shard1}/#{shard2}/#{id}"
   end
@@ -93,17 +93,17 @@ defmodule Cache.Disk do
   end
 
   @doc """
-  Build the internal X-Accel-Redirect path for a CAS artifact.
+  Build the internal X-Accel-Redirect path for a Xcode compilation cache (CAS) artifact.
 
   The returned path maps to the nginx internal location that aliases the
   physical CAS storage directory.
   """
-  def cas_local_accel_path(account_handle, project_handle, id) do
-    "/internal/local/" <> cas_key(account_handle, project_handle, id)
+  def xcode_cas_local_accel_path(account_handle, project_handle, id) do
+    "/internal/local/" <> xcode_cas_key(account_handle, project_handle, id)
   end
 
   @doc """
-  Returns the configured storage directory for CAS artifacts.
+  Returns the configured storage directory for cache artifacts.
 
   Defaults to "tmp/cas" if not configured.
   """
@@ -112,15 +112,15 @@ defmodule Cache.Disk do
   end
 
   @doc """
-  Returns local file path for a given CAS artifact if the file exists.
+  Returns local file path for a given Xcode compilation cache (CAS) artifact if the file exists.
 
   ## Examples
 
-      iex> Cache.Disk.cas_get_local_path("account", "project", "ABCD1234")
+      iex> Cache.Disk.xcode_cas_get_local_path("account", "project", "ABCD1234")
       {:ok, "/var/tuist/cas/account/project/cas/AB/CD/ABCD1234"}
   """
-  def cas_get_local_path(account_handle, project_handle, id) do
-    path = account_handle |> cas_key(project_handle, id) |> artifact_path()
+  def xcode_cas_get_local_path(account_handle, project_handle, id) do
+    path = account_handle |> xcode_cas_key(project_handle, id) |> artifact_path()
 
     if File.exists?(path) do
       {:ok, path}
@@ -130,16 +130,16 @@ defmodule Cache.Disk do
   end
 
   @doc """
-  Returns file stat information for a CAS artifact.
+  Returns file stat information for a Xcode compilation cache (CAS) artifact.
 
   ## Examples
 
-      iex> Cache.Disk.cas_stat("account", "project", "ABCD1234")
+      iex> Cache.Disk.xcode_cas_stat("account", "project", "ABCD1234")
       {:ok, %File.Stat{size: 1024, ...}}
   """
-  def cas_stat(account_handle, project_handle, id) do
+  def xcode_cas_stat(account_handle, project_handle, id) do
     account_handle
-    |> cas_key(project_handle, id)
+    |> xcode_cas_key(project_handle, id)
     |> artifact_path()
     |> File.stat()
   end
@@ -381,5 +381,98 @@ defmodule Cache.Disk do
       {number, _} when number >= 0 -> {:ok, number}
       _ -> {:error, :invalid_percent}
     end
+  end
+
+  @doc """
+  Constructs a sharded Gradle build cache key from account handle, project handle, and cache key hash.
+
+  Uses a two-level directory sharding based on the first 4 characters of the cache key
+  to prevent directory index overflow on ext4 filesystems without `large_dir` enabled.
+
+  ## Examples
+
+      iex> Cache.Disk.gradle_key("account", "project", "ABCD1234")
+      "account/project/gradle/AB/CD/ABCD1234"
+  """
+  def gradle_key(account_handle, project_handle, cache_key) do
+    {shard1, shard2} = shards_for_id(cache_key)
+    "#{account_handle}/#{project_handle}/gradle/#{shard1}/#{shard2}/#{cache_key}"
+  end
+
+  @doc """
+  Checks if a Gradle build cache artifact exists on disk.
+
+  ## Examples
+
+      iex> Cache.Disk.gradle_exists?("account", "project", "abc123")
+      true
+  """
+  def gradle_exists?(account_handle, project_handle, cache_key) do
+    account_handle
+    |> gradle_key(project_handle, cache_key)
+    |> artifact_path()
+    |> File.exists?()
+  end
+
+  @doc """
+  Writes Gradle build cache artifact data to disk for given account, project, and cache key.
+
+  Accepts either binary data or a file path. For file paths, file is moved
+  into place without reading into memory (efficient for large uploads).
+
+  Creates parent directories if they don't exist.
+
+  ## Examples
+
+      iex> Cache.Disk.gradle_put("account", "project", "abc123", <<1, 2, 3>>)
+      :ok
+
+      iex> Cache.Disk.gradle_put("account", "project", "abc123", {:file, "/tmp/upload-123"})
+      :ok
+  """
+  def gradle_put(account_handle, project_handle, cache_key, {:file, tmp_path}) do
+    path = account_handle |> gradle_key(project_handle, cache_key) |> artifact_path()
+
+    with :ok <- ensure_directory(path) do
+      move_file(tmp_path, path)
+    end
+  end
+
+  def gradle_put(account_handle, project_handle, cache_key, data) when is_binary(data) do
+    path = account_handle |> gradle_key(project_handle, cache_key) |> artifact_path()
+
+    with :ok <- ensure_directory(path),
+         :ok <- File.write(path, data) do
+      :ok
+    else
+      {:error, reason} = error ->
+        Logger.error("Failed to write Gradle artifact to #{path}: #{inspect(reason)}")
+        error
+    end
+  end
+
+  @doc """
+  Returns file stat information for a Gradle build cache artifact.
+
+  ## Examples
+
+      iex> Cache.Disk.gradle_stat("account", "project", "ABCD1234")
+      {:ok, %File.Stat{size: 1024, ...}}
+  """
+  def gradle_stat(account_handle, project_handle, cache_key) do
+    account_handle
+    |> gradle_key(project_handle, cache_key)
+    |> artifact_path()
+    |> File.stat()
+  end
+
+  @doc """
+  Build the internal X-Accel-Redirect path for a Gradle build cache artifact.
+
+  The returned path maps to the nginx internal location that aliases the
+  physical storage directory.
+  """
+  def gradle_local_accel_path(account_handle, project_handle, cache_key) do
+    "/internal/local/" <> gradle_key(account_handle, project_handle, cache_key)
   end
 end

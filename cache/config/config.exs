@@ -51,6 +51,7 @@ config :cache, Oban,
 config :cache, ecto_repos: [Cache.Repo]
 
 config :cache,
+  env: config_env(),
   namespace: Cache
 
 config :cache,

@@ -27,7 +27,6 @@ defmodule Tuist.Projects.Project do
     field :qa_app_description, :string, default: ""
     field :qa_email, :string, default: ""
     field :qa_password, :string, default: ""
-
     field :slack_channel_id, :string
     field :slack_channel_name, :string
     field :report_frequency, Ecto.Enum, values: [never: 0, daily: 1], default: :never

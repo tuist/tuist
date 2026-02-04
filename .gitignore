@@ -118,3 +118,6 @@ mise.local.toml
 ./minio
 !.github
 cli/Tests/Fixtures/*.xcresult/database.sqlite3
+
+# Kotlin
+.kotlin/
