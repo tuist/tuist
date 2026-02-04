@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.138.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add custom metadata and tags to build runs by [@fortmarek](https://github.com/fortmarek) in [#9310](https://github.com/tuist/tuist/pull/9310)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.137.1...4.138.0
+
 ## What's Changed in 4.137.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
