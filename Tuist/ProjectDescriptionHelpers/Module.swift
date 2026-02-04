@@ -478,6 +478,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.cacheCommand.targetName),
                     .target(name: Module.envKey.targetName),
                     .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
                     .external(name: "XcodeProj"),
                     .external(name: "XcodeGraph"),
                     .external(name: "FileSystem"),

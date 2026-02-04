@@ -5,6 +5,7 @@ import Path
 import Testing
 import TuistAuthCommand
 import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistEnvKey
 import TuistSupport
 import TuistTesting
@@ -32,8 +33,8 @@ public struct TuistAcceptanceTestFixtureTestingTrait: TestTrait, SuiteTrait, Tes
         try await fileSystem.runInTemporaryDirectory { temporaryDirectory in
             let existingEnvVariables = Environment.current.variables
 
-            try await TuistTesting
-                .withMockedEnvironment(temporaryDirectory: temporaryDirectory.appending(component: "environment")) {
+            try await TuistEnvironmentTesting
+                .withMockedEnvironment {
                     existingEnvVariables.forEach { Environment.mocked?.variables[$0.key] = $0.value }
 
                     let fixtureTemporaryDirectory = temporaryDirectory.appending(
