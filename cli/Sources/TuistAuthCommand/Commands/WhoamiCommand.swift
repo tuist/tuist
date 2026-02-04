@@ -25,12 +25,12 @@ public struct WhoamiCommand: AsyncParsableCommand {
         name: .long,
         help: "The URL of the server."
     )
-    var serverURL: String?
+    var url: String?
 
     public func run() async throws {
         try await WhoamiService().run(
             directory: path,
-            serverURL: serverURL
+            serverURL: url
         )
     }
 }

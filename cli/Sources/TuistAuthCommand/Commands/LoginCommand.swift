@@ -26,13 +26,13 @@ public struct LoginCommand: AsyncParsableCommand {
         name: .long,
         help: "The URL of the server."
     )
-    var serverURL: String?
+    var url: String?
 
     public func run() async throws {
         try await LoginService().run(
             email: email,
             password: password,
-            serverURL: serverURL
+            serverURL: url
         )
     }
 }

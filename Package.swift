@@ -64,6 +64,14 @@ var targets: [Target] = [
         ]
     ),
     .target(
+        name: "TuistEnvironmentTesting",
+        dependencies: [
+            pathDependency,
+            "TuistEnvironment",
+        ],
+        path: "cli/Sources/TuistEnvironmentTesting"
+    ),
+    .target(
         name: "TuistLogging",
         dependencies: [
             loggingDependency,
@@ -163,6 +171,7 @@ var targets: [Target] = [
             "TuistEnvKey",
             "TuistCAS",
             "TuistEncodable",
+            "TuistHTTP",
         ],
         path: "cli/Sources/TuistCacheCommand"
     ),
@@ -305,6 +314,7 @@ var targets: [Target] = [
         dependencies: [
             "TuistOIDC",
             "TuistEnvironment",
+            "TuistEnvironmentTesting",
             mockableDependency,
         ],
         path: "cli/Tests/TuistOIDCTests"

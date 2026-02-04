@@ -25,12 +25,12 @@ public struct LogoutCommand: AsyncParsableCommand {
         name: .long,
         help: "The URL of the server."
     )
-    var serverURL: String?
+    var url: String?
 
     public func run() async throws {
         try await LogoutService().logout(
             directory: path,
-            serverURL: serverURL
+            serverURL: url
         )
     }
 }

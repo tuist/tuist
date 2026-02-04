@@ -18,9 +18,9 @@ public struct RefreshTokenCommand: AsyncParsableCommand {
         help: "The URL of the server the token is being refreshed for.",
         envKey: .authRefreshTokenServerURL
     )
-    var serverURL: String
+    var url: String
 
     public func run() async throws {
-        try await AuthRefreshTokenService().run(serverURL: serverURL)
+        try await AuthRefreshTokenService().run(serverURL: url)
     }
 }
