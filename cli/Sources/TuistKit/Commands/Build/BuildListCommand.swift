@@ -104,7 +104,7 @@ struct BuildListCommand: AsyncParsableCommand, NooraReadyCommand {
             scheme: scheme,
             configuration: configuration,
             tags: tags,
-            values: values.map { $0.replacingOccurrences(of: "=", with: ":") },
+            values: values,
             page: page,
             pageSize: pageSize,
             json: json

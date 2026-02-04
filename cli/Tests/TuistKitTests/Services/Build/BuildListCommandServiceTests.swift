@@ -102,8 +102,8 @@ struct BuildListCommandServiceTests {
             status: .value(nil),
             scheme: .value(nil),
             configuration: .value(nil),
-            tags: .value(nil),
-            values: .value(nil),
+            tags: .value([]),
+            values: .value([]),
             page: .value(1),
             pageSize: .value(10)
         ).willReturn(response)
@@ -160,8 +160,8 @@ struct BuildListCommandServiceTests {
             status: .value(nil),
             scheme: .value(nil),
             configuration: .value(nil),
-            tags: .value(nil),
-            values: .value(nil),
+            tags: .value([]),
+            values: .value([]),
             page: .value(1),
             pageSize: .value(10)
         ).willReturn(response)
@@ -214,8 +214,8 @@ struct BuildListCommandServiceTests {
             status: .value("success"),
             scheme: .value("MyApp"),
             configuration: .value("Debug"),
-            tags: .value(nil),
-            values: .value(nil),
+            tags: .value([]),
+            values: .value([]),
             page: .value(1),
             pageSize: .value(10)
         ).willReturn(response)

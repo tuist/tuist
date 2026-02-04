@@ -79,8 +79,8 @@ struct BuildListCommandService: BuildListCommandServicing {
             status: status,
             scheme: scheme,
             configuration: configuration,
-            tags: tags.isEmpty ? nil : tags,
-            values: values.isEmpty ? nil : values,
+            tags: tags,
+            values: values,
             page: startPage + 1, // API uses 1-indexed pages
             pageSize: pageSize
         )
@@ -141,8 +141,8 @@ struct BuildListCommandService: BuildListCommandServicing {
                     status: status,
                     scheme: scheme,
                     configuration: configuration,
-                    tags: tags.isEmpty ? nil : tags,
-                    values: values.isEmpty ? nil : values,
+                    tags: tags,
+                    values: values,
                     page: pageIndex + 1, // API uses 1-indexed pages
                     pageSize: pageSize
                 )
