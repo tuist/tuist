@@ -53,7 +53,7 @@ msgstr ""
 msgid "Analytics"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.ex:327
+#: lib/tuist_web/live/overview_live.ex:329
 #: lib/tuist_web/live/overview_live.html.heex:23
 #: lib/tuist_web/live/overview_live.html.heex:654
 #, elixir-autogen, elixir-format
@@ -128,7 +128,7 @@ msgstr ""
 msgid "Bundles"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.ex:335
+#: lib/tuist_web/live/overview_live.ex:337
 #: lib/tuist_web/live/overview_live.html.heex:39
 #: lib/tuist_web/live/overview_live.html.heex:670
 #, elixir-autogen, elixir-format
@@ -278,7 +278,7 @@ msgstr ""
 msgid "Latest app previews"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.ex:331
+#: lib/tuist_web/live/overview_live.ex:333
 #: lib/tuist_web/live/overview_live.html.heex:31
 #: lib/tuist_web/live/overview_live.html.heex:662
 #, elixir-autogen, elixir-format
@@ -330,7 +330,7 @@ msgstr ""
 msgid "Or set up a new organization"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.ex:26
+#: lib/tuist_web/live/overview_live.ex:28
 #, elixir-autogen, elixir-format
 msgid "Overview"
 msgstr ""
@@ -486,17 +486,17 @@ msgstr ""
 msgid "You are not authorized to perform this action."
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.ex:324
+#: lib/tuist_web/live/overview_live.ex:326
 #, elixir-autogen, elixir-format
 msgid "since last month"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.ex:321
+#: lib/tuist_web/live/overview_live.ex:323
 #, elixir-autogen, elixir-format
 msgid "since last week"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.ex:322
+#: lib/tuist_web/live/overview_live.ex:324
 #, elixir-autogen, elixir-format
 msgid "since last year"
 msgstr ""
@@ -542,12 +542,12 @@ msgstr ""
 msgid "Last 7 days"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.ex:323
+#: lib/tuist_web/live/overview_live.ex:325
 #, elixir-autogen, elixir-format
 msgid "since last period"
 msgstr ""
 
-#: lib/tuist_web/live/overview_live.ex:320
+#: lib/tuist_web/live/overview_live.ex:322
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
 msgstr ""
