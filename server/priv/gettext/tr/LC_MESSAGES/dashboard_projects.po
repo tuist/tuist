@@ -601,8 +601,8 @@ msgid ""
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
-"<strong>%{metric_category}</strong> son <strong>%{rolling_window_size} %"
-"{unit}</strong> önceki <strong>%{rolling_window_size} %{unit}</strong> ile "
+"<strong>%{metric_category}</strong> son <strong>%{rolling_window_size} "
+"%{unit}</strong> önceki <strong>%{rolling_window_size} %{unit}</strong> ile "
 "karşılaştırıldığında <strong>%{deviation}%</strong> azaldığında uyarı verin."
 
 #, fuzzy
@@ -612,8 +612,8 @@ msgid ""
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
-"<strong>%{metric_category}</strong> son <strong>%{rolling_window_size} %"
-"{unit}</strong> önceki <strong>%{rolling_window_size} %{unit}</strong> ile "
+"<strong>%{metric_category}</strong> son <strong>%{rolling_window_size} "
+"%{unit}</strong> önceki <strong>%{rolling_window_size} %{unit}</strong> ile "
 "karşılaştırıldığında <strong>%{deviation}%</strong> arttığında uyarı verin."
 
 #, fuzzy
