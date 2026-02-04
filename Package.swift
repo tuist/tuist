@@ -664,21 +664,6 @@ targets.append(contentsOf: [
         ]
     ),
     .target(
-        name: "TuistHAR",
-        dependencies: [
-            "TuistSupport",
-            "TuistConstants",
-            "TuistLogging",
-            pathDependency,
-            .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
-            .product(name: "HTTPTypes", package: "apple.swift-http-types"),
-        ],
-        path: "cli/Sources/TuistHAR",
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
-        ]
-    ),
-    .target(
         name: "TuistCache",
         dependencies: [
             "TuistCore",

@@ -88,17 +88,20 @@ func initNoora(jsonThroughNoora: Bool = false) -> Noora {
                     try await Noora.$current.withValue(initNoora()) {
                         try await Logger.$current.withValue(logger) {
                             try await HARRecorder.$current.withValue(harRecorder) {
-                                try await ServerCredentialsStore.$current.withValue(ServerCredentialsStore(backend: .fileSystem)) {
-                                    try await CachedValueStore.$current.withValue(CachedValueStore(backend: .fileSystem)) {
-                                        try await RecentPathsStore.$current
-                                            .withValue(RecentPathsStore(storageDirectory: Environment.current.stateDirectory)) {
-                                                try await Extension.$hashCacheService
-                                                    .withValue(HashCacheCommandService()) {
-                                                        try await action(sessionPaths)
-                                                    }
-                                            }
+                                try await ServerCredentialsStore.$current
+                                    .withValue(ServerCredentialsStore(backend: .fileSystem)) {
+                                        try await CachedValueStore.$current.withValue(CachedValueStore(backend: .fileSystem)) {
+                                            try await RecentPathsStore.$current
+                                                .withValue(RecentPathsStore(storageDirectory: Environment.current
+                                                        .stateDirectory))
+                                                {
+                                                    try await Extension.$hashCacheService
+                                                        .withValue(HashCacheCommandService()) {
+                                                            try await action(sessionPaths)
+                                                        }
+                                                }
+                                        }
                                     }
-                                }
                             }
                         }
                     }
@@ -135,7 +138,7 @@ func initNoora(jsonThroughNoora: Bool = false) -> Noora {
         }
     }
 #else
-    // Linux-specific initialization - simpler setup without macOS-specific features
+    /// Linux-specific initialization - simpler setup without macOS-specific features
     func initDependencies(_ action: (SessionPaths) async throws -> Void) async throws {
         try initEnv()
 

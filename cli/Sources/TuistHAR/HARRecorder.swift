@@ -2,7 +2,6 @@ import Foundation
 import Path
 import TuistConstants
 import TuistLogging
-import TuistSupport
 
 /// An actor that manages HAR recording and persistence.
 public actor HARRecorder {
