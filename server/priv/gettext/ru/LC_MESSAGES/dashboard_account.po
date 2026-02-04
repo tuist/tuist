@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-22 13:05+0000\n"
+"PO-Revision-Date: 2026-02-05 07:22+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Russian <https://translate.tuist.dev/projects/tuist/"
 "dashboard_account/ru/>\n"
@@ -763,44 +763,67 @@ msgstr "начислено на %{next_charge_date}"
 msgid "xxxx xxxx xxxx %{card_number}"
 msgstr "xxxx xxxx xxxx %{card_number}"
 
+#, fuzzy
 msgid "Add"
-msgstr ""
+msgstr "Добавить"
 
+#, fuzzy
 msgid "Add cache endpoint"
-msgstr ""
+msgstr "Добавить конечную точку кэша"
 
+#, fuzzy
 msgid "Add endpoint"
-msgstr ""
+msgstr "Добавить конечную точку"
 
+#, fuzzy
 msgid "Endpoint URL"
-msgstr ""
+msgstr "URL конечной точки"
 
+#, fuzzy
 msgid "URL"
-msgstr ""
+msgstr "URL"
 
+#, fuzzy
 msgid "Delete last cache endpoint?"
-msgstr ""
+msgstr "Удалить последнюю конечную точку кэша?"
 
+#, fuzzy
 msgid ""
 "Removing the last custom cache endpoint will switch your organization back "
 "to Tuist-hosted caching. This affects all builds across your organization."
 msgstr ""
+"Удаление последней настраиваемой конечной точки кэша вернет вашу организацию "
+"к кэшированию, хостируемому Tuist. Это повлияет на все сборки в вашей "
+"организации."
 
+#, fuzzy
 msgid "Cache endpoints"
-msgstr ""
+msgstr "Конечные точки кэша"
 
+#, fuzzy
 msgid ""
 "Configure custom cache endpoints for self-hosted cache setups. When enabled, "
 "Tuist will read from and write to these endpoints instead of the default "
 "Tuist-hosted cache."
 msgstr ""
+"Настройте пользовательские конечные точки кэша для самостоятельно "
+"размещенных конфигураций кэша. При включении этой функции Tuist будет читать "
+"и записывать данные в эти конечные точки вместо кэша, размещенного по "
+"умолчанию на Tuist."
 
+#, fuzzy
 msgid ""
 "Custom cache endpoints are disabled. Tuist will use the default Tuist-hosted "
 "cache."
 msgstr ""
+"Пользовательские конечные точки кэша отключены. Tuist будет использовать кэш "
+"по умолчанию, размещенный на Tuist."
 
+#, fuzzy
 msgid ""
 "No custom cache endpoints configured. Tuist will use the default Tuist-"
 "hosted cache until endpoints are added."
 msgstr ""
+"Пользовательские конечные точки кэша не настроены. Tuist будет использовать "
+"кэш по умолчанию, размещенный на Tuist, до тех пор, пока не будут добавлены "
+"конечные точки."
