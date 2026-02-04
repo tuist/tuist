@@ -664,7 +664,11 @@ jobs:
       - name: Setup main server
         working-directory: server
         run: |
-          mix ecto.setup
+          mix ecto.create
+          mix run priv/repo/timezone.exs
+          mix ecto.load
+          mix ecto.migrate
+          mix run priv/repo/seeds.exs
       - name: Restore cache deps
         uses: actions/cache@v4
         with:
