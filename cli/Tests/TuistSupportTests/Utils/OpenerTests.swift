@@ -1,8 +1,8 @@
 import Foundation
 import Path
-import TuistOpener
 import XCTest
 
+@testable import TuistOpener
 @testable import TuistSupport
 @testable import TuistTesting
 
