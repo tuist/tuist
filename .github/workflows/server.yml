@@ -634,6 +634,10 @@ jobs:
       - uses: jdx/mise-action@v3.2.0
         with:
           working_directory: gradle
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
       - uses: android-actions/setup-android@v3
       - name: Start ClickHouse
         working-directory: server
@@ -643,16 +647,10 @@ jobs:
         run: tuist install
       - name: Generate Xcode project
         working-directory: .
-        run: tuist generate tuist --no-open
+        run: tuist generate tuist
       - name: Build tuist CLI
         working-directory: .
-        run: |
-          xcodebuild build \
-            -workspace Tuist.xcworkspace \
-            -scheme tuist \
-            -configuration Debug \
-            -derivedDataPath build/DerivedData \
-            -quiet
+        run: xcodebuild build -scheme tuist -workspace Tuist.xcworkspace -configuration Debug -quiet
       - name: Restore server deps
         uses: actions/cache@v4
         with:
@@ -666,8 +664,7 @@ jobs:
       - name: Setup main server
         working-directory: server
         run: |
-          mix ecto.reset
-          mix run priv/repo/seeds.exs
+          mix ecto.setup
       - name: Restore cache deps
         uses: actions/cache@v4
         with:
@@ -702,9 +699,15 @@ jobs:
             echo "Waiting for cache server... ($i/30)"
             sleep 2
           done
+      - name: Resolve tuist binary path
+        id: tuist-binary
+        working-directory: .
+        run: |
+          BUILT_PRODUCTS_DIR=$(xcodebuild -workspace Tuist.xcworkspace -scheme tuist -configuration Debug -showBuildSettings 2>/dev/null | grep ' BUILT_PRODUCTS_DIR' | awk '{print $NF}')
+          echo "path=${BUILT_PRODUCTS_DIR}/tuist" >> "$GITHUB_OUTPUT"
       - name: Run Gradle cache acceptance test
         working-directory: .
         env:
-          TUIST_EXECUTABLE: ${{ github.workspace }}/build/DerivedData/Build/Products/Debug/tuist
+          TUIST_EXECUTABLE: ${{ steps.tuist-binary.outputs.path }}
           SERVER_URL: http://localhost:8080
         run: mise run e2e gradle_cache

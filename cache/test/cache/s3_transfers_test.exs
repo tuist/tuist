@@ -99,7 +99,7 @@ defmodule Cache.S3TransfersTest do
       assert transfer.type == :upload
       assert transfer.account_handle == "account"
       assert transfer.project_handle == "project"
-      assert transfer.artifact_type == :xcode_tuist_module
+      assert transfer.artifact_type == :xcode_module
       assert transfer.key == "account/project/module/builds/AB/CD/hash/name.zip"
       assert transfer.inserted_at
     end
@@ -121,7 +121,7 @@ defmodule Cache.S3TransfersTest do
       assert transfer.type == :download
       assert transfer.account_handle == "account"
       assert transfer.project_handle == "project"
-      assert transfer.artifact_type == :xcode_tuist_module
+      assert transfer.artifact_type == :xcode_module
       assert transfer.key == "account/project/module/builds/AB/CD/hash/name.zip"
       assert transfer.inserted_at
     end
