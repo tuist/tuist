@@ -3,6 +3,9 @@ import Foundation
 #if !os(Linux)
     import KeychainAccess
 #endif
+#if canImport(TuistEnvironment)
+    import TuistEnvironment
+#endif
 #if canImport(TuistSupport)
     import TuistSupport
 #endif
