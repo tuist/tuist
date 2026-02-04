@@ -15,15 +15,22 @@ import TuistTesting
 struct CacheConfigCommandServiceTests {
     private let serverURL = URL(string: "https://test.tuist.dev")!
     private let cacheURL = URL(string: "https://cache.tuist.dev")!
-    private let serverEnvironmentService = MockServerEnvironmentServicing()
-    private let serverAuthenticationController = MockServerAuthenticationControlling()
-    private let cacheURLStore = MockCacheURLStoring()
-    private let fullHandleService = MockFullHandleServicing()
-    private let ciOIDCAuthenticator = MockCIOIDCAuthenticating()
-    private let exchangeOIDCTokenService = MockExchangeOIDCTokenServicing()
-    private let subject: CacheConfigCommandService
+    private func makeSubject() -> (
+        subject: CacheConfigCommandService,
+        serverEnvironmentService: MockServerEnvironmentServicing,
+        serverAuthenticationController: MockServerAuthenticationControlling,
+        cacheURLStore: MockCacheURLStoring,
+        fullHandleService: MockFullHandleServicing,
+        ciOIDCAuthenticator: MockCIOIDCAuthenticating,
+        exchangeOIDCTokenService: MockExchangeOIDCTokenServicing
+    ) {
+        let serverEnvironmentService = MockServerEnvironmentServicing()
+        let serverAuthenticationController = MockServerAuthenticationControlling()
+        let cacheURLStore = MockCacheURLStoring()
+        let fullHandleService = MockFullHandleServicing()
+        let ciOIDCAuthenticator = MockCIOIDCAuthenticating()
+        let exchangeOIDCTokenService = MockExchangeOIDCTokenServicing()
 
-    init() {
         given(serverEnvironmentService)
             .url()
             .willReturn(serverURL)
@@ -36,7 +43,7 @@ struct CacheConfigCommandServiceTests {
             .getCacheURL(for: .any, accountHandle: .any)
             .willReturn(cacheURL)
 
-        subject = CacheConfigCommandService(
+        let subject = CacheConfigCommandService(
             serverEnvironmentService: serverEnvironmentService,
             serverAuthenticationController: serverAuthenticationController,
             cacheURLStore: cacheURLStore,
@@ -44,13 +51,35 @@ struct CacheConfigCommandServiceTests {
             ciOIDCAuthenticator: ciOIDCAuthenticator,
             exchangeOIDCTokenService: exchangeOIDCTokenService
         )
+
+        return (
+            subject,
+            serverEnvironmentService,
+            serverAuthenticationController,
+            cacheURLStore,
+            fullHandleService,
+            ciOIDCAuthenticator,
+            exchangeOIDCTokenService
+        )
     }
 
     @Test(.withMockedEnvironment())
     func run_uses_tuist_token_when_set() async throws {
         // Given
+        let (
+            subject,
+            _,
+            serverAuthenticationController,
+            _,
+            _,
+            ciOIDCAuthenticator,
+            _
+        ) = makeSubject()
         let environment = try #require(Environment.mocked)
         environment.variables["TUIST_TOKEN"] = "account-token-123"
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("account-token-123"))
 
         // When
         try await subject.run(
@@ -63,7 +92,7 @@ struct CacheConfigCommandServiceTests {
         // Then
         verify(serverAuthenticationController)
             .authenticationToken(serverURL: .any)
-            .called(0)
+            .called(1)
 
         verify(ciOIDCAuthenticator)
             .fetchOIDCToken()
@@ -73,6 +102,15 @@ struct CacheConfigCommandServiceTests {
     @Test(.withMockedEnvironment())
     func run_uses_existing_token_when_authenticated() async throws {
         // Given
+        let (
+            subject,
+            _,
+            serverAuthenticationController,
+            _,
+            _,
+            ciOIDCAuthenticator,
+            _
+        ) = makeSubject()
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .any)
             .willReturn(.project("existing-token"))
@@ -98,6 +136,17 @@ struct CacheConfigCommandServiceTests {
     @Test(.withMockedEnvironment(), .withMockedDependencies())
     func run_authenticates_with_oidc_when_not_authenticated() async throws {
         // Given
+        let (
+            subject,
+            _,
+            serverAuthenticationController,
+            _,
+            _,
+            ciOIDCAuthenticator,
+            exchangeOIDCTokenService
+        ) = makeSubject()
+        let environment = try #require(Environment.mocked)
+        environment.variables["CI"] = "true"
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .any)
             .willReturn(nil)
@@ -143,6 +192,15 @@ struct CacheConfigCommandServiceTests {
     @Test(.withMockedEnvironment())
     func run_throws_when_not_authenticated_and_oidc_not_available() async throws {
         // Given
+        let (
+            subject,
+            _,
+            serverAuthenticationController,
+            _,
+            _,
+            ciOIDCAuthenticator,
+            _
+        ) = makeSubject()
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .any)
             .willReturn(nil)
@@ -165,6 +223,15 @@ struct CacheConfigCommandServiceTests {
     @Test(.withMockedEnvironment())
     func run_uses_custom_server_url_when_provided() async throws {
         // Given
+        let (
+            subject,
+            _,
+            serverAuthenticationController,
+            _,
+            _,
+            _,
+            _
+        ) = makeSubject()
         let customServerURL = "https://custom.tuist.dev"
 
         given(serverAuthenticationController)
@@ -187,13 +254,15 @@ struct CacheConfigCommandServiceTests {
 
     @Test(.withMockedEnvironment())
     func run_throws_when_server_url_is_invalid() async throws {
+        let invalidURL = "http://%"
+        let (subject, _, _, _, _, _, _) = makeSubject()
         // When/Then
-        await #expect(throws: CacheConfigCommandServiceError.invalidServerURL("not a url")) {
+        await #expect(throws: CacheConfigCommandServiceError.invalidServerURL(invalidURL)) {
             try await subject.run(
                 fullHandle: "my-account/my-project",
                 json: true,
                 forceRefresh: false,
-                url: "not a url"
+                url: invalidURL
             )
         }
     }
@@ -201,6 +270,15 @@ struct CacheConfigCommandServiceTests {
     @Test(.withMockedEnvironment())
     func run_parses_full_handle_correctly() async throws {
         // Given
+        let (
+            subject,
+            _,
+            serverAuthenticationController,
+            cacheURLStore,
+            fullHandleService,
+            _,
+            _
+        ) = makeSubject()
         given(serverAuthenticationController)
             .authenticationToken(serverURL: .any)
             .willReturn(.project("token"))
