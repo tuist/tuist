@@ -9,6 +9,7 @@ import TuistCore
 import TuistLoader
 import TuistSupport
 import TuistTesting
+import TuistUniqueIDGenerator
 import TuistXCActivityLog
 import XcodeGraph
 

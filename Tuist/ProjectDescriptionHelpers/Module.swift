@@ -1037,6 +1037,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.logging.targetName),
                     .target(name: Module.versionCommand.targetName),
                     .target(name: Module.opener.targetName),
+                    .target(name: Module.userInputReader.targetName),
+                    .target(name: Module.uniqueIDGenerator.targetName),
                     .external(name: "ArgumentParser"),
                     .external(name: "GraphViz"),
                     .external(name: "AnyCodable"),

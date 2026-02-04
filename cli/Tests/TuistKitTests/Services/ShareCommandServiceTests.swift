@@ -12,6 +12,7 @@ import TuistLoader
 import TuistServer
 import TuistSupport
 import TuistTesting
+import TuistUserInputReader
 import XcodeGraph
 
 @testable import TuistKit
