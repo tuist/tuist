@@ -64,7 +64,7 @@
               <h2 data-part="title">
                 <a href={"##{entry.id}"}>{entry.title}</a>
               </h2>
-              <div :if={entry.pull_request} data-part="pr">
+              <div :if={not is_nil(entry.pull_request)} data-part="pr">
                 <.button
                   variant="secondary"
                   size="medium"
