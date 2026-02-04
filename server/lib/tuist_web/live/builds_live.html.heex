@@ -6,7 +6,7 @@
   >
     <:actions>
       <.dropdown
-        :if={length(@build_tags) > 1}
+        :if={Enum.any?(@build_tags)}
         id="builds-analytics-tag-dropdown"
         label={build_tag_label(@analytics_build_tag)}
         secondary_text={dgettext("dashboard_builds", "Tag:")}
