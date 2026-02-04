@@ -42,8 +42,8 @@ struct BuildListCommandServiceTests {
                 status: nil,
                 scheme: nil,
                 configuration: nil,
-                tags: nil,
-                values: nil,
+                tags: [],
+                values: [],
                 page: nil,
                 pageSize: nil,
                 json: false
@@ -116,8 +116,8 @@ struct BuildListCommandServiceTests {
             status: nil,
             scheme: nil,
             configuration: nil,
-            tags: nil,
-            values: nil,
+            tags: [],
+            values: [],
             page: nil,
             pageSize: nil,
             json: true
@@ -174,8 +174,8 @@ struct BuildListCommandServiceTests {
             status: nil,
             scheme: nil,
             configuration: nil,
-            tags: nil,
-            values: nil,
+            tags: [],
+            values: [],
             page: nil,
             pageSize: nil,
             json: false
@@ -228,8 +228,8 @@ struct BuildListCommandServiceTests {
             status: "success",
             scheme: "MyApp",
             configuration: "Debug",
-            tags: nil,
-            values: nil,
+            tags: [],
+            values: [],
             page: nil,
             pageSize: nil,
             json: false

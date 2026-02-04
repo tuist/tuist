@@ -106,8 +106,7 @@ defmodule Tuist.Runs.Build do
     changeset
     |> validate_length(:custom_tags, max: 50, message: "cannot have more than 50 tags")
     |> validate_change(:custom_tags, fn :custom_tags, tags ->
-      tags
-      |> Enum.flat_map(fn tag ->
+      Enum.flat_map(tags, fn tag ->
         cond do
           String.length(tag) > 50 ->
             [{:custom_tags, "tag exceeds maximum length of 50 characters"}]

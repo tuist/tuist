@@ -341,6 +341,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
 
       response = json_response(conn, 200)
       assert response["custom_metadata"]["tags"] == ["nightly", "staging"]
+
       assert response["custom_metadata"]["values"] == %{
                "runner" => "macos-14",
                "jira" => "https://jira.example.com/PROJ-123"

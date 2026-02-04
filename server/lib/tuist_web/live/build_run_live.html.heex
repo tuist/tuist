@@ -207,7 +207,9 @@
           </div>
         </div>
         <div :if={map_size(@run.custom_values || %{}) > 0} data-part="custom-metadata-section">
-          <span data-part="custom-metadata-label">{dgettext("dashboard_builds", "Custom metadata")}</span>
+          <span data-part="custom-metadata-label">
+            {dgettext("dashboard_builds", "Custom metadata")}
+          </span>
           <.table
             id="custom-metadata-table"
             rows={Map.to_list(@run.custom_values || %{})}
@@ -218,7 +220,12 @@
             </:col>
             <:col :let={{_key, value}} label={dgettext("dashboard_builds", "Value")}>
               <%= if url?(value) do %>
-                <a href={value} target="_blank" rel="noopener noreferrer" data-part="custom-metadata-link">
+                <a
+                  href={value}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-part="custom-metadata-link"
+                >
                   {value}
                 </a>
               <% else %>

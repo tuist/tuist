@@ -124,7 +124,10 @@ defmodule Tuist.Runs.BuildTest do
     test "rejects custom_tags with invalid characters" do
       attrs = Map.put(@valid_attrs, :custom_tags, ["invalid tag!"])
       changeset = Build.create_changeset(%Build{}, attrs)
-      assert "tag contains invalid characters (only alphanumeric, hyphens, and underscores allowed)" in errors_on(changeset).custom_tags
+
+      assert "tag contains invalid characters (only alphanumeric, hyphens, and underscores allowed)" in errors_on(
+               changeset
+             ).custom_tags
     end
 
     test "accepts custom_tags with alphanumeric, hyphens, and underscores" do

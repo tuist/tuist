@@ -57,8 +57,11 @@
         >
           <:col :let={build_run} label={dgettext("dashboard_builds", "Scheme")}>
             <div data-part="cell" data-type="text">
-              <div data-part="scheme-with-tags" style="display: flex; align-items: center; gap: 8px;">
-                <span data-part="label"><%= build_run.scheme || "None" %></span>
+              <div
+                data-part="scheme-with-tags"
+                style="display: flex; align-items: center; gap: 8px;"
+              >
+                <span data-part="label">{build_run.scheme || "None"}</span>
                 <%= if Enum.any?(build_run.custom_tags || []) do %>
                   <.badge
                     label={List.first(build_run.custom_tags)}
