@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2026-02-04 13:21+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Spanish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_builds/es/>\n"
 "Language: es\n"
@@ -1019,18 +1019,22 @@ msgstr "Punto final de caché"
 msgid "All"
 msgstr "Todos"
 
+#, fuzzy
 msgid "Custom metadata"
-msgstr ""
+msgstr "Metadatos personalizados"
 
 #, fuzzy
 msgid "Generations"
 msgstr "Generaciones"
 
+#, fuzzy
 msgid "Tag:"
-msgstr ""
+msgstr "Etiqueta:"
 
+#, fuzzy
 msgid "Tags"
-msgstr ""
+msgstr "Etiquetas"
 
+#, fuzzy
 msgid "Value"
-msgstr ""
+msgstr "Valor"
