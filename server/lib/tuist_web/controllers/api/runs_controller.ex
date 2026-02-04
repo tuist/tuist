@@ -14,13 +14,12 @@ defmodule TuistWeb.API.RunsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Builds
-  alias Tuist.Builds.Build, as: BuildRecord
   alias Tuist.Builds.CASOutput
   alias Tuist.Tests
+  alias TuistWeb.API.Schemas.Builds.Build
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Run
-  alias TuistWeb.API.Schemas.Runs.Build
-  alias TuistWeb.API.Schemas.Runs.Test
+  alias TuistWeb.API.Schemas.Tests.Test
   alias TuistWeb.Authentication
 
   plug(OpenApiSpex.Plug.CastAndValidate,
@@ -841,7 +840,7 @@ defmodule TuistWeb.API.RunsController do
 
   defp get_or_create_build(params) do
     case Builds.get_build(params.id) do
-      %BuildRecord{} = build ->
+      %Tuist.Builds.Build{} = build ->
         {:ok, build}
 
       nil ->
@@ -887,7 +886,7 @@ defmodule TuistWeb.API.RunsController do
   defp handle_build_creation_result({:error, changeset}, build_id) do
     if Keyword.has_key?(changeset.errors, :id) do
       case Builds.get_build(build_id) do
-        %BuildRecord{} = build -> {:ok, build}
+        %Tuist.Builds.Build{} = build -> {:ok, build}
         nil -> {:error, :creation_failed}
       end
     else

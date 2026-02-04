@@ -5,7 +5,7 @@ defmodule TuistWeb.API.TestsController do
   alias OpenApiSpex.Schema
   alias Tuist.Tests
   alias TuistWeb.API.Schemas.Error
-  alias TuistWeb.API.Schemas.Runs.Test
+  alias TuistWeb.API.Schemas.Tests.Test
   alias TuistWeb.Authentication
 
   plug(OpenApiSpex.Plug.CastAndValidate,

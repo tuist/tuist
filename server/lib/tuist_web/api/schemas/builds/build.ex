@@ -1,4 +1,4 @@
-defmodule TuistWeb.API.Schemas.Runs.Build do
+defmodule TuistWeb.API.Schemas.Builds.Build do
   @moduledoc """
   The schema for the build response.
   """

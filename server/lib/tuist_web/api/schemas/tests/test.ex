@@ -1,4 +1,4 @@
-defmodule TuistWeb.API.Schemas.Runs.Test do
+defmodule TuistWeb.API.Schemas.Tests.Test do
   @moduledoc """
   The schema for the test response.
   """
