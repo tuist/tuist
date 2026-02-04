@@ -763,5 +763,20 @@ msgstr ""
 msgid "Cache Endpoint"
 msgstr ""
 
+msgid "All"
+msgstr ""
+
+msgid "Custom metadata"
+msgstr ""
+
 msgid "Generations"
+msgstr ""
+
+msgid "Tag:"
+msgstr ""
+
+msgid "Tags"
+msgstr ""
+
+msgid "Value"
 msgstr ""
