@@ -7,6 +7,7 @@ defmodule Tuist.Tests.AnalyticsTest do
   alias Tuist.Tests.Analytics
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseRun
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
