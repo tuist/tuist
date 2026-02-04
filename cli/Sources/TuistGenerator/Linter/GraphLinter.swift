@@ -1,5 +1,6 @@
 import FileSystem
 import Foundation
+import Path
 import struct TSCUtility.Version
 import TuistCore
 import TuistSupport
@@ -45,30 +46,53 @@ public class GraphLinter: GraphLinting {
         graphTraverser: GraphTraversing,
         configGeneratedProjectOptions: TuistGeneratedProjectOptions
     ) async throws -> [LintingIssue] {
-        var issues: [LintingIssue] = []
-        try await issues.append(
-            contentsOf: graphTraverser.projects.concurrentMap { _, project async throws -> [LintingIssue] in
-                try await self.projectLinter.lint(project)
-            }
-            .flatMap { $0 }
-        )
-        try await issues.append(contentsOf: lintDependencies(
+        let schemes = graphTraverser.schemes()
+        let targets = graphTraverser.targets()
+
+        async let projectIssues = try graphTraverser.projects.concurrentMap { _, project async throws -> [LintingIssue] in
+            try await self.projectLinter.lint(project)
+        }
+        .flatMap { $0 }
+
+        async let dependencyIssues = try lintDependencies(
             graphTraverser: graphTraverser,
             configGeneratedProjectOptions: configGeneratedProjectOptions
-        ))
-        issues.append(contentsOf: lintMismatchingConfigurations(graphTraverser: graphTraverser))
-        issues.append(contentsOf: lintWatchBundleIndentifiers(graphTraverser: graphTraverser))
-        issues.append(contentsOf: lintCodeCoverageMode(graphTraverser: graphTraverser))
-        issues.append(contentsOf: lintSchemesUnknownTargets(graphTraverser: graphTraverser))
-        issues.append(contentsOf: lintSchemesRunAction(graphTraverser: graphTraverser))
-        return issues
+        )
+        async let mismatchingConfigurationIssues = lintMismatchingConfigurations(graphTraverser: graphTraverser)
+        async let watchBundleIssues = lintWatchBundleIndentifiers(graphTraverser: graphTraverser)
+        async let codeCoverageIssues = lintCodeCoverageMode(graphTraverser: graphTraverser)
+        async let schemesUnknownTargetsIssues = lintSchemesUnknownTargets(
+            graphTraverser: graphTraverser,
+            schemes: schemes,
+            targets: targets
+        )
+        async let schemesRunActionIssues = lintSchemesRunAction(schemes: schemes)
+
+        let resolvedProjectIssues = try await projectIssues
+        let resolvedDependencyIssues = try await dependencyIssues
+        let resolvedMismatchingConfigurationIssues = await mismatchingConfigurationIssues
+        let resolvedWatchBundleIssues = await watchBundleIssues
+        let resolvedCodeCoverageIssues = await codeCoverageIssues
+        let resolvedSchemesUnknownTargetsIssues = await schemesUnknownTargetsIssues
+        let resolvedSchemesRunActionIssues = await schemesRunActionIssues
+
+        return resolvedProjectIssues +
+            resolvedDependencyIssues +
+            resolvedMismatchingConfigurationIssues +
+            resolvedWatchBundleIssues +
+            resolvedCodeCoverageIssues +
+            resolvedSchemesUnknownTargetsIssues +
+            resolvedSchemesRunActionIssues
     }
 
     // MARK: - Fileprivate
 
-    private func lintSchemesUnknownTargets(graphTraverser: GraphTraversing) -> [LintingIssue] {
-        let targets = graphTraverser.targets()
-        return graphTraverser.schemes().compactMap { scheme in
+    private func lintSchemesUnknownTargets(
+        graphTraverser: GraphTraversing,
+        schemes: [Scheme],
+        targets: [Path.AbsolutePath: [String: Target]]
+    ) -> [LintingIssue] {
+        return schemes.compactMap { scheme in
             let unknownTargets = scheme
                 .targetDependencies()
                 .filter { targetReference in
@@ -93,8 +117,8 @@ public class GraphLinter: GraphLinting {
         }
     }
 
-    private func lintSchemesRunAction(graphTraverser: GraphTraversing) -> [LintingIssue] {
-        return graphTraverser.schemes().compactMap { scheme in
+    private func lintSchemesRunAction(schemes: [Scheme]) -> [LintingIssue] {
+        return schemes.compactMap { scheme in
             guard let runAction = scheme.runAction else { return nil }
 
             if let filePath = runAction.filePath, let executable = runAction.executable {

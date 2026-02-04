@@ -12,6 +12,12 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
     /// The manifests cache
     case manifests
 
+    /// The Swift package info cache
+    case packageInfo
+
+    /// The Swift package dependencies graph cache
+    case dependenciesGraph
+
     /// The edit projects cache
     case editProjects
 
@@ -34,6 +40,10 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
             return "ProjectDescriptionHelpers"
         case .manifests:
             return "Manifests"
+        case .packageInfo:
+            return "PackageInfo"
+        case .dependenciesGraph:
+            return "DependenciesGraph"
         case .editProjects:
             return "EditProjects"
         case .runs:

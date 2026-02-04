@@ -106,8 +106,16 @@ public protocol ManifestLoading {
     func register(plugins: Plugins) throws
 }
 
+protocol RawManifestLoading {
+    func loadManifestData(
+        _ manifest: Manifest,
+        at path: AbsolutePath,
+        disableSandbox: Bool
+    ) async throws -> Data
+}
+
 // swiftlint:disable:next type_body_length
-public class ManifestLoader: ManifestLoading {
+public class ManifestLoader: ManifestLoading, RawManifestLoading {
     @TaskLocal public static var current: ManifestLoading = CachedManifestLoader()
 
     // MARK: - Static
@@ -224,6 +232,15 @@ public class ManifestLoader: ManifestLoading {
 
     public func register(plugins: Plugins) throws {
         self.plugins = plugins
+    }
+
+    func loadManifestData(
+        _ manifest: Manifest,
+        at path: AbsolutePath,
+        disableSandbox: Bool
+    ) async throws -> Data {
+        let manifestPath = try await manifestPath(manifest, at: path)
+        return try await loadDataForManifest(manifest, at: manifestPath, disableSandbox: disableSandbox)
     }
 
     // MARK: - Private

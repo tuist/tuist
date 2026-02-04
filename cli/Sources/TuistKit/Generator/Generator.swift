@@ -59,7 +59,23 @@ public class Generator: Generating {
         path: AbsolutePath,
         options: TuistGeneratedProjectOptions.GenerationOptions?
     ) async throws -> (AbsolutePath, Graph, MapperEnvironment) {
-        let (graph, sideEffects, environment) = try await load(path: path, options: options)
+        let shouldProfile = Environment.current.isVariableTruthy("TUIST_GENERATE_PROFILE")
+            && !Environment.current.isJSONOutput
+        let clock = WallClock()
+        func profile<T>(_ name: String, _ block: () async throws -> T) async rethrows -> T {
+            guard shouldProfile else {
+                return try await block()
+            }
+            let timer = clock.startTimer()
+            let result = try await block()
+            let time = String(format: "%.3f", timer.stop())
+            Logger.current.notice("\(name): \(time)s", metadata: .section)
+            return result
+        }
+
+        let (graph, sideEffects, environment) = try await profile("Load") {
+            try await load(path: path, options: options)
+        }
 
         // Load
         let graphTraverser = GraphTraverser(graph: graph)
@@ -68,22 +84,32 @@ public class Generator: Generating {
         // When mutating the graph to use cache, we currently end up double linking some frameworks.
         // To workaround those false positive warnings, we lint the graph before we replace source modules with xcframeworks
         // And assume the changes in the mapper are correct.
-        try await lint(graphTraverser: GraphTraverser(graph: environment.initialGraphWithSources ?? graph))
+        try await profile("Lint") {
+            try await lint(graphTraverser: GraphTraverser(graph: environment.initialGraphWithSources ?? graph))
+        }
 
         // Generate
-        let workspaceDescriptor = try await generator.generateWorkspace(graphTraverser: graphTraverser)
+        let workspaceDescriptor = try await profile("Generate descriptors") {
+            try await generator.generateWorkspace(graphTraverser: graphTraverser)
+        }
 
         // Write
-        try await writer.write(workspace: workspaceDescriptor)
+        try await profile("Write Xcodeproj") {
+            try await writer.write(workspace: workspaceDescriptor)
+        }
 
         // Mapper side effects
-        try await sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
+        try await profile("Mapper side effects") {
+            try await sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
+        }
 
         // Post Generate Actions
-        try await postGenerationActions(
-            graphTraverser: graphTraverser,
-            workspaceName: workspaceDescriptor.xcworkspacePath.basename
-        )
+        try await profile("Post-generate actions") {
+            try await postGenerationActions(
+                graphTraverser: graphTraverser,
+                workspaceName: workspaceDescriptor.xcworkspacePath.basename
+            )
+        }
 
         printAndFlushPendingLintWarnings()
 

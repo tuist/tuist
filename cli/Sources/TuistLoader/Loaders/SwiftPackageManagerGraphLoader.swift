@@ -57,19 +57,38 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
     private let manifestLoader: ManifestLoading
     private let fileSystem: FileSysteming
     private let contentHasher: ContentHashing
+    private let cacheDirectoriesProvider: CacheDirectoriesProviding
+    private let swiftVersionProvider: SwiftVersionProviding
+    private let tuistVersion: String
+    private let cacheDirectory: ThrowableCaching<AbsolutePath>
+    private let encoder = JSONEncoder()
+    private let decoder = JSONDecoder()
+
+    private enum CacheConstants {
+        static let version = 1
+    }
 
     public init(
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
         packageInfoMapper: PackageInfoMapping = PackageInfoMapper(),
         manifestLoader: ManifestLoading = ManifestLoader.current,
         fileSystem: FileSysteming = FileSystem(),
-        contentHasher: ContentHashing = ContentHasher()
+        contentHasher: ContentHashing = ContentHasher(),
+        cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider(),
+        swiftVersionProvider: SwiftVersionProviding = SwiftVersionProvider.current,
+        tuistVersion: String = Constants.version
     ) {
         self.swiftPackageManagerController = swiftPackageManagerController
         self.packageInfoMapper = packageInfoMapper
         self.manifestLoader = manifestLoader
         self.fileSystem = fileSystem
         self.contentHasher = contentHasher
+        self.cacheDirectoriesProvider = cacheDirectoriesProvider
+        self.swiftVersionProvider = swiftVersionProvider
+        self.tuistVersion = tuistVersion
+        cacheDirectory = ThrowableCaching {
+            try cacheDirectoriesProvider.cacheDirectory(for: .dependenciesGraph)
+        }
     }
 
     // swiftlint:disable:next function_body_length
@@ -82,16 +101,29 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             component: Constants.SwiftPackageManager.packageBuildDirectoryName
         )
         let checkoutsFolder = path.appending(component: "checkouts")
+        let registryDownloadsFolder = path.appending(try RelativePath(validating: "registry/downloads"))
         let workspacePath = path.appending(component: "workspace-state.json")
 
         if try await !fileSystem.exists(workspacePath) {
             throw SwiftPackageManagerGraphGeneratorError.installRequired
         }
 
-        let workspaceState = try JSONDecoder()
-            .decode(SwiftPackageManagerWorkspaceState.self, from: try await fileSystem.readFile(at: workspacePath))
+        let workspaceStateData = try await fileSystem.readFile(at: workspacePath)
+        let workspaceState = try decoder
+            .decode(SwiftPackageManagerWorkspaceState.self, from: workspaceStateData)
 
         try await validatePackageResolved(at: packagePath.parentDirectory)
+
+        if let cachedGraph = try await loadCachedDependenciesGraph(
+            workspaceState: workspaceState,
+            workspaceStateData: workspaceStateData,
+            rootPath: packagePath.parentDirectory,
+            disableSandbox: disableSandbox,
+            checkoutsFolder: checkoutsFolder,
+            registryDownloadsFolder: registryDownloadsFolder
+        ) {
+            return cachedGraph
+        }
 
         let rootPackage = try await manifestLoader.loadPackage(at: packagePath.parentDirectory, disableSandbox: disableSandbox)
 
@@ -108,31 +140,13 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
             )
         ] = try await workspaceState.object.dependencies.concurrentMap { dependency in
             let name = dependency.packageRef.name
-            let packageFolder: AbsolutePath
-            let hash: String?
-            switch dependency.packageRef.kind {
-            case "remote", "remoteSourceControl":
-                packageFolder = checkoutsFolder.appending(component: dependency.subpath)
-                hash = dependency.state?.checkoutState?.revision
-            case "local", "fileSystem", "localSourceControl":
-                // Depending on the swift version, the information is available either in `path` or in `location`
-                guard let path = dependency.packageRef.path ?? dependency.packageRef.location else {
-                    throw SwiftPackageManagerGraphGeneratorError.missingPathInLocalSwiftPackage(name)
-                }
-                // There's a bug in the `relative` implementation that produces the wrong path when using a symbolic link.
-                // This leads to nonexisting path in the `ModuleMapMapper` that relies on that method.
-                // To get around this, we're aligning paths from `workspace-state.json` with the /var temporary directory.
-                packageFolder = try AbsolutePath(
-                    validating: path.replacingOccurrences(of: "/private/var", with: "/var")
-                )
-                hash = nil
-            case "registry":
-                let registryFolder = path.appending(try RelativePath(validating: "registry/downloads"))
-                packageFolder = registryFolder.appending(try RelativePath(validating: dependency.subpath))
-                hash = try dependency.state?.version.map { try contentHasher.hash([dependency.packageRef.identity, $0]) }
-            default:
-                throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
-            }
+            let packageFolderInfo = try packageFolder(
+                for: dependency,
+                checkoutsFolder: checkoutsFolder,
+                registryDownloadsFolder: registryDownloadsFolder
+            )
+            let packageFolder = packageFolderInfo.folder
+            let hash = packageFolderInfo.hash
 
             let packageInfo = try await manifestLoader.loadPackage(at: packageFolder, disableSandbox: disableSandbox)
             let targetToArtifactPaths = try workspaceState.object.artifacts
@@ -148,7 +162,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                 targetToArtifactPaths: targetToArtifactPaths,
                 info: packageInfo,
                 hash: hash,
-                kind: dependency.packageRef.kind
+                kind: packageFolderInfo.kind
             )
         }
 
@@ -233,10 +247,213 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
                 }
             }
 
-        return DependenciesGraph(
+        let dependenciesGraph = DependenciesGraph(
             externalDependencies: externalDependencies,
             externalProjects: externalProjects
         )
+        try await cacheDependenciesGraph(
+            dependenciesGraph,
+            workspaceState: workspaceState,
+            workspaceStateData: workspaceStateData,
+            rootPath: packagePath.parentDirectory,
+            disableSandbox: disableSandbox,
+            checkoutsFolder: checkoutsFolder,
+            registryDownloadsFolder: registryDownloadsFolder
+        )
+
+        return dependenciesGraph
+    }
+
+    private func packageFolder(
+        for dependency: SwiftPackageManagerWorkspaceState.Dependency,
+        checkoutsFolder: AbsolutePath,
+        registryDownloadsFolder: AbsolutePath
+    ) throws -> (folder: AbsolutePath, hash: String?, kind: String) {
+        let name = dependency.packageRef.name
+        switch dependency.packageRef.kind {
+        case "remote", "remoteSourceControl":
+            return (
+                folder: checkoutsFolder.appending(component: dependency.subpath),
+                hash: dependency.state?.checkoutState?.revision,
+                kind: dependency.packageRef.kind
+            )
+        case "local", "fileSystem", "localSourceControl":
+            // Depending on the swift version, the information is available either in `path` or in `location`
+            guard let path = dependency.packageRef.path ?? dependency.packageRef.location else {
+                throw SwiftPackageManagerGraphGeneratorError.missingPathInLocalSwiftPackage(name)
+            }
+            // There's a bug in the `relative` implementation that produces the wrong path when using a symbolic link.
+            // This leads to nonexisting path in the `ModuleMapMapper` that relies on that method.
+            // To get around this, we're aligning paths from `workspace-state.json` with the /var temporary directory.
+            return (
+                folder: try AbsolutePath(validating: path.replacingOccurrences(of: "/private/var", with: "/var")),
+                hash: nil,
+                kind: dependency.packageRef.kind
+            )
+        case "registry":
+            return (
+                folder: registryDownloadsFolder.appending(try RelativePath(validating: dependency.subpath)),
+                hash: try dependency.state?.version.map { try contentHasher.hash([dependency.packageRef.identity, $0]) },
+                kind: dependency.packageRef.kind
+            )
+        default:
+            throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
+        }
+    }
+
+    private func loadCachedDependenciesGraph(
+        workspaceState: SwiftPackageManagerWorkspaceState,
+        workspaceStateData: Data,
+        rootPath: AbsolutePath,
+        disableSandbox: Bool,
+        checkoutsFolder: AbsolutePath,
+        registryDownloadsFolder: AbsolutePath
+    ) async throws -> DependenciesGraph? {
+        guard let cachePath = try await cachedDependenciesGraphPath(
+            workspaceState: workspaceState,
+            workspaceStateData: workspaceStateData,
+            rootPath: rootPath,
+            disableSandbox: disableSandbox,
+            checkoutsFolder: checkoutsFolder,
+            registryDownloadsFolder: registryDownloadsFolder
+        ) else {
+            return nil
+        }
+
+        guard try await fileSystem.exists(cachePath) else { return nil }
+        guard let data = try? await fileSystem.readFile(at: cachePath) else { return nil }
+        return try? decoder.decode(DependenciesGraph.self, from: data)
+    }
+
+    private func cacheDependenciesGraph(
+        _ dependenciesGraph: DependenciesGraph,
+        workspaceState: SwiftPackageManagerWorkspaceState,
+        workspaceStateData: Data,
+        rootPath: AbsolutePath,
+        disableSandbox: Bool,
+        checkoutsFolder: AbsolutePath,
+        registryDownloadsFolder: AbsolutePath
+    ) async throws {
+        guard let cachePath = try await cachedDependenciesGraphPath(
+            workspaceState: workspaceState,
+            workspaceStateData: workspaceStateData,
+            rootPath: rootPath,
+            disableSandbox: disableSandbox,
+            checkoutsFolder: checkoutsFolder,
+            registryDownloadsFolder: registryDownloadsFolder
+        ) else {
+            return
+        }
+
+        do {
+            if try await !fileSystem.exists(cachePath.parentDirectory) {
+                try await fileSystem.makeDirectory(at: cachePath.parentDirectory, options: [.createTargetParentDirectories])
+            }
+            try await fileSystem.writeAsJSON(dependenciesGraph, at: cachePath)
+        } catch {
+            return
+        }
+    }
+
+    private func cachedDependenciesGraphPath(
+        workspaceState: SwiftPackageManagerWorkspaceState,
+        workspaceStateData: Data,
+        rootPath: AbsolutePath,
+        disableSandbox: Bool,
+        checkoutsFolder: AbsolutePath,
+        registryDownloadsFolder: AbsolutePath
+    ) async throws -> AbsolutePath? {
+        guard let key = await dependenciesGraphCacheKey(
+            workspaceState: workspaceState,
+            workspaceStateData: workspaceStateData,
+            rootPath: rootPath,
+            disableSandbox: disableSandbox,
+            checkoutsFolder: checkoutsFolder,
+            registryDownloadsFolder: registryDownloadsFolder
+        ) else { return nil }
+
+        let directory = try cacheDirectory.value
+        return directory.appending(component: "\(CacheConstants.version).\(key).json")
+    }
+
+    private func dependenciesGraphCacheKey(
+        workspaceState: SwiftPackageManagerWorkspaceState,
+        workspaceStateData: Data,
+        rootPath: AbsolutePath,
+        disableSandbox: Bool,
+        checkoutsFolder: AbsolutePath,
+        registryDownloadsFolder: AbsolutePath
+    ) async -> String? {
+        guard let manifestHash = try? await packageManifestHashes(
+            workspaceState: workspaceState,
+            rootPath: rootPath,
+            checkoutsFolder: checkoutsFolder,
+            registryDownloadsFolder: registryDownloadsFolder
+        ) else {
+            return nil
+        }
+        guard let swiftlangVersion = try? swiftVersionProvider.swiftlangVersion() else { return nil }
+
+        let resolvedHash = await packageResolvedHash(at: rootPath) ?? "no-resolved"
+
+        let keyComponents = [
+            "\(CacheConstants.version)",
+            rootPath.pathString,
+            workspaceStateData.md5,
+            manifestHash,
+            resolvedHash,
+            swiftlangVersion,
+            tuistVersion,
+            "\(disableSandbox)",
+        ]
+
+        return keyComponents.joined(separator: "|").md5
+    }
+
+    private func packageResolvedHash(at rootPath: AbsolutePath) async -> String? {
+        let resolvedCandidates: [AbsolutePath] = [
+            rootPath.appending(component: ".package.resolved"),
+            rootPath.appending(component: Constants.SwiftPackageManager.packageResolvedName),
+            rootPath.appending(components: [".swiftpm", Constants.SwiftPackageManager.packageResolvedName]),
+        ]
+
+        var hashes: [String] = []
+        for candidate in resolvedCandidates {
+            guard (try? await fileSystem.exists(candidate)) == true else { continue }
+            guard let data = try? await fileSystem.readFile(at: candidate) else { continue }
+            hashes.append("\(candidate.basename):\(data.md5)")
+        }
+
+        guard !hashes.isEmpty else { return nil }
+        return hashes.joined(separator: "|").md5
+    }
+
+    private func packageManifestHashes(
+        workspaceState: SwiftPackageManagerWorkspaceState,
+        rootPath: AbsolutePath,
+        checkoutsFolder: AbsolutePath,
+        registryDownloadsFolder: AbsolutePath
+    ) async throws -> String? {
+        var hashes: [String] = []
+        let rootManifestPath = rootPath.appending(component: Constants.SwiftPackageManager.packageSwiftName)
+        guard try await fileSystem.exists(rootManifestPath) else { return nil }
+        let rootData = try await fileSystem.readFile(at: rootManifestPath)
+        hashes.append("root:\(rootData.md5)")
+
+        for dependency in workspaceState.object.dependencies {
+            let packageFolderInfo = try packageFolder(
+                for: dependency,
+                checkoutsFolder: checkoutsFolder,
+                registryDownloadsFolder: registryDownloadsFolder
+            )
+            let manifestPath = packageFolderInfo.folder.appending(component: Constants.SwiftPackageManager.packageSwiftName)
+            guard try await fileSystem.exists(manifestPath) else { return nil }
+            let data = try await fileSystem.readFile(at: manifestPath)
+            hashes.append("\(dependency.packageRef.identity):\(data.md5)")
+        }
+
+        guard !hashes.isEmpty else { return nil }
+        return hashes.sorted().joined(separator: "|").md5
     }
 
     private func validatePackageResolved(at path: AbsolutePath) async throws {

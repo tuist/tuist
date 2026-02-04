@@ -103,13 +103,33 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         path: AbsolutePath,
         disableSandbox: Bool
     ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment, [LintingIssue]) { // swiftlint:disable:this large_tuple
-        try await manifestLoader.validateHasRootManifest(at: path)
+        let shouldProfile = Environment.current.isVariableTruthy("TUIST_GENERATE_PROFILE")
+            && !Environment.current.isJSONOutput
+        let clock = WallClock()
+        func profile<T>(_ name: String, _ block: () async throws -> T) async rethrows -> T {
+            guard shouldProfile else {
+                return try await block()
+            }
+            let timer = clock.startTimer()
+            let result = try await block()
+            let time = String(format: "%.3f", timer.stop())
+            Logger.current.notice("\(name): \(time)s", metadata: .section)
+            return result
+        }
+
+        try await profile("Validate root manifest") {
+            try await manifestLoader.validateHasRootManifest(at: path)
+        }
 
         // Load Plugins
-        let plugins = try await loadPlugins(at: path)
+        let plugins = try await profile("Load plugins") {
+            try await loadPlugins(at: path)
+        }
 
         // Load Workspace
-        var allManifests = try await recursiveManifestLoader.loadWorkspace(at: path, disableSandbox: disableSandbox)
+        var allManifests = try await profile("Load workspace manifests") {
+            try await recursiveManifestLoader.loadWorkspace(at: path, disableSandbox: disableSandbox)
+        }
         let isSPMProjectOnly = allManifests.projects.isEmpty
         let hasExternalDependencies = allManifests.projects.values.contains { $0.containsExternalDependencies }
 
@@ -122,18 +142,24 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         if let packagePath = try await manifestFilesLocator.locatePackageManifest(at: path),
            isSPMProjectOnly || hasExternalDependencies
         {
-            let loadedPackageSettings = try await packageSettingsLoader.loadPackageSettings(
-                at: packagePath.parentDirectory,
-                with: plugins,
-                disableSandbox: disableSandbox
-            )
+            let loadedPackageSettings = try await profile("Load package settings") {
+                try await packageSettingsLoader.loadPackageSettings(
+                    at: packagePath.parentDirectory,
+                    with: plugins,
+                    disableSandbox: disableSandbox
+                )
+            }
 
-            let manifestsDependencyGraph = try await swiftPackageManagerGraphLoader.load(
-                packagePath: packagePath,
-                packageSettings: loadedPackageSettings,
-                disableSandbox: disableSandbox
-            )
-            dependenciesGraph = try await converter.convert(dependenciesGraph: manifestsDependencyGraph, path: path)
+            let manifestsDependencyGraph = try await profile("Load SPM graph") {
+                try await swiftPackageManagerGraphLoader.load(
+                    packagePath: packagePath,
+                    packageSettings: loadedPackageSettings,
+                    disableSandbox: disableSandbox
+                )
+            }
+            dependenciesGraph = try await profile("Convert SPM graph") {
+                try await converter.convert(dependenciesGraph: manifestsDependencyGraph, path: path)
+            }
             packageSettings = loadedPackageSettings
         } else {
             packageSettings = nil
@@ -142,56 +168,71 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
 
         // Merge SPM graph
         if let packageSettings {
-            allManifests = try await recursiveManifestLoader.loadAndMergePackageProjects(
-                in: allManifests,
-                packageSettings: packageSettings,
-                disableSandbox: disableSandbox
+            allManifests = try await profile("Merge package projects") {
+                try await recursiveManifestLoader.loadAndMergePackageProjects(
+                    in: allManifests,
+                    packageSettings: packageSettings,
+                    disableSandbox: disableSandbox
+                )
+            }
+        }
+
+        let workspaceModels = try await profile("Convert workspace manifest") {
+            try await converter.convert(manifest: allManifests.workspace, path: allManifests.path)
+        }
+        let manifestProjects = allManifests.projects
+
+        // Lint Manifests
+        let lintingIssues = try await profile("Lint manifests") {
+            let workspaceLintingIssues = manifestLinter.lint(workspace: allManifests.workspace)
+            let projectLintingIssues = manifestProjects.flatMap { manifestLinter.lint(project: $0.value) }
+            let lintingIssues = workspaceLintingIssues + projectLintingIssues
+            try lintingIssues.printAndThrowErrorsIfNeeded()
+            return lintingIssues
+        }
+
+        // Convert to models
+        let projectsModels = try await profile("Convert projects") {
+            try await convert(
+                projects: manifestProjects,
+                plugins: plugins,
+                externalDependencies: dependenciesGraph.externalDependencies
+            ) +
+                dependenciesGraph.externalProjects.values
+        }
+
+        // Check circular dependencies
+        try await profile("Lint circular dependencies") {
+            try graphLoaderLinter.lintWorkspace(workspace: workspaceModels, projects: projectsModels)
+        }
+
+        // Apply any registered model mappers
+        let (updatedModels, modelMapperSideEffects) = try await profile("Workspace mapper") {
+            try await workspaceMapper.map(
+                workspace: .init(workspace: workspaceModels, projects: projectsModels)
             )
         }
 
-        let (workspaceModels, manifestProjects) = (
-            try await converter.convert(manifest: allManifests.workspace, path: allManifests.path),
-            allManifests.projects
-        )
-
-        // Lint Manifests
-        let workspaceLintingIssues = manifestLinter.lint(workspace: allManifests.workspace)
-        let projectLintingIssues = manifestProjects.flatMap { manifestLinter.lint(project: $0.value) }
-        let lintingIssues = workspaceLintingIssues + projectLintingIssues
-        try lintingIssues.printAndThrowErrorsIfNeeded()
-
-        // Convert to models
-        let projectsModels = try await convert(
-            projects: manifestProjects,
-            plugins: plugins,
-            externalDependencies: dependenciesGraph.externalDependencies
-        ) +
-            dependenciesGraph.externalProjects.values
-
-        // Check circular dependencies
-        try graphLoaderLinter.lintWorkspace(workspace: workspaceModels, projects: projectsModels)
-
-        // Apply any registered model mappers
-        let (updatedModels, modelMapperSideEffects) = try await workspaceMapper.map(
-            workspace: .init(workspace: workspaceModels, projects: projectsModels)
-        )
-
         // Load graph
         let graphLoader = GraphLoader()
-        let graph = try await graphLoader.loadWorkspace(
-            workspace: updatedModels.workspace,
-            projects: updatedModels.projects
-        )
+        let graph = try await profile("Load graph") {
+            try await graphLoader.loadWorkspace(
+                workspace: updatedModels.workspace,
+                projects: updatedModels.projects
+            )
+        }
 
         if await RunMetadataStorage.current.graph == nil {
             await RunMetadataStorage.current.update(graph: graph)
         }
 
         // Apply graph mappers
-        let (mappedGraph, graphMapperSideEffects, environment) = try await graphMapper.map(
-            graph: graph,
-            environment: MapperEnvironment()
-        )
+        let (mappedGraph, graphMapperSideEffects, environment) = try await profile("Graph mapper") {
+            try await graphMapper.map(
+                graph: graph,
+                environment: MapperEnvironment()
+            )
+        }
 
         return (
             mappedGraph,
