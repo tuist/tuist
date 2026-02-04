@@ -446,6 +446,9 @@
                     "items": {
                         "mcp": {
                             "text": "MCP"
+                        },
+                        "skills": {
+                            "text": "المهارات"
                         }
                     }
                 },
