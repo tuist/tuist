@@ -243,10 +243,6 @@ struct InspectBuildCommandService {
             )
         }
 
-        for (key, value) in env where key.hasPrefix("TUIST_BUILD_TAG_") {
-            tags.append(value)
-        }
-
         for (key, value) in env where key.hasPrefix("TUIST_BUILD_VALUE_") {
             let valueKey = String(key.dropFirst("TUIST_BUILD_VALUE_".count)).lowercased()
             values[valueKey] = value

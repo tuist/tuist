@@ -69,11 +69,15 @@ defmodule TuistWeb.API.BuildsController do
       tags: [
         in: :query,
         type: %Schema{type: :array, items: %Schema{type: :string}},
+        style: :form,
+        explode: false,
         description: "Filter by tags. Returns builds containing ALL specified tags."
       ],
       values: [
         in: :query,
         type: %Schema{type: :array, items: %Schema{type: :string}},
+        style: :form,
+        explode: false,
         description:
           "Filter by custom values (key:value format). Returns builds matching ALL specified values. Example: ticket:PROJ-1234"
       ],

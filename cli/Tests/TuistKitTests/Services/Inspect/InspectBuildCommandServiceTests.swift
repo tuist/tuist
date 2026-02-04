@@ -626,82 +626,6 @@ struct InspectBuildCommandServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func createsBuild_with_custom_metadata_from_TUIST_BUILD_TAG_prefix() async throws {
-        // Given
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let projectPath = temporaryDirectory.appending(component: "App.xcodeproj")
-        let mockedEnvironment = try #require(Environment.mocked)
-        mockedEnvironment.workspacePath = projectPath
-        mockedEnvironment.variables["TUIST_BUILD_TAG_TEAM"] = "ios-team"
-        mockedEnvironment.variables["TUIST_BUILD_TAG_TYPE"] = "nightly"
-
-        given(xcodeProjectOrWorkspacePathLocator)
-            .locate(from: .any)
-            .willReturn(projectPath)
-
-        let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
-        given(derivedDataLocator)
-            .locate(for: .any)
-            .willReturn(derivedDataPath)
-        let buildLogsPath = derivedDataPath.appending(components: "Logs", "Build")
-        let activityLogPath = buildLogsPath.appending(
-            components: "\(UUID().uuidString).xcactivitylog"
-        )
-
-        given(xcActivityLogController)
-            .parse(.value(activityLogPath))
-            .willReturn(.test())
-        given(xcActivityLogController).mostRecentActivityLogFile(
-            projectDerivedDataDirectory: .value(derivedDataPath),
-            filter: .any
-        ).willReturn(
-            .test(
-                path: activityLogPath,
-                timeStoppedRecording: Date(timeIntervalSinceReferenceDate: 20)
-            )
-        )
-
-        // When
-        try await subject.run(path: nil)
-
-        // Then
-        verify(createBuildService)
-            .createBuild(
-                fullHandle: .any,
-                serverURL: .any,
-                id: .any,
-                category: .any,
-                configuration: .any,
-                customMetadata: .matching { metadata in
-                    guard let metadata else { return false }
-                    let tags = metadata.tags ?? []
-                    return tags.sorted() == ["ios-team", "nightly"]
-                },
-                duration: .any,
-                files: .any,
-                gitBranch: .any,
-                gitCommitSHA: .any,
-                gitRef: .any,
-                gitRemoteURLOrigin: .any,
-                isCI: .any,
-                issues: .any,
-                modelIdentifier: .any,
-                macOSVersion: .any,
-                scheme: .any,
-                targets: .any,
-                xcodeVersion: .any,
-                status: .any,
-                ciRunId: .any,
-                ciProjectHandle: .any,
-                ciHost: .any,
-                ciProvider: .any,
-                cacheableTasks: .any,
-                casOutputs: .any
-            )
-            .called(1)
-    }
-
-    @Test(.inTemporaryDirectory, .withMockedEnvironment())
     func createsBuild_with_custom_metadata_from_TUIST_BUILD_VALUE_prefix() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
@@ -788,7 +712,6 @@ struct InspectBuildCommandServiceTests {
         let mockedEnvironment = try #require(Environment.mocked)
         mockedEnvironment.workspacePath = projectPath
         mockedEnvironment.variables["TUIST_BUILD_TAGS"] = "nightly,release"
-        mockedEnvironment.variables["TUIST_BUILD_TAG_TEAM"] = "ios-team"
         mockedEnvironment.variables["TUIST_BUILD_VALUE_TICKET"] = "PROJ-1234"
 
         given(xcodeProjectOrWorkspacePathLocator)
@@ -832,7 +755,7 @@ struct InspectBuildCommandServiceTests {
                     guard let metadata else { return false }
                     let tags = metadata.tags ?? []
                     let values = metadata.values?.additionalProperties ?? [:]
-                    return tags.sorted() == ["ios-team", "nightly", "release"] &&
+                    return tags.sorted() == ["nightly", "release"] &&
                         values == ["ticket": "PROJ-1234"]
                 },
                 duration: .any,

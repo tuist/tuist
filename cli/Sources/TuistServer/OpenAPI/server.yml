@@ -6487,6 +6487,8 @@ paths:
           in: query
           name: tags
           required: false
+          style: form
+          explode: false
           schema:
             items:
               type: string
@@ -6499,6 +6501,8 @@ paths:
           in: query
           name: values
           required: false
+          style: form
+          explode: false
           schema:
             items:
               type: string

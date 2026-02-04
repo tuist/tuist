@@ -151,7 +151,6 @@ You can attach custom metadata to your builds using environment variables. This 
 | Variable | Format | Description |
 |----------|--------|-------------|
 | `TUIST_BUILD_TAGS` | Comma-separated | Multiple tags in a single variable |
-| `TUIST_BUILD_TAG_*` | Single value | Individual tag (suffix becomes identifier) |
 | `TUIST_BUILD_VALUE_*` | Single value | Key-value pair (suffix becomes the key) |
 
 ### Examples
@@ -161,12 +160,6 @@ The post-action script inherits environment variables from the system. Set these
 ```sh
 # Using TUIST_BUILD_TAGS for multiple tags
 export TUIST_BUILD_TAGS="nightly,ios-team,release-candidate"
-```
-
-```sh
-# Using individual TUIST_BUILD_TAG_* variables
-export TUIST_BUILD_TAG_TEAM="ios-team"
-export TUIST_BUILD_TAG_TYPE="nightly"
 ```
 
 ```sh
