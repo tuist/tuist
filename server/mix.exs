@@ -84,7 +84,6 @@ defmodule Tuist.MixProject do
       {:req_telemetry, "~> 0.1.1"},
       {:telemetry_test, "~> 0.1.2"},
       {:sweet_xml, "~> 0.7.4"},
-      {:timescale, "~> 0.1.0"},
       {:flop, "~> 0.26.0"},
       {:timex, "~> 3.7.13"},
       {:prom_ex, git: "https://github.com/pepicrft/prom_ex", branch: "finch"},
