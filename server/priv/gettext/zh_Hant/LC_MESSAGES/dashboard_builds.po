@@ -4,8 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2026-02-04 13:21+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_builds/zh_Hant/>\n"
 "Language: zh_Hant\n"
@@ -999,18 +998,22 @@ msgstr "快取端點"
 msgid "All"
 msgstr "全部"
 
+#, fuzzy
 msgid "Custom metadata"
-msgstr ""
+msgstr "自訂元資料"
 
 #, fuzzy
 msgid "Generations"
 msgstr "世代"
 
+#, fuzzy
 msgid "Tag:"
-msgstr ""
+msgstr "標籤："
 
+#, fuzzy
 msgid "Tags"
-msgstr ""
+msgstr "標籤"
 
+#, fuzzy
 msgid "Value"
-msgstr ""
+msgstr "值"
