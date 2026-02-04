@@ -89,11 +89,11 @@ var targets: [Target] = [
         ]
     ),
     .target(
-        name: "TuistNooraExtensionExtension",
+        name: "TuistNooraExtension",
         dependencies: [
             .product(name: "Noora", package: "tuist.Noora"),
         ],
-        path: "cli/Sources/TuistNooraExtensionExtension"
+        path: "cli/Sources/TuistNooraExtension"
     ),
     .target(
         name: "TuistThreadSafe",
