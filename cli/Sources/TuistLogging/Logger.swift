@@ -1,8 +1,11 @@
 import Foundation
 @_exported import Logging
 import Path
-import TuistConstants
 import TuistEnvironment
+
+#if os(macOS)
+    import TuistConstants
+#endif
 
 #if canImport(LoggingOSLog)
     import LoggingOSLog
@@ -33,19 +36,23 @@ public struct LoggingConfig {
 
 extension LoggingConfig {
     public static func `default`() -> LoggingConfig {
-        let env = Environment.current.variables
+        #if os(macOS)
+            let env = Environment.current.variables
 
-        let quiet = env[Constants.EnvironmentVariables.quiet] != nil
-        let detailed = env[Constants.EnvironmentVariables.detailedLog] != nil
-        let verbose = quiet ? false : Environment.current.isVerbose
+            let quiet = env[Constants.EnvironmentVariables.quiet] != nil
+            let detailed = env[Constants.EnvironmentVariables.detailedLog] != nil
+            let verbose = quiet ? false : Environment.current.isVerbose
 
-        if quiet {
-            return .init(loggerType: .quiet, verbose: verbose)
-        }
-        if detailed {
-            return .init(loggerType: .detailed, verbose: verbose)
-        }
-        return .init(loggerType: .console, verbose: verbose)
+            if quiet {
+                return .init(loggerType: .quiet, verbose: verbose)
+            }
+            if detailed {
+                return .init(loggerType: .detailed, verbose: verbose)
+            }
+            return .init(loggerType: .console, verbose: verbose)
+        #else
+            return .init(loggerType: .console, verbose: false)
+        #endif
     }
 }
 

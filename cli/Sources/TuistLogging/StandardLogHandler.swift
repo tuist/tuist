@@ -1,7 +1,10 @@
 import Foundation
 import Logging
-import TuistAlert
 import TuistEnvironment
+
+#if os(macOS)
+    import TuistAlert
+#endif
 
 public struct StandardLogHandler: LogHandler {
     public var logLevel: Logger.Level
@@ -44,8 +47,12 @@ public struct StandardLogHandler: LogHandler {
                 case .error:
                     string = message.description.red()
                 case .warning:
-                    AlertController.current.warning(.alert("\(message.description)"))
-                    return
+                    #if os(macOS)
+                        AlertController.current.warning(.alert("\(message.description)"))
+                        return
+                    #else
+                        string = message.description
+                    #endif
                 case .notice, .info, .debug, .trace:
                     string = message.description
                 }
