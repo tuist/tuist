@@ -6,6 +6,7 @@ import TuistCI
 import TuistConstants
 import TuistCore
 import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistGit
 import TuistLoader
 import TuistProcess

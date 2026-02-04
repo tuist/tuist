@@ -1047,6 +1047,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.core.targetName),
                     .target(name: Module.generator.targetName),
                     .target(name: Module.testing.targetName),
+                    .target(name: Module.environmentTesting.targetName),
                     .target(name: Module.projectDescription.targetName),
                     .target(name: Module.projectAutomation.targetName),
                     .target(name: Module.migration.targetName),
