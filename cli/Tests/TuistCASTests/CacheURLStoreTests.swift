@@ -3,6 +3,7 @@ import Mockable
 import Testing
 import TuistEnvironment
 import TuistServer
+import TuistTesting
 
 @testable import TuistCAS
 
