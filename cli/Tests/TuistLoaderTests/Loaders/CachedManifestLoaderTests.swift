@@ -436,11 +436,7 @@ class CachedManifestLoaderTests {
 
     private func corruptFiles(at path: AbsolutePath) throws {
         for filePath in try fileHandler.contentsOfDirectory(path) {
-            if fileHandler.isFolder(filePath) {
-                try corruptFiles(at: filePath)
-            } else {
-                try fileHandler.write("corruptedData", path: filePath, atomically: true)
-            }
+            try fileHandler.write("corruptedData", path: filePath, atomically: true)
         }
     }
 }

@@ -46,15 +46,6 @@ public protocol ManifestFilesLocating: AnyObject {
 }
 
 public final class ManifestFilesLocator: ManifestFilesLocating {
-    private struct ManifestContentCacheEntry {
-        let modificationDate: Date
-        let size: UInt64
-        let isValid: Bool
-    }
-
-    private static let cachedManifestFilePaths = ThreadSafe<[AbsolutePath: Set<AbsolutePath>]>([:])
-    private static let manifestContentCache = ThreadSafe<[AbsolutePath: ManifestContentCacheEntry]>([:])
-
     /// Utility to locate the root directory of the project
     private let rootDirectoryLocator: RootDirectoryLocating
     private let fileSystem: FileSysteming
@@ -104,14 +95,11 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
         fnmatch(pattern, path.pathString, 0) != FNM_NOMATCH
     }
 
+    var cacheTuistManifestsFilePaths = [AbsolutePath: Set<AbsolutePath>]()
+
     private func fetchTuistManifestsFilePaths(at path: AbsolutePath) async -> Set<AbsolutePath> {
-        if let cachedTuistManifestsFilePaths = Self.cachedManifestFilePaths.withValue({ $0[path] }) {
-            let validCachedPaths = await cachedTuistManifestsFilePaths.concurrentFilter { [weak self] in
-                await self?.hasValidManifestContent($0) ?? false
-            }
-            if validCachedPaths.count == cachedTuistManifestsFilePaths.count {
-                return Set(validCachedPaths)
-            }
+        if let cachedTuistManifestsFilePaths = cacheTuistManifestsFilePaths[path] {
+            return cachedTuistManifestsFilePaths
         }
         let fileNamesCandidates: Set<String> = [
             Manifest.project.fileName(path),
@@ -127,43 +115,16 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
             await self?.hasValidManifestContent($0) ?? false
         }
 
-        Self.cachedManifestFilePaths.mutate { cache in
-            cache[path] = tuistManifestsFilePaths
-        }
+        cacheTuistManifestsFilePaths[path] = tuistManifestsFilePaths
 
         return tuistManifestsFilePaths
     }
 
     private func hasValidManifestContent(_ path: AbsolutePath) async -> Bool {
-        let attributes = try? FileHandler.shared.fileAttributes(at: path)
-        let modificationDate = attributes?[.modificationDate] as? Date
-        let size = attributes?[.size] as? UInt64
-
-        if let entry = Self.manifestContentCache.withValue({ $0[path] }),
-           let modificationDate,
-           let size,
-           entry.modificationDate == modificationDate,
-           entry.size == size
-        {
-            return entry.isValid
-        }
-
         guard let content = try? await fileSystem.readTextFile(at: path) else { return false }
 
         let tuistManifestSignature = "import ProjectDescription"
-        let isValid = content.contains(tuistManifestSignature) || content.isEmpty
-
-        if let modificationDate, let size {
-            Self.manifestContentCache.mutate { cache in
-                cache[path] = ManifestContentCacheEntry(
-                    modificationDate: modificationDate,
-                    size: size,
-                    isValid: isValid
-                )
-            }
-        }
-
-        return isValid
+        return content.contains(tuistManifestSignature) || content.isEmpty
     }
 
     /// Project manifest returned by `locateProjectManifests`

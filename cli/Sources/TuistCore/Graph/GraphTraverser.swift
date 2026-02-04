@@ -26,20 +26,6 @@ public class GraphTraverser: GraphTraversing {
     private let graph: Graph
     private let conditionCache = ConditionCache()
     private let conditionalTargets: Set<GraphDependency>
-    private struct LinkableDependenciesKey: Hashable {
-        let target: GraphDependency
-        let shouldExcludeHostAppDependencies: Bool
-    }
-
-    private let linkableDependenciesCache = GraphCache<LinkableDependenciesKey, Set<GraphDependencyReference>>()
-    private let directTargetDependenciesCache = GraphCache<GraphDependency, Set<GraphTargetReference>>()
-    private let allTargetDependenciesCache = GraphCache<GraphTarget, Set<GraphTarget>>()
-    private let embeddableFrameworksCache = GraphCache<GraphDependency, Set<GraphDependencyReference>>()
-    private let resourceBundleDependenciesCache = GraphCache<GraphDependency, Set<GraphDependencyReference>>()
-    private let copyProductDependenciesCache = GraphCache<GraphDependency, Set<GraphDependencyReference>>()
-    private let directLocalTargetDependenciesCache = GraphCache<GraphDependency, Set<GraphTargetReference>>()
-    private let precompiledDynamicDependenciesCache = GraphCache<GraphDependency, [GraphDependency]>()
-    private let transitiveStaticDependenciesCache = GraphCache<GraphDependency, Set<GraphDependency>>()
     private let swiftPluginExecutablesCache = GraphCache<GraphDependency, Set<String>>()
     private let systemFrameworkMetadataProvider: SystemFrameworkMetadataProviding =
         SystemFrameworkMetadataProvider()
@@ -175,12 +161,7 @@ public class GraphTraverser: GraphTraversing {
 
     public func allTargetDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphTarget> {
         guard let target = target(path: path, name: name) else { return [] }
-        if let cached = allTargetDependenciesCache[target] {
-            return cached
-        }
-        let dependencies = allTargetDependencies(traversingFromTargets: [target])
-        allTargetDependenciesCache[target] = dependencies
-        return dependencies
+        return allTargetDependencies(traversingFromTargets: [target])
     }
 
     public func allTargetDependencies(traversingFromTargets: [GraphTarget]) -> Set<GraphTarget> {
@@ -207,27 +188,19 @@ public class GraphTraverser: GraphTraversing {
         GraphTargetReference
     > {
         let target = GraphDependency.target(name: name, path: path)
-        if let cached = directTargetDependenciesCache[target] {
-            return cached
-        }
         guard let dependencies = graph.dependencies[target]
         else { return [] }
         let targetDependencies =
             dependencies
                 .compactMap(\.targetDependency)
 
-        let references = Set(convertToGraphTargetReferences(targetDependencies, for: target))
-        directTargetDependenciesCache[target] = references
-        return references
+        return Set(convertToGraphTargetReferences(targetDependencies, for: target))
     }
 
     public func directLocalTargetDependencies(path: Path.AbsolutePath, name: String) -> Set<
         GraphTargetReference
     > {
         let target = GraphDependency.target(name: name, path: path)
-        if let cached = directLocalTargetDependenciesCache[target] {
-            return cached
-        }
         guard let dependencies = graph.dependencies[target],
               graph.projects[path] != nil
         else { return [] }
@@ -237,9 +210,7 @@ public class GraphTraverser: GraphTraversing {
                 .compactMap(\.targetDependency)
                 .filter { $0.path == path }
 
-        let references = Set(convertToGraphTargetReferences(localTargetDependencies, for: target))
-        directLocalTargetDependenciesCache[target] = references
-        return references
+        return Set(convertToGraphTargetReferences(localTargetDependencies, for: target))
     }
 
     public func directNonExternalTargetDependencies(path: Path.AbsolutePath, name: String) -> Set<
@@ -296,20 +267,13 @@ public class GraphTraverser: GraphTraversing {
     public func resourceBundleDependencies(path: Path.AbsolutePath, name: String) -> Set<
         GraphDependencyReference
     > {
-        let targetDependency = GraphDependency.target(name: name, path: path)
-        if let cached = resourceBundleDependenciesCache[targetDependency] {
-            return cached
-        }
         guard let target = graph.projects[path]?.targets[name] else { return [] }
 
         func canHostResources(target: Target) -> Bool {
             target.supportsResources && (target.product != .staticFramework || target.containsResources)
         }
 
-        guard canHostResources(target: target) else {
-            resourceBundleDependenciesCache[targetDependency] = []
-            return []
-        }
+        guard canHostResources(target: target) else { return [] }
 
         func canHostResources(dependency: GraphDependency) -> Bool {
             testTarget(dependency: dependency) { canHostResources(target: $0) }
@@ -365,12 +329,10 @@ public class GraphTraverser: GraphTraversing {
             return bundleReferences
         }()
 
-        let references = Set(
+        return Set(
             bundles.union(externalBundles)
                 .compactMap { dependencyReference(to: $0, from: .target(name: name, path: path)) }
         ).union(externalStaticFrameworkBundleResources)
-        resourceBundleDependenciesCache[targetDependency] = references
-        return references
     }
 
     public func target(from dependency: GraphDependency) -> GraphTarget? {
@@ -450,11 +412,6 @@ public class GraphTraverser: GraphTraversing {
     public func embeddableFrameworks(path: Path.AbsolutePath, name: String) -> Set<
         GraphDependencyReference
     > {
-        let targetDependency = GraphDependency.target(name: name, path: path)
-        if let cached = embeddableFrameworksCache[targetDependency] {
-            return cached
-        }
-
         guard let target = target(path: path, name: name), canEmbedFrameworks(target: target.target)
         else { return Set() }
 
@@ -568,7 +525,6 @@ public class GraphTraverser: GraphTraversing {
             }
         }
 
-        embeddableFrameworksCache[targetDependency] = references
         return references
     }
 
@@ -591,18 +547,10 @@ public class GraphTraverser: GraphTraversing {
         name: String,
         shouldExcludeHostAppDependencies: Bool
     ) throws -> Set<GraphDependencyReference> {
-        let targetGraphDependency = GraphDependency.target(name: name, path: path)
-        let cacheKey = LinkableDependenciesKey(
-            target: targetGraphDependency,
-            shouldExcludeHostAppDependencies: shouldExcludeHostAppDependencies
-        )
-        if let cached = linkableDependenciesCache[cacheKey] {
-            return cached
-        }
-
         guard let target = target(path: path, name: name) else { return Set() }
 
         var references = Set<GraphDependencyReference>()
+        let targetGraphDependency = GraphDependency.target(name: name, path: path)
 
         // System libraries and frameworks
         if target.target.canLinkStaticProducts() {
@@ -744,7 +692,6 @@ public class GraphTraverser: GraphTraversing {
 
         references.formUnion(dynamicLibrariesAndFrameworks)
 
-        linkableDependenciesCache[cacheKey] = references
         return references
     }
 
@@ -752,10 +699,6 @@ public class GraphTraverser: GraphTraversing {
         path: Path.AbsolutePath,
         name: String
     ) -> [GraphDependency] {
-        let targetDependency = GraphDependency.target(name: name, path: path)
-        if let cached = precompiledDynamicDependenciesCache[targetDependency] {
-            return cached
-        }
         // Precompiled libraries and frameworks
         let precompiled = graph.dependencies[.target(name: name, path: path), default: []]
             .lazy
@@ -764,10 +707,8 @@ public class GraphTraverser: GraphTraversing {
         let precompiledDependencies = precompiled
             .flatMap { filterDependencies(from: $0) }
 
-        let result = Set(precompiled + precompiledDependencies)
+        return Set(precompiled + precompiledDependencies)
             .filter(\.isPrecompiledDynamicAndLinkable)
-        precompiledDynamicDependenciesCache[targetDependency] = result
-        return result
     }
 
     public func staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies(
@@ -799,11 +740,6 @@ public class GraphTraverser: GraphTraversing {
     }
 
     public func copyProductDependencies(path: Path.AbsolutePath, name: String) -> Set<GraphDependencyReference> {
-        let targetDependency = GraphDependency.target(name: name, path: path)
-        if let cached = copyProductDependenciesCache[targetDependency] {
-            return cached
-        }
-
         guard let target = target(path: path, name: name) else { return Set() }
 
         var dependencies = Set<GraphDependencyReference>()
@@ -820,9 +756,7 @@ public class GraphTraverser: GraphTraversing {
         )
         dependencies.formUnion(resourceBundleDependencies(path: path, name: name))
 
-        let references = Set(dependencies)
-        copyProductDependenciesCache[targetDependency] = references
-        return references
+        return Set(dependencies)
     }
 
     public func executableDependencies(
@@ -1523,16 +1457,11 @@ public class GraphTraverser: GraphTraversing {
     }
 
     func transitiveStaticDependencies(from dependency: GraphDependency) -> Set<GraphDependency> {
-        if let cached = transitiveStaticDependenciesCache[dependency] {
-            return cached
-        }
-        let result = filterDependencies(
+        filterDependencies(
             from: dependency,
             test: isDependencyStatic,
             skip: or(canDependencyLinkStaticProducts, isDependencyPrecompiledMacro)
         )
-        transitiveStaticDependenciesCache[dependency] = result
-        return result
     }
 
     func isDependencyExternal(_ dependency: GraphDependency) -> Bool {

@@ -50,10 +50,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
         try await workspace.projectDescriptors.forEach(context: config.projectDescriptorWritingContext) { projectDescriptor in
             try await self.write(project: projectDescriptor, schemesOrderHint: schemesOrderHint)
         }
-        try await writeWorkspaceIfNeeded(
-            workspace: workspace.xcworkspace,
-            xcworkspacePath: workspace.xcworkspacePath
-        )
+        try workspace.xcworkspace.write(path: workspace.xcworkspacePath.path, override: true)
 
         // Write all schemes (XCWorkspace doesn't manage any schemes like XcodeProj.sharedData)
         try await writeSchemes(
@@ -83,24 +80,15 @@ public final class XcodeProjWriter: XcodeProjWriting {
     private func write(project: ProjectDescriptor, schemesOrderHint: [String: Int]?) async throws {
         let schemesOrderHint = schemesOrderHint ?? self.schemesOrderHint(schemes: project.schemeDescriptors)
 
-        let xcodeprojPath = project.xcodeprojPath
-        let xcodeprojExists = try await fileSystem.exists(xcodeprojPath)
+        // XcodeProj can manage writing of shared schemes, we have to manually manage the user schemes
+        let project = enrichingXcodeProjWithSharedSchemes(descriptor: project)
+        try project.xcodeProj.write(path: project.xcodeprojPath.path)
 
-        if !xcodeprojExists {
-            let project = enrichingXcodeProjWithSharedSchemes(descriptor: project)
-            try project.xcodeProj.write(path: project.xcodeprojPath.path)
-        } else {
-            try await writePBXProjIfNeeded(xcodeProj: project.xcodeProj, xcodeprojPath: xcodeprojPath)
-            try await writeWorkspaceIfNeeded(
-                workspace: project.xcodeProj.workspace,
-                xcworkspacePath: xcodeprojPath.appending(component: "project.xcworkspace")
-            )
-        }
-
+        // Write user schemes only
         try await writeSchemes(
-            schemeDescriptors: project.schemeDescriptors,
+            schemeDescriptors: project.userSchemeDescriptors,
             xccontainerPath: project.xcodeprojPath,
-            wipeSharedSchemesBeforeWriting: true
+            wipeSharedSchemesBeforeWriting: false // Since we are only writing user schemes
         )
         try await writeXCSchemeManagement(
             schemes: project.schemeDescriptors,
@@ -116,21 +104,11 @@ public final class XcodeProjWriter: XcodeProjWriting {
         xccontainerPath: AbsolutePath,
         wipeSharedSchemesBeforeWriting: Bool
     ) async throws {
-        let sharedSchemes = schemeDescriptors.filter(\.shared)
-        try await writeSchemes(
-            schemeDescriptors: sharedSchemes,
-            directory: try schemeDirectory(path: xccontainerPath, shared: true),
-            pruneStale: wipeSharedSchemesBeforeWriting
-        )
-
-        let userSchemes = schemeDescriptors.filter { !$0.shared }
-        if !userSchemes.isEmpty {
-            try await writeSchemes(
-                schemeDescriptors: userSchemes,
-                directory: try schemeDirectory(path: xccontainerPath, shared: false),
-                pruneStale: false
-            )
+        let sharedSchemesPath = try schemeDirectory(path: xccontainerPath, shared: true)
+        if wipeSharedSchemesBeforeWriting, try await fileSystem.exists(sharedSchemesPath) {
+            try await fileSystem.remove(sharedSchemesPath)
         }
+        try schemeDescriptors.forEach { try write(scheme: $0, xccontainerPath: xccontainerPath) }
     }
 
     private func schemesOrderHint(schemes: [SchemeDescriptor]) -> [String: Int] {
@@ -160,8 +138,13 @@ public final class XcodeProjWriter: XcodeProjWriting {
         xccontainerPath: AbsolutePath
     ) async throws {
         let settingsPath = WorkspaceSettingsDescriptor.xcsettingsFilePath(relativeToWorkspace: xccontainerPath)
-        guard let data = try workspaceSettingsDescriptor.settings.dataRepresentation() else { return }
-        try await writeIfChanged(data, at: settingsPath)
+
+        let parentFolder = settingsPath.removingLastComponent()
+        if try await !fileSystem.exists(parentFolder) {
+            try await fileSystem.makeDirectory(at: parentFolder)
+        }
+        try workspaceSettingsDescriptor.settings
+            .write(path: settingsPath.path, override: true)
     }
 
     private func deleteWorkspaceSettingsIfNeeded(xccontainerPath: AbsolutePath) async throws {
@@ -187,18 +170,22 @@ public final class XcodeProjWriter: XcodeProjWriting {
                 isShown: !scheme.hidden
             )
         }
-        let schemeManagement = XCSchemeManagement(schemeUserState: userStateSchemes, suppressBuildableAutocreation: nil)
-        guard let data = try schemeManagement.dataRepresentation() else { return }
-        try await writeIfChanged(data, at: xcschememanagementPath)
+        if try await fileSystem.exists(xcschememanagementPath) {
+            try await fileSystem.remove(xcschememanagementPath)
+        }
+        try FileHandler.shared.createFolder(xcschememanagementPath.parentDirectory)
+        try XCSchemeManagement(schemeUserState: userStateSchemes, suppressBuildableAutocreation: nil)
+            .write(path: xcschememanagementPath.path)
     }
 
     private func write(
         scheme: SchemeDescriptor,
-        directory: AbsolutePath
-    ) async throws {
-        let schemePath = directory.appending(component: "\(scheme.xcScheme.name).xcscheme")
-        guard let data = try scheme.xcScheme.dataRepresentation() else { return }
-        try await writeIfChanged(data, at: schemePath)
+        xccontainerPath: AbsolutePath
+    ) throws {
+        let schemeDirectory = try schemeDirectory(path: xccontainerPath, shared: scheme.shared)
+        let schemePath = schemeDirectory.appending(component: "\(scheme.xcScheme.name).xcscheme")
+        try FileHandler.shared.createFolder(schemeDirectory)
+        try scheme.xcScheme.write(path: schemePath.path, override: true)
     }
 
     private func schemeDirectory(path: AbsolutePath, shared: Bool = true) throws -> AbsolutePath {
@@ -208,116 +195,6 @@ public final class XcodeProjWriter: XcodeProjWriting {
             let username = NSUserName()
             return path.appending(try RelativePath(validating: "xcuserdata/\(username).xcuserdatad/xcschemes"))
         }
-    }
-
-    private func writeSchemes(
-        schemeDescriptors: [SchemeDescriptor],
-        directory: AbsolutePath,
-        pruneStale: Bool
-    ) async throws {
-        if schemeDescriptors.isEmpty {
-            if pruneStale, try await fileSystem.exists(directory) {
-                try await fileSystem.remove(directory)
-            }
-            return
-        }
-
-        if try await !fileSystem.exists(directory) {
-            try await fileSystem.makeDirectory(at: directory, options: [.createTargetParentDirectories])
-        }
-
-        if pruneStale {
-            let expectedSchemeNames = Set(schemeDescriptors.map { "\($0.xcScheme.name).xcscheme" })
-            let existingSchemes = try await fileSystem.contentsOfDirectory(directory)
-                .filter { $0.extension == "xcscheme" }
-            for scheme in existingSchemes where !expectedSchemeNames.contains(scheme.basename) {
-                try await fileSystem.remove(scheme)
-            }
-        }
-
-        for scheme in schemeDescriptors {
-            try await write(scheme: scheme, directory: directory)
-        }
-    }
-
-    private func writePBXProjIfNeeded(
-        xcodeProj: XcodeProj,
-        xcodeprojPath: AbsolutePath
-    ) async throws {
-        let pbxprojPath = xcodeprojPath.appending(component: "project.pbxproj")
-        let pbxprojHashPath = xcodeprojPath.appending(components: [".tuist", "project.pbxproj.md5"])
-
-        guard let data = try xcodeProj.pbxproj.dataRepresentation() else { return }
-        let dataHash = data.md5
-
-        if try await fileSystem.exists(pbxprojPath),
-           try await fileSystem.exists(pbxprojHashPath),
-           let hashData = try? await fileSystem.readFile(at: pbxprojHashPath)
-        {
-            let existingHash = String(decoding: hashData, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
-            if existingHash == dataHash {
-                return
-            }
-        } else if try await fileSystem.exists(pbxprojPath),
-                  let existingData = try? await fileSystem.readFile(at: pbxprojPath),
-                  existingData.md5 == dataHash
-        {
-            if try await !fileSystem.exists(pbxprojHashPath.parentDirectory) {
-                try await fileSystem.makeDirectory(
-                    at: pbxprojHashPath.parentDirectory,
-                    options: [.createTargetParentDirectories]
-                )
-            }
-            try await fileSystem.writeText(
-                dataHash,
-                at: pbxprojHashPath,
-                encoding: .utf8,
-                options: [.overwrite]
-            )
-            return
-        }
-
-        if try await !fileSystem.exists(xcodeprojPath) {
-            try await fileSystem.makeDirectory(at: xcodeprojPath, options: [.createTargetParentDirectories])
-        }
-
-        let contents = String(decoding: data, as: UTF8.self)
-        try await fileSystem.writeText(contents, at: pbxprojPath, encoding: .utf8, options: [.overwrite])
-        if try await !fileSystem.exists(pbxprojHashPath.parentDirectory) {
-            try await fileSystem.makeDirectory(
-                at: pbxprojHashPath.parentDirectory,
-                options: [.createTargetParentDirectories]
-            )
-        }
-        try await fileSystem.writeText(
-            dataHash,
-            at: pbxprojHashPath,
-            encoding: .utf8,
-            options: [.overwrite]
-        )
-    }
-
-    private func writeWorkspaceIfNeeded(
-        workspace: XCWorkspace,
-        xcworkspacePath: AbsolutePath
-    ) async throws {
-        let dataPath = xcworkspacePath.appending(component: "contents.xcworkspacedata")
-        guard let data = try workspace.dataRepresentation() else { return }
-        try await writeIfChanged(data, at: dataPath)
-    }
-
-    private func writeIfChanged(_ data: Data, at path: AbsolutePath) async throws {
-        if try await fileSystem.exists(path) {
-            let existingData = try await fileSystem.readFile(at: path)
-            if existingData == data {
-                return
-            }
-        } else if try await !fileSystem.exists(path.parentDirectory) {
-            try await fileSystem.makeDirectory(at: path.parentDirectory, options: [.createTargetParentDirectories])
-        }
-
-        let contents = String(decoding: data, as: UTF8.self)
-        try await fileSystem.writeText(contents, at: path, encoding: .utf8, options: [.overwrite])
     }
 }
 

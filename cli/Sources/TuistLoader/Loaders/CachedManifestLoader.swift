@@ -155,49 +155,21 @@ public class CachedManifestLoader: ManifestLoading {
             return try await loader()
         }
 
-        let cachedManifestPaths = try cachedPaths(for: manifestPath)
+        let cachedManifestPath = try cachedPath(for: manifestPath)
         if let cached: T = try await loadCachedManifest(
-            at: cachedManifestPaths,
+            at: cachedManifestPath,
             hashes: hashes
         ) {
             return cached
         }
 
-        let loadedManifest: T
-        let manifestData: Data
-
-        let shouldUseRawManifestData: Bool = {
-            switch manifest {
-            case .package:
-                return false
-            case .config, .plugin, .project, .template, .workspace, .packageSettings:
-                return true
-            }
-        }()
-
-        if shouldUseRawManifestData, let rawLoader = manifestLoader as? RawManifestLoading {
-            let rawData = try await rawLoader.loadManifestData(
-                manifest,
-                at: path,
-                disableSandbox: disableSandbox
-            )
-            if let decoded = try? decoder.decode(T.self, from: rawData) {
-                loadedManifest = decoded
-                manifestData = rawData
-            } else {
-                loadedManifest = try await loader()
-                manifestData = try encoder.encode(loadedManifest)
-            }
-        } else {
-            loadedManifest = try await loader()
-            manifestData = try encoder.encode(loadedManifest)
-        }
+        let loadedManifest = try await loader()
 
         try await cacheManifest(
             manifest: manifest,
-            manifestData: manifestData,
+            loadedManifest: loadedManifest,
             hashes: hashes,
-            to: cachedManifestPaths
+            to: cachedManifestPath
         )
 
         return loadedManifest
@@ -267,73 +239,60 @@ public class CachedManifestLoader: ManifestLoading {
         return tuistEnvVariables.joined(separator: "-").md5
     }
 
-    private func cachedPaths(for manifestPath: AbsolutePath) throws -> (metadata: AbsolutePath, manifest: AbsolutePath) {
+    private func cachedPath(for manifestPath: AbsolutePath) throws -> AbsolutePath {
         let pathHash = manifestPath.pathString.md5
-        let cacheVersion = CachedManifestMetadata.currentCacheVersion.description
+        let cacheVersion = CachedManifest.currentCacheVersion.description
         let fileName = [cacheVersion, pathHash].joined(separator: ".")
-        let basePath = try cacheDirectory.value
-        return (
-            metadata: basePath.appending(component: "\(fileName).meta.json"),
-            manifest: basePath.appending(component: "\(fileName).manifest.json")
-        )
+        return try cacheDirectory.value.appending(component: fileName)
     }
 
     private func loadCachedManifest<T: Decodable>(
-        at cachedManifestPaths: (metadata: AbsolutePath, manifest: AbsolutePath),
+        at cachedManifestPath: AbsolutePath,
         hashes: Hashes
     ) async throws -> T? {
-        guard try await fileSystem.exists(cachedManifestPaths.metadata),
-              try await fileSystem.exists(cachedManifestPaths.manifest)
-        else {
+        guard try await fileSystem.exists(cachedManifestPath) else {
             return nil
         }
 
-        guard let metadataData = try? await fileSystem.readFile(at: cachedManifestPaths.metadata) else {
+        guard let data = try? await fileSystem.readFile(at: cachedManifestPath) else {
             return nil
         }
 
-        guard let cachedManifest = try? decoder.decode(CachedManifestMetadata.self, from: metadataData) else {
+        guard let cachedManifest = try? decoder.decode(CachedManifest.self, from: data) else {
             return nil
         }
 
-        guard cachedManifest.cacheVersion == CachedManifestMetadata.currentCacheVersion,
+        guard cachedManifest.cacheVersion == CachedManifest.currentCacheVersion,
               cachedManifest.tuistVersion == tuistVersion,
               cachedManifest.hashes == hashes
         else {
             return nil
         }
 
-        guard let manifestData = try? await fileSystem.readFile(at: cachedManifestPaths.manifest) else {
-            return nil
-        }
-
-        return try? decoder.decode(T.self, from: manifestData)
+        return try? decoder.decode(T.self, from: cachedManifest.manifest)
     }
 
     private func cacheManifest(
         manifest: Manifest,
-        manifestData: Data,
+        loadedManifest: some Encodable,
         hashes: Hashes,
-        to cachedManifestPaths: (metadata: AbsolutePath, manifest: AbsolutePath)
+        to cachedManifestPath: AbsolutePath
     ) async throws {
-        let cachedManifest = CachedManifestMetadata(
+        let cachedManifest = CachedManifest(
             tuistVersion: tuistVersion,
-            hashes: hashes
+            hashes: hashes,
+            manifest: try encoder.encode(loadedManifest)
         )
 
         let cachedManifestData = try encoder.encode(cachedManifest)
-        guard let cachedManifestContent = String(data: cachedManifestData, encoding: .utf8),
-              let manifestContent = String(data: manifestData, encoding: .utf8)
-        else {
-            throw ManifestLoaderError.manifestCachingFailed(manifest, cachedManifestPaths.metadata)
+        guard let cachedManifestContent = String(data: cachedManifestData, encoding: .utf8) else {
+            throw ManifestLoaderError.manifestCachingFailed(manifest, cachedManifestPath)
         }
-
         do {
-            try await write(cachedManifestContent: cachedManifestContent, to: cachedManifestPaths.metadata)
-            try await write(cachedManifestContent: manifestContent, to: cachedManifestPaths.manifest)
+            try await write(cachedManifestContent: cachedManifestContent, to: cachedManifestPath)
         } catch let error as _NIOFileSystem.FileSystemError {
             if error.code == .fileAlreadyExists {
-                Logger.current.debug("The manifest at \(cachedManifestPaths.metadata) is already cached, skipping...")
+                Logger.current.debug("The manifest at \(cachedManifestPath) is already cached, skipping...")
             } else {
                 throw error
             }
@@ -342,7 +301,7 @@ public class CachedManifestLoader: ManifestLoading {
 
     private func write(cachedManifestContent: String, to cachedManifestPath: AbsolutePath) async throws {
         if try await !fileSystem.exists(cachedManifestPath.parentDirectory, isDirectory: true) {
-            try await fileSystem.makeDirectory(at: cachedManifestPath.parentDirectory)
+            try await fileSystem.makeDirectory(at: cachedManifestPath)
         }
         if try await fileSystem.exists(cachedManifestPath) {
             try await fileSystem.remove(cachedManifestPath)
@@ -362,13 +321,14 @@ private struct Hashes: Equatable, Codable {
     var disableSandboxHash: String
 }
 
-private struct CachedManifestMetadata: Codable {
+private struct CachedManifest: Codable {
     // Note: please bump the version in case the cache structure is modified.
     // This ensures older cache versions are not loaded using this structure.
 
-    static let currentCacheVersion = 2
+    static let currentCacheVersion = 1
 
     var cacheVersion: Int = currentCacheVersion
     var tuistVersion: String
     var hashes: Hashes
+    var manifest: Data
 }
