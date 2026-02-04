@@ -405,6 +405,9 @@
                     "items": {
                         "mcp": {
                             "text": "Model Context Protocol (MCP)"
+                        },
+                        "skills": {
+                            "text": "Habilidades"
                         }
                     }
                 },
