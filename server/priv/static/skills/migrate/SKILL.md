@@ -9,7 +9,7 @@ description: Migrates existing Xcode projects to Tuist generated workspaces with
 
 1. Baseline build and run the app with xcodebuild.
 2. Inventory targets, build settings, and external dependencies.
-3. Create `Tuist.swift`, `Project.swift`, and (optionally) `Tuist/Package.swift`.
+3. Create `Tuist.swift`, `Project.swift`, and `Tuist/Package.swift`.
 4. Extract settings into `.xcconfig` files and wire them in `Project.swift`.
 5. Generate and build: `tuist generate --no-open` then `xcodebuild build`.
 6. Fix build issues, regenerate, and validate runtime on a simulator.
