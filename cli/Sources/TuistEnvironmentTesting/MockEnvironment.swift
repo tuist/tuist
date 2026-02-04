@@ -108,3 +108,12 @@ extension Trait where Self == EnvironmentTestingTrait {
         )
     }
 }
+
+public func withMockedEnvironment(
+    _ closure: () async throws -> Void
+) async throws {
+    let mockEnvironment = try MockEnvironment()
+    try await Environment.$current.withValue(mockEnvironment) {
+        try await closure()
+    }
+}

@@ -8,6 +8,7 @@ import TuistCache
 import TuistCAS
 import TuistCore
 import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistServer
 import TuistSupport
 import XcodeGraph
