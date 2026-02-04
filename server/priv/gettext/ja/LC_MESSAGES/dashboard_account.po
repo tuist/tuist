@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-22 13:04+0000\n"
+"PO-Revision-Date: 2026-02-05 07:22+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Japanese <https://translate.tuist.dev/projects/tuist/"
 "dashboard_account/ja/>\n"
@@ -744,44 +744,64 @@ msgstr "%{next_charge_date} に課金されます"
 msgid "xxxx xxxx xxxx %{card_number}"
 msgstr "xxxx xxxx xxxx %{card_number}"
 
+#, fuzzy
 msgid "Add"
-msgstr ""
+msgstr "追加"
 
+#, fuzzy
 msgid "Add cache endpoint"
-msgstr ""
+msgstr "キャッシュエンドポイントを追加"
 
+#, fuzzy
 msgid "Add endpoint"
-msgstr ""
+msgstr "エンドポイントを追加"
 
+#, fuzzy
 msgid "Endpoint URL"
-msgstr ""
+msgstr "エンドポイントURL"
 
+#, fuzzy
 msgid "URL"
-msgstr ""
+msgstr "URL"
 
+#, fuzzy
 msgid "Delete last cache endpoint?"
-msgstr ""
+msgstr "最後のキャッシュエンドポイントを削除しますか？"
 
+#, fuzzy
 msgid ""
 "Removing the last custom cache endpoint will switch your organization back "
 "to Tuist-hosted caching. This affects all builds across your organization."
 msgstr ""
+"最後のカスタムキャッシュエンドポイントを削除すると、組織はTuistホスト型"
+"キャッシュに戻ります。これは組織全体のすべてのビルドに影響します。"
 
+#, fuzzy
 msgid "Cache endpoints"
-msgstr ""
+msgstr "キャッシュエンドポイント"
 
+#, fuzzy
 msgid ""
 "Configure custom cache endpoints for self-hosted cache setups. When enabled, "
 "Tuist will read from and write to these endpoints instead of the default "
 "Tuist-hosted cache."
 msgstr ""
+"セルフホスト型キャッシュ設定向けにカスタムキャッシュエンドポイントを構成しま"
+"す。有効化すると、TuistはデフォルトのTuistホスト型キャッシュではなく、これら"
+"のエンドポイントから読み書きを行います。"
 
+#, fuzzy
 msgid ""
 "Custom cache endpoints are disabled. Tuist will use the default Tuist-hosted "
 "cache."
 msgstr ""
+"カスタムキャッシュエンドポイントは無効です。TuistはデフォルトのTuistホスト型"
+"キャッシュを使用します。"
 
+#, fuzzy
 msgid ""
 "No custom cache endpoints configured. Tuist will use the default Tuist-"
 "hosted cache until endpoints are added."
 msgstr ""
+"カスタムキャッシュエンドポイントが設定されていません。エンドポイントが追加さ"
+"れるまで、TuistはデフォルトのTuistホスト型キャッシュを使用します。"
