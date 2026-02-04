@@ -10,6 +10,7 @@ defmodule Tuist.VCS do
   alias Tuist.Accounts.Account
   alias Tuist.AppBuilds
   alias Tuist.AppBuilds.Preview
+  alias Tuist.Builds
   alias Tuist.Bundles
   alias Tuist.Bundles.Bundle
   alias Tuist.ClickHouseRepo
@@ -18,8 +19,8 @@ defmodule Tuist.VCS do
   alias Tuist.KeyValueStore
   alias Tuist.Projects
   alias Tuist.Repo
-  alias Tuist.Runs
-  alias Tuist.Runs.Analytics
+  alias Tuist.Tests
+  alias Tuist.Tests.Analytics, as: TestsAnalytics
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias Tuist.VCS
@@ -562,7 +563,7 @@ defmodule Tuist.VCS do
     else
       project = Repo.preload(project, :account)
 
-      metrics_data = Analytics.test_runs_metrics(test_runs)
+      metrics_data = TestsAnalytics.test_runs_metrics(test_runs)
       metrics_map = Map.new(metrics_data, &{&1.test_run_id, &1})
 
       """
@@ -603,7 +604,7 @@ defmodule Tuist.VCS do
     flaky_tests_by_run =
       test_runs
       |> Enum.map(fn test_run ->
-        flaky_tests = Runs.get_flaky_runs_for_test_run(test_run.id)
+        flaky_tests = Tests.get_flaky_runs_for_test_run(test_run.id)
         {test_run, flaky_tests}
       end)
       |> Enum.filter(fn {_test_run, flaky_tests} -> Enum.any?(flaky_tests) end)
@@ -662,7 +663,7 @@ defmodule Tuist.VCS do
   defp get_latest_builds(%{git_ref: git_ref, project: project}) do
     git_ref_pattern = get_git_ref_pattern(git_ref)
 
-    from(b in Runs.Build)
+    from(b in Builds.Build)
     |> where([b], b.project_id == ^project.id and like(b.git_ref, ^git_ref_pattern))
     |> order_by([b], desc: b.inserted_at)
     |> Repo.all()
@@ -688,7 +689,7 @@ defmodule Tuist.VCS do
   defp get_latest_test_runs(%{git_ref: git_ref, project: project}) do
     git_ref_pattern = get_git_ref_pattern(git_ref)
 
-    from(t in Runs.Test)
+    from(t in Tests.Test)
     |> where([t], t.project_id == ^project.id and like(t.git_ref, ^git_ref_pattern))
     |> where([t], not is_nil(t.scheme) and t.scheme != "")
     |> order_by([t], desc: t.inserted_at)

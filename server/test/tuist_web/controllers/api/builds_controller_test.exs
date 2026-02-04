@@ -2,7 +2,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
-  alias Tuist.Runs
+  alias Tuist.Builds
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -19,7 +19,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
     end
 
     test "returns an empty list when there are no builds", %{conn: conn, user: user, project: project} do
-      stub(Runs, :list_build_runs, fn _attrs, _opts ->
+      stub(Builds, :list_build_runs, fn _attrs, _opts ->
         {[],
          %{
            has_next_page?: false,
@@ -57,7 +57,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
           configuration: "Debug"
         )
 
-      stub(Runs, :list_build_runs, fn _attrs, _opts ->
+      stub(Builds, :list_build_runs, fn _attrs, _opts ->
         {[build],
          %{
            has_next_page?: false,
@@ -94,7 +94,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
           duration: 3000
         )
 
-      expect(Runs, :list_build_runs, fn attrs, _opts ->
+      expect(Builds, :list_build_runs, fn attrs, _opts ->
         assert %{field: :status, op: :==, value: :failure} in attrs.filters
 
         {[failure_build],
@@ -122,7 +122,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
           user_id: user.account.id
         )
 
-      expect(Runs, :list_build_runs, fn attrs, _opts ->
+      expect(Builds, :list_build_runs, fn attrs, _opts ->
         assert attrs.page == 2
         assert attrs.page_size == 10
 
@@ -165,7 +165,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
           custom_values: %{"ticket" => "PROJ-1234"}
         )
 
-      stub(Runs, :list_build_runs, fn _attrs, _opts ->
+      stub(Builds, :list_build_runs, fn _attrs, _opts ->
         {[build],
          %{
            has_next_page?: false,
@@ -193,7 +193,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
           custom_tags: ["nightly", "release"]
         )
 
-      expect(Runs, :list_build_runs, fn attrs, _opts ->
+      expect(Builds, :list_build_runs, fn attrs, _opts ->
         assert %{field: :custom_tags, op: :contains, value: "nightly"} in attrs.filters
 
         {[tagged_build],
@@ -221,7 +221,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
           custom_tags: ["nightly", "release"]
         )
 
-      expect(Runs, :list_build_runs, fn attrs, _opts ->
+      expect(Builds, :list_build_runs, fn attrs, _opts ->
         assert %{field: :custom_tags, op: :contains, value: "nightly"} in attrs.filters
         assert %{field: :custom_tags, op: :contains, value: "release"} in attrs.filters
 
@@ -250,7 +250,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
           custom_values: %{"ticket" => "PROJ-1234", "runner" => "macos-14"}
         )
 
-      expect(Runs, :list_build_runs, fn _attrs, opts ->
+      expect(Builds, :list_build_runs, fn _attrs, opts ->
         assert Keyword.get(opts, :custom_values) == %{"ticket" => "PROJ-1234"}
 
         {[build_with_values],
@@ -278,7 +278,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
           custom_values: %{"ticket" => "PROJ-1234", "runner" => "macos-14"}
         )
 
-      expect(Runs, :list_build_runs, fn _attrs, opts ->
+      expect(Builds, :list_build_runs, fn _attrs, opts ->
         assert Keyword.get(opts, :custom_values) == %{"ticket" => "PROJ-1234", "runner" => "macos-14"}
 
         {[build_with_values],
@@ -329,7 +329,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
           cacheable_task_remote_hits_count: 5
         )
 
-      stub(Runs, :get_build, fn _id ->
+      stub(Builds, :get_build, fn _id ->
         build
       end)
 
@@ -349,7 +349,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
     end
 
     test "returns 404 when build is not found", %{conn: conn, user: user, project: project} do
-      stub(Runs, :get_build, fn _id ->
+      stub(Builds, :get_build, fn _id ->
         nil
       end)
 
@@ -367,7 +367,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
           user_id: user.account.id
         )
 
-      stub(Runs, :get_build, fn _id ->
+      stub(Builds, :get_build, fn _id ->
         build
       end)
 
@@ -394,7 +394,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
           custom_values: %{"runner" => "macos-14", "jira" => "https://jira.example.com/PROJ-123"}
         )
 
-      stub(Runs, :get_build, fn _id ->
+      stub(Builds, :get_build, fn _id ->
         build
       end)
 

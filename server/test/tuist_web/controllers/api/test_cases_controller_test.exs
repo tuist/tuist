@@ -2,7 +2,7 @@ defmodule TuistWeb.API.TestCasesControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
-  alias Tuist.Runs
+  alias Tuist.Tests
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -39,7 +39,7 @@ defmodule TuistWeb.API.TestCasesControllerTest do
           last_ran_at: last_ran_at
         )
 
-      stub(Runs, :list_test_cases, fn _project_id, _options ->
+      stub(Tests, :list_test_cases, fn _project_id, _options ->
         {[test_case_one, test_case_two],
          %{
            has_next_page?: false,
@@ -73,7 +73,7 @@ defmodule TuistWeb.API.TestCasesControllerTest do
 
     test "lists no test cases when there are none", %{conn: conn, user: user, project: project} do
       # Given
-      stub(Runs, :list_test_cases, fn _project_id, _options ->
+      stub(Tests, :list_test_cases, fn _project_id, _options ->
         {[],
          %{
            has_next_page?: false,
@@ -106,7 +106,7 @@ defmodule TuistWeb.API.TestCasesControllerTest do
           last_ran_at: last_ran_at
         )
 
-      expect(Runs, :list_test_cases, fn _project_id, options ->
+      expect(Tests, :list_test_cases, fn _project_id, options ->
         assert %{field: :is_flaky, op: :==, value: true} in options.filters
 
         {[flaky_test_case],
@@ -143,7 +143,7 @@ defmodule TuistWeb.API.TestCasesControllerTest do
           last_ran_at: last_ran_at
         )
 
-      expect(Runs, :list_test_cases, fn _project_id, options ->
+      expect(Tests, :list_test_cases, fn _project_id, options ->
         assert %{field: :is_quarantined, op: :==, value: true} in options.filters
 
         {[quarantined_test_case],
@@ -179,7 +179,7 @@ defmodule TuistWeb.API.TestCasesControllerTest do
           last_ran_at: last_ran_at
         )
 
-      expect(Runs, :list_test_cases, fn _project_id, options ->
+      expect(Tests, :list_test_cases, fn _project_id, options ->
         assert options.page == 2
         assert options.page_size == 10
 

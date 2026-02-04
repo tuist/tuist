@@ -35,7 +35,6 @@ import TuistHTTP
         case notFound(String)
         case unauthorized(String)
         case badRequest(String)
-        case unexpectedResponseType
 
         var errorDescription: String? {
             switch self {
@@ -45,9 +44,6 @@ import TuistHTTP
             case let .forbidden(message), let .notFound(message), let .unauthorized(message),
                  let .badRequest(message):
                 return message
-            case .unexpectedResponseType:
-                return
-                    "The server returned an unexpected response type. Expected a test run but received a different type."
             }
         }
     }
@@ -87,7 +83,7 @@ import TuistHTTP
             let client = Client.authenticated(serverURL: serverURL)
             let handles = try fullHandleService.parse(fullHandle)
 
-            let status: Operations.createRun.Input.Body.jsonPayload.Case2Payload.statusPayload? =
+            let status: Operations.createTest.Input.Body.jsonPayload.statusPayload? =
                 switch testSummary.status {
                 case .passed:
                     .success
@@ -99,7 +95,7 @@ import TuistHTTP
 
             let testModules = testSummary.testModules.map { module in
                 let testSuites = module.testSuites.map { suite in
-                    Operations.createRun.Input.Body.jsonPayload.Case2Payload
+                    Operations.createTest.Input.Body.jsonPayload
                         .test_modulesPayloadPayload
                         .test_suitesPayloadPayload(
                             duration: suite.duration,
@@ -110,12 +106,12 @@ import TuistHTTP
 
                 let moduleTestCases = module.testCases.map { testCase in
                     let failures:
-                        [Operations.createRun.Input.Body.jsonPayload.Case2Payload
+                        [Operations.createTest.Input.Body.jsonPayload
                             .test_modulesPayloadPayload
                             .test_casesPayloadPayload.failuresPayloadPayload
                         ] = testCase.failures
                         .map { failure in
-                            Operations.createRun.Input.Body.jsonPayload.Case2Payload
+                            Operations.createTest.Input.Body.jsonPayload
                                 .test_modulesPayloadPayload
                                 .test_casesPayloadPayload.failuresPayloadPayload(
                                     issue_type: mapIssueType(failure.issueType),
@@ -126,12 +122,12 @@ import TuistHTTP
                         }
 
                     let repetitions:
-                        [Operations.createRun.Input.Body.jsonPayload.Case2Payload
+                        [Operations.createTest.Input.Body.jsonPayload
                             .test_modulesPayloadPayload
                             .test_casesPayloadPayload.repetitionsPayloadPayload
                         ] = testCase.repetitions
                         .map { repetition in
-                            Operations.createRun.Input.Body.jsonPayload.Case2Payload
+                            Operations.createTest.Input.Body.jsonPayload
                                 .test_modulesPayloadPayload
                                 .test_casesPayloadPayload.repetitionsPayloadPayload(
                                     duration: repetition.duration,
@@ -141,7 +137,7 @@ import TuistHTTP
                                 )
                         }
 
-                    return Operations.createRun.Input.Body.jsonPayload.Case2Payload
+                    return Operations.createTest.Input.Body.jsonPayload
                         .test_modulesPayloadPayload
                         .test_casesPayloadPayload(
                             duration: testCase.duration ?? 0,
@@ -153,7 +149,7 @@ import TuistHTTP
                         )
                 }
 
-                return Operations.createRun.Input.Body.jsonPayload.Case2Payload
+                return Operations.createTest.Input.Body.jsonPayload
                     .test_modulesPayloadPayload(
                         duration: module.duration,
                         name: module.name,
@@ -164,7 +160,7 @@ import TuistHTTP
             }
 
             let ciProviderPayload:
-                Operations.createRun.Input.Body.jsonPayload.Case2Payload.ci_providerPayload? =
+                Operations.createTest.Input.Body.jsonPayload.ci_providerPayload? =
                     switch ciProvider {
                     case .github:
                         .github
@@ -182,34 +178,31 @@ import TuistHTTP
                         nil
                     }
 
-            let response = try await client.createRun(
+            let response = try await client.createTest(
                 .init(
                     path: .init(
                         account_handle: handles.accountHandle,
                         project_handle: handles.projectHandle
                     ),
                     body: .json(
-                        .case2(
-                            .init(
-                                build_run_id: buildRunId,
-                                ci_host: ciHost,
-                                ci_project_handle: ciProjectHandle,
-                                ci_provider: ciProviderPayload,
-                                ci_run_id: ciRunId,
-                                duration: testSummary.duration ?? 0,
-                                git_branch: gitBranch,
-                                git_commit_sha: gitCommitSHA,
-                                git_ref: gitRef,
-                                git_remote_url_origin: gitRemoteURLOrigin,
-                                is_ci: isCI,
-                                macos_version: macOSVersion,
-                                model_identifier: modelIdentifier,
-                                scheme: testSummary.testPlanName,
-                                status: status,
-                                test_modules: testModules,
-                                _type: .test,
-                                xcode_version: xcodeVersion
-                            )
+                        .init(
+                            build_run_id: buildRunId,
+                            ci_host: ciHost,
+                            ci_project_handle: ciProjectHandle,
+                            ci_provider: ciProviderPayload,
+                            ci_run_id: ciRunId,
+                            duration: testSummary.duration ?? 0,
+                            git_branch: gitBranch,
+                            git_commit_sha: gitCommitSHA,
+                            git_ref: gitRef,
+                            git_remote_url_origin: gitRemoteURLOrigin,
+                            is_ci: isCI,
+                            macos_version: macOSVersion,
+                            model_identifier: modelIdentifier,
+                            scheme: testSummary.testPlanName,
+                            status: status,
+                            test_modules: testModules,
+                            xcode_version: xcodeVersion
                         )
                     )
                 )
@@ -218,13 +211,8 @@ import TuistHTTP
             switch response {
             case let .ok(okResponse):
                 switch okResponse.body {
-                case let .json(run):
-                    switch run {
-                    case .RunsBuild:
-                        throw CreateTestServiceError.unexpectedResponseType
-                    case let .RunsTest(test):
-                        return test
-                    }
+                case let .json(test):
+                    return test
                 }
             case let .forbidden(forbiddenResponse):
                 switch forbiddenResponse.body {
@@ -252,8 +240,8 @@ import TuistHTTP
         }
 
         private func testCaseStatusToServerStatus(_ status: TestStatus)
-            -> Operations.createRun.Input.Body.jsonPayload
-            .Case2Payload.test_modulesPayload.Element.test_casesPayloadPayload.statusPayload
+            -> Operations.createTest.Input.Body.jsonPayload
+            .test_modulesPayload.Element.test_casesPayloadPayload.statusPayload
         {
             switch status {
             case .passed:
@@ -266,8 +254,8 @@ import TuistHTTP
         }
 
         private func mapModuleStatus(_ status: TestStatus)
-            -> Operations.createRun.Input.Body.jsonPayload
-            .Case2Payload.test_modulesPayloadPayload.statusPayload
+            -> Operations.createTest.Input.Body.jsonPayload
+            .test_modulesPayloadPayload.statusPayload
         {
             switch status {
             case .passed, .skipped:
@@ -278,8 +266,8 @@ import TuistHTTP
         }
 
         private func mapSuiteStatus(_ status: TestStatus)
-            -> Operations.createRun.Input.Body.jsonPayload
-            .Case2Payload.test_modulesPayloadPayload.test_suitesPayloadPayload.statusPayload
+            -> Operations.createTest.Input.Body.jsonPayload
+            .test_modulesPayloadPayload.test_suitesPayloadPayload.statusPayload
         {
             switch status {
             case .passed, .skipped:
@@ -289,9 +277,9 @@ import TuistHTTP
             }
         }
 
-        private func mapIssueType(_ issueType: TestCaseFailure.IssueType?) -> Operations.createRun
+        private func mapIssueType(_ issueType: TestCaseFailure.IssueType?) -> Operations.createTest
             .Input.Body.jsonPayload
-            .Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayloadPayload
+            .test_modulesPayloadPayload.test_casesPayloadPayload.failuresPayloadPayload
             .issue_typePayload?
         {
             guard let issueType else { return nil }
@@ -306,8 +294,8 @@ import TuistHTTP
         }
 
         private func repetitionStatusToServerStatus(_ status: TestStatus)
-            -> Operations.createRun.Input.Body.jsonPayload
-            .Case2Payload.test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload
+            -> Operations.createTest.Input.Body.jsonPayload
+            .test_modulesPayloadPayload.test_casesPayloadPayload.repetitionsPayloadPayload
             .statusPayload
         {
             switch status {

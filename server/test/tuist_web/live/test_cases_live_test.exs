@@ -6,7 +6,7 @@ defmodule TuistWeb.TestCasesLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Tuist.Runs.Analytics
+  alias Tuist.Tests.Analytics
 
   describe "test cases page" do
     setup do
@@ -126,7 +126,7 @@ defmodule TuistWeb.TestCasesLiveTest do
   end
 
   defp create_test_run_with_cases(project, account) do
-    Tuist.Runs.create_test(%{
+    Tuist.Tests.create_test(%{
       id: UUIDv7.generate(),
       project_id: project.id,
       account_id: account.id,

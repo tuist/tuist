@@ -8,8 +8,8 @@ defmodule TuistWeb.TestCasesLive do
   import TuistWeb.PercentileDropdownWidget
 
   alias Noora.Filter
-  alias Tuist.Runs
-  alias Tuist.Runs.Analytics
+  alias Tuist.Tests
+  alias Tuist.Tests.Analytics
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
@@ -333,7 +333,7 @@ defmodule TuistWeb.TestCasesLive do
       page_size: 20
     }
 
-    {test_cases, test_cases_meta} = Runs.list_test_cases(project.id, options)
+    {test_cases, test_cases_meta} = Tests.list_test_cases(project.id, options)
 
     socket
     |> assign(:active_filters, filters)

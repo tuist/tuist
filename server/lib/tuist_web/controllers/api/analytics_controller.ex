@@ -4,8 +4,8 @@ defmodule TuistWeb.API.AnalyticsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.CommandEvents
-  alias Tuist.Runs
   alias Tuist.Storage
+  alias Tuist.Tests
   alias Tuist.VCS
   alias Tuist.Xcode
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadPart
@@ -564,7 +564,7 @@ defmodule TuistWeb.API.AnalyticsController do
   defp create_test_run_from_command_event(body_params, project) do
     scheme = extract_scheme_from_command_arguments(Map.get(body_params, :command_arguments, []))
 
-    Runs.create_test(%{
+    Tests.create_test(%{
       id: UUIDv7.generate(),
       duration: body_params.duration,
       macos_version: body_params.macos_version,

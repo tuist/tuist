@@ -5,7 +5,7 @@ defmodule Tuist.IngestRepo.Migrations.BackfillFirstRunEvents do
   """
   use Ecto.Migration
   alias Tuist.IngestRepo
-  alias Tuist.Runs.TestCaseEvent
+  alias Tuist.Tests.TestCaseEvent
   import Ecto.Query
   require Logger
 

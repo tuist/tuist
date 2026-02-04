@@ -11,7 +11,7 @@ defmodule TuistWeb.TestRunLive do
   alias Noora.Filter
   alias Tuist.CommandEvents
   alias Tuist.Projects
-  alias Tuist.Runs
+  alias Tuist.Tests
   alias Tuist.Xcode
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
@@ -21,7 +21,7 @@ defmodule TuistWeb.TestRunLive do
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
     run =
-      case Runs.get_test(params["test_run_id"], preload: [:ran_by_account, :build_run]) do
+      case Tests.get_test(params["test_run_id"], preload: [:ran_by_account, :build_run]) do
         {:ok, test} ->
           test
 
@@ -45,8 +45,8 @@ defmodule TuistWeb.TestRunLive do
         {:error, :not_found} -> nil
       end
 
-    test_metrics = Runs.Analytics.get_test_run_metrics(run.id)
-    failures_count = Runs.get_test_run_failures_count(run.id)
+    test_metrics = Tests.Analytics.get_test_run_metrics(run.id)
+    failures_count = Tests.get_test_run_failures_count(run.id)
 
     socket =
       socket
@@ -340,7 +340,7 @@ defmodule TuistWeb.TestRunLive do
     {failures_grouped, failures_meta} = load_failures_data(socket.assigns.run, params)
 
     # Load flaky runs data
-    flaky_runs_grouped = Runs.get_flaky_runs_for_test_run(socket.assigns.run.id)
+    flaky_runs_grouped = Tests.get_flaky_runs_for_test_run(socket.assigns.run.id)
 
     socket =
       socket
@@ -548,7 +548,7 @@ defmodule TuistWeb.TestRunLive do
       order_directions: [String.to_atom(params["test-cases-sort-order"] || "asc")]
     }
 
-    Runs.list_test_case_runs(flop_params)
+    Tests.list_test_case_runs(flop_params)
   end
 
   defp load_test_suites_data(run, params, available_filters \\ define_test_suites_filters()) do
@@ -560,7 +560,7 @@ defmodule TuistWeb.TestRunLive do
       order_directions: [String.to_atom(params["test-suites-sort-order"] || "asc")]
     }
 
-    Runs.list_test_suite_runs(flop_params)
+    Tests.list_test_suite_runs(flop_params)
   end
 
   defp load_test_modules_data(run, params, available_filters \\ define_test_modules_filters()) do
@@ -572,7 +572,7 @@ defmodule TuistWeb.TestRunLive do
       order_directions: [String.to_atom(params["test-modules-sort-order"] || "asc")]
     }
 
-    Runs.list_test_module_runs(flop_params)
+    Tests.list_test_module_runs(flop_params)
   end
 
   defp ensure_allowed_test_cases_sort_params(value) when value in ["name", "duration"], do: String.to_existing_atom(value)
@@ -600,7 +600,7 @@ defmodule TuistWeb.TestRunLive do
       order_directions: [:desc]
     }
 
-    {failures, meta} = Runs.list_test_run_failures(run.id, attrs)
+    {failures, meta} = Tests.list_test_run_failures(run.id, attrs)
 
     # Group failures by test case
     failures_grouped =
@@ -622,7 +622,7 @@ defmodule TuistWeb.TestRunLive do
     page = String.to_integer(params["flaky-runs-page"] || "1")
     page_size = 20
 
-    all_flaky_runs = Runs.get_flaky_runs_for_test_run(run.id)
+    all_flaky_runs = Tests.get_flaky_runs_for_test_run(run.id)
     total_groups_count = length(all_flaky_runs)
     total_runs_count = Enum.reduce(all_flaky_runs, 0, fn group, acc -> acc + length(group.runs) end)
     total_pages = max(1, ceil(total_groups_count / page_size))

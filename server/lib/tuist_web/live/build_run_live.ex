@@ -8,17 +8,18 @@ defmodule TuistWeb.BuildRunLive do
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
+  alias Tuist.Builds
+  alias Tuist.Builds.CASOutput
   alias Tuist.CommandEvents
   alias Tuist.Projects
-  alias Tuist.Runs
-  alias Tuist.Runs.CASOutput
+  alias Tuist.Tests
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
     run =
-      case Runs.get_build(params["build_run_id"]) do
+      case Builds.get_build(params["build_run_id"]) do
         nil ->
           raise NotFoundError, dgettext("dashboard_builds", "Build not found.")
 
@@ -43,11 +44,11 @@ defmodule TuistWeb.BuildRunLive do
       raise NotFoundError, dgettext("dashboard_builds", "Build not found.")
     end
 
-    cas_metrics = Runs.cas_output_metrics(run.id)
-    cacheable_task_latency_metrics = Runs.cacheable_task_latency_metrics(run.id)
+    cas_metrics = Builds.cas_output_metrics(run.id)
+    cacheable_task_latency_metrics = Builds.cacheable_task_latency_metrics(run.id)
 
     test_run =
-      case Runs.get_latest_test_by_build_run_id(run.id) do
+      case Tests.get_latest_test_by_build_run_id(run.id) do
         {:ok, test} -> test
         {:error, :not_found} -> nil
       end
@@ -368,7 +369,7 @@ defmodule TuistWeb.BuildRunLive do
       page_size: 20
     }
 
-    {files, files_meta} = Runs.list_build_files(options)
+    {files, files_meta} = Builds.list_build_files(options)
 
     filters =
       Filter.Operations.decode_filters_from_query(params, available_filters)
@@ -450,7 +451,7 @@ defmodule TuistWeb.BuildRunLive do
       page_size: 20
     }
 
-    {modules, modules_meta} = Runs.list_build_targets(options)
+    {modules, modules_meta} = Builds.list_build_targets(options)
 
     filters =
       Filter.Operations.decode_filters_from_query(params, available_filters)
@@ -899,7 +900,7 @@ defmodule TuistWeb.BuildRunLive do
       order_directions: order_directions
     }
 
-    {tasks, tasks_meta} = Runs.list_cacheable_tasks(options)
+    {tasks, tasks_meta} = Builds.list_cacheable_tasks(options)
 
     # Fetch CAS outputs for all tasks on the current page
     all_node_ids =
@@ -907,7 +908,7 @@ defmodule TuistWeb.BuildRunLive do
       |> Enum.flat_map(& &1.cas_output_node_ids)
       |> Enum.uniq()
 
-    cas_outputs = Runs.get_cas_outputs_by_node_ids(run.id, all_node_ids, distinct: true)
+    cas_outputs = Builds.get_cas_outputs_by_node_ids(run.id, all_node_ids, distinct: true)
 
     # Create a map from task key to its CAS outputs
     task_cas_outputs_map =
@@ -1222,7 +1223,7 @@ defmodule TuistWeb.BuildRunLive do
       order_directions: order_directions
     }
 
-    {outputs, outputs_meta} = Runs.list_cas_outputs(options)
+    {outputs, outputs_meta} = Builds.list_cas_outputs(options)
 
     filters =
       Filter.Operations.decode_filters_from_query(params, available_filters)

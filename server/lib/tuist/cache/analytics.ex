@@ -7,8 +7,8 @@ defmodule Tuist.Cache.Analytics do
   we compute the average of the two hit rates rather than combining absolute numbers.
   """
 
+  alias Tuist.Builds.Analytics
   alias Tuist.CommandEvents
-  alias Tuist.Runs.Analytics
 
   @doc """
   Gets combined cache hit rate by averaging module cache and Xcode cache hit rates.
