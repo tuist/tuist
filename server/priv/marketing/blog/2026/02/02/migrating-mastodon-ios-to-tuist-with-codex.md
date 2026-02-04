@@ -48,7 +48,7 @@ The fix was adding `-ObjC` to `OTHER_LDFLAGS` in the shared project xcconfig, wh
 
 ## Unlocking cache
 
-The migration was never just about ending up with a more manageable modular project. It was about enabling caching so that clean builds become fast by default.
+The whole point of migrating was to unlock caching. A modular generated project is nice, but what we really wanted was fast clean builds by default.
 
 When we ran `tuist cache` to warm the binaries, a few dependency issues surfaced. `UITextView+Placeholder` produced an invalid product name because the `+` character wasn't being sanitized the way SwiftPM does it. This was completely invisible in the original Xcode project and only surfaced once Tuist took over package integration. It turned out to be a bug in Tuist's target name sanitization. We fixed it directly in the Tuist codebase as part of [the same PR](https://github.com/tuist/tuist/pull/9326) where we wrote this blog post. The migration improved the tool itself.
 
@@ -96,11 +96,11 @@ The agent wrote `skill.md` as a migration guide that starts where a real enginee
 
 ## What we took away from this
 
-If this reads like a long list of things that went wrong, that's because migrations are like that. But stepping back, a coding agent took a production iOS app, migrated it to generated projects, resolved dependency bugs, validated the app at runtime, and helped us cut 80% off clean builds.
+A coding agent took a production iOS app, migrated it to generated projects, fixed a few issues along the way, confirmed the app runs, and got clean builds down by 80%.
 
-For complex projects, migrating could take days of careful manual work, which is why many teams never got around to it even when they knew the gains were there. Now a few hours of agent time can get you to a place where both your developers and your CI are being used more efficiently. Developers spend less time waiting on builds, and CI stops rebuilding things that haven't changed.
+Manual migrations can take days or even weeks, which is why many teams never got around to it. This one took a few hours of agent time. With agents doing the heavy lifting, the cost of adopting generated projects drops significantly. Your developers wait less on builds, and your CI stops redoing work that hasn't changed.
 
-We plan to keep running this skill on more projects. Each iteration sharpens the instructions, covers more edge cases, and makes the process more predictable.
+We're going to keep using this skill on more projects and refining it as we go.
 
 ## Try it on your project
 
