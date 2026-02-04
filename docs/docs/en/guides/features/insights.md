@@ -156,24 +156,21 @@ You can attach custom metadata to your builds using environment variables. This 
 
 ### Examples
 
-In your scheme's post-action script, set the environment variables before calling `tuist inspect build`:
+The post-action script inherits environment variables from the system. Set these variables in your CI configuration or shell environment:
 
 ```sh
 # Using TUIST_BUILD_TAGS for multiple tags
 export TUIST_BUILD_TAGS="nightly,ios-team,release-candidate"
-tuist inspect build
 ```
 
 ```sh
 # Using individual TUIST_BUILD_TAG_* variables
 export TUIST_BUILD_TAG_TEAM="ios-team"
 export TUIST_BUILD_TAG_TYPE="nightly"
-tuist inspect build
 ```
 
 ```sh
 # Using TUIST_BUILD_VALUE_* for key-value pairs
 export TUIST_BUILD_VALUE_TICKET="PROJ-1234"
 export TUIST_BUILD_VALUE_PR_URL="https://github.com/myorg/myrepo/pull/123"
-tuist inspect build
 ```
