@@ -8,7 +8,7 @@ defmodule Tuist.VCSTest do
   alias Tuist.GitHub
   alias Tuist.GitHub.Client
   alias Tuist.KeyValueStore
-  alias Tuist.Runs
+  alias Tuist.Tests
   alias Tuist.VCS
   alias Tuist.VCS.Comment
   alias Tuist.VCS.GitHubAppInstallation
@@ -204,7 +204,7 @@ defmodule Tuist.VCSTest do
         )
 
       {:ok, test_run_one} =
-        Runs.create_test(%{
+        Tests.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,
           account_id: project.account_id,
@@ -232,7 +232,7 @@ defmodule Tuist.VCSTest do
         )
 
       {:ok, test_run_two} =
-        Runs.create_test(%{
+        Tests.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,
           account_id: project.account_id,
@@ -1031,7 +1031,7 @@ defmodule Tuist.VCSTest do
         )
 
       {:ok, test_run} =
-        Runs.create_test(%{
+        Tests.create_test(%{
           id: UUIDv7.generate(),
           project_id: project.id,
           account_id: project.account_id,
@@ -1315,7 +1315,7 @@ defmodule Tuist.VCSTest do
       RunsFixtures.optimize_test_case_runs()
 
       # Get the test case ID from the created flaky test data
-      [flaky_test] = Runs.get_flaky_runs_for_test_run(test_run.id)
+      [flaky_test] = Tests.get_flaky_runs_for_test_run(test_run.id)
       test_case_id = flaky_test.test_case_id
 
       stub(Req, :get, fn _opts ->
@@ -1419,7 +1419,7 @@ defmodule Tuist.VCSTest do
       RunsFixtures.optimize_test_case_runs()
 
       # Get flaky tests and take first 5 (same as production code)
-      flaky_tests = Runs.get_flaky_runs_for_test_run(test_run.id)
+      flaky_tests = Tests.get_flaky_runs_for_test_run(test_run.id)
       displayed_flaky_tests = Enum.take(flaky_tests, 5)
 
       stub(Req, :get, fn _opts ->

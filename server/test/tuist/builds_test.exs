@@ -3,7 +3,6 @@ defmodule Tuist.BuildsTest do
   use Mimic
 
   alias Tuist.Builds
-  alias Tuist.IngestRepo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
