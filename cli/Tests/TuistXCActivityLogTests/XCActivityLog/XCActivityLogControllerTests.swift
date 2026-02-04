@@ -4,7 +4,6 @@ import Foundation
 import Path
 import Testing
 import TuistEnvironment
-import TuistEnvironmentTesting
 import TuistSupport
 
 @testable import TuistTesting

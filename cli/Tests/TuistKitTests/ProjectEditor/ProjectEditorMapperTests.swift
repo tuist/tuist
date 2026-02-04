@@ -8,7 +8,6 @@ import TSCUtility
 import TuistConstants
 import TuistCore
 import TuistEnvironment
-import TuistEnvironmentTesting
 import TuistLoader
 import TuistSupport
 import XcodeGraph

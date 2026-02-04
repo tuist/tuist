@@ -5,7 +5,6 @@ import TuistCacheCommand
 import TuistCAS
 import TuistCore
 import TuistEnvironment
-import TuistEnvironmentTesting
 import TuistLoader
 import TuistServer
 import TuistSupport

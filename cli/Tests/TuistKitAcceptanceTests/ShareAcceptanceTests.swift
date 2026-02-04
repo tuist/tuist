@@ -8,7 +8,6 @@ import Testing
 import TuistAcceptanceTesting
 import TuistCore
 import TuistEnvironment
-import TuistEnvironmentTesting
 import TuistSupport
 import TuistTesting
 

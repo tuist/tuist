@@ -5,7 +5,6 @@ import Path
 import SwiftyJSON
 import Testing
 import TuistEnvironment
-import TuistEnvironmentTesting
 import TuistSupport
 import TuistTesting
 

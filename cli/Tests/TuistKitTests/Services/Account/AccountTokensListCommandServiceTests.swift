@@ -3,7 +3,6 @@ import Mockable
 import OpenAPIRuntime
 import Testing
 import TuistEnvironment
-import TuistEnvironmentTesting
 import TuistLoader
 import TuistServer
 import TuistSupport

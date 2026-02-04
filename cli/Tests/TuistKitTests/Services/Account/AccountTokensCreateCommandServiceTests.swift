@@ -2,7 +2,6 @@ import Foundation
 import Mockable
 import Testing
 import TuistEnvironment
-import TuistEnvironmentTesting
 import TuistLoader
 import TuistServer
 import TuistSupport

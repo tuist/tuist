@@ -5,7 +5,6 @@ import ProjectDescription
 import Testing
 import TuistCore
 import TuistEnvironment
-import TuistEnvironmentTesting
 import TuistSupport
 @testable import TuistLoader
 @testable import TuistTesting

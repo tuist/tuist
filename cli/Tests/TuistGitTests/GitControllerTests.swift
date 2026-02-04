@@ -3,7 +3,6 @@ import FileSystemTesting
 import Testing
 import TSCUtility
 import TuistEnvironment
-import TuistEnvironmentTesting
 import TuistSupport
 @testable import TuistGit
 @testable import TuistTesting
