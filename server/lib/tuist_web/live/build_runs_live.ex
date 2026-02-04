@@ -313,7 +313,6 @@ defmodule TuistWeb.BuildRunsLive do
             type: :option,
             options: tag_atoms,
             options_display_names: Map.new(tag_atoms, fn atom -> {atom, Atom.to_string(atom)} end),
-            operators: [:contains, :not_contains],
             operator: :contains,
             value: nil
           }
