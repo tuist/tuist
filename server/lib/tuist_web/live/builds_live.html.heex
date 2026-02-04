@@ -12,23 +12,22 @@
         secondary_text={dgettext("dashboard_builds", "Tag:")}
       >
         <.dropdown_item
-          value="any"
+          value="all"
           label={dgettext("dashboard_builds", "All")}
-          patch={"?#{Query.put(@uri.query, "analytics-build-tag", "any")}"}
-          data-selected={@analytics_build_tag == "any"}
+          patch={"?#{Query.put(@uri.query, "analytics-build-tag", "all")}"}
+          data-selected={@analytics_build_tag == "all"}
         >
           <:right_icon><.check /></:right_icon>
         </.dropdown_item>
-        <%= for build_tag <- @build_tags do %>
-          <.dropdown_item
-            value={build_tag}
-            label={build_tag}
-            patch={"?#{Query.put(@uri.query, "analytics-build-tag", build_tag)}"}
-            data-selected={@analytics_build_tag == build_tag}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-        <% end %>
+        <.dropdown_item
+          :for={build_tag <- @build_tags}
+          value={build_tag}
+          label={build_tag}
+          patch={"?#{Query.put(@uri.query, "analytics-build-tag", build_tag)}"}
+          data-selected={@analytics_build_tag == build_tag}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
       </.dropdown>
       <.dropdown
         id="builds-analytics-scheme-dropdown"
@@ -43,16 +42,15 @@
         >
           <:right_icon><.check /></:right_icon>
         </.dropdown_item>
-        <%= for build_scheme <- @build_schemes do %>
-          <.dropdown_item
-            value={build_scheme}
-            label={build_scheme}
-            patch={"?#{Query.put(@uri.query, "analytics-build-scheme", build_scheme)}"}
-            data-selected={@analytics_build_scheme == build_scheme}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-        <% end %>
+        <.dropdown_item
+          :for={build_scheme <- @build_schemes}
+          value={build_scheme}
+          label={build_scheme}
+          patch={"?#{Query.put(@uri.query, "analytics-build-scheme", build_scheme)}"}
+          data-selected={@analytics_build_scheme == build_scheme}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
       </.dropdown>
       <.dropdown
         id="builds-analytics-configuration-dropdown"
@@ -67,16 +65,15 @@
         >
           <:right_icon><.check /></:right_icon>
         </.dropdown_item>
-        <%= for build_configuration <- @build_configurations do %>
-          <.dropdown_item
-            value={build_configuration}
-            label={build_configuration}
-            patch={"?#{Query.put(@uri.query, "analytics-build-configuration", build_configuration)}"}
-            data-selected={@analytics_build_configuration == build_configuration}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-        <% end %>
+        <.dropdown_item
+          :for={build_configuration <- @build_configurations}
+          value={build_configuration}
+          label={build_configuration}
+          patch={"?#{Query.put(@uri.query, "analytics-build-configuration", build_configuration)}"}
+          data-selected={@analytics_build_configuration == build_configuration}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
       </.dropdown>
       <.dropdown
         id="builds-analytics-category-dropdown"

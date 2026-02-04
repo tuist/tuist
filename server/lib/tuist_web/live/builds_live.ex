@@ -70,7 +70,7 @@ defmodule TuistWeb.BuildsLive do
     analytics_build_scheme = params["analytics-build-scheme"] || "any"
     analytics_build_configuration = params["analytics-build-configuration"] || "any"
     analytics_build_category = params["analytics-build-category"] || "any"
-    analytics_build_tag = params["analytics-build-tag"] || "any"
+    analytics_build_tag = params["analytics-build-tag"] || "all"
 
     %{preset: preset, period: {start_datetime, end_datetime} = period} =
       DatePicker.date_picker_params(params, "analytics")
@@ -153,7 +153,7 @@ defmodule TuistWeb.BuildsLive do
 
   defp opts_with_analytics_build_tag(opts, analytics_build_tag) do
     case analytics_build_tag do
-      "any" -> opts
+      "all" -> opts
       tag -> Keyword.put(opts, :tag, tag)
     end
   end
@@ -359,7 +359,7 @@ defmodule TuistWeb.BuildsLive do
   defp build_configuration_label("any"), do: dgettext("dashboard_builds", "Any")
   defp build_configuration_label(configuration), do: configuration
 
-  defp build_tag_label("any"), do: dgettext("dashboard_builds", "All")
+  defp build_tag_label("all"), do: dgettext("dashboard_builds", "All")
   defp build_tag_label(tag), do: tag
 
   defp type_labels(type, configuration_insights_analytics) do
