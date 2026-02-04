@@ -1022,6 +1022,21 @@ msgstr "od wczoraj"
 msgid "Cache Endpoint"
 msgstr "Punkt końcowy pamięci podręcznej"
 
+msgid "All"
+msgstr ""
+
+msgid "Custom metadata"
+msgstr ""
+
 #, fuzzy
 msgid "Generations"
 msgstr "Pokolenia"
+
+msgid "Tag:"
+msgstr ""
+
+msgid "Tags"
+msgstr ""
+
+msgid "Value"
+msgstr ""

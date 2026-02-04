@@ -1015,6 +1015,21 @@ msgstr "desde ayer"
 msgid "Cache Endpoint"
 msgstr "Punto final de caché"
 
+msgid "All"
+msgstr ""
+
+msgid "Custom metadata"
+msgstr ""
+
 #, fuzzy
 msgid "Generations"
 msgstr "Generaciones"
+
+msgid "Tag:"
+msgstr ""
+
+msgid "Tags"
+msgstr ""
+
+msgid "Value"
+msgstr ""

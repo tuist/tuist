@@ -994,6 +994,21 @@ msgstr "自昨日起"
 msgid "Cache Endpoint"
 msgstr "快取端點"
 
+msgid "All"
+msgstr ""
+
+msgid "Custom metadata"
+msgstr ""
+
 #, fuzzy
 msgid "Generations"
 msgstr "世代"
+
+msgid "Tag:"
+msgstr ""
+
+msgid "Tags"
+msgstr ""
+
+msgid "Value"
+msgstr ""

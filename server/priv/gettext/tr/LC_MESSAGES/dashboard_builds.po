@@ -1007,6 +1007,21 @@ msgstr "dünden beri"
 msgid "Cache Endpoint"
 msgstr "Önbellek Uç Noktası"
 
+msgid "All"
+msgstr ""
+
+msgid "Custom metadata"
+msgstr ""
+
 #, fuzzy
 msgid "Generations"
 msgstr "Nesiller"
+
+msgid "Tag:"
+msgstr ""
+
+msgid "Tags"
+msgstr ""
+
+msgid "Value"
+msgstr ""
