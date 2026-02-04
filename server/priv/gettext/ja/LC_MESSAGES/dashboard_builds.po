@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2026-02-04 13:21+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Japanese <https://translate.tuist.dev/projects/tuist/"
 "dashboard_builds/ja/>\n"
 "Language: ja\n"
@@ -1010,18 +1010,22 @@ msgstr "キャッシュエンドポイント"
 msgid "All"
 msgstr "すべて"
 
+#, fuzzy
 msgid "Custom metadata"
-msgstr ""
+msgstr "カスタムメタデータ"
 
 #, fuzzy
 msgid "Generations"
 msgstr "世代"
 
+#, fuzzy
 msgid "Tag:"
-msgstr ""
+msgstr "Tag:"
 
+#, fuzzy
 msgid "Tags"
-msgstr ""
+msgstr "タグ"
 
+#, fuzzy
 msgid "Value"
-msgstr ""
+msgstr "値"
