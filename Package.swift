@@ -309,6 +309,31 @@ var targets: [Target] = [
         ],
         path: "cli/Tests/TuistUserInputReaderTests"
     ),
+    .target(
+        name: "TuistSupport",
+        dependencies: [
+            pathDependency,
+            loggingDependency,
+            swiftToolsSupportDependency,
+            zipFoundationDependency,
+            mockableDependency,
+            fileSystemDependency,
+            commandDependency,
+            "TuistConstants",
+            "TuistLogging",
+            "TuistEnvironment",
+            "TuistNooraExtension",
+            "TuistAlert",
+            "TuistThreadSafe",
+            "TuistUserInputReader",
+            .product(name: "Noora", package: "tuist.Noora"),
+        ],
+        path: "cli/Sources/TuistSupport",
+        exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
 ]
 
 // MARK: - macOS-only targets
@@ -438,31 +463,6 @@ targets.append(contentsOf: [
             xcodeGraphDependency,
         ],
         path: "cli/Sources/TuistExtension"
-    ),
-    .target(
-        name: "TuistSupport",
-        dependencies: [
-            pathDependency,
-            loggingDependency,
-            swiftToolsSupportDependency,
-            zipFoundationDependency,
-            mockableDependency,
-            fileSystemDependency,
-            commandDependency,
-            "TuistConstants",
-            "TuistLogging",
-            "TuistEnvironment",
-            "TuistNooraExtension",
-            "TuistAlert",
-            "TuistThreadSafe",
-            "TuistUserInputReader",
-            .product(name: "Noora", package: "tuist.Noora"),
-        ],
-        path: "cli/Sources/TuistSupport",
-        exclude: ["AGENTS.md"],
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
-        ]
     ),
     .target(
         name: "TuistTesting",

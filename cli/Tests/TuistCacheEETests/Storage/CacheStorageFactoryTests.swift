@@ -7,6 +7,7 @@ import Testing
 import TuistCache
 import TuistCAS
 import TuistCore
+import TuistEnvironment
 import TuistServer
 import TuistSupport
 import XcodeGraph
