@@ -207,7 +207,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
          }}
       end)
 
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds?tags=nightly")
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds?tags[]=nightly")
 
       response = json_response(conn, 200)
       assert length(response["builds"]) == 1
@@ -235,7 +235,67 @@ defmodule TuistWeb.API.BuildsControllerTest do
          }}
       end)
 
-      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds?tags=nightly,release")
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds?tags[]=nightly&tags[]=release")
+
+      response = json_response(conn, 200)
+      assert length(response["builds"]) == 1
+    end
+
+    test "filters builds by custom values", %{conn: conn, user: user, project: project} do
+      {:ok, build_with_values} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: user.account.id,
+          custom_values: %{"ticket" => "PROJ-1234", "runner" => "macos-14"}
+        )
+
+      expect(Runs, :list_build_runs, fn _attrs, opts ->
+        assert Keyword.get(opts, :custom_values) == %{"ticket" => "PROJ-1234"}
+
+        {[build_with_values],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 1,
+           total_pages: 1
+         }}
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds?values[]=ticket:PROJ-1234")
+
+      response = json_response(conn, 200)
+      assert length(response["builds"]) == 1
+    end
+
+    test "filters builds by multiple custom values", %{conn: conn, user: user, project: project} do
+      {:ok, build_with_values} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: user.account.id,
+          custom_values: %{"ticket" => "PROJ-1234", "runner" => "macos-14"}
+        )
+
+      expect(Runs, :list_build_runs, fn _attrs, opts ->
+        assert Keyword.get(opts, :custom_values) == %{"ticket" => "PROJ-1234", "runner" => "macos-14"}
+
+        {[build_with_values],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 1,
+           total_pages: 1
+         }}
+      end)
+
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/builds?values[]=ticket:PROJ-1234&values[]=runner:macos-14"
+        )
 
       response = json_response(conn, 200)
       assert length(response["builds"]) == 1
