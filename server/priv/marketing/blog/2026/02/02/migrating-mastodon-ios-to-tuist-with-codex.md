@@ -18,7 +18,7 @@ We decided to test this on the [Mastodon iOS client](https://github.com/mastodon
 
 We didn't hand Codex a step-by-step checklist. We gave it a set of outcomes: produce a Tuist-generated project that stays as close as possible to the original, integrate dependencies through Xcode project primitives so they can be cached as binaries, validate that the app actually launches on a simulator, and write a `skill.md` that captures the migration knowledge for future use.
 
-We used [Codex](https://openai.com/codex/) 5.2 with GPT-5 as the underlying model. A migration like this isn't just about compiling. It requires understanding feedback loops, holding state across errors, and making judgment calls when things break. This was a good test of whether the model could handle that without constant human supervision.
+A migration like this isn't just about compiling. It requires understanding feedback loops, holding state across errors, and making judgment calls when things break. We used [Codex](https://openai.com/codex/) 5.2 with GPT-5 as the underlying model because we wanted to test whether the model could handle that without constant human supervision.
 
 ## How it actually went
 
@@ -26,7 +26,7 @@ The first step was establishing a baseline. The original Xcode project compiled 
 
 From there, the agent extracted build settings into `.xcconfig` files and wired them back into the target definitions in `Project.swift`. This follows our [migration guidance](https://docs.tuist.dev/en/guides/features/projects/adoption/migrate/xcode-project), which recommends xcconfig extraction because it preserves the settings hierarchy and keeps the manifest readable. Then it created the initial `Tuist.swift`, `Project.swift`, and `Tuist/Package.swift`, mapping each target into the Tuist graph.
 
-The first `tuist generate` was successful and the app compiled. But then things started breaking, which is exactly what happens in real migrations.
+The first `tuist generate` was successful, but then things started breaking, which is exactly what happens in real migrations.
 
 ### The missing class that wasn't missing
 
@@ -44,15 +44,13 @@ Each of these was straightforward to fix once identified, but they are a good il
 
 After the workspace built successfully, the agent installed the app on the simulator and launched it. It crashed immediately with an unrecognized selector, `processCompletedCount`, coming off `NSUserDefaults`. Since Tuist integrates dependencies as Xcode-native targets and defaults to static linking, the linker was stripping object files that contained only Objective-C categories without class definitions. The category methods simply disappeared from the binary. As [Apple Technical Q&A QA1490](https://developer.apple.com/library/archive/qa/qa1490/_index.html) explains, this is expected behavior. Our [dependency documentation](https://docs.tuist.dev/en/guides/features/projects/dependencies#objectivec-dependencies) covers this in more detail.
 
-The fix was adding `-ObjC` to `OTHER_LDFLAGS` in the shared project xcconfig, which forces the linker to load all object files from static libraries. After that, the app launched and stayed up. This is why we treat runtime validation as a required step in any migration. It catches issues that no amount of static analysis will surface.
+The fix was adding `-ObjC` to `OTHER_LDFLAGS` in the shared project xcconfig, which forces the linker to load all object files from static libraries. After that, the app launched and stayed up. This is why it's important to instruct the agent to actually run the app on a simulator and tell it how to do so. That way it can detect runtime failures on its own and close the feedback loop without human intervention.
 
 ## Unlocking cache
 
 The whole point of migrating was to unlock caching. A modular generated project is nice, but what we really wanted was fast clean builds by default.
 
-When we ran `tuist cache` to warm the binaries, a few dependency issues surfaced. `UITextView+Placeholder` produced an invalid product name because the `+` character wasn't being sanitized the way SwiftPM does it. This was completely invisible in the original Xcode project and only surfaced once Tuist took over package integration. It turned out to be a bug in Tuist's target name sanitization. We fixed it directly in the Tuist codebase as part of [the same PR](https://github.com/tuist/tuist/pull/9326) where we wrote this blog post.
-
-With those fixes in place, `tuist cache` warmed the binaries and `tuist setup cache` enabled the [Xcode compilation cache](https://docs.tuist.dev/en/guides/features/cache).
+Once everything compiled and ran, `tuist cache` warmed the binaries and `tuist setup cache` enabled the [Xcode compilation cache](https://docs.tuist.dev/en/guides/features/cache).
 
 ## The benchmark
 
