@@ -135,6 +135,7 @@ public class Generator: Generating {
         environment: MapperEnvironment
     ) async throws {
         try await lint(graphTraverser: GraphTraverser(graph: environment.initialGraphWithSources ?? graph))
+        printAndFlushPendingLintWarnings()
     }
 
     public func generateAndWrite(
@@ -162,7 +163,6 @@ public class Generator: Generating {
             graphTraverser: graphTraverser,
             workspaceName: workspaceName
         )
-        printAndFlushPendingLintWarnings()
     }
 
     func load(
