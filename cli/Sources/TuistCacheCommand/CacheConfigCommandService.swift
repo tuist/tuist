@@ -15,7 +15,7 @@ import TuistServer
     import TuistLoader
 #endif
 
-public protocol CacheConfigServicing {
+public protocol CacheConfigCommandServicing {
     func run(
         fullHandle: String,
         json: Bool,
@@ -25,7 +25,7 @@ public protocol CacheConfigServicing {
     ) async throws
 }
 
-public final class CacheConfigService: CacheConfigServicing {
+public final class CacheConfigCommandService: CacheConfigCommandServicing {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let ciOIDCAuthenticator: CIOIDCAuthenticating
@@ -83,7 +83,7 @@ public final class CacheConfigService: CacheConfigServicing {
 
         if let url {
             guard let parsedURL = URL(string: url) else {
-                throw CacheConfigServiceError.invalidServerURL(url)
+                throw CacheConfigCommandServiceError.invalidServerURL(url)
             }
             resolvedServerURL = parsedURL
         } else {
@@ -143,7 +143,7 @@ public final class CacheConfigService: CacheConfigServicing {
             return oidcToken
         }
 
-        throw CacheConfigServiceError.notAuthenticated
+        throw CacheConfigCommandServiceError.notAuthenticated
     }
 
     private func authenticateWithOIDC(serverURL: URL) async throws -> String {
@@ -176,7 +176,7 @@ struct CacheConfiguration: Codable {
     }
 }
 
-public enum CacheConfigServiceError: LocalizedError, Equatable {
+public enum CacheConfigCommandServiceError: LocalizedError, Equatable {
     case notAuthenticated
     case invalidServerURL(String)
 

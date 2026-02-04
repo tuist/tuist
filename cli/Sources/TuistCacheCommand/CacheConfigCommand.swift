@@ -51,7 +51,7 @@ public struct CacheConfigCommand: AsyncParsableCommand {
     var url: String?
 
     public func run() async throws {
-        try await CacheConfigService().run(
+        try await CacheConfigCommandService().run(
             fullHandle: fullHandle,
             json: json,
             forceRefresh: forceRefresh,
