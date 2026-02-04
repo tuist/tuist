@@ -468,10 +468,9 @@ defmodule Tuist.Runs do
     |> where([b], b.project_id == ^project.id)
     |> where([b], b.inserted_at > ^DateTime.add(DateTime.utc_now(), -30, :day))
     |> where([b], fragment("cardinality(?) > 0", b.custom_tags))
-    |> select([b], b.custom_tags)
+    |> select([b], fragment("unnest(?)", b.custom_tags))
+    |> distinct(true)
     |> Repo.all()
-    |> List.flatten()
-    |> Enum.uniq()
     |> Enum.sort()
   end
 
