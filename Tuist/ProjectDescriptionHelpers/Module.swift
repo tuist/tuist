@@ -228,7 +228,7 @@ public enum Module: String, CaseIterable {
 
     public var sourceTargets: [Target] {
         let isStaticProduct = product == .staticLibrary || product == .staticFramework
-        let isTestingTarget = targetName == Module.acceptanceTesting.targetName || targetName == Module.environment.targetName
+        let isTestingTarget = targetName == Module.acceptanceTesting.targetName
         return [
             target(
                 name: targetName,

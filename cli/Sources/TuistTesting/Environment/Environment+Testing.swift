@@ -1,6 +1,7 @@
 import Foundation
 import Path
 import Testing
+import TuistEnvironment
 
 /// A testing trait for mocking the Environment
 public struct EnvironmentTestingTrait: TestTrait, SuiteTrait, TestScoping {
@@ -15,8 +16,7 @@ public struct EnvironmentTestingTrait: TestTrait, SuiteTrait, TestScoping {
         performing function: @Sendable () async throws -> Void
     ) async throws {
         let mockEnvironment = try MockEnvironment(temporaryDirectory: temporaryDirectory)
-        mockEnvironment.variables = ProcessInfo.processInfo.environment
-            .filter { inheritedVariables.contains($0.key) }
+        mockEnvironment.variables = ProcessInfo.processInfo.environment.filter { inheritedVariables.contains($0.key) }
         mockEnvironment.arguments = arguments
         if let legacyModuleCache {
             mockEnvironment.variables["TUIST_LEGACY_MODULE_CACHE"] = legacyModuleCache ? "1" : "0"
