@@ -49,6 +49,24 @@ struct GenerateServiceTests {
         )
     }
 
+    private func givenGeneratorSucceeds(workspacePath: AbsolutePath, environment: MapperEnvironment = MapperEnvironment()) {
+        given(generator)
+            .loadWithSideEffects(path: .any, options: .any)
+            .willReturn((.test(), [], environment))
+        given(generator)
+            .lint(graph: .any, environment: .any)
+            .willReturn()
+        given(generator)
+            .generateAndWrite(graph: .any)
+            .willReturn(workspacePath)
+        given(generator)
+            .executeSideEffects(sideEffects: .any)
+            .willReturn()
+        given(generator)
+            .postGenerate(graph: .any, workspaceName: .any)
+            .willReturn()
+    }
+
     @Test func throws_when_the_configuration_is_not_for_a_generated_project() async throws {
         given(configLoader).loadConfig(path: .any).willReturn(.test(project: .testXcodeProject()))
 
@@ -73,13 +91,13 @@ struct GenerateServiceTests {
         )
     }
 
-    @Test func run_fatalErrors_when_theworkspaceGenerationFails() async throws {
+    @Test(.withMockedNoora) func run_fatalErrors_when_theworkspaceGenerationFails() async throws {
         let expectedError = NSError.test()
         given(configLoader).loadConfig(path: .any).willReturn(
             .test(project: .testGeneratedProject())
         )
         given(generator)
-            .generateWithGraph(path: .any, options: .any)
+            .loadWithSideEffects(path: .any, options: .any)
             .willThrow(expectedError)
 
         await #expect(
@@ -98,22 +116,13 @@ struct GenerateServiceTests {
         )
     }
 
-    @Test func test_run() async throws {
+    @Test(.withMockedNoora) func test_run() async throws {
         // Given
         let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
-        let environment = MapperEnvironment()
         given(configLoader).loadConfig(path: .any).willReturn(
             .test(project: .testGeneratedProject())
         )
-        given(generator)
-            .generateWithGraph(path: .any, options: .any)
-            .willReturn(
-                (
-                    workspacePath,
-                    .test(),
-                    environment
-                )
-            )
+        givenGeneratorSucceeds(workspacePath: workspacePath)
 
         given(opener)
             .open(path: .any)
@@ -135,7 +144,7 @@ struct GenerateServiceTests {
             .called(1)
     }
 
-    @Test func run_timeIsPrinted() async throws {
+    @Test(.withMockedNoora) func run_timeIsPrinted() async throws {
         try await withMockedDependencies {
             // Given
             let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
@@ -148,9 +157,7 @@ struct GenerateServiceTests {
                 .open(path: .any)
                 .willReturn()
 
-            given(generator)
-                .generateWithGraph(path: .any, options: .any)
-                .willReturn((workspacePath, .test(), MapperEnvironment()))
+            givenGeneratorSucceeds(workspacePath: workspacePath)
             clock.assertOnUnexpectedCalls = true
             clock.primedTimers = [
                 0.234,
@@ -171,22 +178,13 @@ struct GenerateServiceTests {
         }
     }
 
-    @Test func passes_allPossible_when_targets_focused_overrides_explicit_profile() async throws {
+    @Test(.withMockedNoora) func passes_allPossible_when_targets_focused_overrides_explicit_profile() async throws {
         // Given
         let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
-        let environment = MapperEnvironment()
         given(configLoader).loadConfig(path: .any).willReturn(
             .test(project: .testGeneratedProject())
         )
-        given(generator)
-            .generateWithGraph(path: .any, options: .any)
-            .willReturn(
-                (
-                    workspacePath,
-                    .test(),
-                    environment
-                )
-            )
+        givenGeneratorSucceeds(workspacePath: workspacePath)
 
         // When
         try await subject.run(
@@ -210,22 +208,13 @@ struct GenerateServiceTests {
             .called(1)
     }
 
-    @Test func passes_explicit_builtin_profile_all_possible() async throws {
+    @Test(.withMockedNoora) func passes_explicit_builtin_profile_all_possible() async throws {
         // Given
         let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
-        let environment = MapperEnvironment()
         given(configLoader).loadConfig(path: .any).willReturn(
             .test(project: .testGeneratedProject())
         )
-        given(generator)
-            .generateWithGraph(path: .any, options: .any)
-            .willReturn(
-                (
-                    workspacePath,
-                    .test(),
-                    environment
-                )
-            )
+        givenGeneratorSucceeds(workspacePath: workspacePath)
 
         // When
         try await subject.run(
@@ -249,22 +238,13 @@ struct GenerateServiceTests {
             .called(1)
     }
 
-    @Test func passes_none_when_no_binary_cache_flag() async throws {
+    @Test(.withMockedNoora) func passes_none_when_no_binary_cache_flag() async throws {
         // Given
         let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
-        let environment = MapperEnvironment()
         given(configLoader).loadConfig(path: .any).willReturn(
             .test(project: .testGeneratedProject())
         )
-        given(generator)
-            .generateWithGraph(path: .any, options: .any)
-            .willReturn(
-                (
-                    workspacePath,
-                    .test(),
-                    environment
-                )
-            )
+        givenGeneratorSucceeds(workspacePath: workspacePath)
 
         // When
         try await subject.run(
@@ -288,10 +268,9 @@ struct GenerateServiceTests {
             .called(1)
     }
 
-    @Test func passes_config_default_custom_when_no_flag_and_no_focus() async throws {
+    @Test(.withMockedNoora) func passes_config_default_custom_when_no_flag_and_no_focus() async throws {
         // Given
         let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
-        let environment = MapperEnvironment()
         let tuist = Tuist.test(project:
             .generated(.test(cacheOptions: .test(
                 keepSourceTargets: false,
@@ -304,15 +283,7 @@ struct GenerateServiceTests {
             )))
         )
         given(configLoader).loadConfig(path: .any).willReturn(tuist)
-        given(generator)
-            .generateWithGraph(path: .any, options: .any)
-            .willReturn(
-                (
-                    workspacePath,
-                    .test(),
-                    environment
-                )
-            )
+        givenGeneratorSucceeds(workspacePath: workspacePath)
 
         // When
         try await subject.run(

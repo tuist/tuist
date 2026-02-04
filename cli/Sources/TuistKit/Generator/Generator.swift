@@ -19,6 +19,29 @@ public protocol Generating {
     func generate(path: AbsolutePath, options: TuistGeneratedProjectOptions.GenerationOptions?) async throws -> AbsolutePath
     func generateWithGraph(path: AbsolutePath, options: TuistGeneratedProjectOptions.GenerationOptions?) async throws
         -> (AbsolutePath, Graph, MapperEnvironment)
+
+    func loadWithSideEffects(
+        path: AbsolutePath,
+        options: TuistGeneratedProjectOptions.GenerationOptions?
+    ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment)
+
+    func lint(
+        graph: Graph,
+        environment: MapperEnvironment
+    ) async throws
+
+    func generateAndWrite(
+        graph: Graph
+    ) async throws -> AbsolutePath
+
+    func executeSideEffects(
+        sideEffects: [SideEffectDescriptor]
+    ) async throws
+
+    func postGenerate(
+        graph: Graph,
+        workspaceName: String
+    ) async throws
 }
 
 public class Generator: Generating {
@@ -92,6 +115,54 @@ public class Generator: Generating {
 
     public func load(path: AbsolutePath, options: TuistGeneratedProjectOptions.GenerationOptions?) async throws -> Graph {
         try await load(path: path, options: options).0
+    }
+
+    public func loadWithSideEffects(
+        path: AbsolutePath,
+        options: TuistGeneratedProjectOptions.GenerationOptions?
+    ) async throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
+        let (graph, sideEffectDescriptors, environment, issues) = try await manifestGraphLoader.load(
+            path: path,
+            disableSandbox: options?.disableSandbox ?? true
+        )
+
+        lintingIssues.append(contentsOf: issues)
+        return (graph, sideEffectDescriptors, environment)
+    }
+
+    public func lint(
+        graph: Graph,
+        environment: MapperEnvironment
+    ) async throws {
+        try await lint(graphTraverser: GraphTraverser(graph: environment.initialGraphWithSources ?? graph))
+    }
+
+    public func generateAndWrite(
+        graph: Graph
+    ) async throws -> AbsolutePath {
+        let graphTraverser = GraphTraverser(graph: graph)
+        let workspaceDescriptor = try await generator.generateWorkspace(graphTraverser: graphTraverser)
+        try await writer.write(workspace: workspaceDescriptor)
+
+        return workspaceDescriptor.xcworkspacePath
+    }
+
+    public func executeSideEffects(
+        sideEffects: [SideEffectDescriptor]
+    ) async throws {
+        try await sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
+    }
+
+    public func postGenerate(
+        graph: Graph,
+        workspaceName: String
+    ) async throws {
+        let graphTraverser = GraphTraverser(graph: graph)
+        try await postGenerationActions(
+            graphTraverser: graphTraverser,
+            workspaceName: workspaceName
+        )
+        printAndFlushPendingLintWarnings()
     }
 
     func load(

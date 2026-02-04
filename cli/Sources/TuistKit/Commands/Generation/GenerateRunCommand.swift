@@ -4,7 +4,8 @@ import TuistCore
 import TuistServer
 import TuistSupport
 
-public struct GenerateRunCommand: AsyncParsableCommand, RecentPathRememberableCommand {
+public struct GenerateRunCommand: AsyncParsableCommand, RecentPathRememberableCommand, NooraReadyCommand {
+    var jsonThroughNoora: Bool { false }
     public init() {}
 
     public static var configuration: CommandConfiguration {
