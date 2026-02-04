@@ -11,6 +11,7 @@ public enum Module: String, CaseIterable {
     case testing = "TuistTesting"
     case constants = "TuistConstants"
     case environment = "TuistEnvironment"
+    case environmentTesting = "TuistEnvironmentTesting"
     case logging = "TuistLogging"
     case support = "TuistSupport"
     case kit = "TuistKit"
@@ -235,7 +236,7 @@ public enum Module: String, CaseIterable {
 
     public var sourceTargets: [Target] {
         let isStaticProduct = product == .staticLibrary || product == .staticFramework
-        let isTestingTarget = targetName == Module.acceptanceTesting.targetName
+        let isTestingTarget = targetName == Module.acceptanceTesting.targetName || targetName == Module.environmentTesting.targetName
         return [
             target(
                 name: targetName,
@@ -266,7 +267,7 @@ public enum Module: String, CaseIterable {
         switch self {
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator, .projectAutomation,
              .projectDescription,
-             .acceptanceTesting, .simulator, .testing, .process,
+             .acceptanceTesting, .simulator, .testing, .environmentTesting, .process,
              .constants, .environment, .logging,
              .cacheCommand, .envKey, .versionCommand, .encodable,
              .uniqueIDGenerator, .opener, .nooraExtension, .alert, .threadSafe,
@@ -381,7 +382,7 @@ public enum Module: String, CaseIterable {
             moduleTags.append("domain:cli")
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator:
             moduleTags.append("domain:cli-tools")
-        case .testing, .acceptanceTesting:
+        case .testing, .acceptanceTesting, .environmentTesting:
             moduleTags.append("domain:testing")
         case .automation:
             moduleTags.append("domain:automation")
@@ -409,7 +410,7 @@ public enum Module: String, CaseIterable {
             moduleTags.append("layer:foundation")
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator:
             moduleTags.append("layer:tool")
-        case .testing, .acceptanceTesting:
+        case .testing, .acceptanceTesting, .environmentTesting:
             moduleTags.append("layer:testing")
         default:
             moduleTags.append("layer:feature")
@@ -428,6 +429,11 @@ public enum Module: String, CaseIterable {
             case .environment:
                 [
                     .external(name: "FileSystem"),
+                ]
+            case .environmentTesting:
+                [
+                    .target(name: Module.environment.targetName),
+                    .external(name: "Path"),
                 ]
             case .logging:
                 [
@@ -977,7 +983,7 @@ public enum Module: String, CaseIterable {
     public var unitTestDependencies: [TargetDependency] {
         var dependencies: [TargetDependency] =
             switch self {
-            case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .process,
+            case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .environmentTesting, .process,
                  .constants, .environment, .logging,
                  .cacheCommand, .envKey, .versionCommand, .nooraExtension, .tuistExtension, .alert, .threadSafe, .encodable,
                  .uniqueIDGenerator, .opener:
@@ -1302,8 +1308,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .oidc:
                 [
-                    .target(name: Module.testing.targetName),
-                    .target(name: Module.support.targetName),
+                    .target(name: Module.environmentTesting.targetName),
                     .target(name: Module.environment.targetName),
                 ]
             case .http:
