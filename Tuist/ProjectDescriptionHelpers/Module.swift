@@ -1039,6 +1039,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.opener.targetName),
                     .target(name: Module.userInputReader.targetName),
                     .target(name: Module.uniqueIDGenerator.targetName),
+                    .target(name: Module.alert.targetName),
                     .external(name: "ArgumentParser"),
                     .external(name: "GraphViz"),
                     .external(name: "AnyCodable"),

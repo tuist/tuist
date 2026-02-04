@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import TuistAlert
 import TuistAutomation
 import TuistCache
 import TuistCI
