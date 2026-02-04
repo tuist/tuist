@@ -1,6 +1,58 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.137.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* record network requests to HAR files for debugging by [@pepicrft](https://github.com/pepicrft) in [#9192](https://github.com/tuist/tuist/pull/9192)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.136.0...4.137.0
+
+## What's Changed in 4.136.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add generations and cache runs API endpoints and CLI commands by [@pepicrft](https://github.com/pepicrft) in [#9277](https://github.com/tuist/tuist/pull/9277)
+### 🐛 Bug Fixes
+
+* embed static frameworks with buildable-folder resources by [@pepicrft](https://github.com/pepicrft) in [#9317](https://github.com/tuist/tuist/pull/9317)
+* skip config loading for inspect commands by [@fortmarek](https://github.com/fortmarek) in [#9315](https://github.com/tuist/tuist/pull/9315)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.135.2...4.136.0
+
+## What's Changed in 4.135.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* avoid stale auth token cache during long uploads by [@cschmatzler](https://github.com/cschmatzler) in [#9314](https://github.com/tuist/tuist/pull/9314)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.135.1...4.135.2
+
+## What's Changed in 4.135.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* generate registry config before resolving Swift packages by [@pepicrft](https://github.com/pepicrft) in [#9311](https://github.com/tuist/tuist/pull/9311)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.135.0...4.135.1
+
+## What's Changed in 4.135.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* auto-skip quarantined tests in tuist test by [@fortmarek](https://github.com/fortmarek) in [#9306](https://github.com/tuist/tuist/pull/9306)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.134.1...4.135.0
+
+## What's Changed in 4.134.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* Bump cache version for static framework copy layout by [@pepicrft](https://github.com/pepicrft) in [#9309](https://github.com/tuist/tuist/pull/9309)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.134.0...4.134.1
+
 ## What's Changed in 4.134.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features

@@ -25,15 +25,26 @@ defmodule Tuist.Projects.Workers.CleanProjectWorkerTest do
       cas_objects = "#{project_slug}/cas"
       binaries_objects = "#{project_slug}/builds"
       tests_objects = "#{project_slug}/tests"
-      expect(Storage, :delete_all_objects, fn ^cas_objects, _actor -> :ok end)
-      expect(Storage, :delete_all_objects, fn ^binaries_objects, _actor -> :ok end)
-      expect(Storage, :delete_all_objects, fn ^tests_objects, _actor -> :ok end)
+      expected_paths = MapSet.new([cas_objects, binaries_objects, tests_objects])
+      paths_table = :ets.new(:clean_project_paths, [:set, :public])
+
+      expect(Storage, :delete_all_objects, 3, fn path, _actor ->
+        :ets.insert(paths_table, {path, true})
+        :ok
+      end)
 
       # When
       result = CleanProjectWorker.perform(%Oban.Job{args: %{"project_id" => project.id}})
 
       # Then
       assert result == :ok
+
+      received_paths =
+        paths_table
+        |> :ets.tab2list()
+        |> MapSet.new(&elem(&1, 0))
+
+      assert received_paths == expected_paths
     end
 
     test "returns :ok when the project doesn't exist" do

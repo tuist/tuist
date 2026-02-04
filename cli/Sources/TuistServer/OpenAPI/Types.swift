@@ -220,6 +220,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/generate-url`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/generate-url/post(generatePreviewsMultipartUploadURL)`.
     func generatePreviewsMultipartUploadURL(_ input: Operations.generatePreviewsMultipartUploadURL.Input) async throws -> Operations.generatePreviewsMultipartUploadURL.Output
+    /// Get a cache run by ID.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/get(getCacheRun)`.
+    func getCacheRun(_ input: Operations.getCacheRun.Input) async throws -> Operations.getCacheRun.Output
     /// List builds associated with a given project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/builds`.
@@ -389,6 +394,16 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `DELETE /api/organizations/{organization_name}/members/{user_name}`.
     /// - Remark: Generated from `#/paths//api/organizations/{organization_name}/members/{user_name}/delete(removeOrganizationMember)`.
     func removeOrganizationMember(_ input: Operations.removeOrganizationMember.Input) async throws -> Operations.removeOrganizationMember.Output
+    /// List cache runs associated with a given project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/cache-runs`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache-runs/get(listCacheRuns)`.
+    func listCacheRuns(_ input: Operations.listCacheRuns.Input) async throws -> Operations.listCacheRuns.Output
+    /// Get a generation by ID.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/generations/{generation_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/generations/{generation_id}/get(getGeneration)`.
+    func getGeneration(_ input: Operations.getGeneration.Input) async throws -> Operations.getGeneration.Output
     /// Uploads a preview icon.
     ///
     /// The endpoint uploads a preview icon.
@@ -403,6 +418,11 @@ public protocol APIProtocol: Sendable {
     /// - Remark: HTTP `POST /api/projects/{account_handle}/{project_handle}/previews/complete`.
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/previews/complete/post(completePreviewsMultipartUpload)`.
     func completePreviewsMultipartUpload(_ input: Operations.completePreviewsMultipartUpload.Input) async throws -> Operations.completePreviewsMultipartUpload.Output
+    /// List generations associated with a given project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/generations`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/generations/get(listGenerations)`.
+    func listGenerations(_ input: Operations.listGenerations.Input) async throws -> Operations.listGenerations.Output
     /// Deletes a project with a given id.
     ///
     /// - Remark: HTTP `DELETE /api/projects/{id}`.
@@ -915,6 +935,19 @@ extension APIProtocol {
             body: body
         ))
     }
+    /// Get a cache run by ID.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/get(getCacheRun)`.
+    public func getCacheRun(
+        path: Operations.getCacheRun.Input.Path,
+        headers: Operations.getCacheRun.Input.Headers = .init()
+    ) async throws -> Operations.getCacheRun.Output {
+        try await getCacheRun(Operations.getCacheRun.Input(
+            path: path,
+            headers: headers
+        ))
+    }
     /// List builds associated with a given project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/builds`.
@@ -1312,6 +1345,34 @@ extension APIProtocol {
             headers: headers
         ))
     }
+    /// List cache runs associated with a given project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/cache-runs`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache-runs/get(listCacheRuns)`.
+    public func listCacheRuns(
+        path: Operations.listCacheRuns.Input.Path,
+        query: Operations.listCacheRuns.Input.Query = .init(),
+        headers: Operations.listCacheRuns.Input.Headers = .init()
+    ) async throws -> Operations.listCacheRuns.Output {
+        try await listCacheRuns(Operations.listCacheRuns.Input(
+            path: path,
+            query: query,
+            headers: headers
+        ))
+    }
+    /// Get a generation by ID.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/generations/{generation_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/generations/{generation_id}/get(getGeneration)`.
+    public func getGeneration(
+        path: Operations.getGeneration.Input.Path,
+        headers: Operations.getGeneration.Input.Headers = .init()
+    ) async throws -> Operations.getGeneration.Output {
+        try await getGeneration(Operations.getGeneration.Input(
+            path: path,
+            headers: headers
+        ))
+    }
     /// Uploads a preview icon.
     ///
     /// The endpoint uploads a preview icon.
@@ -1342,6 +1403,21 @@ extension APIProtocol {
             path: path,
             headers: headers,
             body: body
+        ))
+    }
+    /// List generations associated with a given project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/generations`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/generations/get(listGenerations)`.
+    public func listGenerations(
+        path: Operations.listGenerations.Input.Path,
+        query: Operations.listGenerations.Input.Query = .init(),
+        headers: Operations.listGenerations.Input.Headers = .init()
+    ) async throws -> Operations.listGenerations.Output {
+        try await listGenerations(Operations.listGenerations.Input(
+            path: path,
+            query: query,
+            headers: headers
         ))
     }
     /// Deletes a project with a given id.
@@ -1432,6 +1508,10 @@ public enum Servers {
 public enum Components {
     /// Types generated from the `#/components/schemas` section of the OpenAPI document.
     public enum Schemas {
+        /// The maximum number of cache runs to return in a single page.
+        ///
+        /// - Remark: Generated from `#/components/schemas/CacheRunsIndexPageSize`.
+        public typealias CacheRunsIndexPageSize = Swift.Int
         /// A newly created account token.
         ///
         /// - Remark: Generated from `#/components/schemas/AccountTokenCreated`.
@@ -1898,6 +1978,10 @@ public enum Components {
                 case hash
             }
         }
+        /// The page number to return.
+        ///
+        /// - Remark: Generated from `#/components/schemas/CacheRunsIndexPage`.
+        public typealias CacheRunsIndexPage = Swift.Int
         /// Represents an multipart upload's part identified by the upload id and the part number
         ///
         /// - Remark: Generated from `#/components/schemas/ArtifactMultipartUploadPart`.
@@ -2143,6 +2227,10 @@ public enum Components {
         ///
         /// - Remark: Generated from `#/components/schemas/PreviewIndexPage`.
         public typealias PreviewIndexPage = Swift.Int
+        /// The page number to return.
+        ///
+        /// - Remark: Generated from `#/components/schemas/GenerationsIndexPage`.
+        public typealias GenerationsIndexPage = Swift.Int
         /// - Remark: Generated from `#/components/schemas/Account`.
         public struct Account: Codable, Hashable, Sendable {
             /// The handle of the account
@@ -5359,6 +5447,10 @@ public enum Components {
                 case url
             }
         }
+        /// The maximum number of generations to return in a single page.
+        ///
+        /// - Remark: Generated from `#/components/schemas/GenerationsIndexPageSize`.
+        public typealias GenerationsIndexPageSize = Swift.Int
         /// A platform that a bundle can support (e.g. iOS)
         ///
         /// - Remark: Generated from `#/components/schemas/BundleSupportedPlatform`.
@@ -17474,6 +17566,400 @@ public enum Operations {
             }
         }
     }
+    /// Get a cache run by ID.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/get(getCacheRun)`.
+    public enum getCacheRun {
+        public static let id: Swift.String = "getCacheRun"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// The ID of the cache run.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/GET/path/cache_run_id`.
+                public var cache_run_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - cache_run_id: The ID of the cache run.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    cache_run_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.cache_run_id = cache_run_id
+                }
+            }
+            public var path: Operations.getCacheRun.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheRun.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getCacheRun.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getCacheRun.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.getCacheRun.Input.Path,
+                headers: Operations.getCacheRun.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// Cacheable targets.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/GET/responses/200/content/json/cacheable_targets`.
+                        public var cacheable_targets: [Swift.String]?
+                        /// Command arguments used.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/GET/responses/200/content/json/command_arguments`.
+                        public var command_arguments: Swift.String?
+                        /// Cache run duration in milliseconds.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/GET/responses/200/content/json/duration`.
+                        public var duration: Swift.Int
+                        /// Git branch.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/GET/responses/200/content/json/git_branch`.
+                        public var git_branch: Swift.String?
+                        /// Git commit SHA.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/GET/responses/200/content/json/git_commit_sha`.
+                        public var git_commit_sha: Swift.String?
+                        /// Git ref.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/GET/responses/200/content/json/git_ref`.
+                        public var git_ref: Swift.String?
+                        /// The cache run ID.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/GET/responses/200/content/json/id`.
+                        public var id: Swift.String
+                        /// Whether the cache run ran on CI.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/GET/responses/200/content/json/is_ci`.
+                        public var is_ci: Swift.Bool
+                        /// Local cache target hits.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/GET/responses/200/content/json/local_cache_target_hits`.
+                        public var local_cache_target_hits: [Swift.String]?
+                        /// macOS version.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/GET/responses/200/content/json/macos_version`.
+                        public var macos_version: Swift.String?
+                        /// Unix timestamp when the cache run executed.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/GET/responses/200/content/json/ran_at`.
+                        public var ran_at: Swift.Int
+                        /// Remote cache target hits.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/GET/responses/200/content/json/remote_cache_target_hits`.
+                        public var remote_cache_target_hits: [Swift.String]?
+                        /// Cache run status.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/GET/responses/200/content/json/status`.
+                        @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case success = "success"
+                            case failure = "failure"
+                        }
+                        /// Cache run status.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/GET/responses/200/content/json/status`.
+                        public var status: Operations.getCacheRun.Output.Ok.Body.jsonPayload.statusPayload
+                        /// Swift version used.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/GET/responses/200/content/json/swift_version`.
+                        public var swift_version: Swift.String?
+                        /// Tuist version used.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/GET/responses/200/content/json/tuist_version`.
+                        public var tuist_version: Swift.String?
+                        /// URL to view the cache run in the dashboard.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/GET/responses/200/content/json/url`.
+                        public var url: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - cacheable_targets: Cacheable targets.
+                        ///   - command_arguments: Command arguments used.
+                        ///   - duration: Cache run duration in milliseconds.
+                        ///   - git_branch: Git branch.
+                        ///   - git_commit_sha: Git commit SHA.
+                        ///   - git_ref: Git ref.
+                        ///   - id: The cache run ID.
+                        ///   - is_ci: Whether the cache run ran on CI.
+                        ///   - local_cache_target_hits: Local cache target hits.
+                        ///   - macos_version: macOS version.
+                        ///   - ran_at: Unix timestamp when the cache run executed.
+                        ///   - remote_cache_target_hits: Remote cache target hits.
+                        ///   - status: Cache run status.
+                        ///   - swift_version: Swift version used.
+                        ///   - tuist_version: Tuist version used.
+                        ///   - url: URL to view the cache run in the dashboard.
+                        public init(
+                            cacheable_targets: [Swift.String]? = nil,
+                            command_arguments: Swift.String? = nil,
+                            duration: Swift.Int,
+                            git_branch: Swift.String? = nil,
+                            git_commit_sha: Swift.String? = nil,
+                            git_ref: Swift.String? = nil,
+                            id: Swift.String,
+                            is_ci: Swift.Bool,
+                            local_cache_target_hits: [Swift.String]? = nil,
+                            macos_version: Swift.String? = nil,
+                            ran_at: Swift.Int,
+                            remote_cache_target_hits: [Swift.String]? = nil,
+                            status: Operations.getCacheRun.Output.Ok.Body.jsonPayload.statusPayload,
+                            swift_version: Swift.String? = nil,
+                            tuist_version: Swift.String? = nil,
+                            url: Swift.String
+                        ) {
+                            self.cacheable_targets = cacheable_targets
+                            self.command_arguments = command_arguments
+                            self.duration = duration
+                            self.git_branch = git_branch
+                            self.git_commit_sha = git_commit_sha
+                            self.git_ref = git_ref
+                            self.id = id
+                            self.is_ci = is_ci
+                            self.local_cache_target_hits = local_cache_target_hits
+                            self.macos_version = macos_version
+                            self.ran_at = ran_at
+                            self.remote_cache_target_hits = remote_cache_target_hits
+                            self.status = status
+                            self.swift_version = swift_version
+                            self.tuist_version = tuist_version
+                            self.url = url
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case cacheable_targets
+                            case command_arguments
+                            case duration
+                            case git_branch
+                            case git_commit_sha
+                            case git_ref
+                            case id
+                            case is_ci
+                            case local_cache_target_hits
+                            case macos_version
+                            case ran_at
+                            case remote_cache_target_hits
+                            case status
+                            case swift_version
+                            case tuist_version
+                            case url
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/GET/responses/200/content/application\/json`.
+                    case json(Operations.getCacheRun.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getCacheRun.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getCacheRun.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getCacheRun.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Cache run details
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/get(getCacheRun)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getCacheRun.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getCacheRun.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getCacheRun.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getCacheRun.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You don't have permission to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/get(getCacheRun)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getCacheRun.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getCacheRun.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getCacheRun.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getCacheRun.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Cache run not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache-runs/{cache_run_id}/get(getCacheRun)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getCacheRun.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.getCacheRun.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// List builds associated with a given project.
     ///
     /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/builds`.
@@ -27390,6 +27876,801 @@ public enum Operations {
             }
         }
     }
+    /// List cache runs associated with a given project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/cache-runs`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache-runs/get(listCacheRuns)`.
+    public enum listCacheRuns {
+        public static let id: Swift.String = "listCacheRuns"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.listCacheRuns.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// Filter by git ref.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/query/git_ref`.
+                public var git_ref: Swift.String?
+                /// Filter by git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/query/git_branch`.
+                public var git_branch: Swift.String?
+                /// Filter by git commit SHA.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/query/git_commit_sha`.
+                public var git_commit_sha: Swift.String?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/query/page_size`.
+                public var page_size: Swift.Int?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/query/page`.
+                public var page: Swift.Int?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - git_ref: Filter by git ref.
+                ///   - git_branch: Filter by git branch.
+                ///   - git_commit_sha: Filter by git commit SHA.
+                ///   - page_size:
+                ///   - page:
+                public init(
+                    git_ref: Swift.String? = nil,
+                    git_branch: Swift.String? = nil,
+                    git_commit_sha: Swift.String? = nil,
+                    page_size: Swift.Int? = nil,
+                    page: Swift.Int? = nil
+                ) {
+                    self.git_ref = git_ref
+                    self.git_branch = git_branch
+                    self.git_commit_sha = git_commit_sha
+                    self.page_size = page_size
+                    self.page = page
+                }
+            }
+            public var query: Operations.listCacheRuns.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listCacheRuns.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listCacheRuns.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listCacheRuns.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.listCacheRuns.Input.Path,
+                query: Operations.listCacheRuns.Input.Query = .init(),
+                headers: Operations.listCacheRuns.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/responses/200/content/json/cache_runsPayload`.
+                        public struct cache_runsPayloadPayload: Codable, Hashable, Sendable {
+                            /// Cacheable targets.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/responses/200/content/json/cache_runsPayload/cacheable_targets`.
+                            public var cacheable_targets: [Swift.String]?
+                            /// Cache run duration in milliseconds.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/responses/200/content/json/cache_runsPayload/duration`.
+                            public var duration: Swift.Int
+                            /// Git branch.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/responses/200/content/json/cache_runsPayload/git_branch`.
+                            public var git_branch: Swift.String?
+                            /// Git commit SHA.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/responses/200/content/json/cache_runsPayload/git_commit_sha`.
+                            public var git_commit_sha: Swift.String?
+                            /// Git ref.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/responses/200/content/json/cache_runsPayload/git_ref`.
+                            public var git_ref: Swift.String?
+                            /// The cache run ID.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/responses/200/content/json/cache_runsPayload/id`.
+                            public var id: Swift.String
+                            /// Whether the cache run ran on CI.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/responses/200/content/json/cache_runsPayload/is_ci`.
+                            public var is_ci: Swift.Bool
+                            /// Local cache target hits.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/responses/200/content/json/cache_runsPayload/local_cache_target_hits`.
+                            public var local_cache_target_hits: [Swift.String]?
+                            /// macOS version.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/responses/200/content/json/cache_runsPayload/macos_version`.
+                            public var macos_version: Swift.String?
+                            /// Unix timestamp when the cache run executed.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/responses/200/content/json/cache_runsPayload/ran_at`.
+                            public var ran_at: Swift.Int
+                            /// Remote cache target hits.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/responses/200/content/json/cache_runsPayload/remote_cache_target_hits`.
+                            public var remote_cache_target_hits: [Swift.String]?
+                            /// Cache run status.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/responses/200/content/json/cache_runsPayload/status`.
+                            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case success = "success"
+                                case failure = "failure"
+                            }
+                            /// Cache run status.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/responses/200/content/json/cache_runsPayload/status`.
+                            public var status: Operations.listCacheRuns.Output.Ok.Body.jsonPayload.cache_runsPayloadPayload.statusPayload
+                            /// Swift version used.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/responses/200/content/json/cache_runsPayload/swift_version`.
+                            public var swift_version: Swift.String?
+                            /// Tuist version used.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/responses/200/content/json/cache_runsPayload/tuist_version`.
+                            public var tuist_version: Swift.String?
+                            /// URL to view the cache run in the dashboard.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/responses/200/content/json/cache_runsPayload/url`.
+                            public var url: Swift.String
+                            /// Creates a new `cache_runsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - cacheable_targets: Cacheable targets.
+                            ///   - duration: Cache run duration in milliseconds.
+                            ///   - git_branch: Git branch.
+                            ///   - git_commit_sha: Git commit SHA.
+                            ///   - git_ref: Git ref.
+                            ///   - id: The cache run ID.
+                            ///   - is_ci: Whether the cache run ran on CI.
+                            ///   - local_cache_target_hits: Local cache target hits.
+                            ///   - macos_version: macOS version.
+                            ///   - ran_at: Unix timestamp when the cache run executed.
+                            ///   - remote_cache_target_hits: Remote cache target hits.
+                            ///   - status: Cache run status.
+                            ///   - swift_version: Swift version used.
+                            ///   - tuist_version: Tuist version used.
+                            ///   - url: URL to view the cache run in the dashboard.
+                            public init(
+                                cacheable_targets: [Swift.String]? = nil,
+                                duration: Swift.Int,
+                                git_branch: Swift.String? = nil,
+                                git_commit_sha: Swift.String? = nil,
+                                git_ref: Swift.String? = nil,
+                                id: Swift.String,
+                                is_ci: Swift.Bool,
+                                local_cache_target_hits: [Swift.String]? = nil,
+                                macos_version: Swift.String? = nil,
+                                ran_at: Swift.Int,
+                                remote_cache_target_hits: [Swift.String]? = nil,
+                                status: Operations.listCacheRuns.Output.Ok.Body.jsonPayload.cache_runsPayloadPayload.statusPayload,
+                                swift_version: Swift.String? = nil,
+                                tuist_version: Swift.String? = nil,
+                                url: Swift.String
+                            ) {
+                                self.cacheable_targets = cacheable_targets
+                                self.duration = duration
+                                self.git_branch = git_branch
+                                self.git_commit_sha = git_commit_sha
+                                self.git_ref = git_ref
+                                self.id = id
+                                self.is_ci = is_ci
+                                self.local_cache_target_hits = local_cache_target_hits
+                                self.macos_version = macos_version
+                                self.ran_at = ran_at
+                                self.remote_cache_target_hits = remote_cache_target_hits
+                                self.status = status
+                                self.swift_version = swift_version
+                                self.tuist_version = tuist_version
+                                self.url = url
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case cacheable_targets
+                                case duration
+                                case git_branch
+                                case git_commit_sha
+                                case git_ref
+                                case id
+                                case is_ci
+                                case local_cache_target_hits
+                                case macos_version
+                                case ran_at
+                                case remote_cache_target_hits
+                                case status
+                                case swift_version
+                                case tuist_version
+                                case url
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/responses/200/content/json/cache_runs`.
+                        public typealias cache_runsPayload = [Operations.listCacheRuns.Output.Ok.Body.jsonPayload.cache_runsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/responses/200/content/json/cache_runs`.
+                        public var cache_runs: Operations.listCacheRuns.Output.Ok.Body.jsonPayload.cache_runsPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/responses/200/content/json/pagination_metadata`.
+                        public var pagination_metadata: Components.Schemas.PaginationMetadata
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - cache_runs:
+                        ///   - pagination_metadata:
+                        public init(
+                            cache_runs: Operations.listCacheRuns.Output.Ok.Body.jsonPayload.cache_runsPayload,
+                            pagination_metadata: Components.Schemas.PaginationMetadata
+                        ) {
+                            self.cache_runs = cache_runs
+                            self.pagination_metadata = pagination_metadata
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case cache_runs
+                            case pagination_metadata
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/responses/200/content/application\/json`.
+                    case json(Operations.listCacheRuns.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listCacheRuns.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listCacheRuns.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listCacheRuns.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// List of cache runs
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache-runs/get(listCacheRuns)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listCacheRuns.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listCacheRuns.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/cache-runs/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listCacheRuns.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listCacheRuns.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You don't have permission to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/cache-runs/get(listCacheRuns)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listCacheRuns.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listCacheRuns.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// Get a generation by ID.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/generations/{generation_id}`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/generations/{generation_id}/get(getGeneration)`.
+    public enum getGeneration {
+        public static let id: Swift.String = "getGeneration"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// The ID of the generation.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/path/generation_id`.
+                public var generation_id: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                ///   - generation_id: The ID of the generation.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String,
+                    generation_id: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                    self.generation_id = generation_id
+                }
+            }
+            public var path: Operations.getGeneration.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getGeneration.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getGeneration.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.getGeneration.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - headers:
+            public init(
+                path: Operations.getGeneration.Input.Path,
+                headers: Operations.getGeneration.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// Cacheable targets.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/responses/200/content/json/cacheable_targets`.
+                        public var cacheable_targets: [Swift.String]?
+                        /// Command arguments used.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/responses/200/content/json/command_arguments`.
+                        public var command_arguments: Swift.String?
+                        /// Generation duration in milliseconds.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/responses/200/content/json/duration`.
+                        public var duration: Swift.Int
+                        /// Git branch.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/responses/200/content/json/git_branch`.
+                        public var git_branch: Swift.String?
+                        /// Git commit SHA.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/responses/200/content/json/git_commit_sha`.
+                        public var git_commit_sha: Swift.String?
+                        /// Git ref.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/responses/200/content/json/git_ref`.
+                        public var git_ref: Swift.String?
+                        /// The generation ID.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/responses/200/content/json/id`.
+                        public var id: Swift.String
+                        /// Whether the generation ran on CI.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/responses/200/content/json/is_ci`.
+                        public var is_ci: Swift.Bool
+                        /// Local cache target hits.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/responses/200/content/json/local_cache_target_hits`.
+                        public var local_cache_target_hits: [Swift.String]?
+                        /// macOS version.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/responses/200/content/json/macos_version`.
+                        public var macos_version: Swift.String?
+                        /// Unix timestamp when the generation ran.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/responses/200/content/json/ran_at`.
+                        public var ran_at: Swift.Int
+                        /// Remote cache target hits.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/responses/200/content/json/remote_cache_target_hits`.
+                        public var remote_cache_target_hits: [Swift.String]?
+                        /// Generation status.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/responses/200/content/json/status`.
+                        @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                            case success = "success"
+                            case failure = "failure"
+                        }
+                        /// Generation status.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/responses/200/content/json/status`.
+                        public var status: Operations.getGeneration.Output.Ok.Body.jsonPayload.statusPayload
+                        /// Swift version used.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/responses/200/content/json/swift_version`.
+                        public var swift_version: Swift.String?
+                        /// Tuist version used.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/responses/200/content/json/tuist_version`.
+                        public var tuist_version: Swift.String?
+                        /// URL to view the generation in the dashboard.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/responses/200/content/json/url`.
+                        public var url: Swift.String
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - cacheable_targets: Cacheable targets.
+                        ///   - command_arguments: Command arguments used.
+                        ///   - duration: Generation duration in milliseconds.
+                        ///   - git_branch: Git branch.
+                        ///   - git_commit_sha: Git commit SHA.
+                        ///   - git_ref: Git ref.
+                        ///   - id: The generation ID.
+                        ///   - is_ci: Whether the generation ran on CI.
+                        ///   - local_cache_target_hits: Local cache target hits.
+                        ///   - macos_version: macOS version.
+                        ///   - ran_at: Unix timestamp when the generation ran.
+                        ///   - remote_cache_target_hits: Remote cache target hits.
+                        ///   - status: Generation status.
+                        ///   - swift_version: Swift version used.
+                        ///   - tuist_version: Tuist version used.
+                        ///   - url: URL to view the generation in the dashboard.
+                        public init(
+                            cacheable_targets: [Swift.String]? = nil,
+                            command_arguments: Swift.String? = nil,
+                            duration: Swift.Int,
+                            git_branch: Swift.String? = nil,
+                            git_commit_sha: Swift.String? = nil,
+                            git_ref: Swift.String? = nil,
+                            id: Swift.String,
+                            is_ci: Swift.Bool,
+                            local_cache_target_hits: [Swift.String]? = nil,
+                            macos_version: Swift.String? = nil,
+                            ran_at: Swift.Int,
+                            remote_cache_target_hits: [Swift.String]? = nil,
+                            status: Operations.getGeneration.Output.Ok.Body.jsonPayload.statusPayload,
+                            swift_version: Swift.String? = nil,
+                            tuist_version: Swift.String? = nil,
+                            url: Swift.String
+                        ) {
+                            self.cacheable_targets = cacheable_targets
+                            self.command_arguments = command_arguments
+                            self.duration = duration
+                            self.git_branch = git_branch
+                            self.git_commit_sha = git_commit_sha
+                            self.git_ref = git_ref
+                            self.id = id
+                            self.is_ci = is_ci
+                            self.local_cache_target_hits = local_cache_target_hits
+                            self.macos_version = macos_version
+                            self.ran_at = ran_at
+                            self.remote_cache_target_hits = remote_cache_target_hits
+                            self.status = status
+                            self.swift_version = swift_version
+                            self.tuist_version = tuist_version
+                            self.url = url
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case cacheable_targets
+                            case command_arguments
+                            case duration
+                            case git_branch
+                            case git_commit_sha
+                            case git_ref
+                            case id
+                            case is_ci
+                            case local_cache_target_hits
+                            case macos_version
+                            case ran_at
+                            case remote_cache_target_hits
+                            case status
+                            case swift_version
+                            case tuist_version
+                            case url
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/responses/200/content/application\/json`.
+                    case json(Operations.getGeneration.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.getGeneration.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getGeneration.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getGeneration.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// Generation details
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/generations/{generation_id}/get(getGeneration)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.getGeneration.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.getGeneration.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getGeneration.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getGeneration.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You don't have permission to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/generations/{generation_id}/get(getGeneration)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.getGeneration.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.getGeneration.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct NotFound: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/responses/404/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/responses/404/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getGeneration.Output.NotFound.Body
+                /// Creates a new `NotFound`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getGeneration.Output.NotFound.Body) {
+                    self.body = body
+                }
+            }
+            /// Generation not found
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/generations/{generation_id}/get(getGeneration)/responses/404`.
+            ///
+            /// HTTP response code: `404 notFound`.
+            case notFound(Operations.getGeneration.Output.NotFound)
+            /// The associated value of the enum case if `self` is `.notFound`.
+            ///
+            /// - Throws: An error if `self` is not `.notFound`.
+            /// - SeeAlso: `.notFound`.
+            public var notFound: Operations.getGeneration.Output.NotFound {
+                get throws {
+                    switch self {
+                    case let .notFound(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
     /// Uploads a preview icon.
     ///
     /// The endpoint uploads a preview icon.
@@ -27994,6 +29275,407 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "notFound",
+                            response: self
+                        )
+                    }
+                }
+            }
+            /// Undocumented response.
+            ///
+            /// A response with a code that is not documented in the OpenAPI document.
+            case undocumented(statusCode: Swift.Int, OpenAPIRuntime.UndocumentedPayload)
+        }
+        @frozen public enum AcceptableContentType: AcceptableProtocol {
+            case json
+            case other(Swift.String)
+            public init?(rawValue: Swift.String) {
+                switch rawValue.lowercased() {
+                case "application/json":
+                    self = .json
+                default:
+                    self = .other(rawValue)
+                }
+            }
+            public var rawValue: Swift.String {
+                switch self {
+                case let .other(string):
+                    return string
+                case .json:
+                    return "application/json"
+                }
+            }
+            public static var allCases: [Self] {
+                [
+                    .json
+                ]
+            }
+        }
+    }
+    /// List generations associated with a given project.
+    ///
+    /// - Remark: HTTP `GET /api/projects/{account_handle}/{project_handle}/generations`.
+    /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/generations/get(listGenerations)`.
+    public enum listGenerations {
+        public static let id: Swift.String = "listGenerations"
+        public struct Input: Sendable, Hashable {
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/path`.
+            public struct Path: Sendable, Hashable {
+                /// The handle of the account.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/path/account_handle`.
+                public var account_handle: Swift.String
+                /// The handle of the project.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/path/project_handle`.
+                public var project_handle: Swift.String
+                /// Creates a new `Path`.
+                ///
+                /// - Parameters:
+                ///   - account_handle: The handle of the account.
+                ///   - project_handle: The handle of the project.
+                public init(
+                    account_handle: Swift.String,
+                    project_handle: Swift.String
+                ) {
+                    self.account_handle = account_handle
+                    self.project_handle = project_handle
+                }
+            }
+            public var path: Operations.listGenerations.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// Filter by git ref.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/query/git_ref`.
+                public var git_ref: Swift.String?
+                /// Filter by git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/query/git_branch`.
+                public var git_branch: Swift.String?
+                /// Filter by git commit SHA.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/query/git_commit_sha`.
+                public var git_commit_sha: Swift.String?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/query/page_size`.
+                public var page_size: Swift.Int?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/query/page`.
+                public var page: Swift.Int?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - git_ref: Filter by git ref.
+                ///   - git_branch: Filter by git branch.
+                ///   - git_commit_sha: Filter by git commit SHA.
+                ///   - page_size:
+                ///   - page:
+                public init(
+                    git_ref: Swift.String? = nil,
+                    git_branch: Swift.String? = nil,
+                    git_commit_sha: Swift.String? = nil,
+                    page_size: Swift.Int? = nil,
+                    page: Swift.Int? = nil
+                ) {
+                    self.git_ref = git_ref
+                    self.git_branch = git_branch
+                    self.git_commit_sha = git_commit_sha
+                    self.page_size = page_size
+                    self.page = page
+                }
+            }
+            public var query: Operations.listGenerations.Input.Query
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/header`.
+            public struct Headers: Sendable, Hashable {
+                public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listGenerations.AcceptableContentType>]
+                /// Creates a new `Headers`.
+                ///
+                /// - Parameters:
+                ///   - accept:
+                public init(accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.listGenerations.AcceptableContentType>] = .defaultValues()) {
+                    self.accept = accept
+                }
+            }
+            public var headers: Operations.listGenerations.Input.Headers
+            /// Creates a new `Input`.
+            ///
+            /// - Parameters:
+            ///   - path:
+            ///   - query:
+            ///   - headers:
+            public init(
+                path: Operations.listGenerations.Input.Path,
+                query: Operations.listGenerations.Input.Query = .init(),
+                headers: Operations.listGenerations.Input.Headers = .init()
+            ) {
+                self.path = path
+                self.query = query
+                self.headers = headers
+            }
+        }
+        @frozen public enum Output: Sendable, Hashable {
+            public struct Ok: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/responses/200/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/responses/200/content/json`.
+                    public struct jsonPayload: Codable, Hashable, Sendable {
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/responses/200/content/json/generationsPayload`.
+                        public struct generationsPayloadPayload: Codable, Hashable, Sendable {
+                            /// Cacheable targets.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/responses/200/content/json/generationsPayload/cacheable_targets`.
+                            public var cacheable_targets: [Swift.String]?
+                            /// Generation duration in milliseconds.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/responses/200/content/json/generationsPayload/duration`.
+                            public var duration: Swift.Int
+                            /// Git branch.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/responses/200/content/json/generationsPayload/git_branch`.
+                            public var git_branch: Swift.String?
+                            /// Git commit SHA.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/responses/200/content/json/generationsPayload/git_commit_sha`.
+                            public var git_commit_sha: Swift.String?
+                            /// Git ref.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/responses/200/content/json/generationsPayload/git_ref`.
+                            public var git_ref: Swift.String?
+                            /// The generation ID.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/responses/200/content/json/generationsPayload/id`.
+                            public var id: Swift.String
+                            /// Whether the generation ran on CI.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/responses/200/content/json/generationsPayload/is_ci`.
+                            public var is_ci: Swift.Bool
+                            /// Local cache target hits.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/responses/200/content/json/generationsPayload/local_cache_target_hits`.
+                            public var local_cache_target_hits: [Swift.String]?
+                            /// macOS version.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/responses/200/content/json/generationsPayload/macos_version`.
+                            public var macos_version: Swift.String?
+                            /// Unix timestamp when the generation ran.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/responses/200/content/json/generationsPayload/ran_at`.
+                            public var ran_at: Swift.Int
+                            /// Remote cache target hits.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/responses/200/content/json/generationsPayload/remote_cache_target_hits`.
+                            public var remote_cache_target_hits: [Swift.String]?
+                            /// Generation status.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/responses/200/content/json/generationsPayload/status`.
+                            @frozen public enum statusPayload: String, Codable, Hashable, Sendable, CaseIterable {
+                                case success = "success"
+                                case failure = "failure"
+                            }
+                            /// Generation status.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/responses/200/content/json/generationsPayload/status`.
+                            public var status: Operations.listGenerations.Output.Ok.Body.jsonPayload.generationsPayloadPayload.statusPayload
+                            /// Swift version used.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/responses/200/content/json/generationsPayload/swift_version`.
+                            public var swift_version: Swift.String?
+                            /// Tuist version used.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/responses/200/content/json/generationsPayload/tuist_version`.
+                            public var tuist_version: Swift.String?
+                            /// URL to view the generation in the dashboard.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/responses/200/content/json/generationsPayload/url`.
+                            public var url: Swift.String
+                            /// Creates a new `generationsPayloadPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - cacheable_targets: Cacheable targets.
+                            ///   - duration: Generation duration in milliseconds.
+                            ///   - git_branch: Git branch.
+                            ///   - git_commit_sha: Git commit SHA.
+                            ///   - git_ref: Git ref.
+                            ///   - id: The generation ID.
+                            ///   - is_ci: Whether the generation ran on CI.
+                            ///   - local_cache_target_hits: Local cache target hits.
+                            ///   - macos_version: macOS version.
+                            ///   - ran_at: Unix timestamp when the generation ran.
+                            ///   - remote_cache_target_hits: Remote cache target hits.
+                            ///   - status: Generation status.
+                            ///   - swift_version: Swift version used.
+                            ///   - tuist_version: Tuist version used.
+                            ///   - url: URL to view the generation in the dashboard.
+                            public init(
+                                cacheable_targets: [Swift.String]? = nil,
+                                duration: Swift.Int,
+                                git_branch: Swift.String? = nil,
+                                git_commit_sha: Swift.String? = nil,
+                                git_ref: Swift.String? = nil,
+                                id: Swift.String,
+                                is_ci: Swift.Bool,
+                                local_cache_target_hits: [Swift.String]? = nil,
+                                macos_version: Swift.String? = nil,
+                                ran_at: Swift.Int,
+                                remote_cache_target_hits: [Swift.String]? = nil,
+                                status: Operations.listGenerations.Output.Ok.Body.jsonPayload.generationsPayloadPayload.statusPayload,
+                                swift_version: Swift.String? = nil,
+                                tuist_version: Swift.String? = nil,
+                                url: Swift.String
+                            ) {
+                                self.cacheable_targets = cacheable_targets
+                                self.duration = duration
+                                self.git_branch = git_branch
+                                self.git_commit_sha = git_commit_sha
+                                self.git_ref = git_ref
+                                self.id = id
+                                self.is_ci = is_ci
+                                self.local_cache_target_hits = local_cache_target_hits
+                                self.macos_version = macos_version
+                                self.ran_at = ran_at
+                                self.remote_cache_target_hits = remote_cache_target_hits
+                                self.status = status
+                                self.swift_version = swift_version
+                                self.tuist_version = tuist_version
+                                self.url = url
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case cacheable_targets
+                                case duration
+                                case git_branch
+                                case git_commit_sha
+                                case git_ref
+                                case id
+                                case is_ci
+                                case local_cache_target_hits
+                                case macos_version
+                                case ran_at
+                                case remote_cache_target_hits
+                                case status
+                                case swift_version
+                                case tuist_version
+                                case url
+                            }
+                        }
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/responses/200/content/json/generations`.
+                        public typealias generationsPayload = [Operations.listGenerations.Output.Ok.Body.jsonPayload.generationsPayloadPayload]
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/responses/200/content/json/generations`.
+                        public var generations: Operations.listGenerations.Output.Ok.Body.jsonPayload.generationsPayload
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/responses/200/content/json/pagination_metadata`.
+                        public var pagination_metadata: Components.Schemas.PaginationMetadata
+                        /// Creates a new `jsonPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - generations:
+                        ///   - pagination_metadata:
+                        public init(
+                            generations: Operations.listGenerations.Output.Ok.Body.jsonPayload.generationsPayload,
+                            pagination_metadata: Components.Schemas.PaginationMetadata
+                        ) {
+                            self.generations = generations
+                            self.pagination_metadata = pagination_metadata
+                        }
+                        public enum CodingKeys: String, CodingKey {
+                            case generations
+                            case pagination_metadata
+                        }
+                    }
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/responses/200/content/application\/json`.
+                    case json(Operations.listGenerations.Output.Ok.Body.jsonPayload)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Operations.listGenerations.Output.Ok.Body.jsonPayload {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listGenerations.Output.Ok.Body
+                /// Creates a new `Ok`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listGenerations.Output.Ok.Body) {
+                    self.body = body
+                }
+            }
+            /// List of generations
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/generations/get(listGenerations)/responses/200`.
+            ///
+            /// HTTP response code: `200 ok`.
+            case ok(Operations.listGenerations.Output.Ok)
+            /// The associated value of the enum case if `self` is `.ok`.
+            ///
+            /// - Throws: An error if `self` is not `.ok`.
+            /// - SeeAlso: `.ok`.
+            public var ok: Operations.listGenerations.Output.Ok {
+                get throws {
+                    switch self {
+                    case let .ok(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct Forbidden: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/responses/403/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/responses/403/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.listGenerations.Output.Forbidden.Body
+                /// Creates a new `Forbidden`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.listGenerations.Output.Forbidden.Body) {
+                    self.body = body
+                }
+            }
+            /// You don't have permission to access this resource
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/generations/get(listGenerations)/responses/403`.
+            ///
+            /// HTTP response code: `403 forbidden`.
+            case forbidden(Operations.listGenerations.Output.Forbidden)
+            /// The associated value of the enum case if `self` is `.forbidden`.
+            ///
+            /// - Throws: An error if `self` is not `.forbidden`.
+            /// - SeeAlso: `.forbidden`.
+            public var forbidden: Operations.listGenerations.Output.Forbidden {
+                get throws {
+                    switch self {
+                    case let .forbidden(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "forbidden",
                             response: self
                         )
                     }

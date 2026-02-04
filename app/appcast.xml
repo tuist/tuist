@@ -21,6 +21,15 @@
             <enclosure url="https://github.com/tuist/tuist/releases/download/app@0.22.7/Tuist.dmg" length="31713769" type="application/octet-stream" sparkle:edSignature="7dTqY1w4izSmYE/8hv6aBF0/3gzGlheNbLrHJFWUcEYMqj4wRvAN2ZZWy7Jkrto9RLP7k7NOes50RZd6Syo3Aw=="/>
         </item>
         <item>
+            <title>0.24.1</title>
+            <pubDate>Wed, 04 Feb 2026 09:45:03 +0000</pubDate>
+            <link>https://github.com/tuist/tuist/releases</link>
+            <sparkle:version>3512</sparkle:version>
+            <sparkle:shortVersionString>0.24.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/tuist/tuist/releases/download/app@0.24.1/Tuist.dmg" length="26870980" type="application/octet-stream" sparkle:edSignature="rmrgxN2Vc+9svkkKaoaJ7vb0rDKSEKkOnbZa1azM77jsg5LErIuqFBEgEzBMvSjK3HMnXyIYRJJZMwm3ttMOBg=="/>
+        </item>
+        <item>
             <title>0.24.0</title>
             <pubDate>Tue, 30 Dec 2025 10:43:19 +0000</pubDate>
             <link>https://github.com/tuist/tuist/releases</link>

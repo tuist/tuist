@@ -37,6 +37,11 @@
         'method=$request_method';
 
       access_log /var/log/nginx/access.log timed_combined;
+
+      upstream cache_upstream {
+        server unix:/run/cache/current.sock;
+        keepalive 128;
+      }
     '';
 
     virtualHosts = {
@@ -56,7 +61,7 @@
         ];
 
         locations."= /metrics" = {
-          proxyPass = "http://unix:/run/cache/current.sock:/metrics";
+          proxyPass = "http://cache_upstream";
           extraConfig = ''
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -81,8 +86,37 @@
           return = "404";
         };
 
+        locations."/api/cache/" = {
+          extraConfig = ''
+            default_type application/json;
+
+            if ($http_authorization = "") {
+              return 401 '{"message":"Missing Authorization header"}';
+            }
+
+            proxy_pass http://cache_upstream;
+
+            proxy_http_version 1.1;
+            proxy_set_header Connection "";
+
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-Host $host;
+            proxy_set_header X-Forwarded-Port $server_port;
+
+            proxy_connect_timeout 30m;
+            proxy_send_timeout 30m;
+            proxy_read_timeout 30m;
+            send_timeout 30m;
+
+            proxy_buffering off;
+            proxy_request_buffering off;
+          '';
+        };
+
         locations."/" = {
-          proxyPass = "http://unix:/run/cache/current.sock:/";
+          proxyPass = "http://cache_upstream";
           proxyWebsockets = true;
           extraConfig = ''
             proxy_set_header X-Real-IP $remote_addr;
@@ -114,6 +148,11 @@
         locations."~ ^/internal/remote/(.*?)/(.*?)/(.*)" = {
           extraConfig = ''
             internal;
+            # The cache download API contract expects application/octet-stream.
+            # When proxying a presigned S3 URL, nginx would otherwise forward S3's
+            # object metadata (often application/zip), which breaks strict clients.
+            proxy_hide_header Content-Type;
+            default_type application/octet-stream;
             resolver 1.1.1.1 ipv6=off;
             set $download_url $1://$2/$3;
             proxy_set_header Host $2;
@@ -128,6 +167,8 @@
         locations."@handle_remote_redirect" = {
           extraConfig = ''
             set $saved_redirect_location $upstream_http_location;
+            proxy_hide_header Content-Type;
+            default_type application/octet-stream;
             proxy_pass $saved_redirect_location;
           '';
         };

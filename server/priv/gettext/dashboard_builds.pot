@@ -582,7 +582,6 @@ msgstr ""
 msgid "Filter"
 msgstr ""
 
-#: lib/tuist_web/live/generate_runs_live.ex:21
 #: lib/tuist_web/live/generate_runs_live.html.heex:3
 #: lib/tuist_web/live/run_detail_live.html.heex:30
 #, elixir-autogen, elixir-format
@@ -1443,6 +1442,11 @@ msgstr ""
 #: lib/tuist_web/live/build_run_live.html.heex:209
 #, elixir-autogen, elixir-format
 msgid "Custom metadata"
+msgstr ""
+
+#: lib/tuist_web/live/generate_runs_live.ex:21
+#, elixir-autogen, elixir-format
+msgid "Generations"
 msgstr ""
 
 #: lib/tuist_web/live/builds_live.html.heex:12

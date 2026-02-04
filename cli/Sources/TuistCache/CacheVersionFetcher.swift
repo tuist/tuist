@@ -24,10 +24,14 @@ enum CacheVersion: String, Equatable, Hashable {
     /// important to bump the cache version to
     /// flag those artifacts as invalid.
     case version3 = "3"
+
+    /// Static frameworks are now copied when generating projects, changing the products structure. We need to invalidate
+    /// previously cached artifacts that relied on the old layout.
+    case version4 = "4"
 }
 
 struct CacheVersionFetcher: CacheVersionFetching {
     func version() -> CacheVersion {
-        .version3
+        .version4
     }
 }

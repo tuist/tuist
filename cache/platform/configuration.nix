@@ -7,7 +7,6 @@
   imports = [
     (modulesPath + "/installer/scan/not-detected.nix")
     (modulesPath + "/profiles/qemu-guest.nix")
-    ./disk-config.nix
     ./nginx.nix
     ./secrets.nix
     ./alloy.nix
@@ -99,6 +98,7 @@
 
   systemd.tmpfiles.rules = [
     "Z /cas 0755 cache cache - -"
+    "d /cas/tmp 1777 cache cache - -"
     "d /var/lib/cache 0755 cache cache - -"
     "d /run/cache 0777 root root - -"
   ];

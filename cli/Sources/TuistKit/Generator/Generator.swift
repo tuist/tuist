@@ -137,12 +137,6 @@ public class Generator: Generating {
             return
         }
 
-        try await swiftPackageManagerInteractor.install(
-            graphTraverser: graphTraverser,
-            workspaceName: workspaceName,
-            configGeneratedProjectOptions: configGeneratedProjectOptions
-        )
-
         if configGeneratedProjectOptions.generationOptions.registryEnabled {
             let configurationPath = graphTraverser.path
                 .appending(component: workspaceName)
@@ -152,6 +146,12 @@ public class Generator: Generating {
                 serverURL: config.url
             )
         }
+
+        try await swiftPackageManagerInteractor.install(
+            graphTraverser: graphTraverser,
+            workspaceName: workspaceName,
+            configGeneratedProjectOptions: configGeneratedProjectOptions
+        )
     }
 
     private func printAndFlushPendingLintWarnings() {
