@@ -31,7 +31,7 @@ var targets: [Target] = [
             "TuistConstants",
             "TuistEnvironment",
             "TuistLogging",
-            "TuistNoora",
+            "TuistNooraExtension",
             "TuistAlert",
             .product(name: "Noora", package: "tuist.Noora"),
             .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
@@ -89,11 +89,11 @@ var targets: [Target] = [
         ]
     ),
     .target(
-        name: "TuistNoora",
+        name: "TuistNooraExtensionExtension",
         dependencies: [
             .product(name: "Noora", package: "tuist.Noora"),
         ],
-        path: "cli/Sources/TuistNoora"
+        path: "cli/Sources/TuistNooraExtensionExtension"
     ),
     .target(
         name: "TuistThreadSafe",
@@ -112,7 +112,7 @@ var targets: [Target] = [
         dependencies: [
             .product(name: "Noora", package: "tuist.Noora"),
             .product(name: "OrderedSet", package: "frazer-rbsn.OrderedSet"),
-            "TuistNoora",
+            "TuistNooraExtension",
             "TuistThreadSafe",
         ],
         path: "cli/Sources/TuistAlert"
@@ -452,7 +452,7 @@ targets.append(contentsOf: [
             "TuistConstants",
             "TuistLogging",
             "TuistEnvironment",
-            "TuistNoora",
+            "TuistNooraExtension",
             "TuistAlert",
             "TuistThreadSafe",
             "TuistUserInputReader",
