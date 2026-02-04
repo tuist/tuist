@@ -7,30 +7,28 @@
 ---
 # الدلائل {#directories}
 
-ينظم Tuist ملفاته عبر عدة دلائل على نظامك، باتباع [مواصفات الدليل الأساسي لـ
-XDG]
-(https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html).
-يوفر هذا طريقة قياسية ونظيفة لإدارة ملفات التكوين وذاكرة التخزين المؤقت وملفات
-الحالة.
+ينظم Tuist ملفاته عبر عدة أدلة على نظامك، وفقًا لمواصفات [XDG Base Directory
+Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html).
+يوفر هذا طريقة نظيفة وقياسية لإدارة ملفات التكوين والذاكرة المؤقتة والحالة.
 
 ## متغيرات البيئة المدعومة {#supported-environment-variables}
 
-يدعم تويست كلاً من متغيرات XDG القياسية والمتغيرات المسبقة الخاصة بتويست. تحظى
-المتغيرات الخاصة بتويست (المسبوقة ببادئة `TUIST_`) بالأولوية، مما يسمح لك بتهيئة
-تويست بشكل منفصل عن التطبيقات الأخرى.
+يدعم Tuist كلاً من متغيرات XDG القياسية والمتغيرات المسبوقة ببادئة خاصة بـ
+Tuist. المتغيرات الخاصة بـ Tuist (المسبوقة ببادئة `TUIST_`) لها الأسبقية، مما
+يتيح لك تكوين Tuist بشكل منفصل عن التطبيقات الأخرى.
 
 ### دليل التكوين {#configuration-directory}
 
-متغير البيئة
+**متغيرات البيئة:**
 - `TUIST_XDG_CONFIG_HOME` (له الأسبقية)
-- `xdg_config_home`
+- `XDG_CONFIG_HOME`
 
-**الإعداد الافتراضي:** `~/.config/tuist`
+**الافتراضي:** `~/.config/tuist`
 
-**تُستخدم لـ**
-- بيانات اعتماد الخادم (`بيانات الاعتماد/{المضيف}.json`)
+**تستخدم في:**
+- بيانات اعتماد الخادم (`credentials/{host}.json`)
 
-**مثال على ذلك:**
+**مثال:**
 ```bash
 # Set Tuist-specific config directory
 export TUIST_XDG_CONFIG_HOME=/custom/config
@@ -43,14 +41,14 @@ tuist auth login
 
 ### دليل ذاكرة التخزين المؤقت {#cache-directory}
 
-متغير البيئة
-- `TUIST_XDG_CACHE_HOME` (له الأسبقية)
+**متغيرات البيئة:**
+- `TUIST_XDG_CACHE_HOME` (تأخذ الأسبقية)
 - `XDG_CACHE_HOME`
 
-**الإعداد الافتراضي:** `~/.cache/tuist الافتراضي`
+**الافتراضي:** `~/.cache/tuist`
 
-**تُستخدم لـ**
-- **الإضافات**: تم تنزيل وتجميع ذاكرة التخزين المؤقت للمكونات الإضافية
+**تستخدم في:**
+- **المكونات الإضافية**: تم تنزيل وتجميع ذاكرة التخزين المؤقتة للمكونات الإضافية
 - **ProjectDescriptionHelpers**: مساعدات وصف المشروع المجمعة
 - **البيانات**: ملفات البيانات المخزنة مؤقتًا
 - **المشاريع**: تم إنشاء ذاكرة التخزين المؤقتة لمشروع الأتمتة
@@ -59,7 +57,7 @@ tuist auth login
 - **الملفات الثنائية**: إنشاء ملفات ثنائية (غير قابلة للمشاركة عبر البيئات)
 - **SelectiveTests**: ذاكرة التخزين المؤقت للاختبارات الانتقائية
 
-**مثال على ذلك:**
+**مثال:**
 ```bash
 # Set Tuist-specific cache directory
 export TUIST_XDG_CACHE_HOME=/tmp/tuist-cache
@@ -72,17 +70,17 @@ tuist cache
 
 ### دليل الولاية {#state-directory}
 
-متغير البيئة
+**متغيرات البيئة:**
 - `TUIST_XDG_STATE_HOME` (تأخذ الأسبقية)
 - `XDG_STATE_HOME`
 
 **الافتراضي:** `~/.local/state/tuist`
 
-**تُستخدم لـ**
+**تستخدم في:**
 - **السجلات**: ملفات السجلات (`logs/{uuid}.log`)
 - **قفل ملفات**: ملفات قفل المصادقة (`{handle}.sock`)
 
-**مثال على ذلك:**
+**مثال:**
 ```bash
 # Set Tuist-specific state directory
 export TUIST_XDG_STATE_HOME=/var/log/tuist
