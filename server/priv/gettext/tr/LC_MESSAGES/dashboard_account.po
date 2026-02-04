@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-22 13:04+0000\n"
+"PO-Revision-Date: 2026-02-04 17:55+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_account/tr/>\n"
@@ -195,7 +195,7 @@ msgstr "Kuruluşu sil"
 
 #, fuzzy
 msgid "Deleting the organization will delete all of its projects"
-msgstr "Kuruluş silindiğinde, tüm projeleri de silinir."
+msgstr "Kuruluşun silinmesi, tüm projelerinin de silinmesine neden olur."
 
 #, fuzzy
 msgid ""
@@ -257,8 +257,8 @@ msgstr "Cömert taban fiyat"
 #, fuzzy
 msgid "Generous base price: Pay nothing if below free tier limits"
 msgstr ""
-"Cömert temel fiyat: Ücretsiz kademenin sınırlarının altındaysa hiçbir şey "
-"ödemeyin"
+"Cömert temel fiyat: Ücretsiz kullanım sınırının altındaysanız hiçbir ücret "
+"ödemezsiniz."
 
 #, fuzzy
 msgid "Generous free monthly tier"
@@ -750,44 +750,65 @@ msgstr "%{next_charge_date} tarihinde ücretlendirilir."
 msgid "xxxx xxxx xxxx %{card_number}"
 msgstr "xxxx xxxx xxxx %{card_number}"
 
+#, fuzzy
 msgid "Add"
-msgstr ""
+msgstr "Ekle"
 
+#, fuzzy
 msgid "Add cache endpoint"
-msgstr ""
+msgstr "Önbellek uç noktası ekleyin"
 
+#, fuzzy
 msgid "Add endpoint"
-msgstr ""
+msgstr "Son noktayı ekleyin"
 
+#, fuzzy
 msgid "Endpoint URL"
-msgstr ""
+msgstr "Uç nokta URL'si"
 
+#, fuzzy
 msgid "URL"
-msgstr ""
+msgstr "URL"
 
+#, fuzzy
 msgid "Delete last cache endpoint?"
-msgstr ""
+msgstr "Son önbellek uç noktasını silmek ister misiniz?"
 
+#, fuzzy
 msgid ""
 "Removing the last custom cache endpoint will switch your organization back "
 "to Tuist-hosted caching. This affects all builds across your organization."
 msgstr ""
+"Son özel önbellek uç noktasını kaldırmak, kuruluşunuzu Tuist tarafından "
+"barındırılan önbelleğe geri döndürür. Bu, kuruluşunuzdaki tüm derlemeleri "
+"etkiler."
 
+#, fuzzy
 msgid "Cache endpoints"
-msgstr ""
+msgstr "Önbellek uç noktaları"
 
+#, fuzzy
 msgid ""
 "Configure custom cache endpoints for self-hosted cache setups. When enabled, "
 "Tuist will read from and write to these endpoints instead of the default "
 "Tuist-hosted cache."
 msgstr ""
+"Kendi barındırdığınız önbellek kurulumları için özel önbellek uç noktaları "
+"yapılandırın. Etkinleştirildiğinde, Tuist varsayılan Tuist barındırmalı "
+"önbellek yerine bu uç noktalardan okuma ve yazma işlemi yapacaktır."
 
+#, fuzzy
 msgid ""
 "Custom cache endpoints are disabled. Tuist will use the default Tuist-hosted "
 "cache."
 msgstr ""
+"Özel önbellek uç noktaları devre dışıdır. Tuist, varsayılan Tuist "
+"barındırmalı önbelleği kullanacaktır."
 
+#, fuzzy
 msgid ""
 "No custom cache endpoints configured. Tuist will use the default Tuist-"
 "hosted cache until endpoints are added."
 msgstr ""
+"Özel önbellek uç noktaları yapılandırılmadı. Uç noktalar eklenene kadar "
+"Tuist, varsayılan Tuist barındırmalı önbelleği kullanacaktır."
