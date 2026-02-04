@@ -425,7 +425,7 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.constants.targetName, condition: .when([.macos])),
                     .target(name: Module.environment.targetName),
-                    .target(name: Module.alert.targetName),
+                    .target(name: Module.alert.targetName, condition: .when([.macos])),
                     .external(name: "Logging"),
                     .external(name: "FileSystem"),
                     .external(name: "LoggingOSLog", condition: .when([.macos])),
@@ -1288,7 +1288,7 @@ public enum Module: String, CaseIterable {
 
     private var destinations: Destinations {
         switch self {
-        case .simulator, .server, .http, .threadSafe, .uniqueIDGenerator, .opener, .logging, .environment, .alert, .nooraExtension, .cas:
+        case .simulator, .server, .http, .threadSafe, .uniqueIDGenerator, .opener, .logging, .environment, .cas:
             [.mac, .iPhone, .iPad]
         default:
             [.mac]
@@ -1297,7 +1297,7 @@ public enum Module: String, CaseIterable {
 
     private var deploymentTargets: DeploymentTargets {
         switch self {
-        case .simulator, .server, .http, .threadSafe, .uniqueIDGenerator, .opener, .logging, .environment, .alert, .nooraExtension, .cas: .multiplatform(iOS: "18.0", macOS: "15.0")
+        case .simulator, .server, .http, .threadSafe, .uniqueIDGenerator, .opener, .logging, .environment, .cas: .multiplatform(iOS: "18.0", macOS: "15.0")
         default: .macOS("15.0")
         }
     }
