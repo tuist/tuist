@@ -7,7 +7,7 @@ defmodule TuistWeb.FlakyTestsLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.IngestRepo
-  alias Tuist.Runs.TestCase
+  alias Tuist.Tests.TestCase
   alias TuistTestSupport.Fixtures.RunsFixtures
 
   describe "flaky tests page" do

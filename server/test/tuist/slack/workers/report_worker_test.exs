@@ -3,9 +3,9 @@ defmodule Tuist.Slack.Workers.ReportWorkerTest do
   use Mimic
 
   alias Tuist.Projects
-  alias Tuist.Runs.Analytics
   alias Tuist.Slack.Client
   alias Tuist.Slack.Workers.ReportWorker
+  alias Tuist.Tests.Analytics
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.SlackFixtures

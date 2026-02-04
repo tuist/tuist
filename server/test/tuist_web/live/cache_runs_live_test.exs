@@ -6,7 +6,7 @@ defmodule TuistWeb.CacheRunsLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Tuist.Runs.Analytics
+  alias Tuist.Tests.Analytics
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
 
   describe "lists latest cache runs" do

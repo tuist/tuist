@@ -604,7 +604,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert command_event.test_run_id
 
       # Verify the test run was created
-      {:ok, test_run} = Tuist.Runs.get_test(command_event.test_run_id)
+      {:ok, test_run} = Tuist.Tests.get_test(command_event.test_run_id)
       assert test_run.duration == 5000
       assert test_run.macos_version == "14.0"
       assert test_run.xcode_version == "5.9"

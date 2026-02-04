@@ -1,7 +1,7 @@
-defmodule Tuist.Runs.BuildTest do
+defmodule Tuist.Builds.BuildTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
-  alias Tuist.Runs.Build
+  alias Tuist.Builds.Build
 
   describe "create_changeset/2" do
     @valid_attrs %{

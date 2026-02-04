@@ -1,7 +1,7 @@
-defmodule Tuist.Runs.CASOutputTest do
+defmodule Tuist.Builds.CASOutputTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
-  alias Tuist.Runs.CASOutput
+  alias Tuist.Builds.CASOutput
 
   describe "changeset/2" do
     @valid_attrs %{
@@ -178,7 +178,6 @@ defmodule Tuist.Runs.CASOutputTest do
     test "accepts valid type values" do
       build_run_id = "B12673DA-1345-4077-BB30-D7576FEACE09"
 
-      # Test with a few different valid types
       for type <- ["swift", "swiftsourceinfo", "assembly", "unknown"] do
         attrs = Map.put(@valid_attrs, :type, type)
         changeset = CASOutput.changeset(build_run_id, attrs)

@@ -47,7 +47,7 @@ defmodule TuistWeb.BuildRunsLiveTest do
 
     # Generate a cursor with inserted_at sorting
     {_builds, %{end_cursor: cursor}} =
-      Tuist.Runs.list_build_runs(%{
+      Tuist.Builds.list_build_runs(%{
         filters: [%{field: :project_id, op: :==, value: project.id}],
         order_by: [:inserted_at],
         order_directions: [:desc],

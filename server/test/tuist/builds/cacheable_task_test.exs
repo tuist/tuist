@@ -1,7 +1,7 @@
-defmodule Tuist.Runs.CacheableTaskTest do
+defmodule Tuist.Builds.CacheableTaskTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
-  alias Tuist.Runs.CacheableTask
+  alias Tuist.Builds.CacheableTask
 
   describe "changeset/2" do
     @valid_attrs %{
