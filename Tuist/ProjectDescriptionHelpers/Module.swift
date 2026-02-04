@@ -874,6 +874,8 @@ public enum Module: String, CaseIterable {
             case .har:
                 [
                     .target(name: Module.support.targetName),
+                    .target(name: Module.constants.targetName),
+                    .target(name: Module.logging.targetName),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "HTTPTypes"),
                 ]

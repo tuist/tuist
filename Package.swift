@@ -667,6 +667,8 @@ targets.append(contentsOf: [
         name: "TuistHAR",
         dependencies: [
             "TuistSupport",
+            "TuistConstants",
+            "TuistLogging",
             pathDependency,
             .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
             .product(name: "HTTPTypes", package: "apple.swift-http-types"),

@@ -6,7 +6,7 @@ import Path
 private enum TuistCLI {
     static func main() async throws {
         try await initDependencies { sessionPaths in
-            try await TuistCommand.main(sessionPaths: sessionPaths)
+            try await TuistCommand.main(logFilePath: sessionPaths.logFilePath)
         }
     }
 }
