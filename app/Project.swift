@@ -89,7 +89,10 @@ let project = Project(
             product: .app,
             productName: "Tuist",
             bundleId: bundleId,
-            deploymentTargets: .macOS("15.0.0"),
+            deploymentTargets: .multiplatform(
+                iOS: "18.0.0",
+                macOS:"15.0.0"
+            ),
             infoPlist: .extendingDefault(
                 with: [
                     "CFBundleDisplayName": "Tuist",
