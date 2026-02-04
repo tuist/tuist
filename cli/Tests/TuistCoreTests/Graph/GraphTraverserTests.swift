@@ -1193,6 +1193,39 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got, [GraphDependencyReference(precompiledMacro)])
     }
 
+    func test_embeddableFrameworks_when_macroTargetInBetween() throws {
+        // App > Macro Target > Static SwiftSyntax XCFramework
+        let app = Target.test(name: "App", product: .app)
+        let macroTarget = Target.test(name: "MacroTarget", platform: .macOS, product: .macro)
+        let swiftSyntax = GraphDependency.testXCFramework(
+            path: .root.appending(component: "SwiftSyntax.xcframework"),
+            infoPlist: .test(
+                libraries: [
+                    .test(
+                        path: try RelativePath(validating: "SwiftSyntax.framework"),
+                        platform: .macOS
+                    ),
+                ]
+            ),
+            linking: .static
+        )
+        let project = Project.test(targets: [app, macroTarget])
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: app.name, path: project.path): Set([
+                    .target(name: macroTarget.name, path: project.path),
+                ]),
+                .target(name: macroTarget.name, path: project.path): Set([swiftSyntax]),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        let got = subject.embeddableFrameworks(path: project.path, name: app.name).sorted()
+
+        XCTAssertEqual(got, [])
+    }
+
     func test_embeddableFrameworks_when_targetIsNotApp() throws {
         // Given
         let target = Target.test(name: "Main", product: .framework)
@@ -1982,6 +2015,40 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got.first, GraphDependencyReference(macroXCFramework))
+    }
+
+    func test_linkableDependencies_when_macroTargetHasStaticFrameworkDependency() throws {
+        // Given
+        let target = Target.test(name: "Main", product: .app)
+        let macroTarget = Target.test(name: "MacroTarget", platform: .macOS, product: .macro)
+        let staticFramework = GraphDependency.testFramework(
+            path: "/test/SwiftSyntax.framework",
+            binaryPath: "/test/SwiftSyntax.framework/SwiftSyntax",
+            dsymPath: nil,
+            bcsymbolmapPaths: [],
+            linking: .static,
+            architectures: [.arm64]
+        )
+        let project = Project.test(targets: [target, macroTarget])
+
+        // Given: Value Graph
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: target.name, path: project.path): Set([
+                .target(name: macroTarget.name, path: project.path),
+            ]),
+            .target(name: macroTarget.name, path: project.path): Set([staticFramework]),
+        ]
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
+
+        // Then
+        XCTAssertTrue(got.isEmpty)
     }
 
     func test_linkableDependencies_doesntReturnTransitiveStaticPrecompiledBinaries_when_thereAreIntermediatePrecompiledBinariesThatCanLink(
