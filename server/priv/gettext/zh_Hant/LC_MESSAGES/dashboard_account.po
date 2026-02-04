@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-22 13:03+0000\n"
+"PO-Revision-Date: 2026-02-05 07:22+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Traditional Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_account/zh_Hant/>\n"
@@ -729,44 +729,59 @@ msgstr "於 %{next_charge_date} 扣款"
 msgid "xxxx xxxx xxxx %{card_number}"
 msgstr "xxxx xxxx xxxx %{card_number}"
 
+#, fuzzy
 msgid "Add"
-msgstr ""
+msgstr "添加"
 
+#, fuzzy
 msgid "Add cache endpoint"
-msgstr ""
+msgstr "新增快取端點"
 
+#, fuzzy
 msgid "Add endpoint"
-msgstr ""
+msgstr "添加終點"
 
+#, fuzzy
 msgid "Endpoint URL"
-msgstr ""
+msgstr "終端點網址"
 
+#, fuzzy
 msgid "URL"
-msgstr ""
+msgstr "網址"
 
+#, fuzzy
 msgid "Delete last cache endpoint?"
-msgstr ""
+msgstr "刪除最後一個快取終端點？"
 
+#, fuzzy
 msgid ""
 "Removing the last custom cache endpoint will switch your organization back "
 "to Tuist-hosted caching. This affects all builds across your organization."
 msgstr ""
+"移除最後一個自訂快取端點將使您的組織切換回 Tuist 主機式快取服務。此變更將影響"
+"組織內所有建置項目。"
 
+#, fuzzy
 msgid "Cache endpoints"
-msgstr ""
+msgstr "快取端點"
 
+#, fuzzy
 msgid ""
 "Configure custom cache endpoints for self-hosted cache setups. When enabled, "
 "Tuist will read from and write to these endpoints instead of the default "
 "Tuist-hosted cache."
 msgstr ""
+"為自建快取環境設定自訂快取端點。啟用後，Tuist 將改從這些端點讀寫資料，而非預"
+"設的 Tuist 託管快取。"
 
+#, fuzzy
 msgid ""
 "Custom cache endpoints are disabled. Tuist will use the default Tuist-hosted "
 "cache."
-msgstr ""
+msgstr "自訂快取端點已停用。Tuist 將使用預設的 Tuist 主機快取。"
 
+#, fuzzy
 msgid ""
 "No custom cache endpoints configured. Tuist will use the default Tuist-"
 "hosted cache until endpoints are added."
-msgstr ""
+msgstr "未設定自訂快取端點。在新增端點前，Tuist 將使用預設的 Tuist 主機快取。"
