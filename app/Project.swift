@@ -91,7 +91,7 @@ let project = Project(
             bundleId: bundleId,
             deploymentTargets: .multiplatform(
                 iOS: "18.0.0",
-                macOS:"15.0.0"
+                macOS: "15.0.0"
             ),
             infoPlist: .extendingDefault(
                 with: [
