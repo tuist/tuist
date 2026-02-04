@@ -49,7 +49,6 @@ import TuistServer
     }
 #else
     import ArgumentParser
-    import Path
     import TuistErrorHandling
     import TuistNoora
     import TuistOnboarding
@@ -63,23 +62,13 @@ import TuistServer
 
     @main
     struct TuistApp: App {
-        private static func configDirectory() -> AbsolutePath {
-            // swiftlint:disable:next force_try
-            try! AbsolutePath(validating: NSHomeDirectory())
-                .appending(component: ".config")
-                .appending(component: "tuist")
-        }
-
         @StateObject private var authenticationService = AuthenticationService()
         @State var activeTab = TabIdentifier.previews
 
         var body: some Scene {
             WindowGroup {
                 ServerCredentialsStore.$current.withValue(
-                    ServerCredentialsStore(
-                        backend: .fileSystem,
-                        configDirectory: Self.configDirectory()
-                    )
+                    ServerCredentialsStore(backend: .keychain)
                 ) {
                     CachedValueStore.$current.withValue(CachedValueStore(backend: .inSystemProcess)) {
                         Group {

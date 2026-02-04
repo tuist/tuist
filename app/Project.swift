@@ -132,7 +132,6 @@ let project = Project(
                 .target(name: "TuistErrorHandling", condition: .when([.ios])),
                 .target(name: "TuistProfile", condition: .when([.ios])),
                 .external(name: "ArgumentParser", condition: .when([.ios])),
-                .external(name: "Path", condition: .when([.ios])),
                 .external(name: "TuistSDK"),
             ],
             settings: .settings(
