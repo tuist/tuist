@@ -513,6 +513,23 @@ defmodule TuistWeb.API.RunsController do
                    },
                    required: [:node_id, :checksum, :size, :duration, :compressed_size, :operation]
                  }
+               },
+               custom_metadata: %Schema{
+                 type: :object,
+                 description: "Custom metadata for the build run.",
+                 properties: %{
+                   tags: %Schema{
+                     type: :array,
+                     items: %Schema{type: :string, maxLength: 50, pattern: "^[a-zA-Z0-9_-]+$"},
+                     maxItems: 10,
+                     description: "Simple string labels for filtering/grouping (e.g., 'nightly', 'release')."
+                   },
+                   values: %Schema{
+                     type: :object,
+                     additionalProperties: %Schema{type: :string, maxLength: 500},
+                     description: "Key-value pairs for structured data. URL values will auto-link in the UI."
+                   }
+                 }
                }
              },
              required: [
@@ -815,6 +832,8 @@ defmodule TuistWeb.API.RunsController do
         {:ok, build}
 
       nil ->
+        custom_metadata = Map.get(params, :custom_metadata, %{})
+
         build_attrs = %{
           id: params.id,
           duration: params.duration,
@@ -839,7 +858,9 @@ defmodule TuistWeb.API.RunsController do
           files: Map.get(params, :files, []),
           targets: Map.get(params, :targets, []),
           cacheable_tasks: Map.get(params, :cacheable_tasks, []),
-          cas_outputs: Map.get(params, :cas_outputs, [])
+          cas_outputs: Map.get(params, :cas_outputs, []),
+          custom_tags: Map.get(custom_metadata, :tags, []),
+          custom_values: Map.get(custom_metadata, :values, %{})
         }
 
         build_attrs

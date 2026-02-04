@@ -142,6 +142,190 @@ defmodule Tuist.RunsTest do
     end
   end
 
+  describe "project_build_tags/1" do
+    test "returns unique tags from project builds" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      {:ok, _build1} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account_id,
+          custom_tags: ["nightly", "release"]
+        )
+
+      {:ok, _build2} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account_id,
+          custom_tags: ["nightly", "staging"]
+        )
+
+      # When
+      tags = Runs.project_build_tags(project)
+
+      # Then
+      assert "nightly" in tags
+      assert "release" in tags
+      assert "staging" in tags
+      assert length(tags) == 3
+    end
+
+    test "returns empty list when no builds have tags" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      tags = Runs.project_build_tags(project)
+
+      # Then
+      assert tags == []
+    end
+
+    test "excludes builds older than 30 days" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      old_date = DateTime.add(DateTime.utc_now(), -31, :day)
+
+      {:ok, _old_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account_id,
+          custom_tags: ["old-tag"],
+          inserted_at: old_date
+        )
+
+      {:ok, _recent_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account_id,
+          custom_tags: ["recent-tag"]
+        )
+
+      # When
+      tags = Runs.project_build_tags(project)
+
+      # Then
+      assert "recent-tag" in tags
+      refute "old-tag" in tags
+    end
+  end
+
+  describe "list_build_runs/2 with custom_values filter" do
+    test "returns all builds when custom_values is nil" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account_id,
+          custom_values: %{"ticket" => "PROJ-1234"}
+        )
+
+      # When
+      {builds, _meta} =
+        Runs.list_build_runs(
+          %{filters: [%{field: :project_id, op: :==, value: project.id}]},
+          custom_values: nil
+        )
+
+      # Then
+      assert length(builds) == 1
+      assert hd(builds).id == build.id
+    end
+
+    test "returns all builds when custom_values is empty" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account_id,
+          custom_values: %{"ticket" => "PROJ-1234"}
+        )
+
+      # When
+      {builds, _meta} =
+        Runs.list_build_runs(
+          %{filters: [%{field: :project_id, op: :==, value: project.id}]},
+          custom_values: %{}
+        )
+
+      # Then
+      assert length(builds) == 1
+      assert hd(builds).id == build.id
+    end
+
+    test "filters builds by custom_values" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      {:ok, matching_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account_id,
+          custom_values: %{"ticket" => "PROJ-1234", "runner" => "macos-14"}
+        )
+
+      {:ok, _non_matching_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account_id,
+          custom_values: %{"ticket" => "PROJ-5678"}
+        )
+
+      # When
+      {builds, _meta} =
+        Runs.list_build_runs(
+          %{filters: [%{field: :project_id, op: :==, value: project.id}]},
+          custom_values: %{"ticket" => "PROJ-1234"}
+        )
+
+      # Then
+      assert length(builds) == 1
+      assert hd(builds).id == matching_build.id
+    end
+
+    test "filters by multiple custom_values using AND logic" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      {:ok, matching_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account_id,
+          custom_values: %{"ticket" => "PROJ-1234", "runner" => "macos-14"}
+        )
+
+      {:ok, _partial_match} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account_id,
+          custom_values: %{"ticket" => "PROJ-1234", "runner" => "macos-13"}
+        )
+
+      # When
+      {builds, _meta} =
+        Runs.list_build_runs(
+          %{filters: [%{field: :project_id, op: :==, value: project.id}]},
+          custom_values: %{"ticket" => "PROJ-1234", "runner" => "macos-14"}
+        )
+
+      # Then
+      assert length(builds) == 1
+      assert hd(builds).id == matching_build.id
+    end
+  end
+
   describe "get_test/1" do
     test "returns test when it exists" do
       # Given

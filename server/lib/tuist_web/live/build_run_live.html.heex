@@ -24,6 +24,20 @@
           </div>
         </div>
         <h1 data-part="label">{@run.scheme || dgettext("dashboard_builds", "Unknown scheme")}</h1>
+        <.badge
+          :if={Enum.any?(@run.custom_tags || [])}
+          label={List.first(@run.custom_tags)}
+          color="success"
+          style="light-fill"
+          size="large"
+        />
+        <.badge
+          :for={tag <- Enum.slice(@run.custom_tags || [], 1..-1//1)}
+          label={tag}
+          color="information"
+          style="light-fill"
+          size="large"
+        />
       </div>
       <.link_button
         :if={@test_run}
@@ -122,19 +136,18 @@
           <div data-part="metadata-row">
             <div data-part="metadata">
               <div data-part="title">{dgettext("dashboard_builds", "Status")}</div>
-              <%= if @run.status == :success do %>
-                <.badge
-                  label={dgettext("dashboard_builds", "Passed")}
-                  color="success"
-                  style="fill"
-                />
-              <% else %>
-                <.badge
-                  label={dgettext("dashboard_builds", "Failed")}
-                  color="destructive"
-                  style="fill"
-                />
-              <% end %>
+              <.badge
+                :if={@run.status == :success}
+                label={dgettext("dashboard_builds", "Passed")}
+                color="success"
+                style="fill"
+              />
+              <.badge
+                :if={@run.status != :success}
+                label={dgettext("dashboard_builds", "Failed")}
+                color="destructive"
+                style="fill"
+              />
             </div>
             <div data-part="metadata">
               <div data-part="title">{dgettext("dashboard_builds", "Built by")}</div>
@@ -191,6 +204,32 @@
             </div>
           </div>
         </div>
+        <div :if={map_size(@run.custom_values || %{}) > 0} data-part="custom-metadata-section">
+          <span data-part="custom-metadata-label">
+            {dgettext("dashboard_builds", "Custom metadata")}
+          </span>
+          <.table
+            id="custom-metadata-table"
+            rows={Map.to_list(@run.custom_values || %{})}
+            row_key={fn {key, _value} -> key end}
+          >
+            <:col :let={{key, _value}} label={dgettext("dashboard_builds", "Key")}>
+              <.text_cell label={key} />
+            </:col>
+            <:col :let={{_key, value}} label={dgettext("dashboard_builds", "Value")}>
+              <a
+                :if={url?(value)}
+                href={value}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-part="custom-metadata-link"
+              >
+                {value}
+              </a>
+              <.text_cell :if={not url?(value)} label={value} />
+            </:col>
+          </.table>
+        </div>
       </.card_section>
     </.card>
     <.card
@@ -215,13 +254,25 @@
           </span>
         </div>
         <div data-part="issues-list">
-          <%= for {path, issues} <- Enum.take(@errors_grouped_by_path, 4) do %>
-            <.issue_card issues={issues} path={path} run={@run} type="error" />
-          <% end %>
-          <%= if Enum.count(@errors_grouped_by_path) > 4 do %>
-            <div data-part="more-card" data-index="two"></div>
-            <div data-part="more-card" data-index="one"></div>
-          <% end %>
+          <.issue_card
+            :for={{path, issues} <- Enum.take(@errors_grouped_by_path, 4)}
+            issues={issues}
+            path={path}
+            run={@run}
+            type="error"
+          />
+          <div
+            :if={Enum.count(@errors_grouped_by_path) > 4}
+            data-part="more-card"
+            data-index="two"
+          >
+          </div>
+          <div
+            :if={Enum.count(@errors_grouped_by_path) > 4}
+            data-part="more-card"
+            data-index="one"
+          >
+          </div>
         </div>
       </.card_section>
       <.card_section
@@ -246,13 +297,25 @@
           />
         </div>
         <div data-part="issues-list">
-          <%= for {path, issues} <- Enum.take(@warnings_grouped_by_path, 4) do %>
-            <.issue_card issues={issues} path={path} run={@run} type="warning" />
-          <% end %>
-          <%= if Enum.count(@warnings_grouped_by_path) > 4 do %>
-            <div data-part="more-card" data-index="two"></div>
-            <div data-part="more-card" data-index="one"></div>
-          <% end %>
+          <.issue_card
+            :for={{path, issues} <- Enum.take(@warnings_grouped_by_path, 4)}
+            issues={issues}
+            path={path}
+            run={@run}
+            type="warning"
+          />
+          <div
+            :if={Enum.count(@warnings_grouped_by_path) > 4}
+            data-part="more-card"
+            data-index="two"
+          >
+          </div>
+          <div
+            :if={Enum.count(@warnings_grouped_by_path) > 4}
+            data-part="more-card"
+            data-index="one"
+          >
+          </div>
         </div>
       </.card_section>
     </.card>
@@ -391,11 +454,16 @@
             />
           </:col>
           <:col :let={module} label="Status">
-            <%= if module.status == "success" do %>
-              <.status_badge_cell label={dgettext("dashboard_builds", "Passed")} status="success" />
-            <% else %>
-              <.status_badge_cell label={dgettext("dashboard_builds", "Failed")} status="error" />
-            <% end %>
+            <.status_badge_cell
+              :if={module.status == "success"}
+              label={dgettext("dashboard_builds", "Passed")}
+              status="success"
+            />
+            <.status_badge_cell
+              :if={module.status != "success"}
+              label={dgettext("dashboard_builds", "Failed")}
+              status="error"
+            />
           </:col>
           <:empty_state>
             <.table_empty_state
@@ -568,9 +636,13 @@
             {@run.issues |> Enum.filter(&(&1.type == "warning")) |> Enum.count()}
           </span>
         </div>
-        <%= for {path, issues} <- @warnings_grouped_by_path do %>
-          <.issue_card issues={issues} path={path} run={@run} type="warning" />
-        <% end %>
+        <.issue_card
+          :for={{path, issues} <- @warnings_grouped_by_path}
+          issues={issues}
+          path={path}
+          run={@run}
+          type="warning"
+        />
         <div :if={Enum.empty?(@warnings_grouped_by_path)} data-part="empty-state">
           <div data-part="empty-state-background">
             <.empty_tab_state_background />
@@ -606,9 +678,13 @@
           </span>
         </div>
         <div data-part="issues-list">
-          <%= for {path, issues} <- @errors_grouped_by_path do %>
-            <.issue_card issues={issues} path={path} run={@run} type="error" />
-          <% end %>
+          <.issue_card
+            :for={{path, issues} <- @errors_grouped_by_path}
+            issues={issues}
+            path={path}
+            run={@run}
+            type="error"
+          />
         </div>
         <div :if={Enum.empty?(@errors_grouped_by_path)} data-part="empty-state">
           <div data-part="empty-state-background">
@@ -998,26 +1074,24 @@
                 <.text_cell label={task.description || dgettext("dashboard_builds", "Unknown")} />
               </:col>
               <:col :let={task} label={dgettext("dashboard_builds", "Hit")}>
-                <%= case task.status do %>
-                  <% "hit_local" -> %>
-                    <.badge_cell
-                      label={dgettext("dashboard_builds", "Local")}
-                      color="secondary"
-                      style="light-fill"
-                    />
-                  <% "hit_remote" -> %>
-                    <.badge_cell
-                      label={dgettext("dashboard_builds", "Remote")}
-                      color="focus"
-                      style="light-fill"
-                    />
-                  <% "miss" -> %>
-                    <.badge_cell
-                      label={dgettext("dashboard_builds", "Missed")}
-                      color="warning"
-                      style="light-fill"
-                    />
-                <% end %>
+                <.badge_cell
+                  :if={task.status == "hit_local"}
+                  label={dgettext("dashboard_builds", "Local")}
+                  color="secondary"
+                  style="light-fill"
+                />
+                <.badge_cell
+                  :if={task.status == "hit_remote"}
+                  label={dgettext("dashboard_builds", "Remote")}
+                  color="focus"
+                  style="light-fill"
+                />
+                <.badge_cell
+                  :if={task.status == "miss"}
+                  label={dgettext("dashboard_builds", "Missed")}
+                  color="warning"
+                  style="light-fill"
+                />
               </:col>
               <:col :let={task} label={dgettext("dashboard_builds", "Type")}>
                 <.text_cell label={task.type |> String.capitalize()} />
@@ -1055,42 +1129,43 @@
               </:col>
               <:expanded_content :let={task}>
                 <div data-part="cas-outputs-list">
-                  <%= for cas_output <- Map.get(@task_cas_outputs_map, task.key, []) do %>
-                    <div data-part="cas-output-item">
-                      <span data-part="cas-output-text">
-                        <span data-part="cas-output-label">
-                          {dgettext("dashboard_builds", "CAS output")} {cas_output.type}:
-                        </span>
-                        <.popover
-                          id={"cas-output-popover-#{cas_output.node_id}"}
-                          tabindex="-1"
-                          placement="top"
-                        >
-                          <:trigger :let={attrs}>
-                            <span {attrs} data-part="cas-output-hash">
-                              {String.slice(cas_output.node_id, 0, 40)}
-                            </span>
-                          </:trigger>
-                          <div data-part="hash-tooltip-content">
-                            <p data-part="hash-tooltip-text">{cas_output.node_id}</p>
-                            <.button
-                              id={"cas-output-copy-#{cas_output.node_id}"}
-                              variant="secondary"
-                              size="small"
-                              label={dgettext("dashboard_builds", "Copy")}
-                              phx-hook="Clipboard"
-                              tabindex="-1"
-                              data-clipboard-value={cas_output.node_id}
-                              phx-click={JS.dispatch("pointerdown", to: "body")}
-                            >
-                              <:icon_right><.copy /></:icon_right>
-                            </.button>
-                          </div>
-                        </.popover>
-                        <span data-part="cas-output-label">...</span>
+                  <div
+                    :for={cas_output <- Map.get(@task_cas_outputs_map, task.key, [])}
+                    data-part="cas-output-item"
+                  >
+                    <span data-part="cas-output-text">
+                      <span data-part="cas-output-label">
+                        {dgettext("dashboard_builds", "CAS output")} {cas_output.type}:
                       </span>
-                    </div>
-                  <% end %>
+                      <.popover
+                        id={"cas-output-popover-#{cas_output.node_id}"}
+                        tabindex="-1"
+                        placement="top"
+                      >
+                        <:trigger :let={attrs}>
+                          <span {attrs} data-part="cas-output-hash">
+                            {String.slice(cas_output.node_id, 0, 40)}
+                          </span>
+                        </:trigger>
+                        <div data-part="hash-tooltip-content">
+                          <p data-part="hash-tooltip-text">{cas_output.node_id}</p>
+                          <.button
+                            id={"cas-output-copy-#{cas_output.node_id}"}
+                            variant="secondary"
+                            size="small"
+                            label={dgettext("dashboard_builds", "Copy")}
+                            phx-hook="Clipboard"
+                            tabindex="-1"
+                            data-clipboard-value={cas_output.node_id}
+                            phx-click={JS.dispatch("pointerdown", to: "body")}
+                          >
+                            <:icon_right><.copy /></:icon_right>
+                          </.button>
+                        </div>
+                      </.popover>
+                      <span data-part="cas-output-label">...</span>
+                    </span>
+                  </div>
                 </div>
               </:expanded_content>
               <:empty_state>
@@ -1339,20 +1414,18 @@
                 <.text_cell label={String.slice(output.node_id, 0, 30) <> if(String.length(output.node_id) > 30, do: "...", else: "")} />
               </:col>
               <:col :let={output} label={dgettext("dashboard_builds", "Status")}>
-                <%= case output.operation do %>
-                  <% "download" -> %>
-                    <.badge_cell
-                      label={dgettext("dashboard_builds", "Download")}
-                      color="focus"
-                      style="light-fill"
-                    />
-                  <% "upload" -> %>
-                    <.badge_cell
-                      label={dgettext("dashboard_builds", "Upload")}
-                      color="secondary"
-                      style="light-fill"
-                    />
-                <% end %>
+                <.badge_cell
+                  :if={output.operation == "download"}
+                  label={dgettext("dashboard_builds", "Download")}
+                  color="focus"
+                  style="light-fill"
+                />
+                <.badge_cell
+                  :if={output.operation == "upload"}
+                  label={dgettext("dashboard_builds", "Upload")}
+                  color="secondary"
+                  style="light-fill"
+                />
               </:col>
               <:col :let={output} label={dgettext("dashboard_builds", "Type")}>
                 <.text_cell label={output.type} />

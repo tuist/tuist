@@ -141,3 +141,29 @@ Additionally, you will either need to:
 - Add `-resultBundlePath` to your `xcodebuild` invocation.
 
 When `xcodebuild` builds your project without `-resultBundlePath`, the required activity log and result bundle files are not generated. The `tuist inspect build` post-action requires these files to analyze your builds.
+
+## Custom metadata {#custom-metadata}
+
+You can attach custom metadata to your builds using environment variables. This is useful for filtering and categorizing builds in the dashboard, or correlating them with external systems like issue trackers or CI pipelines.
+
+### Environment variables
+
+| Variable | Format | Description |
+|----------|--------|-------------|
+| `TUIST_BUILD_TAGS` | Comma-separated | Multiple tags in a single variable |
+| `TUIST_BUILD_VALUE_*` | Single value | Key-value pair (suffix becomes the key) |
+
+### Examples
+
+The post-action script inherits environment variables from the system. Set these variables in your CI configuration or shell environment:
+
+```sh
+# Using TUIST_BUILD_TAGS for multiple tags
+export TUIST_BUILD_TAGS="nightly,ios-team,release-candidate"
+```
+
+```sh
+# Using TUIST_BUILD_VALUE_* for key-value pairs
+export TUIST_BUILD_VALUE_TICKET="PROJ-1234"
+export TUIST_BUILD_VALUE_PR_URL="https://github.com/myorg/myrepo/pull/123"
+```

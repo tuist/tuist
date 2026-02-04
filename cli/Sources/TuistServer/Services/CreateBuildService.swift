@@ -8,6 +8,8 @@ import TuistHTTP
     import TuistSupport
     import TuistXCActivityLog
 
+    public typealias BuildCustomMetadata = Operations.createRun.Input.Body.jsonPayload.Case1Payload.custom_metadataPayload
+
     @Mockable
     public protocol CreateBuildServicing {
         func createBuild(
@@ -16,6 +18,7 @@ import TuistHTTP
             id: String,
             category: XCActivityBuildCategory,
             configuration: String?,
+            customMetadata: BuildCustomMetadata?,
             duration: Int,
             files: [XCActivityBuildFile],
             gitBranch: String?,
@@ -84,6 +87,7 @@ import TuistHTTP
             id: String,
             category: XCActivityBuildCategory,
             configuration: String?,
+            customMetadata: BuildCustomMetadata?,
             duration: Int,
             files: [XCActivityBuildFile],
             gitBranch: String?,
@@ -162,6 +166,7 @@ import TuistHTTP
                                 ci_provider: ciProviderPayload,
                                 ci_run_id: ciRunId,
                                 configuration: configuration,
+                                custom_metadata: customMetadata,
                                 duration: duration,
                                 files: files
                                     .map(Operations.createRun.Input.Body.jsonPayload.Case1Payload.filesPayloadPayload.init),

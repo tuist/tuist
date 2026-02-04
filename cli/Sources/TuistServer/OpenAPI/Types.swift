@@ -3183,6 +3183,59 @@ public enum Components {
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/configuration`.
                 public var configuration: Swift.String?
+                /// Custom metadata for the build run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/custom_metadata`.
+                public struct custom_metadataPayload: Codable, Hashable, Sendable {
+                    /// Simple string labels for filtering/grouping (e.g., 'nightly', 'release').
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/custom_metadata/tags`.
+                    public var tags: [Swift.String]?
+                    /// Key-value pairs for structured data. URL values will auto-link in the UI.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/custom_metadata/values`.
+                    public struct valuesPayload: Codable, Hashable, Sendable {
+                        /// A container of undocumented properties.
+                        public var additionalProperties: [String: Swift.String]
+                        /// Creates a new `valuesPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - additionalProperties: A container of undocumented properties.
+                        public init(additionalProperties: [String: Swift.String] = .init()) {
+                            self.additionalProperties = additionalProperties
+                        }
+                        public init(from decoder: any Decoder) throws {
+                            additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                        }
+                        public func encode(to encoder: any Encoder) throws {
+                            try encoder.encodeAdditionalProperties(additionalProperties)
+                        }
+                    }
+                    /// Key-value pairs for structured data. URL values will auto-link in the UI.
+                    ///
+                    /// - Remark: Generated from `#/components/schemas/RunParams/case1/custom_metadata/values`.
+                    public var values: Components.Schemas.RunParams.Case1Payload.custom_metadataPayload.valuesPayload?
+                    /// Creates a new `custom_metadataPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - tags: Simple string labels for filtering/grouping (e.g., 'nightly', 'release').
+                    ///   - values: Key-value pairs for structured data. URL values will auto-link in the UI.
+                    public init(
+                        tags: [Swift.String]? = nil,
+                        values: Components.Schemas.RunParams.Case1Payload.custom_metadataPayload.valuesPayload? = nil
+                    ) {
+                        self.tags = tags
+                        self.values = values
+                    }
+                    public enum CodingKeys: String, CodingKey {
+                        case tags
+                        case values
+                    }
+                }
+                /// Custom metadata for the build run.
+                ///
+                /// - Remark: Generated from `#/components/schemas/RunParams/case1/custom_metadata`.
+                public var custom_metadata: Components.Schemas.RunParams.Case1Payload.custom_metadataPayload?
                 /// Duration of the run in milliseconds.
                 ///
                 /// - Remark: Generated from `#/components/schemas/RunParams/case1/duration`.
@@ -3536,6 +3589,7 @@ public enum Components {
                 ///   - ci_provider: The CI provider.
                 ///   - ci_run_id: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
                 ///   - configuration: The build configuration (e.g., Debug, Release).
+                ///   - custom_metadata: Custom metadata for the build run.
                 ///   - duration: Duration of the run in milliseconds.
                 ///   - files: Compiled files associated with the build run.
                 ///   - git_branch: The git branch.
@@ -3561,6 +3615,7 @@ public enum Components {
                     ci_provider: Components.Schemas.RunParams.Case1Payload.ci_providerPayload? = nil,
                     ci_run_id: Swift.String? = nil,
                     configuration: Swift.String? = nil,
+                    custom_metadata: Components.Schemas.RunParams.Case1Payload.custom_metadataPayload? = nil,
                     duration: Swift.Int,
                     files: Components.Schemas.RunParams.Case1Payload.filesPayload? = nil,
                     git_branch: Swift.String? = nil,
@@ -3586,6 +3641,7 @@ public enum Components {
                     self.ci_provider = ci_provider
                     self.ci_run_id = ci_run_id
                     self.configuration = configuration
+                    self.custom_metadata = custom_metadata
                     self.duration = duration
                     self.files = files
                     self.git_branch = git_branch
@@ -3612,6 +3668,7 @@ public enum Components {
                     case ci_provider
                     case ci_run_id
                     case configuration
+                    case custom_metadata
                     case duration
                     case files
                     case git_branch
@@ -5843,6 +5900,59 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/BuildRun/configuration`.
             public var configuration: Swift.String?
+            /// Custom metadata for the build run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/custom_metadata`.
+            public struct custom_metadataPayload: Codable, Hashable, Sendable {
+                /// Simple string labels for filtering/grouping (e.g., 'nightly', 'release').
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/custom_metadata/tags`.
+                public var tags: [Swift.String]?
+                /// Key-value pairs for structured data. URL values will auto-link in the UI.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/custom_metadata/values`.
+                public struct valuesPayload: Codable, Hashable, Sendable {
+                    /// A container of undocumented properties.
+                    public var additionalProperties: [String: Swift.String]
+                    /// Creates a new `valuesPayload`.
+                    ///
+                    /// - Parameters:
+                    ///   - additionalProperties: A container of undocumented properties.
+                    public init(additionalProperties: [String: Swift.String] = .init()) {
+                        self.additionalProperties = additionalProperties
+                    }
+                    public init(from decoder: any Decoder) throws {
+                        additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                    }
+                    public func encode(to encoder: any Encoder) throws {
+                        try encoder.encodeAdditionalProperties(additionalProperties)
+                    }
+                }
+                /// Key-value pairs for structured data. URL values will auto-link in the UI.
+                ///
+                /// - Remark: Generated from `#/components/schemas/BuildRun/custom_metadata/values`.
+                public var values: Components.Schemas.BuildRun.custom_metadataPayload.valuesPayload?
+                /// Creates a new `custom_metadataPayload`.
+                ///
+                /// - Parameters:
+                ///   - tags: Simple string labels for filtering/grouping (e.g., 'nightly', 'release').
+                ///   - values: Key-value pairs for structured data. URL values will auto-link in the UI.
+                public init(
+                    tags: [Swift.String]? = nil,
+                    values: Components.Schemas.BuildRun.custom_metadataPayload.valuesPayload? = nil
+                ) {
+                    self.tags = tags
+                    self.values = values
+                }
+                public enum CodingKeys: String, CodingKey {
+                    case tags
+                    case values
+                }
+            }
+            /// Custom metadata for the build run.
+            ///
+            /// - Remark: Generated from `#/components/schemas/BuildRun/custom_metadata`.
+            public var custom_metadata: Components.Schemas.BuildRun.custom_metadataPayload?
             /// Duration of the run in milliseconds.
             ///
             /// - Remark: Generated from `#/components/schemas/BuildRun/duration`.
@@ -6196,6 +6306,7 @@ public enum Components {
             ///   - ci_provider: The CI provider.
             ///   - ci_run_id: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
             ///   - configuration: The build configuration (e.g., Debug, Release).
+            ///   - custom_metadata: Custom metadata for the build run.
             ///   - duration: Duration of the run in milliseconds.
             ///   - files: Compiled files associated with the build run.
             ///   - git_branch: The git branch.
@@ -6221,6 +6332,7 @@ public enum Components {
                 ci_provider: Components.Schemas.BuildRun.ci_providerPayload? = nil,
                 ci_run_id: Swift.String? = nil,
                 configuration: Swift.String? = nil,
+                custom_metadata: Components.Schemas.BuildRun.custom_metadataPayload? = nil,
                 duration: Swift.Int,
                 files: Components.Schemas.BuildRun.filesPayload? = nil,
                 git_branch: Swift.String? = nil,
@@ -6246,6 +6358,7 @@ public enum Components {
                 self.ci_provider = ci_provider
                 self.ci_run_id = ci_run_id
                 self.configuration = configuration
+                self.custom_metadata = custom_metadata
                 self.duration = duration
                 self.files = files
                 self.git_branch = git_branch
@@ -6272,6 +6385,7 @@ public enum Components {
                 case ci_provider
                 case ci_run_id
                 case configuration
+                case custom_metadata
                 case duration
                 case files
                 case git_branch
@@ -8044,6 +8158,53 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/configuration`.
                         public var configuration: Swift.String?
+                        /// Custom metadata for the build run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/custom_metadata`.
+                        public struct custom_metadataPayload: Codable, Hashable, Sendable {
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/custom_metadata/tags`.
+                            public var tags: [Swift.String]?
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/custom_metadata/values`.
+                            public struct valuesPayload: Codable, Hashable, Sendable {
+                                /// A container of undocumented properties.
+                                public var additionalProperties: [String: Swift.String]
+                                /// Creates a new `valuesPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - additionalProperties: A container of undocumented properties.
+                                public init(additionalProperties: [String: Swift.String] = .init()) {
+                                    self.additionalProperties = additionalProperties
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                                }
+                                public func encode(to encoder: any Encoder) throws {
+                                    try encoder.encodeAdditionalProperties(additionalProperties)
+                                }
+                            }
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/custom_metadata/values`.
+                            public var values: Operations.getBuild.Output.Ok.Body.jsonPayload.custom_metadataPayload.valuesPayload?
+                            /// Creates a new `custom_metadataPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - tags:
+                            ///   - values:
+                            public init(
+                                tags: [Swift.String]? = nil,
+                                values: Operations.getBuild.Output.Ok.Body.jsonPayload.custom_metadataPayload.valuesPayload? = nil
+                            ) {
+                                self.tags = tags
+                                self.values = values
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case tags
+                                case values
+                            }
+                        }
+                        /// Custom metadata for the build run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/custom_metadata`.
+                        public var custom_metadata: Operations.getBuild.Output.Ok.Body.jsonPayload.custom_metadataPayload?
                         /// Build duration in milliseconds.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/{build_id}/GET/responses/200/content/json/duration`.
@@ -8111,6 +8272,7 @@ public enum Operations {
                         ///   - cacheable_tasks_count: Total cacheable tasks.
                         ///   - category: Build category.
                         ///   - configuration: The configuration used.
+                        ///   - custom_metadata: Custom metadata for the build run.
                         ///   - duration: Build duration in milliseconds.
                         ///   - git_branch: Git branch.
                         ///   - git_commit_sha: Git commit SHA.
@@ -8130,6 +8292,7 @@ public enum Operations {
                             cacheable_tasks_count: Swift.Int,
                             category: Operations.getBuild.Output.Ok.Body.jsonPayload.categoryPayload? = nil,
                             configuration: Swift.String? = nil,
+                            custom_metadata: Operations.getBuild.Output.Ok.Body.jsonPayload.custom_metadataPayload? = nil,
                             duration: Swift.Int,
                             git_branch: Swift.String? = nil,
                             git_commit_sha: Swift.String? = nil,
@@ -8149,6 +8312,7 @@ public enum Operations {
                             self.cacheable_tasks_count = cacheable_tasks_count
                             self.category = category
                             self.configuration = configuration
+                            self.custom_metadata = custom_metadata
                             self.duration = duration
                             self.git_branch = git_branch
                             self.git_commit_sha = git_commit_sha
@@ -8169,6 +8333,7 @@ public enum Operations {
                             case cacheable_tasks_count
                             case category
                             case configuration
+                            case custom_metadata
                             case duration
                             case git_branch
                             case git_commit_sha
@@ -17858,6 +18023,14 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/query/git_branch`.
                 public var git_branch: Swift.String?
+                /// Filter by tags. Returns builds containing ALL specified tags.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/query/tags`.
+                public var tags: [Swift.String]?
+                /// Filter by custom values (key:value format). Returns builds matching ALL specified values. Example: ticket:PROJ-1234
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/query/values`.
+                public var values: [Swift.String]?
                 ///
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/query/page_size`.
@@ -17874,6 +18047,8 @@ public enum Operations {
                 ///   - scheme: Filter by scheme name.
                 ///   - configuration: Filter by configuration name.
                 ///   - git_branch: Filter by git branch.
+                ///   - tags: Filter by tags. Returns builds containing ALL specified tags.
+                ///   - values: Filter by custom values (key:value format). Returns builds matching ALL specified values. Example: ticket:PROJ-1234
                 ///   - page_size:
                 ///   - page:
                 public init(
@@ -17882,6 +18057,8 @@ public enum Operations {
                     scheme: Swift.String? = nil,
                     configuration: Swift.String? = nil,
                     git_branch: Swift.String? = nil,
+                    tags: [Swift.String]? = nil,
+                    values: [Swift.String]? = nil,
                     page_size: Swift.Int? = nil,
                     page: Swift.Int? = nil
                 ) {
@@ -17890,6 +18067,8 @@ public enum Operations {
                     self.scheme = scheme
                     self.configuration = configuration
                     self.git_branch = git_branch
+                    self.tags = tags
+                    self.values = values
                     self.page_size = page_size
                     self.page = page
                 }
@@ -17958,6 +18137,53 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/configuration`.
                             public var configuration: Swift.String?
+                            /// Custom metadata for the build run.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/custom_metadata`.
+                            public struct custom_metadataPayload: Codable, Hashable, Sendable {
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/custom_metadata/tags`.
+                                public var tags: [Swift.String]?
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/custom_metadata/values`.
+                                public struct valuesPayload: Codable, Hashable, Sendable {
+                                    /// A container of undocumented properties.
+                                    public var additionalProperties: [String: Swift.String]
+                                    /// Creates a new `valuesPayload`.
+                                    ///
+                                    /// - Parameters:
+                                    ///   - additionalProperties: A container of undocumented properties.
+                                    public init(additionalProperties: [String: Swift.String] = .init()) {
+                                        self.additionalProperties = additionalProperties
+                                    }
+                                    public init(from decoder: any Decoder) throws {
+                                        additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                                    }
+                                    public func encode(to encoder: any Encoder) throws {
+                                        try encoder.encodeAdditionalProperties(additionalProperties)
+                                    }
+                                }
+                                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/custom_metadata/values`.
+                                public var values: Operations.listBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.custom_metadataPayload.valuesPayload?
+                                /// Creates a new `custom_metadataPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - tags:
+                                ///   - values:
+                                public init(
+                                    tags: [Swift.String]? = nil,
+                                    values: Operations.listBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.custom_metadataPayload.valuesPayload? = nil
+                                ) {
+                                    self.tags = tags
+                                    self.values = values
+                                }
+                                public enum CodingKeys: String, CodingKey {
+                                    case tags
+                                    case values
+                                }
+                            }
+                            /// Custom metadata for the build run.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/custom_metadata`.
+                            public var custom_metadata: Operations.listBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.custom_metadataPayload?
                             /// Build duration in milliseconds.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/builds/GET/responses/200/content/json/buildsPayload/duration`.
@@ -18025,6 +18251,7 @@ public enum Operations {
                             ///   - cacheable_tasks_count: Total cacheable tasks.
                             ///   - category: Build category.
                             ///   - configuration: The configuration used.
+                            ///   - custom_metadata: Custom metadata for the build run.
                             ///   - duration: Build duration in milliseconds.
                             ///   - git_branch: Git branch.
                             ///   - git_commit_sha: Git commit SHA.
@@ -18044,6 +18271,7 @@ public enum Operations {
                                 cacheable_tasks_count: Swift.Int,
                                 category: Operations.listBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.categoryPayload? = nil,
                                 configuration: Swift.String? = nil,
+                                custom_metadata: Operations.listBuilds.Output.Ok.Body.jsonPayload.buildsPayloadPayload.custom_metadataPayload? = nil,
                                 duration: Swift.Int,
                                 git_branch: Swift.String? = nil,
                                 git_commit_sha: Swift.String? = nil,
@@ -18063,6 +18291,7 @@ public enum Operations {
                                 self.cacheable_tasks_count = cacheable_tasks_count
                                 self.category = category
                                 self.configuration = configuration
+                                self.custom_metadata = custom_metadata
                                 self.duration = duration
                                 self.git_branch = git_branch
                                 self.git_commit_sha = git_commit_sha
@@ -18083,6 +18312,7 @@ public enum Operations {
                                 case cacheable_tasks_count
                                 case category
                                 case configuration
+                                case custom_metadata
                                 case duration
                                 case git_branch
                                 case git_commit_sha
@@ -25591,6 +25821,59 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/configuration`.
                         public var configuration: Swift.String?
+                        /// Custom metadata for the build run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/custom_metadata`.
+                        public struct custom_metadataPayload: Codable, Hashable, Sendable {
+                            /// Simple string labels for filtering/grouping (e.g., 'nightly', 'release').
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/custom_metadata/tags`.
+                            public var tags: [Swift.String]?
+                            /// Key-value pairs for structured data. URL values will auto-link in the UI.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/custom_metadata/values`.
+                            public struct valuesPayload: Codable, Hashable, Sendable {
+                                /// A container of undocumented properties.
+                                public var additionalProperties: [String: Swift.String]
+                                /// Creates a new `valuesPayload`.
+                                ///
+                                /// - Parameters:
+                                ///   - additionalProperties: A container of undocumented properties.
+                                public init(additionalProperties: [String: Swift.String] = .init()) {
+                                    self.additionalProperties = additionalProperties
+                                }
+                                public init(from decoder: any Decoder) throws {
+                                    additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                                }
+                                public func encode(to encoder: any Encoder) throws {
+                                    try encoder.encodeAdditionalProperties(additionalProperties)
+                                }
+                            }
+                            /// Key-value pairs for structured data. URL values will auto-link in the UI.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/custom_metadata/values`.
+                            public var values: Operations.createRun.Input.Body.jsonPayload.Case1Payload.custom_metadataPayload.valuesPayload?
+                            /// Creates a new `custom_metadataPayload`.
+                            ///
+                            /// - Parameters:
+                            ///   - tags: Simple string labels for filtering/grouping (e.g., 'nightly', 'release').
+                            ///   - values: Key-value pairs for structured data. URL values will auto-link in the UI.
+                            public init(
+                                tags: [Swift.String]? = nil,
+                                values: Operations.createRun.Input.Body.jsonPayload.Case1Payload.custom_metadataPayload.valuesPayload? = nil
+                            ) {
+                                self.tags = tags
+                                self.values = values
+                            }
+                            public enum CodingKeys: String, CodingKey {
+                                case tags
+                                case values
+                            }
+                        }
+                        /// Custom metadata for the build run.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/custom_metadata`.
+                        public var custom_metadata: Operations.createRun.Input.Body.jsonPayload.Case1Payload.custom_metadataPayload?
                         /// Duration of the run in milliseconds.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/runs/POST/requestBody/json/case1/duration`.
@@ -25944,6 +26227,7 @@ public enum Operations {
                         ///   - ci_provider: The CI provider.
                         ///   - ci_run_id: The CI run identifier (e.g., GitHub Actions run ID, GitLab pipeline ID).
                         ///   - configuration: The build configuration (e.g., Debug, Release).
+                        ///   - custom_metadata: Custom metadata for the build run.
                         ///   - duration: Duration of the run in milliseconds.
                         ///   - files: Compiled files associated with the build run.
                         ///   - git_branch: The git branch.
@@ -25969,6 +26253,7 @@ public enum Operations {
                             ci_provider: Operations.createRun.Input.Body.jsonPayload.Case1Payload.ci_providerPayload? = nil,
                             ci_run_id: Swift.String? = nil,
                             configuration: Swift.String? = nil,
+                            custom_metadata: Operations.createRun.Input.Body.jsonPayload.Case1Payload.custom_metadataPayload? = nil,
                             duration: Swift.Int,
                             files: Operations.createRun.Input.Body.jsonPayload.Case1Payload.filesPayload? = nil,
                             git_branch: Swift.String? = nil,
@@ -25994,6 +26279,7 @@ public enum Operations {
                             self.ci_provider = ci_provider
                             self.ci_run_id = ci_run_id
                             self.configuration = configuration
+                            self.custom_metadata = custom_metadata
                             self.duration = duration
                             self.files = files
                             self.git_branch = git_branch
@@ -26020,6 +26306,7 @@ public enum Operations {
                             case ci_provider
                             case ci_run_id
                             case configuration
+                            case custom_metadata
                             case duration
                             case files
                             case git_branch

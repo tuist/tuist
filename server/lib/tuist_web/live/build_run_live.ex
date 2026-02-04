@@ -1295,4 +1295,13 @@ defmodule TuistWeb.BuildRunLive do
         [0, 0, 0, 0]
     end
   end
+
+  defp url?(value) when is_binary(value) do
+    case URI.parse(value) do
+      %URI{scheme: scheme} when scheme in ["http", "https"] -> true
+      _ -> false
+    end
+  end
+
+  defp url?(_), do: false
 end
