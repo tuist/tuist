@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-22 13:05+0000\n"
+"PO-Revision-Date: 2026-02-05 07:22+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Arabic <https://translate.tuist.dev/projects/tuist/"
 "dashboard_account/ar/>\n"
@@ -740,44 +740,65 @@ msgstr "تم تحصيل الرسوم في %{next_charge_date}"
 msgid "xxxx xxxx xxxx %{card_number}"
 msgstr "xxxx xxxx xxxx %{card_number}"
 
+#, fuzzy
 msgid "Add"
-msgstr ""
+msgstr "أضف"
 
+#, fuzzy
 msgid "Add cache endpoint"
-msgstr ""
+msgstr "أضف نقطة نهاية ذاكرة التخزين المؤقت"
 
+#, fuzzy
 msgid "Add endpoint"
-msgstr ""
+msgstr "أضف نقطة النهاية"
 
+#, fuzzy
 msgid "Endpoint URL"
-msgstr ""
+msgstr "عنوان URL النهائي"
 
+#, fuzzy
 msgid "URL"
-msgstr ""
+msgstr "URL"
 
+#, fuzzy
 msgid "Delete last cache endpoint?"
-msgstr ""
+msgstr "حذف آخر نقطة نهاية ذاكرة التخزين المؤقت؟"
 
+#, fuzzy
 msgid ""
 "Removing the last custom cache endpoint will switch your organization back "
 "to Tuist-hosted caching. This affects all builds across your organization."
 msgstr ""
+"سيؤدي إزالة آخر نقطة نهاية مخصصة للذاكرة المؤقتة إلى إعادة مؤسستك إلى "
+"التخزين المؤقت الذي تستضيفه Tuist. سيؤثر ذلك على جميع عمليات البناء في "
+"مؤسستك."
 
+#, fuzzy
 msgid "Cache endpoints"
-msgstr ""
+msgstr "نقاط نهاية ذاكرة التخزين المؤقت"
 
+#, fuzzy
 msgid ""
 "Configure custom cache endpoints for self-hosted cache setups. When enabled, "
 "Tuist will read from and write to these endpoints instead of the default "
 "Tuist-hosted cache."
 msgstr ""
+"قم بتكوين نقاط نهاية مخصصة للذاكرة المؤقتة لإعدادات الذاكرة المؤقتة ذاتية "
+"الاستضافة. عند التمكين، سيقوم Tuist بالقراءة من نقاط النهاية هذه والكتابة "
+"إليها بدلاً من الذاكرة المؤقتة الافتراضية المستضافة من Tuist."
 
+#, fuzzy
 msgid ""
 "Custom cache endpoints are disabled. Tuist will use the default Tuist-hosted "
 "cache."
 msgstr ""
+"نقاط نهاية ذاكرة التخزين المؤقتة المخصصة معطلة. سيستخدم Tuist ذاكرة التخزين "
+"المؤقتة الافتراضية التي يستضيفها Tuist."
 
+#, fuzzy
 msgid ""
 "No custom cache endpoints configured. Tuist will use the default Tuist-"
 "hosted cache until endpoints are added."
 msgstr ""
+"لم يتم تكوين نقاط نهاية مخصصة للذاكرة المؤقتة. سيستخدم Tuist الذاكرة المؤقتة "
+"الافتراضية التي يستضيفها Tuist حتى يتم إضافة نقاط النهاية."
