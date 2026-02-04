@@ -2514,7 +2514,7 @@ components:
         - url
       title: RunsBuild
       type: object
-      x-struct: Elixir.TuistWeb.API.Schemas.Runs.Build
+      x-struct: Elixir.TuistWeb.API.Schemas.Builds.Build
       x-validate:
     ProjectToken:
       description: A token to authenticate API requests as a project.
@@ -4128,7 +4128,7 @@ components:
         - url
       title: RunsTest
       type: object
-      x-struct: Elixir.TuistWeb.API.Schemas.Runs.Test
+      x-struct: Elixir.TuistWeb.API.Schemas.Tests.Test
       x-validate:
     PaginationMetadata:
       description: Pagination metadata.
@@ -5469,6 +5469,14 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: The handle of the project.
+          in: path
+          name: project_handle
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: Number of items per page.
           in: query
           name: page_size
@@ -5481,14 +5489,6 @@ paths:
           in: query
           name: git_branch
           required: false
-          schema:
-            type: string
-            x-struct:
-            x-validate:
-        - description: The handle of the project.
-          in: path
-          name: project_handle
-          required: true
           schema:
             type: string
             x-struct:
