@@ -194,7 +194,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
         )
 
       expect(Runs, :list_build_runs, fn attrs, _opts ->
-        assert %{field: :custom_tags, op: :contains, value: ["nightly"]} in attrs.filters
+        assert %{field: :custom_tags, op: :contains, value: "nightly"} in attrs.filters
 
         {[tagged_build],
          %{
@@ -222,7 +222,8 @@ defmodule TuistWeb.API.BuildsControllerTest do
         )
 
       expect(Runs, :list_build_runs, fn attrs, _opts ->
-        assert %{field: :custom_tags, op: :contains, value: ["nightly", "release"]} in attrs.filters
+        assert %{field: :custom_tags, op: :contains, value: "nightly"} in attrs.filters
+        assert %{field: :custom_tags, op: :contains, value: "release"} in attrs.filters
 
         {[tagged_build],
          %{

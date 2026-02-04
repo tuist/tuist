@@ -379,9 +379,15 @@ defmodule TuistWeb.API.BuildsController do
       end
 
     case Map.get(params, :tags) do
-      nil -> filters
-      [] -> filters
-      tags -> filters ++ [%{field: :custom_tags, op: :contains, value: tags}]
+      nil ->
+        filters
+
+      [] ->
+        filters
+
+      tags ->
+        tag_filters = Enum.map(tags, fn tag -> %{field: :custom_tags, op: :contains, value: tag} end)
+        filters ++ tag_filters
     end
   end
 
