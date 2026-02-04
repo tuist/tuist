@@ -34,7 +34,6 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
   ```
 
 ## Linting
-- Check: `mise run lint`
 - Before committing changes, run `mise run cli:lint --fix` to ensure code is properly formatted.
 
 ## Related Context (Downlinks)
