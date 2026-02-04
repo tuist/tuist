@@ -405,7 +405,7 @@ public struct Environment: Environmenting {
 
             return homeDirectory.appending(try RelativePath(validating: "Library/Developer/Xcode/DerivedData/"))
         }
-    #else
+    #elseif os(Linux)
         public func architecture() async throws -> MacArchitecture {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/uname")
@@ -417,6 +417,14 @@ public struct Environment: Environmenting {
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
             return MacArchitecture(rawValue: output) ?? .x8664
+        }
+
+        public func derivedDataDirectory() async throws -> AbsolutePath {
+            homeDirectory.appending(try RelativePath(validating: "Library/Developer/Xcode/DerivedData/"))
+        }
+    #else
+        public func architecture() async throws -> MacArchitecture {
+            .arm64
         }
 
         public func derivedDataDirectory() async throws -> AbsolutePath {
