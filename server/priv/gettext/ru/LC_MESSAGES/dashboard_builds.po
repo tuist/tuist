@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
 "PO-Revision-Date: 2026-02-04 13:21+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Russian <https://translate.tuist.dev/projects/tuist/"
 "dashboard_builds/ru/>\n"
 "Language: ru\n"
@@ -1019,18 +1019,22 @@ msgstr "Конечная точка кэша"
 msgid "All"
 msgstr "Все"
 
+#, fuzzy
 msgid "Custom metadata"
-msgstr ""
+msgstr "Пользовательские метаданные"
 
 #, fuzzy
 msgid "Generations"
 msgstr "Поколения"
 
+#, fuzzy
 msgid "Tag:"
-msgstr ""
+msgstr "Теги:"
 
+#, fuzzy
 msgid "Tags"
-msgstr ""
+msgstr "Теги"
 
+#, fuzzy
 msgid "Value"
-msgstr ""
+msgstr "Значение"
