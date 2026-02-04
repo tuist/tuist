@@ -764,6 +764,21 @@ msgstr "어제부터"
 msgid "Cache Endpoint"
 msgstr "캐시 주소"
 
+msgid "All"
+msgstr ""
+
+msgid "Custom metadata"
+msgstr ""
+
 #, fuzzy
 msgid "Generations"
 msgstr "세대"
+
+msgid "Tag:"
+msgstr ""
+
+msgid "Tags"
+msgstr ""
+
+msgid "Value"
+msgstr ""

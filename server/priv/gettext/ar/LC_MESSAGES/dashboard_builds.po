@@ -1016,6 +1016,21 @@ msgstr "منذ أمس"
 msgid "Cache Endpoint"
 msgstr "نقطة نهاية ذاكرة التخزين المؤقت"
 
+msgid "All"
+msgstr ""
+
+msgid "Custom metadata"
+msgstr ""
+
 #, fuzzy
 msgid "Generations"
 msgstr "الأجيال"
+
+msgid "Tag:"
+msgstr ""
+
+msgid "Tags"
+msgstr ""
+
+msgid "Value"
+msgstr ""
