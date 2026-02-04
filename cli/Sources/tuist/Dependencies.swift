@@ -178,11 +178,17 @@ func initNoora(jsonThroughNoora: Bool = false) -> Noora {
         try await ServerAuthenticationConfig.$current.withValue(ServerAuthenticationConfig(backgroundRefresh: false)) {
             try await Noora.$current.withValue(initNoora()) {
                 try await Logger.$current.withValue(logger) {
-                    try await ServerCredentialsStore.$current.withValue(ServerCredentialsStore(backend: .fileSystem)) {
-                        try await CachedValueStore.$current.withValue(CachedValueStore(backend: .fileSystem)) {
-                            try await action(sessionPaths)
+                    try await ServerCredentialsStore.$current
+                        .withValue(
+                            ServerCredentialsStore(
+                                backend: .fileSystem,
+                                configDirectory: Environment.current.configDirectory
+                            )
+                        ) {
+                            try await CachedValueStore.$current.withValue(CachedValueStore(backend: .fileSystem)) {
+                                try await action(sessionPaths)
+                            }
                         }
-                    }
                 }
             }
         }
