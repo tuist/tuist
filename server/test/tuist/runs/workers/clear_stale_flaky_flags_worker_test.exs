@@ -2,12 +2,12 @@ defmodule Tuist.Runs.Workers.ClearStaleFlakyFlagsWorkerTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
-  alias Tuist.Runs
-  alias Tuist.Runs.Workers.ClearStaleFlakyFlagsWorker
+  alias Tuist.Tests
+  alias Tuist.Tests.Workers.ClearStaleFlakyFlagsWorker
 
   describe "perform/1" do
     test "calls Runs.clear_stale_flaky_flags/0" do
-      expect(Runs, :clear_stale_flaky_flags, fn -> {:ok, 0} end)
+      expect(Tests, :clear_stale_flaky_flags, fn -> {:ok, 0} end)
 
       assert {:ok, 0} = ClearStaleFlakyFlagsWorker.perform(%Oban.Job{args: %{}})
     end

@@ -4,7 +4,7 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorkerTest do
 
   alias Tuist.Alerts.Workers.FlakyTestAlertWorker
   alias Tuist.Alerts.Workers.FlakyThresholdCheckWorker
-  alias Tuist.Runs
+  alias Tuist.Tests
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -40,12 +40,12 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorkerTest do
 
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false)
 
-      stub(Runs, :get_flaky_runs_groups_counts_for_test_cases, fn _ids ->
+      stub(Tests, :get_flaky_runs_groups_counts_for_test_cases, fn _ids ->
         %{test_case.id => 2}
       end)
 
-      stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
-      reject(&Runs.update_test_case/3)
+      stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+      reject(&Tests.update_test_case/3)
 
       result =
         FlakyThresholdCheckWorker.perform(%Oban.Job{
@@ -64,13 +64,13 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorkerTest do
 
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false)
 
-      stub(Runs, :get_flaky_runs_groups_counts_for_test_cases, fn _ids ->
+      stub(Tests, :get_flaky_runs_groups_counts_for_test_cases, fn _ids ->
         %{test_case.id => 3}
       end)
 
-      stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+      stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
 
-      expect(Runs, :update_test_case, fn id, attrs ->
+      expect(Tests, :update_test_case, fn id, attrs ->
         assert id == test_case.id
         assert attrs == %{is_flaky: true}
         {:ok, Map.merge(test_case, attrs)}
@@ -103,13 +103,13 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorkerTest do
 
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: false)
 
-      stub(Runs, :get_flaky_runs_groups_counts_for_test_cases, fn _ids ->
+      stub(Tests, :get_flaky_runs_groups_counts_for_test_cases, fn _ids ->
         %{test_case.id => 5}
       end)
 
-      stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+      stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
 
-      expect(Runs, :update_test_case, fn id, attrs ->
+      expect(Tests, :update_test_case, fn id, attrs ->
         assert id == test_case.id
         assert attrs == %{is_flaky: true, is_quarantined: true}
         {:ok, Map.merge(test_case, attrs)}
@@ -139,12 +139,12 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorkerTest do
 
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: true)
 
-      stub(Runs, :get_flaky_runs_groups_counts_for_test_cases, fn _ids ->
+      stub(Tests, :get_flaky_runs_groups_counts_for_test_cases, fn _ids ->
         %{test_case.id => 5}
       end)
 
-      stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
-      reject(&Runs.update_test_case/3)
+      stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+      reject(&Tests.update_test_case/3)
 
       result =
         FlakyThresholdCheckWorker.perform(%Oban.Job{
@@ -170,11 +170,11 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorkerTest do
       id_2 = test_case_2.id
       id_3 = test_case_3.id
 
-      stub(Runs, :get_flaky_runs_groups_counts_for_test_cases, fn _ids ->
+      stub(Tests, :get_flaky_runs_groups_counts_for_test_cases, fn _ids ->
         %{id_1 => 3, id_2 => 1, id_3 => 5}
       end)
 
-      stub(Runs, :get_test_case_by_id, fn id ->
+      stub(Tests, :get_test_case_by_id, fn id ->
         case id do
           ^id_1 -> {:ok, test_case_1}
           ^id_2 -> {:ok, test_case_2}
@@ -182,7 +182,7 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorkerTest do
         end
       end)
 
-      expect(Runs, :update_test_case, fn id, attrs ->
+      expect(Tests, :update_test_case, fn id, attrs ->
         assert id == test_case_1.id
         assert attrs == %{is_flaky: true}
         {:ok, Map.merge(test_case_1, attrs)}

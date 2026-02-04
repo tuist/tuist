@@ -3,7 +3,7 @@ defmodule TuistWeb.API.TestCasesController do
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
-  alias Tuist.Runs
+  alias Tuist.Tests
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
   alias TuistWeb.API.Schemas.TestCase
@@ -98,7 +98,7 @@ defmodule TuistWeb.API.TestCasesController do
       page_size: page_size
     }
 
-    {test_cases, meta} = Runs.list_test_cases(selected_project.id, options)
+    {test_cases, meta} = Tests.list_test_cases(selected_project.id, options)
 
     json(conn, %{
       test_cases:

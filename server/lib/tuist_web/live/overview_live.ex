@@ -6,10 +6,12 @@ defmodule TuistWeb.OverviewLive do
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.Previews.AppPreview
 
+  alias Tuist.Builds
+  alias Tuist.Builds.Analytics, as: BuildsAnalytics
   alias Tuist.Bundles
   alias Tuist.Cache
-  alias Tuist.Runs
-  alias Tuist.Runs.Analytics
+  alias Tuist.Tests
+  alias Tuist.Tests.Analytics, as: TestsAnalytics
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
@@ -119,7 +121,7 @@ defmodule TuistWeb.OverviewLive do
 
   defp assign_test_runs_analytics(%{assigns: %{selected_project: project}} = socket) do
     {recent_test_runs, _meta} =
-      Runs.list_test_runs(%{
+      Tests.list_test_runs(%{
         last: 40,
         filters: [
           %{field: :project_id, op: :==, value: project.id}
@@ -205,7 +207,7 @@ defmodule TuistWeb.OverviewLive do
       end
 
     {recent_build_runs, _meta} =
-      Runs.list_build_runs(%{
+      Builds.list_build_runs(%{
         last: 30,
         filters: [
           %{field: :project_id, op: :==, value: project.id}
@@ -217,7 +219,7 @@ defmodule TuistWeb.OverviewLive do
     recent_build_runs_chart_data = recent_build_runs_chart_data(recent_build_runs)
 
     %{successful_count: passed_build_runs_count, failed_count: failed_build_runs_count} =
-      Runs.recent_build_status_counts(project.id, limit: 30)
+      Builds.recent_build_status_counts(project.id, limit: 30)
 
     socket
     |> assign(:builds_preset, preset)
@@ -244,7 +246,7 @@ defmodule TuistWeb.OverviewLive do
     )
     |> assign(
       :builds_duration_analytics,
-      Analytics.build_duration_analytics(project.id, opts)
+      BuildsAnalytics.build_duration_analytics(project.id, opts)
     )
   end
 
@@ -303,7 +305,7 @@ defmodule TuistWeb.OverviewLive do
       socket
       |> assign(
         :build_time_analytics,
-        Analytics.build_time_analytics(opts)
+        BuildsAnalytics.build_time_analytics(opts)
       )
       |> assign(:binary_cache_hit_rate_analytics, binary_cache_hit_rate_analytics)
       |> assign(:selective_testing_analytics, selective_testing_analytics)
@@ -338,9 +340,9 @@ defmodule TuistWeb.OverviewLive do
   defp combined_overview_analytics(project_id, opts) do
     queries = [
       fn -> Cache.Analytics.cache_hit_rate_analytics(opts) end,
-      fn -> Analytics.selective_testing_analytics(opts) end,
-      fn -> Analytics.build_duration_analytics(project_id, opts) end,
-      fn -> Analytics.runs_duration_analytics("test", opts) end
+      fn -> BuildsAnalytics.selective_testing_analytics(opts) end,
+      fn -> BuildsAnalytics.build_duration_analytics(project_id, opts) end,
+      fn -> TestsAnalytics.runs_duration_analytics("test", opts) end
     ]
 
     Tuist.Tasks.parallel_tasks(queries)

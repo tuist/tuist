@@ -3,8 +3,8 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorkerTest do
   use Mimic
 
   alias Tuist.Alerts.Workers.FlakyTestAlertWorker
-  alias Tuist.Runs
   alias Tuist.Slack
+  alias Tuist.Tests
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -29,7 +29,7 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorkerTest do
 
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: true)
 
-      stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+      stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
 
       expect(Slack, :send_flaky_test_alert, fn p, tc, count, auto_quarantined ->
         assert p.id == project.id
@@ -60,7 +60,7 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorkerTest do
 
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: true)
 
-      stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+      stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
 
       expect(Slack, :send_flaky_test_alert, fn _p, _tc, _count, auto_quarantined ->
         assert auto_quarantined == true
@@ -93,7 +93,7 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorkerTest do
 
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: true)
 
-      stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+      stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
 
       reject(&Slack.send_flaky_test_alert/4)
 
@@ -118,7 +118,7 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorkerTest do
 
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: true)
 
-      stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+      stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
 
       reject(&Slack.send_flaky_test_alert/4)
 
@@ -146,7 +146,7 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorkerTest do
 
       test_case = RunsFixtures.test_case_fixture(project_id: project.id, is_flaky: true)
 
-      stub(Runs, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
+      stub(Tests, :get_test_case_by_id, fn _id -> {:ok, test_case} end)
 
       reject(&Slack.send_flaky_test_alert/4)
 
@@ -164,7 +164,7 @@ defmodule Tuist.Alerts.Workers.FlakyTestAlertWorkerTest do
       # Given
       test_case_id = Ecto.UUID.generate()
 
-      stub(Runs, :get_test_case_by_id, fn _id -> {:error, :not_found} end)
+      stub(Tests, :get_test_case_by_id, fn _id -> {:error, :not_found} end)
 
       reject(&Slack.send_flaky_test_alert/4)
 

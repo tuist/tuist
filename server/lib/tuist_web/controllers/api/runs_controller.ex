@@ -1,4 +1,14 @@
 defmodule TuistWeb.API.RunsController do
+  @moduledoc """
+  Controller for the deprecated /runs API endpoint.
+
+  DEPRECATED: This endpoint is deprecated. Please use the specific endpoints instead:
+  - POST /builds for creating builds
+  - POST /tests for creating test runs
+  - GET /builds for listing builds
+
+  This controller is kept for backward compatibility and will be removed in a future version.
+  """
   use OpenApiSpex.ControllerSpecs
   use TuistWeb, :controller
 
@@ -10,6 +20,8 @@ defmodule TuistWeb.API.RunsController do
   alias TuistWeb.API.Schemas.Runs.Build
   alias TuistWeb.API.Schemas.Runs.Test
   alias TuistWeb.Authentication
+
+  @deprecation_warning "This endpoint is deprecated. Use POST /builds or POST /tests instead."
 
   plug(OpenApiSpex.Plug.CastAndValidate,
     json_render_error_v2: true,
@@ -163,7 +175,8 @@ defmodule TuistWeb.API.RunsController do
   end
 
   operation(:create,
-    summary: "Create a new run.",
+    summary: "Create a new run. DEPRECATED: Use POST /builds or POST /tests instead.",
+    deprecated: true,
     parameters: [
       account_handle: [
         in: :path,
@@ -791,6 +804,7 @@ defmodule TuistWeb.API.RunsController do
             })
 
             conn
+            |> put_resp_header("x-tuist-warning", @deprecation_warning)
             |> put_status(:ok)
             |> json(%{
               type: "build",
@@ -808,6 +822,7 @@ defmodule TuistWeb.API.RunsController do
         case get_or_create_test(run_params) do
           {:ok, test_run} ->
             conn
+            |> put_resp_header("x-tuist-warning", @deprecation_warning)
             |> put_status(:ok)
             |> json(%{
               type: "test",

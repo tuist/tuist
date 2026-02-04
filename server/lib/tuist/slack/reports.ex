@@ -3,9 +3,10 @@ defmodule Tuist.Slack.Reports do
   Generates analytics reports for Slack notifications.
   """
 
+  alias Tuist.Builds.Analytics, as: BuildsAnalytics
   alias Tuist.Bundles
   alias Tuist.Cache
-  alias Tuist.Runs.Analytics
+  alias Tuist.Tests.Analytics, as: TestsAnalytics
   alias Tuist.Utilities.DateFormatter
 
   def report(project, opts \\ []) do
@@ -17,18 +18,18 @@ defmodule Tuist.Slack.Reports do
     local_opts = Keyword.put(base_opts, :is_ci, false)
 
     cache_analytics = Cache.Analytics.cache_hit_rate_analytics(base_opts)
-    selective_analytics = Analytics.selective_testing_analytics(base_opts)
+    selective_analytics = BuildsAnalytics.selective_testing_analytics(base_opts)
 
     build_duration = %{
-      ci: Analytics.build_duration_analytics(project.id, ci_opts),
-      local: Analytics.build_duration_analytics(project.id, local_opts),
-      overall: Analytics.build_duration_analytics(project.id, base_opts)
+      ci: BuildsAnalytics.build_duration_analytics(project.id, ci_opts),
+      local: BuildsAnalytics.build_duration_analytics(project.id, local_opts),
+      overall: BuildsAnalytics.build_duration_analytics(project.id, base_opts)
     }
 
     test_duration = %{
-      ci: Analytics.test_run_duration_analytics(project.id, ci_opts),
-      local: Analytics.test_run_duration_analytics(project.id, local_opts),
-      overall: Analytics.test_run_duration_analytics(project.id, base_opts)
+      ci: TestsAnalytics.test_run_duration_analytics(project.id, ci_opts),
+      local: TestsAnalytics.test_run_duration_analytics(project.id, local_opts),
+      overall: TestsAnalytics.test_run_duration_analytics(project.id, base_opts)
     }
 
     cache_hit_rate = %{current: cache_analytics.cache_hit_rate, trend: cache_analytics.trend}

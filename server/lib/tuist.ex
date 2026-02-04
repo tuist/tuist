@@ -40,6 +40,14 @@ defmodule Tuist do
       Runs.Build,
       Runs.CASOutput,
       Runs.Analytics,
+      Builds,
+      Builds.Build,
+      Builds.CASOutput,
+      Builds.Analytics,
+      Tests,
+      Tests.Test,
+      Tests.TestCase,
+      Tests.Analytics,
       # App
       # -----
       # They are modules that are core to the Tuist domain (e.g. accounts) and that other

@@ -7,8 +7,8 @@ defmodule TuistWeb.QuarantinedTestsLive do
   import TuistWeb.Components.EmptyCardSection
 
   alias Noora.Filter
-  alias Tuist.Runs
-  alias Tuist.Runs.Analytics
+  alias Tuist.Tests
+  alias Tuist.Tests.Analytics
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Utilities.Query
 
@@ -32,7 +32,7 @@ defmodule TuistWeb.QuarantinedTestsLive do
 
   defp define_filters(project) do
     # Get users who have manually quarantined tests
-    quarantine_actors = Runs.get_quarantine_actors(project.id)
+    quarantine_actors = Tests.get_quarantine_actors(project.id)
 
     base_filters = [
       %Filter.Filter{
@@ -193,7 +193,7 @@ defmodule TuistWeb.QuarantinedTestsLive do
       page_size: 20
     }
 
-    {quarantined_tests, quarantined_tests_meta} = Runs.list_quarantined_test_cases(project.id, options)
+    {quarantined_tests, quarantined_tests_meta} = Tests.list_quarantined_test_cases(project.id, options)
 
     socket
     |> assign(:active_filters, filters)

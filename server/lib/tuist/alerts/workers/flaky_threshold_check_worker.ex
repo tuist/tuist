@@ -12,7 +12,7 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorker do
 
   alias Tuist.Alerts.Workers.FlakyTestAlertWorker
   alias Tuist.Projects
-  alias Tuist.Runs
+  alias Tuist.Tests
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"project_id" => project_id, "test_case_ids" => test_case_ids}}) do
@@ -32,7 +32,7 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorker do
     threshold = project.auto_mark_flaky_threshold
     auto_quarantine = project.auto_quarantine_flaky_tests
 
-    flaky_counts = Runs.get_flaky_runs_groups_counts_for_test_cases(test_case_ids)
+    flaky_counts = Tests.get_flaky_runs_groups_counts_for_test_cases(test_case_ids)
 
     Enum.each(test_case_ids, fn test_case_id ->
       flaky_count = Map.get(flaky_counts, test_case_id, 0)
@@ -44,7 +44,7 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorker do
        when flaky_count < threshold, do: :ok
 
   defp check_and_mark_flaky(project_id, test_case_id, flaky_count, _threshold, auto_quarantine) do
-    with {:ok, test_case} <- Runs.get_test_case_by_id(test_case_id),
+    with {:ok, test_case} <- Tests.get_test_case_by_id(test_case_id),
          false <- test_case.is_flaky do
       update_attrs =
         if auto_quarantine do
@@ -53,7 +53,7 @@ defmodule Tuist.Alerts.Workers.FlakyThresholdCheckWorker do
           %{is_flaky: true}
         end
 
-      {:ok, _updated_test_case} = Runs.update_test_case(test_case_id, update_attrs)
+      {:ok, _updated_test_case} = Tests.update_test_case(test_case_id, update_attrs)
 
       enqueue_alert(project_id, test_case_id, flaky_count, auto_quarantine)
     else

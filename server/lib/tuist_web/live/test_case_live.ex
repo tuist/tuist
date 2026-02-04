@@ -10,9 +10,9 @@ defmodule TuistWeb.TestCaseLive do
 
   alias Noora.Filter
   alias Tuist.Accounts
-  alias Tuist.Runs
-  alias Tuist.Runs.Analytics
   alias Tuist.Slack
+  alias Tuist.Tests
+  alias Tuist.Tests.Analytics
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
 
@@ -26,7 +26,7 @@ defmodule TuistWeb.TestCaseLive do
     project = Tuist.Repo.preload(project, :vcs_connection)
 
     test_case_detail =
-      case Runs.get_test_case_by_id(test_case_id) do
+      case Tests.get_test_case_by_id(test_case_id) do
         {:ok, test_case} -> test_case
         {:error, :not_found} -> raise NotFoundError, dgettext("dashboard_tests", "Test case not found.")
       end
@@ -125,7 +125,7 @@ defmodule TuistWeb.TestCaseLive do
     test_case_id = socket.assigns.test_case_id
     page = 1
 
-    {events, meta} = Runs.list_test_case_events(test_case_id, %{page: page, page_size: 20})
+    {events, meta} = Tests.list_test_case_events(test_case_id, %{page: page, page_size: 20})
 
     socket
     |> assign(:history_events, events)
@@ -149,7 +149,7 @@ defmodule TuistWeb.TestCaseLive do
   defp assign_overview_history(socket) do
     test_case_id = socket.assigns.test_case_id
 
-    {events, meta} = Runs.list_test_case_events(test_case_id, %{page: 1, page_size: 3})
+    {events, meta} = Tests.list_test_case_events(test_case_id, %{page: 1, page_size: 3})
 
     has_more = meta.total_count > 3
 
@@ -159,7 +159,7 @@ defmodule TuistWeb.TestCaseLive do
   end
 
   defp refresh_history_events(%{assigns: %{selected_tab: "history", test_case_id: test_case_id}} = socket) do
-    {events, meta} = Runs.list_test_case_events(test_case_id, %{page: 1, page_size: 20})
+    {events, meta} = Tests.list_test_case_events(test_case_id, %{page: 1, page_size: 20})
 
     socket
     |> assign(:history_events, events)
@@ -221,7 +221,7 @@ defmodule TuistWeb.TestCaseLive do
         %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user}} = socket
       ) do
     {:ok, updated_test_case} =
-      Runs.update_test_case(
+      Tests.update_test_case(
         test_case_id,
         %{is_flaky: false},
         actor_id: current_user.account.id
@@ -247,7 +247,7 @@ defmodule TuistWeb.TestCaseLive do
         } = socket
       ) do
     {:ok, updated_test_case} =
-      Runs.update_test_case(
+      Tests.update_test_case(
         test_case_id,
         %{is_flaky: true},
         actor_id: current_user.account.id
@@ -258,7 +258,7 @@ defmodule TuistWeb.TestCaseLive do
     {test_case_detail, was_auto_quarantined} =
       if project.auto_quarantine_flaky_tests do
         {:ok, quarantined_test_case} =
-          Runs.update_test_case(
+          Tests.update_test_case(
             test_case_id,
             %{is_quarantined: true},
             actor_id: current_user.account.id
@@ -284,7 +284,7 @@ defmodule TuistWeb.TestCaseLive do
         %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user}} = socket
       ) do
     {:ok, updated_test_case} =
-      Runs.update_test_case(
+      Tests.update_test_case(
         test_case_id,
         %{is_quarantined: true},
         actor_id: current_user.account.id
@@ -302,7 +302,7 @@ defmodule TuistWeb.TestCaseLive do
         %{assigns: %{test_case_id: test_case_id, test_case_detail: test_case_detail, current_user: current_user}} = socket
       ) do
     {:ok, updated_test_case} =
-      Runs.update_test_case(
+      Tests.update_test_case(
         test_case_id,
         %{is_quarantined: false},
         actor_id: current_user.account.id
@@ -320,7 +320,7 @@ defmodule TuistWeb.TestCaseLive do
         %{assigns: %{test_case_id: test_case_id, history_page: current_page, history_events: current_events}} = socket
       ) do
     next_page = current_page + 1
-    {new_events, meta} = Runs.list_test_case_events(test_case_id, %{page: next_page, page_size: 20})
+    {new_events, meta} = Tests.list_test_case_events(test_case_id, %{page: next_page, page_size: 20})
 
     {:noreply,
      socket
@@ -361,7 +361,7 @@ defmodule TuistWeb.TestCaseLive do
             Analytics.get_test_case_flakiness_rate(test_case_detail)
           end),
           Task.async(fn ->
-            Runs.list_flaky_runs_for_test_case(test_case_id)
+            Tests.list_flaky_runs_for_test_case(test_case_id)
           end)
         ],
         30_000
@@ -391,7 +391,7 @@ defmodule TuistWeb.TestCaseLive do
     order_by = [String.to_existing_atom(sort_by)]
 
     {test_case_runs, meta} =
-      Runs.list_test_case_runs_by_test_case_id(
+      Tests.list_test_case_runs_by_test_case_id(
         test_case_id,
         %{
           page: page,
