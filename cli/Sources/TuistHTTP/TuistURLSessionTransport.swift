@@ -2,6 +2,10 @@ import Foundation
 import HTTPTypes
 import OpenAPIRuntime
 
+#if canImport(FoundationNetworking)
+    import FoundationNetworking
+#endif
+
 #if canImport(TuistHAR)
     import TuistHAR
 #endif
