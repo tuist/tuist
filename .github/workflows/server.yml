@@ -647,7 +647,7 @@ jobs:
         run: tuist install
       - name: Generate Xcode project
         working-directory: .
-        run: tuist generate tuist --no-open
+        run: tuist generate tuist
       - name: Build tuist CLI
         working-directory: .
         run: xcodebuild build -scheme tuist -workspace Tuist.xcworkspace -configuration Debug -quiet
