@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
 "PO-Revision-Date: 2026-02-05 07:22+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_account/ko/>\n"
 "Language: ko\n"
@@ -564,41 +565,58 @@ msgstr "xxxx xxxx xxxx %{card_number}"
 msgid "Add"
 msgstr "추가"
 
+#, fuzzy
 msgid "Add cache endpoint"
-msgstr ""
+msgstr "캐시 주소 추가"
 
+#, fuzzy
 msgid "Add endpoint"
-msgstr ""
+msgstr "주소 추가"
 
+#, fuzzy
 msgid "Endpoint URL"
-msgstr ""
+msgstr "Endpoint URL"
 
 msgid "URL"
 msgstr ""
 
+#, fuzzy
 msgid "Delete last cache endpoint?"
-msgstr ""
+msgstr "마지막 캐시 주소를 삭제하시겠습니까?"
 
+#, fuzzy
 msgid ""
 "Removing the last custom cache endpoint will switch your organization back "
 "to Tuist-hosted caching. This affects all builds across your organization."
 msgstr ""
+"마지막 사용자 정의 캐시 주소를 제거하면 조직이 다시 Tuist에서 호스팅하는 "
+"캐싱으로 전환됩니다. 이는 조직 전체의 모든 빌드에 영향을 줍니다."
 
+#, fuzzy
 msgid "Cache endpoints"
-msgstr ""
+msgstr "캐시 주소"
 
+#, fuzzy
 msgid ""
 "Configure custom cache endpoints for self-hosted cache setups. When enabled, "
 "Tuist will read from and write to these endpoints instead of the default "
 "Tuist-hosted cache."
 msgstr ""
+"자체 호스팅 캐시 설정을 위한 사용자 지정 캐시 주소를 구성합니다. 이 옵션을 "
+"활성화하면 기본 Tuist 호스팅 캐시 대신 이 주소들에서 읽고 쓸 수 있습니다."
 
+#, fuzzy
 msgid ""
 "Custom cache endpoints are disabled. Tuist will use the default Tuist-hosted "
 "cache."
 msgstr ""
+"사용자 지정 캐시 주소가 비활성화됩니다. Tuist가 기본 Tuist 호스팅 캐시를 "
+"사용합니다."
 
+#, fuzzy
 msgid ""
 "No custom cache endpoints configured. Tuist will use the default Tuist-"
 "hosted cache until endpoints are added."
 msgstr ""
+"사용자 지정 캐시 주소가 구성되지 않았습니다. 주소가 추가될 때까지는 "
+"Tuist에서 호스팅하는 기본 캐시를 사용합니다."
