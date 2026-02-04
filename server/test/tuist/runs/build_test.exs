@@ -107,11 +107,11 @@ defmodule Tuist.Runs.BuildTest do
       assert changeset.valid?
     end
 
-    test "rejects more than 10 custom_tags" do
-      tags = Enum.map(1..11, fn i -> "tag#{i}" end)
+    test "rejects more than 50 custom_tags" do
+      tags = Enum.map(1..51, fn i -> "tag#{i}" end)
       attrs = Map.put(@valid_attrs, :custom_tags, tags)
       changeset = Build.create_changeset(%Build{}, attrs)
-      assert "cannot have more than 10 tags" in errors_on(changeset).custom_tags
+      assert "cannot have more than 50 tags" in errors_on(changeset).custom_tags
     end
 
     test "rejects custom_tags longer than 50 characters" do
