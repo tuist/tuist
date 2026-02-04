@@ -4,7 +4,7 @@ defmodule TuistWeb.API.BuildsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Builds
-  alias Tuist.Builds.Build
+  alias Tuist.Builds.Build, as: BuildRecord
   alias Tuist.Builds.CASOutput
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
@@ -834,7 +834,7 @@ defmodule TuistWeb.API.BuildsController do
 
   defp get_or_create_build(params) do
     case Builds.get_build(params.id) do
-      %Build{} = build ->
+      %BuildRecord{} = build ->
         {:ok, build}
 
       nil ->
@@ -880,7 +880,7 @@ defmodule TuistWeb.API.BuildsController do
   defp handle_build_creation_result({:error, changeset}, build_id) do
     if Keyword.has_key?(changeset.errors, :id) do
       case Builds.get_build(build_id) do
-        %Build{} = build -> {:ok, build}
+        %BuildRecord{} = build -> {:ok, build}
         nil -> {:error, :creation_failed}
       end
     else
