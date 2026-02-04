@@ -171,10 +171,10 @@ tuist generate
 
 ::: info AUTHENTICATION
 <!-- -->
-Użyj tokenu
-<LocalizedLink href="/guides/server/authentication#account-tokens">konta</LocalizedLink>,
-ustawiając zmienną środowiskową `TUIST_TOKEN` w ustawieniach przepływu pracy
-Xcode Cloud.
+Użyj tokenu konta
+<LocalizedLink href="/guides/server/authentication#account-tokens">account
+token</LocalizedLink>, ustawiając zmienną środowiskową `TUIST_TOKEN` w
+ustawieniach przepływu pracy Xcode Cloud.
 <!-- -->
 :::
 
@@ -236,13 +236,13 @@ jobs:
 
 ::: info AUTHENTICATION
 <!-- -->
-Przed użyciem uwierzytelniania OIDC należy
-<LocalizedLink href="/guides/integrations/gitforge/github"> połączyć
+Przed użyciem uwierzytelniania OIDC musisz
+<LocalizedLink href="/guides/integrations/gitforge/github">połączyć swoje
 repozytorium GitHub</LocalizedLink> z projektem Tuist. Tokeny CircleCI OIDC
-zawierają podłączone repozytorium GitHub, którego Tuist używa do autoryzacji
-dostępu do projektów. Alternatywnie można użyć tokenu
-<LocalizedLink href="/guides/server/authentication#account-tokens">konta</LocalizedLink>
-ze zmienną środowiskową `TUIST_TOKEN`.
+zawierają połączone repozytorium GitHub, które Tuist wykorzystuje do autoryzacji
+dostępu do Twoich projektów. Alternatywnie możesz użyć
+<LocalizedLink href="/guides/server/authentication#account-tokens">tokenu
+konta</LocalizedLink> ze zmienną środowiskową `TUIST_TOKEN`.
 <!-- -->
 :::
 
@@ -306,13 +306,13 @@ workflows:
 
 ::: info AUTHENTICATION
 <!-- -->
-Przed użyciem uwierzytelniania OIDC należy
-<LocalizedLink href="/guides/integrations/gitforge/github"> połączyć
+Przed użyciem uwierzytelniania OIDC musisz
+<LocalizedLink href="/guides/integrations/gitforge/github">połączyć swoje
 repozytorium GitHub</LocalizedLink> z projektem Tuist. Tokeny Bitrise OIDC
-zawierają podłączone repozytorium GitHub, którego Tuist używa do autoryzacji
-dostępu do projektów. Alternatywnie można użyć tokenu
-<LocalizedLink href="/guides/server/authentication#account-tokens">konta</LocalizedLink>
-ze zmienną środowiskową `TUIST_TOKEN`.
+zawierają połączone repozytorium GitHub, które Tuist wykorzystuje do autoryzacji
+dostępu do Twoich projektów. Alternatywnie możesz użyć
+<LocalizedLink href="/guides/server/authentication#account-tokens">tokenu
+konta</LocalizedLink> ze zmienną środowiskową `TUIST_TOKEN`.
 <!-- -->
 :::
 
@@ -360,8 +360,9 @@ workflows:
 
 ::: info AUTHENTICATION
 <!-- -->
-Utwórz token
-<LocalizedLink href="/guides/server/authentication#account-tokens">konta</LocalizedLink>
-i dodaj go jako tajną zmienną środowiskową o nazwie `TUIST_TOKEN`.
+Utwórz token konta
+<LocalizedLink href="/guides/server/authentication#account-tokens">account
+token</LocalizedLink> i dodaj go jako tajną zmienną środowiskową o nazwie
+`TUIST_TOKEN`.
 <!-- -->
 :::
