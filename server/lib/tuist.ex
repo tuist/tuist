@@ -40,6 +40,7 @@ defmodule Tuist do
       Builds.Build,
       Builds.CASOutput,
       Builds.Analytics,
+      Runs.Analytics,
       Tests,
       Tests.Test,
       Tests.TestCase,

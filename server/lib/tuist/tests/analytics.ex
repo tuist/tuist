@@ -6,118 +6,11 @@ defmodule Tuist.Tests.Analytics do
 
   alias Postgrex.Interval
   alias Tuist.ClickHouseRepo
-  alias Tuist.CommandEvents
   alias Tuist.CommandEvents.Event
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCase
   alias Tuist.Tests.TestCaseEvent
   alias Tuist.Tests.TestCaseRun
-
-  def runs_analytics(project_id, name, opts) do
-    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
-    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
-
-    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
-    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
-    time_bucket = time_bucket_for_date_period(date_period)
-    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
-
-    current_runs_data =
-      CommandEvents.run_count(
-        project_id,
-        start_datetime,
-        end_datetime,
-        date_period,
-        clickhouse_time_bucket,
-        name,
-        opts
-      )
-
-    current_runs = process_runs_count_data(current_runs_data, start_datetime, end_datetime, date_period)
-
-    previous_runs_count =
-      runs_total_count(project_id, DateTime.add(start_datetime, -days_delta, :day), start_datetime, name, opts)
-
-    current_runs_count = runs_total_count(project_id, start_datetime, end_datetime, name, opts)
-
-    %{
-      trend:
-        trend(
-          previous_value: previous_runs_count,
-          current_value: current_runs_count
-        ),
-      count: current_runs_count,
-      values: Enum.map(current_runs, & &1.count),
-      dates: Enum.map(current_runs, & &1.date)
-    }
-  end
-
-  defp runs_total_count(project_id, start_datetime, end_datetime, name, opts) do
-    CommandEvents.run_analytics(
-      project_id,
-      start_datetime,
-      end_datetime,
-      Keyword.put(opts, :name, name)
-    )[:count] || 0
-  end
-
-  def runs_duration_analytics(name, opts) do
-    project_id = Keyword.get(opts, :project_id)
-    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
-    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
-
-    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
-    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
-    time_bucket = time_bucket_for_date_period(date_period)
-    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
-
-    previous_period_runs_aggregated_analytics =
-      CommandEvents.run_analytics(
-        project_id,
-        DateTime.add(start_datetime, -days_delta, :day),
-        start_datetime,
-        Keyword.put(opts, :name, name)
-      )
-
-    previous_period_total_average_duration =
-      previous_period_runs_aggregated_analytics[:average_duration] || 0
-
-    current_period_runs_data =
-      CommandEvents.run_analytics(
-        project_id,
-        start_datetime,
-        end_datetime,
-        Keyword.put(opts, :name, name)
-      )
-
-    total_average_duration = current_period_runs_data[:average_duration] || 0
-
-    average_durations_data =
-      CommandEvents.run_average_durations(
-        project_id,
-        start_datetime,
-        end_datetime,
-        date_period,
-        clickhouse_time_bucket,
-        name,
-        opts
-      )
-
-    average_durations =
-      process_durations_data(average_durations_data, start_datetime, end_datetime, date_period)
-
-    %{
-      trend:
-        trend(
-          previous_value: previous_period_total_average_duration,
-          current_value: total_average_duration
-        ),
-      total_average_duration: total_average_duration,
-      average_durations: average_durations,
-      dates: Enum.map(average_durations, & &1.date),
-      values: Enum.map(average_durations, & &1.value)
-    }
-  end
 
   def test_run_analytics(project_id, opts \\ []) do
     start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))

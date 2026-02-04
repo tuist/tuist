@@ -10,8 +10,8 @@ defmodule TuistWeb.OverviewLive do
   alias Tuist.Builds.Analytics, as: BuildsAnalytics
   alias Tuist.Bundles
   alias Tuist.Cache
+  alias Tuist.Runs.Analytics, as: RunsAnalytics
   alias Tuist.Tests
-  alias Tuist.Tests.Analytics, as: TestsAnalytics
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
@@ -342,7 +342,7 @@ defmodule TuistWeb.OverviewLive do
       fn -> Cache.Analytics.cache_hit_rate_analytics(opts) end,
       fn -> BuildsAnalytics.selective_testing_analytics(opts) end,
       fn -> BuildsAnalytics.build_duration_analytics(project_id, opts) end,
-      fn -> TestsAnalytics.runs_duration_analytics("test", opts) end
+      fn -> RunsAnalytics.runs_duration_analytics("test", opts) end
     ]
 
     Tuist.Tasks.parallel_tasks(queries)
