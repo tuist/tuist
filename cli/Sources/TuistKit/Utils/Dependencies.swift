@@ -98,14 +98,20 @@ private func initEnv() async throws {
 }
 
 func withLoggerForNoora(logFilePath: Path.AbsolutePath, _ action: () async throws -> Void) async throws {
+    let loggerHandler: (@Sendable (String) -> any LogHandler)?
     do {
         let fileSystem = FileSystem()
         try await fileSystem.touch(logFilePath)
-        let loggerHandler = try Logger.loggerHandlerForNoora(logFilePath: logFilePath)
+        loggerHandler = try Logger.loggerHandlerForNoora(logFilePath: logFilePath)
+    } catch {
+        loggerHandler = nil
+    }
+
+    if let loggerHandler {
         try await Logger.$current.withValue(Logger(label: "dev.tuist.cli", factory: loggerHandler)) {
             try await action()
         }
-    } catch {
+    } else {
         try await action()
     }
 }
