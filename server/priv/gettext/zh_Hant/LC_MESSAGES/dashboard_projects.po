@@ -592,8 +592,8 @@ msgid ""
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
-"當<strong>%{metric_category}</strong> 於過去<strong>%{rolling_window_size} %"
-"{unit}</strong> 期間，相較於先前<strong>%{rolling_window_size} %{unit}</"
+"當<strong>%{metric_category}</strong> 於過去<strong>%{rolling_window_size} "
+"%{unit}</strong> 期間，相較於先前<strong>%{rolling_window_size} %{unit}</"
 "strong> 的數值下降達<strong>%{deviation}%</strong> 時發出警示。"
 
 #, fuzzy
@@ -603,8 +603,8 @@ msgid ""
 "<strong>%{deviation}%</strong> compared to the previous "
 "<strong>%{rolling_window_size} %{unit}</strong>."
 msgstr ""
-"當<strong>%{metric_category}</strong> 於過去<strong>%{rolling_window_size} %"
-"{unit}</strong> 期間，相較於前次<strong>%{rolling_window_size} %{unit}</"
+"當<strong>%{metric_category}</strong> 於過去<strong>%{rolling_window_size} "
+"%{unit}</strong> 期間，相較於前次<strong>%{rolling_window_size} %{unit}</"
 "strong> 的數值增加<strong>%{deviation}%</strong> 時發出警示。"
 
 #, fuzzy
