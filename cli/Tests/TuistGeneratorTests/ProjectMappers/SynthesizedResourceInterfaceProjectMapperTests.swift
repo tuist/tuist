@@ -3,6 +3,7 @@ import Path
 import TuistConstants
 import TuistCore
 import TuistSupport
+import TuistThreadSafe
 import XcodeGraph
 import XCTest
 
