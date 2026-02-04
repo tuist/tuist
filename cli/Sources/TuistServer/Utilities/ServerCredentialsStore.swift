@@ -76,10 +76,14 @@ enum ServerCredentialsStoreError: LocalizedError {
 }
 
 public enum ServerCredentialsStoreBackend: Sendable {
-    #if os(macOS) || os(Linux) || os(Windows)
+    #if os(Linux)
         case fileSystem
+    #else
+        #if os(macOS)
+            case fileSystem
+        #endif
+        case keychain
     #endif
-    case keychain
 }
 
 #if !os(Linux)
