@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
 "PO-Revision-Date: 2026-02-04 13:21+0000\n"
-"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_builds/ko/>\n"
 "Language: ko\n"
@@ -768,18 +768,22 @@ msgstr "캐시 주소"
 msgid "All"
 msgstr "전체"
 
+#, fuzzy
 msgid "Custom metadata"
-msgstr ""
+msgstr "사용자 정의 메타데이터"
 
 #, fuzzy
 msgid "Generations"
 msgstr "세대"
 
+#, fuzzy
 msgid "Tag:"
-msgstr ""
+msgstr "Tag:"
 
+#, fuzzy
 msgid "Tags"
-msgstr ""
+msgstr "Tags"
 
+#, fuzzy
 msgid "Value"
-msgstr ""
+msgstr "값"
