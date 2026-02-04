@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-01-22 13:03+0000\n"
+"PO-Revision-Date: 2026-02-05 07:22+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Spanish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_account/es/>\n"
@@ -763,44 +763,65 @@ msgstr "cobrado el %{next_charge_date}"
 msgid "xxxx xxxx xxxx %{card_number}"
 msgstr "xxxx xxxx xxxx %{card_number}"
 
+#, fuzzy
 msgid "Add"
-msgstr ""
+msgstr "Añadir"
 
+#, fuzzy
 msgid "Add cache endpoint"
-msgstr ""
+msgstr "Añadir punto final de caché."
 
+#, fuzzy
 msgid "Add endpoint"
-msgstr ""
+msgstr "Añadir punto final."
 
+#, fuzzy
 msgid "Endpoint URL"
-msgstr ""
+msgstr "URL del punto final"
 
+#, fuzzy
 msgid "URL"
-msgstr ""
+msgstr "URL"
 
+#, fuzzy
 msgid "Delete last cache endpoint?"
-msgstr ""
+msgstr "¿Eliminar el último punto final de la caché?"
 
+#, fuzzy
 msgid ""
 "Removing the last custom cache endpoint will switch your organization back "
 "to Tuist-hosted caching. This affects all builds across your organization."
 msgstr ""
+"Al eliminar el último punto final de caché personalizado, su organización "
+"volverá al almacenamiento en caché alojado por Tuist. Esto afecta a todas "
+"las compilaciones de su organización."
 
+#, fuzzy
 msgid "Cache endpoints"
-msgstr ""
+msgstr "Puntos finales de caché."
 
+#, fuzzy
 msgid ""
 "Configure custom cache endpoints for self-hosted cache setups. When enabled, "
 "Tuist will read from and write to these endpoints instead of the default "
 "Tuist-hosted cache."
 msgstr ""
+"Configura puntos finales de caché personalizados para configuraciones de "
+"caché autohospedadas. Cuando se habilita, Tuist leerá y escribirá en estos "
+"puntos finales en lugar de en la caché predeterminada alojada por Tuist."
 
+#, fuzzy
 msgid ""
 "Custom cache endpoints are disabled. Tuist will use the default Tuist-hosted "
 "cache."
 msgstr ""
+"Los puntos finales de caché personalizados están desactivados. Tuist "
+"utilizará la caché predeterminada alojada en Tuist."
 
+#, fuzzy
 msgid ""
 "No custom cache endpoints configured. Tuist will use the default Tuist-"
 "hosted cache until endpoints are added."
 msgstr ""
+"No hay puntos finales de caché personalizados configurados. Tuist utilizará "
+"la caché predeterminada alojada en Tuist hasta que se añadan puntos finales."
