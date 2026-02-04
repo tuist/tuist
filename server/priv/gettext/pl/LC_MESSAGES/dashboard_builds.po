@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:50+0000\n"
-"PO-Revision-Date: 2026-02-03 09:33+0000\n"
+"PO-Revision-Date: 2026-02-04 13:21+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Polish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_builds/pl/>\n"
@@ -1022,21 +1022,26 @@ msgstr "od wczoraj"
 msgid "Cache Endpoint"
 msgstr "Punkt końcowy pamięci podręcznej"
 
+#, fuzzy
 msgid "All"
-msgstr ""
+msgstr "Wszystkie"
 
+#, fuzzy
 msgid "Custom metadata"
-msgstr ""
+msgstr "Niestandardowe metadane"
 
 #, fuzzy
 msgid "Generations"
 msgstr "Pokolenia"
 
+#, fuzzy
 msgid "Tag:"
-msgstr ""
+msgstr "Tag:"
 
+#, fuzzy
 msgid "Tags"
-msgstr ""
+msgstr "Tagi"
 
+#, fuzzy
 msgid "Value"
-msgstr ""
+msgstr "Wartość"
