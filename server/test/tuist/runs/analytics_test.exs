@@ -1321,6 +1321,66 @@ defmodule Tuist.Runs.AnalyticsTest do
       # Then
       assert_in_delta got.success_rate, 0.6667, 0.0001
     end
+
+    test "respects build tag filter" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Builds with "nightly" tag: 2 success, 1 failure = 66.7%
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: :success,
+        custom_tags: ["nightly", "ci"],
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: :success,
+        custom_tags: ["nightly"],
+        inserted_at: ~U[2024-04-29 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: :failure,
+        custom_tags: ["nightly", "release"],
+        inserted_at: ~U[2024-04-28 03:00:00Z]
+      )
+
+      # Builds without "nightly" tag: all failures
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: :failure,
+        custom_tags: ["ci"],
+        inserted_at: ~U[2024-04-30 02:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: :failure,
+        custom_tags: [],
+        inserted_at: ~U[2024-04-29 02:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.build_success_rate_analytics(
+          project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -3, :day),
+          end_datetime: DateTime.utc_now(),
+          tag: "nightly"
+        )
+
+      # Then
+      assert_in_delta got.success_rate, 0.6667, 0.0001
+    end
   end
 
   describe "trend/2" do
