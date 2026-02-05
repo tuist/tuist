@@ -271,7 +271,7 @@ tuist generate tag:feature:payment
 
 ## En iyi uygulamalar {#best-practices}
 
-1. **Basit başlayın** - Tek bir etiketleme boyutu (ör. özellikler) ile başlayın
+1. **Basit başlayın** - Tek bir etiketleme boyutuyla (ör. özellikler) başlayın
    ve gerektiğinde genişletin.
 2. **Tutarlı olun** - Tüm manifestolarınızda aynı adlandırma kurallarını
    kullanın
