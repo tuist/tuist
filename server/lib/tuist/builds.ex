@@ -35,31 +35,6 @@ defmodule Tuist.Builds do
     end
   end
 
-  def preload_postgres_associations(build, associations) do
-    associations
-    |> List.wrap()
-    |> Enum.reduce(build, fn
-      :project, acc ->
-        project = Repo.get(Project, acc.project_id)
-        %{acc | project: project}
-
-      :ran_by_account, acc ->
-        account =
-          if acc.account_id do
-            Repo.get(Account, acc.account_id)
-          end
-
-        %{acc | ran_by_account: account}
-
-      {:project, nested_preloads}, acc ->
-        project = Project |> Repo.get(acc.project_id) |> Repo.preload(nested_preloads)
-        %{acc | project: project}
-
-      _, acc ->
-        acc
-    end)
-  end
-
   def create_build(attrs) do
     cacheable_tasks = Map.get(attrs, :cacheable_tasks, [])
     cas_outputs = Map.get(attrs, :cas_outputs, [])
