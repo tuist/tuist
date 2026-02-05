@@ -754,8 +754,7 @@ defmodule TuistWeb.Router do
       :rate_limit,
       :require_authenticated_user_for_private_projects,
       :analytics,
-      :require_user_can_read_project,
-      TuistWeb.RedirectToRunsPlug
+      :require_user_can_read_project
     ]
 
     live_session :project,
