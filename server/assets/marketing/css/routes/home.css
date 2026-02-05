@@ -537,7 +537,7 @@
     }
   }
 
-    & > [data-part="builds-feature"],
+  & > [data-part="builds-feature"],
   & > [data-part="quality-assurance"],
   & > [data-part="tests-feature"] {
     display: flex;
@@ -559,9 +559,9 @@
 
       @media (min-width: 1180px) {
         flex: 1 1 auto;
+        padding: 0 var(--noora-spacing-5);
         min-width: 0;
         max-width: 400px;
-        padding: 0 var(--noora-spacing-5);
       }
 
       & > [data-part="title"] {
@@ -579,8 +579,8 @@
 
     & > [data-part="content"] {
       display: flex;
-      flex-direction: column;
       flex-shrink: 0;
+      flex-direction: column;
       width: auto;
     }
 
@@ -629,8 +629,8 @@
       }
 
       & > [data-part="image-container"] {
-        position: relative;
         display: flex;
+        position: relative;
         justify-content: center;
         align-items: center;
         width: 100%;
@@ -638,23 +638,23 @@
 
         @media (min-width: 1180px) {
           justify-content: flex-start;
-          height: 260px;
-          padding: 0 var(--noora-spacing-14);
-          overflow: hidden;
           box-sizing: border-box;
+          padding: 0 var(--noora-spacing-14);
+          height: 260px;
+          overflow: hidden;
         }
 
         & > [data-part="illustration"] {
           width: 100%;
-          height: 100%;
           max-width: 718px;
+          height: 100%;
           max-height: 260px;
           object-fit: cover;
           object-position: center;
 
           @media (min-width: 1180px) {
-            object-fit: contain;
             transform: scale(1);
+            object-fit: contain;
           }
         }
       }
@@ -678,8 +678,8 @@
       & > [data-part="feature-info"] {
         display: flex;
         flex-direction: column;
-        box-sizing: border-box;
         gap: var(--noora-spacing-3);
+        box-sizing: border-box;
         padding: 0 var(--noora-spacing-6);
         padding-bottom: var(--noora-spacing-6);
         width: 100%;
@@ -702,7 +702,9 @@
           & svg {
             visibility: hidden;
             opacity: 0;
-            transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
+            transition:
+              opacity 0.2s ease-in-out,
+              visibility 0.2s ease-in-out;
           }
         }
 
@@ -713,7 +715,6 @@
         }
       }
     }
-
   }
 
   & > [data-part="quality-assurance"] {
@@ -739,17 +740,17 @@
   & > [data-part="tests-feature"] {
     & > [data-part="sidebar"] {
       @media (min-width: 1180px) {
-       max-width: 400px;
-       min-width: 0;
-       display: flex;
-      flex-direction: column;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        max-width: 400px;
       }
     }
 
     & > [data-part="content"] {
       display: flex;
-      flex-direction: column;
       flex-shrink: 0;
+      flex-direction: column;
       max-width: 863px;
     }
 
@@ -760,10 +761,10 @@
 
       &[data-variant="selective-testing"] > [data-part="image-container"] {
         @media (min-width: 1180px) {
+          padding: 0;
           width: 718px;
           min-width: 718px;
           height: 260px;
-          padding: 0;
         }
 
         & > [data-part="illustration"] {
@@ -777,9 +778,9 @@
 
       &[data-variant="flaky-tests"] > [data-part="image-container"] {
         @media (min-width: 1180px) {
+          padding: 0;
           width: 446px;
           height: 260px;
-          padding: 0;
         }
 
         & > [data-part="illustration"] {
@@ -792,9 +793,9 @@
 
       &[data-variant="test-insights"] > [data-part="image-container"] {
         @media (min-width: 1180px) {
+          padding: 0;
           width: 446px;
           height: 260px;
-          padding: 0;
         }
 
         & > [data-part="illustration"] {
@@ -908,7 +909,9 @@
         & svg {
           visibility: hidden;
           opacity: 0;
-          transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
+          transition:
+            opacity 0.2s ease-in-out,
+            visibility 0.2s ease-in-out;
         }
       }
 
