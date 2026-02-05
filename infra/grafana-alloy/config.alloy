@@ -25,3 +25,56 @@ prometheus.remote_write "grafanacloud" {
       }
   }
 }
+
+otelcol.receiver.otlp "default" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+
+  output {
+    traces = [otelcol.processor.batch.default.input]
+    logs   = [otelcol.processor.batch.default.input]
+  }
+}
+
+otelcol.auth.basic "grafanacloud_tempo" {
+  username = sys.env("TEMPO_USERNAME")
+  password = sys.env("TEMPO_TOKEN")
+}
+
+otelcol.exporter.otlp "grafanacloud_tempo" {
+  client {
+    endpoint = sys.env("TEMPO_ENDPOINT")
+    auth     = otelcol.auth.basic.grafanacloud_tempo.handler
+  }
+}
+
+otelcol.exporter.loki "grafanacloud_loki" {
+  forward_to = [loki.write.grafanacloud.receiver]
+}
+
+loki.write "grafanacloud" {
+  endpoint {
+    url = sys.env("LOKI_ENDPOINT")
+    basic_auth {
+      username = sys.env("LOKI_USERNAME")
+      password = sys.env("LOKI_TOKEN")
+    }
+  }
+}
+
+loki.source.api "default" {
+  http {
+    listen_address = "0.0.0.0"
+    listen_port    = 3100
+  }
+  forward_to             = [loki.write.grafanacloud.receiver]
+  use_incoming_timestamp = true
+}
+
+otelcol.processor.batch "default" {
+  output {
+    traces = [otelcol.exporter.otlp.grafanacloud_tempo.input]
+    logs   = [otelcol.exporter.loki.grafanacloud_loki.input]
+  }
+}

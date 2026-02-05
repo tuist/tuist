@@ -155,6 +155,8 @@ Licenses have an expiration date. Users will receive a warning while using Tuist
 | `TUIST_GITHUB_APP_PRIVATE_KEY` | The private key used for the GitHub app to unlock extra functionality such as posting automatic PR comments. **We recommend using the base64-encoded version instead to avoid issues with special characters** | No | `-----BEGIN RSA...` | |
 | `TUIST_OPS_USER_HANDLES` | A comma-separated list of user handles that have access to the operations URLs | No | | `user1,user2` |
 | `TUIST_WEB` | Enable the web server endpoint | No | `1` | `1` or `0` |
+| `TUIST_OTEL_EXPORTER_OTLP_ENDPOINT` | The gRPC endpoint of an OpenTelemetry Collector to send traces to | No | | `http://localhost:4317` |
+| `TUIST_LOKI_URL` | The base URL of a Loki-compatible endpoint to push logs to (e.g. Grafana Alloy or Loki) | No | | `http://localhost:3100` |
 
 ### Database configuration {#database-configuration}
 

@@ -112,4 +112,19 @@ if config_env() == :prod do
     http_client: TuistCommon.AWS.Client
 
   config :tuist_common, finch_name: Cache.Finch
+
+  otel_endpoint = System.get_env("OTEL_EXPORTER_OTLP_ENDPOINT")
+
+  if otel_endpoint do
+    config :opentelemetry_exporter,
+      otlp_protocol: :grpc,
+      otlp_endpoint: otel_endpoint
+
+    config :opentelemetry,
+      span_processor: :batch,
+      resource: [
+        service: [name: "tuist-cache", namespace: "tuist"],
+        deployment: [environment: System.get_env("SENTRY_ENV") || "production"]
+      ]
+  end
 end
