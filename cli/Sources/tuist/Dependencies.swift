@@ -97,7 +97,9 @@ func initNoora(jsonThroughNoora: Bool = false) -> Noora {
                                                 {
                                                     try await Extension.$hashCacheService
                                                         .withValue(HashCacheCommandService()) {
-                                                            try await action(sessionPaths)
+                                                            try await withCacheService {
+                                                                try await action(sessionPaths)
+                                                            }
                                                         }
                                                 }
                                         }
@@ -115,6 +117,17 @@ func initNoora(jsonThroughNoora: Bool = false) -> Noora {
             try await Client.$additionalMiddlewares.withValue([SignatureVerifierMiddleware()]) {
                 try await action()
             }
+        #else
+            try await action()
+        #endif
+    }
+
+    func withCacheService(_ action: () async throws -> Void) async throws {
+        #if canImport(TuistCacheEE)
+            try await Extension.$cacheService
+                .withValue(CacheWarmCommandService()) {
+                    try await action()
+                }
         #else
             try await action()
         #endif

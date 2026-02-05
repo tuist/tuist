@@ -7,6 +7,7 @@ import TuistCore
 import TuistGenerator
 import TuistHasher
 import TuistLoader
+import TuistLogging
 import TuistSupport
 import TuistTesting
 import XcodeGraph

@@ -6,6 +6,7 @@ import TuistCacheCommand
 import TuistCore
 import TuistEnvironment
 import TuistEnvironmentTesting
+import TuistExtension
 @_exported import TuistKit
 import XcodeProj
 import XCTest
@@ -195,7 +196,14 @@ open class TuistAcceptanceTestCase: XCTestCase {
         ] + arguments
 
         var parsedCommand = try CacheWarmCommand.parse(arguments)
-        try await parsedCommand.run()
+        #if canImport(TuistCacheEE)
+            try await TuistExtension.Extension.$cacheService
+                .withValue(CacheWarmCommandService()) {
+                    try await parsedCommand.run()
+                }
+        #else
+            try await parsedCommand.run()
+        #endif
     }
 
     public func run(_ command: XcodeBuildBuildCommand.Type, _ arguments: String...) async throws {

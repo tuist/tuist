@@ -19,7 +19,7 @@ import XcodeGraph
 #if canImport(TuistCacheEE)
 
     // swiftlint:disable:next type_body_length
-    struct CacheService: CacheServicing {
+    public struct CacheWarmCommandService: CacheServicing {
         enum Destination {
             case simulator
             case device
@@ -41,7 +41,7 @@ import XcodeGraph
         private let cacheGraphContentHasher: CacheGraphContentHashing
         private let activityLogController: XCActivityLogControlling
 
-        init() {
+        public init() {
             let contentHasher = ContentHasher()
             self.init(
                 generatorFactory: CacheGeneratorFactory(contentHasher: contentHasher),
@@ -91,7 +91,7 @@ import XcodeGraph
         }
 
         // swiftlint:disable:next function_body_length
-        func run(
+        public func run(
             path directory: String?,
             configuration: String?,
             targetsToBinaryCache: Set<String>,

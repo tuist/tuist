@@ -6,8 +6,10 @@
     import TuistExtension
     import TuistSupport
 
-    struct CacheWarmCommand: AsyncParsableCommand {
-        static var configuration: CommandConfiguration {
+    public struct CacheWarmCommand: AsyncParsableCommand {
+        public init() {}
+
+        public static var configuration: CommandConfiguration {
             CommandConfiguration(
                 commandName: "warm",
                 abstract: "Warms the local and remote cache."
@@ -59,7 +61,7 @@
         )
         var printHashes: Bool = false
 
-        func run() async throws {
+        public func run() async throws {
             if printHashes {
                 AlertController.current.warning(.alert(
                     "The \(.command("tuist cache --print-hashes")) syntax is deprecated.",
