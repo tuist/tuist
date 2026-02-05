@@ -48,14 +48,28 @@ config :tuist, Tuist.IngestRepo,
 config :tuist, Tuist.Mailer, adapter: Bamboo.LocalAdapter
 
 # Configure your database
-config :tuist, Tuist.Repo,
-  username: System.get_env("DATABASE_USERNAME"),
-  password: System.get_env("DATABASE_PASSWORD"),
-  hostname: System.get_env("DATABASE_HOST", "localhost"),
-  database: "tuist_development",
-  stacktrace: true,
-  show_sensitive_data_on_connection_error: true,
-  pool_size: 10
+database_config =
+  [
+    hostname: System.get_env("DATABASE_HOST", "localhost"),
+    database: "tuist_development",
+    stacktrace: true,
+    show_sensitive_data_on_connection_error: true,
+    pool_size: 10
+  ]
+  |> then(fn config ->
+    case System.get_env("DATABASE_USERNAME") do
+      nil -> config
+      username -> Keyword.put(config, :username, username)
+    end
+  end)
+  |> then(fn config ->
+    case System.get_env("DATABASE_PASSWORD") do
+      nil -> config
+      password -> Keyword.put(config, :password, password)
+    end
+  end)
+
+config :tuist, Tuist.Repo, database_config
 
 # When NOORA_LOCAL is set, override esbuild config to use local noora path via alias
 # and add a noora_local profile for watching/rebuilding noora assets
