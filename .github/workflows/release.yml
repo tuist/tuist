@@ -391,7 +391,7 @@ jobs:
 
       - name: Update version in Constants.swift
         run: |
-          sed -i '' -e "s/@TaskLocal public static var version: String! = \".*\"/@TaskLocal public static var version: String! = \"${{ needs.check-releases.outputs.cli-next-version }}\"/" "cli/Sources/TuistSupport/Constants.swift"
+          sed -i '' -e "s/@TaskLocal public static var version: String! = \".*\"/@TaskLocal public static var version: String! = \"${{ needs.check-releases.outputs.cli-next-version }}\"/" "cli/Sources/TuistConstants/Constants.swift"
 
       - name: Update CHANGELOG.md
         working-directory: cli
@@ -420,7 +420,7 @@ jobs:
           name: cli-artifacts
           path: |
             cli/CHANGELOG.md
-            cli/Sources/TuistSupport/Constants.swift
+            cli/Sources/TuistConstants/Constants.swift
             mise.toml
             build/ProjectDescription.xcframework.zip
             build/tuist.zip
@@ -458,7 +458,7 @@ jobs:
 
       - name: Update version in Constants.swift
         run: |
-          sed -i "s/@TaskLocal public static var version: String! = \".*\"/@TaskLocal public static var version: String! = \"${{ needs.check-releases.outputs.cli-next-version }}\"/" "cli/Sources/TuistSupport/Constants.swift"
+          sed -i "s/@TaskLocal public static var version: String! = \".*\"/@TaskLocal public static var version: String! = \"${{ needs.check-releases.outputs.cli-next-version }}\"/" "cli/Sources/TuistConstants/Constants.swift"
 
       - name: Bundle CLI
         run: ./mise/tasks/cli/bundle-linux.sh
@@ -1061,7 +1061,7 @@ jobs:
 
           # Add files from each component that was released
           if [ "${{ needs.check-releases.outputs.cli-should-release }}" == "true" ] && [ "${{ needs.release-cli.result }}" == "success" ]; then
-            git add cli/CHANGELOG.md cli/Sources/TuistSupport/Constants.swift mise.toml
+            git add cli/CHANGELOG.md cli/Sources/TuistConstants/Constants.swift mise.toml
             FILES_ADDED=true
           fi
 
