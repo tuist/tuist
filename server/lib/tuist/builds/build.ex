@@ -6,6 +6,10 @@ defmodule Tuist.Builds.Build do
   use Ecto.Schema
   use Tuist.Ingestion.Bufferable
 
+  @status_values ["success", "failure"]
+  @category_values ["clean", "incremental"]
+  @ci_provider_values ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
+
   @derive {
     Flop.Schema,
     filterable: [
@@ -45,7 +49,10 @@ defmodule Tuist.Builds.Build do
     field :ci_run_id, Ch, type: "Nullable(String)"
     field :ci_project_handle, Ch, type: "Nullable(String)"
     field :ci_host, Ch, type: "Nullable(String)"
-    field :ci_provider, Ch, type: "Nullable(Enum8('github' = 0, 'gitlab' = 1, 'bitrise' = 2, 'circleci' = 3, 'buildkite' = 4, 'codemagic' = 5))"
+
+    field :ci_provider, Ch,
+      type: "Nullable(Enum8('github' = 0, 'gitlab' = 1, 'bitrise' = 2, 'circleci' = 3, 'buildkite' = 4, 'codemagic' = 5))"
+
     field :cacheable_task_remote_hits_count, Ch, type: "Int32", default: 0
     field :cacheable_task_local_hits_count, Ch, type: "Int32", default: 0
     field :cacheable_tasks_count, Ch, type: "Int32", default: 0
@@ -62,27 +69,34 @@ defmodule Tuist.Builds.Build do
 
   def changeset(attrs) do
     id = Map.get(attrs, :id) || UUIDv7.generate()
-    now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:microsecond)
+    now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :microsecond)
 
     attrs
     |> Map.put(:id, id)
-    |> Map.put_new(:inserted_at, now)
+    |> Map.put(:inserted_at, Map.get(attrs, :inserted_at) || now)
     |> normalize_status()
     |> normalize_category()
     |> normalize_ci_provider()
     |> convert_datetime_field(:inserted_at)
+    |> normalize_custom_tags()
+    |> normalize_custom_values()
     |> ensure_defaults()
+    |> ensure_all_fields()
   end
 
   defp normalize_status(attrs) do
-    case Map.get(attrs, :status) do
-      :success -> Map.put(attrs, :status, "success")
-      :failure -> Map.put(attrs, :status, "failure")
-      "success" -> attrs
-      "failure" -> attrs
-      0 -> Map.put(attrs, :status, "success")
-      1 -> Map.put(attrs, :status, "failure")
-      _ -> Map.put(attrs, :status, "success")
+    if Map.has_key?(attrs, :status) do
+      case Map.get(attrs, :status) do
+        :success -> Map.put(attrs, :status, "success")
+        :failure -> Map.put(attrs, :status, "failure")
+        "success" -> attrs
+        "failure" -> attrs
+        0 -> Map.put(attrs, :status, "success")
+        1 -> Map.put(attrs, :status, "failure")
+        _ -> Map.put(attrs, :status, nil)
+      end
+    else
+      Map.put(attrs, :status, "success")
     end
   end
 
@@ -95,34 +109,38 @@ defmodule Tuist.Builds.Build do
       "incremental" -> attrs
       0 -> Map.put(attrs, :category, "clean")
       1 -> Map.put(attrs, :category, "incremental")
-      _ -> attrs
+      _ -> Map.put(attrs, :category, nil)
     end
   end
 
+  @ci_provider_by_index %{
+    0 => "github",
+    1 => "gitlab",
+    2 => "bitrise",
+    3 => "circleci",
+    4 => "buildkite",
+    5 => "codemagic"
+  }
+
   defp normalize_ci_provider(attrs) do
-    case Map.get(attrs, :ci_provider) do
-      nil -> attrs
-      :github -> Map.put(attrs, :ci_provider, "github")
-      :gitlab -> Map.put(attrs, :ci_provider, "gitlab")
-      :bitrise -> Map.put(attrs, :ci_provider, "bitrise")
-      :circleci -> Map.put(attrs, :ci_provider, "circleci")
-      :buildkite -> Map.put(attrs, :ci_provider, "buildkite")
-      :codemagic -> Map.put(attrs, :ci_provider, "codemagic")
-      value when is_binary(value) -> attrs
-      0 -> Map.put(attrs, :ci_provider, "github")
-      1 -> Map.put(attrs, :ci_provider, "gitlab")
-      2 -> Map.put(attrs, :ci_provider, "bitrise")
-      3 -> Map.put(attrs, :ci_provider, "circleci")
-      4 -> Map.put(attrs, :ci_provider, "buildkite")
-      5 -> Map.put(attrs, :ci_provider, "codemagic")
-      _ -> attrs
-    end
+    value = Map.get(attrs, :ci_provider)
+    normalized = coerce_ci_provider(value)
+    if normalized == value, do: attrs, else: Map.put(attrs, :ci_provider, normalized)
   end
+
+  defp coerce_ci_provider(nil), do: nil
+  defp coerce_ci_provider(value) when is_atom(value), do: value |> Atom.to_string() |> validate_ci_provider()
+  defp coerce_ci_provider(value) when is_integer(value), do: Map.get(@ci_provider_by_index, value)
+  defp coerce_ci_provider(value) when is_binary(value), do: validate_ci_provider(value)
+  defp coerce_ci_provider(_), do: nil
+
+  defp validate_ci_provider(value) when value in @ci_provider_values, do: value
+  defp validate_ci_provider(_), do: nil
 
   defp convert_datetime_field(attrs, field) do
     case Map.get(attrs, field) do
       %DateTime{} = dt ->
-        Map.put(attrs, field, DateTime.to_naive(dt) |> ensure_microsecond_precision())
+        Map.put(attrs, field, dt |> DateTime.to_naive() |> ensure_microsecond_precision())
 
       %NaiveDateTime{} = ndt ->
         Map.put(attrs, field, ensure_microsecond_precision(ndt))
@@ -144,6 +162,40 @@ defmodule Tuist.Builds.Build do
     |> Map.put_new(:cacheable_tasks_count, 0)
     |> Map.put_new(:custom_tags, [])
     |> Map.put_new(:custom_values, %{})
+  end
+
+  defp ensure_all_fields(attrs) do
+    struct = __struct__()
+
+    Enum.reduce(__schema__(:fields), attrs, fn field, acc ->
+      Map.put_new(acc, field, Map.get(struct, field))
+    end)
+  end
+
+  defp normalize_custom_tags(attrs) do
+    case Map.get(attrs, :custom_tags) do
+      nil -> attrs
+      tags when is_list(tags) -> Map.put(attrs, :custom_tags, Enum.filter(tags, &is_binary/1))
+      _ -> Map.put(attrs, :custom_tags, [])
+    end
+  end
+
+  defp normalize_custom_values(attrs) do
+    case Map.get(attrs, :custom_values) do
+      nil ->
+        attrs
+
+      values when is_map(values) ->
+        filtered =
+          for {key, value} <- values, is_binary(key) and is_binary(value), into: %{} do
+            {key, value}
+          end
+
+        Map.put(attrs, :custom_values, filtered)
+
+      _ ->
+        Map.put(attrs, :custom_values, %{})
+    end
   end
 
   def normalize_enums(build) do
@@ -172,4 +224,13 @@ defmodule Tuist.Builds.Build do
   defp ci_provider_string_to_atom("buildkite"), do: :buildkite
   defp ci_provider_string_to_atom("codemagic"), do: :codemagic
   defp ci_provider_string_to_atom(_), do: nil
+
+  def valid_status?(status) when status in @status_values, do: true
+  def valid_status?(_), do: false
+
+  def valid_category?(category) when category in @category_values, do: true
+  def valid_category?(_), do: false
+
+  def valid_ci_provider?(provider) when provider in @ci_provider_values, do: true
+  def valid_ci_provider?(_), do: false
 end

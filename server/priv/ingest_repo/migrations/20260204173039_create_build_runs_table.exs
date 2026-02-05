@@ -117,8 +117,8 @@ defmodule Tuist.IngestRepo.Migrations.CreateBuildRunsTable do
       COALESCE(cacheable_task_remote_hits_count, 0) as cacheable_task_remote_hits_count,
       COALESCE(cacheable_task_local_hits_count, 0) as cacheable_task_local_hits_count,
       COALESCE(cacheable_tasks_count, 0) as cacheable_tasks_count,
-      COALESCE(custom_tags, []) as custom_tags,
-      COALESCE(custom_values, map()) as custom_values,
+      [] as custom_tags,
+      map() as custom_values,
       inserted_at
     FROM postgresql('#{host}:#{port}', '#{database}', 'build_runs', '#{username}', '#{password}', 'public')
     """)
