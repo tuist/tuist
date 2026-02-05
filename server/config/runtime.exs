@@ -160,6 +160,21 @@ if Enum.member?([:prod, :stag, :can], env) do
     api_pipeline_producer_options: [buffer: :api_data_pipeline_in_memory_buffer]
 end
 
+if env == :dev do
+  dev_db_config =
+    for {env_var, key} <- [
+          {"DATABASE_USERNAME", :username},
+          {"DATABASE_PASSWORD", :password},
+          {"DATABASE_HOST", :hostname}
+        ],
+        value = System.get_env(env_var),
+        do: {key, value}
+
+  if dev_db_config != [] do
+    config :tuist, Tuist.Repo, dev_db_config
+  end
+end
+
 if Enum.member?([:prod, :stag, :can, :dev], env) do
   port = "8080"
   app_url = Tuist.Environment.app_url([route_type: :app], secrets)
