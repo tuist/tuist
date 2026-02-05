@@ -14,6 +14,28 @@ base_watchers = [
   esbuild_apidocs: {Esbuild, :install_and_run, [:apidocs, ~w(--sourcemap=inline --watch)]}
 ]
 
+# Configure your database
+database_config =
+  [
+    hostname: System.get_env("DATABASE_HOST", "localhost"),
+    database: "tuist_development",
+    stacktrace: true,
+    show_sensitive_data_on_connection_error: true,
+    pool_size: 10
+  ]
+  |> then(fn config ->
+    case System.get_env("DATABASE_USERNAME") do
+      nil -> config
+      username -> Keyword.put(config, :username, username)
+    end
+  end)
+  |> then(fn config ->
+    case System.get_env("DATABASE_PASSWORD") do
+      nil -> config
+      password -> Keyword.put(config, :password, password)
+    end
+  end)
+
 # Do not include metadata nor timestamps in development logs
 config :logger, :console, format: "[$level] $message\n"
 
@@ -46,29 +68,6 @@ config :tuist, Tuist.IngestRepo,
   pool_size: 5
 
 config :tuist, Tuist.Mailer, adapter: Bamboo.LocalAdapter
-
-# Configure your database
-database_config =
-  [
-    hostname: System.get_env("DATABASE_HOST", "localhost"),
-    database: "tuist_development",
-    stacktrace: true,
-    show_sensitive_data_on_connection_error: true,
-    pool_size: 10
-  ]
-  |> then(fn config ->
-    case System.get_env("DATABASE_USERNAME") do
-      nil -> config
-      username -> Keyword.put(config, :username, username)
-    end
-  end)
-  |> then(fn config ->
-    case System.get_env("DATABASE_PASSWORD") do
-      nil -> config
-      password -> Keyword.put(config, :password, password)
-    end
-  end)
-
 config :tuist, Tuist.Repo, database_config
 
 # When NOORA_LOCAL is set, override esbuild config to use local noora path via alias
