@@ -111,10 +111,28 @@
     }
   }
 
-  & [data-part="tasks-summary"] {
-    & > [data-part="label"] {
-      color: var(--noora-surface-label-secondary);
-      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  & [data-part="cacheable-tasks-card-section"] {
+    gap: var(--noora-spacing-5);
+
+    & > [data-part="title"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+
+      & > [data-part="label"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+
+      & > [data-part="value"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-semibold) var(--noora-font-body-medium);
+      }
+    }
+
+    & > .noora-chart {
+      height: 62px;
     }
   }
 }

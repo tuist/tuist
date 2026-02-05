@@ -17,8 +17,8 @@ defmodule Tuist.Gradle.AnalyticsTest do
         project_id: project.id,
         inserted_at: @now,
         tasks: [
-          %{task_path: ":app:compileKotlin", outcome: "from_cache", cacheable: true},
-          %{task_path: ":app:compileJava", outcome: "from_cache", cacheable: true},
+          %{task_path: ":app:compileKotlin", outcome: "local_hit", cacheable: true},
+          %{task_path: ":app:compileJava", outcome: "local_hit", cacheable: true},
           %{task_path: ":app:assembleDebug", outcome: "executed", cacheable: true},
           %{task_path: ":app:test", outcome: "executed", cacheable: true}
         ]
@@ -44,7 +44,7 @@ defmodule Tuist.Gradle.AnalyticsTest do
         project_id: project.id,
         inserted_at: @now,
         tasks: [
-          %{task_path: ":app:compileKotlin", outcome: "from_cache", cacheable: true},
+          %{task_path: ":app:compileKotlin", outcome: "local_hit", cacheable: true},
           %{task_path: ":app:clean", outcome: "executed", cacheable: false},
           %{task_path: ":app:assembleDebug", outcome: "executed", cacheable: true}
         ]
@@ -62,7 +62,7 @@ defmodule Tuist.Gradle.AnalyticsTest do
         project_id: project.id,
         inserted_at: @now,
         tasks: [
-          %{task_path: ":app:compileKotlin", outcome: "from_cache", cacheable: true}
+          %{task_path: ":app:compileKotlin", outcome: "local_hit", cacheable: true}
         ]
       )
 
@@ -88,7 +88,7 @@ defmodule Tuist.Gradle.AnalyticsTest do
         project_id: project.id,
         inserted_at: @now,
         tasks: [
-          %{task_path: ":app:compileKotlin", outcome: "from_cache", cacheable: true},
+          %{task_path: ":app:compileKotlin", outcome: "local_hit", cacheable: true},
           %{task_path: ":app:compileJava", outcome: "up_to_date", cacheable: false},
           %{task_path: ":app:assembleDebug", outcome: "executed", cacheable: true},
           %{task_path: ":app:test", outcome: "executed", cacheable: true}
@@ -115,7 +115,7 @@ defmodule Tuist.Gradle.AnalyticsTest do
         project_id: project.id,
         inserted_at: @now,
         tasks: [
-          %{task_path: ":app:compileKotlin", outcome: "from_cache", cacheable: true},
+          %{task_path: ":app:compileKotlin", outcome: "local_hit", cacheable: true},
           %{task_path: ":app:compileJava", outcome: "up_to_date", cacheable: false},
           %{task_path: ":app:test", outcome: "failed", cacheable: true},
           %{task_path: ":app:lint", outcome: "skipped", cacheable: false},
@@ -137,7 +137,7 @@ defmodule Tuist.Gradle.AnalyticsTest do
         project_id: project.id,
         inserted_at: @now,
         tasks: [
-          %{task_path: ":app:compileKotlin", outcome: "from_cache", cacheable: true},
+          %{task_path: ":app:compileKotlin", outcome: "local_hit", cacheable: true},
           %{task_path: ":app:assembleDebug", outcome: "executed", cacheable: true}
         ]
       )
@@ -180,7 +180,7 @@ defmodule Tuist.Gradle.AnalyticsTest do
         project_id: project.id,
         inserted_at: @now,
         tasks: [
-          %{task_path: ":app:compileKotlin", outcome: "from_cache", cacheable: true},
+          %{task_path: ":app:compileKotlin", outcome: "local_hit", cacheable: true},
           %{task_path: ":app:assembleDebug", outcome: "executed", cacheable: true}
         ]
       )
@@ -223,8 +223,8 @@ defmodule Tuist.Gradle.AnalyticsTest do
         project_id: project.id,
         inserted_at: @now,
         tasks: [
-          %{task_path: ":app:compileKotlin", outcome: "from_cache", cacheable: true},
-          %{task_path: ":app:compileJava", outcome: "from_cache", cacheable: true},
+          %{task_path: ":app:compileKotlin", outcome: "local_hit", cacheable: true},
+          %{task_path: ":app:compileJava", outcome: "local_hit", cacheable: true},
           %{task_path: ":app:resources", outcome: "up_to_date", cacheable: false},
           %{task_path: ":app:assembleDebug", outcome: "executed", cacheable: true},
           %{task_path: ":app:test", outcome: "failed", cacheable: true},
@@ -240,7 +240,8 @@ defmodule Tuist.Gradle.AnalyticsTest do
           end_datetime: @end_datetime
         )
 
-      assert got.from_cache == 2
+      assert got.local_hit == 2
+      assert got.remote_hit == 0
       assert got.up_to_date == 1
       assert got.executed == 1
       assert got.failed == 1
@@ -258,7 +259,8 @@ defmodule Tuist.Gradle.AnalyticsTest do
           end_datetime: @end_datetime
         )
 
-      assert got.from_cache == 0
+      assert got.local_hit == 0
+      assert got.remote_hit == 0
       assert got.up_to_date == 0
       assert got.executed == 0
       assert got.failed == 0
@@ -351,7 +353,7 @@ defmodule Tuist.Gradle.AnalyticsTest do
         project_id: project.id,
         inserted_at: @now,
         tasks: [
-          %{task_path: ":app:compileKotlin", outcome: "from_cache", cacheable: true},
+          %{task_path: ":app:compileKotlin", outcome: "local_hit", cacheable: true},
           %{task_path: ":app:assembleDebug", outcome: "executed", cacheable: true}
         ]
       )
@@ -367,7 +369,7 @@ defmodule Tuist.Gradle.AnalyticsTest do
       assert is_number(hit_rate_p99.total_percentile_hit_rate)
       assert is_number(hit_rate_p90.total_percentile_hit_rate)
       assert is_number(hit_rate_p50.total_percentile_hit_rate)
-      assert task_breakdown.from_cache == 1
+      assert task_breakdown.local_hit == 1
       assert task_breakdown.executed == 1
       assert is_map(cache_events.uploads)
       assert is_map(cache_events.downloads)

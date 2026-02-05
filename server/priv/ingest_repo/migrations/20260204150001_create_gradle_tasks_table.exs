@@ -13,9 +13,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateGradleTasksTable do
       add :task_path, :string, null: false
       add :task_type, :"Nullable(String)"
 
-      add :outcome,
-          :"Enum8('from_cache' = 0, 'up_to_date' = 1, 'executed' = 2, 'failed' = 3, 'skipped' = 4, 'no_source' = 5)",
-          null: false
+      add :outcome, :"LowCardinality(String)", null: false
 
       add :cacheable, :Bool, null: false, default: false
       add :duration_ms, :UInt64, null: false, default: 0

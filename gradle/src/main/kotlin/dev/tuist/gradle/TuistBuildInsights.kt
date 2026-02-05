@@ -20,8 +20,28 @@ import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URI
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import javax.inject.Inject
+
+// --- Remote Cache Tracker ---
+
+object RemoteCacheTracker {
+    private val isRemoteHit = ThreadLocal<Boolean>()
+    private val taskCacheOrigins = ConcurrentHashMap<String, Boolean>()
+
+    fun markRemoteHit() { isRemoteHit.set(true) }
+
+    fun consumeAndRecordForTask(taskPath: String) {
+        val wasRemote = isRemoteHit.get() ?: false
+        isRemoteHit.remove()
+        taskCacheOrigins[taskPath] = wasRemote
+    }
+
+    fun wasRemoteHit(taskPath: String): Boolean = taskCacheOrigins[taskPath] ?: false
+
+    fun clear() { taskCacheOrigins.clear(); isRemoteHit.remove() }
+}
 
 // --- Data classes ---
 
@@ -164,7 +184,10 @@ abstract class TuistBuildInsightsService :
         val (outcome, cacheable) = when (result) {
             is TaskSuccessResult -> {
                 when {
-                    result.isFromCache -> "from_cache" to true
+                    result.isFromCache -> {
+                        val outcome = if (RemoteCacheTracker.wasRemoteHit(taskPath)) "remote_hit" else "local_hit"
+                        outcome to true
+                    }
                     result.isUpToDate -> "up_to_date" to cacheableTaskPaths.contains(taskPath)
                     else -> "executed" to cacheableTaskPaths.contains(taskPath)
                 }
@@ -225,7 +248,7 @@ abstract class TuistBuildInsightsService :
         val totalDurationMs = System.currentTimeMillis() - buildStartTime
 
         val avoidanceSavingsMs = tasks
-            .filter { it.outcome == "from_cache" || it.outcome == "up_to_date" }
+            .filter { it.outcome == "local_hit" || it.outcome == "remote_hit" || it.outcome == "up_to_date" }
             .sumOf { it.durationMs }
 
         val status = when {
@@ -305,6 +328,10 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
                 .map { it.path }
                 .toSet()
             serviceProvider.get().setCacheableTasks(cacheablePaths)
+        }
+
+        project.gradle.taskGraph.afterTask {
+            RemoteCacheTracker.consumeAndRecordForTask(path)
         }
     }
 }

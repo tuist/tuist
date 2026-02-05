@@ -10,6 +10,7 @@ import java.net.URI
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class TuistBuildInsightsTest {
@@ -47,11 +48,12 @@ class TuistBuildInsightsTest {
             gitBranch = "main",
             gitCommitSha = "abc123",
             gitRef = "v1.0.0",
+            rootProjectName = null,
             avoidanceSavingsMs = 2000,
             tasks = listOf(
                 TaskReportEntry(
                     taskPath = ":app:compileKotlin",
-                    outcome = "from_cache",
+                    outcome = "local_hit",
                     cacheable = true,
                     durationMs = 1000,
                     taskType = "org.jetbrains.kotlin.gradle.tasks.KotlinCompile"
@@ -92,7 +94,7 @@ class TuistBuildInsightsTest {
         val tasks = body["tasks"] as List<Map<String, Any>>
         assertEquals(2, tasks.size)
         assertEquals(":app:compileKotlin", tasks[0]["task_path"])
-        assertEquals("from_cache", tasks[0]["outcome"])
+        assertEquals("local_hit", tasks[0]["outcome"])
         assertEquals(true, tasks[0]["cacheable"])
     }
 
@@ -114,6 +116,7 @@ class TuistBuildInsightsTest {
             gitBranch = null,
             gitCommitSha = null,
             gitRef = null,
+            rootProjectName = null,
             avoidanceSavingsMs = 0,
             tasks = emptyList()
         )
@@ -142,6 +145,7 @@ class TuistBuildInsightsTest {
             gitBranch = null,
             gitCommitSha = null,
             gitRef = null,
+            rootProjectName = null,
             avoidanceSavingsMs = 0,
             tasks = emptyList()
         )
@@ -194,6 +198,44 @@ class TuistBuildInsightsTest {
     }
 
     @Test
+    fun `RemoteCacheTracker marks remote hit and records for task`() {
+        RemoteCacheTracker.clear()
+
+        RemoteCacheTracker.markRemoteHit()
+        RemoteCacheTracker.consumeAndRecordForTask(":app:compileKotlin")
+
+        assertTrue(RemoteCacheTracker.wasRemoteHit(":app:compileKotlin"))
+    }
+
+    @Test
+    fun `RemoteCacheTracker defaults to local hit when no remote mark`() {
+        RemoteCacheTracker.clear()
+
+        RemoteCacheTracker.consumeAndRecordForTask(":app:compileKotlin")
+
+        assertFalse(RemoteCacheTracker.wasRemoteHit(":app:compileKotlin"))
+    }
+
+    @Test
+    fun `RemoteCacheTracker returns false for unknown task`() {
+        RemoteCacheTracker.clear()
+
+        assertFalse(RemoteCacheTracker.wasRemoteHit(":unknown:task"))
+    }
+
+    @Test
+    fun `RemoteCacheTracker clear resets all state`() {
+        RemoteCacheTracker.clear()
+
+        RemoteCacheTracker.markRemoteHit()
+        RemoteCacheTracker.consumeAndRecordForTask(":app:compileKotlin")
+        assertTrue(RemoteCacheTracker.wasRemoteHit(":app:compileKotlin"))
+
+        RemoteCacheTracker.clear()
+        assertFalse(RemoteCacheTracker.wasRemoteHit(":app:compileKotlin"))
+    }
+
+    @Test
     fun `BuildReportRequest serializes with snake_case field names`() {
         val report = BuildReportRequest(
             durationMs = 5000,
@@ -204,6 +246,7 @@ class TuistBuildInsightsTest {
             gitBranch = "main",
             gitCommitSha = "abc",
             gitRef = "v1",
+            rootProjectName = null,
             avoidanceSavingsMs = 2000,
             tasks = emptyList()
         )

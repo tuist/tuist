@@ -11,9 +11,7 @@ defmodule Tuist.Gradle.Task do
     field :task_path, Ch, type: "String"
     field :task_type, Ch, type: "Nullable(String)"
 
-    field :outcome,
-          Ch,
-          type: "Enum8('from_cache' = 0, 'up_to_date' = 1, 'executed' = 2, 'failed' = 3, 'skipped' = 4, 'no_source' = 5)"
+    field :outcome, Ch, type: "LowCardinality(String)"
 
     field :cacheable, Ch, type: "Bool"
     field :duration_ms, Ch, type: "UInt64"

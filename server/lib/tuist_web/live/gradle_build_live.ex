@@ -34,7 +34,7 @@ defmodule TuistWeb.GradleBuildLive do
   end
 
   defp cache_hit_rate(build) do
-    from_cache = build.tasks_from_cache_count || 0
+    from_cache = (build.tasks_local_hit_count || 0) + (build.tasks_remote_hit_count || 0)
     executed = build.tasks_executed_count || 0
     total = from_cache + executed
 
@@ -46,7 +46,7 @@ defmodule TuistWeb.GradleBuildLive do
   end
 
   defp avoidance_rate(build) do
-    from_cache = build.tasks_from_cache_count || 0
+    from_cache = (build.tasks_local_hit_count || 0) + (build.tasks_remote_hit_count || 0)
     up_to_date = build.tasks_up_to_date_count || 0
     executed = build.tasks_executed_count || 0
     failed = build.tasks_failed_count || 0
@@ -61,22 +61,15 @@ defmodule TuistWeb.GradleBuildLive do
     end
   end
 
-  defp total_tasks(build) do
-    (build.tasks_from_cache_count || 0) +
-      (build.tasks_up_to_date_count || 0) +
-      (build.tasks_executed_count || 0) +
-      (build.tasks_failed_count || 0) +
-      (build.tasks_skipped_count || 0) +
-      (build.tasks_no_source_count || 0)
-  end
-
-  defp outcome_color("from_cache"), do: "success"
+  defp outcome_color("local_hit"), do: "success"
+  defp outcome_color("remote_hit"), do: "information"
   defp outcome_color("up_to_date"), do: "information"
   defp outcome_color("executed"), do: "secondary"
   defp outcome_color("failed"), do: "destructive"
   defp outcome_color(_), do: "secondary"
 
-  defp outcome_label("from_cache"), do: dgettext("dashboard_gradle", "From cache")
+  defp outcome_label("local_hit"), do: dgettext("dashboard_gradle", "Local hit")
+  defp outcome_label("remote_hit"), do: dgettext("dashboard_gradle", "Remote hit")
   defp outcome_label("up_to_date"), do: dgettext("dashboard_gradle", "Up-to-date")
   defp outcome_label("executed"), do: dgettext("dashboard_gradle", "Executed")
   defp outcome_label("failed"), do: dgettext("dashboard_gradle", "Failed")

@@ -3,8 +3,8 @@ defmodule Tuist.Gradle.Analytics do
   Analytics module for Gradle build insights.
 
   Provides Gradle-native metrics following Develocity conventions:
-  - Cache hit rate: FROM_CACHE / (FROM_CACHE + EXECUTED) for cacheable tasks
-  - Avoidance rate: (FROM_CACHE + UP_TO_DATE) / total_tasks
+  - Cache hit rate: (LOCAL_HIT + REMOTE_HIT) / CACHEABLE for cacheable tasks
+  - Avoidance rate: (LOCAL_HIT + REMOTE_HIT + UP_TO_DATE) / total_tasks
   - Task outcome breakdown
   - Cache event analytics
   """
@@ -19,7 +19,7 @@ defmodule Tuist.Gradle.Analytics do
   @doc """
   Calculates the cache hit rate for a project over a time period.
 
-  Cache hit rate = FROM_CACHE / (FROM_CACHE + EXECUTED) for cacheable tasks only.
+  Cache hit rate = (LOCAL_HIT + REMOTE_HIT) / CACHEABLE for cacheable tasks only.
 
   ## Returns
     A float between 0.0 and 100.0, or 0.0 if no data.
@@ -33,7 +33,8 @@ defmodule Tuist.Gradle.Analytics do
             b.inserted_at <= ^DateTime.to_naive(end_datetime) and
             b.cacheable_tasks_count > 0,
         select: %{
-          from_cache: sum(b.tasks_from_cache_count),
+          local_hit: sum(b.tasks_local_hit_count),
+          remote_hit: sum(b.tasks_remote_hit_count),
           cacheable: sum(b.cacheable_tasks_count)
         }
       )
@@ -41,8 +42,10 @@ defmodule Tuist.Gradle.Analytics do
     result = ClickHouseRepo.one(query)
 
     case result do
-      %{from_cache: from_cache, cacheable: cacheable}
-      when not is_nil(from_cache) and not is_nil(cacheable) ->
+      %{local_hit: local_hit, remote_hit: remote_hit, cacheable: cacheable}
+      when not is_nil(cacheable) ->
+        from_cache = (local_hit || 0) + (remote_hit || 0)
+
         if cacheable > 0 do
           from_cache / cacheable * 100.0
         else
@@ -57,7 +60,7 @@ defmodule Tuist.Gradle.Analytics do
   @doc """
   Calculates the avoidance rate for a project over a time period.
 
-  Avoidance rate = (FROM_CACHE + UP_TO_DATE) / total_tasks
+  Avoidance rate = (LOCAL_HIT + REMOTE_HIT + UP_TO_DATE) / total_tasks
 
   This represents the percentage of tasks that didn't need to execute.
 
@@ -72,9 +75,12 @@ defmodule Tuist.Gradle.Analytics do
             b.inserted_at >= ^DateTime.to_naive(start_datetime) and
             b.inserted_at <= ^DateTime.to_naive(end_datetime),
         select: %{
-          avoided: sum(b.tasks_from_cache_count) + sum(b.tasks_up_to_date_count),
+          avoided:
+            sum(b.tasks_local_hit_count) + sum(b.tasks_remote_hit_count) +
+              sum(b.tasks_up_to_date_count),
           total:
-            sum(b.tasks_from_cache_count) + sum(b.tasks_up_to_date_count) +
+            sum(b.tasks_local_hit_count) + sum(b.tasks_remote_hit_count) +
+              sum(b.tasks_up_to_date_count) +
               sum(b.tasks_executed_count) + sum(b.tasks_failed_count) +
               sum(b.tasks_skipped_count) + sum(b.tasks_no_source_count)
         }
@@ -140,7 +146,8 @@ defmodule Tuist.Gradle.Analytics do
             b.cacheable_tasks_count > 0,
         select: %{
           date: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format),
-          from_cache: sum(b.tasks_from_cache_count),
+          local_hit: sum(b.tasks_local_hit_count),
+          remote_hit: sum(b.tasks_remote_hit_count),
           cacheable: sum(b.cacheable_tasks_count)
         },
         order_by: [asc: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format)]
@@ -150,10 +157,11 @@ defmodule Tuist.Gradle.Analytics do
     |> ClickHouseRepo.all()
     |> Enum.map(fn row ->
       cacheable = row.cacheable || 0
+      from_cache = (row.local_hit || 0) + (row.remote_hit || 0)
 
       hit_rate =
         if cacheable > 0 do
-          (row.from_cache || 0) / cacheable * 100.0
+          from_cache / cacheable * 100.0
         else
           0.0
         end
@@ -217,9 +225,10 @@ defmodule Tuist.Gradle.Analytics do
             b.cacheable_tasks_count > 0,
         select:
           fragment(
-            "quantile(?)(? / ? * 100.0)",
+            "quantile(?)(( ? + ? ) / ? * 100.0)",
             ^flipped_percentile,
-            b.tasks_from_cache_count,
+            b.tasks_local_hit_count,
+            b.tasks_remote_hit_count,
             b.cacheable_tasks_count
           )
       )
@@ -246,9 +255,10 @@ defmodule Tuist.Gradle.Analytics do
           date: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format),
           percentile_hit_rate:
             fragment(
-              "quantile(?)(? / ? * 100.0)",
+              "quantile(?)(( ? + ? ) / ? * 100.0)",
               ^flipped_percentile,
-              b.tasks_from_cache_count,
+              b.tasks_local_hit_count,
+              b.tasks_remote_hit_count,
               b.cacheable_tasks_count
             )
         },
@@ -267,7 +277,8 @@ defmodule Tuist.Gradle.Analytics do
 
   ## Returns
     A map with counts for each outcome:
-    - `:from_cache` - Tasks restored from cache
+    - `:local_hit` - Tasks restored from local cache
+    - `:remote_hit` - Tasks restored from remote cache
     - `:up_to_date` - Tasks that were up to date
     - `:executed` - Tasks that were executed
     - `:failed` - Tasks that failed
@@ -285,7 +296,8 @@ defmodule Tuist.Gradle.Analytics do
             b.inserted_at >= ^DateTime.to_naive(start_datetime) and
             b.inserted_at <= ^DateTime.to_naive(end_datetime),
         select: %{
-          from_cache: sum(b.tasks_from_cache_count),
+          local_hit: sum(b.tasks_local_hit_count),
+          remote_hit: sum(b.tasks_remote_hit_count),
           up_to_date: sum(b.tasks_up_to_date_count),
           executed: sum(b.tasks_executed_count),
           failed: sum(b.tasks_failed_count),
@@ -296,14 +308,7 @@ defmodule Tuist.Gradle.Analytics do
 
     result = ClickHouseRepo.one(query)
 
-    %{
-      from_cache: result.from_cache || 0,
-      up_to_date: result.up_to_date || 0,
-      executed: result.executed || 0,
-      failed: result.failed || 0,
-      skipped: result.skipped || 0,
-      no_source: result.no_source || 0
-    }
+    Map.new(result, fn {key, value} -> {key, value || 0} end)
   end
 
   @doc """

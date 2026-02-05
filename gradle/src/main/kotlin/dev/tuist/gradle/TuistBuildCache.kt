@@ -209,6 +209,7 @@ class TuistBuildCacheService(
                     connection.inputStream.use { input ->
                         reader.readFrom(input)
                     }
+                    RemoteCacheTracker.markRemoteHit()
                     true
                 }
                 HttpURLConnection.HTTP_NOT_FOUND -> false

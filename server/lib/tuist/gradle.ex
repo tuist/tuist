@@ -54,7 +54,8 @@ defmodule Tuist.Gradle do
       git_commit_sha: Map.get(attrs, :git_commit_sha),
       git_ref: Map.get(attrs, :git_ref),
       root_project_name: Map.get(attrs, :root_project_name),
-      tasks_from_cache_count: task_counts.from_cache,
+      tasks_local_hit_count: task_counts.local_hit,
+      tasks_remote_hit_count: task_counts.remote_hit,
       tasks_up_to_date_count: task_counts.up_to_date,
       tasks_executed_count: task_counts.executed,
       tasks_failed_count: task_counts.failed,
@@ -81,7 +82,7 @@ defmodule Tuist.Gradle do
   defp compute_task_counts(tasks) do
     Enum.reduce(
       tasks,
-      %{from_cache: 0, up_to_date: 0, executed: 0, failed: 0, skipped: 0, no_source: 0, cacheable: 0},
+      %{local_hit: 0, remote_hit: 0, up_to_date: 0, executed: 0, failed: 0, skipped: 0, no_source: 0, cacheable: 0},
       fn task, acc ->
         outcome = to_string(task.outcome)
         cacheable = Map.get(task, :cacheable, false)

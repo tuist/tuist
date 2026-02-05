@@ -66,7 +66,7 @@ defmodule TuistWeb.API.GradleController do
                  task_type: %Schema{type: :string, nullable: true, description: "Task type class name."},
                  outcome: %Schema{
                    type: :string,
-                   enum: ["from_cache", "up_to_date", "executed", "failed", "skipped", "no_source"],
+                   enum: ["local_hit", "remote_hit", "up_to_date", "executed", "failed", "skipped", "no_source"],
                    description: "Task outcome."
                  },
                  cacheable: %Schema{type: :boolean, description: "Whether the task is cacheable."},
@@ -188,7 +188,8 @@ defmodule TuistWeb.API.GradleController do
                    is_ci: %Schema{type: :boolean},
                    git_branch: %Schema{type: :string, nullable: true},
                    root_project_name: %Schema{type: :string, nullable: true},
-                   tasks_from_cache_count: %Schema{type: :integer},
+                   tasks_local_hit_count: %Schema{type: :integer},
+                   tasks_remote_hit_count: %Schema{type: :integer},
                    tasks_up_to_date_count: %Schema{type: :integer},
                    tasks_executed_count: %Schema{type: :integer},
                    cacheable_tasks_count: %Schema{type: :integer},
@@ -222,7 +223,8 @@ defmodule TuistWeb.API.GradleController do
             is_ci: build.is_ci,
             git_branch: build.git_branch,
             root_project_name: build.root_project_name,
-            tasks_from_cache_count: build.tasks_from_cache_count,
+            tasks_local_hit_count: build.tasks_local_hit_count,
+            tasks_remote_hit_count: build.tasks_remote_hit_count,
             tasks_up_to_date_count: build.tasks_up_to_date_count,
             tasks_executed_count: build.tasks_executed_count,
             cacheable_tasks_count: build.cacheable_tasks_count,
@@ -272,7 +274,8 @@ defmodule TuistWeb.API.GradleController do
              git_commit_sha: %Schema{type: :string, nullable: true},
              git_ref: %Schema{type: :string, nullable: true},
              root_project_name: %Schema{type: :string, nullable: true},
-             tasks_from_cache_count: %Schema{type: :integer},
+             tasks_local_hit_count: %Schema{type: :integer},
+             tasks_remote_hit_count: %Schema{type: :integer},
              tasks_up_to_date_count: %Schema{type: :integer},
              tasks_executed_count: %Schema{type: :integer},
              tasks_failed_count: %Schema{type: :integer},
@@ -327,7 +330,8 @@ defmodule TuistWeb.API.GradleController do
             git_commit_sha: build.git_commit_sha,
             git_ref: build.git_ref,
             root_project_name: build.root_project_name,
-            tasks_from_cache_count: build.tasks_from_cache_count,
+            tasks_local_hit_count: build.tasks_local_hit_count,
+            tasks_remote_hit_count: build.tasks_remote_hit_count,
             tasks_up_to_date_count: build.tasks_up_to_date_count,
             tasks_executed_count: build.tasks_executed_count,
             tasks_failed_count: build.tasks_failed_count,
@@ -405,7 +409,8 @@ defmodule TuistWeb.API.GradleController do
              task_outcomes: %Schema{
                type: :object,
                properties: %{
-                 from_cache: %Schema{type: :integer},
+                 local_hit: %Schema{type: :integer},
+                 remote_hit: %Schema{type: :integer},
                  up_to_date: %Schema{type: :integer},
                  executed: %Schema{type: :integer},
                  failed: %Schema{type: :integer},
@@ -477,16 +482,19 @@ defmodule TuistWeb.API.GradleController do
   end
 
   defp calculate_cache_hit_rate(build) do
-    total = (build.tasks_from_cache_count || 0) + (build.tasks_executed_count || 0)
+    from_cache = (build.tasks_local_hit_count || 0) + (build.tasks_remote_hit_count || 0)
+    total = from_cache + (build.tasks_executed_count || 0)
 
     if total > 0 do
-      Float.round((build.tasks_from_cache_count || 0) / total * 100.0, 1)
+      Float.round(from_cache / total * 100.0, 1)
     end
   end
 
   defp calculate_avoidance_rate(build) do
+    from_cache = (build.tasks_local_hit_count || 0) + (build.tasks_remote_hit_count || 0)
+
     counts = [
-      build.tasks_from_cache_count,
+      from_cache,
       build.tasks_up_to_date_count,
       build.tasks_executed_count,
       build.tasks_failed_count,
@@ -497,7 +505,7 @@ defmodule TuistWeb.API.GradleController do
     total = counts |> Enum.map(&(&1 || 0)) |> Enum.sum()
 
     if total > 0 do
-      avoided = (build.tasks_from_cache_count || 0) + (build.tasks_up_to_date_count || 0)
+      avoided = from_cache + (build.tasks_up_to_date_count || 0)
       Float.round(avoided / total * 100.0, 1)
     end
   end

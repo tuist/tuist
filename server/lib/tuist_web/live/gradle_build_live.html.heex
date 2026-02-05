@@ -157,18 +157,134 @@
     icon="subtask"
     data-part="tasks-card"
   >
-    <.card_section data-part="tasks-summary">
-      <span data-part="label">
-        {dgettext(
-          "dashboard_gradle",
-          "%{total} tasks: %{from_cache} from cache, %{up_to_date} up-to-date, %{executed} executed in %{duration}",
-          total: total_tasks(@build),
-          from_cache: @build.tasks_from_cache_count || 0,
-          up_to_date: @build.tasks_up_to_date_count || 0,
-          executed: @build.tasks_executed_count || 0,
-          duration: format_duration(@build.duration_ms)
-        )}
-      </span>
+    <.card_section
+      :if={(@build.cacheable_tasks_count || 0) > 0}
+      data-part="cacheable-tasks-card-section"
+    >
+      <div data-part="title">
+        <span data-part="label">
+          {dgettext("dashboard_gradle", "Cacheable tasks:")}
+        </span>
+        <span data-part="value">
+          {@build.cacheable_tasks_count || 0}
+        </span>
+      </div>
+      <.chart
+        id="cacheable-tasks-breakdown-chart"
+        type="bar"
+        extra_options={
+          %{
+            tooltip: %{
+              trigger: "axis",
+              axisPointer: %{
+                type: "none"
+              }
+            },
+            legend: %{
+              left: "-0.3%",
+              top: "bottom",
+              orient: "horizontal",
+              textStyle: %{
+                color: "var:noora-surface-label-primary",
+                fontFamily: "monospace",
+                fontWeight: 400,
+                fontSize: 10,
+                lineHeight: 12
+              },
+              icon:
+                "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+              itemWidth: 8,
+              itemHeight: 4
+            },
+            grid: %{
+              width: "99%",
+              left: "0%",
+              height: "60%",
+              top: "0%"
+            },
+            xAxis: %{
+              type: "value",
+              axisLabel: %{
+                show: false
+              },
+              splitLine: %{show: false}
+            },
+            yAxis: %{
+              type: "category",
+              data: [dgettext("dashboard_gradle", "Cacheable tasks")],
+              axisLabel: %{
+                show: false
+              }
+            }
+          }
+        }
+        series={
+          local_hit = @build.tasks_local_hit_count || 0
+          remote_hit = @build.tasks_remote_hit_count || 0
+          from_cache = local_hit + remote_hit
+          misses = (@build.cacheable_tasks_count || 0) - from_cache
+
+          [
+            %{
+              name: dgettext("dashboard_gradle", "Local hit"),
+              type: "bar",
+              stack: "total",
+              emphasis: %{
+                focus: "series"
+              },
+              data: [local_hit],
+              color: "var:hits-chart-legend-local",
+              itemStyle: %{
+                borderRadius:
+                  if(local_hit > 0 and remote_hit == 0 and misses == 0,
+                    do: [8, 8, 8, 8],
+                    else: if(local_hit > 0, do: [8, 0, 0, 8], else: [0, 0, 0, 0])
+                  )
+              }
+            },
+            %{
+              name: dgettext("dashboard_gradle", "Remote hit"),
+              type: "bar",
+              stack: "total",
+              emphasis: %{
+                focus: "series"
+              },
+              data: [remote_hit],
+              color: "var:hits-chart-legend-remote",
+              itemStyle: %{
+                borderRadius:
+                  if(remote_hit > 0 and misses == 0 and local_hit == 0,
+                    do: [8, 8, 8, 8],
+                    else:
+                      if(remote_hit > 0 and misses == 0,
+                        do: [0, 8, 8, 0],
+                        else: [0, 0, 0, 0]
+                      )
+                  )
+              }
+            },
+            %{
+              name: dgettext("dashboard_gradle", "Missed"),
+              type: "bar",
+              stack: "total",
+              emphasis: %{
+                focus: "series"
+              },
+              data: [misses],
+              color: "var:hits-chart-legend-missed",
+              itemStyle: %{
+                borderRadius:
+                  if(misses > 0 and from_cache == 0,
+                    do: [8, 8, 8, 8],
+                    else: if(misses > 0, do: [0, 8, 8, 0], else: [0, 0, 0, 0])
+                  )
+              }
+            }
+          ]
+        }
+        x_axis_min={0}
+        x_axis_max={@build.cacheable_tasks_count || 0}
+      />
     </.card_section>
     <.card_section data-part="tasks-table-section">
       <.table id="gradle-tasks-table" rows={@tasks}>

@@ -205,7 +205,7 @@ defmodule TuistWeb.GradleInsightsLive do
   end
 
   def cache_hit_rate(build) do
-    from_cache = build.tasks_from_cache_count || 0
+    from_cache = (build.tasks_local_hit_count || 0) + (build.tasks_remote_hit_count || 0)
     executed = build.tasks_executed_count || 0
     total = from_cache + executed
 
@@ -217,7 +217,7 @@ defmodule TuistWeb.GradleInsightsLive do
   end
 
   def avoidance_rate(build) do
-    from_cache = build.tasks_from_cache_count || 0
+    from_cache = (build.tasks_local_hit_count || 0) + (build.tasks_remote_hit_count || 0)
     up_to_date = build.tasks_up_to_date_count || 0
     executed = build.tasks_executed_count || 0
     failed = build.tasks_failed_count || 0
