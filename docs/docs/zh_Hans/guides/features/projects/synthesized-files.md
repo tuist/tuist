@@ -83,7 +83,7 @@ bundle。
 来合成访问资源的接口。有了它，您就可以利用编译器捕捉任何问题，放心地访问资源。
 
 Tuist 包含
-[模板](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator/Templates)，默认情况下为以下资源类型合成访问器：
+[模板](https://github.com/tuist/tuist/tree/main/cli/Sources/TuistGenerator/Templates)，默认情况下为以下资源类型合成访问器：
 
 | 资源类型  | 合成文件                     |
 | ----- | ------------------------ |

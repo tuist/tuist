@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.138.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* add extension bundle search paths for resource accessors by [@pepicrft](https://github.com/pepicrft) in [#9344](https://github.com/tuist/tuist/pull/9344)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.138.0...4.138.1
+
 ## What's Changed in 4.138.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features

@@ -94,7 +94,7 @@ NSBundle *bundle = [MyFeatureResources bundle];
 합성합니다. 덕분에 컴파일러를 활용하여 리소스에 자신 있게 액세스하여 문제를 포착할 수 있습니다.
 
 Tuist에는 기본적으로 다음 리소스 유형에 대한 접근자를 합성하는
-[템플릿](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator/Templates)이
+[템플릿](https://github.com/tuist/tuist/tree/main/cli/Sources/TuistGenerator/Templates)이
 포함되어 있습니다:
 
 | 리소스 유형   | 합성된 파일                  |
