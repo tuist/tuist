@@ -5,6 +5,8 @@ import Path
 import Testing
 import TuistAcceptanceTesting
 import TuistCacheCommand
+import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistServer
 import TuistSupport
 import TuistTesting

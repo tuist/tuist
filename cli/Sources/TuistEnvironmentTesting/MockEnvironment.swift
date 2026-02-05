@@ -82,6 +82,7 @@ extension Environment {
 public struct EnvironmentTestingTrait: TestTrait, SuiteTrait, TestScoping {
     let inheritedVariables: [String]
     let arguments: [String]
+    let legacyModuleCache: Bool
 
     public func provideScope(
         for _: Test,
@@ -91,6 +92,9 @@ public struct EnvironmentTestingTrait: TestTrait, SuiteTrait, TestScoping {
         let mockEnvironment = try MockEnvironment()
         mockEnvironment.variables = ProcessInfo.processInfo.environment.filter { inheritedVariables.contains($0.key) }
         mockEnvironment.arguments = arguments
+        if legacyModuleCache {
+            mockEnvironment.variables["TUIST_LEGACY_MODULE_CACHE"] = "1"
+        }
         try await Environment.$current.withValue(mockEnvironment) {
             try await function()
         }
@@ -100,11 +104,13 @@ public struct EnvironmentTestingTrait: TestTrait, SuiteTrait, TestScoping {
 extension Trait where Self == EnvironmentTestingTrait {
     public static func withMockedEnvironment(
         inheritingVariables inheritedVariables: [String] = [],
-        arguments: [String] = []
+        arguments: [String] = [],
+        legacyModuleCache: Bool = false
     ) -> Self {
         Self(
             inheritedVariables: inheritedVariables,
-            arguments: arguments
+            arguments: arguments,
+            legacyModuleCache: legacyModuleCache
         )
     }
 }
