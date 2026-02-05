@@ -77,7 +77,7 @@ If a target product, for example a library, doesn't support resources, Tuist wil
 
 Resources are identified by their name and extension using strings. This is not ideal because it's not caught at compile time and might lead to crashes in release. To prevent that, Tuist integrates [SwiftGen](https://github.com/SwiftGen/SwiftGen) into the project generation process to synthesize an interface to access the resources. Thanks to that, you can confidently access the resources leveraging the compiler to catch any issues.
 
-Tuist includes [templates](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator/Templates) to synthesize accessors for the following resource types by default:
+Tuist includes [templates](https://github.com/tuist/tuist/tree/main/cli/Sources/TuistGenerator/Templates) to synthesize accessors for the following resource types by default:
 
 | Resource type | Synthesized file |
 | --- | ---- |

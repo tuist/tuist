@@ -108,7 +108,7 @@ NSBundle *bundle = [MyFeatureResources bundle];
 الموارد بالاستفادة من المحول البرمجي لاكتشاف أي مشاكل.
 
 يتضمّن تويست [قوالب]
-(https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator/Templates)
+(https://github.com/tuist/tuist/tree/main/cli/Sources/TuistGenerator/Templates)
 لتوليف المعالجات لأنواع الموارد التالية افتراضيًا:
 
 | نوع المورد     | ملف مركب                |

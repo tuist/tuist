@@ -122,7 +122,7 @@ puedes acceder con confianza a los recursos aprovechando el compilador para
 detectar cualquier problema.
 
 Tuist incluye
-[plantillas](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator/Templates)
+[plantillas](https://github.com/tuist/tuist/tree/main/cli/Sources/TuistGenerator/Templates)
 para sintetizar por defecto accesores para los siguientes tipos de recursos:
 
 | Tipo de recurso    | Sintetizado de ficheros     |

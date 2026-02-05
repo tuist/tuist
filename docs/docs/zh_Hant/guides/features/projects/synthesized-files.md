@@ -83,7 +83,7 @@ bundle。
 整合到專案產生流程中，以合成存取資源的介面。有了這個功能，您就可以放心地存取資源，並利用編譯器來捕捉任何問題。
 
 Tuist 預設包含
-[templates](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator/Templates)
+[templates](https://github.com/tuist/tuist/tree/main/cli/Sources/TuistGenerator/Templates)
 來合成下列資源類型的存取器：
 
 | 資源類型  | 合成檔案                     |

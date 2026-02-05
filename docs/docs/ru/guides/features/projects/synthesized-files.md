@@ -116,7 +116,7 @@ NSBundle *bundle = [MyFeatureResources bundle];
 проблем.
 
 По умолчанию Tuist включает
-[шаблоны](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator/Templates)
+[шаблоны](https://github.com/tuist/tuist/tree/main/cli/Sources/TuistGenerator/Templates)
 для синтеза аксессоров для следующих типов ресурсов:
 
 | Тип ресурса         | Синтезированные файлы    |

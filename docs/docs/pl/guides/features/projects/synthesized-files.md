@@ -116,7 +116,7 @@ można bez obaw uzyskać dostęp do zasobów, wykorzystując kompilator do
 wychwycenia wszelkich problemów.
 
 Tuist zawiera
-[szablony](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator/Templates)
+[szablony](https://github.com/tuist/tuist/tree/main/cli/Sources/TuistGenerator/Templates)
 do domyślnej syntezy akcesorów dla następujących typów zasobów:
 
 | Typ zasobu      | Syntetyzowane pliki      |
