@@ -21,11 +21,15 @@ defmodule Tuist.Builds do
   def valid_ci_providers, do: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
 
   def get_build(id) do
-    query = from(b in Build, where: b.id == ^id, order_by: [desc: b.inserted_at], limit: 1)
+    with {:ok, uuid} <- Ecto.UUID.cast(id) do
+      query = from(b in Build, where: b.id == ^uuid, order_by: [desc: b.inserted_at], limit: 1)
 
-    case ClickHouseRepo.one(query) do
-      nil -> nil
-      build -> Build.normalize_enums(build)
+      case ClickHouseRepo.one(query) do
+        nil -> nil
+        build -> Build.normalize_enums(build)
+      end
+    else
+      _ -> nil
     end
   end
 
@@ -70,9 +74,17 @@ defmodule Tuist.Builds do
 
     attrs = Map.merge(attrs, cacheable_task_counts)
 
-    build_data = Build.changeset(attrs)
+    attrs =
+      Map.update(attrs, :status, :success, fn
+        nil -> :success
+        other -> other
+      end)
 
-    if Build.valid_status?(build_data.status) do
+    changeset = Build.create_changeset(%Build{}, attrs)
+
+    if changeset.valid? do
+      build_data = Build.changeset(attrs)
+
       {:ok, build_map} = Build.Buffer.insert(build_data)
       build = Build |> struct(build_map) |> Build.normalize_enums()
 
@@ -99,7 +111,7 @@ defmodule Tuist.Builds do
 
       {:ok, build}
     else
-      {:error, :invalid_build_status}
+      {:error, changeset}
     end
   end
 
@@ -266,8 +278,16 @@ defmodule Tuist.Builds do
       countIf(operation = 'upload') as upload_count,
       sumIf(size, operation = 'download') as download_bytes,
       sumIf(size, operation = 'upload') as upload_bytes,
-      sumIf(size, operation = 'download' AND duration > 0) / sumIf(duration, operation = 'download' AND duration > 0) * 1000 as time_weighted_avg_download_throughput,
-      sumIf(size, operation = 'upload' AND duration > 0) / sumIf(duration, operation = 'upload' AND duration > 0) * 1000 as time_weighted_avg_upload_throughput
+      if(
+        sumIf(duration, operation = 'download' AND duration > 0) = 0,
+        0,
+        sumIf(size, operation = 'download' AND duration > 0) / sumIf(duration, operation = 'download' AND duration > 0) * 1000
+      ) as time_weighted_avg_download_throughput,
+      if(
+        sumIf(duration, operation = 'upload' AND duration > 0) = 0,
+        0,
+        sumIf(size, operation = 'upload' AND duration > 0) / sumIf(duration, operation = 'upload' AND duration > 0) * 1000
+      ) as time_weighted_avg_upload_throughput
     FROM cas_outputs
     WHERE build_run_id = {build_run_id:UUID}
     """
@@ -299,14 +319,14 @@ defmodule Tuist.Builds do
   def cacheable_task_latency_metrics(build_run_id) do
     query = """
     SELECT
-      avg(read_duration) as avg_read_duration,
-      avg(write_duration) as avg_write_duration,
-      quantile(0.99)(read_duration) as p99_read_duration,
-      quantile(0.99)(write_duration) as p99_write_duration,
-      quantile(0.90)(read_duration) as p90_read_duration,
-      quantile(0.90)(write_duration) as p90_write_duration,
-      quantile(0.50)(read_duration) as p50_read_duration,
-      quantile(0.50)(write_duration) as p50_write_duration
+      avgOrNull(read_duration) as avg_read_duration,
+      avgOrNull(write_duration) as avg_write_duration,
+      quantileOrNull(0.99)(read_duration) as p99_read_duration,
+      quantileOrNull(0.99)(write_duration) as p99_write_duration,
+      quantileOrNull(0.90)(read_duration) as p90_read_duration,
+      quantileOrNull(0.90)(write_duration) as p90_write_duration,
+      quantileOrNull(0.50)(read_duration) as p50_read_duration,
+      quantileOrNull(0.50)(write_duration) as p50_write_duration
     FROM cacheable_tasks
     WHERE build_run_id = {build_run_id:UUID}
     AND (read_duration IS NOT NULL OR write_duration IS NOT NULL)

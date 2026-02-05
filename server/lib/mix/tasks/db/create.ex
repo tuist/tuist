@@ -17,18 +17,6 @@ defmodule Mix.Tasks.Db.Create do
 
     for repo <- repos do
       ensure_repo(repo, args)
-
-      case repo do
-        Tuist.ClickHouseRepo ->
-          :ok
-
-        Tuist.IngestRepo ->
-          :ok
-
-        Tuist.Repo ->
-          {:ok, _} =
-            Ecto.Adapters.SQL.query(repo, "CREATE EXTENSION IF NOT EXISTS timescaledb", [])
-      end
     end
   end
 end
