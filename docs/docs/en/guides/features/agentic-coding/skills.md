@@ -21,6 +21,15 @@ SKILL_NAME=tuist-migrate
 SKILL_URL=https://tuist.dev/skills/migrate/SKILL.md
 ```
 
+### Use Tuist generated projects
+
+Guides day-to-day work in Tuist-generated workspaces: generation, build/test commands, and buildable folders.
+
+```bash
+SKILL_NAME=tuist-generated-projects
+SKILL_URL=https://tuist.dev/skills/generated-projects/SKILL.md
+```
+
 ## Installation
 
 Each coding agent has its own mechanism for loading skills. Below you will find instructions for the most popular ones. The examples use `$SKILL_NAME` and `$SKILL_URL` variables listed alongside each skill above.
