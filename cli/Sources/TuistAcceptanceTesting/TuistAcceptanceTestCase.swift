@@ -5,6 +5,7 @@ import Path
 import TuistCacheCommand
 import TuistCore
 import TuistEnvironment
+import TuistEnvironmentTesting
 @_exported import TuistKit
 import XcodeProj
 import XCTest
