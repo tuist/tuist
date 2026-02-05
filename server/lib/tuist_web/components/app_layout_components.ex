@@ -5,6 +5,8 @@ defmodule TuistWeb.AppLayoutComponents do
   use TuistWeb, :live_component
   use Noora
 
+  alias Tuist.Projects.Project
+
   import TuistWeb.AccountDropdown
 
   attr(:selected_project, :map, required: true)
@@ -24,6 +26,7 @@ defmodule TuistWeb.AppLayoutComponents do
         selected={overview_path == @current_path}
       />
       <.sidebar_group
+        :if={Project.xcode_project?(@selected_project)}
         id="sidebar-builds"
         label={dgettext("dashboard", "Builds")}
         icon="versions"
@@ -54,6 +57,7 @@ defmodule TuistWeb.AppLayoutComponents do
         />
       </.sidebar_group>
       <.sidebar_group
+        :if={Project.xcode_project?(@selected_project)}
         id="sidebar-tests"
         label={dgettext("dashboard", "Tests")}
         icon="subtask"
@@ -117,6 +121,7 @@ defmodule TuistWeb.AppLayoutComponents do
         />
       </.sidebar_group>
       <.sidebar_group
+        :if={Project.xcode_project?(@selected_project)}
         id="sidebar-module-cache"
         label={dgettext("dashboard", "Module Cache")}
         icon="database"
@@ -168,6 +173,7 @@ defmodule TuistWeb.AppLayoutComponents do
         />
       </.sidebar_group>
       <.sidebar_item
+        :if={Project.xcode_project?(@selected_project)}
         label={dgettext("dashboard", "Xcode Cache")}
         icon="server"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/xcode-cache"}
@@ -176,6 +182,7 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
+        :if={Project.gradle_project?(@selected_project)}
         label={dgettext("dashboard", "Gradle Insights")}
         icon="server"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-insights"}
@@ -184,6 +191,7 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
+        :if={Project.xcode_project?(@selected_project)}
         label={dgettext("dashboard", "Previews")}
         icon="devices"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/previews"}
@@ -195,7 +203,7 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
-        :if={FunWithFlags.enabled?(:qa, for: @selected_account)}
+        :if={Project.xcode_project?(@selected_project) and FunWithFlags.enabled?(:qa, for: @selected_account)}
         label={dgettext("dashboard", "QA")}
         icon="checkup_list"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/qa"}
@@ -207,6 +215,7 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
+        :if={Project.xcode_project?(@selected_project)}
         label={dgettext("dashboard", "Bundles")}
         icon="chart_donut_4"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/bundles"}
