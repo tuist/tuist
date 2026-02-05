@@ -23,32 +23,114 @@ let anyCodableDependency: Target.Dependency = .product(name: "AnyCodable", packa
 
 // MARK: - Targets
 
+// Cross-platform dependency arrays with macOS-only additions
+var tuistDependencies: [Target.Dependency] = [
+    "TuistConstants",
+    "TuistEnvironment",
+    "TuistLogging",
+    "TuistNooraExtension",
+    "TuistAlert",
+    .product(name: "Noora", package: "tuist.Noora"),
+    .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
+    "TuistAuthCommand",
+    "TuistCacheCommand",
+    "TuistVersionCommand",
+    argumentParserDependency,
+    "TuistServer",
+    pathDependency,
+    swiftToolsSupportDependency,
+]
+var tuistCacheCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    loggingDependency,
+    swiftToolsSupportDependency,
+    "TuistConstants",
+    "TuistEnvironment",
+    "TuistLogging",
+    "TuistServer",
+    "TuistOIDC",
+    "TuistEnvKey",
+    "TuistCAS",
+    "TuistEncodable",
+    "TuistHTTP",
+    "TuistAlert",
+]
+var tuistAuthCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    loggingDependency,
+    swiftToolsSupportDependency,
+    fileSystemDependency,
+    mockableDependency,
+    "TuistConstants",
+    "TuistEnvironment",
+    "TuistLogging",
+    "TuistEnvKey",
+    "TuistServer",
+    "TuistOIDC",
+    "TuistUserInputReader",
+]
+var tuistServerDependencies: [Target.Dependency] = [
+    "TuistConstants",
+    "TuistEnvironment",
+    "TuistLogging",
+    "TuistHTTP",
+    "TuistThreadSafe",
+    "TuistOpener",
+    "TuistUniqueIDGenerator",
+    fileSystemDependency,
+    mockableDependency,
+    pathDependency,
+    swiftToolsSupportDependency,
+    .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
+    .product(name: "HTTPTypes", package: "apple.swift-http-types"),
+    .product(name: "OpenAPIURLSession", package: "apple.swift-openapi-urlsession"),
+    .product(name: "KeychainAccess", package: "kishikawakatsumi.KeychainAccess", condition: .when(platforms: [.macOS])),
+    .product(name: "Rosalind", package: "tuist.Rosalind", condition: .when(platforms: [.macOS])),
+]
+var tuistHTTPDependencies: [Target.Dependency] = [
+    "TuistConstants",
+    "TuistEnvironment",
+    "TuistLogging",
+    "TuistAlert",
+    pathDependency,
+    mockableDependency,
+    fileSystemDependency,
+    .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
+    .product(name: "HTTPTypes", package: "apple.swift-http-types"),
+]
+var tuistCASDependencies: [Target.Dependency] = [
+    "TuistServer",
+    "TuistHTTP",
+    .product(name: "GRPCCore", package: "grpc.grpc-swift-2"),
+    .product(name: "GRPCProtobuf", package: "grpc.grpc-swift-protobuf"),
+    .product(name: "SwiftProtobuf", package: "apple.swift-protobuf"),
+    .product(name: "libzstd", package: "facebook.zstd"),
+    mockableDependency,
+    pathDependency,
+]
+#if os(macOS)
+tuistDependencies.append(contentsOf: [
+    "TuistKit", "TuistCore", "TuistLoader", "TuistSupport", "TuistExtension", "TuistHAR",
+])
+tuistCacheCommandDependencies.append(contentsOf: ["TuistLoader", "TuistSupport", "TuistExtension"])
+tuistAuthCommandDependencies.append(contentsOf: ["TuistLoader", "TuistSupport"])
+tuistServerDependencies.append(contentsOf: [
+    "TuistSupport", "TuistCore", "TuistProcess", "TuistCI",
+    "TuistAutomation", "TuistGit", "TuistXCActivityLog",
+    "TuistXCResultService", "TuistSimulator",
+    xcodeGraphDependency,
+])
+tuistHTTPDependencies.append(contentsOf: ["TuistSupport", "TuistHAR"])
+tuistCASDependencies.append(contentsOf: ["TuistCache", "TuistCASAnalytics"])
+#endif
+
 var targets: [Target] = [
     // MARK: Cross-platform targets
     .executableTarget(
         name: "tuist",
-        dependencies: [
-            "TuistConstants",
-            "TuistEnvironment",
-            "TuistLogging",
-            "TuistNooraExtension",
-            "TuistAlert",
-            .product(name: "Noora", package: "tuist.Noora"),
-            .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
-            "TuistAuthCommand",
-            "TuistCacheCommand",
-            "TuistVersionCommand",
-            argumentParserDependency,
-            "TuistServer",
-            pathDependency,
-            swiftToolsSupportDependency,
-            .target(name: "TuistKit", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistCore", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistLoader", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistSupport", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistExtension", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistHAR", condition: .when(platforms: [.macOS])),
-        ],
+        dependencies: tuistDependencies,
         path: "cli/Sources/tuist",
         exclude: ["AGENTS.md"]
     ),
@@ -164,46 +246,12 @@ var targets: [Target] = [
     ),
     .target(
         name: "TuistCacheCommand",
-        dependencies: [
-            pathDependency,
-            argumentParserDependency,
-            loggingDependency,
-            swiftToolsSupportDependency,
-            "TuistConstants",
-            "TuistEnvironment",
-            "TuistLogging",
-            "TuistServer",
-            "TuistOIDC",
-            "TuistEnvKey",
-            "TuistCAS",
-            "TuistEncodable",
-            "TuistHTTP",
-            "TuistAlert",
-            .target(name: "TuistLoader", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistSupport", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistExtension", condition: .when(platforms: [.macOS])),
-        ],
+        dependencies: tuistCacheCommandDependencies,
         path: "cli/Sources/TuistCacheCommand"
     ),
     .target(
         name: "TuistAuthCommand",
-        dependencies: [
-            pathDependency,
-            argumentParserDependency,
-            loggingDependency,
-            swiftToolsSupportDependency,
-            fileSystemDependency,
-            mockableDependency,
-            "TuistConstants",
-            "TuistEnvironment",
-            "TuistLogging",
-            "TuistEnvKey",
-            "TuistServer",
-            "TuistOIDC",
-            "TuistUserInputReader",
-            .target(name: "TuistLoader", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistSupport", condition: .when(platforms: [.macOS])),
-        ],
+        dependencies: tuistAuthCommandDependencies,
         path: "cli/Sources/TuistAuthCommand",
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -220,34 +268,7 @@ var targets: [Target] = [
     ),
     .target(
         name: "TuistServer",
-        dependencies: [
-            "TuistConstants",
-            "TuistEnvironment",
-            "TuistLogging",
-            "TuistHTTP",
-            "TuistThreadSafe",
-            "TuistOpener",
-            "TuistUniqueIDGenerator",
-            fileSystemDependency,
-            mockableDependency,
-            pathDependency,
-            swiftToolsSupportDependency,
-            .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
-            .product(name: "HTTPTypes", package: "apple.swift-http-types"),
-            .product(name: "OpenAPIURLSession", package: "apple.swift-openapi-urlsession"),
-            .product(name: "KeychainAccess", package: "kishikawakatsumi.KeychainAccess", condition: .when(platforms: [.macOS])),
-            .product(name: "Rosalind", package: "tuist.Rosalind", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistSupport", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistCore", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistProcess", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistCI", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistAutomation", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistGit", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistXCActivityLog", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistXCResultService", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistSimulator", condition: .when(platforms: [.macOS])),
-            xcodeGraphDependency,
-        ],
+        dependencies: tuistServerDependencies,
         path: "cli/Sources/TuistServer",
         exclude: ["OpenAPI/server.yml", "AGENTS.md"],
         swiftSettings: [
@@ -271,19 +292,7 @@ var targets: [Target] = [
     ),
     .target(
         name: "TuistHTTP",
-        dependencies: [
-            "TuistConstants",
-            "TuistEnvironment",
-            "TuistLogging",
-            "TuistAlert",
-            pathDependency,
-            mockableDependency,
-            fileSystemDependency,
-            .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
-            .product(name: "HTTPTypes", package: "apple.swift-http-types"),
-            .target(name: "TuistSupport", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistHAR", condition: .when(platforms: [.macOS])),
-        ],
+        dependencies: tuistHTTPDependencies,
         path: "cli/Sources/TuistHTTP",
         exclude: ["AGENTS.md"],
         swiftSettings: [
@@ -292,18 +301,7 @@ var targets: [Target] = [
     ),
     .target(
         name: "TuistCAS",
-        dependencies: [
-            "TuistServer",
-            "TuistHTTP",
-            .product(name: "GRPCCore", package: "grpc.grpc-swift-2"),
-            .product(name: "GRPCProtobuf", package: "grpc.grpc-swift-protobuf"),
-            .product(name: "SwiftProtobuf", package: "apple.swift-protobuf"),
-            .product(name: "libzstd", package: "facebook.zstd"),
-            mockableDependency,
-            pathDependency,
-            .target(name: "TuistCache", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistCASAnalytics", condition: .when(platforms: [.macOS])),
-        ],
+        dependencies: tuistCASDependencies,
         path: "cli/Sources/TuistCAS",
         exclude: ["cas.proto", "keyvalue.proto", "grpc-swift-proto-generator-config.json", "AGENTS.md"],
         swiftSettings: [
@@ -390,6 +388,7 @@ var targets: [Target] = [
 // MARK: - macOS-only targets
 
 #if os(macOS)
+
 targets.append(contentsOf: [
     .executableTarget(
         name: "tuistbenchmark",
