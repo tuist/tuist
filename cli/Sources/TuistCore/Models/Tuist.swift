@@ -17,10 +17,10 @@ public enum TuistConfigError: LocalizedError, Equatable {
 /// This model allows to configure Tuist.
 public struct Tuist: Equatable, Hashable, Sendable {
     public struct Cache: Equatable, Hashable, Sendable {
-        public let push: Bool
+        public let upload: Bool
 
-        public init(push: Bool = true) {
-            self.push = push
+        public init(upload: Bool = true) {
+            self.upload = upload
         }
     }
 

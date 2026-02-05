@@ -18,7 +18,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
     private let metadataStore: CASOutputMetadataStoring
     private let dataCompressingService: DataCompressingServicing
     private let serverAuthenticationController: ServerAuthenticationControlling
-    private let push: Bool
+    private let upload: Bool
 
     private var accountHandle: String? {
         fullHandle.split(separator: "/").first.map(String.init)
@@ -28,12 +28,12 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         fullHandle: String,
         serverURL: URL,
         cacheURLStore: CacheURLStoring,
-        push: Bool = true
+        upload: Bool = true
     ) {
         self.fullHandle = fullHandle
         self.serverURL = serverURL
         self.cacheURLStore = cacheURLStore
-        self.push = push
+        self.upload = upload
         saveCacheCASService = SaveCacheCASService()
         loadCacheCASService = LoadCacheCASService()
         fileSystem = FileSystem()
@@ -52,7 +52,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         dataCompressingService: DataCompressingServicing,
         metadataStore: CASOutputMetadataStoring,
         serverAuthenticationController: ServerAuthenticationControlling,
-        push: Bool = true
+        upload: Bool = true
     ) {
         self.fullHandle = fullHandle
         self.serverURL = serverURL
@@ -63,7 +63,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         self.metadataStore = metadataStore
         self.dataCompressingService = dataCompressingService
         self.serverAuthenticationController = serverAuthenticationController
-        self.push = push
+        self.upload = upload
     }
 
     public func load(
@@ -201,8 +201,8 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
                 "CAS.save computed fingerprint: \(fingerprint), original size: \(data.count) bytes, compressed size: \(compressedData.count) bytes"
             )
 
-        if !push {
-            Logger.current.debug("CAS.save skipping upload (push disabled) for fingerprint: \(fingerprint)")
+        if !upload {
+            Logger.current.debug("CAS.save skipping upload (upload disabled) for fingerprint: \(fingerprint)")
             response.casID = message
             response.contents = .casID(message)
             return response

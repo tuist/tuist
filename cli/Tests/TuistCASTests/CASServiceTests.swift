@@ -298,7 +298,7 @@ struct CASServiceTests {
     }
 
     @Test
-    func save_when_push_disabled_returns_fingerprint_without_uploading() async throws {
+    func save_when_upload_disabled_returns_fingerprint_without_uploading() async throws {
         // Given
         let testData = Data("direct test data".utf8)
 
@@ -307,7 +307,7 @@ struct CASServiceTests {
 
         let context = ServerContext.test()
 
-        let noPushSubject = CASService(
+        let noUploadSubject = CASService(
             fullHandle: fullHandle,
             serverURL: serverURL,
             cacheURLStore: cacheURLStore,
@@ -317,7 +317,7 @@ struct CASServiceTests {
             dataCompressingService: dataCompressingService,
             metadataStore: metadataStore,
             serverAuthenticationController: serverAuthenticationController,
-            push: false
+            upload: false
         )
 
         given(dataCompressingService)
@@ -325,7 +325,7 @@ struct CASServiceTests {
             .willReturn(Data("compressed-data".utf8))
 
         // When
-        let response = try await noPushSubject.save(request: request, context: context)
+        let response = try await noUploadSubject.save(request: request, context: context)
 
         // Then
         let fingerprint = "74E40A3FAE0D089D887556DBE3001075455BB28A7EAD99D6DE81A85EF3F3E4A8"

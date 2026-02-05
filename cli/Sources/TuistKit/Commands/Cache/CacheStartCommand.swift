@@ -22,15 +22,15 @@ struct CacheStartCommand: AsyncParsableCommand {
 
     @Flag(
         inversion: .prefixedNo,
-        help: "Whether to push cache artifacts to the remote. Defaults to true."
+        help: "Whether to upload cache artifacts to the remote. Defaults to true."
     )
-    var push: Bool = true
+    var upload: Bool = true
 
     func run() async throws {
         try await CacheStartCommandService().run(
             fullHandle: fullHandle,
             url: url,
-            push: push
+            upload: upload
         )
     }
 }

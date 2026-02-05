@@ -32,12 +32,12 @@ public struct Tuist: Codable, Equatable, Sendable {
     public struct Cache: Codable, Equatable, Sendable {
         /// When `true` (default), the local proxy uploads artifacts to the remote cache.
         /// Set to `false` for read-only mode (downloads only, no uploads).
-        public let push: Bool
+        public let upload: Bool
 
         /// Creates cache options.
-        /// - Parameter push: Whether to push artifacts to the remote cache. Defaults to `true`.
-        public static func options(push: Bool = true) -> Self {
-            Cache(push: push)
+        /// - Parameter upload: Whether to upload artifacts to the remote cache. Defaults to `true`.
+        public static func options(upload: Bool = true) -> Self {
+            Cache(upload: upload)
         }
     }
 

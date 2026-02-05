@@ -37,7 +37,7 @@ extension TuistCore.Tuist {
     ) async throws -> TuistCore.Tuist {
         let fullHandle = manifest.fullHandle
         let inspectOptions = InspectOptions.from(manifest: manifest.inspectOptions)
-        let cache = TuistCore.Tuist.Cache(push: manifest.cache.push)
+        let cache = TuistCore.Tuist.Cache(upload: manifest.cache.upload)
         let urlString = manifest.url
 
         guard let url = URL(string: urlString.dropSuffix("/")) else {

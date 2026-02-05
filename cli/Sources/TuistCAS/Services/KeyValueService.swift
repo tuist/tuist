@@ -18,7 +18,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
     private let nodeStore: CASNodeStoring
     private let metadataStore: KeyValueMetadataStoring
     private let serverAuthenticationController: ServerAuthenticationControlling
-    private let push: Bool
+    private let upload: Bool
 
     private var accountHandle: String? {
         fullHandle.split(separator: "/").first.map(String.init)
@@ -28,7 +28,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
         fullHandle: String,
         serverURL: URL,
         cacheURLStore: CacheURLStoring,
-        push: Bool = true,
+        upload: Bool = true,
         putCacheValueService: PutCacheValueServicing = PutCacheValueService(),
         getCacheValueService: GetCacheValueServicing = GetCacheValueService(),
         fileSystem: FileSystem = FileSystem(),
@@ -39,7 +39,7 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
         self.fullHandle = fullHandle
         self.serverURL = serverURL
         self.cacheURLStore = cacheURLStore
-        self.push = push
+        self.upload = upload
         self.putCacheValueService = putCacheValueService
         self.getCacheValueService = getCacheValueService
         self.fileSystem = fileSystem
@@ -63,8 +63,8 @@ public struct KeyValueService: CompilationCacheService_Keyvalue_V1_KeyValueDB.Si
                 "KeyValue.putValue starting - key size: \(keySize) bytes, entries: \(entriesCount), total value size: \(totalValueSize) bytes, casID: \(casID)"
             )
 
-        if !push {
-            Logger.current.debug("KeyValue.putValue skipping upload (push disabled) for casID: \(casID)")
+        if !upload {
+            Logger.current.debug("KeyValue.putValue skipping upload (upload disabled) for casID: \(casID)")
             return CompilationCacheService_Keyvalue_V1_PutValueResponse()
         }
 

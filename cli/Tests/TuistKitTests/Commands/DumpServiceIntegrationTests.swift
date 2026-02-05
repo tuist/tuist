@@ -178,7 +178,7 @@ final class DumpServiceTests: TuistTestCase {
             let expected = """
             {
               "cache": {
-                "push": true
+                "upload": true
               },
               "fullHandle": "tuist/tuist",
               "inspectOptions": {

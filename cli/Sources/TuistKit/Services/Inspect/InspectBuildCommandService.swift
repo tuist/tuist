@@ -201,10 +201,10 @@ struct InspectBuildCommandService {
             ciHost: ciInfo?.host,
             ciProvider: ciInfo?.provider,
             cacheableTasks: xcactivityLog.cacheableTasks,
-            // When push is disabled, the cache proxy skips uploads but still returns a successful response
+            // When upload is disabled, the cache proxy skips uploads but still returns a successful response
             // to Xcode (which has no mechanism to skip an upload). To ensure CAS outputs don't show as
             // "Uploaded" in analytics, we filter them out here.
-            casOutputs: config.cache.push ? xcactivityLog.casOutputs :
+            casOutputs: config.cache.upload ? xcactivityLog.casOutputs :
                 xcactivityLog.casOutputs.filter { $0.operation != .upload }
         )
         AlertController.current.success(

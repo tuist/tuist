@@ -272,7 +272,7 @@ struct KeyValueServiceTests {
     }
 
     @Test
-    func putValue_when_push_disabled_skips_upload() async throws {
+    func putValue_when_upload_disabled_skips_upload() async throws {
         // Given
         let key = Data("MH5TRFZyVWpGYU5scEZUWGhqYkhCWllYb3dQUT09".utf8)
         let valueData = Data("test-value".utf8)
@@ -283,11 +283,11 @@ struct KeyValueServiceTests {
 
         let context = ServerContext.test()
 
-        let noPushSubject = KeyValueService(
+        let noUploadSubject = KeyValueService(
             fullHandle: fullHandle,
             serverURL: serverURL,
             cacheURLStore: cacheURLStore,
-            push: false,
+            upload: false,
             putCacheValueService: putCacheValueService,
             getCacheValueService: getCacheValueService,
             nodeStore: nodeStore,
@@ -296,7 +296,7 @@ struct KeyValueServiceTests {
         )
 
         // When
-        let response = try await noPushSubject.putValue(request: request, context: context)
+        let response = try await noUploadSubject.putValue(request: request, context: context)
 
         // Then
         #expect(response.hasError == false)

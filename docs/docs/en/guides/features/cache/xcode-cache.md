@@ -83,9 +83,9 @@ let tuist = Tuist(
 <!-- -->
 :::
 
-### Cache push policy {#cache-push-policy}
+### Cache upload policy {#cache-upload-policy}
 
-By default, the cache service both downloads and uploads (pushes) artifacts to the remote cache. You can control this with the `cache` option in your `Tuist.swift` file to enable read-only mode, where artifacts are downloaded but never uploaded:
+By default, the cache service both downloads and uploads artifacts to the remote cache. You can control this with the `cache` option in your `Tuist.swift` file to enable read-only mode, where artifacts are downloaded but never uploaded:
 
 ```swift
 import ProjectDescription
@@ -93,7 +93,7 @@ import ProjectDescription
 let tuist = Tuist(
     fullHandle: "your-org/your-project",
     cache: .options(
-        push: false
+        upload: false
     ),
     project: .tuist(
         generationOptions: .options(
@@ -111,7 +111,7 @@ import ProjectDescription
 let tuist = Tuist(
     fullHandle: "your-org/your-project",
     cache: .options(
-        push: Environment.isCI
+        upload: Environment.isCI
     ),
     project: .tuist(
         generationOptions: .options(
