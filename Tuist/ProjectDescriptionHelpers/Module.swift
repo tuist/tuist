@@ -277,7 +277,7 @@ public enum Module: String, CaseIterable {
              .projectDescription,
              .acceptanceTesting, .simulator, .testing, .environmentTesting, .process,
              .constants, .environment, .logging,
-             .cacheCommand, .envKey, .versionCommand, .encodable,
+             .envKey, .versionCommand, .encodable,
              .uniqueIDGenerator, .opener, .nooraExtension, .alert, .threadSafe,
              .tuistExtension:
             return nil
@@ -995,9 +995,21 @@ public enum Module: String, CaseIterable {
             switch self {
             case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .environmentTesting, .process,
                  .constants, .environment, .logging,
-                 .cacheCommand, .envKey, .versionCommand, .nooraExtension, .tuistExtension, .alert, .threadSafe, .encodable,
+                 .envKey, .versionCommand, .nooraExtension, .tuistExtension, .alert, .threadSafe, .encodable,
                  .uniqueIDGenerator, .opener:
                 []
+            case .cacheCommand:
+                [
+                    .target(name: Module.cas.targetName),
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.http.targetName),
+                    .target(name: Module.loader.targetName),
+                    .target(name: Module.oidc.targetName),
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.environmentTesting.targetName),
+                ]
             case .userInputReader:
                 [
                     .target(name: Module.testing.targetName),
