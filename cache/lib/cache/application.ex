@@ -73,7 +73,7 @@ defmodule Cache.Application do
         storage: :memory,
         labels: %{
           app: {:static, "tuist-cache"},
-          env: {:static, System.get_env("SENTRY_ENV") || "production"},
+          env: {:static, System.get_env("DEPLOY_ENV") || "production"},
           level: :level
         }
       )

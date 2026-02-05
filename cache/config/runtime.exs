@@ -124,7 +124,7 @@ if config_env() == :prod do
       span_processor: :batch,
       resource: [
         service: [name: "tuist-cache", namespace: "tuist"],
-        deployment: [environment: System.get_env("SENTRY_ENV") || "production"]
+        deployment: [environment: System.get_env("DEPLOY_ENV") || "production"]
       ]
   end
 end
