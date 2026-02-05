@@ -91,6 +91,9 @@ DATA_DIR=/data
 | `CAS_DISK_TARGET_PERCENT` | No | `70` | Target disk usage after eviction. |
 | `PHX_SOCKET_PATH` | No | `/run/cache/cache.sock` | Path where the service creates its Unix socket (when enabled). |
 | `PHX_SOCKET_LINK` | No | `/run/cache/current.sock` | Symlink path that Nginx uses to connect to the service. |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | No | | gRPC endpoint of an OpenTelemetry Collector for distributed tracing. |
+| `LOKI_URL` | No | | Base URL of a Loki-compatible endpoint for log forwarding. |
+| `DEPLOY_ENV` | No | `production` | Environment label used in traces and log labels (e.g. `production`, `staging`). |
 
 ### Start the service {#start-service}
 
@@ -144,9 +147,19 @@ The Docker Compose configuration uses three volumes:
 
 ## Monitoring {#monitoring}
 
+### Prometheus metrics {#prometheus-metrics}
+
 The cache service exposes Prometheus-compatible metrics at `/metrics`.
 
 If you use Grafana, you can import the [reference dashboard](https://raw.githubusercontent.com/tuist/tuist/refs/heads/main/cache/priv/grafana_dashboards/cache_service.json).
+
+### Distributed tracing {#distributed-tracing}
+
+Set `OTEL_EXPORTER_OTLP_ENDPOINT` to enable OpenTelemetry traces. The cache service instruments Bandit (HTTP server), Phoenix (request lifecycle), Ecto (database queries), Finch (outgoing HTTP), and Broadway (message processing). Traces are exported via gRPC to the configured collector.
+
+### Log forwarding {#log-forwarding}
+
+Set `LOKI_URL` to forward application logs to a Loki-compatible endpoint. Logs are pushed via the Loki HTTP API with `app=tuist-cache`, `env`, and `level` labels.
 
 ## Upgrading {#upgrading}
 
