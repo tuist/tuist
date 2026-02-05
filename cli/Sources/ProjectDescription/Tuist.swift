@@ -36,7 +36,7 @@ public struct Tuist: Codable, Equatable, Sendable {
 
         /// Creates cache options.
         /// - Parameter upload: Whether to upload artifacts to the remote cache. Defaults to `true`.
-        public static func options(upload: Bool = true) -> Self {
+        public static func cache(upload: Bool = true) -> Self {
             Cache(upload: upload)
         }
     }
@@ -98,7 +98,7 @@ public struct Tuist: Codable, Equatable, Sendable {
         )
         self.fullHandle = fullHandle
         self.inspectOptions = inspectOptions
-        cache = .options()
+        cache = .cache()
         self.url = url
         dumpIfNeeded(self)
     }
@@ -106,7 +106,7 @@ public struct Tuist: Codable, Equatable, Sendable {
     public init(
         fullHandle: String? = nil,
         inspectOptions: InspectOptions = .options(),
-        cache: Cache = .options(),
+        cache: Cache = .cache(),
         url: String = "https://tuist.dev",
         project: TuistProject
     ) {

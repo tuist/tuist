@@ -2,7 +2,7 @@ import ProjectDescription
 
 let tuist = Tuist(
     fullHandle: "tuist/tuist",
-    cache: .options(
+    cache: .cache(
         upload: false
     ),
     url: "http://localhost:8080",

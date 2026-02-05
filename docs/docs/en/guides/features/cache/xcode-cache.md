@@ -92,7 +92,7 @@ import ProjectDescription
 
 let tuist = Tuist(
     fullHandle: "your-org/your-project",
-    cache: .options(
+    cache: .cache(
         upload: false
     ),
     project: .tuist(
@@ -110,7 +110,7 @@ import ProjectDescription
 
 let tuist = Tuist(
     fullHandle: "your-org/your-project",
-    cache: .options(
+    cache: .cache(
         upload: Environment.isCI
     ),
     project: .tuist(
