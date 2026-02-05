@@ -869,6 +869,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: gradle-artifacts
+          path: gradle
 
       - name: Create tags for successfully released components
         run: |
