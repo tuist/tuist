@@ -85,7 +85,7 @@ jobs:
 
   cli-spm-build:
     name: SwiftPM Build
-    runs-on: macos-26
+    runs-on: namespace-profile-default-macos
     timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
