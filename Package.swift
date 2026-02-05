@@ -308,20 +308,6 @@ var targets: [Target] = [
             .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
-    .target(
-        name: "TuistHAR",
-        dependencies: [
-            "TuistConstants",
-            "TuistLogging",
-            pathDependency,
-            .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
-            .product(name: "HTTPTypes", package: "apple.swift-http-types"),
-        ],
-        path: "cli/Sources/TuistHAR",
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
-        ]
-    ),
     // MARK: Cross-platform test targets
     .testTarget(
         name: "TuistCASTests",
@@ -358,6 +344,13 @@ var targets: [Target] = [
         ],
         path: "cli/Tests/TuistUserInputReaderTests"
     ),
+]
+
+// MARK: - macOS-only targets
+
+#if os(macOS)
+
+targets.append(contentsOf: [
     .target(
         name: "TuistSupport",
         dependencies: [
@@ -383,13 +376,20 @@ var targets: [Target] = [
             .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
-]
-
-// MARK: - macOS-only targets
-
-#if os(macOS)
-
-targets.append(contentsOf: [
+    .target(
+        name: "TuistHAR",
+        dependencies: [
+            "TuistConstants",
+            "TuistLogging",
+            pathDependency,
+            .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
+            .product(name: "HTTPTypes", package: "apple.swift-http-types"),
+        ],
+        path: "cli/Sources/TuistHAR",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug))
+        ]
+    ),
     .executableTarget(
         name: "tuistbenchmark",
         dependencies: [
