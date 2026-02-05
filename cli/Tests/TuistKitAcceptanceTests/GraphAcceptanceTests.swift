@@ -1,9 +1,3 @@
-import TuistAcceptanceTesting
-import TuistSupport
-import TuistTesting
-import XcodeProj
-import XCTest
-
 // TODO: Fix (issues with finding executables)
 // final class GraphAcceptanceTestiOSWorkspaceWithMicrofeatureArchitecture: TuistAcceptanceTestCase {
 //    func test_ios_workspace_with_microfeature_architecture() async throws {
