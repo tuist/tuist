@@ -86,7 +86,8 @@ defmodule TuistWeb.GradleInsightsLive do
         Query.put(socket.assigns.uri.query, "analytics-date-range", preset)
       end
 
-    {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/gradle-insights?#{query_params}")}
+    {:noreply,
+     push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/gradle-insights?#{query_params}")}
   end
 
   def handle_info({:gradle_build_created, _build}, socket) do

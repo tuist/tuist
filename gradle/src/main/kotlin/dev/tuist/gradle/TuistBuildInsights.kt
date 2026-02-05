@@ -50,6 +50,7 @@ data class BuildReportRequest(
     @SerializedName("git_branch") val gitBranch: String?,
     @SerializedName("git_commit_sha") val gitCommitSha: String?,
     @SerializedName("git_ref") val gitRef: String?,
+    @SerializedName("root_project_name") val rootProjectName: String?,
     @SerializedName("avoidance_savings_ms") val avoidanceSavingsMs: Long,
     val tasks: List<TaskReportEntry>
 )
@@ -142,6 +143,7 @@ abstract class TuistBuildInsightsService :
         val fullHandle: Property<String>
         val executablePath: Property<String>
         val gradleVersion: Property<String>
+        val rootProjectName: Property<String>
     }
 
     private val taskOutcomes = ConcurrentLinkedQueue<TaskOutcomeData>()
@@ -241,6 +243,7 @@ abstract class TuistBuildInsightsService :
             gitBranch = GitInfo.branch(),
             gitCommitSha = GitInfo.commitSha(),
             gitRef = GitInfo.ref(),
+            rootProjectName = parameters.rootProjectName.orNull,
             avoidanceSavingsMs = avoidanceSavingsMs,
             tasks = tasks.map { task ->
                 TaskReportEntry(
@@ -289,6 +292,7 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
             parameters.fullHandle.set(fullHandle)
             parameters.executablePath.set(executablePath)
             parameters.gradleVersion.set(gradleVersion)
+            parameters.rootProjectName.set(project.rootProject.name)
         }
 
         eventsListenerRegistry.onTaskCompletion(serviceProvider)

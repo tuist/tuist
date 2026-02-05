@@ -17,6 +17,7 @@ defmodule Tuist.Gradle.Build do
     field :git_branch, Ch, type: "Nullable(String)"
     field :git_commit_sha, Ch, type: "Nullable(String)"
     field :git_ref, Ch, type: "Nullable(String)"
+    field :root_project_name, Ch, type: "Nullable(String)"
     field :tasks_from_cache_count, Ch, type: "UInt32"
     field :tasks_up_to_date_count, Ch, type: "UInt32"
     field :tasks_executed_count, Ch, type: "UInt32"

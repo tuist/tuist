@@ -487,6 +487,13 @@
         <.table
           id="builds-table"
           rows={@builds |> Enum.take(7)}
+          row_navigate={
+            fn build ->
+              url(
+                ~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-insights/builds/#{build.id}"
+              )
+            end
+          }
         >
           <:col :let={build} label={dgettext("dashboard_gradle", "Status")}>
             <.text_cell label={build.status} />

@@ -53,6 +53,7 @@ defmodule Tuist.Gradle do
       git_branch: Map.get(attrs, :git_branch),
       git_commit_sha: Map.get(attrs, :git_commit_sha),
       git_ref: Map.get(attrs, :git_ref),
+      root_project_name: Map.get(attrs, :root_project_name),
       tasks_from_cache_count: task_counts.from_cache,
       tasks_up_to_date_count: task_counts.up_to_date,
       tasks_executed_count: task_counts.executed,
@@ -78,16 +79,20 @@ defmodule Tuist.Gradle do
   end
 
   defp compute_task_counts(tasks) do
-    Enum.reduce(tasks, %{from_cache: 0, up_to_date: 0, executed: 0, failed: 0, skipped: 0, no_source: 0, cacheable: 0}, fn task, acc ->
-      outcome = to_string(task.outcome)
-      cacheable = Map.get(task, :cacheable, false)
+    Enum.reduce(
+      tasks,
+      %{from_cache: 0, up_to_date: 0, executed: 0, failed: 0, skipped: 0, no_source: 0, cacheable: 0},
+      fn task, acc ->
+        outcome = to_string(task.outcome)
+        cacheable = Map.get(task, :cacheable, false)
 
-      acc
-      |> Map.update!(String.to_existing_atom(outcome), &(&1 + 1))
-      |> then(fn acc ->
-        if cacheable, do: Map.update!(acc, :cacheable, &(&1 + 1)), else: acc
-      end)
-    end)
+        acc
+        |> Map.update!(String.to_existing_atom(outcome), &(&1 + 1))
+        |> then(fn acc ->
+          if cacheable, do: Map.update!(acc, :cacheable, &(&1 + 1)), else: acc
+        end)
+      end
+    )
   end
 
   defp create_tasks(build_id, project_id, tasks, now) do

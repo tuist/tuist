@@ -47,6 +47,11 @@ defmodule TuistWeb.API.GradleController do
            git_branch: %Schema{type: :string, nullable: true, description: "Git branch."},
            git_commit_sha: %Schema{type: :string, nullable: true, description: "Git commit SHA."},
            git_ref: %Schema{type: :string, nullable: true, description: "Git ref."},
+           root_project_name: %Schema{
+             type: :string,
+             nullable: true,
+             description: "Root project name."
+           },
            avoidance_savings_ms: %Schema{
              type: :integer,
              nullable: true,
@@ -119,6 +124,7 @@ defmodule TuistWeb.API.GradleController do
       git_branch: body[:git_branch],
       git_commit_sha: body[:git_commit_sha],
       git_ref: body[:git_ref],
+      root_project_name: body[:root_project_name],
       avoidance_savings_ms: body[:avoidance_savings_ms] || 0,
       tasks: tasks
     }
@@ -181,6 +187,7 @@ defmodule TuistWeb.API.GradleController do
                    java_version: %Schema{type: :string, nullable: true},
                    is_ci: %Schema{type: :boolean},
                    git_branch: %Schema{type: :string, nullable: true},
+                   root_project_name: %Schema{type: :string, nullable: true},
                    tasks_from_cache_count: %Schema{type: :integer},
                    tasks_up_to_date_count: %Schema{type: :integer},
                    tasks_executed_count: %Schema{type: :integer},
@@ -214,6 +221,7 @@ defmodule TuistWeb.API.GradleController do
             java_version: build.java_version,
             is_ci: build.is_ci,
             git_branch: build.git_branch,
+            root_project_name: build.root_project_name,
             tasks_from_cache_count: build.tasks_from_cache_count,
             tasks_up_to_date_count: build.tasks_up_to_date_count,
             tasks_executed_count: build.tasks_executed_count,
@@ -263,6 +271,7 @@ defmodule TuistWeb.API.GradleController do
              git_branch: %Schema{type: :string, nullable: true},
              git_commit_sha: %Schema{type: :string, nullable: true},
              git_ref: %Schema{type: :string, nullable: true},
+             root_project_name: %Schema{type: :string, nullable: true},
              tasks_from_cache_count: %Schema{type: :integer},
              tasks_up_to_date_count: %Schema{type: :integer},
              tasks_executed_count: %Schema{type: :integer},
@@ -317,6 +326,7 @@ defmodule TuistWeb.API.GradleController do
             git_branch: build.git_branch,
             git_commit_sha: build.git_commit_sha,
             git_ref: build.git_ref,
+            root_project_name: build.root_project_name,
             tasks_from_cache_count: build.tasks_from_cache_count,
             tasks_up_to_date_count: build.tasks_up_to_date_count,
             tasks_executed_count: build.tasks_executed_count,
