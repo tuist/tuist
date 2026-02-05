@@ -31,7 +31,7 @@ defmodule TuistWeb.BuildRunLive do
 
     run =
       run
-      |> Builds.preload_postgres_associations([:project, :ran_by_account, project: :vcs_connection])
+      |> Tuist.Repo.preload([:ran_by_account, project: :vcs_connection])
       |> Tuist.ClickHouseRepo.preload([:issues])
 
     command_event =
