@@ -469,6 +469,94 @@
       </div>
     </section>
 
+    <section data-part="tests-feature" aria-labelledby="tests-heading">
+      <aside data-part="sidebar">
+        <h2 id="tests-heading" data-part="title">{dgettext("marketing", "Tests")}</h2>
+        <p data-part="description">
+          {dgettext(
+            "marketing",
+            "Run only impacted tests based on your changes, faster feedback loops, less waiting, both locally and on CI."
+          )}
+        </p>
+      </aside>
+
+      <div data-part="content">
+        <div data-part="feature-block" data-variant="selective-testing">
+          <div data-part="image-container">
+            <img
+              data-part="illustration"
+              src="/marketing/images/features/builds-section/selective-testing.webp"
+              alt={
+                dgettext(
+                  "marketing",
+                  "Selective testing dashboard showing tests skipped with 134/196 tests skipped and 15.8h saved this week"
+                )
+              }
+            />
+          </div>
+          <div data-part="feature-info">
+            <h3 data-part="feature-title">{dgettext("marketing", "Selective Testing")}</h3>
+            <p data-part="feature-description">
+              {dgettext(
+                "marketing",
+                "Run only the tests that matter by detecting changes since your last successful run, cutting down test times in both local development and CI."
+              )}
+            </p>
+          </div>
+        </div>
+
+        <div data-part="feature-row">
+          <div data-part="feature-block" data-variant="flaky-tests">
+            <div data-part="image-container">
+              <img
+                data-part="illustration"
+                src="/marketing/images/features/builds-section/flaky-tests.webp"
+                alt={
+                  dgettext(
+                    "marketing",
+                    "Flaky tests dashboard showing test history and automation creation modal"
+                  )
+                }
+              />
+            </div>
+            <div data-part="feature-info">
+              <h3 data-part="feature-title">{dgettext("marketing", "Flaky Tests")}</h3>
+              <p data-part="feature-description">
+                {dgettext(
+                  "marketing",
+                  "Automatically detect flaky tests that fail without code changes and reduce time spent investigating false failures."
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div data-part="feature-block" data-variant="test-insights">
+            <div data-part="image-container">
+              <img
+                data-part="illustration"
+                src="/marketing/images/features/builds-section/test-insights.webp"
+                alt={
+                  dgettext(
+                    "marketing",
+                    "Test insights showing test runs, flaky tests, failed test runs, and p90 test run duration metrics"
+                  )
+                }
+              />
+            </div>
+            <div data-part="feature-info">
+              <h3 data-part="feature-title">{dgettext("marketing", "Insights")}</h3>
+              <p data-part="feature-description">
+                {dgettext(
+                  "marketing",
+                  "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section data-part="quality-assurance" aria-labelledby="quality-assurance-heading">
       <aside data-part="sidebar">
         <h2 id="quality-assurance-heading" data-part="title">
