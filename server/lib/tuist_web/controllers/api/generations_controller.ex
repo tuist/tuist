@@ -160,8 +160,7 @@ defmodule TuistWeb.API.GenerationsController do
         Enum.map(command_events, fn event ->
           ran_by =
             if event.user_account_name,
-              do: %{handle: event.user_account_name},
-              else: nil
+              do: %{handle: event.user_account_name}
 
           event
           |> Map.take([

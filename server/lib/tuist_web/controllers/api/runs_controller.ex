@@ -33,7 +33,8 @@ defmodule TuistWeb.API.RunsController do
   tags ["Runs"]
 
   operation(:index,
-    summary: "List runs associated with a given project. DEPRECATED: Use GET /builds, GET /tests, or GET /generations instead.",
+    summary:
+      "List runs associated with a given project. DEPRECATED: Use GET /builds, GET /tests, or GET /generations instead.",
     deprecated: true,
     operation_id: "listRuns",
     parameters: [
@@ -131,8 +132,7 @@ defmodule TuistWeb.API.RunsController do
         Enum.map(command_events, fn event ->
           ran_by =
             if event.user_account_name,
-              do: %{handle: event.user_account_name},
-              else: nil
+              do: %{handle: event.user_account_name}
 
           event
           |> Map.take([
