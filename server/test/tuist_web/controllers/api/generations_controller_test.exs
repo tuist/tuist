@@ -25,7 +25,9 @@ defmodule TuistWeb.API.GenerationsControllerTest do
           git_branch: "main",
           cacheable_targets: ["TargetA", "TargetB"],
           local_cache_target_hits: ["TargetA"],
-          remote_cache_target_hits: ["TargetB"]
+          remote_cache_target_hits: ["TargetB"],
+          command_arguments: ["--no-open"],
+          user_id: user.id
         )
 
       conn =
@@ -44,6 +46,8 @@ defmodule TuistWeb.API.GenerationsControllerTest do
       assert returned_generation["duration"] == 5000
       assert returned_generation["status"] == "success"
       assert returned_generation["cacheable_targets"] == ["TargetA", "TargetB"]
+      assert returned_generation["command_arguments"] == "--no-open"
+      assert returned_generation["ran_by"] == %{"handle" => user.account.name}
     end
 
     test "returns empty list when no generations exist", %{conn: conn, user: user, project: project} do

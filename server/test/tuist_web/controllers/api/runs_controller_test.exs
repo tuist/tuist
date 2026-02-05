@@ -105,6 +105,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert run["tuist_version"] == "4.1.0"
       assert run["ran_at"] == DateTime.to_unix(date)
       assert run["ran_by"] == nil
+      assert run["uuid"] == run_one.id
 
       # Check that URL contains the UUID
       assert run["url"] =~ run_one.id
@@ -189,6 +190,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert run["tuist_version"] == "4.1.0"
       assert run["ran_at"] == DateTime.to_unix(date)
       assert run["ran_by"] == %{"handle" => user.account.name}
+      assert run["uuid"] == run_one.id
 
       # Check that URL contains the UUID
       assert run["url"] =~ run_one.id

@@ -129,14 +129,9 @@ defmodule TuistWeb.API.RunsController do
       runs:
         Enum.map(command_events, fn event ->
           ran_by =
-            case Tuist.CommandEvents.get_user_for_command_event(event) do
-              {:ok, user} ->
-                user = Tuist.Repo.preload(user, :account)
-                %{handle: user.account.name}
-
-              {:error, :not_found} ->
-                nil
-            end
+            if event.user_account_name,
+              do: %{handle: event.user_account_name},
+              else: nil
 
           event
           |> Map.take([
@@ -160,6 +155,7 @@ defmodule TuistWeb.API.RunsController do
             :remote_test_target_hits,
             :preview_id
           ])
+          |> Map.put(:uuid, event.id)
           |> Map.put(
             :url,
             ~p"/#{selected_project.account.name}/#{selected_project.name}/runs/#{event.id}"
