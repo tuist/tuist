@@ -355,7 +355,6 @@ struct DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources {
             )
         }
 
-        // External static frameworks keep resources inside the framework (no separate .bundle)
         let resourceBundlePath = appPath.appending(component: "SVProgressHUD_SVProgressHUD.bundle")
         let resourceBundleExists = await (try? fileSystem.exists(resourceBundlePath)) ?? false
         #expect(
@@ -363,7 +362,7 @@ struct DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources {
             "SVProgressHUD_SVProgressHUD.bundle should not exist; resources live inside the framework itself"
         )
 
-        // Install the app
+
         try await commandRunner.run(
             arguments: ["/usr/bin/xcrun", "simctl", "install", simulatorId, appPath.pathString]
         ).pipedStream().awaitCompletion()
