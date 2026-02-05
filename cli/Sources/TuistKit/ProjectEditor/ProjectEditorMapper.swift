@@ -135,7 +135,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             workspace: workspace,
             projects: graphProjects,
             packages: [:],
-            dependencies: Dictionary(uniqueKeysWithValues: graphDependencies),
+            dependencies: Dictionary(graphDependencies, uniquingKeysWith: { $0.union($1) }),
             dependencyConditions: [:]
         )
     }

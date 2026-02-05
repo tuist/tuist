@@ -178,6 +178,9 @@ final class DumpServiceTests: TuistTestCase {
             try await subject.run(path: tmpDir.pathString, manifest: .config)
             let expected = """
             {
+              "cache": {
+                "upload": true
+              },
               "fullHandle": "tuist/tuist",
               "inspectOptions": {
                 "redundantDependencies": {
