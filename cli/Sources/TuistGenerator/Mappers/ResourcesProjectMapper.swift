@@ -389,17 +389,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             [candidates addObject:[bundleURL URLByAppendingPathComponent:@".."]];
             #endif
 
-            // Tuist: First check if any candidate is the framework bundle itself (for static frameworks with embedded resources)
-            for (NSURL *candidate in candidates) {
-                if ([candidate.path hasSuffix:@".framework"]) {
-                    NSBundle *bundle = [NSBundle bundleWithURL:candidate];
-                    if (bundle) {
-                        return bundle;
-                    }
-                }
-            }
-
-            // SwiftPM: Then look for the resource bundle in each candidate location
+            // SwiftPM: Look for the resource bundle in each candidate location
             for (NSURL *candidate in candidates) {
                 NSURL *bundlePath = [candidate URLByAppendingPathComponent:[NSString stringWithFormat:@"%@%@", bundleName, @".bundle"]];
                 NSBundle *bundle = [NSBundle bundleWithURL:bundlePath];
