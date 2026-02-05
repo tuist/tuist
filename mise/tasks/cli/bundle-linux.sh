@@ -35,8 +35,9 @@ mkdir -p $BUILD_DIRECTORY
 echo "==> Building tuist executable"
 swift build --target tuist --configuration release --build-path "$BUILD_PATH" --replace-scm-with-registry
 
-echo "==> Copying binary"
-cp "$BUILD_PATH/release/tuist" $BUILD_DIRECTORY/tuist
+BIN_PATH=$(swift build --target tuist --configuration release --build-path "$BUILD_PATH" --show-bin-path)
+echo "==> Copying binary from $BIN_PATH"
+cp "$BIN_PATH/tuist" $BUILD_DIRECTORY/tuist
 
 ARCH=$(uname -m)
 
