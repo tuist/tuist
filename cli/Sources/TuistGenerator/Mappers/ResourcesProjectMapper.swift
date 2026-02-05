@@ -63,7 +63,12 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         let bundleName = "\(project.name)_\(sanitizedTargetName)"
         var modifiedTarget = target
 
-        let shouldGenerateResourceBundle = !supportsResources && target.product != .staticFramework
+        let isExternalStaticFramework = if case .external = project.type, target.product == .staticFramework {
+            true
+        } else {
+            false
+        }
+        let shouldGenerateResourceBundle = !supportsResources || isExternalStaticFramework
 
         if shouldGenerateResourceBundle {
             // Keep resources in a separate bundle to match SwiftPM's Bundle.module expectations and avoid collisions.
@@ -251,9 +256,10 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         in project: Project,
         supportsResources: Bool
     ) -> String {
-        let bundleAccessor = if target.product == .staticFramework {
+        let isExternalProject = if case .external = project.type { true } else { false }
+        let bundleAccessor = if target.product == .staticFramework, !isExternalProject {
             swiftStaticFrameworkBundleAccessorString(for: target, bundleName: bundleName)
-        } else if supportsResources {
+        } else if supportsResources, !isExternalProject {
             swiftFrameworkBundleAccessorString(for: target)
         } else {
             swiftSPMBundleAccessorString(for: target, and: bundleName)
