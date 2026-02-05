@@ -1,9 +1,11 @@
 defmodule Tuist.GitHub.Client do
   @moduledoc """
   A module to interact with the GitHub API authenticated as the Tuist GitHub app.
+
+  For registry-related operations (tags, content, archives), this module delegates
+  to `TuistCommon.GitHub` while handling retry and Finch configuration.
   """
 
-  alias Tuist.Base64
   alias Tuist.GitHub.App
   alias Tuist.GitHub.Retry
   alias Tuist.VCS
@@ -153,23 +155,19 @@ defmodule Tuist.GitHub.Client do
         tag: tag,
         token: token
       }) do
-    url = "https://api.github.com/repos/#{repository_full_handle}/zipball/refs/tags/#{tag}"
     {:ok, path} = Briefly.create()
 
-    req_opts =
-      [
-        url: url,
-        headers: default_headers(token),
-        decode_body: false,
-        finch: Tuist.Finch,
-        into: File.stream!(path, [:write])
-      ] ++ Retry.retry_options()
-
-    case Req.get(req_opts) do
-      {:ok, %{status: 200}} ->
+    case TuistCommon.GitHub.download_zipball(
+           repository_full_handle,
+           token,
+           tag,
+           path,
+           finch_opts()
+         ) do
+      :ok ->
         {:ok, path}
 
-      {:ok, %{status: status}} ->
+      {:error, {:http_error, status}} ->
         {:error,
          "Unexpected status code #{status} when downloading #{repository_full_handle} repository's source archive for #{tag} tag."}
 
@@ -180,36 +178,40 @@ defmodule Tuist.GitHub.Client do
 
   def get_repository_content(%{repository_full_handle: repository_full_handle, token: token}, opts \\ []) do
     path = Keyword.get(opts, :path, "")
-    url = "https://api.github.com/repos/#{repository_full_handle}/contents/#{path}"
+    reference = Keyword.get(opts, :reference, "HEAD")
 
-    reference = Keyword.get(opts, :reference)
+    case TuistCommon.GitHub.get_file_content(
+           repository_full_handle,
+           token,
+           path,
+           reference,
+           finch_opts()
+         ) do
+      {:ok, content} ->
+        {:ok, %Content{path: path, content: content}}
 
-    url =
-      if is_nil(reference) do
-        url
-      else
-        url <> "?ref=#{reference}"
-      end
+      {:error, :not_found} ->
+        case TuistCommon.GitHub.list_repository_contents(
+               repository_full_handle,
+               token,
+               reference,
+               finch_opts()
+             ) do
+          {:ok, directory_contents} ->
+            {:ok, Enum.map(directory_contents, &%Content{path: &1["path"]})}
 
-    req_opts =
-      [
-        url: url,
-        headers: default_headers(token),
-        finch: Tuist.Finch
-      ] ++ Retry.retry_options()
+          {:error, :not_found} ->
+            {:error, :not_found}
 
-    case Req.get(req_opts) do
-      {:ok, %{status: 200, body: %{"content" => content, "path" => path}}} ->
-        {:ok, %Content{path: path, content: Base64.decode(content)}}
+          {:error, {:http_error, status}} ->
+            {:error, "Unexpected status code: #{status} when getting contents."}
 
-      {:ok, %{status: 200, body: directory_contents}} ->
-        {:ok, Enum.map(directory_contents, &%Content{path: &1["path"]})}
+          {:error, reason} ->
+            {:error, reason}
+        end
 
-      {:ok, %{status: 404}} ->
-        {:error, :not_found}
-
-      {:ok, %{status: status}} ->
-        {:error, "Unexpected status code: #{status} when getting contents at #{url}."}
+      {:error, {:http_error, status}} ->
+        {:error, "Unexpected status code: #{status} when getting contents."}
 
       {:error, reason} ->
         {:error, reason}
@@ -267,60 +269,18 @@ defmodule Tuist.GitHub.Client do
     {:error, "Request failed: #{inspect(reason)}"}
   end
 
-  def get_tags(%{repository_full_handle: repository_full_handle, token: token}, opts \\ []) do
-    page_size = Keyword.get(opts, :page_size, 100)
-    url = "https://api.github.com/repos/#{repository_full_handle}/tags?page_size=#{page_size}"
-
-    get_all_tags_recursively(%{
-      url: url,
-      token: token,
-      tags: []
-    })
-  end
-
-  defp get_all_tags_recursively(%{url: url, token: token, tags: tags}) do
-    req_opts =
-      [
-        url: url,
-        headers: default_headers(token),
-        finch: Tuist.Finch
-      ] ++ Retry.retry_options()
-
-    case Req.get(req_opts) do
-      {:ok, %Req.Response{status: 200, body: page_tags, headers: response_headers}} ->
-        page_tags = Enum.map(page_tags, &%Tag{name: &1["name"]})
-
-        all_tags =
-          tags ++ page_tags
-
-        next_page_url = get_next_page_url_from_response_headers(response_headers)
-
-        # If there's a next page, fetch it; otherwise, return all tags
-        if next_page_url do
-          get_all_tags_recursively(%{url: next_page_url, token: token, tags: all_tags})
-        else
-          all_tags
-        end
-
-      {:ok, %Req.Response{status: status}} ->
-        {:error, {:http_error, status}}
+  def get_tags(%{repository_full_handle: repository_full_handle, token: token}, _opts \\ []) do
+    case TuistCommon.GitHub.list_tags(repository_full_handle, token, finch_opts()) do
+      {:ok, tags} ->
+        Enum.map(tags, &%Tag{name: &1})
 
       {:error, _reason} = error ->
         error
     end
   end
 
-  defp get_next_page_url_from_response_headers(response_headers) do
-    Enum.find_value(response_headers, fn
-      {"link", link_header} ->
-        case parse_next_page_url(link_header) do
-          nil -> nil
-          next_page_url -> next_page_url <> "&page_size=100"
-        end
-
-      _ ->
-        nil
-    end)
+  defp finch_opts do
+    [finch: Tuist.Finch] ++ Retry.retry_options()
   end
 
   defp default_headers(token) do
@@ -328,20 +288,5 @@ defmodule Tuist.GitHub.Client do
       {"Accept", "application/vnd.github.v3+json"},
       {"Authorization", "Bearer #{token}"}
     ]
-  end
-
-  defp parse_next_page_url([link_header]) do
-    # Extract the URL of the next page from the Link header, if available
-    link_header
-    |> String.split(",")
-    |> Enum.find_value(fn link ->
-      if String.contains?(link, "rel=\"next\"") do
-        [url | _] = String.split(link, ";")
-        # Remove any leading or trailing characters like "<", ">", and whitespace
-        url
-        |> String.replace(~r/[<>]/, "")
-        |> String.trim()
-      end
-    end)
   end
 end
