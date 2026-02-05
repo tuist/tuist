@@ -495,8 +495,8 @@
             end
           }
         >
-          <:col :let={build} label={dgettext("dashboard_gradle", "Status")}>
-            <.text_cell label={build.status} />
+          <:col :let={build} label={dgettext("dashboard_gradle", "Project")}>
+            <.text_cell label={build.root_project_name} />
           </:col>
           <:col :let={build} label={dgettext("dashboard_gradle", "Hit Rate")}>
             <.text_cell label={
