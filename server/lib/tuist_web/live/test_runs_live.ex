@@ -10,8 +10,8 @@ defmodule TuistWeb.TestRunsLive do
 
   alias Noora.Filter
   alias Tuist.Accounts
-  alias Tuist.Runs
-  alias Tuist.Runs.Analytics
+  alias Tuist.Tests
+  alias Tuist.Tests.Analytics
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
@@ -363,7 +363,7 @@ defmodule TuistWeb.TestRunsLive do
           Map.put(options, :first, 20)
       end
 
-    {test_runs, test_runs_meta} = Runs.list_test_runs(options)
+    {test_runs, test_runs_meta} = Tests.list_test_runs(options)
 
     socket
     |> assign(:active_filters, filters)

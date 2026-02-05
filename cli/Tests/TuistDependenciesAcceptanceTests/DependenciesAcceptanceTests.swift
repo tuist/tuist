@@ -355,6 +355,14 @@ final class DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources: T
             )
         }
 
+        // Verify the separate resource bundle exists (external static frameworks generate SPM-style bundles)
+        let resourceBundlePath = appPath.appending(component: "SVProgressHUD_SVProgressHUD.bundle")
+        let resourceBundleExists = await (try? fileSystem.exists(resourceBundlePath)) ?? false
+        XCTAssertTrue(
+            resourceBundleExists,
+            "SVProgressHUD_SVProgressHUD.bundle should exist in the app bundle for external static frameworks with resources"
+        )
+
         // Install the app
         try await commandRunner.run(
             arguments: ["/usr/bin/xcrun", "simctl", "install", simulatorId, appPath.pathString]

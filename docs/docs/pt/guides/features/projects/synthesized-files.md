@@ -117,7 +117,7 @@ can confidently access the resources leveraging the compiler to catch any
 issues.
 
 Tuist includes
-[templates](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator/Templates)
+[templates](https://github.com/tuist/tuist/tree/main/cli/Sources/TuistGenerator/Templates)
 to synthesize accessors for the following resource types by default:
 
 | Resource type     | Synthesized files        |

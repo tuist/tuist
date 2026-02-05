@@ -65,7 +65,12 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         let bundleName = "\(project.name)_\(sanitizedTargetName)"
         var modifiedTarget = target
 
-        let shouldGenerateResourceBundle = !supportsResources && target.product != .staticFramework
+        let isExternalStaticFramework = if case .external = project.type, target.product == .staticFramework {
+            true
+        } else {
+            false
+        }
+        let shouldGenerateResourceBundle = !supportsResources || isExternalStaticFramework
 
         if shouldGenerateResourceBundle {
             // Keep resources in a separate bundle to match SwiftPM's Bundle.module expectations and avoid collisions.
@@ -253,9 +258,10 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
         in project: Project,
         supportsResources: Bool
     ) -> String {
-        let bundleAccessor = if target.product == .staticFramework {
+        let isExternalProject = if case .external = project.type { true } else { false }
+        let bundleAccessor = if target.product == .staticFramework, !isExternalProject {
             swiftStaticFrameworkBundleAccessorString(for: target, bundleName: bundleName)
-        } else if supportsResources {
+        } else if supportsResources, !isExternalProject {
             swiftFrameworkBundleAccessorString(for: target)
         } else {
             swiftSPMBundleAccessorString(for: target, and: bundleName)
@@ -363,6 +369,9 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             }
             [candidates addObject:[[[NSBundle mainBundle] bundleURL] URLByAppendingPathComponent:[@"Frameworks/" stringByAppendingString:frameworkName]]];
             [candidates addObject:[[[NSBundle mainBundle] bundleURL] URLByAppendingPathComponent:frameworkName]];
+            // App extensions are placed under PlugIns/ in the host app bundle.
+            // Navigate up from the extension to the containing app's Frameworks directory.
+            [candidates addObject:[[[[hostBundle bundleURL] URLByDeletingLastPathComponent] URLByDeletingLastPathComponent] URLByAppendingPathComponent:[@"Frameworks/" stringByAppendingString:frameworkName]]];
 
             NSString* override = [[[NSProcessInfo processInfo] environment] objectForKey:@"PACKAGE_RESOURCE_BUNDLE_PATH"];
             if (override) {
@@ -382,17 +391,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
             [candidates addObject:[bundleURL URLByAppendingPathComponent:@".."]];
             #endif
 
-            // Tuist: First check if any candidate is the framework bundle itself (for static frameworks with embedded resources)
-            for (NSURL *candidate in candidates) {
-                if ([candidate.path hasSuffix:@".framework"]) {
-                    NSBundle *bundle = [NSBundle bundleWithURL:candidate];
-                    if (bundle) {
-                        return bundle;
-                    }
-                }
-            }
-
-            // SwiftPM: Then look for the resource bundle in each candidate location
+            // SwiftPM: Look for the resource bundle in each candidate location
             for (NSURL *candidate in candidates) {
                 NSURL *bundlePath = [candidate URLByAppendingPathComponent:[NSString stringWithFormat:@"%@%@", bundleName, @".bundle"]];
                 NSBundle *bundle = [NSBundle bundleWithURL:bundlePath];
@@ -443,6 +442,9 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                     Bundle.main.bundleURL.appendingPathComponent("Frameworks"),
                     Bundle.main.bundleURL,
                     Bundle.main.resourceURL,
+                    // App extensions are placed under PlugIns/ in the host app bundle.
+                    // Navigate up from the extension to the containing app's Frameworks directory.
+                    hostBundle.bundleURL.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Frameworks"),
                 ]
                 // This is a fix to make Previews work with bundled resources.
                 // Logic here is taken from SPM's generated `resource_bundle_accessors.swift` file,
@@ -517,6 +519,9 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                     Bundle.main.bundleURL.appendingPathComponent("Frameworks"),
                     Bundle.main.bundleURL,
                     Bundle.main.resourceURL,
+                    // App extensions are placed under PlugIns/ in the host app bundle.
+                    // Navigate up from the extension to the containing app's Frameworks directory.
+                    hostBundle.bundleURL.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Frameworks"),
                 ].map({ $0?.appendingPathComponent("\(target.productNameWithExtension)") })
 
                 for candidate in candidates {
@@ -535,6 +540,7 @@ public class ResourcesProjectMapper: ProjectMapping { // swiftlint:disable:this 
                     Bundle.main.bundleURL,
                     Bundle.main.privateFrameworksURL,
                     Bundle.main.bundleURL.appendingPathComponent("Frameworks"),
+                    hostBundle.bundleURL.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Frameworks"),
                 ]
                 if ProcessInfo.processInfo.processName == "xctest"
                     || ProcessInfo.processInfo.processName == "swift-testing"

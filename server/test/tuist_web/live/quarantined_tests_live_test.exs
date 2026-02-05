@@ -7,7 +7,7 @@ defmodule TuistWeb.QuarantinedTestsLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.IngestRepo
-  alias Tuist.Runs.TestCase
+  alias Tuist.Tests.TestCase
   alias TuistTestSupport.Fixtures.RunsFixtures
 
   describe "quarantined tests page" do

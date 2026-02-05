@@ -82,7 +82,7 @@ NSBundle *bundle = [MyFeatureResources bundle];
 
 リソースは、文字列を使って名前と拡張子で識別される。これはコンパイル時に捕捉されず、リリース時にクラッシュにつながる可能性があるため、理想的ではありません。それを防ぐために、Tuistは[SwiftGen](https://github.com/SwiftGen/SwiftGen)をプロジェクト生成プロセスに統合し、リソースにアクセスするためのインターフェースを合成します。そのおかげで、どんな問題でもコンパイラを活用してリソースに自信を持ってアクセスすることができる。
 
-Tuistには[templates](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator/Templates)が含まれており、デフォルトで以下のリソースタイプのアクセッサを合成します：
+Tuistには[templates](https://github.com/tuist/tuist/tree/main/cli/Sources/TuistGenerator/Templates)が含まれており、デフォルトで以下のリソースタイプのアクセッサを合成します：
 
 | リソースタイプ | 自動生成ファイル              |
 | ------- | --------------------- |

@@ -3,11 +3,12 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
   Fixtures for runs.
   """
   alias Ecto.Adapters.SQL
+  alias Tuist.Builds
   alias Tuist.IngestRepo
-  alias Tuist.Runs
-  alias Tuist.Runs.TestCase
-  alias Tuist.Runs.TestCaseEvent
-  alias Tuist.Runs.TestCaseRun
+  alias Tuist.Tests
+  alias Tuist.Tests.TestCase
+  alias Tuist.Tests.TestCaseEvent
+  alias Tuist.Tests.TestCaseRun
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
@@ -26,7 +27,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         AccountsFixtures.user_fixture(preload: [:account]).account.id
       end)
 
-    Runs.create_build(%{
+    Builds.create_build(%{
       id: Keyword.get(attrs, :id, UUIDv7.generate()),
       duration: Keyword.get(attrs, :duration, 1000),
       macos_version: Keyword.get(attrs, :macos_version, "11.2.3"),
@@ -92,7 +93,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         }
       ])
 
-    Runs.create_test(%{
+    Tests.create_test(%{
       id: Keyword.get(attrs, :id, UUIDv7.generate()),
       project_id: project_id,
       account_id: account_id,
@@ -133,7 +134,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       type: Keyword.get(attrs, :type, :swift)
     }
 
-    changeset = Tuist.Runs.CASOutput.changeset(build_run_id, cas_output)
+    changeset = Tuist.Builds.CASOutput.changeset(build_run_id, cas_output)
 
     IngestRepo.insert(changeset)
   end

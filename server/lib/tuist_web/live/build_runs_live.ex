@@ -9,16 +9,16 @@ defmodule TuistWeb.BuildRunsLive do
 
   alias Noora.Filter
   alias Tuist.Accounts
+  alias Tuist.Builds
   alias Tuist.Projects
-  alias Tuist.Runs
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
   alias TuistWeb.Utilities.SHA
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     slug = Projects.get_project_slug_from_id(project.id)
-    configurations = Runs.project_build_configurations(project)
-    tags = Runs.project_build_tags(project)
+    configurations = Builds.project_build_configurations(project)
+    tags = Builds.project_build_tags(project)
 
     socket =
       socket
@@ -111,7 +111,7 @@ defmodule TuistWeb.BuildRunsLive do
         params
       )
 
-    {build_runs, build_runs_meta} = Runs.list_build_runs(options, preload: :ran_by_account)
+    {build_runs, build_runs_meta} = Builds.list_build_runs(options, preload: :ran_by_account)
 
     socket
     |> assign(:active_filters, filters)

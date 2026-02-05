@@ -7,8 +7,8 @@ defmodule TuistWeb.BuildsLive do
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
 
-  alias Tuist.Runs
-  alias Tuist.Runs.Analytics
+  alias Tuist.Builds
+  alias Tuist.Builds.Analytics
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
@@ -124,9 +124,9 @@ defmodule TuistWeb.BuildsLive do
     |> assign(:analytics_build_configuration, analytics_build_configuration)
     |> assign(:analytics_build_category, analytics_build_category)
     |> assign(:analytics_build_tag, analytics_build_tag)
-    |> assign(:build_schemes, Runs.project_build_schemes(project))
-    |> assign(:build_configurations, Runs.project_build_configurations(project))
-    |> assign(:build_tags, Runs.project_build_tags(project))
+    |> assign(:build_schemes, Builds.project_build_schemes(project))
+    |> assign(:build_configurations, Builds.project_build_configurations(project))
+    |> assign(:build_tags, Builds.project_build_tags(project))
     |> assign(:selected_build_duration_type, params["build-duration-type"] || "avg")
   end
 
@@ -304,7 +304,7 @@ defmodule TuistWeb.BuildsLive do
 
   defp assign_recent_builds(%{assigns: %{selected_project: project}} = socket) do
     {recent_builds, _meta} =
-      Runs.list_build_runs(
+      Builds.list_build_runs(
         %{
           first: 40,
           filters: [
@@ -330,7 +330,7 @@ defmodule TuistWeb.BuildsLive do
       end)
 
     %{successful_count: successful_builds_count, failed_count: failed_builds_count} =
-      Runs.recent_build_status_counts(project.id, limit: 40)
+      Builds.recent_build_status_counts(project.id, limit: 40)
 
     socket
     |> assign(:recent_builds, recent_builds)

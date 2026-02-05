@@ -891,7 +891,7 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
-    func mapWhenProjectIsExternalStaticFrameworkHasResourcesUsesStaticFrameworkAccessor() async throws {
+    func mapWhenProjectIsExternalStaticFrameworkHasResourcesGeneratesBundleTarget() async throws {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/AbsolutePath/Project/Resources/image.png")]
         let target = Target.test(product: .staticFramework, sources: ["/ViewController.swift"], resources: .init(resources))
@@ -904,17 +904,21 @@ struct ResourcesProjectMapperTests {
         given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
 
         // When
-        let (_, gotSideEffects) = try await subject.map(project: project)
+        let (gotProject, gotSideEffects) = try await subject.map(project: project)
 
-        // Then
+        // Then: External static frameworks generate a separate resource bundle
+        let resourcesTarget = try #require(gotProject.targets.values.first(where: { $0.product == .bundle }))
+        #expect(resourcesTarget.name == "\(project.name)_\(target.name)")
+        #expect(gotProject.targets.count == 2)
+
         let sideEffect = try #require(gotSideEffects.first)
         guard case let SideEffectDescriptor.file(file) = sideEffect else {
             Issue.record("Expected file descriptor")
             return
         }
         let contents = String(data: file.contents ?? Data(), encoding: .utf8) ?? ""
-        // External static frameworks keep SwiftPM-style accessors to locate the resource bundle.
-        #expect(contents.contains("Swift Bundle Accessor for Static Frameworks"))
+        // External static frameworks use the SPM bundle accessor to locate the resource bundle.
+        #expect(contents.contains("Swift Bundle Accessor - for SPM"))
         #expect(contents.contains("static let module"))
         #expect(!contents.contains("public final class"))
     }

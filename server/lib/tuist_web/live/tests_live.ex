@@ -7,8 +7,9 @@ defmodule TuistWeb.TestsLive do
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
 
-  alias Tuist.Runs
-  alias Tuist.Runs.Analytics
+  alias Tuist.Builds.Analytics, as: BuildsAnalytics
+  alias Tuist.Tests
+  alias Tuist.Tests.Analytics
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
@@ -223,7 +224,7 @@ defmodule TuistWeb.TestsLive do
         _ -> opts
       end
 
-    selective_testing_analytics = Analytics.selective_testing_analytics_with_percentiles(opts)
+    selective_testing_analytics = BuildsAnalytics.selective_testing_analytics_with_percentiles(opts)
 
     socket
     |> assign(:selective_testing_analytics, selective_testing_analytics)
@@ -236,7 +237,7 @@ defmodule TuistWeb.TestsLive do
 
   defp assign_recent_test_runs(%{assigns: %{selected_project: project}} = socket) do
     {recent_test_runs, _meta} =
-      Runs.list_test_runs(%{
+      Tests.list_test_runs(%{
         last: 40,
         filters: [
           %{field: :project_id, op: :==, value: project.id}
@@ -272,7 +273,7 @@ defmodule TuistWeb.TestsLive do
 
   defp assign_slowest_test_cases(%{assigns: %{selected_project: project}} = socket) do
     {slowest_test_cases, _meta} =
-      Runs.list_test_cases(project.id, %{
+      Tests.list_test_cases(project.id, %{
         page: 1,
         page_size: 5,
         order_by: [:avg_duration],
@@ -284,7 +285,7 @@ defmodule TuistWeb.TestsLive do
 
   defp assign_most_flaky_test_cases(%{assigns: %{selected_project: project}} = socket) do
     {most_flaky_test_cases, _meta} =
-      Runs.list_flaky_test_cases(project.id, %{
+      Tests.list_flaky_test_cases(project.id, %{
         page: 1,
         page_size: 5,
         order_by: [:flaky_runs_count],

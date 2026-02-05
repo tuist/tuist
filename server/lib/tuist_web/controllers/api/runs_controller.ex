@@ -1,14 +1,25 @@
 defmodule TuistWeb.API.RunsController do
+  @moduledoc """
+  Controller for the deprecated /runs API endpoint.
+
+  DEPRECATED: This endpoint is deprecated. Please use the specific endpoints instead:
+  - POST /builds for creating builds
+  - POST /tests for creating test runs
+  - GET /builds for listing builds
+
+  This controller is kept for backward compatibility and will be removed in a future version.
+  """
   use OpenApiSpex.ControllerSpecs
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
-  alias Tuist.Runs
-  alias Tuist.Runs.CASOutput
+  alias Tuist.Builds
+  alias Tuist.Builds.CASOutput
+  alias Tuist.Tests
+  alias TuistWeb.API.Schemas.Builds.Build
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Run
-  alias TuistWeb.API.Schemas.Runs.Build
-  alias TuistWeb.API.Schemas.Runs.Test
+  alias TuistWeb.API.Schemas.Tests.Test
   alias TuistWeb.Authentication
 
   plug(OpenApiSpex.Plug.CastAndValidate,
@@ -22,7 +33,9 @@ defmodule TuistWeb.API.RunsController do
   tags ["Runs"]
 
   operation(:index,
-    summary: "List runs associated with a given project.",
+    summary:
+      "List runs associated with a given project. DEPRECATED: Use GET /builds, GET /tests, or GET /generations instead.",
+    deprecated: true,
     operation_id: "listRuns",
     parameters: [
       account_handle: [
@@ -118,14 +131,8 @@ defmodule TuistWeb.API.RunsController do
       runs:
         Enum.map(command_events, fn event ->
           ran_by =
-            case Tuist.CommandEvents.get_user_for_command_event(event) do
-              {:ok, user} ->
-                user = Tuist.Repo.preload(user, :account)
-                %{handle: user.account.name}
-
-              {:error, :not_found} ->
-                nil
-            end
+            if event.user_account_name,
+              do: %{handle: event.user_account_name}
 
           event
           |> Map.take([
@@ -163,7 +170,8 @@ defmodule TuistWeb.API.RunsController do
   end
 
   operation(:create,
-    summary: "Create a new run.",
+    summary: "Create a new run. DEPRECATED: Use POST /builds or POST /tests instead.",
+    deprecated: true,
     parameters: [
       account_handle: [
         in: :path,
@@ -611,7 +619,7 @@ defmodule TuistWeb.API.RunsController do
                ci_provider: %Schema{
                  type: :string,
                  description: "The CI provider.",
-                 enum: Runs.valid_ci_providers()
+                 enum: Builds.valid_ci_providers()
                },
                test_modules: %Schema{
                  type: :array,
@@ -827,8 +835,8 @@ defmodule TuistWeb.API.RunsController do
   end
 
   defp get_or_create_build(params) do
-    case Runs.get_build(params.id) do
-      %Runs.Build{} = build ->
+    case Builds.get_build(params.id) do
+      %Tuist.Builds.Build{} = build ->
         {:ok, build}
 
       nil ->
@@ -864,7 +872,7 @@ defmodule TuistWeb.API.RunsController do
         }
 
         build_attrs
-        |> Runs.create_build()
+        |> Builds.create_build()
         |> handle_build_creation_result(params.id)
     end
   end
@@ -873,8 +881,8 @@ defmodule TuistWeb.API.RunsController do
 
   defp handle_build_creation_result({:error, changeset}, build_id) do
     if Keyword.has_key?(changeset.errors, :id) do
-      case Runs.get_build(build_id) do
-        %Runs.Build{} = build -> {:ok, build}
+      case Builds.get_build(build_id) do
+        %Tuist.Builds.Build{} = build -> {:ok, build}
         nil -> {:error, :creation_failed}
       end
     else
@@ -885,12 +893,12 @@ defmodule TuistWeb.API.RunsController do
   defp get_or_create_test(params) do
     test_id = Map.get(params, :id, UUIDv7.generate())
 
-    case Runs.get_test(test_id) do
+    case Tests.get_test(test_id) do
       {:ok, test_run} ->
         {:ok, test_run}
 
       {:error, :not_found} ->
-        Runs.create_test(%{
+        Tests.create_test(%{
           id: test_id,
           duration: params.duration,
           macos_version: Map.get(params, :macos_version),

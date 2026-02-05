@@ -9,8 +9,8 @@ defmodule TuistWeb.XcodeCacheLive do
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
 
-  alias Tuist.Runs.Analytics
-  alias Tuist.Runs.Build
+  alias Tuist.Builds.Analytics
+  alias Tuist.Builds.Build
   alias Tuist.Utilities.ByteFormatter
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
