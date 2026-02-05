@@ -15,6 +15,7 @@ defmodule TuistTestSupport.Utilities do
     Tuist.Xcode.XcodeGraph.Buffer.flush()
     Tuist.Xcode.XcodeProject.Buffer.flush()
     Tuist.Xcode.XcodeTarget.Buffer.flush()
+    Tuist.Builds.Build.Buffer.flush()
     result
   end
 
@@ -29,7 +30,8 @@ defmodule TuistTestSupport.Utilities do
       "TRUNCATE TABLE IF EXISTS cas_events",
       "TRUNCATE TABLE IF EXISTS build_files",
       "TRUNCATE TABLE IF EXISTS build_issues",
-      "TRUNCATE TABLE IF EXISTS build_targets"
+      "TRUNCATE TABLE IF EXISTS build_targets",
+      "TRUNCATE TABLE IF EXISTS build_runs"
     ]
 
     for command <- commands do

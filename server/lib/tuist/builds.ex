@@ -41,14 +41,12 @@ defmodule Tuist.Builds do
         account =
           if acc.account_id do
             Repo.get(Account, acc.account_id)
-          else
-            nil
           end
 
         %{acc | ran_by_account: account}
 
       {:project, nested_preloads}, acc ->
-        project = Repo.get(Project, acc.project_id) |> Repo.preload(nested_preloads)
+        project = Project |> Repo.get(acc.project_id) |> Repo.preload(nested_preloads)
         %{acc | project: project}
 
       _, acc ->
@@ -74,33 +72,34 @@ defmodule Tuist.Builds do
 
     build_data = Build.changeset(attrs)
 
-    case Build.Buffer.insert(build_data) do
-      {:ok, build} ->
-        Task.await_many(
-          [
-            Task.async(fn -> create_build_issues(build, Map.get(attrs, :issues, [])) end),
-            Task.async(fn -> create_build_files(build, Map.get(attrs, :files, [])) end),
-            Task.async(fn -> create_build_targets(build, Map.get(attrs, :targets, [])) end),
-            Task.async(fn -> create_cacheable_tasks(build, cacheable_tasks) end),
-            Task.async(fn -> create_cas_outputs(build, cas_outputs) end)
-          ],
-          30_000
+    if Build.valid_status?(build_data.status) do
+      {:ok, build_map} = Build.Buffer.insert(build_data)
+      build = Build |> struct(build_map) |> Build.normalize_enums()
+
+      Task.await_many(
+        [
+          Task.async(fn -> create_build_issues(build_map, Map.get(attrs, :issues, [])) end),
+          Task.async(fn -> create_build_files(build_map, Map.get(attrs, :files, [])) end),
+          Task.async(fn -> create_build_targets(build_map, Map.get(attrs, :targets, [])) end),
+          Task.async(fn -> create_cacheable_tasks(build_map, cacheable_tasks) end),
+          Task.async(fn -> create_cas_outputs(build_map, cas_outputs) end)
+        ],
+        30_000
+      )
+
+      project = Project |> Repo.get(build.project_id) |> Repo.preload(:account)
+
+      if project do
+        Tuist.PubSub.broadcast(
+          build,
+          "#{project.account.name}/#{project.name}",
+          :build_created
         )
+      end
 
-        project = Repo.get(Project, build.project_id) |> Repo.preload(:account)
-
-        if project do
-          Tuist.PubSub.broadcast(
-            build,
-            "#{project.account.name}/#{project.name}",
-            :build_created
-          )
-        end
-
-        {:ok, build}
-
-      {:error, reason} ->
-        {:error, reason}
+      {:ok, build}
+    else
+      {:error, :invalid_build_status}
     end
   end
 
@@ -345,9 +344,7 @@ defmodule Tuist.Builds do
     preload = Keyword.get(opts, :preload, [])
     custom_values = Keyword.get(opts, :custom_values)
 
-    base_query =
-      Build
-      |> apply_custom_values_filter(custom_values)
+    base_query = apply_custom_values_filter(Build, custom_values)
 
     {results, meta} = ClickHouseFlop.validate_and_run!(base_query, attrs, for: Build)
 

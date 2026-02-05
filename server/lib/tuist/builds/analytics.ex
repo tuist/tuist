@@ -82,7 +82,7 @@ defmodule Tuist.Builds.Analytics do
   end
 
   defp build_count(project_id, start_datetime, end_datetime, date_period, clickhouse_interval, opts) do
-    filter_clauses = build_filter_clauses(opts)
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
 
     query = """
     SELECT
@@ -97,12 +97,17 @@ defmodule Tuist.Builds.Analytics do
     ORDER BY date
     """
 
-    {:ok, %{rows: rows}} =
-      ClickHouseRepo.query(query, %{
-        project_id: project_id,
-        start_dt: start_datetime,
-        end_dt: end_datetime
-      })
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
 
     builds_data = Map.new(rows, fn [date, count] -> {normalise_date(date, date_period), count} end)
 
@@ -116,7 +121,7 @@ defmodule Tuist.Builds.Analytics do
   end
 
   defp build_total_count(project_id, start_datetime, end_datetime, opts) do
-    filter_clauses = build_filter_clauses(opts)
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
 
     query = """
     SELECT count() as count
@@ -127,12 +132,17 @@ defmodule Tuist.Builds.Analytics do
       #{filter_clauses}
     """
 
-    {:ok, %{rows: [[count]]}} =
-      ClickHouseRepo.query(query, %{
-        project_id: project_id,
-        start_dt: start_datetime,
-        end_dt: end_datetime
-      })
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: [[count]]}} = ClickHouseRepo.query(query, params)
 
     count || 0
   end
@@ -153,7 +163,7 @@ defmodule Tuist.Builds.Analytics do
     current_period_data = build_aggregated_analytics(project_id, start_datetime, end_datetime, opts)
     current_period_total_average_duration = current_period_data.average_duration
 
-    filter_clauses = build_filter_clauses(opts)
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
 
     query = """
     SELECT
@@ -168,12 +178,17 @@ defmodule Tuist.Builds.Analytics do
     ORDER BY date
     """
 
-    {:ok, %{rows: rows}} =
-      ClickHouseRepo.query(query, %{
-        project_id: project_id,
-        start_dt: start_datetime,
-        end_dt: end_datetime
-      })
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
 
     average_durations_data = Enum.map(rows, fn [date, value] -> %{date: date, value: value} end)
     average_durations = process_durations_data(average_durations_data, start_datetime, end_datetime, date_period)
@@ -192,7 +207,7 @@ defmodule Tuist.Builds.Analytics do
   end
 
   defp build_aggregated_analytics(project_id, start_datetime, end_datetime, opts) do
-    filter_clauses = build_filter_clauses(opts)
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
 
     query = """
     SELECT
@@ -206,12 +221,17 @@ defmodule Tuist.Builds.Analytics do
       #{filter_clauses}
     """
 
-    {:ok, %{rows: rows}} =
-      ClickHouseRepo.query(query, %{
-        project_id: project_id,
-        start_dt: start_datetime,
-        end_dt: end_datetime
-      })
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
 
     case rows do
       [[nil, count, nil]] ->
@@ -249,7 +269,7 @@ defmodule Tuist.Builds.Analytics do
         opts
       )
 
-    filter_clauses = build_filter_clauses(opts)
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
 
     query = """
     SELECT
@@ -264,12 +284,17 @@ defmodule Tuist.Builds.Analytics do
     ORDER BY date
     """
 
-    {:ok, %{rows: rows}} =
-      ClickHouseRepo.query(query, %{
-        project_id: project_id,
-        start_dt: start_datetime,
-        end_dt: end_datetime
-      })
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
 
     durations_data = Enum.map(rows, fn [date, value] -> %{date: date, value: value} end)
     durations = process_durations_data(durations_data, start_datetime, end_datetime, date_period)
@@ -287,7 +312,7 @@ defmodule Tuist.Builds.Analytics do
   end
 
   defp build_period_percentile(project_id, percentile, start_datetime, end_datetime, opts) do
-    filter_clauses = build_filter_clauses(opts)
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
 
     query = """
     SELECT quantile(#{percentile})(duration) as value
@@ -298,12 +323,17 @@ defmodule Tuist.Builds.Analytics do
       #{filter_clauses}
     """
 
-    {:ok, %{rows: [[value]]}} =
-      ClickHouseRepo.query(query, %{
-        project_id: project_id,
-        start_dt: start_datetime,
-        end_dt: end_datetime
-      })
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: [[value]]}} = ClickHouseRepo.query(query, params)
 
     normalize_result(value)
   end
@@ -365,7 +395,7 @@ defmodule Tuist.Builds.Analytics do
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
     filter_opts = Keyword.get(opts, :opts, [])
 
-    filter_clauses = build_filter_clauses(filter_opts)
+    {filter_clauses, filter_params} = build_filter_clauses(filter_opts)
 
     query = """
     SELECT
@@ -378,12 +408,17 @@ defmodule Tuist.Builds.Analytics do
       #{filter_clauses}
     """
 
-    {:ok, %{rows: [[total_builds, successful_builds]]}} =
-      ClickHouseRepo.query(query, %{
-        project_id: project_id,
-        start_dt: start_datetime,
-        end_dt: end_datetime
-      })
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: [[total_builds, successful_builds]]}} = ClickHouseRepo.query(query, params)
 
     if total_builds == 0 do
       0.0
@@ -399,7 +434,7 @@ defmodule Tuist.Builds.Analytics do
     filter_opts = Keyword.get(opts, :opts, [])
 
     clickhouse_interval = clickhouse_interval_for_date_period(date_period)
-    filter_clauses = build_filter_clauses(filter_opts)
+    {filter_clauses, filter_params} = build_filter_clauses(filter_opts)
 
     query = """
     SELECT
@@ -415,12 +450,17 @@ defmodule Tuist.Builds.Analytics do
     ORDER BY date
     """
 
-    {:ok, %{rows: rows}} =
-      ClickHouseRepo.query(query, %{
-        project_id: project_id,
-        start_dt: start_datetime,
-        end_dt: end_datetime
-      })
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
 
     success_rate_metadata_map =
       Map.new(rows, fn [date, total, successful] ->
@@ -1000,7 +1040,7 @@ defmodule Tuist.Builds.Analytics do
 
     date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
     clickhouse_interval = clickhouse_interval_for_date_period(date_period)
-    filter_clauses = build_filter_clauses(opts)
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
 
     query = """
     SELECT
@@ -1018,12 +1058,17 @@ defmodule Tuist.Builds.Analytics do
     ORDER BY date
     """
 
-    {:ok, %{rows: rows}} =
-      ClickHouseRepo.query(query, %{
-        project_id: project_id,
-        start_dt: start_datetime,
-        end_dt: end_datetime
-      })
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
 
     current_data = Enum.map(rows, fn [date, hit_rate] -> %{date: date, hit_rate: hit_rate} end)
 
@@ -1076,7 +1121,7 @@ defmodule Tuist.Builds.Analytics do
     days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
     date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
     clickhouse_interval = clickhouse_interval_for_date_period(date_period)
-    filter_clauses = build_filter_clauses(opts)
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
 
     current_period_percentile =
       cache_hit_rate_period_percentile(project_id, percentile, start_datetime, end_datetime, opts)
@@ -1104,12 +1149,17 @@ defmodule Tuist.Builds.Analytics do
     ORDER BY date
     """
 
-    {:ok, %{rows: rows}} =
-      ClickHouseRepo.query(query, %{
-        project_id: project_id,
-        start_dt: start_datetime,
-        end_dt: end_datetime
-      })
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
 
     hit_rate_data = Enum.map(rows, fn [date, hit_rate] -> %{date: date, hit_rate: hit_rate} end)
 
@@ -1128,7 +1178,7 @@ defmodule Tuist.Builds.Analytics do
   end
 
   defp cache_hit_rate_period_percentile(project_id, percentile, start_datetime, end_datetime, opts) do
-    filter_clauses = build_filter_clauses(opts)
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
 
     query = """
     SELECT quantile(#{1 - percentile})((cacheable_task_local_hits_count + cacheable_task_remote_hits_count) / cacheable_tasks_count * 100.0) as value
@@ -1140,18 +1190,23 @@ defmodule Tuist.Builds.Analytics do
       #{filter_clauses}
     """
 
-    {:ok, %{rows: [[value]]}} =
-      ClickHouseRepo.query(query, %{
-        project_id: project_id,
-        start_dt: start_datetime,
-        end_dt: end_datetime
-      })
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: [[value]]}} = ClickHouseRepo.query(query, params)
 
     normalize_result(value)
   end
 
   defp avg_cache_hit_rate(project_id, start_datetime, end_datetime, opts) do
-    filter_clauses = build_filter_clauses(opts)
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
 
     query = """
     SELECT
@@ -1166,12 +1221,17 @@ defmodule Tuist.Builds.Analytics do
       #{filter_clauses}
     """
 
-    {:ok, %{rows: rows}} =
-      ClickHouseRepo.query(query, %{
-        project_id: project_id,
-        start_dt: start_datetime,
-        end_dt: end_datetime
-      })
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
 
     case rows do
       [[nil, _, _]] ->
@@ -1222,7 +1282,7 @@ defmodule Tuist.Builds.Analytics do
   - cacheable_task_remote_hits_count: Total number of remote cache hits
   """
   def build_cache_hit_rate(project_id, start_datetime, end_datetime, opts) do
-    filter_clauses = build_filter_clauses(opts)
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
 
     query = """
     SELECT
@@ -1237,12 +1297,17 @@ defmodule Tuist.Builds.Analytics do
       #{filter_clauses}
     """
 
-    {:ok, %{rows: rows}} =
-      ClickHouseRepo.query(query, %{
-        project_id: project_id,
-        start_dt: start_datetime,
-        end_dt: end_datetime
-      })
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
 
     case rows do
       [[cacheable, local, remote]] ->
@@ -1271,7 +1336,7 @@ defmodule Tuist.Builds.Analytics do
   - cacheable_task_remote_hits: Total number of remote cache hits in this period
   """
   def build_cache_hit_rates(project_id, start_datetime, end_datetime, time_bucket, opts) do
-    filter_clauses = build_filter_clauses(opts)
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
     date_format = get_clickhouse_date_format(time_bucket)
 
     query = """
@@ -1290,12 +1355,17 @@ defmodule Tuist.Builds.Analytics do
     ORDER BY date
     """
 
-    {:ok, %{rows: rows}} =
-      ClickHouseRepo.query(query, %{
-        project_id: project_id,
-        start_dt: start_datetime,
-        end_dt: end_datetime
-      })
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
 
     Enum.map(rows, fn [date, cacheable_tasks, local_hits, remote_hits] ->
       date_str = format_clickhouse_date(date, date_format)
@@ -1829,47 +1899,79 @@ defmodule Tuist.Builds.Analytics do
   defp clickhouse_interval_for_date_period(:month), do: "1 month"
 
   defp build_filter_clauses(opts) do
-    clauses = []
+    {clauses, params} =
+      {[], %{}}
+      |> add_boolean_filter(opts, :is_ci, "is_ci")
+      |> add_string_filter(opts, :scheme, "scheme")
+      |> add_string_filter(opts, :configuration, "configuration")
+      |> add_enum_filter(opts, :category, "category", ["clean", "incremental"])
+      |> add_tag_filter(opts, :tag, "custom_tags")
+      |> add_enum_filter(opts, :status, "status", ["success", "failure"])
 
-    clauses =
-      case Keyword.get(opts, :is_ci) do
-        true -> ["AND is_ci = true" | clauses]
-        false -> ["AND is_ci = false" | clauses]
-        _ -> clauses
+    filter_sql =
+      case clauses do
+        [] -> ""
+        _ -> clauses |> Enum.reverse() |> Enum.join("\n")
       end
 
-    clauses =
-      case Keyword.get(opts, :scheme) do
-        nil -> clauses
-        scheme -> ["AND scheme = '#{scheme}'" | clauses]
-      end
-
-    clauses =
-      case Keyword.get(opts, :configuration) do
-        nil -> clauses
-        configuration -> ["AND configuration = '#{configuration}'" | clauses]
-      end
-
-    clauses =
-      case Keyword.get(opts, :category) do
-        nil -> clauses
-        category -> ["AND category = '#{category}'" | clauses]
-      end
-
-    clauses =
-      case Keyword.get(opts, :tag) do
-        nil -> clauses
-        tag -> ["AND has(custom_tags, '#{tag}')" | clauses]
-      end
-
-    clauses =
-      case Keyword.get(opts, :status) do
-        nil -> clauses
-        status -> ["AND status = '#{status}'" | clauses]
-      end
-
-    Enum.join(clauses, " ")
+    {filter_sql, params}
   end
+
+  defp add_boolean_filter({clauses, params}, opts, key, field) do
+    case Keyword.get(opts, key) do
+      value when is_boolean(value) ->
+        {
+          ["AND #{field} = {#{key}:Bool}" | clauses],
+          Map.put(params, key, value)
+        }
+
+      _ ->
+        {clauses, params}
+    end
+  end
+
+  defp add_string_filter({clauses, params}, opts, key, field) do
+    case normalize_string_filter(Keyword.get(opts, key)) do
+      nil ->
+        {clauses, params}
+
+      value ->
+        {
+          ["AND #{field} = {#{key}:String}" | clauses],
+          Map.put(params, key, value)
+        }
+    end
+  end
+
+  defp add_enum_filter({clauses, params}, opts, key, field, allowed_values) do
+    value = normalize_string_filter(Keyword.get(opts, key))
+
+    if value in allowed_values do
+      {
+        ["AND #{field} = {#{key}:String}" | clauses],
+        Map.put(params, key, value)
+      }
+    else
+      {clauses, params}
+    end
+  end
+
+  defp add_tag_filter({clauses, params}, opts, key, field) do
+    case normalize_string_filter(Keyword.get(opts, key)) do
+      nil ->
+        {clauses, params}
+
+      value ->
+        {
+          ["AND has(#{field}, {#{key}:String})" | clauses],
+          Map.put(params, key, value)
+        }
+    end
+  end
+
+  defp normalize_string_filter(value) when is_atom(value), do: Atom.to_string(value)
+  defp normalize_string_filter(value) when is_binary(value), do: value
+  defp normalize_string_filter(_), do: nil
 
   defp date_range_for_date_period(:hour, opts) do
     start_datetime = DateTime.truncate(Keyword.fetch!(opts, :start_datetime), :second)

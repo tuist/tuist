@@ -27,38 +27,42 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         AccountsFixtures.user_fixture(preload: [:account]).account.id
       end)
 
-    Builds.create_build(%{
-      id: Keyword.get(attrs, :id, UUIDv7.generate()),
-      duration: Keyword.get(attrs, :duration, 1000),
-      macos_version: Keyword.get(attrs, :macos_version, "11.2.3"),
-      xcode_version: Keyword.get(attrs, :xcode_version, "12.4"),
-      is_ci: Keyword.get(attrs, :is_ci, false),
-      model_identifier: Keyword.get(attrs, :model_identifier, "Mac15,6"),
-      scheme: Keyword.get(attrs, :scheme, "App"),
-      configuration: Keyword.get(attrs, :configuration, "Debug"),
-      project_id: project_id,
-      account_id: account_id,
-      inserted_at: Keyword.get(attrs, :inserted_at),
-      status: Keyword.get(attrs, :status, :success),
-      category: Keyword.get(attrs, :category, :incremental),
-      git_commit_sha: Keyword.get(attrs, :git_commit_sha),
-      git_branch: Keyword.get(attrs, :git_branch),
-      git_ref: Keyword.get(attrs, :git_ref),
-      ci_run_id: Keyword.get(attrs, :ci_run_id),
-      ci_project_handle: Keyword.get(attrs, :ci_project_handle),
-      ci_host: Keyword.get(attrs, :ci_host),
-      ci_provider: Keyword.get(attrs, :ci_provider),
-      issues: Keyword.get(attrs, :issues, []),
-      files: Keyword.get(attrs, :files, []),
-      targets: Keyword.get(attrs, :targets, []),
-      cacheable_tasks: Keyword.get(attrs, :cacheable_tasks, []),
-      cas_outputs: Keyword.get(attrs, :cas_outputs, []),
-      cacheable_tasks_count: Keyword.get(attrs, :cacheable_tasks_count),
-      cacheable_task_local_hits_count: Keyword.get(attrs, :cacheable_task_local_hits_count),
-      cacheable_task_remote_hits_count: Keyword.get(attrs, :cacheable_task_remote_hits_count),
-      custom_tags: Keyword.get(attrs, :custom_tags, []),
-      custom_values: Keyword.get(attrs, :custom_values, %{})
-    })
+    result =
+      Builds.create_build(%{
+        id: Keyword.get(attrs, :id, UUIDv7.generate()),
+        duration: Keyword.get(attrs, :duration, 1000),
+        macos_version: Keyword.get(attrs, :macos_version, "11.2.3"),
+        xcode_version: Keyword.get(attrs, :xcode_version, "12.4"),
+        is_ci: Keyword.get(attrs, :is_ci, false),
+        model_identifier: Keyword.get(attrs, :model_identifier, "Mac15,6"),
+        scheme: Keyword.get(attrs, :scheme, "App"),
+        configuration: Keyword.get(attrs, :configuration, "Debug"),
+        project_id: project_id,
+        account_id: account_id,
+        inserted_at: Keyword.get(attrs, :inserted_at),
+        status: Keyword.get(attrs, :status, :success),
+        category: Keyword.get(attrs, :category, :incremental),
+        git_commit_sha: Keyword.get(attrs, :git_commit_sha),
+        git_branch: Keyword.get(attrs, :git_branch),
+        git_ref: Keyword.get(attrs, :git_ref),
+        ci_run_id: Keyword.get(attrs, :ci_run_id),
+        ci_project_handle: Keyword.get(attrs, :ci_project_handle),
+        ci_host: Keyword.get(attrs, :ci_host),
+        ci_provider: Keyword.get(attrs, :ci_provider),
+        issues: Keyword.get(attrs, :issues, []),
+        files: Keyword.get(attrs, :files, []),
+        targets: Keyword.get(attrs, :targets, []),
+        cacheable_tasks: Keyword.get(attrs, :cacheable_tasks, []),
+        cas_outputs: Keyword.get(attrs, :cas_outputs, []),
+        cacheable_tasks_count: Keyword.get(attrs, :cacheable_tasks_count),
+        cacheable_task_local_hits_count: Keyword.get(attrs, :cacheable_task_local_hits_count),
+        cacheable_task_remote_hits_count: Keyword.get(attrs, :cacheable_task_remote_hits_count),
+        custom_tags: Keyword.get(attrs, :custom_tags, []),
+        custom_values: Keyword.get(attrs, :custom_values, %{})
+      })
+
+    Tuist.Builds.Build.Buffer.flush()
+    result
   end
 
   def test_fixture(attrs \\ []) do
