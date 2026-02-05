@@ -37,6 +37,7 @@ extension TuistCore.Tuist {
     ) async throws -> TuistCore.Tuist {
         let fullHandle = manifest.fullHandle
         let inspectOptions = InspectOptions.from(manifest: manifest.inspectOptions)
+        let cache = TuistCore.Tuist.Cache(upload: manifest.cache.upload)
         let urlString = manifest.url
 
         guard let url = URL(string: urlString.dropSuffix("/")) else {
@@ -86,6 +87,7 @@ extension TuistCore.Tuist {
                 ),
                 fullHandle: fullHandle,
                 inspectOptions: inspectOptions,
+                cache: cache,
                 url: url
             )
         case .xcode:
@@ -93,6 +95,7 @@ extension TuistCore.Tuist {
                 project: .xcode(TuistXcodeProjectOptions()),
                 fullHandle: fullHandle,
                 inspectOptions: inspectOptions,
+                cache: cache,
                 url: url
             )
         }

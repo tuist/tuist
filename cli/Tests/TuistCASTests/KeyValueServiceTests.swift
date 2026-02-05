@@ -272,6 +272,54 @@ struct KeyValueServiceTests {
     }
 
     @Test
+    func putValue_when_upload_disabled_skips_upload() async throws {
+        // Given
+        let key = Data("MH5TRFZyVWpGYU5scEZUWGhqYkhCWllYb3dQUT09".utf8)
+        let valueData = Data("test-value".utf8)
+
+        var request = CompilationCacheService_Keyvalue_V1_PutValueRequest()
+        request.key = key
+        request.value.entries["key1"] = valueData
+
+        let context = ServerContext.test()
+
+        let noUploadSubject = KeyValueService(
+            fullHandle: fullHandle,
+            serverURL: serverURL,
+            cacheURLStore: cacheURLStore,
+            upload: false,
+            putCacheValueService: putCacheValueService,
+            getCacheValueService: getCacheValueService,
+            nodeStore: nodeStore,
+            metadataStore: metadataStore,
+            serverAuthenticationController: serverAuthenticationController
+        )
+
+        // When
+        let response = try await noUploadSubject.putValue(request: request, context: context)
+
+        // Then
+        #expect(response.hasError == false)
+
+        verify(putCacheValueService)
+            .putCacheValue(
+                casId: .any,
+                entries: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
+            .called(0)
+
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        verify(metadataStore)
+            .storeMetadata(.any, for: .any, operationType: .any)
+            .called(0)
+    }
+
+    @Test
     func putValue_when_client_error_with_auth_error() async throws {
         // Given
         let key = Data("0test-key".utf8)
