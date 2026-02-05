@@ -8,7 +8,7 @@ defmodule Tuist.Gradle.Build do
   schema "gradle_builds" do
     field :id, Ch, type: "UUID"
     field :project_id, Ch, type: "Int64"
-    field :account_id, Ch, type: "Int64"
+    belongs_to :built_by_account, Tuist.Accounts.Account, foreign_key: :account_id
     field :duration_ms, Ch, type: "UInt64"
     field :gradle_version, Ch, type: "Nullable(String)"
     field :java_version, Ch, type: "Nullable(String)"
@@ -28,5 +28,6 @@ defmodule Tuist.Gradle.Build do
     field :cacheable_tasks_count, Ch, type: "UInt32"
     field :avoidance_savings_ms, Ch, type: "UInt64"
     field :inserted_at, Ch, type: "DateTime"
+
   end
 end

@@ -3,7 +3,10 @@ defmodule TuistWeb.GradleBuildLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.Runs.RanByBadge
+
   alias Tuist.Gradle
+  alias Tuist.Repo
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
 
@@ -17,6 +20,8 @@ defmodule TuistWeb.GradleBuildLive do
     if is_nil(build) or build.project_id != project.id do
       raise NotFoundError, dgettext("dashboard_gradle", "Build not found.")
     end
+
+    build = Repo.preload(build, :built_by_account)
 
     tasks = Gradle.list_tasks(build_id)
     slug = "#{account.name}/#{project.name}"

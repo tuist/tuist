@@ -508,15 +508,8 @@
               )
             } />
           </:col>
-          <:col :let={build} label={dgettext("dashboard_gradle", "Avoidance")}>
-            <.text_cell label={
-              dgettext("dashboard_gradle", "%{rate}%",
-                rate:
-                  avoidance_rate(build)
-                  |> Decimal.from_float()
-                  |> Decimal.round(1)
-              )
-            } />
+          <:col :let={build} label={dgettext("dashboard_gradle", "Built by")}>
+            <.gradle_build_ran_by_badge_cell build={build} />
           </:col>
           <:col :let={build} label={dgettext("dashboard_gradle", "Duration")}>
             <.text_cell

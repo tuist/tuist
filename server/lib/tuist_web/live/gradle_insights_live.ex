@@ -6,8 +6,10 @@ defmodule TuistWeb.GradleInsightsLive do
   import TuistWeb.Components.EmptyCardSection
   import TuistWeb.EmptyState
   import TuistWeb.PercentileDropdownWidget
+  import TuistWeb.Runs.RanByBadge
 
   alias Tuist.Gradle
+  alias Tuist.Repo
   alias Tuist.Gradle.Analytics
   alias Tuist.Utilities.ByteFormatter
   alias TuistWeb.Helpers.DatePicker
@@ -172,7 +174,9 @@ defmodule TuistWeb.GradleInsightsLive do
   defp analytics_trend_label(_), do: dgettext("dashboard_gradle", "since last month")
 
   defp assign_recent_builds(%{assigns: %{selected_project: project}} = socket, _params) do
-    builds = Gradle.list_builds(project.id, limit: 40)
+    builds =
+      Gradle.list_builds(project.id, limit: 40)
+      |> Repo.preload(:built_by_account)
 
     recent_builds_chart_data =
       builds

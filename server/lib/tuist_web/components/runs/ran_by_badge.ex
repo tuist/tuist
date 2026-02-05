@@ -54,6 +54,27 @@ defmodule TuistWeb.Runs.RanByBadge do
     """
   end
 
+  attr :build, :map, required: true
+
+  def gradle_build_ran_by_badge_cell(assigns) do
+    ~H"""
+    <.badge_cell
+      :if={@build.is_ci}
+      label={dgettext("dashboard", "CI")}
+      icon="settings"
+      color="information"
+      style="light-fill"
+    />
+    <.badge_cell
+      :if={not @build.is_ci and not is_nil(@build.built_by_account)}
+      label={@build.built_by_account.name}
+      icon="user"
+      color="primary"
+      style="light-fill"
+    />
+    """
+  end
+
   attr :test, :map, required: true
 
   def test_ran_by_badge_cell(assigns) do

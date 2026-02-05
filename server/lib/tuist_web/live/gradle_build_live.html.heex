@@ -141,12 +141,8 @@
             </span>
           </div>
           <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_gradle", "CI")}</div>
-            <span data-part="label">
-              {if @build.is_ci,
-                do: dgettext("dashboard_gradle", "Yes"),
-                else: dgettext("dashboard_gradle", "No")}
-            </span>
+            <div data-part="title">{dgettext("dashboard_gradle", "Built by")}</div>
+            <.gradle_build_ran_by_badge_cell build={@build} />
           </div>
         </div>
       </div>
@@ -226,7 +222,7 @@
 
           [
             %{
-              name: dgettext("dashboard_gradle", "Local hit"),
+              name: dgettext("dashboard_gradle", "Local"),
               type: "bar",
               stack: "total",
               emphasis: %{
@@ -243,7 +239,7 @@
               }
             },
             %{
-              name: dgettext("dashboard_gradle", "Remote hit"),
+              name: dgettext("dashboard_gradle", "Remote"),
               type: "bar",
               stack: "total",
               emphasis: %{
