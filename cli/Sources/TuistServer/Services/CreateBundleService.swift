@@ -1,5 +1,5 @@
 import TuistHTTP
-#if canImport(Rosalind)
+#if os(macOS)
     import Foundation
     import Mockable
     import OpenAPIURLSession
