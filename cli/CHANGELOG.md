@@ -1,6 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.139.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add configurable cache push policy by [@fortmarek](https://github.com/fortmarek) in [#9348](https://github.com/tuist/tuist/pull/9348)
+### 🐛 Bug Fixes
+
+* deduplicate plugins with the same name in tuist edit by [@pepicrft](https://github.com/pepicrft) in [#9354](https://github.com/tuist/tuist/pull/9354)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.138.1...4.139.0
+
 ## What's Changed in 4.138.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
