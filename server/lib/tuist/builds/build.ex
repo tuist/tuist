@@ -309,7 +309,13 @@ defmodule Tuist.Builds.Build do
 
   defp status_string_to_atom("success"), do: :success
   defp status_string_to_atom("failure"), do: :failure
-  defp status_string_to_atom(_), do: :success
+
+  defp status_string_to_atom(unknown) do
+    require Logger
+
+    Logger.warning("Unknown build status encountered: #{inspect(unknown)}, defaulting to :success")
+    :success
+  end
 
   defp category_string_to_atom(nil), do: nil
   defp category_string_to_atom("clean"), do: :clean
