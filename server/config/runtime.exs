@@ -320,6 +320,8 @@ if Tuist.Environment.mail_configured?(secrets) and Tuist.Environment.env() in [:
     base_uri: base_uri
 end
 
+otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
+
 # Oban
 config :tuist, Oban,
   queues: [default: 10, registry: 2],
@@ -360,19 +362,17 @@ config :tuist, Tuist.PromEx,
     auth_strategy: :none
   ]
 
-otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
-
 if otel_endpoint do
-  config :opentelemetry_exporter,
-    otlp_protocol: :grpc,
-    otlp_endpoint: otel_endpoint
-
   config :opentelemetry,
     span_processor: :batch,
     resource: [
       service: [name: "tuist-server", namespace: "tuist"],
       deployment: [environment: to_string(env)]
     ]
+
+  config :opentelemetry_exporter,
+    otlp_protocol: :grpc,
+    otlp_endpoint: otel_endpoint
 else
   config :opentelemetry,
     traces_exporter: :none
