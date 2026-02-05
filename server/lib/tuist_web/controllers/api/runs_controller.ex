@@ -33,7 +33,9 @@ defmodule TuistWeb.API.RunsController do
   tags ["Runs"]
 
   operation(:index,
-    summary: "List runs associated with a given project.",
+    summary:
+      "List runs associated with a given project. DEPRECATED: Use GET /builds, GET /tests, or GET /generations instead.",
+    deprecated: true,
     operation_id: "listRuns",
     parameters: [
       account_handle: [
@@ -129,14 +131,8 @@ defmodule TuistWeb.API.RunsController do
       runs:
         Enum.map(command_events, fn event ->
           ran_by =
-            case Tuist.CommandEvents.get_user_for_command_event(event) do
-              {:ok, user} ->
-                user = Tuist.Repo.preload(user, :account)
-                %{handle: user.account.name}
-
-              {:error, :not_found} ->
-                nil
-            end
+            if event.user_account_name,
+              do: %{handle: event.user_account_name}
 
           event
           |> Map.take([

@@ -106,8 +106,17 @@ defmodule TuistWeb.API.GenerationsController do
                      items: %Schema{type: :string},
                      description: "Remote cache target hits."
                    },
+                   command_arguments: %Schema{type: :string, nullable: true, description: "Command arguments used."},
                    ran_at: %Schema{type: :integer, description: "Unix timestamp when the generation ran."},
-                   url: %Schema{type: :string, description: "URL to view the generation in the dashboard."}
+                   url: %Schema{type: :string, description: "URL to view the generation in the dashboard."},
+                   ran_by: %Schema{
+                     type: :object,
+                     nullable: true,
+                     description: "The account that triggered the generation.",
+                     properties: %{
+                       handle: %Schema{type: :string, description: "The handle of the account."}
+                     }
+                   }
                  },
                  required: [
                    :id,
@@ -149,6 +158,10 @@ defmodule TuistWeb.API.GenerationsController do
     json(conn, %{
       generations:
         Enum.map(command_events, fn event ->
+          ran_by =
+            if event.user_account_name,
+              do: %{handle: event.user_account_name}
+
           event
           |> Map.take([
             :id,
@@ -159,6 +172,7 @@ defmodule TuistWeb.API.GenerationsController do
             :git_ref,
             :git_commit_sha,
             :git_branch,
+            :command_arguments,
             :cacheable_targets,
             :local_cache_target_hits,
             :remote_cache_target_hits
@@ -173,6 +187,7 @@ defmodule TuistWeb.API.GenerationsController do
             :ran_at,
             event.created_at |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_unix()
           )
+          |> Map.put(:ran_by, ran_by)
         end),
       pagination_metadata: %{
         has_next_page: meta.has_next_page?,
