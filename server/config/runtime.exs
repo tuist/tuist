@@ -360,6 +360,24 @@ config :tuist, Tuist.PromEx,
     auth_strategy: :none
   ]
 
+otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
+
+if otel_endpoint do
+  config :opentelemetry_exporter,
+    otlp_protocol: :grpc,
+    otlp_endpoint: otel_endpoint
+
+  config :opentelemetry,
+    span_processor: :batch,
+    resource: [
+      service: [name: "tuist-server", namespace: "tuist"],
+      deployment: [environment: to_string(env)]
+    ]
+else
+  config :opentelemetry,
+    traces_exporter: :none
+end
+
 if Tuist.Environment.analytics_enabled?(secrets) do
   config :posthog,
     api_url: Tuist.Environment.posthog_url(secrets),
