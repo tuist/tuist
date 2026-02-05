@@ -46,7 +46,14 @@ public struct TuistAcceptanceTestFixtureTestingTrait: TestTrait, SuiteTrait, Tes
                             try await TuistTest.$fixtureFullHandle.withValue(fullHandle) {
                                 try await TuistTest.run(
                                     LoginCommand.self,
-                                    ["--email", email, "--password", password, "--url", Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev"]
+                                    [
+                                        "--email",
+                                        email,
+                                        "--password",
+                                        password,
+                                        "--url",
+                                        Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev",
+                                    ]
                                 )
                                 try await TuistTest.run(
                                     OrganizationCreateCommand.self,
