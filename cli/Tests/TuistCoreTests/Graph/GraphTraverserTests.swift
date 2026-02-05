@@ -3451,7 +3451,9 @@ final class GraphTraverserTests: TuistUnitTestCase {
     func test_embeddableFrameworks_when_dependencyIsStaticXCFramework() throws {
         // Given
         // App depends on a static XCFramework directly
-        // Static XCFrameworks should be embedded so resources are accessible at runtime
+        // Static precompiled XCFrameworks should NOT be embedded because embedding them
+        // can cause runtime errors when the inner .framework lacks an Info.plist.
+        // Resources are handled separately via .bundle dependencies.
         let app = Target.test(name: "App", platform: .iOS, product: .app)
         let project = Project.test(targets: [app])
 
@@ -3480,17 +3482,13 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: project.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got.count, 1)
-        XCTAssertEqual(got, [GraphDependencyReference(staticXCFramework)])
+        XCTAssertEqual(got.count, 0)
     }
 
     func test_embeddableFrameworks_when_dependencyIsTransitiveStaticXCFramework() throws {
         // Given
         // App depends on a dynamic framework target which depends on a static XCFramework
-        // Both the dynamic framework AND the static XCFramework should be embedded:
-        // - The dynamic framework is embedded because it's dynamic
-        // - The static XCFramework is embedded so its resources are accessible at runtime
-        //   (the binary will be stripped by Xcode's REMOVE_STATIC_EXECUTABLES_FROM_EMBEDDED_BUNDLES)
+        // Only the dynamic framework should be embedded, not the static XCFramework
         let app = Target.test(name: "App", platform: .iOS, product: .app)
         let dynamicFramework = Target.test(name: "DynamicFramework", platform: .iOS, product: .framework)
         let project = Project.test(targets: [app, dynamicFramework])
@@ -3521,50 +3519,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: project.path, name: app.name).sorted()
 
         // Then
-        // Both should be embedded - the dynamic framework and the static XCFramework
-        XCTAssertEqual(got.count, 2)
+        XCTAssertEqual(got.count, 1)
         XCTAssertEqual(got, [
             .product(target: "DynamicFramework", productName: "DynamicFramework.framework"),
-            GraphDependencyReference(staticXCFramework),
         ])
-    }
-
-    func test_embeddableFrameworks_when_dependencyIsStaticXCFrameworkWithStaticLibrary() throws {
-        // Given
-        // App depends on a static XCFramework that contains a .a static library (not a .framework)
-        // Static XCFrameworks with .a libraries should NOT be embedded because they don't have
-        // an Info.plist and will fail to load at runtime with:
-        // "Failed to load Info.plist from bundle at path .../SomeLibrary.framework"
-        let app = Target.test(name: "App", platform: .iOS, product: .app)
-        let project = Project.test(targets: [app])
-
-        let staticXCFrameworkWithLibrary: GraphDependency = .testXCFramework(
-            path: "/xcframeworks/GoogleMapsCore.xcframework",
-            infoPlist: .test(libraries: [.test(
-                identifier: "ios-arm64",
-                path: try RelativePath(validating: "GoogleMapsCore.a"),
-                architectures: [.arm64]
-            )]),
-            linking: .static,
-            status: .required
-        )
-
-        let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: app.name, path: project.path): [staticXCFrameworkWithLibrary],
-            staticXCFrameworkWithLibrary: [],
-        ]
-        let graph = Graph.test(
-            projects: [project.path: project],
-            dependencies: dependencies
-        )
-        let subject = GraphTraverser(graph: graph)
-
-        // When
-        let got = subject.embeddableFrameworks(path: project.path, name: app.name).sorted()
-
-        // Then
-        // The static XCFramework with .a library should NOT be embedded
-        XCTAssertEqual(got.count, 0)
     }
 
     func test_linkableDependencies_when_dependencyIsAFramework() throws {
