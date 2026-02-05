@@ -27,7 +27,8 @@ struct CacheStartCommandService {
 
     func run(
         fullHandle: String,
-        url: String?
+        url: String?,
+        push: Bool = true
     ) async throws {
         // Create a cache-specific logger that only outputs to os_log with debug level
         let cacheLogger = Logger(label: "dev.tuist.cache", factory: OSLogHandler.verbose)
@@ -57,12 +58,14 @@ struct CacheStartCommandService {
                     KeyValueService(
                         fullHandle: fullHandle,
                         serverURL: serverURL,
-                        cacheURLStore: cacheURLStore
+                        cacheURLStore: cacheURLStore,
+                        push: push
                     ),
                     CASService(
                         fullHandle: fullHandle,
                         serverURL: serverURL,
-                        cacheURLStore: cacheURLStore
+                        cacheURLStore: cacheURLStore,
+                        push: push
                     ),
                 ]
             )

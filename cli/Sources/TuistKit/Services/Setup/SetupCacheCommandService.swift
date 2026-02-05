@@ -62,6 +62,7 @@ struct SetupCacheCommandService {
         let launchDaemonPlistPath = try await createLaunchDaemonPlist(
             fullHandle: fullHandle,
             url: serverURL.absoluteString,
+            push: config.cache.push,
             tuistBinaryPath: tuistBinaryPath
         )
 
@@ -112,6 +113,7 @@ struct SetupCacheCommandService {
     private func createLaunchDaemonPlist(
         fullHandle: String,
         url: String?,
+        push: Bool,
         tuistBinaryPath: AbsolutePath
     ) async throws -> AbsolutePath {
         let launchAgentsDir = Environment.current.homeDirectory.appending(
@@ -147,6 +149,10 @@ struct SetupCacheCommandService {
 
         if let url {
             programArguments.append(contentsOf: ["--url", url])
+        }
+
+        if !push {
+            programArguments.append("--no-push")
         }
 
         var environmentVariables: [String: String] = [:]

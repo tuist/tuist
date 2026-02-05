@@ -20,10 +20,17 @@ struct CacheStartCommand: AsyncParsableCommand {
     )
     var url: String?
 
+    @Flag(
+        inversion: .prefixedNo,
+        help: "Whether to push cache artifacts to the remote. Defaults to true."
+    )
+    var push: Bool = true
+
     func run() async throws {
         try await CacheStartCommandService().run(
             fullHandle: fullHandle,
-            url: url
+            url: url,
+            push: push
         )
     }
 }

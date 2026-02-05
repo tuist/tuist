@@ -18,6 +18,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
     private let metadataStore: CASOutputMetadataStoring
     private let dataCompressingService: DataCompressingServicing
     private let serverAuthenticationController: ServerAuthenticationControlling
+    private let push: Bool
 
     private var accountHandle: String? {
         fullHandle.split(separator: "/").first.map(String.init)
@@ -26,11 +27,13 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
     public init(
         fullHandle: String,
         serverURL: URL,
-        cacheURLStore: CacheURLStoring
+        cacheURLStore: CacheURLStoring,
+        push: Bool = true
     ) {
         self.fullHandle = fullHandle
         self.serverURL = serverURL
         self.cacheURLStore = cacheURLStore
+        self.push = push
         saveCacheCASService = SaveCacheCASService()
         loadCacheCASService = LoadCacheCASService()
         fileSystem = FileSystem()
@@ -48,7 +51,8 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         fileSystem: FileSysteming,
         dataCompressingService: DataCompressingServicing,
         metadataStore: CASOutputMetadataStoring,
-        serverAuthenticationController: ServerAuthenticationControlling
+        serverAuthenticationController: ServerAuthenticationControlling,
+        push: Bool = true
     ) {
         self.fullHandle = fullHandle
         self.serverURL = serverURL
@@ -59,6 +63,7 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
         self.metadataStore = metadataStore
         self.dataCompressingService = dataCompressingService
         self.serverAuthenticationController = serverAuthenticationController
+        self.push = push
     }
 
     public func load(
@@ -195,6 +200,13 @@ public struct CASService: CompilationCacheService_Cas_V1_CASDBService.SimpleServ
             .debug(
                 "CAS.save computed fingerprint: \(fingerprint), original size: \(data.count) bytes, compressed size: \(compressedData.count) bytes"
             )
+
+        if !push {
+            Logger.current.debug("CAS.save skipping upload (push disabled) for fingerprint: \(fingerprint)")
+            response.casID = message
+            response.contents = .casID(message)
+            return response
+        }
 
         do {
             let cacheURL = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)

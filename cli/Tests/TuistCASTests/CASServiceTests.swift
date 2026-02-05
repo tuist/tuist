@@ -298,6 +298,66 @@ struct CASServiceTests {
     }
 
     @Test
+    func save_when_push_disabled_returns_fingerprint_without_uploading() async throws {
+        // Given
+        let testData = Data("direct test data".utf8)
+
+        var request = CompilationCacheService_Cas_V1_CASSaveRequest()
+        request.data.blob.data = testData
+
+        let context = ServerContext.test()
+
+        let noPushSubject = CASService(
+            fullHandle: fullHandle,
+            serverURL: serverURL,
+            cacheURLStore: cacheURLStore,
+            saveCacheCASService: saveCacheCASService,
+            loadCacheCASService: loadCacheCASService,
+            fileSystem: FileSystem(),
+            dataCompressingService: dataCompressingService,
+            metadataStore: metadataStore,
+            serverAuthenticationController: serverAuthenticationController,
+            push: false
+        )
+
+        given(dataCompressingService)
+            .compress(.any)
+            .willReturn(Data("compressed-data".utf8))
+
+        // When
+        let response = try await noPushSubject.save(request: request, context: context)
+
+        // Then
+        let fingerprint = "74E40A3FAE0D089D887556DBE3001075455BB28A7EAD99D6DE81A85EF3F3E4A8"
+        #expect(response.casID.id == fingerprint.data(using: .utf8)!)
+        switch response.contents {
+        case .casID:
+            break
+        case .error:
+            #expect(Bool(false), "Expected success, but got error")
+        case .none:
+            #expect(Bool(false), "Expected success, but contents is nil")
+        }
+
+        verify(saveCacheCASService)
+            .saveCacheCAS(
+                .any,
+                casId: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
+            .called(0)
+
+        try await Task.sleep(for: .milliseconds(100))
+
+        verify(metadataStore)
+            .storeMetadata(.any, for: .any)
+            .called(0)
+    }
+
+    @Test
     func save_when_generic_error() async throws {
         // Given
         let testData = Data("test data".utf8)
