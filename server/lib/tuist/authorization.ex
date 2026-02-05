@@ -487,6 +487,23 @@ defmodule Tuist.Authorization do
   end
 
   object :test do
+    action :create do
+      desc("Allows users of a project to create a test.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of a project to create a test.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc(
+        "Allows the authenticated project to create the test if it matches the project for which the test is being created."
+      )
+
+      allow([:authenticated_as_project, :projects_match])
+
+      desc("Allows an account token with project:tests:write scope to create tests.")
+      allow([:authenticated_as_account, scopes_permit: "project:tests:write"])
+    end
+
     action :read do
       desc("Allows the authenticated subject to read a project's tests if the project is public.")
       allow(:public_project)
@@ -510,6 +527,23 @@ defmodule Tuist.Authorization do
   end
 
   object :build do
+    action :create do
+      desc("Allows users of a project to create a build.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of a project to create a build.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc(
+        "Allows the authenticated project to create the build if it matches the project for which the build is being created."
+      )
+
+      allow([:authenticated_as_project, :projects_match])
+
+      desc("Allows an account token with project:builds:write scope to create builds.")
+      allow([:authenticated_as_account, scopes_permit: "project:builds:write"])
+    end
+
     action :read do
       desc("Allows the authenticated subject to read a project's builds if the project is public.")
       allow(:public_project)
