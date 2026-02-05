@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.139.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* don't embed static precompiled xcframeworks by [@pepicrft](https://github.com/pepicrft) in [#9356](https://github.com/tuist/tuist/pull/9356)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.139.0...4.139.1
+
 ## What's Changed in 4.139.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
