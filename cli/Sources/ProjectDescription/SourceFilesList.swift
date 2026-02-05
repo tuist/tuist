@@ -152,3 +152,13 @@ extension SourceFilesList: ExpressibleByArrayLiteral {
         self.init(globs: elements)
     }
 }
+
+/// for sources: [.extensions.widget + "/Sources/**"]
+public func + (lhs: Path, rhs: String) -> SourceFileGlob {
+    .init(stringLiteral: "\(lhs.pathString)\(rhs)")
+}
+
+/// for sources: .extensions.widget + "/Sources/**"
+public func + (lhs: Path, rhs: String) -> SourceFilesList {
+    .init(stringLiteral: "\(lhs.pathString)\(rhs)")
+}
