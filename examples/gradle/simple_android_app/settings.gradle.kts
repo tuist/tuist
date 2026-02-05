@@ -25,10 +25,15 @@ plugins {
 tuist {
     fullHandle = "tuist/tuist"
     executablePath = System.getenv("TUIST_EXECUTABLE")
+    serverUrl = System.getenv("TUIST_SERVER_URL") ?: "https://tuist.dev"
 
     buildCache {
         enabled = true
         push = true
         allowInsecureProtocol = true
+    }
+
+    buildInsights {
+        enabled = true
     }
 }

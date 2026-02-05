@@ -131,11 +131,17 @@ interface ConfigurationProvider {
  */
 class TuistCommandConfigurationProvider(
     private val fullHandle: String,
-    private val command: List<String>
+    private val command: List<String>,
+    private val serverUrl: String? = null
 ) : ConfigurationProvider {
 
     override fun getConfiguration(forceRefresh: Boolean): TuistCacheConfiguration? {
-        val baseArgs = listOf("cache", "config", fullHandle, "--json")
+        val baseArgs = buildList {
+            addAll(listOf("cache", "config", fullHandle, "--json"))
+            if (!serverUrl.isNullOrBlank()) {
+                addAll(listOf("--url", serverUrl))
+            }
+        }
         val args = if (forceRefresh) baseArgs + "--force-refresh" else baseArgs
         val fullCommand = command + args
 

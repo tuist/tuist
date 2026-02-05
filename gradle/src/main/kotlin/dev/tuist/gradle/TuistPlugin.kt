@@ -56,6 +56,22 @@ class TuistPlugin : Plugin<Settings> {
         }
 
         configureBuildCache(settings, extension)
+        configureBuildInsights(settings, extension)
+    }
+
+    private fun configureBuildInsights(settings: Settings, extension: TuistExtension) {
+        if (!extension.buildInsights.enabled) {
+            logger.info("Tuist: Build insights is disabled.")
+            return
+        }
+
+        settings.gradle.rootProject {
+            extensions.extraProperties.set("tuist.serverUrl", extension.serverUrl)
+            extensions.extraProperties.set("tuist.fullHandle", extension.fullHandle)
+            extensions.extraProperties.set("tuist.executablePath", extension.executablePath ?: "tuist")
+            pluginManager.apply(TuistBuildInsightsPlugin::class.java)
+            logger.lifecycle("Tuist: Build insights configured for ${extension.fullHandle}")
+        }
     }
 
     private fun configureBuildCache(settings: Settings, extension: TuistExtension) {
@@ -97,15 +113,32 @@ open class TuistExtension {
     var executablePath: String? = null
 
     /**
+     * The Tuist server URL. Defaults to https://tuist.dev.
+     */
+    var serverUrl: String = "https://tuist.dev"
+
+    /**
      * Build cache configuration.
      */
     val buildCache: BuildCacheExtension = BuildCacheExtension()
+
+    /**
+     * Build insights configuration.
+     */
+    val buildInsights: BuildInsightsExtension = BuildInsightsExtension()
 
     /**
      * Configure build cache settings.
      */
     fun buildCache(configure: BuildCacheExtension.() -> Unit) {
         buildCache.configure()
+    }
+
+    /**
+     * Configure build insights settings.
+     */
+    fun buildInsights(configure: BuildInsightsExtension.() -> Unit) {
+        buildInsights.configure()
     }
 }
 
@@ -127,4 +160,14 @@ open class BuildCacheExtension {
      * Whether to allow insecure HTTP connections. Defaults to false.
      */
     var allowInsecureProtocol: Boolean = false
+}
+
+/**
+ * Configuration for Tuist build insights feature.
+ */
+open class BuildInsightsExtension {
+    /**
+     * Whether the build insights feature is enabled. Defaults to true.
+     */
+    var enabled: Boolean = true
 }
