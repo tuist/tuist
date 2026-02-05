@@ -1,5 +1,6 @@
 import Dispatch
 import Foundation
+import TuistEnvironment
 
 #if os(Linux)
     import Glibc

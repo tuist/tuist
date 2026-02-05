@@ -2,6 +2,8 @@ import CryptoKit
 import Foundation
 import Path
 import TSCBasic
+import TuistLogging
+import TuistThreadSafe
 import ZIPFoundation
 
 public enum FileHandlerError: FatalError, Equatable {
@@ -60,7 +62,8 @@ public protocol FileHandling: AnyObject {
     func inTemporaryDirectory(_ closure: (Path.AbsolutePath) throws -> Void) throws
     func inTemporaryDirectory(removeOnCompletion: Bool, _ closure: (Path.AbsolutePath) throws -> Void) throws
     func inTemporaryDirectory<Result>(_ closure: (Path.AbsolutePath) throws -> Result) throws -> Result
-    func inTemporaryDirectory<Result>(removeOnCompletion: Bool, _ closure: (Path.AbsolutePath) throws -> Result) throws -> Result
+    func inTemporaryDirectory<Result>(removeOnCompletion: Bool, _ closure: (Path.AbsolutePath) throws -> Result) throws
+        -> Result
     func write(_ content: String, path: Path.AbsolutePath, atomically: Bool) throws
     func locateDirectoryTraversingParents(from: Path.AbsolutePath, path: String) -> Path.AbsolutePath?
     func locateDirectory(_ path: String, traversingFrom from: Path.AbsolutePath) throws -> Path.AbsolutePath?
@@ -329,7 +332,8 @@ public class FileHandler: FileHandling {
     }
 
     public func contentsOfDirectory(_ path: Path.AbsolutePath) throws -> [Path.AbsolutePath] {
-        try fileManager.contentsOfDirectory(atPath: path.pathString).map { try AbsolutePath(validating: $0, relativeTo: path) }
+        try fileManager.contentsOfDirectory(atPath: path.pathString)
+            .map { try AbsolutePath(validating: $0, relativeTo: path) }
     }
 
     public func createSymbolicLink(at path: Path.AbsolutePath, destination: Path.AbsolutePath) throws {

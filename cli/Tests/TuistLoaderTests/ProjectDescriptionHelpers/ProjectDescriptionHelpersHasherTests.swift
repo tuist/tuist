@@ -4,6 +4,7 @@ import Mockable
 import ProjectDescription
 import Testing
 import TuistCore
+import TuistEnvironment
 import TuistSupport
 @testable import TuistLoader
 @testable import TuistTesting
@@ -29,7 +30,7 @@ struct ProjectDescriptionHelpersHasherTests {
 
     @Test(.withMockedSwiftVersionProvider, .withMockedEnvironment(), .inTemporaryDirectory) func hash() async throws {
         // Given
-        let environmentMock = try #require(TuistSupport.Environment.mocked)
+        let environmentMock = try #require(TuistEnvironment.Environment.mocked)
         let temporaryDir = try #require(FileSystem.temporaryTestDirectory)
         let helperPath = temporaryDir.appending(component: "Project+Templates.swift")
         try FileHandler.shared.write("import ProjectDescription", path: helperPath, atomically: true)

@@ -3,8 +3,12 @@ import FileSystem
 import Foundation
 import Path
 import ProjectDescription
+import TuistConstants
 import TuistCore
+import TuistEnvironment
+import TuistLogging
 import TuistSupport
+import TuistThreadSafe
 import XcodeGraph
 
 /// Cached Manifest Loader

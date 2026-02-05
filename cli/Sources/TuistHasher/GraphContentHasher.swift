@@ -5,6 +5,7 @@ import Path
 import TuistCore
 import TuistRootDirectoryLocator
 import TuistSupport
+import TuistThreadSafe
 import XcodeGraph
 
 @Mockable

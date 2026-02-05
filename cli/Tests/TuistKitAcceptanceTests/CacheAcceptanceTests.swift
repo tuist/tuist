@@ -1,5 +1,6 @@
 import Foundation
 import TuistAcceptanceTesting
+import TuistCacheCommand
 import TuistTesting
 
 final class CacheAcceptanceTestiOSAppWithFrameworks: TuistAcceptanceTestCase {

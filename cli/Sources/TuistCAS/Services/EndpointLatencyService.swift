@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+    import FoundationNetworking
+#endif
 import Mockable
 
 @Mockable
@@ -16,54 +19,78 @@ struct EndpointLatencyService: EndpointLatencyServicing {
         request.setValue("no-cache", forHTTPHeaderField: "Pragma")
         request.setValue("0", forHTTPHeaderField: "Expires")
 
-        return await withCheckedContinuation { continuation in
-            let delegate = MetricsDelegate(continuation: continuation)
-            let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
-            delegate.session = session
+        #if os(macOS)
+            // Use URLSessionTaskMetrics for precise timing on macOS
+            return await withCheckedContinuation { continuation in
+                let delegate = MetricsDelegate(continuation: continuation)
+                let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
+                delegate.session = session
 
-            Task {
-                _ = try? await session.data(for: request)
+                Task {
+                    _ = try? await session.data(for: request)
+                }
             }
-        }
+        #else
+            // URLSessionTaskMetrics is not available on Linux:
+            // https://github.com/swiftlang/swift-corelibs-foundation/issues/4988
+            let clock = ContinuousClock()
+            let start = clock.now
+            do {
+                let (_, response) = try await URLSession.shared.data(for: request)
+                let end = clock.now
+                let duration = end - start
+                if let httpResponse = response as? HTTPURLResponse,
+                   (200 ... 299).contains(httpResponse.statusCode)
+                {
+                    let seconds = Double(duration.components.seconds)
+                    let attoseconds = Double(duration.components.attoseconds) / 1_000_000_000_000_000_000
+                    return seconds + attoseconds
+                }
+                return nil
+            } catch {
+                return nil
+            }
+        #endif
     }
 }
 
-private final class MetricsDelegate: NSObject, URLSessionTaskDelegate {
-    private let latencyContinuation: CheckedContinuation<TimeInterval?, Never>
-    var session: URLSession?
+#if os(macOS)
+    private final class MetricsDelegate: NSObject, URLSessionTaskDelegate {
+        private let latencyContinuation: CheckedContinuation<TimeInterval?, Never>
+        var session: URLSession?
 
-    init(continuation: CheckedContinuation<TimeInterval?, Never>) {
-        latencyContinuation = continuation
-        super.init()
+        init(continuation: CheckedContinuation<TimeInterval?, Never>) {
+            latencyContinuation = continuation
+            super.init()
+        }
+
+        func urlSession(
+            _: URLSession,
+            task: URLSessionTask,
+            didFinishCollecting metrics: URLSessionTaskMetrics
+        ) {
+            defer {
+                session?.invalidateAndCancel()
+                session = nil
+            }
+
+            if let httpResponse = task.response as? HTTPURLResponse,
+               !(200 ... 299).contains(httpResponse.statusCode)
+            {
+                latencyContinuation.resume(returning: nil)
+                return
+            }
+
+            guard let transactionMetrics = metrics.transactionMetrics.first,
+                  let requestStartDate = transactionMetrics.fetchStartDate,
+                  let responseEndDate = transactionMetrics.responseEndDate
+            else {
+                latencyContinuation.resume(returning: nil)
+                return
+            }
+
+            let latency = responseEndDate.timeIntervalSince(requestStartDate)
+            latencyContinuation.resume(returning: latency)
+        }
     }
-
-    func urlSession(
-        _: URLSession,
-        task: URLSessionTask,
-        didFinishCollecting metrics: URLSessionTaskMetrics
-    ) {
-        defer {
-            session?.invalidateAndCancel()
-            session = nil
-        }
-
-        // Check if the response status is successful
-        if let httpResponse = task.response as? HTTPURLResponse,
-           !(200 ... 299).contains(httpResponse.statusCode)
-        {
-            latencyContinuation.resume(returning: nil)
-            return
-        }
-
-        guard let transactionMetrics = metrics.transactionMetrics.first,
-              let requestStartDate = transactionMetrics.fetchStartDate,
-              let responseEndDate = transactionMetrics.responseEndDate
-        else {
-            latencyContinuation.resume(returning: nil)
-            return
-        }
-
-        let latency = responseEndDate.timeIntervalSince(requestStartDate)
-        latencyContinuation.resume(returning: latency)
-    }
-}
+#endif

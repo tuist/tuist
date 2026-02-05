@@ -3,6 +3,7 @@ import Path
 
 #if canImport(TuistHAR)
     import TuistHAR
+    import TuistLogging
     import TuistSupport
 #endif
 

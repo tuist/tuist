@@ -2,6 +2,8 @@ import FileSystem
 import Foundation
 import Path
 import TuistCore
+import TuistEnvironment
+import TuistLogging
 import TuistSupport
 
 public protocol SwiftPackageManagerInteracting {

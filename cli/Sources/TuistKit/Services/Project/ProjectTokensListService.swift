@@ -1,6 +1,8 @@
 import Foundation
 import Path
+import TuistAlert
 import TuistLoader
+import TuistLogging
 import TuistServer
 import TuistSupport
 

@@ -1,11 +1,14 @@
 import FileSystem
 import Foundation
 import Path
+import TuistAlert
 import TuistAutomation
 import TuistCore
+import TuistEnvironment
 import TuistLoader
 import TuistServer
 import TuistSupport
+import TuistUniqueIDGenerator
 import TuistXCActivityLog
 
 struct XcodeBuildTestCommandService {

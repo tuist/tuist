@@ -1,6 +1,6 @@
 import Foundation
 import Mockable
-import TuistSupport
+import TuistEnvironment
 
 @Mockable
 public protocol CIOIDCAuthenticating {

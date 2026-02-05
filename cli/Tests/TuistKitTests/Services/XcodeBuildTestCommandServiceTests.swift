@@ -4,11 +4,13 @@ import Logging
 import Mockable
 import Path
 import Testing
+import TuistAlert
 import TuistAutomation
 import TuistCore
 import TuistLoader
 import TuistSupport
 import TuistTesting
+import TuistUniqueIDGenerator
 import TuistXCActivityLog
 import XcodeGraph
 

@@ -2,6 +2,7 @@ import ArgumentParser
 import Foundation
 import TSCBasic
 import TSCUtility
+import TuistEnvironment
 import TuistSupport
 
 enum GenerateCommandError: Error {

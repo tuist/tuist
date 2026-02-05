@@ -10,6 +10,10 @@ import TuistHTTP
 #endif
 
 #if canImport(TuistSupport)
+    import TuistAlert
+    import TuistConstants
+    import TuistEnvironment
+    import TuistLogging
     import TuistSupport
 #endif
 

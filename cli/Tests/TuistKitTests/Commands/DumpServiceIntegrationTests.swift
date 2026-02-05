@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import ProjectDescription
+import TuistConstants
 import TuistSupport
 import XCTest
 

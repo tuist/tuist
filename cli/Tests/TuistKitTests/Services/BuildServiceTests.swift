@@ -7,6 +7,7 @@ import Testing
 import TSCUtility
 import TuistAutomation
 import TuistCore
+import TuistGenerator
 import TuistLoader
 import TuistServer
 import TuistSupport

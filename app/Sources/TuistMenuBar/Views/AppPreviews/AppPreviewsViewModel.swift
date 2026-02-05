@@ -1,6 +1,7 @@
 import Foundation
 import TuistAppStorage
 import TuistAuthentication
+import TuistLogging
 import TuistServer
 import TuistSupport
 

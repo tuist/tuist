@@ -1,6 +1,8 @@
 import Foundation
 import Logging
 import Testing
+import TuistEnvironment
+import TuistLogging
 import TuistSupport
 
 public class TestingLogHandler: LogHandler {

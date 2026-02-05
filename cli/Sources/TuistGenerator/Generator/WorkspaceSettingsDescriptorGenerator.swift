@@ -1,6 +1,5 @@
 import Foundation
 import TuistCore
-import TuistSupport
 import XcodeGraph
 import XcodeProj
 

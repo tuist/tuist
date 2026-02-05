@@ -2,12 +2,16 @@ import FileSystem
 import Foundation
 import Noora
 import Path
+import TuistAlert
 import TuistAutomation
+import TuistConstants
 import TuistCore
 import TuistLoader
+import TuistLogging
 import TuistServer
 import TuistSimulator
 import TuistSupport
+import TuistUserInputReader
 import XcodeGraph
 
 enum ShareCommandServiceError: Equatable, LocalizedError {

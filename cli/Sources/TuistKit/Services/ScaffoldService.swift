@@ -1,6 +1,8 @@
 import Path
+import TuistAlert
 import TuistCore
 import TuistLoader
+import TuistLogging
 import TuistPlugin
 import TuistScaffold
 import TuistSupport

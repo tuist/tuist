@@ -4,6 +4,7 @@ import Mockable
 import TuistAppStorage
 import TuistAutomation
 import TuistCore
+import TuistLogging
 import TuistServer
 import TuistSimulator
 import TuistSupport

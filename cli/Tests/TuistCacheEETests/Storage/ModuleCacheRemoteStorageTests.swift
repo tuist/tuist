@@ -6,7 +6,9 @@ import Mockable
 import OpenAPIRuntime
 import Path
 import Testing
+import TuistAlert
 import TuistCache
+import TuistConstants
 import TuistCore
 import TuistServer
 import TuistSupport

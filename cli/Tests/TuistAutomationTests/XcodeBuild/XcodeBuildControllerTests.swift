@@ -6,6 +6,7 @@ import Mockable
 import Testing
 import TSCBasic
 import TuistCore
+import TuistEnvironment
 import TuistSupport
 
 @testable import TuistAutomation

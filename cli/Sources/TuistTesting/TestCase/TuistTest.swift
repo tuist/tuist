@@ -6,7 +6,11 @@ import Logging
 import Noora
 import Path
 import Testing
+import TuistAlert
 import TuistCore
+import TuistEnvironment
+import TuistEnvironmentTesting
+import TuistLogging
 import TuistServer
 import TuistSupport
 import XcodeProj

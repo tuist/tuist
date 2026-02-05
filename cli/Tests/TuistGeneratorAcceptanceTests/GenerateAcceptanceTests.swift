@@ -2,6 +2,8 @@ import FileSystem
 import Path
 import Testing
 import TuistAcceptanceTesting
+import TuistEnvironment
+import TuistLogging
 import TuistSupport
 import TuistTesting
 import XcodeProj
