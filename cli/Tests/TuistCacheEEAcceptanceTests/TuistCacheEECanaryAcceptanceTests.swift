@@ -15,6 +15,7 @@ import TuistTesting
 import XcodeProj
 
 @testable import TuistCacheEE
+@testable import TuistKit
 
 struct TuistCacheEECanaryAcceptanceTests {
     private func enableLegacyCache() {
