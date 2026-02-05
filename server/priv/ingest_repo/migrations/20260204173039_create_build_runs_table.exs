@@ -52,7 +52,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateBuildRunsTable do
     )
     ENGINE = ReplacingMergeTree(inserted_at)
     PARTITION BY toYYYYMM(inserted_at)
-    ORDER BY (project_id, id)
+    ORDER BY (project_id, inserted_at, id)
     SETTINGS index_granularity = 8192
     """)
 
