@@ -33,7 +33,8 @@ defmodule TuistWeb.API.RunsController do
   tags ["Runs"]
 
   operation(:index,
-    summary: "List runs associated with a given project.",
+    summary: "List runs associated with a given project. DEPRECATED: Use GET /builds instead.",
+    deprecated: true,
     operation_id: "listRuns",
     parameters: [
       account_handle: [
