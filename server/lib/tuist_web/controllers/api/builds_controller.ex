@@ -147,6 +147,14 @@ defmodule TuistWeb.API.BuildsController do
                        tags: %Schema{type: :array, items: %Schema{type: :string}},
                        values: %Schema{type: :object, additionalProperties: %Schema{type: :string}}
                      }
+                   },
+                   ran_by: %Schema{
+                     type: :object,
+                     nullable: true,
+                     description: "The account that triggered the build.",
+                     properties: %{
+                       handle: %Schema{type: :string, description: "The handle of the account."}
+                     }
                    }
                  },
                  required: [
@@ -212,7 +220,11 @@ defmodule TuistWeb.API.BuildsController do
             custom_metadata: %{
               tags: build.custom_tags || [],
               values: build.custom_values || %{}
-            }
+            },
+            ran_by:
+              if(Ecto.assoc_loaded?(build.ran_by_account) and build.ran_by_account,
+                do: %{handle: build.ran_by_account.name}
+              )
           }
         end),
       pagination_metadata: %{

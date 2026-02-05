@@ -30,11 +30,6 @@ defmodule TuistWeb.API.Schemas.Run do
         type: :number,
         description: "ID of the run"
       },
-      uuid: %Schema{
-        type: :string,
-        description: "UUID of the run. Deprecated: use id instead.",
-        deprecated: true
-      },
       name: %Schema{
         type: :string,
         description: "Command name of the run"
