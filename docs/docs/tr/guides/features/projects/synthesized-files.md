@@ -116,7 +116,7 @@ yararlanarak kaynaklara güvenle erişebilirsiniz.
 
 Tuist, varsayılan olarak aşağıdaki kaynak türleri için erişimcileri sentezlemek
 üzere
-[templates](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator/Templates)
+[templates](https://github.com/tuist/tuist/tree/main/cli/Sources/TuistGenerator/Templates)
 içerir:
 
 | Kaynak türü           | Sentezlenmiş dosyalar    |
