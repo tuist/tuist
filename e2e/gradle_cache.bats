@@ -36,6 +36,10 @@ setup_file() {
     "$TUIST_EXECUTABLE" auth login --email tuistrocks@tuist.dev --password tuistrocks
 }
 
+teardown_file() {
+    rm -rf "${BATS_FILE_TMPDIR}/gradle-home" 2>/dev/null || true
+}
+
 @test "first build pushes artifacts to remote cache" {
     cd "$GRADLE_PROJECT_DIR"
 
