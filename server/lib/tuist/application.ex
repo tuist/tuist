@@ -75,7 +75,7 @@ defmodule Tuist.Application do
   end
 
   defp start_loki_logger do
-    loki_url = Environment.get([:loki, :url])
+    loki_url = Environment.loki_url()
 
     if loki_url do
       LokiLoggerHandler.attach(:loki_handler,
