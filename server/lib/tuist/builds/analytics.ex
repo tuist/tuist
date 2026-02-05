@@ -23,7 +23,7 @@ defmodule Tuist.Builds.Analytics do
       end
 
     query = """
-    SELECT #{category_column} as category, avg(duration) as value
+    SELECT #{category_column} as category, avgOrNull(duration) as value
     FROM build_runs
     WHERE project_id = {project_id:Int64}
       AND inserted_at > {start_dt:DateTime64(6)}
@@ -168,7 +168,7 @@ defmodule Tuist.Builds.Analytics do
     query = """
     SELECT
       toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}) as date,
-      avg(duration) as value
+      avgOrNull(duration) as value
     FROM build_runs
     WHERE project_id = {project_id:Int64}
       AND inserted_at > {start_dt:DateTime64(6)}
@@ -211,9 +211,9 @@ defmodule Tuist.Builds.Analytics do
 
     query = """
     SELECT
-      sum(duration) as total_duration,
+      sumOrNull(duration) as total_duration,
       count() as count,
-      avg(duration) as average_duration
+      avgOrNull(duration) as average_duration
     FROM build_runs
     WHERE project_id = {project_id:Int64}
       AND inserted_at > {start_dt:DateTime64(6)}
@@ -274,7 +274,7 @@ defmodule Tuist.Builds.Analytics do
     query = """
     SELECT
       toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}) as date,
-      quantile(#{percentile})(duration) as value
+      quantileOrNull(#{percentile})(duration) as value
     FROM build_runs
     WHERE project_id = {project_id:Int64}
       AND inserted_at > {start_dt:DateTime64(6)}
@@ -315,7 +315,7 @@ defmodule Tuist.Builds.Analytics do
     {filter_clauses, filter_params} = build_filter_clauses(opts)
 
     query = """
-    SELECT quantile(#{percentile})(duration) as value
+    SELECT quantileOrNull(#{percentile})(duration) as value
     FROM build_runs
     WHERE project_id = {project_id:Int64}
       AND inserted_at > {start_dt:DateTime64(6)}
@@ -1138,7 +1138,7 @@ defmodule Tuist.Builds.Analytics do
     query = """
     SELECT
       toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}) as date,
-      quantile(#{1 - percentile})((cacheable_task_local_hits_count + cacheable_task_remote_hits_count) / cacheable_tasks_count * 100.0) as hit_rate
+      quantileOrNull(#{1 - percentile})((cacheable_task_local_hits_count + cacheable_task_remote_hits_count) / cacheable_tasks_count * 100.0) as hit_rate
     FROM build_runs
     WHERE project_id = {project_id:Int64}
       AND inserted_at >= {start_dt:DateTime64(6)}
@@ -1181,7 +1181,7 @@ defmodule Tuist.Builds.Analytics do
     {filter_clauses, filter_params} = build_filter_clauses(opts)
 
     query = """
-    SELECT quantile(#{1 - percentile})((cacheable_task_local_hits_count + cacheable_task_remote_hits_count) / cacheable_tasks_count * 100.0) as value
+    SELECT quantileOrNull(#{1 - percentile})((cacheable_task_local_hits_count + cacheable_task_remote_hits_count) / cacheable_tasks_count * 100.0) as value
     FROM build_runs
     WHERE project_id = {project_id:Int64}
       AND inserted_at >= {start_dt:DateTime64(6)}

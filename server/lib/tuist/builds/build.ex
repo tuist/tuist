@@ -6,9 +6,20 @@ defmodule Tuist.Builds.Build do
   use Ecto.Schema
   use Tuist.Ingestion.Bufferable
 
+  import Ecto.Changeset
+
   @status_values ["success", "failure"]
   @category_values ["clean", "incremental"]
   @ci_provider_values ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
+
+  @ci_provider_by_index %{
+    0 => "github",
+    1 => "gitlab",
+    2 => "bitrise",
+    3 => "circleci",
+    4 => "buildkite",
+    5 => "codemagic"
+  }
 
   @derive {
     Flop.Schema,
@@ -37,7 +48,7 @@ defmodule Tuist.Builds.Build do
     field :account_id, Ch, type: "Int64"
     field :macos_version, Ch, type: "Nullable(String)"
     field :xcode_version, Ch, type: "Nullable(String)"
-    field :is_ci, :boolean, default: false
+    field :is_ci, :boolean
     field :model_identifier, Ch, type: "Nullable(String)"
     field :scheme, Ch, type: "Nullable(String)"
     field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1)"
@@ -66,6 +77,104 @@ defmodule Tuist.Builds.Build do
     has_many :files, Tuist.Builds.BuildFile, foreign_key: :build_run_id
     has_many :targets, Tuist.Builds.BuildTarget, foreign_key: :build_run_id
   end
+
+  def create_changeset(build \\ %__MODULE__{}, attrs) do
+    attrs
+    |> normalize_datetime_attr(:inserted_at)
+    |> normalize_enum_attr(:status, @status_values, %{
+      0 => "success",
+      1 => "failure"
+    })
+    |> normalize_enum_attr(:category, @category_values, %{
+      0 => "clean",
+      1 => "incremental"
+    })
+    |> normalize_enum_attr(:ci_provider, @ci_provider_values, @ci_provider_by_index)
+    |> then(fn attrs ->
+      build
+      |> cast(attrs, [
+        :id,
+        :duration,
+        :macos_version,
+        :xcode_version,
+        :is_ci,
+        :model_identifier,
+        :scheme,
+        :project_id,
+        :account_id,
+        :inserted_at,
+        :status,
+        :category,
+        :configuration,
+        :git_branch,
+        :git_commit_sha,
+        :git_ref,
+        :ci_run_id,
+        :ci_project_handle,
+        :ci_host,
+        :ci_provider,
+        :cacheable_task_remote_hits_count,
+        :cacheable_task_local_hits_count,
+        :cacheable_tasks_count,
+        :custom_tags,
+        :custom_values
+      ])
+      |> validate_required([
+        :id,
+        :duration,
+        :is_ci,
+        :project_id,
+        :account_id,
+        :status
+      ])
+      |> validate_inclusion(:status, @status_values)
+      |> validate_inclusion(:category, @category_values)
+      |> validate_inclusion(:ci_provider, @ci_provider_values)
+      |> validate_custom_tags()
+      |> validate_custom_values()
+    end)
+  end
+
+  defp normalize_datetime_attr(attrs, field) do
+    case Map.fetch(attrs, field) do
+      :error ->
+        attrs
+
+      {:ok, %DateTime{} = dt} ->
+        Map.put(attrs, field, DateTime.to_naive(dt))
+
+      {:ok, _} ->
+        attrs
+    end
+  end
+
+  defp normalize_enum_attr(attrs, field, allowed_values, by_index) do
+    case Map.fetch(attrs, field) do
+      :error ->
+        attrs
+
+      {:ok, nil} ->
+        attrs
+
+      {:ok, value} ->
+        normalized = coerce_enum_value(value, allowed_values, by_index)
+        if normalized == value, do: attrs, else: Map.put(attrs, field, normalized)
+    end
+  end
+
+  defp coerce_enum_value(value, allowed_values, by_index) when is_atom(value) do
+    value |> Atom.to_string() |> coerce_enum_value(allowed_values, by_index)
+  end
+
+  defp coerce_enum_value(value, _allowed_values, by_index) when is_integer(value) do
+    Map.get(by_index, value) || Integer.to_string(value)
+  end
+
+  defp coerce_enum_value(value, allowed_values, _by_index) when is_binary(value) do
+    if value in allowed_values, do: value, else: value
+  end
+
+  defp coerce_enum_value(_value, _allowed_values, _by_index), do: nil
 
   def changeset(attrs) do
     id = Map.get(attrs, :id) || UUIDv7.generate()
@@ -112,15 +221,6 @@ defmodule Tuist.Builds.Build do
       _ -> Map.put(attrs, :category, nil)
     end
   end
-
-  @ci_provider_by_index %{
-    0 => "github",
-    1 => "gitlab",
-    2 => "bitrise",
-    3 => "circleci",
-    4 => "buildkite",
-    5 => "codemagic"
-  }
 
   defp normalize_ci_provider(attrs) do
     value = Map.get(attrs, :ci_provider)
@@ -233,4 +333,59 @@ defmodule Tuist.Builds.Build do
 
   def valid_ci_provider?(provider) when provider in @ci_provider_values, do: true
   def valid_ci_provider?(_), do: false
+
+  defp validate_custom_tags(changeset) do
+    changeset
+    |> validate_length(:custom_tags, max: 50, message: "cannot have more than 50 tags")
+    |> validate_change(:custom_tags, fn :custom_tags, tags ->
+      Enum.flat_map(tags, fn tag ->
+        cond do
+          String.length(tag) > 50 ->
+            [{:custom_tags, "tag exceeds maximum length of 50 characters"}]
+
+          not Regex.match?(~r/^[a-zA-Z0-9_-]+$/, tag) ->
+            [{:custom_tags, "tag contains invalid characters (only alphanumeric, hyphens, and underscores allowed)"}]
+
+          true ->
+            []
+        end
+      end)
+    end)
+  end
+
+  defp validate_custom_values(changeset) do
+    validate_change(changeset, :custom_values, fn :custom_values, values ->
+      if map_size(values) > 20 do
+        [{:custom_values, "cannot have more than 20 key-value pairs"}]
+      else
+        Enum.flat_map(values, fn {key, value} ->
+          key_errors =
+            cond do
+              not is_binary(key) ->
+                [{:custom_values, "keys must be strings"}]
+
+              String.length(key) > 50 ->
+                [{:custom_values, "key '#{String.slice(key, 0, 20)}...' exceeds maximum length of 50 characters"}]
+
+              true ->
+                []
+            end
+
+          value_errors =
+            cond do
+              not is_binary(value) ->
+                [{:custom_values, "values must be strings"}]
+
+              String.length(value) > 500 ->
+                [{:custom_values, "value for key '#{key}' exceeds maximum length of 500 characters"}]
+
+              true ->
+                []
+            end
+
+          key_errors ++ value_errors
+        end)
+      end
+    end)
+  end
 end
