@@ -82,6 +82,7 @@ public enum Module: String, CaseIterable {
                 dependencies: [
                     .target(name: Module.alert.targetName),
                     .target(name: Module.core.targetName),
+                    .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.server.targetName),
@@ -130,6 +131,7 @@ public enum Module: String, CaseIterable {
                 dependencies: [
                     .target(name: Module.alert.targetName),
                     .target(name: Module.core.targetName),
+                    .target(name: Module.environmentTesting.targetName),
                     .target(name: Module.logging.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.support.targetName),
