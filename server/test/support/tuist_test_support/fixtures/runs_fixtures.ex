@@ -16,6 +16,10 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
     SQL.query!(IngestRepo, "OPTIMIZE TABLE test_case_runs FINAL", [])
   end
 
+  def optimize_build_runs do
+    SQL.query!(IngestRepo, "OPTIMIZE TABLE build_runs FINAL", [])
+  end
+
   def build_fixture(attrs \\ []) do
     project_id =
       Keyword.get_lazy(attrs, :project_id, fn ->
@@ -62,6 +66,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       })
 
     Tuist.Builds.Build.Buffer.flush()
+    optimize_build_runs()
     result
   end
 

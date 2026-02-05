@@ -1286,9 +1286,9 @@ defmodule Tuist.Builds.Analytics do
 
     query = """
     SELECT
-      sum(cacheable_tasks_count) as cacheable_tasks_count,
-      sum(cacheable_task_local_hits_count) as cacheable_task_local_hits_count,
-      sum(cacheable_task_remote_hits_count) as cacheable_task_remote_hits_count
+      sum(cacheable_tasks_count) as total_cacheable_tasks,
+      sum(cacheable_task_local_hits_count) as total_local_hits,
+      sum(cacheable_task_remote_hits_count) as total_remote_hits
     FROM build_runs
     WHERE project_id = {project_id:Int64}
       AND inserted_at >= {start_dt:DateTime64(6)}
@@ -1969,6 +1969,7 @@ defmodule Tuist.Builds.Analytics do
     end
   end
 
+  defp normalize_string_filter(nil), do: nil
   defp normalize_string_filter(value) when is_atom(value), do: Atom.to_string(value)
   defp normalize_string_filter(value) when is_binary(value), do: value
   defp normalize_string_filter(_), do: nil
@@ -2074,20 +2075,32 @@ defmodule Tuist.Builds.Analytics do
     end)
   end
 
-  defp format_datetime_for_date_format(datetime, "%Y-%m-%d %H:00"),
-    do: "#{Date.to_string(DateTime.to_date(datetime))} #{String.pad_leading(to_string(datetime.hour), 2, "0")}:00"
+  defp format_datetime_for_date_format(datetime, "%Y-%m-%d %H:00") do
+    date = Date.new!(datetime.year, datetime.month, datetime.day)
+    "#{Date.to_string(date)} #{String.pad_leading(to_string(datetime.hour), 2, "0")}:00"
+  end
 
-  defp format_datetime_for_date_format(datetime, "%Y-%m-%d"), do: Date.to_string(DateTime.to_date(datetime))
+  defp format_datetime_for_date_format(datetime, "%Y-%m-%d") do
+    date = Date.new!(datetime.year, datetime.month, datetime.day)
+    Date.to_string(date)
+  end
 
   defp format_datetime_for_date_format(datetime, "%Y-%m"),
     do: "#{datetime.year}-#{String.pad_leading(to_string(datetime.month), 2, "0")}"
 
-  defp format_datetime_for_date_format(datetime, _), do: Date.to_string(DateTime.to_date(datetime))
+  defp format_datetime_for_date_format(datetime, _) do
+    date = Date.new!(datetime.year, datetime.month, datetime.day)
+    Date.to_string(date)
+  end
 
   defp get_clickhouse_date_format("1 hour"), do: "%Y-%m-%d %H:00"
   defp get_clickhouse_date_format("1 day"), do: "%Y-%m-%d"
   defp get_clickhouse_date_format("1 month"), do: "%Y-%m"
   defp get_clickhouse_date_format(_), do: "%Y-%m-%d"
+
+  defp format_clickhouse_date(%Date{} = date, date_format) do
+    Calendar.strftime(date, date_format)
+  end
 
   defp format_clickhouse_date(%NaiveDateTime{} = dt, date_format) do
     format_datetime_for_date_format(dt, date_format)
