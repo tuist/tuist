@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.140.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add Linux support for auth and cache commands by [@fortmarek](https://github.com/fortmarek) in [#9291](https://github.com/tuist/tuist/pull/9291)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.139.1...4.140.0
+
 ## What's Changed in 4.139.1<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
