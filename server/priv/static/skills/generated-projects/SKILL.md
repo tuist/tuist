@@ -57,25 +57,7 @@ let target = Target(
 )
 ```
 
-### Align build configurations
-
-Keep build configurations aligned between the project and external dependencies. Use `PackageSettings(settings: .settings(configurations: []))` to mirror project configurations; mismatches emit warnings.
-
-## Workflows
-
-### Generate intentionally
-
-- Use `tuist generate --no-open` in automation and scripts to avoid launching Xcode.
-- Regenerate when any manifest changes (or the dependency graph changes).
-- If generation fails due to missing products, run `tuist install` to resolve dependencies and retry.
-
-### Scope work with tags and targets
-
-If someone is focusing on a specific area of the project, ask which area they mean and map that to either:
-- A target tag (preferred), or
-- A concrete list of targets.
-
-You can obtain targets and their relationships using:
+When focusing on a specific area, map it to a tag or a concrete list of targets. You can obtain targets and their relationships using:
 
 ```bash
 tuist graph --format json
@@ -89,6 +71,18 @@ When working on a focused area, generate only what you need:
 tuist generate tag:feature:payments
 tuist generate PaymentsUI PaymentsTests
 ```
+
+### Align build configurations
+
+Keep build configurations aligned between the project and external dependencies. Use `PackageSettings(settings: .settings(configurations: []))` to mirror project configurations; mismatches emit warnings.
+
+## Workflows
+
+### Generate intentionally
+
+- Use `tuist generate --no-open` in automation and scripts to avoid launching Xcode.
+- Regenerate when any manifest changes (or the dependency graph changes).
+- If generation fails due to missing products, run `tuist install` to resolve dependencies and retry.
 
 ### Build with xcodebuild
 
