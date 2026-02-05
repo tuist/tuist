@@ -1,0 +1,215 @@
+defmodule Tuist.Gradle do
+  @moduledoc """
+  Context module for Gradle build analytics.
+
+  All data is stored in ClickHouse for analytics purposes.
+  """
+
+  import Ecto.Query
+
+  alias Tuist.ClickHouseRepo
+  alias Tuist.Gradle.Build
+  alias Tuist.Gradle.CacheEvent
+  alias Tuist.Gradle.Task
+  alias Tuist.IngestRepo
+
+  @doc """
+  Creates a Gradle build with associated tasks.
+
+  ## Parameters
+    * `attrs` - Build attributes including:
+      * `:project_id` - The project ID (required)
+      * `:account_id` - The account ID (required)
+      * `:duration_ms` - Build duration in milliseconds (required)
+      * `:status` - Build status: "success", "failure", or "cancelled" (required)
+      * `:gradle_version` - Gradle version (optional)
+      * `:java_version` - Java version (optional)
+      * `:is_ci` - Whether build ran in CI (optional, defaults to false)
+      * `:git_branch` - Git branch name (optional)
+      * `:git_commit_sha` - Git commit SHA (optional)
+      * `:git_ref` - Git ref (optional)
+      * `:tasks` - List of task attributes (optional)
+
+  ## Returns
+    * `{:ok, build_id}` on success
+    * `{:error, reason}` on failure
+  """
+  def create_build(attrs) do
+    now = Map.get(attrs, :inserted_at) || NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+    build_id = UUIDv7.generate()
+    tasks = Map.get(attrs, :tasks, [])
+
+    task_counts = compute_task_counts(tasks)
+
+    build_entry = %{
+      id: build_id,
+      project_id: attrs.project_id,
+      account_id: attrs.account_id,
+      duration_ms: attrs.duration_ms,
+      gradle_version: Map.get(attrs, :gradle_version),
+      java_version: Map.get(attrs, :java_version),
+      is_ci: Map.get(attrs, :is_ci, false),
+      status: attrs.status,
+      git_branch: Map.get(attrs, :git_branch),
+      git_commit_sha: Map.get(attrs, :git_commit_sha),
+      git_ref: Map.get(attrs, :git_ref),
+      tasks_from_cache_count: task_counts.from_cache,
+      tasks_up_to_date_count: task_counts.up_to_date,
+      tasks_executed_count: task_counts.executed,
+      tasks_failed_count: task_counts.failed,
+      tasks_skipped_count: task_counts.skipped,
+      tasks_no_source_count: task_counts.no_source,
+      cacheable_tasks_count: task_counts.cacheable,
+      avoidance_savings_ms: Map.get(attrs, :avoidance_savings_ms, 0),
+      inserted_at: now
+    }
+
+    case IngestRepo.insert_all(Build, [build_entry]) do
+      {1, _} ->
+        if length(tasks) > 0 do
+          create_tasks(build_id, attrs.project_id, tasks, now)
+        end
+
+        {:ok, build_id}
+
+      _ ->
+        {:error, :insert_failed}
+    end
+  end
+
+  defp compute_task_counts(tasks) do
+    Enum.reduce(tasks, %{from_cache: 0, up_to_date: 0, executed: 0, failed: 0, skipped: 0, no_source: 0, cacheable: 0}, fn task, acc ->
+      outcome = to_string(task.outcome)
+      cacheable = Map.get(task, :cacheable, false)
+
+      acc
+      |> Map.update!(String.to_existing_atom(outcome), &(&1 + 1))
+      |> then(fn acc ->
+        if cacheable, do: Map.update!(acc, :cacheable, &(&1 + 1)), else: acc
+      end)
+    end)
+  end
+
+  defp create_tasks(build_id, project_id, tasks, now) do
+    task_entries =
+      Enum.map(tasks, fn task ->
+        %{
+          id: UUIDv7.generate(),
+          gradle_build_id: build_id,
+          task_path: task.task_path,
+          task_type: Map.get(task, :task_type),
+          outcome: task.outcome,
+          cacheable: Map.get(task, :cacheable, false),
+          duration_ms: Map.get(task, :duration_ms, 0),
+          cache_key: Map.get(task, :cache_key),
+          cache_artifact_size: Map.get(task, :cache_artifact_size),
+          project_id: project_id,
+          inserted_at: now
+        }
+      end)
+
+    IngestRepo.insert_all(Task, task_entries)
+  end
+
+  @doc """
+  Gets a Gradle build by ID.
+  """
+  def get_build(id) do
+    query =
+      from(b in Build,
+        where: b.id == ^id,
+        limit: 1
+      )
+
+    ClickHouseRepo.one(query)
+  end
+
+  @doc """
+  Lists Gradle builds for a project.
+
+  ## Options
+    * `:start_datetime` - Filter builds after this datetime
+    * `:end_datetime` - Filter builds before this datetime
+    * `:limit` - Maximum number of builds to return (default: 50)
+    * `:offset` - Number of builds to skip (default: 0)
+  """
+  def list_builds(project_id, opts \\ []) do
+    start_datetime = Keyword.get(opts, :start_datetime)
+    end_datetime = Keyword.get(opts, :end_datetime)
+    limit = Keyword.get(opts, :limit, 50)
+    offset = Keyword.get(opts, :offset, 0)
+
+    query =
+      from(b in Build,
+        where: b.project_id == ^project_id,
+        order_by: [desc: b.inserted_at],
+        limit: ^limit,
+        offset: ^offset
+      )
+
+    query =
+      if start_datetime do
+        from(b in query, where: b.inserted_at >= ^start_datetime)
+      else
+        query
+      end
+
+    query =
+      if end_datetime do
+        from(b in query, where: b.inserted_at <= ^end_datetime)
+      else
+        query
+      end
+
+    ClickHouseRepo.all(query)
+  end
+
+  @doc """
+  Lists tasks for a specific Gradle build.
+  """
+  def list_tasks(build_id) do
+    query =
+      from(t in Task,
+        where: t.gradle_build_id == ^build_id,
+        order_by: [asc: t.task_path]
+      )
+
+    ClickHouseRepo.all(query)
+  end
+
+  @doc """
+  Creates multiple Gradle cache events in a batch.
+
+  ## Parameters
+    * `events` - List of event attributes including:
+      * `:action` - "upload" or "download"
+      * `:cache_key` - The cache key
+      * `:size` - Size in bytes
+      * `:duration_ms` - Duration in milliseconds (optional)
+      * `:is_hit` - Whether it was a cache hit (optional, defaults to true)
+      * `:project_id` - The project ID
+      * `:account_handle` - The account handle
+      * `:project_handle` - The project handle
+  """
+  def create_cache_events(events) when is_list(events) do
+    now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+
+    entries =
+      Enum.map(events, fn event ->
+        %{
+          id: UUIDv7.generate(),
+          action: event.action,
+          cache_key: event.cache_key,
+          size: event.size,
+          duration_ms: Map.get(event, :duration_ms, 0),
+          is_hit: Map.get(event, :is_hit, true),
+          project_id: event.project_id,
+          account_handle: event.account_handle,
+          project_handle: event.project_handle,
+          inserted_at: now
+        }
+      end)
+
+    IngestRepo.insert_all(CacheEvent, entries)
+  end
+end

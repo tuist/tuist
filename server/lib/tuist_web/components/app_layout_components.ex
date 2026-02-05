@@ -176,6 +176,14 @@ defmodule TuistWeb.AppLayoutComponents do
         }
       />
       <.sidebar_item
+        label={dgettext("dashboard", "Gradle Insights")}
+        icon="server"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-insights"}
+        selected={
+          ~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-insights" == @current_path
+        }
+      />
+      <.sidebar_item
         label={dgettext("dashboard", "Previews")}
         icon="devices"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/previews"}
