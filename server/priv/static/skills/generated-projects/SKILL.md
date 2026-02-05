@@ -44,6 +44,19 @@ Use target tags to group areas of the project, for example:
 
 These tags make it easier to scope generation and testing later.
 
+Example target metadata with tags:
+
+```swift
+let target = Target(
+  name: "PaymentsUI",
+  metadata: .metadata(tags: [
+    "tag:team:commerce",
+    "tag:feature:payments",
+    "tag:layer:ui",
+  ])
+)
+```
+
 ### Align build configurations
 
 Keep build configurations aligned between the project and external dependencies. Use `PackageSettings(settings: .settings(configurations: []))` to mirror project configurations; mismatches emit warnings.
