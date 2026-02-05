@@ -461,6 +461,51 @@
       </div>
     </section>
 
+    <section data-part="additional-features">
+      <div data-part="feature-column">
+        <a
+          data-part="overlay-link"
+          href={localized_href("https://docs.tuist.dev/en/guides/features/projects")}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={
+            dgettext("marketing", "Open the %{feature} feature documentation",
+              feature: dgettext("marketing", "Generated Projects")
+            )
+          }
+        >
+        </a>
+        <h3 data-part="feature-title">{dgettext("marketing", "Generated Projects")} <.arrow_right /></h3>
+        <p data-part="feature-description">
+          {dgettext(
+            "marketing",
+            "Conceptually compress the complexities of modular Xcode projects and make them more accessible to maintain and scale."
+          )}
+        </p>
+      </div>
+      <div data-part="feature-column">
+        <a
+          data-part="overlay-link"
+          href={localized_href("https://docs.tuist.dev/en/guides/features/registry")}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={
+            dgettext("marketing", "Open the %{feature} feature documentation",
+              feature: dgettext("marketing", "Registry")
+            )
+          }
+        >
+        </a>
+        <h3 data-part="feature-title">{dgettext("marketing", "Registry")} <.arrow_right /></h3>
+        <p data-part="feature-description">
+          {dgettext(
+            "marketing",
+            "Download only what you need - faster, lighter builds locally and on CI."
+          )}
+        </p>
+      </div>
+    </section>
+
     <section data-part="public-dashboard">
       <h2 data-part="title">
         <span>{dgettext("marketing", "Explore features")}</span>
