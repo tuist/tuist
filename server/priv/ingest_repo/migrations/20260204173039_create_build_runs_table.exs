@@ -319,7 +319,10 @@ defmodule Tuist.IngestRepo.Migrations.CreateBuildRunsTable do
   defp normalize_custom_values(_), do: %{}
 
   defp to_naive_datetime(%NaiveDateTime{} = ndt), do: ensure_microsecond_precision(ndt)
-  defp to_naive_datetime(%DateTime{} = dt), do: dt |> DateTime.to_naive() |> ensure_microsecond_precision()
+
+  defp to_naive_datetime(%DateTime{} = dt),
+    do: dt |> DateTime.to_naive() |> ensure_microsecond_precision()
+
   defp to_naive_datetime(_), do: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:microsecond)
 
   defp to_datetime(%DateTime{} = dt), do: dt
