@@ -47,7 +47,11 @@ defmodule TuistWeb.API.GradleController do
            git_branch: %Schema{type: :string, nullable: true, description: "Git branch."},
            git_commit_sha: %Schema{type: :string, nullable: true, description: "Git commit SHA."},
            git_ref: %Schema{type: :string, nullable: true, description: "Git ref."},
-           avoidance_savings_ms: %Schema{type: :integer, nullable: true, description: "Estimated time saved by avoidance."},
+           avoidance_savings_ms: %Schema{
+             type: :integer,
+             nullable: true,
+             description: "Estimated time saved by avoidance."
+           },
            tasks: %Schema{
              type: :array,
              items: %Schema{
@@ -63,7 +67,11 @@ defmodule TuistWeb.API.GradleController do
                  cacheable: %Schema{type: :boolean, description: "Whether the task is cacheable."},
                  duration_ms: %Schema{type: :integer, nullable: true, description: "Task duration in milliseconds."},
                  cache_key: %Schema{type: :string, nullable: true, description: "Cache key for cacheable tasks."},
-                 cache_artifact_size: %Schema{type: :integer, nullable: true, description: "Size of cache artifact in bytes."}
+                 cache_artifact_size: %Schema{
+                   type: :integer,
+                   nullable: true,
+                   description: "Size of cache artifact in bytes."
+                 }
                },
                required: [:task_path, :outcome]
              }
@@ -88,8 +96,7 @@ defmodule TuistWeb.API.GradleController do
 
   def create_build(%{assigns: %{selected_project: project, selected_account: account}, body_params: body} = conn, _params) do
     tasks =
-      (body[:tasks] || [])
-      |> Enum.map(fn task ->
+      Enum.map(body[:tasks] || [], fn task ->
         %{
           task_path: task.task_path,
           task_type: task[:task_type],
@@ -464,22 +471,24 @@ defmodule TuistWeb.API.GradleController do
 
     if total > 0 do
       Float.round((build.tasks_from_cache_count || 0) / total * 100.0, 1)
-    else
-      nil
     end
   end
 
   defp calculate_avoidance_rate(build) do
-    total =
-      (build.tasks_from_cache_count || 0) + (build.tasks_up_to_date_count || 0) +
-        (build.tasks_executed_count || 0) + (build.tasks_failed_count || 0) +
-        (build.tasks_skipped_count || 0) + (build.tasks_no_source_count || 0)
+    counts = [
+      build.tasks_from_cache_count,
+      build.tasks_up_to_date_count,
+      build.tasks_executed_count,
+      build.tasks_failed_count,
+      build.tasks_skipped_count,
+      build.tasks_no_source_count
+    ]
+
+    total = counts |> Enum.map(&(&1 || 0)) |> Enum.sum()
 
     if total > 0 do
       avoided = (build.tasks_from_cache_count || 0) + (build.tasks_up_to_date_count || 0)
       Float.round(avoided / total * 100.0, 1)
-    else
-      nil
     end
   end
 
