@@ -1,4 +1,5 @@
 import Foundation
+import Noora
 import Path
 import TuistCache
 import TuistCore
@@ -65,10 +66,58 @@ final class GenerateService {
             cacheProfile: resolvedCacheProfile,
             cacheStorage: cacheStorage
         )
-        let (workspacePath, _, _) = try await generator.generateWithGraph(
-            path: path,
-            options: config.project.generatedProject?.generationOptions
-        )
+
+        let generationOptions = config.project.generatedProject?.generationOptions
+
+        let (graph, sideEffects, environment) = try await Noora.current.progressStep(
+            message: "Loading the project graph",
+            successMessage: "Project graph loaded",
+            errorMessage: "Failed to load the project graph",
+            showSpinner: true
+        ) { _ in
+            try await generator.loadWithSideEffects(
+                path: path,
+                options: generationOptions
+            )
+        }
+
+        try await Noora.current.progressStep(
+            message: "Linting the project",
+            successMessage: "Project linted",
+            errorMessage: "Failed to lint the project",
+            showSpinner: true
+        ) { _ in
+            try await generator.lint(graph: graph, environment: environment)
+        }
+
+        let binaryCacheItems = await RunMetadataStorage.current.binaryCacheItems
+        let allItems = binaryCacheItems.values.flatMap(\.values)
+        let cachedCount = allItems.filter { $0.source != .miss }.count
+        let totalCount = allItems.count
+        let cacheInfo = totalCount > 0 ? " (\(cachedCount)/\(totalCount) binaries)" : ""
+
+        let workspacePath = try await Noora.current.progressStep(
+            message: "Generating the Xcode project",
+            successMessage: "Xcode project generated\(cacheInfo)",
+            errorMessage: "Failed to generate the Xcode project",
+            showSpinner: true
+        ) { _ in
+            try await generator.generateAndWrite(graph: graph)
+        }
+
+        try await Noora.current.progressStep(
+            message: "Running post-generation actions",
+            successMessage: "Post-generation actions completed",
+            errorMessage: "Post-generation actions failed",
+            showSpinner: true
+        ) { _ in
+            try await generator.executeSideEffects(sideEffects: sideEffects)
+            try await generator.postGenerate(
+                graph: graph,
+                workspaceName: workspacePath.basename
+            )
+        }
+
         if !noOpen {
             try await opener.open(path: workspacePath)
         }
