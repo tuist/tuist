@@ -170,9 +170,7 @@ if env == :dev do
         value = System.get_env(env_var),
         do: {key, value}
 
-  if dev_db_config != [] do
-    config :tuist, Tuist.Repo, dev_db_config
-  end
+  config :tuist, Tuist.Repo, dev_db_config
 end
 
 if Enum.member?([:prod, :stag, :can, :dev], env) do
