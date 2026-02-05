@@ -136,9 +136,9 @@ export async function cliSidebar(locale) {
           {
             text: localizedString(
               locale,
-              "sidebars.cli.items.cli.items.logging.text",
+              "sidebars.cli.items.cli.items.debugging.text",
             ),
-            link: `/${linkLocale}/cli/logging`,
+            link: `/${linkLocale}/cli/debugging`,
           },
           {
             text: localizedString(

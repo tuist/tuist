@@ -7,6 +7,7 @@ alias Tuist.AppBuilds.AppBuild
 alias Tuist.AppBuilds.Preview
 alias Tuist.Billing
 alias Tuist.Billing.Subscription
+alias Tuist.Builds.Build
 alias Tuist.Bundles
 alias Tuist.CommandEvents.Event
 alias Tuist.Environment
@@ -17,13 +18,12 @@ alias Tuist.QA
 alias Tuist.QA.Log
 alias Tuist.QA.Run
 alias Tuist.Repo
-alias Tuist.Runs.Build
-alias Tuist.Runs.Test
-alias Tuist.Runs.TestCaseEvent
-alias Tuist.Runs.TestCaseRun
-alias Tuist.Runs.TestModuleRun
-alias Tuist.Runs.TestSuiteRun
 alias Tuist.Slack.Installation
+alias Tuist.Tests.Test
+alias Tuist.Tests.TestCaseEvent
+alias Tuist.Tests.TestCaseRun
+alias Tuist.Tests.TestModuleRun
+alias Tuist.Tests.TestSuiteRun
 
 # =============================================================================
 # Configuration via Environment Variables
@@ -359,6 +359,34 @@ build_generator = fn _i ->
   remote_hits = Enum.random(0..div(total_tasks, 2))
   local_hits = Enum.random(0..(total_tasks - remote_hits))
 
+  available_tags = [
+    "nightly",
+    "release",
+    "staging",
+    "production",
+    "ios-team",
+    "android-team",
+    "feature-x",
+    "hotfix",
+    "regression",
+    "performance"
+  ]
+
+  custom_tags = Enum.take_random(available_tags, Enum.random(0..4))
+
+  custom_values =
+    if Enum.random([true, false, false]) do
+      base = %{
+        "ticket" => "PROJ-#{Enum.random(1000..9999)}",
+        "runner" => Enum.random(["macos-14-xlarge", "macos-13-large", "self-hosted"]),
+        "jira" => "https://jira.company.com/browse/PROJ-#{Enum.random(1000..9999)}"
+      }
+
+      Map.take(base, Enum.take_random(Map.keys(base), Enum.random(1..3)))
+    else
+      %{}
+    end
+
   %{
     id: UUIDv7.generate(),
     duration: Enum.random(10_000..100_000),
@@ -378,7 +406,9 @@ build_generator = fn _i ->
     status: status,
     cacheable_tasks_count: total_tasks,
     cacheable_task_remote_hits_count: remote_hits,
-    cacheable_task_local_hits_count: local_hits
+    cacheable_task_local_hits_count: local_hits,
+    custom_tags: custom_tags,
+    custom_values: custom_values
   }
 end
 
@@ -489,7 +519,7 @@ cas_output_generator = fn build ->
 end
 
 cas_outputs = SeedHelpers.parallel_flat_map(builds, cas_output_generator)
-SeedHelpers.insert_bulk_ch(cas_outputs, Tuist.Runs.CASOutput, IngestRepo, "CAS outputs")
+SeedHelpers.insert_bulk_ch(cas_outputs, Tuist.Builds.CASOutput, IngestRepo, "CAS outputs")
 
 # Generate CAS events based on CAS outputs
 # CAS events track upload/download actions for analytics
@@ -617,7 +647,7 @@ cacheable_tasks =
     tasks
   end)
 
-SeedHelpers.insert_bulk_ch(cacheable_tasks, Tuist.Runs.CacheableTask, IngestRepo, "cacheable tasks")
+SeedHelpers.insert_bulk_ch(cacheable_tasks, Tuist.Builds.CacheableTask, IngestRepo, "cacheable tasks")
 
 branches = [
   "main",
@@ -704,7 +734,7 @@ test_case_definitions =
     }
   end
 
-{test_case_id_map, _test_cases_with_flaky_run} = Tuist.Runs.create_test_cases(tuist_project.id, test_case_definitions)
+{test_case_id_map, _test_cases_with_flaky_run} = Tuist.Tests.create_test_cases(tuist_project.id, test_case_definitions)
 
 # Update flaky test cases to be marked as is_flaky
 # ~70% stay quarantined, ~30% get unquarantined (to show chart going down)
@@ -751,7 +781,7 @@ flaky_test_case_updates =
 
 quarantined_test_cases =
   if length(flaky_test_case_updates) > 0 do
-    IngestRepo.insert_all(Tuist.Runs.TestCase, flaky_test_case_updates, timeout: 120_000)
+    IngestRepo.insert_all(Tuist.Tests.TestCase, flaky_test_case_updates, timeout: 120_000)
 
     IO.puts(
       "Updated #{length(flaky_test_case_updates)} test cases as flaky (#{length(quarantined_ids)} quarantined, #{length(unquarantined_ids)} unquarantined)"
@@ -988,7 +1018,7 @@ chunk_processor = fn chunk_indices ->
     end
 
     if length(failures) > 0 do
-      IngestRepo.insert_all(Tuist.Runs.TestCaseFailure, failures, timeout: 120_000)
+      IngestRepo.insert_all(Tuist.Tests.TestCaseFailure, failures, timeout: 120_000)
       :counters.add(failure_counter, 1, length(failures))
     end
   end)

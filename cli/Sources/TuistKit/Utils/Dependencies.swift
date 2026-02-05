@@ -1,7 +1,10 @@
+import FileSystem
 import Foundation
 import Noora
 import Path
 import TSCBasic
+import TuistHAR
+import TuistHTTP
 import TuistLoader
 import TuistServer
 import TuistSupport
@@ -25,23 +28,27 @@ struct IgnoreOutputPipeline: StandardPipelining {
     func write(content _: String) {}
 }
 
-public func initDependencies(_ action: (Path.AbsolutePath) async throws -> Void) async throws {
+public func initDependencies(_ action: (SessionPaths) async throws -> Void) async throws {
     try await initEnv()
     ThreadDumpSignalHandler.installIfEnabled()
 
-    let (logger, logFilePath) = try await initLogger()
+    let (logger, sessionPaths) = try await initSession()
+
+    let harRecorder = HARRecorder(filePath: sessionPaths.networkFilePath)
 
     try await withAdditionalMiddlewares {
         try await withInitializedManifestLoader {
             try await ServerAuthenticationConfig.$current.withValue(ServerAuthenticationConfig(backgroundRefresh: true)) {
                 try await Noora.$current.withValue(initNoora()) {
                     try await Logger.$current.withValue(logger) {
-                        try await ServerCredentialsStore.$current.withValue(ServerCredentialsStore(backend: .fileSystem)) {
-                            try await CachedValueStore.$current.withValue(CachedValueStore(backend: .fileSystem)) {
-                                try await RecentPathsStore.$current
-                                    .withValue(RecentPathsStore(storageDirectory: Environment.current.stateDirectory)) {
-                                        try await action(logFilePath)
-                                    }
+                        try await HARRecorder.$current.withValue(harRecorder) {
+                            try await ServerCredentialsStore.$current.withValue(ServerCredentialsStore(backend: .fileSystem)) {
+                                try await CachedValueStore.$current.withValue(CachedValueStore(backend: .fileSystem)) {
+                                    try await RecentPathsStore.$current
+                                        .withValue(RecentPathsStore(storageDirectory: Environment.current.stateDirectory)) {
+                                            try await action(sessionPaths)
+                                        }
+                                }
                             }
                         }
                     }
@@ -91,19 +98,33 @@ private func initEnv() async throws {
 }
 
 func withLoggerForNoora(logFilePath: Path.AbsolutePath, _ action: () async throws -> Void) async throws {
-    let loggerHandler = try Logger.loggerHandlerForNoora(logFilePath: logFilePath)
-    try await Logger.$current.withValue(Logger(label: "dev.tuist.cli", factory: loggerHandler)) {
+    let loggerHandler: (@Sendable (String) -> any LogHandler)?
+    do {
+        let fileSystem = FileSystem()
+        try await fileSystem.touch(logFilePath)
+        loggerHandler = try Logger.loggerHandlerForNoora(logFilePath: logFilePath)
+    } catch {
+        loggerHandler = nil
+    }
+
+    if let loggerHandler {
+        try await Logger.$current.withValue(Logger(label: "dev.tuist.cli", factory: loggerHandler)) {
+            try await action()
+        }
+    } else {
         try await action()
     }
 }
 
-private func initLogger() async throws -> (Logger, Path.AbsolutePath) {
-    let (loggerHandler, logFilePath) = try await LogsController().setup(
+private func initSession() async throws -> (Logger, SessionPaths) {
+    let sessionController = SessionController()
+    let (loggerHandler, sessionPaths) = try await sessionController.setup(
         stateDirectory: Environment.current.stateDirectory
     )
     // This is the old initialization method and will eventually go away.
     LoggingSystem.bootstrap(loggerHandler)
-    return (Logger(label: "dev.tuist.cli", factory: loggerHandler), logFilePath)
+    sessionController.scheduleMaintenance(stateDirectory: Environment.current.stateDirectory)
+    return (Logger(label: "dev.tuist.cli", factory: loggerHandler), sessionPaths)
 }
 
 func initNoora(jsonThroughNoora: Bool = false) -> Noora {

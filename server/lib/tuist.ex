@@ -41,10 +41,15 @@ defmodule Tuist do
       Registry.Swift.Packages.Package,
       Registry.Swift.Packages.PackageManifest,
       Registry.Swift.Packages.PackageRelease,
-      Runs,
-      Runs.Build,
-      Runs.CASOutput,
+      Builds,
+      Builds.Build,
+      Builds.CASOutput,
+      Builds.Analytics,
       Runs.Analytics,
+      Tests,
+      Tests.Test,
+      Tests.TestCase,
+      Tests.Analytics,
       # App
       # -----
       # They are modules that are core to the Tuist domain (e.g. accounts) and that other

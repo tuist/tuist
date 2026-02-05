@@ -2,7 +2,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
-  alias Tuist.Runs
+  alias Tuist.Builds
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -19,7 +19,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
     end
 
     test "returns an empty list when there are no builds", %{conn: conn, user: user, project: project} do
-      stub(Runs, :list_build_runs, fn _attrs, _opts ->
+      stub(Builds, :list_build_runs, fn _attrs, _opts ->
         {[],
          %{
            has_next_page?: false,
@@ -57,7 +57,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
           configuration: "Debug"
         )
 
-      stub(Runs, :list_build_runs, fn _attrs, _opts ->
+      stub(Builds, :list_build_runs, fn _attrs, _opts ->
         {[build],
          %{
            has_next_page?: false,
@@ -94,7 +94,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
           duration: 3000
         )
 
-      expect(Runs, :list_build_runs, fn attrs, _opts ->
+      expect(Builds, :list_build_runs, fn attrs, _opts ->
         assert %{field: :status, op: :==, value: :failure} in attrs.filters
 
         {[failure_build],
@@ -122,7 +122,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
           user_id: user.account.id
         )
 
-      expect(Runs, :list_build_runs, fn attrs, _opts ->
+      expect(Builds, :list_build_runs, fn attrs, _opts ->
         assert attrs.page == 2
         assert attrs.page_size == 10
 
@@ -155,6 +155,152 @@ defmodule TuistWeb.API.BuildsControllerTest do
 
       assert json_response(conn, :forbidden)
     end
+
+    test "returns custom_metadata in response", %{conn: conn, user: user, project: project} do
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: user.account.id,
+          custom_tags: ["nightly", "release"],
+          custom_values: %{"ticket" => "PROJ-1234"}
+        )
+
+      stub(Builds, :list_build_runs, fn _attrs, _opts ->
+        {[build],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 1,
+           total_pages: 1
+         }}
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds")
+
+      response = json_response(conn, 200)
+      first_build = hd(response["builds"])
+      assert first_build["custom_metadata"]["tags"] == ["nightly", "release"]
+      assert first_build["custom_metadata"]["values"] == %{"ticket" => "PROJ-1234"}
+    end
+
+    test "filters builds by tags", %{conn: conn, user: user, project: project} do
+      {:ok, tagged_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: user.account.id,
+          custom_tags: ["nightly", "release"]
+        )
+
+      expect(Builds, :list_build_runs, fn attrs, _opts ->
+        assert %{field: :custom_tags, op: :contains, value: "nightly"} in attrs.filters
+
+        {[tagged_build],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 1,
+           total_pages: 1
+         }}
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds?tags[]=nightly")
+
+      response = json_response(conn, 200)
+      assert length(response["builds"]) == 1
+    end
+
+    test "filters builds by multiple tags", %{conn: conn, user: user, project: project} do
+      {:ok, tagged_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: user.account.id,
+          custom_tags: ["nightly", "release"]
+        )
+
+      expect(Builds, :list_build_runs, fn attrs, _opts ->
+        assert %{field: :custom_tags, op: :contains, value: "nightly"} in attrs.filters
+        assert %{field: :custom_tags, op: :contains, value: "release"} in attrs.filters
+
+        {[tagged_build],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 1,
+           total_pages: 1
+         }}
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds?tags[]=nightly&tags[]=release")
+
+      response = json_response(conn, 200)
+      assert length(response["builds"]) == 1
+    end
+
+    test "filters builds by custom values", %{conn: conn, user: user, project: project} do
+      {:ok, build_with_values} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: user.account.id,
+          custom_values: %{"ticket" => "PROJ-1234", "runner" => "macos-14"}
+        )
+
+      expect(Builds, :list_build_runs, fn _attrs, opts ->
+        assert Keyword.get(opts, :custom_values) == %{"ticket" => "PROJ-1234"}
+
+        {[build_with_values],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 1,
+           total_pages: 1
+         }}
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds?values[]=ticket:PROJ-1234")
+
+      response = json_response(conn, 200)
+      assert length(response["builds"]) == 1
+    end
+
+    test "filters builds by multiple custom values", %{conn: conn, user: user, project: project} do
+      {:ok, build_with_values} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: user.account.id,
+          custom_values: %{"ticket" => "PROJ-1234", "runner" => "macos-14"}
+        )
+
+      expect(Builds, :list_build_runs, fn _attrs, opts ->
+        assert Keyword.get(opts, :custom_values) == %{"ticket" => "PROJ-1234", "runner" => "macos-14"}
+
+        {[build_with_values],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 1,
+           total_pages: 1
+         }}
+      end)
+
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/builds?values[]=ticket:PROJ-1234&values[]=runner:macos-14"
+        )
+
+      response = json_response(conn, 200)
+      assert length(response["builds"]) == 1
+    end
   end
 
   describe "GET /api/projects/:account_handle/:project_handle/builds/:build_id" do
@@ -183,7 +329,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
           cacheable_task_remote_hits_count: 5
         )
 
-      stub(Runs, :get_build, fn _id ->
+      stub(Builds, :get_build, fn _id ->
         build
       end)
 
@@ -203,7 +349,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
     end
 
     test "returns 404 when build is not found", %{conn: conn, user: user, project: project} do
-      stub(Runs, :get_build, fn _id ->
+      stub(Builds, :get_build, fn _id ->
         nil
       end)
 
@@ -221,7 +367,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
           user_id: user.account.id
         )
 
-      stub(Runs, :get_build, fn _id ->
+      stub(Builds, :get_build, fn _id ->
         build
       end)
 
@@ -237,6 +383,30 @@ defmodule TuistWeb.API.BuildsControllerTest do
       conn = get(conn, "/api/projects/#{project.account.name}/#{project.name}/builds/#{UUIDv7.generate()}")
 
       assert json_response(conn, :forbidden)
+    end
+
+    test "returns custom_metadata in response", %{conn: conn, user: user, project: project} do
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: user.account.id,
+          custom_tags: ["nightly", "staging"],
+          custom_values: %{"runner" => "macos-14", "jira" => "https://jira.example.com/PROJ-123"}
+        )
+
+      stub(Builds, :get_build, fn _id ->
+        build
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/#{build.id}")
+
+      response = json_response(conn, 200)
+      assert response["custom_metadata"]["tags"] == ["nightly", "staging"]
+
+      assert response["custom_metadata"]["values"] == %{
+               "runner" => "macos-14",
+               "jira" => "https://jira.example.com/PROJ-123"
+             }
     end
   end
 end

@@ -69,8 +69,8 @@
         <:icon_left><.download /></:icon_left>
       </.button>
       <.button
-        :if={Tuist.Runs.test_ci_run_url(@run)}
-        href={Tuist.Runs.test_ci_run_url(@run)}
+        :if={Tuist.Tests.test_ci_run_url(@run)}
+        href={Tuist.Tests.test_ci_run_url(@run)}
         label={dgettext("dashboard_tests", "CI Run")}
         variant="secondary"
         size="medium"

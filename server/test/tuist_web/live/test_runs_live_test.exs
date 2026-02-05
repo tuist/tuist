@@ -6,18 +6,18 @@ defmodule TuistWeb.TestRunsLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Tuist.Runs.Analytics
+  alias Tuist.Runs.Analytics, as: RunsAnalytics
   alias TuistTestSupport.Fixtures.RunsFixtures
 
   describe "lists latest test runs" do
     setup do
-      copy(Analytics)
+      copy(RunsAnalytics)
 
-      stub(Analytics, :runs_analytics, fn _, _, _ ->
+      stub(RunsAnalytics, :runs_analytics, fn _, _, _ ->
         %{runs_per_period: %{}, dates: [], values: [], count: 0, trend: 0}
       end)
 
-      stub(Analytics, :runs_duration_analytics, fn _, _ ->
+      stub(RunsAnalytics, :runs_duration_analytics, fn _, _ ->
         %{dates: [], values: [], total_average_duration: 0, trend: 0}
       end)
 
@@ -59,7 +59,7 @@ defmodule TuistWeb.TestRunsLiveTest do
 
       # Generate a cursor with duration sorting (simulating a cursor from another page like bundles)
       {_test_runs, %{end_cursor: cursor}} =
-        Tuist.Runs.list_test_runs(%{
+        Tuist.Tests.list_test_runs(%{
           filters: [
             %{field: :project_id, op: :==, value: project.id}
           ],

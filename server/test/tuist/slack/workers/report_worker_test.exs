@@ -2,10 +2,11 @@ defmodule Tuist.Slack.Workers.ReportWorkerTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  alias Tuist.Builds.Analytics, as: BuildsAnalytics
   alias Tuist.Projects
-  alias Tuist.Runs.Analytics
   alias Tuist.Slack.Client
   alias Tuist.Slack.Workers.ReportWorker
+  alias Tuist.Tests.Analytics, as: TestsAnalytics
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.SlackFixtures
@@ -34,11 +35,11 @@ defmodule Tuist.Slack.Workers.ReportWorkerTest do
 
       stub(DateTime, :utc_now, fn -> now end)
 
-      stub(Analytics, :build_duration_analytics, fn _project_id, _opts ->
+      stub(BuildsAnalytics, :build_duration_analytics, fn _project_id, _opts ->
         %{total_average_duration: 1000, trend: nil}
       end)
 
-      stub(Analytics, :test_run_duration_analytics, fn _project_id, _opts ->
+      stub(TestsAnalytics, :test_run_duration_analytics, fn _project_id, _opts ->
         %{total_average_duration: 500, trend: nil}
       end)
 
@@ -46,7 +47,7 @@ defmodule Tuist.Slack.Workers.ReportWorkerTest do
         %{cache_hit_rate: 0.8, trend: nil}
       end)
 
-      stub(Analytics, :selective_testing_analytics, fn _opts ->
+      stub(BuildsAnalytics, :selective_testing_analytics, fn _opts ->
         %{hit_rate: 0, trend: nil}
       end)
 

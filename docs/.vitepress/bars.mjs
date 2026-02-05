@@ -606,11 +606,11 @@ export async function guidesSidebar(locale) {
           collapsed: true,
           items: [
             {
-              text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${mcpIcon()} ${localizedString(
+              text: localizedString(
                 locale,
-                "sidebars.guides.items.agentic-coding.items.mcp.text",
-              )}</span>`,
-              link: `/${locale}/guides/features/agentic-coding/mcp`,
+                "sidebars.guides.items.agentic-coding.items.skills.text",
+              ),
+              link: `/${locale}/guides/features/agentic-coding/skills`,
             },
           ],
         },

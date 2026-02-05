@@ -6,10 +6,11 @@ defmodule Tuist.Alerts do
 
   alias Tuist.Alerts.Alert
   alias Tuist.Alerts.AlertRule
+  alias Tuist.Builds.Analytics, as: BuildsAnalytics
   alias Tuist.Cache.Analytics, as: CacheAnalytics
   alias Tuist.Projects.Project
   alias Tuist.Repo
-  alias Tuist.Runs.Analytics
+  alias Tuist.Tests.Analytics, as: TestsAnalytics
 
   def get_project_alert_rules(%Project{id: project_id}) do
     AlertRule
@@ -69,13 +70,13 @@ defmodule Tuist.Alerts do
   """
   def evaluate(%AlertRule{category: :build_run_duration} = alert_rule) do
     current =
-      Analytics.build_duration_metric_by_count(alert_rule.project_id, alert_rule.metric,
+      BuildsAnalytics.build_duration_metric_by_count(alert_rule.project_id, alert_rule.metric,
         limit: alert_rule.rolling_window_size,
         offset: 0
       )
 
     previous =
-      Analytics.build_duration_metric_by_count(alert_rule.project_id, alert_rule.metric,
+      BuildsAnalytics.build_duration_metric_by_count(alert_rule.project_id, alert_rule.metric,
         limit: alert_rule.rolling_window_size,
         offset: alert_rule.rolling_window_size
       )
@@ -85,13 +86,13 @@ defmodule Tuist.Alerts do
 
   def evaluate(%AlertRule{category: :test_run_duration} = alert_rule) do
     current =
-      Analytics.test_duration_metric_by_count(alert_rule.project_id, alert_rule.metric,
+      TestsAnalytics.test_duration_metric_by_count(alert_rule.project_id, alert_rule.metric,
         limit: alert_rule.rolling_window_size,
         offset: 0
       )
 
     previous =
-      Analytics.test_duration_metric_by_count(alert_rule.project_id, alert_rule.metric,
+      TestsAnalytics.test_duration_metric_by_count(alert_rule.project_id, alert_rule.metric,
         limit: alert_rule.rolling_window_size,
         offset: alert_rule.rolling_window_size
       )

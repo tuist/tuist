@@ -12,6 +12,8 @@ public protocol ListBuildsServicing: Sendable {
         status: String?,
         scheme: String?,
         configuration: String?,
+        tags: [String],
+        values: [String],
         page: Int?,
         pageSize: Int
     ) async throws -> Operations.listBuilds.Output.Ok.Body.jsonPayload
@@ -53,6 +55,8 @@ public struct ListBuildsService: ListBuildsServicing {
         status: String?,
         scheme: String?,
         configuration: String?,
+        tags: [String],
+        values: [String],
         page: Int?,
         pageSize: Int
     ) async throws -> Operations.listBuilds.Output.Ok.Body.jsonPayload {
@@ -71,6 +75,8 @@ public struct ListBuildsService: ListBuildsServicing {
                     scheme: scheme,
                     configuration: configuration,
                     git_branch: gitBranch,
+                    tags: tags,
+                    values: values.map { $0.replacingOccurrences(of: "=", with: ":") },
                     page_size: pageSize,
                     page: page
                 )

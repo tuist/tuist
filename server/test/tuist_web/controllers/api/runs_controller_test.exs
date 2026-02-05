@@ -2,7 +2,9 @@ defmodule TuistWeb.API.RunsControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
-  alias Tuist.Runs.Build
+  alias Tuist.Builds
+  alias Tuist.Builds.Build
+  alias Tuist.Tests
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
@@ -486,7 +488,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       get_build_call_count = :counters.new(1, [:atomics])
 
-      stub(Tuist.Runs, :get_build, fn ^id ->
+      stub(Builds, :get_build, fn ^id ->
         count = :counters.get(get_build_call_count, 1)
         :counters.add(get_build_call_count, 1, 1)
         if count == 0, do: nil, else: existing_build
@@ -497,7 +499,7 @@ defmodule TuistWeb.API.RunsControllerTest do
         valid?: false
       }
 
-      stub(Tuist.Runs, :create_build, fn _attrs ->
+      stub(Builds, :create_build, fn _attrs ->
         {:error, error_changeset}
       end)
 
@@ -700,7 +702,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.cacheable_task_remote_hits_count == 2
 
       {cacheable_tasks, _meta} =
-        Tuist.Runs.list_cacheable_tasks(%{
+        Builds.list_cacheable_tasks(%{
           filters: [%{field: :build_run_id, op: :==, value: build.id}],
           order_by: [:key],
           order_directions: [:asc]
@@ -756,7 +758,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Verify no cacheable tasks are created in ClickHouse
       {cacheable_tasks, _meta} =
-        Tuist.Runs.list_cacheable_tasks(%{
+        Builds.list_cacheable_tasks(%{
           filters: [%{field: :build_run_id, op: :==, value: build.id}]
         })
 
@@ -822,7 +824,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       [build] = Tuist.Repo.all(Build)
 
       {cas_outputs, _meta} =
-        Tuist.Runs.list_cas_outputs(%{
+        Builds.list_cas_outputs(%{
           filters: [%{field: :build_run_id, op: :==, value: build.id}],
           order_by: [:node_id],
           order_directions: [:asc]
@@ -1009,7 +1011,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       [build] = Tuist.Repo.all(Build)
 
       {cacheable_tasks, _meta} =
-        Tuist.Runs.list_cacheable_tasks(%{
+        Builds.list_cacheable_tasks(%{
           filters: [%{field: :build_run_id, op: :==, value: build.id}],
           order_by: [:key],
           order_directions: [:asc]
@@ -1083,7 +1085,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      {:ok, test_run} = Tuist.Runs.get_test(response["id"])
+      {:ok, test_run} = Tests.get_test(response["id"])
 
       assert test_run.duration == 5000
       assert test_run.macos_version == "14.0"
@@ -1186,7 +1188,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      {:ok, test_run} = Tuist.Runs.get_test(response["id"])
+      {:ok, test_run} = Tests.get_test(response["id"])
 
       assert test_run.duration == 10_000
       assert test_run.status == "failure"
@@ -1195,7 +1197,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Verify test modules were stored
       {test_modules, _meta} =
-        Tuist.Runs.list_test_module_runs(%{
+        Tests.list_test_module_runs(%{
           filters: [%{field: :test_run_id, op: :==, value: test_run.id}],
           order_by: [:name],
           order_directions: [:asc]
@@ -1214,7 +1216,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Verify test cases were stored
       {test_cases, _meta} =
-        Tuist.Runs.list_test_case_runs(%{
+        Tests.list_test_case_runs(%{
           filters: [%{field: :test_run_id, op: :==, value: test_run.id}],
           order_by: [:name],
           order_directions: [:asc]
@@ -1312,14 +1314,14 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      {:ok, test_run} = Tuist.Runs.get_test(response["id"])
+      {:ok, test_run} = Tests.get_test(response["id"])
 
       assert test_run.duration == 3000
       assert test_run.status == "success"
 
       # Verify test cases were stored with correct statuses
       {test_cases, _meta} =
-        Tuist.Runs.list_test_case_runs(%{
+        Tests.list_test_case_runs(%{
           filters: [%{field: :test_run_id, op: :==, value: test_run.id}],
           order_by: [:name],
           order_directions: [:asc]
@@ -1361,7 +1363,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      {:ok, test_run} = Tuist.Runs.get_test(response["id"])
+      {:ok, test_run} = Tests.get_test(response["id"])
 
       assert test_run.duration == 0
       assert test_run.status == "skipped"
@@ -1422,12 +1424,12 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      {:ok, test_run} = Tuist.Runs.get_test(response["id"])
+      {:ok, test_run} = Tests.get_test(response["id"])
 
       assert test_run.status == "success"
 
       {test_cases, _meta} =
-        Tuist.Runs.list_test_case_runs(%{
+        Tests.list_test_case_runs(%{
           filters: [%{field: :test_run_id, op: :==, value: test_run.id}]
         })
 
@@ -1480,7 +1482,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      {:ok, test_run} = Tuist.Runs.get_test(response["id"])
+      {:ok, test_run} = Tests.get_test(response["id"])
 
       assert test_run.build_run_id == build_id
       assert test_run.duration == 5000
@@ -1520,7 +1522,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      {:ok, test_run} = Tuist.Runs.get_test(response["id"])
+      {:ok, test_run} = Tests.get_test(response["id"])
 
       assert test_run.duration == 5000
       assert test_run.is_ci == true
@@ -1566,7 +1568,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      {:ok, test_run} = Tuist.Runs.get_test(response["id"])
+      {:ok, test_run} = Tests.get_test(response["id"])
 
       assert test_run.duration == 8000
       assert test_run.is_ci == true

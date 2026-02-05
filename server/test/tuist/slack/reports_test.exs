@@ -111,15 +111,15 @@ defmodule Tuist.Slack.ReportsTest do
         %{cache_hit_rate: 0, trend: nil}
       end)
 
-      stub(Tuist.Runs.Analytics, :selective_testing_analytics, fn _opts ->
+      stub(Tuist.Builds.Analytics, :selective_testing_analytics, fn _opts ->
         %{hit_rate: 0, trend: nil}
       end)
 
-      stub(Tuist.Runs.Analytics, :build_duration_analytics, fn _project_id, _opts ->
+      stub(Tuist.Builds.Analytics, :build_duration_analytics, fn _project_id, _opts ->
         %{total_average_duration: 0, trend: nil}
       end)
 
-      stub(Tuist.Runs.Analytics, :test_run_duration_analytics, fn _project_id, _opts ->
+      stub(Tuist.Tests.Analytics, :test_run_duration_analytics, fn _project_id, _opts ->
         %{total_average_duration: 0, trend: nil}
       end)
 
@@ -177,11 +177,11 @@ defmodule Tuist.Slack.ReportsTest do
         %{cache_hit_rate: 0, trend: nil}
       end)
 
-      stub(Tuist.Runs.Analytics, :selective_testing_analytics, fn _opts ->
+      stub(Tuist.Builds.Analytics, :selective_testing_analytics, fn _opts ->
         %{hit_rate: 0, trend: nil}
       end)
 
-      stub(Tuist.Runs.Analytics, :build_duration_analytics, fn _project_id, opts ->
+      stub(Tuist.Builds.Analytics, :build_duration_analytics, fn _project_id, opts ->
         case Keyword.get(opts, :is_ci) do
           true -> %{total_average_duration: 5000, trend: nil}
           false -> %{total_average_duration: 0, trend: nil}
@@ -189,7 +189,7 @@ defmodule Tuist.Slack.ReportsTest do
         end
       end)
 
-      stub(Tuist.Runs.Analytics, :test_run_duration_analytics, fn _project_id, opts ->
+      stub(Tuist.Tests.Analytics, :test_run_duration_analytics, fn _project_id, opts ->
         case Keyword.get(opts, :is_ci) do
           true -> %{total_average_duration: 210_000, trend: nil}
           false -> %{total_average_duration: 0, trend: nil}
@@ -232,15 +232,15 @@ defmodule Tuist.Slack.ReportsTest do
         %{cache_hit_rate: 0.996, trend: -0.4000000000000057}
       end)
 
-      stub(Tuist.Runs.Analytics, :selective_testing_analytics, fn _opts ->
+      stub(Tuist.Builds.Analytics, :selective_testing_analytics, fn _opts ->
         %{hit_rate: 0, trend: nil}
       end)
 
-      stub(Tuist.Runs.Analytics, :build_duration_analytics, fn _project_id, _opts ->
+      stub(Tuist.Builds.Analytics, :build_duration_analytics, fn _project_id, _opts ->
         %{total_average_duration: 0, trend: nil}
       end)
 
-      stub(Tuist.Runs.Analytics, :test_run_duration_analytics, fn _project_id, _opts ->
+      stub(Tuist.Tests.Analytics, :test_run_duration_analytics, fn _project_id, _opts ->
         %{total_average_duration: 0, trend: nil}
       end)
 

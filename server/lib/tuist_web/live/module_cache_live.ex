@@ -8,9 +8,9 @@ defmodule TuistWeb.ModuleCacheLive do
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
 
+  alias Tuist.Builds.Analytics
   alias Tuist.CommandEvents
   alias Tuist.CommandEvents.Event
-  alias Tuist.Runs.Analytics
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query

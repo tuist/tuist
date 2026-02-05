@@ -2,10 +2,11 @@ plugins {
     `kotlin-dsl`
     `java-gradle-plugin`
     `maven-publish`
+    id("com.gradle.plugin-publish") version "1.3.1"
 }
 
 group = "dev.tuist"
-version = "0.1.0"
+version = findProperty("version")?.takeIf { it != "unspecified" } ?: "0.1.0"
 
 repositories {
     mavenCentral()
@@ -28,12 +29,15 @@ tasks.test {
 }
 
 gradlePlugin {
+    website = "https://tuist.dev"
+    vcsUrl = "https://github.com/tuist/tuist"
     plugins {
         create("tuist") {
             id = "dev.tuist"
             displayName = "Tuist"
             description = "Integrates Gradle projects with Tuist services including remote build caching and analytics"
             implementationClass = "dev.tuist.gradle.TuistPlugin"
+            tags = listOf("build-cache", "remote-cache", "tuist", "analytics")
         }
     }
 }

@@ -371,11 +371,14 @@ defmodule TuistWeb.Router do
           scope "/test-cases" do
             get "/", TestCasesController, :index
           end
+
+          post "/", TestsController, :create
         end
 
         scope "/builds" do
           get "/", BuildsController, :index
           get "/:build_id", BuildsController, :show
+          post "/", BuildsController, :create
         end
 
         scope "/gradle" do

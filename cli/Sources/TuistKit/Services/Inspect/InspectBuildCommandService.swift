@@ -173,12 +173,14 @@ struct InspectBuildCommandService {
 
         let gitInfo = try gitController.gitInfo(workingDirectory: projectPath)
         let ciInfo = ciController.ciInfo()
+        let customMetadata = readCustomMetadata()
         let build = try await createBuildService.createBuild(
             fullHandle: fullHandle,
             serverURL: serverURL,
             id: xcactivityLog.mainSection.uniqueIdentifier,
             category: xcactivityLog.category,
             configuration: Environment.current.variables["CONFIGURATION"],
+            customMetadata: customMetadata,
             duration: Int(xcactivityLog.mainSection.timeStoppedRecording * 1000)
                 - Int(xcactivityLog.mainSection.timeStartedRecording * 1000),
             files: xcactivityLog.files,
@@ -228,5 +230,27 @@ struct InspectBuildCommandService {
         } else {
             return currentWorkingDirectory
         }
+    }
+
+    private func readCustomMetadata() -> BuildCustomMetadata {
+        let env = Environment.current.variables
+        var tags: [String] = []
+        var values: [String: String] = [:]
+
+        if let tagsString = env["TUIST_BUILD_TAGS"] {
+            tags.append(
+                contentsOf: tagsString.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }
+            )
+        }
+
+        for (key, value) in env where key.hasPrefix("TUIST_BUILD_VALUE_") {
+            let valueKey = String(key.dropFirst("TUIST_BUILD_VALUE_".count)).lowercased()
+            values[valueKey] = value
+        }
+
+        return BuildCustomMetadata(
+            tags: tags,
+            values: BuildCustomMetadata.valuesPayload(additionalProperties: values)
+        )
     }
 }

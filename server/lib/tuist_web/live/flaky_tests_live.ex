@@ -7,8 +7,8 @@ defmodule TuistWeb.FlakyTestsLive do
   import TuistWeb.Components.EmptyCardSection
 
   alias Noora.Filter
-  alias Tuist.Runs
-  alias Tuist.Runs.Analytics
+  alias Tuist.Tests
+  alias Tuist.Tests.Analytics
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
@@ -174,7 +174,7 @@ defmodule TuistWeb.FlakyTestsLive do
       page_size: 20
     }
 
-    {flaky_tests, flaky_tests_meta} = Runs.list_flaky_test_cases(project.id, options)
+    {flaky_tests, flaky_tests_meta} = Tests.list_flaky_test_cases(project.id, options)
 
     socket
     |> assign(:active_filters, filters)

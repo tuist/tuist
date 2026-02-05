@@ -1,0 +1,169 @@
+import Foundation
+import HTTPTypes
+import OpenAPIRuntime
+
+/// A middleware that records HTTP requests and responses to a HAR file.
+public struct HARRecordingMiddleware: ClientMiddleware {
+    public init() {}
+
+    public func intercept(
+        _ request: HTTPRequest,
+        body: HTTPBody?,
+        baseURL: URL,
+        operationID _: String,
+        next: (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
+    ) async throws -> (HTTPResponse, HTTPBody?) {
+        guard let recorder = HARRecorder.current else {
+            return try await next(request, body, baseURL)
+        }
+
+        let requestContentType = request.headerFields[.contentType]
+        let (requestBodyData, requestBodyForNext) = try await Self.collectBody(
+            body,
+            contentType: requestContentType
+        )
+
+        do {
+            let (response, responseBody) = try await next(request, requestBodyForNext, baseURL)
+
+            let responseContentType = response.headerFields[.contentType]
+            let (responseBodyData, responseBodyForNext) = try await Self.collectBody(
+                responseBody,
+                contentType: responseContentType
+            )
+
+            Task.detached(priority: .background) {
+                let fullURL = Self.buildURL(baseURL: baseURL, path: request.path)
+                let harMetadata = await Self.retrieveHARMetadata(for: fullURL)
+
+                await recorder.recordRequest(
+                    url: fullURL,
+                    method: request.method.rawValue,
+                    requestHeaders: request.headerFields.map { HAR.Header(name: $0.name.rawName, value: $0.value) },
+                    requestBody: requestBodyData,
+                    responseStatusCode: response.status.code,
+                    responseStatusText: response.status.reasonPhrase ?? "",
+                    responseHeaders: response.headerFields.map { HAR.Header(name: $0.name.rawName, value: $0.value) },
+                    responseBody: responseBodyData,
+                    startTime: harMetadata.startTime,
+                    endTime: harMetadata.endTime,
+                    timings: harMetadata.timings,
+                    httpVersion: harMetadata.httpVersion,
+                    requestHeadersSize: harMetadata.requestHeadersSize,
+                    responseHeadersSize: harMetadata.responseHeadersSize
+                )
+            }
+
+            return (response, responseBodyForNext)
+        } catch {
+            Task.detached(priority: .background) {
+                let fullURL = Self.buildURL(baseURL: baseURL, path: request.path)
+                let harMetadata = await Self.retrieveHARMetadata(for: fullURL)
+
+                await recorder.recordError(
+                    url: fullURL,
+                    method: request.method.rawValue,
+                    requestHeaders: request.headerFields.map { HAR.Header(name: $0.name.rawName, value: $0.value) },
+                    requestBody: requestBodyData,
+                    error: error,
+                    startTime: harMetadata.startTime,
+                    endTime: harMetadata.endTime,
+                    timings: harMetadata.timings,
+                    httpVersion: harMetadata.httpVersion,
+                    requestHeadersSize: harMetadata.requestHeadersSize
+                )
+            }
+
+            throw error
+        }
+    }
+
+    private static let maxBodySizeForRecording: Int64 = 1024 * 1024 // 1 MB
+
+    private static func collectBody(_ body: HTTPBody?, contentType: String? = nil) async throws -> (Data?, HTTPBody?) {
+        switch body?.length {
+        case .none, .unknown:
+            return (nil, body)
+        case let .known(length):
+            if length > Self.maxBodySizeForRecording || isBinaryContentType(contentType) {
+                return (nil, body)
+            }
+            let bodyData = try await Data(collecting: body!, upTo: Int(length))
+            return (bodyData, HTTPBody(bodyData))
+        }
+    }
+
+    private static func isBinaryContentType(_ contentType: String?) -> Bool {
+        guard let contentType = contentType?.lowercased() else { return false }
+        let binaryTypes = [
+            "application/octet-stream",
+            "application/zip",
+            "application/x-tar",
+            "application/gzip",
+            "application/x-gzip",
+            "image/",
+            "video/",
+            "audio/",
+        ]
+        return binaryTypes.contains { contentType.hasPrefix($0) }
+    }
+
+    private struct HARMetadataResult {
+        let timings: HAR.Timings?
+        let startTime: Date
+        let endTime: Date
+        let httpVersion: String?
+        let requestHeadersSize: Int?
+        let responseHeadersSize: Int?
+    }
+
+    private static func retrieveHARMetadata(for url: URL) async -> HARMetadataResult {
+        guard let metrics = await URLSessionMetricsDelegate.shared.retrieveMetrics(for: url),
+              let harMetadata = URLSessionMetricsDelegate.extractHARMetadata(from: metrics)
+        else {
+            let now = Date()
+            return HARMetadataResult(
+                timings: nil,
+                startTime: now,
+                endTime: now,
+                httpVersion: nil,
+                requestHeadersSize: nil,
+                responseHeadersSize: nil
+            )
+        }
+        return HARMetadataResult(
+            timings: harMetadata.timings,
+            startTime: harMetadata.startTime,
+            endTime: harMetadata.endTime,
+            httpVersion: harMetadata.httpVersion,
+            requestHeadersSize: harMetadata.requestHeadersSize,
+            responseHeadersSize: harMetadata.responseHeadersSize
+        )
+    }
+
+    private static func buildURL(baseURL: URL, path: String?) -> URL {
+        guard let path, !path.isEmpty else {
+            return baseURL
+        }
+
+        guard var baseComponents = URLComponents(url: baseURL, resolvingAgainstBaseURL: true) else {
+            return baseURL
+        }
+
+        guard let pathComponents = URLComponents(string: path) else {
+            baseComponents.path = path.hasPrefix("/") ? path : "/" + path
+            return baseComponents.url ?? baseURL
+        }
+
+        if !pathComponents.path.isEmpty {
+            let newPath = pathComponents.path
+            baseComponents.path = newPath.hasPrefix("/") ? newPath : "/" + newPath
+        }
+
+        if let queryItems = pathComponents.queryItems, !queryItems.isEmpty {
+            baseComponents.queryItems = queryItems
+        }
+
+        return baseComponents.url ?? baseURL
+    }
+}
