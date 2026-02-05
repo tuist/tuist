@@ -666,7 +666,8 @@ defmodule Tuist.VCS do
     from(b in Builds.Build)
     |> where([b], b.project_id == ^project.id and like(b.git_ref, ^git_ref_pattern))
     |> order_by([b], desc: b.inserted_at)
-    |> Repo.all()
+    |> ClickHouseRepo.all()
+    |> Enum.map(&Builds.Build.normalize_enums/1)
     |> Enum.filter(&(not is_nil(&1.scheme)))
     |> Enum.reduce(%{}, fn build, acc ->
       scheme = build.scheme
