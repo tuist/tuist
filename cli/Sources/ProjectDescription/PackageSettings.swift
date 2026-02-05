@@ -45,6 +45,9 @@ public struct PackageSettings: Codable, Equatable, Sendable {
     /// Custom project configurations to be used for projects generated from SwiftPackageManager.
     public var projectOptions: [String: Project.Options]
 
+    /// Custom resource synthesizers to be used for projects generated from SwiftPackageManager.
+    public let resourceSynthesizers: [String: [ResourceSynthesizer]]
+
     /// Creates `PackageSettings` instance for custom Swift Package Manager configuration.
     /// - Parameters:
     ///     - productTypes: The custom `Product` types to be used for SPM targets.
@@ -57,13 +60,15 @@ public struct PackageSettings: Codable, Equatable, Sendable {
         productDestinations: [String: Destinations] = [:],
         baseSettings: Settings = .settings(),
         targetSettings: [String: Settings] = [:],
-        projectOptions: [String: Project.Options] = [:]
+        projectOptions: [String: Project.Options] = [:],
+        resourceSynthesizers: [String: [ResourceSynthesizer]] = [:]
     ) {
         self.productTypes = productTypes
         self.productDestinations = productDestinations
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings
         self.projectOptions = projectOptions
+        self.resourceSynthesizers = resourceSynthesizers
         dumpIfNeeded(self)
     }
 
@@ -87,13 +92,15 @@ public struct PackageSettings: Codable, Equatable, Sendable {
         productDestinations: [String: Destinations] = [:],
         baseSettings: Settings = .settings(),
         targetSettings: [String: SettingsDictionary],
-        projectOptions: [String: Project.Options] = [:]
+        projectOptions: [String: Project.Options] = [:],
+        resourceSynthesizers: [String: [ResourceSynthesizer]] = [:]
     ) {
         self.productTypes = productTypes
         self.productDestinations = productDestinations
         self.baseSettings = baseSettings
         self.targetSettings = targetSettings.mapValues { .settings(base: $0) }
         self.projectOptions = projectOptions
+        self.resourceSynthesizers = resourceSynthesizers
         dumpIfNeeded(self)
     }
 }

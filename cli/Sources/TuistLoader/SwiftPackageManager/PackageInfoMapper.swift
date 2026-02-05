@@ -353,6 +353,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
             )
         }
 
+        let resourceSynthesizers = packageSettings.resourceSynthesizers[packageInfo.name]
+
         return ProjectDescription.Project(
             name: packageInfo.name,
             options: options,
@@ -362,7 +364,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 swiftToolsVersion: Version(stringLiteral: packageInfo.toolsVersion.description)
             ),
             targets: targets,
-            resourceSynthesizers: .default
+            resourceSynthesizers: resourceSynthesizers ?? .default
         )
     }
 
