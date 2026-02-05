@@ -298,6 +298,8 @@ defmodule Tuist.Builds.Build do
     end
   end
 
+  def normalize_enums(nil), do: nil
+
   def normalize_enums(build) do
     %{
       build

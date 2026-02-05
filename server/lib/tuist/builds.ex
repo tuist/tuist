@@ -21,18 +21,10 @@ defmodule Tuist.Builds do
   def valid_ci_providers, do: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
 
   def get_build(id) do
-    case Ecto.UUID.cast(id) do
-      {:ok, uuid} ->
-        query = from(b in Build, where: b.id == ^uuid, order_by: [desc: b.inserted_at], limit: 1)
-
-        case ClickHouseRepo.one(query) do
-          nil -> nil
-          build -> Build.normalize_enums(build)
-        end
-
-      _ ->
-        nil
-    end
+    Build
+    |> from(where: [id: ^id], order_by: [desc: :inserted_at], limit: 1)
+    |> ClickHouseRepo.one()
+    |> Build.normalize_enums()
   end
 
   def create_build(attrs) do
