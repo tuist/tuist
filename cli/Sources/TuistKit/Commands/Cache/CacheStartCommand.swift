@@ -27,7 +27,7 @@ public struct CacheStartCommand: AsyncParsableCommand {
     )
     var upload: Bool = true
 
-    func run() async throws {
+    public func run() async throws {
         try await CacheStartCommandService().run(
             fullHandle: fullHandle,
             url: url,
