@@ -42,7 +42,9 @@ struct InspectDependenciesCommandServiceTests {
         let graph = Graph.test(path: path, projects: [path: project])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory)
+            .defaultGenerator(config: .value(config), includedTargets: .any, buildFolder: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
@@ -83,7 +85,9 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory)
+            .defaultGenerator(config: .value(config), includedTargets: .any, buildFolder: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["FeatureA", "SharedCore"]))
         given(targetScanner).imports(for: .value(featureA)).willReturn(Set(["SharedCore"]))
@@ -122,7 +126,9 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory)
+            .defaultGenerator(config: .value(config), includedTargets: .any, buildFolder: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
@@ -154,7 +160,9 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory)
+            .defaultGenerator(config: .value(config), includedTargets: .any, buildFolder: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
@@ -183,7 +191,9 @@ struct InspectDependenciesCommandServiceTests {
         let loadCounter = LoadCounter()
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory)
+            .defaultGenerator(config: .value(config), includedTargets: .any, buildFolder: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willProduce { _, _ in
             loadCounter.count += 1
             return graph
@@ -211,7 +221,9 @@ struct InspectDependenciesCommandServiceTests {
         let graph = Graph.test(path: path, projects: [path: project])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory)
+            .defaultGenerator(config: .value(config), includedTargets: .any, buildFolder: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
@@ -268,7 +280,9 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory)
+            .defaultGenerator(config: .value(config), includedTargets: .any, buildFolder: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["TestTargetDependency"]))
         given(targetScanner).imports(for: .value(testTarget)).willReturn(Set([]))
@@ -300,7 +314,9 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory)
+            .defaultGenerator(config: .value(config), includedTargets: .any, buildFolder: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
@@ -332,7 +348,9 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory)
+            .defaultGenerator(config: .value(config), includedTargets: .any, buildFolder: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
@@ -368,7 +386,9 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory)
+            .defaultGenerator(config: .value(config), includedTargets: .any, buildFolder: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app)).willReturn(Set([]))
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
@@ -392,7 +412,9 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory)
+            .defaultGenerator(config: .value(config), includedTargets: .any, buildFolder: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
@@ -433,7 +455,9 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory)
+            .defaultGenerator(config: .value(config), includedTargets: .any, buildFolder: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app)).willReturn(Set([]))
 
@@ -465,7 +489,9 @@ struct InspectDependenciesCommandServiceTests {
         ])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory)
+            .defaultGenerator(config: .value(config), includedTargets: .any, buildFolder: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(bundleFramework)).willReturn(Set([]))
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
@@ -502,7 +528,9 @@ struct InspectDependenciesCommandServiceTests {
         ])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory)
+            .defaultGenerator(config: .value(config), includedTargets: .any, buildFolder: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(app)).willReturn(Set([]))
         given(targetScanner).imports(for: .value(unitTests)).willReturn(Set([]))
@@ -547,7 +575,9 @@ struct InspectDependenciesCommandServiceTests {
         ])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory)
+            .defaultGenerator(config: .value(config), includedTargets: .any, buildFolder: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(appExtension)).willReturn(Set([]))
         given(targetScanner).imports(for: .value(stickerPackExtension)).willReturn(Set([]))
@@ -588,7 +618,9 @@ struct InspectDependenciesCommandServiceTests {
         ])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory)
+            .defaultGenerator(config: .value(config), includedTargets: .any, buildFolder: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(watch2Extension)).willReturn(Set([]))
         given(targetScanner).imports(for: .value(watch2App)).willReturn(Set([]))
@@ -618,7 +650,9 @@ struct InspectDependenciesCommandServiceTests {
         ])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory)
+            .defaultGenerator(config: .value(config), includedTargets: .any, buildFolder: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
         given(targetScanner).imports(for: .value(macro)).willReturn(Set([]))
@@ -657,7 +691,9 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(projectPath)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory)
+            .defaultGenerator(config: .value(config), includedTargets: .any, buildFolder: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(projectPath), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(feature)).willReturn(Set([]))
         given(targetScanner).imports(for: .value(uiComponent)).willReturn(Set([]))
@@ -700,7 +736,9 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(projectPath)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory)
+            .defaultGenerator(config: .value(config), includedTargets: .any, buildFolder: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(projectPath), options: .any).willReturn(graph)
         given(targetScanner).imports(for: .value(feature)).willReturn(Set(["UIComponent"]))
         given(targetScanner).imports(for: .value(uiComponent)).willReturn(Set([]))

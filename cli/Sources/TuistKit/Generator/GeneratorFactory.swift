@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import Path
 import TuistCore
 import TuistGenerator
 import TuistLoader
@@ -43,13 +44,15 @@ public protocol GeneratorFactorying {
     /// - Parameter configuration: The configuration to generate for.
     /// - Parameter cacheProfile: Cache profile to use for binary replacement.
     /// - Parameter cacheStorage: The cache storage instance.
+    /// - Parameter buildFolder: The custom build folder path for SwiftPM dependencies.
     /// - Returns: The generator for focused projects.
     func generation(
         config: Tuist,
         includedTargets: Set<TargetQuery>,
         configuration: String?,
         cacheProfile: CacheProfile,
-        cacheStorage: CacheStoring
+        cacheStorage: CacheStoring,
+        buildFolder: AbsolutePath?
     ) -> Generating
 
     /// Returns a generator for building a project.
@@ -69,10 +72,12 @@ public protocol GeneratorFactorying {
     /// Returns the default generator.
     /// - Parameter config: The project configuration.
     /// - Parameter includedTargets: The list of targets whose sources should be included.
+    /// - Parameter buildFolder: The custom build folder path for SwiftPM dependencies.
     /// - Returns: A Generator instance.
     func defaultGenerator(
         config: Tuist,
-        includedTargets: Set<TargetQuery>
+        includedTargets: Set<TargetQuery>,
+        buildFolder: AbsolutePath?
     ) -> Generating
 }
 
@@ -122,7 +127,8 @@ public class GeneratorFactory: GeneratorFactorying {
             manifestGraphLoader: ManifestGraphLoader(
                 manifestLoader: ManifestLoader.current,
                 workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
-                graphMapper: SequentialGraphMapper(graphMappers)
+                graphMapper: SequentialGraphMapper(graphMappers),
+                buildFolder: nil
             )
         )
     }
@@ -132,9 +138,10 @@ public class GeneratorFactory: GeneratorFactorying {
         includedTargets: Set<TargetQuery>,
         configuration _: String?,
         cacheProfile _: CacheProfile,
-        cacheStorage _: CacheStoring
+        cacheStorage _: CacheStoring,
+        buildFolder: AbsolutePath?
     ) -> Generating {
-        defaultGenerator(config: config, includedTargets: includedTargets)
+        defaultGenerator(config: config, includedTargets: includedTargets, buildFolder: buildFolder)
     }
 
     public func building(
@@ -143,12 +150,13 @@ public class GeneratorFactory: GeneratorFactorying {
         ignoreBinaryCache _: Bool,
         cacheStorage _: CacheStoring
     ) -> Generating {
-        defaultGenerator(config: config, includedTargets: [])
+        defaultGenerator(config: config, includedTargets: [], buildFolder: nil)
     }
 
     public func defaultGenerator(
         config: Tuist,
-        includedTargets: Set<TargetQuery>
+        includedTargets: Set<TargetQuery>,
+        buildFolder: AbsolutePath?
     ) -> Generating {
         let contentHasher = ContentHasher()
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
@@ -173,7 +181,8 @@ public class GeneratorFactory: GeneratorFactorying {
             manifestGraphLoader: ManifestGraphLoader(
                 manifestLoader: ManifestLoader.current,
                 workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
-                graphMapper: SequentialGraphMapper(graphMappers)
+                graphMapper: SequentialGraphMapper(graphMappers),
+                buildFolder: buildFolder
             )
         )
     }
@@ -234,13 +243,15 @@ public class GeneratorFactory: GeneratorFactorying {
         /// - Parameter configuration: The configuration to generate for.
         /// - Parameter cacheProfile: Cache profile to use for binary replacement.
         /// - Parameter cacheStorage: The cache storage instance.
+        /// - Parameter buildFolder: The custom build folder path for SwiftPM dependencies.
         /// - Returns: The generator for focused projects.
         func generation(
             config: Tuist,
             includedTargets: Set<TargetQuery>,
             configuration: String?,
             cacheProfile: CacheProfile,
-            cacheStorage: CacheStoring
+            cacheStorage: CacheStoring,
+            buildFolder: AbsolutePath?
         ) -> Generating
 
         /// Returns a generator for building a project.
@@ -260,10 +271,12 @@ public class GeneratorFactory: GeneratorFactorying {
         /// Returns the default generator.
         /// - Parameter config: The project configuration.
         /// - Parameter includedTargets: The list of targets whose sources should be included.
+        /// - Parameter buildFolder: The custom build folder path for SwiftPM dependencies.
         /// - Returns: A Generator instance.
         func defaultGenerator(
             config: Tuist,
-            includedTargets: Set<TargetQuery>
+            includedTargets: Set<TargetQuery>,
+            buildFolder: AbsolutePath?
         ) -> Generating
     }
 
@@ -277,7 +290,8 @@ public class GeneratorFactory: GeneratorFactorying {
         ) -> Generating {
             defaultGenerator(
                 config: config,
-                includedTargets: Set()
+                includedTargets: Set(),
+                buildFolder: nil
             )
         }
     }
@@ -294,7 +308,8 @@ public class GeneratorFactory: GeneratorFactorying {
             includedTargets: Set<TargetQuery>,
             configuration: String?,
             cacheProfile: CacheProfile,
-            cacheStorage: CacheStoring
+            cacheStorage: CacheStoring,
+            buildFolder: AbsolutePath?
         ) -> Generating {
             let contentHasher = ContentHasher()
             let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
@@ -318,7 +333,8 @@ public class GeneratorFactory: GeneratorFactorying {
                 manifestGraphLoader: ManifestGraphLoader(
                     manifestLoader: manifestLoader,
                     workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
-                    graphMapper: SequentialGraphMapper(graphMappers)
+                    graphMapper: SequentialGraphMapper(graphMappers),
+                    buildFolder: buildFolder
                 )
             )
         }
@@ -366,7 +382,8 @@ public class GeneratorFactory: GeneratorFactorying {
                 manifestGraphLoader: ManifestGraphLoader(
                     manifestLoader: manifestLoader,
                     workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
-                    graphMapper: SequentialGraphMapper(graphMappers)
+                    graphMapper: SequentialGraphMapper(graphMappers),
+                    buildFolder: nil
                 )
             )
         }
@@ -400,7 +417,8 @@ public class GeneratorFactory: GeneratorFactorying {
                 manifestGraphLoader: ManifestGraphLoader(
                     manifestLoader: manifestLoader,
                     workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
-                    graphMapper: SequentialGraphMapper(graphMappers)
+                    graphMapper: SequentialGraphMapper(graphMappers),
+                    buildFolder: nil
                 )
             )
         }
@@ -430,7 +448,8 @@ public class GeneratorFactory: GeneratorFactorying {
                 manifestGraphLoader: ManifestGraphLoader(
                     manifestLoader: manifestLoader,
                     workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
-                    graphMapper: SequentialGraphMapper(graphMappers)
+                    graphMapper: SequentialGraphMapper(graphMappers),
+                    buildFolder: nil
                 )
             )
         }
@@ -468,14 +487,15 @@ public class GeneratorFactory: GeneratorFactorying {
                 manifestGraphLoader: ManifestGraphLoader(
                     manifestLoader: manifestLoader,
                     workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
-                    graphMapper: SequentialGraphMapper(graphMappers)
+                    graphMapper: SequentialGraphMapper(graphMappers),
+                    buildFolder: nil
                 )
             )
         }
 
-        func defaultGenerator(config: Tuist, includedTargets: Set<TargetQuery>) -> Generating {
+        func defaultGenerator(config: Tuist, includedTargets: Set<TargetQuery>, buildFolder: AbsolutePath?) -> Generating {
             TuistKit.GeneratorFactory().defaultGenerator(
-                config: config, includedTargets: includedTargets
+                config: config, includedTargets: includedTargets, buildFolder: buildFolder
             )
         }
     }

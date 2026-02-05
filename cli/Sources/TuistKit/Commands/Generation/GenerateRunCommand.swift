@@ -61,6 +61,14 @@ public struct GenerateRunCommand: AsyncParsableCommand, RecentPathRememberableCo
     )
     var configuration: String?
 
+    @Option(
+        name: .long,
+        help: "The path to a custom build folder for SwiftPM dependencies. Useful for sharing dependencies across git worktrees.",
+        completion: .directory,
+        envKey: .generateBuildFolder
+    )
+    var buildFolder: String?
+
     public func run() async throws {
         if !binaryCache {
             AlertController.current.warning(.alert(
@@ -74,6 +82,7 @@ public struct GenerateRunCommand: AsyncParsableCommand, RecentPathRememberableCo
             generatorFactory: Extension.generatorFactory
         ).run(
             path: path,
+            buildFolder: buildFolder,
             includedTargets: Set(includedTargets),
             noOpen: !open,
             configuration: configuration,

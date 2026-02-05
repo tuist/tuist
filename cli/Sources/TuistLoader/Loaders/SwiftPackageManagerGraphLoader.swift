@@ -47,7 +47,8 @@ public protocol SwiftPackageManagerGraphLoading {
     func load(
         packagePath: AbsolutePath,
         packageSettings: TuistCore.PackageSettings,
-        disableSandbox: Bool
+        disableSandbox: Bool,
+        buildFolder: AbsolutePath?
     ) async throws -> TuistLoader.DependenciesGraph
 }
 
@@ -76,9 +77,10 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
     public func load(
         packagePath: AbsolutePath,
         packageSettings: TuistCore.PackageSettings,
-        disableSandbox: Bool
+        disableSandbox: Bool,
+        buildFolder: AbsolutePath?
     ) async throws -> TuistLoader.DependenciesGraph {
-        let path = packagePath.parentDirectory.appending(
+        let path = buildFolder ?? packagePath.parentDirectory.appending(
             component: Constants.SwiftPackageManager.packageBuildDirectoryName
         )
         let checkoutsFolder = path.appending(component: "checkouts")
@@ -91,7 +93,7 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         let workspaceState = try JSONDecoder()
             .decode(SwiftPackageManagerWorkspaceState.self, from: try await fileSystem.readFile(at: workspacePath))
 
-        try await validatePackageResolved(at: packagePath.parentDirectory)
+        try await validatePackageResolved(at: packagePath.parentDirectory, buildFolder: buildFolder)
 
         let rootPackage = try await manifestLoader.loadPackage(at: packagePath.parentDirectory, disableSandbox: disableSandbox)
 
@@ -239,9 +241,11 @@ public struct SwiftPackageManagerGraphLoader: SwiftPackageManagerGraphLoading {
         )
     }
 
-    private func validatePackageResolved(at path: AbsolutePath) async throws {
-        let savedPackageResolvedPath = path.appending(components: [
-            Constants.SwiftPackageManager.packageBuildDirectoryName,
+    private func validatePackageResolved(at path: AbsolutePath, buildFolder: AbsolutePath?) async throws {
+        let buildPath = buildFolder ?? path.appending(
+            component: Constants.SwiftPackageManager.packageBuildDirectoryName
+        )
+        let savedPackageResolvedPath = buildPath.appending(components: [
             Constants.DerivedDirectory.name,
             Constants.SwiftPackageManager.packageResolvedName,
         ])

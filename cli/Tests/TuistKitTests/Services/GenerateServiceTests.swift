@@ -32,7 +32,8 @@ struct GenerateServiceTests {
                 includedTargets: .any,
                 configuration: .any,
                 cacheProfile: .any,
-                cacheStorage: .any
+                cacheStorage: .any,
+                buildFolder: .any
             )
             .willReturn(generator)
         cacheStorageFactory = .init()
@@ -63,6 +64,7 @@ struct GenerateServiceTests {
                 try await subject
                     .run(
                         path: nil,
+                        buildFolder: nil,
                         includedTargets: [],
                         noOpen: true,
                         configuration: nil,
@@ -88,6 +90,7 @@ struct GenerateServiceTests {
                 try await subject
                     .run(
                         path: nil,
+                        buildFolder: nil,
                         includedTargets: [],
                         noOpen: true,
                         configuration: nil,
@@ -122,6 +125,7 @@ struct GenerateServiceTests {
         // When
         try await subject.run(
             path: nil,
+            buildFolder: nil,
             includedTargets: [],
             noOpen: false,
             configuration: nil,
@@ -159,6 +163,7 @@ struct GenerateServiceTests {
             // When
             try await subject.run(
                 path: nil,
+                buildFolder: nil,
                 includedTargets: [],
                 noOpen: false,
                 configuration: nil,
@@ -191,6 +196,7 @@ struct GenerateServiceTests {
         // When
         try await subject.run(
             path: nil,
+            buildFolder: nil,
             includedTargets: ["App"],
             noOpen: true,
             configuration: nil,
@@ -205,7 +211,8 @@ struct GenerateServiceTests {
                 includedTargets: .value(["App"]),
                 configuration: .any,
                 cacheProfile: .matching { $0 == .allPossible },
-                cacheStorage: .any
+                cacheStorage: .any,
+                buildFolder: .any
             )
             .called(1)
     }
@@ -230,6 +237,7 @@ struct GenerateServiceTests {
         // When
         try await subject.run(
             path: nil,
+            buildFolder: nil,
             includedTargets: [],
             noOpen: true,
             configuration: nil,
@@ -244,7 +252,8 @@ struct GenerateServiceTests {
                 includedTargets: .value([]),
                 configuration: .any,
                 cacheProfile: .matching { $0 == .allPossible },
-                cacheStorage: .any
+                cacheStorage: .any,
+                buildFolder: .any
             )
             .called(1)
     }
@@ -269,6 +278,7 @@ struct GenerateServiceTests {
         // When
         try await subject.run(
             path: nil,
+            buildFolder: nil,
             includedTargets: [],
             noOpen: true,
             configuration: nil,
@@ -283,7 +293,8 @@ struct GenerateServiceTests {
                 includedTargets: .value([]),
                 configuration: .any,
                 cacheProfile: .matching { $0 == .none },
-                cacheStorage: .any
+                cacheStorage: .any,
+                buildFolder: .any
             )
             .called(1)
     }
@@ -317,6 +328,7 @@ struct GenerateServiceTests {
         // When
         try await subject.run(
             path: nil,
+            buildFolder: nil,
             includedTargets: [],
             noOpen: true,
             configuration: nil,
@@ -331,7 +343,8 @@ struct GenerateServiceTests {
                 includedTargets: .value([]),
                 configuration: .any,
                 cacheProfile: .matching { $0 == .init(base: .onlyExternal, targetQueries: ["tag:cacheable"]) },
-                cacheStorage: .any
+                cacheStorage: .any,
+                buildFolder: .any
             )
             .called(1)
     }
@@ -346,6 +359,7 @@ struct GenerateServiceTests {
         await #expect(throws: CacheOptionsManifestMapperError.defaultCacheProfileNotFound(profile: "missing", available: [])) {
             try await subject.run(
                 path: nil,
+                buildFolder: nil,
                 includedTargets: [],
                 noOpen: true,
                 configuration: nil,
@@ -365,6 +379,7 @@ struct GenerateServiceTests {
         await #expect(throws: CacheProfileError.profileNotFound(profile: "missing", available: [])) {
             try await subject.run(
                 path: nil,
+                buildFolder: nil,
                 includedTargets: [],
                 noOpen: true,
                 configuration: nil,
@@ -372,5 +387,47 @@ struct GenerateServiceTests {
                 cacheProfile: "missing"
             )
         }
+    }
+
+    @Test func passes_custom_build_folder_to_generator_factory() async throws {
+        // Given
+        let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
+        let customBuildFolder = try AbsolutePath(validating: "/custom/build/folder")
+        let environment = MapperEnvironment()
+        given(configLoader).loadConfig(path: .any).willReturn(
+            .test(project: .testGeneratedProject())
+        )
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willReturn(
+                (
+                    workspacePath,
+                    .test(),
+                    environment
+                )
+            )
+
+        // When
+        try await subject.run(
+            path: nil,
+            buildFolder: customBuildFolder.pathString,
+            includedTargets: [],
+            noOpen: true,
+            configuration: nil,
+            ignoreBinaryCache: false,
+            cacheProfile: nil
+        )
+
+        // Then
+        verify(generatorFactory)
+            .generation(
+                config: .any,
+                includedTargets: .any,
+                configuration: .any,
+                cacheProfile: .any,
+                cacheStorage: .any,
+                buildFolder: .value(customBuildFolder)
+            )
+            .called(1)
     }
 }
