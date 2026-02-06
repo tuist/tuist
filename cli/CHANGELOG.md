@@ -1,7 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
-## What's Changed in 4.140.0<!-- RELEASE NOTES START -->
+## What's Changed in 4.140.2<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* skip macro targets in static dependency traversal by [@pepicrft](https://github.com/pepicrft) in [#9337](https://github.com/tuist/tuist/pull/9337)
+* add retry logic to OIDC authentication flow by [@fortmarek](https://github.com/fortmarek) in [#9365](https://github.com/tuist/tuist/pull/9365)
+* fix CI environment variable filtering by [@ivan-gaydamakin](https://github.com/ivan-gaydamakin) in [#9369](https://github.com/tuist/tuist/pull/9369)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.140.1...4.140.2
+
+## What's Changed in 4.140.1<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
 
@@ -10,7 +20,7 @@ All notable changes to this project will be documented in this file.
 
 * fix `tuist version` producing no output on Linux by [@fortmarek](https://github.com/fortmarek) in [#9364](https://github.com/tuist/tuist/pull/9364)
 
-**Full Changelog**: https://github.com/tuist/tuist/compare/4.139.1...4.140.0
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.139.1...4.140.1
 
 ## What's Changed in 4.139.1<!-- RELEASE NOTES START -->
 
