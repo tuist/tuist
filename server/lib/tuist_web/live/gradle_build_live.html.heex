@@ -186,6 +186,16 @@
             />
           </:empty_state>
         </.table>
+        <.pagination_group
+          :if={@tasks_page_count > 1}
+          current_page={@tasks_page}
+          number_of_pages={@tasks_page_count}
+          page_patch={
+            fn page ->
+              "?#{Query.put(@uri.query, "tasks-page", page)}"
+            end
+          }
+        />
       </.card_section>
     </.card>
   <% end %>
@@ -469,6 +479,16 @@
               />
             </:empty_state>
           </.table>
+          <.pagination_group
+            :if={@cacheable_tasks_page_count > 1}
+            current_page={@cacheable_tasks_page}
+            number_of_pages={@cacheable_tasks_page_count}
+            page_patch={
+              fn page ->
+                "?#{Query.put(@uri.query, "cacheable-tasks-page", page)}"
+              end
+            }
+          />
         </.card_section>
       </.card>
     </div>

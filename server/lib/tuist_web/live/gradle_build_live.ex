@@ -13,6 +13,8 @@ defmodule TuistWeb.GradleBuildLive do
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
 
+  @table_page_size 25
+
   def mount(
         %{"gradle_build_id" => build_id},
         _session,
@@ -26,36 +28,26 @@ defmodule TuistWeb.GradleBuildLive do
 
     build = Repo.preload(build, :built_by_account)
 
-    tasks = Gradle.list_tasks(build_id)
-    cacheable_tasks = Enum.filter(tasks, & &1.cacheable)
+    aggregates = Gradle.task_cache_aggregates(build_id)
+
+    download_throughput =
+      if aggregates.download_duration_ms > 0,
+        do: aggregates.cache_download_bytes / (aggregates.download_duration_ms / 1000),
+        else: 0
+
+    upload_throughput =
+      if aggregates.upload_duration_ms > 0,
+        do: aggregates.cache_upload_bytes / (aggregates.upload_duration_ms / 1000),
+        else: 0
+
     slug = "#{account.name}/#{project.name}"
-
-    cache_download_bytes =
-      tasks
-      |> Enum.filter(&(&1.outcome == "remote_hit"))
-      |> Enum.map(& &1.cache_artifact_size)
-      |> Enum.reject(&is_nil/1)
-      |> Enum.sum()
-
-    cache_upload_bytes =
-      tasks
-      |> Enum.filter(&(&1.cacheable and &1.outcome == "executed"))
-      |> Enum.map(& &1.cache_artifact_size)
-      |> Enum.reject(&is_nil/1)
-      |> Enum.sum()
-
-    download_throughput = compute_throughput(tasks, "remote_hit")
-    upload_throughput = compute_throughput(tasks, "executed")
-
     title = build.root_project_name || dgettext("dashboard_gradle", "Gradle Build")
 
     socket =
       socket
       |> assign(:build, build)
-      |> assign(:tasks, tasks)
-      |> assign(:cacheable_tasks, cacheable_tasks)
-      |> assign(:cache_download_bytes, cache_download_bytes)
-      |> assign(:cache_upload_bytes, cache_upload_bytes)
+      |> assign(:cache_download_bytes, aggregates.cache_download_bytes)
+      |> assign(:cache_upload_bytes, aggregates.cache_upload_bytes)
       |> assign(:download_throughput, download_throughput)
       |> assign(:upload_throughput, upload_throughput)
       |> assign(:title, title)
@@ -68,11 +60,51 @@ defmodule TuistWeb.GradleBuildLive do
     selected_tab = params["tab"] || "overview"
     uri = URI.new!("?" <> URI.encode_query(params))
 
-    {:noreply,
-     socket
-     |> assign(:selected_tab, selected_tab)
-     |> assign(:uri, uri)}
+    socket =
+      socket
+      |> assign(:selected_tab, selected_tab)
+      |> assign(:uri, uri)
+      |> assign_tab_data(selected_tab, params)
+
+    {:noreply, socket}
   end
+
+  defp assign_tab_data(socket, "overview", params) do
+    build_id = socket.assigns.build.id
+    page = String.to_integer(params["tasks-page"] || "1")
+
+    flop_params = %{
+      page: page,
+      page_size: @table_page_size
+    }
+
+    {tasks, meta} = Gradle.list_tasks(build_id, flop_params)
+
+    socket
+    |> assign(:tasks, tasks)
+    |> assign(:tasks_page, page)
+    |> assign(:tasks_page_count, meta.total_pages)
+  end
+
+  defp assign_tab_data(socket, "gradle-cache", params) do
+    build_id = socket.assigns.build.id
+    page = String.to_integer(params["cacheable-tasks-page"] || "1")
+
+    flop_params = %{
+      page: page,
+      page_size: @table_page_size,
+      filters: [%{field: :cacheable, op: :==, value: true}]
+    }
+
+    {cacheable_tasks, meta} = Gradle.list_tasks(build_id, flop_params)
+
+    socket
+    |> assign(:cacheable_tasks, cacheable_tasks)
+    |> assign(:cacheable_tasks_page, page)
+    |> assign(:cacheable_tasks_page_count, meta.total_pages)
+  end
+
+  defp assign_tab_data(socket, _tab, _params), do: socket
 
   defp cache_hit_rate(build) do
     from_cache = (build.tasks_local_hit_count || 0) + (build.tasks_remote_hit_count || 0)
@@ -106,18 +138,4 @@ defmodule TuistWeb.GradleBuildLive do
     DateFormatter.format_duration_from_milliseconds(duration_ms)
   end
 
-  defp compute_throughput(tasks, outcome) do
-    relevant_tasks =
-      tasks
-      |> Enum.filter(&(&1.cacheable and &1.outcome == outcome and not is_nil(&1.cache_artifact_size)))
-
-    total_bytes = relevant_tasks |> Enum.map(& &1.cache_artifact_size) |> Enum.sum()
-    total_duration_ms = relevant_tasks |> Enum.map(& &1.duration_ms) |> Enum.sum()
-
-    if total_duration_ms > 0 do
-      total_bytes / (total_duration_ms / 1000)
-    else
-      0
-    end
-  end
 end

@@ -4,6 +4,16 @@ defmodule Tuist.Gradle.Task do
   """
   use Ecto.Schema
 
+  @derive {
+    Flop.Schema,
+    filterable: [:gradle_build_id, :cacheable],
+    sortable: [:task_path, :outcome, :duration_ms],
+    default_order: %{
+      order_by: [:task_path],
+      order_directions: [:asc]
+    }
+  }
+
   @primary_key false
   schema "gradle_tasks" do
     field :id, Ch, type: "UUID"

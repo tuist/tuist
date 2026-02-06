@@ -7,6 +7,7 @@ defmodule Tuist.Gradle do
 
   import Ecto.Query
 
+  alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
   alias Tuist.Gradle.Build
   alias Tuist.Gradle.CacheEvent
@@ -180,6 +181,70 @@ defmodule Tuist.Gradle do
       )
 
     ClickHouseRepo.all(query)
+  end
+
+  @doc """
+  Lists tasks for a specific Gradle build with Flop-based pagination.
+
+  Returns `{tasks, meta}` where `meta` contains pagination info.
+  """
+  def list_tasks(build_id, flop_params) do
+    base_query = from(t in Task, where: t.gradle_build_id == ^build_id)
+    ClickHouseFlop.validate_and_run!(base_query, flop_params, for: Task)
+  end
+
+  @doc """
+  Returns aggregate cache metrics for a build's tasks.
+
+  Used for cache summary widgets (download/upload bytes, throughput).
+  """
+  def task_cache_aggregates(build_id) do
+    query =
+      from(t in Task,
+        where: t.gradle_build_id == ^build_id and t.cacheable == true,
+        select: %{
+          cache_download_bytes:
+            coalesce(
+              sum(
+                fragment("if(? = 'remote_hit', coalesce(?, 0), 0)", t.outcome, t.cache_artifact_size)
+              ),
+              0
+            ),
+          cache_upload_bytes:
+            coalesce(
+              sum(
+                fragment("if(? = 'executed', coalesce(?, 0), 0)", t.outcome, t.cache_artifact_size)
+              ),
+              0
+            ),
+          download_duration_ms:
+            coalesce(
+              sum(
+                fragment(
+                  "if(? = 'remote_hit' AND ? IS NOT NULL, ?, 0)",
+                  t.outcome,
+                  t.cache_artifact_size,
+                  t.duration_ms
+                )
+              ),
+              0
+            ),
+          upload_duration_ms:
+            coalesce(
+              sum(
+                fragment(
+                  "if(? = 'executed' AND ? IS NOT NULL, ?, 0)",
+                  t.outcome,
+                  t.cache_artifact_size,
+                  t.duration_ms
+                )
+              ),
+              0
+            )
+        }
+      )
+
+    ClickHouseRepo.one(query)
   end
 
   @doc """
