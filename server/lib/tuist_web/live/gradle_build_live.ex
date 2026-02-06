@@ -71,19 +71,23 @@ defmodule TuistWeb.GradleBuildLive do
   end
 
   def handle_event("search-tasks", %{"search" => search}, socket) do
+    %{selected_account: account, selected_project: project, build: build, uri: uri} =
+      socket.assigns
+
     query =
-      socket.assigns.uri.query
+      uri.query
       |> Query.put("tasks-filter", search)
       |> Query.put("tasks-page", "1")
 
     {:noreply,
      push_patch(socket,
-       to:
-         ~p"/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/gradle-cache/builds/#{socket.assigns.build.id}?#{query}"
+       to: "/#{account.name}/#{project.name}/gradle-cache/builds/#{build.id}?#{query}"
      )}
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
+    %{selected_account: account, selected_project: project, build: build} = socket.assigns
+
     updated_params =
       filter_id
       |> Filter.Operations.add_filter_to_query(socket)
@@ -93,13 +97,15 @@ defmodule TuistWeb.GradleBuildLive do
      socket
      |> push_patch(
        to:
-         ~p"/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/gradle-cache/builds/#{socket.assigns.build.id}?#{updated_params}"
+         "/#{account.name}/#{project.name}/gradle-cache/builds/#{build.id}?#{URI.encode_query(updated_params)}"
      )
      |> push_event("open-dropdown", %{id: "filter-#{filter_id}-value-dropdown"})
      |> push_event("open-popover", %{id: "filter-#{filter_id}-value-popover"})}
   end
 
   def handle_event("update_filter", params, socket) do
+    %{selected_account: account, selected_project: project, build: build} = socket.assigns
+
     updated_query_params =
       params
       |> Filter.Operations.update_filters_in_query(socket)
@@ -109,7 +115,7 @@ defmodule TuistWeb.GradleBuildLive do
      socket
      |> push_patch(
        to:
-         ~p"/#{socket.assigns.selected_account.name}/#{socket.assigns.selected_project.name}/gradle-cache/builds/#{socket.assigns.build.id}?#{updated_query_params}"
+         "/#{account.name}/#{project.name}/gradle-cache/builds/#{build.id}?#{URI.encode_query(updated_query_params)}"
      )
      |> push_event("close-dropdown", %{id: "all", all: true})
      |> push_event("close-popover", %{id: "all", all: true})}
@@ -192,7 +198,7 @@ defmodule TuistWeb.GradleBuildLive do
   defp build_text_flop_filters(""), do: []
 
   defp build_text_flop_filters(filter_text) do
-    [%{field: :task_path, op: :=~, value: filter_text}]
+    [%{field: :task_path, op: :like, value: filter_text}]
   end
 
   defp build_task_flop_filters(filters) do

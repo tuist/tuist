@@ -32,6 +32,7 @@ defmodule TuistTestSupport.Fixtures.GradleFixtures do
         git_branch: Keyword.get(attrs, :git_branch),
         git_commit_sha: Keyword.get(attrs, :git_commit_sha),
         git_ref: Keyword.get(attrs, :git_ref),
+        root_project_name: Keyword.get(attrs, :root_project_name),
         inserted_at: Keyword.get(attrs, :inserted_at),
         tasks: Keyword.get(attrs, :tasks, [])
       })
