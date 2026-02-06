@@ -878,13 +878,13 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.path == "/cache/path")
         #expect(commandWithArgs.targets == ["Fmk1", "Fmk2"])
     }
-    
+
     @Test(.withMockedEnvironment()) func tuistVariablesFiltersTuistAndCIOnly() throws {
         Environment.mocked?.variables = [
             "TUIST_FOO": "1",
             "TUIST_BAR": "abc",
             "CI": "true",
-            "SOME_TOSTER_VARIABLE": "123"
+            "SOME_TOSTER_VARIABLE": "123",
         ]
 
         let filtered = Environment.mocked?.tuistVariables ?? [:]
