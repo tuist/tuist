@@ -1,17 +1,5 @@
 msgid ""
-msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-12-05 15:32+0000\n"
-"PO-Revision-Date: 2026-01-23 09:02+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
-"Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/marketing/tr/>\n"
-"Language: tr\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=n != 1;\n"
-"X-Generator: Weblate 5.15.2\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-12-05 15:32+0000\nPO-Revision-Date: 2026-02-06 12:43+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Turkish <https://translate.tuist.dev/projects/tuist/marketing/tr/>\nLanguage: tr\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=2; plural=n != 1;\nX-Generator: Weblate 5.15.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -983,80 +971,104 @@ msgstr "Müşteriler"
 msgid "Tuist Customers"
 msgstr "Tuist Müşterileri"
 
+#, fuzzy
 msgid "Agentic QA testing the checkout flow with 8 issues identified and 16 screenshots taken"
-msgstr ""
+msgstr "Ajan QA, ödeme akışını test ederek 8 sorun tespit etti ve 16 ekran görüntüsü aldı."
 
+#, fuzzy
 msgid "App preview interface showing share preview button and platform options"
-msgstr ""
+msgstr "Paylaşım önizleme düğmesini ve platform seçeneklerini gösteren uygulama önizleme arayüzü"
 
+#, fuzzy
 msgid "Automatically detect flaky tests that fail without code changes and reduce time spent investigating false failures."
-msgstr ""
+msgstr "Kod değişikliği olmadan başarısız olan hatalı testleri otomatik olarak algılayın ve yanlış hataları araştırmak için harcadığınız zamanı azaltın."
 
+#, fuzzy
 msgid "Build insights chart showing build duration metrics with p90, p99, and average percentiles"
-msgstr ""
+msgstr "P90, P99 ve ortalama yüzdelik dilimler ile derleme süresi metriklerini gösteren içgörü grafiği oluşturun."
 
+#, fuzzy
 msgid "Cache hit rate dashboard showing 90% hit rate and 14.2 hours saved this week"
-msgstr ""
+msgstr "Önbellek isabet oranı panosu, bu hafta %90 isabet oranı ve 14,2 saatlik zaman tasarrufu gösterdi."
 
+#, fuzzy
 msgid "Conceptually compress the complexities of modular Xcode projects and make them more accessible to maintain and scale."
-msgstr ""
+msgstr "Modüler Xcode projelerinin karmaşıklığını kavramsal olarak basitleştirin ve bakım ve ölçeklendirme açısından daha erişilebilir hale getirin."
 
+#, fuzzy
 msgid "Flaky Tests"
-msgstr ""
+msgstr "Kararsız Testler"
 
+#, fuzzy
 msgid "Flaky tests dashboard showing test history and automation creation modal"
-msgstr ""
+msgstr "Test geçmişini ve otomasyon oluşturma modülünü gösteren Flaky test panosu"
 
+#, fuzzy
 msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
-msgstr ""
+msgstr "Koddan geri bildirime dakikalar içinde. Anlık önizlemeler ve yapay zeka destekli testler, oluşturma ve doğrulama arasındaki döngüyü tamamlar."
 
+#, fuzzy
 msgid "Mention @tuist-qa in your PR and an AI agent tests your app like a real user, exploring edge cases and reporting issues with screenshots and logs."
-msgstr ""
+msgstr "PR'nizde @tuist-qa'yı belirtin, bir AI ajanı uygulamanızı gerçek bir kullanıcı gibi test eder, sınır durumlarını keşfeder ve ekran görüntüleri ve günlüklerle sorunları raporlar."
 
+#, fuzzy
 msgid "Monitor build performance across local and CI environments to catch slowdowns before they become bottlenecks."
-msgstr ""
+msgstr "Yerel ve CI ortamlarında yapı performansını izleyerek yavaşlamaları darboğaz haline gelmeden yakalayın."
 
+#, fuzzy
 msgid "Quality assurance"
-msgstr ""
+msgstr "Kalite güvencesi"
 
+#, fuzzy
 msgid "Run only the tests that matter by detecting changes since your last successful run, cutting down test times in both local development and CI."
-msgstr ""
+msgstr "Son başarılı çalıştırmanızdan bu yana yapılan değişiklikleri tespit ederek yalnızca önemli testleri çalıştırın, böylece hem yerel geliştirme hem de CI'da test sürelerini kısaltın."
 
 msgid "Selective Testing"
 msgstr ""
 
+#, fuzzy
 msgid "Selective testing dashboard showing tests skipped with 134/196 tests skipped and 15.8h saved this week"
-msgstr ""
+msgstr "Seçmeli test panosu, bu hafta 134/196 testin atlandığını ve 15,8 saat tasarruf edildiğini gösteriyor."
 
+#, fuzzy
 msgid "Share your app instantly with a URL. No TestFlight delays, just click and run on any simulator or device."
-msgstr ""
+msgstr "Uygulamanızı bir URL ile anında paylaşın. TestFlight gecikmeleri yok, sadece tıklayın ve herhangi bir simülatör veya cihazda çalıştırın."
 
+#, fuzzy
 msgid "Test Insights"
-msgstr ""
+msgstr "Test Öngörüleri"
 
+#, fuzzy
 msgid "Test insights showing test runs, flaky tests, failed test runs, and p90 test run duration metrics"
-msgstr ""
+msgstr "Testlerin çalıştırılma durumunu, hatalı testleri, başarısız test çalıştırmalarını ve p90 test çalıştırma süresi metriklerini gösteren test içgörülerini test edin."
 
+#, fuzzy
 msgid "Tests"
-msgstr ""
+msgstr "Testler"
 
+#, fuzzy
 msgid "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
-msgstr ""
+msgstr "Test performansını takip edin, yavaş testleri erken tespit edin ve günlükleri incelemeden CI hatalarını giderin."
 
+#, fuzzy
 msgid "Download only what you need — faster, lighter builds locally and on CI."
-msgstr ""
+msgstr "Sadece ihtiyacınız olanı indirin — yerel olarak ve CI'da daha hızlı, daha hafif yapılar."
 
+#, fuzzy
 msgid "Extra features that simplify modular Xcode projects and speed up local and CI builds."
-msgstr ""
+msgstr "Modüler Xcode projelerini basitleştiren ve yerel ve CI derlemelerini hızlandıran ekstra özellikler."
 
+#, fuzzy
 msgid "Other features"
-msgstr ""
+msgstr "Diğer özellikler"
 
+#, fuzzy
 msgid "Run only impacted tests based on your changes for faster feedback loops and less waiting — both locally and on CI."
-msgstr ""
+msgstr "Daha hızlı geri bildirim döngüleri ve daha az bekleme süresi için, değişikliklerinize göre yalnızca etkilenen testleri çalıştırın — hem yerel olarak hem de CI'da."
 
+#, fuzzy
 msgid "Skip the manual steps, auto-generate projects, speed up builds, and explore insights with built-in analytics."
-msgstr ""
+msgstr "Manuel adımları atlayın, projeleri otomatik olarak oluşturun, derlemeleri hızlandırın ve yerleşik analitiklerle içgörüler keşfedin."
 
 #~ msgid "AI writes faster. So should your builds."
 #~ msgstr "Yapay zeka daha hızlı yazıyor. Yapılarınız da öyle olmalı."
