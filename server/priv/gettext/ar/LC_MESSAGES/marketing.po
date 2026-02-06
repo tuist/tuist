@@ -1282,6 +1282,81 @@ msgstr "العملاء"
 msgid "Tuist Customers"
 msgstr "عملاء Tuist"
 
+msgid "Agentic QA testing the checkout flow with 8 issues identified and 16 screenshots taken"
+msgstr ""
+
+msgid "App preview interface showing share preview button and platform options"
+msgstr ""
+
+msgid "Automatically detect flaky tests that fail without code changes and reduce time spent investigating false failures."
+msgstr ""
+
+msgid "Build insights chart showing build duration metrics with p90, p99, and average percentiles"
+msgstr ""
+
+msgid "Cache hit rate dashboard showing 90% hit rate and 14.2 hours saved this week"
+msgstr ""
+
+msgid "Conceptually compress the complexities of modular Xcode projects and make them more accessible to maintain and scale."
+msgstr ""
+
+msgid "Flaky Tests"
+msgstr ""
+
+msgid "Flaky tests dashboard showing test history and automation creation modal"
+msgstr ""
+
+msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
+msgstr ""
+
+msgid "Mention @tuist-qa in your PR and an AI agent tests your app like a real user, exploring edge cases and reporting issues with screenshots and logs."
+msgstr ""
+
+msgid "Monitor build performance across local and CI environments to catch slowdowns before they become bottlenecks."
+msgstr ""
+
+msgid "Quality assurance"
+msgstr ""
+
+msgid "Run only the tests that matter by detecting changes since your last successful run, cutting down test times in both local development and CI."
+msgstr ""
+
+msgid "Selective Testing"
+msgstr ""
+
+msgid "Selective testing dashboard showing tests skipped with 134/196 tests skipped and 15.8h saved this week"
+msgstr ""
+
+msgid "Share your app instantly with a URL. No TestFlight delays, just click and run on any simulator or device."
+msgstr ""
+
+msgid "Test Insights"
+msgstr ""
+
+msgid "Test insights showing test runs, flaky tests, failed test runs, and p90 test run duration metrics"
+msgstr ""
+
+msgid "Tests"
+msgstr ""
+
+msgid "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
+msgstr ""
+
+msgid "Download only what you need — faster, lighter builds locally and on CI."
+msgstr ""
+
+msgid "Extra features that simplify modular Xcode projects and speed up local and CI builds."
+msgstr ""
+
+msgid "Other features"
+msgstr ""
+
+msgid "Run only impacted tests based on your changes for faster feedback loops and less waiting — both locally and on CI."
+msgstr ""
+
+msgid "Skip the manual steps, auto-generate projects, speed up builds, and explore insights with built-in analytics."
+msgstr ""
+
 #, fuzzy
 #~ msgid "AI writes faster. So should your builds."
 #~ msgstr "الذكاء الاصطناعي يكتب بشكل أسرع. لذا يجب أن تكون عمليات البناء الخاصة بك أسرع أيضًا."
