@@ -106,6 +106,14 @@
     "references": {
       "text": "References",
       "items": {
+        "xcode": {
+          "text": "Xcode",
+          "items": {
+            "generated-projects": {
+              "text": "Generated Projects"
+            }
+          }
+        },
         "examples": {
           "text": "Examples"
         },

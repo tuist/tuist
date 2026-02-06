@@ -61,36 +61,49 @@ async function projectDescriptionSidebar(locale) {
 export async function referencesSidebar(locale) {
   return [
     {
-      text: localizedString(locale, "sidebars.references.text"),
+      text: localizedString(
+        locale,
+        "sidebars.references.items.xcode.text",
+      ),
+      collapsed: false,
       items: [
-        await projectDescriptionSidebar(locale),
         {
           text: localizedString(
             locale,
-            "sidebars.references.items.examples.text",
-          ),
-          link: `/${locale}/references/examples/generated-projects`,
-          collapsed: true,
-          items: (await loadExamplesData()).map((item) => {
-            return {
-              text: item.title,
-              link: `/${locale}/references/examples/generated-projects/${item.name}`,
-            };
-          }),
-        },
-        {
-          text: localizedString(
-            locale,
-            "sidebars.references.items.migrations.text",
+            "sidebars.references.items.xcode.items.generated-projects.text",
           ),
           collapsed: true,
           items: [
+            await projectDescriptionSidebar(locale),
             {
               text: localizedString(
                 locale,
-                "sidebars.references.items.migrations.items.from-v3-to-v4.text",
+                "sidebars.references.items.examples.text",
               ),
-              link: `/${locale}/references/migrations/from-v3-to-v4`,
+              link: `/${locale}/references/examples/generated-projects`,
+              collapsed: true,
+              items: (await loadExamplesData()).map((item) => {
+                return {
+                  text: item.title,
+                  link: `/${locale}/references/examples/generated-projects/${item.name}`,
+                };
+              }),
+            },
+            {
+              text: localizedString(
+                locale,
+                "sidebars.references.items.migrations.text",
+              ),
+              collapsed: true,
+              items: [
+                {
+                  text: localizedString(
+                    locale,
+                    "sidebars.references.items.migrations.items.from-v3-to-v4.text",
+                  ),
+                  link: `/${locale}/references/migrations/from-v3-to-v4`,
+                },
+              ],
             },
           ],
         },
