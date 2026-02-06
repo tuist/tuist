@@ -4,17 +4,23 @@ import Foundation
     import XcodeGraph
 #endif
 
+/// Enum that represents all the Xcode versions that a project or set of projects is compatible with.
 public enum CompatibleXcodeVersions: Equatable, Hashable, ExpressibleByArrayLiteral, ExpressibleByStringInterpolation,
     CustomStringConvertible
 {
+    /// The project supports all Xcode versions.
     case all
 
     #if os(macOS)
+        /// The project supports only a specific Xcode version.
         case exact(Version)
+        /// The project supports all Xcode versions from the specified version up to but not including the next major version.
         case upToNextMajor(Version)
+        /// The project supports all Xcode versions from the specified version up to but not including the next minor version.
         case upToNextMinor(Version)
     #endif
 
+    /// List of versions that are supported by the project.
     case list([CompatibleXcodeVersions])
 
     #if os(macOS)
@@ -37,6 +43,8 @@ public enum CompatibleXcodeVersions: Equatable, Hashable, ExpressibleByArrayLite
         }
     #endif
 
+    // MARK: - ExpressibleByStringInterpolation
+
     public init(stringLiteral value: String) {
         #if os(macOS)
             self = .exact(Version(stringLiteral: value))
@@ -45,6 +53,8 @@ public enum CompatibleXcodeVersions: Equatable, Hashable, ExpressibleByArrayLite
         #endif
     }
 
+    // MARK: - ExpressibleByArrayLiteral
+
     public init(arrayLiteral elements: [CompatibleXcodeVersions]) {
         self = .list(elements)
     }
@@ -52,6 +62,8 @@ public enum CompatibleXcodeVersions: Equatable, Hashable, ExpressibleByArrayLite
     public init(arrayLiteral elements: CompatibleXcodeVersions...) {
         self = .list(elements)
     }
+
+    // MARK: - CustomStringConvertible
 
     public var description: String {
         switch self {
