@@ -31,7 +31,7 @@ tuist organization create {account-handle}
 
 ## Projects {#projects}
 
-Your projects, either Tuist's or raw Xcode's, need to be integrated with your account through a remote project. Continuing with the comparison with GitHub, it's like having a local and a remote repository where you push your changes. You can use the <LocalizedLink href="/cli/project">`tuist project`</LocalizedLink> to create and manage projects.
+Your projects need to be integrated with your account through a remote project. Continuing with the comparison with GitHub, it's like having a local and a remote repository where you push your changes. You can use the <LocalizedLink href="/cli/project">`tuist project`</LocalizedLink> to create and manage projects.
 
 Projects are identified by a full handle, which is the result of concatenating the organization handle and the project handle. For example, if you have an organization with the handle `tuist`, and a project with the handle `tuist`, the full handle would be `tuist/tuist`.
 
@@ -43,7 +43,7 @@ let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist
 
 ::: warning TUIST PROJECT-ONLY FEATURES
 <!-- -->
-Note that there are some features like <LocalizedLink href="/guides/features/cache">binary caching</LocalizedLink> that require you having a Tuist project. If you are using raw Xcode projects, you won't be able to use those features.
+Note that some features like <LocalizedLink href="/guides/features/cache/module-cache">module caching</LocalizedLink> require a Tuist-managed project. If you are not using Tuist to manage your project, you won't be able to use those features.
 <!-- -->
 :::
 

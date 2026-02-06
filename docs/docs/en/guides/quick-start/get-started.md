@@ -7,7 +7,7 @@
 ---
 # Get started {#get-started}
 
-The easiest way to get started with Tuist in any directory or in the directory of your Xcode project or workspace:
+The easiest way to get started with Tuist in any directory or in the directory of an existing project:
 
 ::: code-group
 
