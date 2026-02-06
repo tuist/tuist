@@ -596,10 +596,8 @@ jobs:
         run: sudo xcode-select -switch /Applications/Xcode_$(cat $GITHUB_WORKSPACE/.xcode-version).app
       - name: Set up PostgreSQL
         run: |
-          # Ensure PostgreSQL is running
-          if ! brew services list | grep -q "^postgresql@17\\s\\+started"; then
-            brew services start postgresql@17
-          fi
+          brew install postgresql@17
+          brew services start postgresql@17
           # Wait for PostgreSQL to start (check via TCP)
           for i in {1..30}; do
             if /opt/homebrew/opt/postgresql@17/bin/pg_isready -h localhost -p 5432; then
