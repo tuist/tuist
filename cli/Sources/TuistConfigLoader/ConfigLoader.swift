@@ -16,36 +16,29 @@ public final class ConfigLoader: ConfigLoading {
         private let swiftConfigLoader: SwiftConfigLoading
     #endif
     private let tomlConfigLoader: TuistTomlConfigLoading
-    private let fileSystem: FileSysteming
 
     #if os(macOS)
         public convenience init(
-            tomlConfigLoader: TuistTomlConfigLoading = TuistTomlConfigLoader(),
-            fileSystem: FileSysteming = FileSystem()
+            tomlConfigLoader: TuistTomlConfigLoading = TuistTomlConfigLoader()
         ) {
             self.init(
                 swiftConfigLoader: SwiftConfigLoader(),
-                tomlConfigLoader: tomlConfigLoader,
-                fileSystem: fileSystem
+                tomlConfigLoader: tomlConfigLoader
             )
         }
 
         init(
             swiftConfigLoader: SwiftConfigLoading,
-            tomlConfigLoader: TuistTomlConfigLoading = TuistTomlConfigLoader(),
-            fileSystem: FileSysteming = FileSystem()
+            tomlConfigLoader: TuistTomlConfigLoading = TuistTomlConfigLoader()
         ) {
             self.swiftConfigLoader = swiftConfigLoader
             self.tomlConfigLoader = tomlConfigLoader
-            self.fileSystem = fileSystem
         }
     #else
         public init(
-            tomlConfigLoader: TuistTomlConfigLoading = TuistTomlConfigLoader(),
-            fileSystem: FileSysteming = FileSystem()
+            tomlConfigLoader: TuistTomlConfigLoading = TuistTomlConfigLoader()
         ) {
             self.tomlConfigLoader = tomlConfigLoader
-            self.fileSystem = fileSystem
         }
     #endif
 
@@ -63,7 +56,7 @@ public final class ConfigLoader: ConfigLoading {
         #if os(macOS)
             return try await swiftConfigLoader.loadConfig(path: path)
         #else
-            return try await defaultConfig(at: path)
+            return .default
         #endif
     }
 
@@ -82,23 +75,4 @@ public final class ConfigLoader: ConfigLoading {
             url: url
         )
     }
-
-    #if !os(macOS)
-        private func defaultConfig(at path: AbsolutePath) async throws -> TuistConfig.Tuist {
-            let anyPackageSwift = !(
-                try await fileSystem.glob(directory: path, include: ["Package.swift"])
-                    .collect().isEmpty
-            )
-            if anyPackageSwift {
-                return TuistConfig.Tuist(
-                    project: .swiftPackage(TuistSwiftPackageOptions()),
-                    fullHandle: nil,
-                    inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
-                    url: Constants.URLs.production
-                )
-            } else {
-                return TuistConfig.Tuist.default
-            }
-        }
-    #endif
 }

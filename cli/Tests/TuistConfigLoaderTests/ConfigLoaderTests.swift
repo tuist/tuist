@@ -1,4 +1,3 @@
-import FileSystem
 import FileSystemTesting
 import Foundation
 import Mockable
@@ -11,8 +10,6 @@ import TuistConstants
 @testable import TuistConfigLoader
 
 struct ConfigLoaderTests {
-    private let fileSystem = FileSystem()
-
     @Test(.inTemporaryDirectory)
     func loadConfig_returns_toml_config_when_toml_exists() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
@@ -23,8 +20,7 @@ struct ConfigLoaderTests {
             .willReturn(TuistTomlConfig(project: "tuist/tuist", url: "https://custom.tuist.dev"))
 
         let subject = ConfigLoader(
-            tomlConfigLoader: tomlConfigLoader,
-            fileSystem: fileSystem
+            tomlConfigLoader: tomlConfigLoader
         )
 
         let config = try await subject.loadConfig(path: temporaryDirectory)
@@ -43,8 +39,7 @@ struct ConfigLoaderTests {
             .willReturn(TuistTomlConfig(project: "org/project"))
 
         let subject = ConfigLoader(
-            tomlConfigLoader: tomlConfigLoader,
-            fileSystem: fileSystem
+            tomlConfigLoader: tomlConfigLoader
         )
 
         let config = try await subject.loadConfig(path: temporaryDirectory)
