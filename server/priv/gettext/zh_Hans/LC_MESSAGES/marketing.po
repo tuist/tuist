@@ -1,17 +1,5 @@
 msgid ""
-msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-11-25 14:36+0000\n"
-"PO-Revision-Date: 2026-01-23 09:02+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
-"Language-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/projects/tuist/marketing/zh_Hans/>\n"
-"Language: zh_Hans\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.15.2\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-25 14:36+0000\nPO-Revision-Date: 2026-02-06 13:03+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/projects/tuist/marketing/zh_Hans/>\nLanguage: zh_Hans\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -983,80 +971,103 @@ msgstr "客户"
 msgid "Tuist Customers"
 msgstr "Tuist 客户"
 
+#, fuzzy
 msgid "Agentic QA testing the checkout flow with 8 issues identified and 16 screenshots taken"
-msgstr ""
+msgstr "代理质量保证测试结账流程，发现8个问题并截取16张屏幕截图"
 
+#, fuzzy
 msgid "App preview interface showing share preview button and platform options"
-msgstr ""
+msgstr "应用预览界面展示分享预览按钮及平台选项"
 
+#, fuzzy
 msgid "Automatically detect flaky tests that fail without code changes and reduce time spent investigating false failures."
-msgstr ""
+msgstr "自动检测因代码未变更而失败的测试，减少排查虚假失败所耗费的时间。"
 
+#, fuzzy
 msgid "Build insights chart showing build duration metrics with p90, p99, and average percentiles"
-msgstr ""
+msgstr "构建洞察图表，展示包含p90、p99及平均百分位的构建时长指标"
 
+#, fuzzy
 msgid "Cache hit rate dashboard showing 90% hit rate and 14.2 hours saved this week"
-msgstr ""
+msgstr "缓存命中率仪表盘显示本周命中率达90%，节省14.2小时"
 
+#, fuzzy
 msgid "Conceptually compress the complexities of modular Xcode projects and make them more accessible to maintain and scale."
-msgstr ""
+msgstr "概念化地压缩模块化Xcode项目的复杂性，使其更易于维护和扩展。"
 
+#, fuzzy
 msgid "Flaky Tests"
-msgstr ""
+msgstr "不稳定的测试"
 
+#, fuzzy
 msgid "Flaky tests dashboard showing test history and automation creation modal"
-msgstr ""
+msgstr "测试历史与自动化创建模态框的测试仪表板"
 
+#, fuzzy
 msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
-msgstr ""
+msgstr "从代码到反馈仅需数分钟。即时预览与AI驱动的测试，让构建与验证的闭环无缝衔接。"
 
+#, fuzzy
 msgid "Mention @tuist-qa in your PR and an AI agent tests your app like a real user, exploring edge cases and reporting issues with screenshots and logs."
-msgstr ""
+msgstr "在PR中@tuist-qa，AI代理将像真实用户一样测试您的应用，探索边界情况并通过截图和日志报告问题。"
 
+#, fuzzy
 msgid "Monitor build performance across local and CI environments to catch slowdowns before they become bottlenecks."
-msgstr ""
+msgstr "监控本地与CI环境中的构建性能，在延迟演变为瓶颈前及时发现问题。"
 
+#, fuzzy
 msgid "Quality assurance"
-msgstr ""
+msgstr "质量保证"
 
+#, fuzzy
 msgid "Run only the tests that matter by detecting changes since your last successful run, cutting down test times in both local development and CI."
-msgstr ""
+msgstr "通过检测上次成功运行后的变更，仅运行关键测试，从而缩短本地开发和持续集成中的测试时间。"
 
 msgid "Selective Testing"
 msgstr ""
 
+#, fuzzy
 msgid "Selective testing dashboard showing tests skipped with 134/196 tests skipped and 15.8h saved this week"
-msgstr ""
+msgstr "选择性测试仪表盘显示跳过的测试：本周跳过134/196项测试，节省15.8小时"
 
+#, fuzzy
 msgid "Share your app instantly with a URL. No TestFlight delays, just click and run on any simulator or device."
-msgstr ""
+msgstr "通过URL即时分享您的应用。无需TestFlight等待，点击即可在任何模拟器或设备上运行。"
 
 msgid "Test Insights"
 msgstr ""
 
+#, fuzzy
 msgid "Test insights showing test runs, flaky tests, failed test runs, and p90 test run duration metrics"
-msgstr ""
+msgstr "测试洞察显示测试运行、不稳定测试、失败测试运行以及p90测试运行时长指标"
 
+#, fuzzy
 msgid "Tests"
-msgstr ""
+msgstr "测试"
 
+#, fuzzy
 msgid "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
-msgstr ""
+msgstr "追踪测试性能，及早发现低效测试，无需翻阅日志即可调试持续集成失败问题。"
 
+#, fuzzy
 msgid "Download only what you need — faster, lighter builds locally and on CI."
-msgstr ""
+msgstr "仅下载所需内容——本地及CI环境中更快、更轻量的构建。"
 
+#, fuzzy
 msgid "Extra features that simplify modular Xcode projects and speed up local and CI builds."
-msgstr ""
+msgstr "额外功能可简化模块化Xcode项目，并加速本地与CI构建。"
 
+#, fuzzy
 msgid "Other features"
-msgstr ""
+msgstr "其他功能"
 
+#, fuzzy
 msgid "Run only impacted tests based on your changes for faster feedback loops and less waiting — both locally and on CI."
-msgstr ""
+msgstr "仅运行受变更影响的测试，以加快反馈循环并减少等待时间——无论在本地还是CI环境中。"
 
+#, fuzzy
 msgid "Skip the manual steps, auto-generate projects, speed up builds, and explore insights with built-in analytics."
-msgstr ""
+msgstr "跳过手动步骤，自动生成项目，加速构建，并通过内置分析功能探索洞察。"
 
 #~ msgid "AI writes faster. So should your builds."
 #~ msgstr "AI 写得更快。您的构建也应该如此。"
