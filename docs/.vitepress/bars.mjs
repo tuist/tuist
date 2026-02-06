@@ -1,5 +1,4 @@
 import {
-  bookOpen01Icon,
   codeBrowserIcon,
   cacheIcon,
   testIcon,
@@ -106,10 +105,7 @@ export async function referencesSidebar(locale) {
 export function navBar(locale) {
   return [
     {
-      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
-        locale,
-        "navbar.guides.text",
-      )} ${bookOpen01Icon()}</span>`,
+      text: localizedString(locale, "navbar.guides.text"),
       link: `/${locale}/`,
     },
     {
@@ -117,10 +113,7 @@ export function navBar(locale) {
       link: `/${locale}/tutorials/xcode/install-tuist`,
     },
     {
-      text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
-        locale,
-        "navbar.cli.text",
-      )} ${codeBrowserIcon()}</span>`,
+      text: localizedString(locale, "navbar.cli.text"),
       link: `/${CLI_CONTENT_LOCALE}/cli/auth`,
     },
     {
