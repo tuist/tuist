@@ -35,7 +35,7 @@ defmodule Tuist.Application do
   end
 
   defp set_req_defaults do
-    Req.default_options(connect_timeout: 10_000, receive_timeout: 15_000)
+    Req.default_options(connect_timeout: 10_000, receive_timeout: 20_000)
   end
 
   defp load_secrets_in_application do
