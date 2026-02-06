@@ -27,7 +27,6 @@ defmodule Tuist.IngestRepo.Migrations.CreateGradleBuildsTable do
       add :tasks_skipped_count, :UInt32, null: false, default: 0
       add :tasks_no_source_count, :UInt32, null: false, default: 0
       add :cacheable_tasks_count, :UInt32, null: false, default: 0
-      add :avoidance_savings_ms, :UInt64, null: false, default: 0
       add :inserted_at, :naive_datetime, null: false, default: fragment("now()")
     end
   end

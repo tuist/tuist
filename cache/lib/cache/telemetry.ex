@@ -1,13 +1,13 @@
 defmodule Cache.Telemetry do
   @moduledoc """
-  Telemetry handlers for CAS analytics events.
+  Telemetry handlers for CAS and Gradle analytics events.
   """
 
   @doc """
-  Attaches telemetry handlers for CAS events.
+  Attaches telemetry handlers for CAS and Gradle events.
   """
   def attach do
-    events =
+    cas_events =
       for type <- [:cas, :xcode_cas],
           event <- [
             [:cache, type, :download, :disk_hit],
@@ -17,9 +17,14 @@ defmodule Cache.Telemetry do
         event
       end
 
+    gradle_events = [
+      [:cache, :gradle, :download, :disk_hit],
+      [:cache, :gradle, :upload, :success]
+    ]
+
     :telemetry.attach_many(
       "cache-analytics-handler",
-      events,
+      cas_events ++ gradle_events,
       &Cache.Telemetry.handle_event/4,
       nil
     )
@@ -27,20 +32,28 @@ defmodule Cache.Telemetry do
 
   def handle_event([:cache, type, :download, :disk_hit], measurements, metadata, _config)
       when type in [:cas, :xcode_cas] do
-    push_analytics_event("download", measurements, metadata)
+    push_cas_event("download", measurements, metadata)
   end
 
   def handle_event([:cache, type, :download, :s3_hit], measurements, metadata, _config)
       when type in [:cas, :xcode_cas] do
-    push_analytics_event("download", measurements, metadata)
+    push_cas_event("download", measurements, metadata)
   end
 
   def handle_event([:cache, type, :upload, :success], measurements, metadata, _config)
       when type in [:cas, :xcode_cas] do
-    push_analytics_event("upload", measurements, metadata)
+    push_cas_event("upload", measurements, metadata)
   end
 
-  defp push_analytics_event(action, measurements, metadata) do
+  def handle_event([:cache, :gradle, :download, :disk_hit], measurements, metadata, _config) do
+    push_gradle_event("download", measurements, metadata)
+  end
+
+  def handle_event([:cache, :gradle, :upload, :success], measurements, metadata, _config) do
+    push_gradle_event("upload", measurements, metadata)
+  end
+
+  defp push_cas_event(action, measurements, metadata) do
     event = %{
       action: action,
       size: measurements.size,
@@ -50,5 +63,17 @@ defmodule Cache.Telemetry do
     }
 
     Cache.CASEventsPipeline.async_push(event)
+  end
+
+  defp push_gradle_event(action, measurements, metadata) do
+    event = %{
+      action: action,
+      size: measurements.size,
+      cache_key: metadata.cache_key,
+      account_handle: metadata.account_handle,
+      project_handle: metadata.project_handle
+    }
+
+    Cache.GradleCacheEventsPipeline.async_push(event)
   end
 end

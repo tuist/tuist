@@ -85,6 +85,7 @@ class TuistPlugin : Plugin<Settings> {
             remote(TuistBuildCache::class.java) {
                 this.fullHandle = extension.fullHandle
                 this.executablePath = extension.executablePath
+                this.serverUrl = extension.serverUrl
                 isPush = buildCacheConfig.push
                 this.allowInsecureProtocol = buildCacheConfig.allowInsecureProtocol
             }

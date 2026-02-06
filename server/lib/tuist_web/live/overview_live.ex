@@ -10,6 +10,7 @@ defmodule TuistWeb.OverviewLive do
   alias Tuist.Builds.Analytics, as: BuildsAnalytics
   alias Tuist.Bundles
   alias Tuist.Cache
+  alias Tuist.Projects.Project
   alias Tuist.Runs.Analytics, as: RunsAnalytics
   alias Tuist.Tests
   alias TuistWeb.Helpers.DatePicker
@@ -17,17 +18,22 @@ defmodule TuistWeb.OverviewLive do
   alias TuistWeb.Utilities.Query
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
-    {:ok,
-     socket
-     |> assign(
-       :user_agent,
-       UAParser.parse(get_connect_info(socket, :user_agent))
-     )
-     |> assign(
-       :head_title,
-       "#{dgettext("dashboard_projects", "Overview")} · #{account.name}/#{project.name} · Tuist"
-     )
-     |> assign(OpenGraph.og_image_assigns("overview"))}
+    socket =
+      socket
+      |> assign(
+        :head_title,
+        "#{dgettext("dashboard_projects", "Overview")} · #{account.name}/#{project.name} · Tuist"
+      )
+      |> assign(OpenGraph.og_image_assigns("overview"))
+
+    socket =
+      if Project.gradle_project?(project) do
+        socket
+      else
+        assign(socket, :user_agent, UAParser.parse(get_connect_info(socket, :user_agent)))
+      end
+
+    {:ok, socket}
   end
 
   def handle_event(
@@ -84,39 +90,62 @@ defmodule TuistWeb.OverviewLive do
     {:noreply, push_patch(socket, to: "#{socket.assigns.uri_path}?#{query_params}")}
   end
 
-  def handle_params(params, request_uri, %{assigns: %{selected_project: _project}} = socket) do
+  def handle_params(params, request_uri, %{assigns: %{selected_project: project}} = socket) do
     full_uri = URI.parse(request_uri)
 
-    uri =
-      URI.new!(
-        "?" <>
-          (params
-           |> Map.take([
-             "analytics-environment",
-             "analytics-date-range",
-             "analytics-start-date",
-             "analytics-end-date",
-             "builds-environment",
-             "builds-date-range",
-             "builds-start-date",
-             "builds-end-date",
-             "bundle-size-date-range",
-             "bundle-size-start-date",
-             "bundle-size-end-date",
-             "bundle-size-app"
-           ])
-           |> URI.encode_query())
-      )
+    if Project.gradle_project?(project) do
+      uri =
+        URI.new!(
+          "?" <>
+            (params
+             |> Map.take([
+               "analytics-environment",
+               "analytics-date-range",
+               "analytics-start-date",
+               "analytics-end-date"
+             ])
+             |> URI.encode_query())
+        )
 
-    {
-      :noreply,
-      socket
-      |> assign_analytics(params)
-      |> assign_builds(params)
-      |> assign_bundles(params)
-      |> assign(:uri, uri)
-      |> assign(:uri_path, full_uri.path)
-    }
+      {
+        :noreply,
+        socket
+        |> TuistWeb.GradleOverviewLive.assign_analytics(params)
+        |> assign(:uri, uri)
+        |> assign(:uri_path, full_uri.path)
+      }
+    else
+      uri =
+        URI.new!(
+          "?" <>
+            (params
+             |> Map.take([
+               "analytics-environment",
+               "analytics-date-range",
+               "analytics-start-date",
+               "analytics-end-date",
+               "builds-environment",
+               "builds-date-range",
+               "builds-start-date",
+               "builds-end-date",
+               "bundle-size-date-range",
+               "bundle-size-start-date",
+               "bundle-size-end-date",
+               "bundle-size-app"
+             ])
+             |> URI.encode_query())
+        )
+
+      {
+        :noreply,
+        socket
+        |> assign_analytics(params)
+        |> assign_builds(params)
+        |> assign_bundles(params)
+        |> assign(:uri, uri)
+        |> assign(:uri_path, full_uri.path)
+      }
+    end
   end
 
   defp assign_test_runs_analytics(%{assigns: %{selected_project: project}} = socket) do

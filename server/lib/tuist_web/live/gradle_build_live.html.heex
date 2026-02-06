@@ -1,10 +1,10 @@
 <div id="gradle-build">
   <.button
-    label={dgettext("dashboard_gradle", "Gradle Insights")}
+    label={dgettext("dashboard_gradle", "Gradle Cache")}
     data-part="back-button"
     variant="secondary"
     size="medium"
-    navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-insights"}
+    navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-cache"}
   >
     <:icon_left>
       <.icon name="arrow_left" />
@@ -53,265 +53,354 @@
       </div>
     </div>
   </div>
-  <.card
-    title={dgettext("dashboard_gradle", "Build Details")}
-    icon="chart_arcs"
-    data-part="build-details"
-  >
-    <.card_section data-part="build-details-section">
-      <div data-part="metadata-grid">
-        <div data-part="metadata-row">
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_gradle", "Status")}</div>
-            <.badge
-              :if={@build.status == "success"}
-              label={dgettext("dashboard_gradle", "Success")}
-              color="success"
-              style="fill"
-            />
-            <.badge
-              :if={@build.status == "failure"}
-              label={dgettext("dashboard_gradle", "Failure")}
-              color="destructive"
-              style="fill"
-            />
-            <.badge
-              :if={@build.status == "cancelled"}
-              label={dgettext("dashboard_gradle", "Cancelled")}
-              color="warning"
-              style="fill"
-            />
-          </div>
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_gradle", "Duration")}</div>
-            <span data-part="label">
-              <.history />
-              {format_duration(@build.duration_ms)}
-            </span>
-          </div>
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_gradle", "Cache Hit Rate")}</div>
-            <span data-part="label">
-              {dgettext("dashboard_gradle", "%{hit_rate}%",
-                hit_rate:
-                  cache_hit_rate(@build)
-                  |> Decimal.from_float()
-                  |> Decimal.round(1)
-              )}
-            </span>
-          </div>
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_gradle", "Avoidance Rate")}</div>
-            <span data-part="label">
-              {dgettext("dashboard_gradle", "%{rate}%",
-                rate:
-                  avoidance_rate(@build)
-                  |> Decimal.from_float()
-                  |> Decimal.round(1)
-              )}
-            </span>
-          </div>
-        </div>
-        <div data-part="metadata-row">
-          <div :if={@build.gradle_version} data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_gradle", "Gradle Version")}</div>
-            <span data-part="label">{@build.gradle_version}</span>
-          </div>
-          <div :if={@build.java_version} data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_gradle", "Java Version")}</div>
-            <span data-part="label">{@build.java_version}</span>
-          </div>
-          <div :if={@build.git_branch} data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_gradle", "Branch")}</div>
-            <span data-part="label">
-              <.git_branch />
-              {@build.git_branch}
-            </span>
-          </div>
-          <div :if={@build.git_commit_sha} data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_gradle", "Commit")}</div>
-            <span data-part="label">{String.slice(@build.git_commit_sha, 0, 8)}</span>
-          </div>
-        </div>
-        <div data-part="metadata-row">
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_gradle", "Ran at")}</div>
-            <span data-part="label">
-              {Tuist.Utilities.DateFormatter.from_now(@build.inserted_at)}
-            </span>
-          </div>
-          <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_gradle", "Built by")}</div>
-            <.gradle_build_ran_by_badge_cell build={@build} />
-          </div>
-        </div>
-      </div>
-    </.card_section>
-  </.card>
-  <.card
-    title={dgettext("dashboard_gradle", "Tasks")}
-    icon="subtask"
-    data-part="tasks-card"
-  >
-    <.card_section
+  <.tab_menu_horizontal>
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_gradle", "Overview")}
+      selected={@selected_tab == "overview"}
+      patch={"?#{Query.put(@uri.query, "tab", "overview")}"}
+    />
+    <.tab_menu_horizontal_item
       :if={(@build.cacheable_tasks_count || 0) > 0}
-      data-part="cacheable-tasks-card-section"
+      label={dgettext("dashboard_gradle", "Gradle Cache")}
+      selected={@selected_tab == "gradle-cache"}
+      patch={"?#{Query.put(@uri.query, "tab", "gradle-cache")}"}
+    />
+  </.tab_menu_horizontal>
+  <%= if @selected_tab == "overview" do %>
+    <.card
+      title={dgettext("dashboard_gradle", "Build Details")}
+      icon="chart_arcs"
+      data-part="build-details"
     >
-      <div data-part="title">
-        <span data-part="label">
-          {dgettext("dashboard_gradle", "Cacheable tasks:")}
-        </span>
-        <span data-part="value">
-          {@build.cacheable_tasks_count || 0}
-        </span>
-      </div>
-      <.chart
-        id="cacheable-tasks-breakdown-chart"
-        type="bar"
-        extra_options={
-          %{
-            tooltip: %{
-              trigger: "axis",
-              axisPointer: %{
-                type: "none"
-              }
-            },
-            legend: %{
-              left: "-0.3%",
-              top: "bottom",
-              orient: "horizontal",
-              textStyle: %{
-                color: "var:noora-surface-label-primary",
-                fontFamily: "monospace",
-                fontWeight: 400,
-                fontSize: 10,
-                lineHeight: 12
-              },
-              icon:
-                "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
-              itemWidth: 8,
-              itemHeight: 4
-            },
-            grid: %{
-              width: "99%",
-              left: "0%",
-              height: "60%",
-              top: "0%"
-            },
-            xAxis: %{
-              type: "value",
-              axisLabel: %{
-                show: false
-              },
-              splitLine: %{show: false}
-            },
-            yAxis: %{
-              type: "category",
-              data: [dgettext("dashboard_gradle", "Cacheable tasks")],
-              axisLabel: %{
-                show: false
+      <.card_section data-part="build-details-section">
+        <div data-part="metadata-grid">
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_gradle", "Status")}</div>
+              <.badge
+                :if={@build.status == "success"}
+                label={dgettext("dashboard_gradle", "Success")}
+                color="success"
+                style="fill"
+              />
+              <.badge
+                :if={@build.status == "failure"}
+                label={dgettext("dashboard_gradle", "Failure")}
+                color="destructive"
+                style="fill"
+              />
+              <.badge
+                :if={@build.status == "cancelled"}
+                label={dgettext("dashboard_gradle", "Cancelled")}
+                color="warning"
+                style="fill"
+              />
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_gradle", "Duration")}</div>
+              <span data-part="label">
+                <.history />
+                {format_duration(@build.duration_ms)}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_gradle", "Cache Hit Rate")}</div>
+              <span data-part="label">
+                {dgettext("dashboard_gradle", "%{hit_rate}%",
+                  hit_rate:
+                    cache_hit_rate(@build)
+                    |> Decimal.from_float()
+                    |> Decimal.round(1)
+                )}
+              </span>
+            </div>
+          </div>
+          <div data-part="metadata-row">
+            <div :if={@build.gradle_version} data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_gradle", "Gradle Version")}</div>
+              <span data-part="label">{@build.gradle_version}</span>
+            </div>
+            <div :if={@build.java_version} data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_gradle", "Java Version")}</div>
+              <span data-part="label">{@build.java_version}</span>
+            </div>
+            <div :if={@build.git_branch} data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_gradle", "Branch")}</div>
+              <span data-part="label">
+                <.git_branch />
+                {@build.git_branch}
+              </span>
+            </div>
+            <div :if={@build.git_commit_sha} data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_gradle", "Commit")}</div>
+              <span data-part="label">{String.slice(@build.git_commit_sha, 0, 8)}</span>
+            </div>
+          </div>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_gradle", "Ran at")}</div>
+              <span data-part="label">
+                {Tuist.Utilities.DateFormatter.from_now(@build.inserted_at)}
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_gradle", "Built by")}</div>
+              <.gradle_build_ran_by_badge_cell build={@build} />
+            </div>
+          </div>
+        </div>
+      </.card_section>
+    </.card>
+    <.card
+      title={dgettext("dashboard_gradle", "Tasks")}
+      icon="subtask"
+      data-part="tasks-card"
+    >
+      <.card_section data-part="tasks-table-section">
+        <.table id="gradle-tasks-table" rows={@tasks}>
+          <:col :let={task} label={dgettext("dashboard_gradle", "Task Path")}>
+            <.text_cell label={task.task_path} />
+          </:col>
+          <:col :let={task} label={dgettext("dashboard_gradle", "Outcome")}>
+            <.badge
+              label={outcome_label(task.outcome)}
+              color={outcome_color(task.outcome)}
+              style="light-fill"
+            />
+          </:col>
+          <:col :let={task} label={dgettext("dashboard_gradle", "Cacheable")}>
+            <.text_cell label={
+              if task.cacheable,
+                do: dgettext("dashboard_gradle", "Yes"),
+                else: dgettext("dashboard_gradle", "No")
+            } />
+          </:col>
+          <:col :let={task} label={dgettext("dashboard_gradle", "Duration")}>
+            <.text_cell label={format_duration(task.duration_ms)} icon="history" />
+          </:col>
+          <:empty_state>
+            <.table_empty_state
+              icon="subtask"
+              title={dgettext("dashboard_gradle", "No tasks")}
+              subtitle={dgettext("dashboard_gradle", "This build has no task data.")}
+            />
+          </:empty_state>
+        </.table>
+      </.card_section>
+    </.card>
+  <% end %>
+  <%= if @selected_tab == "gradle-cache" do %>
+    <div data-part="cache">
+      <.card
+        title={dgettext("dashboard_gradle", "Cache Summary")}
+        icon="chart_arcs"
+        data-part="cache-summary-card"
+      >
+        <.card_section data-part="widgets-card-section">
+          <% local_hits = @build.tasks_local_hit_count || 0 %>
+          <% remote_hits = @build.tasks_remote_hit_count || 0 %>
+          <% from_cache = local_hits + remote_hits %>
+          <% cacheable = @build.cacheable_tasks_count || 0 %>
+          <% misses = cacheable - from_cache %>
+          <.widget
+            title={dgettext("dashboard_gradle", "Task hits")}
+            description={
+              dgettext(
+                "dashboard_gradle",
+                "Cacheable tasks that were retrieved from cache (local + remote)."
+              )
+            }
+            value={from_cache}
+            id="widget-task-hits"
+          />
+          <.widget
+            title={dgettext("dashboard_gradle", "Task misses")}
+            description={
+              dgettext("dashboard_gradle", "Cacheable tasks that were not found in cache.")
+            }
+            value={misses}
+            id="widget-task-misses"
+          />
+          <.widget
+            title={dgettext("dashboard_gradle", "Hit rate")}
+            description={
+              dgettext(
+                "dashboard_gradle",
+                "The percentage of cacheable tasks that were cache hits (local + remote)."
+              )
+            }
+            value={
+              if cacheable > 0 do
+                hit_rate = Float.round(from_cache / cacheable * 100.0, 1)
+                dgettext("dashboard_gradle", "%{hit_rate}%", hit_rate: hit_rate)
+              else
+                "0%"
+              end
+            }
+            id="widget-hit-rate"
+            empty={cacheable == 0}
+          />
+        </.card_section>
+      </.card>
+      <.card
+        title={dgettext("dashboard_gradle", "Cacheable Tasks")}
+        icon="database"
+        data-part="cacheable-tasks-card"
+      >
+        <.card_section
+          :if={(@build.cacheable_tasks_count || 0) > 0}
+          data-part="cacheable-tasks-card-section"
+        >
+          <div data-part="title">
+            <span data-part="label">
+              {dgettext("dashboard_gradle", "Cacheable tasks:")}
+            </span>
+            <span data-part="value">
+              {@build.cacheable_tasks_count || 0}
+            </span>
+          </div>
+          <.chart
+            id="cacheable-tasks-breakdown-chart"
+            type="bar"
+            extra_options={
+              %{
+                tooltip: %{
+                  trigger: "axis",
+                  axisPointer: %{
+                    type: "none"
+                  }
+                },
+                legend: %{
+                  left: "-0.3%",
+                  top: "bottom",
+                  orient: "horizontal",
+                  textStyle: %{
+                    color: "var:noora-surface-label-primary",
+                    fontFamily: "monospace",
+                    fontWeight: 400,
+                    fontSize: 10,
+                    lineHeight: 12
+                  },
+                  icon:
+                    "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+                  itemWidth: 8,
+                  itemHeight: 4
+                },
+                grid: %{
+                  width: "99%",
+                  left: "0%",
+                  height: "60%",
+                  top: "0%"
+                },
+                xAxis: %{
+                  type: "value",
+                  axisLabel: %{
+                    show: false
+                  },
+                  splitLine: %{show: false}
+                },
+                yAxis: %{
+                  type: "category",
+                  data: [dgettext("dashboard_gradle", "Cacheable tasks")],
+                  axisLabel: %{
+                    show: false
+                  }
+                }
               }
             }
-          }
-        }
-        series={
-          local_hit = @build.tasks_local_hit_count || 0
-          remote_hit = @build.tasks_remote_hit_count || 0
-          from_cache = local_hit + remote_hit
-          misses = (@build.cacheable_tasks_count || 0) - from_cache
+            series={
+              local_hit = @build.tasks_local_hit_count || 0
+              remote_hit = @build.tasks_remote_hit_count || 0
+              from_cache = local_hit + remote_hit
+              misses = (@build.cacheable_tasks_count || 0) - from_cache
 
-          [
-            %{
-              name: dgettext("dashboard_gradle", "Local"),
-              type: "bar",
-              stack: "total",
-              emphasis: %{
-                focus: "series"
-              },
-              data: [local_hit],
-              color: "var:hits-chart-legend-local",
-              itemStyle: %{
-                borderRadius:
-                  if(local_hit > 0 and remote_hit == 0 and misses == 0,
-                    do: [8, 8, 8, 8],
-                    else: if(local_hit > 0, do: [8, 0, 0, 8], else: [0, 0, 0, 0])
-                  )
-              }
-            },
-            %{
-              name: dgettext("dashboard_gradle", "Remote"),
-              type: "bar",
-              stack: "total",
-              emphasis: %{
-                focus: "series"
-              },
-              data: [remote_hit],
-              color: "var:hits-chart-legend-remote",
-              itemStyle: %{
-                borderRadius:
-                  if(remote_hit > 0 and misses == 0 and local_hit == 0,
-                    do: [8, 8, 8, 8],
-                    else:
-                      if(remote_hit > 0 and misses == 0,
-                        do: [0, 8, 8, 0],
-                        else: [0, 0, 0, 0]
+              [
+                %{
+                  name: dgettext("dashboard_gradle", "Local"),
+                  type: "bar",
+                  stack: "total",
+                  emphasis: %{
+                    focus: "series"
+                  },
+                  data: [local_hit],
+                  color: "var:hits-chart-legend-local",
+                  itemStyle: %{
+                    borderRadius:
+                      if(local_hit > 0 and remote_hit == 0 and misses == 0,
+                        do: [8, 8, 8, 8],
+                        else: if(local_hit > 0, do: [8, 0, 0, 8], else: [0, 0, 0, 0])
                       )
-                  )
-              }
-            },
-            %{
-              name: dgettext("dashboard_gradle", "Missed"),
-              type: "bar",
-              stack: "total",
-              emphasis: %{
-                focus: "series"
-              },
-              data: [misses],
-              color: "var:hits-chart-legend-missed",
-              itemStyle: %{
-                borderRadius:
-                  if(misses > 0 and from_cache == 0,
-                    do: [8, 8, 8, 8],
-                    else: if(misses > 0, do: [0, 8, 8, 0], else: [0, 0, 0, 0])
-                  )
-              }
+                  }
+                },
+                %{
+                  name: dgettext("dashboard_gradle", "Remote"),
+                  type: "bar",
+                  stack: "total",
+                  emphasis: %{
+                    focus: "series"
+                  },
+                  data: [remote_hit],
+                  color: "var:hits-chart-legend-remote",
+                  itemStyle: %{
+                    borderRadius:
+                      if(remote_hit > 0 and misses == 0 and local_hit == 0,
+                        do: [8, 8, 8, 8],
+                        else:
+                          if(remote_hit > 0 and misses == 0,
+                            do: [0, 8, 8, 0],
+                            else: [0, 0, 0, 0]
+                          )
+                      )
+                  }
+                },
+                %{
+                  name: dgettext("dashboard_gradle", "Missed"),
+                  type: "bar",
+                  stack: "total",
+                  emphasis: %{
+                    focus: "series"
+                  },
+                  data: [misses],
+                  color: "var:hits-chart-legend-missed",
+                  itemStyle: %{
+                    borderRadius:
+                      if(misses > 0 and from_cache == 0,
+                        do: [8, 8, 8, 8],
+                        else: if(misses > 0, do: [0, 8, 8, 0], else: [0, 0, 0, 0])
+                      )
+                  }
+                }
+              ]
             }
-          ]
-        }
-        x_axis_min={0}
-        x_axis_max={@build.cacheable_tasks_count || 0}
-      />
-    </.card_section>
-    <.card_section data-part="tasks-table-section">
-      <.table id="gradle-tasks-table" rows={@tasks}>
-        <:col :let={task} label={dgettext("dashboard_gradle", "Task Path")}>
-          <.text_cell label={task.task_path} />
-        </:col>
-        <:col :let={task} label={dgettext("dashboard_gradle", "Outcome")}>
-          <.badge
-            label={outcome_label(task.outcome)}
-            color={outcome_color(task.outcome)}
-            style="light-fill"
+            x_axis_min={0}
+            x_axis_max={@build.cacheable_tasks_count || 0}
           />
-        </:col>
-        <:col :let={task} label={dgettext("dashboard_gradle", "Cacheable")}>
-          <.text_cell label={
-            if task.cacheable,
-              do: dgettext("dashboard_gradle", "Yes"),
-              else: dgettext("dashboard_gradle", "No")
-          } />
-        </:col>
-        <:col :let={task} label={dgettext("dashboard_gradle", "Duration")}>
-          <.text_cell label={format_duration(task.duration_ms)} icon="history" />
-        </:col>
-        <:empty_state>
-          <.table_empty_state
-            icon="subtask"
-            title={dgettext("dashboard_gradle", "No tasks")}
-            subtitle={dgettext("dashboard_gradle", "This build has no task data.")}
-          />
-        </:empty_state>
-      </.table>
-    </.card_section>
-  </.card>
+        </.card_section>
+        <.card_section data-part="tasks-table-section">
+          <.table id="gradle-cacheable-tasks-table" rows={@cacheable_tasks}>
+            <:col :let={task} label={dgettext("dashboard_gradle", "Task Path")}>
+              <.text_cell label={task.task_path} />
+            </:col>
+            <:col :let={task} label={dgettext("dashboard_gradle", "Outcome")}>
+              <.badge
+                label={outcome_label(task.outcome)}
+                color={outcome_color(task.outcome)}
+                style="light-fill"
+              />
+            </:col>
+            <:col :let={task} label={dgettext("dashboard_gradle", "Duration")}>
+              <.text_cell label={format_duration(task.duration_ms)} icon="history" />
+            </:col>
+            <:empty_state>
+              <.table_empty_state
+                icon="subtask"
+                title={dgettext("dashboard_gradle", "No cacheable tasks")}
+                subtitle={dgettext("dashboard_gradle", "This build has no cacheable task data.")}
+              />
+            </:empty_state>
+          </.table>
+        </.card_section>
+      </.card>
+    </div>
+  <% end %>
 </div>

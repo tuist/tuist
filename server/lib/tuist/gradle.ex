@@ -62,7 +62,6 @@ defmodule Tuist.Gradle do
       tasks_skipped_count: task_counts.skipped,
       tasks_no_source_count: task_counts.no_source,
       cacheable_tasks_count: task_counts.cacheable,
-      avoidance_savings_ms: Map.get(attrs, :avoidance_savings_ms, 0),
       inserted_at: now
     }
 

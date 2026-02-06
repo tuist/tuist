@@ -1,0 +1,50 @@
+.gradle-overview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+  padding: var(--noora-spacing-7) var(--noora-spacing-5);
+
+  & > .noora-card {
+    & > [data-part="widgets"] {
+      display: flex;
+      flex-direction: row;
+      gap: var(--noora-spacing-4);
+
+      & > * {
+        flex: 1;
+        min-width: 0;
+      }
+
+      @media (max-width: 768px) {
+        & {
+          flex-direction: column;
+        }
+      }
+    }
+
+    & .noora-chart {
+      width: 105%;
+      height: 148px;
+    }
+
+    & .noora-dropdown-item:not([data-selected]) svg {
+      visibility: hidden;
+    }
+  }
+
+  & [data-part="legends"] {
+    display: flex;
+    flex-direction: row;
+    gap: var(--noora-spacing-5);
+    & > * {
+      flex-grow: 1;
+    }
+  }
+
+  & [data-part="cache-hit-rate-chart"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-7);
+    padding: var(--noora-spacing-5);
+  }
+}

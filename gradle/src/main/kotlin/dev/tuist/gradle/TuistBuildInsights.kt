@@ -71,7 +71,6 @@ data class BuildReportRequest(
     @SerializedName("git_commit_sha") val gitCommitSha: String?,
     @SerializedName("git_ref") val gitRef: String?,
     @SerializedName("root_project_name") val rootProjectName: String?,
-    @SerializedName("avoidance_savings_ms") val avoidanceSavingsMs: Long,
     val tasks: List<TaskReportEntry>
 )
 
@@ -247,10 +246,6 @@ abstract class TuistBuildInsightsService :
         val tasks = taskOutcomes.toList()
         val totalDurationMs = System.currentTimeMillis() - buildStartTime
 
-        val avoidanceSavingsMs = tasks
-            .filter { it.outcome == "local_hit" || it.outcome == "remote_hit" || it.outcome == "up_to_date" }
-            .sumOf { it.durationMs }
-
         val status = when {
             buildFailed -> "failure"
             tasks.any { it.outcome == "failed" } -> "failure"
@@ -267,7 +262,6 @@ abstract class TuistBuildInsightsService :
             gitCommitSha = GitInfo.commitSha(),
             gitRef = GitInfo.ref(),
             rootProjectName = parameters.rootProjectName.orNull,
-            avoidanceSavingsMs = avoidanceSavingsMs,
             tasks = tasks.map { task ->
                 TaskReportEntry(
                     taskPath = task.taskPath,

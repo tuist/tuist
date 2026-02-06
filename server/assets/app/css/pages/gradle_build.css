@@ -111,6 +111,28 @@
     }
   }
 
+  & > [data-part="cache"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+
+    & [data-part="widgets-card-section"].noora-card__section {
+      flex-direction: row;
+      gap: var(--noora-spacing-4);
+      padding: var(--noora-spacing-8);
+
+      & > * {
+        flex-grow: 1;
+      }
+
+      @media (max-width: 768px) {
+        & {
+          flex-direction: column;
+        }
+      }
+    }
+  }
+
   & [data-part="cacheable-tasks-card-section"] {
     gap: var(--noora-spacing-5);
 

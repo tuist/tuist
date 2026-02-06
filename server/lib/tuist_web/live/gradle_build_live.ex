@@ -9,6 +9,7 @@ defmodule TuistWeb.GradleBuildLive do
   alias Tuist.Repo
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Utilities.Query
 
   def mount(
         %{"gradle_build_id" => build_id},
@@ -24,6 +25,7 @@ defmodule TuistWeb.GradleBuildLive do
     build = Repo.preload(build, :built_by_account)
 
     tasks = Gradle.list_tasks(build_id)
+    cacheable_tasks = Enum.filter(tasks, & &1.cacheable)
     slug = "#{account.name}/#{project.name}"
 
     title = build.root_project_name || dgettext("dashboard_gradle", "Gradle Build")
@@ -32,10 +34,21 @@ defmodule TuistWeb.GradleBuildLive do
       socket
       |> assign(:build, build)
       |> assign(:tasks, tasks)
+      |> assign(:cacheable_tasks, cacheable_tasks)
       |> assign(:title, title)
       |> assign(:head_title, "#{title} · #{slug} · Tuist")
 
     {:ok, socket}
+  end
+
+  def handle_params(params, _uri, socket) do
+    selected_tab = params["tab"] || "overview"
+    uri = URI.new!("?" <> URI.encode_query(params))
+
+    {:noreply,
+     socket
+     |> assign(:selected_tab, selected_tab)
+     |> assign(:uri, uri)}
   end
 
   defp cache_hit_rate(build) do
@@ -47,22 +60,6 @@ defmodule TuistWeb.GradleBuildLive do
       0.0
     else
       Float.round(from_cache / total * 100.0, 1)
-    end
-  end
-
-  defp avoidance_rate(build) do
-    from_cache = (build.tasks_local_hit_count || 0) + (build.tasks_remote_hit_count || 0)
-    up_to_date = build.tasks_up_to_date_count || 0
-    executed = build.tasks_executed_count || 0
-    failed = build.tasks_failed_count || 0
-    skipped = build.tasks_skipped_count || 0
-    no_source = build.tasks_no_source_count || 0
-    total = from_cache + up_to_date + executed + failed + skipped + no_source
-
-    if total == 0 do
-      0.0
-    else
-      Float.round((from_cache + up_to_date) / total * 100.0, 1)
     end
   end
 

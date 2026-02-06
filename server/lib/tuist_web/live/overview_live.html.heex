@@ -1,3 +1,6 @@
+<%= if Tuist.Projects.Project.gradle_project?(@selected_project) do %>
+  {TuistWeb.GradleOverviewLive.render(assigns)}
+<% else %>
 <div class="overview">
   <.card
     title={dgettext("dashboard_projects", "Analytics")}
@@ -903,3 +906,4 @@
     </div>
   </.card>
 </div>
+<% end %>

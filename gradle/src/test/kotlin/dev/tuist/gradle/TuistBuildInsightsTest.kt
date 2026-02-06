@@ -49,7 +49,7 @@ class TuistBuildInsightsTest {
             gitCommitSha = "abc123",
             gitRef = "v1.0.0",
             rootProjectName = null,
-            avoidanceSavingsMs = 2000,
+
             tasks = listOf(
                 TaskReportEntry(
                     taskPath = ":app:compileKotlin",
@@ -117,7 +117,7 @@ class TuistBuildInsightsTest {
             gitCommitSha = null,
             gitRef = null,
             rootProjectName = null,
-            avoidanceSavingsMs = 0,
+
             tasks = emptyList()
         )
 
@@ -146,7 +146,7 @@ class TuistBuildInsightsTest {
             gitCommitSha = null,
             gitRef = null,
             rootProjectName = null,
-            avoidanceSavingsMs = 0,
+
             tasks = emptyList()
         )
 
@@ -247,7 +247,7 @@ class TuistBuildInsightsTest {
             gitCommitSha = "abc",
             gitRef = "v1",
             rootProjectName = null,
-            avoidanceSavingsMs = 2000,
+
             tasks = emptyList()
         )
 
@@ -259,6 +259,5 @@ class TuistBuildInsightsTest {
         assertTrue(json.contains("\"git_branch\""))
         assertTrue(json.contains("\"git_commit_sha\""))
         assertTrue(json.contains("\"git_ref\""))
-        assertTrue(json.contains("\"avoidance_savings_ms\""))
     }
 }

@@ -48,6 +48,7 @@ object TuistVersion {
 open class TuistBuildCache : AbstractBuildCache() {
     var fullHandle: String = ""
     var executablePath: String? = null
+    var serverUrl: String? = null
     var allowInsecureProtocol: Boolean = false
 }
 
@@ -69,7 +70,8 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
 
         val configurationProvider = TuistCommandConfigurationProvider(
             fullHandle = configuration.fullHandle,
-            command = resolvedCommand
+            command = resolvedCommand,
+            serverUrl = configuration.serverUrl
         )
 
         return TuistBuildCacheService(
