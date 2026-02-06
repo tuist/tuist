@@ -326,8 +326,8 @@ var targets: [Target] = [
         name: "TuistConfig",
         dependencies: [
             pathDependency,
+            swiftToolsSupportDependency,
             "TuistConstants",
-            .product(name: "XcodeGraph", package: "tuist.XcodeGraph", condition: .when(platforms: [.macOS])),
         ],
         path: "cli/Sources/TuistConfig"
     ),

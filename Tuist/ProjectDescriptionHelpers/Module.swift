@@ -827,7 +827,7 @@ public enum Module: String, CaseIterable {
             case .config:
                 [
                     .target(name: Module.constants.targetName),
-                    .external(name: "XcodeGraph"),
+                    .external(name: "SwiftToolsSupport-auto"),
                 ]
             case .configToml:
                 [

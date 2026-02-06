@@ -79,7 +79,7 @@ extension TuistCore.Tuist {
                 project: .generated(
                     TuistGeneratedProjectOptions(
                         compatibleXcodeVersions: compatibleXcodeVersions,
-                        swiftVersion: swiftVersion.map { .init(stringLiteral: $0.description) },
+                        swiftVersion: swiftVersion,
                         plugins: plugins,
                         generationOptions: generationOptions,
                         installOptions: installOptions,
