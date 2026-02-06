@@ -301,18 +301,6 @@ export function tutorialsSidebar(locale) {
         },
       ],
     },
-    {
-      text: localizedString(locale, "sidebars.tutorials.items.gradle.text"),
-      items: [
-        {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${getStartedIcon()} ${localizedString(
-            locale,
-            "sidebars.tutorials.items.gradle.items.get-started.text",
-          )}</span>`,
-          link: `/${locale}/tutorials/gradle/get-started`,
-        },
-      ],
-    },
   ];
 }
 
