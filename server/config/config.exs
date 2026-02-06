@@ -90,11 +90,6 @@ config :phoenix, :json_library, Jason
 # as a reference
 config :prom_ex, :storage_adapter, Tuist.PromEx.StripedPeep
 
-# Tighten Req's default connect timeout from 30s to 10s so that a slow
-# TCP connect cannot exceed Render's ~30s proxy timeout on its own.
-# With 10s connect + 15s receive (Req default), worst case is 25s.
-config :req, default_options: [connect_options: [timeout: 10_000]]
-
 # Oban
 config :tuist, Oban,
   repo: Tuist.Repo,

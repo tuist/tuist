@@ -14,7 +14,7 @@ defmodule Tuist.OIDCTest do
     test "successfully verifies a valid GitHub Actions OIDC token" do
       {token, jwks} = generate_test_token_and_jwks()
 
-      stub(Req, :get, fn _url ->
+      stub(Req, :get, fn _url, _opts ->
         {:ok, %{status: 200, body: jwks}}
       end)
 
@@ -31,7 +31,7 @@ defmodule Tuist.OIDCTest do
       {token, jwks} =
         generate_test_token_and_jwks(exp: DateTime.utc_now() |> DateTime.add(-3600) |> DateTime.to_unix())
 
-      stub(Req, :get, fn _url ->
+      stub(Req, :get, fn _url, _opts ->
         {:ok, %{status: 200, body: jwks}}
       end)
 
@@ -41,7 +41,7 @@ defmodule Tuist.OIDCTest do
     test "returns error when JWKS fetch fails" do
       {token, _jwks} = generate_test_token_and_jwks()
 
-      stub(Req, :get, fn _url ->
+      stub(Req, :get, fn _url, _opts ->
         {:error, %Req.TransportError{reason: :timeout}}
       end)
 
@@ -64,7 +64,7 @@ defmodule Tuist.OIDCTest do
         ]
       }
 
-      stub(Req, :get, fn _url ->
+      stub(Req, :get, fn _url, _opts ->
         {:ok, %{status: 200, body: different_jwks}}
       end)
 
@@ -84,7 +84,7 @@ defmodule Tuist.OIDCTest do
           claims: %{"oidc.circleci.com/vcs-origin" => "github.com/tuist/tuist"}
         )
 
-      stub(Req, :get, fn url ->
+      stub(Req, :get, fn url, _opts ->
         assert url == "https://oidc.circleci.com/org/abc-123/.well-known/jwks-pub.json"
         {:ok, %{status: 200, body: jwks}}
       end)
@@ -100,7 +100,7 @@ defmodule Tuist.OIDCTest do
           claims: %{"oidc.circleci.com/vcs-origin" => "bitbucket.org/tuist/tuist"}
         )
 
-      stub(Req, :get, fn _url ->
+      stub(Req, :get, fn _url, _opts ->
         {:ok, %{status: 200, body: jwks}}
       end)
 
@@ -118,7 +118,7 @@ defmodule Tuist.OIDCTest do
           }
         )
 
-      stub(Req, :get, fn url ->
+      stub(Req, :get, fn url, _opts ->
         assert url == "https://token.builds.bitrise.io/.well-known/jwks"
         {:ok, %{status: 200, body: jwks}}
       end)
@@ -138,7 +138,7 @@ defmodule Tuist.OIDCTest do
           }
         )
 
-      stub(Req, :get, fn _url ->
+      stub(Req, :get, fn _url, _opts ->
         {:ok, %{status: 200, body: jwks}}
       end)
 
