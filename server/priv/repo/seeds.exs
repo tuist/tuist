@@ -491,7 +491,7 @@ cas_output_generator = fn build ->
       Enum.random(5..25)
     end
 
-  inserted_at = build.inserted_at
+  inserted_at = NaiveDateTime.truncate(build.inserted_at, :second)
 
   Enum.map(1..operation_count, fn _i ->
     operation = Enum.random(["download", "upload"])
@@ -553,6 +553,7 @@ cacheable_tasks =
   |> Enum.take(cacheable_tasks_build_count)
   |> Enum.flat_map(fn build_id ->
     build = Map.fetch!(builds_by_id, build_id)
+    build_inserted_at = NaiveDateTime.truncate(build.inserted_at, :second)
     total_tasks = build.cacheable_tasks_count
     remote_hits = build.cacheable_task_remote_hits_count
     local_hits = build.cacheable_task_local_hits_count
@@ -583,7 +584,7 @@ cacheable_tasks =
               write_duration: nil,
               description: generate_task_description.(task_type),
               cas_output_node_ids: selected_node_ids,
-              inserted_at: build.inserted_at
+              inserted_at: build_inserted_at
             }
           end)
       else
@@ -607,7 +608,7 @@ cacheable_tasks =
               write_duration: nil,
               description: generate_task_description.(task_type),
               cas_output_node_ids: selected_node_ids,
-              inserted_at: build.inserted_at
+              inserted_at: build_inserted_at
             }
           end)
       else
@@ -631,7 +632,7 @@ cacheable_tasks =
               write_duration: Enum.random(100..2000) * 1.0,
               description: generate_task_description.(task_type),
               cas_output_node_ids: selected_node_ids,
-              inserted_at: build.inserted_at
+              inserted_at: build_inserted_at
             }
           end)
       else
