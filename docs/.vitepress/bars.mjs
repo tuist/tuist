@@ -1,5 +1,4 @@
 import {
-  codeBrowserIcon,
   cacheIcon,
   testIcon,
   registryIcon,
@@ -70,12 +69,12 @@ export async function referencesSidebar(locale) {
             locale,
             "sidebars.references.items.examples.text",
           ),
-          link: `/${locale}/references/examples`,
+          link: `/${locale}/references/examples/generated-projects`,
           collapsed: true,
           items: (await loadExamplesData()).map((item) => {
             return {
               text: item.title,
-              link: `/${locale}/references/examples/${item.name}`,
+              link: `/${locale}/references/examples/generated-projects/${item.name}`,
             };
           }),
         },
@@ -627,25 +626,6 @@ export async function guidesSidebar(locale) {
               link: `/${locale}/guides/features/agentic-coding/skills`,
             },
           ],
-        },
-      ],
-    },
-    {
-      text: localizedString(locale, "sidebars.guides.items.examples.text"),
-      items: [
-        {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${codeBrowserIcon()} ${localizedString(
-            locale,
-            "sidebars.guides.items.examples.items.generated-projects.text",
-          )}</span>`,
-          link: `/${locale}/guides/examples/generated-projects`,
-          collapsed: true,
-          items: (await loadExamplesData()).map((item) => {
-            return {
-              text: item.title,
-              link: `/${locale}/guides/examples/generated-projects/${item.name}`,
-            };
-          }),
         },
       ],
     },

@@ -445,7 +445,7 @@ export default withMermaid(
 /cloud/on-premise /guides/dashboard/on-premise/install 301
 /cloud/on-premise/metrics /guides/dashboard/on-premise/metrics 301
 /reference/project-description/* /references/project-description/:splat 301
-/reference/examples/* /references/examples/:splat 301
+/reference/examples/* /references/examples/generated-projects/:splat 301
 /guides/develop/workflows /guides/develop/continuous-integration/workflows 301
 /guides/dashboard/on-premise/install /server/on-premise/install 301
 /guides/dashboard/on-premise/metrics /server/on-premise/metrics 301
@@ -481,8 +481,9 @@ export default withMermaid(
 /:locale/guides/server/install /:locale/guides/server/self-host/install 301
 /:locale/guides/server/metrics /:locale/guides/server/self-host/telemetry 301
 /:locale/server /:locale/guides/server/accounts-and-projects 301
-/:locale/references/examples /:locale/guides/examples/generated-projects 301
-/:locale/references/examples/* /:locale/guides/examples/generated-projects/:splat 301
+/:locale/guides/examples/generated-projects /:locale/references/examples/generated-projects 301
+/:locale/guides/examples/generated-projects/* /:locale/references/examples/generated-projects/:splat 301
+/:locale/references/examples /:locale/references/examples/generated-projects 301
 /:locale/guides/quick-start/install-tuist /:locale/tutorials/xcode/install-tuist 301
 /:locale/guides/quick-start/get-started /:locale/tutorials/xcode/get-started 301
 /:locale/guides/quick-start/add-dependencies /:locale/tutorials/xcode/add-dependencies 301

@@ -77,7 +77,7 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
         title="Real examples"
         details="See how successful teams structure their projects with Tuist's generated approach."
         linkText="Explore examples"
-        link="/guides/examples/generated-projects"/>
+        link="/references/examples/generated-projects"/>
     <HomeCard
         icon="✨"
         title="Community showcase"
