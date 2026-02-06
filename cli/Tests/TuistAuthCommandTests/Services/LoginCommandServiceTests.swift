@@ -9,7 +9,6 @@ import TuistServer
 import TuistSupport
 import TuistTesting
 import TuistUserInputReader
-
 @testable import TuistAuthCommand
 
 struct LoginCommandServiceTests {
