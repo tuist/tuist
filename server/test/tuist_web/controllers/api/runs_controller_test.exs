@@ -4,22 +4,16 @@ defmodule TuistWeb.API.RunsControllerTest do
 
   import Ecto.Query
 
-  alias Ecto.Adapters.SQL
   alias Tuist.Builds
   alias Tuist.Builds.Build
+  alias Tuist.Builds.Build.Buffer
   alias Tuist.ClickHouseRepo
-  alias Tuist.IngestRepo
   alias Tuist.Tests
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
-
-  defp flush_and_optimize_builds do
-    Tuist.Builds.Build.Buffer.flush()
-    SQL.query!(IngestRepo, "OPTIMIZE TABLE build_runs FINAL", [])
-  end
 
   defp get_builds_for_project(project_id, opts \\ []) do
     preloads = Keyword.get(opts, :preload, [])
@@ -34,8 +28,6 @@ defmodule TuistWeb.API.RunsControllerTest do
   setup do
     stub(VCS, :enqueue_vcs_pull_request_comment, fn _args -> {:ok, %{}} end)
     TuistTestSupport.Utilities.truncate_clickhouse_tables()
-    # Ensure ClickHouse has processed the truncation
-    SQL.query!(IngestRepo, "OPTIMIZE TABLE build_runs FINAL", [])
     :ok
   end
 
@@ -337,7 +329,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      flush_and_optimize_builds()
+      Buffer.flush()
       [build] = get_builds_for_project(project.id, preload: [:issues, :files, :targets])
 
       assert build.duration == 1000
@@ -429,7 +421,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      flush_and_optimize_builds()
+      Buffer.flush()
       [build] = get_builds_for_project(project.id)
 
       assert build.duration == 1000
@@ -469,7 +461,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       )
 
       # Flush after first creation so it's visible for the second call
-      flush_and_optimize_builds()
+      Buffer.flush()
 
       # When
       conn =
@@ -485,7 +477,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      flush_and_optimize_builds()
+      Buffer.flush()
       [build] = get_builds_for_project(project.id)
 
       assert response == %{
@@ -567,7 +559,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      flush_and_optimize_builds()
+      Buffer.flush()
       [build] = get_builds_for_project(project.id)
 
       assert build.duration == 1000
@@ -618,7 +610,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      flush_and_optimize_builds()
+      Buffer.flush()
       [build] = get_builds_for_project(project.id)
 
       assert build.duration == 1000
@@ -662,7 +654,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      flush_and_optimize_builds()
+      Buffer.flush()
       [build] = get_builds_for_project(project.id)
 
       assert build.duration == 1500
@@ -727,7 +719,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      flush_and_optimize_builds()
+      Buffer.flush()
       [build] = get_builds_for_project(project.id)
 
       assert build.cacheable_tasks_count == 5
@@ -782,7 +774,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      flush_and_optimize_builds()
+      Buffer.flush()
       [build] = get_builds_for_project(project.id)
 
       # Verify counts are 0 for empty array
@@ -855,7 +847,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      flush_and_optimize_builds()
+      Buffer.flush()
       [build] = get_builds_for_project(project.id)
 
       {cas_outputs, _meta} =
@@ -988,7 +980,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      flush_and_optimize_builds()
+      Buffer.flush()
       [build] = get_builds_for_project(project.id)
 
       assert build.duration == 1000
@@ -1044,7 +1036,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      flush_and_optimize_builds()
+      Buffer.flush()
       [build] = get_builds_for_project(project.id)
 
       {cacheable_tasks, _meta} =
