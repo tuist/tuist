@@ -594,6 +594,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.cacheCommand.targetName),
                     .target(name: Module.authCommand.targetName),
                     .target(name: Module.envKey.targetName),
+                    .target(name: Module.nooraExtension.targetName),
                     .target(name: Module.versionCommand.targetName),
                     .target(name: Module.tuistExtension.targetName),
                     .target(name: Module.encodable.targetName),
@@ -939,7 +940,8 @@ public enum Module: String, CaseIterable {
             case .versionCommand:
                 [
                     .target(name: Module.constants.targetName),
-                    .target(name: Module.logging.targetName),
+                    .target(name: Module.nooraExtension.targetName),
+                    .external(name: "Noora"),
                     .external(name: "ArgumentParser"),
                 ]
             case .nooraExtension:

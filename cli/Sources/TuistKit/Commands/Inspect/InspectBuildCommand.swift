@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import TuistNooraExtension
 
 struct InspectBuildCommand: AsyncParsableCommand, NooraReadyCommand {
     static var configuration: CommandConfiguration {
