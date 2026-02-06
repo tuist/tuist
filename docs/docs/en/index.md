@@ -10,7 +10,7 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
 
 # A virtual platform team for developers who ship
 
-**Tuist helps teams scale app development and ship faster** -- whether you're building with Xcode, Gradle, or both. It transforms the complexity of large codebases into a smooth, productive experience that grows with your team.
+**Tuist helps teams scale app development and ship faster** -- transforming the complexity of large codebases into a smooth, productive experience that grows with your team.
 
 <br/>
 
@@ -22,7 +22,7 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
         link="/guides/features/projects"/>
     <HomeCard icon="⚡"
         title="Cache"
-        details="Cut build times by up to 65% with intelligent binary caching across Xcode and Gradle projects. Stop waiting, start shipping."
+        details="Cut build times by up to 65% with intelligent binary caching. Stop waiting, start shipping."
         linkText="Accelerate development"
         link="/guides/features/cache"/>
     <HomeCard
