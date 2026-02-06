@@ -353,7 +353,7 @@ user_account_id = user.account.id
 project_id = tuist_project.id
 
 build_generator = fn _i ->
-  status = Enum.random([:success, :failure])
+  status = Enum.random(["success", "failure"])
   is_ci = Enum.random([true, false])
   total_tasks = Enum.random(50..200)
   remote_hits = Enum.random(0..div(total_tasks, 2))
@@ -399,7 +399,7 @@ build_generator = fn _i ->
     scheme: Enum.random(["App", "AppTests"]),
     configuration: Enum.random(["Debug", "Release"]),
     inserted_at:
-      DateTime.new!(
+      NaiveDateTime.new!(
         Date.add(DateTime.utc_now(), -Enum.random(0..400)),
         Time.new!(Enum.random(0..23), Enum.random(0..59), Enum.random(0..59))
       ),
@@ -414,14 +414,8 @@ end
 
 builds = SeedHelpers.parallel_flat_map(1..seed_config.build_runs, fn i -> [build_generator.(i)] end)
 
-# Insert builds in batches for large volumes
-build_records =
-  builds
-  |> Enum.chunk_every(seed_config.pg_batch_size)
-  |> Enum.flat_map(fn chunk ->
-    {_count, records} = Repo.insert_all(Build, chunk, returning: [:id])
-    records
-  end)
+# Insert builds in batches to ClickHouse
+SeedHelpers.insert_bulk_ch(builds, Build, IngestRepo, "build runs")
 
 generate_cache_key = fn _build_id, _task_type, _index ->
   "0~#{SeedHelpers.random_base64(88)}"
@@ -497,7 +491,7 @@ cas_output_generator = fn build ->
       Enum.random(5..25)
     end
 
-  inserted_at = DateTime.to_naive(build.inserted_at)
+  inserted_at = build.inserted_at
 
   Enum.map(1..operation_count, fn _i ->
     operation = Enum.random(["download", "upload"])
@@ -549,11 +543,11 @@ cas_outputs_by_build = Enum.group_by(cas_outputs, & &1.build_run_id)
 builds_by_id = Map.new(builds, fn b -> {b.id, b} end)
 
 # For cacheable tasks, use a proportion of builds based on scale
-cacheable_tasks_build_count = min(length(build_records), max(500, div(seed_config.build_runs, 4)))
+cacheable_tasks_build_count = min(length(builds), max(500, div(seed_config.build_runs, 4)))
 IO.puts("Generating cacheable tasks for #{cacheable_tasks_build_count} builds...")
 
 cacheable_tasks =
-  build_records
+  builds
   |> Enum.map(& &1.id)
   |> Enum.shuffle()
   |> Enum.take(cacheable_tasks_build_count)
@@ -589,7 +583,7 @@ cacheable_tasks =
               write_duration: nil,
               description: generate_task_description.(task_type),
               cas_output_node_ids: selected_node_ids,
-              inserted_at: DateTime.to_naive(build.inserted_at)
+              inserted_at: build.inserted_at
             }
           end)
       else
@@ -613,7 +607,7 @@ cacheable_tasks =
               write_duration: nil,
               description: generate_task_description.(task_type),
               cas_output_node_ids: selected_node_ids,
-              inserted_at: DateTime.to_naive(build.inserted_at)
+              inserted_at: build.inserted_at
             }
           end)
       else
@@ -637,7 +631,7 @@ cacheable_tasks =
               write_duration: Enum.random(100..2000) * 1.0,
               description: generate_task_description.(task_type),
               cas_output_node_ids: selected_node_ids,
-              inserted_at: DateTime.to_naive(build.inserted_at)
+              inserted_at: build.inserted_at
             }
           end)
       else
