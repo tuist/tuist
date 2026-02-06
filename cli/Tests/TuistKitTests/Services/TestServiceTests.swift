@@ -5,6 +5,7 @@ import TuistAlert
 import TuistAutomation
 import TuistCache
 import TuistCI
+import TuistConfig
 import TuistConfigLoader
 import TuistConstants
 import TuistCore

@@ -1,6 +1,7 @@
 import Foundation
 import Path
 import TuistAutomation
+import TuistConfig
 import TuistLoader
 import TuistServer
 import XcodeGraph

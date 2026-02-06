@@ -1,5 +1,6 @@
 #if canImport(TuistCore)
     import Foundation
+    import TuistConfig
     import TuistCore
 
     public final class EmptyCacheStorageFactory: CacheStorageFactorying {

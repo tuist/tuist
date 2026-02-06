@@ -1,8 +1,9 @@
 import Path
 import ProjectDescription
+import TuistConfig
 import TuistCore
 
-extension TuistCore.TuistGeneratedProjectOptions.GenerationOptions {
+extension TuistConfig.TuistGeneratedProjectOptions.GenerationOptions {
     static func from(
         manifest: ProjectDescription.Config.GenerationOptions,
         generatorPaths: GeneratorPaths,
@@ -25,7 +26,7 @@ extension TuistCore.TuistGeneratedProjectOptions.GenerationOptions {
             disablePackageVersionLocking: manifest.disablePackageVersionLocking,
             clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
             additionalPackageResolutionArguments: additionalPackageResolutionArguments,
-            staticSideEffectsWarningTargets: TuistCore.TuistGeneratedProjectOptions.GenerationOptions
+            staticSideEffectsWarningTargets: TuistConfig.TuistGeneratedProjectOptions.GenerationOptions
                 .StaticSideEffectsWarningTargets
                 .from(manifest: manifest.staticSideEffectsWarningTargets),
             enforceExplicitDependencies: manifest.enforceExplicitDependencies,
@@ -41,7 +42,7 @@ extension TuistCore.TuistGeneratedProjectOptions.GenerationOptions {
     }
 }
 
-extension TuistCore.TuistGeneratedProjectOptions.InstallOptions {
+extension TuistConfig.TuistGeneratedProjectOptions.InstallOptions {
     static func from(
         manifest: ProjectDescription.Config.InstallOptions
     ) -> Self {
@@ -51,7 +52,7 @@ extension TuistCore.TuistGeneratedProjectOptions.InstallOptions {
     }
 }
 
-extension TuistCore.TuistGeneratedProjectOptions.GenerationOptions.StaticSideEffectsWarningTargets {
+extension TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.StaticSideEffectsWarningTargets {
     static func from(manifest: ProjectDescription.Config.GenerationOptions.StaticSideEffectsWarningTargets) -> Self {
         switch manifest {
         case .all: return .all

@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import struct TSCUtility.Version
+import TuistConfig
 import TuistCore
 import TuistSupport
 import XcodeGraph

@@ -1,10 +1,10 @@
 import Foundation
 
-public struct TuistTomlConfig: Equatable, Sendable, Decodable {
-    public let project: String
-    public let url: URL?
+struct TuistTomlConfig: Equatable, Sendable, Decodable {
+    let project: String
+    let url: URL?
 
-    public init(
+    init(
         project: String,
         url: URL? = nil
     ) {
@@ -17,7 +17,7 @@ public struct TuistTomlConfig: Equatable, Sendable, Decodable {
         case url
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         project = try container.decode(String.self, forKey: .project)
         if let urlString = try container.decodeIfPresent(String.self, forKey: .url) {

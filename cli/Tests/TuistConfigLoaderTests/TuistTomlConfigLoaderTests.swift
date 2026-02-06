@@ -7,7 +7,7 @@ import Testing
 import TuistConstants
 import TuistRootDirectoryLocator
 
-@testable import TuistConfigToml
+@testable import TuistConfigLoader
 
 struct TuistTomlConfigLoaderTests {
     private let fileSystem = FileSystem()

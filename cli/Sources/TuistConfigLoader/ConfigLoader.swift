@@ -3,7 +3,6 @@ import Foundation
 import Mockable
 import Path
 import TuistConfig
-import TuistConfigToml
 import TuistConstants
 
 @Mockable
@@ -17,13 +16,11 @@ public struct ConfigLoader: ConfigLoading {
     #endif
     private let tomlConfigLoader: TuistTomlConfigLoading
 
-    public init(
-        tomlConfigLoader: TuistTomlConfigLoading = TuistTomlConfigLoader()
-    ) {
+    public init() {
         #if os(macOS)
-            self.swiftConfigLoader = SwiftConfigLoader()
+            swiftConfigLoader = SwiftConfigLoader()
         #endif
-        self.tomlConfigLoader = tomlConfigLoader
+        tomlConfigLoader = TuistTomlConfigLoader()
     }
 
     #if os(macOS)
@@ -32,6 +29,12 @@ public struct ConfigLoader: ConfigLoading {
             tomlConfigLoader: TuistTomlConfigLoading = TuistTomlConfigLoader()
         ) {
             self.swiftConfigLoader = swiftConfigLoader
+            self.tomlConfigLoader = tomlConfigLoader
+        }
+    #else
+        init(
+            tomlConfigLoader: TuistTomlConfigLoading
+        ) {
             self.tomlConfigLoader = tomlConfigLoader
         }
     #endif

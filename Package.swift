@@ -120,14 +120,15 @@ var tuistConfigLoaderDependencies: [Target.Dependency] = [
     fileSystemDependency,
     mockableDependency,
     "TuistConfig",
-    "TuistConfigToml",
     "TuistConstants",
+    "TuistRootDirectoryLocator",
+    tomlDecoderDependency,
 ]
 var tuistConfigLoaderTestDependencies: [Target.Dependency] = [
     "TuistConfigLoader",
     "TuistConfig",
-    "TuistConfigToml",
     "TuistConstants",
+    "TuistRootDirectoryLocator",
     pathDependency,
     fileSystemDependency,
     .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
@@ -365,21 +366,6 @@ var targets: [Target] = [
         ]
     ),
     .target(
-        name: "TuistConfigToml",
-        dependencies: [
-            pathDependency,
-            fileSystemDependency,
-            mockableDependency,
-            "TuistConstants",
-            "TuistRootDirectoryLocator",
-            tomlDecoderDependency,
-        ],
-        path: "cli/Sources/TuistConfigToml",
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
-        ]
-    ),
-    .target(
         name: "TuistConfigLoader",
         dependencies: tuistConfigLoaderDependencies,
         path: "cli/Sources/TuistConfigLoader",
@@ -388,19 +374,6 @@ var targets: [Target] = [
         ]
     ),
     // MARK: Cross-platform test targets
-    .testTarget(
-        name: "TuistConfigTomlTests",
-        dependencies: [
-            "TuistConfigToml",
-            "TuistConstants",
-            "TuistRootDirectoryLocator",
-            pathDependency,
-            fileSystemDependency,
-            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
-            mockableDependency,
-        ],
-        path: "cli/Tests/TuistConfigTomlTests"
-    ),
     .testTarget(
         name: "TuistConfigLoaderTests",
         dependencies: tuistConfigLoaderTestDependencies,

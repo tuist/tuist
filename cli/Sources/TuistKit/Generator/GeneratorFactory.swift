@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import TuistConfig
 import TuistCore
 import TuistGenerator
 import TuistLoader

@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import TuistAlert
+import TuistConfig
 import TuistCore
 import TuistEnvironment
 import TuistServer

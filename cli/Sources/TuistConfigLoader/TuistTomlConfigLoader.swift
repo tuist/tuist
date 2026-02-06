@@ -7,15 +7,15 @@ import TuistConstants
 import TuistRootDirectoryLocator
 
 @Mockable
-public protocol TuistTomlConfigLoading: Sendable {
+protocol TuistTomlConfigLoading: Sendable {
     func loadConfig(at path: AbsolutePath) async throws -> TuistTomlConfig?
 }
 
-public struct TuistTomlConfigLoader: TuistTomlConfigLoading {
+struct TuistTomlConfigLoader: TuistTomlConfigLoading {
     private let fileSystem: FileSysteming
     private let rootDirectoryLocator: RootDirectoryLocating
 
-    public init(
+    init(
         fileSystem: FileSysteming = FileSystem(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
     ) {
@@ -23,7 +23,7 @@ public struct TuistTomlConfigLoader: TuistTomlConfigLoading {
         self.rootDirectoryLocator = rootDirectoryLocator
     }
 
-    public func loadConfig(at path: AbsolutePath) async throws -> TuistTomlConfig? {
+    func loadConfig(at path: AbsolutePath) async throws -> TuistTomlConfig? {
         guard let rootDirectory = try await rootDirectoryLocator.locate(from: path) else {
             return nil
         }

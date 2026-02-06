@@ -3,6 +3,7 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Testing
+import TuistConfig
 import TuistCore
 import TuistRootDirectoryLocator
 import TuistSupport

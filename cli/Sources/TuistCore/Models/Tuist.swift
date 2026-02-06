@@ -2,22 +2,6 @@ import Path
 import TSCUtility
 import TuistConfig
 
-public typealias Tuist = TuistConfig.Tuist
-public typealias TuistConfigError = TuistConfig.TuistConfigError
-public typealias InspectOptions = TuistConfig.InspectOptions
-public typealias TuistProject = TuistConfig.TuistProject
-public typealias TuistGeneratedProjectOptions = TuistConfig.TuistGeneratedProjectOptions
-public typealias TuistXcodeProjectOptions = TuistConfig.TuistXcodeProjectOptions
-public typealias TuistSwiftPackageOptions = TuistConfig.TuistSwiftPackageOptions
-public typealias CompatibleXcodeVersions = TuistConfig.CompatibleXcodeVersions
-public typealias PluginLocation = TuistConfig.PluginLocation
-public typealias CacheProfileType = TuistConfig.CacheProfileType
-public typealias BaseCacheProfile = TuistConfig.BaseCacheProfile
-public typealias CacheProfile = TuistConfig.CacheProfile
-public typealias CacheProfiles = TuistConfig.CacheProfiles
-public typealias CacheOptions = TuistConfig.CacheOptions
-public typealias TargetQuery = TuistConfig.TargetQuery
-
 #if DEBUG
     extension TuistConfig.TuistGeneratedProjectOptions.GenerationOptions {
         public func withWorkspaceName(_ workspaceName: String) -> Self {

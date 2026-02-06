@@ -53,7 +53,6 @@ public enum Module: String, CaseIterable {
     case uniqueIDGenerator = "TuistUniqueIDGenerator"
     case opener = "TuistOpener"
     case config = "TuistConfig"
-    case configToml = "TuistConfigToml"
     case configLoader = "TuistConfigLoader"
 
     func forceStaticLinking() -> Bool {
@@ -403,7 +402,7 @@ public enum Module: String, CaseIterable {
             moduleTags.append("domain:plugins")
         case .simulator, .xcActivityLog, .git, .rootDirectoryLocator,
             .process, .ci, .cas, .casAnalytics, .launchctl, .xcResultService, .xcodeProjectOrWorkspacePathLocator,
-            .http, .har, .configToml, .configLoader:
+            .http, .har, .configLoader:
             moduleTags.append("domain:infrastructure")
         case .cacheCommand, .authCommand, .envKey, .versionCommand:
             moduleTags.append("domain:cli")
@@ -567,6 +566,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .kit:
                 [
+                    .target(name: Module.config.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.hasher.targetName),
                     .target(name: Module.support.targetName),
@@ -647,6 +647,7 @@ public enum Module: String, CaseIterable {
             case .generator:
                 [
                     .target(name: Module.alert.targetName),
+                    .target(name: Module.config.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.rootDirectoryLocator.targetName),
@@ -680,6 +681,7 @@ public enum Module: String, CaseIterable {
             case .loader:
                 [
                     .target(name: Module.alert.targetName),
+                    .target(name: Module.config.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.rootDirectoryLocator.targetName),
@@ -698,6 +700,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .plugin:
                 [
+                    .target(name: Module.config.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.loader.targetName),
                     .target(name: Module.support.targetName),
@@ -749,6 +752,7 @@ public enum Module: String, CaseIterable {
             case .server:
                 [
                     .target(name: Module.alert.targetName, condition: .when([.macos])),
+                    .target(name: Module.config.targetName, condition: .when([.macos])),
                     .target(name: Module.support.targetName, condition: .when([.macos])),
                     .target(name: Module.core.targetName, condition: .when([.macos])),
                     .target(name: Module.http.targetName),
@@ -789,6 +793,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .cache:
                 [
+                    .target(name: Module.config.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.hasher.targetName),
@@ -831,17 +836,9 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.constants.targetName),
                     .external(name: "SwiftToolsSupport-auto"),
                 ]
-            case .configToml:
-                [
-                    .target(name: Module.constants.targetName),
-                    .target(name: Module.rootDirectoryLocator.targetName),
-                    .external(name: "FileSystem"),
-                    .external(name: "TOMLDecoder"),
-                ]
             case .configLoader:
                 [
                     .target(name: Module.config.targetName),
-                    .target(name: Module.configToml.targetName),
                     .target(name: Module.rootDirectoryLocator.targetName),
                     .target(name: Module.constants.targetName),
                     .target(name: Module.loader.targetName),
@@ -850,6 +847,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.support.targetName),
                     .target(name: Module.projectDescription.targetName),
                     .external(name: "FileSystem"),
+                    .external(name: "TOMLDecoder"),
                 ]
             case .git:
                 [
@@ -1031,17 +1029,9 @@ public enum Module: String, CaseIterable {
                  .envKey, .versionCommand, .nooraExtension, .tuistExtension, .alert, .threadSafe, .encodable,
                  .uniqueIDGenerator, .opener, .config:
                 []
-            case .configToml:
-                [
-                    .target(name: Module.constants.targetName),
-                    .target(name: Module.rootDirectoryLocator.targetName),
-                    .external(name: "FileSystem"),
-                    .external(name: "FileSystemTesting"),
-                ]
             case .configLoader:
                 [
                     .target(name: Module.config.targetName),
-                    .target(name: Module.configToml.targetName),
                     .target(name: Module.rootDirectoryLocator.targetName),
                     .target(name: Module.constants.targetName),
                     .target(name: Module.loader.targetName),
@@ -1054,6 +1044,7 @@ public enum Module: String, CaseIterable {
             case .cacheCommand:
                 [
                     .target(name: Module.cas.targetName),
+                    .target(name: Module.config.targetName),
                     .target(name: Module.configLoader.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.http.targetName),
@@ -1113,6 +1104,7 @@ public enum Module: String, CaseIterable {
                 []
             case .kit:
                 [
+                    .target(name: Module.config.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.automation.targetName),
                     .target(name: Module.cache.targetName),
@@ -1172,6 +1164,7 @@ public enum Module: String, CaseIterable {
                 ] + (Self.includeEE() ? [.target(name: "TuistCacheEE")] : [])
             case .core:
                 [
+                    .target(name: Module.config.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.constants.targetName),
@@ -1185,6 +1178,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .generator:
                 [
+                    .target(name: Module.config.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.testing.targetName),
@@ -1213,6 +1207,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .loader:
                 [
+                    .target(name: Module.config.targetName),
                     .target(name: Module.projectDescription.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.support.targetName),
@@ -1229,6 +1224,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .plugin:
                 [
+                    .target(name: Module.config.targetName),
                     .target(name: Module.projectDescription.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.scaffold.targetName),
@@ -1299,6 +1295,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .cache:
                 [
+                    .target(name: Module.config.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.hasher.targetName),
                     .target(name: Module.testing.targetName),

@@ -5,7 +5,6 @@ import Mockable
 import Path
 import Testing
 import TuistConfig
-import TuistConfigToml
 import TuistConstants
 
 @testable import TuistConfigLoader
@@ -20,9 +19,7 @@ struct ConfigLoaderTests {
             .loadConfig(at: .any)
             .willReturn(TuistTomlConfig(project: "tuist/tuist", url: URL(string: "https://custom.tuist.dev")!))
 
-        let subject = ConfigLoader(
-            tomlConfigLoader: tomlConfigLoader
-        )
+        let subject = makeConfigLoader(tomlConfigLoader: tomlConfigLoader)
 
         let config = try await subject.loadConfig(path: temporaryDirectory)
 
@@ -39,13 +36,21 @@ struct ConfigLoaderTests {
             .loadConfig(at: .any)
             .willReturn(TuistTomlConfig(project: "org/project"))
 
-        let subject = ConfigLoader(
-            tomlConfigLoader: tomlConfigLoader
-        )
+        let subject = makeConfigLoader(tomlConfigLoader: tomlConfigLoader)
 
         let config = try await subject.loadConfig(path: temporaryDirectory)
 
         #expect(config.fullHandle == "org/project")
         #expect(config.url == Constants.URLs.production)
+    }
+
+    private func makeConfigLoader(tomlConfigLoader: TuistTomlConfigLoading) -> ConfigLoader {
+        #if os(macOS)
+            let swiftConfigLoader = MockSwiftConfigLoading()
+            given(swiftConfigLoader).locateConfig(at: .any).willReturn(nil)
+            return ConfigLoader(swiftConfigLoader: swiftConfigLoader, tomlConfigLoader: tomlConfigLoader)
+        #else
+            return ConfigLoader(tomlConfigLoader: tomlConfigLoader)
+        #endif
     }
 }
