@@ -17,8 +17,6 @@ import {
   telemetryIcon,
   gitForgesIcon,
   selfHostingIcon,
-  installTuistIcon,
-  getStartedIcon,
   agenticBuildingIcon,
   qaIcon,
   slackIcon,
@@ -272,17 +270,17 @@ export function tutorialsSidebar(locale) {
       text: localizedString(locale, "sidebars.tutorials.items.xcode.text"),
       items: [
         {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${installTuistIcon()} ${localizedString(
+          text: localizedString(
             locale,
             "sidebars.tutorials.items.xcode.items.install-tuist.text",
-          )}</span>`,
+          ),
           link: `/${locale}/tutorials/xcode/install-tuist`,
         },
         {
-          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${getStartedIcon()} ${localizedString(
+          text: localizedString(
             locale,
             "sidebars.tutorials.items.xcode.items.get-started.text",
-          )}</span>`,
+          ),
           link: `/${locale}/tutorials/xcode/get-started`,
         },
         {
