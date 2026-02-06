@@ -70,6 +70,12 @@ defmodule TuistWeb.API.GradleController do
                    type: :integer,
                    nullable: true,
                    description: "Size of cache artifact in bytes."
+                 },
+                 started_at: %Schema{
+                   type: :string,
+                   format: :"date-time",
+                   nullable: true,
+                   description: "When the task started executing."
                  }
                },
                required: [:task_path, :outcome]
@@ -103,7 +109,8 @@ defmodule TuistWeb.API.GradleController do
           cacheable: task[:cacheable] || false,
           duration_ms: task[:duration_ms] || 0,
           cache_key: task[:cache_key],
-          cache_artifact_size: task[:cache_artifact_size]
+          cache_artifact_size: task[:cache_artifact_size],
+          started_at: task[:started_at]
         }
       end)
 
@@ -288,7 +295,8 @@ defmodule TuistWeb.API.GradleController do
                    cacheable: %Schema{type: :boolean},
                    duration_ms: %Schema{type: :integer},
                    cache_key: %Schema{type: :string, nullable: true},
-                   cache_artifact_size: %Schema{type: :integer, nullable: true}
+                   cache_artifact_size: %Schema{type: :integer, nullable: true},
+                   started_at: %Schema{type: :string, format: :"date-time", nullable: true}
                  }
                }
              }
@@ -340,7 +348,8 @@ defmodule TuistWeb.API.GradleController do
                   cacheable: task.cacheable,
                   duration_ms: task.duration_ms,
                   cache_key: task.cache_key,
-                  cache_artifact_size: task.cache_artifact_size
+                  cache_artifact_size: task.cache_artifact_size,
+                  started_at: task.started_at
                 }
               end)
           })

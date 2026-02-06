@@ -57,7 +57,8 @@ class TuistBuildInsightsTest {
                     durationMs = 1000,
                     taskType = "org.jetbrains.kotlin.gradle.tasks.KotlinCompile",
                     cacheKey = "abc123",
-                    cacheArtifactSize = 1024
+                    cacheArtifactSize = 1024,
+                    startedAt = "2026-02-06T10:00:00Z"
                 ),
                 TaskReportEntry(
                     taskPath = ":app:test",
@@ -66,7 +67,8 @@ class TuistBuildInsightsTest {
                     durationMs = 3000,
                     taskType = null,
                     cacheKey = null,
-                    cacheArtifactSize = null
+                    cacheArtifactSize = null,
+                    startedAt = "2026-02-06T10:00:01Z"
                 )
             )
         )
@@ -192,7 +194,8 @@ class TuistBuildInsightsTest {
             durationMs = 1500,
             taskType = "KotlinCompile",
             cacheKey = "def456",
-            cacheArtifactSize = 2048
+            cacheArtifactSize = 2048,
+            startedAt = "2026-02-06T10:00:00Z"
         )
 
         val json = gson.toJson(entry)
@@ -201,7 +204,9 @@ class TuistBuildInsightsTest {
         assertTrue(json.contains("\"task_type\""))
         assertTrue(json.contains("\"cache_key\""))
         assertTrue(json.contains("\"cache_artifact_size\""))
+        assertTrue(json.contains("\"started_at\""))
         assertTrue(!json.contains("\"taskPath\""))
+        assertTrue(!json.contains("\"startedAt\""))
         assertTrue(!json.contains("\"cacheKey\""))
         assertTrue(!json.contains("\"cacheArtifactSize\""))
     }

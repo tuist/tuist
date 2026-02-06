@@ -111,6 +111,28 @@
     }
   }
 
+  & [data-part="tasks-table-section"] {
+    & [data-part="filters"] {
+      display: flex;
+      gap: var(--noora-spacing-6);
+    }
+
+    & [data-part="active-filters"] {
+      display: flex;
+      gap: var(--noora-spacing-4);
+    }
+
+    & .noora-text-input {
+      width: 330px;
+    }
+
+    & table {
+      & td:first-child {
+        width: 45%;
+      }
+    }
+  }
+
   & > [data-part="cache"] {
     display: flex;
     flex-direction: column;

@@ -109,6 +109,7 @@ defmodule Tuist.Gradle do
           duration_ms: Map.get(task, :duration_ms, 0),
           cache_key: Map.get(task, :cache_key),
           cache_artifact_size: Map.get(task, :cache_artifact_size),
+          started_at: to_naive_datetime(Map.get(task, :started_at)),
           project_id: project_id,
           inserted_at: now
         }
@@ -282,4 +283,12 @@ defmodule Tuist.Gradle do
 
     IngestRepo.insert_all(CacheEvent, entries)
   end
+
+  defp to_naive_datetime(nil), do: nil
+
+  defp to_naive_datetime(%DateTime{} = dt),
+    do: dt |> DateTime.to_naive() |> NaiveDateTime.truncate(:millisecond)
+
+  defp to_naive_datetime(%NaiveDateTime{} = ndt),
+    do: NaiveDateTime.truncate(ndt, :millisecond)
 end

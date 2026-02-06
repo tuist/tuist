@@ -157,25 +157,130 @@
       data-part="tasks-card"
     >
       <.card_section data-part="tasks-table-section">
+        <div data-part="filters">
+          <.form for={%{}} phx-change="search-tasks" phx-debounce="200">
+            <.text_input
+              type="search"
+              id="search-tasks"
+              name="search"
+              placeholder={dgettext("dashboard_gradle", "Search...")}
+              show_suffix={false}
+              data-part="search"
+              value={@tasks_filter}
+            />
+          </.form>
+          <.dropdown
+            id="tasks-sort-by"
+            label={
+              case @tasks_sort_by do
+                "task_path" -> dgettext("dashboard_gradle", "Task")
+                "duration_ms" -> dgettext("dashboard_gradle", "Duration")
+                _ -> dgettext("dashboard_gradle", "Started after")
+              end
+            }
+            secondary_text={dgettext("dashboard_gradle", "Sort by:")}
+          >
+            <.dropdown_item
+              value="started_at"
+              label={dgettext("dashboard_gradle", "Started after")}
+              patch={
+                "?#{@uri.query
+                |> Query.put("tasks-sort-by", "started_at")
+                |> Query.put("tasks-sort-order", "asc")
+                |> Query.drop("tasks-page")}"
+              }
+              data-selected={@tasks_sort_by == "started_at"}
+            >
+              <:right_icon><.check /></:right_icon>
+            </.dropdown_item>
+            <.dropdown_item
+              value="task_path"
+              label={dgettext("dashboard_gradle", "Task")}
+              patch={
+                "?#{@uri.query
+                |> Query.put("tasks-sort-by", "task_path")
+                |> Query.put("tasks-sort-order", "asc")
+                |> Query.drop("tasks-page")}"
+              }
+              data-selected={@tasks_sort_by == "task_path"}
+            >
+              <:right_icon><.check /></:right_icon>
+            </.dropdown_item>
+            <.dropdown_item
+              value="duration_ms"
+              label={dgettext("dashboard_gradle", "Duration")}
+              patch={
+                "?#{@uri.query
+                |> Query.put("tasks-sort-by", "duration_ms")
+                |> Query.put("tasks-sort-order", "asc")
+                |> Query.drop("tasks-page")}"
+              }
+              data-selected={@tasks_sort_by == "duration_ms"}
+            >
+              <:right_icon><.check /></:right_icon>
+            </.dropdown_item>
+          </.dropdown>
+          <.filter_dropdown
+            id="tasks-filter-dropdown"
+            label={dgettext("dashboard_gradle", "Filter")}
+            available_filters={@available_filters}
+            active_filters={@tasks_active_filters}
+          />
+        </div>
+        <div
+          :if={Enum.any?(@tasks_active_filters)}
+          data-part="active-filters"
+        >
+          <.active_filter :for={filter <- @tasks_active_filters} filter={filter} />
+        </div>
         <.table id="gradle-tasks-table" rows={@tasks}>
-          <:col :let={task} label={dgettext("dashboard_gradle", "Task")}>
+          <:col
+            :let={task}
+            label={dgettext("dashboard_gradle", "Task")}
+            patch={
+              @tasks_sort_by == "task_path" &&
+                "?#{@uri.query
+                |> Query.put("tasks-sort-by", "task_path")
+                |> Query.put("tasks-sort-order", sort_order_patch_value("task_path", @tasks_sort_by, @tasks_sort_order))
+                |> Query.drop("tasks-page")}"
+            }
+            icon={@tasks_sort_by == "task_path" && sort_icon(@tasks_sort_order)}
+          >
             <.text_cell label={task.task_path} />
           </:col>
           <:col :let={task} label={dgettext("dashboard_gradle", "Outcome")}>
-            <.badge
+            <.badge_cell
               label={outcome_label(task.outcome)}
               color={outcome_color(task.outcome)}
               style="light-fill"
             />
           </:col>
-          <:col :let={task} label={dgettext("dashboard_gradle", "Cacheable")}>
-            <.text_cell label={
-              if task.cacheable,
-                do: dgettext("dashboard_gradle", "Yes"),
-                else: dgettext("dashboard_gradle", "No")
-            } />
+          <:col
+            :let={task}
+            label={dgettext("dashboard_gradle", "Started after")}
+            patch={
+              @tasks_sort_by == "started_at" &&
+                "?#{@uri.query
+                |> Query.put("tasks-sort-by", "started_at")
+                |> Query.put("tasks-sort-order", sort_order_patch_value("started_at", @tasks_sort_by, @tasks_sort_order))
+                |> Query.drop("tasks-page")}"
+            }
+            icon={@tasks_sort_by == "started_at" && sort_icon(@tasks_sort_order)}
+          >
+            <.text_cell label={started_after(task, @build)} />
           </:col>
-          <:col :let={task} label={dgettext("dashboard_gradle", "Duration")}>
+          <:col
+            :let={task}
+            label={dgettext("dashboard_gradle", "Duration")}
+            patch={
+              @tasks_sort_by == "duration_ms" &&
+                "?#{@uri.query
+                |> Query.put("tasks-sort-by", "duration_ms")
+                |> Query.put("tasks-sort-order", sort_order_patch_value("duration_ms", @tasks_sort_by, @tasks_sort_order))
+                |> Query.drop("tasks-page")}"
+            }
+            icon={@tasks_sort_by == "duration_ms" && sort_icon(@tasks_sort_order)}
+          >
             <.text_cell label={format_duration(task.duration_ms)} icon="history" />
           </:col>
           <:empty_state>

@@ -32,6 +32,9 @@ import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URI
+import java.time.Instant
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import javax.inject.Inject
@@ -52,7 +55,8 @@ data class TaskOutcomeData(
     val durationMs: Long,
     val taskType: String?,
     val cacheKey: String?,
-    val cacheArtifactSize: Long?
+    val cacheArtifactSize: Long?,
+    val startedAt: String?
 )
 
 data class TaskReportEntry(
@@ -62,7 +66,8 @@ data class TaskReportEntry(
     @SerializedName("duration_ms") val durationMs: Long,
     @SerializedName("task_type") val taskType: String?,
     @SerializedName("cache_key") val cacheKey: String?,
-    @SerializedName("cache_artifact_size") val cacheArtifactSize: Long?
+    @SerializedName("cache_artifact_size") val cacheArtifactSize: Long?,
+    @SerializedName("started_at") val startedAt: String?
 )
 
 data class BuildReportRequest(
@@ -287,6 +292,10 @@ abstract class TuistBuildInsightsService :
             else -> "executed" to false
         }
 
+        val startedAt = Instant.ofEpochMilli(result.startTime)
+            .atOffset(ZoneOffset.UTC)
+            .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+
         taskOutcomes.add(
             TaskOutcomeData(
                 taskPath = taskPath,
@@ -295,7 +304,8 @@ abstract class TuistBuildInsightsService :
                 durationMs = durationMs,
                 taskType = null,
                 cacheKey = metadata?.cacheKey,
-                cacheArtifactSize = metadata?.artifactSize
+                cacheArtifactSize = metadata?.artifactSize,
+                startedAt = startedAt
             )
         )
 
@@ -358,7 +368,8 @@ abstract class TuistBuildInsightsService :
                     durationMs = task.durationMs,
                     taskType = task.taskType,
                     cacheKey = task.cacheKey,
-                    cacheArtifactSize = task.cacheArtifactSize
+                    cacheArtifactSize = task.cacheArtifactSize,
+                    startedAt = task.startedAt
                 )
             }
         )

@@ -6,10 +6,10 @@ defmodule Tuist.Gradle.Task do
 
   @derive {
     Flop.Schema,
-    filterable: [:gradle_build_id, :cacheable],
-    sortable: [:task_path, :outcome, :duration_ms],
+    filterable: [:gradle_build_id, :cacheable, :task_path, :outcome],
+    sortable: [:task_path, :outcome, :duration_ms, :started_at],
     default_order: %{
-      order_by: [:task_path],
+      order_by: [:started_at],
       order_directions: [:asc]
     }
   }
@@ -27,6 +27,7 @@ defmodule Tuist.Gradle.Task do
     field :duration_ms, Ch, type: "UInt64"
     field :cache_key, Ch, type: "Nullable(String)"
     field :cache_artifact_size, Ch, type: "Nullable(Int64)"
+    field :started_at, Ch, type: "Nullable(DateTime64(3))"
     field :project_id, Ch, type: "Int64"
     field :inserted_at, Ch, type: "DateTime"
   end
