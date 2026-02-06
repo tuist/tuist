@@ -1,17 +1,5 @@
 msgid ""
-msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-11-05 17:58+0000\n"
-"PO-Revision-Date: 2026-01-26 13:31+0000\n"
-"Last-Translator: 이영준 <kofggm@gmail.com>\n"
-"Language-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\n"
-"Language: ko\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.15.2\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2026-02-06 13:03+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -969,80 +957,101 @@ msgstr "고객님들"
 msgid "Tuist Customers"
 msgstr "Tuist 고객님들"
 
+#, fuzzy
 msgid "Agentic QA testing the checkout flow with 8 issues identified and 16 screenshots taken"
-msgstr ""
+msgstr "에이전트 QA가 결제 흐름을 테스트하여 8개의 문제점을 확인하고 16개의 스크린샷을 촬영함"
 
+#, fuzzy
 msgid "App preview interface showing share preview button and platform options"
-msgstr ""
+msgstr "공유 미리보기 버튼과 플랫폼 옵션이 표시된 앱 미리보기 인터페이스"
 
+#, fuzzy
 msgid "Automatically detect flaky tests that fail without code changes and reduce time spent investigating false failures."
-msgstr ""
+msgstr "코드 변경 없이 실패하는 불안정한 테스트를 자동으로 탐지하고, 허위 실패 원인 분석에 소요되는 시간을 줄입니다."
 
+#, fuzzy
 msgid "Build insights chart showing build duration metrics with p90, p99, and average percentiles"
-msgstr ""
+msgstr "빌드 기간 지표(90분위수, 99분위수, 평균)를 보여주는 인사이트 차트 생성"
 
+#, fuzzy
 msgid "Cache hit rate dashboard showing 90% hit rate and 14.2 hours saved this week"
-msgstr ""
+msgstr "이번 주 캐시 적중률 대시보드: 90% 적중률, 14.2시간 절감"
 
+#, fuzzy
 msgid "Conceptually compress the complexities of modular Xcode projects and make them more accessible to maintain and scale."
-msgstr ""
+msgstr "모듈식 Xcode 프로젝트의 복잡성을 개념적으로 압축하여 유지보수와 확장이 용이하도록 만드십시오."
 
 msgid "Flaky Tests"
 msgstr ""
 
+#, fuzzy
 msgid "Flaky tests dashboard showing test history and automation creation modal"
-msgstr ""
+msgstr "테스트 이력과 자동화 생성 모달을 보여주는 불안정한 테스트 대시보드"
 
+#, fuzzy
 msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
-msgstr ""
+msgstr "코드를 피드백으로 단 몇 분 만에. 실시간 미리보기와 AI 기반 테스트로 구축과 검증의 연결 고리를 완성합니다."
 
+#, fuzzy
 msgid "Mention @tuist-qa in your PR and an AI agent tests your app like a real user, exploring edge cases and reporting issues with screenshots and logs."
-msgstr ""
+msgstr "PR에 @tuist-qa를 멘션하면 AI 에이전트가 실제 사용자처럼 앱을 테스트합니다. 경계 사례를 탐색하고 스크린샷 및 로그와 함께 문제를 보고합니다."
 
+#, fuzzy
 msgid "Monitor build performance across local and CI environments to catch slowdowns before they become bottlenecks."
-msgstr ""
+msgstr "로컬 및 CI 환경 전반에서 빌드 성능을 모니터링하여 병목 현상이 발생하기 전에 지연 현상을 포착하십시오."
 
+#, fuzzy
 msgid "Quality assurance"
-msgstr ""
+msgstr "품질 보증"
 
+#, fuzzy
 msgid "Run only the tests that matter by detecting changes since your last successful run, cutting down test times in both local development and CI."
-msgstr ""
+msgstr "마지막 성공 실행 이후 변경된 부분을 감지하여 중요한 테스트만 실행함으로써 로컬 개발 및 CI 환경 모두에서 테스트 시간을 단축합니다."
 
 msgid "Selective Testing"
 msgstr ""
 
+#, fuzzy
 msgid "Selective testing dashboard showing tests skipped with 134/196 tests skipped and 15.8h saved this week"
-msgstr ""
+msgstr "선택적 테스트 대시보드: 이번 주 134/196개 테스트 건너뛰어 15.8시간 절감"
 
+#, fuzzy
 msgid "Share your app instantly with a URL. No TestFlight delays, just click and run on any simulator or device."
-msgstr ""
+msgstr "URL로 앱을 즉시 공유하세요. TestFlight 지연 없이 클릭 한 번으로 모든 시뮬레이터나 기기에서 실행 가능합니다."
 
 msgid "Test Insights"
 msgstr ""
 
+#, fuzzy
 msgid "Test insights showing test runs, flaky tests, failed test runs, and p90 test run duration metrics"
-msgstr ""
+msgstr "테스트 실행, 불안정한 테스트, 실패한 테스트 실행, p90 테스트 실행 소요 시간 메트릭을 보여주는 테스트 인사이트"
 
 msgid "Tests"
 msgstr ""
 
+#, fuzzy
 msgid "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
-msgstr ""
+msgstr "테스트 실행 결과를 추적하고, 느린 테스트를 조기에 발견하며, 로그를 일일이 살펴보지 않고도 CI 실패를 디버깅하세요."
 
+#, fuzzy
 msgid "Download only what you need — faster, lighter builds locally and on CI."
-msgstr ""
+msgstr "필요한 것만 다운로드하세요 — 로컬 및 CI에서 더 빠르고 가벼운 빌드를 제공합니다."
 
+#, fuzzy
 msgid "Extra features that simplify modular Xcode projects and speed up local and CI builds."
-msgstr ""
+msgstr "모듈식 Xcode 프로젝트를 단순화하고 로컬 및 CI 빌드 속도를 높이는 추가 기능."
 
+#, fuzzy
 msgid "Other features"
-msgstr ""
+msgstr "기타 기능"
 
+#, fuzzy
 msgid "Run only impacted tests based on your changes for faster feedback loops and less waiting — both locally and on CI."
-msgstr ""
+msgstr "변경 사항에 따라 영향을 받는 테스트만 실행하여 피드백 루프를 가속화하고 대기 시간을 줄이세요 — 로컬 환경과 CI 모두에서 가능합니다."
 
+#, fuzzy
 msgid "Skip the manual steps, auto-generate projects, speed up builds, and explore insights with built-in analytics."
-msgstr ""
+msgstr "수동 단계를 생략하고, 프로젝트를 자동 생성하며, 빌드 속도를 높이고, 내장된 분석 기능으로 인사이트를 탐색하세요."
 
 #~ msgid "AI writes faster. So should your builds."
 #~ msgstr "AI는 더 빠르게 작성해서 당신의 빌드를 합니다."
