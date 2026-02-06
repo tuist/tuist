@@ -1,15 +1,11 @@
 import Foundation
 import Logging
 import Path
+import TuistConfigLoader
 import TuistConstants
 import TuistEnvironment
 import TuistLogging
 import TuistServer
-
-#if os(macOS)
-    import TuistLoader
-    import TuistSupport
-#endif
 
 public protocol LogoutServicing: AnyObject {
     func logout(
@@ -21,32 +17,17 @@ public protocol LogoutServicing: AnyObject {
 public final class LogoutService: LogoutServicing {
     private let serverSessionController: ServerSessionControlling
     private let serverEnvironmentService: ServerEnvironmentServicing
-    #if os(macOS)
-        private let configLoader: ConfigLoading
-    #endif
+    private let configLoader: ConfigLoading
 
     public init(
         serverSessionController: ServerSessionControlling = ServerSessionController(),
-        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService()
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+        configLoader: ConfigLoading = ConfigLoader()
     ) {
         self.serverSessionController = serverSessionController
         self.serverEnvironmentService = serverEnvironmentService
-        #if os(macOS)
-            configLoader = ConfigLoader()
-        #endif
+        self.configLoader = configLoader
     }
-
-    #if os(macOS)
-        public init(
-            serverSessionController: ServerSessionControlling = ServerSessionController(),
-            serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
-            configLoader: ConfigLoading = ConfigLoader()
-        ) {
-            self.serverSessionController = serverSessionController
-            self.serverEnvironmentService = serverEnvironmentService
-            self.configLoader = configLoader
-        }
-    #endif
 
     public func logout(
         directory: String?,
@@ -60,26 +41,15 @@ public final class LogoutService: LogoutServicing {
             }
             resolvedServerURL = try serverEnvironmentService.url(configServerURL: url)
         } else {
-            #if os(macOS)
-                let directoryPath: AbsolutePath
-                if let directory {
-                    directoryPath = try AbsolutePath(
-                        validating: directory, relativeTo: FileHandler.shared.currentPath
-                    )
-                } else {
-                    directoryPath = FileHandler.shared.currentPath
-                }
-                let config = try await configLoader.loadConfig(path: directoryPath)
-                resolvedServerURL = try serverEnvironmentService.url(configServerURL: config.url)
-            #else
-                if let envURL = Environment.current.tuistVariables["URL"],
-                   let url = URL(string: envURL)
-                {
-                    resolvedServerURL = try serverEnvironmentService.url(configServerURL: url)
-                } else {
-                    resolvedServerURL = Constants.URLs.production
-                }
-            #endif
+            let directoryPath: AbsolutePath
+            if let directory {
+                let cwd = try await Environment.current.currentWorkingDirectory()
+                directoryPath = try AbsolutePath(validating: directory, relativeTo: cwd)
+            } else {
+                directoryPath = try await Environment.current.currentWorkingDirectory()
+            }
+            let config = try await configLoader.loadConfig(path: directoryPath)
+            resolvedServerURL = try serverEnvironmentService.url(configServerURL: config.url)
         }
 
         try await serverSessionController.logout(serverURL: resolvedServerURL)

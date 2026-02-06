@@ -1,9 +1,8 @@
 import Foundation
 import Mockable
+import TuistConfigLoader
 import TuistCore
-import TuistLoader
 import TuistServer
-import TuistSupport
 import XCTest
 
 @testable import TuistAuthCommand

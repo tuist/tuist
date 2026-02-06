@@ -20,6 +20,8 @@ let stencilDependency: Target.Dependency = .product(name: "Stencil", package: "s
 let graphVizDependency: Target.Dependency = .product(name: "GraphViz", package: "tuist.GraphViz")
 let differenceDependency: Target.Dependency = .product(name: "Difference", package: "krzysztofzablocki.Difference")
 let anyCodableDependency: Target.Dependency = .product(name: "AnyCodable", package: "flight-school.AnyCodable")
+let tomlDecoderDependency: Target.Dependency = .product(name: "TOMLDecoder", package: "dduan.TOMLDecoder")
+let algorithmsDependency: Target.Dependency = .product(name: "Algorithms", package: "apple.swift-algorithms")
 
 // MARK: - Targets
 
@@ -55,6 +57,7 @@ var tuistCacheCommandDependencies: [Target.Dependency] = [
     "TuistEncodable",
     "TuistHTTP",
     "TuistAlert",
+    "TuistConfigLoader",
 ]
 var tuistAuthCommandDependencies: [Target.Dependency] = [
     pathDependency,
@@ -70,6 +73,7 @@ var tuistAuthCommandDependencies: [Target.Dependency] = [
     "TuistServer",
     "TuistOIDC",
     "TuistUserInputReader",
+    "TuistConfigLoader",
 ]
 var tuistServerDependencies: [Target.Dependency] = [
     "TuistConstants",
@@ -110,6 +114,15 @@ var tuistCASDependencies: [Target.Dependency] = [
     mockableDependency,
     pathDependency,
 ]
+var tuistConfigLoaderDependencies: [Target.Dependency] = [
+    pathDependency,
+    fileSystemDependency,
+    mockableDependency,
+    "TuistConfig",
+    "TuistConfigToml",
+    "TuistRootDirectoryLocator",
+    "TuistConstants",
+]
 #if os(macOS)
 tuistDependencies.append(contentsOf: [
     "TuistKit", "TuistCore", "TuistLoader", "TuistSupport", "TuistExtension", "TuistHAR",
@@ -124,6 +137,7 @@ tuistServerDependencies.append(contentsOf: [
 ])
 tuistHTTPDependencies.append(contentsOf: ["TuistSupport", "TuistHAR"])
 tuistCASDependencies.append(contentsOf: ["TuistCache", "TuistCASAnalytics"])
+tuistConfigLoaderDependencies.append(contentsOf: ["TuistLoader"])
 #endif
 
 var targets: [Target] = [
@@ -308,7 +322,81 @@ var targets: [Target] = [
             .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
+    .target(
+        name: "TuistConfig",
+        dependencies: [
+            pathDependency,
+            "TuistConstants",
+            .product(name: "XcodeGraph", package: "tuist.XcodeGraph", condition: .when(platforms: [.macOS])),
+        ],
+        path: "cli/Sources/TuistConfig"
+    ),
+    .target(
+        name: "TuistRootDirectoryLocator",
+        dependencies: [
+            "TuistConstants",
+            "TuistLogging",
+            "TuistThreadSafe",
+            fileSystemDependency,
+            mockableDependency,
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistRootDirectoryLocator",
+        exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistConfigToml",
+        dependencies: [
+            pathDependency,
+            fileSystemDependency,
+            mockableDependency,
+            "TuistConstants",
+            tomlDecoderDependency,
+        ],
+        path: "cli/Sources/TuistConfigToml",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistConfigLoader",
+        dependencies: tuistConfigLoaderDependencies,
+        path: "cli/Sources/TuistConfigLoader",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
     // MARK: Cross-platform test targets
+    .testTarget(
+        name: "TuistConfigTomlTests",
+        dependencies: [
+            "TuistConfigToml",
+            "TuistConstants",
+            pathDependency,
+            fileSystemDependency,
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
+            mockableDependency,
+        ],
+        path: "cli/Tests/TuistConfigTomlTests"
+    ),
+    .testTarget(
+        name: "TuistConfigLoaderTests",
+        dependencies: [
+            "TuistConfigLoader",
+            "TuistConfig",
+            "TuistConfigToml",
+            "TuistConstants",
+            "TuistRootDirectoryLocator",
+            pathDependency,
+            fileSystemDependency,
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
+            mockableDependency,
+        ],
+        path: "cli/Tests/TuistConfigLoaderTests"
+    ),
     .testTarget(
         name: "TuistCASTests",
         dependencies: [
@@ -418,6 +506,7 @@ targets.append(contentsOf: [
         name: "TuistCore",
         dependencies: [
             pathDependency,
+            "TuistConfig",
             "TuistSupport",
             xcodeGraphDependency,
             xcodeProjDependency,
@@ -755,6 +844,7 @@ targets.append(contentsOf: [
             "TuistRootDirectoryLocator",
             "TuistCASAnalytics",
             "TuistGit",
+            algorithmsDependency,
             fileSystemDependency,
             swiftToolsSupportDependency,
             pathDependency,
@@ -791,20 +881,6 @@ targets.append(contentsOf: [
             pathDependency,
         ],
         path: "cli/Sources/TuistGit",
-        exclude: ["AGENTS.md"],
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug)),
-        ]
-    ),
-    .target(
-        name: "TuistRootDirectoryLocator",
-        dependencies: [
-            "TuistCore",
-            "TuistSupport",
-            fileSystemDependency,
-            pathDependency,
-        ],
-        path: "cli/Sources/TuistRootDirectoryLocator",
         exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
@@ -1027,6 +1103,8 @@ let package = Package(
         .package(id: "apple.swift-service-context", .upToNextMajor(from: "1.0.0")),
         .package(id: "pointfreeco.swift-snapshot-testing", .upToNextMajor(from: "1.18.1")),
         .package(id: "leif-ibsen.SwiftECC", exact: "5.5.0"),
+        .package(id: "dduan.TOMLDecoder", from: "0.4.1"),
+        .package(id: "apple.swift-algorithms", from: "1.2.1"),
     ],
     targets: targets,
     swiftLanguageModes: [.v5]

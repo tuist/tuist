@@ -52,6 +52,9 @@ public enum Module: String, CaseIterable {
     case encodable = "TuistEncodable"
     case uniqueIDGenerator = "TuistUniqueIDGenerator"
     case opener = "TuistOpener"
+    case config = "TuistConfig"
+    case configToml = "TuistConfigToml"
+    case configLoader = "TuistConfigLoader"
 
     func forceStaticLinking() -> Bool {
         return Environment.forceStaticLinking.getBoolean(default: false)
@@ -279,7 +282,7 @@ public enum Module: String, CaseIterable {
              .constants, .environment, .logging,
              .envKey, .versionCommand, .encodable,
              .uniqueIDGenerator, .opener, .nooraExtension, .alert, .threadSafe,
-             .tuistExtension:
+             .tuistExtension, .config:
             return nil
         default:
             return "\(rawValue)Tests"
@@ -376,7 +379,7 @@ public enum Module: String, CaseIterable {
         // Domain tags
         switch self {
         case .projectDescription, .projectAutomation, .support, .core,
-             .constants, .environment, .logging, .userInputReader:
+             .constants, .environment, .logging, .userInputReader, .config:
             moduleTags.append("domain:foundation")
         case .generator, .hasher, .cache:
             moduleTags.append("domain:generation")
@@ -400,7 +403,7 @@ public enum Module: String, CaseIterable {
             moduleTags.append("domain:plugins")
         case .simulator, .xcActivityLog, .git, .rootDirectoryLocator,
             .process, .ci, .cas, .casAnalytics, .launchctl, .xcResultService, .xcodeProjectOrWorkspacePathLocator,
-            .http, .har:
+            .http, .har, .configToml, .configLoader:
             moduleTags.append("domain:infrastructure")
         case .cacheCommand, .authCommand, .envKey, .versionCommand:
             moduleTags.append("domain:cli")
@@ -414,7 +417,7 @@ public enum Module: String, CaseIterable {
         switch self {
         case .projectDescription, .projectAutomation, .support, .core,
              .constants, .environment, .logging, .nooraExtension, .alert, .threadSafe, .encodable,
-             .uniqueIDGenerator, .opener:
+             .uniqueIDGenerator, .opener, .config:
             moduleTags.append("layer:foundation")
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator:
             moduleTags.append("layer:tool")
@@ -622,6 +625,7 @@ public enum Module: String, CaseIterable {
             case .core:
                 [
                     .target(name: Module.alert.targetName),
+                    .target(name: Module.config.targetName),
                     .target(name: Module.logging.targetName),
                     .target(name: Module.projectDescription.targetName),
                     .target(name: Module.support.targetName),
@@ -808,17 +812,36 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.casAnalytics.targetName),
                     .target(name: Module.git.targetName),
                     .target(name: Module.environment.targetName),
+                    .external(name: "Algorithms"),
                     .external(name: "FileSystem"),
                     .external(name: "XCLogParser"),
                     .external(name: "SwiftToolsSupport"),
                 ]
             case .rootDirectoryLocator:
                 [
-                    .target(name: Module.support.targetName),
-                    .target(name: Module.core.targetName),
                     .target(name: Module.threadSafe.targetName),
                     .target(name: Module.constants.targetName),
                     .target(name: Module.logging.targetName),
+                    .external(name: "FileSystem"),
+                ]
+            case .config:
+                [
+                    .target(name: Module.constants.targetName),
+                    .external(name: "XcodeGraph"),
+                ]
+            case .configToml:
+                [
+                    .target(name: Module.constants.targetName),
+                    .external(name: "FileSystem"),
+                    .external(name: "TOMLDecoder"),
+                ]
+            case .configLoader:
+                [
+                    .target(name: Module.config.targetName),
+                    .target(name: Module.configToml.targetName),
+                    .target(name: Module.rootDirectoryLocator.targetName),
+                    .target(name: Module.constants.targetName),
+                    .target(name: Module.loader.targetName),
                     .external(name: "FileSystem"),
                 ]
             case .git:
@@ -899,6 +922,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .cacheCommand:
                 [
+                    .target(name: Module.configLoader.targetName),
                     .target(name: Module.constants.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
@@ -918,6 +942,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .authCommand:
                 [
+                    .target(name: Module.configLoader.targetName),
                     .target(name: Module.constants.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.logging.targetName),
@@ -997,11 +1022,27 @@ public enum Module: String, CaseIterable {
             case .tuist, .tuistBenchmark, .acceptanceTesting, .simulator, .testing, .environmentTesting, .process,
                  .constants, .environment, .logging,
                  .envKey, .versionCommand, .nooraExtension, .tuistExtension, .alert, .threadSafe, .encodable,
-                 .uniqueIDGenerator, .opener:
+                 .uniqueIDGenerator, .opener, .config:
                 []
+            case .configToml:
+                [
+                    .target(name: Module.constants.targetName),
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
+                ]
+            case .configLoader:
+                [
+                    .target(name: Module.config.targetName),
+                    .target(name: Module.configToml.targetName),
+                    .target(name: Module.rootDirectoryLocator.targetName),
+                    .target(name: Module.constants.targetName),
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
+                ]
             case .cacheCommand:
                 [
                     .target(name: Module.cas.targetName),
+                    .target(name: Module.configLoader.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.http.targetName),
                     .target(name: Module.loader.targetName),
@@ -1017,6 +1058,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .authCommand:
                 [
+                    .target(name: Module.configLoader.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.loader.targetName),

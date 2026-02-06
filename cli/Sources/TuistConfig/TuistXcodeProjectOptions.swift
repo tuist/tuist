@@ -4,7 +4,7 @@ public struct TuistXcodeProjectOptions: Codable, Equatable, Sendable, Hashable {
 
 #if DEBUG
     extension TuistXcodeProjectOptions {
-        static func test() -> Self {
+        public static func test() -> Self {
             return TuistXcodeProjectOptions()
         }
     }

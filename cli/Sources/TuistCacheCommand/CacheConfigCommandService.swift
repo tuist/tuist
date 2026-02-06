@@ -3,6 +3,7 @@ import Logging
 import Path
 import TSCBasic
 import TuistCAS
+import TuistConfigLoader
 import TuistConstants
 import TuistEncodable
 import TuistEnvironment
@@ -10,10 +11,6 @@ import TuistHTTP
 import TuistLogging
 import TuistOIDC
 import TuistServer
-
-#if os(macOS)
-    import TuistLoader
-#endif
 
 public protocol CacheConfigCommandServicing {
     func run(
@@ -32,45 +29,25 @@ public final class CacheConfigCommandService: CacheConfigCommandServicing {
     private let exchangeOIDCTokenService: ExchangeOIDCTokenServicing
     private let cacheURLStore: CacheURLStoring
     private let fullHandleService: FullHandleServicing
-    #if os(macOS)
-        private let configLoader: ConfigLoading
-    #endif
+    private let configLoader: ConfigLoading
 
-    #if os(macOS)
-        public init(
-            serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
-            serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
-            cacheURLStore: CacheURLStoring = CacheURLStore(),
-            fullHandleService: FullHandleServicing = FullHandleService(),
-            configLoader: ConfigLoading = ConfigLoader(),
-            ciOIDCAuthenticator: CIOIDCAuthenticating = CIOIDCAuthenticator(),
-            exchangeOIDCTokenService: ExchangeOIDCTokenServicing = ExchangeOIDCTokenService()
-        ) {
-            self.serverEnvironmentService = serverEnvironmentService
-            self.serverAuthenticationController = serverAuthenticationController
-            self.cacheURLStore = cacheURLStore
-            self.fullHandleService = fullHandleService
-            self.configLoader = configLoader
-            self.ciOIDCAuthenticator = ciOIDCAuthenticator
-            self.exchangeOIDCTokenService = exchangeOIDCTokenService
-        }
-    #else
-        public init(
-            serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
-            serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
-            cacheURLStore: CacheURLStoring = CacheURLStore(),
-            fullHandleService: FullHandleServicing = FullHandleService(),
-            ciOIDCAuthenticator: CIOIDCAuthenticating = CIOIDCAuthenticator(),
-            exchangeOIDCTokenService: ExchangeOIDCTokenServicing = ExchangeOIDCTokenService()
-        ) {
-            self.serverEnvironmentService = serverEnvironmentService
-            self.serverAuthenticationController = serverAuthenticationController
-            self.cacheURLStore = cacheURLStore
-            self.fullHandleService = fullHandleService
-            self.ciOIDCAuthenticator = ciOIDCAuthenticator
-            self.exchangeOIDCTokenService = exchangeOIDCTokenService
-        }
-    #endif
+    public init(
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+        serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
+        cacheURLStore: CacheURLStoring = CacheURLStore(),
+        fullHandleService: FullHandleServicing = FullHandleService(),
+        configLoader: ConfigLoading = ConfigLoader(),
+        ciOIDCAuthenticator: CIOIDCAuthenticating = CIOIDCAuthenticator(),
+        exchangeOIDCTokenService: ExchangeOIDCTokenServicing = ExchangeOIDCTokenService()
+    ) {
+        self.serverEnvironmentService = serverEnvironmentService
+        self.serverAuthenticationController = serverAuthenticationController
+        self.cacheURLStore = cacheURLStore
+        self.fullHandleService = fullHandleService
+        self.configLoader = configLoader
+        self.ciOIDCAuthenticator = ciOIDCAuthenticator
+        self.exchangeOIDCTokenService = exchangeOIDCTokenService
+    }
 
     public func run(
         fullHandle: String,
@@ -87,19 +64,15 @@ public final class CacheConfigCommandService: CacheConfigCommandServicing {
             }
             resolvedServerURL = parsedURL
         } else {
-            #if os(macOS)
-                let directoryPath: Path.AbsolutePath
-                if let directory {
-                    let cwd = try await Environment.current.currentWorkingDirectory()
-                    directoryPath = try Path.AbsolutePath(validating: directory, relativeTo: cwd)
-                } else {
-                    directoryPath = try await Environment.current.currentWorkingDirectory()
-                }
-                let config = try await configLoader.loadConfig(path: directoryPath)
-                resolvedServerURL = try serverEnvironmentService.url(configServerURL: config.url)
-            #else
-                resolvedServerURL = serverEnvironmentService.url()
-            #endif
+            let directoryPath: Path.AbsolutePath
+            if let directory {
+                let cwd = try await Environment.current.currentWorkingDirectory()
+                directoryPath = try Path.AbsolutePath(validating: directory, relativeTo: cwd)
+            } else {
+                directoryPath = try await Environment.current.currentWorkingDirectory()
+            }
+            let config = try await configLoader.loadConfig(path: directoryPath)
+            resolvedServerURL = try serverEnvironmentService.url(configServerURL: config.url)
         }
 
         let token = try await getAuthenticationToken(serverURL: resolvedServerURL, forceRefresh: forceRefresh)

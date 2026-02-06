@@ -3,11 +3,11 @@ import Mockable
 import Path
 import Testing
 import TuistCAS
+import TuistConfigLoader
 import TuistCore
 import TuistEnvironment
 import TuistEnvironmentTesting
 import TuistHTTP
-import TuistLoader
 import TuistOIDC
 import TuistServer
 import TuistTesting

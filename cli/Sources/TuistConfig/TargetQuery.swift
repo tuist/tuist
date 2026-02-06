@@ -1,8 +1,5 @@
-/// Queries for matching against a target.
 public enum TargetQuery: Codable, Hashable, Sendable {
-    /// Match targets with the given name.
     case named(String)
-    /// Match targets with the given metadata tag.
     case tagged(String)
 }
 

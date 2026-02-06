@@ -3,9 +3,7 @@ import Foundation
 import Mockable
 import Path
 import TuistConstants
-import TuistCore
 import TuistLogging
-import TuistSupport
 import TuistThreadSafe
 
 enum RootDirectoryLocatorError: FatalError, Equatable {
@@ -27,7 +25,7 @@ enum RootDirectoryLocatorError: FatalError, Equatable {
 }
 
 @Mockable
-public protocol RootDirectoryLocating {
+public protocol RootDirectoryLocating: Sendable {
     /// Given a path, it finds the root directory by traversing up the hierarchy.
     ///
     /// A root directory is defined as (in order of precedence):
@@ -79,6 +77,9 @@ public final class RootDirectoryLocator: RootDirectoryLocating {
             cache(rootDirectory: path, for: source)
             return path
         } else if try await fileSystem.exists(path.appending(component: Constants.tuistManifestFileName), isDirectory: false) {
+            cache(rootDirectory: path, for: source)
+            return path
+        } else if try await fileSystem.exists(path.appending(component: Constants.tuistTomlFileName), isDirectory: false) {
             cache(rootDirectory: path, for: source)
             return path
         } else if try await fileSystem.exists(path.appending(component: "Plugin.swift")) {

@@ -1,33 +1,61 @@
 import Path
-import XcodeGraph
+
+#if os(macOS)
+    import XcodeGraph
+#endif
 
 public struct TuistGeneratedProjectOptions: Equatable, Hashable {
     public let compatibleXcodeVersions: CompatibleXcodeVersions
-    public let swiftVersion: Version?
+
+    #if os(macOS)
+        public let swiftVersion: Version?
+    #endif
+
     public let plugins: [PluginLocation]
     public let generationOptions: GenerationOptions
     public let installOptions: InstallOptions
     public let cacheOptions: CacheOptions
 
-    public init(
-        compatibleXcodeVersions: CompatibleXcodeVersions,
-        swiftVersion: Version?,
-        plugins: [PluginLocation],
-        generationOptions: GenerationOptions,
-        installOptions: InstallOptions,
-        cacheOptions: CacheOptions
-    ) {
-        self.compatibleXcodeVersions = compatibleXcodeVersions
-        self.swiftVersion = swiftVersion
-        self.plugins = plugins
-        self.generationOptions = generationOptions
-        self.installOptions = installOptions
-        self.cacheOptions = cacheOptions
-    }
+    #if os(macOS)
+        public init(
+            compatibleXcodeVersions: CompatibleXcodeVersions,
+            swiftVersion: Version?,
+            plugins: [PluginLocation],
+            generationOptions: GenerationOptions,
+            installOptions: InstallOptions,
+            cacheOptions: CacheOptions
+        ) {
+            self.compatibleXcodeVersions = compatibleXcodeVersions
+            self.swiftVersion = swiftVersion
+            self.plugins = plugins
+            self.generationOptions = generationOptions
+            self.installOptions = installOptions
+            self.cacheOptions = cacheOptions
+        }
+    #else
+        public init(
+            compatibleXcodeVersions: CompatibleXcodeVersions = .all,
+            plugins: [PluginLocation] = [],
+            generationOptions: GenerationOptions = .linuxDefault,
+            installOptions: InstallOptions = .init(),
+            cacheOptions: CacheOptions = CacheOptions(
+                keepSourceTargets: false,
+                profiles: .init([:], default: .onlyExternal)
+            )
+        ) {
+            self.compatibleXcodeVersions = compatibleXcodeVersions
+            self.plugins = plugins
+            self.generationOptions = generationOptions
+            self.installOptions = installOptions
+            self.cacheOptions = cacheOptions
+        }
+    #endif
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(compatibleXcodeVersions)
-        hasher.combine(swiftVersion)
+        #if os(macOS)
+            hasher.combine(swiftVersion)
+        #endif
         hasher.combine(plugins)
         hasher.combine(generationOptions)
         hasher.combine(installOptions)
@@ -35,24 +63,31 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
     }
 
     public static var `default`: Self {
-        TuistGeneratedProjectOptions(
-            compatibleXcodeVersions: .all,
-            swiftVersion: nil,
-            plugins: [],
-            generationOptions: .init(
-                resolveDependenciesWithSystemScm: false,
-                disablePackageVersionLocking: false,
-                staticSideEffectsWarningTargets: .all,
-                buildInsightsDisabled: true,
-                testInsightsDisabled: true,
-                disableSandbox: true,
-                includeGenerateScheme: false,
-                enableCaching: false,
-                registryEnabled: false
-            ),
-            installOptions: .init(passthroughSwiftPackageManagerArguments: []),
-            cacheOptions: CacheOptions(keepSourceTargets: false, profiles: .init([:], default: .onlyExternal))
-        )
+        #if os(macOS)
+            TuistGeneratedProjectOptions(
+                compatibleXcodeVersions: .all,
+                swiftVersion: nil,
+                plugins: [],
+                generationOptions: .init(
+                    resolveDependenciesWithSystemScm: false,
+                    disablePackageVersionLocking: false,
+                    staticSideEffectsWarningTargets: .all,
+                    buildInsightsDisabled: true,
+                    testInsightsDisabled: true,
+                    disableSandbox: true,
+                    includeGenerateScheme: false,
+                    enableCaching: false,
+                    registryEnabled: false
+                ),
+                installOptions: .init(passthroughSwiftPackageManagerArguments: []),
+                cacheOptions: CacheOptions(
+                    keepSourceTargets: false,
+                    profiles: .init([:], default: .onlyExternal)
+                )
+            )
+        #else
+            TuistGeneratedProjectOptions()
+        #endif
     }
 }
 
@@ -112,6 +147,22 @@ extension TuistGeneratedProjectOptions {
             self.enableCaching = enableCaching
             self.registryEnabled = registryEnabled
         }
+
+        #if !os(macOS)
+            public static var linuxDefault: Self {
+                .init(
+                    resolveDependenciesWithSystemScm: false,
+                    disablePackageVersionLocking: false,
+                    staticSideEffectsWarningTargets: .all,
+                    buildInsightsDisabled: true,
+                    testInsightsDisabled: true,
+                    disableSandbox: true,
+                    includeGenerateScheme: false,
+                    enableCaching: false,
+                    registryEnabled: false
+                )
+            }
+        #endif
     }
 
     public struct InstallOptions: Codable, Equatable, Sendable, Hashable {
@@ -126,47 +177,45 @@ extension TuistGeneratedProjectOptions {
 }
 
 #if DEBUG
-    extension TuistGeneratedProjectOptions.GenerationOptions {
-        public func withWorkspaceName(_ workspaceName: String) -> Self {
-            var options = self
-            if let clonedSourcePackagesDirPath {
-                var workspaceName = workspaceName
-                if workspaceName.hasSuffix(".xcworkspace") {
-                    workspaceName = String(workspaceName.dropLast(".xcworkspace".count))
-                }
-                let mangledWorkspaceName = workspaceName.spm_mangledToC99ExtendedIdentifier()
-                var additionalPackageResolutionArguments = options.additionalPackageResolutionArguments
-                additionalPackageResolutionArguments.append(
-                    contentsOf: [
-                        "-clonedSourcePackagesDirPath",
-                        clonedSourcePackagesDirPath.appending(component: mangledWorkspaceName).pathString,
-                    ]
+    #if os(macOS)
+        extension TuistGeneratedProjectOptions {
+            public static func test(
+                compatibleXcodeVersions: CompatibleXcodeVersions = .all,
+                swiftVersion: Version? = nil,
+                plugins: [PluginLocation] = [],
+                generationOptions: GenerationOptions = .test(),
+                installOptions: InstallOptions = .test(),
+                cacheOptions: CacheOptions = .test()
+            ) -> Self {
+                return .init(
+                    compatibleXcodeVersions: compatibleXcodeVersions,
+                    swiftVersion: swiftVersion,
+                    plugins: plugins,
+                    generationOptions: generationOptions,
+                    installOptions: installOptions,
+                    cacheOptions: cacheOptions
                 )
-                options.additionalPackageResolutionArguments = additionalPackageResolutionArguments
             }
-            return options
         }
-    }
-
-    extension TuistGeneratedProjectOptions {
-        public static func test(
-            compatibleXcodeVersions: CompatibleXcodeVersions = .all,
-            swiftVersion: Version? = nil,
-            plugins: [PluginLocation] = [],
-            generationOptions: GenerationOptions = .test(),
-            installOptions: InstallOptions = .test(),
-            cacheOptions: CacheOptions = .test()
-        ) -> Self {
-            return .init(
-                compatibleXcodeVersions: compatibleXcodeVersions,
-                swiftVersion: swiftVersion,
-                plugins: plugins,
-                generationOptions: generationOptions,
-                installOptions: installOptions,
-                cacheOptions: cacheOptions
-            )
+    #else
+        extension TuistGeneratedProjectOptions {
+            public static func test(
+                compatibleXcodeVersions: CompatibleXcodeVersions = .all,
+                plugins: [PluginLocation] = [],
+                generationOptions: GenerationOptions = .test(),
+                installOptions: InstallOptions = .test(),
+                cacheOptions: CacheOptions = .test()
+            ) -> Self {
+                return .init(
+                    compatibleXcodeVersions: compatibleXcodeVersions,
+                    plugins: plugins,
+                    generationOptions: generationOptions,
+                    installOptions: installOptions,
+                    cacheOptions: cacheOptions
+                )
+            }
         }
-    }
+    #endif
 
     extension TuistGeneratedProjectOptions.GenerationOptions {
         public static func test(
@@ -214,5 +263,4 @@ extension TuistGeneratedProjectOptions {
             )
         }
     }
-
 #endif

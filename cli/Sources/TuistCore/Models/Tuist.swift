@@ -1,133 +1,43 @@
-import Foundation
 import Path
-import TuistConstants
-import TuistSupport
-import XcodeGraph
+import TSCUtility
+import TuistConfig
 
-public enum TuistConfigError: LocalizedError, Equatable {
-    case notAGeneratedProjectNorSwiftPackage(errorMessageOverride: String?)
-
-    public var errorDescription: String? {
-        switch self {
-        case let .notAGeneratedProjectNorSwiftPackage(errorMessageOverride):
-            return errorMessageOverride ?? "A generated Xcode project or Swift Package is necessary for this feature."
-        }
-    }
-}
-
-/// This model allows to configure Tuist.
-public struct Tuist: Equatable, Hashable, Sendable {
-    public struct Cache: Equatable, Hashable, Sendable {
-        public let upload: Bool
-
-        public init(upload: Bool = true) {
-            self.upload = upload
-        }
-    }
-
-    /// Configures the project Tuist will interact with.
-    /// When no project is provided, Tuist defaults to the workspace or project in the current directory.
-    public let project: TuistProject
-
-    /// The full project handle such as "tuist-org/tuist".
-    public let fullHandle: String?
-
-    /// The options to use when running `tuist inspect`.
-    public let inspectOptions: InspectOptions
-
-    /// The Xcode Cache configuration.
-    public let cache: Cache
-
-    /// The base `URL` that points to the Tuist server.
-    public let url: URL
-
-    /// Returns the default Tuist configuration.
-    public static var `default`: Tuist {
-        return Tuist(
-            project: .defaultGeneratedProject(),
-            fullHandle: nil,
-            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
-            cache: Cache(),
-            url: Constants.URLs.production
-        )
-    }
-
-    /// Initializes the tuist configuration.
-    ///
-    /// - Parameters:
-    ///   - project: The `TuistProject` instance that represents the project Tuist will interact with.
-    ///   - fullHandle: An optional string representing the full handle of the project, such as "tuist-org/tuist".
-    ///   - inspectOptions: The options to use when running `tuist inspect`.
-    ///   - cache: The Xcode Cache configuration.
-    ///   - url: The base `URL` pointing to the Tuist server.
-    public init(
-        project: TuistProject,
-        fullHandle: String?,
-        inspectOptions: InspectOptions,
-        cache: Cache = Cache(),
-        url: URL
-    ) {
-        self.project = project
-        self.fullHandle = fullHandle
-        self.inspectOptions = inspectOptions
-        self.cache = cache
-        self.url = url
-    }
-
-    // MARK: - Hashable
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(project)
-        hasher.combine(fullHandle)
-        hasher.combine(url)
-    }
-
-    public func assertingIsGeneratedProjectOrSwiftPackage(errorMessageOverride: String?) throws -> Self {
-        switch project {
-        case .generated, .swiftPackage: return self
-        case .xcode: throw TuistConfigError.notAGeneratedProjectNorSwiftPackage(errorMessageOverride: errorMessageOverride)
-        }
-    }
-}
-
-public struct InspectOptions: Codable, Equatable, Hashable, Sendable {
-    public struct RedundantDependencies: Codable, Equatable, Hashable, Sendable {
-        public let ignoreTagsMatching: Set<String>
-
-        public init(
-            ignoreTagsMatching: Set<String>
-        ) {
-            self.ignoreTagsMatching = ignoreTagsMatching
-        }
-    }
-
-    public var redundantDependencies: RedundantDependencies
-
-    public init(
-        redundantDependencies: RedundantDependencies
-    ) {
-        self.redundantDependencies = redundantDependencies
-    }
-}
+public typealias Tuist = TuistConfig.Tuist
+public typealias TuistConfigError = TuistConfig.TuistConfigError
+public typealias InspectOptions = TuistConfig.InspectOptions
+public typealias TuistProject = TuistConfig.TuistProject
+public typealias TuistGeneratedProjectOptions = TuistConfig.TuistGeneratedProjectOptions
+public typealias TuistXcodeProjectOptions = TuistConfig.TuistXcodeProjectOptions
+public typealias TuistSwiftPackageOptions = TuistConfig.TuistSwiftPackageOptions
+public typealias CompatibleXcodeVersions = TuistConfig.CompatibleXcodeVersions
+public typealias PluginLocation = TuistConfig.PluginLocation
+public typealias CacheProfileType = TuistConfig.CacheProfileType
+public typealias BaseCacheProfile = TuistConfig.BaseCacheProfile
+public typealias CacheProfile = TuistConfig.CacheProfile
+public typealias CacheProfiles = TuistConfig.CacheProfiles
+public typealias CacheOptions = TuistConfig.CacheOptions
+public typealias TargetQuery = TuistConfig.TargetQuery
 
 #if DEBUG
-    extension Tuist {
-        public static func test(
-            project: TuistProject = .testGeneratedProject(),
-            fullHandle: String? = nil,
-            inspectOptions: InspectOptions = .init(redundantDependencies: .init(ignoreTagsMatching: [])),
-            cache: Cache = Cache(),
-            url: URL = Constants.URLs.production
-        ) -> Self {
-            return Tuist(project: project, fullHandle: fullHandle, inspectOptions: inspectOptions, cache: cache, url: url)
-        }
-    }
-
-    extension InspectOptions {
-        public static func test(
-            redundantDependencies: RedundantDependencies = .init(ignoreTagsMatching: [])
-        ) -> Self {
-            return .init(redundantDependencies: redundantDependencies)
+    extension TuistConfig.TuistGeneratedProjectOptions.GenerationOptions {
+        public func withWorkspaceName(_ workspaceName: String) -> Self {
+            var options = self
+            if let clonedSourcePackagesDirPath {
+                var workspaceName = workspaceName
+                if workspaceName.hasSuffix(".xcworkspace") {
+                    workspaceName = String(workspaceName.dropLast(".xcworkspace".count))
+                }
+                let mangledWorkspaceName = workspaceName.spm_mangledToC99ExtendedIdentifier()
+                var additionalPackageResolutionArguments = options.additionalPackageResolutionArguments
+                additionalPackageResolutionArguments.append(
+                    contentsOf: [
+                        "-clonedSourcePackagesDirPath",
+                        clonedSourcePackagesDirPath.appending(component: mangledWorkspaceName).pathString,
+                    ]
+                )
+                options.additionalPackageResolutionArguments = additionalPackageResolutionArguments
+            }
+            return options
         }
     }
 #endif
