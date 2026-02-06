@@ -939,7 +939,8 @@ public enum Module: String, CaseIterable {
             case .versionCommand:
                 [
                     .target(name: Module.constants.targetName),
-                    .target(name: Module.logging.targetName),
+                    .target(name: Module.nooraExtension.targetName),
+                    .external(name: "Noora"),
                     .external(name: "ArgumentParser"),
                 ]
             case .nooraExtension:

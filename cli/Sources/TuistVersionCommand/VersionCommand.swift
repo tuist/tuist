@@ -12,6 +12,6 @@ public struct VersionCommand: ParsableCommand {
     }
 
     public func run() throws {
-        try VersionService().run()
+        try VersionCommandService().run()
     }
 }

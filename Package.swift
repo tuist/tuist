@@ -261,8 +261,9 @@ var targets: [Target] = [
         name: "TuistVersionCommand",
         dependencies: [
             argumentParserDependency,
+            .product(name: "Noora", package: "tuist.Noora"),
             "TuistConstants",
-            "TuistLogging",
+            "TuistNooraExtension",
         ],
         path: "cli/Sources/TuistVersionCommand"
     ),

@@ -1,10 +1,11 @@
 import Foundation
+import Noora
 import TuistConstants
-import TuistLogging
+import TuistNooraExtension
 
-final class VersionService {
+struct VersionCommandService {
     func run() throws {
         let version: String = Constants.version
-        Logger.current.notice("\(version)")
+        Noora.current.passthrough("\(version)\n")
     }
 }
