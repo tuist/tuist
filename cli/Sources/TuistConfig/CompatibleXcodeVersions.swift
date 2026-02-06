@@ -43,7 +43,8 @@ public enum CompatibleXcodeVersions: Equatable, Hashable, ExpressibleByArrayLite
     // MARK: - ExpressibleByStringInterpolation
 
     public init(stringLiteral value: String) {
-        self = .exact(Version(stringLiteral: value))
+        // swiftlint:disable:next force_try
+        self = .exact(try! Version(versionString: value, usesLenientParsing: true))
     }
 
     // MARK: - ExpressibleByArrayLiteral

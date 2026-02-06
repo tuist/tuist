@@ -628,6 +628,7 @@ targets.append(contentsOf: [
         dependencies: [
             xcodeProjDependency,
             pathDependency,
+            "TuistConfig",
             "TuistCore",
             xcodeGraphDependency,
             "TuistSupport",
