@@ -158,7 +158,7 @@
     >
       <.card_section data-part="tasks-table-section">
         <.table id="gradle-tasks-table" rows={@tasks}>
-          <:col :let={task} label={dgettext("dashboard_gradle", "Task Path")}>
+          <:col :let={task} label={dgettext("dashboard_gradle", "Task")}>
             <.text_cell label={task.task_path} />
           </:col>
           <:col :let={task} label={dgettext("dashboard_gradle", "Outcome")}>
@@ -432,7 +432,7 @@
         </.card_section>
         <.card_section data-part="tasks-table-section">
           <.table id="gradle-cacheable-tasks-table" rows={@cacheable_tasks}>
-            <:col :let={task} label={dgettext("dashboard_gradle", "Task Path")}>
+            <:col :let={task} label={dgettext("dashboard_gradle", "Task")}>
               <.text_cell label={task.task_path} />
             </:col>
             <:col :let={task} label={dgettext("dashboard_gradle", "Status")}>
