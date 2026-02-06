@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-25 14:36+0000\nPO-Revision-Date: 2026-02-06 13:03+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/projects/tuist/marketing/zh_Hans/>\nLanguage: zh_Hans\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15.2\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-25 14:36+0000\nPO-Revision-Date: 2026-02-06 13:03+0000\nLast-Translator: Weblate <noreply-mt-weblate@weblate.org>\nLanguage-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/projects/tuist/marketing/zh_Hans/>\nLanguage: zh_Hans\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -1023,8 +1023,9 @@ msgstr "质量保证"
 msgid "Run only the tests that matter by detecting changes since your last successful run, cutting down test times in both local development and CI."
 msgstr "通过检测上次成功运行后的变更，仅运行关键测试，从而缩短本地开发和持续集成中的测试时间。"
 
+#, fuzzy
 msgid "Selective Testing"
-msgstr ""
+msgstr "选择性测试"
 
 #, fuzzy
 msgid "Selective testing dashboard showing tests skipped with 134/196 tests skipped and 15.8h saved this week"
@@ -1034,8 +1035,9 @@ msgstr "选择性测试仪表盘显示跳过的测试：本周跳过134/196项�
 msgid "Share your app instantly with a URL. No TestFlight delays, just click and run on any simulator or device."
 msgstr "通过URL即时分享您的应用。无需TestFlight等待，点击即可在任何模拟器或设备上运行。"
 
+#, fuzzy
 msgid "Test Insights"
-msgstr ""
+msgstr "测试洞察"
 
 #, fuzzy
 msgid "Test insights showing test runs, flaky tests, failed test runs, and p90 test run duration metrics"
