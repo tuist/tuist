@@ -11,33 +11,27 @@ public protocol ConfigLoading: Sendable {
     func loadConfig(path: AbsolutePath) async throws -> TuistConfig.Tuist
 }
 
-public final class ConfigLoader: ConfigLoading {
+public struct ConfigLoader: ConfigLoading {
     #if os(macOS)
         private let swiftConfigLoader: SwiftConfigLoading
     #endif
     private let tomlConfigLoader: TuistTomlConfigLoading
 
-    #if os(macOS)
-        public convenience init(
-            tomlConfigLoader: TuistTomlConfigLoading = TuistTomlConfigLoader()
-        ) {
-            self.init(
-                swiftConfigLoader: SwiftConfigLoader(),
-                tomlConfigLoader: tomlConfigLoader
-            )
-        }
+    public init(
+        tomlConfigLoader: TuistTomlConfigLoading = TuistTomlConfigLoader()
+    ) {
+        #if os(macOS)
+            self.swiftConfigLoader = SwiftConfigLoader()
+        #endif
+        self.tomlConfigLoader = tomlConfigLoader
+    }
 
+    #if os(macOS)
         init(
             swiftConfigLoader: SwiftConfigLoading,
             tomlConfigLoader: TuistTomlConfigLoading = TuistTomlConfigLoader()
         ) {
             self.swiftConfigLoader = swiftConfigLoader
-            self.tomlConfigLoader = tomlConfigLoader
-        }
-    #else
-        public init(
-            tomlConfigLoader: TuistTomlConfigLoading = TuistTomlConfigLoader()
-        ) {
             self.tomlConfigLoader = tomlConfigLoader
         }
     #endif

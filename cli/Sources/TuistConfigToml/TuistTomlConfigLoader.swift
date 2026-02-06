@@ -11,7 +11,7 @@ public protocol TuistTomlConfigLoading: Sendable {
     func loadConfig(at path: AbsolutePath) async throws -> TuistTomlConfig?
 }
 
-public final class TuistTomlConfigLoader: TuistTomlConfigLoading {
+public struct TuistTomlConfigLoader: TuistTomlConfigLoading {
     private let fileSystem: FileSysteming
     private let rootDirectoryLocator: RootDirectoryLocating
 
