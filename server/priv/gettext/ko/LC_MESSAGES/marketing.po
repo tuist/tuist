@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2026-02-06 13:03+0000\nLast-Translator: DeepL <noreply-mt-deepl@weblate.org>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15.2\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2026-02-06 13:03+0000\nLast-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-memory@weblate.org>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -981,8 +981,9 @@ msgstr "이번 주 캐시 적중률 대시보드: 90% 적중률, 14.2시간 절�
 msgid "Conceptually compress the complexities of modular Xcode projects and make them more accessible to maintain and scale."
 msgstr "모듈식 Xcode 프로젝트의 복잡성을 개념적으로 압축하여 유지보수와 확장이 용이하도록 만드십시오."
 
+#, fuzzy
 msgid "Flaky Tests"
-msgstr ""
+msgstr "불안정한 테스트"
 
 #, fuzzy
 msgid "Flaky tests dashboard showing test history and automation creation modal"
@@ -1008,8 +1009,9 @@ msgstr "품질 보증"
 msgid "Run only the tests that matter by detecting changes since your last successful run, cutting down test times in both local development and CI."
 msgstr "마지막 성공 실행 이후 변경된 부분을 감지하여 중요한 테스트만 실행함으로써 로컬 개발 및 CI 환경 모두에서 테스트 시간을 단축합니다."
 
+#, fuzzy
 msgid "Selective Testing"
-msgstr ""
+msgstr "선택적 테스트"
 
 #, fuzzy
 msgid "Selective testing dashboard showing tests skipped with 134/196 tests skipped and 15.8h saved this week"
@@ -1026,8 +1028,9 @@ msgstr ""
 msgid "Test insights showing test runs, flaky tests, failed test runs, and p90 test run duration metrics"
 msgstr "테스트 실행, 불안정한 테스트, 실패한 테스트 실행, p90 테스트 실행 소요 시간 메트릭을 보여주는 테스트 인사이트"
 
+#, fuzzy
 msgid "Tests"
-msgstr ""
+msgstr "테스트"
 
 #, fuzzy
 msgid "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
