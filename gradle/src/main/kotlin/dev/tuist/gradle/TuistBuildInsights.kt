@@ -28,19 +28,39 @@ import javax.inject.Inject
 
 object RemoteCacheTracker {
     private val isRemoteHit = ThreadLocal<Boolean>()
+    private val currentCacheKey = ThreadLocal<String>()
     private val taskCacheOrigins = ConcurrentHashMap<String, Boolean>()
+    private val taskCacheKeys = ConcurrentHashMap<String, String>()
+    private val artifactSizes = ConcurrentHashMap<String, Long>()
 
     fun markRemoteHit() { isRemoteHit.set(true) }
+    fun setCacheKey(key: String) { currentCacheKey.set(key) }
+    fun recordArtifactSize(cacheKey: String, size: Long) { artifactSizes[cacheKey] = size }
 
     fun consumeAndRecordForTask(taskPath: String) {
         val wasRemote = isRemoteHit.get() ?: false
         isRemoteHit.remove()
         taskCacheOrigins[taskPath] = wasRemote
+
+        val cacheKey = currentCacheKey.get()
+        currentCacheKey.remove()
+        if (cacheKey != null) taskCacheKeys[taskPath] = cacheKey
     }
 
     fun wasRemoteHit(taskPath: String): Boolean = taskCacheOrigins[taskPath] ?: false
+    fun getCacheKey(taskPath: String): String? = taskCacheKeys[taskPath]
+    fun getArtifactSize(taskPath: String): Long? {
+        val cacheKey = taskCacheKeys[taskPath] ?: return null
+        return artifactSizes[cacheKey]
+    }
 
-    fun clear() { taskCacheOrigins.clear(); isRemoteHit.remove() }
+    fun clear() {
+        taskCacheOrigins.clear()
+        taskCacheKeys.clear()
+        artifactSizes.clear()
+        isRemoteHit.remove()
+        currentCacheKey.remove()
+    }
 }
 
 // --- Data classes ---
@@ -50,7 +70,9 @@ data class TaskOutcomeData(
     val outcome: String,
     val cacheable: Boolean,
     val durationMs: Long,
-    val taskType: String?
+    val taskType: String?,
+    val cacheKey: String?,
+    val cacheArtifactSize: Long?
 )
 
 data class TaskReportEntry(
@@ -58,7 +80,9 @@ data class TaskReportEntry(
     val outcome: String,
     val cacheable: Boolean,
     @SerializedName("duration_ms") val durationMs: Long,
-    @SerializedName("task_type") val taskType: String?
+    @SerializedName("task_type") val taskType: String?,
+    @SerializedName("cache_key") val cacheKey: String?,
+    @SerializedName("cache_artifact_size") val cacheArtifactSize: Long?
 )
 
 data class BuildReportRequest(
@@ -209,7 +233,9 @@ abstract class TuistBuildInsightsService :
                 outcome = outcome,
                 cacheable = cacheable,
                 durationMs = durationMs,
-                taskType = null
+                taskType = null,
+                cacheKey = RemoteCacheTracker.getCacheKey(taskPath),
+                cacheArtifactSize = RemoteCacheTracker.getArtifactSize(taskPath)
             )
         )
     }
@@ -268,7 +294,9 @@ abstract class TuistBuildInsightsService :
                     outcome = task.outcome,
                     cacheable = task.cacheable,
                     durationMs = task.durationMs,
-                    taskType = task.taskType
+                    taskType = task.taskType,
+                    cacheKey = task.cacheKey,
+                    cacheArtifactSize = task.cacheArtifactSize
                 )
             }
         )

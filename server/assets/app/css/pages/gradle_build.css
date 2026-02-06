@@ -133,6 +133,21 @@
     }
   }
 
+  & [data-part="throughput-widgets"].noora-card__section {
+    flex-direction: row;
+    gap: var(--noora-spacing-4);
+
+    & > * {
+      flex-grow: 1;
+    }
+
+    @media (max-width: 768px) {
+      & {
+        flex-direction: column;
+      }
+    }
+  }
+
   & [data-part="cacheable-tasks-card-section"] {
     gap: var(--noora-spacing-5);
 

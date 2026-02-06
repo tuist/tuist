@@ -240,6 +240,22 @@
             id="widget-hit-rate"
             empty={cacheable == 0}
           />
+          <.widget
+            title={dgettext("dashboard_gradle", "Cache downloads")}
+            description={
+              dgettext("dashboard_gradle", "Total size of cache artifacts downloaded from remote cache.")
+            }
+            value={ByteFormatter.format_bytes(@cache_download_bytes)}
+            id="widget-cache-downloads"
+          />
+          <.widget
+            title={dgettext("dashboard_gradle", "Cache uploads")}
+            description={
+              dgettext("dashboard_gradle", "Total size of cache artifacts uploaded to remote cache.")
+            }
+            value={ByteFormatter.format_bytes(@cache_upload_bytes)}
+            id="widget-cache-uploads"
+          />
         </.card_section>
       </.card>
       <.card
@@ -376,6 +392,34 @@
             x_axis_max={@build.cacheable_tasks_count || 0}
           />
         </.card_section>
+        <.card_section data-part="throughput-widgets">
+          <.widget
+            title={dgettext("dashboard_gradle", "Download throughput")}
+            description={
+              dgettext(
+                "dashboard_gradle",
+                "Average download throughput in megabits per second."
+              )
+            }
+            value={ThroughputFormatter.format_throughput(@download_throughput)}
+            id="widget-download-throughput"
+            empty={@download_throughput == 0}
+            empty_label={dgettext("dashboard_gradle", "No data")}
+          />
+          <.widget
+            title={dgettext("dashboard_gradle", "Upload throughput")}
+            description={
+              dgettext(
+                "dashboard_gradle",
+                "Average upload throughput in megabits per second."
+              )
+            }
+            value={ThroughputFormatter.format_throughput(@upload_throughput)}
+            id="widget-upload-throughput"
+            empty={@upload_throughput == 0}
+            empty_label={dgettext("dashboard_gradle", "No data")}
+          />
+        </.card_section>
         <.card_section data-part="tasks-table-section">
           <.table id="gradle-cacheable-tasks-table" rows={@cacheable_tasks}>
             <:col :let={task} label={dgettext("dashboard_gradle", "Task Path")}>
@@ -387,6 +431,13 @@
                 color={outcome_color(task.outcome)}
                 style="light-fill"
               />
+            </:col>
+            <:col :let={task} label={dgettext("dashboard_gradle", "Size")}>
+              <.text_cell label={
+                if task.cache_artifact_size,
+                  do: ByteFormatter.format_bytes(task.cache_artifact_size),
+                  else: dgettext("dashboard_gradle", "—")
+              } />
             </:col>
             <:col :let={task} label={dgettext("dashboard_gradle", "Duration")}>
               <.text_cell label={format_duration(task.duration_ms)} icon="history" />

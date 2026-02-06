@@ -7,7 +7,9 @@ defmodule TuistWeb.GradleBuildLive do
 
   alias Tuist.Gradle
   alias Tuist.Repo
+  alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
+  alias Tuist.Utilities.ThroughputFormatter
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
 
@@ -28,6 +30,23 @@ defmodule TuistWeb.GradleBuildLive do
     cacheable_tasks = Enum.filter(tasks, & &1.cacheable)
     slug = "#{account.name}/#{project.name}"
 
+    cache_download_bytes =
+      tasks
+      |> Enum.filter(&(&1.outcome == "remote_hit"))
+      |> Enum.map(& &1.cache_artifact_size)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.sum()
+
+    cache_upload_bytes =
+      tasks
+      |> Enum.filter(&(&1.cacheable and &1.outcome == "executed"))
+      |> Enum.map(& &1.cache_artifact_size)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.sum()
+
+    download_throughput = compute_throughput(tasks, "remote_hit")
+    upload_throughput = compute_throughput(tasks, "executed")
+
     title = build.root_project_name || dgettext("dashboard_gradle", "Gradle Build")
 
     socket =
@@ -35,6 +54,10 @@ defmodule TuistWeb.GradleBuildLive do
       |> assign(:build, build)
       |> assign(:tasks, tasks)
       |> assign(:cacheable_tasks, cacheable_tasks)
+      |> assign(:cache_download_bytes, cache_download_bytes)
+      |> assign(:cache_upload_bytes, cache_upload_bytes)
+      |> assign(:download_throughput, download_throughput)
+      |> assign(:upload_throughput, upload_throughput)
       |> assign(:title, title)
       |> assign(:head_title, "#{title} · #{slug} · Tuist")
 
@@ -81,5 +104,20 @@ defmodule TuistWeb.GradleBuildLive do
 
   defp format_duration(duration_ms) do
     DateFormatter.format_duration_from_milliseconds(duration_ms)
+  end
+
+  defp compute_throughput(tasks, outcome) do
+    relevant_tasks =
+      tasks
+      |> Enum.filter(&(&1.cacheable and &1.outcome == outcome and not is_nil(&1.cache_artifact_size)))
+
+    total_bytes = relevant_tasks |> Enum.map(& &1.cache_artifact_size) |> Enum.sum()
+    total_duration_ms = relevant_tasks |> Enum.map(& &1.duration_ms) |> Enum.sum()
+
+    if total_duration_ms > 0 do
+      total_bytes / (total_duration_ms / 1000)
+    else
+      0
+    end
   end
 end

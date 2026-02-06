@@ -202,14 +202,20 @@ class TuistBuildCacheService(
         val config = getOrRefreshConfig() ?: return false
         val url = buildCacheUrl(config, key.hashCode)
 
+        RemoteCacheTracker.setCacheKey(key.hashCode)
+
         return executeWithRetry { currentConfig ->
             val connection = openConnection(url, currentConfig)
             connection.requestMethod = "GET"
 
             when (connection.responseCode) {
                 HttpURLConnection.HTTP_OK -> {
+                    val contentLength = connection.contentLengthLong
                     connection.inputStream.use { input ->
                         reader.readFrom(input)
+                    }
+                    if (contentLength > 0) {
+                        RemoteCacheTracker.recordArtifactSize(key.hashCode, contentLength)
                     }
                     RemoteCacheTracker.markRemoteHit()
                     true
@@ -228,6 +234,11 @@ class TuistBuildCacheService(
 
         val config = getOrRefreshConfig() ?: return
         val url = buildCacheUrl(config, key.hashCode)
+
+        val artifactSize = writer.size
+        if (artifactSize > 0) {
+            RemoteCacheTracker.recordArtifactSize(key.hashCode, artifactSize)
+        }
 
         executeWithRetry<Unit> { currentConfig ->
             val connection = openConnection(url, currentConfig)

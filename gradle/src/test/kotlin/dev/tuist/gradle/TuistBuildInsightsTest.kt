@@ -56,14 +56,18 @@ class TuistBuildInsightsTest {
                     outcome = "local_hit",
                     cacheable = true,
                     durationMs = 1000,
-                    taskType = "org.jetbrains.kotlin.gradle.tasks.KotlinCompile"
+                    taskType = "org.jetbrains.kotlin.gradle.tasks.KotlinCompile",
+                    cacheKey = "abc123",
+                    cacheArtifactSize = 1024
                 ),
                 TaskReportEntry(
                     taskPath = ":app:test",
                     outcome = "executed",
                     cacheable = true,
                     durationMs = 3000,
-                    taskType = null
+                    taskType = null,
+                    cacheKey = null,
+                    cacheArtifactSize = null
                 )
             )
         )
@@ -187,14 +191,20 @@ class TuistBuildInsightsTest {
             outcome = "from_cache",
             cacheable = true,
             durationMs = 1500,
-            taskType = "KotlinCompile"
+            taskType = "KotlinCompile",
+            cacheKey = "def456",
+            cacheArtifactSize = 2048
         )
 
         val json = gson.toJson(entry)
         assertTrue(json.contains("\"task_path\""))
         assertTrue(json.contains("\"duration_ms\""))
         assertTrue(json.contains("\"task_type\""))
+        assertTrue(json.contains("\"cache_key\""))
+        assertTrue(json.contains("\"cache_artifact_size\""))
         assertTrue(!json.contains("\"taskPath\""))
+        assertTrue(!json.contains("\"cacheKey\""))
+        assertTrue(!json.contains("\"cacheArtifactSize\""))
     }
 
     @Test
@@ -233,6 +243,30 @@ class TuistBuildInsightsTest {
 
         RemoteCacheTracker.clear()
         assertFalse(RemoteCacheTracker.wasRemoteHit(":app:compileKotlin"))
+    }
+
+    @Test
+    fun `RemoteCacheTracker tracks cache key and artifact size`() {
+        RemoteCacheTracker.clear()
+
+        RemoteCacheTracker.setCacheKey("abc123")
+        RemoteCacheTracker.recordArtifactSize("abc123", 4096)
+        RemoteCacheTracker.markRemoteHit()
+        RemoteCacheTracker.consumeAndRecordForTask(":app:compileKotlin")
+
+        assertEquals("abc123", RemoteCacheTracker.getCacheKey(":app:compileKotlin"))
+        assertEquals(4096L, RemoteCacheTracker.getArtifactSize(":app:compileKotlin"))
+        assertTrue(RemoteCacheTracker.wasRemoteHit(":app:compileKotlin"))
+    }
+
+    @Test
+    fun `RemoteCacheTracker returns null for task without cache key`() {
+        RemoteCacheTracker.clear()
+
+        RemoteCacheTracker.consumeAndRecordForTask(":app:test")
+
+        assertNull(RemoteCacheTracker.getCacheKey(":app:test"))
+        assertNull(RemoteCacheTracker.getArtifactSize(":app:test"))
     }
 
     @Test
