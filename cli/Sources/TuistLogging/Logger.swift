@@ -179,6 +179,7 @@ extension Logger {
     public static func loggerHandlerForNoora(logFilePath: AbsolutePath) throws -> @Sendable (String) -> any LogHandler {
         let fileURL = URL(fileURLWithPath: logFilePath.pathString)
         let fileLogHandler = try SimpleFileLogHandler(label: "dev.tuist.cli", fileURL: fileURL)
+        let isVerbose = Environment.current.isVerbose
         return { label in
             var handler = fileLogHandler
             handler.logLevel = .debug
@@ -186,6 +187,9 @@ extension Logger {
             #if canImport(LoggingOSLog)
                 loggers.append(OSLogHandler.verbose(label: label))
             #endif
+            if isVerbose {
+                loggers.append(StandardLogHandler.verbose(label: label))
+            }
             return MultiplexLogHandler(loggers)
         }
     }

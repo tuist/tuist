@@ -6,6 +6,9 @@ All notable changes to this project will be documented in this file.
 ### ⛰️  Features
 
 * add Linux support for auth and cache commands by [@fortmarek](https://github.com/fortmarek) in [#9291](https://github.com/tuist/tuist/pull/9291)
+### 🐛 Bug Fixes
+
+* fix `tuist version` producing no output on Linux by [@fortmarek](https://github.com/fortmarek) in [#9364](https://github.com/tuist/tuist/pull/9364)
 
 **Full Changelog**: https://github.com/tuist/tuist/compare/4.139.1...4.140.0
 

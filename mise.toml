@@ -1,7 +1,7 @@
 [tools]
-    tuist = "4.140.0"
+    tuist = "4.140.1"
     swiftlint = "0.59.1"
-    "github:nicklockwood/SwiftFormat" = "0.58.7"
+    swiftformat = "0.58.7"
     git-cliff = "2.6.0"
     sops = "3.9.3"
     age = "1.2.1"
