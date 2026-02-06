@@ -2,6 +2,7 @@ import Foundation
 import Path
 import TuistAlert
 import TuistCache
+import TuistConfigLoader
 import TuistCore
 import TuistExtension
 import TuistHasher
@@ -46,7 +47,7 @@ public final class HashCacheCommandService: HashCacheServicing {
         self.init(
             generatorFactory: generatorFactory,
             cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
-            configLoader: ConfigLoader(manifestLoader: manifestLoader),
+            configLoader: ConfigLoader(),
             manifestLoader: manifestLoader
         )
     }

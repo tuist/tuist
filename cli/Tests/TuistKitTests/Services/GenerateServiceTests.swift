@@ -10,6 +10,7 @@ import TuistServer
 import TuistSupport
 import XcodeProj
 
+@testable import TuistConfigLoader
 @testable import TuistKit
 @testable import TuistLoader
 @testable import TuistTesting

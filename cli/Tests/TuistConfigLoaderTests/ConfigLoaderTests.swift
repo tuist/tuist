@@ -7,7 +7,6 @@ import Testing
 import TuistConfig
 import TuistConfigToml
 import TuistConstants
-import TuistRootDirectoryLocator
 
 @testable import TuistConfigLoader
 
@@ -18,19 +17,13 @@ struct ConfigLoaderTests {
     func loadConfig_returns_toml_config_when_toml_exists() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let tomlConfigLoader = MockTuistTomlConfigLoading()
-        let rootDirectoryLocator = MockRootDirectoryLocating()
 
         given(tomlConfigLoader)
             .loadConfig(at: .any)
             .willReturn(TuistTomlConfig(project: "tuist/tuist", url: "https://custom.tuist.dev"))
 
-        given(rootDirectoryLocator)
-            .locate(from: .any)
-            .willReturn(temporaryDirectory)
-
         let subject = ConfigLoader(
             tomlConfigLoader: tomlConfigLoader,
-            rootDirectoryLocator: rootDirectoryLocator,
             fileSystem: fileSystem
         )
 
@@ -44,19 +37,13 @@ struct ConfigLoaderTests {
     func loadConfig_uses_production_url_when_toml_has_no_url() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let tomlConfigLoader = MockTuistTomlConfigLoading()
-        let rootDirectoryLocator = MockRootDirectoryLocating()
 
         given(tomlConfigLoader)
             .loadConfig(at: .any)
             .willReturn(TuistTomlConfig(project: "org/project"))
 
-        given(rootDirectoryLocator)
-            .locate(from: .any)
-            .willReturn(temporaryDirectory)
-
         let subject = ConfigLoader(
             tomlConfigLoader: tomlConfigLoader,
-            rootDirectoryLocator: rootDirectoryLocator,
             fileSystem: fileSystem
         )
 

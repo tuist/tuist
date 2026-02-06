@@ -4,6 +4,7 @@ import Path
 import SnapshotTesting
 import Testing
 import TuistCache
+import TuistConfigLoader
 import TuistCore
 import TuistGenerator
 import TuistHasher

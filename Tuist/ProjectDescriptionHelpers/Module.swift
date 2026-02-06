@@ -501,6 +501,7 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.support.targetName),
                     .target(name: Module.loader.targetName),
+                    .target(name: Module.configLoader.targetName),
                     .target(name: Module.kit.targetName),
                     .target(name: Module.projectDescription.targetName),
                     .target(name: Module.automation.targetName),
@@ -575,6 +576,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.projectDescription.targetName),
                     .target(name: Module.projectAutomation.targetName),
                     .target(name: Module.loader.targetName),
+                    .target(name: Module.configLoader.targetName),
                     .target(name: Module.scaffold.targetName),
                     .target(name: Module.dependencies.targetName),
                     .target(name: Module.migration.targetName),
@@ -842,6 +844,10 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.rootDirectoryLocator.targetName),
                     .target(name: Module.constants.targetName),
                     .target(name: Module.loader.targetName),
+                    .target(name: Module.core.targetName),
+                    .target(name: Module.alert.targetName),
+                    .target(name: Module.support.targetName),
+                    .target(name: Module.projectDescription.targetName),
                     .external(name: "FileSystem"),
                 ]
             case .git:
@@ -1036,6 +1042,10 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.configToml.targetName),
                     .target(name: Module.rootDirectoryLocator.targetName),
                     .target(name: Module.constants.targetName),
+                    .target(name: Module.loader.targetName),
+                    .target(name: Module.testing.targetName),
+                    .target(name: Module.support.targetName),
+                    .target(name: Module.projectDescription.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                 ]
@@ -1108,6 +1118,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.server.targetName),
                     .target(name: Module.scaffold.targetName),
                     .target(name: Module.loader.targetName),
+                    .target(name: Module.configLoader.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.generator.targetName),
                     .target(name: Module.testing.targetName),

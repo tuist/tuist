@@ -31,7 +31,7 @@ extension TuistCore.Tuist {
     /// - Parameters:
     ///   - manifest: Manifest representation of Tuist config.
     ///   - path: The path of the config file.
-    static func from(
+    public static func from(
         manifest: ProjectDescription.Config,
         rootDirectory: AbsolutePath,
         at path: AbsolutePath

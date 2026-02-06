@@ -2,6 +2,7 @@ import Foundation
 import Noora
 import OpenAPIURLSession
 import Path
+import TuistConfigLoader
 import TuistEnvironment
 import TuistLoader
 import TuistServer

@@ -3,6 +3,7 @@ import Foundation
 import Mockable
 import Testing
 import TuistCI
+import TuistConfigLoader
 import TuistConstants
 import TuistCore
 import TuistEnvironment

@@ -4,6 +4,7 @@ import Path
 import TuistAlert
 import TuistAutomation
 import TuistCI
+import TuistConfigLoader
 import TuistConstants
 import TuistCore
 import TuistEnvironment
@@ -106,7 +107,7 @@ final class TestService { // swiftlint:disable:this type_body_length
         cacheStorageFactory: CacheStorageFactorying
     ) {
         let manifestLoader = ManifestLoader.current
-        let configLoader = ConfigLoader(manifestLoader: manifestLoader)
+        let configLoader = ConfigLoader()
         self.init(
             generatorFactory: generatorFactory,
             cacheStorageFactory: cacheStorageFactory,

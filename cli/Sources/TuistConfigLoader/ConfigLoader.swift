@@ -5,11 +5,6 @@ import Path
 import TuistConfig
 import TuistConfigToml
 import TuistConstants
-import TuistRootDirectoryLocator
-
-#if os(macOS)
-    @preconcurrency import TuistLoader
-#endif
 
 @Mockable
 public protocol ConfigLoading: Sendable {
@@ -18,39 +13,45 @@ public protocol ConfigLoading: Sendable {
 
 public final class ConfigLoader: ConfigLoading {
     #if os(macOS)
-        private let swiftConfigLoader: TuistLoader.ConfigLoading
+        private let swiftConfigLoader: SwiftConfigLoading
     #endif
     private let tomlConfigLoader: TuistTomlConfigLoading
-    private let rootDirectoryLocator: RootDirectoryLocating
     private let fileSystem: FileSysteming
 
     #if os(macOS)
-        public init(
-            swiftConfigLoader: TuistLoader.ConfigLoading = TuistLoader.ConfigLoader(),
+        public convenience init(
             tomlConfigLoader: TuistTomlConfigLoading = TuistTomlConfigLoader(),
-            rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
+            fileSystem: FileSysteming = FileSystem()
+        ) {
+            self.init(
+                swiftConfigLoader: SwiftConfigLoader(),
+                tomlConfigLoader: tomlConfigLoader,
+                fileSystem: fileSystem
+            )
+        }
+
+        init(
+            swiftConfigLoader: SwiftConfigLoading,
+            tomlConfigLoader: TuistTomlConfigLoading = TuistTomlConfigLoader(),
             fileSystem: FileSysteming = FileSystem()
         ) {
             self.swiftConfigLoader = swiftConfigLoader
             self.tomlConfigLoader = tomlConfigLoader
-            self.rootDirectoryLocator = rootDirectoryLocator
             self.fileSystem = fileSystem
         }
     #else
         public init(
             tomlConfigLoader: TuistTomlConfigLoading = TuistTomlConfigLoader(),
-            rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
             fileSystem: FileSysteming = FileSystem()
         ) {
             self.tomlConfigLoader = tomlConfigLoader
-            self.rootDirectoryLocator = rootDirectoryLocator
             self.fileSystem = fileSystem
         }
     #endif
 
     public func loadConfig(path: AbsolutePath) async throws -> TuistConfig.Tuist {
         #if os(macOS)
-            if try await hasSwiftConfig(at: path) {
+            if let _ = try await swiftConfigLoader.locateConfig(at: path) {
                 return try await swiftConfigLoader.loadConfig(path: path)
             }
         #endif
@@ -65,28 +66,6 @@ public final class ConfigLoader: ConfigLoading {
             return try await defaultConfig(at: path)
         #endif
     }
-
-    #if os(macOS)
-        private func hasSwiftConfig(at path: AbsolutePath) async throws -> Bool {
-            guard let rootDirectoryPath = try await rootDirectoryLocator.locate(from: path) else {
-                return false
-            }
-            for candidate in [
-                rootDirectoryPath
-                    .appending(
-                        // swiftlint:disable:next force_try
-                        try! RelativePath(validating: "\(Constants.tuistDirectoryName)/Config.swift")
-                    ),
-                // swiftlint:disable:next force_try
-                rootDirectoryPath.appending(try! RelativePath(validating: Constants.tuistManifestFileName)),
-            ] {
-                if try await fileSystem.exists(candidate) {
-                    return true
-                }
-            }
-            return false
-        }
-    #endif
 
     private func configFromToml(_ tomlConfig: TuistTomlConfig) -> TuistConfig.Tuist {
         let url: URL

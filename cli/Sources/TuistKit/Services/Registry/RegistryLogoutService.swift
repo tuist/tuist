@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import TuistConfigLoader
 import TuistEnvironment
 import TuistLoader
 import TuistLogging

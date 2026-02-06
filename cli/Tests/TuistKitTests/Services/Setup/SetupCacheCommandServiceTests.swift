@@ -4,6 +4,7 @@ import Foundation
 import Mockable
 import Path
 import Testing
+import TuistConfigLoader
 import TuistConstants
 import TuistCore
 import TuistEnvironment

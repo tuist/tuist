@@ -28,6 +28,7 @@ let algorithmsDependency: Target.Dependency = .product(name: "Algorithms", packa
 // Cross-platform dependency arrays with macOS-only additions
 var tuistDependencies: [Target.Dependency] = [
     "TuistConstants",
+    "TuistConfigLoader",
     "TuistEnvironment",
     "TuistLogging",
     "TuistNooraExtension",
@@ -120,8 +121,17 @@ var tuistConfigLoaderDependencies: [Target.Dependency] = [
     mockableDependency,
     "TuistConfig",
     "TuistConfigToml",
-    "TuistRootDirectoryLocator",
     "TuistConstants",
+]
+var tuistConfigLoaderTestDependencies: [Target.Dependency] = [
+    "TuistConfigLoader",
+    "TuistConfig",
+    "TuistConfigToml",
+    "TuistConstants",
+    pathDependency,
+    fileSystemDependency,
+    .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
+    mockableDependency,
 ]
 #if os(macOS)
 tuistDependencies.append(contentsOf: [
@@ -137,7 +147,14 @@ tuistServerDependencies.append(contentsOf: [
 ])
 tuistHTTPDependencies.append(contentsOf: ["TuistSupport", "TuistHAR"])
 tuistCASDependencies.append(contentsOf: ["TuistCache", "TuistCASAnalytics"])
-tuistConfigLoaderDependencies.append(contentsOf: ["TuistLoader"])
+tuistConfigLoaderDependencies.append(contentsOf: [
+    "TuistLoader", "TuistCore", "TuistAlert", "TuistSupport",
+    "ProjectDescription", "TuistRootDirectoryLocator",
+])
+tuistConfigLoaderTestDependencies.append(contentsOf: [
+    "TuistLoader", "TuistRootDirectoryLocator", "TuistTesting",
+    "TuistSupport", "ProjectDescription",
+])
 #endif
 
 var targets: [Target] = [
@@ -384,17 +401,7 @@ var targets: [Target] = [
     ),
     .testTarget(
         name: "TuistConfigLoaderTests",
-        dependencies: [
-            "TuistConfigLoader",
-            "TuistConfig",
-            "TuistConfigToml",
-            "TuistConstants",
-            "TuistRootDirectoryLocator",
-            pathDependency,
-            fileSystemDependency,
-            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
-            mockableDependency,
-        ],
+        dependencies: tuistConfigLoaderTestDependencies,
         path: "cli/Tests/TuistConfigLoaderTests"
     ),
     .testTarget(
@@ -547,6 +554,7 @@ targets.append(contentsOf: [
             "TuistGenerator",
             "TuistAutomation",
             "TuistLoader",
+            "TuistConfigLoader",
             "TuistHasher",
             "TuistScaffold",
             "TuistDependencies",

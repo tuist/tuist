@@ -3,6 +3,7 @@ import Foundation
 import MCP
 import Path
 import SwiftyJSON
+import TuistConfigLoader
 import TuistCore
 import TuistGenerator
 import TuistLoader

@@ -6,6 +6,7 @@ import Path
 import Testing
 import TSCUtility
 import TuistAutomation
+import TuistConfigLoader
 import TuistCore
 import TuistGenerator
 import TuistLoader

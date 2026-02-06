@@ -4,6 +4,7 @@ import Noora
 import Path
 import Rosalind
 import TuistAlert
+import TuistConfigLoader
 import TuistEnvironment
 import TuistGit
 import TuistLoader

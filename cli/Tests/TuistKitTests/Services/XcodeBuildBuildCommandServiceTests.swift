@@ -5,6 +5,7 @@ import Mockable
 import Path
 import Testing
 import TuistAutomation
+import TuistConfigLoader
 import TuistCore
 import TuistLoader
 import TuistSupport

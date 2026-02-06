@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import TuistConfigLoader
 import TuistLoader
 import TuistLogging
 import TuistOpener

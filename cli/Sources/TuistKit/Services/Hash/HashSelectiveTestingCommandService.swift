@@ -2,6 +2,7 @@ import Foundation
 import Path
 import TuistAlert
 import TuistCache
+import TuistConfigLoader
 import TuistCore
 import TuistHasher
 import TuistLoader

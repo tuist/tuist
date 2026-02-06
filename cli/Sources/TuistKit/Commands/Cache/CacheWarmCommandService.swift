@@ -4,6 +4,7 @@ import Logging
 import Path
 import TuistAutomation
 import TuistCache
+import TuistConfigLoader
 import TuistCore
 import TuistExtension
 import TuistLoader
