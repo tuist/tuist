@@ -29,7 +29,7 @@ public struct LoginCommand: AsyncParsableCommand {
     var url: String?
 
     public func run() async throws {
-        try await LoginService().run(
+        try await LoginCommandService().run(
             email: email,
             password: password,
             serverURL: url

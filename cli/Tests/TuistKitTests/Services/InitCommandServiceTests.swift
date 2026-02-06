@@ -9,7 +9,6 @@ import TuistConstants
 import TuistServer
 import TuistSupport
 import TuistTesting
-
 @testable import TuistKit
 
 private struct MockKeyStrokeListening: KeyStrokeListening {
@@ -25,7 +24,7 @@ private struct MockKeyStrokeListening: KeyStrokeListening {
 struct InitCommandServiceTests {
     private let fileSystem = FileSystem()
     private let prompter = MockInitPrompting()
-    private let loginService = MockLoginServicing()
+    private let loginService = MockLoginCommandServicing()
     private let createProjectService = MockCreateProjectServicing()
     private let serverSessionController = MockServerSessionControlling()
     private let startGeneratedProjectService = InitGeneratedProjectService()

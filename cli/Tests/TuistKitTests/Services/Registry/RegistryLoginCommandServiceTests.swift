@@ -8,7 +8,6 @@ import TuistLoader
 import TuistServer
 import TuistSupport
 import TuistTesting
-
 @testable import TuistKit
 
 struct RegistryLoginCommandServiceTests {

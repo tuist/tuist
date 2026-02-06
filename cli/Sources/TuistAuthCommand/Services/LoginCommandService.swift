@@ -7,16 +7,16 @@ import TuistServer
 import TuistUserInputReader
 
 @Mockable
-public protocol LoginServicing: AnyObject {
+public protocol LoginCommandServicing {
     func run(
         email: String?,
         password: String?,
         serverURL: String?,
-        onEvent: @escaping (LoginServiceEvent) async -> Void
+        onEvent: @escaping (LoginCommandServiceEvent) async -> Void
     ) async throws
 }
 
-public enum LoginServiceEvent: CustomStringConvertible {
+public enum LoginCommandServiceEvent: CustomStringConvertible {
     case openingBrowser(URL)
     case waitForAuthentication
     case oidcAuthenticating
@@ -36,13 +36,14 @@ public enum LoginServiceEvent: CustomStringConvertible {
     }
 }
 
-public final class LoginService: LoginServicing {
+public struct LoginCommandService: LoginCommandServicing {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let serverSessionController: ServerSessionControlling
     private let userInputReader: UserInputReading
     private let authenticateService: AuthenticateServicing
     private let ciOIDCAuthenticator: CIOIDCAuthenticating
     private let exchangeOIDCTokenService: ExchangeOIDCTokenServicing
+    private let retryProvider: RetryProviding
 
     public init(
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
@@ -50,7 +51,8 @@ public final class LoginService: LoginServicing {
         userInputReader: UserInputReading = UserInputReader(),
         authenticateService: AuthenticateServicing = AuthenticateService(),
         ciOIDCAuthenticator: CIOIDCAuthenticating = CIOIDCAuthenticator(),
-        exchangeOIDCTokenService: ExchangeOIDCTokenServicing = ExchangeOIDCTokenService()
+        exchangeOIDCTokenService: ExchangeOIDCTokenServicing = ExchangeOIDCTokenService(),
+        retryProvider: RetryProviding = RetryProvider()
     ) {
         self.serverEnvironmentService = serverEnvironmentService
         self.serverSessionController = serverSessionController
@@ -58,19 +60,20 @@ public final class LoginService: LoginServicing {
         self.authenticateService = authenticateService
         self.ciOIDCAuthenticator = ciOIDCAuthenticator
         self.exchangeOIDCTokenService = exchangeOIDCTokenService
+        self.retryProvider = retryProvider
     }
 
     public func run(
         email: String?,
         password: String?,
         serverURL: String?,
-        onEvent: @escaping (LoginServiceEvent) async -> Void
+        onEvent: @escaping (LoginCommandServiceEvent) async -> Void
     ) async throws {
         let resolvedServerURL: URL
 
         if let serverURL {
             guard let url = URL(string: serverURL) else {
-                throw LoginServiceError.invalidServerURL(serverURL)
+                throw LoginCommandServiceError.invalidServerURL(serverURL)
             }
             resolvedServerURL = try serverEnvironmentService.url(configServerURL: url)
         } else if let envURL = Environment.current.tuistVariables["URL"],
@@ -97,15 +100,17 @@ public final class LoginService: LoginServicing {
 
     private func authenticateWithCIOIDC(
         serverURL: URL,
-        onEvent: @escaping (LoginServiceEvent) async -> Void
+        onEvent: @escaping (LoginCommandServiceEvent) async -> Void
     ) async throws {
         await onEvent(.oidcAuthenticating)
 
         let oidcToken = try await ciOIDCAuthenticator.fetchOIDCToken()
-        let accessToken = try await exchangeOIDCTokenService.exchangeOIDCToken(
-            oidcToken: oidcToken,
-            serverURL: serverURL
-        )
+        let accessToken = try await retryProvider.runWithRetries {
+            try await exchangeOIDCTokenService.exchangeOIDCToken(
+                oidcToken: oidcToken,
+                serverURL: serverURL
+            )
+        }
 
         try await ServerCredentialsStore.current.store(
             credentials: ServerCredentials(accessToken: accessToken),
@@ -138,7 +143,7 @@ public final class LoginService: LoginServicing {
 
     private func authenticateWithBrowserLogin(
         serverURL: URL,
-        onEvent: @escaping (LoginServiceEvent) async -> Void
+        onEvent: @escaping (LoginCommandServiceEvent) async -> Void
     ) async throws {
         try await serverSessionController.authenticate(
             serverURL: serverURL,
@@ -153,7 +158,7 @@ public final class LoginService: LoginServicing {
     }
 }
 
-extension LoginServicing {
+extension LoginCommandServicing {
     public func run(
         email: String? = nil,
         password: String? = nil,
@@ -170,7 +175,7 @@ extension LoginServicing {
     }
 }
 
-enum LoginServiceError: LocalizedError, Equatable {
+enum LoginCommandServiceError: LocalizedError, Equatable {
     case invalidServerURL(String)
 
     var errorDescription: String? {
