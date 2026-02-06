@@ -43,6 +43,7 @@ public final class LoginService: LoginServicing {
     private let authenticateService: AuthenticateServicing
     private let ciOIDCAuthenticator: CIOIDCAuthenticating
     private let exchangeOIDCTokenService: ExchangeOIDCTokenServicing
+    private let retryProvider: RetryProviding
 
     public init(
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
@@ -50,7 +51,8 @@ public final class LoginService: LoginServicing {
         userInputReader: UserInputReading = UserInputReader(),
         authenticateService: AuthenticateServicing = AuthenticateService(),
         ciOIDCAuthenticator: CIOIDCAuthenticating = CIOIDCAuthenticator(),
-        exchangeOIDCTokenService: ExchangeOIDCTokenServicing = ExchangeOIDCTokenService()
+        exchangeOIDCTokenService: ExchangeOIDCTokenServicing = ExchangeOIDCTokenService(),
+        retryProvider: RetryProviding = RetryProvider()
     ) {
         self.serverEnvironmentService = serverEnvironmentService
         self.serverSessionController = serverSessionController
@@ -58,6 +60,7 @@ public final class LoginService: LoginServicing {
         self.authenticateService = authenticateService
         self.ciOIDCAuthenticator = ciOIDCAuthenticator
         self.exchangeOIDCTokenService = exchangeOIDCTokenService
+        self.retryProvider = retryProvider
     }
 
     public func run(
@@ -102,10 +105,12 @@ public final class LoginService: LoginServicing {
         await onEvent(.oidcAuthenticating)
 
         let oidcToken = try await ciOIDCAuthenticator.fetchOIDCToken()
-        let accessToken = try await exchangeOIDCTokenService.exchangeOIDCToken(
-            oidcToken: oidcToken,
-            serverURL: serverURL
-        )
+        let accessToken = try await retryProvider.runWithRetries {
+            try await self.exchangeOIDCTokenService.exchangeOIDCToken(
+                oidcToken: oidcToken,
+                serverURL: serverURL
+            )
+        }
 
         try await ServerCredentialsStore.current.store(
             credentials: ServerCredentials(accessToken: accessToken),

@@ -104,11 +104,29 @@ defmodule Tuist.OIDC do
     cache_key = ["oidc", "jwks", jwks_uri]
 
     KeyValueStore.get_or_update(cache_key, [ttl: @jwks_cache_ttl], fn ->
-      case Req.get(jwks_uri) do
+      case Req.get(jwks_uri,
+             connect_timeout: 10_000,
+             receive_timeout: 10_000,
+             retry: &should_retry_jwks?/2,
+             max_retries: 3,
+             retry_delay: &exponential_backoff/1
+           ) do
         {:ok, %{status: 200, body: body}} -> {:ok, body}
         _ -> {:error, :jwks_fetch_failed, jwks_uri}
       end
     end)
+  end
+
+  defp should_retry_jwks?(_request, response_or_exception) do
+    case response_or_exception do
+      %Req.Response{status: status} when status in [408, 429, 500, 502, 503, 504] -> true
+      %Req.TransportError{reason: reason} when reason in [:timeout, :econnrefused, :closed] -> true
+      _ -> false
+    end
+  end
+
+  defp exponential_backoff(retry_count) do
+    trunc(:math.pow(2, retry_count) * 1000)
   end
 
   defp verify_signature(token, %{"keys" => keys}, kid) do
