@@ -473,50 +473,71 @@
       </div>
     </section>
 
-    <section data-part="additional-features">
-      <div data-part="feature-column">
-        <a
-          data-part="overlay-link"
-          href={localized_href("https://docs.tuist.dev/guides/features/projects")}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={
-            dgettext("marketing", "Open the %{feature} feature documentation",
-              feature: dgettext("marketing", "Generated Projects")
-            )
-          }
-        >
-        </a>
-        <h3 data-part="feature-title">
-          {dgettext("marketing", "Generated Projects")} <.arrow_right />
-        </h3>
-        <p data-part="feature-description">
+    <section data-part="other-features" aria-labelledby="other-features-heading">
+      <header data-part="sidebar">
+        <h2 id="other-features-heading" data-part="title">{dgettext("marketing", "Other features")}</h2>
+        <p data-part="description">
           {dgettext(
             "marketing",
-            "Conceptually compress the complexities of modular Xcode projects and make them more accessible to maintain and scale."
+            "Extra features that simplify modular Xcode projects and speed up local and CI builds."
           )}
         </p>
-      </div>
-      <div data-part="feature-column">
-        <a
-          data-part="overlay-link"
-          href={localized_href("https://docs.tuist.dev/guides/features/registry")}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={
-            dgettext("marketing", "Open the %{feature} feature documentation",
-              feature: dgettext("marketing", "Registry")
-            )
-          }
-        >
-        </a>
-        <h3 data-part="feature-title">{dgettext("marketing", "Registry")} <.arrow_right /></h3>
-        <p data-part="feature-description">
-          {dgettext(
-            "marketing",
-            "Download only what you need - faster, lighter builds locally and on CI."
-          )}
-        </p>
+      </header>
+
+      <div data-part="content">
+        <div data-part="feature-row">
+          <div data-part="feature-block" data-variant="generated-projects">
+            <a
+              data-part="overlay-link"
+              href={localized_href("https://docs.tuist.dev/guides/features/projects")}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={
+                dgettext("marketing", "Open the %{feature} feature documentation",
+                  feature: dgettext("marketing", "Generated Projects")
+                )
+              }
+            >
+            </a>
+            <div data-part="feature-info">
+              <h3 data-part="feature-title">
+                {dgettext("marketing", "Generated Projects")} <.arrow_right />
+              </h3>
+              <p data-part="feature-description">
+                {dgettext(
+                  "marketing",
+                  "Conceptually compress the complexities of modular Xcode projects and make them more accessible to maintain and scale."
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div data-part="feature-block" data-variant="registry">
+            <a
+              data-part="overlay-link"
+              href={localized_href("https://docs.tuist.dev/guides/features/registry")}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={
+                dgettext("marketing", "Open the %{feature} feature documentation",
+                  feature: dgettext("marketing", "Registry")
+                )
+              }
+            >
+            </a>
+            <div data-part="feature-info">
+              <h3 data-part="feature-title">
+                {dgettext("marketing", "Registry")} <.arrow_right />
+              </h3>
+              <p data-part="feature-description">
+                {dgettext(
+                  "marketing",
+                  "Download only what you need — faster, lighter builds locally and on CI."
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
