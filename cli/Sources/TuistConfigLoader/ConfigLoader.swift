@@ -53,11 +53,7 @@ public final class ConfigLoader: ConfigLoading {
             return configFromToml(tomlConfig)
         }
 
-        #if os(macOS)
-            return try await swiftConfigLoader.loadConfig(path: path)
-        #else
-            return .default
-        #endif
+        return .default
     }
 
     private func configFromToml(_ tomlConfig: TuistTomlConfig) -> TuistConfig.Tuist {
