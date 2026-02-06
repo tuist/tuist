@@ -10,7 +10,6 @@ import java.net.URI
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
-import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class TuistBuildInsightsTest {
@@ -208,65 +207,27 @@ class TuistBuildInsightsTest {
     }
 
     @Test
-    fun `RemoteCacheTracker marks remote hit and records for task`() {
-        RemoteCacheTracker.clear()
-
-        RemoteCacheTracker.markRemoteHit()
-        RemoteCacheTracker.consumeAndRecordForTask(":app:compileKotlin")
-
-        assertTrue(RemoteCacheTracker.wasRemoteHit(":app:compileKotlin"))
+    fun `TaskCacheMetadata defaults are correct`() {
+        val metadata = TaskCacheMetadata()
+        assertNull(metadata.cacheKey)
+        assertNull(metadata.artifactSize)
+        assertEquals(false, metadata.isRemoteHit)
+        assertEquals(false, metadata.isLocalHit)
     }
 
     @Test
-    fun `RemoteCacheTracker defaults to local hit when no remote mark`() {
-        RemoteCacheTracker.clear()
+    fun `TaskCacheMetadata copy preserves and overrides fields`() {
+        val metadata = TaskCacheMetadata(cacheKey = "abc123", artifactSize = 4096, isRemoteHit = true)
+        assertEquals("abc123", metadata.cacheKey)
+        assertEquals(4096L, metadata.artifactSize)
+        assertEquals(true, metadata.isRemoteHit)
+        assertEquals(false, metadata.isLocalHit)
 
-        RemoteCacheTracker.consumeAndRecordForTask(":app:compileKotlin")
-
-        assertFalse(RemoteCacheTracker.wasRemoteHit(":app:compileKotlin"))
-    }
-
-    @Test
-    fun `RemoteCacheTracker returns false for unknown task`() {
-        RemoteCacheTracker.clear()
-
-        assertFalse(RemoteCacheTracker.wasRemoteHit(":unknown:task"))
-    }
-
-    @Test
-    fun `RemoteCacheTracker clear resets all state`() {
-        RemoteCacheTracker.clear()
-
-        RemoteCacheTracker.markRemoteHit()
-        RemoteCacheTracker.consumeAndRecordForTask(":app:compileKotlin")
-        assertTrue(RemoteCacheTracker.wasRemoteHit(":app:compileKotlin"))
-
-        RemoteCacheTracker.clear()
-        assertFalse(RemoteCacheTracker.wasRemoteHit(":app:compileKotlin"))
-    }
-
-    @Test
-    fun `RemoteCacheTracker tracks cache key and artifact size`() {
-        RemoteCacheTracker.clear()
-
-        RemoteCacheTracker.setCacheKey("abc123")
-        RemoteCacheTracker.recordArtifactSize("abc123", 4096)
-        RemoteCacheTracker.markRemoteHit()
-        RemoteCacheTracker.consumeAndRecordForTask(":app:compileKotlin")
-
-        assertEquals("abc123", RemoteCacheTracker.getCacheKey(":app:compileKotlin"))
-        assertEquals(4096L, RemoteCacheTracker.getArtifactSize(":app:compileKotlin"))
-        assertTrue(RemoteCacheTracker.wasRemoteHit(":app:compileKotlin"))
-    }
-
-    @Test
-    fun `RemoteCacheTracker returns null for task without cache key`() {
-        RemoteCacheTracker.clear()
-
-        RemoteCacheTracker.consumeAndRecordForTask(":app:test")
-
-        assertNull(RemoteCacheTracker.getCacheKey(":app:test"))
-        assertNull(RemoteCacheTracker.getArtifactSize(":app:test"))
+        val updated = metadata.copy(isLocalHit = true, artifactSize = 8192)
+        assertEquals("abc123", updated.cacheKey)
+        assertEquals(8192L, updated.artifactSize)
+        assertEquals(true, updated.isRemoteHit)
+        assertEquals(true, updated.isLocalHit)
     }
 
     @Test

@@ -9,6 +9,18 @@ import org.gradle.api.services.BuildService
 import org.gradle.api.services.BuildServiceParameters
 import org.gradle.api.tasks.CacheableTask
 import org.gradle.build.event.BuildEventsListenerRegistry
+import org.gradle.caching.internal.operations.BuildCacheArchivePackBuildOperationType
+import org.gradle.caching.internal.operations.BuildCacheLocalLoadBuildOperationType
+import org.gradle.caching.internal.operations.BuildCacheRemoteLoadBuildOperationType
+import org.gradle.api.internal.GradleInternal
+import org.gradle.internal.operations.BuildOperationDescriptor
+import org.gradle.internal.operations.BuildOperationListener
+import org.gradle.internal.operations.BuildOperationListenerManager
+import org.gradle.internal.operations.OperationFinishEvent
+import org.gradle.internal.operations.OperationIdentifier
+import org.gradle.internal.operations.OperationProgressEvent
+import org.gradle.internal.operations.OperationStartEvent
+import org.gradle.api.internal.tasks.execution.ExecuteTaskBuildOperationType
 import org.gradle.tooling.events.FinishEvent
 import org.gradle.tooling.events.OperationCompletionListener
 import org.gradle.tooling.events.task.TaskFinishEvent
@@ -24,46 +36,14 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import javax.inject.Inject
 
-// --- Remote Cache Tracker ---
-
-object RemoteCacheTracker {
-    private val isRemoteHit = ThreadLocal<Boolean>()
-    private val currentCacheKey = ThreadLocal<String>()
-    private val taskCacheOrigins = ConcurrentHashMap<String, Boolean>()
-    private val taskCacheKeys = ConcurrentHashMap<String, String>()
-    private val artifactSizes = ConcurrentHashMap<String, Long>()
-
-    fun markRemoteHit() { isRemoteHit.set(true) }
-    fun setCacheKey(key: String) { currentCacheKey.set(key) }
-    fun recordArtifactSize(cacheKey: String, size: Long) { artifactSizes[cacheKey] = size }
-
-    fun consumeAndRecordForTask(taskPath: String) {
-        val wasRemote = isRemoteHit.get() ?: false
-        isRemoteHit.remove()
-        taskCacheOrigins[taskPath] = wasRemote
-
-        val cacheKey = currentCacheKey.get()
-        currentCacheKey.remove()
-        if (cacheKey != null) taskCacheKeys[taskPath] = cacheKey
-    }
-
-    fun wasRemoteHit(taskPath: String): Boolean = taskCacheOrigins[taskPath] ?: false
-    fun getCacheKey(taskPath: String): String? = taskCacheKeys[taskPath]
-    fun getArtifactSize(taskPath: String): Long? {
-        val cacheKey = taskCacheKeys[taskPath] ?: return null
-        return artifactSizes[cacheKey]
-    }
-
-    fun clear() {
-        taskCacheOrigins.clear()
-        taskCacheKeys.clear()
-        artifactSizes.clear()
-        isRemoteHit.remove()
-        currentCacheKey.remove()
-    }
-}
-
 // --- Data classes ---
+
+data class TaskCacheMetadata(
+    val cacheKey: String? = null,
+    val artifactSize: Long? = null,
+    val isRemoteHit: Boolean = false,
+    val isLocalHit: Boolean = false
+)
 
 data class TaskOutcomeData(
     val taskPath: String,
@@ -179,6 +159,7 @@ object GitInfo {
 abstract class TuistBuildInsightsService :
     BuildService<TuistBuildInsightsService.Params>,
     OperationCompletionListener,
+    BuildOperationListener,
     AutoCloseable {
 
     interface Params : BuildServiceParameters {
@@ -194,8 +175,86 @@ abstract class TuistBuildInsightsService :
     private var buildStartTime: Long = System.currentTimeMillis()
     private var buildFailed = false
 
+    private val operationParents = ConcurrentHashMap<OperationIdentifier, OperationIdentifier>()
+    private val operationTaskPaths = ConcurrentHashMap<OperationIdentifier, String>()
+    private val taskCacheMetadata = ConcurrentHashMap<String, TaskCacheMetadata>()
+
     fun setCacheableTasks(paths: Set<String>) {
         cacheableTaskPaths.addAll(paths)
+    }
+
+    override fun started(buildOperation: BuildOperationDescriptor, startEvent: OperationStartEvent) {
+        val opId = buildOperation.id ?: return
+        val parentId = buildOperation.parentId
+        if (parentId != null) {
+            operationParents[opId] = parentId
+        }
+
+        val details = buildOperation.details
+        if (details is ExecuteTaskBuildOperationType.Details) {
+            operationTaskPaths[opId] = details.taskPath
+        }
+    }
+
+    override fun progress(operationIdentifier: OperationIdentifier, progressEvent: OperationProgressEvent) {
+        // No-op
+    }
+
+    override fun finished(buildOperation: BuildOperationDescriptor, finishEvent: OperationFinishEvent) {
+        val result = finishEvent.result
+        val details = buildOperation.details
+        val opId = buildOperation.id ?: return
+
+        when (result) {
+            is BuildCacheLocalLoadBuildOperationType.Result -> {
+                if (result.isHit) {
+                    val taskPath = findTaskPathForOperation(opId) ?: return
+                    val cacheKey = (details as? BuildCacheLocalLoadBuildOperationType.Details)?.cacheKey
+                    val existing = taskCacheMetadata[taskPath] ?: TaskCacheMetadata()
+                    taskCacheMetadata[taskPath] = existing.copy(
+                        cacheKey = cacheKey,
+                        artifactSize = result.archiveSize,
+                        isLocalHit = true
+                    )
+                }
+            }
+            is BuildCacheRemoteLoadBuildOperationType.Result -> {
+                if (result.isHit) {
+                    val taskPath = findTaskPathForOperation(opId) ?: return
+                    val cacheKey = (details as? BuildCacheRemoteLoadBuildOperationType.Details)?.cacheKey
+                    val existing = taskCacheMetadata[taskPath] ?: TaskCacheMetadata()
+                    taskCacheMetadata[taskPath] = existing.copy(
+                        cacheKey = cacheKey,
+                        artifactSize = result.archiveSize,
+                        isRemoteHit = true
+                    )
+                }
+            }
+            is BuildCacheArchivePackBuildOperationType.Result -> {
+                val taskPath = findTaskPathForOperation(opId) ?: return
+                val cacheKey = (details as? BuildCacheArchivePackBuildOperationType.Details)?.cacheKey
+                val existing = taskCacheMetadata[taskPath] ?: TaskCacheMetadata()
+                taskCacheMetadata[taskPath] = existing.copy(
+                    cacheKey = cacheKey,
+                    artifactSize = result.archiveSize
+                )
+            }
+        }
+
+        // Clean up when task-level operations finish
+        if (buildOperation.details is ExecuteTaskBuildOperationType.Details) {
+            operationTaskPaths.remove(opId)
+        }
+        operationParents.remove(opId)
+    }
+
+    private fun findTaskPathForOperation(opId: OperationIdentifier): String? {
+        var currentId: OperationIdentifier? = opId
+        while (currentId != null) {
+            operationTaskPaths[currentId]?.let { return it }
+            currentId = operationParents[currentId]
+        }
+        return null
     }
 
     override fun onFinish(event: FinishEvent) {
@@ -203,12 +262,13 @@ abstract class TuistBuildInsightsService :
         val result = event.result
         val taskPath = event.descriptor.taskPath
         val durationMs = result.endTime - result.startTime
+        val metadata = taskCacheMetadata[taskPath]
 
         val (outcome, cacheable) = when (result) {
             is TaskSuccessResult -> {
                 when {
                     result.isFromCache -> {
-                        val outcome = if (RemoteCacheTracker.wasRemoteHit(taskPath)) "remote_hit" else "local_hit"
+                        val outcome = if (metadata?.isRemoteHit == true) "remote_hit" else "local_hit"
                         outcome to true
                     }
                     result.isUpToDate -> "up_to_date" to cacheableTaskPaths.contains(taskPath)
@@ -234,10 +294,12 @@ abstract class TuistBuildInsightsService :
                 cacheable = cacheable,
                 durationMs = durationMs,
                 taskType = null,
-                cacheKey = RemoteCacheTracker.getCacheKey(taskPath),
-                cacheArtifactSize = RemoteCacheTracker.getArtifactSize(taskPath)
+                cacheKey = metadata?.cacheKey,
+                cacheArtifactSize = metadata?.artifactSize
             )
         )
+
+        taskCacheMetadata.remove(taskPath)
     }
 
     override fun close() {
@@ -349,11 +411,17 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
                 }
                 .map { it.path }
                 .toSet()
-            serviceProvider.get().setCacheableTasks(cacheablePaths)
-        }
 
-        project.gradle.taskGraph.afterTask {
-            RemoteCacheTracker.consumeAndRecordForTask(path)
+            val service = serviceProvider.get()
+            service.setCacheableTasks(cacheablePaths)
+
+            try {
+                val gradleInternal = project.gradle as GradleInternal
+                val listenerManager = gradleInternal.services.get(BuildOperationListenerManager::class.java)
+                listenerManager.addListener(service)
+            } catch (e: Exception) {
+                println("Tuist: Warning - Could not register build operation listener. Cache metadata may be incomplete.")
+            }
         }
     }
 }
