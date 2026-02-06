@@ -183,11 +183,14 @@ defmodule TuistWeb.AppLayoutComponents do
       />
       <.sidebar_item
         :if={Project.gradle_project?(@selected_project)}
-        label={dgettext("dashboard", "Gradle Insights")}
+        label={dgettext("dashboard", "Gradle Cache")}
         icon="server"
-        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-insights"}
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-cache"}
         selected={
-          ~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-insights" == @current_path
+          String.starts_with?(
+            @current_path,
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/gradle-cache"
+          )
         }
       />
       <.sidebar_item
