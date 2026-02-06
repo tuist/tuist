@@ -221,7 +221,7 @@ export default withMermaid(
   defineConfig({
     title: "Tuist",
     titleTemplate: ":title | Tuist",
-    description: "Scale your Xcode app development",
+    description: "Scale your app development",
     srcDir: "docs",
     lastUpdated: false,
     ignoreDeadLinks: [

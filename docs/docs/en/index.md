@@ -1,7 +1,7 @@
 ---
 {
   "title": "What is Tuist?",
-  "description": "Extend your Apple native tooling to better apps at scale."
+  "description": "Scale your app development with intelligent caching, testing, and insights."
 }
 ---
 <script setup>
@@ -10,19 +10,19 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
 
 # A virtual platform team for developers who ship
 
-**Tuist extends Apple's toolchain to help teams scale and focus on building apps** – transforming Apple platform development from frustrating complexity into a smooth, productive experience that grows with your team.
+**Tuist helps teams scale app development and ship faster** -- whether you're building with Xcode, Gradle, or both. It transforms the complexity of large codebases into a smooth, productive experience that grows with your team.
 
 <br/>
 
 <HomeCards>
     <HomeCard icon="📝"
-        title="Generated projects"
+        title="Generated projects (Xcode)"
         details="Make Xcode projects easier to manage for humans and LLMs. Generate consistent projects from Swift code that eliminate merge conflicts."
         linkText="Simplify project management"
         link="/guides/features/projects"/>
     <HomeCard icon="⚡"
         title="Cache"
-        details="Cut build times by up to 65% with intelligent binary caching. Stop waiting, start shipping."
+        details="Cut build times by up to 65% with intelligent binary caching across Xcode and Gradle projects. Stop waiting, start shipping."
         linkText="Accelerate development"
         link="/guides/features/cache"/>
     <HomeCard
@@ -51,13 +51,13 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
         link="/guides/features/insights"/>
     <HomeCard
         icon="⚖️"
-        title="Bundle size"
+        title="Bundle size (Xcode)"
         details="Keep your app lean and fast. Analyze and optimize your bundle size to delight users and pass App Store guidelines."
         linkText="Optimize your app"
         link="/guides/features/bundle-size"/>
     <HomeCard
         icon="📦"
-        title="Package Registry"
+        title="Package Registry (Swift)"
         details="Resolve Swift packages in seconds, not minutes. Our registry makes dependency management a breeze."
         linkText="Speed up package resolution"
         link="/guides/features/registry"/>
@@ -65,7 +65,7 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
 
 ## Join thousands of developers who've made the switch
 
-**Teams at [Trendyol](https://www.trendyol.com/), [Etsy](https://www.etsy.com/), [Bumble](https://bumble.com/), [Monzo](https://monzo.com/), [Bending Spoons](https://bendingspoons.com/), and 100+ other companies** have already transformed their Apple platform development with Tuist. Here's what they're experiencing:
+**Teams at [Trendyol](https://www.trendyol.com/), [Etsy](https://www.etsy.com/), [Bumble](https://bumble.com/), [Monzo](https://monzo.com/), [Bending Spoons](https://bendingspoons.com/), and 100+ other companies** have already transformed their app development with Tuist. Here's what they're experiencing:
 
 - **65% faster builds** with intelligent caching
 - **Zero merge conflicts** in Xcode projects
@@ -101,7 +101,7 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
 
 ## Join a thriving community
 
-**Connect with thousands of Apple platform developers** who are shipping better apps with Tuist. Get help, share wins, and shape the future of Apple platform development.
+**Connect with thousands of developers** who are shipping better apps with Tuist. Get help, share wins, and shape the future of app development tooling.
 
 <HomeCommunity>
     <HomeCommunityItem title="Forum" description="Interact with other community members in a synchronous manner" href="https://community.tuist.dev">
