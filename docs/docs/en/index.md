@@ -16,7 +16,7 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
 
 <HomeCards>
     <HomeCard icon="📝"
-        title="Generated projects (Xcode)"
+        title="Generated projects"
         details="Make Xcode projects easier to manage for humans and LLMs. Generate consistent projects from Swift code that eliminate merge conflicts."
         linkText="Simplify project management"
         link="/guides/features/projects"/>
@@ -51,13 +51,13 @@ import VPFeatures from "vitepress/dist/client/theme-default/components/VPFeature
         link="/guides/features/insights"/>
     <HomeCard
         icon="⚖️"
-        title="Bundle size (Xcode)"
+        title="Bundle size"
         details="Keep your app lean and fast. Analyze and optimize your bundle size to delight users and pass App Store guidelines."
         linkText="Optimize your app"
         link="/guides/features/bundle-size"/>
     <HomeCard
         icon="📦"
-        title="Package Registry (Swift)"
+        title="Package Registry"
         details="Resolve Swift packages in seconds, not minutes. Our registry makes dependency management a breeze."
         linkText="Speed up package resolution"
         link="/guides/features/registry"/>
