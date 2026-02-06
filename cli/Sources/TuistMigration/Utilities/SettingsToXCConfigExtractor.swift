@@ -2,6 +2,8 @@ import FileSystem
 import Foundation
 import Path
 import PathKit
+import TuistAlert
+import TuistLogging
 import TuistSupport
 import XcodeProj
 

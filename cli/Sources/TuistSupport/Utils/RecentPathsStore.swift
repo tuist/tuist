@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import TuistEnvironment
 
 public struct RecentPathMetadata: Hashable, Equatable, Codable {
     let lastUpdated: Date

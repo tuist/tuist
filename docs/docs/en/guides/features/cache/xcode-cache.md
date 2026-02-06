@@ -83,7 +83,47 @@ let tuist = Tuist(
 <!-- -->
 :::
 
-### Continuous integration #{continuous-integration}
+### Cache upload policy {#cache-upload-policy}
+
+By default, the cache service both downloads and uploads artifacts to the remote cache. You can control this with the `cache` option in your `Tuist.swift` file to enable read-only mode, where artifacts are downloaded but never uploaded:
+
+```swift
+import ProjectDescription
+
+let tuist = Tuist(
+    fullHandle: "your-org/your-project",
+    cache: .cache(
+        upload: false
+    ),
+    project: .tuist(
+        generationOptions: .options(
+            enableCaching: true
+        )
+    )
+)
+```
+
+A common pattern is to push artifacts only from CI, where builds are reproducible, while keeping local environments read-only. You can achieve this using `Environment.isCI`, which checks for the `CI` environment variable set by most CI providers:
+
+```swift
+import ProjectDescription
+
+let tuist = Tuist(
+    fullHandle: "your-org/your-project",
+    cache: .cache(
+        upload: Environment.isCI
+    ),
+    project: .tuist(
+        generationOptions: .options(
+            enableCaching: true
+        )
+    )
+)
+```
+
+With this setup, local builds benefit from cached artifacts without uploading, while CI builds populate the cache for the rest of the team.
+
+### Continuous integration {#continuous-integration}
 
 To enable caching in your CI environment, you need to run the same command as in local environments: `tuist setup cache`.
 

@@ -1,8 +1,10 @@
 import Foundation
 import Path
+import TuistAlert
 import TuistAutomation
 import TuistCore
 import TuistLoader
+import TuistLogging
 import TuistServer
 import TuistSupport
 import XcodeGraph

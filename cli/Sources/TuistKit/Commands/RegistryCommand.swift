@@ -1,8 +1,10 @@
 import ArgumentParser
 import Foundation
 
-struct RegistryCommand: ParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct RegistryCommand: ParsableCommand {
+    public init() {}
+
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "registry",
             abstract: "A set of commands to interact with the Tuist Registry.",

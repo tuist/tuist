@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TuistConstants
 import TuistSupport
 import XcodeGraph
 
@@ -16,6 +17,14 @@ public enum TuistConfigError: LocalizedError, Equatable {
 
 /// This model allows to configure Tuist.
 public struct Tuist: Equatable, Hashable, Sendable {
+    public struct Cache: Equatable, Hashable, Sendable {
+        public let upload: Bool
+
+        public init(upload: Bool = true) {
+            self.upload = upload
+        }
+    }
+
     /// Configures the project Tuist will interact with.
     /// When no project is provided, Tuist defaults to the workspace or project in the current directory.
     public let project: TuistProject
@@ -26,6 +35,9 @@ public struct Tuist: Equatable, Hashable, Sendable {
     /// The options to use when running `tuist inspect`.
     public let inspectOptions: InspectOptions
 
+    /// The Xcode Cache configuration.
+    public let cache: Cache
+
     /// The base `URL` that points to the Tuist server.
     public let url: URL
 
@@ -35,6 +47,7 @@ public struct Tuist: Equatable, Hashable, Sendable {
             project: .defaultGeneratedProject(),
             fullHandle: nil,
             inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            cache: Cache(),
             url: Constants.URLs.production
         )
     }
@@ -45,16 +58,19 @@ public struct Tuist: Equatable, Hashable, Sendable {
     ///   - project: The `TuistProject` instance that represents the project Tuist will interact with.
     ///   - fullHandle: An optional string representing the full handle of the project, such as "tuist-org/tuist".
     ///   - inspectOptions: The options to use when running `tuist inspect`.
+    ///   - cache: The Xcode Cache configuration.
     ///   - url: The base `URL` pointing to the Tuist server.
     public init(
         project: TuistProject,
         fullHandle: String?,
         inspectOptions: InspectOptions,
+        cache: Cache = Cache(),
         url: URL
     ) {
         self.project = project
         self.fullHandle = fullHandle
         self.inspectOptions = inspectOptions
+        self.cache = cache
         self.url = url
     }
 
@@ -100,9 +116,10 @@ public struct InspectOptions: Codable, Equatable, Hashable, Sendable {
             project: TuistProject = .testGeneratedProject(),
             fullHandle: String? = nil,
             inspectOptions: InspectOptions = .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            cache: Cache = Cache(),
             url: URL = Constants.URLs.production
         ) -> Self {
-            return Tuist(project: project, fullHandle: fullHandle, inspectOptions: inspectOptions, url: url)
+            return Tuist(project: project, fullHandle: fullHandle, inspectOptions: inspectOptions, cache: cache, url: url)
         }
     }
 

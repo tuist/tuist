@@ -1,7 +1,9 @@
 import Foundation
 import Mockable
 import Path
+import TuistConstants
 import TuistCore
+import TuistEnvironment
 import TuistGenerator
 import TuistLoader
 import TuistPlugin
@@ -403,6 +405,62 @@ final class ProjectEditorTests: TuistUnitTestCase {
             [pluginManifestPath].map(\.parentDirectory.basename)
         )
         XCTAssertEqual(mapArgs?.pluginProjectDescriptionHelpersModule, [])
+    }
+
+    func test_edit_project_deduplicates_plugins_with_same_directory_name() async throws {
+        // Given
+        let directory = try temporaryPath()
+        let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
+        let graph = Graph.test(name: "Edit")
+
+        let manifests = [
+            ManifestFilesLocator.ProjectManifest(
+                manifest: .project,
+                path: directory.appending(component: "Project.swift")
+            ),
+        ]
+
+        // Multiple Plugin.swift files discovered by filesystem scan sharing the same directory name
+        let discoveredPluginPath1 = directory.appending(components: "examples", "app1", "LocalPlugin", "Plugin.swift")
+        let discoveredPluginPath2 = directory.appending(components: "examples", "app2", "LocalPlugin", "Plugin.swift")
+        let discoveredPluginPath3 = directory.appending(components: "fixtures", "LocalPlugin", "Plugin.swift")
+
+        let tuistPath = try AbsolutePath(validating: Environment.current.arguments.first!)
+
+        resourceLocator.projectDescriptionStub = { projectDescriptionPath }
+        given(manifestFilesLocator)
+            .locateProjectManifests(at: .any, excluding: .any, onlyCurrentDirectory: .any)
+            .willReturn(manifests)
+        given(manifestFilesLocator)
+            .locatePluginManifests(at: .any, excluding: .any, onlyCurrentDirectory: .any)
+            .willReturn([discoveredPluginPath1, discoveredPluginPath2, discoveredPluginPath3])
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(nil)
+        given(manifestFilesLocator)
+            .locateConfig(at: .any)
+            .willReturn(nil)
+        projectEditorMapper.mapStub = graph
+        generator.generateWorkspaceStub = { _ in
+            .test(xcworkspacePath: directory.appending(component: "Edit.xcworkspacepath"))
+        }
+        given(templatesDirectoryLocator)
+            .locateUserTemplates(at: .any)
+            .willReturn(nil)
+
+        // When
+        try _ = await subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .none)
+
+        // Then
+        XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
+        let mapArgs = projectEditorMapper.mapArgs.first
+        let pluginNames = try XCTUnwrap(mapArgs?.editablePluginManifests.map(\.name).sorted())
+        XCTAssertEqual(pluginNames.count, 3)
+        XCTAssertTrue(pluginNames.contains("LocalPlugin"))
+        let renamedNames = pluginNames.filter { $0 != "LocalPlugin" }
+        for name in renamedNames {
+            XCTAssertTrue(name.hasSuffix("-LocalPlugin"), "Expected parent directory prefix, got: \(name)")
+        }
     }
 
     func test_edit_project_with_remote_plugin() async throws {

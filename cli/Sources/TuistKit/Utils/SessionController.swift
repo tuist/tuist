@@ -1,6 +1,8 @@
 import FileSystem
 import Foundation
 import Path
+import TuistEnvironment
+import TuistLogging
 import TuistSupport
 
 /// Manages CLI session directories containing logs and network recordings.

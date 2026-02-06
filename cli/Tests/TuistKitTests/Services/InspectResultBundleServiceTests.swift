@@ -6,7 +6,9 @@ import Path
 import Testing
 import TuistAutomation
 import TuistCI
+import TuistConstants
 import TuistCore
+import TuistEnvironment
 import TuistGit
 import TuistLoader
 import TuistRootDirectoryLocator

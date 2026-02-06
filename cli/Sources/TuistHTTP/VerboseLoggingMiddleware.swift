@@ -3,6 +3,7 @@ import HTTPTypes
 import OpenAPIRuntime
 
 #if os(macOS)
+    import TuistLogging
     import TuistSupport
 #endif
 

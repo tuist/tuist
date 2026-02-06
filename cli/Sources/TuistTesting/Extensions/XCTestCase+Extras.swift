@@ -1,5 +1,7 @@
 import Foundation
 import Path
+import TuistEnvironment
+import TuistLogging
 import TuistSupport
 import XCTest
 

@@ -1,9 +1,16 @@
-import Darwin
+#if os(Linux)
+    import Glibc
+
+    let systemGlob = Glibc.glob
+#else
+    import Darwin
+
+    let systemGlob = Darwin.glob
+#endif
 import Foundation
 import Path
+import TuistLogging
 import UniformTypeIdentifiers
-
-let systemGlob = Darwin.glob
 
 public enum GlobError: FatalError, Equatable {
     case nonExistentDirectory(InvalidGlob)

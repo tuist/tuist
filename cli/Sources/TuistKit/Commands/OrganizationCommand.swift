@@ -1,8 +1,10 @@
 import ArgumentParser
 import Foundation
 
-struct OrganizationCommand: ParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct OrganizationCommand: ParsableCommand {
+    public init() {}
+
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "organization",
             abstract: "A set of commands to manage your Tuist organizations.",

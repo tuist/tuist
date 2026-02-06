@@ -1,6 +1,8 @@
 import Foundation
 import Path
+import TuistLogging
 import TuistSupport
+import TuistThreadSafe
 import XcodeGraph
 
 import func TSCBasic.topologicalSort
@@ -480,35 +482,6 @@ public class GraphTraverser: GraphTraversing {
             directLocalStaticFrameworksWithResources.compactMap {
                 self.dependencyReference(
                     to: .target(name: $0.graphTarget.target.name, path: $0.graphTarget.path),
-                    from: .target(name: name, path: path)
-                )
-            }
-        )
-
-        // Static precompiled XCFrameworks that contain .framework bundles (e.g., from cache)
-        // These need to be embedded so the bundle accessor can find resources at runtime.
-        // We only embed XCFrameworks that contain .framework bundles, not .a static libraries,
-        // because .a libraries don't have an Info.plist and will fail to load at runtime.
-        // The binary is already statically linked, so embedding it is redundant but harmless
-        // (only resources are needed at runtime).
-        // We skip traversing through dynamic precompiled binaries because they link static
-        // dependencies themselves.
-        let staticXCFrameworks = filterDependencies(
-            from: .target(name: name, path: path),
-            test: { dependency in
-                guard case let .xcframework(xcframework) = dependency,
-                      xcframework.linking == .static
-                else { return false }
-                // Only embed XCFrameworks that contain .framework bundles, not .a static libraries
-                return xcframework.infoPlist.libraries.contains { $0.path.extension == "framework" }
-            },
-            skip: { self.canDependencyEmbedBinaries(dependency: $0) || $0.isPrecompiledMacro || $0.isDynamicPrecompiled }
-        )
-
-        references.formUnionPreferringRequiredStatus(
-            staticXCFrameworks.lazy.compactMap {
-                self.dependencyReference(
-                    to: $0,
                     from: .target(name: name, path: path)
                 )
             }

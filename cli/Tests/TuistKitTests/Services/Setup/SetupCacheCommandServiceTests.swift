@@ -4,7 +4,9 @@ import Foundation
 import Mockable
 import Path
 import Testing
+import TuistConstants
 import TuistCore
+import TuistEnvironment
 import TuistLaunchctl
 import TuistLoader
 import TuistServer
@@ -438,6 +440,72 @@ struct SetupCacheCommandServiceTests {
         let plistContent = try await fileSystem.readTextFile(at: expectedPlistPath)
         #expect(!plistContent.contains("<key>EnvironmentVariables</key>"))
         #expect(!plistContent.contains("<key>TUIST_CONFIG_TOKEN</key>"))
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment()
+    ) func setupCache_withUploadDisabled_includesNoUploadFlag() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+
+        let config = Tuist.test(
+            fullHandle: "organization/project",
+            cache: .init(upload: false)
+        )
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(config)
+
+        given(launchctlController)
+            .load(plistPath: .any)
+            .willReturn()
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        let homeDirectory = Environment.current.homeDirectory
+        let expectedPlistPath = homeDirectory.appending(
+            components: "Library", "LaunchAgents", "tuist.cache.organization_project.plist"
+        )
+        let plistContent = try await fileSystem.readTextFile(at: expectedPlistPath)
+        #expect(plistContent.contains("--no-upload"))
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment()
+    ) func setupCache_withUploadEnabled_doesNotIncludeNoUploadFlag() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+
+        let config = Tuist.test(
+            fullHandle: "organization/project",
+            cache: .init(upload: true)
+        )
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(config)
+
+        given(launchctlController)
+            .load(plistPath: .any)
+            .willReturn()
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        let homeDirectory = Environment.current.homeDirectory
+        let expectedPlistPath = homeDirectory.appending(
+            components: "Library", "LaunchAgents", "tuist.cache.organization_project.plist"
+        )
+        let plistContent = try await fileSystem.readTextFile(at: expectedPlistPath)
+        #expect(!plistContent.contains("--no-upload"))
     }
 
     @Test(

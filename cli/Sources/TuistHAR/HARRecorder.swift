@@ -1,6 +1,7 @@
 import Foundation
 import Path
-import TuistSupport
+import TuistConstants
+import TuistLogging
 
 /// An actor that manages HAR recording and persistence.
 public actor HARRecorder {
@@ -204,7 +205,7 @@ public actor HARRecorder {
         guard let filePath else { return }
         do {
             let data = try HAR.encode(log)
-            try data.write(to: filePath.url, options: .atomic)
+            try data.write(to: URL(fileURLWithPath: filePath.pathString), options: .atomic)
         } catch {
             Logger.current.debug("Failed to persist HAR file: \(error)")
         }

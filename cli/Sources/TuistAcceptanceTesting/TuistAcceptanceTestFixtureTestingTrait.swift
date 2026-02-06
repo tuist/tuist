@@ -3,6 +3,10 @@ import FileSystem
 import Foundation
 import Path
 import Testing
+import TuistAuthCommand
+import TuistEnvironment
+import TuistEnvironmentTesting
+import TuistEnvKey
 import TuistSupport
 import TuistTesting
 @testable import TuistKit
@@ -29,8 +33,8 @@ public struct TuistAcceptanceTestFixtureTestingTrait: TestTrait, SuiteTrait, Tes
         try await fileSystem.runInTemporaryDirectory { temporaryDirectory in
             let existingEnvVariables = Environment.current.variables
 
-            try await TuistTesting
-                .withMockedEnvironment(temporaryDirectory: temporaryDirectory.appending(component: "environment")) {
+            try await TuistEnvironmentTesting
+                .withMockedEnvironment {
                     existingEnvVariables.forEach { Environment.mocked?.variables[$0.key] = $0.value }
 
                     let fixtureTemporaryDirectory = temporaryDirectory.appending(
@@ -42,7 +46,14 @@ public struct TuistAcceptanceTestFixtureTestingTrait: TestTrait, SuiteTrait, Tes
                             try await TuistTest.$fixtureFullHandle.withValue(fullHandle) {
                                 try await TuistTest.run(
                                     LoginCommand.self,
-                                    ["--email", email, "--password", password, "--path", fixtureTemporaryDirectory.pathString]
+                                    [
+                                        "--email",
+                                        email,
+                                        "--password",
+                                        password,
+                                        "--url",
+                                        Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev",
+                                    ]
                                 )
                                 try await TuistTest.run(
                                     OrganizationCreateCommand.self,

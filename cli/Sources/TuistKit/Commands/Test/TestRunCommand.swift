@@ -2,6 +2,8 @@ import ArgumentParser
 import Foundation
 import Path
 import TuistCore
+import TuistExtension
+import TuistLogging
 import TuistServer
 import TuistSupport
 
@@ -22,7 +24,7 @@ public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand,
 
     var analyticsRequired: Bool { true }
 
-    var logFilePathDisplayStrategy: LogFilePathDisplayStrategy = .always
+    public var logFilePathDisplayStrategy: LogFilePathDisplayStrategy = .always
 
     @Argument(
         help:

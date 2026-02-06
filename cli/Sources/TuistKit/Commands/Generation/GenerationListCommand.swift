@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import Path
+import TuistNooraExtension
 import TuistSupport
 
 struct GenerationListCommand: AsyncParsableCommand, NooraReadyCommand {

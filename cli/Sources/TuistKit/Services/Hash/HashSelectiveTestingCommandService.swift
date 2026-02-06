@@ -1,9 +1,11 @@
 import Foundation
 import Path
+import TuistAlert
 import TuistCache
 import TuistCore
 import TuistHasher
 import TuistLoader
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 

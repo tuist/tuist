@@ -1,5 +1,10 @@
 import ArgumentParser
 import Foundation
+import TuistCore
+import TuistEnvironment
+import TuistExtension
+import TuistServer
+import TuistSupport
 
 public struct GenerateCommand: ParsableCommand {
     public init() {}

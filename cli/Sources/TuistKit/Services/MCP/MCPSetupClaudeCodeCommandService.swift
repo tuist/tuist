@@ -1,6 +1,8 @@
 import FileSystem
 import Foundation
 import Path
+import TuistAlert
+import TuistEnvironment
 import TuistSupport
 
 struct MCPSetupClaudeCodeCommandService {

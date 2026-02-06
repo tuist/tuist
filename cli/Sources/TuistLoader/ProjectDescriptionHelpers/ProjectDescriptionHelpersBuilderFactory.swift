@@ -1,6 +1,7 @@
 import Foundation
 import Path
 import TuistSupport
+import TuistThreadSafe
 
 // swiftlint:disable:next type_name
 public protocol ProjectDescriptionHelpersBuilderFactoring {

@@ -2,8 +2,11 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import TuistConstants
 import TuistCore
+import TuistLogging
 import TuistSupport
+import TuistThreadSafe
 
 enum RootDirectoryLocatorError: FatalError, Equatable {
     /// Thrown when the root directory can't be located.

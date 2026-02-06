@@ -2,6 +2,7 @@ import Mockable
 import Path
 import TuistCore
 import TuistLoader
+import TuistOpener
 import TuistPlugin
 import TuistSupport
 import XcodeProj

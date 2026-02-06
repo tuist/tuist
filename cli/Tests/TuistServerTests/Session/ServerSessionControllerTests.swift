@@ -1,6 +1,8 @@
 import Foundation
 import Mockable
+import TuistOpener
 import TuistSupport
+import TuistUniqueIDGenerator
 import XCTest
 
 @testable import TuistServer

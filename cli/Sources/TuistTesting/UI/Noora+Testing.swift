@@ -1,6 +1,7 @@
 import Foundation
 import Noora
 import Testing
+import TuistAlert
 import TuistSupport
 
 extension Noora {

@@ -2,9 +2,11 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import TuistConstants
 import TuistCore
 import TuistGenerator
 import TuistLoader
+import TuistLogging
 import TuistScaffold
 import TuistSupport
 import XcodeGraph
@@ -209,7 +211,7 @@ final class ProjectEditor: ProjectEditing {
         }
 
         // To be sure that we are using the same binary of Tuist that invoked `edit`
-        let tuistPath = try AbsolutePath(validating: TuistCommand.processArguments()!.first!)
+        let tuistPath = try AbsolutePath(validating: CommandArguments.processArguments()!.first!)
         let workspaceName = "Manifests"
 
         let graph = try await projectEditorMapper.map(
@@ -264,7 +266,23 @@ final class ProjectEditor: ProjectEditing {
             )
         }
 
-        return Array(Set(loadedEditablePluginManifests + localEditablePluginManifests))
+        var seenPaths = Set<AbsolutePath>()
+        var seenNames = Set<String>()
+        let allManifests = loadedEditablePluginManifests + localEditablePluginManifests
+        let uniqueManifests = allManifests.compactMap { manifest -> EditablePluginManifest? in
+            guard seenPaths.insert(manifest.path).inserted else { return nil }
+            var name = manifest.name
+            if seenNames.contains(name) {
+                name = "\(manifest.path.parentDirectory.basename)-\(name)"
+                while seenNames.contains(name) {
+                    name = "_\(name)"
+                }
+            }
+            seenNames.insert(name)
+            return name == manifest.name ? manifest : EditablePluginManifest(name: name, path: manifest.path)
+        }
+
+        return uniqueManifests
     }
 
     /// - Returns: Builds all remote plugins and returns a list of the helper modules.

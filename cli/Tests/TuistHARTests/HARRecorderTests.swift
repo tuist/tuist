@@ -188,7 +188,7 @@ struct HARRecorderTests {
         let fileSystem = FileSystem()
         #expect(try await fileSystem.exists(harFilePath))
 
-        let data = try Data(contentsOf: harFilePath.url)
+        let data = try Data(contentsOf: URL(fileURLWithPath: harFilePath.pathString))
         let log = try HAR.decode(from: data)
         #expect(log.entries.count == 1)
     }

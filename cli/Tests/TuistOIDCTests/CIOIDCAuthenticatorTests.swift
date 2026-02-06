@@ -1,8 +1,8 @@
 import Foundation
 import Mockable
 import Testing
-import TuistSupport
-import TuistTesting
+import TuistEnvironment
+import TuistEnvironmentTesting
 
 @testable import TuistOIDC
 

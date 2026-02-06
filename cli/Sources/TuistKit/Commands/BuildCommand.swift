@@ -1,6 +1,8 @@
 import ArgumentParser
 import Foundation
 import Path
+import TuistExtension
+import TuistLogging
 import TuistServer
 import TuistSupport
 import XcodeGraph
@@ -155,7 +157,7 @@ public struct BuildRunCommand: AsyncParsableCommand, LogConfigurableCommand,
         )
     }
 
-    var logFilePathDisplayStrategy: LogFilePathDisplayStrategy = .always
+    public var logFilePathDisplayStrategy: LogFilePathDisplayStrategy = .always
 
     @OptionGroup()
     var buildOptions: BuildOptions

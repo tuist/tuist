@@ -1,9 +1,12 @@
 import FileSystem
 import Foundation
 import Path
+import TuistAlert
+import TuistConstants
 import TuistCore
 import TuistDependencies
 import TuistLoader
+import TuistLogging
 import TuistPlugin
 import TuistSupport
 

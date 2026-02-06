@@ -1,6 +1,44 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.140.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add Linux support for auth and cache commands by [@fortmarek](https://github.com/fortmarek) in [#9291](https://github.com/tuist/tuist/pull/9291)
+### 🐛 Bug Fixes
+
+* fix `tuist version` producing no output on Linux by [@fortmarek](https://github.com/fortmarek) in [#9364](https://github.com/tuist/tuist/pull/9364)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.139.1...4.140.0
+
+## What's Changed in 4.139.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* don't embed static precompiled xcframeworks by [@pepicrft](https://github.com/pepicrft) in [#9356](https://github.com/tuist/tuist/pull/9356)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.139.0...4.139.1
+
+## What's Changed in 4.139.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add configurable cache push policy by [@fortmarek](https://github.com/fortmarek) in [#9348](https://github.com/tuist/tuist/pull/9348)
+### 🐛 Bug Fixes
+
+* deduplicate plugins with the same name in tuist edit by [@pepicrft](https://github.com/pepicrft) in [#9354](https://github.com/tuist/tuist/pull/9354)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.138.1...4.139.0
+
+## What's Changed in 4.138.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* add extension bundle search paths for resource accessors by [@pepicrft](https://github.com/pepicrft) in [#9344](https://github.com/tuist/tuist/pull/9344)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.138.0...4.138.1
+
 ## What's Changed in 4.138.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features

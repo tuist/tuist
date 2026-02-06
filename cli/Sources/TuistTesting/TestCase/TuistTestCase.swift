@@ -1,6 +1,7 @@
 import Difference
 import FileSystem
 import Foundation
+import Logging
 import Path
 import XCTest
 

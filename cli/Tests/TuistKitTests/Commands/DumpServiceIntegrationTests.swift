@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import ProjectDescription
+import TuistConstants
 import TuistSupport
 import XCTest
 
@@ -177,6 +178,9 @@ final class DumpServiceTests: TuistTestCase {
             try await subject.run(path: tmpDir.pathString, manifest: .config)
             let expected = """
             {
+              "cache": {
+                "upload": true
+              },
               "fullHandle": "tuist/tuist",
               "inspectOptions": {
                 "redundantDependencies": {

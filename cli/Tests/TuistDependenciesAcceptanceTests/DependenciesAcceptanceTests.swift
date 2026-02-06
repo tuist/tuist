@@ -2,6 +2,8 @@ import Command
 import FileSystem
 import Testing
 import TuistAcceptanceTesting
+import TuistCacheCommand
+import TuistLogging
 import TuistSupport
 import TuistTesting
 import XcodeProj
@@ -352,6 +354,14 @@ final class DependenciesAcceptanceTestAppWithObjCStaticFrameworkWithResources: T
                 "SVProgressHUD.framework should be embedded in the app bundle when using cached static XCFramework with resources"
             )
         }
+
+        // Verify the separate resource bundle exists (external static frameworks generate SPM-style bundles)
+        let resourceBundlePath = appPath.appending(component: "SVProgressHUD_SVProgressHUD.bundle")
+        let resourceBundleExists = await (try? fileSystem.exists(resourceBundlePath)) ?? false
+        XCTAssertTrue(
+            resourceBundleExists,
+            "SVProgressHUD_SVProgressHUD.bundle should exist in the app bundle for external static frameworks with resources"
+        )
 
         // Install the app
         try await commandRunner.run(

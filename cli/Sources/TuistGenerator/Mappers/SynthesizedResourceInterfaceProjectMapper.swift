@@ -1,7 +1,10 @@
 import Foundation
 import Path
 import SwiftGenKit
+import TuistAlert
+import TuistConstants
 import TuistCore
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 

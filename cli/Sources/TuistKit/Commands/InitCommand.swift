@@ -2,6 +2,8 @@ import ArgumentParser
 import FileSystem
 import Foundation
 import Path
+import TuistEnvironment
+import TuistNooraExtension
 import TuistSupport
 
 public struct InitCommand: AsyncParsableCommand, NooraReadyCommand {
@@ -28,7 +30,7 @@ public struct InitCommand: AsyncParsableCommand, NooraReadyCommand {
     )
     var answers: String?
 
-    var jsonThroughNoora: Bool = false
+    public var jsonThroughNoora: Bool = false
 
     public init() {}
 

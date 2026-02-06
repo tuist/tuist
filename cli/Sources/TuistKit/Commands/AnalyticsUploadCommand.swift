@@ -1,7 +1,9 @@
 import ArgumentParser
 
-struct AnalyticsUploadCommand: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(
+public struct AnalyticsUploadCommand: AsyncParsableCommand {
+    public init() {}
+
+    public static let configuration = CommandConfiguration(
         commandName: "analytics-upload",
         abstract: "Upload a command event to the server",
         shouldDisplay: false
@@ -22,7 +24,7 @@ struct AnalyticsUploadCommand: AsyncParsableCommand {
     )
     var serverURL: String
 
-    func run() async throws {
+    public func run() async throws {
         try await AnalyticsUploadCommandService().run(
             eventFilePath: eventFilePath,
             fullHandle: fullHandle,

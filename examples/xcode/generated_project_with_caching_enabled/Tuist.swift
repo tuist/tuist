@@ -1,11 +1,14 @@
 import ProjectDescription
 
 let tuist = Tuist(
-    fullHandle: "tuist/generated_project_with_caching_enabled",
-    url: "https://canary.tuist.dev",
+    fullHandle: "tuist/tuist",
+    cache: .cache(
+        upload: false
+    ),
+    url: "http://localhost:8080",
     project: .tuist(
         generationOptions: .options(
             enableCaching: true
         )
-    )
+    ),
 )

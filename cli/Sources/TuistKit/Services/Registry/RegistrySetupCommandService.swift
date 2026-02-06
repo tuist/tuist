@@ -2,15 +2,19 @@ import FileSystem
 import Foundation
 import Noora
 import Path
+import TuistAlert
+import TuistConstants
+import TuistEnvironment
 import TuistGenerator
 import TuistLoader
+import TuistLogging
 import TuistServer
 import TuistSupport
 
 enum RegistryCommandSetupServiceError: Equatable, LocalizedError {
     case noProjectFound(AbsolutePath)
 
-    var type: TuistSupport.ErrorType {
+    var type: ErrorType {
         switch self {
         case .noProjectFound: .abort
         }

@@ -3,6 +3,8 @@ import Foundation
 import Mockable
 import Path
 import struct ProjectDescription.Config
+import TuistAlert
+import TuistConstants
 import TuistCore
 import TuistRootDirectoryLocator
 import TuistSupport

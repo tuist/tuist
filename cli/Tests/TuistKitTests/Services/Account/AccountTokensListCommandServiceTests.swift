@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import OpenAPIRuntime
 import Testing
+import TuistEnvironment
 import TuistLoader
 import TuistServer
 import TuistSupport

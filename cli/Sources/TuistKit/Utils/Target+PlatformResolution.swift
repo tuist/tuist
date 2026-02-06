@@ -1,9 +1,10 @@
 import Foundation
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 
 struct UnspecifiedPlatformError: FatalError, CustomStringConvertible {
-    var type: TuistSupport.ErrorType = .abort
+    var type: ErrorType = .abort
 
     let target: Target
     var description: String {

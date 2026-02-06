@@ -1,5 +1,6 @@
 import Foundation
 import ProjectDescription
+import TuistLogging
 import TuistSupport
 
 enum CacheProfileError: FatalError, Equatable {
