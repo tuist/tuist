@@ -81,9 +81,9 @@ NSBundle *bundle = [MyFeatureResources bundle];
 
 ::: tip SUPPORTING RESOURCES IN LIBRARIES THROUGH BUNDLES
 <!-- -->
-대상 제품(예: 라이브러리)이 리소스를 지원하지 않는 경우, Tuist는 해당 리소스를 제품 유형 `bundle` 의 타깃에 포함시킵니다. 이를
-통해 최종 제품에 포함되고 인터페이스가 올바른 번들을 가리키도록 보장합니다. 이러한 합성된 번들은 자동으로 `tuist:synthesized`
-태그가 지정되며, 부모 타깃의 모든 태그를 상속받습니다. 이를 통해
+대상 제품(예: 라이브러리)이 리소스를 지원하지 않는 경우, Tuist는 해당 리소스를 제품 유형 `bundle` 의 Target에
+포함시킵니다. 이를 통해 최종 제품에 포함되고 인터페이스가 올바른 번들을 가리키도록 보장합니다. 이러한 합성된 번들은 자동으로
+`tuist:synthesized` 태그가 지정되며, 부모 타깃의 모든 태그를 상속받습니다. 이를 통해
 <LocalizedLink href="/guides/features/projects/metadata-tags#system-tags">캐시
 프로파일</LocalizedLink>에서 타깃팅할 수 있습니다.
 <!-- -->
@@ -106,7 +106,7 @@ Tuist는 기본적으로 다음 리소스 유형에 대한 액세서리를 생�
 | 문자열     | `Strings+{Target}.swift` |
 | Plists  | `{NameOfPlist}.swift`    |
 | 글꼴      | `Fonts+{Target}.swift`   |
-| 파일      | `Files+{Target}.swift`   |
+| 파일      | `Files+Target.swift`     |
 
 > 참고: 프로젝트 옵션에 ` `` `disableSynthesizedResourceAccessors` `` ` 옵션을 전달하여 프로젝트별로
 > 리소스 액세서리 합성 기능을 비활성화할 수 있습니다.
