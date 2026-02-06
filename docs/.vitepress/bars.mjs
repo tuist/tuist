@@ -113,6 +113,10 @@ export function navBar(locale) {
       link: `/${locale}/`,
     },
     {
+      text: localizedString(locale, "navbar.tutorials.text"),
+      link: `/${locale}/tutorials/xcode/install-tuist`,
+    },
+    {
       text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${localizedString(
         locale,
         "navbar.cli.text",
