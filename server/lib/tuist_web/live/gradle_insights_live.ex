@@ -11,6 +11,7 @@ defmodule TuistWeb.GradleInsightsLive do
   alias Tuist.Gradle
   alias Tuist.Repo
   alias Tuist.Gradle.Analytics
+  alias Tuist.Tasks
   alias Tuist.Utilities.ByteFormatter
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
@@ -21,7 +22,7 @@ defmodule TuistWeb.GradleInsightsLive do
 
     socket =
       socket
-      |> assign(:head_title, "#{dgettext("dashboard_gradle", "Gradle Insights")} · #{slug} · Tuist")
+      |> assign(:head_title, "#{dgettext("dashboard_gradle", "Gradle Cache")} · #{slug} · Tuist")
       |> assign(OpenGraph.og_image_assigns("gradle-insights"))
 
     if connected?(socket) do
@@ -120,7 +121,7 @@ defmodule TuistWeb.GradleInsightsLive do
     uri = URI.new!("?" <> URI.encode_query(params))
 
     [hit_rate_analytics, hit_rate_p99, hit_rate_p90, hit_rate_p50, task_breakdown, cache_events] =
-      Analytics.combined_gradle_analytics(project.id, opts)
+      combined_analytics(project.id, opts)
 
     analytics_selected_widget = params["analytics-selected-widget"] || "cache_hit_rate"
 
@@ -208,6 +209,17 @@ defmodule TuistWeb.GradleInsightsLive do
     |> assign(:avg_recent_hit_rate, avg_recent_hit_rate)
   end
 
+  defp combined_analytics(project_id, opts) do
+    Tasks.parallel_tasks([
+      fn -> Analytics.cache_hit_rate_analytics(project_id, opts) end,
+      fn -> Analytics.cache_hit_rate_percentile(project_id, 0.99, opts) end,
+      fn -> Analytics.cache_hit_rate_percentile(project_id, 0.9, opts) end,
+      fn -> Analytics.cache_hit_rate_percentile(project_id, 0.5, opts) end,
+      fn -> Analytics.task_outcome_breakdown(project_id, opts) end,
+      fn -> Analytics.cache_event_analytics(project_id, opts) end
+    ])
+  end
+
   def cache_hit_rate(build) do
     from_cache = (build.tasks_local_hit_count || 0) + (build.tasks_remote_hit_count || 0)
     executed = build.tasks_executed_count || 0
@@ -220,19 +232,4 @@ defmodule TuistWeb.GradleInsightsLive do
     end
   end
 
-  def avoidance_rate(build) do
-    from_cache = (build.tasks_local_hit_count || 0) + (build.tasks_remote_hit_count || 0)
-    up_to_date = build.tasks_up_to_date_count || 0
-    executed = build.tasks_executed_count || 0
-    failed = build.tasks_failed_count || 0
-    skipped = build.tasks_skipped_count || 0
-    no_source = build.tasks_no_source_count || 0
-    total = from_cache + up_to_date + executed + failed + skipped + no_source
-
-    if total == 0 do
-      0.0
-    else
-      Float.round((from_cache + up_to_date) / total * 100.0, 1)
-    end
-  end
 end

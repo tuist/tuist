@@ -385,7 +385,7 @@ defmodule TuistWeb.Router do
           post "/builds", GradleController, :create_build
           get "/builds", GradleController, :list_builds
           get "/builds/:build_id", GradleController, :get_build
-          get "/analytics", GradleController, :analytics
+
         end
 
         scope "/previews" do

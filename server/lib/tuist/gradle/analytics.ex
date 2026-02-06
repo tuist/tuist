@@ -14,7 +14,6 @@ defmodule Tuist.Gradle.Analytics do
   alias Tuist.ClickHouseRepo
   alias Tuist.Gradle.Build
   alias Tuist.Gradle.CacheEvent
-  alias Tuist.Tasks
 
   @doc """
   Calculates the cache hit rate for a project over a time period.
@@ -24,7 +23,7 @@ defmodule Tuist.Gradle.Analytics do
   ## Returns
     A float between 0.0 and 100.0, or 0.0 if no data.
   """
-  def cache_hit_rate(project_id, start_datetime, end_datetime, _opts \\ []) do
+  def cache_hit_rate(project_id, start_datetime, end_datetime, opts \\ []) do
     query =
       from(b in Build,
         where:
@@ -38,6 +37,7 @@ defmodule Tuist.Gradle.Analytics do
           cacheable: sum(b.cacheable_tasks_count)
         }
       )
+      |> maybe_filter_ci(opts)
 
     result = ClickHouseRepo.one(query)
 
@@ -51,45 +51,6 @@ defmodule Tuist.Gradle.Analytics do
         else
           0.0
         end
-
-      _ ->
-        0.0
-    end
-  end
-
-  @doc """
-  Calculates the avoidance rate for a project over a time period.
-
-  Avoidance rate = (LOCAL_HIT + REMOTE_HIT + UP_TO_DATE) / total_tasks
-
-  This represents the percentage of tasks that didn't need to execute.
-
-  ## Returns
-    A float between 0.0 and 100.0, or 0.0 if no data.
-  """
-  def avoidance_rate(project_id, start_datetime, end_datetime, _opts \\ []) do
-    query =
-      from(b in Build,
-        where:
-          b.project_id == ^project_id and
-            b.inserted_at >= ^DateTime.to_naive(start_datetime) and
-            b.inserted_at <= ^DateTime.to_naive(end_datetime),
-        select: %{
-          avoided:
-            sum(b.tasks_local_hit_count) + sum(b.tasks_remote_hit_count) +
-              sum(b.tasks_up_to_date_count),
-          total:
-            sum(b.tasks_local_hit_count) + sum(b.tasks_remote_hit_count) +
-              sum(b.tasks_up_to_date_count) +
-              sum(b.tasks_executed_count) + sum(b.tasks_failed_count) +
-              sum(b.tasks_skipped_count) + sum(b.tasks_no_source_count)
-        }
-      )
-
-    case ClickHouseRepo.one(query) do
-      %{avoided: avoided, total: total}
-      when not is_nil(avoided) and not is_nil(total) and total > 0 ->
-        avoided / total * 100.0
 
       _ ->
         0.0
@@ -114,16 +75,17 @@ defmodule Tuist.Gradle.Analytics do
     date_period = date_period(start_datetime, end_datetime)
     date_format = get_date_format(date_period)
 
-    current_hit_rate = cache_hit_rate(project_id, start_datetime, end_datetime)
+    current_hit_rate = cache_hit_rate(project_id, start_datetime, end_datetime, opts)
 
     previous_hit_rate =
       cache_hit_rate(
         project_id,
         DateTime.add(start_datetime, -days_delta, :day),
-        start_datetime
+        start_datetime,
+        opts
       )
 
-    hit_rate_data = cache_hit_rates_over_time(project_id, start_datetime, end_datetime, date_format)
+    hit_rate_data = cache_hit_rates_over_time(project_id, start_datetime, end_datetime, date_format, opts)
 
     processed_data = process_hit_rate_data(hit_rate_data, start_datetime, end_datetime, date_period)
 
@@ -135,7 +97,7 @@ defmodule Tuist.Gradle.Analytics do
     }
   end
 
-  defp cache_hit_rates_over_time(project_id, start_datetime, end_datetime, date_format) do
+  defp cache_hit_rates_over_time(project_id, start_datetime, end_datetime, date_format, opts) do
     query =
       from(b in Build,
         group_by: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format),
@@ -152,6 +114,7 @@ defmodule Tuist.Gradle.Analytics do
         },
         order_by: [asc: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format)]
       )
+      |> maybe_filter_ci(opts)
 
     query
     |> ClickHouseRepo.all()
@@ -408,24 +371,92 @@ defmodule Tuist.Gradle.Analytics do
   end
 
   @doc """
-  Runs all Gradle analytics queries in parallel.
+  Gets average build duration analytics with trend and time-series data.
 
   ## Returns
-    A list of analytics results:
-    [hit_rate_analytics, hit_rate_p99, hit_rate_p90, hit_rate_p50, task_breakdown, cache_events]
+    A map with:
+    - `:trend` - Percentage change from previous period
+    - `:total_average_duration` - Average build duration in ms for the period
+    - `:dates` - List of date strings
+    - `:values` - List of average duration values in ms
   """
-  def combined_gradle_analytics(project_id, opts \\ []) do
-    queries = [
-      fn -> cache_hit_rate_analytics(project_id, opts) end,
-      fn -> cache_hit_rate_percentile(project_id, 0.99, opts) end,
-      fn -> cache_hit_rate_percentile(project_id, 0.9, opts) end,
-      fn -> cache_hit_rate_percentile(project_id, 0.5, opts) end,
-      fn -> task_outcome_breakdown(project_id, opts) end,
-      fn -> cache_event_analytics(project_id, opts) end
-    ]
+  def build_duration_analytics(project_id, opts \\ []) do
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
 
-    Tasks.parallel_tasks(queries)
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    date_period = date_period(start_datetime, end_datetime)
+    date_format = get_date_format(date_period)
+
+    current_avg = average_build_duration(project_id, start_datetime, end_datetime, opts)
+
+    previous_avg =
+      average_build_duration(
+        project_id,
+        DateTime.add(start_datetime, -days_delta, :day),
+        start_datetime,
+        opts
+      )
+
+    duration_data = build_durations_over_time(project_id, start_datetime, end_datetime, date_format, opts)
+
+    processed_data = process_duration_data(duration_data, start_datetime, end_datetime, date_period)
+
+    %{
+      trend: trend(previous_avg, current_avg),
+      total_average_duration: current_avg,
+      dates: Enum.map(processed_data, & &1.date),
+      values: Enum.map(processed_data, & &1.duration)
+    }
   end
+
+  defp average_build_duration(project_id, start_datetime, end_datetime, opts) do
+    query =
+      from(b in Build,
+        where:
+          b.project_id == ^project_id and
+            b.inserted_at >= ^DateTime.to_naive(start_datetime) and
+            b.inserted_at <= ^DateTime.to_naive(end_datetime),
+        select: avg(b.duration_ms)
+      )
+      |> maybe_filter_ci(opts)
+
+    case ClickHouseRepo.one(query) do
+      nil -> 0.0
+      value -> value / 1.0
+    end
+  end
+
+  defp build_durations_over_time(project_id, start_datetime, end_datetime, date_format, opts) do
+    query =
+      from(b in Build,
+        group_by: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format),
+        where:
+          b.project_id == ^project_id and
+            b.inserted_at >= ^DateTime.to_naive(start_datetime) and
+            b.inserted_at <= ^DateTime.to_naive(end_datetime),
+        select: %{
+          date: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format),
+          duration: avg(b.duration_ms)
+        },
+        order_by: [asc: fragment("formatDateTime(?, ?)", b.inserted_at, ^date_format)]
+      )
+      |> maybe_filter_ci(opts)
+
+    ClickHouseRepo.all(query)
+  end
+
+  defp process_duration_data(data, start_datetime, end_datetime, date_period) do
+    data_map = Map.new(data, &{&1.date, &1.duration})
+
+    start_datetime
+    |> generate_date_range(end_datetime, date_period)
+    |> Enum.map(fn date ->
+      date_str = format_date(date, date_period)
+      %{date: date, duration: Map.get(data_map, date_str, 0.0)}
+    end)
+  end
+
 
   defp trend(previous_value, current_value) when is_nil(previous_value) or previous_value == 0 do
     if current_value > 0, do: 100.0, else: 0.0
@@ -508,4 +539,11 @@ defmodule Tuist.Gradle.Analytics do
   defp format_date(%DateTime{} = dt, :month), do: "#{dt.year}-#{String.pad_leading(to_string(dt.month), 2, "0")}"
   defp format_date(%Date{} = date, :day), do: Date.to_string(date)
   defp format_date(%Date{} = date, :month), do: "#{date.year}-#{String.pad_leading(to_string(date.month), 2, "0")}"
+
+  defp maybe_filter_ci(query, opts) do
+    case Keyword.get(opts, :is_ci) do
+      nil -> query
+      is_ci -> from(b in query, where: b.is_ci == ^is_ci)
+    end
+  end
 end

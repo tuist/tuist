@@ -4,7 +4,6 @@ defmodule TuistWeb.API.GradleController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Gradle
-  alias Tuist.Gradle.Analytics
   alias TuistWeb.API.Schemas.Error
 
   plug(OpenApiSpex.Plug.CastAndValidate,
@@ -51,11 +50,6 @@ defmodule TuistWeb.API.GradleController do
              type: :string,
              nullable: true,
              description: "Root project name."
-           },
-           avoidance_savings_ms: %Schema{
-             type: :integer,
-             nullable: true,
-             description: "Estimated time saved by avoidance."
            },
            tasks: %Schema{
              type: :array,
@@ -125,7 +119,6 @@ defmodule TuistWeb.API.GradleController do
       git_commit_sha: body[:git_commit_sha],
       git_ref: body[:git_ref],
       root_project_name: body[:root_project_name],
-      avoidance_savings_ms: body[:avoidance_savings_ms] || 0,
       tasks: tasks
     }
 
@@ -282,9 +275,7 @@ defmodule TuistWeb.API.GradleController do
              tasks_skipped_count: %Schema{type: :integer},
              tasks_no_source_count: %Schema{type: :integer},
              cacheable_tasks_count: %Schema{type: :integer},
-             avoidance_savings_ms: %Schema{type: :integer},
              cache_hit_rate: %Schema{type: :number, nullable: true},
-             avoidance_rate: %Schema{type: :number, nullable: true},
              inserted_at: %Schema{type: :string, format: :"date-time"},
              tasks: %Schema{
                type: :array,
@@ -338,9 +329,7 @@ defmodule TuistWeb.API.GradleController do
             tasks_skipped_count: build.tasks_skipped_count,
             tasks_no_source_count: build.tasks_no_source_count,
             cacheable_tasks_count: build.cacheable_tasks_count,
-            avoidance_savings_ms: build.avoidance_savings_ms,
             cache_hit_rate: calculate_cache_hit_rate(build),
-            avoidance_rate: calculate_avoidance_rate(build),
             inserted_at: build.inserted_at,
             tasks:
               Enum.map(tasks, fn task ->
@@ -363,124 +352,6 @@ defmodule TuistWeb.API.GradleController do
     end
   end
 
-  operation(:analytics,
-    summary: "Get Gradle cache analytics for a project.",
-    operation_id: "getGradleAnalytics",
-    parameters: [
-      account_handle: [
-        in: :path,
-        type: :string,
-        required: true,
-        description: "The handle of the account."
-      ],
-      project_handle: [
-        in: :path,
-        type: :string,
-        required: true,
-        description: "The handle of the project."
-      ],
-      start_date: [
-        in: :query,
-        type: %Schema{type: :string, format: :date},
-        description: "Start date for analytics (default: 30 days ago)."
-      ],
-      end_date: [
-        in: :query,
-        type: %Schema{type: :string, format: :date},
-        description: "End date for analytics (default: today)."
-      ]
-    ],
-    responses: %{
-      ok:
-        {"Gradle analytics", "application/json",
-         %Schema{
-           type: :object,
-           properties: %{
-             cache_hit_rate: %Schema{
-               type: :object,
-               properties: %{
-                 avg: %Schema{type: :number},
-                 p50: %Schema{type: :number},
-                 p90: %Schema{type: :number},
-                 p99: %Schema{type: :number},
-                 trend: %Schema{type: :number}
-               }
-             },
-             task_outcomes: %Schema{
-               type: :object,
-               properties: %{
-                 local_hit: %Schema{type: :integer},
-                 remote_hit: %Schema{type: :integer},
-                 up_to_date: %Schema{type: :integer},
-                 executed: %Schema{type: :integer},
-                 failed: %Schema{type: :integer},
-                 skipped: %Schema{type: :integer},
-                 no_source: %Schema{type: :integer}
-               }
-             },
-             cache_events: %Schema{
-               type: :object,
-               properties: %{
-                 uploads: %Schema{
-                   type: :object,
-                   properties: %{
-                     total_size: %Schema{type: :integer},
-                     count: %Schema{type: :integer},
-                     trend: %Schema{type: :number}
-                   }
-                 },
-                 downloads: %Schema{
-                   type: :object,
-                   properties: %{
-                     total_size: %Schema{type: :integer},
-                     count: %Schema{type: :integer},
-                     trend: %Schema{type: :number}
-                   }
-                 }
-               }
-             }
-           }
-         }},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
-    }
-  )
-
-  def analytics(%{assigns: %{selected_project: project}, params: params} = conn, _params) do
-    start_datetime = parse_date(params[:start_date], DateTime.add(DateTime.utc_now(), -30, :day))
-    end_datetime = parse_date(params[:end_date], DateTime.utc_now())
-
-    opts = [
-      start_datetime: start_datetime,
-      end_datetime: end_datetime
-    ]
-
-    [hit_rate_analytics, hit_rate_p99, hit_rate_p90, hit_rate_p50, task_breakdown, cache_events] =
-      Analytics.combined_gradle_analytics(project.id, opts)
-
-    json(conn, %{
-      cache_hit_rate: %{
-        avg: hit_rate_analytics.avg_hit_rate,
-        p50: hit_rate_p50.total_percentile_hit_rate,
-        p90: hit_rate_p90.total_percentile_hit_rate,
-        p99: hit_rate_p99.total_percentile_hit_rate,
-        trend: hit_rate_analytics.trend
-      },
-      task_outcomes: task_breakdown,
-      cache_events: %{
-        uploads: %{
-          total_size: cache_events.uploads.total_size,
-          count: cache_events.uploads.count,
-          trend: cache_events.uploads.trend
-        },
-        downloads: %{
-          total_size: cache_events.downloads.total_size,
-          count: cache_events.downloads.count,
-          trend: cache_events.downloads.trend
-        }
-      }
-    })
-  end
-
   defp calculate_cache_hit_rate(build) do
     from_cache = (build.tasks_local_hit_count || 0) + (build.tasks_remote_hit_count || 0)
     total = from_cache + (build.tasks_executed_count || 0)
@@ -490,32 +361,4 @@ defmodule TuistWeb.API.GradleController do
     end
   end
 
-  defp calculate_avoidance_rate(build) do
-    from_cache = (build.tasks_local_hit_count || 0) + (build.tasks_remote_hit_count || 0)
-
-    counts = [
-      from_cache,
-      build.tasks_up_to_date_count,
-      build.tasks_executed_count,
-      build.tasks_failed_count,
-      build.tasks_skipped_count,
-      build.tasks_no_source_count
-    ]
-
-    total = counts |> Enum.map(&(&1 || 0)) |> Enum.sum()
-
-    if total > 0 do
-      avoided = from_cache + (build.tasks_up_to_date_count || 0)
-      Float.round(avoided / total * 100.0, 1)
-    end
-  end
-
-  defp parse_date(nil, default), do: default
-
-  defp parse_date(date_string, default) do
-    case Date.from_iso8601(date_string) do
-      {:ok, date} -> DateTime.new!(date, ~T[00:00:00], "Etc/UTC")
-      _ -> default
-    end
-  end
 end

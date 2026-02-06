@@ -80,55 +80,6 @@ defmodule Tuist.Gradle.AnalyticsTest do
     end
   end
 
-  describe "avoidance_rate/4" do
-    test "calculates avoidance rate including up_to_date tasks" do
-      project = ProjectsFixtures.project_fixture()
-
-      GradleFixtures.build_fixture(
-        project_id: project.id,
-        inserted_at: @now,
-        tasks: [
-          %{task_path: ":app:compileKotlin", outcome: "local_hit", cacheable: true},
-          %{task_path: ":app:compileJava", outcome: "up_to_date", cacheable: false},
-          %{task_path: ":app:assembleDebug", outcome: "executed", cacheable: true},
-          %{task_path: ":app:test", outcome: "executed", cacheable: true}
-        ]
-      )
-
-      got = Analytics.avoidance_rate(project.id, @start_datetime, @end_datetime)
-
-      assert got == 50.0
-    end
-
-    test "returns zero when no data exists" do
-      project = ProjectsFixtures.project_fixture()
-
-      got = Analytics.avoidance_rate(project.id, @start_datetime, @end_datetime)
-
-      assert got == 0.0
-    end
-
-    test "includes all task outcomes in total" do
-      project = ProjectsFixtures.project_fixture()
-
-      GradleFixtures.build_fixture(
-        project_id: project.id,
-        inserted_at: @now,
-        tasks: [
-          %{task_path: ":app:compileKotlin", outcome: "local_hit", cacheable: true},
-          %{task_path: ":app:compileJava", outcome: "up_to_date", cacheable: false},
-          %{task_path: ":app:test", outcome: "failed", cacheable: true},
-          %{task_path: ":app:lint", outcome: "skipped", cacheable: false},
-          %{task_path: ":app:noOp", outcome: "no_source", cacheable: false}
-        ]
-      )
-
-      got = Analytics.avoidance_rate(project.id, @start_datetime, @end_datetime)
-
-      assert got == 40.0
-    end
-  end
-
   describe "cache_hit_rate_analytics/2" do
     test "returns analytics with trend and time-series data" do
       project = ProjectsFixtures.project_fixture()
@@ -345,34 +296,4 @@ defmodule Tuist.Gradle.AnalyticsTest do
     end
   end
 
-  describe "combined_gradle_analytics/2" do
-    test "returns all analytics in parallel" do
-      project = ProjectsFixtures.project_fixture()
-
-      GradleFixtures.build_fixture(
-        project_id: project.id,
-        inserted_at: @now,
-        tasks: [
-          %{task_path: ":app:compileKotlin", outcome: "local_hit", cacheable: true},
-          %{task_path: ":app:assembleDebug", outcome: "executed", cacheable: true}
-        ]
-      )
-
-      [hit_rate_analytics, hit_rate_p99, hit_rate_p90, hit_rate_p50, task_breakdown, cache_events] =
-        Analytics.combined_gradle_analytics(
-          project.id,
-          start_datetime: @start_datetime,
-          end_datetime: @end_datetime
-        )
-
-      assert hit_rate_analytics.avg_hit_rate == 50.0
-      assert is_number(hit_rate_p99.total_percentile_hit_rate)
-      assert is_number(hit_rate_p90.total_percentile_hit_rate)
-      assert is_number(hit_rate_p50.total_percentile_hit_rate)
-      assert task_breakdown.local_hit == 1
-      assert task_breakdown.executed == 1
-      assert is_map(cache_events.uploads)
-      assert is_map(cache_events.downloads)
-    end
-  end
 end
