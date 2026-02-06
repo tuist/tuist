@@ -45,7 +45,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateBuildRunsTable do
       `custom_values` Map(String, String) DEFAULT map(),
       `inserted_at` DateTime64(6)
     )
-    ENGINE = ReplacingMergeTree(inserted_at)
+    ENGINE = MergeTree()
     PARTITION BY toYYYYMM(inserted_at)
     ORDER BY (project_id, inserted_at, id)
     SETTINGS index_granularity = 8192
