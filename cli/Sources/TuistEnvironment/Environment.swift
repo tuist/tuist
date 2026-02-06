@@ -91,7 +91,7 @@ private let truthyValues = ["1", "true", "TRUE", "yes", "YES"]
 
 extension Environmenting {
     public var tuistVariables: [String: String] {
-        variables.filter { $0.key.hasPrefix("TUIST_") }
+        variables.filter { $0.key.hasPrefix("TUIST_") || $0.key == "CI" }
     }
 
     public func isVariableTruthy(_ name: String) -> Bool {
