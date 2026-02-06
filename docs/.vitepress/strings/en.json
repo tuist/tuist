@@ -205,6 +205,36 @@
         }
       }
     },
+    "tutorials": {
+      "text": "Tutorials",
+      "items": {
+        "xcode": {
+          "text": "Xcode",
+          "items": {
+            "install-tuist": {
+              "text": "Install Tuist"
+            },
+            "get-started": {
+              "text": "Get started"
+            },
+            "add-dependencies": {
+              "text": "Add dependencies"
+            },
+            "gather-insights": {
+              "text": "Gather insights"
+            }
+          }
+        },
+        "gradle": {
+          "text": "Gradle",
+          "items": {
+            "get-started": {
+              "text": "Get started"
+            }
+          }
+        }
+      }
+    },
     "guides": {
       "text": "Guides",
       "items": {

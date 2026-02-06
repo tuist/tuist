@@ -1,7 +1,7 @@
 ---
 {
   "title": "Install Tuist",
-  "titleTemplate": ":title · Quick-start · Guides · Tuist",
+  "titleTemplate": ":title · Xcode · Tutorials · Tuist",
   "description": "Learn how to install Tuist in your environment."
 }
 ---

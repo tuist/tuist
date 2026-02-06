@@ -269,27 +269,58 @@ export function contributorsSidebar(locale) {
   ];
 }
 
-export async function guidesSidebar(locale) {
+export function tutorialsSidebar(locale) {
   return [
     {
-      text: localizedString(locale, "sidebars.guides.items.quick-start.text"),
+      text: localizedString(locale, "sidebars.tutorials.items.xcode.text"),
       items: [
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${installTuistIcon()} ${localizedString(
             locale,
-            "sidebars.guides.items.quick-start.items.install-tuist.text",
+            "sidebars.tutorials.items.xcode.items.install-tuist.text",
           )}</span>`,
-          link: `/${locale}/guides/quick-start/install-tuist`,
+          link: `/${locale}/tutorials/xcode/install-tuist`,
         },
         {
           text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${getStartedIcon()} ${localizedString(
             locale,
-            "sidebars.guides.items.quick-start.items.get-started.text",
+            "sidebars.tutorials.items.xcode.items.get-started.text",
           )}</span>`,
-          link: `/${locale}/guides/quick-start/get-started`,
+          link: `/${locale}/tutorials/xcode/get-started`,
+        },
+        {
+          text: localizedString(
+            locale,
+            "sidebars.tutorials.items.xcode.items.add-dependencies.text",
+          ),
+          link: `/${locale}/tutorials/xcode/add-dependencies`,
+        },
+        {
+          text: localizedString(
+            locale,
+            "sidebars.tutorials.items.xcode.items.gather-insights.text",
+          ),
+          link: `/${locale}/tutorials/xcode/gather-insights`,
         },
       ],
     },
+    {
+      text: localizedString(locale, "sidebars.tutorials.items.gradle.text"),
+      items: [
+        {
+          text: `<span style="display: flex; flex-direction: row; align-items: center; gap: 7px;">${getStartedIcon()} ${localizedString(
+            locale,
+            "sidebars.tutorials.items.gradle.items.get-started.text",
+          )}</span>`,
+          link: `/${locale}/tutorials/gradle/get-started`,
+        },
+      ],
+    },
+  ];
+}
+
+export async function guidesSidebar(locale) {
+  return [
     {
       text: localizedString(locale, "sidebars.guides.items.features.text"),
       items: [

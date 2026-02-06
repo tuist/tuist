@@ -5,6 +5,7 @@ import * as fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import {
   guidesSidebar,
+  tutorialsSidebar,
   contributorsSidebar,
   referencesSidebar,
   navBar,
@@ -22,6 +23,7 @@ const vitepressDir = path.dirname(fileURLToPath(import.meta.url));
 async function themeConfig(locale) {
   const sidebar = {};
   sidebar[`/${locale}/contributors`] = contributorsSidebar(locale);
+  sidebar[`/${locale}/tutorials/`] = tutorialsSidebar(locale);
   sidebar[`/${locale}/guides/`] = await guidesSidebar(locale);
   sidebar[`/${locale}/cli/`] = await cliSidebar(locale);
   sidebar[`/${locale}/references/`] = await referencesSidebar(locale);
@@ -481,6 +483,10 @@ export default withMermaid(
 /:locale/server /:locale/guides/server/accounts-and-projects 301
 /:locale/references/examples /:locale/guides/examples/generated-projects 301
 /:locale/references/examples/* /:locale/guides/examples/generated-projects/:splat 301
+/:locale/guides/quick-start/install-tuist /:locale/tutorials/xcode/install-tuist 301
+/:locale/guides/quick-start/get-started /:locale/tutorials/xcode/get-started 301
+/:locale/guides/quick-start/add-dependencies /:locale/tutorials/xcode/add-dependencies 301
+/:locale/guides/quick-start/gather-insights /:locale/tutorials/xcode/gather-insights 301
 /:locale/cli/logging /:locale/cli/debugging 301
 ${cliLocaleRedirects}
 ${projectDescriptionLocaleRedirects}

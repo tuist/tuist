@@ -1,7 +1,7 @@
 ---
 {
   "title": "Gather insights",
-  "titleTemplate": ":title · Quick-start · Guides · Tuist",
+  "titleTemplate": ":title · Xcode · Tutorials · Tuist",
   "description": "Learn how to gather insights about your project."
 }
 ---
