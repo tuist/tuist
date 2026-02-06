@@ -291,6 +291,66 @@ struct CacheConfigCommandServiceTests {
     }
 
     @Test(.withMockedEnvironment())
+    func run_reads_full_handle_from_config_when_not_provided() async throws {
+        let (
+            subject,
+            _,
+            serverAuthenticationController,
+            _,
+            fullHandleService,
+            configLoader,
+            _,
+            _
+        ) = makeSubject()
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(Tuist.test(fullHandle: "config-account/config-project", url: serverURL))
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("token"))
+
+        try await subject.run(
+            fullHandle: nil,
+            json: true,
+            forceRefresh: false,
+            directory: nil,
+            url: nil
+        )
+
+        verify(fullHandleService)
+            .parse(.value("config-account/config-project"))
+            .called(1)
+    }
+
+    @Test(.withMockedEnvironment())
+    func run_throws_when_full_handle_missing_from_argument_and_config() async throws {
+        let (
+            subject,
+            _,
+            _,
+            _,
+            _,
+            configLoader,
+            _,
+            _
+        ) = makeSubject()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(Tuist.test(url: serverURL))
+
+        await #expect(throws: CacheConfigCommandServiceError.missingFullHandle) {
+            try await subject.run(
+                fullHandle: nil,
+                json: true,
+                forceRefresh: false,
+                directory: nil,
+                url: nil
+            )
+        }
+    }
+
+    @Test(.withMockedEnvironment())
     func run_parses_full_handle_correctly() async throws {
         // Given
         let (

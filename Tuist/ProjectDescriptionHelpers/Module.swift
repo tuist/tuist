@@ -83,6 +83,7 @@ public enum Module: String, CaseIterable {
                 buildableFolders: ["cli/TuistCacheEE/Sources/"],
                 dependencies: [
                     .target(name: Module.alert.targetName),
+                    .target(name: Module.config.targetName),
                     .target(name: Module.constants.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.environment.targetName),

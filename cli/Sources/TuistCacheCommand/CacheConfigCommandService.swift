@@ -3,6 +3,7 @@ import Logging
 import Path
 import TSCBasic
 import TuistCAS
+import TuistConfig
 import TuistConfigLoader
 import TuistConstants
 import TuistEncodable
@@ -14,7 +15,7 @@ import TuistServer
 
 public protocol CacheConfigCommandServicing {
     func run(
-        fullHandle: String,
+        fullHandle: String?,
         json: Bool,
         forceRefresh: Bool,
         directory: String?,
@@ -50,34 +51,40 @@ public final class CacheConfigCommandService: CacheConfigCommandServicing {
     }
 
     public func run(
-        fullHandle: String,
+        fullHandle: String?,
         json: Bool,
         forceRefresh: Bool,
         directory: String?,
         url: String?
     ) async throws {
-        let resolvedServerURL: URL
+        let directoryPath: Path.AbsolutePath
+        if let directory {
+            let cwd = try await Environment.current.currentWorkingDirectory()
+            directoryPath = try Path.AbsolutePath(validating: directory, relativeTo: cwd)
+        } else {
+            directoryPath = try await Environment.current.currentWorkingDirectory()
+        }
 
+        let config = try await configLoader.loadConfig(path: directoryPath)
+
+        let resolvedServerURL: URL
         if let url {
             guard let parsedURL = URL(string: url) else {
                 throw CacheConfigCommandServiceError.invalidServerURL(url)
             }
             resolvedServerURL = parsedURL
         } else {
-            let directoryPath: Path.AbsolutePath
-            if let directory {
-                let cwd = try await Environment.current.currentWorkingDirectory()
-                directoryPath = try Path.AbsolutePath(validating: directory, relativeTo: cwd)
-            } else {
-                directoryPath = try await Environment.current.currentWorkingDirectory()
-            }
-            let config = try await configLoader.loadConfig(path: directoryPath)
             resolvedServerURL = try serverEnvironmentService.url(configServerURL: config.url)
+        }
+
+        let resolvedFullHandle = fullHandle ?? config.fullHandle
+        guard let resolvedFullHandle else {
+            throw CacheConfigCommandServiceError.missingFullHandle
         }
 
         let token = try await getAuthenticationToken(serverURL: resolvedServerURL, forceRefresh: forceRefresh)
 
-        let (accountHandle, projectHandle) = try fullHandleService.parse(fullHandle)
+        let (accountHandle, projectHandle) = try fullHandleService.parse(resolvedFullHandle)
         let cacheURL = try await cacheURLStore.getCacheURL(for: resolvedServerURL, accountHandle: accountHandle)
 
         let result = CacheConfiguration(
@@ -152,6 +159,7 @@ struct CacheConfiguration: Codable {
 public enum CacheConfigCommandServiceError: LocalizedError, Equatable {
     case notAuthenticated
     case invalidServerURL(String)
+    case missingFullHandle
 
     public var errorDescription: String? {
         switch self {
@@ -160,6 +168,9 @@ public enum CacheConfigCommandServiceError: LocalizedError, Equatable {
                 "You are not authenticated. Refer to the documentation for authentication options: https://docs.tuist.dev/en/guides/server/authentication"
         case let .invalidServerURL(url):
             return "Invalid server URL: \(url)"
+        case .missingFullHandle:
+            return
+                "The project full handle is required. Provide it as an argument or set 'project' in your tuist.toml."
         }
     }
 }

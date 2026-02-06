@@ -480,7 +480,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         XCTAssertEqual(plugins, expectedPlugins)
     }
 
-    private func mockConfigGeneratedProjectOptions(plugins: [TuistConfig.PluginLocation]) -> TuistCore
+    private func mockConfigGeneratedProjectOptions(plugins: [TuistConfig.PluginLocation]) -> TuistConfig
         .TuistGeneratedProjectOptions
     {
         TuistConfig.TuistGeneratedProjectOptions(
