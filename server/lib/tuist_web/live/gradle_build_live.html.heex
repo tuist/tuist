@@ -425,10 +425,29 @@
             <:col :let={task} label={dgettext("dashboard_gradle", "Task Path")}>
               <.text_cell label={task.task_path} />
             </:col>
-            <:col :let={task} label={dgettext("dashboard_gradle", "Outcome")}>
-              <.badge
-                label={outcome_label(task.outcome)}
-                color={outcome_color(task.outcome)}
+            <:col :let={task} label={dgettext("dashboard_gradle", "Status")}>
+              <.badge_cell
+                :if={task.outcome == "remote_hit"}
+                label={dgettext("dashboard_gradle", "Remote")}
+                color="focus"
+                style="light-fill"
+              />
+              <.badge_cell
+                :if={task.outcome == "local_hit"}
+                label={dgettext("dashboard_gradle", "Local")}
+                color="success"
+                style="light-fill"
+              />
+              <.badge_cell
+                :if={task.outcome == "executed"}
+                label={dgettext("dashboard_gradle", "Upload")}
+                color="secondary"
+                style="light-fill"
+              />
+              <.badge_cell
+                :if={task.outcome not in ["remote_hit", "local_hit", "executed"]}
+                label={dgettext("dashboard_gradle", "Miss")}
+                color="warning"
                 style="light-fill"
               />
             </:col>
