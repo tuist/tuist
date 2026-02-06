@@ -401,7 +401,7 @@ build_generator = fn _i ->
     inserted_at:
       NaiveDateTime.new!(
         Date.add(DateTime.utc_now(), -Enum.random(0..400)),
-        Time.new!(Enum.random(0..23), Enum.random(0..59), Enum.random(0..59))
+        Time.new!(Enum.random(0..23), Enum.random(0..59), Enum.random(0..59), {0, 6})
       ),
     status: status,
     cacheable_tasks_count: total_tasks,
