@@ -19,6 +19,7 @@ defmodule Tuist.Application do
     Logger.info("Starting Tuist version #{Environment.version()}")
 
     load_secrets_in_application()
+    set_req_defaults()
     start_posthog()
     start_telemetry()
     start_sentry_logger()
@@ -31,6 +32,10 @@ defmodule Tuist.Application do
     Tuist.License.assert_valid!()
 
     application
+  end
+
+  defp set_req_defaults do
+    Req.default_options(connect_timeout: 10_000, receive_timeout: 15_000)
   end
 
   defp load_secrets_in_application do

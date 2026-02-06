@@ -24,7 +24,7 @@ public enum InitCommandServiceError: LocalizedError {
 public struct InitCommandService {
     private let fileSystem: FileSystem
     private let prompter: InitPrompting
-    private let loginService: LoginServicing
+    private let loginService: LoginCommandServicing
     private let createProjectService: CreateProjectServicing
     private let createOrganizationService: CreateOrganizationServicing
     private let listOrganizationsService: ListOrganizationsServicing
@@ -64,7 +64,7 @@ public struct InitCommandService {
     init(
         fileSystem: FileSystem = FileSystem(),
         prompter: InitPrompting = InitPrompter(),
-        loginService: LoginServicing = LoginService(),
+        loginService: LoginCommandServicing = LoginCommandService(),
         createProjectService: CreateProjectServicing = CreateProjectService(),
         serverSessionController: ServerSessionControlling = ServerSessionController(),
         initGeneratedProjectService: InitGeneratedProjectServicing = InitGeneratedProjectService(),

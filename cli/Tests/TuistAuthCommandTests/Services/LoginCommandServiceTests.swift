@@ -12,7 +12,7 @@ import TuistUserInputReader
 
 @testable import TuistAuthCommand
 
-struct LoginServiceTests {
+struct LoginCommandServiceTests {
     private let serverURL = URL(string: "https://test.tuist.dev")!
     private let serverSessionController: MockServerSessionControlling
     private let serverEnvironmentService: MockServerEnvironmentServicing
@@ -20,7 +20,7 @@ struct LoginServiceTests {
     private let authenticateService: MockAuthenticateServicing
     private let ciOIDCAuthenticator: MockCIOIDCAuthenticating
     private let exchangeOIDCTokenService: MockExchangeOIDCTokenServicing
-    private let subject: LoginService
+    private let subject: LoginCommandService
 
     init() {
         serverSessionController = MockServerSessionControlling()
@@ -34,7 +34,7 @@ struct LoginServiceTests {
             .url(configServerURL: .any)
             .willReturn(serverURL)
 
-        subject = LoginService(
+        subject = LoginCommandService(
             serverEnvironmentService: serverEnvironmentService,
             serverSessionController: serverSessionController,
             userInputReader: userInputReader,

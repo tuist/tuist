@@ -105,8 +105,6 @@ defmodule Tuist.OIDC do
 
     KeyValueStore.get_or_update(cache_key, [ttl: @jwks_cache_ttl], fn ->
       case Req.get(jwks_uri,
-             connect_timeout: 10_000,
-             receive_timeout: 10_000,
              retry: &should_retry_jwks?/2,
              max_retries: 3,
              retry_delay: &exponential_backoff/1
