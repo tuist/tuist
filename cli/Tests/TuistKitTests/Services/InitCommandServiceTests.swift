@@ -9,7 +9,6 @@ import TuistConstants
 import TuistServer
 import TuistSupport
 import TuistTesting
-
 @testable import TuistKit
 
 private struct MockKeyStrokeListening: KeyStrokeListening {
