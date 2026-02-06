@@ -84,16 +84,16 @@ config :peep, :bucket_calculator, Tuist.PromEx.Buckets
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
-# Tighten Req's default connect_timeout from 30s to 10s so that a slow
-# TCP connect cannot exceed Render's ~30s proxy timeout on its own.
-# With 10s connect + 15s receive (Req default), worst case is 25s.
-config :req, default_options: [connect_timeout: 10_000]
-
 # Using the default ETS storage leads to [lock contention](https://github.com/akoutmos/prom_ex/issues/248#issuecomment-2709045234)
 # and causes the CPU clogging with cascading effects (e.g. connections dropping).
 # This configures prom_ex to use a different storage using [this](https://github.com/plausible/analytics/pull/5130/)
 # as a reference
 config :prom_ex, :storage_adapter, Tuist.PromEx.StripedPeep
+
+# Tighten Req's default connect timeout from 30s to 10s so that a slow
+# TCP connect cannot exceed Render's ~30s proxy timeout on its own.
+# With 10s connect + 15s receive (Req default), worst case is 25s.
+config :req, default_options: [connect_options: [timeout: 10_000]]
 
 # Oban
 config :tuist, Oban,
