@@ -146,6 +146,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.automation.targetName),
                     .target(name: Module.cache.targetName),
                     .target(name: Module.cas.targetName),
+                    .target(name: Module.config.targetName),
                     .target(name: "TuistCacheEE"),
                     .external(name: "XcodeGraph"),
                     .external(name: "Path"),
@@ -928,6 +929,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .cacheCommand:
                 [
+                    .target(name: Module.config.targetName),
                     .target(name: Module.configLoader.targetName),
                     .target(name: Module.constants.targetName),
                     .target(name: Module.environment.targetName),

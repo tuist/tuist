@@ -58,6 +58,7 @@ var tuistCacheCommandDependencies: [Target.Dependency] = [
     "TuistEncodable",
     "TuistHTTP",
     "TuistAlert",
+    "TuistConfig",
     "TuistConfigLoader",
 ]
 var tuistAuthCommandDependencies: [Target.Dependency] = [
