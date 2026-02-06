@@ -8,6 +8,7 @@ import TuistAuthCommand
 import TuistCacheCommand
 import TuistEnvironment
 import TuistLogging
+import TuistNooraExtension
 import TuistVersionCommand
 
 #if os(macOS)

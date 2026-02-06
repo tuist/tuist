@@ -445,6 +445,7 @@ targets.append(contentsOf: [
             "TuistEnvironment",
             "TuistLogging",
             "TuistEnvKey",
+            "TuistNooraExtension",
             "TuistServer",
             "TuistOIDC",
             "TuistCacheCommand",

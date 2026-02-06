@@ -3,6 +3,7 @@ import FileSystem
 import Foundation
 import Path
 import TuistEnvironment
+import TuistNooraExtension
 import TuistSupport
 
 public struct InitCommand: AsyncParsableCommand, NooraReadyCommand {

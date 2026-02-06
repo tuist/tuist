@@ -1,7 +1,10 @@
 import ArgumentParser
 import Foundation
+import TuistNooraExtension
 
-public struct VersionCommand: ParsableCommand {
+public struct VersionCommand: ParsableCommand, NooraReadyCommand {
+    public var jsonThroughNoora: Bool { false }
+
     public init() {}
 
     public static var configuration: CommandConfiguration {

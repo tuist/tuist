@@ -594,6 +594,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.cacheCommand.targetName),
                     .target(name: Module.authCommand.targetName),
                     .target(name: Module.envKey.targetName),
+                    .target(name: Module.nooraExtension.targetName),
                     .target(name: Module.versionCommand.targetName),
                     .target(name: Module.tuistExtension.targetName),
                     .target(name: Module.encodable.targetName),
