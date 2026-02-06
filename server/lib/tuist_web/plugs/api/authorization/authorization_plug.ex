@@ -18,12 +18,13 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
   def init(:qa_screenshot), do: :qa_screenshot
   def init(:test), do: :test
   def init(:build), do: :build
+  def init(:gradle), do: :gradle
 
   def init(opts) when is_list(opts) do
     opts
   end
 
-  @project_categories [:run, :bundle, :cache, :preview, :qa_run, :qa_step, :qa_screenshot, :test, :build]
+  @project_categories [:run, :bundle, :cache, :preview, :qa_run, :qa_step, :qa_screenshot, :test, :build, :gradle]
 
   def call(conn, category) when category in @project_categories do
     authorize_project(conn, category)

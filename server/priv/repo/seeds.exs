@@ -346,6 +346,18 @@ if is_nil(Repo.get_by(QA.LaunchArgumentGroup, project_id: tuist_project.id, name
   |> Repo.insert!()
 end
 
+_android_app_project =
+  case Projects.get_project_by_slug("tuist/android-app") do
+    {:ok, project} ->
+      project
+
+    {:error, _} ->
+      Projects.create_project!(%{
+        name: "android-app",
+        account: %{id: organization.account.id}
+      }, build_system: :gradle)
+  end
+
 IO.puts("Generating #{seed_config.build_runs} build runs in parallel...")
 
 org_account_id = organization.account.id

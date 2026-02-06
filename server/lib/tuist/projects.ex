@@ -270,7 +270,8 @@ defmodule Tuist.Projects do
       name: name,
       account_id: account_id,
       created_at: created_at,
-      visibility: visibility
+      visibility: visibility,
+      build_system: Keyword.get(opts, :build_system, :xcode)
     }
     |> Project.create_changeset()
     |> Repo.insert()
@@ -289,7 +290,8 @@ defmodule Tuist.Projects do
       account_id: account_id,
       created_at: created_at,
       visibility: visibility,
-      default_previews_visibility: Keyword.get(opts, :default_previews_visibility, :private)
+      default_previews_visibility: Keyword.get(opts, :default_previews_visibility, :private),
+      build_system: Keyword.get(opts, :build_system, :xcode)
     })
     |> Repo.insert!()
     |> Repo.preload(preload)

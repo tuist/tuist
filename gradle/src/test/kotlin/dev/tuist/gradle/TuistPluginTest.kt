@@ -260,6 +260,118 @@ class TuistPluginTest {
     }
 
     @Test
+    fun `build insights can be disabled`() {
+        settingsFile.writeText("""
+            plugins {
+                id("dev.tuist")
+            }
+
+            tuist {
+                fullHandle = "test-account/test-project"
+
+                buildInsights {
+                    enabled = false
+                }
+            }
+
+            rootProject.name = "test-project"
+        """.trimIndent())
+
+        buildFile.writeText("""
+            tasks.register("hello") {
+                doLast {
+                    println("Hello!")
+                }
+            }
+        """.trimIndent())
+
+        val result = GradleRunner.create()
+            .withProjectDir(testProjectDir)
+            .withArguments("hello", "--info")
+            .withPluginClasspath()
+            .build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":hello")?.outcome)
+        assertTrue(result.output.contains("Build insights is disabled"))
+    }
+
+    @Test
+    fun `custom server URL can be configured`() {
+        settingsFile.writeText("""
+            plugins {
+                id("dev.tuist")
+            }
+
+            tuist {
+                fullHandle = "test-account/test-project"
+                serverUrl = "https://custom.server.dev"
+
+                buildInsights {
+                    enabled = false
+                }
+            }
+
+            rootProject.name = "test-project"
+        """.trimIndent())
+
+        buildFile.writeText("""
+            tasks.register("hello") {
+                doLast {
+                    println("Hello!")
+                }
+            }
+        """.trimIndent())
+
+        val result = GradleRunner.create()
+            .withProjectDir(testProjectDir)
+            .withArguments("hello")
+            .withPluginClasspath()
+            .build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":hello")?.outcome)
+    }
+
+    @Test
+    fun `build insights logs message when configured`() {
+        settingsFile.writeText("""
+            plugins {
+                id("dev.tuist")
+            }
+
+            tuist {
+                fullHandle = "my-org/my-project"
+
+                buildCache {
+                    enabled = false
+                }
+
+                buildInsights {
+                    enabled = true
+                }
+            }
+
+            rootProject.name = "test-project"
+        """.trimIndent())
+
+        buildFile.writeText("""
+            tasks.register("hello") {
+                doLast {
+                    println("Hello!")
+                }
+            }
+        """.trimIndent())
+
+        val result = GradleRunner.create()
+            .withProjectDir(testProjectDir)
+            .withArguments("hello")
+            .withPluginClasspath()
+            .build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":hello")?.outcome)
+        assertTrue(result.output.contains("Build insights configured for my-org/my-project"))
+    }
+
+    @Test
     fun `plugin logs message when build cache is configured`() {
         settingsFile.writeText("""
             plugins {

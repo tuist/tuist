@@ -10,16 +10,19 @@
       patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings"}
     />
     <.tab_menu_horizontal_item
+      :if={Tuist.Projects.Project.xcode_project?(@selected_project)}
       label={dgettext("dashboard_projects", "Notifications")}
       selected={false}
       patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/notifications"}
     />
     <.tab_menu_horizontal_item
+      :if={Tuist.Projects.Project.xcode_project?(@selected_project)}
       label={dgettext("dashboard_projects", "Automations")}
       selected={false}
       patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/automations"}
     />
     <.tab_menu_horizontal_item
+      :if={Tuist.Projects.Project.xcode_project?(@selected_project)}
       label={dgettext("dashboard_projects", "QA")}
       selected={false}
       patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/qa"}
@@ -28,7 +31,7 @@
   <h2 data-part="subtitle">
     {dgettext("dashboard_projects", "General")}
   </h2>
-  <.card_section data-part="preview-access-card-section">
+  <.card_section :if={Tuist.Projects.Project.xcode_project?(@selected_project)} data-part="preview-access-card-section">
     <div data-part="header">
       <span data-part="title">
         {dgettext("dashboard_projects", "Preview access")}
