@@ -34,7 +34,7 @@ struct TuistTomlConfigLoaderTests {
         let config = try await subject.loadConfig(at: temporaryDirectory)
 
         #expect(config?.project == "tuist/tuist")
-        #expect(config?.url == "https://custom.tuist.dev")
+        #expect(config?.url == URL(string: "https://custom.tuist.dev")!)
     }
 
     @Test(.inTemporaryDirectory)

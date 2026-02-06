@@ -51,18 +51,11 @@ public struct ConfigLoader: ConfigLoading {
     }
 
     private func configFromToml(_ tomlConfig: TuistTomlConfig) -> TuistConfig.Tuist {
-        let url: URL
-        if let urlString = tomlConfig.url, let parsedURL = URL(string: urlString) {
-            url = parsedURL
-        } else {
-            url = Constants.URLs.production
-        }
-
-        return TuistConfig.Tuist(
+        TuistConfig.Tuist(
             project: .defaultGeneratedProject(),
             fullHandle: tomlConfig.project,
             inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
-            url: url
+            url: tomlConfig.url ?? Constants.URLs.production
         )
     }
 }

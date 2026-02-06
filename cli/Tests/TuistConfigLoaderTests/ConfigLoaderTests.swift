@@ -18,7 +18,7 @@ struct ConfigLoaderTests {
 
         given(tomlConfigLoader)
             .loadConfig(at: .any)
-            .willReturn(TuistTomlConfig(project: "tuist/tuist", url: "https://custom.tuist.dev"))
+            .willReturn(TuistTomlConfig(project: "tuist/tuist", url: URL(string: "https://custom.tuist.dev")!))
 
         let subject = ConfigLoader(
             tomlConfigLoader: tomlConfigLoader
