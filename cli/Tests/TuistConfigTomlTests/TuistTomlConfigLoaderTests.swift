@@ -1,9 +1,11 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import Mockable
 import Path
 import Testing
 import TuistConstants
+import TuistRootDirectoryLocator
 
 @testable import TuistConfigToml
 
@@ -22,7 +24,13 @@ struct TuistTomlConfigLoaderTests {
             at: tomlPath
         )
 
-        let subject = TuistTomlConfigLoader(fileSystem: fileSystem)
+        let rootDirectoryLocator = MockRootDirectoryLocating()
+        given(rootDirectoryLocator).locate(from: .any).willReturn(temporaryDirectory)
+
+        let subject = TuistTomlConfigLoader(
+            fileSystem: fileSystem,
+            rootDirectoryLocator: rootDirectoryLocator
+        )
         let config = try await subject.loadConfig(at: temporaryDirectory)
 
         #expect(config?.project == "tuist/tuist")
@@ -40,7 +48,13 @@ struct TuistTomlConfigLoaderTests {
             at: tomlPath
         )
 
-        let subject = TuistTomlConfigLoader(fileSystem: fileSystem)
+        let rootDirectoryLocator = MockRootDirectoryLocating()
+        given(rootDirectoryLocator).locate(from: .any).willReturn(temporaryDirectory)
+
+        let subject = TuistTomlConfigLoader(
+            fileSystem: fileSystem,
+            rootDirectoryLocator: rootDirectoryLocator
+        )
         let config = try await subject.loadConfig(at: temporaryDirectory)
 
         #expect(config?.project == "org/project")
@@ -48,17 +62,39 @@ struct TuistTomlConfigLoaderTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func loadConfig_returns_nil_when_no_toml_exists() async throws {
+    func loadConfig_returns_nil_when_no_root_directory() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
 
-        let subject = TuistTomlConfigLoader(fileSystem: fileSystem)
+        let rootDirectoryLocator = MockRootDirectoryLocating()
+        given(rootDirectoryLocator).locate(from: .any).willReturn(nil as AbsolutePath?)
+
+        let subject = TuistTomlConfigLoader(
+            fileSystem: fileSystem,
+            rootDirectoryLocator: rootDirectoryLocator
+        )
         let config = try await subject.loadConfig(at: temporaryDirectory)
 
         #expect(config == nil)
     }
 
     @Test(.inTemporaryDirectory)
-    func loadConfig_finds_toml_in_parent_directory() async throws {
+    func loadConfig_returns_nil_when_root_has_no_toml() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        let rootDirectoryLocator = MockRootDirectoryLocating()
+        given(rootDirectoryLocator).locate(from: .any).willReturn(temporaryDirectory)
+
+        let subject = TuistTomlConfigLoader(
+            fileSystem: fileSystem,
+            rootDirectoryLocator: rootDirectoryLocator
+        )
+        let config = try await subject.loadConfig(at: temporaryDirectory)
+
+        #expect(config == nil)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func loadConfig_finds_toml_at_root_directory() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let nestedDir = temporaryDirectory.appending(try RelativePath(validating: "nested/deep"))
         try await fileSystem.makeDirectory(at: nestedDir)
@@ -70,7 +106,13 @@ struct TuistTomlConfigLoaderTests {
             at: tomlPath
         )
 
-        let subject = TuistTomlConfigLoader(fileSystem: fileSystem)
+        let rootDirectoryLocator = MockRootDirectoryLocating()
+        given(rootDirectoryLocator).locate(from: .any).willReturn(temporaryDirectory)
+
+        let subject = TuistTomlConfigLoader(
+            fileSystem: fileSystem,
+            rootDirectoryLocator: rootDirectoryLocator
+        )
         let config = try await subject.loadConfig(at: nestedDir)
 
         #expect(config?.project == "parent/project")

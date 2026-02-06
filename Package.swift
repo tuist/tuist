@@ -371,6 +371,7 @@ var targets: [Target] = [
             fileSystemDependency,
             mockableDependency,
             "TuistConstants",
+            "TuistRootDirectoryLocator",
             tomlDecoderDependency,
         ],
         path: "cli/Sources/TuistConfigToml",
@@ -392,6 +393,7 @@ var targets: [Target] = [
         dependencies: [
             "TuistConfigToml",
             "TuistConstants",
+            "TuistRootDirectoryLocator",
             pathDependency,
             fileSystemDependency,
             .product(name: "FileSystemTesting", package: "tuist.FileSystem"),

@@ -4,6 +4,7 @@ import Mockable
 import Path
 import TOMLDecoder
 import TuistConstants
+import TuistRootDirectoryLocator
 
 @Mockable
 public protocol TuistTomlConfigLoading: Sendable {
@@ -12,33 +13,26 @@ public protocol TuistTomlConfigLoading: Sendable {
 
 public final class TuistTomlConfigLoader: TuistTomlConfigLoading {
     private let fileSystem: FileSysteming
+    private let rootDirectoryLocator: RootDirectoryLocating
 
-    public init(fileSystem: FileSysteming = FileSystem()) {
+    public init(
+        fileSystem: FileSysteming = FileSystem(),
+        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
+    ) {
         self.fileSystem = fileSystem
+        self.rootDirectoryLocator = rootDirectoryLocator
     }
 
     public func loadConfig(at path: AbsolutePath) async throws -> TuistTomlConfig? {
-        guard let tomlPath = try await locateTomlConfig(from: path) else {
+        guard let rootDirectory = try await rootDirectoryLocator.locate(from: path) else {
+            return nil
+        }
+        let tomlPath = rootDirectory.appending(component: Constants.tuistTomlFileName)
+        guard try await fileSystem.exists(tomlPath, isDirectory: false) else {
             return nil
         }
         let tomlString = try await fileSystem.readTextFile(at: tomlPath)
         let decoder = TOMLDecoder()
         return try decoder.decode(TuistTomlConfig.self, from: tomlString)
-    }
-
-    private func locateTomlConfig(from path: AbsolutePath) async throws -> AbsolutePath? {
-        var currentPath = path
-
-        while true {
-            let candidate = currentPath.appending(component: Constants.tuistTomlFileName)
-            if try await fileSystem.exists(candidate, isDirectory: false) {
-                return candidate
-            }
-            if currentPath.isRoot {
-                break
-            }
-            currentPath = currentPath.parentDirectory
-        }
-        return nil
     }
 }

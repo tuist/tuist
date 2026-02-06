@@ -834,6 +834,7 @@ public enum Module: String, CaseIterable {
             case .configToml:
                 [
                     .target(name: Module.constants.targetName),
+                    .target(name: Module.rootDirectoryLocator.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "TOMLDecoder"),
                 ]
@@ -1033,6 +1034,7 @@ public enum Module: String, CaseIterable {
             case .configToml:
                 [
                     .target(name: Module.constants.targetName),
+                    .target(name: Module.rootDirectoryLocator.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                 ]
