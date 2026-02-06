@@ -8,7 +8,6 @@ import TuistConfigLoader
 import TuistCore
 import TuistDependencies
 import TuistGenerator
-import TuistLoader
 import TuistLogging
 import TuistPlugin
 import TuistRootDirectoryLocator
@@ -38,7 +37,6 @@ public class Generator: Generating {
     private var lintingIssues: [LintingIssue] = []
 
     public init(
-        manifestLoader _: ManifestLoading,
         manifestGraphLoader: ManifestGraphLoading
     ) {
         sideEffectDescriptorExecutor = SideEffectDescriptorExecutor()
