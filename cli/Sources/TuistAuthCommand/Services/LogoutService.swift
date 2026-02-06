@@ -41,13 +41,7 @@ public final class LogoutService: LogoutServicing {
             }
             resolvedServerURL = try serverEnvironmentService.url(configServerURL: url)
         } else {
-            let directoryPath: AbsolutePath
-            if let directory {
-                let cwd = try await Environment.current.currentWorkingDirectory()
-                directoryPath = try AbsolutePath(validating: directory, relativeTo: cwd)
-            } else {
-                directoryPath = try await Environment.current.currentWorkingDirectory()
-            }
+            let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(directory)
             let config = try await configLoader.loadConfig(path: directoryPath)
             resolvedServerURL = try serverEnvironmentService.url(configServerURL: config.url)
         }

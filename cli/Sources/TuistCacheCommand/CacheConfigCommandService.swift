@@ -57,13 +57,7 @@ public final class CacheConfigCommandService: CacheConfigCommandServicing {
         directory: String?,
         url: String?
     ) async throws {
-        let directoryPath: Path.AbsolutePath
-        if let directory {
-            let cwd = try await Environment.current.currentWorkingDirectory()
-            directoryPath = try Path.AbsolutePath(validating: directory, relativeTo: cwd)
-        } else {
-            directoryPath = try await Environment.current.currentWorkingDirectory()
-        }
+        let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(directory)
 
         let config = try await configLoader.loadConfig(path: directoryPath)
 

@@ -151,10 +151,10 @@ tuistHTTPDependencies.append(contentsOf: ["TuistSupport", "TuistHAR"])
 tuistCASDependencies.append(contentsOf: ["TuistCache", "TuistCASAnalytics"])
 tuistConfigLoaderDependencies.append(contentsOf: [
     "TuistLoader", "TuistCore", "TuistAlert", "TuistSupport",
-    "ProjectDescription", "TuistRootDirectoryLocator",
+    "ProjectDescription",
 ])
 tuistConfigLoaderTestDependencies.append(contentsOf: [
-    "TuistLoader", "TuistRootDirectoryLocator", "TuistTesting",
+    "TuistLoader", "TuistTesting",
     "TuistSupport", "ProjectDescription",
 ])
 #endif
