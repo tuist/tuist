@@ -5,7 +5,6 @@ import * as fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import {
   guidesSidebar,
-  tutorialsSidebar,
   contributorsSidebar,
   referencesSidebar,
   navBar,
@@ -23,7 +22,7 @@ const vitepressDir = path.dirname(fileURLToPath(import.meta.url));
 async function themeConfig(locale) {
   const sidebar = {};
   sidebar[`/${locale}/contributors`] = contributorsSidebar(locale);
-  sidebar[`/${locale}/tutorials/`] = tutorialsSidebar(locale);
+  sidebar[`/${locale}/tutorials/`] = await guidesSidebar(locale);
   sidebar[`/${locale}/guides/`] = await guidesSidebar(locale);
   sidebar[`/${locale}/cli/`] = await cliSidebar(locale);
   sidebar[`/${locale}/references/`] = await referencesSidebar(locale);

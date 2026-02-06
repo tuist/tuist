@@ -119,10 +119,6 @@ export function navBar(locale) {
       link: `/${locale}/`,
     },
     {
-      text: localizedString(locale, "navbar.tutorials.text"),
-      link: `/${locale}/tutorials/xcode/install-tuist`,
-    },
-    {
       text: localizedString(locale, "navbar.cli.text"),
       link: `/${CLI_CONTENT_LOCALE}/cli/auth`,
     },
@@ -276,46 +272,50 @@ export function contributorsSidebar(locale) {
   ];
 }
 
-export function tutorialsSidebar(locale) {
+export async function guidesSidebar(locale) {
   return [
     {
-      text: localizedString(locale, "sidebars.tutorials.items.xcode.text"),
+      text: localizedString(locale, "sidebars.tutorials.text"),
       items: [
         {
           text: localizedString(
             locale,
-            "sidebars.tutorials.items.xcode.items.install-tuist.text",
+            "sidebars.tutorials.items.xcode.text",
           ),
-          link: `/${locale}/tutorials/xcode/install-tuist`,
-        },
-        {
-          text: localizedString(
-            locale,
-            "sidebars.tutorials.items.xcode.items.get-started.text",
-          ),
-          link: `/${locale}/tutorials/xcode/get-started`,
-        },
-        {
-          text: localizedString(
-            locale,
-            "sidebars.tutorials.items.xcode.items.add-dependencies.text",
-          ),
-          link: `/${locale}/tutorials/xcode/add-dependencies`,
-        },
-        {
-          text: localizedString(
-            locale,
-            "sidebars.tutorials.items.xcode.items.gather-insights.text",
-          ),
-          link: `/${locale}/tutorials/xcode/gather-insights`,
+          collapsed: true,
+          items: [
+            {
+              text: localizedString(
+                locale,
+                "sidebars.tutorials.items.xcode.items.install-tuist.text",
+              ),
+              link: `/${locale}/tutorials/xcode/install-tuist`,
+            },
+            {
+              text: localizedString(
+                locale,
+                "sidebars.tutorials.items.xcode.items.get-started.text",
+              ),
+              link: `/${locale}/tutorials/xcode/get-started`,
+            },
+            {
+              text: localizedString(
+                locale,
+                "sidebars.tutorials.items.xcode.items.add-dependencies.text",
+              ),
+              link: `/${locale}/tutorials/xcode/add-dependencies`,
+            },
+            {
+              text: localizedString(
+                locale,
+                "sidebars.tutorials.items.xcode.items.gather-insights.text",
+              ),
+              link: `/${locale}/tutorials/xcode/gather-insights`,
+            },
+          ],
         },
       ],
     },
-  ];
-}
-
-export async function guidesSidebar(locale) {
-  return [
     {
       text: localizedString(locale, "sidebars.guides.items.features.text"),
       items: [
