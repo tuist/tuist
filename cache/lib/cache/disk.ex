@@ -6,6 +6,8 @@ defmodule Cache.Disk do
   Uses two-level directory sharding to prevent ext4 directory index overflow.
   """
 
+  alias Cache.Registry.KeyNormalizer
+
   require Logger
 
   @doc """
@@ -474,5 +476,111 @@ defmodule Cache.Disk do
   """
   def gradle_local_accel_path(account_handle, project_handle, cache_key) do
     "/internal/local/" <> gradle_key(account_handle, project_handle, cache_key)
+  end
+
+  # Registry Functions
+  # ------------------
+  # Registry artifacts use the same storage directory as CAS/module artifacts.
+  # The key format matches S3 exactly (no separate sharding) for S3TransferWorker compatibility.
+
+  @doc """
+  Constructs a normalized registry key from scope, name, version, and filename.
+
+  The key format matches the server's `package_object_key/2` exactly:
+  `registry/swift/{scope}/{name}/{version}/{filename}`
+
+  All components are downcased and the version is normalized.
+
+  ## Examples
+
+      iex> Cache.Disk.registry_key("Apple", "Parser", "v1.2", "source_archive.zip")
+      "registry/swift/apple/parser/1.2.0/source_archive.zip"
+  """
+  def registry_key(scope, name, version, filename) do
+    KeyNormalizer.package_object_key(
+      %{scope: scope, name: name},
+      version: version,
+      path: filename
+    )
+  end
+
+  @doc """
+  Checks if a registry artifact exists on disk.
+
+  ## Examples
+
+      iex> Cache.Disk.registry_exists?("apple", "parser", "1.0.0", "source_archive.zip")
+      true
+  """
+  def registry_exists?(scope, name, version, filename) do
+    scope
+    |> registry_key(name, version, filename)
+    |> artifact_path()
+    |> File.exists?()
+  end
+
+  @doc """
+  Writes registry artifact data to disk.
+
+  Accepts either binary data or a file path tuple.
+  Creates parent directories if they don't exist.
+
+  ## Examples
+
+      iex> Cache.Disk.registry_put("apple", "parser", "1.0.0", "source_archive.zip", <<1, 2, 3>>)
+      :ok
+
+      iex> Cache.Disk.registry_put("apple", "parser", "1.0.0", "source_archive.zip", {:file, "/tmp/upload"})
+      :ok
+  """
+  def registry_put(scope, name, version, filename, {:file, tmp_path}) do
+    path = scope |> registry_key(name, version, filename) |> artifact_path()
+
+    with :ok <- ensure_directory(path) do
+      move_file(tmp_path, path)
+    end
+  end
+
+  def registry_put(scope, name, version, filename, data) when is_binary(data) do
+    path = scope |> registry_key(name, version, filename) |> artifact_path()
+
+    with :ok <- ensure_directory(path),
+         :ok <- File.write(path, data) do
+      :ok
+    else
+      {:error, reason} = error ->
+        Logger.error("Failed to write registry artifact to #{path}: #{inspect(reason)}")
+        error
+    end
+  end
+
+  @doc """
+  Returns file stat information for a registry artifact.
+
+  ## Examples
+
+      iex> Cache.Disk.registry_stat("apple", "parser", "1.0.0", "source_archive.zip")
+      {:ok, %File.Stat{size: 1024, ...}}
+  """
+  def registry_stat(scope, name, version, filename) do
+    scope
+    |> registry_key(name, version, filename)
+    |> artifact_path()
+    |> File.stat()
+  end
+
+  @doc """
+  Build the internal X-Accel-Redirect path for a registry artifact.
+
+  The returned path maps to the nginx internal location that aliases the
+  physical storage directory.
+
+  ## Examples
+
+      iex> Cache.Disk.registry_local_accel_path("apple", "parser", "1.0.0", "source_archive.zip")
+      "/internal/local/registry/swift/apple/parser/1.0.0/source_archive.zip"
+  """
+  def registry_local_accel_path(scope, name, version, filename) do
+    "/internal/local/" <> registry_key(scope, name, version, filename)
   end
 end

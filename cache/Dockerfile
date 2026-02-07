@@ -7,7 +7,7 @@ ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
 
 FROM ${BUILDER_IMAGE} AS builder
 
-RUN apt-get update -y && apt-get install -y build-essential git \
+RUN apt-get update -y && apt-get install -y build-essential git zip \
 	&& apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 WORKDIR /app
@@ -41,7 +41,7 @@ RUN mix release
 FROM ${RUNNER_IMAGE}
 
 RUN apt-get update -y && \
-	apt-get install -y libstdc++6 openssl locales ca-certificates \
+	apt-get install -y libstdc++6 openssl locales ca-certificates git zip \
 	&& apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
