@@ -414,88 +414,111 @@ public class GraphTraverser: GraphTraversing {
     public func embeddableFrameworks(path: Path.AbsolutePath, name: String) -> Set<
         GraphDependencyReference
     > {
-        guard let target = target(path: path, name: name), canEmbedFrameworks(target: target.target)
-        else { return Set() }
+        guard let target = target(path: path, name: name) else { return Set() }
+
+        let canEmbed = canEmbedFrameworks(target: target.target)
+        let isExtension = target.target.product == .appExtension
+            || target.target.product == .extensionKitExtension
+
+        guard canEmbed || isExtension else { return Set() }
 
         var references = Set<GraphDependencyReference>()
 
-        // Precompiled frameworks
-        var precompiledFrameworks = filterDependencies(
-            from: .target(name: name, path: path),
-            test: \.isPrecompiledDynamicAndLinkable,
-            skip: or(canDependencyEmbedBinaries, isDependencyPrecompiledMacro)
-        )
-        // Skip merged precompiled libraries from merging into the runnable binary
-        if case let .manual(dependenciesToMerge) = target.target.mergedBinaryType {
-            precompiledFrameworks =
-                precompiledFrameworks
-                    .filter {
-                        !isXCFrameworkMerged(
-                            dependency: $0, expectedMergedBinaries: dependenciesToMerge
-                        )
+        if canEmbed {
+            // Precompiled frameworks
+            var precompiledFrameworks = filterDependencies(
+                from: .target(name: name, path: path),
+                test: \.isPrecompiledDynamicAndLinkable,
+                skip: or(canDependencyEmbedBinaries, isDependencyPrecompiledMacro)
+            )
+            // Skip merged precompiled libraries from merging into the runnable binary
+            if case let .manual(dependenciesToMerge) = target.target.mergedBinaryType {
+                precompiledFrameworks =
+                    precompiledFrameworks
+                        .filter {
+                            !isXCFrameworkMerged(
+                                dependency: $0, expectedMergedBinaries: dependenciesToMerge
+                            )
+                        }
+            }
+            references.formUnionPreferringRequiredStatus(
+                precompiledFrameworks.lazy.compactMap {
+                    self.dependencyReference(
+                        to: $0,
+                        from: .target(name: name, path: path)
+                    )
+                }
+            )
+
+            // Other targets' frameworks.
+            var otherTargetFrameworks = filterDependencies(
+                from: .target(name: name, path: path),
+                test: isEmbeddableDependencyTarget,
+                skip: { dependency in
+                    testTarget(dependency: dependency) { target in
+                        canEmbedFrameworks(target: target) || target.product == .macro
                     }
-        }
-        references.formUnionPreferringRequiredStatus(
-            precompiledFrameworks.lazy.compactMap {
-                self.dependencyReference(
-                    to: $0,
-                    from: .target(name: name, path: path)
+                }
+            )
+
+            if target.target.mergedBinaryType != .disabled {
+                otherTargetFrameworks = otherTargetFrameworks.filter(
+                    isDependencyDynamicNonMergeableTarget
                 )
             }
-        )
 
-        // Other targets' frameworks.
-        var otherTargetFrameworks = filterDependencies(
-            from: .target(name: name, path: path),
-            test: isEmbeddableDependencyTarget,
-            skip: { dependency in
-                testTarget(dependency: dependency) { target in
-                    canEmbedFrameworks(target: target) || target.product == .macro
+            references.formUnionPreferringRequiredStatus(
+                otherTargetFrameworks.lazy.compactMap {
+                    self.dependencyReference(
+                        to: $0,
+                        from: .target(name: name, path: path)
+                    )
+                }
+            )
+
+            let directLocalStaticFrameworksWithResources = directTargetDependencies(path: path, name: name)
+                .filter { dependency in
+                    let target = dependency.graphTarget.target
+                    return dependency.graphTarget.project.type == .local &&
+                        target.product == .staticFramework &&
+                        (target.containsResources || target.containsMetalFiles)
+                }
+
+            references.formUnionPreferringRequiredStatus(
+                directLocalStaticFrameworksWithResources.compactMap {
+                    self.dependencyReference(
+                        to: .target(name: $0.graphTarget.target.name, path: $0.graphTarget.path),
+                        from: .target(name: name, path: path)
+                    )
+                }
+            )
+
+            // Exclude any products embed in unit test host apps
+            if target.target.product == .unitTests {
+                if let hostApp = unitTestHost(path: path, name: name) {
+                    references.subtract(
+                        embeddableFrameworks(path: hostApp.path, name: hostApp.target.name)
+                    )
+                } else {
+                    references = Set()
                 }
             }
-        )
-
-        if target.target.mergedBinaryType != .disabled {
-            otherTargetFrameworks = otherTargetFrameworks.filter(
-                isDependencyDynamicNonMergeableTarget
+        } else {
+            // Extension targets: only embed direct static frameworks with resources
+            let directStaticFrameworksWithResources = directTargetDependencies(path: path, name: name)
+                .filter { dependency in
+                    let depTarget = dependency.graphTarget.target
+                    return depTarget.product == .staticFramework
+                        && (depTarget.containsResources || depTarget.containsMetalFiles)
+                }
+            references.formUnionPreferringRequiredStatus(
+                directStaticFrameworksWithResources.compactMap {
+                    self.dependencyReference(
+                        to: .target(name: $0.graphTarget.target.name, path: $0.graphTarget.path),
+                        from: .target(name: name, path: path)
+                    )
+                }
             )
-        }
-
-        references.formUnionPreferringRequiredStatus(
-            otherTargetFrameworks.lazy.compactMap {
-                self.dependencyReference(
-                    to: $0,
-                    from: .target(name: name, path: path)
-                )
-            }
-        )
-
-        let directLocalStaticFrameworksWithResources = directTargetDependencies(path: path, name: name)
-            .filter { dependency in
-                let target = dependency.graphTarget.target
-                return dependency.graphTarget.project.type == .local &&
-                    target.product == .staticFramework &&
-                    (target.containsResources || target.containsMetalFiles)
-            }
-
-        references.formUnionPreferringRequiredStatus(
-            directLocalStaticFrameworksWithResources.compactMap {
-                self.dependencyReference(
-                    to: .target(name: $0.graphTarget.target.name, path: $0.graphTarget.path),
-                    from: .target(name: name, path: path)
-                )
-            }
-        )
-
-        // Exclude any products embed in unit test host apps
-        if target.target.product == .unitTests {
-            if let hostApp = unitTestHost(path: path, name: name) {
-                references.subtract(
-                    embeddableFrameworks(path: hostApp.path, name: hostApp.target.name)
-                )
-            } else {
-                references = Set()
-            }
         }
 
         return references
