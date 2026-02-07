@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
-"PO-Revision-Date: 2026-01-22 13:03+0000\n"
+"PO-Revision-Date: 2026-02-08 08:21+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_integrations/zh_Hans/>\n"
@@ -94,14 +94,17 @@ msgid ""
 "setup."
 msgstr "您对存储库的访问权限取决于您的 GitHub 与 Tuist 集成设置。"
 
+#, fuzzy
 msgid "Connect Slack"
-msgstr ""
+msgstr "连接 Slack"
 
+#, fuzzy
 msgid "Connect Slack to receive project analytics reports"
-msgstr ""
+msgstr "连接 Slack 以接收项目分析报告"
 
+#, fuzzy
 msgid "Disconnect from %{team_name}"
-msgstr ""
+msgstr "从 %{team_name} 断开连接"
 
 msgid "Slack"
 msgstr ""
