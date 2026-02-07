@@ -103,15 +103,14 @@ defmodule TuistWeb.IntegrationsLive do
   def handle_event("delete-connection", %{"connection_id" => connection_id}, %{assigns: assigns} = socket) do
     %{selected_account: selected_account, current_user: current_user} = assigns
 
-    {:ok, connection} = Projects.get_vcs_connection(connection_id)
-    connection = Tuist.Repo.preload(connection, project: [:account])
-
-    if Authorization.authorize(:account_update, current_user, connection.project.account) == :ok do
+    with {:ok, connection} <- Projects.get_vcs_connection(connection_id),
+         connection = Tuist.Repo.preload(connection, project: [:account]),
+         :ok <- Authorization.authorize(:account_update, current_user, connection.project.account) do
       {:ok, _} = Projects.delete_vcs_connection(connection)
       vcs_connections = vcs_connections(selected_account, force: true)
       {:noreply, assign(socket, vcs_connections: vcs_connections)}
     else
-      {:noreply, socket}
+      _ -> {:noreply, socket}
     end
   end
 
