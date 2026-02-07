@@ -21,16 +21,16 @@ kullanabilmek aşağıdaki nedenlerden dolayı yararlıdır:
 - Mevcut mantığı yeniden kullanabileceğimiz için yeni projeler eklemek kolay bir
   iş haline gelir.
 
-Tuist'te, **proje açıklaması yardımcıları** kavramı sayesinde, manifest
+Tuist'te, **proje açıklaması yardımcıları** konsepti sayesinde manifest
 dosyalarında kodların yeniden kullanılması mümkündür.
 
 ::: tip A TUIST UNIQUE ASSET
 <!-- -->
-Birçok kuruluş, proje açıklaması yardımcılarını platform ekiplerinin kendi
-kurallarını kodlamak ve projelerini açıklamak için kendi dillerini oluşturmak
-için bir platform olarak gördükleri için Tuist'i seviyor. Örneğin, YAML tabanlı
-proje oluşturucular, kendi YAML tabanlı özel şablon çözümlerini geliştirmek veya
-kuruluşları kendi araçlarını oluşturmaya zorlamak zorundadır.
+Birçok kuruluş, proje açıklaması yardımcılarında platform ekiplerinin kendi
+kurallarını kodlayabilecekleri ve projelerini tanımlamak için kendi dillerini
+oluşturabilecekleri bir platform gördükleri için Tuist'i seviyor. Örneğin, YAML
+tabanlı proje oluşturucular, kendi YAML tabanlı özel şablon çözümlerini
+geliştirmek veya kuruluşları kendi araçlarını oluşturmaya zorlamak zorundadır.
 <!-- -->
 :::
 
@@ -40,8 +40,8 @@ Proje açıklaması yardımcıları, manifest dosyalarının içe aktarabileceğ
 modüle derlenen Swift dosyalarıdır: `ProjectDescriptionHelpers`. Modül,
 `Tuist/ProjectDescriptionHelpers` dizinindeki tüm dosyalar toplanarak derlenir.
 
-Dosyanın başına bir import ifadesi ekleyerek bunları manifest dosyanıza
-aktarabilirsiniz:
+Dosyanın en üstüne bir içe aktarma ifadesi ekleyerek bunları manifest dosyanıza
+içe aktarabilirsiniz:
 
 ```swift
 // Project.swift
