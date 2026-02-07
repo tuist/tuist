@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
-"PO-Revision-Date: 2026-01-22 13:03+0000\n"
+"PO-Revision-Date: 2026-02-08 08:21+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Russian <https://translate.tuist.dev/projects/tuist/"
 "dashboard_integrations/ru/>\n"
@@ -96,14 +96,17 @@ msgid ""
 msgstr ""
 "Ваш доступ к репозиториям зависит от настроек интеграции GitHub и Tuist."
 
+#, fuzzy
 msgid "Connect Slack"
-msgstr ""
+msgstr "Подключите Slack"
 
+#, fuzzy
 msgid "Connect Slack to receive project analytics reports"
-msgstr ""
+msgstr "Подключите Slack, чтобы получать отчеты по аналитике проектов"
 
+#, fuzzy
 msgid "Disconnect from %{team_name}"
-msgstr ""
+msgstr "Отключиться от %{team_name}"
 
 msgid "Slack"
 msgstr ""
