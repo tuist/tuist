@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.141.0<!-- RELEASE NOTES START -->
+
+### ⛰️  Features
+
+* add tuist.toml support by [@fortmarek](https://github.com/fortmarek) in [#9368](https://github.com/tuist/tuist/pull/9368)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.140.2...4.141.0
+
 ## What's Changed in 4.140.2<!-- RELEASE NOTES START -->
 
 ### 🐛 Bug Fixes
