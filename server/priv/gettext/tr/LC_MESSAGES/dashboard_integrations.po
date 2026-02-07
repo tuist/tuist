@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
-"PO-Revision-Date: 2026-01-22 13:03+0000\n"
+"PO-Revision-Date: 2026-02-08 08:21+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Turkish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_integrations/tr/>\n"
@@ -66,7 +66,7 @@ msgstr "GitHub"
 
 #, fuzzy
 msgid "Install GitHub App"
-msgstr "GitHub Uygulamasını Yükleyin"
+msgstr "GitHub Uygulamasını Yükle"
 
 #, fuzzy
 msgid "Integrations"
@@ -78,7 +78,7 @@ msgstr "Yönet"
 
 #, fuzzy
 msgid "Manage integration"
-msgstr "Entegrasyonu yönetin"
+msgstr "Entegrasyonu yönetme"
 
 #, fuzzy
 msgid "Remove connection"
@@ -95,14 +95,17 @@ msgid ""
 msgstr ""
 "Depolara erişiminiz, GitHub ve Tuist entegrasyon ayarlarınıza bağlıdır."
 
+#, fuzzy
 msgid "Connect Slack"
-msgstr ""
+msgstr "Slack'i bağlayın"
 
+#, fuzzy
 msgid "Connect Slack to receive project analytics reports"
-msgstr ""
+msgstr "Slack'i bağlayarak proje analiz raporlarını alın"
 
+#, fuzzy
 msgid "Disconnect from %{team_name}"
-msgstr ""
+msgstr "%{team_name} bağlantısını kes"
 
 msgid "Slack"
 msgstr ""
