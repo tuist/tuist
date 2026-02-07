@@ -400,13 +400,15 @@ defmodule TuistWeb.MembersLive do
   end
 
   def handle_event("revoke_invite", %{"id" => id}, socket) do
-    id
-    |> Accounts.get_invitation_by_id()
-    |> then(&Accounts.delete_invitation(%{invitation: &1}))
-
-    socket = assign_organization(socket)
-
-    {:noreply, socket}
+    with %{organization_id: org_id} = invitation when org_id == socket.assigns.organization.id <-
+           Accounts.get_invitation_by_id(id),
+         :ok <-
+           Authorization.authorize(:invitation_delete, socket.assigns.current_user, socket.assigns.selected_account) do
+      Accounts.delete_invitation(%{invitation: invitation})
+      {:noreply, assign_organization(socket)}
+    else
+      _ -> {:noreply, socket}
+    end
   end
 
   # def handle_event("add-invite-email", %{"key" => key, "value" => email}, socket)
