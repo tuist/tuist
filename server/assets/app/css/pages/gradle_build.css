@@ -112,6 +112,11 @@
   }
 
   & [data-part="tasks-table-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-8);
+    padding: var(--noora-spacing-8);
+
     & [data-part="filters"] {
       display: flex;
       gap: var(--noora-spacing-6);
@@ -155,43 +160,63 @@
     }
   }
 
-  & [data-part="throughput-widgets"].noora-card__section {
-    flex-direction: row;
-    gap: var(--noora-spacing-4);
+  & [data-part="cacheable-tasks-outer-section"] {
+    gap: var(--noora-spacing-8);
+    padding: var(--noora-spacing-8);
 
-    & > * {
-      flex-grow: 1;
-    }
+    & > [data-part="cacheable-tasks-card-section"] {
+      gap: var(--noora-spacing-5);
 
-    @media (max-width: 768px) {
-      & {
-        flex-direction: column;
+      & > [data-part="title"] {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: var(--noora-spacing-3);
+
+        & > [data-part="label"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        }
+
+        & > [data-part="value"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-semibold) var(--noora-font-body-medium);
+        }
+      }
+
+      & > .noora-chart {
+        height: 62px;
       }
     }
-  }
 
-  & [data-part="cacheable-tasks-card-section"] {
-    gap: var(--noora-spacing-5);
-
-    & > [data-part="title"] {
+    & > [data-part="throughput-widgets"] {
       display: flex;
       flex-direction: row;
-      align-items: center;
-      gap: var(--noora-spacing-3);
+      gap: var(--noora-spacing-4);
 
-      & > [data-part="label"] {
-        color: var(--noora-surface-label-secondary);
-        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      & > * {
+        flex-grow: 1;
       }
 
-      & > [data-part="value"] {
-        color: var(--noora-surface-label-primary);
-        font: var(--noora-font-weight-semibold) var(--noora-font-body-medium);
+      @media (max-width: 768px) {
+        & {
+          flex-direction: column;
+        }
       }
     }
 
-    & > .noora-chart {
-      height: 62px;
+    & > [data-part="filters"] {
+      display: flex;
+      gap: var(--noora-spacing-6);
+    }
+
+    & > [data-part="active-filters"] {
+      display: flex;
+      gap: var(--noora-spacing-4);
+    }
+
+    & .noora-text-input {
+      width: 330px;
     }
   }
 }

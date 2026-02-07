@@ -378,164 +378,226 @@
         icon="database"
         data-part="cacheable-tasks-card"
       >
-        <.card_section
-          :if={(@build.cacheable_tasks_count || 0) > 0}
-          data-part="cacheable-tasks-card-section"
-        >
-          <div data-part="title">
-            <span data-part="label">
-              {dgettext("dashboard_gradle", "Cacheable tasks:")}
-            </span>
-            <span data-part="value">
-              {@build.cacheable_tasks_count || 0}
-            </span>
-          </div>
-          <.chart
-            id="cacheable-tasks-breakdown-chart"
-            type="bar"
-            extra_options={
-              %{
-                tooltip: %{
-                  trigger: "axis",
-                  axisPointer: %{
-                    type: "none"
-                  }
-                },
-                legend: %{
-                  left: "-0.3%",
-                  top: "bottom",
-                  orient: "horizontal",
-                  textStyle: %{
-                    color: "var:noora-surface-label-primary",
-                    fontFamily: "monospace",
-                    fontWeight: 400,
-                    fontSize: 10,
-                    lineHeight: 12
+        <.card_section data-part="cacheable-tasks-outer-section">
+          <.card_section
+            :if={(@build.cacheable_tasks_count || 0) > 0}
+            data-part="cacheable-tasks-card-section"
+          >
+            <div data-part="title">
+              <span data-part="label">
+                {dgettext("dashboard_gradle", "Cacheable tasks:")}
+              </span>
+              <span data-part="value">
+                {@build.cacheable_tasks_count || 0}
+              </span>
+            </div>
+            <.chart
+              id="cacheable-tasks-breakdown-chart"
+              type="bar"
+              extra_options={
+                %{
+                  tooltip: %{
+                    trigger: "axis",
+                    axisPointer: %{
+                      type: "none"
+                    }
                   },
-                  icon:
-                    "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
-                  itemWidth: 8,
-                  itemHeight: 4
-                },
-                grid: %{
-                  width: "99%",
-                  left: "0%",
-                  height: "60%",
-                  top: "0%"
-                },
-                xAxis: %{
-                  type: "value",
-                  axisLabel: %{
-                    show: false
+                  legend: %{
+                    left: "-0.3%",
+                    top: "bottom",
+                    orient: "horizontal",
+                    textStyle: %{
+                      color: "var:noora-surface-label-primary",
+                      fontFamily: "monospace",
+                      fontWeight: 400,
+                      fontSize: 10,
+                      lineHeight: 12
+                    },
+                    icon:
+                      "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+                    itemWidth: 8,
+                    itemHeight: 4
                   },
-                  splitLine: %{show: false}
-                },
-                yAxis: %{
-                  type: "category",
-                  data: [dgettext("dashboard_gradle", "Cacheable tasks")],
-                  axisLabel: %{
-                    show: false
+                  grid: %{
+                    width: "99%",
+                    left: "0%",
+                    height: "60%",
+                    top: "0%"
+                  },
+                  xAxis: %{
+                    type: "value",
+                    axisLabel: %{
+                      show: false
+                    },
+                    splitLine: %{show: false}
+                  },
+                  yAxis: %{
+                    type: "category",
+                    data: [dgettext("dashboard_gradle", "Cacheable tasks")],
+                    axisLabel: %{
+                      show: false
+                    }
                   }
                 }
               }
-            }
-            series={
-              local_hit = @build.tasks_local_hit_count || 0
-              remote_hit = @build.tasks_remote_hit_count || 0
-              from_cache = local_hit + remote_hit
-              misses = (@build.cacheable_tasks_count || 0) - from_cache
+              series={
+                local_hit = @build.tasks_local_hit_count || 0
+                remote_hit = @build.tasks_remote_hit_count || 0
+                from_cache = local_hit + remote_hit
+                misses = (@build.cacheable_tasks_count || 0) - from_cache
 
-              [
-                %{
-                  name: dgettext("dashboard_gradle", "Local"),
-                  type: "bar",
-                  stack: "total",
-                  emphasis: %{
-                    focus: "series"
+                [
+                  %{
+                    name: dgettext("dashboard_gradle", "Local"),
+                    type: "bar",
+                    stack: "total",
+                    emphasis: %{
+                      focus: "series"
+                    },
+                    data: [local_hit],
+                    color: "var:hits-chart-legend-local",
+                    itemStyle: %{
+                      borderRadius:
+                        if(local_hit > 0 and remote_hit == 0 and misses == 0,
+                          do: [8, 8, 8, 8],
+                          else: if(local_hit > 0, do: [8, 0, 0, 8], else: [0, 0, 0, 0])
+                        )
+                    }
                   },
-                  data: [local_hit],
-                  color: "var:hits-chart-legend-local",
-                  itemStyle: %{
-                    borderRadius:
-                      if(local_hit > 0 and remote_hit == 0 and misses == 0,
-                        do: [8, 8, 8, 8],
-                        else: if(local_hit > 0, do: [8, 0, 0, 8], else: [0, 0, 0, 0])
-                      )
-                  }
-                },
-                %{
-                  name: dgettext("dashboard_gradle", "Remote"),
-                  type: "bar",
-                  stack: "total",
-                  emphasis: %{
-                    focus: "series"
+                  %{
+                    name: dgettext("dashboard_gradle", "Remote"),
+                    type: "bar",
+                    stack: "total",
+                    emphasis: %{
+                      focus: "series"
+                    },
+                    data: [remote_hit],
+                    color: "var:hits-chart-legend-remote",
+                    itemStyle: %{
+                      borderRadius:
+                        if(remote_hit > 0 and misses == 0 and local_hit == 0,
+                          do: [8, 8, 8, 8],
+                          else:
+                            if(remote_hit > 0 and misses == 0,
+                              do: [0, 8, 8, 0],
+                              else: [0, 0, 0, 0]
+                            )
+                        )
+                    }
                   },
-                  data: [remote_hit],
-                  color: "var:hits-chart-legend-remote",
-                  itemStyle: %{
-                    borderRadius:
-                      if(remote_hit > 0 and misses == 0 and local_hit == 0,
-                        do: [8, 8, 8, 8],
-                        else:
-                          if(remote_hit > 0 and misses == 0,
-                            do: [0, 8, 8, 0],
-                            else: [0, 0, 0, 0]
-                          )
-                      )
+                  %{
+                    name: dgettext("dashboard_gradle", "Missed"),
+                    type: "bar",
+                    stack: "total",
+                    emphasis: %{
+                      focus: "series"
+                    },
+                    data: [misses],
+                    color: "var:hits-chart-legend-missed",
+                    itemStyle: %{
+                      borderRadius:
+                        if(misses > 0 and from_cache == 0,
+                          do: [8, 8, 8, 8],
+                          else: if(misses > 0, do: [0, 8, 8, 0], else: [0, 0, 0, 0])
+                        )
+                    }
                   }
-                },
-                %{
-                  name: dgettext("dashboard_gradle", "Missed"),
-                  type: "bar",
-                  stack: "total",
-                  emphasis: %{
-                    focus: "series"
-                  },
-                  data: [misses],
-                  color: "var:hits-chart-legend-missed",
-                  itemStyle: %{
-                    borderRadius:
-                      if(misses > 0 and from_cache == 0,
-                        do: [8, 8, 8, 8],
-                        else: if(misses > 0, do: [0, 8, 8, 0], else: [0, 0, 0, 0])
-                      )
-                  }
+                ]
+              }
+              x_axis_min={0}
+              x_axis_max={@build.cacheable_tasks_count || 0}
+            />
+          </.card_section>
+          <div data-part="throughput-widgets">
+            <.widget
+              title={dgettext("dashboard_gradle", "Download throughput")}
+              description={
+                dgettext(
+                  "dashboard_gradle",
+                  "Average download throughput in megabits per second."
+                )
+              }
+              value={ThroughputFormatter.format_throughput(@download_throughput)}
+              id="widget-download-throughput"
+              empty={@download_throughput == 0}
+              empty_label={dgettext("dashboard_gradle", "No data")}
+            />
+            <.widget
+              title={dgettext("dashboard_gradle", "Upload throughput")}
+              description={
+                dgettext(
+                  "dashboard_gradle",
+                  "Average upload throughput in megabits per second."
+                )
+              }
+              value={ThroughputFormatter.format_throughput(@upload_throughput)}
+              id="widget-upload-throughput"
+              empty={@upload_throughput == 0}
+              empty_label={dgettext("dashboard_gradle", "No data")}
+            />
+          </div>
+          <div data-part="filters">
+            <.form for={%{}} phx-change="search-cacheable-tasks" phx-debounce="200">
+              <.text_input
+                type="search"
+                id="search-cacheable-tasks"
+                name="search"
+                placeholder={dgettext("dashboard_gradle", "Search...")}
+                show_suffix={false}
+                data-part="search"
+                value={@cacheable_tasks_filter}
+              />
+            </.form>
+            <.dropdown
+              id="cacheable-tasks-sort-by"
+              label={
+                case @cacheable_tasks_sort_by do
+                  "cache_artifact_size" -> dgettext("dashboard_gradle", "Size")
+                  _ -> dgettext("dashboard_gradle", "Duration")
+                end
+              }
+              secondary_text={dgettext("dashboard_gradle", "Sort by:")}
+            >
+              <.dropdown_item
+                value="duration_ms"
+                label={dgettext("dashboard_gradle", "Duration")}
+                patch={
+                  "?#{@uri.query
+                  |> Query.put("cacheable-tasks-sort-by", "duration_ms")
+                  |> Query.put("cacheable-tasks-sort-order", "desc")
+                  |> Query.drop("cacheable-tasks-page")}"
                 }
-              ]
-            }
-            x_axis_min={0}
-            x_axis_max={@build.cacheable_tasks_count || 0}
-          />
-        </.card_section>
-        <.card_section data-part="throughput-widgets">
-          <.widget
-            title={dgettext("dashboard_gradle", "Download throughput")}
-            description={
-              dgettext(
-                "dashboard_gradle",
-                "Average download throughput in megabits per second."
-              )
-            }
-            value={ThroughputFormatter.format_throughput(@download_throughput)}
-            id="widget-download-throughput"
-            empty={@download_throughput == 0}
-            empty_label={dgettext("dashboard_gradle", "No data")}
-          />
-          <.widget
-            title={dgettext("dashboard_gradle", "Upload throughput")}
-            description={
-              dgettext(
-                "dashboard_gradle",
-                "Average upload throughput in megabits per second."
-              )
-            }
-            value={ThroughputFormatter.format_throughput(@upload_throughput)}
-            id="widget-upload-throughput"
-            empty={@upload_throughput == 0}
-            empty_label={dgettext("dashboard_gradle", "No data")}
-          />
-        </.card_section>
-        <.card_section data-part="tasks-table-section">
+                data-selected={@cacheable_tasks_sort_by == "duration_ms"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+              <.dropdown_item
+                value="cache_artifact_size"
+                label={dgettext("dashboard_gradle", "Size")}
+                patch={
+                  "?#{@uri.query
+                  |> Query.put("cacheable-tasks-sort-by", "cache_artifact_size")
+                  |> Query.put("cacheable-tasks-sort-order", "desc")
+                  |> Query.drop("cacheable-tasks-page")}"
+                }
+                data-selected={@cacheable_tasks_sort_by == "cache_artifact_size"}
+              >
+                <:right_icon><.check /></:right_icon>
+              </.dropdown_item>
+            </.dropdown>
+            <.filter_dropdown
+              id="cacheable-tasks-filter-dropdown"
+              label={dgettext("dashboard_gradle", "Filter")}
+              available_filters={@available_filters}
+              active_filters={@cacheable_tasks_active_filters}
+            />
+          </div>
+          <div
+            :if={Enum.any?(@cacheable_tasks_active_filters)}
+            data-part="active-filters"
+          >
+            <.active_filter :for={filter <- @cacheable_tasks_active_filters} filter={filter} />
+          </div>
           <.table id="gradle-cacheable-tasks-table" rows={@cacheable_tasks}>
             <:col :let={task} label={dgettext("dashboard_gradle", "Task")}>
               <.text_cell label={task.task_path} />
@@ -566,14 +628,36 @@
                 style="light-fill"
               />
             </:col>
-            <:col :let={task} label={dgettext("dashboard_gradle", "Size")}>
+            <:col
+              :let={task}
+              label={dgettext("dashboard_gradle", "Size")}
+              patch={
+                @cacheable_tasks_sort_by == "cache_artifact_size" &&
+                  "?#{@uri.query
+                  |> Query.put("cacheable-tasks-sort-by", "cache_artifact_size")
+                  |> Query.put("cacheable-tasks-sort-order", sort_order_patch_value("cache_artifact_size", @cacheable_tasks_sort_by, @cacheable_tasks_sort_order))
+                  |> Query.drop("cacheable-tasks-page")}"
+              }
+              icon={@cacheable_tasks_sort_by == "cache_artifact_size" && sort_icon(@cacheable_tasks_sort_order)}
+            >
               <.text_cell label={
                 if task.cache_artifact_size,
                   do: ByteFormatter.format_bytes(task.cache_artifact_size),
                   else: dgettext("dashboard_gradle", "—")
               } />
             </:col>
-            <:col :let={task} label={dgettext("dashboard_gradle", "Duration")}>
+            <:col
+              :let={task}
+              label={dgettext("dashboard_gradle", "Duration")}
+              patch={
+                @cacheable_tasks_sort_by == "duration_ms" &&
+                  "?#{@uri.query
+                  |> Query.put("cacheable-tasks-sort-by", "duration_ms")
+                  |> Query.put("cacheable-tasks-sort-order", sort_order_patch_value("duration_ms", @cacheable_tasks_sort_by, @cacheable_tasks_sort_order))
+                  |> Query.drop("cacheable-tasks-page")}"
+              }
+              icon={@cacheable_tasks_sort_by == "duration_ms" && sort_icon(@cacheable_tasks_sort_order)}
+            >
               <.text_cell label={format_duration(task.duration_ms)} icon="history" />
             </:col>
             <:empty_state>

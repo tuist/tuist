@@ -85,13 +85,31 @@ defmodule TuistWeb.GradleBuildLive do
      )}
   end
 
+  def handle_event("search-cacheable-tasks", %{"search" => search}, socket) do
+    %{selected_account: account, selected_project: project, build: build, uri: uri} =
+      socket.assigns
+
+    query =
+      uri.query
+      |> Query.put("cacheable-tasks-filter", search)
+      |> Query.put("cacheable-tasks-page", "1")
+
+    {:noreply,
+     push_patch(socket,
+       to: "/#{account.name}/#{project.name}/gradle-cache/builds/#{build.id}?#{query}"
+     )}
+  end
+
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
-    %{selected_account: account, selected_project: project, build: build} = socket.assigns
+    %{selected_account: account, selected_project: project, build: build, selected_tab: tab} =
+      socket.assigns
+
+    page_param = if tab == "gradle-cache", do: "cacheable-tasks-page", else: "tasks-page"
 
     updated_params =
       filter_id
       |> Filter.Operations.add_filter_to_query(socket)
-      |> Map.put("tasks-page", "1")
+      |> Map.put(page_param, "1")
 
     {:noreply,
      socket
@@ -104,12 +122,15 @@ defmodule TuistWeb.GradleBuildLive do
   end
 
   def handle_event("update_filter", params, socket) do
-    %{selected_account: account, selected_project: project, build: build} = socket.assigns
+    %{selected_account: account, selected_project: project, build: build, selected_tab: tab} =
+      socket.assigns
+
+    page_param = if tab == "gradle-cache", do: "cacheable-tasks-page", else: "tasks-page"
 
     updated_query_params =
       params
       |> Filter.Operations.update_filters_in_query(socket)
-      |> Map.put("tasks-page", "1")
+      |> Map.put(page_param, "1")
 
     {:noreply,
      socket
@@ -153,20 +174,35 @@ defmodule TuistWeb.GradleBuildLive do
 
   defp assign_tab_data(socket, "gradle-cache", params) do
     build_id = socket.assigns.build.id
-    page = String.to_integer(params["cacheable-tasks-page"] || "1")
+
+    filters =
+      Filter.Operations.decode_filters_from_query(params, define_cacheable_task_filters())
+
+    text_filters = build_text_flop_filters(params["cacheable-tasks-filter"])
+    dropdown_filters = build_cacheable_task_flop_filters(filters)
+    sort_by = ensure_allowed_cacheable_sort_by(params["cacheable-tasks-sort-by"])
+    sort_order = params["cacheable-tasks-sort-order"] || "desc"
 
     flop_params = %{
-      page: page,
+      filters:
+        [%{field: :cacheable, op: :==, value: true}] ++ text_filters ++ dropdown_filters,
+      page: String.to_integer(params["cacheable-tasks-page"] || "1"),
       page_size: @table_page_size,
-      filters: [%{field: :cacheable, op: :==, value: true}]
+      order_by: [sort_by],
+      order_directions: [String.to_atom(sort_order)]
     }
 
     {cacheable_tasks, meta} = Gradle.list_tasks(build_id, flop_params)
 
     socket
     |> assign(:cacheable_tasks, cacheable_tasks)
-    |> assign(:cacheable_tasks_page, page)
+    |> assign(:cacheable_tasks_page, meta.current_page)
     |> assign(:cacheable_tasks_page_count, meta.total_pages)
+    |> assign(:cacheable_tasks_filter, params["cacheable-tasks-filter"] || "")
+    |> assign(:cacheable_tasks_sort_by, params["cacheable-tasks-sort-by"] || "duration_ms")
+    |> assign(:cacheable_tasks_sort_order, sort_order)
+    |> assign(:cacheable_tasks_active_filters, filters)
+    |> assign(:available_filters, define_cacheable_task_filters())
   end
 
   defp assign_tab_data(socket, _tab, _params), do: socket
@@ -216,6 +252,42 @@ defmodule TuistWeb.GradleBuildLive do
     do: String.to_existing_atom(value)
 
   defp ensure_allowed_sort_by(_), do: :started_at
+
+  defp define_cacheable_task_filters do
+    [
+      %Filter.Filter{
+        id: "status",
+        field: :outcome,
+        display_name: dgettext("dashboard_gradle", "Status"),
+        type: :option,
+        options: [:local_hit, :remote_hit, :executed],
+        options_display_names: %{
+          local_hit: dgettext("dashboard_gradle", "Local"),
+          remote_hit: dgettext("dashboard_gradle", "Remote"),
+          executed: dgettext("dashboard_gradle", "Upload")
+        },
+        operator: :==,
+        value: nil
+      }
+    ]
+  end
+
+  defp build_cacheable_task_flop_filters(filters) do
+    filters
+    |> Enum.map(fn filter ->
+      case filter.id do
+        "status" ->
+          %{filter | value: if(filter.value, do: Atom.to_string(filter.value))}
+      end
+    end)
+    |> Filter.Operations.convert_filters_to_flop()
+  end
+
+  defp ensure_allowed_cacheable_sort_by(value)
+       when value in ["duration_ms", "cache_artifact_size"],
+       do: String.to_existing_atom(value)
+
+  defp ensure_allowed_cacheable_sort_by(_), do: :duration_ms
 
   def sort_icon("desc"), do: "square_rounded_arrow_down"
   def sort_icon("asc"), do: "square_rounded_arrow_up"

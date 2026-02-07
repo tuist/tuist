@@ -7,7 +7,7 @@ defmodule Tuist.Gradle.Task do
   @derive {
     Flop.Schema,
     filterable: [:gradle_build_id, :cacheable, :task_path, :outcome],
-    sortable: [:task_path, :outcome, :duration_ms, :started_at],
+    sortable: [:task_path, :outcome, :duration_ms, :started_at, :cache_artifact_size],
     default_order: %{
       order_by: [:started_at],
       order_directions: [:asc]
