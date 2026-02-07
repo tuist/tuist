@@ -110,6 +110,32 @@ defmodule Tuist.BuildsTest do
       assert build.cacheable_task_local_hits_count == 0
       assert build.cacheable_task_remote_hits_count == 0
     end
+
+    test "returns error when account_id is missing" do
+      # Given
+      project_id = ProjectsFixtures.project_fixture().id
+
+      # When
+      result =
+        Builds.create_build(%{
+          id: UUIDv7.generate(),
+          duration: 1000,
+          macos_version: "11.2.3",
+          xcode_version: "12.4",
+          is_ci: false,
+          model_identifier: "Mac15,6",
+          scheme: "App",
+          project_id: project_id,
+          status: "success",
+          issues: [],
+          files: [],
+          targets: []
+        })
+
+      # Then
+      assert {:error, changeset} = result
+      assert %{account_id: ["can't be blank"]} = errors_on(changeset)
+    end
   end
 
   describe "get_build/1" do
@@ -358,8 +384,8 @@ defmodule Tuist.BuildsTest do
         Builds.list_build_runs(Flop.to_next_page(got_meta_first_page.flop))
 
       # Then
-      assert got_builds_first_page == [Repo.reload(build_two)]
-      assert got_builds_second_page == [Repo.reload(build_one)]
+      assert Enum.map(got_builds_first_page, & &1.id) == [build_two.id]
+      assert Enum.map(got_builds_second_page, & &1.id) == [build_one.id]
     end
   end
 
@@ -416,7 +442,7 @@ defmodule Tuist.BuildsTest do
       schemes = Builds.project_build_schemes(project)
 
       # Then
-      assert schemes == ["App", "Framework"]
+      assert Enum.sort(schemes) == ["App", "Framework"]
     end
 
     test "returns an empty list when no builds exist for the project" do

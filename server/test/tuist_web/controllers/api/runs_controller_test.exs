@@ -2,8 +2,12 @@ defmodule TuistWeb.API.RunsControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
+  import Ecto.Query
+
   alias Tuist.Builds
   alias Tuist.Builds.Build
+  alias Tuist.Builds.Build.Buffer
+  alias Tuist.ClickHouseRepo
   alias Tuist.Tests
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -11,8 +15,19 @@ defmodule TuistWeb.API.RunsControllerTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
 
+  defp get_builds_for_project(project_id, opts \\ []) do
+    preloads = Keyword.get(opts, :preload, [])
+
+    Build
+    |> where([b], b.project_id == ^project_id)
+    |> ClickHouseRepo.all()
+    |> ClickHouseRepo.preload(preloads)
+    |> Enum.map(&Build.normalize_enums/1)
+  end
+
   setup do
     stub(VCS, :enqueue_vcs_pull_request_comment, fn _args -> {:ok, %{}} end)
+    TuistTestSupport.Utilities.truncate_clickhouse_tables()
     :ok
   end
 
@@ -314,7 +329,8 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      [build] = Build |> Tuist.Repo.all() |> Tuist.ClickHouseRepo.preload([:issues, :files, :targets])
+      Buffer.flush()
+      [build] = get_builds_for_project(project.id, preload: [:issues, :files, :targets])
 
       assert build.duration == 1000
       assert build.macos_version == "11.2.3"
@@ -405,7 +421,8 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      [build] = Tuist.Repo.all(Build)
+      Buffer.flush()
+      [build] = get_builds_for_project(project.id)
 
       assert build.duration == 1000
       assert build.macos_version == "11.2.3"
@@ -443,6 +460,9 @@ defmodule TuistWeb.API.RunsControllerTest do
         is_ci: false
       )
 
+      # Flush after first creation so it's visible for the second call
+      Buffer.flush()
+
       # When
       conn =
         conn
@@ -457,7 +477,8 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      [build] = Tuist.Repo.all(Build)
+      Buffer.flush()
+      [build] = get_builds_for_project(project.id)
 
       assert response == %{
                "type" => "build",
@@ -538,7 +559,8 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      [build] = Tuist.Repo.all(Build)
+      Buffer.flush()
+      [build] = get_builds_for_project(project.id)
 
       assert build.duration == 1000
       assert build.macos_version == nil
@@ -588,7 +610,8 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      [build] = Tuist.Repo.all(Build)
+      Buffer.flush()
+      [build] = get_builds_for_project(project.id)
 
       assert build.duration == 1000
       assert build.is_ci == true
@@ -631,7 +654,8 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      [build] = Tuist.Repo.all(Build)
+      Buffer.flush()
+      [build] = get_builds_for_project(project.id)
 
       assert build.duration == 1500
       assert build.is_ci == true
@@ -695,7 +719,8 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      [build] = Tuist.Repo.all(Build)
+      Buffer.flush()
+      [build] = get_builds_for_project(project.id)
 
       assert build.cacheable_tasks_count == 5
       assert build.cacheable_task_local_hits_count == 2
@@ -749,7 +774,8 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      [build] = Tuist.Repo.all(Build)
+      Buffer.flush()
+      [build] = get_builds_for_project(project.id)
 
       # Verify counts are 0 for empty array
       assert build.cacheable_tasks_count == 0
@@ -821,7 +847,8 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      [build] = Tuist.Repo.all(Build)
+      Buffer.flush()
+      [build] = get_builds_for_project(project.id)
 
       {cas_outputs, _meta} =
         Builds.list_cas_outputs(%{
@@ -953,7 +980,8 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      [build] = Tuist.Repo.all(Build)
+      Buffer.flush()
+      [build] = get_builds_for_project(project.id)
 
       assert build.duration == 1000
       assert build.is_ci == false
@@ -1008,7 +1036,8 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      [build] = Tuist.Repo.all(Build)
+      Buffer.flush()
+      [build] = get_builds_for_project(project.id)
 
       {cacheable_tasks, _meta} =
         Builds.list_cacheable_tasks(%{

@@ -37,11 +37,16 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - Alert rules (name, category, metric, deviation thresholds, Slack channel configuration)
 - Alert history (triggered alerts with current/previous values, timestamps)
 
-### Analytics Data
+### Analytics Data (ClickHouse)
+The following data is stored in ClickHouse for analytics purposes:
+- **Build runs** (`build_runs` table): Complete build execution data including duration, status, cache statistics, CI metadata, git information, and custom tags
+- **Build issues** (`build_issues` table): Compilation warnings and errors from builds
+- **Build files** (`build_files` table): Individual file compilation metrics
+- **Build targets** (`build_targets` table): Target/module build performance
+- **Cacheable tasks** (`cacheable_tasks` table): Xcode cache task analytics with hit/miss status
+- **CAS outputs** (`cas_outputs` table): Content-addressable storage upload/download records
 - Build performance metrics
-- Build issues and compilation data
 - QA testing logs and results
-- Build runs with cache hit/miss statistics (cacheable_task_remote_hits_count, cacheable_task_local_hits_count, cacheable_tasks_count)
 
 ### Non-Exportable Data
 - Swift package registry data (shared community resources)
