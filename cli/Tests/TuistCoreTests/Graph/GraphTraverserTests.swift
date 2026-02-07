@@ -2038,6 +2038,42 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertTrue(got.isEmpty)
     }
 
+    func test_embeddableFrameworks_when_appWithExtensionDependingOnStaticFrameworkWithResources() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let appExtension = Target.test(name: "AppExtension", product: .appExtension)
+        let staticFramework = Target.test(
+            name: "StaticResourcesFramework",
+            product: .staticFramework,
+            resources: .init([.file(path: "/Absolute/Asset.png")])
+        )
+        let project = Project.test(targets: [app, appExtension, staticFramework])
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: app.name, path: project.path): Set([
+                    .target(name: appExtension.name, path: project.path),
+                ]),
+                .target(name: appExtension.name, path: project.path): Set([
+                    .target(name: staticFramework.name, path: project.path),
+                ]),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.embeddableFrameworks(path: project.path, name: app.name).sorted()
+
+        // Then
+        // The app should embed the static framework with resources even though
+        // it is only a direct dependency of the extension, not of the app itself
+        XCTAssertEqual(
+            got, [
+                .product(target: "StaticResourcesFramework", productName: "StaticResourcesFramework.framework"),
+            ]
+        )
+    }
+
     func test_librariesPublicHeadersFolders() throws {
         // Given
         let target = Target.test(name: "Main")
