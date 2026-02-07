@@ -15,99 +15,95 @@ msgstr ""
 "n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\n"
 "X-Generator: Weblate 5.15.2\n"
 
-## This file is a PO Template file.
-##
-## "msgid"s here are often extracted from source code.
-## Add new messages manually only if they're dynamic
-## messages that can't be statically extracted.
-##
-## Run "mix gettext.extract" to bring this file up to
-## date. Leave "msgstr"s empty as changing them here has no
-## effect: edit them in PO (.po) files instead.
+# # This file is a PO Template file.
+# #
+# # "msgid"s here are often extracted from source code.
+# # Add new messages manually only if they're dynamic
+# # messages that can't be statically extracted.
+# #
+# # Run "mix gettext.extract" to bring this file up to
+# # date. Leave "msgstr"s empty as changing them here has no
+# # effect: edit them in PO (.po) files instead.
 #
-#: lib/tuist_web/live/integrations_live.html.heex:50
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Add new project connection"
 msgstr "Добавить новое подключение к проекту"
 
-#: lib/tuist_web/live/integrations_live.html.heex:113
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Cancel"
 msgstr "Отменить"
 
-#: lib/tuist_web/live/integrations_live.html.heex:65
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Choose Tuist project"
 msgstr "Выберите проект Tuist"
 
-#: lib/tuist_web/live/integrations_live.html.heex:92
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Choose a repository"
 msgstr "Выберите репозиторий"
 
-#: lib/tuist_web/live/integrations_live.html.heex:43
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Choose repository to connect to"
 msgstr "Выберите репозиторий для подключения"
 
-#: lib/tuist_web/live/integrations_live.html.heex:9
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Connect any of your GitHub repositories to a project"
 msgstr "Подключите любой из ваших репозиториев GitHub к проекту"
 
-#: lib/tuist_web/live/integrations_live.ex:147
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Connected %{time_ago}"
 msgstr "Связанный %{time_ago}"
 
-#: lib/tuist_web/live/integrations_live.ex:149
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Connected %{time_ago} by %{name}"
 msgstr "Подключено %{time_ago} пользователем %{name}"
 
-#: lib/tuist_web/live/integrations_live.html.heex:120
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Create Connection"
 msgstr "Создать соединение"
 
-#: lib/tuist_web/live/integrations_live.html.heex:6
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "GitHub"
 msgstr "GitHub"
 
-#: lib/tuist_web/live/integrations_live.html.heex:19
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Install GitHub App"
 msgstr "Установите приложение GitHub"
 
-#: lib/tuist_web/live/integrations_live.ex:30
-#: lib/tuist_web/live/integrations_live.html.heex:2
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Integrations"
 msgstr "Integrations"
 
-#: lib/tuist_web/live/integrations_live.html.heex:159
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Manage"
 msgstr "Управление"
 
-#: lib/tuist_web/live/integrations_live.html.heex:27
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Manage integration"
 msgstr "Управление интеграцией"
 
-#: lib/tuist_web/live/integrations_live.html.heex:162
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "Remove connection"
 msgstr "Удалить соединение"
 
-#: lib/tuist_web/live/integrations_live.ex:15
-#, elixir-autogen, elixir-format, fuzzy
+#, fuzzy
 msgid "You are not authorized to perform this action."
 msgstr "У вас нет прав для выполнения этого действия."
 
-#: lib/tuist_web/live/integrations_live.html.heex:38
-#, elixir-autogen, elixir-format, fuzzy
-msgid "Your access to repositories depends on your GitHub and Tuist integration setup."
+#, fuzzy
+msgid ""
+"Your access to repositories depends on your GitHub and Tuist integration "
+"setup."
 msgstr ""
 "Ваш доступ к репозиториям зависит от настроек интеграции GitHub и Tuist."
+
+msgid "Connect Slack"
+msgstr ""
+
+msgid "Connect Slack to receive project analytics reports"
+msgstr ""
+
+msgid "Disconnect from %{team_name}"
+msgstr ""
+
+msgid "Slack"
+msgstr ""
