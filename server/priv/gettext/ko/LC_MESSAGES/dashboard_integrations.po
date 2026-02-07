@@ -3,8 +3,9 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
-"PO-Revision-Date: 2026-01-22 12:39+0000\n"
-"Last-Translator: 이영준 <kofggm@gmail.com>\n"
+"PO-Revision-Date: 2026-02-08 08:21+0000\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_integrations/ko/>\n"
 "Language: ko\n"
@@ -78,14 +79,18 @@ msgid ""
 msgstr ""
 "Repository에 대한 접근 권한은 GitHub 및 Tuist 통합 설정에 따라 다릅니다."
 
+#, fuzzy
 msgid "Connect Slack"
-msgstr ""
+msgstr "Slack 연결"
 
+#, fuzzy
 msgid "Connect Slack to receive project analytics reports"
-msgstr ""
+msgstr "Slack을 연결하여 프로젝트 분석 보고서를 받으세요"
 
+#, fuzzy
 msgid "Disconnect from %{team_name}"
-msgstr ""
+msgstr "%{team_name}와 연결 해제"
 
+#, fuzzy
 msgid "Slack"
-msgstr ""
+msgstr "Slack"
