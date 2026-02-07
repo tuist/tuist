@@ -504,7 +504,9 @@ public class GraphTraverser: GraphTraversing {
                 }
             }
         } else {
-            // Extension targets: only embed direct static frameworks with resources
+            // Extension targets: embed direct static frameworks with resources and
+            // precompiled static xcframeworks/frameworks, but only those not already
+            // embedded by the host app.
             let directStaticFrameworksWithResources = directTargetDependencies(path: path, name: name)
                 .filter { dependency in
                     let depTarget = dependency.graphTarget.target
@@ -528,6 +530,12 @@ public class GraphTraverser: GraphTraversing {
                     self.dependencyReference(to: $0, from: from)
                 }
             )
+
+            if let hostApp = hostTargetFor(path: path, name: name) {
+                references.subtract(
+                    embeddableFrameworks(path: hostApp.path, name: hostApp.target.name)
+                )
+            }
         }
 
         return references
