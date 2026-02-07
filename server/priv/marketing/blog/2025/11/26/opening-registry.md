@@ -1,14 +1,14 @@
 ---
-title: "Opening up the Tuist Registry"
+title: "Tuist Registry: an open Swift Package Registry"
 category: "product"
 tags: ["product"] 
-excerpt: "Tuist Registry is now available to all – no authentication or account required."
+excerpt: "Tuist Registry is an open Swift Package Registry for fast SwiftPM resolution—no authentication required."
 author: fortmarek
 og_image_path: /marketing/images/blog/2025/11/26/opening-registry/og.png
 highlighted: false
 ---
 
-We [released](/blog/2025/01/22/announcing-tuist-registry/) Tuist Registry earlier this year, helping teams to resolve their packages more reliably, efficiently, and **faster**.
+We [released](/blog/2025/01/22/announcing-tuist-registry/) Tuist Registry earlier this year as an open Swift Package Registry, helping teams to resolve their packages more reliably, efficiently, and **faster**.
 
 Since launch, the registry has grown to serve almost 10,000 packages and more than 160,000 releases. Teams using the registry have seen disk space savings of up to 91% – from 6.6 GB down to 600 MB – and CI cache restore times dropping from 2 minutes to less than 20 seconds.
 

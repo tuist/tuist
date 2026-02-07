@@ -1,14 +1,14 @@
 ---
-title: "Test Insights for Xcode"
+title: "Tuist Test Insights for Xcode"
 category: "product"
 tags: ["product"] 
-excerpt: "Understand, analyze, and optimize your tests with the new Test Insights"
+excerpt: "Get Xcode test analytics and optimize your test suite with Tuist Test Insights."
 author: fortmarek
 og_image_path: /marketing/images/blog/2025/12/03/test-insights/og.jpg
 highlighted: true
 ---
 
-Earlier this year, we announced [Build Insights](/blog/2025/06/05/build-insights) – the best way to understand your Xcode builds in local and CI environments. But teams were still kept in the dark about their tests. 
+Earlier this year, we announced [Build Insights](/blog/2025/06/05/build-insights) – the best way to understand your Xcode builds in local and CI environments. But teams were still kept in the dark about their tests. Tuist Test Insights adds Xcode test analytics to fill that gap.
 
 As your test suite grows, you will inevitably face pains like slow test suites or flaky tests. Additionally, debugging issues on the CI has always been a challenge – can't I get a link that tells me exactly what went wrong, instead of trying to understand the logs, running the tests locally, or downloading the `.xcresult`?
 

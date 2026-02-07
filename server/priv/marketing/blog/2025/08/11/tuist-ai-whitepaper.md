@@ -2,7 +2,7 @@
 title: "Tuist's AI whitepaper"
 category: "product"
 tags: ["vision", "ai", "agents", "automation", "swift"] 
-excerpt: "AI is revolutionizing how we build Apple apps. We're pioneering agentic coding experiences, automated QA testing, instant previews, and data accessibility to make Swift development dramatically faster and more accessible."
+excerpt: "AI is revolutionizing how we build Apple apps. We're pioneering agentic coding, Tuist QA (automated QA testing), instant previews, and data accessibility to make Swift development dramatically faster and more accessible."
 author: pepicrft
 og_image_path: /marketing/images/blog/2025/08/11/tuist-ai-whitepaper.jpg
 ---

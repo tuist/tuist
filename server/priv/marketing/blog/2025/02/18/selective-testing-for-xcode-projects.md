@@ -1,13 +1,13 @@
 ---
-title: "Selective testing for all Xcode projects"
+title: "Tuist Selective Testing for all Xcode projects"
 category: "product"
 tags: ["product", "test"] 
-excerpt: "Run only tests that have changed, regardless of your setup, using Tuist's selective testing."
+excerpt: "Run only the tests affected by your changes with Tuist Selective Testing for Xcode projects."
 author: fortmarek
 highlighted: true
 ---
 
-Re-running all tests on the CI or locally is a waste of time, resources, and money, especially as your codebase grows and your test suite suddenly has thousands of tests. Wouldn't it be great if you could run your tests _selectively_ and skip all those that were not impacted by your changes?
+Re-running all tests on the CI or locally is a waste of time, resources, and money, especially as your codebase grows and your test suite suddenly has thousands of tests. Tuist Selective Testing lets you run tests selectively and skip those that were not impacted by your changes.
 
 While Tuist has had support for selective testing for a while now, it has been available only to those organizations that used Tuist to generate their Xcode projects and used the `tuist test` command to run their tests. 
 

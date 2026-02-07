@@ -2,7 +2,7 @@
 {
   "title": "Module cache",
   "titleTemplate": ":title · Cache · Features · Guides · Tuist",
-  "description": "Optimize your build times by caching compiled binaries and sharing them across different environments."
+  "description": "Optimize build times with Tuist Module Cache by caching compiled binaries and sharing them across environments."
 }
 ---
 
@@ -15,7 +15,7 @@
 <!-- -->
 :::
 
-Tuist Module cache provides a powerful way to optimize your build times by caching your modules as binaries (`.xcframework`s) and sharing them across different environments. This capability allows you to leverage previously generated binaries, reducing the need for repeated compilation and speeding up the development process.
+Tuist Module Cache (binary cache) provides a powerful way to optimize build times by caching your modules as binaries (`.xcframework`s) and sharing them across different environments. This capability allows you to leverage previously generated binaries, reducing the need for repeated compilation and speeding up the development process.
 
 ## Warming {#warming}
 
