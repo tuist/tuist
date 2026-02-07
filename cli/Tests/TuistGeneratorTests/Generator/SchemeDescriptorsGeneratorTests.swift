@@ -1581,6 +1581,41 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(result.selectedDebuggerIdentifier, "")
     }
 
+    func test_schemeLaunchAction_askForAppToLaunch() throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Projects/Project")
+        let target = Target.test(name: "App", product: .app)
+        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
+        let runAction = RunAction.test(
+            executable: TargetReference(projectPath: projectPath, name: "App"),
+            askForAppToLaunch: true
+        )
+        let scheme = Scheme.test(buildAction: buildAction, runAction: runAction)
+        let project = Project.test(
+            path: projectPath,
+            targets: [target]
+        )
+        let graph = Graph.test(
+            projects: [project.path: project]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeLaunchAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: try AbsolutePath(validating: "/somepath/Workspace"),
+            generatedProjects: createGeneratedProjects(projects: [project])
+        )
+
+        // Then
+        let result = try XCTUnwrap(got)
+        XCTAssertEqual(result.askForAppToLaunch, true)
+        XCTAssertEqual(result.launchAutomaticallySubstyle, "2")
+        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
+        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
+    }
+
     // MARK: - Profile Action Tests
 
     func test_schemeProfileAction_when_runnableTarget() throws {
@@ -1844,6 +1879,45 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(got?.postActions.first?.title, "Post Action")
         XCTAssertEqual(got?.postActions.first?.scriptText, "echo Post Actions")
         XCTAssertEqual(got?.postActions.first?.shellToInvoke, "/bin/sh")
+    }
+
+    func test_schemeProfileAction_askForAppToLaunch() throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/somepath/Project")
+        let target = Target.test(name: "App", platform: .iOS, product: .app)
+        let appTargetReference = TargetReference(projectPath: projectPath, name: "App")
+        let buildAction = BuildAction.test(targets: [appTargetReference])
+        let profileAction = ProfileAction.test(
+            executable: appTargetReference,
+            askForAppToLaunch: true
+        )
+        let scheme = Scheme.test(
+            name: "App",
+            buildAction: buildAction,
+            profileAction: profileAction
+        )
+        let project = Project.test(
+            path: projectPath,
+            xcodeProjPath: projectPath.appending(component: "Project.xcodeproj"),
+            targets: [target]
+        )
+        let graph = Graph.test(
+            projects: [project.path: project]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeProfileAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: projectPath,
+            generatedProjects: createGeneratedProjects(projects: [project])
+        )
+
+        // Then
+        let result = try XCTUnwrap(got)
+        XCTAssertEqual(result.askForAppToLaunch, true)
+        XCTAssertEqual(result.launchAutomaticallySubstyle, "2")
     }
 
     // MARK: - Analyze Action Tests

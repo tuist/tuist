@@ -109,6 +109,7 @@ extension XcodeGraph.RunAction {
             diagnosticsOptions: diagnosticsOptions,
             metalOptions: metalOptions,
             expandVariableFromTarget: expandVariablesFromTarget,
+            askForAppToLaunch: manifest.askForAppToLaunch,
             launchStyle: launchStyle,
             appClipInvocationURL: appClipInvocationURL,
             customWorkingDirectory: customWorkingDirectoryResolved,

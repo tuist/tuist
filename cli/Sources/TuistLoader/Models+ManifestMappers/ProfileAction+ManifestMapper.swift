@@ -38,6 +38,7 @@ extension XcodeGraph.ProfileAction {
             preActions: preActions,
             postActions: postActions,
             executable: executableResolved,
+            askForAppToLaunch: manifest.askForAppToLaunch,
             arguments: arguments
         )
     }
