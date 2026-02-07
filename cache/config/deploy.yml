@@ -25,6 +25,7 @@ env:
     STORAGE_DIR: /storage
     PHX_SOCKET_PATH: /run/cache/cache.sock
     PHX_SOCKET_LINK: /run/cache/current.sock
+    LOKI_URL: http://127.0.0.1:3100
 
   secret:
     - SECRET_KEY_BASE

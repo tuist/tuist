@@ -2,10 +2,96 @@
 {
   "title": "Telemetry",
   "titleTemplate": ":title | Self-hosting | Server | Guides | Tuist",
-  "description": "Monitor your Tuist server with Prometheus and Grafana telemetry."
+  "description": "Monitor your Tuist server with Prometheus metrics, OpenTelemetry traces, and log forwarding."
 }
 ---
 # Telemetry {#telemetry}
+
+Tuist provides three complementary observability signals: **metrics** (Prometheus), **traces** (OpenTelemetry), and **logs** (Loki-compatible). All three are optional and can be enabled independently.
+
+## Distributed tracing (OpenTelemetry) {#opentelemetry}
+
+Tuist supports [OpenTelemetry](https://opentelemetry.io/) for distributed tracing. When enabled, the server emits traces for HTTP requests (Phoenix and Bandit), database queries (Ecto), outgoing HTTP calls (Finch), and Broadway message processing. These traces let you understand request latency, identify slow queries, and follow requests across services.
+
+### Configuration {#opentelemetry-configuration}
+
+Set the following environment variable to enable trace export:
+
+| Environment variable | Description | Required | Default | Example |
+| --- | --- | --- | --- | --- |
+| `TUIST_OTEL_EXPORTER_OTLP_ENDPOINT` | The gRPC endpoint of an OpenTelemetry Collector (e.g. Grafana Alloy, Jaeger, or any OTLP-compatible collector) | No | | `http://localhost:4317` |
+
+When this variable is not set, tracing is disabled and adds no overhead.
+
+### Instrumented libraries {#opentelemetry-instrumented-libraries}
+
+The following libraries are automatically instrumented when tracing is enabled:
+
+- **Bandit** -- HTTP server connection spans
+- **Phoenix** -- Request lifecycle spans (controller actions, LiveView)
+- **Ecto** -- Database query spans with query metadata
+- **Finch** -- Outgoing HTTP client request spans
+- **Broadway** -- Message processing pipeline spans
+
+### Example setup with Grafana Alloy {#opentelemetry-alloy-example}
+
+If you use [Grafana Alloy](https://grafana.com/docs/alloy/latest/) as your collector, configure it to receive OTLP traces and forward them to your tracing backend (e.g. Grafana Cloud Tempo):
+
+```alloy
+otelcol.receiver.otlp "default" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+  output {
+    traces = [otelcol.exporter.otlp.your_backend.input]
+  }
+}
+```
+
+Then set `TUIST_OTEL_EXPORTER_OTLP_ENDPOINT` to point to the Alloy instance, e.g. `http://alloy:4317`.
+
+## Log forwarding (Loki) {#log-forwarding}
+
+Tuist can forward application logs to a [Loki](https://grafana.com/oss/loki/)-compatible endpoint. This allows you to centralize logs alongside your metrics and traces for a complete observability picture. Logs are pushed via the Loki HTTP push API (`/loki/api/v1/push`) and include labels for `app`, `env`, and `level`.
+
+### Configuration {#log-forwarding-configuration}
+
+| Environment variable | Description | Required | Default | Example |
+| --- | --- | --- | --- | --- |
+| `TUIST_LOKI_URL` | The base URL of a Loki-compatible push API endpoint | No | | `http://localhost:3100` |
+
+When this variable is not set, log forwarding is disabled.
+
+### Example setup with Grafana Alloy {#log-forwarding-alloy-example}
+
+Grafana Alloy can act as a local log relay using its [`loki.source.api`](https://grafana.com/docs/alloy/latest/reference/components/loki/loki.source.api/) component:
+
+```alloy
+loki.source.api "default" {
+  http {
+    listen_address = "0.0.0.0"
+    listen_port    = 3100
+  }
+  forward_to             = [loki.write.your_backend.receiver]
+  use_incoming_timestamp = true
+}
+
+loki.write "your_backend" {
+  endpoint {
+    url = "https://your-loki-instance/loki/api/v1/push"
+    basic_auth {
+      username = "your-username"
+      password = "your-password"
+    }
+  }
+}
+```
+
+Then set `TUIST_LOKI_URL=http://alloy:3100`.
+
+You can also point `TUIST_LOKI_URL` directly at a Loki instance if it exposes the push API.
+
+## Prometheus metrics {#prometheus-metrics}
 
 You can ingest metrics gathered by the Tuist server using [Prometheus](https://prometheus.io/) and a visualization tool such as [Grafana](https://grafana.com/) to create a custom dashboard tailored to your needs. The Prometheus metrics are served via the `/metrics` endpoint on port 9091. The Prometheus' [scrape_interval](https://prometheus.io/docs/introduction/first_steps/#configuring-prometheus) should be set as less than 10_000 seconds (we recommend keeping the default of 15 seconds).
 

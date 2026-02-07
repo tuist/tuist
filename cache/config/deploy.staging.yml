@@ -8,3 +8,4 @@ env:
   clear:
     SERVER_URL: https://staging.tuist.dev
     SENTRY_ENV: stag
+    DEPLOY_ENV: stag

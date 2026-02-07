@@ -143,7 +143,17 @@ defmodule Tuist.MixProject do
       {:langchain, "~> 0.4"},
       {:earmark, "~> 1.4"},
       {:html_sanitize_ex, "~> 1.4"},
-      {:posthog, "~> 1.0", runtime: false}
+      {:posthog, "~> 1.0", runtime: false},
+      {:opentelemetry_api, "~> 1.4"},
+      {:opentelemetry, "~> 1.5"},
+      {:opentelemetry_exporter, "~> 1.8"},
+      {:opentelemetry_phoenix, "~> 2.0"},
+      {:opentelemetry_ecto, "~> 1.2"},
+      {:opentelemetry_finch, "~> 0.2"},
+      {:opentelemetry_logger_metadata, "~> 0.1"},
+      {:opentelemetry_bandit, "~> 0.3"},
+      {:opentelemetry_broadway, "~> 0.3"},
+      {:loki_logger_handler, "~> 0.2"}
     ]
   end
 

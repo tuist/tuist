@@ -67,6 +67,8 @@ config :logger, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]
 
+config :opentelemetry, traces_exporter: :none
+
 config :phoenix, :json_library, Jason
 
 config :sentry,
