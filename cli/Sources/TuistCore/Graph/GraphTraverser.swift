@@ -519,6 +519,15 @@ public class GraphTraverser: GraphTraversing {
                     )
                 }
             )
+
+            let from = GraphDependency.target(name: name, path: path)
+            let precompiledStaticFrameworks = graph.dependencies[from, default: []]
+                .filter(\.isStaticPrecompiled)
+            references.formUnionPreferringRequiredStatus(
+                precompiledStaticFrameworks.compactMap {
+                    self.dependencyReference(to: $0, from: from)
+                }
+            )
         }
 
         return references

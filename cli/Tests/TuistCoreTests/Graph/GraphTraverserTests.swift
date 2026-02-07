@@ -1964,6 +1964,48 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
+    func test_embeddableFrameworks_when_appExtensionWithPrecompiledStaticXCFramework() throws {
+        // Given
+        let appExtension = Target.test(name: "AppExtension", product: .appExtension)
+        let project = Project.test(targets: [appExtension])
+        let xcframeworkDependency: GraphDependency = .testXCFramework(
+            path: "/xcframeworks/StaticXCFramework.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "id",
+                path: try RelativePath(validating: "path"),
+                architectures: [.arm64]
+            )]),
+            linking: .static,
+            status: .required
+        )
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: appExtension.name, path: project.path): Set([xcframeworkDependency]),
+            xcframeworkDependency: Set(),
+        ]
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.embeddableFrameworks(path: project.path, name: appExtension.name).sorted()
+
+        // Then
+        XCTAssertEqual(got, [
+            .xcframework(
+                path: "/xcframeworks/StaticXCFramework.xcframework",
+                infoPlist: .test(libraries: [.test(
+                    identifier: "id",
+                    path: try RelativePath(validating: "path"),
+                    architectures: [.arm64]
+                )]),
+                status: .required,
+                condition: nil
+            ),
+        ])
+    }
+
     func test_librariesPublicHeadersFolders() throws {
         // Given
         let target = Target.test(name: "Main")
