@@ -43,6 +43,9 @@ public struct RunAction: Equatable, Codable, Sendable {
     /// A target that will be used to expand the variables defined inside Environment Variables definition (e.g. $SOURCE_ROOT)
     public var expandVariableFromTarget: TargetReference?
 
+    /// Whether to present the "Ask on Launch" dialog when running.
+    public var askForAppToLaunch: Bool
+
     /// The launch style of the action
     public var launchStyle: LaunchStyle
 
@@ -63,6 +66,7 @@ public struct RunAction: Equatable, Codable, Sendable {
         diagnosticsOptions: SchemeDiagnosticsOptions = .options(),
         metalOptions: MetalOptions = .options(),
         expandVariableFromTarget: TargetReference? = nil,
+        askForAppToLaunch: Bool = false,
         launchStyle: LaunchStyle = .automatically,
         appClipInvocationURLString: String? = nil
     ) {
@@ -79,6 +83,7 @@ public struct RunAction: Equatable, Codable, Sendable {
         self.diagnosticsOptions = diagnosticsOptions
         self.metalOptions = metalOptions
         self.expandVariableFromTarget = expandVariableFromTarget
+        self.askForAppToLaunch = askForAppToLaunch
         self.launchStyle = launchStyle
         self.appClipInvocationURLString = appClipInvocationURLString
     }
@@ -134,6 +139,71 @@ public struct RunAction: Equatable, Codable, Sendable {
             diagnosticsOptions: diagnosticsOptions,
             metalOptions: metalOptions,
             expandVariableFromTarget: expandVariableFromTarget,
+            launchStyle: launchStyle,
+            appClipInvocationURLString: appClipInvocationURLString
+        )
+    }
+
+    /// Returns a run action with an executable configuration.
+    /// - Parameters:
+    ///   - configuration: Indicates the build configuration the product should run with.
+    ///   - attachDebugger: Whether a debugger should be attached to the run process or not.
+    ///   - preActions: A list of actions that are executed before starting the run process.
+    ///   - postActions: A list of actions that are executed after the run process.
+    ///   - executable: The executable configuration, either `.askOnLaunch` or `.executable(TargetReference?)`.
+    ///   - customWorkingDirectory: Custom working directory path for the run action.
+    ///   - filePath: Path to an executable file to run instead of the built product.
+    ///   - arguments: Command line arguments passed on launch and environment variables.
+    ///   - options: List of options to set to the action.
+    ///   - diagnosticsOptions: List of diagnostics options to set to the action.
+    ///   - metalOptions: List of metal options to set to the action.
+    ///   - expandVariableFromTarget: A target that will be used to expand the variables defined inside Environment Variables
+    /// definition (e.g. $SOURCE_ROOT). When nil, it does not expand any variables.
+    ///   - launchStyle: The launch style of the action
+    ///   - appClipInvocationURLString: The URL string used to invoke the app clip, if available.
+    /// - Returns: Run action.
+    public static func runAction(
+        configuration: ConfigurationName = .debug,
+        attachDebugger: Bool = true,
+        customLLDBInitFile: Path? = nil,
+        preActions: [ExecutionAction] = [],
+        postActions: [ExecutionAction] = [],
+        executable: Executable,
+        customWorkingDirectory: Path? = nil,
+        filePath: Path? = nil,
+        arguments: Arguments? = nil,
+        options: RunActionOptions = .options(),
+        diagnosticsOptions: SchemeDiagnosticsOptions = .options(),
+        metalOptions: MetalOptions = .options(),
+        expandVariableFromTarget: TargetReference? = nil,
+        launchStyle: LaunchStyle = .automatically,
+        appClipInvocationURLString: String? = nil
+    ) -> RunAction {
+        let askForAppToLaunch: Bool
+        let targetReference: TargetReference?
+        switch executable {
+        case .askOnLaunch:
+            askForAppToLaunch = true
+            targetReference = nil
+        case let .executable(reference):
+            askForAppToLaunch = false
+            targetReference = reference
+        }
+        return RunAction(
+            configuration: configuration,
+            attachDebugger: attachDebugger,
+            customLLDBInitFile: customLLDBInitFile,
+            preActions: preActions,
+            postActions: postActions,
+            executable: targetReference,
+            customWorkingDirectory: customWorkingDirectory,
+            filePath: filePath,
+            arguments: arguments,
+            options: options,
+            diagnosticsOptions: diagnosticsOptions,
+            metalOptions: metalOptions,
+            expandVariableFromTarget: expandVariableFromTarget,
+            askForAppToLaunch: askForAppToLaunch,
             launchStyle: launchStyle,
             appClipInvocationURLString: appClipInvocationURLString
         )
