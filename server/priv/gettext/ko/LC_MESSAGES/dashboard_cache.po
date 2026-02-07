@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:30+0000\n"
-"PO-Revision-Date: 2026-01-23 07:32+0000\n"
+"PO-Revision-Date: 2026-02-07 20:36+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Korean <https://translate.tuist.dev/projects/tuist/"
 "dashboard_cache/ko/>\n"
@@ -466,7 +466,7 @@ msgstr "프로젝트용 Xcode 캐시 설정"
 
 #, fuzzy
 msgid "You can set up the Xcode cache for your project by running:"
-msgstr "프로젝트의 Xcode 캐시를 설정하려면 다음 명령을 실행하세요:"
+msgstr "프로젝트의 Xcode 캐시를 설정하려면 다음 명령어를 실행하세요:"
 
 #, fuzzy
 msgid "Tuist documentation"
