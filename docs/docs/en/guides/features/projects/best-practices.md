@@ -2,7 +2,7 @@
 {
   "title": "Best practices",
   "titleTemplate": ":title · Projects · Features · Guides · Tuist",
-  "description": "Learn about the best practices for working with Tuist and Xcode projects."
+  "description": "Learn about the best practices for working with Tuist generated projects."
 }
 ---
 # Best practices {#best-practices}

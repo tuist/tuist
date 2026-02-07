@@ -2,7 +2,7 @@
 {
   "title": "Projects",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "Learn about Tuist's DSL for defining Xcode projects."
+  "description": "Learn about Tuist's DSL for defining and generating Xcode projects."
 }
 ---
 # Generated projects {#generated-projects}

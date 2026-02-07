@@ -1,8 +1,8 @@
 ---
 {
   "title": "Add dependencies",
-  "titleTemplate": ":title · Quick-start · Guides · Tuist",
-  "description": "Learn how to add dependencies to your first Swift project"
+  "titleTemplate": ":title · Xcode · Tutorials · Tuist",
+  "description": "Learn how to add dependencies to your first Tuist generated project"
 }
 ---
 # Add dependencies {#add-dependencies}

@@ -2,7 +2,7 @@
 {
   "title": "QA",
   "titleTemplate": ":title · Features · Guides · Tuist",
-  "description": "AI-powered testing agent that tests your iOS apps automatically with comprehensive QA coverage."
+  "description": "AI-powered testing agent that tests your apps automatically with comprehensive QA coverage."
 }
 ---
 # QA {#qa}

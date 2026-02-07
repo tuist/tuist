@@ -7,7 +7,7 @@
 ---
 # Cache {#cache}
 
-Xcode's build system provides [incremental builds](https://en.wikipedia.org/wiki/Incremental_build_model), enhancing efficiency on a single machine. However, build artifacts are not shared across different environments, forcing you to rebuild the same code over and over – either in your [Continuous Integration (CI) environments](https://en.wikipedia.org/wiki/Continuous_integration) or local development environments (your Mac).
+Build systems provide [incremental builds](https://en.wikipedia.org/wiki/Incremental_build_model), enhancing efficiency on a single machine. However, build artifacts are not shared across different environments, forcing you to rebuild the same code over and over -- either in your [Continuous Integration (CI) environments](https://en.wikipedia.org/wiki/Continuous_integration) or local development environments.
 
 Tuist addresses these challenges with its caching feature, significantly reducing build times both in local development and CI environments. This approach not only accelerates feedback loops but also minimizes the need for context switching, ultimately boosting productivity.
 
