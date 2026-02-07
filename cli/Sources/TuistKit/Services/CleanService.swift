@@ -3,6 +3,7 @@ import Foundation
 import Path
 import TuistAlert
 import TuistCache
+import TuistConfigLoader
 import TuistConstants
 import TuistCore
 import TuistEnvironment

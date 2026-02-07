@@ -4,6 +4,7 @@ import Noora
 import Path
 import struct TSCUtility.Version
 import TuistAutomation
+import TuistConfigLoader
 import TuistConstants
 import TuistCore
 import TuistLoader

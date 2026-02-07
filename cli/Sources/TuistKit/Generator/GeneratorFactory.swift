@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import TuistConfig
 import TuistCore
 import TuistGenerator
 import TuistLoader
@@ -118,7 +119,6 @@ public class GeneratorFactory: GeneratorFactorying {
             tuist: config
         )
         return Generator(
-            manifestLoader: ManifestLoader.current,
             manifestGraphLoader: ManifestGraphLoader(
                 manifestLoader: ManifestLoader.current,
                 workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
@@ -169,7 +169,6 @@ public class GeneratorFactory: GeneratorFactorying {
             tuist: config
         )
         return Generator(
-            manifestLoader: ManifestLoader.current,
             manifestGraphLoader: ManifestGraphLoader(
                 manifestLoader: ManifestLoader.current,
                 workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
@@ -312,11 +311,9 @@ public class GeneratorFactory: GeneratorFactorying {
                 cacheStorage: cacheStorage
             )
             let workspaceMappers = workspaceMapperFactory.default(tuist: config)
-            let manifestLoader = ManifestLoader.current
             return Generator(
-                manifestLoader: manifestLoader,
                 manifestGraphLoader: ManifestGraphLoader(
-                    manifestLoader: manifestLoader,
+                    manifestLoader: ManifestLoader.current,
                     workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
                     graphMapper: SequentialGraphMapper(graphMappers)
                 )
@@ -360,11 +357,9 @@ public class GeneratorFactory: GeneratorFactorying {
                 destination: destination
             )
             let workspaceMappers = workspaceMapperFactory.automation(tuist: config)
-            let manifestLoader = ManifestLoader.current
             return Generator(
-                manifestLoader: manifestLoader,
                 manifestGraphLoader: ManifestGraphLoader(
-                    manifestLoader: manifestLoader,
+                    manifestLoader: ManifestLoader.current,
                     workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
                     graphMapper: SequentialGraphMapper(graphMappers)
                 )
@@ -394,11 +389,9 @@ public class GeneratorFactory: GeneratorFactorying {
                 cacheStorage: cacheStorage
             )
             let workspaceMappers = workspaceMapperFactory.automation(tuist: config)
-            let manifestLoader = ManifestLoader.current
             return Generator(
-                manifestLoader: manifestLoader,
                 manifestGraphLoader: ManifestGraphLoader(
-                    manifestLoader: manifestLoader,
+                    manifestLoader: ManifestLoader.current,
                     workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
                     graphMapper: SequentialGraphMapper(graphMappers)
                 )
@@ -424,11 +417,9 @@ public class GeneratorFactory: GeneratorFactorying {
             )
             graphMappers = graphMappers.filter { !($0 is ExplicitDependencyGraphMapper) }
             let workspaceMappers = workspaceMapperFactory.binaryCacheWarmingPreload(tuist: config)
-            let manifestLoader = ManifestLoader.current
             return Generator(
-                manifestLoader: manifestLoader,
                 manifestGraphLoader: ManifestGraphLoader(
-                    manifestLoader: manifestLoader,
+                    manifestLoader: ManifestLoader.current,
                     workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
                     graphMapper: SequentialGraphMapper(graphMappers)
                 )
@@ -462,11 +453,9 @@ public class GeneratorFactory: GeneratorFactorying {
             let workspaceMappers = workspaceMapperFactory.binaryCacheWarming(
                 tuist: config
             )
-            let manifestLoader = ManifestLoader.current
             return Generator(
-                manifestLoader: manifestLoader,
                 manifestGraphLoader: ManifestGraphLoader(
-                    manifestLoader: manifestLoader,
+                    manifestLoader: ManifestLoader.current,
                     workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
                     graphMapper: SequentialGraphMapper(graphMappers)
                 )

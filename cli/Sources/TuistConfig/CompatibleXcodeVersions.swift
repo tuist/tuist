@@ -1,5 +1,5 @@
 import Foundation
-import XcodeGraph
+import TSCUtility
 
 /// Enum that represents all the Xcode versions that a project or set of projects is compatible with.
 public enum CompatibleXcodeVersions: Equatable, Hashable, ExpressibleByArrayLiteral, ExpressibleByStringInterpolation,
@@ -21,7 +21,9 @@ public enum CompatibleXcodeVersions: Equatable, Hashable, ExpressibleByArrayLite
     case list([CompatibleXcodeVersions])
 
     public func isCompatible(versionString: String) -> Bool {
-        let xCodeVersion: Version = "\(versionString)"
+        guard let xCodeVersion = try? Version(versionString: versionString, usesLenientParsing: true) else {
+            return false
+        }
 
         switch self {
         case .all:
@@ -31,7 +33,8 @@ public enum CompatibleXcodeVersions: Equatable, Hashable, ExpressibleByArrayLite
         case let .upToNextMajor(version):
             return xCodeVersion.major == version.major && xCodeVersion >= version
         case let .upToNextMinor(version):
-            return version.major == xCodeVersion.major && version.minor == xCodeVersion.minor && xCodeVersion >= version
+            return version.major == xCodeVersion.major && version.minor == xCodeVersion.minor
+                && xCodeVersion >= version
         case let .list(versions):
             return versions.contains { $0.isCompatible(versionString: versionString) }
         }
@@ -40,7 +43,8 @@ public enum CompatibleXcodeVersions: Equatable, Hashable, ExpressibleByArrayLite
     // MARK: - ExpressibleByStringInterpolation
 
     public init(stringLiteral value: String) {
-        self = .exact(Version(stringLiteral: value))
+        // swiftlint:disable:next force_try
+        self = .exact(try! Version(versionString: value, usesLenientParsing: true))
     }
 
     // MARK: - ExpressibleByArrayLiteral

@@ -1,5 +1,5 @@
 {
-  "originHash" : "9990412c439b5d45933770cc0804439ef80f6ee8bfb72a2da6860ea4ee5f02c6",
+  "originHash" : "99b56576b33211be1a1e3d9e4b8de8cb2e827de31be3b76fba0ab6d8e256852c",
   "pins" : [
     {
       "identity" : "1024jp.GzipSwift",
@@ -223,6 +223,14 @@
       "location" : "",
       "state" : {
         "version" : "7.1.5"
+      }
+    },
+    {
+      "identity" : "dduan.TOMLDecoder",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.4.3"
       }
     },
     {

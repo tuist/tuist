@@ -6,6 +6,7 @@ import Path
 import TuistAlert
 import TuistAuthCommand
 import TuistCacheCommand
+import TuistConfigLoader
 import TuistEnvironment
 import TuistLogging
 import TuistNooraExtension

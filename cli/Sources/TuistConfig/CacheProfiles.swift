@@ -1,5 +1,3 @@
-import XcodeGraph
-
 /// Cache profile type.
 public enum CacheProfileType: Codable, Equatable, Sendable, Hashable {
     /// Replace external dependencies only (system default)

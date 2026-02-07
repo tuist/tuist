@@ -1,5 +1,3 @@
-import XcodeGraph
-
 public enum TuistProject: Equatable, Hashable, Sendable {
     case generated(TuistGeneratedProjectOptions)
     case xcode(TuistXcodeProjectOptions)

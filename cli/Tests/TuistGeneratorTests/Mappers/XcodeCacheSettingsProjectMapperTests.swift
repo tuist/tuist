@@ -2,6 +2,7 @@ import FileSystemTesting
 import Foundation
 import Path
 import Testing
+import TuistConfig
 import TuistConstants
 import TuistCore
 import TuistEnvironment

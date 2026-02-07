@@ -1,3 +1,4 @@
+import Algorithms
 import FileSystem
 import Foundation
 import Mockable
@@ -189,8 +190,8 @@ public struct XCActivityLogController: XCActivityLogControlling {
         )
         let rootDirectory = try await rootDirectory()
 
-        let issues = try await issues(steps: steps, rootDirectory: rootDirectory)
-            .uniqued()
+        let issues = Array(try await issues(steps: steps, rootDirectory: rootDirectory)
+            .uniqued())
 
         let files = try await files(steps: steps, rootDirectory: rootDirectory)
 
@@ -481,10 +482,10 @@ public struct XCActivityLogController: XCActivityLogControlling {
     }
 
     private func analyzeCASKeys(from buildSteps: [XCLogParser.BuildStep]) async throws -> [CASOutput] {
-        let downloadNodeMetadata = extractDownloadNodeMetadata(from: buildSteps)
-            .uniqued()
-        let uploadNodeMetadata = extractUploadNodeMetadata(from: buildSteps)
-            .uniqued()
+        let downloadNodeMetadata = Array(extractDownloadNodeMetadata(from: buildSteps)
+            .uniqued())
+        let uploadNodeMetadata = Array(extractUploadNodeMetadata(from: buildSteps)
+            .uniqued())
 
         async let downloadOutputs = createCASOutputDownloads(nodeMetadata: downloadNodeMetadata)
         async let uploadOutputs = createCASOutputUploads(nodeMetadata: uploadNodeMetadata)
@@ -545,7 +546,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
                 return nil
             }
         }
-        return allMetadata.uniqued()
+        return Array(allMetadata.uniqued())
     }
 
     private func extractCacheKeyFromNote(_ noteTitle: String) -> String? {

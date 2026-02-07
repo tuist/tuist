@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Mockable
 import Testing
+import TuistConfigLoader
 import TuistEnvironment
 import TuistHTTP
 import TuistLoader

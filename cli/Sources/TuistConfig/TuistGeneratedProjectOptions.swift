@@ -1,5 +1,5 @@
 import Path
-import XcodeGraph
+import TSCUtility
 
 public struct TuistGeneratedProjectOptions: Equatable, Hashable {
     public let compatibleXcodeVersions: CompatibleXcodeVersions
@@ -51,7 +51,10 @@ public struct TuistGeneratedProjectOptions: Equatable, Hashable {
                 registryEnabled: false
             ),
             installOptions: .init(passthroughSwiftPackageManagerArguments: []),
-            cacheOptions: CacheOptions(keepSourceTargets: false, profiles: .init([:], default: .onlyExternal))
+            cacheOptions: CacheOptions(
+                keepSourceTargets: false,
+                profiles: .init([:], default: .onlyExternal)
+            )
         )
     }
 }
@@ -126,28 +129,6 @@ extension TuistGeneratedProjectOptions {
 }
 
 #if DEBUG
-    extension TuistGeneratedProjectOptions.GenerationOptions {
-        public func withWorkspaceName(_ workspaceName: String) -> Self {
-            var options = self
-            if let clonedSourcePackagesDirPath {
-                var workspaceName = workspaceName
-                if workspaceName.hasSuffix(".xcworkspace") {
-                    workspaceName = String(workspaceName.dropLast(".xcworkspace".count))
-                }
-                let mangledWorkspaceName = workspaceName.spm_mangledToC99ExtendedIdentifier()
-                var additionalPackageResolutionArguments = options.additionalPackageResolutionArguments
-                additionalPackageResolutionArguments.append(
-                    contentsOf: [
-                        "-clonedSourcePackagesDirPath",
-                        clonedSourcePackagesDirPath.appending(component: mangledWorkspaceName).pathString,
-                    ]
-                )
-                options.additionalPackageResolutionArguments = additionalPackageResolutionArguments
-            }
-            return options
-        }
-    }
-
     extension TuistGeneratedProjectOptions {
         public static func test(
             compatibleXcodeVersions: CompatibleXcodeVersions = .all,
@@ -214,5 +195,4 @@ extension TuistGeneratedProjectOptions {
             )
         }
     }
-
 #endif

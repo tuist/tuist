@@ -20,9 +20,9 @@ public struct CacheConfigCommand: AsyncParsableCommand {
     }
 
     @Argument(
-        help: "The full handle of the project (account-handle/project-handle)."
+        help: "The full handle of the project (account-handle/project-handle). If not provided, it is read from the project configuration."
     )
-    var fullHandle: String
+    var fullHandle: String?
 
     @Flag(
         help: "Output the result in JSON format.",

@@ -5,6 +5,7 @@ import Mockable
 import Path
 import Testing
 import struct TSCUtility.Version
+import TuistConfig
 import TuistCore
 import TuistSupport
 import TuistTesting

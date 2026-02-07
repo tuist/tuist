@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import Path
 import ProjectDescription
+import TuistConfigLoader
 import TuistCore
 import TuistDependencies
 import TuistLoader
@@ -50,7 +51,7 @@ public final class ManifestGraphLoader: ManifestGraphLoading {
         graphMapper: GraphMapping
     ) {
         self.init(
-            configLoader: ConfigLoader(manifestLoader: manifestLoader),
+            configLoader: ConfigLoader(),
             manifestLoader: manifestLoader,
             recursiveManifestLoader: RecursiveManifestLoader(manifestLoader: manifestLoader),
             converter: ManifestModelConverter(

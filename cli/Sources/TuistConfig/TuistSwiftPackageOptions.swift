@@ -4,7 +4,7 @@ public struct TuistSwiftPackageOptions: Codable, Equatable, Sendable, Hashable {
 
 #if DEBUG
     extension TuistSwiftPackageOptions {
-        static func test() -> Self {
+        public static func test() -> Self {
             return TuistSwiftPackageOptions()
         }
     }
