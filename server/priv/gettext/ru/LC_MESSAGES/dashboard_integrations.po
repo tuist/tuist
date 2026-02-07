@@ -4,7 +4,8 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
 "PO-Revision-Date: 2026-02-08 08:21+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
+"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
+"memory@weblate.org>\n"
 "Language-Team: Russian <https://translate.tuist.dev/projects/tuist/"
 "dashboard_integrations/ru/>\n"
 "Language: ru\n"
@@ -108,5 +109,6 @@ msgstr "Подключите Slack, чтобы получать отчеты п�
 msgid "Disconnect from %{team_name}"
 msgstr "Отключиться от %{team_name}"
 
+#, fuzzy
 msgid "Slack"
-msgstr ""
+msgstr "Slack"
