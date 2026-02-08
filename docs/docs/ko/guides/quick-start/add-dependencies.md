@@ -14,7 +14,7 @@
 tuist edit
 ```
 
-Xcode 프로젝트가 열리면 프로젝트 파일이 포함되어 있습니다. Package.swift( `)를 편집하고 다음을 추가하세요.`
+`Xcode 프로젝트가 열리면 프로젝트 파일이 포함되어 있습니다. Package.swift(` ) 파일을 편집하고 다음을 추가하세요.
 
 ```swift
 // swift-tools-version: 5.9
@@ -42,7 +42,7 @@ let package = Package(
 )
 ```
 
-그런 다음 프로젝트의 애플리케이션 타깃을 편집하여 `Kingfisher` 를 종속성으로 선언하십시오:
+그런 다음 프로젝트의 애플리케이션 Target을 편집하여 `Kingfisher` 를 의존성으로 선언하십시오:
 
 ```swift
 import ProjectDescription
@@ -83,13 +83,13 @@ let project = Project(
 ```
 
 그런 다음 `tuist install` 를 실행하여 [Swift Package
-Manager](https://www.swift.org/documentation/package-manager/)을 사용하여 종속성을 해결하고
+Manager](https://www.swift.org/documentation/package-manager/)을 사용하여 의존성을 해결하고
 가져옵니다.
 
 ::: info SPM AS A DEPENDENCY RESOLVER
 <!-- -->
-Tuist가 권장하는 종속성 관리 방식은 Swift Package Manager(SPM)를 종속성 해결에만 사용합니다. 이후 Tuist는 최대의
-구성 가능성과 제어력을 위해 이를 Xcode 프로젝트 및 타깃으로 변환합니다.
+Tuist가 권장하는 의존성 관리 방식은 Swift Package Manager(SPM)를 의존성 해결에만 사용합니다. 이후 Tuist는 최대의
+구성 가능성과 제어력을 위해 이를 Xcode 프로젝트 및 Target으로 변환합니다.
 <!-- -->
 :::
 
