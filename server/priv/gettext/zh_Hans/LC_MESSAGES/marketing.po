@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-25 14:36+0000\nPO-Revision-Date: 2025-12-24 11:49+0000\nLast-Translator: Weblate Admin <admin@cloudron.local>\nLanguage-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/projects/tuist/marketing/zh_Hans/>\nLanguage: zh_Hans\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15.1\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-25 14:36+0000\nPO-Revision-Date: 2026-02-06 13:03+0000\nLast-Translator: Weblate <noreply-mt-weblate@weblate.org>\nLanguage-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/projects/tuist/marketing/zh_Hans/>\nLanguage: zh_Hans\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -11,7 +11,7 @@ msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creatio
 # # effect: edit them in PO (.po) files instead.
 #
 msgid "\"We could solve our immediate problems and do so while maintaining a familiar"
-msgstr "\"解决了当下面临的难题，同时保留了熟悉的开发体验"
+msgstr "“我们可以在解决眼前难题的同时，保持熟悉感。”"
 
 msgid "105 remote binaries pulled"
 msgstr "105 个远程二进制文件已拉取"
@@ -37,7 +37,9 @@ msgstr "9+"
 msgid ""
 "<p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with \"contact sales\" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>\n"
 "<p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>\n"
-msgstr "<p>开源承诺与核心价值，成就了我们独特的定价理念。不同于其他商家用「联系销售」、限制性演示等手段牟利，我们崇尚公平透明。一视同仁，价格公道。选择我们，您不仅能获得优秀产品，更能支持开源项目发展。我们视基业长青为长期旅程，而非急功近利的短期行为。您可%{read_more}了解我们的发展理念。</p>\n<p>支持 Tuist，就是为 Swift 生态贡献更多开源力量。</p>\n"
+msgstr ""
+"<p>我们对开源的承诺和核心价值观塑造了我们独特的定价方式。与许多试图通过“联系销售”电话、有限的演示和其他销售手段榨取您每一分钱的模式不同，我们秉持公平和透明的原则。我们平等对待每一位客户，并制定对所有人都公平的价格。选择我们的服务，您不仅能获得优质的产品，还能支持更多开源项目的开发。我们认为，打造一个蓬勃发展的企业是一个长期的过程，而不是充斥着不正当手段的短期冲刺。您可以点击 %{read_more} 了解更多关于我们理念的信息。</p>\n"
+"<p>支持 Tuist，您也支持更多面向 Swift 生态系统的开源软件的开发。</p>\n"
 
 msgid "A confirmation email has been sent to your account with further details."
 msgstr "确认邮件已发送至您的账户，详情请查收。"
@@ -61,7 +63,7 @@ msgid "Agentic testing of your app completed"
 msgstr "应用智能测试已完成"
 
 msgid "Air"
-msgstr "Air"
+msgstr "空气"
 
 msgid "All"
 msgstr "全部"
@@ -196,7 +198,7 @@ msgid "Create your plan or self-host your instance."
 msgstr "创建您的计划或自托管实例。"
 
 msgid "Custom legal agreements and terms of service tailored to your organization's needs."
-msgstr "企业专属：法律条款与服务协议定制"
+msgstr "企业专属：法律条款与服务协议定制。"
 
 msgid "Cuts build times by caching and reusing binaries"
 msgstr "通过缓存和重用二进制文件减少构建时间"
@@ -882,9 +884,6 @@ msgstr "及以上"
 msgid "per additional unit"
 msgstr "每增加单位"
 
-msgid "AI writes faster. So should your builds."
-msgstr "AI 写得更快。您的构建也应该如此。"
-
 msgid "A Tuist command execution that interacts with the server pull test result information. As an estimate, this is roughly equivalent to the number of test runs on CI."
 msgstr "Tuist 命令与服务器交互拉取测试结果。大致相当于 CI 中的测试运行次数。"
 
@@ -911,3 +910,166 @@ msgstr "在我们的仪表板上实时显示"
 
 msgid "Language"
 msgstr "语言"
+
+#, fuzzy
+msgid "Read story"
+msgstr "阅读故事"
+
+#, fuzzy
+msgid "%{company} case study"
+msgstr "%{公司} 案例研究"
+
+#, fuzzy
+msgid "(opens in new tab)"
+msgstr "(在新标签页中打开)"
+
+#, fuzzy
+msgid "Discover how teams around the world use Tuist to build high-quality apps faster, streamline workflows, and save countless hours of engineering time."
+msgstr "探索全球团队如何借助 Tuist 加速构建高质量应用、优化工作流程，并节省大量工程开发时间。"
+
+#, fuzzy
+msgid "Founded"
+msgstr "创立"
+
+#, fuzzy
+msgid "Learn how teams use Tuist to scale their iOS development."
+msgstr "了解团队如何利用 Tuist 扩展 iOS 开发规模。"
+
+#, fuzzy
+msgid "Onboarded"
+msgstr "已入职"
+
+#, fuzzy
+msgid "Read next"
+msgstr "继续阅读"
+
+#, fuzzy
+msgid "Explore Tuist's features on the public dashboard"
+msgstr "在公共仪表板上探索 Tuist 的功能"
+
+#, fuzzy
+msgid "Public dashboard"
+msgstr "公共仪表板"
+
+#, fuzzy
+msgid "See how leading teams scale with Tuist"
+msgstr "了解领先团队如何借助Tuist实现规模化发展"
+
+#, fuzzy
+msgid "See how leading tech companies are scaling their development with Tuist."
+msgstr "了解领先科技企业如何借助Tuist实现开发规模化。"
+
+#, fuzzy
+msgid "AI moves fast. So should your builds."
+msgstr "AI发展迅猛，您的构建也应如此。"
+
+#, fuzzy
+msgid "Customers"
+msgstr "客户"
+
+#, fuzzy
+msgid "Tuist Customers"
+msgstr "Tuist 客户"
+
+#, fuzzy
+msgid "Agentic QA testing the checkout flow with 8 issues identified and 16 screenshots taken"
+msgstr "代理质量保证测试结账流程，发现8个问题并截取16张屏幕截图"
+
+#, fuzzy
+msgid "App preview interface showing share preview button and platform options"
+msgstr "应用预览界面展示分享预览按钮及平台选项"
+
+#, fuzzy
+msgid "Automatically detect flaky tests that fail without code changes and reduce time spent investigating false failures."
+msgstr "自动检测因代码未变更而失败的测试，减少排查虚假失败所耗费的时间。"
+
+#, fuzzy
+msgid "Build insights chart showing build duration metrics with p90, p99, and average percentiles"
+msgstr "构建洞察图表，展示包含p90、p99及平均百分位的构建时长指标"
+
+#, fuzzy
+msgid "Cache hit rate dashboard showing 90% hit rate and 14.2 hours saved this week"
+msgstr "缓存命中率仪表盘显示本周命中率达90%，节省14.2小时"
+
+#, fuzzy
+msgid "Conceptually compress the complexities of modular Xcode projects and make them more accessible to maintain and scale."
+msgstr "概念化地压缩模块化Xcode项目的复杂性，使其更易于维护和扩展。"
+
+#, fuzzy
+msgid "Flaky Tests"
+msgstr "不稳定的测试"
+
+#, fuzzy
+msgid "Flaky tests dashboard showing test history and automation creation modal"
+msgstr "测试历史与自动化创建模态框的测试仪表板"
+
+#, fuzzy
+msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
+msgstr "从代码到反馈仅需数分钟。即时预览与AI驱动的测试，让构建与验证的闭环无缝衔接。"
+
+#, fuzzy
+msgid "Mention @tuist-qa in your PR and an AI agent tests your app like a real user, exploring edge cases and reporting issues with screenshots and logs."
+msgstr "在PR中@tuist-qa，AI代理将像真实用户一样测试您的应用，探索边界情况并通过截图和日志报告问题。"
+
+#, fuzzy
+msgid "Monitor build performance across local and CI environments to catch slowdowns before they become bottlenecks."
+msgstr "监控本地与CI环境中的构建性能，在延迟演变为瓶颈前及时发现问题。"
+
+#, fuzzy
+msgid "Quality assurance"
+msgstr "质量保证"
+
+#, fuzzy
+msgid "Run only the tests that matter by detecting changes since your last successful run, cutting down test times in both local development and CI."
+msgstr "通过检测上次成功运行后的变更，仅运行关键测试，从而缩短本地开发和持续集成中的测试时间。"
+
+#, fuzzy
+msgid "Selective Testing"
+msgstr "选择性测试"
+
+#, fuzzy
+msgid "Selective testing dashboard showing tests skipped with 134/196 tests skipped and 15.8h saved this week"
+msgstr "选择性测试仪表盘显示跳过的测试：本周跳过134/196项测试，节省15.8小时"
+
+#, fuzzy
+msgid "Share your app instantly with a URL. No TestFlight delays, just click and run on any simulator or device."
+msgstr "通过URL即时分享您的应用。无需TestFlight等待，点击即可在任何模拟器或设备上运行。"
+
+#, fuzzy
+msgid "Test Insights"
+msgstr "测试洞察"
+
+#, fuzzy
+msgid "Test insights showing test runs, flaky tests, failed test runs, and p90 test run duration metrics"
+msgstr "测试洞察显示测试运行、不稳定测试、失败测试运行以及p90测试运行时长指标"
+
+#, fuzzy
+msgid "Tests"
+msgstr "测试"
+
+#, fuzzy
+msgid "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
+msgstr "追踪测试性能，及早发现低效测试，无需翻阅日志即可调试持续集成失败问题。"
+
+#, fuzzy
+msgid "Download only what you need — faster, lighter builds locally and on CI."
+msgstr "仅下载所需内容——本地及CI环境中更快、更轻量的构建。"
+
+#, fuzzy
+msgid "Extra features that simplify modular Xcode projects and speed up local and CI builds."
+msgstr "额外功能可简化模块化Xcode项目，并加速本地与CI构建。"
+
+#, fuzzy
+msgid "Other features"
+msgstr "其他功能"
+
+#, fuzzy
+msgid "Run only impacted tests based on your changes for faster feedback loops and less waiting — both locally and on CI."
+msgstr "仅运行受变更影响的测试，以加快反馈循环并减少等待时间——无论在本地还是CI环境中。"
+
+#, fuzzy
+msgid "Skip the manual steps, auto-generate projects, speed up builds, and explore insights with built-in analytics."
+msgstr "跳过手动步骤，自动生成项目，加速构建，并通过内置分析功能探索洞察。"
+
+#~ msgid "AI writes faster. So should your builds."
+#~ msgstr "AI 写得更快。您的构建也应该如此。"

@@ -1,5 +1,5 @@
 msgid ""
-msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2025-12-24 11:49+0000\nLast-Translator: Weblate Admin <admin@cloudron.local>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15.1\n"
+msgstr "Project-Id-Version: PACKAGE VERSION\nReport-Msgid-Bugs-To: \nPOT-Creation-Date: 2025-11-05 17:58+0000\nPO-Revision-Date: 2026-02-06 13:03+0000\nLast-Translator: Weblate <noreply-mt-weblate@weblate.org>\nLanguage-Team: Korean <https://translate.tuist.dev/projects/tuist/marketing/ko/>\nLanguage: ko\nMIME-Version: 1.0\nContent-Type: text/plain; charset=UTF-8\nContent-Transfer-Encoding: 8bit\nPlural-Forms: nplurals=1; plural=0;\nX-Generator: Weblate 5.15.2\n"
 
 # # This file is a PO Template file.
 # #
@@ -38,7 +38,9 @@ msgstr "9+"
 msgid ""
 "<p>Our commitment to open-source and our core values shape our unique approach to pricing. Unlike many models that try to extract every dollar from you with \"contact sales\" calls, limited demos, and other sales tactics, we believe in fairness and transparency. We treat everyone equally and set prices that are fair for all. By choosing our services, you are not only getting a great product but also supporting the development of more open-source projects. We see building a thriving business as a long-term journey, not a short-term sprint filled with shady practices. You can %{read_more}  about our philosophy.</p>\n"
 "<p>By supporting Tuist, you are also supporting the development of more open-source software for the Swift ecosystem.</p>\n"
-msgstr "<p>오픈 소스에 대한 저희의 헌신과 핵심 가치는 독특한 가격 정책을 만듭니다. \"영업팀에 문의\"를 유도하거나 제한된 데모를 제공하는 등 여러 영업 전략으로 돈을 더 받아내려는 수많은 모델과 달리, 저희는 공정성과 투명성을 믿습니다. 저희는 모두 동등하게 대하고 모두에게 공정한 가격을 책정합니다. 저희 서비스를 선택하면 훌륭한 제품을 얻는 동시에 더 많은 오픈 소스 프로젝트의 발전을 지원하게 됩니다. 저희는 비지니스의 성공을 비양심적인 관행으로 가득 찬 단거리 경주가 아닌 장기적으로 바라봅니다. 저희의 철학에 대한 자세한 내용은 %{여기}에서 확인할 수 있습니다.</p>\n<p>Tuist를 후원함으로써, 여러분은 Swift 생태계를 위한 더 많은 오픈 소스 소프트웨어 개발 또한 후원하게 됩니다.</p>\n"
+msgstr ""
+"<p>오픈 소스에 대한 저희의 헌신과 핵심 가치는 독특한 가격 정책을 만듭니다. \"영업팀에 문의\"를 유도하거나 제한된 데모를 제공하는 등 여러 영업 전략으로 돈을 더 받아내려는 수많은 모델과 달리, 저희는 공정성과 투명성을 믿습니다. 저희는 모두 동등하게 대하고 모두에게 공정한 가격을 책정합니다. 저희 서비스를 선택하면 훌륭한 제품을 얻는 동시에 더 많은 오픈 소스 프로젝트의 발전을 지원하게 됩니다. 저희는 비지니스의 성공을 비양심적인 관행으로 가득 찬 단거리 경주가 아닌 장기적으로 바라봅니다. 저희의 철학에 대한 자세한 내용은 %{여기}에서 확인할 수 있습니다.</p>\n"
+"<p>Tuist를 후원함으로써, 여러분은 Swift 생태계를 위한 더 많은 오픈 소스 소프트웨어 개발 또한 후원하게 됩니다.</p>\n"
 
 msgid "A confirmation email has been sent to your account with further details."
 msgstr "추가 안내가 포함된 확인 이메일이 귀하의 계정으로 발송되었습니다."
@@ -185,7 +187,7 @@ msgid "Contact"
 msgstr "문의"
 
 msgid "Contact us"
-msgstr "우리에게 문의하세요"
+msgstr "저희에게 문의하세요"
 
 msgid "Contributors"
 msgstr "기여자들"
@@ -878,13 +880,10 @@ msgid "Free"
 msgstr "무료"
 
 msgid "and up"
-msgstr "그리고 업그레이드"
+msgstr "이상"
 
 msgid "per additional unit"
 msgstr "추가 사용자 마다"
-
-msgid "AI writes faster. So should your builds."
-msgstr "AI는 더 빠르게 작성해서 당신의 빌드를 합니다."
 
 msgid "A Tuist command execution that interacts with the server pull test result information. As an estimate, this is roughly equivalent to the number of test runs on CI."
 msgstr "서버와 상호 작용하여 테스트 결과를 가져오는 Tuist 명령 실행 입니다. 대략 CI에서 테스트 실행 횟수와 거의 같습니다."
@@ -896,7 +895,7 @@ msgid "About us"
 msgstr "제작자 소개"
 
 msgid "Hits"
-msgstr "조회수"
+msgstr "일치수"
 
 msgid "Read customer story"
 msgstr "사용자 경험 읽기"
@@ -912,3 +911,151 @@ msgstr "현황판에서 실시간으로"
 
 msgid "Language"
 msgstr "언어"
+
+msgid "Read story"
+msgstr "스토리 읽기"
+
+msgid "%{company} case study"
+msgstr "%{company} 사례 연구"
+
+msgid "(opens in new tab)"
+msgstr "(새 탭에서 열림)"
+
+msgid "Discover how teams around the world use Tuist to build high-quality apps faster, streamline workflows, and save countless hours of engineering time."
+msgstr "전 세계 팀들이 Tuist를 활용해 고품질 앱을 더 빠르게 구축하고, 업무를 간소화하며, 수많은 작업 시간을 절약하는 방법을 알아보세요."
+
+msgid "Founded"
+msgstr "설립"
+
+msgid "Learn how teams use Tuist to scale their iOS development."
+msgstr "팀들이 어떻게 Tuist를 활용해 iOS 개발을 확장하는지 알아보세요."
+
+msgid "Onboarded"
+msgstr "온보딩됨"
+
+msgid "Read next"
+msgstr "다음 읽기"
+
+msgid "Explore Tuist's features on the public dashboard"
+msgstr "공개된 대시보드에서 Tuist의 기능을 살펴보세요"
+
+msgid "Public dashboard"
+msgstr "공개 대시보드"
+
+msgid "See how leading teams scale with Tuist"
+msgstr "선도적인 팀들이 Tuist로 어떻게 확장하는지 확인해 보세요"
+
+msgid "See how leading tech companies are scaling their development with Tuist."
+msgstr "선도적인 기술 기업들이 Tuist로 개발을 확장하는 방법을 확인해 보세요."
+
+msgid "AI moves fast. So should your builds."
+msgstr "AI는 빠르게 움직입니다. 여러분의 빌드도 그래야 합니다."
+
+msgid "Customers"
+msgstr "고객님들"
+
+msgid "Tuist Customers"
+msgstr "Tuist 고객님들"
+
+#, fuzzy
+msgid "Agentic QA testing the checkout flow with 8 issues identified and 16 screenshots taken"
+msgstr "에이전트 QA가 결제 흐름을 테스트하여 8개의 문제점을 확인하고 16개의 스크린샷을 촬영함"
+
+#, fuzzy
+msgid "App preview interface showing share preview button and platform options"
+msgstr "공유 미리보기 버튼과 플랫폼 옵션이 표시된 앱 미리보기 인터페이스"
+
+#, fuzzy
+msgid "Automatically detect flaky tests that fail without code changes and reduce time spent investigating false failures."
+msgstr "코드 변경 없이 실패하는 불안정한 테스트를 자동으로 탐지하고, 허위 실패 원인 분석에 소요되는 시간을 줄입니다."
+
+#, fuzzy
+msgid "Build insights chart showing build duration metrics with p90, p99, and average percentiles"
+msgstr "빌드 기간 지표(90분위수, 99분위수, 평균)를 보여주는 인사이트 차트 생성"
+
+#, fuzzy
+msgid "Cache hit rate dashboard showing 90% hit rate and 14.2 hours saved this week"
+msgstr "이번 주 캐시 적중률 대시보드: 90% 적중률, 14.2시간 절감"
+
+#, fuzzy
+msgid "Conceptually compress the complexities of modular Xcode projects and make them more accessible to maintain and scale."
+msgstr "모듈식 Xcode 프로젝트의 복잡성을 개념적으로 압축하여 유지보수와 확장이 용이하도록 만드십시오."
+
+#, fuzzy
+msgid "Flaky Tests"
+msgstr "불안정한 테스트"
+
+#, fuzzy
+msgid "Flaky tests dashboard showing test history and automation creation modal"
+msgstr "테스트 이력과 자동화 생성 모달을 보여주는 불안정한 테스트 대시보드"
+
+#, fuzzy
+msgid "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
+msgstr "코드를 피드백으로 단 몇 분 만에. 실시간 미리보기와 AI 기반 테스트로 구축과 검증의 연결 고리를 완성합니다."
+
+#, fuzzy
+msgid "Mention @tuist-qa in your PR and an AI agent tests your app like a real user, exploring edge cases and reporting issues with screenshots and logs."
+msgstr "PR에 @tuist-qa를 멘션하면 AI 에이전트가 실제 사용자처럼 앱을 테스트합니다. 경계 사례를 탐색하고 스크린샷 및 로그와 함께 문제를 보고합니다."
+
+#, fuzzy
+msgid "Monitor build performance across local and CI environments to catch slowdowns before they become bottlenecks."
+msgstr "로컬 및 CI 환경 전반에서 빌드 성능을 모니터링하여 병목 현상이 발생하기 전에 지연 현상을 포착하십시오."
+
+#, fuzzy
+msgid "Quality assurance"
+msgstr "품질 보증"
+
+#, fuzzy
+msgid "Run only the tests that matter by detecting changes since your last successful run, cutting down test times in both local development and CI."
+msgstr "마지막 성공 실행 이후 변경된 부분을 감지하여 중요한 테스트만 실행함으로써 로컬 개발 및 CI 환경 모두에서 테스트 시간을 단축합니다."
+
+#, fuzzy
+msgid "Selective Testing"
+msgstr "선택적 테스트"
+
+#, fuzzy
+msgid "Selective testing dashboard showing tests skipped with 134/196 tests skipped and 15.8h saved this week"
+msgstr "선택적 테스트 대시보드: 이번 주 134/196개 테스트 건너뛰어 15.8시간 절감"
+
+#, fuzzy
+msgid "Share your app instantly with a URL. No TestFlight delays, just click and run on any simulator or device."
+msgstr "URL로 앱을 즉시 공유하세요. TestFlight 지연 없이 클릭 한 번으로 모든 시뮬레이터나 기기에서 실행 가능합니다."
+
+#, fuzzy
+msgid "Test Insights"
+msgstr "테스트 분석"
+
+#, fuzzy
+msgid "Test insights showing test runs, flaky tests, failed test runs, and p90 test run duration metrics"
+msgstr "테스트 실행, 불안정한 테스트, 실패한 테스트 실행, p90 테스트 실행 소요 시간 메트릭을 보여주는 테스트 인사이트"
+
+#, fuzzy
+msgid "Tests"
+msgstr "테스트"
+
+#, fuzzy
+msgid "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
+msgstr "테스트 실행 결과를 추적하고, 느린 테스트를 조기에 발견하며, 로그를 일일이 살펴보지 않고도 CI 실패를 디버깅하세요."
+
+#, fuzzy
+msgid "Download only what you need — faster, lighter builds locally and on CI."
+msgstr "필요한 것만 다운로드하세요 — 로컬 및 CI에서 더 빠르고 가벼운 빌드를 제공합니다."
+
+#, fuzzy
+msgid "Extra features that simplify modular Xcode projects and speed up local and CI builds."
+msgstr "모듈식 Xcode 프로젝트를 단순화하고 로컬 및 CI 빌드 속도를 높이는 추가 기능."
+
+#, fuzzy
+msgid "Other features"
+msgstr "기타 기능"
+
+#, fuzzy
+msgid "Run only impacted tests based on your changes for faster feedback loops and less waiting — both locally and on CI."
+msgstr "변경 사항에 따라 영향을 받는 테스트만 실행하여 피드백 루프를 가속화하고 대기 시간을 줄이세요 — 로컬 환경과 CI 모두에서 가능합니다."
+
+#, fuzzy
+msgid "Skip the manual steps, auto-generate projects, speed up builds, and explore insights with built-in analytics."
+msgstr "수동 단계를 생략하고, 프로젝트를 자동 생성하며, 빌드 속도를 높이고, 내장된 분석 기능으로 인사이트를 탐색하세요."
+
+#~ msgid "AI writes faster. So should your builds."
+#~ msgstr "AI는 더 빠르게 작성해서 당신의 빌드를 합니다."
