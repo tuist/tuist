@@ -92,6 +92,9 @@
                         },
                         "directories": {
                             "text": "Katalogi"
+                        },
+                        "debugging": {
+                            "text": "Debugowanie"
                         }
                     }
                 },
@@ -144,6 +147,26 @@
                             "text": "Logowanie"
                         }
                     }
+                },
+                "debugging": {
+                    "text": "Debugowanie"
+                },
+                "code": {
+                    "items": {
+                        "docs": {
+                            "text": "Dokumenty"
+                        },
+                        "handbook": {
+                            "text": "Podręcznik"
+                        },
+                        "cli": {
+                            "text": "CLI"
+                        },
+                        "server": {
+                            "text": "Serwer"
+                        }
+                    },
+                    "text": "Kod"
                 }
             }
         },
@@ -366,6 +389,14 @@
                         },
                         "qa": {
                             "text": "QA"
+                        },
+                        "test-insights": {
+                            "items": {
+                                "flaky-tests": {
+                                    "text": "Nierzetelne testy"
+                                }
+                            },
+                            "text": "Wnioski z testów"
                         }
                     }
                 },
@@ -374,6 +405,9 @@
                     "items": {
                         "mcp": {
                             "text": "MCP"
+                        },
+                        "skills": {
+                            "text": "Umiejętności"
                         }
                     }
                 },
@@ -392,7 +426,10 @@
                                     "text": "GitHub"
                                 }
                             },
-                            "text": "Kuźnie Git"
+                            "text": "Git forges"
+                        },
+                        "slack": {
+                            "text": "Slack"
                         }
                     }
                 },
@@ -415,7 +452,7 @@
                                     "text": "Instalacja"
                                 }
                             },
-                            "text": "Hosting własny"
+                            "text": "Samodzielne hostowanie"
                         },
                         "accounts-and-projects": {
                             "text": "Konta i projekty"

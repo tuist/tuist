@@ -92,6 +92,9 @@
                         },
                         "shell-completions": {
                             "text": "Shell tamamlamaları"
+                        },
+                        "debugging": {
+                            "text": "Hata ayıklama"
                         }
                     }
                 },
@@ -144,6 +147,26 @@
                             "text": "Loglama"
                         }
                     }
+                },
+                "code": {
+                    "items": {
+                        "docs": {
+                            "text": "Dokümanlar"
+                        },
+                        "handbook": {
+                            "text": "El Kitabı"
+                        },
+                        "cli": {
+                            "text": "CLI"
+                        },
+                        "server": {
+                            "text": "Sunucu"
+                        }
+                    },
+                    "text": "Kod"
+                },
+                "debugging": {
+                    "text": "Hata ayıklama"
                 }
             }
         },
@@ -363,6 +386,14 @@
                         },
                         "qa": {
                             "text": "QA"
+                        },
+                        "test-insights": {
+                            "items": {
+                                "flaky-tests": {
+                                    "text": "Kararsız testler"
+                                }
+                            },
+                            "text": "Test bilgileri"
                         }
                     }
                 },
@@ -371,6 +402,9 @@
                     "items": {
                         "mcp": {
                             "text": "MCP"
+                        },
+                        "skills": {
+                            "text": "Beceriler"
                         }
                     }
                 },
@@ -390,6 +424,9 @@
                                 }
                             },
                             "text": "Git forges"
+                        },
+                        "slack": {
+                            "text": "Slack"
                         }
                     }
                 },

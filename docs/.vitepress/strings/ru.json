@@ -92,6 +92,9 @@
                         },
                         "directories": {
                             "text": "Директории"
+                        },
+                        "debugging": {
+                            "text": "Отладка"
                         }
                     }
                 },
@@ -110,14 +113,14 @@
                     "text": "Миграции",
                     "items": {
                         "from-v3-to-v4": {
-                            "text": "От v3 до версии v4"
+                            "text": "Переход с v3 на v4"
                         }
                     }
                 }
             }
         },
         "contributors": {
-            "text": "Соучастники",
+            "text": "Контрибьютеры",
             "items": {
                 "get-started": {
                     "text": "Начало работы"
@@ -144,6 +147,26 @@
                 },
                 "releases": {
                     "text": "Релизы"
+                },
+                "debugging": {
+                    "text": "Отладка"
+                },
+                "code": {
+                    "text": "Код",
+                    "items": {
+                        "handbook": {
+                            "text": "Справочник"
+                        },
+                        "cli": {
+                            "text": "CLI"
+                        },
+                        "server": {
+                            "text": "Сервер"
+                        },
+                        "docs": {
+                            "text": "Документация"
+                        }
+                    }
                 }
             }
         },
@@ -243,7 +266,7 @@
                                                     "text": "Проект Xcode"
                                                 },
                                                 "swift-package": {
-                                                    "text": "Пакет Swift"
+                                                    "text": "Swift Package"
                                                 },
                                                 "xcodegen-project": {
                                                     "text": "Проект XcodeGen"
@@ -337,7 +360,7 @@
                                     "text": "Интеграция на основе XcodeProj"
                                 },
                                 "swift-package": {
-                                    "text": "Пакет Swift"
+                                    "text": "Swift Package"
                                 },
                                 "continuous-integration": {
                                     "text": "Непрерывная интеграция"
@@ -366,14 +389,25 @@
                         },
                         "qa": {
                             "text": "Тестирование"
+                        },
+                        "test-insights": {
+                            "items": {
+                                "flaky-tests": {
+                                    "text": "Flaky-тесты"
+                                }
+                            },
+                            "text": "Тестовые выводы"
                         }
                     }
                 },
                 "agentic-coding": {
-                    "text": "Агентное Кодирование",
+                    "text": "Агентное программирование",
                     "items": {
                         "mcp": {
                             "text": "Протокол контекста модели (MCP)"
+                        },
+                        "skills": {
+                            "text": "Навыки"
                         }
                     }
                 },
@@ -393,6 +427,9 @@
                                     "text": "GitHub"
                                 }
                             }
+                        },
+                        "slack": {
+                            "text": "Slack"
                         }
                     }
                 },

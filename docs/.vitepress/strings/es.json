@@ -92,6 +92,9 @@
                         },
                         "directories": {
                             "text": "Directorios"
+                        },
+                        "debugging": {
+                            "text": "Depuración"
                         }
                     }
                 },
@@ -144,6 +147,26 @@
                 },
                 "releases": {
                     "text": "Releases"
+                },
+                "debugging": {
+                    "text": "Depuración"
+                },
+                "code": {
+                    "text": "Código",
+                    "items": {
+                        "handbook": {
+                            "text": "Manual"
+                        },
+                        "cli": {
+                            "text": "CLI"
+                        },
+                        "server": {
+                            "text": "Servidor"
+                        },
+                        "docs": {
+                            "text": "Docs"
+                        }
+                    }
                 }
             }
         },
@@ -366,6 +389,14 @@
                         },
                         "qa": {
                             "text": "QA"
+                        },
+                        "test-insights": {
+                            "items": {
+                                "flaky-tests": {
+                                    "text": "Pruebas poco fiables"
+                                }
+                            },
+                            "text": "Información sobre la prueba"
                         }
                     }
                 },
@@ -374,6 +405,9 @@
                     "items": {
                         "mcp": {
                             "text": "Model Context Protocol (MCP)"
+                        },
+                        "skills": {
+                            "text": "Habilidades"
                         }
                     }
                 },
@@ -392,7 +426,10 @@
                                     "text": "GitHub"
                                 }
                             },
-                            "text": "Forjas Git"
+                            "text": "Git forges"
+                        },
+                        "slack": {
+                            "text": "Slack"
                         }
                     }
                 },

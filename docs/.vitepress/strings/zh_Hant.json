@@ -5,7 +5,7 @@
                 "text": "翻譯 🌍"
             },
             "description": {
-                "text": "您可以翻譯或改善本頁面的翻譯。"
+                "text": "您可以翻譯或改進本頁的翻譯內容。"
             },
             "cta": {
                 "text": "貢獻"
@@ -27,28 +27,28 @@
                     "cancel-button-aria-label": "取消"
                 },
                 "start-screen": {
-                    "recent-searches-title": "搜尋歷史",
-                    "no-recent-searches-text": "無搜尋歷史",
-                    "save-recent-search-button-title": "儲存至搜尋歷史",
-                    "remove-recent-search-button-title": "從搜尋歷史中移除",
-                    "favorite-searches-title": "我的最愛",
-                    "remove-favorite-search-button-title": "從我的最愛移除"
+                    "recent-searches-title": "搜尋紀錄",
+                    "no-recent-searches-text": "無搜尋紀錄",
+                    "save-recent-search-button-title": "儲存至搜尋歷史紀錄",
+                    "remove-recent-search-button-title": "從搜尋紀錄中移除",
+                    "favorite-searches-title": "收藏",
+                    "remove-favorite-search-button-title": "從收藏中移除"
                 },
                 "error-screen": {
-                    "title-text": "無法擷取結果",
-                    "help-text": "您可能需要檢查您的網路連線"
+                    "title-text": "無法取得結果",
+                    "help-text": "您可能需要檢查網路連線狀態"
                 },
                 "footer": {
                     "select-text": "選擇",
                     "navigate-text": "導航",
                     "close-text": "關閉",
-                    "search-by-text": "搜尋提供者"
+                    "search-by-text": "搜尋供應商"
                 },
                 "no-results-screen": {
                     "no-results-text": "未找到相關結果",
-                    "suggested-query-text": "您可以嘗試查詢",
-                    "report-missing-results-text": "您認為這個查詢應該有結果嗎？",
-                    "report-missing-results-link-text": "按一下給予回饋"
+                    "suggested-query-text": "您可嘗試查詢",
+                    "report-missing-results-text": "您認為此查詢應有結果嗎？",
+                    "report-missing-results-link-text": "點擊提供意見回饋"
                 }
             }
         }
@@ -67,7 +67,7 @@
             "text": "資源",
             "items": {
                 "references": {
-                    "text": "參考資料"
+                    "text": "參考文獻"
                 },
                 "contributors": {
                     "text": "貢獻者"
@@ -91,7 +91,10 @@
                             "text": "目錄"
                         },
                         "shell-completions": {
-                            "text": "蜆殼完工"
+                            "text": "Shell 自動補全"
+                        },
+                        "debugging": {
+                            "text": "除錯"
                         }
                     }
                 },
@@ -101,7 +104,7 @@
             }
         },
         "references": {
-            "text": "參考資料",
+            "text": "參考文獻",
             "items": {
                 "examples": {
                     "text": "範例"
@@ -123,10 +126,10 @@
                     "text": "立即開始"
                 },
                 "issue-reporting": {
-                    "text": "問題報告"
+                    "text": "問題回報"
                 },
                 "code-reviews": {
-                    "text": "代碼檢閱"
+                    "text": "程式碼審查"
                 },
                 "principles": {
                     "text": "原則"
@@ -135,7 +138,7 @@
                     "text": "翻譯"
                 },
                 "releases": {
-                    "text": "新聞稿"
+                    "text": "發佈"
                 },
                 "cli": {
                     "text": "CLI",
@@ -144,19 +147,39 @@
                             "text": "記錄"
                         }
                     }
+                },
+                "debugging": {
+                    "text": "除錯"
+                },
+                "code": {
+                    "items": {
+                        "cli": {
+                            "text": "CLI"
+                        },
+                        "server": {
+                            "text": "伺服器"
+                        },
+                        "handbook": {
+                            "text": "手冊"
+                        },
+                        "docs": {
+                            "text": "文件"
+                        }
+                    },
+                    "text": "程式碼"
                 }
             }
         },
         "server": {
             "items": {
                 "introduction": {
-                    "text": "簡介",
+                    "text": "引言",
                     "items": {
                         "why-server": {
-                            "text": "為什麼是伺服器？"
+                            "text": "為何需要伺服器？"
                         },
                         "accounts-and-projects": {
-                            "text": "帳戶和專案"
+                            "text": "帳戶與專案"
                         },
                         "authentication": {
                             "text": "驗證"
@@ -167,7 +190,7 @@
                     }
                 },
                 "on-premise": {
-                    "text": "現場安裝",
+                    "text": "本地部署",
                     "items": {
                         "install": {
                             "text": "安裝"
@@ -200,7 +223,7 @@
                     }
                 },
                 "quick-start": {
-                    "text": "快速啟動",
+                    "text": "快速入門",
                     "items": {
                         "install-tuist": {
                             "text": "安裝 Tuist"
@@ -234,29 +257,29 @@
                                             "text": "建立新專案"
                                         },
                                         "swift-package": {
-                                            "text": "試用 Swift 套件"
+                                            "text": "嘗試使用 Swift Package"
                                         },
                                         "migrate": {
                                             "text": "遷移",
                                             "items": {
                                                 "xcode-project": {
-                                                    "text": "Xcode 專案"
+                                                    "text": "一個 Xcode 專案"
                                                 },
                                                 "swift-package": {
                                                     "text": "Swift 套件"
                                                 },
                                                 "xcodegen-project": {
-                                                    "text": "XcodeGen 專案"
+                                                    "text": "一個 XcodeGen 專案"
                                                 },
                                                 "bazel-project": {
-                                                    "text": "Bazel 專案"
+                                                    "text": "一個 Bazel 專案"
                                                 }
                                             }
                                         }
                                     }
                                 },
                                 "manifests": {
-                                    "text": "表現"
+                                    "text": "清單"
                                 },
                                 "directory-structure": {
                                     "text": "目錄結構"
@@ -268,7 +291,7 @@
                                     "text": "依賴"
                                 },
                                 "code-sharing": {
-                                    "text": "代碼分享"
+                                    "text": "程式碼共享"
                                 },
                                 "synthesized-files": {
                                     "text": "合成檔案"
@@ -283,13 +306,13 @@
                                     "text": "外掛程式"
                                 },
                                 "hashing": {
-                                    "text": "散列"
+                                    "text": "雜湊運算"
                                 },
                                 "inspect": {
                                     "text": "檢查",
                                     "items": {
                                         "implicit-imports": {
-                                            "text": "隱含進口"
+                                            "text": "隱式導入"
                                         }
                                     }
                                 },
@@ -300,7 +323,7 @@
                                     "text": "模組化架構"
                                 },
                                 "metadata-tags": {
-                                    "text": "元資料標籤"
+                                    "text": "元數據標籤"
                                 },
                                 "best-practices": {
                                     "text": "最佳實踐"
@@ -334,7 +357,7 @@
                                     "text": "基於 XcodeProj 的整合"
                                 },
                                 "swift-package": {
-                                    "text": "快速套裝"
+                                    "text": "Swift 套件"
                                 },
                                 "continuous-integration": {
                                     "text": "持續整合"
@@ -363,14 +386,25 @@
                         },
                         "qa": {
                             "text": "QA"
+                        },
+                        "test-insights": {
+                            "items": {
+                                "flaky-tests": {
+                                    "text": "不穩定的測試"
+                                }
+                            },
+                            "text": "測試洞察"
                         }
                     }
                 },
                 "agentic-coding": {
-                    "text": "代理編碼",
+                    "text": "行為編碼",
                     "items": {
                         "mcp": {
                             "text": "MCP"
+                        },
+                        "skills": {
+                            "text": "技能"
                         }
                     }
                 },
@@ -384,12 +418,15 @@
                             "text": "SSO"
                         },
                         "git-forges": {
-                            "text": "Git 鍛造",
+                            "text": "Git 託管平台",
                             "items": {
                                 "github": {
                                     "text": "GitHub"
                                 }
                             }
+                        },
+                        "slack": {
+                            "text": "Slack"
                         }
                     }
                 },
@@ -397,7 +434,7 @@
                     "text": "伺服器",
                     "items": {
                         "accounts-and-projects": {
-                            "text": "帳戶和專案"
+                            "text": "帳戶與專案"
                         },
                         "authentication": {
                             "text": "驗證"

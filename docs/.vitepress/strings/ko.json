@@ -92,6 +92,9 @@
                         },
                         "directories": {
                             "text": "디렉토리"
+                        },
+                        "debugging": {
+                            "text": "디버깅"
                         }
                     }
                 },
@@ -144,6 +147,26 @@
                 },
                 "releases": {
                     "text": "배포 내역"
+                },
+                "debugging": {
+                    "text": "디버깅"
+                },
+                "code": {
+                    "items": {
+                        "cli": {
+                            "text": "CLI"
+                        },
+                        "server": {
+                            "text": "서버"
+                        },
+                        "docs": {
+                            "text": "설명서"
+                        },
+                        "handbook": {
+                            "text": "핸드북"
+                        }
+                    },
+                    "text": "코드"
                 }
             }
         },
@@ -366,6 +389,14 @@
                         },
                         "qa": {
                             "text": "QA"
+                        },
+                        "test-insights": {
+                            "items": {
+                                "flaky-tests": {
+                                    "text": "불규칙한 테스트"
+                                }
+                            },
+                            "text": "테스트 분석"
                         }
                     }
                 },
@@ -374,6 +405,9 @@
                     "items": {
                         "mcp": {
                             "text": "Model Context Protocol (MCP)"
+                        },
+                        "skills": {
+                            "text": "기술"
                         }
                     }
                 },
@@ -393,6 +427,9 @@
                                 }
                             },
                             "text": "Git 저장소"
+                        },
+                        "slack": {
+                            "text": "Slack"
                         }
                     }
                 },

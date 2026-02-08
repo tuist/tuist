@@ -92,6 +92,9 @@
                         },
                         "directories": {
                             "text": "ディレクトリ"
+                        },
+                        "debugging": {
+                            "text": "デバッグ"
                         }
                     }
                 },
@@ -144,6 +147,26 @@
                 },
                 "releases": {
                     "text": "リリース"
+                },
+                "debugging": {
+                    "text": "デバッグ"
+                },
+                "code": {
+                    "text": "コード",
+                    "items": {
+                        "handbook": {
+                            "text": "ハンドブック"
+                        },
+                        "cli": {
+                            "text": "CLI"
+                        },
+                        "server": {
+                            "text": "サーバー"
+                        },
+                        "docs": {
+                            "text": "ドキュメント"
+                        }
+                    }
                 }
             }
         },
@@ -303,7 +326,7 @@
                                     "text": "ベストプラクティス"
                                 },
                                 "metadata-tags": {
-                                    "text": "メタデータ・タグ"
+                                    "text": "メタデータタグ"
                                 }
                             }
                         },
@@ -366,6 +389,14 @@
                         },
                         "qa": {
                             "text": "QA"
+                        },
+                        "test-insights": {
+                            "items": {
+                                "flaky-tests": {
+                                    "text": "不安定なテスト"
+                                }
+                            },
+                            "text": "テストインサイト"
                         }
                     }
                 },
@@ -374,6 +405,9 @@
                     "items": {
                         "mcp": {
                             "text": "モデルコンテキストプロトコル(MCP)"
+                        },
+                        "skills": {
+                            "text": "スキル"
                         }
                     }
                 },
@@ -392,7 +426,10 @@
                                     "text": "GitHub"
                                 }
                             },
-                            "text": "ギットの鍛造"
+                            "text": "Git フォージ"
+                        },
+                        "slack": {
+                            "text": "Slack"
                         }
                     }
                 },
