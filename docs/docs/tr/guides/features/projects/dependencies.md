@@ -20,31 +20,29 @@ hataya açık bir görev olabilir. Karşılaşabileceğiniz sorunlara ilişkin b
 örnekler şunlardır:
 
 - Xcode'un derleme sistemi, projenin tüm ürünlerini türetilmiş verilerdeki aynı
-  dizine çıktılar, hedefler içermemesi gereken ürünleri içerebilir. Derlemeler,
-  temiz derlemelerin daha yaygın olduğu CI'da veya daha sonra farklı bir
-  yapılandırma kullanıldığında başarısız olabilir.
+  dizine çıktıladığından, hedefler içermemesi gereken ürünleri içerebilir.
+  Derlemeler, temiz derlemelerin daha yaygın olduğu CI'da veya daha sonra farklı
+  bir yapılandırma kullanıldığında başarısız olabilir.
 - Hedefin geçişli dinamik bağımlılıkları, `LD_RUNPATH_SEARCH_PATHS` derleme
-  ayarının bir parçası olan dizinlerden herhangi birine kopyalanmalıdır. Aksi
-  takdirde, hedef bunları çalışma zamanında bulamaz. Grafik küçük olduğunda bunu
-  düşünmek ve ayarlamak kolaydır, ancak grafik büyüdükçe bu bir sorun haline
-  gelir.
+  ayarının bir parçası olan dizinlere kopyalanmalıdır. Aksi takdirde, hedef
+  bunları çalışma zamanında bulamaz. Grafik küçük olduğunda bunu düşünmek ve
+  ayarlamak kolaydır, ancak grafik büyüdükçe bu bir sorun haline gelir.
 - Hedef, statik
   [XCFramework](https://developer.apple.com/documentation/xcode/creating-a-multi-platform-binary-framework-bundle)
   ile bağlantı kurduğunda, Xcode'un paketi işlemesi ve mevcut platform ve mimari
-  için doğru ikili dosyayı çıkarması için hedefte ek bir derleme aşaması
-  gerekir. Bu derleme aşaması otomatik olarak eklenmez ve eklenmesi kolayca
-  unutulabilir.
+  için doğru ikili dosyayı çıkarması için hedefe ek bir derleme aşaması gerekir.
+  Bu derleme aşaması otomatik olarak eklenmez ve eklenmesi kolayca unutulabilir.
 
 Yukarıdakiler sadece birkaç örnektir, ancak yıllar boyunca karşılaştığımız daha
 birçok örnek vardır. Bir mühendis ekibinden bağımlılık grafiğini korumalarını ve
-geçerliliğini sağlamalarını istediğinizi düşünün. Daha da kötüsü, karmaşık
-sorunların, kontrol edemediğiniz veya özelleştiremediğiniz kapalı kaynaklı bir
-derleme sistemi tarafından derleme sırasında çözülmesi. Tanıdık geliyor mu? Bu,
-Apple'ın Xcode ve XcodeProj ile benimsediği ve Swift paketi yöneticisinin miras
-aldığı yaklaşımdır.
+geçerliliğini sağlamalarını istediğinizi düşünün. Ya da daha da kötüsü,
+karmaşıklıkların, kontrol edemediğiniz veya özelleştiremediğiniz kapalı kaynaklı
+bir derleme sistemi tarafından derleme sırasında çözüldüğünü düşünün. Tanıdık
+geliyor mu? Bu, Apple'ın Xcode ve XcodeProj ile benimsediği ve Swift Package
+Manager'ın miras aldığı yaklaşımdır.
 
 Bağımlılık grafiğinin **açık** ve **statik** olması gerektiğine inanıyoruz,
-çünkü ancak bu şekilde **doğrulanabilir** ve **optimize edilebilir**. Tuist ile,
+çünkü ancak o zaman **doğrulanabilir** ve **optimize edilebilir**. Tuist ile,
 siz neyin neye bağlı olduğunu açıklamaya odaklanın, gerisini biz hallederiz.
 Karmaşık ayrıntılar ve uygulama detayları sizden uzaklaştırılır.
 
@@ -53,9 +51,9 @@ Aşağıdaki bölümlerde, projenizde bağımlılıkları nasıl bildireceğiniz
 
 ::: tip GRAPH VALIDATION
 <!-- -->
-Tuist, projeyi oluştururken grafiği doğrular ve döngü olmadığından ve tüm
-bağımlılıkların geçerli olduğundan emin olur. Bu sayede, herhangi bir ekip,
-grafiği bozma endişesi duymadan bağımlılık grafiğinin geliştirilmesine
+Tuist, oluşturulmuş projede grafiği doğrular ve döngü olmadığını ve tüm
+bağımlılıkların geçerli olduğunu kontrol eder. Bu sayede, herhangi bir ekip,
+grafiği bozma endişesi olmadan bağımlılık grafiğinin geliştirilmesine
 katılabilir.
 <!-- -->
 :::
@@ -63,15 +61,15 @@ katılabilir.
 ## Yerel bağımlılıklar {#local-dependencies}
 
 Hedefler, aynı ve farklı projelerdeki diğer hedeflere ve ikili dosyalara bağlı
-olabilir. `Target` örneğini oluştururken, `dependencies` argümanını aşağıdaki
-seçeneklerden herhangi biriyle geçebilirsiniz:
+olabilir. `Target` örneklendirirken, `dependencies` argümanını aşağıdaki
+seçeneklerden herhangi biriyle geçirebilirsiniz:
 
 - `Hedef`: Aynı proje içindeki bir hedefle bağımlılık bildirir.
-- `Proje`: Farklı bir projedeki hedefle bir bağımlılık bildirir.
+- `` Projesi: Farklı bir projedeki hedefle bir bağımlılık bildirir.
 - `Çerçeve`: İkili bir çerçeve ile bağımlılık bildirir.
 - `Kütüphane`: İkili kütüphane ile bir bağımlılık bildirir.
 - `XCFramework`: İkili bir XCFramework ile bağımlılık bildirir.
-- `SDK`: Sistem SDK'sı ile bir bağımlılık bildirir.
+- `SDK`: Sistem SDK ile bir bağımlılık bildirir.
 - `XCTest`: XCTest ile bir bağımlılık bildirir.
 
 ::: info DEPENDENCY CONDITIONS
@@ -86,9 +84,9 @@ tüm platformlar için bağımlılığı bağlar.
 
 Tuist ayrıca projenizde harici bağımlılıkları beyan etmenize de olanak tanır.
 
-### Swift paketi {#swift-packages}
+### Swift package {#swift-packages}
 
-Swift paketi, projenizde bağımlılıkları bildirmek için önerdiğimiz yöntemdir.
+Swift package, projenizde bağımlılıkları bildirmek için önerdiğimiz yöntemdir.
 Bunları Xcode'un varsayılan entegrasyon mekanizmasını veya Tuist'in XcodeProj
 tabanlı entegrasyonunu kullanarak entegre edebilirsiniz.
 
@@ -96,7 +94,7 @@ tabanlı entegrasyonunu kullanarak entegre edebilirsiniz.
 
 Xcode'un varsayılan entegrasyonu en kullanışlı olanı olmakla birlikte, orta ve
 büyük ölçekli projeler için gerekli olan esneklik ve kontrolü sağlamamaktadır.
-Bu sorunu aşmak için Tuist, XcodeProj hedeflerini kullanarak Swift paketlerini
+Bu sorunu aşmak için Tuist, XcodeProj hedeflerini kullanarak Swift package'ları
 projenize entegre etmenizi sağlayan XcodeProj tabanlı bir entegrasyon
 sunmaktadır. Bu sayede, entegrasyon üzerinde daha fazla kontrol sahibi olmanızı
 sağlamakla kalmaz, aynı zamanda
@@ -104,11 +102,12 @@ sağlamakla kalmaz, aynı zamanda
 <LocalizedLink href="/guides/features/test/selective-testing">Seçmeli test
 çalıştırmaları</LocalizedLink> gibi iş akışlarıyla da uyumlu hale getiririz.
 
-XcodeProj entegrasyonunun yeni Swift paketi özelliklerini desteklemesi veya daha
-fazla paket yapılandırmasını işlemesi daha fazla zaman alabilir. Ancak, Swift
-paketleri ve XcodeProj hedefleri arasındaki eşleme mantığı açık kaynaklıdır ve
-topluluk tarafından katkıda bulunulabilir. Bu, kapalı kaynaklı ve Apple
-tarafından yönetilen Xcode'un varsayılan entegrasyonunun aksine bir durumdur.
+XcodeProj entegrasyonu, yeni Swift Package özelliklerini desteklemek veya daha
+fazla paket yapılandırmasını işlemek için daha fazla zaman alabilir. Ancak,
+Swift Package'ler ve XcodeProj hedefleri arasındaki eşleme mantığı açık
+kaynaklıdır ve topluluk tarafından katkıda bulunulabilir. Bu, kapalı kaynaklı ve
+Apple tarafından yönetilen Xcode'un varsayılan entegrasyonunun aksine bir
+durumdur.
 
 Harici bağımlılıklar eklemek için, `Package.swift` dosyasını `Tuist/` altında
 veya projenin kök dizininde oluşturmanız gerekir.
@@ -157,10 +156,10 @@ Varsayılan olarak, buna ihtiyacınız olmamalıdır.
 :::
 
 > [!ÖNEMLİ] ÖZEL DERLEME YAPILANDIRMALARI Projeniz özel derleme yapılandırmaları
-> kullanıyorsa ( `Debug` ve `Release` standart yapılandırmaları dışındaki
-> yapılandırmalar), bunları `PackageSettings` kullanarak `baseSettings`
-> belirtmelisiniz. Harici bağımlılıklar, projenizin yapılandırmalarını doğru bir
-> şekilde derlemek için bilmelidir. Örneğin:
+> kullanıyorsa ( `Debug` ve `Release` standart yapılandırmaları dışında),
+> bunları `PackageSettings` kullanarak `baseSettings` belirtmelisiniz. Harici
+> bağımlılıklar, doğru bir şekilde derlenebilmek için projenizin
+> yapılandırmaları hakkında bilgi sahibi olmalıdır. Örneğin:
 > 
 > ```swift
 > #if TUIST
@@ -179,7 +178,7 @@ Varsayılan olarak, buna ihtiyacınız olmamalıdır.
 > Daha fazla ayrıntı için [#8345](https://github.com/tuist/tuist/issues/8345)
 > adresine bakın.
 
-`Package.swift` dosyası, harici bağımlılıkları beyan etmek için kullanılan bir
+`Package.swift` dosyası, harici bağımlılıkları bildirmek için kullanılan bir
 arayüzdür, başka bir şey değildir. Bu nedenle, pakette herhangi bir hedef veya
 ürün tanımlamazsınız. Bağımlılıkları tanımladıktan sonra, aşağıdaki komutu
 çalıştırarak bağımlılıkları çözebilir ve `Tuist/Dependencies` dizinine
@@ -195,8 +194,8 @@ Fark etmiş olabileceğiniz gibi, bağımlılıkların çözülmesinin kendi kom
 [CocoaPods](https://cocoapods.org)'e benzer bir yaklaşım benimsiyoruz. Bu,
 kullanıcılara bağımlılıkların ne zaman çözülüp güncelleneceğini kontrol etme
 imkanı verir ve Xcode'u projede açıp derlemeye hazır hale getirir. Bu, Apple'ın
-Swift paketi ile entegrasyonunun sağladığı geliştirici deneyiminin, proje
-büyüdükçe zamanla bozulduğuna inandığımız bir alandır.
+Swift package Manager ile entegrasyonunun sağladığı geliştirici deneyiminin,
+proje büyüdükçe zamanla bozulduğuna inandığımız bir alandır.
 
 Proje hedeflerinizden, `TargetDependency.external` bağımlılık türünü kullanarak
 bu bağımlılıklara başvurabilirsiniz:
@@ -229,7 +228,7 @@ let project = Project(
 
 ::: info NO SCHEMES GENERATED FOR EXTERNAL PACKAGES
 <!-- -->
-**şemaları**, şema listesini temiz tutmak için Swift paketi projeleri için
+**şemaları**, şema listesini temiz tutmak için Swift package projeleri için
 otomatik olarak oluşturulmaz. Bunları Xcode'un kullanıcı arayüzü üzerinden
 oluşturabilirsiniz.
 <!-- -->
@@ -294,9 +293,9 @@ let package = Package(
 )
 ```
 
-Derleme aracı eklentisi bozulmadan bir Xcode projesi oluşturmak için, proje
-manifestosunun `paketleri` dizisinde paketi beyan etmeniz ve ardından bir
-hedefin bağımlılıklarına `.plugin` türünde bir paket eklemeniz gerekir.
+Derleme aracı eklentisi bozulmadan bir Xcode projesi oluşturmak için, paketi
+proje manifestosunun `paketleri` dizisinde bildirmeniz ve ardından bir paketi
+`.plugin` türünde bir hedefin bağımlılıklarına eklemeniz gerekir.
 
 ```swift
 import ProjectDescription
@@ -323,7 +322,7 @@ let project = Project(
 `xcframeworks` çıktısını verdiği için, `carthage update` komutunu çalıştırarak
 `Carthage/Build` dizininde bağımlılıkları çıktı alabilir ve ardından
 `.framework` veya `.xcframework` hedef bağımlılık türünü kullanarak
-hedefinizdeki bağımlılığı bildirebilirsiniz. Bunu, projeyi oluşturmadan önce
+hedefinizdeki bağımlılığı beyan edebilirsiniz. Bunu, projeyi oluşturmadan önce
 çalıştırabileceğiniz bir komut dosyasına ekleyebilirsiniz.
 
 ```bash
@@ -380,8 +379,8 @@ yineleme süreleri elde etmek için hata ayıklama derlemelerinde mümkün oldu�
 Proje grafiğinde statik ve dinamik bağlantı arasında geçiş yapmanın zorluğu,
 Xcode'da bu işlemin basit olmamasıdır, çünkü bir değişiklik tüm grafik üzerinde
 zincirleme etki yaratır (örneğin, kütüphaneler kaynak içeremez, statik
-çerçevelerin gömülmesine gerek yoktur). Apple, Swift paketi'nin statik ve
-dinamik bağlantılar arasında otomatik karar verme özelliği veya
+çerçevelerin gömülmesine gerek yoktur). Apple, Swift package Manager'ın statik
+ve dinamik bağlantılar arasında otomatik karar verme özelliği veya
 [Birleştirilebilir
 Kütüphaneler](https://developer.apple.com/documentation/xcode/configuring-your-project-to-use-mergeable-libraries)
 gibi derleme zamanı çözümleriyle bu sorunu çözmeye çalıştı. Ancak bu, derleme
@@ -421,7 +420,7 @@ tercih ediyoruz.
 
 ::: tip EXAMPLE: THE COMPOSABLE ARCHITECTURE
 <!-- -->
-Birçok projenin entegre ettiği bir Swift paketi [The Composable
+Birçok projenin entegre ettiği bir Swift package [The Composable
 Architecture](https://github.com/pointfreeco/swift-composable-architecture)'dir.
 Daha fazla ayrıntı için [bu bölüme](#the-composable-architecture) bakın.
 <!-- -->
@@ -431,23 +430,23 @@ Daha fazla ayrıntı için [bu bölüme](#the-composable-architecture) bakın.
 
 Bağlantıyı tamamen statik veya dinamik olarak ayarlamanın mümkün olmadığı veya
 iyi bir fikir olmadığı bazı senaryolar vardır. Aşağıda, statik ve dinamik
-bağlantıları karıştırmanız gerekebileceği senaryoların kapsamlı olmayan bir
+bağlantıları karıştırmanız gerekebilecek senaryoların kapsamlı olmayan bir
 listesi bulunmaktadır:
 
 - **Uzantıları olan uygulamalar:** Uygulamalar ve uzantıları kodu paylaşmak
   zorunda olduğundan, bu hedefleri dinamik hale getirmeniz gerekebilir. Aksi
-  takdirde, uygulama ve uzantıda aynı kodun kopyalanmasıyla sonuçlanır ve ikili
-  dosya boyutu artar.
+  takdirde, uygulama ve uzantıda aynı kodun iki kez kullanılmasıyla ikili dosya
+  boyutu artacaktır.
 - **Önceden derlenmiş harici bağımlılıklar:** Bazen statik veya dinamik önceden
   derlenmiş ikili dosyalar sağlanır. Statik ikili dosyalar, dinamik olarak
-  bağlanmak üzere dinamik çerçeveler veya kitaplıklar içine alınabilir.
+  bağlanmak üzere dinamik çerçeveler veya kitaplıklar içine sarılabilir.
 
 Grafikte değişiklik yaparken, Tuist bunu analiz eder ve "statik yan etki" tespit
 ederse bir uyarı görüntüler. Bu uyarı, dinamik hedefler aracılığıyla statik bir
 hedefe geçişli olarak bağlı olan bir hedefi statik olarak bağlamaktan
 kaynaklanabilecek sorunları belirlemenize yardımcı olmak içindir. Bu yan etkiler
 genellikle artan ikili boyut veya en kötü durumda çalışma zamanı çökmeleri
-şeklinde ortaya çıkar.
+olarak ortaya çıkar.
 
 ## Sorun Giderme {#troubleshooting}
 
@@ -458,12 +457,12 @@ QA1490](https://developer.apple.com/library/archive/qa/qa1490/_index.html)
 bölümünde ayrıntılı olarak açıklandığı gibi, çalışma zamanı çökmelerini önlemek
 için tüketen hedefte belirli bayrakların eklenmesi gerekebilir.
 
-Derleme sistemi ve Tuist, bayrağın gerekli olup olmadığını anlamanın bir yolu
-olmadığı ve bayrağın potansiyel olarak istenmeyen yan etkileri olduğu için,
-Tuist bu bayrakların hiçbirini otomatik olarak uygulamaz. Ayrıca Swift paketi,
-`-ObjC` 'yi `.unsafeFlag` aracılığıyla dahil edilmiş olarak kabul ettiğinden,
-çoğu paket gerektiğinde bunu varsayılan bağlantı ayarlarının bir parçası olarak
-dahil edemez.
+Derleme sistemi ve Tuist, bayrağın gerekli olup olmadığını belirleyemediğinden
+ve bayrağın istenmeyen yan etkileri olabileceğinden, Tuist bu bayrakların
+hiçbirini otomatik olarak uygulamaz. Ayrıca Swift package, `-ObjC` 'yi
+`.unsafeFlag` aracılığıyla dahil edildiğini kabul ettiğinden, çoğu paket
+gerektiğinde bunu varsayılan bağlantı ayarlarının bir parçası olarak dahil
+edemez.
 
 Objective-C bağımlılıklarının (veya dahili Objective-C hedeflerinin)
 kullanıcıları, gerektiğinde `-ObjC` veya `-force_load` bayraklarını, tüketen
@@ -471,8 +470,8 @@ hedeflerde `OTHER_LDFLAGS` ayarını yaparak uygulamalıdır.
 
 ### Firebase ve Diğer Google Kütüphaneleri {#firebase-other-google-libraries}
 
-Google'ın açık kaynak kütüphaneleri, güçlü olmalarına rağmen, genellikle
-standart olmayan mimari ve teknikler kullanarak oluşturuldukları için Tuist'e
+Google'ın açık kaynak kütüphaneleri, güçlü olmalarına rağmen, yapıları
+genellikle standart olmayan mimari ve teknikler kullandıkları için Tuist'e
 entegre edilmesi zor olabilir.
 
 Firebase ve Google'ın diğer Apple platformu kitaplıklarını entegre etmek için
@@ -480,10 +479,10 @@ izlemeniz gereken birkaç ipucu:
 
 #### `-ObjC` 'nin `OTHER_LDFLAGS'a eklendiğinden emin olun.` {#ensure-objc-is-added-to-other_ldflags}
 
-Google'ın kitaplıklarının çoğu Objective-C ile yazılmıştır. Bu nedenle, herhangi
-bir tüketen hedef, `-ObjC` etiketini `OTHER_LDFLAGS` yapı ayarına eklemelidir.
-Bu, `.xcconfig` dosyasında ayarlanabilir veya Tuist manifestolarındaki hedef
-ayarlarında manuel olarak belirtilebilir. Örnek:
+Google'ın kütüphanelerinin çoğu Objective-C ile yazılmıştır. Bu nedenle,
+herhangi bir tüketen hedef, `-ObjC` etiketini `OTHER_LDFLAGS` yapı ayarına
+eklemelidir. Bu, `.xcconfig` dosyasında ayarlanabilir veya Tuist
+manifestolarındaki hedef ayarlarında manuel olarak belirtilebilir. Örnek:
 
 ```swift
 Target.target(
