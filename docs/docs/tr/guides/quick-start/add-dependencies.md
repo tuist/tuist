@@ -85,14 +85,14 @@ let project = Project(
 )
 ```
 
-Ardından, [Swift paketi](https://www.swift.org/documentation/package-manager/)
-kullanarak bağımlılıkları çözmek ve çekmek için `tuist install` komutunu
-çalıştırın.
+Ardından, [Swift package
+Manager](https://www.swift.org/documentation/package-manager/) kullanarak
+bağımlılıkları çözmek ve çekmek için `tuist install` komutunu çalıştırın.
 
 ::: info SPM AS A DEPENDENCY RESOLVER
 <!-- -->
 Tuist, bağımlılıklar için önerilen yaklaşımda, bağımlılıkları çözmek için
-yalnızca Swift paketi (SPM) kullanır. Tuist daha sonra bunları maksimum
+yalnızca Swift package Manager (SPM) kullanır. Tuist daha sonra bunları maksimum
 yapılandırılabilirlik ve kontrol için Xcode projeleri ve hedeflerine dönüştürür.
 <!-- -->
 :::
