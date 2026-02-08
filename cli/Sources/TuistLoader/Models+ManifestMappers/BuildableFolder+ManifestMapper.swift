@@ -7,10 +7,15 @@ import XcodeGraph
 extension XcodeGraph.BuildableFolder {
     static func from(
         manifest: ProjectDescription.BuildableFolder,
-        generatorPaths: GeneratorPaths
+        generatorPaths: GeneratorPaths,
+        targetName: String
     ) async throws -> XcodeGraph.BuildableFolder {
         let path = try generatorPaths.resolve(path: manifest.path)
         let fileSystem = FileSystem()
+
+        if try await !fileSystem.exists(path) {
+            throw TargetError.buildableFolderNotFound(targetName: targetName, path: path)
+        }
 
         let exceptions = try await XcodeGraph.BuildableFolderExceptions.from(
             manifest: manifest.exceptions,

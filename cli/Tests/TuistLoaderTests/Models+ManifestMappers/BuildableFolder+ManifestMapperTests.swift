@@ -34,7 +34,8 @@ struct BuildableFolderManifestMapperTests {
 
         let got = try await XcodeGraph.BuildableFolder.from(
             manifest: manifest,
-            generatorPaths: generatorPaths
+            generatorPaths: generatorPaths,
+            targetName: "Target"
         )
 
         let resolvedPaths = Set(got.resolvedFiles.map(\.path))
@@ -65,7 +66,8 @@ struct BuildableFolderManifestMapperTests {
 
         let got = try await XcodeGraph.BuildableFolder.from(
             manifest: manifest,
-            generatorPaths: generatorPaths
+            generatorPaths: generatorPaths,
+            targetName: "Target"
         )
 
         let resolvedPaths = Set(got.resolvedFiles.map(\.path))
@@ -94,7 +96,8 @@ struct BuildableFolderManifestMapperTests {
 
         let got = try await XcodeGraph.BuildableFolder.from(
             manifest: manifest,
-            generatorPaths: generatorPaths
+            generatorPaths: generatorPaths,
+            targetName: "Target"
         )
 
         let resolvedPaths = Set(got.resolvedFiles.map(\.path))
@@ -124,7 +127,8 @@ struct BuildableFolderManifestMapperTests {
 
         let got = try await XcodeGraph.BuildableFolder.from(
             manifest: manifest,
-            generatorPaths: generatorPaths
+            generatorPaths: generatorPaths,
+            targetName: "Target"
         )
 
         let fileWithFlags = got.resolvedFiles.first {
@@ -157,7 +161,8 @@ struct BuildableFolderManifestMapperTests {
 
         let got = try await XcodeGraph.BuildableFolder.from(
             manifest: manifest,
-            generatorPaths: generatorPaths
+            generatorPaths: generatorPaths,
+            targetName: "Target"
         )
 
         let resolvedPaths = Set(got.resolvedFiles.map(\.path))
