@@ -3,13 +3,21 @@ import Foundation
 import Noora
 import OpenAPIRuntime
 import Path
+import TuistAccountCommand
 import TuistAlert
 import TuistAuthCommand
+import TuistBuildCommand
+import TuistBundleCommand
 import TuistCacheCommand
 import TuistConfigLoader
 import TuistEnvironment
+import TuistGenerateCommand
 import TuistLogging
 import TuistNooraExtension
+import TuistOrganizationCommand
+import TuistProjectCommand
+import TuistRegistryCommand
+import TuistTestCommand
 import TuistVersionCommand
 
 #if os(macOS)
@@ -45,13 +53,13 @@ public struct TuistCommand: AsyncParsableCommand {
                     name: "Develop",
                     subcommands: [
                         HashCommand.self,
-                        BuildCommand.self,
+                        TuistKit.BuildCommand.self,
                         CacheCommand.self,
                         CacheStartCommand.self,
                         CleanCommand.self,
                         DumpCommand.self,
                         EditCommand.self,
-                        GenerateCommand.self,
+                        TuistKit.GenerateCommand.self,
                         GraphCommand.self,
                         InstallCommand.self,
                         MigrationCommand.self,
@@ -60,7 +68,7 @@ public struct TuistCommand: AsyncParsableCommand {
                         RunCommand.self,
                         ScaffoldCommand.self,
                         SetupCommand.self,
-                        TestCommand.self,
+                        TuistKit.TestCommand.self,
                         InspectCommand.self,
                         XcodeBuildCommand.self,
                     ]
@@ -83,8 +91,13 @@ public struct TuistCommand: AsyncParsableCommand {
 
         #if !os(macOS)
             groups.append(CommandGroup(
-                name: "Cache",
-                subcommands: [CacheCommand.self]
+                name: "Develop",
+                subcommands: [
+                    TuistBuildCommand.BuildCommand.self,
+                    CacheCommand.self,
+                    TuistGenerateCommand.GenerateCommand.self,
+                    TuistTestCommand.TestCommand.self,
+                ]
             ))
         #endif
 
@@ -97,17 +110,13 @@ public struct TuistCommand: AsyncParsableCommand {
     }
 
     private static var accountSubcommands: [ParsableCommand.Type] {
-        #if os(macOS)
-            [
-                AccountCommand.self,
-                ProjectCommand.self,
-                BundleCommand.self,
-                OrganizationCommand.self,
-                AuthCommand.self,
-            ]
-        #else
-            [AuthCommand.self]
-        #endif
+        [
+            AccountCommand.self,
+            ProjectCommand.self,
+            BundleCommand.self,
+            OrganizationCommand.self,
+            AuthCommand.self,
+        ]
     }
 
     private static var otherSubcommands: [ParsableCommand.Type] {

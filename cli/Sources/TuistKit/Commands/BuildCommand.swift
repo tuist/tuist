@@ -1,11 +1,26 @@
 import ArgumentParser
 import Foundation
 import Path
+import TuistBuildCommand
+import TuistEnvKey
 import TuistExtension
 import TuistLogging
 import TuistServer
 import TuistSupport
 import XcodeGraph
+
+public struct BuildCommand: AsyncParsableCommand {
+    public init() {}
+
+    public static var configuration: CommandConfiguration {
+        CommandConfiguration(
+            commandName: "build",
+            abstract: "A set of commands to manage your project builds.",
+            subcommands: [BuildRunCommand.self, BuildListCommand.self, BuildShowCommand.self],
+            defaultSubcommand: BuildRunCommand.self
+        )
+    }
+}
 
 enum XcodeBuildPassthroughArgumentError: FatalError, Equatable {
     case alreadyHandled(String)
@@ -124,25 +139,6 @@ public struct BuildOptions: ParsableArguments {
     var passthroughXcodeBuildArguments: [String] = []
 }
 
-/// Command to manage builds.
-public struct BuildCommand: AsyncParsableCommand {
-    public init() {}
-
-    public static var configuration: CommandConfiguration {
-        CommandConfiguration(
-            commandName: "build",
-            abstract: "A set of commands to manage your project builds.",
-            subcommands: [
-                BuildRunCommand.self,
-                BuildListCommand.self,
-                BuildShowCommand.self,
-            ],
-            defaultSubcommand: BuildRunCommand.self
-        )
-    }
-}
-
-/// Command that builds a target from the project in the current directory.
 public struct BuildRunCommand: AsyncParsableCommand, LogConfigurableCommand,
     RecentPathRememberableCommand
 {
@@ -175,14 +171,12 @@ public struct BuildRunCommand: AsyncParsableCommand, LogConfigurableCommand,
     ]
 
     public func run() async throws {
-        // Check if passthrough arguments are already handled by tuist
         try notAllowedPassthroughXcodeBuildArguments.forEach {
             if buildOptions.passthroughXcodeBuildArguments.contains($0) {
                 throw XcodeBuildPassthroughArgumentError.alreadyHandled($0)
             }
         }
 
-        // Suggest the user to use passthrough arguments if already supported by xcodebuild
         if let derivedDataPath = buildOptions.derivedDataPath {
             Logger.current
                 .warning(

@@ -7,6 +7,8 @@ import TuistAuthCommand
 import TuistEnvironment
 import TuistEnvironmentTesting
 import TuistEnvKey
+import TuistOrganizationCommand
+import TuistProjectCommand
 import TuistSupport
 import TuistTesting
 @testable import TuistKit
