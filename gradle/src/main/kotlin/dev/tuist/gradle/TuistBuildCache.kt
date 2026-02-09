@@ -13,6 +13,7 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URI
+import java.util.concurrent.TimeUnit
 
 /**
  * Minimum required Tuist CLI version for this plugin.
@@ -175,7 +176,12 @@ class TuistCommandConfigurationProvider(
                 reader.readText()
             }
 
-            val exitCode = process.waitFor()
+            val completed = process.waitFor(30, TimeUnit.SECONDS)
+            if (!completed) {
+                process.destroyForcibly()
+                throw RuntimeException("tuist cache config timed out after 30 seconds")
+            }
+            val exitCode = process.exitValue()
             if (exitCode != 0) {
                 val message = stderr.ifBlank { "exit code $exitCode" }
                 throw RuntimeException("tuist cache config failed: $message")
