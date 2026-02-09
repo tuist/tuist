@@ -112,11 +112,21 @@ defmodule TuistWeb.GradleCacheLive do
     %{preset: preset, period: {start_datetime, end_datetime} = period} =
       DatePicker.date_picker_params(params, "analytics")
 
-    opts = [
-      project_id: project.id,
-      start_datetime: start_datetime,
-      end_datetime: end_datetime
-    ]
+    analytics_environment = params["analytics-environment"] || "any"
+
+    opts =
+      [
+        project_id: project.id,
+        start_datetime: start_datetime,
+        end_datetime: end_datetime
+      ]
+      |> then(fn opts ->
+        case analytics_environment do
+          "ci" -> Keyword.put(opts, :is_ci, true)
+          "local" -> Keyword.put(opts, :is_ci, false)
+          _ -> opts
+        end
+      end)
 
     uri = URI.new!("?" <> URI.encode_query(params))
 
@@ -165,8 +175,14 @@ defmodule TuistWeb.GradleCacheLive do
     |> assign(:cache_events, cache_events)
     |> assign(:selected_hit_rate_type, params["hit-rate-type"] || "avg")
     |> assign(:analytics_chart_data, analytics_chart_data)
+    |> assign(:analytics_environment, analytics_environment)
+    |> assign(:analytics_environment_label, environment_label(analytics_environment))
     |> assign(:uri, uri)
   end
+
+  defp environment_label("any"), do: dgettext("dashboard_gradle", "Any")
+  defp environment_label("local"), do: dgettext("dashboard_gradle", "Local")
+  defp environment_label("ci"), do: dgettext("dashboard_gradle", "CI")
 
   defp analytics_trend_label("last-24-hours"), do: dgettext("dashboard_gradle", "since yesterday")
   defp analytics_trend_label("last-7-days"), do: dgettext("dashboard_gradle", "since last week")
@@ -222,13 +238,12 @@ defmodule TuistWeb.GradleCacheLive do
 
   def cache_hit_rate(build) do
     from_cache = (build.tasks_local_hit_count || 0) + (build.tasks_remote_hit_count || 0)
-    executed = build.tasks_executed_count || 0
-    total = from_cache + executed
+    cacheable = build.cacheable_tasks_count || 0
 
-    if total == 0 do
+    if cacheable == 0 do
       0.0
     else
-      Float.round(from_cache / total * 100.0, 1)
+      Float.round(from_cache / cacheable * 100.0, 1)
     end
   end
 

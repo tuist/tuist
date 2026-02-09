@@ -268,6 +268,7 @@ defmodule Tuist.Gradle.Analytics do
           no_source: sum(b.tasks_no_source_count)
         }
       )
+      |> maybe_filter_ci(opts)
 
     result = ClickHouseRepo.one(query)
 
@@ -290,17 +291,18 @@ defmodule Tuist.Gradle.Analytics do
     date_period = date_period(start_datetime, end_datetime)
     date_format = get_date_format(date_period)
 
-    current_stats = cache_event_stats(project_id, start_datetime, end_datetime)
+    current_stats = cache_event_stats(project_id, start_datetime, end_datetime, opts)
 
     previous_stats =
       cache_event_stats(
         project_id,
         DateTime.add(start_datetime, -days_delta, :day),
-        start_datetime
+        start_datetime,
+        opts
       )
 
-    uploads_over_time = cache_events_over_time(project_id, "upload", start_datetime, end_datetime, date_format)
-    downloads_over_time = cache_events_over_time(project_id, "download", start_datetime, end_datetime, date_format)
+    uploads_over_time = cache_events_over_time(project_id, "upload", start_datetime, end_datetime, date_format, opts)
+    downloads_over_time = cache_events_over_time(project_id, "download", start_datetime, end_datetime, date_format, opts)
 
     processed_uploads = process_size_data(uploads_over_time, start_datetime, end_datetime, date_period)
     processed_downloads = process_size_data(downloads_over_time, start_datetime, end_datetime, date_period)
@@ -323,7 +325,7 @@ defmodule Tuist.Gradle.Analytics do
     }
   end
 
-  defp cache_event_stats(project_id, start_datetime, end_datetime) do
+  defp cache_event_stats(project_id, start_datetime, end_datetime, opts) do
     query =
       from(e in CacheEvent,
         where:
@@ -337,6 +339,7 @@ defmodule Tuist.Gradle.Analytics do
           count: count(e.id)
         }
       )
+      |> maybe_filter_ci(opts)
 
     results = ClickHouseRepo.all(query)
 
@@ -351,7 +354,7 @@ defmodule Tuist.Gradle.Analytics do
     }
   end
 
-  defp cache_events_over_time(project_id, action, start_datetime, end_datetime, date_format) do
+  defp cache_events_over_time(project_id, action, start_datetime, end_datetime, date_format, opts) do
     query =
       from(e in CacheEvent,
         group_by: fragment("formatDateTime(?, ?)", e.inserted_at, ^date_format),
@@ -366,6 +369,7 @@ defmodule Tuist.Gradle.Analytics do
         },
         order_by: [asc: fragment("formatDateTime(?, ?)", e.inserted_at, ^date_format)]
       )
+      |> maybe_filter_ci(opts)
 
     ClickHouseRepo.all(query)
   end

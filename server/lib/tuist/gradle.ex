@@ -258,6 +258,8 @@ defmodule Tuist.Gradle do
       * `:size` - Size in bytes
       * `:duration_ms` - Duration in milliseconds (optional)
       * `:is_hit` - Whether it was a cache hit (optional, defaults to true)
+      * `:is_ci` - Whether it happened in CI (optional, defaults to false)
+      * `:gradle_build_id` - The associated build ID (optional)
       * `:project_id` - The project ID
       * `:account_handle` - The account handle
       * `:project_handle` - The project handle
@@ -274,6 +276,8 @@ defmodule Tuist.Gradle do
           size: event.size,
           duration_ms: Map.get(event, :duration_ms, 0),
           is_hit: Map.get(event, :is_hit, true),
+          is_ci: Map.get(event, :is_ci, false),
+          gradle_build_id: Map.get(event, :gradle_build_id),
           project_id: event.project_id,
           account_handle: event.account_handle,
           project_handle: event.project_handle,

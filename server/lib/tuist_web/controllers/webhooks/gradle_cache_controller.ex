@@ -35,6 +35,8 @@ defmodule TuistWeb.Webhooks.GradleCacheController do
               action: action,
               size: size,
               cache_key: cache_key,
+              is_ci: Map.get(event, "is_ci", false),
+              gradle_build_id: Map.get(event, "gradle_build_id"),
               project_id: project_id,
               account_handle: account_handle,
               project_handle: project_handle

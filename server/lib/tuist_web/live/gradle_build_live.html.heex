@@ -104,15 +104,14 @@
               </span>
             </div>
             <div data-part="metadata">
-              <div data-part="title">{dgettext("dashboard_gradle", "Cache Hit Rate")}</div>
+              <div data-part="title">{dgettext("dashboard_gradle", "Built at")}</div>
               <span data-part="label">
-                {dgettext("dashboard_gradle", "%{hit_rate}%",
-                  hit_rate:
-                    cache_hit_rate(@build)
-                    |> Decimal.from_float()
-                    |> Decimal.round(1)
-                )}
+                {Tuist.Utilities.DateFormatter.from_now(@build.inserted_at)}
               </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_gradle", "Built by")}</div>
+              <.gradle_build_ran_by_badge_cell build={@build} />
             </div>
           </div>
           <div data-part="metadata-row">
@@ -134,18 +133,6 @@
             <div :if={@build.git_commit_sha} data-part="metadata">
               <div data-part="title">{dgettext("dashboard_gradle", "Commit")}</div>
               <span data-part="label">{String.slice(@build.git_commit_sha, 0, 8)}</span>
-            </div>
-          </div>
-          <div data-part="metadata-row">
-            <div data-part="metadata">
-              <div data-part="title">{dgettext("dashboard_gradle", "Ran at")}</div>
-              <span data-part="label">
-                {Tuist.Utilities.DateFormatter.from_now(@build.inserted_at)}
-              </span>
-            </div>
-            <div data-part="metadata">
-              <div data-part="title">{dgettext("dashboard_gradle", "Built by")}</div>
-              <.gradle_build_ran_by_badge_cell build={@build} />
             </div>
           </div>
         </div>

@@ -300,18 +300,6 @@ defmodule TuistWeb.GradleBuildLive do
     end
   end
 
-  defp cache_hit_rate(build) do
-    from_cache = (build.tasks_local_hit_count || 0) + (build.tasks_remote_hit_count || 0)
-    executed = build.tasks_executed_count || 0
-    total = from_cache + executed
-
-    if total == 0 do
-      0.0
-    else
-      Float.round(from_cache / total * 100.0, 1)
-    end
-  end
-
   defp outcome_color("local_hit"), do: "success"
   defp outcome_color("remote_hit"), do: "information"
   defp outcome_color("up_to_date"), do: "information"

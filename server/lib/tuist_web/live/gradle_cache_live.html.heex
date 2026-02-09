@@ -33,6 +33,36 @@
     data-part="analytics-card"
   >
     <:actions>
+      <.dropdown
+        id="gradle-cache-environment-dropdown"
+        label={@analytics_environment_label}
+        secondary_text={dgettext("dashboard_gradle", "Environment:")}
+      >
+        <.dropdown_item
+          value="any"
+          label={dgettext("dashboard_gradle", "Any")}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "any")}"}
+          data-selected={@analytics_environment == "any"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="local"
+          label={dgettext("dashboard_gradle", "Local")}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "local")}"}
+          data-selected={@analytics_environment == "local"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="ci"
+          label={dgettext("dashboard_gradle", "CI")}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "ci")}"}
+          data-selected={@analytics_environment == "ci"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+      </.dropdown>
       <.date_picker
         id="gradle-cache-date-range-picker"
         name="analytics-date-range"

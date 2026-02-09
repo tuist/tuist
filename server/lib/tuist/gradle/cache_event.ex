@@ -12,6 +12,8 @@ defmodule Tuist.Gradle.CacheEvent do
     field :size, Ch, type: "Int64"
     field :duration_ms, Ch, type: "UInt64"
     field :is_hit, Ch, type: "Bool"
+    field :is_ci, Ch, type: "Bool"
+    field :gradle_build_id, Ch, type: "Nullable(UUID)"
     field :project_id, Ch, type: "Int64"
     field :account_handle, Ch, type: "String"
     field :project_handle, Ch, type: "String"

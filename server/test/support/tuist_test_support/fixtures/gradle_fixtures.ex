@@ -56,6 +56,8 @@ defmodule TuistTestSupport.Fixtures.GradleFixtures do
       size: Keyword.get(attrs, :size, 1_000_000),
       duration_ms: Keyword.get(attrs, :duration_ms, 100),
       is_hit: Keyword.get(attrs, :is_hit, true),
+      is_ci: Keyword.get(attrs, :is_ci, false),
+      gradle_build_id: Keyword.get(attrs, :gradle_build_id),
       project_id: project_id,
       account_handle: Keyword.get(attrs, :account_handle, "test-account"),
       project_handle: Keyword.get(attrs, :project_handle, "test-project"),
