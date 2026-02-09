@@ -171,7 +171,7 @@ defmodule Tuist.Builds.Build do
   end
 
   defp coerce_enum_value(value, allowed_values, _by_index) when is_binary(value) do
-    if value in allowed_values, do: value, else: value
+    if value in allowed_values, do: value
   end
 
   defp coerce_enum_value(_value, _allowed_values, _by_index), do: nil
