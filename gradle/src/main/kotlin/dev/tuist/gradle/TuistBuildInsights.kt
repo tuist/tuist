@@ -191,6 +191,18 @@ abstract class TuistBuildInsightsService :
         operationParents.remove(opId)
     }
 
+    /**
+     * Walks up the operation tree to find which Gradle task a nested build operation belongs to.
+     *
+     * Gradle's BuildOperationListener fires for operations at many levels — a cache load/store
+     * operation is a child of the task execution operation, not the task itself. This method
+     * follows [operationParents] (child → parent mappings recorded in [started]) upward until
+     * it finds an operation that has an entry in [operationTaskPaths] (populated when an
+     * ExecuteTaskBuildOperationType starts).
+     *
+     * For example, for a chain like `Task(:app:compileKotlin) → CacheLoad → …`, it walks from
+     * the cache load op up to the task op and returns `:app:compileKotlin`.
+     */
     private fun findTaskPathForOperation(opId: OperationIdentifier): String? {
         var currentId: OperationIdentifier? = opId
         while (currentId != null) {
