@@ -19,6 +19,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateGradleTasksTable do
       add :duration_ms, :UInt64, null: false, default: 0
       add :cache_key, :"Nullable(String)"
       add :cache_artifact_size, :"Nullable(Int64)"
+      add :started_at, :"Nullable(DateTime64(6))"
       add :project_id, :Int64, null: false
       add :inserted_at, :naive_datetime, null: false, default: fragment("now()")
     end

@@ -19,6 +19,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateGradleBuildsTable do
       add :git_branch, :"Nullable(String)"
       add :git_commit_sha, :"Nullable(String)"
       add :git_ref, :"Nullable(String)"
+      add :root_project_name, :"Nullable(String)"
       add :tasks_local_hit_count, :UInt32, null: false, default: 0
       add :tasks_remote_hit_count, :UInt32, null: false, default: 0
       add :tasks_up_to_date_count, :UInt32, null: false, default: 0

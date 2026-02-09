@@ -17,6 +17,8 @@ defmodule Tuist.IngestRepo.Migrations.CreateGradleCacheEventsTable do
       add :project_id, :Int64, null: false
       add :account_handle, :string, null: false
       add :project_handle, :string, null: false
+      add :is_ci, :Bool, default: false
+      add :gradle_build_id, :"Nullable(UUID)"
       add :inserted_at, :naive_datetime, null: false, default: fragment("now()")
     end
   end
