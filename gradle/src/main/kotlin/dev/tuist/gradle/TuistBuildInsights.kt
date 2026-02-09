@@ -1,8 +1,11 @@
 package dev.tuist.gradle
 
+import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.internal.GradleInternal
+import org.gradle.api.logging.Logging
 import org.gradle.api.provider.Property
 import org.gradle.api.services.BuildService
 import org.gradle.api.services.BuildServiceParameters
@@ -11,7 +14,7 @@ import org.gradle.build.event.BuildEventsListenerRegistry
 import org.gradle.caching.internal.operations.BuildCacheArchivePackBuildOperationType
 import org.gradle.caching.internal.operations.BuildCacheLocalLoadBuildOperationType
 import org.gradle.caching.internal.operations.BuildCacheRemoteLoadBuildOperationType
-import org.gradle.api.internal.GradleInternal
+import org.gradle.api.internal.tasks.execution.ExecuteTaskBuildOperationType
 import org.gradle.internal.operations.BuildOperationDescriptor
 import org.gradle.internal.operations.BuildOperationListener
 import org.gradle.internal.operations.BuildOperationListenerManager
@@ -19,15 +22,12 @@ import org.gradle.internal.operations.OperationFinishEvent
 import org.gradle.internal.operations.OperationIdentifier
 import org.gradle.internal.operations.OperationProgressEvent
 import org.gradle.internal.operations.OperationStartEvent
-import org.gradle.api.internal.tasks.execution.ExecuteTaskBuildOperationType
 import org.gradle.tooling.events.FinishEvent
 import org.gradle.tooling.events.OperationCompletionListener
 import org.gradle.tooling.events.task.TaskFinishEvent
 import org.gradle.tooling.events.task.TaskFailureResult
 import org.gradle.tooling.events.task.TaskSkippedResult
 import org.gradle.tooling.events.task.TaskSuccessResult
-import com.google.gson.Gson
-import org.gradle.api.logging.Logging
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
@@ -364,8 +364,6 @@ abstract class TuistBuildInsightsService :
     }
 }
 
-// --- Project Plugin ---
-
 internal abstract class TuistBuildInsightsPlugin @Inject constructor(
     private val eventsListenerRegistry: BuildEventsListenerRegistry
 ) : Plugin<Project> {
@@ -410,3 +408,4 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
         }
     }
 }
+

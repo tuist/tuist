@@ -73,21 +73,19 @@ class TuistPlugin : Plugin<Settings> {
             return
         }
 
-        val config = TuistGradleConfig(
-            url = extension.url,
-            project = extension.project,
-            executablePath = extension.executablePath ?: "tuist"
-        )
-
         configureBuildCache(settings, extension)
-        configureBuildInsights(settings, config)
+        configureBuildInsights(settings, extension)
     }
 
-    private fun configureBuildInsights(settings: Settings, config: TuistGradleConfig) {
+    private fun configureBuildInsights(settings: Settings, extension: TuistExtension) {
         settings.gradle.rootProject {
-            extensions.extraProperties.set(TuistGradleConfig.EXTRA_PROPERTY_KEY, config)
+            extensions.extraProperties.set(TuistGradleConfig.EXTRA_PROPERTY_KEY, TuistGradleConfig(
+                url = extension.url,
+                project = extension.project,
+                executablePath = extension.executablePath ?: "tuist"
+            ))
             pluginManager.apply(TuistBuildInsightsPlugin::class.java)
-            logger.lifecycle("Tuist: Build insights configured for ${config.project}")
+            logger.lifecycle("Tuist: Build insights configured for ${extension.project}")
         }
     }
 
