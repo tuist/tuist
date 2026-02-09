@@ -17,6 +17,8 @@ defmodule TuistWeb.GradleCacheLive do
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
 
+  @recent_builds_page_size 40
+
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     slug = "#{account.name}/#{project.name}"
 
@@ -194,7 +196,7 @@ defmodule TuistWeb.GradleCacheLive do
   defp analytics_trend_label(_), do: dgettext("dashboard_gradle", "since last month")
 
   defp assign_recent_builds(%{assigns: %{selected_project: project}} = socket, _params) do
-    {builds, _meta} = Gradle.list_builds(project.id, %{page_size: 40})
+    {builds, _meta} = Gradle.list_builds(project.id, %{page_size: @recent_builds_page_size})
     builds = Repo.preload(builds, :built_by_account)
 
     recent_builds_chart_data =
