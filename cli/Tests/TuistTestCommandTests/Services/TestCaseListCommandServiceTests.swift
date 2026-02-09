@@ -259,7 +259,7 @@ struct TestCaseListCommandServiceTests {
         let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
         given(configLoader).loadConfig(path: .value(directoryPath)).willReturn(tuist)
         let serverURL = URL(string: "https://\(UUID().uuidString).tuist.dev")!
-        given(serverEnvironmentService).url(configServerURL: .value(serverURL)).willReturn(serverURL)
+        given(serverEnvironmentService).url(configServerURL: .value(tuist.url)).willReturn(serverURL)
         let response = Operations.listTestCases.Output.Ok.Body.jsonPayload.test(
             pageSize: 5,
             testCases: [.test(name: "testExample()", moduleName: "AppTests")]
