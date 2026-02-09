@@ -133,16 +133,26 @@ class DefaultBuildInsightsHttpClient : BuildInsightsHttpClient {
 
 // --- CI Detection ---
 
-object CIDetector {
-    fun isCi(): Boolean = System.getenv("CI") != null
+interface CIDetecting {
+    fun isCi(): Boolean
+}
+
+class DefaultCIDetector : CIDetecting {
+    override fun isCi(): Boolean = System.getenv("CI") != null
 }
 
 // --- Git Info ---
 
-object GitInfo {
-    fun branch(): String? = runGitCommand("rev-parse", "--abbrev-ref", "HEAD")
-    fun commitSha(): String? = runGitCommand("rev-parse", "HEAD")
-    fun ref(): String? = runGitCommand("describe", "--tags", "--always")
+interface GitInfoProviding {
+    fun branch(): String?
+    fun commitSha(): String?
+    fun ref(): String?
+}
+
+class DefaultGitInfoProvider : GitInfoProviding {
+    override fun branch(): String? = runGitCommand("rev-parse", "--abbrev-ref", "HEAD")
+    override fun commitSha(): String? = runGitCommand("rev-parse", "HEAD")
+    override fun ref(): String? = runGitCommand("describe", "--tags", "--always")
 
     private fun runGitCommand(vararg args: String): String? {
         return try {
@@ -173,6 +183,9 @@ abstract class TuistBuildInsightsService :
         val gradleVersion: Property<String>
         val rootProjectName: Property<String>
     }
+
+    internal var gitInfoProvider: GitInfoProviding = DefaultGitInfoProvider()
+    internal var ciDetector: CIDetecting = DefaultCIDetector()
 
     private val taskOutcomes = ConcurrentLinkedQueue<TaskOutcomeData>()
     private val cacheableTaskPaths = mutableSetOf<String>()
@@ -356,10 +369,10 @@ abstract class TuistBuildInsightsService :
             status = status,
             gradleVersion = parameters.gradleVersion.orNull,
             javaVersion = System.getProperty("java.version"),
-            isCi = CIDetector.isCi(),
-            gitBranch = GitInfo.branch(),
-            gitCommitSha = GitInfo.commitSha(),
-            gitRef = GitInfo.ref(),
+            isCi = ciDetector.isCi(),
+            gitBranch = gitInfoProvider.branch(),
+            gitCommitSha = gitInfoProvider.commitSha(),
+            gitRef = gitInfoProvider.ref(),
             rootProjectName = parameters.rootProjectName.orNull,
             tasks = tasks.map { task ->
                 TaskReportEntry(
