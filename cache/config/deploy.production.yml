@@ -12,6 +12,4 @@ env:
     SERVER_URL: https://tuist.dev
     SENTRY_ENV: prod
     POOL_SIZE: "10"
-  secret:
-    - S3_REGISTRY_BUCKET
-    - REGISTRY_GITHUB_TOKEN
+
