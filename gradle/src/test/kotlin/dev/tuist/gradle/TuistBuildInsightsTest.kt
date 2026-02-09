@@ -4,8 +4,23 @@ import com.google.gson.Gson
 import org.junit.jupiter.api.Test
 import java.net.URI
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+
+private class TestGitInfoProvider(
+    private val branch: String? = null,
+    private val commitSha: String? = null,
+    private val ref: String? = null
+) : GitInfoProvider {
+    override fun branch(): String? = branch
+    override fun commitSha(): String? = commitSha
+    override fun ref(): String? = ref
+}
+
+private class TestCIDetector(private val isCi: Boolean = false) : CIDetector {
+    override fun isCi(): Boolean = isCi
+}
 
 class TuistBuildInsightsTest {
 
@@ -103,5 +118,172 @@ class TuistBuildInsightsTest {
         assertTrue(json.contains("\"git_branch\""))
         assertTrue(json.contains("\"git_commit_sha\""))
         assertTrue(json.contains("\"git_ref\""))
+    }
+
+    @Test
+    fun `buildReport maps task outcomes to report entries`() {
+        val tasks = listOf(
+            TaskOutcomeData(
+                taskPath = ":app:compileKotlin",
+                outcome = TaskOutcome.EXECUTED,
+                cacheable = true,
+                durationMs = 3000,
+                cacheKey = "abc123",
+                cacheArtifactSize = 1024,
+                startedAt = "2026-02-06T10:00:00Z"
+            ),
+            TaskOutcomeData(
+                taskPath = ":app:test",
+                outcome = TaskOutcome.UP_TO_DATE,
+                cacheable = false,
+                durationMs = 500,
+                cacheKey = null,
+                cacheArtifactSize = null,
+                startedAt = "2026-02-06T10:00:03Z"
+            )
+        )
+
+        val report = buildReport(
+            taskOutcomes = tasks,
+            buildFailed = false,
+            totalDurationMs = 5000,
+            ciDetector = TestCIDetector(false),
+            gitInfoProvider = TestGitInfoProvider()
+        )
+
+        assertEquals(2, report.tasks.size)
+
+        val first = report.tasks[0]
+        assertEquals(":app:compileKotlin", first.taskPath)
+        assertEquals(TaskOutcome.EXECUTED, first.outcome)
+        assertTrue(first.cacheable)
+        assertEquals(3000, first.durationMs)
+        assertEquals("abc123", first.cacheKey)
+        assertEquals(1024, first.cacheArtifactSize)
+        assertEquals("2026-02-06T10:00:00Z", first.startedAt)
+
+        val second = report.tasks[1]
+        assertEquals(":app:test", second.taskPath)
+        assertEquals(TaskOutcome.UP_TO_DATE, second.outcome)
+        assertFalse(second.cacheable)
+        assertEquals(500, second.durationMs)
+        assertNull(second.cacheKey)
+        assertNull(second.cacheArtifactSize)
+    }
+
+    @Test
+    fun `buildReport sets status to failure when buildFailed is true`() {
+        val report = buildReport(
+            taskOutcomes = listOf(
+                TaskOutcomeData(":app:compile", TaskOutcome.EXECUTED, true, 1000, null, null, null)
+            ),
+            buildFailed = true,
+            totalDurationMs = 1000,
+            ciDetector = TestCIDetector(false),
+            gitInfoProvider = TestGitInfoProvider()
+        )
+
+        assertEquals("failure", report.status)
+    }
+
+    @Test
+    fun `buildReport sets status to failure when any task failed`() {
+        val report = buildReport(
+            taskOutcomes = listOf(
+                TaskOutcomeData(":app:compile", TaskOutcome.EXECUTED, true, 1000, null, null, null),
+                TaskOutcomeData(":app:test", TaskOutcome.FAILED, false, 2000, null, null, null)
+            ),
+            buildFailed = false,
+            totalDurationMs = 3000,
+            ciDetector = TestCIDetector(false),
+            gitInfoProvider = TestGitInfoProvider()
+        )
+
+        assertEquals("failure", report.status)
+    }
+
+    @Test
+    fun `buildReport sets status to success when all tasks succeed`() {
+        val report = buildReport(
+            taskOutcomes = listOf(
+                TaskOutcomeData(":app:compile", TaskOutcome.EXECUTED, true, 1000, null, null, null),
+                TaskOutcomeData(":lib:compile", TaskOutcome.LOCAL_HIT, true, 200, "key1", 512, null)
+            ),
+            buildFailed = false,
+            totalDurationMs = 2000,
+            ciDetector = TestCIDetector(false),
+            gitInfoProvider = TestGitInfoProvider()
+        )
+
+        assertEquals("success", report.status)
+    }
+
+    @Test
+    fun `buildReport includes git info from provider`() {
+        val report = buildReport(
+            taskOutcomes = emptyList(),
+            buildFailed = false,
+            totalDurationMs = 100,
+            ciDetector = TestCIDetector(false),
+            gitInfoProvider = TestGitInfoProvider(
+                branch = "feature/test",
+                commitSha = "abc123def456",
+                ref = "v1.0.0"
+            )
+        )
+
+        assertEquals("feature/test", report.gitBranch)
+        assertEquals("abc123def456", report.gitCommitSha)
+        assertEquals("v1.0.0", report.gitRef)
+    }
+
+    @Test
+    fun `buildReport includes CI detection`() {
+        val ciReport = buildReport(
+            taskOutcomes = emptyList(),
+            buildFailed = false,
+            totalDurationMs = 100,
+            ciDetector = TestCIDetector(true),
+            gitInfoProvider = TestGitInfoProvider()
+        )
+        assertTrue(ciReport.isCi)
+
+        val localReport = buildReport(
+            taskOutcomes = emptyList(),
+            buildFailed = false,
+            totalDurationMs = 100,
+            ciDetector = TestCIDetector(false),
+            gitInfoProvider = TestGitInfoProvider()
+        )
+        assertFalse(localReport.isCi)
+    }
+
+    @Test
+    fun `buildReport includes gradle version and root project name`() {
+        val report = buildReport(
+            taskOutcomes = emptyList(),
+            buildFailed = false,
+            totalDurationMs = 100,
+            gradleVersion = "8.5",
+            rootProjectName = "my-app",
+            ciDetector = TestCIDetector(false),
+            gitInfoProvider = TestGitInfoProvider()
+        )
+
+        assertEquals("8.5", report.gradleVersion)
+        assertEquals("my-app", report.rootProjectName)
+    }
+
+    @Test
+    fun `buildReport sets duration from parameter`() {
+        val report = buildReport(
+            taskOutcomes = emptyList(),
+            buildFailed = false,
+            totalDurationMs = 42000,
+            ciDetector = TestCIDetector(false),
+            gitInfoProvider = TestGitInfoProvider()
+        )
+
+        assertEquals(42000, report.durationMs)
     }
 }

@@ -296,36 +296,16 @@ abstract class TuistBuildInsightsService :
             readTimeoutMs = 10_000
         )
 
-        val tasks = taskOutcomes.toList()
         val totalDurationMs = System.currentTimeMillis() - buildStartTime
 
-        val status = when {
-            buildFailed -> "failure"
-            tasks.any { it.outcome == TaskOutcome.FAILED } -> "failure"
-            else -> "success"
-        }
-
-        val report = BuildReportRequest(
-            durationMs = totalDurationMs,
-            status = status,
+        val report = buildReport(
+            taskOutcomes = taskOutcomes.toList(),
+            buildFailed = buildFailed,
+            totalDurationMs = totalDurationMs,
             gradleVersion = parameters.gradleVersion.orNull,
-            javaVersion = System.getProperty("java.version"),
-            isCi = ciDetector.isCi(),
-            gitBranch = gitInfoProvider.branch(),
-            gitCommitSha = gitInfoProvider.commitSha(),
-            gitRef = gitInfoProvider.ref(),
             rootProjectName = parameters.rootProjectName.orNull,
-            tasks = tasks.map { task ->
-                TaskReportEntry(
-                    taskPath = task.taskPath,
-                    outcome = task.outcome,
-                    cacheable = task.cacheable,
-                    durationMs = task.durationMs,
-                    cacheKey = task.cacheKey,
-                    cacheArtifactSize = task.cacheArtifactSize,
-                    startedAt = task.startedAt
-                )
-            }
+            ciDetector = ciDetector,
+            gitInfoProvider = gitInfoProvider
         )
 
         val baseUrl = parameters.url.get().trimEnd('/')
@@ -362,6 +342,45 @@ abstract class TuistBuildInsightsService :
             logger.warn("Tuist: Failed to report build insights.")
         }
     }
+}
+
+internal fun buildReport(
+    taskOutcomes: List<TaskOutcomeData>,
+    buildFailed: Boolean,
+    totalDurationMs: Long,
+    gradleVersion: String? = null,
+    rootProjectName: String? = null,
+    ciDetector: CIDetector = EnvironmentCIDetector(),
+    gitInfoProvider: GitInfoProvider = ProcessGitInfoProvider()
+): BuildReportRequest {
+    val status = when {
+        buildFailed -> "failure"
+        taskOutcomes.any { it.outcome == TaskOutcome.FAILED } -> "failure"
+        else -> "success"
+    }
+
+    return BuildReportRequest(
+        durationMs = totalDurationMs,
+        status = status,
+        gradleVersion = gradleVersion,
+        javaVersion = System.getProperty("java.version"),
+        isCi = ciDetector.isCi(),
+        gitBranch = gitInfoProvider.branch(),
+        gitCommitSha = gitInfoProvider.commitSha(),
+        gitRef = gitInfoProvider.ref(),
+        rootProjectName = rootProjectName,
+        tasks = taskOutcomes.map { task ->
+            TaskReportEntry(
+                taskPath = task.taskPath,
+                outcome = task.outcome,
+                cacheable = task.cacheable,
+                durationMs = task.durationMs,
+                cacheKey = task.cacheKey,
+                cacheArtifactSize = task.cacheArtifactSize,
+                startedAt = task.startedAt
+            )
+        }
+    )
 }
 
 internal abstract class TuistBuildInsightsPlugin @Inject constructor(
