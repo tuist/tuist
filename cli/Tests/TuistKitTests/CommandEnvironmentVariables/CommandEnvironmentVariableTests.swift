@@ -3,19 +3,19 @@ import Difference
 import Foundation
 import Testing
 import TSCUtility
-import TuistBuildCommand
 import TuistEnvironment
 import TuistEnvKey
-import TuistGenerateCommand
-import TuistOrganizationCommand
-import TuistProjectCommand
-import TuistTestCommand
 import TuistVersionCommand
 @testable import TuistAuthCommand
+@testable import TuistBuildCommand
 @testable import TuistCacheCommand
 @testable import TuistCore
+@testable import TuistGenerateCommand
 @testable import TuistKit
+@testable import TuistOrganizationCommand
+@testable import TuistProjectCommand
 @testable import TuistSupport
+@testable import TuistTestCommand
 @testable import TuistTesting
 
 struct CommandEnvironmentVariableTests {
