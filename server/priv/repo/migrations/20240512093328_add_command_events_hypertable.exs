@@ -2,6 +2,8 @@ defmodule Tuist.Repo.Migrations.AddCommandEventsHypertable do
   use Ecto.Migration
 
   def up do
+    # No-op: the hypertable creation was moved out of migrations.
+    # Kept to maintain consistent schema_migrations rows between deployments.
     :ok
   end
 
