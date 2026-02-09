@@ -52,7 +52,7 @@ class TuistBuildInsightsTest {
             tasks = listOf(
                 TaskReportEntry(
                     taskPath = ":app:compileKotlin",
-                    outcome = "local_hit",
+                    outcome = TaskOutcome.LOCAL_HIT,
                     cacheable = true,
                     durationMs = 1000,
                     cacheKey = "abc123",
@@ -61,7 +61,7 @@ class TuistBuildInsightsTest {
                 ),
                 TaskReportEntry(
                     taskPath = ":app:test",
-                    outcome = "executed",
+                    outcome = TaskOutcome.EXECUTED,
                     cacheable = true,
                     durationMs = 3000,
                     cacheKey = null,
@@ -187,7 +187,7 @@ class TuistBuildInsightsTest {
     fun `TaskReportEntry serializes with snake_case field names`() {
         val entry = TaskReportEntry(
             taskPath = ":app:compileKotlin",
-            outcome = "from_cache",
+            outcome = TaskOutcome.LOCAL_HIT,
             cacheable = true,
             durationMs = 1500,
             cacheKey = "def456",

@@ -43,6 +43,16 @@ import javax.inject.Inject
 
 enum class CacheHitType { LOCAL, REMOTE, MISS }
 
+enum class TaskOutcome(val value: String) {
+    @SerializedName("local_hit") LOCAL_HIT("local_hit"),
+    @SerializedName("remote_hit") REMOTE_HIT("remote_hit"),
+    @SerializedName("up_to_date") UP_TO_DATE("up_to_date"),
+    @SerializedName("executed") EXECUTED("executed"),
+    @SerializedName("failed") FAILED("failed"),
+    @SerializedName("skipped") SKIPPED("skipped"),
+    @SerializedName("no_source") NO_SOURCE("no_source");
+}
+
 data class TaskCacheMetadata(
     val cacheKey: String? = null,
     val artifactSize: Long? = null,
@@ -51,7 +61,7 @@ data class TaskCacheMetadata(
 
 data class TaskOutcomeData(
     val taskPath: String,
-    val outcome: String,
+    val outcome: TaskOutcome,
     val cacheable: Boolean,
     val durationMs: Long,
     val cacheKey: String?,
@@ -61,7 +71,7 @@ data class TaskOutcomeData(
 
 data class TaskReportEntry(
     @SerializedName("task_path") val taskPath: String,
-    val outcome: String,
+    val outcome: TaskOutcome,
     val cacheable: Boolean,
     @SerializedName("duration_ms") val durationMs: Long,
     @SerializedName("cache_key") val cacheKey: String?,
@@ -273,25 +283,25 @@ abstract class TuistBuildInsightsService :
                 when {
                     result.isFromCache -> {
                         val outcome = when (metadata?.cacheHitType) {
-                            CacheHitType.REMOTE -> "remote_hit"
-                            else -> "local_hit"
+                            CacheHitType.REMOTE -> TaskOutcome.REMOTE_HIT
+                            else -> TaskOutcome.LOCAL_HIT
                         }
                         outcome to true
                     }
-                    result.isUpToDate -> "up_to_date" to cacheableTaskPaths.contains(taskPath)
-                    else -> "executed" to cacheableTaskPaths.contains(taskPath)
+                    result.isUpToDate -> TaskOutcome.UP_TO_DATE to cacheableTaskPaths.contains(taskPath)
+                    else -> TaskOutcome.EXECUTED to cacheableTaskPaths.contains(taskPath)
                 }
             }
             is TaskFailureResult -> {
                 buildFailed = true
-                "failed" to cacheableTaskPaths.contains(taskPath)
+                TaskOutcome.FAILED to cacheableTaskPaths.contains(taskPath)
             }
             is TaskSkippedResult -> {
                 val skipMessage = result.skipMessage ?: ""
-                val outcomeStr = if (skipMessage.contains("NO-SOURCE", ignoreCase = true)) "no_source" else "skipped"
-                outcomeStr to false
+                val outcome = if (skipMessage.contains("NO-SOURCE", ignoreCase = true)) TaskOutcome.NO_SOURCE else TaskOutcome.SKIPPED
+                outcome to false
             }
-            else -> "executed" to false
+            else -> TaskOutcome.EXECUTED to false
         }
 
         val startedAt = Instant.ofEpochMilli(result.startTime)
@@ -347,7 +357,7 @@ abstract class TuistBuildInsightsService :
 
         val status = when {
             buildFailed -> "failure"
-            tasks.any { it.outcome == "failed" } -> "failure"
+            tasks.any { it.outcome == TaskOutcome.FAILED } -> "failure"
             else -> "success"
         }
 
