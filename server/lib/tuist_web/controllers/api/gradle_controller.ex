@@ -222,7 +222,7 @@ defmodule TuistWeb.API.GradleController do
             tasks_up_to_date_count: build.tasks_up_to_date_count,
             tasks_executed_count: build.tasks_executed_count,
             cacheable_tasks_count: build.cacheable_tasks_count,
-            cache_hit_rate: calculate_cache_hit_rate(build),
+            cache_hit_rate: Gradle.cache_hit_rate(build),
             inserted_at: build.inserted_at
           }
         end)
@@ -303,12 +303,12 @@ defmodule TuistWeb.API.GradleController do
 
   def get_build(%{assigns: %{selected_project: project}, params: %{build_id: build_id}} = conn, _params) do
     case Gradle.get_build(build_id) do
-      nil ->
+      {:error, :not_found} ->
         conn
         |> put_status(:not_found)
         |> json(%{message: "Build not found."})
 
-      build ->
+      {:ok, build} ->
         if build.project_id == project.id do
           tasks = Gradle.list_tasks(build_id)
 
@@ -331,7 +331,7 @@ defmodule TuistWeb.API.GradleController do
             tasks_skipped_count: build.tasks_skipped_count,
             tasks_no_source_count: build.tasks_no_source_count,
             cacheable_tasks_count: build.cacheable_tasks_count,
-            cache_hit_rate: calculate_cache_hit_rate(build),
+            cache_hit_rate: Gradle.cache_hit_rate(build),
             inserted_at: build.inserted_at,
             tasks:
               Enum.map(tasks, fn task ->
@@ -355,12 +355,4 @@ defmodule TuistWeb.API.GradleController do
     end
   end
 
-  defp calculate_cache_hit_rate(build) do
-    from_cache = (build.tasks_local_hit_count || 0) + (build.tasks_remote_hit_count || 0)
-    total = from_cache + (build.tasks_executed_count || 0)
-
-    if total > 0 do
-      Float.round(from_cache / total * 100.0, 1)
-    end
-  end
 end

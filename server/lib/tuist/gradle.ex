@@ -123,7 +123,10 @@ defmodule Tuist.Gradle do
         limit: 1
       )
 
-    ClickHouseRepo.one(query)
+    case ClickHouseRepo.one(query) do
+      nil -> {:error, :not_found}
+      build -> {:ok, build}
+    end
   end
 
   @doc """
@@ -293,6 +296,22 @@ defmodule Tuist.Gradle do
       end)
 
     IngestRepo.insert_all(CacheEvent, entries)
+  end
+
+  @doc """
+  Calculates the cache hit rate for a build as a percentage.
+
+  Returns `nil` if there are no cacheable tasks that were either
+  cache hits or executed.
+  """
+  @spec cache_hit_rate(Build.t()) :: float() | nil
+  def cache_hit_rate(build) do
+    from_cache = (build.tasks_local_hit_count || 0) + (build.tasks_remote_hit_count || 0)
+    total = from_cache + (build.tasks_executed_count || 0)
+
+    if total > 0 do
+      Float.round(from_cache / total * 100.0, 1)
+    end
   end
 
   defp to_naive_datetime(nil), do: nil

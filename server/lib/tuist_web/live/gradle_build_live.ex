@@ -23,16 +23,24 @@ defmodule TuistWeb.GradleBuildLive do
   def assign_mount(socket, build_id) do
     %{selected_project: project, selected_account: account} = socket.assigns
 
-    build = Gradle.get_build(build_id)
+    case Gradle.get_build(build_id) do
+      {:error, :not_found} ->
+        raise NotFoundError, dgettext("dashboard_gradle", "Build not found.")
 
-    if is_nil(build) or build.project_id != project.id do
-      raise NotFoundError, dgettext("dashboard_gradle", "Build not found.")
+      {:ok, build} ->
+        if build.project_id != project.id do
+          raise NotFoundError, dgettext("dashboard_gradle", "Build not found.")
+        end
+
+        assign_build(socket, build, account)
     end
+  end
 
+  defp assign_build(socket, build, account) do
     build = Repo.preload(build, :built_by_account)
 
-    build_started_at = Gradle.build_started_at(build_id)
-    aggregates = Gradle.task_cache_aggregates(build_id)
+    build_started_at = Gradle.build_started_at(build.id)
+    aggregates = Gradle.task_cache_aggregates(build.id)
 
     download_throughput =
       if aggregates.download_duration_ms > 0,
@@ -44,7 +52,7 @@ defmodule TuistWeb.GradleBuildLive do
         do: aggregates.cache_upload_bytes / (aggregates.upload_duration_ms / 1000),
         else: 0
 
-    slug = "#{account.name}/#{project.name}"
+    slug = "#{account.name}/#{socket.assigns.selected_project.name}"
     title = build.root_project_name || dgettext("dashboard_gradle", "Gradle Build")
 
     local_hits = build.tasks_local_hit_count || 0
@@ -52,11 +60,18 @@ defmodule TuistWeb.GradleBuildLive do
     from_cache = local_hits + remote_hits
     cacheable = build.cacheable_tasks_count || 0
 
+    cache_hit_rate =
+      if cacheable > 0,
+        do: Float.round(from_cache / cacheable * 100.0, 1),
+        else: 0.0
+
     socket
     |> assign(:build, build)
     |> assign(:build_started_at, build_started_at)
     |> assign(:from_cache, from_cache)
     |> assign(:cache_misses, cacheable - from_cache)
+    |> assign(:cacheable_count, cacheable)
+    |> assign(:cache_hit_rate, cache_hit_rate)
     |> assign(:cache_download_bytes, aggregates.cache_download_bytes)
     |> assign(:cache_upload_bytes, aggregates.cache_upload_bytes)
     |> assign(:download_throughput, download_throughput)

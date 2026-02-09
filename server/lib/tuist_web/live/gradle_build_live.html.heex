@@ -296,16 +296,9 @@
                 "The percentage of cacheable tasks that were cache hits (local + remote)."
               )
             }
-            value={
-              if cacheable > 0 do
-                hit_rate = Float.round(from_cache / cacheable * 100.0, 1)
-                dgettext("dashboard_gradle", "%{hit_rate}%", hit_rate: hit_rate)
-              else
-                "0%"
-              end
-            }
+            value={dgettext("dashboard_gradle", "%{hit_rate}%", hit_rate: @cache_hit_rate)}
             id="widget-hit-rate"
-            empty={cacheable == 0}
+            empty={@cacheable_count == 0}
           />
           <.widget
             title={dgettext("dashboard_gradle", "Cache downloads")}
