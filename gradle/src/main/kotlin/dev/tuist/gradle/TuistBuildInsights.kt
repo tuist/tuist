@@ -1,6 +1,5 @@
 package dev.tuist.gradle
 
-import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -27,10 +26,6 @@ import org.gradle.tooling.events.task.TaskFinishEvent
 import org.gradle.tooling.events.task.TaskFailureResult
 import org.gradle.tooling.events.task.TaskSkippedResult
 import org.gradle.tooling.events.task.TaskSuccessResult
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
 import java.net.URI
 import java.time.Instant
 import java.time.ZoneOffset
@@ -94,80 +89,6 @@ data class BuildReportRequest(
 
 data class BuildReportResponse(val id: String)
 
-// --- HTTP Client ---
-
-interface BuildInsightsHttpClient {
-    fun postBuildReport(url: URI, token: String, report: BuildReportRequest): BuildReportResponse?
-}
-
-class DefaultBuildInsightsHttpClient : BuildInsightsHttpClient {
-    private val gson = Gson()
-
-    override fun postBuildReport(url: URI, token: String, report: BuildReportRequest): BuildReportResponse? {
-        val connection = url.toURL().openConnection() as HttpURLConnection
-        try {
-            connection.requestMethod = "POST"
-            connection.doOutput = true
-            connection.connectTimeout = 10_000
-            connection.readTimeout = 10_000
-            connection.setRequestProperty("Content-Type", "application/json")
-            connection.setRequestProperty("Authorization", "Bearer $token")
-
-            OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
-                gson.toJson(report, writer)
-            }
-
-            return when (connection.responseCode) {
-                HttpURLConnection.HTTP_CREATED -> {
-                    BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
-                        gson.fromJson(reader, BuildReportResponse::class.java)
-                    }
-                }
-                else -> null
-            }
-        } finally {
-            connection.disconnect()
-        }
-    }
-}
-
-// --- CI Detection ---
-
-interface CIDetecting {
-    fun isCi(): Boolean
-}
-
-class DefaultCIDetector : CIDetecting {
-    override fun isCi(): Boolean = System.getenv("CI") != null
-}
-
-// --- Git Info ---
-
-interface GitInfoProviding {
-    fun branch(): String?
-    fun commitSha(): String?
-    fun ref(): String?
-}
-
-class DefaultGitInfoProvider : GitInfoProviding {
-    override fun branch(): String? = runGitCommand("rev-parse", "--abbrev-ref", "HEAD")
-    override fun commitSha(): String? = runGitCommand("rev-parse", "HEAD")
-    override fun ref(): String? = runGitCommand("describe", "--tags", "--always")
-
-    private fun runGitCommand(vararg args: String): String? {
-        return try {
-            val process = ProcessBuilder(listOf("git") + args)
-                .redirectErrorStream(true)
-                .start()
-            val output = process.inputStream.bufferedReader().readLine()?.trim()
-            val exitCode = process.waitFor()
-            if (exitCode == 0 && !output.isNullOrBlank()) output else null
-        } catch (e: Exception) {
-            null
-        }
-    }
-}
-
 // --- Build Service ---
 
 abstract class TuistBuildInsightsService :
@@ -184,8 +105,8 @@ abstract class TuistBuildInsightsService :
         val rootProjectName: Property<String>
     }
 
-    internal var gitInfoProvider: GitInfoProviding = DefaultGitInfoProvider()
-    internal var ciDetector: CIDetecting = DefaultCIDetector()
+    internal var gitInfoProvider: GitInfoProvider = ProcessGitInfoProvider()
+    internal var ciDetector: CIDetector = EnvironmentCIDetector()
 
     private val taskOutcomes = ConcurrentLinkedQueue<TaskOutcomeData>()
     private val cacheableTaskPaths = mutableSetOf<String>()
@@ -390,7 +311,7 @@ abstract class TuistBuildInsightsService :
         val baseUrl = parameters.url.get().trimEnd('/')
         val url = URI("$baseUrl/api/projects/$accountHandle/$projectHandle/gradle/builds")
 
-        val httpClient: BuildInsightsHttpClient = DefaultBuildInsightsHttpClient()
+        val httpClient: BuildInsightsHttpClient = UrlConnectionBuildInsightsHttpClient()
         val response = httpClient.postBuildReport(url, config.token, report)
 
         if (response != null) {

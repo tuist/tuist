@@ -37,7 +37,7 @@ class TuistBuildInsightsTest {
                 .addHeader("Content-Type", "application/json")
         )
 
-        val client = DefaultBuildInsightsHttpClient()
+        val client = UrlConnectionBuildInsightsHttpClient()
         val report = BuildReportRequest(
             durationMs = 5000,
             status = "success",
@@ -109,7 +109,7 @@ class TuistBuildInsightsTest {
                 .setBody("""{"error": "unauthorized"}""")
         )
 
-        val client = DefaultBuildInsightsHttpClient()
+        val client = UrlConnectionBuildInsightsHttpClient()
         val report = BuildReportRequest(
             durationMs = 1000,
             status = "success",
@@ -138,7 +138,7 @@ class TuistBuildInsightsTest {
                 .setBody("""{"error": "internal server error"}""")
         )
 
-        val client = DefaultBuildInsightsHttpClient()
+        val client = UrlConnectionBuildInsightsHttpClient()
         val report = BuildReportRequest(
             durationMs = 1000,
             status = "success",
