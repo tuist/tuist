@@ -32,8 +32,4 @@ tuist {
         push = true
         allowInsecureProtocol = true
     }
-
-    buildInsights {
-        enabled = true
-    }
 }
