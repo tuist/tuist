@@ -324,6 +324,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
 
     if Authorization.authorize(:project_update, assigns.current_user, alert_rule.project) == :ok do
       form = Map.get(assigns.edit_alert_forms, id)
+
       attrs = %{
         name: form.name,
         category: form.category,
