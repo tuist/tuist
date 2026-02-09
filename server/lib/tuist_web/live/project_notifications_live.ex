@@ -356,7 +356,7 @@ defmodule TuistWeb.ProjectNotificationsLive do
 
     if Authorization.authorize(:project_update, current_user, alert_rule.project) == :ok do
       {:ok, _} = Alerts.delete_alert_rule(alert_rule)
-      {:noreply, assign(socket, alert_rules: Alerts.get_project_alert_rules(selected_project))}
+      {:noreply, assign_alert_defaults(socket, selected_project)}
     else
       {:noreply, socket}
     end

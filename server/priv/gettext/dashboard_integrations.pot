@@ -41,12 +41,12 @@ msgstr ""
 msgid "Connect any of your GitHub repositories to a project"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:164
+#: lib/tuist_web/live/integrations_live.ex:163
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago}"
 msgstr ""
 
-#: lib/tuist_web/live/integrations_live.ex:166
+#: lib/tuist_web/live/integrations_live.ex:165
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago} by %{name}"
 msgstr ""
