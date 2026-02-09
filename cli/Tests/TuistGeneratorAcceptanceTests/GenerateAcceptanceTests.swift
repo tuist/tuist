@@ -1431,7 +1431,12 @@ final class GenerateAcceptanceTestAppWithMacBundle: TuistAcceptanceTestCase {
             ]
         )
         """
-        try await fileSystem.writeText(dynamicFrameworkPackageSwift, at: packageSwiftPath, encoding: .utf8, options: .init([.overwrite]))
+        try await fileSystem.writeText(
+            dynamicFrameworkPackageSwift,
+            at: packageSwiftPath,
+            encoding: .utf8,
+            options: .init([.overwrite])
+        )
 
         try await run(InstallCommand.self)
         try await run(GenerateCommand.self)
