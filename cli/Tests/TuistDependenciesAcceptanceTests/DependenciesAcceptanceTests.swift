@@ -3,8 +3,8 @@ import FileSystem
 import Testing
 import TuistAcceptanceTesting
 import TuistCacheCommand
-import TuistLogging
 import TuistLoggerTesting
+import TuistLogging
 import TuistNooraTesting
 import TuistSupport
 import TuistTesting

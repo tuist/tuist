@@ -11,9 +11,9 @@ import TuistConfigLoader
 import TuistCore
 import TuistGenerator
 import TuistLoader
-import TuistServer
 import TuistLoggerTesting
 import TuistNooraTesting
+import TuistServer
 import TuistSupport
 import XcodeGraph
 import XCTest

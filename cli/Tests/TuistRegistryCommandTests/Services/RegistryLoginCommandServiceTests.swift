@@ -7,8 +7,8 @@
     import TuistEnvironment
     import TuistHTTP
     import TuistLoader
-    import TuistServer
     import TuistNooraTesting
+    import TuistServer
     import TuistSupport
     import TuistTesting
     @testable import TuistRegistryCommand

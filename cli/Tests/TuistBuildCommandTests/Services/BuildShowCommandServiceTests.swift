@@ -9,8 +9,8 @@
     import TuistCore
     import TuistEnvironment
     import TuistLoader
-    import TuistServer
     import TuistNooraTesting
+    import TuistServer
     import TuistSupport
     import TuistTesting
 

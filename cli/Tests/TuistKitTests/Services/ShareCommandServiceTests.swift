@@ -10,8 +10,8 @@ import TuistConfigLoader
 import TuistConstants
 import TuistCore
 import TuistLoader
-import TuistServer
 import TuistNooraTesting
+import TuistServer
 import TuistSupport
 import TuistTesting
 import TuistUserInputReader

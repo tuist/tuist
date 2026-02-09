@@ -54,6 +54,8 @@ public enum Module: String, CaseIterable {
     case opener = "TuistOpener"
     case config = "TuistConfig"
     case configLoader = "TuistConfigLoader"
+    case nooraTesting = "TuistNooraTesting"
+    case loggerTesting = "TuistLoggerTesting"
 
     func forceStaticLinking() -> Bool {
         return Environment.forceStaticLinking.getBoolean(default: false)
@@ -283,7 +285,7 @@ public enum Module: String, CaseIterable {
              .constants, .environment, .logging,
              .envKey, .versionCommand, .encodable,
              .uniqueIDGenerator, .opener, .nooraExtension, .alert, .threadSafe,
-             .tuistExtension, .config:
+             .tuistExtension, .config, .nooraTesting, .loggerTesting:
             return nil
         default:
             return "\(rawValue)Tests"
@@ -394,7 +396,7 @@ public enum Module: String, CaseIterable {
             moduleTags.append("domain:cli")
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator:
             moduleTags.append("domain:cli-tools")
-        case .testing, .acceptanceTesting, .environmentTesting:
+        case .testing, .acceptanceTesting, .environmentTesting, .nooraTesting, .loggerTesting:
             moduleTags.append("domain:testing")
         case .automation:
             moduleTags.append("domain:automation")
@@ -422,7 +424,7 @@ public enum Module: String, CaseIterable {
             moduleTags.append("layer:foundation")
         case .tuist, .tuistBenchmark, .tuistFixtureGenerator:
             moduleTags.append("layer:tool")
-        case .testing, .acceptanceTesting, .environmentTesting:
+        case .testing, .acceptanceTesting, .environmentTesting, .nooraTesting, .loggerTesting:
             moduleTags.append("layer:testing")
         default:
             moduleTags.append("layer:feature")
@@ -447,6 +449,17 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.environment.targetName),
                     .external(name: "Path"),
                 ]
+            case .nooraTesting:
+                [
+                    .external(name: "Noora"),
+                    .target(name: Module.alert.targetName),
+                ]
+            case .loggerTesting:
+                [
+                    .target(name: Module.logging.targetName),
+                    .target(name: Module.environment.targetName),
+                    .external(name: "Logging"),
+                ]
             case .logging:
                 [
                     .target(name: Module.constants.targetName),
@@ -464,6 +477,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.support.targetName),
                     .target(name: Module.http.targetName),
                     .target(name: Module.alert.targetName),
+                    .target(name: Module.nooraTesting.targetName),
+                    .target(name: Module.loggerTesting.targetName),
                     .target(name: Module.environment.targetName),
                     .target(name: Module.environmentTesting.targetName),
                     .target(name: Module.logging.targetName),

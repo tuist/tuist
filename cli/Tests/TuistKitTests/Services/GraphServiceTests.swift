@@ -6,8 +6,8 @@ import ProjectAutomation
 import TuistConfigLoader
 import TuistCore
 import TuistLoader
-import TuistPlugin
 import TuistNooraTesting
+import TuistPlugin
 import TuistSupport
 import TuistTesting
 import XcodeGraph

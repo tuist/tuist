@@ -10,8 +10,8 @@ import TuistAlert
 import TuistCache
 import TuistConstants
 import TuistCore
-import TuistServer
 import TuistLoggerTesting
+import TuistServer
 import TuistSupport
 import XcodeGraph
 

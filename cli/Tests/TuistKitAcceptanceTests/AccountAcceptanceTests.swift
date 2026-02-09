@@ -1,10 +1,10 @@
 import Foundation
 import Testing
 import TuistAcceptanceTesting
-import TuistLogging
-import TuistServer
 import TuistLoggerTesting
+import TuistLogging
 import TuistNooraTesting
+import TuistServer
 import TuistSupport
 import TuistTesting
 

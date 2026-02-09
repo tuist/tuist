@@ -21,7 +21,7 @@ struct ProjectListServiceTests {
         )
     }
 
-    @Test(.withMockedNoora) func test_project_list() async throws {
+    @Test(.withMockedNoora) func project_list() async throws {
         // Given
         given(listProjectsService)
             .listProjects(serverURL: .value(serverURL))
@@ -47,7 +47,7 @@ struct ProjectListServiceTests {
         )
     }
 
-    @Test(.withMockedNoora) func test_project_list_when_none() async throws {
+    @Test(.withMockedNoora) func project_list_when_none() async throws {
         // Given
         given(listProjectsService)
             .listProjects(serverURL: .value(serverURL))

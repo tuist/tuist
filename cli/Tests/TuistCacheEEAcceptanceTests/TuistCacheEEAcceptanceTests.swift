@@ -7,8 +7,8 @@ import TuistAcceptanceTesting
 import TuistCacheCommand
 import TuistEnvironment
 import TuistEnvironmentTesting
-import TuistServer
 import TuistLoggerTesting
+import TuistServer
 import TuistSupport
 import TuistTesting
 import XcodeProj

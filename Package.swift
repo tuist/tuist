@@ -705,6 +705,8 @@ var targets: [Target] = [
             "TuistRegistryCommand",
             "TuistServer",
             "TuistConfigLoader",
+            "TuistEnvironmentTesting",
+            "TuistNooraTesting",
             mockableDependency,
             .target(name: "TuistTesting", condition: .when(platforms: [.macOS])),
             .target(name: "TuistLoader", condition: .when(platforms: [.macOS])),
@@ -730,11 +732,9 @@ var targets: [Target] = [
         dependencies: [
             "TuistTestCommand",
             "TuistServer",
+            "TuistEnvironmentTesting",
+            "TuistNooraTesting",
             mockableDependency,
-            .target(name: "TuistTesting", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistLoader", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistSupport", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistCore", condition: .when(platforms: [.macOS])),
         ],
         path: "cli/Tests/TuistTestCommandTests"
     ),
