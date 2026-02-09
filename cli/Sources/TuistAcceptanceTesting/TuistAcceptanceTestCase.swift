@@ -2,21 +2,15 @@ import FileSystem
 
 // swiftlint:disable force_try
 import Path
-#if canImport(TuistBuildCommand)
-    import TuistBuildCommand
-#endif
+import TuistBuildCommand
 import TuistCacheCommand
 import TuistCore
 import TuistEnvironment
 import TuistEnvironmentTesting
 import TuistExtension
-#if canImport(TuistGenerateCommand)
-    import TuistGenerateCommand
-#endif
+import TuistGenerateCommand
 @_exported import TuistKit
-#if canImport(TuistTestCommand)
-    import TuistTestCommand
-#endif
+import TuistTestCommand
 import XcodeProj
 import XCTest
 
