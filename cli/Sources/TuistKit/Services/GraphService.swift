@@ -5,9 +5,13 @@ import GraphViz
 import Path
 import ProjectAutomation
 import Tools
+import TuistAlert
+import TuistConfigLoader
 import TuistCore
+import TuistEnvironment
 import TuistGenerator
 import TuistLoader
+import TuistLogging
 import TuistPlugin
 import TuistSupport
 import XcodeGraph
@@ -29,7 +33,7 @@ final class GraphService {
             graphMapper: SequentialGraphMapper([])
         )
         let graphVizMapper = GraphToGraphVizMapper()
-        let configLoader = ConfigLoader(manifestLoader: manifestLoader)
+        let configLoader = ConfigLoader()
         self.init(
             graphVizGenerator: graphVizMapper,
             manifestGraphLoader: manifestGraphLoader,

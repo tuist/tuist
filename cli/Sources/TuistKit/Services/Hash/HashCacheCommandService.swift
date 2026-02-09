@@ -1,9 +1,13 @@
 import Foundation
 import Path
+import TuistAlert
 import TuistCache
+import TuistConfigLoader
 import TuistCore
+import TuistExtension
 import TuistHasher
 import TuistLoader
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 #if canImport(TuistCacheEE)
@@ -21,7 +25,7 @@ enum HashCacheCommandServiceError: LocalizedError, Equatable {
     }
 }
 
-final class HashCacheCommandService {
+public final class HashCacheCommandService: HashCacheServicing {
     #if canImport(TuistCacheEE)
         private let generatorFactory: CacheGeneratorFactorying
     #else
@@ -31,7 +35,7 @@ final class HashCacheCommandService {
     private let configLoader: ConfigLoading
     private let manifestLoader: ManifestLoading
 
-    convenience init(
+    public convenience init(
         contentHasher: ContentHashing = CachedContentHasher()
     ) {
         #if canImport(TuistCacheEE)
@@ -43,7 +47,7 @@ final class HashCacheCommandService {
         self.init(
             generatorFactory: generatorFactory,
             cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
-            configLoader: ConfigLoader(manifestLoader: manifestLoader),
+            configLoader: ConfigLoader(),
             manifestLoader: manifestLoader
         )
     }
@@ -82,7 +86,7 @@ final class HashCacheCommandService {
         }
     }
 
-    func run(
+    public func run(
         path: String?,
         configuration: String?
     ) async throws {
@@ -94,8 +98,6 @@ final class HashCacheCommandService {
         if try await manifestLoader.hasRootManifest(at: absolutePath) {
             let config = try await configLoader.loadConfig(path: absolutePath)
 
-            // Use the same generator as binaryCacheWarmingPreload to ensure consistent hashing
-            // Pass empty set to load all targets without filtering
             #if canImport(TuistCacheEE)
                 let generator = generatorFactory.binaryCacheWarmingPreload(
                     config: config,

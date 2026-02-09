@@ -1,5 +1,6 @@
 import Foundation
 import TuistSupport
+import TuistThreadSafe
 import XcodeGraph
 
 final class GraphCache<Key: Hashable, Value> {

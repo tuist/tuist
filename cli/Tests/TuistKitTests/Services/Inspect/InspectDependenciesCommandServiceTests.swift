@@ -2,7 +2,10 @@ import Foundation
 import Mockable
 import Path
 import Testing
+import TuistConfig
+import TuistConfigLoader
 import TuistCore
+import TuistGenerator
 import TuistLoader
 import TuistSupport
 import TuistTesting

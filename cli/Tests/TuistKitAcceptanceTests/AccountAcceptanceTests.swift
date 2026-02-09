@@ -1,6 +1,9 @@
 import Foundation
 import Testing
 import TuistAcceptanceTesting
+import TuistLoggerTesting
+import TuistLogging
+import TuistNooraTesting
 import TuistServer
 import TuistSupport
 import TuistTesting

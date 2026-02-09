@@ -6,7 +6,10 @@ import Mockable
 import OpenAPIRuntime
 import Path
 import Testing
+import TuistAlert
+import TuistConstants
 import TuistCore
+import TuistLoggerTesting
 import TuistServer
 import TuistSupport
 import XcodeGraph

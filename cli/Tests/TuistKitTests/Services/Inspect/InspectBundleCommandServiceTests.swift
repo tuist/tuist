@@ -5,6 +5,7 @@ import Mockable
 import Path
 import Rosalind
 import Testing
+import TuistConfigLoader
 import TuistGit
 import TuistLoader
 import TuistServer

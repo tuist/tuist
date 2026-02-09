@@ -1,7 +1,9 @@
 import Mockable
 import Path
+import TuistConfigLoader
 import TuistCore
 import TuistLoader
+import TuistOpener
 import TuistPlugin
 import TuistSupport
 import XcodeProj

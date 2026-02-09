@@ -2,6 +2,10 @@ import Command
 import FileSystem
 import Testing
 import TuistAcceptanceTesting
+import TuistCacheCommand
+import TuistLoggerTesting
+import TuistLogging
+import TuistNooraTesting
 import TuistSupport
 import TuistTesting
 import XcodeProj

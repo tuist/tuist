@@ -3,8 +3,13 @@ import Foundation
 import Noora
 import Path
 import Rosalind
+import TuistAlert
+import TuistConfigLoader
+import TuistEncodable
+import TuistEnvironment
 import TuistGit
 import TuistLoader
+import TuistLogging
 import TuistServer
 import TuistSupport
 

@@ -6,6 +6,7 @@
     import Path
     import TuistAutomation
     import TuistCore
+    import TuistEnvironment
     import TuistGit
     import TuistSimulator
     import TuistSupport

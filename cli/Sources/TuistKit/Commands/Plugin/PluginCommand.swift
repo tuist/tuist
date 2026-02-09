@@ -1,8 +1,10 @@
 import ArgumentParser
 import Foundation
 
-struct PluginCommand: ParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct PluginCommand: ParsableCommand {
+    public init() {}
+
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "plugin",
             abstract: "A set of commands for plugin's management.",

@@ -3,9 +3,19 @@ import Difference
 import Foundation
 import Testing
 import TSCUtility
+import TuistEnvironment
+import TuistEnvKey
+import TuistVersionCommand
+@testable import TuistAuthCommand
+@testable import TuistBuildCommand
+@testable import TuistCacheCommand
 @testable import TuistCore
+@testable import TuistGenerateCommand
 @testable import TuistKit
+@testable import TuistOrganizationCommand
+@testable import TuistProjectCommand
 @testable import TuistSupport
+@testable import TuistTestCommand
 @testable import TuistTesting
 
 struct CommandEnvironmentVariableTests {
@@ -817,18 +827,6 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.path == "/new/member/path")
     }
 
-    @Test(.withMockedEnvironment()) func loginCommandUsesEnvVars() throws {
-        setVariable(.authPath, value: "/path/to/auth")
-
-        let commandWithEnvVars = try LoginCommand.parse([])
-        #expect(commandWithEnvVars.path == "/path/to/auth")
-
-        let commandWithArgs = try LoginCommand.parse([
-            "--path", "/new/auth/path",
-        ])
-        #expect(commandWithArgs.path == "/new/auth/path")
-    }
-
     @Test(.withMockedEnvironment()) func whoamiCommandUsesEnvVars() throws {
         setVariable(.whoamiPath, value: "/path/to/session")
 
@@ -884,5 +882,22 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.configuration == "CacheConfig")
         #expect(commandWithArgs.path == "/cache/path")
         #expect(commandWithArgs.targets == ["Fmk1", "Fmk2"])
+    }
+
+    @Test(.withMockedEnvironment()) func tuistVariablesFiltersTuistAndCIOnly() throws {
+        Environment.mocked?.variables = [
+            "TUIST_FOO": "1",
+            "TUIST_BAR": "abc",
+            "CI": "true",
+            "SOME_TOSTER_VARIABLE": "123",
+        ]
+
+        let filtered = Environment.mocked?.tuistVariables ?? [:]
+
+        #expect(filtered["TUIST_FOO"] == "1")
+        #expect(filtered["TUIST_BAR"] == "abc")
+        #expect(filtered["CI"] == "true")
+
+        #expect(filtered["SOME_TOSTER_VARIABLE"] == nil)
     }
 }

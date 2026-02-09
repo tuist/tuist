@@ -1,6 +1,7 @@
 import Foundation
 import Path
 import ProjectAutomation
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 

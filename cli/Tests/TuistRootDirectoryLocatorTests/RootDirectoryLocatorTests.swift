@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TuistConstants
 import TuistCore
 import TuistSupport
 import TuistTesting
@@ -51,6 +52,20 @@ final class RootDirectoryLocatorTests: TuistTestCase {
         let temporaryDirectory = try temporaryPath()
         try createFolders(["this/is/a/very/nested/directory"])
         try await createFiles(["this/is/\(Constants.tuistManifestFileName)"])
+
+        // When
+        let got = try await subject
+            .locate(from: temporaryDirectory.appending(try RelativePath(validating: "this/is/a/very/nested/directory")))
+
+        // Then
+        XCTAssertEqual(got, temporaryDirectory.appending(try RelativePath(validating: "this/is")))
+    }
+
+    func test_locate_when_a_tuist_toml_file_exists() async throws {
+        // Given
+        let temporaryDirectory = try temporaryPath()
+        try createFolders(["this/is/a/very/nested/directory"])
+        try await createFiles(["this/is/\(Constants.tuistTomlFileName)"])
 
         // When
         let got = try await subject

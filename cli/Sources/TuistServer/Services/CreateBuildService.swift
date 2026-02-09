@@ -3,7 +3,7 @@ import Mockable
 import OpenAPIURLSession
 import TuistHTTP
 
-#if canImport(TuistSupport)
+#if canImport(TuistXCActivityLog)
     import TuistCI
     import TuistSupport
     import TuistXCActivityLog

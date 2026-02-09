@@ -1,3 +1,4 @@
+import TuistConfig
 import TuistCore
 import XcodeGraph
 

@@ -4,6 +4,7 @@ import HTTPTypes
 import OpenAPIRuntime
 import OpenAPIURLSession
 import Testing
+import TuistEnvironmentTesting
 import TuistSupport
 import TuistTesting
 @testable import TuistCacheEE

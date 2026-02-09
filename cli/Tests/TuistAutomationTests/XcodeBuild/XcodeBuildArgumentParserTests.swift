@@ -1,6 +1,8 @@
 import Foundation
 import Testing
+import TuistEnvironment
 import TuistSupport
+import TuistTesting
 import XcodeGraph
 
 @testable import TuistAutomation

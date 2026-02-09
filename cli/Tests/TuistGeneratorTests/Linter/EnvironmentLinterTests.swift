@@ -3,6 +3,7 @@ import FileSystemTesting
 import Foundation
 import Mockable
 import Testing
+import TuistConfig
 import TuistCore
 import TuistRootDirectoryLocator
 import TuistSupport
@@ -24,8 +25,8 @@ struct EnvironmentLinterTests {
         let configGeneratedProjectOptions = [
             TuistGeneratedProjectOptions.test(compatibleXcodeVersions: "4.3.2"),
             TuistGeneratedProjectOptions.test(compatibleXcodeVersions: .exact("4.3.2")),
-            TuistGeneratedProjectOptions.test(compatibleXcodeVersions: .upToNextMajor("4.0")),
-            TuistGeneratedProjectOptions.test(compatibleXcodeVersions: .upToNextMinor("4.3")),
+            TuistGeneratedProjectOptions.test(compatibleXcodeVersions: .upToNextMajor("4.0.0")),
+            TuistGeneratedProjectOptions.test(compatibleXcodeVersions: .upToNextMinor("4.3.0")),
             TuistGeneratedProjectOptions.test(compatibleXcodeVersions: ["1.0", "4.3.2"]),
         ]
 
@@ -48,8 +49,8 @@ struct EnvironmentLinterTests {
         let configGeneratedProjectOptions = [
             TuistGeneratedProjectOptions.test(compatibleXcodeVersions: "4.3.1"),
             TuistGeneratedProjectOptions.test(compatibleXcodeVersions: .exact("4.3.1")),
-            TuistGeneratedProjectOptions.test(compatibleXcodeVersions: .upToNextMajor("3.0")),
-            TuistGeneratedProjectOptions.test(compatibleXcodeVersions: .upToNextMajor("5.0")),
+            TuistGeneratedProjectOptions.test(compatibleXcodeVersions: .upToNextMajor("3.0.0")),
+            TuistGeneratedProjectOptions.test(compatibleXcodeVersions: .upToNextMajor("5.0.0")),
             TuistGeneratedProjectOptions.test(compatibleXcodeVersions: .upToNextMinor("4.2.0")),
             TuistGeneratedProjectOptions.test(compatibleXcodeVersions: .upToNextMinor("4.3.3")),
             TuistGeneratedProjectOptions.test(compatibleXcodeVersions: ["4.3", "4.3.3"]),

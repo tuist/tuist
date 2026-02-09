@@ -1,11 +1,15 @@
 import FileSystem
 import Foundation
 import Path
+import TuistAlert
 import TuistAutomation
 import TuistCI
+import TuistConfigLoader
 import TuistCore
+import TuistEnvironment
 import TuistGit
 import TuistLoader
+import TuistLogging
 import TuistProcess
 import TuistServer
 import TuistSupport
@@ -103,7 +107,9 @@ struct InspectBuildCommandService {
             return
         }
         let basePath = try await self.path(path)
+        Logger.current.debug("Inspect build: base path resolved to \(basePath.pathString)")
         let projectPath = try await xcodeProjectOrWorkspacePathLocator.locate(from: basePath)
+        Logger.current.debug("Inspect build: project path resolved to \(projectPath.pathString)")
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
         var projectDerivedDataDirectory: AbsolutePath! = try derivedDataPath.map { try AbsolutePath(
             validating: $0,
@@ -112,6 +118,13 @@ struct InspectBuildCommandService {
         if projectDerivedDataDirectory == nil {
             projectDerivedDataDirectory = try await derivedDataLocator.locate(for: projectPath)
         }
+        Logger.current.debug("Inspect build: derived data directory resolved to \(projectDerivedDataDirectory.pathString)")
+        Logger.current
+            .debug("Inspect build: workspace path from environment is \(Environment.current.workspacePath?.pathString ?? "nil")")
+        Logger.current
+            .debug(
+                "Inspect build: reference date is \(referenceDate) (timeIntervalSinceReferenceDate: \(referenceDate.timeIntervalSinceReferenceDate))"
+            )
 
         let mostRecentActivityLogPath = try await mostRecentActivityLogPath(
             projectPath: projectPath,
@@ -150,6 +163,7 @@ struct InspectBuildCommandService {
                     mostRecentActivityLogPath = mostRecentActivityLogFile.path
                 }
                 if mostRecentActivityLogPath != nil {
+                    Logger.current.debug("Inspect build: using activity log at \(mostRecentActivityLogPath.pathString)")
                     return
                 }
 
@@ -201,7 +215,11 @@ struct InspectBuildCommandService {
             ciHost: ciInfo?.host,
             ciProvider: ciInfo?.provider,
             cacheableTasks: xcactivityLog.cacheableTasks,
-            casOutputs: xcactivityLog.casOutputs
+            // When upload is disabled, the cache proxy skips uploads but still returns a successful response
+            // to Xcode (which has no mechanism to skip an upload). To ensure CAS outputs don't show as
+            // "Uploaded" in analytics, we filter them out here.
+            casOutputs: config.cache.upload ? xcactivityLog.casOutputs :
+                xcactivityLog.casOutputs.filter { $0.operation != .upload }
         )
         AlertController.current.success(
             .alert("View the analyzed build at \(build.url.absoluteString)")

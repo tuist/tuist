@@ -1,6 +1,7 @@
 import Mockable
 import struct TSCUtility.Version
 import TuistCore
+import TuistOpener
 import TuistSupport
 import TuistTesting
 import XcodeGraph

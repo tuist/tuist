@@ -1,5 +1,6 @@
 import Testing
 import TuistCore
+import TuistLoggerTesting
 import XcodeGraph
 
 @testable import TuistCacheEE

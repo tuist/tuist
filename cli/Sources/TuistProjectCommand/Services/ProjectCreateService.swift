@@ -1,0 +1,46 @@
+import Foundation
+import Path
+import TuistConfigLoader
+import TuistEnvironment
+import TuistLogging
+import TuistServer
+
+protocol ProjectCreateServicing {
+    func run(
+        fullHandle: String,
+        directory: String?
+    ) async throws
+}
+
+final class ProjectCreateService: ProjectCreateServicing {
+    private let createProjectService: CreateProjectServicing
+    private let serverEnvironmentService: ServerEnvironmentServicing
+    private let configLoader: ConfigLoading
+
+    init(
+        createProjectService: CreateProjectServicing = CreateProjectService(),
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+        configLoader: ConfigLoading = ConfigLoader()
+    ) {
+        self.createProjectService = createProjectService
+        self.serverEnvironmentService = serverEnvironmentService
+        self.configLoader = configLoader
+    }
+
+    func run(
+        fullHandle: String,
+        directory: String?
+    ) async throws {
+        let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(directory)
+        let config = try await configLoader.loadConfig(path: directoryPath)
+
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+
+        let project = try await createProjectService.createProject(
+            fullHandle: fullHandle,
+            serverURL: serverURL
+        )
+
+        Logger.current.info("Tuist project \(project.fullName) was successfully created 🎉")
+    }
+}

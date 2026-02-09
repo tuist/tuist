@@ -2,8 +2,9 @@ import ArgumentParser
 import Path
 import TuistSupport
 
-struct CacheStartCommand: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(
+public struct CacheStartCommand: AsyncParsableCommand {
+    public init() {}
+    public static let configuration = CommandConfiguration(
         commandName: "cache-start",
         abstract: "Start a proxy server to listen for Xcode Compilation Cache requests",
         shouldDisplay: false
@@ -20,10 +21,17 @@ struct CacheStartCommand: AsyncParsableCommand {
     )
     var url: String?
 
-    func run() async throws {
+    @Flag(
+        inversion: .prefixedNo,
+        help: "Whether to upload cache artifacts to the remote. Defaults to true."
+    )
+    var upload: Bool = true
+
+    public func run() async throws {
         try await CacheStartCommandService().run(
             fullHandle: fullHandle,
-            url: url
+            url: url,
+            upload: upload
         )
     }
 }

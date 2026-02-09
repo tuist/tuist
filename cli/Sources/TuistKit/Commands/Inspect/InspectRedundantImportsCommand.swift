@@ -1,4 +1,5 @@
 import ArgumentParser
+import TuistAlert
 import TuistSupport
 
 struct InspectRedundantImportsCommand: AsyncParsableCommand {

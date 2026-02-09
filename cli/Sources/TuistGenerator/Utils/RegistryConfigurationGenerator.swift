@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import TuistConstants
 import TuistSupport
 
 public protocol RegistryConfigurationGenerating {

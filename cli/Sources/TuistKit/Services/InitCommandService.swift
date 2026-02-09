@@ -3,6 +3,10 @@ import FileSystem
 import Foundation
 import Noora
 import Path
+import TuistAlert
+import TuistAuthCommand
+import TuistConstants
+import TuistEnvironment
 import TuistServer
 import TuistSupport
 
@@ -20,7 +24,7 @@ public enum InitCommandServiceError: LocalizedError {
 public struct InitCommandService {
     private let fileSystem: FileSystem
     private let prompter: InitPrompting
-    private let loginService: LoginServicing
+    private let loginService: LoginCommandServicing
     private let createProjectService: CreateProjectServicing
     private let createOrganizationService: CreateOrganizationServicing
     private let listOrganizationsService: ListOrganizationsServicing
@@ -60,7 +64,7 @@ public struct InitCommandService {
     init(
         fileSystem: FileSystem = FileSystem(),
         prompter: InitPrompting = InitPrompter(),
-        loginService: LoginServicing = LoginService(),
+        loginService: LoginCommandServicing = LoginCommandService(),
         createProjectService: CreateProjectServicing = CreateProjectService(),
         serverSessionController: ServerSessionControlling = ServerSessionController(),
         initGeneratedProjectService: InitGeneratedProjectServicing = InitGeneratedProjectService(),
@@ -209,7 +213,7 @@ public struct InitCommandService {
                     errorMessage: "Authentication failed",
                     visibleLines: 3,
                     task: { progress in
-                        try await loginService.run(email: nil, password: nil, directory: nil) {
+                        try await loginService.run(email: nil, password: nil, serverURL: nil) {
                             event in
                             switch event {
                             case let .openingBrowser(url):

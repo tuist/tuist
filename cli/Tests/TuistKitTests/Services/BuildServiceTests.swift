@@ -6,8 +6,13 @@ import Path
 import Testing
 import TSCUtility
 import TuistAutomation
+import TuistConfig
+import TuistConfigLoader
 import TuistCore
+import TuistGenerator
 import TuistLoader
+import TuistLoggerTesting
+import TuistNooraTesting
 import TuistServer
 import TuistSupport
 import XcodeGraph

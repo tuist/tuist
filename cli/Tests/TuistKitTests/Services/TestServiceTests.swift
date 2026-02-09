@@ -1,10 +1,15 @@
 import Foundation
 import Mockable
 import Path
+import TuistAlert
 import TuistAutomation
 import TuistCache
 import TuistCI
+import TuistConfig
+import TuistConfigLoader
+import TuistConstants
 import TuistCore
+import TuistGenerator
 import TuistGit
 import TuistLoader
 import TuistServer

@@ -4,9 +4,13 @@ import Path
 import SnapshotTesting
 import Testing
 import TuistCache
+import TuistConfig
+import TuistConfigLoader
 import TuistCore
+import TuistGenerator
 import TuistHasher
 import TuistLoader
+import TuistNooraTesting
 import TuistSupport
 import TuistTesting
 import XcodeGraph

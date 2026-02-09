@@ -3,8 +3,10 @@ import Foundation
 import GraphViz
 import Mockable
 import ProjectAutomation
+import TuistConfigLoader
 import TuistCore
 import TuistLoader
+import TuistNooraTesting
 import TuistPlugin
 import TuistSupport
 import TuistTesting

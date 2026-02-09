@@ -1,9 +1,13 @@
 import FileSystem
 import Foundation
 import Path
+import TuistAlert
 import TuistAutomation
+import TuistConfigLoader
 import TuistCore
+import TuistEnvironment
 import TuistLoader
+import TuistLogging
 import TuistProcess
 import TuistServer
 import TuistSupport
@@ -104,8 +108,12 @@ struct InspectTestCommandService {
         derivedDataPath: String?
     ) async throws -> (resultBundlePath: AbsolutePath, derivedDataDirectory: AbsolutePath?) {
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+        Logger.current.debug("Inspect test: base path is \(basePath.pathString)")
+        Logger.current
+            .debug("Inspect test: workspace path from environment is \(Environment.current.workspacePath?.pathString ?? "nil")")
 
         if let resultBundlePath {
+            Logger.current.debug("Inspect test: using explicit result bundle path \(resultBundlePath)")
             let derivedDataDirectory: AbsolutePath? = if let derivedDataPath {
                 try AbsolutePath(
                     validating: derivedDataPath,
@@ -124,6 +132,7 @@ struct InspectTestCommandService {
         }
 
         let projectPath = try await xcodeProjectOrWorkspacePathLocator.locate(from: basePath)
+        Logger.current.debug("Inspect test: project path resolved to \(projectPath.pathString)")
         let projectDerivedDataDirectory = if let derivedDataPath {
             try AbsolutePath(
                 validating: derivedDataPath,
@@ -132,12 +141,15 @@ struct InspectTestCommandService {
         } else {
             try await derivedDataLocator.locate(for: projectPath)
         }
+        Logger.current.debug("Inspect test: derived data directory resolved to \(projectDerivedDataDirectory.pathString)")
 
         guard let xcResultPath = try await xcResultService
             .mostRecentXCResultFile(projectDerivedDataDirectory: projectDerivedDataDirectory)
         else {
+            Logger.current.debug("Inspect test: no result bundle found in \(projectDerivedDataDirectory.pathString)")
             throw InspectTestCommandServiceError.mostRecentResultBundleNotFound(projectDerivedDataDirectory)
         }
+        Logger.current.debug("Inspect test: using result bundle at \(xcResultPath.pathString)")
         return (xcResultPath, projectDerivedDataDirectory)
     }
 }

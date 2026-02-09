@@ -5,10 +5,12 @@ import Mockable
 import Path
 import Testing
 import TuistAutomation
+import TuistConfigLoader
 import TuistCore
 import TuistLoader
 import TuistSupport
 import TuistTesting
+import TuistUniqueIDGenerator
 import TuistXCActivityLog
 
 @testable import TuistKit

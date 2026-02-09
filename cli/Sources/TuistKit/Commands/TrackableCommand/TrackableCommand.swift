@@ -5,6 +5,8 @@ import OpenAPIRuntime
 import Path
 import TuistCache
 import TuistCore
+import TuistEnvironment
+import TuistLogging
 import TuistProcess
 import TuistServer
 import TuistSupport

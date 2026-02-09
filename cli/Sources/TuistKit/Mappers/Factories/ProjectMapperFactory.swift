@@ -1,5 +1,6 @@
 import Foundation
 import TuistAutomation
+import TuistConfig
 import TuistCore
 import TuistDependencies
 import TuistGenerator

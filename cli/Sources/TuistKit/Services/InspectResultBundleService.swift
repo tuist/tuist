@@ -4,7 +4,9 @@ import Mockable
 import Path
 import TuistAutomation
 import TuistCI
+import TuistConfig
 import TuistCore
+import TuistEnvironment
 import TuistGit
 import TuistLoader
 import TuistRootDirectoryLocator

@@ -4,10 +4,11 @@ import Foundation
 import Mockable
 import Noora
 import Testing
+import TuistAuthCommand
+import TuistConstants
 import TuistServer
 import TuistSupport
 import TuistTesting
-
 @testable import TuistKit
 
 private struct MockKeyStrokeListening: KeyStrokeListening {
@@ -23,7 +24,7 @@ private struct MockKeyStrokeListening: KeyStrokeListening {
 struct InitCommandServiceTests {
     private let fileSystem = FileSystem()
     private let prompter = MockInitPrompting()
-    private let loginService = MockLoginServicing()
+    private let loginService = MockLoginCommandServicing()
     private let createProjectService = MockCreateProjectServicing()
     private let serverSessionController = MockServerSessionControlling()
     private let startGeneratedProjectService = InitGeneratedProjectService()
@@ -74,7 +75,7 @@ struct InitCommandServiceTests {
                 serverURL: .value(Constants.URLs.production)
             ).willReturn(.test())
             given(loginService).run(
-                email: .value(nil), password: .value(nil), directory: .any, onEvent: .any
+                email: .value(nil), password: .value(nil), serverURL: .any, onEvent: .any
             ).willReturn()
             given(serverSessionController).whoami(serverURL: .value(Constants.URLs.production))
                 .willReturn("account")
@@ -172,7 +173,7 @@ struct InitCommandServiceTests {
             )
             .willReturn(.userAccount("account"))
             given(loginService).run(
-                email: .value(nil), password: .value(nil), directory: .any, onEvent: .any
+                email: .value(nil), password: .value(nil), serverURL: .any, onEvent: .any
             ).willReturn()
             given(serverSessionController).whoami(serverURL: .value(Constants.URLs.production))
                 .willReturn("account")
@@ -275,7 +276,7 @@ struct InitCommandServiceTests {
                 organizations: .value([organizationName])
             ).willReturn(.organization(organizationName))
             given(loginService).run(
-                email: .value(nil), password: .value(nil), directory: .any, onEvent: .any
+                email: .value(nil), password: .value(nil), serverURL: .any, onEvent: .any
             ).willReturn()
             given(serverSessionController).whoami(serverURL: .value(Constants.URLs.production))
                 .willReturn("account")

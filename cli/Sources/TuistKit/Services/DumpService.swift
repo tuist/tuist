@@ -1,8 +1,11 @@
 import Foundation
 import Path
 import TSCBasic
+import TuistConfigLoader
 import TuistCore
+import TuistEncodable
 import TuistLoader
+import TuistLogging
 import TuistPlugin
 import TuistSupport
 

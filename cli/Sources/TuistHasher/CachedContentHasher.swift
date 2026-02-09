@@ -2,6 +2,7 @@ import Foundation
 import Path
 import TuistCore
 import TuistSupport
+import TuistThreadSafe
 
 /// `CachedContentHasher`
 /// is a wrapper on top of `ContentHasher` that adds an in-memory cache to avoid re-computing the same hashes

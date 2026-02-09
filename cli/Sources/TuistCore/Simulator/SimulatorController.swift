@@ -2,7 +2,10 @@ import Foundation
 import Mockable
 import Path
 import struct TSCUtility.Version
+import TuistEnvironment
+import TuistLogging
 import TuistSupport
+import TuistUserInputReader
 import XcodeGraph
 
 @Mockable

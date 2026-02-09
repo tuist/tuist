@@ -163,47 +163,19 @@
       </h2>
     </section>
 
-    <section data-part="features" aria-label="Product features">
-      <div data-part="row">
-        <article data-part="generated-projects">
-          <a
-            data-part="overlay-link"
-            href={localized_href("https://docs.tuist.dev/guides/features/projects")}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={
-              dgettext("marketing", "Open the %{feature} feature documentation",
-                feature: dgettext("marketing", "Generated projects")
-              )
-            }
-          >
-          </a>
-          <div data-part="background" aria-hidden="true">
-            <img
-              src="/marketing/images/features/generated-projects/background.webp"
-              alt=""
-            />
-          </div>
-          <div data-part="graphic">
-            <img
-              src="/marketing/images/features/generated-projects/graphic.webp"
-              alt=""
-            />
-          </div>
-          <div data-part="content">
-            <p data-part="title">
-              {dgettext("marketing", "Generated Projects")} <.arrow_right />
-            </p>
-            <p data-part="description">
-              {dgettext(
-                "marketing",
-                "Turn projects defined with a Swift-DSL into Xcode workspaces and projects."
-              )}
-            </p>
-          </div>
-        </article>
+    <section data-part="builds-feature" aria-labelledby="builds-heading">
+      <header data-part="sidebar">
+        <h2 id="builds-heading" data-part="title">{dgettext("marketing", "Builds")}</h2>
+        <p data-part="description">
+          {dgettext(
+            "marketing",
+            "Skip the manual steps, auto-generate projects, speed up builds, and explore insights with built-in analytics."
+          )}
+        </p>
+      </header>
 
-        <article data-part="cache">
+      <div data-part="content">
+        <div data-part="feature-block" data-variant="cache">
           <a
             data-part="overlay-link"
             href={localized_href("https://docs.tuist.dev/guides/features/cache")}
@@ -216,29 +188,214 @@
             }
           >
           </a>
-          <div data-part="background" aria-hidden="true">
+          <div data-part="image-container">
             <img
-              src="/marketing/images/features/cache/background.webp"
-              alt=""
+              data-part="illustration"
+              src="/marketing/images/features/section/cache.webp"
+              alt={
+                dgettext(
+                  "marketing",
+                  "Cache hit rate dashboard showing 90% hit rate and 14.2 hours saved this week"
+                )
+              }
             />
           </div>
-          <div data-part="graphic">
-            <img src="/marketing/images/features/cache/graphic.webp" alt="" />
-          </div>
-          <div data-part="content">
-            <p data-part="title">{dgettext("marketing", "Cache")} <.arrow_right /></p>
-            <p data-part="description">
+          <div data-part="feature-info">
+            <h3 data-part="feature-title">{dgettext("marketing", "Cache")} <.arrow_right /></h3>
+            <p data-part="feature-description">
               {dgettext(
                 "marketing",
                 "Speeds up builds by reusing compiled binaries, cutting down build times in both local development and CI."
               )}
             </p>
           </div>
-        </article>
-      </div>
+        </div>
 
-      <div data-part="row">
-        <article data-part="previews">
+        <div data-part="feature-block" data-variant="insights">
+          <a
+            data-part="overlay-link"
+            href={localized_href("https://docs.tuist.dev/guides/features/insights")}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={
+              dgettext("marketing", "Open the %{feature} feature documentation",
+                feature: dgettext("marketing", "Insights")
+              )
+            }
+          >
+          </a>
+          <div data-part="image-container">
+            <img
+              data-part="illustration"
+              src="/marketing/images/features/section/insights.webp"
+              alt={
+                dgettext(
+                  "marketing",
+                  "Build insights chart showing build duration metrics with p90, p99, and average percentiles"
+                )
+              }
+            />
+          </div>
+          <div data-part="feature-info">
+            <h3 data-part="feature-title">
+              {dgettext("marketing", "Insights")} <.arrow_right />
+            </h3>
+            <p data-part="feature-description">
+              {dgettext(
+                "marketing",
+                "Monitor build performance across local and CI environments to catch slowdowns before they become bottlenecks."
+              )}
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section data-part="tests-feature" aria-labelledby="tests-heading">
+      <header data-part="sidebar">
+        <h2 id="tests-heading" data-part="title">{dgettext("marketing", "Tests")}</h2>
+        <p data-part="description">
+          {dgettext(
+            "marketing",
+            "Run only impacted tests based on your changes for faster feedback loops and less waiting — both locally and on CI."
+          )}
+        </p>
+      </header>
+
+      <div data-part="content">
+        <div data-part="feature-block" data-variant="selective-testing">
+          <a
+            data-part="overlay-link"
+            href={localized_href("https://docs.tuist.dev/guides/features/selective-testing")}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={
+              dgettext("marketing", "Open the %{feature} feature documentation",
+                feature: dgettext("marketing", "Selective Testing")
+              )
+            }
+          >
+          </a>
+          <div data-part="image-container">
+            <img
+              data-part="illustration"
+              src="/marketing/images/features/section/selective-testing.webp"
+              alt={
+                dgettext(
+                  "marketing",
+                  "Selective testing dashboard showing tests skipped with 134/196 tests skipped and 15.8h saved this week"
+                )
+              }
+            />
+          </div>
+          <div data-part="feature-info">
+            <h3 data-part="feature-title">
+              {dgettext("marketing", "Selective Testing")} <.arrow_right />
+            </h3>
+            <p data-part="feature-description">
+              {dgettext(
+                "marketing",
+                "Run only the tests that matter by detecting changes since your last successful run, cutting down test times in both local development and CI."
+              )}
+            </p>
+          </div>
+        </div>
+
+        <div data-part="feature-row">
+          <div data-part="feature-block" data-variant="flaky-tests">
+            <a
+              data-part="overlay-link"
+              href={localized_href("https://docs.tuist.dev/guides/features/flaky-tests")}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={
+                dgettext("marketing", "Open the %{feature} feature documentation",
+                  feature: dgettext("marketing", "Flaky Tests")
+                )
+              }
+            >
+            </a>
+            <div data-part="image-container">
+              <img
+                data-part="illustration"
+                src="/marketing/images/features/section/flaky-tests.webp"
+                alt={
+                  dgettext(
+                    "marketing",
+                    "Flaky tests dashboard showing test history and automation creation modal"
+                  )
+                }
+              />
+            </div>
+            <div data-part="feature-info">
+              <h3 data-part="feature-title">
+                {dgettext("marketing", "Flaky Tests")} <.arrow_right />
+              </h3>
+              <p data-part="feature-description">
+                {dgettext(
+                  "marketing",
+                  "Automatically detect flaky tests that fail without code changes and reduce time spent investigating false failures."
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div data-part="feature-block" data-variant="test-insights">
+            <a
+              data-part="overlay-link"
+              href={localized_href("https://docs.tuist.dev/guides/features/test-insights")}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={
+                dgettext("marketing", "Open the %{feature} feature documentation",
+                  feature: dgettext("marketing", "Test Insights")
+                )
+              }
+            >
+            </a>
+            <div data-part="image-container">
+              <img
+                data-part="illustration"
+                src="/marketing/images/features/section/test-insights.webp"
+                alt={
+                  dgettext(
+                    "marketing",
+                    "Test insights showing test runs, flaky tests, failed test runs, and p90 test run duration metrics"
+                  )
+                }
+              />
+            </div>
+            <div data-part="feature-info">
+              <h3 data-part="feature-title">
+                {dgettext("marketing", "Insights")} <.arrow_right />
+              </h3>
+              <p data-part="feature-description">
+                {dgettext(
+                  "marketing",
+                  "Track test performance, catch slow tests early, and debug CI failures without digging through logs."
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section data-part="quality-assurance" aria-labelledby="quality-assurance-heading">
+      <header data-part="sidebar">
+        <h2 id="quality-assurance-heading" data-part="title">
+          {dgettext("marketing", "Quality assurance")}
+        </h2>
+        <p data-part="description">
+          {dgettext(
+            "marketing",
+            "From code to feedback in minutes. Instant previews and AI-powered testing close the loop between building and validating."
+          )}
+        </p>
+      </header>
+
+      <div data-part="content">
+        <div data-part="feature-block" data-variant="previews">
           <a
             data-part="overlay-link"
             href={localized_href("https://docs.tuist.dev/guides/features/previews")}
@@ -251,159 +408,138 @@
             }
           >
           </a>
-          <div data-part="background" aria-hidden="true">
+          <div data-part="image-container">
             <img
-              src="/marketing/images/features/previews/background.webp"
-              alt=""
+              data-part="illustration"
+              src="/marketing/images/features/section/previews.webp"
+              alt={
+                dgettext(
+                  "marketing",
+                  "App preview interface showing share preview button and platform options"
+                )
+              }
             />
           </div>
-          <div data-part="graphic">
-            <img src="/marketing/images/features/previews/graphic.webp" alt="" />
-          </div>
-          <div data-part="content">
-            <p data-part="title">{dgettext("marketing", "Previews")} <.arrow_right /></p>
-            <p data-part="description">
+          <div data-part="feature-info">
+            <h3 data-part="feature-title">
+              {dgettext("marketing", "Previews")} <.arrow_right />
+            </h3>
+            <p data-part="feature-description">
               {dgettext(
                 "marketing",
-                "Share your app builds with others via URL for testing on simulators or devices."
+                "Share your app instantly with a URL. No TestFlight delays, just click and run on any simulator or device."
               )}
             </p>
           </div>
-        </article>
+        </div>
 
-        <article data-part="selective-testing">
+        <div data-part="feature-block" data-variant="qa">
           <a
             data-part="overlay-link"
-            href={localized_href("https://docs.tuist.dev/guides/features/selective-testing")}
+            href={localized_href("https://docs.tuist.dev/guides/features/qa")}
             target="_blank"
             rel="noopener noreferrer"
             aria-label={
               dgettext("marketing", "Open the %{feature} feature documentation",
-                feature: dgettext("marketing", "Selective testing")
+                feature: dgettext("marketing", "Agentic QA")
               )
             }
           >
           </a>
-          <div data-part="graphic">
+          <div data-part="image-container">
             <img
-              src="/marketing/images/features/selective-testing/graphic.webp"
-              alt=""
+              data-part="illustration"
+              src="/marketing/images/features/section/qa.webp"
+              alt={
+                dgettext(
+                  "marketing",
+                  "Agentic QA testing the checkout flow with 8 issues identified and 16 screenshots taken"
+                )
+              }
             />
           </div>
-          <div data-part="content">
-            <p data-part="title">{dgettext("marketing", "Selective testing")} <.arrow_right /></p>
-            <p data-part="description">
+          <div data-part="feature-info">
+            <h3 data-part="feature-title">
+              {dgettext("marketing", "Agentic QA")} <.arrow_right />
+            </h3>
+            <p data-part="feature-description">
               {dgettext(
                 "marketing",
-                "Speed up test runs by skipping test suites whose tests are not impacted by the changes."
+                "Mention @tuist-qa in your PR and an AI agent tests your app like a real user, exploring edge cases and reporting issues with screenshots and logs."
               )}
             </p>
           </div>
-        </article>
+        </div>
       </div>
+    </section>
 
-      <div data-part="row">
-        <article data-part="builds">
-          <a
-            data-part="overlay-link"
-            href={localized_href("https://docs.tuist.dev/guides/features/insights")}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={
-              dgettext("marketing", "Open the %{feature} feature documentation",
-                feature: dgettext("marketing", "Builds")
-              )
-            }
-          >
-          </a>
-          <div data-part="background" aria-hidden="true">
-            <img
-              src="/marketing/images/features/builds/background.webp"
-              alt=""
-            />
-          </div>
-          <div data-part="graphic">
-            <img src="/marketing/images/features/builds/graphic.webp" alt="" />
-          </div>
-          <div data-part="content">
-            <p data-part="title">{dgettext("marketing", "Build Insights")} <.arrow_right /></p>
-            <p data-part="description">
-              {dgettext(
-                "marketing",
-                "Analyze build times per target and file with metadata like environment, Xcode version, and commit."
-              )}
-            </p>
-          </div>
-        </article>
+    <section data-part="other-features" aria-labelledby="other-features-heading">
+      <header data-part="sidebar">
+        <h2 id="other-features-heading" data-part="title">
+          {dgettext("marketing", "Other features")}
+        </h2>
+        <p data-part="description">
+          {dgettext(
+            "marketing",
+            "Extra features that simplify modular Xcode projects and speed up local and CI builds."
+          )}
+        </p>
+      </header>
 
-        <article data-part="bundle-analysis">
-          <a
-            data-part="overlay-link"
-            href={localized_href("https://docs.tuist.dev/guides/features/bundle-size")}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={
-              dgettext("marketing", "Open the %{feature} feature documentation",
-                feature: dgettext("marketing", "Bundle analysis")
-              )
-            }
-          >
-          </a>
-          <div data-part="background" aria-hidden="true">
-            <img
-              src="/marketing/images/features/bundle-analysis/background.webp"
-              alt=""
-            />
+      <div data-part="content">
+        <div data-part="feature-row">
+          <div data-part="feature-block" data-variant="generated-projects">
+            <a
+              data-part="overlay-link"
+              href={localized_href("https://docs.tuist.dev/guides/features/projects")}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={
+                dgettext("marketing", "Open the %{feature} feature documentation",
+                  feature: dgettext("marketing", "Generated Projects")
+                )
+              }
+            >
+            </a>
+            <div data-part="feature-info">
+              <h3 data-part="feature-title">
+                {dgettext("marketing", "Generated Projects")} <.arrow_right />
+              </h3>
+              <p data-part="feature-description">
+                {dgettext(
+                  "marketing",
+                  "Conceptually compress the complexities of modular Xcode projects and make them more accessible to maintain and scale."
+                )}
+              </p>
+            </div>
           </div>
-          <div data-part="graphic">
-            <img
-              src="/marketing/images/features/bundle-analysis/graphic.webp"
-              alt=""
-            />
-          </div>
-          <div data-part="content">
-            <p data-part="title">{dgettext("marketing", "Bundle Insights")} <.arrow_right /></p>
-            <p data-part="description">
-              {dgettext(
-                "marketing",
-                "Track and reduce app size by spotting duplicate assets and bloated resources."
-              )}
-            </p>
-          </div>
-        </article>
 
-        <article data-part="registry">
-          <a
-            data-part="overlay-link"
-            href={localized_href("https://docs.tuist.dev/guides/features/registry")}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={
-              dgettext("marketing", "Open the %{feature} feature documentation",
-                feature: dgettext("marketing", "Registry")
-              )
-            }
-          >
-          </a>
-          <div data-part="background" aria-hidden="true">
-            <img
-              src="/marketing/images/features/registry/background.webp"
-              alt=""
-            />
+          <div data-part="feature-block" data-variant="registry">
+            <a
+              data-part="overlay-link"
+              href={localized_href("https://docs.tuist.dev/guides/features/registry")}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={
+                dgettext("marketing", "Open the %{feature} feature documentation",
+                  feature: dgettext("marketing", "Registry")
+                )
+              }
+            >
+            </a>
+            <div data-part="feature-info">
+              <h3 data-part="feature-title">
+                {dgettext("marketing", "Registry")} <.arrow_right />
+              </h3>
+              <p data-part="feature-description">
+                {dgettext(
+                  "marketing",
+                  "Download only what you need — faster, lighter builds locally and on CI."
+                )}
+              </p>
+            </div>
           </div>
-          <div data-part="graphic">
-            <img src="/marketing/images/features/registry/graphic.webp" alt="" />
-          </div>
-          <div data-part="content">
-            <p data-part="title">{dgettext("marketing", "Registry")} <.arrow_right /></p>
-            <p data-part="description">
-              {dgettext(
-                "marketing",
-                "Faster & more lightweight OSS packages resolution"
-              )}
-            </p>
-          </div>
-        </article>
+        </div>
       </div>
     </section>
 

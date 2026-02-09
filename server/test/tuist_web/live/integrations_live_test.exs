@@ -55,6 +55,37 @@ defmodule TuistWeb.IntegrationsLiveTest do
     assert has_element?(lv, "a", "Install GitHub App")
   end
 
+  describe "delete-connection" do
+    test "does not allow deleting a VCS connection belonging to a different account", %{
+      conn: conn,
+      organization: organization
+    } do
+      # Given: a VCS connection on a completely different account
+      other_user = AccountsFixtures.user_fixture()
+      other_org = AccountsFixtures.organization_fixture(creator: other_user, preload: [:account])
+      other_project = ProjectsFixtures.project_fixture(account_id: other_org.account.id)
+
+      other_installation =
+        VCSFixtures.github_app_installation_fixture(account_id: other_org.account.id)
+
+      {:ok, other_connection} =
+        Tuist.Projects.create_vcs_connection(%{
+          project_id: other_project.id,
+          provider: :github,
+          repository_full_handle: "other-org/other-repo",
+          github_app_installation_id: other_installation.id
+        })
+
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/integrations")
+
+      # When: the user sends a delete event with the other account's connection ID
+      render_hook(lv, "delete-connection", %{"connection_id" => other_connection.id})
+
+      # Then: the connection should still exist
+      assert {:ok, _} = Tuist.Projects.get_vcs_connection(other_connection.id)
+    end
+  end
+
   test "shows GitHub repositories when GitHub app is installed", %{
     conn: conn,
     organization: organization,

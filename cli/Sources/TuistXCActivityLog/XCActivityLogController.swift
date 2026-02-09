@@ -1,9 +1,12 @@
+import Algorithms
 import FileSystem
 import Foundation
 import Mockable
 import Path
 import TuistCASAnalytics
+import TuistEnvironment
 import TuistGit
+import TuistLogging
 import TuistRootDirectoryLocator
 import TuistSupport
 import XCLogParser
@@ -137,10 +140,15 @@ public struct XCActivityLogController: XCActivityLogControlling {
         let logManifestPlistPath = logsBuildDirectoryPath.appending(
             components: "LogStoreManifest.plist"
         )
-        guard try await fileSystem.exists(logManifestPlistPath) else { return nil }
+        guard try await fileSystem.exists(logManifestPlistPath) else {
+            Logger.current.debug("Activity log manifest not found at \(logManifestPlistPath.pathString)")
+            return nil
+        }
+        Logger.current.debug("Activity log manifest found at \(logManifestPlistPath.pathString)")
         let plist: XCLogStoreManifestPlist = try await fileSystem.readPlistFile(
             at: logManifestPlistPath
         )
+        Logger.current.debug("Activity log manifest contains \(plist.logs.count) log(s)")
 
         let logFiles = plist.logs.values.map {
             XCActivityLogFile(
@@ -149,11 +157,22 @@ public struct XCActivityLogController: XCActivityLogControlling {
                 signature: $0.signature
             )
         }
-        return logFiles.sorted(by: {
+        let sortedLogFiles = logFiles.sorted(by: {
             $0.timeStoppedRecording > $1.timeStoppedRecording
         })
-        .filter(filter)
-        .first
+        for logFile in sortedLogFiles.prefix(5) {
+            Logger.current
+                .debug(
+                    "Activity log entry: signature=\(logFile.signature), timeStoppedRecording=\(logFile.timeStoppedRecording) (timeIntervalSinceReferenceDate: \(logFile.timeStoppedRecording.timeIntervalSinceReferenceDate)), path=\(logFile.path.pathString)"
+                )
+        }
+        let logFile = sortedLogFiles
+            .filter(filter)
+            .first
+        if logFile == nil {
+            Logger.current.debug("No activity log matched the filter (all \(sortedLogFiles.count) entries were filtered out)")
+        }
+        return logFile
     }
 
     public func parse(_ path: AbsolutePath) async throws -> XCActivityLog {
@@ -188,8 +207,8 @@ public struct XCActivityLogController: XCActivityLogControlling {
         )
         let rootDirectory = try await rootDirectory()
 
-        let issues = try await issues(steps: steps, rootDirectory: rootDirectory)
-            .uniqued()
+        let issues = Array(try await issues(steps: steps, rootDirectory: rootDirectory)
+            .uniqued())
 
         let files = try await files(steps: steps, rootDirectory: rootDirectory)
 
@@ -480,10 +499,10 @@ public struct XCActivityLogController: XCActivityLogControlling {
     }
 
     private func analyzeCASKeys(from buildSteps: [XCLogParser.BuildStep]) async throws -> [CASOutput] {
-        let downloadNodeMetadata = extractDownloadNodeMetadata(from: buildSteps)
-            .uniqued()
-        let uploadNodeMetadata = extractUploadNodeMetadata(from: buildSteps)
-            .uniqued()
+        let downloadNodeMetadata = Array(extractDownloadNodeMetadata(from: buildSteps)
+            .uniqued())
+        let uploadNodeMetadata = Array(extractUploadNodeMetadata(from: buildSteps)
+            .uniqued())
 
         async let downloadOutputs = createCASOutputDownloads(nodeMetadata: downloadNodeMetadata)
         async let uploadOutputs = createCASOutputUploads(nodeMetadata: uploadNodeMetadata)
@@ -544,7 +563,7 @@ public struct XCActivityLogController: XCActivityLogControlling {
                 return nil
             }
         }
-        return allMetadata.uniqued()
+        return Array(allMetadata.uniqued())
     }
 
     private func extractCacheKeyFromNote(_ noteTitle: String) -> String? {

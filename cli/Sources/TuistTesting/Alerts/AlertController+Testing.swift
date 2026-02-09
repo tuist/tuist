@@ -1,4 +1,5 @@
 import Testing
+import TuistAlert
 import TuistSupport
 
 extension AlertController {

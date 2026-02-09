@@ -4,6 +4,11 @@ import Foundation
 import Path
 import Testing
 import TuistAcceptanceTesting
+import TuistCacheCommand
+import TuistEnvironment
+import TuistEnvironmentTesting
+import TuistLoggerTesting
+import TuistNooraTesting
 import TuistServer
 import TuistSupport
 import TuistTesting

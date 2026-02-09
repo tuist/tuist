@@ -3,10 +3,12 @@ import Foundation
 import Mockable
 import Path
 import ProjectDescription
+import TuistConfig
+import TuistConfigLoader
 import TuistCore
 import TuistDependencies
 import TuistGenerator
-import TuistLoader
+import TuistLogging
 import TuistPlugin
 import TuistRootDirectoryLocator
 import TuistSupport
@@ -35,15 +37,10 @@ public class Generator: Generating {
     private var lintingIssues: [LintingIssue] = []
 
     public init(
-        manifestLoader: ManifestLoading,
         manifestGraphLoader: ManifestGraphLoading
     ) {
         sideEffectDescriptorExecutor = SideEffectDescriptorExecutor()
-        configLoader = ConfigLoader(
-            manifestLoader: manifestLoader,
-            rootDirectoryLocator: RootDirectoryLocator(),
-            fileSystem: FileSystem()
-        )
+        configLoader = ConfigLoader()
         self.manifestGraphLoader = manifestGraphLoader
     }
 

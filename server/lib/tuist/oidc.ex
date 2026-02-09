@@ -104,7 +104,7 @@ defmodule Tuist.OIDC do
     cache_key = ["oidc", "jwks", jwks_uri]
 
     KeyValueStore.get_or_update(cache_key, [ttl: @jwks_cache_ttl], fn ->
-      case Req.get(jwks_uri) do
+      case Req.get(jwks_uri, connect_options: [timeout: 10_000]) do
         {:ok, %{status: 200, body: body}} -> {:ok, body}
         _ -> {:error, :jwks_fetch_failed, jwks_uri}
       end

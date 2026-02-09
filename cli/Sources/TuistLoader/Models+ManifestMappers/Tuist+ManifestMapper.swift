@@ -2,7 +2,9 @@ import Foundation
 import Path
 import ProjectDescription
 import TSCUtility
+import TuistConfig
 import TuistCore
+import TuistLogging
 import TuistSupport
 
 enum ConfigManifestMapperError: FatalError {
@@ -25,18 +27,19 @@ enum ConfigManifestMapperError: FatalError {
     }
 }
 
-extension TuistCore.Tuist {
+extension TuistConfig.Tuist {
     /// Maps a ProjectDescription.Config instance into a XcodeGraph.Config model.
     /// - Parameters:
     ///   - manifest: Manifest representation of Tuist config.
     ///   - path: The path of the config file.
-    static func from(
+    public static func from(
         manifest: ProjectDescription.Config,
         rootDirectory: AbsolutePath,
         at path: AbsolutePath
-    ) async throws -> TuistCore.Tuist {
+    ) async throws -> TuistConfig.Tuist {
         let fullHandle = manifest.fullHandle
         let inspectOptions = InspectOptions.from(manifest: manifest.inspectOptions)
+        let cache = TuistConfig.Tuist.Cache(upload: manifest.cache.upload)
         let urlString = manifest.url
 
         guard let url = URL(string: urlString.dropSuffix("/")) else {
@@ -53,14 +56,14 @@ extension TuistCore.Tuist {
             cacheOptions
         ):
             let generatorPaths = GeneratorPaths(manifestDirectory: path, rootDirectory: rootDirectory)
-            let generationOptions = try TuistCore.TuistGeneratedProjectOptions.GenerationOptions.from(
+            let generationOptions = try TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.from(
                 manifest: generationOptions,
                 generatorPaths: generatorPaths,
                 fullHandle: manifest.fullHandle
             )
-            let cacheOptions = try TuistCore.CacheOptions.from(manifest: cacheOptions)
+            let cacheOptions = try TuistConfig.CacheOptions.from(manifest: cacheOptions)
 
-            let compatibleXcodeVersions = TuistCore.CompatibleXcodeVersions.from(manifest: compatibleXcodeVersions)
+            let compatibleXcodeVersions = TuistConfig.CompatibleXcodeVersions.from(manifest: compatibleXcodeVersions)
             let plugins = try plugins.map { try PluginLocation.from(manifest: $0, generatorPaths: generatorPaths) }
             let swiftVersion: TSCUtility.Version?
             if let configuredVersion = manifestSwiftVersion {
@@ -69,15 +72,15 @@ extension TuistCore.Tuist {
                 swiftVersion = nil
             }
 
-            let installOptions = TuistCore.TuistGeneratedProjectOptions.InstallOptions.from(
+            let installOptions = TuistConfig.TuistGeneratedProjectOptions.InstallOptions.from(
                 manifest: installOptions
             )
 
-            return TuistCore.Tuist(
+            return TuistConfig.Tuist(
                 project: .generated(
                     TuistGeneratedProjectOptions(
                         compatibleXcodeVersions: compatibleXcodeVersions,
-                        swiftVersion: swiftVersion.map { .init(stringLiteral: $0.description) },
+                        swiftVersion: swiftVersion,
                         plugins: plugins,
                         generationOptions: generationOptions,
                         installOptions: installOptions,
@@ -86,20 +89,22 @@ extension TuistCore.Tuist {
                 ),
                 fullHandle: fullHandle,
                 inspectOptions: inspectOptions,
+                cache: cache,
                 url: url
             )
         case .xcode:
-            return TuistCore.Tuist(
+            return TuistConfig.Tuist(
                 project: .xcode(TuistXcodeProjectOptions()),
                 fullHandle: fullHandle,
                 inspectOptions: inspectOptions,
+                cache: cache,
                 url: url
             )
         }
     }
 }
 
-extension TuistCore.InspectOptions {
+extension TuistConfig.InspectOptions {
     static func from(
         manifest: ProjectDescription.Config.InspectOptions
     ) -> Self {
@@ -109,7 +114,7 @@ extension TuistCore.InspectOptions {
     }
 }
 
-extension TuistCore.InspectOptions.RedundantDependencies {
+extension TuistConfig.InspectOptions.RedundantDependencies {
     static func from(
         manifest: ProjectDescription.Config.InspectOptions.RedundantDependencies
     ) -> Self {

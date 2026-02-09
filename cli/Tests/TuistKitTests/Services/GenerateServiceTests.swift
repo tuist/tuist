@@ -3,11 +3,15 @@ import Mockable
 import Path
 import Testing
 import TuistCache
+import TuistConfig
 import TuistCore
+import TuistGenerator
+import TuistOpener
 import TuistServer
 import TuistSupport
 import XcodeProj
 
+@testable import TuistConfigLoader
 @testable import TuistKit
 @testable import TuistLoader
 @testable import TuistTesting

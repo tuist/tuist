@@ -1,3 +1,4 @@
+import TuistLogging
 import TuistSupport
 
 struct InspectImportsIssue: Comparable {

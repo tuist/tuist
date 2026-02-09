@@ -2,8 +2,17 @@ import FileSystem
 
 // swiftlint:disable force_try
 import Path
+@_exported import TuistAccountCommand
+@_exported import TuistBuildCommand
+import TuistCacheCommand
 import TuistCore
+import TuistEnvironment
+import TuistEnvironmentTesting
+import TuistExtension
+@_exported import TuistGenerateCommand
 @_exported import TuistKit
+@_exported import TuistRegistryCommand
+@_exported import TuistTestCommand
 import XcodeProj
 import XCTest
 
@@ -192,7 +201,14 @@ open class TuistAcceptanceTestCase: XCTestCase {
         ] + arguments
 
         var parsedCommand = try CacheWarmCommand.parse(arguments)
-        try await parsedCommand.run()
+        #if canImport(TuistCacheEE)
+            try await TuistExtension.Extension.$cacheService
+                .withValue(CacheWarmCommandService()) {
+                    try await parsedCommand.run()
+                }
+        #else
+            try await parsedCommand.run()
+        #endif
     }
 
     public func run(_ command: XcodeBuildBuildCommand.Type, _ arguments: String...) async throws {
