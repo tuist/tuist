@@ -161,6 +161,14 @@
             proxy_buffering off;
             proxy_intercept_errors on;
             error_page 301 302 307 = @handle_remote_redirect;
+            error_page 403 404 = @handle_remote_not_found;
+          '';
+        };
+
+        locations."@handle_remote_not_found" = {
+          extraConfig = ''
+            default_type application/json;
+            return 404 '{"message":"Not found"}';
           '';
         };
 
