@@ -1,6 +1,6 @@
 ---
 name: using-tuist-generated-projects
-description: Guides day-to-day work in Tuist-generated Xcode workspaces: generation, build and test commands, and buildable folders. Use when working in a Tuist-generated project or when users mention `tuist generate`, `tuist test`, or generated workspaces.
+description: Guides day-to-day work in Tuist-generated Xcode workspaces: generation, build and test commands, and buildable folders. Use when working in a Tuist-generated project or when users mention `tuist generate`, `xcodebuild test`, or generated workspaces.
 ---
 
 # Using Tuist Generated Projects
@@ -14,8 +14,8 @@ tuist generate --no-open
 # Build a scheme with xcodebuild
 xcodebuild build -workspace App.xcworkspace -scheme App
 
-# Run tests with Tuist (supports selective testing)
-tuist test App
+# Run tests with xcodebuild
+xcodebuild test -workspace App.xcworkspace -scheme AppTests -only-testing AppTests/MyTestCase
 ```
 
 ## Project definition
@@ -95,16 +95,27 @@ xcodebuild build \
   -destination "generic/platform=iOS Simulator"
 ```
 
-### Test with tuist test
+### Test with xcodebuild
 
-Use `tuist test` for generated projects. It hashes the project and can skip test targets whose hashes were already recorded by previous runs (local or CI).
+Use `xcodebuild test` for running tests locally. Prefer it over `tuist test` because `tuist test` regenerates the project on each invocation, which slows down iteration.
+
+To optimize test run time:
+
+- **Use `--only-testing`** to run only the specific test suite or test case you are working on, instead of the full target.
+- **Pick the scheme with the fewest compilation targets** that still includes the test target you need. This minimizes build time before tests run.
 
 ```bash
-tuist test App
-# UI tests require a destination
-tuist test --device "iPhone 14 Pro"
-# Force all tests when you need full coverage
-tuist test --no-selective-testing
+# Run a specific test suite
+xcodebuild test \
+  -workspace App.xcworkspace \
+  -scheme AppTests \
+  -only-testing AppTests/MyTestSuite
+
+# Run a single test case
+xcodebuild test \
+  -workspace App.xcworkspace \
+  -scheme AppTests \
+  -only-testing AppTests/MyTestSuite/testMyFunction
 ```
 
 ## Guidelines
