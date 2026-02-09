@@ -461,12 +461,14 @@ public enum Module: String, CaseIterable {
                 [
                     .external(name: "Noora"),
                     .target(name: Module.alert.targetName),
+                    .xctest,
                 ]
             case .loggerTesting:
                 [
                     .target(name: Module.logging.targetName),
                     .target(name: Module.environment.targetName),
                     .external(name: "Logging"),
+                    .xctest,
                 ]
             case .logging:
                 [
