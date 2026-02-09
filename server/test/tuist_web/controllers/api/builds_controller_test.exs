@@ -95,7 +95,7 @@ defmodule TuistWeb.API.BuildsControllerTest do
         )
 
       expect(Builds, :list_build_runs, fn attrs, _opts ->
-        assert %{field: :status, op: :==, value: :failure} in attrs.filters
+        assert %{field: :status, op: :==, value: "failure"} in attrs.filters
 
         {[failure_build],
          %{

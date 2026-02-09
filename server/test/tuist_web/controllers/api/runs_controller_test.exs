@@ -22,7 +22,6 @@ defmodule TuistWeb.API.RunsControllerTest do
     |> where([b], b.project_id == ^project_id)
     |> ClickHouseRepo.all()
     |> ClickHouseRepo.preload(preloads)
-    |> Enum.map(&Build.normalize_enums/1)
   end
 
   setup do
@@ -341,8 +340,8 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.configuration == "Release"
       assert build.project_id == project.id
       assert build.account_id == user.account.id
-      assert build.status == :failure
-      assert build.category == :incremental
+      assert build.status == "failure"
+      assert build.category == "incremental"
 
       assert build.issues |> Enum.map(&Map.take(&1, [:type, :message, :build_run_id])) |> Enum.sort_by(& &1.message) == [
                %{
@@ -504,7 +503,7 @@ defmodule TuistWeb.API.RunsControllerTest do
         project_id: project.id,
         account_id: user.account.id,
         is_ci: false,
-        status: :success
+        status: "success"
       }
 
       get_build_call_count = :counters.new(1, [:atomics])
@@ -571,7 +570,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.configuration == nil
       assert build.project_id == project.id
       assert build.account_id == user.account.id
-      assert build.status == :success
+      assert build.status == "success"
       assert build.ci_run_id == nil
       assert build.ci_project_handle == nil
       assert build.ci_host == nil

@@ -484,12 +484,12 @@ defmodule TuistWeb.API.BuildsController do
            status: %Schema{
              type: :string,
              description: "The status of the build run.",
-             enum: [:success, :failure]
+             enum: ["success", "failure"]
            },
            category: %Schema{
              type: :string,
              description: "The category of the build run, can be clean or incremental.",
-             enum: [:clean, :incremental]
+             enum: ["clean", "incremental"]
            },
            git_commit_sha: %Schema{
              type: :string,
@@ -522,7 +522,7 @@ defmodule TuistWeb.API.BuildsController do
            ci_provider: %Schema{
              type: :string,
              description: "The CI provider.",
-             enum: [:github, :gitlab, :bitrise, :circleci, :buildkite, :codemagic]
+             enum: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
            },
            issues: %Schema{
              type: :array,
@@ -676,7 +676,7 @@ defmodule TuistWeb.API.BuildsController do
                  status: %Schema{
                    type: :string,
                    description: "The status of the target's build.",
-                   enum: [:success, :failure]
+                   enum: ["success", "failure"]
                  }
                },
                required: [
@@ -862,7 +862,7 @@ defmodule TuistWeb.API.BuildsController do
           configuration: Map.get(params, :configuration),
           project_id: params.project.id,
           account_id: params.account.id,
-          status: Map.get(params, :status, :success),
+          status: Map.get(params, :status, "success"),
           category: Map.get(params, :category),
           git_branch: Map.get(params, :git_branch),
           git_commit_sha: Map.get(params, :git_commit_sha),
