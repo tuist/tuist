@@ -253,10 +253,10 @@ defmodule TuistWeb.BuildRunsLive do
         field: :status,
         display_name: dgettext("dashboard_builds", "Status"),
         type: :option,
-        options: [:success, :failure],
+        options: ["success", "failure"],
         options_display_names: %{
-          success: dgettext("dashboard_builds", "Passed"),
-          failure: dgettext("dashboard_builds", "Failed")
+          "success" => dgettext("dashboard_builds", "Passed"),
+          "failure" => dgettext("dashboard_builds", "Failed")
         },
         operator: :==,
         value: nil
@@ -274,11 +274,10 @@ defmodule TuistWeb.BuildRunsLive do
         field: :category,
         display_name: dgettext("dashboard_builds", "Category"),
         type: :option,
-        options: [:incremental, :clean],
+        options: ["incremental", "clean"],
         options_display_names: %{
-          build: dgettext("dashboard_builds", "Build"),
-          test: dgettext("dashboard_builds", "Test"),
-          archive: dgettext("dashboard_builds", "Archive")
+          "incremental" => dgettext("dashboard_builds", "Incremental"),
+          "clean" => dgettext("dashboard_builds", "Clean")
         },
         operator: :==,
         value: nil

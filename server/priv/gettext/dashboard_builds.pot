@@ -49,11 +49,6 @@ msgstr ""
 msgid "Any"
 msgstr ""
 
-#: lib/tuist_web/live/build_runs_live.ex:281
-#, elixir-autogen, elixir-format
-msgid "Archive"
-msgstr ""
-
 #: lib/tuist_web/live/builds_live.html.heex:383
 #, elixir-autogen, elixir-format
 msgid "Average"
@@ -80,11 +75,6 @@ msgstr ""
 #: lib/tuist_web/live/generate_runs_live.html.heex:84
 #, elixir-autogen, elixir-format
 msgid "Branch"
-msgstr ""
-
-#: lib/tuist_web/live/build_runs_live.ex:279
-#, elixir-autogen, elixir-format
-msgid "Build"
 msgstr ""
 
 #: lib/tuist_web/live/build_run_live.html.heex:107
@@ -287,6 +277,7 @@ msgstr ""
 msgid "Category"
 msgstr ""
 
+#: lib/tuist_web/live/build_runs_live.ex:280
 #: lib/tuist_web/live/builds_live.html.heex:101
 #, elixir-autogen, elixir-format
 msgid "Clean"
@@ -616,6 +607,7 @@ msgstr ""
 msgid "Hit rate"
 msgstr ""
 
+#: lib/tuist_web/live/build_runs_live.ex:279
 #: lib/tuist_web/live/builds_live.html.heex:93
 #, elixir-autogen, elixir-format
 msgid "Incremental"
@@ -816,7 +808,7 @@ msgstr ""
 msgid "Ran at"
 msgstr ""
 
-#: lib/tuist_web/live/build_runs_live.ex:335
+#: lib/tuist_web/live/build_runs_live.ex:334
 #: lib/tuist_web/live/build_runs_live.html.heex:110
 #: lib/tuist_web/live/builds_live.html.heex:904
 #: lib/tuist_web/live/generate_runs_live.ex:312
@@ -992,11 +984,6 @@ msgstr ""
 #: lib/tuist_web/live/build_run_live.html.heex:725
 #, elixir-autogen, elixir-format
 msgid "Task misses"
-msgstr ""
-
-#: lib/tuist_web/live/build_runs_live.ex:280
-#, elixir-autogen, elixir-format
-msgid "Test"
 msgstr ""
 
 #: lib/tuist_web/live/run_detail_live.html.heex:94
@@ -1273,7 +1260,7 @@ msgid "Xcode Cache"
 msgstr ""
 
 #: lib/tuist_web/live/build_run_live.html.heex:193
-#: lib/tuist_web/live/build_runs_live.ex:289
+#: lib/tuist_web/live/build_runs_live.ex:288
 #: lib/tuist_web/live/build_runs_live.html.heex:151
 #: lib/tuist_web/live/builds_live.ex:352
 #: lib/tuist_web/live/builds_live.html.heex:650
@@ -1283,7 +1270,7 @@ msgid "Xcode version"
 msgstr ""
 
 #: lib/tuist_web/live/build_run_live.html.heex:199
-#: lib/tuist_web/live/build_runs_live.ex:297
+#: lib/tuist_web/live/build_runs_live.ex:296
 #: lib/tuist_web/live/build_runs_live.html.heex:154
 #: lib/tuist_web/live/builds_live.ex:353
 #: lib/tuist_web/live/builds_live.html.heex:666
@@ -1454,7 +1441,7 @@ msgstr ""
 msgid "Tag:"
 msgstr ""
 
-#: lib/tuist_web/live/build_runs_live.ex:312
+#: lib/tuist_web/live/build_runs_live.ex:311
 #, elixir-autogen, elixir-format
 msgid "Tags"
 msgstr ""

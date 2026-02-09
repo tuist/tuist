@@ -850,10 +850,10 @@ defmodule TuistWeb.BuildRunLive do
         field: :status,
         display_name: dgettext("dashboard_builds", "Status"),
         type: :option,
-        options: [:success, :failure],
+        options: ["success", "failure"],
         options_display_names: %{
-          :success => dgettext("dashboard_builds", "Passed"),
-          :failure => dgettext("dashboard_builds", "Failed")
+          "success" => dgettext("dashboard_builds", "Passed"),
+          "failure" => dgettext("dashboard_builds", "Failed")
         },
         operator: :==,
         value: nil
