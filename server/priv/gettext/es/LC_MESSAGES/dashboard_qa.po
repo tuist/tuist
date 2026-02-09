@@ -3,9 +3,8 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
-"PO-Revision-Date: 2026-01-23 12:12+0000\n"
-"Last-Translator: Weblate Translation Memory <noreply-mt-weblate-translation-"
-"memory@weblate.org>\n"
+"PO-Revision-Date: 2026-02-09 16:49+0000\n"
+"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Spanish <https://translate.tuist.dev/projects/tuist/"
 "dashboard_qa/es/>\n"
 "Language: es\n"
@@ -57,7 +56,7 @@ msgstr ""
 
 #, fuzzy
 msgid "Account"
-msgstr "Cuentas:"
+msgstr "Cuenta"
 
 #, fuzzy
 msgid "Action"
@@ -522,7 +521,7 @@ msgstr "V %{versión}"
 
 #, fuzzy
 msgid "View Logs"
-msgstr "Ver registros:"
+msgstr "Ver registros"
 
 #, fuzzy
 msgid "You are not authorized to perform this action."
@@ -535,8 +534,8 @@ msgstr "nombre-del-grupo-de-argumentos"
 #, fuzzy
 msgid "issue"
 msgid_plural "issues"
-msgstr[0] ""
-msgstr[1] "Problemas"
+msgstr[0] "problema"
+msgstr[1] "problemas"
 
 #, fuzzy
 msgid "logs"
@@ -590,8 +589,10 @@ msgstr "desde el último punto"
 msgid "since yesterday"
 msgstr "desde ayer"
 
+#, fuzzy
 msgid "Notifications"
-msgstr ""
+msgstr "Notificaciones"
 
+#, fuzzy
 msgid "Automations"
-msgstr ""
+msgstr "Automatizaciones"
