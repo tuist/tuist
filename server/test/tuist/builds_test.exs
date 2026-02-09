@@ -40,7 +40,7 @@ defmodule Tuist.BuildsTest do
       assert build.scheme == "App"
       assert build.project_id == project_id
       assert build.account_id == account_id
-      assert build.status == :success
+      assert build.status == "success"
     end
 
     test "creates a build with cacheable tasks and calculates counts correctly" do

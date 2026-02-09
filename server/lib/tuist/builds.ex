@@ -24,7 +24,6 @@ defmodule Tuist.Builds do
     Build
     |> from(where: [id: ^id], order_by: [desc: :inserted_at], limit: 1)
     |> ClickHouseRepo.one()
-    |> Build.normalize_enums()
   end
 
   def create_build(attrs) do
@@ -44,8 +43,8 @@ defmodule Tuist.Builds do
     attrs = Map.merge(attrs, cacheable_task_counts)
 
     attrs =
-      Map.update(attrs, :status, :success, fn
-        nil -> :success
+      Map.update(attrs, :status, "success", fn
+        nil -> "success"
         other -> other
       end)
 
@@ -55,7 +54,7 @@ defmodule Tuist.Builds do
       build_data = Build.changeset(attrs)
 
       {:ok, build_map} = Build.Buffer.insert(build_data)
-      build = Build |> struct(build_map) |> Build.normalize_enums()
+      build = struct(Build, build_map)
 
       Task.await_many(
         [
@@ -337,10 +336,7 @@ defmodule Tuist.Builds do
 
     {results, meta} = ClickHouseFlop.validate_and_run!(base_query, attrs, for: Build)
 
-    results =
-      results
-      |> Enum.map(&Build.normalize_enums/1)
-      |> maybe_preload_accounts(preload)
+    results = maybe_preload_accounts(results, preload)
 
     {results, meta}
   end
