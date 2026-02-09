@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-12-24 14:49+0000\n"
-"PO-Revision-Date: 2026-01-22 13:05+0000\n"
+"PO-Revision-Date: 2026-02-09 16:49+0000\n"
 "Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
 "Language-Team: Chinese (Simplified Han script) <https://translate.tuist.dev/"
 "projects/tuist/dashboard_qa/zh_Hans/>\n"
@@ -565,8 +565,10 @@ msgstr "自上次句点以来"
 msgid "since yesterday"
 msgstr "自昨日起"
 
+#, fuzzy
 msgid "Notifications"
-msgstr ""
+msgstr "通知"
 
+#, fuzzy
 msgid "Automations"
-msgstr ""
+msgstr "自动化"
