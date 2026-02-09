@@ -3625,7 +3625,7 @@
         {
           "datasource": "$datasource",
           "editorMode": "code",
-          "expr": "sum(rate(cache_s3_head_requests_total{instance=~\"$instance\", result=\"error\"}[$__rate_interval])) + sum(rate(cache_s3_upload_requests_total{instance=~\"$instance\", result=\"error\"}[$__rate_interval])) + sum(rate(cache_s3_download_requests_total{instance=~\"$instance\", result=\"error\"}[$__rate_interval])) + sum(rate(cache_s3_delete_requests_total{instance=~\"$instance\", result=\"error\"}[$__rate_interval]))",
+          "expr": "(sum(rate(cache_s3_head_requests_total{instance=~\"$instance\", result=\"error\"}[$__rate_interval])) or vector(0)) + (sum(rate(cache_s3_upload_requests_total{instance=~\"$instance\", result=\"error\"}[$__rate_interval])) or vector(0)) + (sum(rate(cache_s3_download_requests_total{instance=~\"$instance\", result=\"error\"}[$__rate_interval])) or vector(0)) + (sum(rate(cache_s3_delete_requests_total{instance=~\"$instance\", result=\"error\"}[$__rate_interval])) or vector(0))",
           "range": true,
           "refId": "A"
         }

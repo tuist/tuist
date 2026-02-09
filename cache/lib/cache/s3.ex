@@ -57,6 +57,10 @@ defmodule Cache.S3 do
         :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :not_found})
         false
 
+      {:error, {:http_error, 429, _}} ->
+        :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :rate_limited})
+        false
+
       {:error, _reason} ->
         :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :error})
         false
