@@ -6,6 +6,7 @@ import Path
 import TuistCASAnalytics
 import TuistEnvironment
 import TuistGit
+import TuistLogging
 import TuistRootDirectoryLocator
 import TuistSupport
 import XCLogParser
@@ -139,10 +140,15 @@ public struct XCActivityLogController: XCActivityLogControlling {
         let logManifestPlistPath = logsBuildDirectoryPath.appending(
             components: "LogStoreManifest.plist"
         )
-        guard try await fileSystem.exists(logManifestPlistPath) else { return nil }
+        guard try await fileSystem.exists(logManifestPlistPath) else {
+            Logger.current.debug("Activity log manifest not found at \(logManifestPlistPath.pathString)")
+            return nil
+        }
+        Logger.current.debug("Activity log manifest found at \(logManifestPlistPath.pathString)")
         let plist: XCLogStoreManifestPlist = try await fileSystem.readPlistFile(
             at: logManifestPlistPath
         )
+        Logger.current.debug("Activity log manifest contains \(plist.logs.count) log(s)")
 
         let logFiles = plist.logs.values.map {
             XCActivityLogFile(
@@ -151,11 +157,22 @@ public struct XCActivityLogController: XCActivityLogControlling {
                 signature: $0.signature
             )
         }
-        return logFiles.sorted(by: {
+        let sortedLogFiles = logFiles.sorted(by: {
             $0.timeStoppedRecording > $1.timeStoppedRecording
         })
-        .filter(filter)
-        .first
+        for logFile in sortedLogFiles.prefix(5) {
+            Logger.current
+                .debug(
+                    "Activity log entry: signature=\(logFile.signature), timeStoppedRecording=\(logFile.timeStoppedRecording) (timeIntervalSinceReferenceDate: \(logFile.timeStoppedRecording.timeIntervalSinceReferenceDate)), path=\(logFile.path.pathString)"
+                )
+        }
+        let logFile = sortedLogFiles
+            .filter(filter)
+            .first
+        if logFile == nil {
+            Logger.current.debug("No activity log matched the filter (all \(sortedLogFiles.count) entries were filtered out)")
+        }
+        return logFile
     }
 
     public func parse(_ path: AbsolutePath) async throws -> XCActivityLog {
