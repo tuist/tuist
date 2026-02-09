@@ -29,7 +29,7 @@ bağlamanıza yardımcı olur ve
 <LocalizedLink href="/guides/features/selective-testing">seçmeli
 test</LocalizedLink>,
 <LocalizedLink href="/guides/features/previews">önizleme</LocalizedLink> ve
-<LocalizedLink href="/guides/features/registry">Kayıt</LocalizedLink> gibi
+<LocalizedLink href="/guides/features/registry">kayıt</LocalizedLink> gibi
 özelliklere erişmenizi sağlar.
 
 ::: info MIGRATE AN EXISTING PROJECT
