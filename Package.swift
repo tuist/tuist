@@ -602,6 +602,7 @@ var targets: [Target] = [
         dependencies: [
             .product(name: "Noora", package: "tuist.Noora"),
             "TuistAlert",
+            "TuistLoggerTesting",
         ],
         path: "cli/Sources/TuistNooraTesting"
     ),

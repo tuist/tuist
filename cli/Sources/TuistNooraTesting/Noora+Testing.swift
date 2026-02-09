@@ -1,7 +1,10 @@
 import Foundation
+import Logging
 import Noora
 import Testing
 import TuistAlert
+import TuistLoggerTesting
+import TuistLogging
 
 extension Noora {
     public static var mocked: NooraMock? { current as? NooraMock }
@@ -13,9 +16,14 @@ public struct NooraTestingTrait: TestTrait, SuiteTrait, TestScoping {
         testCase _: Test.Case?,
         performing function: @Sendable () async throws -> Void
     ) async throws {
-        try await Noora.$current.withValue(NooraMock(terminal: Terminal(isInteractive: false))) {
-            try await AlertController.$current.withValue(AlertController()) {
-                try await function()
+        let (logger, handler) = Logger.initTestingLogger()
+        try await Logger.$current.withValue(logger) {
+            try await Logger.$testingLogHandler.withValue(handler) {
+                try await Noora.$current.withValue(NooraMock(terminal: Terminal(isInteractive: false))) {
+                    try await AlertController.$current.withValue(AlertController()) {
+                        try await function()
+                    }
+                }
             }
         }
     }
@@ -33,8 +41,10 @@ public func resetUI() {
 
 public func ui() -> String {
     AlertController.current.print()
-    let output = Noora.mocked?.description ?? ""
-    return output.replacingOccurrences(
+    let nooraOutput = Noora.mocked?.description ?? ""
+    let loggerOutput = Logger.testingLogHandler.collected[.warning, >=]
+    let combined = [nooraOutput, loggerOutput].filter { !$0.isEmpty }.joined(separator: "\n")
+    return combined.replacingOccurrences(
         of: #"\[[0-9]+(?:\.[0-9]+)?s\]"#,
         with: "[0.0s]",
         options: .regularExpression

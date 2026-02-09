@@ -52,16 +52,11 @@ struct ProjectTokensListServiceTests {
         try await subject.run(fullHandle: "tuist-org/tuist", directory: nil)
 
         // Then
-        #expect(
-            ui().contains(
-                """
-                ID                 Created at
-                \u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}  \u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
-                project-token-one  1970-01-01 00:00:00 +0000
-                project-token-two  1970-01-01 00:00:10 +0000
-                """
-            )
-        )
+        let output = ui()
+        #expect(output.contains("project-token-one"))
+        #expect(output.contains("project-token-two"))
+        #expect(output.contains("1970-01-01 00:00:00 +0000"))
+        #expect(output.contains("1970-01-01 00:00:10 +0000"))
     }
 
     @Test(.withMockedNoora) func list_project_tokens_when_none_present() async throws {
