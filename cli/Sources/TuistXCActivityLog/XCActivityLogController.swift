@@ -163,13 +163,13 @@ public struct XCActivityLogController: XCActivityLogControlling {
         for logFile in sortedLogFiles.prefix(5) {
             Logger.current.debug("Activity log entry: signature=\(logFile.signature), timeStoppedRecording=\(logFile.timeStoppedRecording) (timeIntervalSinceReferenceDate: \(logFile.timeStoppedRecording.timeIntervalSinceReferenceDate)), path=\(logFile.path.pathString)")
         }
-        let result = sortedLogFiles
+        let logFile = sortedLogFiles
             .filter(filter)
             .first
-        if result == nil {
+        if logFile == nil {
             Logger.current.debug("No activity log matched the filter (all \(sortedLogFiles.count) entries were filtered out)")
         }
-        return result
+        return logFile
     }
 
     public func parse(_ path: AbsolutePath) async throws -> XCActivityLog {
