@@ -134,6 +134,7 @@ defmodule Tuist.Builds.Build do
     Enum.reduce(fields, attrs, fn field, acc ->
       case Map.fetch(acc, field) do
         {:ok, nil} -> Map.put(acc, field, "")
+        :error -> Map.put(acc, field, "")
         _ -> acc
       end
     end)
