@@ -240,7 +240,7 @@
             }
             icon={@tasks_sort_by == "started_at" && sort_icon(@tasks_sort_order)}
           >
-            <.text_cell label={started_after(task, @build)} />
+            <.text_cell label={started_after(task, @build_started_at)} />
           </:col>
           <:col
             :let={task}

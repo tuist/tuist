@@ -195,6 +195,22 @@ defmodule Tuist.Gradle do
   end
 
   @doc """
+  Returns the earliest task started_at time for a build.
+
+  Used as the reference point for computing "started after" offsets.
+  """
+  @spec build_started_at(Ecto.UUID.t()) :: NaiveDateTime.t() | nil
+  def build_started_at(build_id) do
+    query =
+      from(t in Task,
+        where: t.gradle_build_id == ^build_id and not is_nil(t.started_at),
+        select: min(t.started_at)
+      )
+
+    ClickHouseRepo.one(query)
+  end
+
+  @doc """
   Returns aggregate cache metrics for a build's tasks.
 
   Used for cache summary widgets (download/upload bytes, throughput).
@@ -291,8 +307,11 @@ defmodule Tuist.Gradle do
   defp to_naive_datetime(nil), do: nil
 
   defp to_naive_datetime(%DateTime{} = dt),
-    do: dt |> DateTime.to_naive() |> NaiveDateTime.truncate(:millisecond)
+    do: dt |> DateTime.to_naive() |> ensure_usec_precision()
 
   defp to_naive_datetime(%NaiveDateTime{} = ndt),
-    do: NaiveDateTime.truncate(ndt, :millisecond)
+    do: ensure_usec_precision(ndt)
+
+  defp ensure_usec_precision(%NaiveDateTime{microsecond: {usec, _}} = ndt),
+    do: %{ndt | microsecond: {usec, 6}}
 end

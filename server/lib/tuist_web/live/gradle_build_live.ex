@@ -29,6 +29,7 @@ defmodule TuistWeb.GradleBuildLive do
 
     build = Repo.preload(build, :built_by_account)
 
+    build_started_at = Gradle.build_started_at(build_id)
     aggregates = Gradle.task_cache_aggregates(build_id)
 
     download_throughput =
@@ -47,6 +48,7 @@ defmodule TuistWeb.GradleBuildLive do
     socket =
       socket
       |> assign(:build, build)
+      |> assign(:build_started_at, build_started_at)
       |> assign(:cache_download_bytes, aggregates.cache_download_bytes)
       |> assign(:cache_upload_bytes, aggregates.cache_upload_bytes)
       |> assign(:download_throughput, download_throughput)
@@ -320,9 +322,8 @@ defmodule TuistWeb.GradleBuildLive do
     DateFormatter.format_duration_from_milliseconds(duration_ms)
   end
 
-  defp started_after(task, build) do
-    if task.started_at do
-      build_started_at = NaiveDateTime.add(build.inserted_at, -build.duration_ms, :millisecond)
+  defp started_after(task, build_started_at) do
+    if task.started_at && build_started_at do
       diff_ms = NaiveDateTime.diff(task.started_at, build_started_at, :millisecond)
       format_started_after_ms(max(diff_ms, 0))
     else
