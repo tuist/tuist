@@ -251,10 +251,10 @@ defmodule Tuist.GitHub.ClientTest do
       # Given
       stub(
         Req,
-        :get,
+        :request,
         fn opts ->
           case Keyword.get(opts, :url) do
-            "https://api.github.com/repos/tuist/tuist/tags?page_size=100" ->
+            "https://api.github.com/repos/tuist/tuist/tags?per_page=100" ->
               {:ok,
                %Req.Response{
                  status: 200,
@@ -269,7 +269,7 @@ defmodule Tuist.GitHub.ClientTest do
                  ]
                }}
 
-            "https://api.github.com/repos/tuist/tuist/tags?page=2&page_size=100" ->
+            "https://api.github.com/repos/tuist/tuist/tags?page=2" ->
               {:ok,
                %Req.Response{
                  status: 200,
@@ -297,7 +297,7 @@ defmodule Tuist.GitHub.ClientTest do
       # Given
       stub(
         Req,
-        :get,
+        :request,
         fn _opts ->
           {:ok,
            %Req.Response{
@@ -321,7 +321,7 @@ defmodule Tuist.GitHub.ClientTest do
 
     test "returns error when endpoint returns unexpected status code" do
       # Given
-      stub(Req, :get, fn _ ->
+      stub(Req, :request, fn _ ->
         {:ok, %Req.Response{status: 404}}
       end)
 
@@ -337,8 +337,8 @@ defmodule Tuist.GitHub.ClientTest do
   describe "get_source_archive_by_tag_and_repository_full_handle/1" do
     test "returns source archive" do
       # Given
-      stub(Req, :get, fn _ ->
-        {:ok, %Req.Response{status: 200, body: "File contents"}}
+      stub(Req, :request, fn _ ->
+        {:ok, %Req.Response{status: 200, body: ""}}
       end)
 
       # When
@@ -355,7 +355,7 @@ defmodule Tuist.GitHub.ClientTest do
 
     test "returns error when getting the source archive fails" do
       # Given
-      stub(Req, :get, fn _ ->
+      stub(Req, :request, fn _ ->
         {:ok, %Req.Response{status: 404}}
       end)
 
