@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## What's Changed in 4.141.1<!-- RELEASE NOTES START -->
+
+### 🐛 Bug Fixes
+
+* add debug logging to inspect build and test commands by [@fortmarek](https://github.com/fortmarek) in [#9384](https://github.com/tuist/tuist/pull/9384)
+
+**Full Changelog**: https://github.com/tuist/tuist/compare/4.141.0...4.141.1
+
 ## What's Changed in 4.141.0<!-- RELEASE NOTES START -->
 
 ### ⛰️  Features
