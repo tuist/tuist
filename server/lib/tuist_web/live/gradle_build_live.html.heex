@@ -36,20 +36,6 @@
           style="light-fill"
           size="large"
         />
-        <.badge
-          :if={@build.git_branch}
-          label={@build.git_branch}
-          color="secondary"
-          style="light-fill"
-          size="large"
-        />
-        <.badge
-          :if={@build.gradle_version}
-          label={"Gradle #{@build.gradle_version}"}
-          color="secondary"
-          style="light-fill"
-          size="large"
-        />
       </div>
     </div>
   </div>
