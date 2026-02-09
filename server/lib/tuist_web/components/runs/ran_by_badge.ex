@@ -72,6 +72,12 @@ defmodule TuistWeb.Runs.RanByBadge do
       color="primary"
       style="light-fill"
     />
+    <.badge_cell
+      :if={!@build.is_ci and is_nil(@build.built_by_account)}
+      label={dgettext("dashboard", "Unknown")}
+      color="neutral"
+      style="light-fill"
+    />
     """
   end
 
