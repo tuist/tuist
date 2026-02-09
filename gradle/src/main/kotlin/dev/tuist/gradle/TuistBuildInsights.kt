@@ -312,7 +312,17 @@ abstract class TuistBuildInsightsService :
         val url = URI("$baseUrl/api/projects/$accountHandle/$projectHandle/gradle/builds")
 
         val httpClient: BuildInsightsHttpClient = UrlConnectionBuildInsightsHttpClient()
-        val response = httpClient.postBuildReport(url, config.token, report)
+
+        val response = try {
+            httpClient.postBuildReport(url, config.token, report)
+        } catch (e: TokenExpiredException) {
+            val refreshedConfig = configProvider.getConfiguration(forceRefresh = true)
+            if (refreshedConfig == null) {
+                println("Tuist: Warning - Failed to refresh configuration for build insights.")
+                return
+            }
+            httpClient.postBuildReport(url, refreshedConfig.token, report)
+        }
 
         if (response != null) {
             println("Tuist: Build insights reported successfully (build ${response.id})")

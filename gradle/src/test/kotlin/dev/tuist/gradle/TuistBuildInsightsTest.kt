@@ -8,6 +8,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.net.URI
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -102,7 +103,7 @@ class TuistBuildInsightsTest {
     }
 
     @Test
-    fun `HTTP client returns null on non-201 response`() {
+    fun `HTTP client throws TokenExpiredException on 401 response`() {
         mockWebServer.enqueue(
             MockResponse()
                 .setResponseCode(401)
@@ -125,9 +126,9 @@ class TuistBuildInsightsTest {
         )
 
         val url = URI(mockWebServer.url("/api/projects/org/proj/gradle/builds").toString())
-        val response = client.postBuildReport(url, "bad-token", report)
-
-        assertNull(response)
+        assertFailsWith<TokenExpiredException> {
+            client.postBuildReport(url, "bad-token", report)
+        }
     }
 
     @Test

@@ -7,6 +7,8 @@ import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URI
 
+class TokenExpiredException : Exception()
+
 interface BuildInsightsHttpClient {
     fun postBuildReport(url: URI, token: String, report: BuildReportRequest): BuildReportResponse?
 }
@@ -34,6 +36,7 @@ class UrlConnectionBuildInsightsHttpClient : BuildInsightsHttpClient {
                         gson.fromJson(reader, BuildReportResponse::class.java)
                     }
                 }
+                HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
                 else -> null
             }
         } finally {
