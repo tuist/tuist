@@ -621,28 +621,7 @@
               <.text_cell label={format_duration(task.duration_ms)} icon="history" />
             </:col>
             <:col :let={task} label={dgettext("dashboard_gradle", "Cache key")}>
-              <.text_cell label={
-                if task.cache_key,
-                  do: String.slice(task.cache_key, 0, 30) <> if(String.length(task.cache_key) > 30, do: "...", else: ""),
-                  else: dgettext("dashboard_gradle", "—")
-              } />
-            </:col>
-            <:col :let={task}>
-              <.button_cell>
-                <:button>
-                  <.button
-                    :if={task.cache_key}
-                    id={"cacheable-task-copy-#{task.cache_key}"}
-                    variant="secondary"
-                    size="small"
-                    icon_only
-                    phx-hook="Clipboard"
-                    data-clipboard-value={task.cache_key}
-                  >
-                    <.copy />
-                  </.button>
-                </:button>
-              </.button_cell>
+              <.text_cell label={task.cache_key || dgettext("dashboard_gradle", "—")} />
             </:col>
             <:empty_state>
               <.table_empty_state
