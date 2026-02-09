@@ -117,30 +117,18 @@ defmodule Tuist.Builds.Analytics do
   end
 
   defp build_total_count(project_id, start_datetime, end_datetime, opts) do
-    {filter_clauses, filter_params} = build_filter_clauses(opts)
-
-    query = """
-    SELECT count() as count
-    FROM build_runs
-    WHERE project_id = {project_id:Int64}
-      AND inserted_at > {start_dt:DateTime64(6)}
-      AND inserted_at < {end_dt:DateTime64(6)}
-      #{filter_clauses}
-    """
-
-    params =
-      Map.merge(
-        %{
-          project_id: project_id,
-          start_dt: start_datetime,
-          end_dt: end_datetime
-        },
-        filter_params
+    query =
+      apply_filters(
+        from(b in Build,
+          where: b.project_id == ^project_id,
+          where: b.inserted_at > ^start_datetime,
+          where: b.inserted_at < ^end_datetime,
+          select: count()
+        ),
+        opts
       )
 
-    {:ok, %{rows: [[count]]}} = ClickHouseRepo.query(query, params)
-
-    count || 0
+    ClickHouseRepo.one(query) || 0
   end
 
   def build_duration_analytics(project_id, opts \\ []) do
@@ -203,45 +191,34 @@ defmodule Tuist.Builds.Analytics do
   end
 
   defp build_aggregated_analytics(project_id, start_datetime, end_datetime, opts) do
-    {filter_clauses, filter_params} = build_filter_clauses(opts)
-
-    query = """
-    SELECT
-      sumOrNull(duration) as total_duration,
-      count() as count,
-      avgOrNull(duration) as average_duration
-    FROM build_runs
-    WHERE project_id = {project_id:Int64}
-      AND inserted_at > {start_dt:DateTime64(6)}
-      AND inserted_at < {end_dt:DateTime64(6)}
-      #{filter_clauses}
-    """
-
-    params =
-      Map.merge(
-        %{
-          project_id: project_id,
-          start_dt: start_datetime,
-          end_dt: end_datetime
-        },
-        filter_params
+    query =
+      apply_filters(
+        from(b in Build,
+          where: b.project_id == ^project_id,
+          where: b.inserted_at > ^start_datetime,
+          where: b.inserted_at < ^end_datetime,
+          select: %{
+            total_duration: fragment("sumOrNull(?)", b.duration),
+            count: count(),
+            average_duration: fragment("avgOrNull(?)", b.duration)
+          }
+        ),
+        opts
       )
 
-    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
+    case ClickHouseRepo.one(query) do
+      nil ->
+        %{total_duration: 0, count: 0, average_duration: 0}
 
-    case rows do
-      [[nil, count, nil]] ->
+      %{total_duration: nil, count: count, average_duration: nil} ->
         %{total_duration: 0, count: count || 0, average_duration: 0}
 
-      [[total, count, avg]] ->
+      %{total_duration: total, count: count, average_duration: avg} ->
         %{
           total_duration: normalize_result(total),
           count: count || 0,
           average_duration: normalize_result(avg)
         }
-
-      _ ->
-        %{total_duration: 0, count: 0, average_duration: 0}
     end
   end
 
@@ -1893,6 +1870,41 @@ defmodule Tuist.Builds.Analytics do
   defp clickhouse_interval_for_date_period(:hour), do: "1 hour"
   defp clickhouse_interval_for_date_period(:day), do: "1 day"
   defp clickhouse_interval_for_date_period(:month), do: "1 month"
+
+  @ecto_filters [
+    {:boolean, :is_ci},
+    {:string, :scheme},
+    {:string, :configuration},
+    {:enum, :category, ["clean", "incremental"]},
+    {:tag, :tag},
+    {:enum, :status, ["success", "failure"]}
+  ]
+
+  defp apply_filters(query, opts) do
+    Enum.reduce(@ecto_filters, query, fn
+      {:boolean, key}, q ->
+        case Keyword.get(opts, key) do
+          value when is_boolean(value) -> from(b in q, where: field(b, ^key) == ^value)
+          _ -> q
+        end
+
+      {:string, key}, q ->
+        case normalize_string_filter(Keyword.get(opts, key)) do
+          nil -> q
+          value -> from(b in q, where: field(b, ^key) == ^value)
+        end
+
+      {:enum, key, allowed_values}, q ->
+        value = normalize_string_filter(Keyword.get(opts, key))
+        if value in allowed_values, do: from(b in q, where: field(b, ^key) == ^value), else: q
+
+      {:tag, key}, q ->
+        case normalize_string_filter(Keyword.get(opts, key)) do
+          nil -> q
+          value -> from(b in q, where: fragment("has(custom_tags, ?)", ^value))
+        end
+    end)
+  end
 
   defp build_filter_clauses(opts) do
     {clauses, params} =
