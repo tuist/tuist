@@ -346,15 +346,11 @@ defmodule Tuist.Builds do
   end
 
   defp maybe_preload_accounts(builds, preload) when is_list(preload) do
-    if :ran_by_account in preload or preload == [:ran_by_account] do
+    if :ran_by_account in preload do
       preload_ran_by_accounts(builds)
     else
       builds
     end
-  end
-
-  defp maybe_preload_accounts(builds, :ran_by_account) do
-    preload_ran_by_accounts(builds)
   end
 
   defp maybe_preload_accounts(builds, _), do: builds
