@@ -9,6 +9,7 @@ import TuistCore
 import TuistEnvironment
 import TuistGit
 import TuistLoader
+import TuistLogging
 import TuistProcess
 import TuistServer
 import TuistSupport
@@ -106,7 +107,9 @@ struct InspectBuildCommandService {
             return
         }
         let basePath = try await self.path(path)
+        Logger.current.debug("Inspect build: base path resolved to \(basePath.pathString)")
         let projectPath = try await xcodeProjectOrWorkspacePathLocator.locate(from: basePath)
+        Logger.current.debug("Inspect build: project path resolved to \(projectPath.pathString)")
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
         var projectDerivedDataDirectory: AbsolutePath! = try derivedDataPath.map { try AbsolutePath(
             validating: $0,
@@ -115,6 +118,9 @@ struct InspectBuildCommandService {
         if projectDerivedDataDirectory == nil {
             projectDerivedDataDirectory = try await derivedDataLocator.locate(for: projectPath)
         }
+        Logger.current.debug("Inspect build: derived data directory resolved to \(projectDerivedDataDirectory.pathString)")
+        Logger.current.debug("Inspect build: workspace path from environment is \(Environment.current.workspacePath?.pathString ?? "nil")")
+        Logger.current.debug("Inspect build: reference date is \(referenceDate) (timeIntervalSinceReferenceDate: \(referenceDate.timeIntervalSinceReferenceDate))")
 
         let mostRecentActivityLogPath = try await mostRecentActivityLogPath(
             projectPath: projectPath,
@@ -134,6 +140,7 @@ struct InspectBuildCommandService {
         referenceDate: Date
     ) async throws -> AbsolutePath {
         var mostRecentActivityLogPath: AbsolutePath!
+        var hasLoggedFirstAttempt = false
         try await withTimeout(
             .seconds(5),
             onTimeout: {
@@ -141,18 +148,30 @@ struct InspectBuildCommandService {
             }
         ) {
             while true {
-                if let mostRecentActivityLogFile = try await xcActivityLogController.mostRecentActivityLogFile(
+                let mostRecentActivityLogFile = try await xcActivityLogController.mostRecentActivityLogFile(
                     projectDerivedDataDirectory: projectDerivedDataDirectory,
                     filter: { !$0.signature.hasPrefix("Clean") }
-                ),
-                    Environment.current.workspacePath == nil || (
-                        referenceDate.timeIntervalSinceReferenceDate - 10 ..< referenceDate.timeIntervalSinceReferenceDate
-                            + 10
-                    ) ~= mostRecentActivityLogFile.timeStoppedRecording.timeIntervalSinceReferenceDate
+                )
+                if !hasLoggedFirstAttempt {
+                    hasLoggedFirstAttempt = true
+                    if let mostRecentActivityLogFile {
+                        Logger.current.debug("Inspect build: most recent activity log found: \(mostRecentActivityLogFile.path.pathString), signature: \(mostRecentActivityLogFile.signature), timeStoppedRecording: \(mostRecentActivityLogFile.timeStoppedRecording) (timeIntervalSinceReferenceDate: \(mostRecentActivityLogFile.timeStoppedRecording.timeIntervalSinceReferenceDate))")
+                    } else {
+                        Logger.current.debug("Inspect build: no activity log found in \(projectDerivedDataDirectory.pathString)")
+                    }
+                }
+                if let mostRecentActivityLogFile,
+                   Environment.current.workspacePath == nil || (
+                       referenceDate.timeIntervalSinceReferenceDate - 10 ..< referenceDate.timeIntervalSinceReferenceDate
+                           + 10
+                   ) ~= mostRecentActivityLogFile.timeStoppedRecording.timeIntervalSinceReferenceDate
                 {
                     mostRecentActivityLogPath = mostRecentActivityLogFile.path
+                } else if let mostRecentActivityLogFile, !hasLoggedFirstAttempt || mostRecentActivityLogPath == nil {
+                    Logger.current.debug("Inspect build: activity log timestamp \(mostRecentActivityLogFile.timeStoppedRecording.timeIntervalSinceReferenceDate) outside expected range [\(referenceDate.timeIntervalSinceReferenceDate - 10), \(referenceDate.timeIntervalSinceReferenceDate + 10)]")
                 }
                 if mostRecentActivityLogPath != nil {
+                    Logger.current.debug("Inspect build: using activity log at \(mostRecentActivityLogPath.pathString)")
                     return
                 }
 

@@ -2,6 +2,7 @@ import Command
 import FileSystem
 import Foundation
 import Mockable
+import TuistLogging
 import Path
 import TuistSupport
 
@@ -82,19 +83,27 @@ public struct XCResultService: XCResultServicing {
         let logManifestPlistPath = logsBuildDirectoryPath.appending(
             components: "LogStoreManifest.plist"
         )
-        guard try await fileSystem.exists(logManifestPlistPath) else { return nil }
+        guard try await fileSystem.exists(logManifestPlistPath) else {
+            Logger.current.debug("Test log manifest not found at \(logManifestPlistPath.pathString)")
+            return nil
+        }
+        Logger.current.debug("Test log manifest found at \(logManifestPlistPath.pathString)")
         let plist: XCLogStoreManifestPlist = try await fileSystem.readPlistFile(
             at: logManifestPlistPath
         )
+        Logger.current.debug("Test log manifest contains \(plist.logs.count) log(s)")
 
         guard let latestLog = plist.logs.values.sorted(by: {
             $0.timeStoppedRecording > $1.timeStoppedRecording
         }).first
         else {
+            Logger.current.debug("Test log manifest has no log entries")
             return nil
         }
 
-        return logsBuildDirectoryPath.appending(component: latestLog.fileName)
+        let resultPath = logsBuildDirectoryPath.appending(component: latestLog.fileName)
+        Logger.current.debug("Most recent test log: \(latestLog.fileName), timeStoppedRecording=\(latestLog.timeStoppedRecording)")
+        return resultPath
     }
 
     public func parse(path: AbsolutePath, rootDirectory: AbsolutePath?) async throws -> TestSummary? {
