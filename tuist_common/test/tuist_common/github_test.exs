@@ -11,7 +11,12 @@ defmodule TuistCommon.GitHubTest do
         assert {"authorization", "Bearer test-token"} in opts[:headers]
         assert {"accept", "application/vnd.github+json"} in opts[:headers]
 
-        {:ok, %Req.Response{status: 200, body: [%{"name" => "1.0.0"}, %{"name" => "2.0.0"}], headers: %{}}}
+        {:ok,
+         %Req.Response{
+           status: 200,
+           body: [%{"name" => "1.0.0"}, %{"name" => "2.0.0"}],
+           headers: %{}
+         }}
       end)
 
       assert {:ok, ["1.0.0", "2.0.0"]} = GitHub.list_tags("tuist/tuist", "test-token")
@@ -26,7 +31,9 @@ defmodule TuistCommon.GitHubTest do
            %Req.Response{
              status: 200,
              body: [%{"name" => "1.0.0"}],
-             headers: %{"link" => "<https://api.github.com/repos/tuist/tuist/tags?page=2>; rel=\"next\""}
+             headers: %{
+               "link" => "<https://api.github.com/repos/tuist/tuist/tags?page=2>; rel=\"next\""
+             }
            }}
         end
       end)
@@ -107,7 +114,11 @@ defmodule TuistCommon.GitHubTest do
 
     test "returns error for invalid base64 content" do
       stub(Req, :request, fn _opts ->
-        {:ok, %Req.Response{status: 200, body: %{"content" => "not-valid-base64!!!", "encoding" => "base64"}}}
+        {:ok,
+         %Req.Response{
+           status: 200,
+           body: %{"content" => "not-valid-base64!!!", "encoding" => "base64"}
+         }}
       end)
 
       assert {:error, :invalid_content} =
@@ -141,7 +152,11 @@ defmodule TuistCommon.GitHubTest do
 
     test "returns error for invalid base64 content" do
       stub(Req, :request, fn _opts ->
-        {:ok, %Req.Response{status: 200, body: %{"content" => "not-valid-base64!!!", "encoding" => "base64"}}}
+        {:ok,
+         %Req.Response{
+           status: 200,
+           body: %{"content" => "not-valid-base64!!!", "encoding" => "base64"}
+         }}
       end)
 
       assert {:error, :invalid_content} =
@@ -165,7 +180,9 @@ defmodule TuistCommon.GitHubTest do
          }}
       end)
 
-      assert {:ok, contents} = GitHub.list_repository_contents("tuist/tuist", "test-token", "main")
+      assert {:ok, contents} =
+               GitHub.list_repository_contents("tuist/tuist", "test-token", "main")
+
       assert length(contents) == 2
     end
 
@@ -174,7 +191,8 @@ defmodule TuistCommon.GitHubTest do
         {:ok, %Req.Response{status: 404, body: %{}}}
       end)
 
-      assert {:error, :not_found} = GitHub.list_repository_contents("tuist/nonexistent", "test-token", "main")
+      assert {:error, :not_found} =
+               GitHub.list_repository_contents("tuist/nonexistent", "test-token", "main")
     end
   end
 
@@ -211,7 +229,9 @@ defmodule TuistCommon.GitHubTest do
   describe "fetch_packages_json/2" do
     test "fetches packages.json from SwiftPackageIndex" do
       stub(Req, :request, fn opts ->
-        assert opts[:url] == "https://api.github.com/repos/SwiftPackageIndex/PackageList/contents/packages.json"
+        assert opts[:url] ==
+                 "https://api.github.com/repos/SwiftPackageIndex/PackageList/contents/packages.json"
+
         assert opts[:params] == %{ref: "main"}
 
         content = Base.encode64(~s(["https://github.com/tuist/tuist"]))
@@ -219,7 +239,8 @@ defmodule TuistCommon.GitHubTest do
         {:ok, %Req.Response{status: 200, body: %{"content" => content, "encoding" => "base64"}}}
       end)
 
-      assert {:ok, ~s(["https://github.com/tuist/tuist"])} = GitHub.fetch_packages_json("test-token")
+      assert {:ok, ~s(["https://github.com/tuist/tuist"])} =
+               GitHub.fetch_packages_json("test-token")
     end
   end
 end

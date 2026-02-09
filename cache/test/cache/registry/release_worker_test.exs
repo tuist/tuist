@@ -6,6 +6,8 @@ defmodule Cache.Registry.ReleaseWorkerTest do
   alias Cache.Registry.Lock
   alias Cache.Registry.Metadata
   alias Cache.Registry.ReleaseWorker
+  alias ExAws.Operation.S3
+  alias ExAws.S3.Upload
 
   setup :set_mimic_from_context
 
@@ -81,14 +83,14 @@ defmodule Cache.Registry.ReleaseWorkerTest do
     end)
 
     # Upload source archive via streaming upload
-    expect(ExAws.S3.Upload, :stream_file, fn path ->
+    expect(Upload, :stream_file, fn path ->
       assert File.exists?(path)
       ["fake-zip-content"]
     end)
 
     expect(ExAws.S3, :upload, fn _stream, _bucket, key, _opts ->
       assert key == "registry/swift/apple/swift-argument-parser/1.0.0/source_archive.zip"
-      %ExAws.Operation.S3{http_method: :put, bucket: "test", path: key}
+      %S3{http_method: :put, bucket: "test", path: key}
     end)
 
     # First ExAws.request call — source archive upload
@@ -158,21 +160,22 @@ defmodule Cache.Registry.ReleaseWorkerTest do
       :ok
     end)
 
-    expect(ExAws.S3.Upload, :stream_file, fn _path -> ["fake-zip-content"] end)
+    expect(Upload, :stream_file, fn _path -> ["fake-zip-content"] end)
 
     expect(ExAws.S3, :upload, fn _stream, _bucket, _key, _opts ->
-      %ExAws.Operation.S3{http_method: :put, bucket: "test", path: "key"}
+      %S3{http_method: :put, bucket: "test", path: "key"}
     end)
 
     # 3 ExAws.request calls: source archive upload + 2 manifest uploads
     expect(ExAws, :request, 3, fn _op -> {:ok, %{status_code: 200, body: ""}} end)
 
     expect(GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0" ->
-      {:ok, [
-        %{"path" => "Package.swift", "type" => "file"},
-        %{"path" => "Package@swift-5.9.swift", "type" => "file"},
-        %{"path" => "README.md", "type" => "file"}
-      ]}
+      {:ok,
+       [
+         %{"path" => "Package.swift", "type" => "file"},
+         %{"path" => "Package@swift-5.9.swift", "type" => "file"},
+         %{"path" => "README.md", "type" => "file"}
+       ]}
     end)
 
     # Three get_file_content calls: .gitmodules check + 2 manifest fetches

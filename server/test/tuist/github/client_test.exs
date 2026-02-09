@@ -562,58 +562,45 @@ defmodule Tuist.GitHub.ClientTest do
 
   describe "get_repository_content/1" do
     test "returns contents array in a given repository" do
-      # Given
-      stub(Req, :get, fn _ ->
+      stub(Req, :request, fn _ ->
         {:ok,
          %Req.Response{
            status: 200,
            body: [
-             %{
-               "path" => "Package.swift"
-             },
-             %{
-               "path" => "Package@swift-5.9.swift"
-             }
+             %{"path" => "Package.swift"},
+             %{"path" => "Package@swift-5.9.swift"}
            ]
          }}
       end)
 
-      # When
       got =
         Client.get_repository_content(%{
           repository_full_handle: "Alamofire/Alamofire",
           token: "github_token"
         })
 
-      # Then
       assert got ==
                {:ok,
                 [
-                  %Content{
-                    path: "Package.swift"
-                  },
-                  %Content{
-                    path: "Package@swift-5.9.swift"
-                  }
+                  %Content{path: "Package.swift"},
+                  %Content{path: "Package@swift-5.9.swift"}
                 ]}
     end
 
     test "returns file content in a given repository" do
-      # Given
-      stub(Req, :get, fn _ ->
+      encoded_content = Base.encode64("Package.swift content")
+
+      stub(Req, :request, fn _ ->
         {:ok,
          %Req.Response{
            status: 200,
            body: %{
-             "path" => "Package.swift",
-             "content" => "Package.swift encoded content"
+             "content" => encoded_content,
+             "encoding" => "base64"
            }
          }}
       end)
 
-      stub(Base64, :decode, fn "Package.swift encoded content" -> "Package.swift content" end)
-
-      # When
       got =
         Client.get_repository_content(
           %{
@@ -623,22 +610,14 @@ defmodule Tuist.GitHub.ClientTest do
           path: "Package.swift"
         )
 
-      # Then
-      assert got ==
-               {:ok,
-                %Content{
-                  path: "Package.swift",
-                  content: "Package.swift content"
-                }}
+      assert got == {:ok, %Content{path: "Package.swift", content: "Package.swift content"}}
     end
 
     test "returns :not_found error when the content does not exist" do
-      # Given
-      stub(Req, :get, fn _ ->
+      stub(Req, :request, fn _ ->
         {:ok, %Req.Response{status: 404}}
       end)
 
-      # When
       got =
         Client.get_repository_content(%{
           repository_full_handle: "Alamofire/Alamofire",
@@ -646,18 +625,14 @@ defmodule Tuist.GitHub.ClientTest do
           token: "github_token"
         })
 
-      # Then
-      assert got ==
-               {:error, :not_found}
+      assert got == {:error, :not_found}
     end
 
     test "returns unexpected error when the content does not exist" do
-      # Given
-      stub(Req, :get, fn _ ->
+      stub(Req, :request, fn _ ->
         {:ok, %Req.Response{status: 329}}
       end)
 
-      # When
       got =
         Client.get_repository_content(%{
           repository_full_handle: "Alamofire/Alamofire",
@@ -665,10 +640,7 @@ defmodule Tuist.GitHub.ClientTest do
           token: "github_token"
         })
 
-      # Then
-      assert got ==
-               {:error,
-                "Unexpected status code: 329 when getting contents at https://api.github.com/repos/Alamofire/Alamofire/contents/."}
+      assert got == {:error, "Unexpected status code: 329 when getting contents."}
     end
   end
 end

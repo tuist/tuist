@@ -13,7 +13,8 @@ defmodule TuistCommon.GitHub do
   ## Options
     * `:finch` - The Finch instance to use for requests (required)
   """
-  @spec list_tags(String.t(), String.t() | nil, keyword()) :: {:ok, [String.t()]} | {:error, term()}
+  @spec list_tags(String.t(), String.t() | nil, keyword()) ::
+          {:ok, [String.t()]} | {:error, term()}
   def list_tags(repository_full_handle, token, opts \\ []) do
     url = "#{@api_base}/repos/#{repository_full_handle}/tags?per_page=#{@per_page}"
 
@@ -202,7 +203,8 @@ defmodule TuistCommon.GitHub do
 
   defp request(method, url, token, opts) do
     headers =
-      [{"user-agent", @user_agent}, {"accept", "application/vnd.github+json"}] ++ auth_header(token)
+      [{"user-agent", @user_agent}, {"accept", "application/vnd.github+json"}] ++
+        auth_header(token)
 
     finch = Keyword.get(opts, :finch)
     retry = Keyword.get(opts, :retry, false)
