@@ -4,7 +4,6 @@ defmodule Tuist.Builds.Analytics do
   """
   import Ecto.Query
 
-  alias Postgrex.Interval
   alias Tuist.Builds.Build
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
@@ -543,8 +542,7 @@ defmodule Tuist.Builds.Analytics do
     end_datetime = Keyword.get(opts, :end_datetime)
     date_period = Keyword.get(opts, :date_period)
 
-    time_bucket = time_bucket_for_date_period(date_period)
-    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
+    clickhouse_time_bucket = clickhouse_interval_for_date_period(date_period)
 
     cache_hit_rate_metadata_map =
       project_id
@@ -646,7 +644,7 @@ defmodule Tuist.Builds.Analytics do
     is_ci = Keyword.get(opts, :is_ci)
 
     date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
-    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket_for_date_period(date_period))
+    clickhouse_time_bucket = clickhouse_interval_for_date_period(date_period)
 
     base_analytics = selective_testing_analytics(opts)
 
@@ -767,8 +765,7 @@ defmodule Tuist.Builds.Analytics do
     end_datetime = Keyword.get(opts, :end_datetime)
     date_period = Keyword.get(opts, :date_period)
 
-    time_bucket = time_bucket_for_date_period(date_period)
-    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
+    clickhouse_time_bucket = clickhouse_interval_for_date_period(date_period)
 
     selective_testing_hit_rate_metadata_map =
       project_id
@@ -910,8 +907,7 @@ defmodule Tuist.Builds.Analytics do
     days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
 
     date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
-    time_bucket = time_bucket_for_date_period(date_period)
-    interval_str = time_bucket_to_clickhouse_interval(time_bucket)
+    interval_str = clickhouse_interval_for_date_period(date_period)
 
     current_data =
       ClickHouseRepo.query!(
@@ -1401,8 +1397,7 @@ defmodule Tuist.Builds.Analytics do
 
     days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
     date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
-    time_bucket = time_bucket_for_date_period(date_period)
-    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
+    clickhouse_time_bucket = clickhouse_interval_for_date_period(date_period)
 
     hit_rate_result = CommandEvents.cache_hit_rate(project_id, start_datetime, end_datetime, opts)
 
@@ -1475,8 +1470,7 @@ defmodule Tuist.Builds.Analytics do
 
     days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
     date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
-    time_bucket = time_bucket_for_date_period(date_period)
-    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
+    clickhouse_time_bucket = clickhouse_interval_for_date_period(date_period)
 
     hit_rate_time_series =
       CommandEvents.cache_hit_rates(
@@ -1551,8 +1545,7 @@ defmodule Tuist.Builds.Analytics do
 
     days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
     date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
-    time_bucket = time_bucket_for_date_period(date_period)
-    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
+    clickhouse_time_bucket = clickhouse_interval_for_date_period(date_period)
 
     hit_rate_time_series =
       CommandEvents.cache_hit_rates(
@@ -1638,8 +1631,7 @@ defmodule Tuist.Builds.Analytics do
 
     days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
     date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
-    time_bucket = time_bucket_for_date_period(date_period)
-    clickhouse_time_bucket = time_bucket_to_clickhouse_interval(time_bucket)
+    clickhouse_time_bucket = clickhouse_interval_for_date_period(date_period)
 
     current_period_percentile =
       module_cache_hit_rate_period_percentile(project_id, percentile, start_datetime, end_datetime, opts)
@@ -1861,18 +1853,6 @@ defmodule Tuist.Builds.Analytics do
       true -> :day
     end
   end
-
-  defp time_bucket_for_date_period(date_period) do
-    case date_period do
-      :hour -> %Interval{secs: 3600}
-      :day -> %Interval{days: 1}
-      :month -> %Interval{months: 1}
-    end
-  end
-
-  defp time_bucket_to_clickhouse_interval(%Interval{secs: 3600}), do: "1 hour"
-  defp time_bucket_to_clickhouse_interval(%Interval{days: 1}), do: "1 day"
-  defp time_bucket_to_clickhouse_interval(%Interval{months: 1}), do: "1 month"
 
   defp clickhouse_interval_for_date_period(:hour), do: "1 hour"
   defp clickhouse_interval_for_date_period(:day), do: "1 day"
