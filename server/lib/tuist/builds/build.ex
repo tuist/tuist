@@ -298,41 +298,6 @@ defmodule Tuist.Builds.Build do
     end
   end
 
-  def normalize_enums(nil), do: nil
-
-  def normalize_enums(build) do
-    %{
-      build
-      | status: status_string_to_atom(build.status),
-        category: category_string_to_atom(build.category),
-        ci_provider: ci_provider_string_to_atom(build.ci_provider)
-    }
-  end
-
-  defp status_string_to_atom("success"), do: :success
-  defp status_string_to_atom("failure"), do: :failure
-
-  defp status_string_to_atom(unknown) do
-    require Logger
-
-    Logger.warning("Unknown build status encountered: #{inspect(unknown)}, defaulting to :success")
-    :success
-  end
-
-  defp category_string_to_atom(nil), do: nil
-  defp category_string_to_atom("clean"), do: :clean
-  defp category_string_to_atom("incremental"), do: :incremental
-  defp category_string_to_atom(_), do: nil
-
-  defp ci_provider_string_to_atom(nil), do: nil
-  defp ci_provider_string_to_atom("github"), do: :github
-  defp ci_provider_string_to_atom("gitlab"), do: :gitlab
-  defp ci_provider_string_to_atom("bitrise"), do: :bitrise
-  defp ci_provider_string_to_atom("circleci"), do: :circleci
-  defp ci_provider_string_to_atom("buildkite"), do: :buildkite
-  defp ci_provider_string_to_atom("codemagic"), do: :codemagic
-  defp ci_provider_string_to_atom(_), do: nil
-
   def valid_status?(status) when status in @status_values, do: true
   def valid_status?(_), do: false
 
