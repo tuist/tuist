@@ -182,6 +182,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.acceptanceTesting.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.loggerTesting.targetName),
+                    .target(name: Module.nooraTesting.targetName),
                     .target(name: Module.kit.targetName),
                     .target(name: Module.projectDescription.targetName),
                     .target(name: "TuistCacheEE"),
@@ -1273,6 +1274,7 @@ public enum Module: String, CaseIterable {
             case .migration:
                 [
                     .target(name: Module.testing.targetName),
+                    .target(name: Module.nooraTesting.targetName),
                     .target(name: Module.support.targetName),
                 ]
             case .dependencies:
