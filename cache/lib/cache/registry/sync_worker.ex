@@ -61,8 +61,6 @@ defmodule Cache.Registry.SyncWorker do
             :ok
         end
 
-        :ok
-
       {:error, reason} ->
         Logger.error("Failed to fetch SPI package list: #{inspect(reason)}")
         {:error, reason}
