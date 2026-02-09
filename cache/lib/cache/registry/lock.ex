@@ -74,6 +74,7 @@ defmodule Cache.Registry.Lock do
 
     case bucket
          |> ExAws.S3.get_object(lock_key)
+         |> with_tigris_consistency()
          |> ExAws.request() do
       {:ok, %{body: body, headers: headers}} ->
         with {:ok, lock} <- Jason.decode(body) do
@@ -93,7 +94,12 @@ defmodule Cache.Registry.Lock do
 
     bucket
     |> ExAws.S3.put_object(lock_key, body, Keyword.merge([content_type: "application/json"], opts))
+    |> with_tigris_consistency()
     |> ExAws.request()
+  end
+
+  defp with_tigris_consistency(%{headers: headers} = op) do
+    %{op | headers: Map.put(headers, "X-Tigris-Consistent", "true")}
   end
 
   defp lock_key(:sync), do: "registry/locks/sync.json"
