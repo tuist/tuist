@@ -35,8 +35,8 @@ Makroları](https://docs.swift.org/swift-book/documentation/the-swift-programmin
 gibi düzenleyici özelliklerinin güvenilir ve öngörülebilir bir şekilde
 çalışmasını sağlamak için de çok önemlidir. Xcode ve Xcode projeleri, kolaylık
 sağlamak için geçerli bir tasarım seçeneği olarak belirsizliği benimsediğinden,
-Swift Paket Yöneticisi de bu ilkeyi miras almıştır. Bu nedenle, Xcode'u
-kullanmanın zorlukları Swift Paket Yöneticisi'nde de mevcuttur.
+Swift Package Yöneticisi de bu ilkeyi miras almıştır. Bu nedenle, Xcode'u
+kullanmanın zorlukları Swift Package Yöneticisi'nde de mevcuttur.
 
 ::: info THE ROLE OF TUIST
 <!-- -->
@@ -50,15 +50,15 @@ derleme sistemi düzeyine indirger.
 
 Bu, toplulukta pek tartışılmayan, ancak önemli bir konudur. Tuist üzerinde
 çalışırken, birçok kuruluş ve geliştiricinin karşılaştıkları mevcut zorlukların
-[Swift paketi](https://www.swift.org/documentation/package-manager/) tarafından
-çözüleceğini düşündüklerini fark ettik, ancak fark etmedikleri şey, aynı ilkeler
-üzerine kurulu olduğu için, çok iyi bilinen Git çakışmalarını azaltmasına
-rağmen, diğer alanlarda geliştirici deneyimini bozduğu ve projeleri optimize
-edilemez hale getirmeye devam ettiği.
+[Swift package manager](https://www.swift.org/documentation/package-manager/)
+tarafından çözüleceğini düşündüklerini fark ettik, ancak fark etmedikleri şey,
+aynı ilkeler üzerine kurulu olduğu için, çok iyi bilinen Git çakışmalarını
+azaltmasına rağmen, diğer alanlarda geliştirici deneyimini bozduğu ve projeleri
+optimize edilemez hale getirmeye devam ettiği.
 
 Aşağıdaki bölümlerde, örtükliğin geliştirici deneyimini ve projenin sağlığını
 nasıl etkilediğine dair bazı gerçek örnekler ele alacağız. Bu liste eksiksiz
-değildir, ancak Xcode projeleri veya Swift paketleri ile çalışırken
+değildir, ancak Xcode projeleri veya Swift package'ları ile çalışırken
 karşılaşabileceğiniz zorluklar hakkında size iyi bir fikir verecektir.
 
 ## Rahatlık yolunuza çıkıyor {#convenience-getting-in-your-way}
@@ -165,7 +165,7 @@ optimizasyonlar mümkün olacaktır.**
 ## Gelecek {#future}
 
 Apple'ın yukarıdaki sorunların tümünü önlemek için bir şeyler yapıp yapmayacağı
-bilinmiyor. Xcode ve Swift paketi Manager'a yerleştirdikleri sürekli kararlar,
+bilinmiyor. Xcode ve Swift package Manager'a yerleştirdikleri sürekli kararlar,
 bunu yapacaklarını düşündürmüyor. Örtük yapılandırmayı geçerli bir durum olarak
 kabul ettiğinizde, **büyük değişiklikler yapmadan bu durumdan kurtulmak
 zorlaşır.** İlk ilkelere geri dönüp araçların tasarımını yeniden düşünmek,
@@ -182,7 +182,7 @@ Gelecek bilinmez olduğu için, **endüstri standartlarına ve Xcode projelerine
 mümkün olduğunca yakın olmaya çalışıyoruz. Yukarıdaki sorunları önlüyor ve daha
 iyi bir geliştirici deneyimi sunmak için sahip olduğumuz bilgileri kullanıyoruz.
 İdeal olarak, bunun için proje oluşturmaya başvurmamız gerekmezdi, ancak Xcode
-ve Swift paketi Yöneticisi'nin genişletilebilir olmaması, bunu tek geçerli
+ve Swift package Yöneticisi'nin genişletilebilir olmaması, bunu tek geçerli
 seçenek haline getiriyor. Ayrıca, Tuist projelerini bozmak için Xcode
 projelerini bozmak zorunda kalacakları için bu, güvenli bir seçenek.
 
