@@ -334,7 +334,13 @@ abstract class TuistBuildInsightsService :
                         }
                     }
                     HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
-                    else -> null
+                    else -> {
+                        val errorBody = try {
+                            connection.errorStream?.bufferedReader()?.use { it.readText() }
+                        } catch (_: Exception) { null }
+                        logger.warn("Tuist: Build insights request failed with HTTP ${connection.responseCode}: ${errorBody ?: "(no response body)"}")
+                        null
+                    }
                 }
             } finally {
                 connection.disconnect()
