@@ -374,19 +374,16 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
     override fun apply(project: Project) {
         if (project !== project.rootProject) return
 
-        val url = project.findProperty("tuist.url") as? String ?: "https://tuist.dev"
-        val tuistProject = project.findProperty("tuist.project") as? String ?: ""
-        val executablePath = project.findProperty("tuist.executablePath") as? String ?: "tuist"
-        val gradleVersion = project.gradle.gradleVersion
+        val config = TuistGradleConfig.from(project) ?: return
 
         val serviceProvider = project.gradle.sharedServices.registerIfAbsent(
             "tuistBuildInsights",
             TuistBuildInsightsService::class.java
         ) {
-            parameters.url.set(url)
-            parameters.project.set(tuistProject)
-            parameters.executablePath.set(executablePath)
-            parameters.gradleVersion.set(gradleVersion)
+            parameters.url.set(config.url)
+            parameters.project.set(config.project)
+            parameters.executablePath.set(config.executablePath)
+            parameters.gradleVersion.set(project.gradle.gradleVersion)
             parameters.rootProjectName.set(project.rootProject.name)
         }
 

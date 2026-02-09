@@ -27,6 +27,24 @@ import org.gradle.api.logging.Logging
  * }
  * ```
  */
+/**
+ * Shared configuration passed from the settings plugin to project-level feature plugins.
+ */
+data class TuistGradleConfig(
+    val url: String,
+    val project: String,
+    val executablePath: String
+) {
+    companion object {
+        internal const val EXTRA_PROPERTY_KEY = "tuist.config"
+
+        fun from(project: org.gradle.api.Project): TuistGradleConfig? =
+            project.extensions.extraProperties.let {
+                if (it.has(EXTRA_PROPERTY_KEY)) it.get(EXTRA_PROPERTY_KEY) as? TuistGradleConfig else null
+            }
+    }
+}
+
 class TuistPlugin : Plugin<Settings> {
 
     private val logger: Logger = Logging.getLogger(TuistPlugin::class.java)
@@ -55,17 +73,21 @@ class TuistPlugin : Plugin<Settings> {
             return
         }
 
+        val config = TuistGradleConfig(
+            url = extension.url,
+            project = extension.project,
+            executablePath = extension.executablePath ?: "tuist"
+        )
+
         configureBuildCache(settings, extension)
-        configureBuildInsights(settings, extension)
+        configureBuildInsights(settings, config)
     }
 
-    private fun configureBuildInsights(settings: Settings, extension: TuistExtension) {
+    private fun configureBuildInsights(settings: Settings, config: TuistGradleConfig) {
         settings.gradle.rootProject {
-            extensions.extraProperties.set("tuist.url", extension.url)
-            extensions.extraProperties.set("tuist.project", extension.project)
-            extensions.extraProperties.set("tuist.executablePath", extension.executablePath ?: "tuist")
+            extensions.extraProperties.set(TuistGradleConfig.EXTRA_PROPERTY_KEY, config)
             pluginManager.apply(TuistBuildInsightsPlugin::class.java)
-            logger.lifecycle("Tuist: Build insights configured for ${extension.project}")
+            logger.lifecycle("Tuist: Build insights configured for ${config.project}")
         }
     }
 
