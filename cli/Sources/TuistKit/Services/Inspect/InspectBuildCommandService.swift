@@ -119,8 +119,12 @@ struct InspectBuildCommandService {
             projectDerivedDataDirectory = try await derivedDataLocator.locate(for: projectPath)
         }
         Logger.current.debug("Inspect build: derived data directory resolved to \(projectDerivedDataDirectory.pathString)")
-        Logger.current.debug("Inspect build: workspace path from environment is \(Environment.current.workspacePath?.pathString ?? "nil")")
-        Logger.current.debug("Inspect build: reference date is \(referenceDate) (timeIntervalSinceReferenceDate: \(referenceDate.timeIntervalSinceReferenceDate))")
+        Logger.current
+            .debug("Inspect build: workspace path from environment is \(Environment.current.workspacePath?.pathString ?? "nil")")
+        Logger.current
+            .debug(
+                "Inspect build: reference date is \(referenceDate) (timeIntervalSinceReferenceDate: \(referenceDate.timeIntervalSinceReferenceDate))"
+            )
 
         let mostRecentActivityLogPath = try await mostRecentActivityLogPath(
             projectPath: projectPath,

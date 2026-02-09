@@ -2,11 +2,11 @@ import Algorithms
 import FileSystem
 import Foundation
 import Mockable
-import TuistLogging
 import Path
 import TuistCASAnalytics
 import TuistEnvironment
 import TuistGit
+import TuistLogging
 import TuistRootDirectoryLocator
 import TuistSupport
 import XCLogParser
@@ -161,7 +161,10 @@ public struct XCActivityLogController: XCActivityLogControlling {
             $0.timeStoppedRecording > $1.timeStoppedRecording
         })
         for logFile in sortedLogFiles.prefix(5) {
-            Logger.current.debug("Activity log entry: signature=\(logFile.signature), timeStoppedRecording=\(logFile.timeStoppedRecording) (timeIntervalSinceReferenceDate: \(logFile.timeStoppedRecording.timeIntervalSinceReferenceDate)), path=\(logFile.path.pathString)")
+            Logger.current
+                .debug(
+                    "Activity log entry: signature=\(logFile.signature), timeStoppedRecording=\(logFile.timeStoppedRecording) (timeIntervalSinceReferenceDate: \(logFile.timeStoppedRecording.timeIntervalSinceReferenceDate)), path=\(logFile.path.pathString)"
+                )
         }
         let logFile = sortedLogFiles
             .filter(filter)

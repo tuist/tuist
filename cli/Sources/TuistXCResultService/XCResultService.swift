@@ -2,8 +2,8 @@ import Command
 import FileSystem
 import Foundation
 import Mockable
-import TuistLogging
 import Path
+import TuistLogging
 import TuistSupport
 
 enum XCResultServiceError: LocalizedError, Equatable {
@@ -102,7 +102,8 @@ public struct XCResultService: XCResultServicing {
         }
 
         let resultPath = logsBuildDirectoryPath.appending(component: latestLog.fileName)
-        Logger.current.debug("Most recent test log: \(latestLog.fileName), timeStoppedRecording=\(latestLog.timeStoppedRecording)")
+        Logger.current
+            .debug("Most recent test log: \(latestLog.fileName), timeStoppedRecording=\(latestLog.timeStoppedRecording)")
         return resultPath
     }
 

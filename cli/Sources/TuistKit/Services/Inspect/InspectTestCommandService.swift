@@ -109,7 +109,8 @@ struct InspectTestCommandService {
     ) async throws -> (resultBundlePath: AbsolutePath, derivedDataDirectory: AbsolutePath?) {
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
         Logger.current.debug("Inspect test: base path is \(basePath.pathString)")
-        Logger.current.debug("Inspect test: workspace path from environment is \(Environment.current.workspacePath?.pathString ?? "nil")")
+        Logger.current
+            .debug("Inspect test: workspace path from environment is \(Environment.current.workspacePath?.pathString ?? "nil")")
 
         if let resultBundlePath {
             Logger.current.debug("Inspect test: using explicit result bundle path \(resultBundlePath)")
