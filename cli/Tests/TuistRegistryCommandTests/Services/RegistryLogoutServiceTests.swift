@@ -1,4 +1,4 @@
-#if os(macOS)
+#if canImport(TuistLoader)
     import FileSystem
     import Foundation
     import Mockable

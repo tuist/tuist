@@ -2,12 +2,12 @@ import FileSystem
 import Foundation
 import Mockable
 import Testing
+import TuistConfig
 import TuistConfigLoader
-import TuistLoader
+import TuistEnvironmentTesting
 import TuistServer
-import TuistSupport
 
-@testable import TuistKit
+@testable import TuistAccountCommand
 
 struct AccountUpdateServiceTests {
     private let subject: AccountUpdateService
@@ -33,7 +33,7 @@ struct AccountUpdateServiceTests {
             .willReturn(.test())
         given(serverEnvironmentService)
             .url(configServerURL: .any)
-            .willReturn(.test())
+            .willReturn(URL(string: "https://test.tuist.dev")!)
 
         given(updateAccountService)
             .updateAccount(
@@ -45,7 +45,7 @@ struct AccountUpdateServiceTests {
         given(serverAuthenticationController).refreshToken(serverURL: .any).willReturn()
     }
 
-    @Test func update_with_implicit_handle() async throws {
+    @Test(.withMockedEnvironment()) func update_with_implicit_handle() async throws {
         // Given
         given(serverSessionController).authenticatedHandle(serverURL: .any).willReturn("tuistrocks")
 
@@ -66,7 +66,7 @@ struct AccountUpdateServiceTests {
         given(serverAuthenticationController).refreshToken(serverURL: .any).willReturn()
     }
 
-    @Test func update_with_explicit_handle() async throws {
+    @Test(.withMockedEnvironment()) func update_with_explicit_handle() async throws {
         // Given
         given(serverSessionController).authenticatedHandle(serverURL: .any).willReturn("tuistrocks")
 
