@@ -354,5 +354,4 @@ defmodule TuistWeb.API.GradleController do
         end
     end
   end
-
 end
