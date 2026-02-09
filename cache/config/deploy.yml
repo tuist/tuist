@@ -39,6 +39,8 @@ env:
     - GUARDIAN_SECRET_KEY
     - OBAN_WEB_USERNAME
     - OBAN_WEB_PASSWORD
+    - S3_REGISTRY_BUCKET
+    - REGISTRY_GITHUB_TOKEN
 
 volumes:
   - /cas:/storage:rw
