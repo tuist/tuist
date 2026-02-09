@@ -36,7 +36,7 @@ class TuistBuildInsightsTest {
         val baseUrl = mockWebServer.url("/").toString().trimEnd('/')
         return TuistHttpClient(
             configurationProvider = object : ConfigurationProvider {
-                override fun getConfiguration(forceRefresh: Boolean) = TuistCacheConfiguration(
+                override fun getConfiguration(forceRefresh: Boolean): TuistCacheConfiguration = TuistCacheConfiguration(
                     url = baseUrl,
                     token = token,
                     accountHandle = "test-account",

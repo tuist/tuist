@@ -289,11 +289,11 @@ class TuistBuildCacheTest {
 
     private fun createService(
         isPushEnabled: Boolean = true,
-        configProvider: (Boolean) -> TuistCacheConfiguration? = { createConfig() }
+        configProvider: (Boolean) -> TuistCacheConfiguration = { createConfig() }
     ): TuistBuildCacheService {
         val httpClient = TuistHttpClient(
             configurationProvider = object : ConfigurationProvider {
-                override fun getConfiguration(forceRefresh: Boolean): TuistCacheConfiguration? =
+                override fun getConfiguration(forceRefresh: Boolean): TuistCacheConfiguration =
                     configProvider(forceRefresh)
             }
         )

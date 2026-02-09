@@ -127,7 +127,7 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
  * Provides cache configuration, typically by running `tuist cache config`.
  */
 interface ConfigurationProvider {
-    fun getConfiguration(forceRefresh: Boolean = false): TuistCacheConfiguration?
+    fun getConfiguration(forceRefresh: Boolean = false): TuistCacheConfiguration
 }
 
 /**
@@ -139,7 +139,7 @@ class TuistCommandConfigurationProvider(
     private val url: String? = null
 ) : ConfigurationProvider {
 
-    override fun getConfiguration(forceRefresh: Boolean): TuistCacheConfiguration? {
+    override fun getConfiguration(forceRefresh: Boolean): TuistCacheConfiguration {
         val baseArgs = buildList {
             addAll(listOf("cache", "config", project, "--json"))
             if (!url.isNullOrBlank()) {
@@ -168,16 +168,18 @@ class TuistCommandConfigurationProvider(
                 reader.readText()
             }
 
-            val exitCode = process.waitFor()
-            if (exitCode != 0) {
-                return null
+            val stderr = BufferedReader(InputStreamReader(process.errorStream)).use { reader ->
+                reader.readText()
             }
 
-            return try {
-                Gson().fromJson(output, TuistCacheConfiguration::class.java)
-            } catch (e: Exception) {
-                null
+            val exitCode = process.waitFor()
+            if (exitCode != 0) {
+                val message = stderr.ifBlank { "exit code $exitCode" }
+                throw RuntimeException("tuist cache config failed: $message")
             }
+
+            return Gson().fromJson(output, TuistCacheConfiguration::class.java)
+                ?: throw RuntimeException("tuist cache config returned invalid JSON")
         } finally {
             tempDir.delete()
         }
@@ -196,11 +198,9 @@ class TuistBuildCacheService(
 ) : BuildCacheService {
 
     override fun load(key: BuildCacheKey, reader: BuildCacheEntryReader): Boolean {
-        val config = httpClient.getConfig() ?: return false
-        val url = buildCacheUrl(config, key.hashCode)
-
-        return httpClient.execute { currentConfig ->
-            val connection = httpClient.openConnection(url, currentConfig)
+        return httpClient.execute { config ->
+            val url = buildCacheUrl(config, key.hashCode)
+            val connection = httpClient.openConnection(url, config)
             connection.requestMethod = "GET"
 
             when (connection.responseCode) {
@@ -222,12 +222,9 @@ class TuistBuildCacheService(
     override fun store(key: BuildCacheKey, writer: BuildCacheEntryWriter) {
         if (!isPushEnabled) return
 
-        if (httpClient.getConfig() == null) return
-        val key = key.hashCode
-
-        httpClient.execute<Unit> { currentConfig ->
-            val url = buildCacheUrl(currentConfig, key)
-            val connection = httpClient.openConnection(url, currentConfig)
+        httpClient.execute<Unit> { config ->
+            val url = buildCacheUrl(config, key.hashCode)
+            val connection = httpClient.openConnection(url, config)
             connection.requestMethod = "PUT"
             connection.doOutput = true
             connection.setRequestProperty("Content-Type", "application/octet-stream")

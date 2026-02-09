@@ -293,11 +293,6 @@ abstract class TuistBuildInsightsService :
             readTimeoutMs = 10_000
         )
 
-        if (httpClient.getConfig() == null) {
-            println("Tuist: Warning - Could not get configuration for build insights. Skipping report.")
-            return
-        }
-
         val tasks = taskOutcomes.toList()
         val totalDurationMs = System.currentTimeMillis() - buildStartTime
 

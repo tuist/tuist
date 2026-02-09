@@ -15,17 +15,6 @@ class TuistHttpClient(
 
     private val configLock = Any()
 
-    fun getConfig(): TuistCacheConfiguration? {
-        cachedConfig?.let { return it }
-
-        synchronized(configLock) {
-            cachedConfig?.let { return it }
-            val newConfig = configurationProvider.getConfiguration()
-            cachedConfig = newConfig
-            return newConfig
-        }
-    }
-
     fun openConnection(url: URI, config: TuistCacheConfiguration): HttpURLConnection {
         val connection = url.toURL().openConnection() as HttpURLConnection
         connection.connectTimeout = connectTimeoutMs
@@ -35,8 +24,7 @@ class TuistHttpClient(
     }
 
     fun <T> execute(operation: (TuistCacheConfiguration) -> T): T {
-        val config = getConfig()
-            ?: throw IllegalStateException("Failed to get Tuist configuration")
+        val config = getOrFetchConfig()
 
         return try {
             operation(config)
@@ -51,8 +39,19 @@ class TuistHttpClient(
                     cachedConfig = newConfig
                     newConfig
                 }
-            } ?: throw IllegalStateException("Failed to refresh Tuist configuration")
+            }
             operation(refreshedConfig)
+        }
+    }
+
+    private fun getOrFetchConfig(): TuistCacheConfiguration {
+        cachedConfig?.let { return it }
+
+        synchronized(configLock) {
+            cachedConfig?.let { return it }
+            val newConfig = configurationProvider.getConfiguration()
+            cachedConfig = newConfig
+            return newConfig
         }
     }
 }
