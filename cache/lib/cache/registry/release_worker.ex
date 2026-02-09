@@ -10,8 +10,7 @@ defmodule Cache.Registry.ReleaseWorker do
   alias Cache.Registry.KeyNormalizer
   alias Cache.Registry.Lock
   alias Cache.Registry.Metadata
-  alias ExAws.S3
-  alias ExAws.S3.Upload
+  alias Cache.S3
 
   require Logger
 
@@ -211,7 +210,7 @@ defmodule Cache.Registry.ReleaseWorker do
 
   defp upload_source_archive(scope, name, version, archive_path) do
     key = KeyNormalizer.package_object_key(%{scope: scope, name: name}, version: version, path: "source_archive.zip")
-    upload_file(key, archive_path, "application/zip")
+    S3.upload_file(key, archive_path, type: :registry, content_type: "application/zip")
   end
 
   defp fetch_and_upload_manifests(scope, name, version, full_handle, tag, token) do
@@ -299,30 +298,7 @@ defmodule Cache.Registry.ReleaseWorker do
 
   defp upload_manifest(scope, name, version, filename, content) do
     key = KeyNormalizer.package_object_key(%{scope: scope, name: name}, version: version, path: filename)
-    upload_content(key, content, "text/x-swift")
-  end
-
-  defp upload_file(key, path, content_type) do
-    bucket = Config.registry_bucket()
-
-    case path
-         |> Upload.stream_file()
-         |> S3.upload(bucket, key, content_type: content_type, timeout: 120_000)
-         |> ExAws.request() do
-      {:ok, _response} -> :ok
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
-  defp upload_content(key, content, content_type) do
-    bucket = Config.registry_bucket()
-
-    case bucket
-         |> S3.put_object(key, content, content_type: content_type)
-         |> ExAws.request() do
-      {:ok, _response} -> :ok
-      {:error, reason} -> {:error, reason}
-    end
+    S3.upload_content(key, content, type: :registry, content_type: "text/x-swift")
   end
 
   defp manifest_path?("Package.swift"), do: true

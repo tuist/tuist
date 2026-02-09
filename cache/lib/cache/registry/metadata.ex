@@ -82,6 +82,7 @@ defmodule Cache.Registry.Metadata do
 
   alias Cache.Config
   alias Cache.Registry.KeyNormalizer
+  alias Cache.S3
 
   require Logger
 
@@ -143,14 +144,26 @@ defmodule Cache.Registry.Metadata do
     bucket = bucket()
     json_body = Jason.encode!(metadata)
 
-    case bucket
-         |> ExAws.S3.put_object(key, json_body, content_type: "application/json")
-         |> ExAws.request() do
+    {duration, result} =
+      :timer.tc(fn ->
+        bucket
+        |> ExAws.S3.put_object(key, json_body, content_type: "application/json")
+        |> ExAws.request()
+      end)
+
+    case result do
       {:ok, _response} ->
+        :telemetry.execute([:cache, :s3, :upload], %{duration: duration}, %{result: :ok})
         Cachex.del(cache_name(), cache_key(scope, name))
         :ok
 
+      {:error, {:http_error, 429, _}} ->
+        :telemetry.execute([:cache, :s3, :upload], %{duration: duration}, %{result: :rate_limited})
+        Logger.warning("S3 rate limited writing metadata for #{scope}/#{name}")
+        {:error, {:s3_error, :rate_limited}}
+
       {:error, reason} ->
+        :telemetry.execute([:cache, :s3, :upload], %{duration: duration}, %{result: :error})
         Logger.error("Failed to write metadata to S3 for #{scope}/#{name}: #{inspect(reason)}")
         {:error, reason}
     end
@@ -166,14 +179,26 @@ defmodule Cache.Registry.Metadata do
     key = s3_key(scope, name)
     bucket = bucket()
 
-    case bucket
-         |> ExAws.S3.delete_object(key)
-         |> ExAws.request() do
+    {duration, result} =
+      :timer.tc(fn ->
+        bucket
+        |> ExAws.S3.delete_object(key)
+        |> ExAws.request()
+      end)
+
+    case result do
       {:ok, _response} ->
+        :telemetry.execute([:cache, :s3, :delete], %{duration: duration, count: 1}, %{result: :ok})
         Cachex.del(cache_name(), cache_key(scope, name))
         :ok
 
+      {:error, {:http_error, 429, _}} ->
+        :telemetry.execute([:cache, :s3, :delete], %{duration: duration, count: 0}, %{result: :rate_limited})
+        Logger.warning("S3 rate limited deleting metadata for #{scope}/#{name}")
+        {:error, {:s3_error, :rate_limited}}
+
       {:error, reason} ->
+        :telemetry.execute([:cache, :s3, :delete], %{duration: duration, count: 0}, %{result: :error})
         Logger.error("Failed to delete metadata from S3 for #{scope}/#{name}: #{inspect(reason)}")
         {:error, reason}
     end
@@ -202,13 +227,20 @@ defmodule Cache.Registry.Metadata do
     key = s3_key(scope, name)
     bucket = bucket()
 
-    case bucket
-         |> ExAws.S3.get_object(key)
-         |> ExAws.request() do
+    {duration, result} =
+      :timer.tc(fn ->
+        bucket
+        |> ExAws.S3.get_object(key)
+        |> ExAws.request()
+      end)
+
+    case result do
       {:ok, %{body: body, headers: headers}} ->
+        :telemetry.execute([:cache, :s3, :get], %{duration: duration}, %{result: :ok})
+
         case Jason.decode(body) do
           {:ok, metadata} ->
-            etag = etag_from_headers(headers)
+            etag = S3.etag_from_headers(headers)
             Cachex.put(cache_name(), cache_key, cache_value(metadata, etag), ttl: @ttl)
             {:ok, metadata}
 
@@ -217,10 +249,17 @@ defmodule Cache.Registry.Metadata do
         end
 
       {:error, {:http_error, 404, _}} ->
+        :telemetry.execute([:cache, :s3, :get], %{duration: duration}, %{result: :not_found})
         {:error, :not_found}
 
-      {:error, _reason} ->
-        {:error, :not_found}
+      {:error, {:http_error, 429, _}} ->
+        :telemetry.execute([:cache, :s3, :get], %{duration: duration}, %{result: :rate_limited})
+        {:error, {:s3_error, :rate_limited}}
+
+      {:error, reason} ->
+        :telemetry.execute([:cache, :s3, :get], %{duration: duration}, %{result: :error})
+        Logger.warning("S3 error fetching metadata for #{scope}/#{name}: #{inspect(reason)}")
+        {:error, {:s3_error, reason}}
     end
   end
 
@@ -262,12 +301,29 @@ defmodule Cache.Registry.Metadata do
     key = s3_key(scope, name)
     bucket = bucket()
 
-    case bucket
-         |> ExAws.S3.head_object(key)
-         |> ExAws.request() do
-      {:ok, %{headers: headers}} -> {:ok, etag_from_headers(headers)}
-      {:error, {:http_error, 404, _}} -> {:error, :not_found}
-      {:error, reason} -> {:error, reason}
+    {duration, result} =
+      :timer.tc(fn ->
+        bucket
+        |> ExAws.S3.head_object(key)
+        |> ExAws.request()
+      end)
+
+    case result do
+      {:ok, %{headers: headers}} ->
+        :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :found})
+        {:ok, S3.etag_from_headers(headers)}
+
+      {:error, {:http_error, 404, _}} ->
+        :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :not_found})
+        {:error, :not_found}
+
+      {:error, {:http_error, 429, _}} ->
+        :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :rate_limited})
+        {:error, {:s3_error, :rate_limited}}
+
+      {:error, reason} ->
+        :telemetry.execute([:cache, :s3, :head], %{duration: duration}, %{result: :error})
+        {:error, reason}
     end
   end
 
@@ -283,22 +339,6 @@ defmodule Cache.Registry.Metadata do
       etag: etag,
       checked_at: DateTime.truncate(DateTime.utc_now(), :second)
     }
-  end
-
-  defp etag_from_headers(headers) when is_map(headers) do
-    headers
-    |> Map.get("etag", Map.get(headers, "ETag"))
-    |> normalize_etag()
-  end
-
-  defp normalize_etag(nil), do: nil
-  defp normalize_etag([value | _]), do: normalize_etag(value)
-
-  defp normalize_etag(value) when is_binary(value) do
-    value
-    |> String.trim()
-    |> String.trim_leading("\"")
-    |> String.trim_trailing("\"")
   end
 
   defp parse_s3_key(key) do

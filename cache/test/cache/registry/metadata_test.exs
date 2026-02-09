@@ -85,7 +85,7 @@ defmodule Cache.Registry.MetadataTest do
       assert {:error, :not_found} = Metadata.get_package(scope, name)
     end
 
-    test "returns :not_found when S3 request fails" do
+    test "returns s3_error when S3 request fails with non-404 error" do
       scope = "apple"
       name = "swift-argument-parser"
       s3_key = "registry/metadata/#{scope}/#{name}/index.json"
@@ -98,7 +98,23 @@ defmodule Cache.Registry.MetadataTest do
         {:error, :timeout}
       end)
 
-      assert {:error, :not_found} = Metadata.get_package(scope, name)
+      assert {:error, {:s3_error, :timeout}} = Metadata.get_package(scope, name)
+    end
+
+    test "returns s3_error with :rate_limited on 429 response" do
+      scope = "apple"
+      name = "swift-argument-parser"
+      s3_key = "registry/metadata/#{scope}/#{name}/index.json"
+
+      expect(ExAws.S3, :get_object, fn "test-registry-bucket", ^s3_key ->
+        %S3{bucket: "test-registry-bucket", path: s3_key}
+      end)
+
+      expect(ExAws, :request, fn %S3{} ->
+        {:error, {:http_error, 429, "Too Many Requests"}}
+      end)
+
+      assert {:error, {:s3_error, :rate_limited}} = Metadata.get_package(scope, name)
     end
 
     test "returns :not_found when JSON decode fails" do
@@ -156,6 +172,22 @@ defmodule Cache.Registry.MetadataTest do
 
       assert {:error, :timeout} = Metadata.put_package(scope, name, @sample_metadata)
     end
+
+    test "returns s3_error with :rate_limited on 429 response" do
+      scope = "apple"
+      name = "swift-argument-parser"
+      s3_key = "registry/metadata/#{scope}/#{name}/index.json"
+
+      expect(ExAws.S3, :put_object, fn "test-registry-bucket", ^s3_key, _body, _opts ->
+        %S3{bucket: "test-registry-bucket", path: s3_key}
+      end)
+
+      expect(ExAws, :request, fn %S3{} ->
+        {:error, {:http_error, 429, "Too Many Requests"}}
+      end)
+
+      assert {:error, {:s3_error, :rate_limited}} = Metadata.put_package(scope, name, @sample_metadata)
+    end
   end
 
   describe "delete_package/2" do
@@ -193,6 +225,22 @@ defmodule Cache.Registry.MetadataTest do
       end)
 
       assert {:error, :access_denied} = Metadata.delete_package(scope, name)
+    end
+
+    test "returns s3_error with :rate_limited on 429 response" do
+      scope = "apple"
+      name = "swift-argument-parser"
+      s3_key = "registry/metadata/#{scope}/#{name}/index.json"
+
+      expect(ExAws.S3, :delete_object, fn "test-registry-bucket", ^s3_key ->
+        %S3{bucket: "test-registry-bucket", path: s3_key}
+      end)
+
+      expect(ExAws, :request, fn %S3{} ->
+        {:error, {:http_error, 429, "Too Many Requests"}}
+      end)
+
+      assert {:error, {:s3_error, :rate_limited}} = Metadata.delete_package(scope, name)
     end
   end
 

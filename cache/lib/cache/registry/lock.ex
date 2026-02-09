@@ -4,6 +4,8 @@ defmodule Cache.Registry.Lock do
   """
 
   alias Cache.Config
+  alias Cache.Registry.KeyNormalizer
+  alias Cache.S3
 
   require Logger
 
@@ -78,7 +80,7 @@ defmodule Cache.Registry.Lock do
          |> ExAws.request() do
       {:ok, %{body: body, headers: headers}} ->
         with {:ok, lock} <- Jason.decode(body) do
-          {:ok, lock, etag_from_headers(headers)}
+          {:ok, lock, S3.etag_from_headers(headers)}
         end
 
       {:error, {:http_error, 404, _}} ->
@@ -105,31 +107,16 @@ defmodule Cache.Registry.Lock do
   defp lock_key(:sync), do: "registry/locks/sync.json"
 
   defp lock_key({:package, scope, name}) do
-    "registry/locks/packages/#{normalize_part(scope)}/#{normalize_part(name)}.json"
+    "registry/locks/packages/#{KeyNormalizer.normalize_scope(scope)}/#{KeyNormalizer.normalize_name(name)}.json"
   end
 
   defp lock_key({:release, scope, name, version}) do
-    "registry/locks/releases/#{normalize_part(scope)}/#{normalize_part(name)}/#{version}.json"
+    "registry/locks/releases/#{KeyNormalizer.normalize_scope(scope)}/#{KeyNormalizer.normalize_name(name)}/#{version}.json"
   end
 
   defp lock_key(other), do: "registry/locks/#{other}.json"
 
   defp bucket, do: Config.registry_bucket()
-
-  defp etag_from_headers(headers) do
-    etag_value = Map.get(headers, "etag") || Map.get(headers, "ETag")
-    normalize_etag(etag_value)
-  end
-
-  defp normalize_etag(nil), do: nil
-  defp normalize_etag([value | _]), do: normalize_etag(value)
-
-  defp normalize_etag(value) when is_binary(value) do
-    value
-    |> String.trim()
-    |> String.trim_leading("\"")
-    |> String.trim_trailing("\"")
-  end
 
   defp if_match_value(etag) do
     if String.starts_with?(etag, "\"") do
@@ -137,11 +124,5 @@ defmodule Cache.Registry.Lock do
     else
       "\"#{etag}\""
     end
-  end
-
-  defp normalize_part(value) do
-    value
-    |> String.downcase()
-    |> String.replace(".", "_")
   end
 end

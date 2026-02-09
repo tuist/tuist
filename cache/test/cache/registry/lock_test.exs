@@ -147,6 +147,14 @@ defmodule Cache.Registry.LockTest do
 
       Lock.try_acquire({:package, "Apple", "swift.nio"}, 60)
     end
+
+    test "scope normalization only downcases without replacing dots" do
+      expect(ExAws, :request, fn %{path: "registry/locks/packages/org.example/my_pkg.json"} ->
+        {:ok, %{status_code: 200}}
+      end)
+
+      Lock.try_acquire({:package, "Org.Example", "my.pkg"}, 60)
+    end
   end
 
   describe "X-Tigris-Consistent header" do

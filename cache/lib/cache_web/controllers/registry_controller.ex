@@ -6,6 +6,7 @@ defmodule CacheWeb.RegistryController do
   alias Cache.Disk
   alias Cache.Registry.KeyNormalizer
   alias Cache.Registry.Metadata
+  alias Cache.Registry.RepositoryURL
   alias Cache.S3
   alias Cache.S3Transfers
 
@@ -55,6 +56,12 @@ defmodule CacheWeb.RegistryController do
         |> put_resp_header("content-version", "1")
         |> put_status(:not_found)
         |> json(%{message: "The package #{repository_url} was not found in the registry."})
+
+      {:error, {:s3_error, _reason}} ->
+        conn
+        |> put_resp_header("content-version", "1")
+        |> put_status(:service_unavailable)
+        |> json(%{message: "Registry is temporarily unavailable. Please try again later."})
     end
   end
 
@@ -85,6 +92,12 @@ defmodule CacheWeb.RegistryController do
         |> put_resp_header("content-version", "1")
         |> put_status(:not_found)
         |> json(%{message: "The package #{scope}/#{name} was not found in the registry."})
+
+      {:error, {:s3_error, _reason}} ->
+        conn
+        |> put_resp_header("content-version", "1")
+        |> put_status(:service_unavailable)
+        |> json(%{message: "Registry is temporarily unavailable. Please try again later."})
     end
   end
 
@@ -131,6 +144,12 @@ defmodule CacheWeb.RegistryController do
           |> put_resp_header("content-version", "1")
           |> put_status(:not_found)
           |> json(%{message: "The package #{scope}/#{name} was not found in the registry."})
+
+        {:error, {:s3_error, _reason}} ->
+          conn
+          |> put_resp_header("content-version", "1")
+          |> put_status(:service_unavailable)
+          |> json(%{message: "Registry is temporarily unavailable. Please try again later."})
       end
     end
   end
@@ -338,7 +357,7 @@ defmodule CacheWeb.RegistryController do
 
   defp provider_from_repository_url(repository_url) do
     repository_url
-    |> normalize_git_url()
+    |> RepositoryURL.normalize_git_url()
     |> URI.parse()
     |> Map.get(:host)
     |> case do
@@ -348,24 +367,7 @@ defmodule CacheWeb.RegistryController do
   end
 
   defp repository_full_handle_from_url(repository_url) do
-    full_handle =
-      repository_url
-      |> normalize_git_url()
-      |> URI.parse()
-      |> Map.get(:path)
-      |> String.replace_leading("/", "")
-      |> String.replace_trailing("/", "")
-      |> String.replace_trailing(".git", "")
-
-    if full_handle |> String.split("/") |> Enum.count() == 2 do
-      {:ok, full_handle}
-    else
-      {:error, :invalid_repository_url}
-    end
-  end
-
-  defp normalize_git_url(repository_url) do
-    Regex.replace(~r/^git@(.+):/, repository_url, "https://\\1/")
+    RepositoryURL.repository_full_handle_from_url(repository_url)
   end
 
   defp scope_name_from_full_handle(repository_full_handle) do

@@ -109,6 +109,23 @@ defmodule CacheWeb.RegistryControllerTest do
       response = json_response(conn, :not_found)
       assert response["message"] == "The package #{url} was not found in the registry."
     end
+
+    test "returns 503 when S3 returns an error", %{conn: conn} do
+      url = "https://github.com/apple/swift-argument-parser"
+
+      expect(Metadata, :get_package, fn "apple", "swift-argument-parser" ->
+        {:error, {:s3_error, :rate_limited}}
+      end)
+
+      conn =
+        conn
+        |> registry_json_conn()
+        |> get("/api/registry/swift/identifiers?url=#{URI.encode_www_form(url)}")
+
+      assert conn.status == 503
+      response = json_response(conn, :service_unavailable)
+      assert response["message"] == "Registry is temporarily unavailable. Please try again later."
+    end
   end
 
   describe "GET /api/registry/swift/:scope/:name (list_releases)" do
@@ -159,6 +176,24 @@ defmodule CacheWeb.RegistryControllerTest do
 
       response = json_response(conn, :not_found)
       assert response["message"] == "The package #{scope}/#{name} was not found in the registry."
+    end
+
+    test "returns 503 when S3 returns an error", %{conn: conn} do
+      scope = "apple"
+      name = "swift-argument-parser"
+
+      expect(Metadata, :get_package, fn ^scope, ^name -> {:error, {:s3_error, :rate_limited}} end)
+
+      conn =
+        conn
+        |> registry_json_conn()
+        |> get("/api/registry/swift/#{scope}/#{name}")
+
+      assert conn.status == 503
+      assert get_resp_header(conn, "content-version") == ["1"]
+
+      response = json_response(conn, :service_unavailable)
+      assert response["message"] == "Registry is temporarily unavailable. Please try again later."
     end
   end
 
@@ -267,6 +302,25 @@ defmodule CacheWeb.RegistryControllerTest do
 
       response = json_response(conn, :not_found)
       assert response["message"] == "The package #{scope}/#{name} was not found in the registry."
+    end
+
+    test "returns 503 when S3 returns an error", %{conn: conn} do
+      scope = "apple"
+      name = "swift-argument-parser"
+      version = "1.0.0"
+
+      expect(Metadata, :get_package, fn ^scope, ^name -> {:error, {:s3_error, :rate_limited}} end)
+
+      conn =
+        conn
+        |> registry_json_conn()
+        |> get("/api/registry/swift/#{scope}/#{name}/#{version}")
+
+      assert conn.status == 503
+      assert get_resp_header(conn, "content-version") == ["1"]
+
+      response = json_response(conn, :service_unavailable)
+      assert response["message"] == "Registry is temporarily unavailable. Please try again later."
     end
   end
 

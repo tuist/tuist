@@ -7,6 +7,42 @@ defmodule Cache.S3Test do
   alias Cache.S3
   alias ExAws.S3.Upload
 
+  describe "etag_from_headers/1" do
+    test "extracts etag from lowercase header key" do
+      headers = %{"etag" => "\"abc123\""}
+      assert S3.etag_from_headers(headers) == "abc123"
+    end
+
+    test "extracts etag from uppercase header key" do
+      headers = %{"ETag" => "\"def456\""}
+      assert S3.etag_from_headers(headers) == "def456"
+    end
+
+    test "prefers lowercase etag key over uppercase" do
+      headers = %{"etag" => "\"lowercase\"", "ETag" => "\"uppercase\""}
+      assert S3.etag_from_headers(headers) == "lowercase"
+    end
+
+    test "returns nil when no etag header present" do
+      assert S3.etag_from_headers(%{}) == nil
+    end
+
+    test "unwraps list values" do
+      headers = %{"etag" => ["\"list-value\"", "\"other\""]}
+      assert S3.etag_from_headers(headers) == "list-value"
+    end
+
+    test "strips whitespace and quotes" do
+      headers = %{"etag" => "  \"spaced\"  "}
+      assert S3.etag_from_headers(headers) == "spaced"
+    end
+
+    test "handles unquoted etag values" do
+      headers = %{"etag" => "no-quotes"}
+      assert S3.etag_from_headers(headers) == "no-quotes"
+    end
+  end
+
   describe "presign_download_url/1" do
     test "returns presigned URL when bucket configured" do
       key = "acc/proj/cas/abc"

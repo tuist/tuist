@@ -5,6 +5,7 @@ defmodule Cache.Registry.SwiftPackageIndex do
 
   alias Cache.Registry.GitHub
   alias Cache.Registry.KeyNormalizer
+  alias Cache.Registry.RepositoryURL
 
   require Logger
 
@@ -37,20 +38,6 @@ defmodule Cache.Registry.SwiftPackageIndex do
   end
 
   defp repository_full_handle_from_url(repository_url) do
-    normalized = Regex.replace(~r/^git@(.+):/, repository_url, "https://\\1/")
-    path = normalized |> URI.parse() |> Map.get(:path)
-
-    full_handle =
-      path
-      |> to_string()
-      |> String.replace_leading("/", "")
-      |> String.replace_trailing("/", "")
-      |> String.replace_trailing(".git", "")
-
-    if full_handle |> String.split("/") |> Enum.count() == 2 do
-      {:ok, full_handle}
-    else
-      {:error, :invalid_repository_url}
-    end
+    RepositoryURL.repository_full_handle_from_url(repository_url)
   end
 end

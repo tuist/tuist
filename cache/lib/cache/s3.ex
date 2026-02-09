@@ -114,45 +114,19 @@ defmodule Cache.S3 do
 
     Logger.info("Starting S3 upload for artifact: #{key}")
 
-    case upload_file(key, local_path) do
-      :ok ->
-        Logger.info("Successfully uploaded artifact to S3: #{key}")
-        :ok
-
-      {:error, :rate_limited} = error ->
-        Logger.warning("S3 upload rate limited for artifact: #{key}")
-        error
-
-      {:error, reason} = error ->
-        Logger.error("S3 upload failed for artifact #{key}: #{inspect(reason)}")
-        error
-    end
-  end
-
-  defp upload_file(key, local_path) do
     if File.exists?(local_path) do
-      bucket = Config.cache_bucket()
-
-      {duration, result} =
-        :timer.tc(fn ->
-          local_path
-          |> Upload.stream_file()
-          |> ExAws.S3.upload(bucket, key, timeout: 120_000)
-          |> ExAws.request()
-        end)
-
-      case result do
-        {:ok, _response} ->
-          :telemetry.execute([:cache, :s3, :upload], %{duration: duration}, %{result: :ok})
+      case upload_file(key, local_path) do
+        :ok ->
+          Logger.info("Successfully uploaded artifact to S3: #{key}")
           :ok
 
-        {:error, {:http_error, 429, _}} ->
-          :telemetry.execute([:cache, :s3, :upload], %{duration: duration}, %{result: :rate_limited})
-          {:error, :rate_limited}
+        {:error, :rate_limited} = error ->
+          Logger.warning("S3 upload rate limited for artifact: #{key}")
+          error
 
-        {:error, reason} ->
-          :telemetry.execute([:cache, :s3, :upload], %{duration: duration}, %{result: :error})
-          {:error, reason}
+        {:error, reason} = error ->
+          Logger.error("S3 upload failed for artifact #{key}: #{inspect(reason)}")
+          error
       end
     else
       Logger.warning("Local file not found for S3 upload: #{local_path}")
@@ -296,6 +270,107 @@ defmodule Cache.S3 do
           {:halt, {:error, reason}}
       end
     end)
+  end
+
+  @doc """
+  Uploads a local file to S3 with streaming.
+
+  ## Options
+
+    * `:type` - The storage type, either `:cache` (default) or `:registry`
+    * `:content_type` - The content type for the uploaded object
+
+  Returns `:ok` on success, `{:error, :rate_limited}` on 429, or `{:error, reason}` on failure.
+  """
+  def upload_file(key, local_path, opts \\ []) when is_binary(key) and is_binary(local_path) do
+    type = Keyword.get(opts, :type, :cache)
+    content_type_opt = Keyword.get(opts, :content_type)
+
+    bucket = bucket_for_type(type)
+    upload_opts = if content_type_opt, do: [content_type: content_type_opt, timeout: 120_000], else: [timeout: 120_000]
+
+    {duration, result} =
+      :timer.tc(fn ->
+        local_path
+        |> Upload.stream_file()
+        |> ExAws.S3.upload(bucket, key, upload_opts)
+        |> ExAws.request()
+      end)
+
+    case result do
+      {:ok, _response} ->
+        :telemetry.execute([:cache, :s3, :upload], %{duration: duration}, %{result: :ok})
+        :ok
+
+      {:error, {:http_error, 429, _}} ->
+        :telemetry.execute([:cache, :s3, :upload], %{duration: duration}, %{result: :rate_limited})
+        {:error, :rate_limited}
+
+      {:error, reason} ->
+        :telemetry.execute([:cache, :s3, :upload], %{duration: duration}, %{result: :error})
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Uploads raw content to S3 as an object.
+
+  ## Options
+
+    * `:type` - The storage type, either `:cache` (default) or `:registry`
+    * `:content_type` - The content type for the uploaded object
+
+  Returns `:ok` on success, `{:error, :rate_limited}` on 429, or `{:error, reason}` on failure.
+  """
+  def upload_content(key, content, opts \\ []) when is_binary(key) do
+    type = Keyword.get(opts, :type, :cache)
+    content_type_opt = Keyword.get(opts, :content_type)
+
+    bucket = bucket_for_type(type)
+    put_opts = if content_type_opt, do: [content_type: content_type_opt], else: []
+
+    {duration, result} =
+      :timer.tc(fn ->
+        bucket
+        |> ExAws.S3.put_object(key, content, put_opts)
+        |> ExAws.request()
+      end)
+
+    case result do
+      {:ok, _response} ->
+        :telemetry.execute([:cache, :s3, :upload], %{duration: duration}, %{result: :ok})
+        :ok
+
+      {:error, {:http_error, 429, _}} ->
+        :telemetry.execute([:cache, :s3, :upload], %{duration: duration}, %{result: :rate_limited})
+        {:error, :rate_limited}
+
+      {:error, reason} ->
+        :telemetry.execute([:cache, :s3, :upload], %{duration: duration}, %{result: :error})
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Extracts and normalizes the ETag value from S3 response headers.
+
+  Handles both `"etag"` and `"ETag"` header keys, strips surrounding quotes,
+  and unwraps list values.
+  """
+  def etag_from_headers(headers) when is_map(headers) do
+    headers
+    |> Map.get("etag", Map.get(headers, "ETag"))
+    |> normalize_etag()
+  end
+
+  defp normalize_etag(nil), do: nil
+  defp normalize_etag([value | _]), do: normalize_etag(value)
+
+  defp normalize_etag(value) when is_binary(value) do
+    value
+    |> String.trim()
+    |> String.trim_leading("\"")
+    |> String.trim_trailing("\"")
   end
 
   defp bucket_for_type(:cache), do: Config.cache_bucket()
