@@ -473,7 +473,9 @@ public enum Module: String, CaseIterable {
             case .nooraTesting:
                 [
                     .external(name: "Noora"),
+                    .external(name: "Logging"),
                     .target(name: Module.alert.targetName),
+                    .target(name: Module.logging.targetName),
                     .target(name: Module.loggerTesting.targetName),
                     .xctest,
                 ]
