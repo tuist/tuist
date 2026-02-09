@@ -74,8 +74,10 @@ class TuistBuildCacheServiceFactory : BuildCacheServiceFactory<TuistBuildCache> 
             url = configuration.url
         )
 
+        val httpClient = TuistHttpClient(configurationProvider)
+
         return TuistBuildCacheService(
-            configurationProvider = configurationProvider,
+            httpClient = httpClient,
             isPushEnabled = configuration.isPush
         )
     }
@@ -189,21 +191,16 @@ class TuistCommandConfigurationProvider(
  * refreshes the configuration and retries the request.
  */
 class TuistBuildCacheService(
-    private val configurationProvider: ConfigurationProvider,
+    private val httpClient: TuistHttpClient,
     private val isPushEnabled: Boolean
 ) : BuildCacheService {
 
-    @Volatile
-    private var cachedConfig: TuistCacheConfiguration? = null
-
-    private val configLock = Any()
-
     override fun load(key: BuildCacheKey, reader: BuildCacheEntryReader): Boolean {
-        val config = getOrRefreshConfig() ?: return false
+        val config = httpClient.getConfig() ?: return false
         val url = buildCacheUrl(config, key.hashCode)
 
-        return executeWithRetry { currentConfig ->
-            val connection = openConnection(url, currentConfig)
+        return httpClient.execute { currentConfig ->
+            val connection = httpClient.openConnection(url, currentConfig)
             connection.requestMethod = "GET"
 
             when (connection.responseCode) {
@@ -225,11 +222,12 @@ class TuistBuildCacheService(
     override fun store(key: BuildCacheKey, writer: BuildCacheEntryWriter) {
         if (!isPushEnabled) return
 
-        val config = getOrRefreshConfig() ?: return
-        val url = buildCacheUrl(config, key.hashCode)
+        if (httpClient.getConfig() == null) return
+        val key = key.hashCode
 
-        executeWithRetry<Unit> { currentConfig ->
-            val connection = openConnection(url, currentConfig)
+        httpClient.execute<Unit> { currentConfig ->
+            val url = buildCacheUrl(currentConfig, key)
+            val connection = httpClient.openConnection(url, currentConfig)
             connection.requestMethod = "PUT"
             connection.doOutput = true
             connection.setRequestProperty("Content-Type", "application/octet-stream")
@@ -252,52 +250,6 @@ class TuistBuildCacheService(
         // No resources to clean up
     }
 
-    private fun <T> executeWithRetry(operation: (TuistCacheConfiguration) -> T): T {
-        val config = getOrRefreshConfig()
-            ?: throw BuildCacheException("Failed to get Tuist cache configuration")
-
-        return try {
-            operation(config)
-        } catch (e: TokenExpiredException) {
-            // Token expired, refresh and retry once
-            // Use synchronized to ensure only one thread refreshes at a time
-            val refreshedConfig = synchronized(configLock) {
-                // Double-check: another thread might have already refreshed
-                val currentConfig = cachedConfig
-                if (currentConfig != null && currentConfig !== config) {
-                    // Config was already refreshed by another thread, use it
-                    currentConfig
-                } else {
-                    // We need to refresh
-                    invalidateAndRefreshConfig()
-                }
-            } ?: throw BuildCacheException("Failed to refresh Tuist cache configuration")
-            operation(refreshedConfig)
-        }
-    }
-
-    private fun getOrRefreshConfig(): TuistCacheConfiguration? {
-        // Fast path: return cached config if available
-        cachedConfig?.let { return it }
-
-        // Slow path: acquire lock and initialize
-        synchronized(configLock) {
-            // Double-check after acquiring lock
-            cachedConfig?.let { return it }
-            val newConfig = configurationProvider.getConfiguration()
-            cachedConfig = newConfig
-            return newConfig
-        }
-    }
-
-    private fun invalidateAndRefreshConfig(): TuistCacheConfiguration? {
-        // Must be called while holding configLock
-        cachedConfig = null
-        val newConfig = configurationProvider.getConfiguration(forceRefresh = true)
-        cachedConfig = newConfig
-        return newConfig
-    }
-
     internal fun buildCacheUrl(config: TuistCacheConfiguration, cacheKey: String): URI {
         val baseUri = URI.create(config.url.trimEnd('/'))
         return URI(
@@ -310,19 +262,6 @@ class TuistBuildCacheService(
             null
         )
     }
-
-    private fun openConnection(url: URI, config: TuistCacheConfiguration): HttpURLConnection {
-        val connection = url.toURL().openConnection() as HttpURLConnection
-        connection.connectTimeout = 30_000
-        connection.readTimeout = 60_000
-
-        // Bearer token authentication
-        connection.setRequestProperty("Authorization", "Bearer ${config.token}")
-
-        return connection
-    }
-
-    private class TokenExpiredException : Exception()
 }
 
 /**

@@ -6,9 +6,12 @@ import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.io.OutputStreamWriter
+import java.net.HttpURLConnection
 import java.net.URI
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -29,6 +32,53 @@ class TuistBuildInsightsTest {
         mockWebServer.shutdown()
     }
 
+    private fun createHttpClient(token: String = "test-token"): TuistHttpClient {
+        val baseUrl = mockWebServer.url("/").toString().trimEnd('/')
+        return TuistHttpClient(
+            configurationProvider = object : ConfigurationProvider {
+                override fun getConfiguration(forceRefresh: Boolean) = TuistCacheConfiguration(
+                    url = baseUrl,
+                    token = token,
+                    accountHandle = "test-account",
+                    projectHandle = "test-project"
+                )
+            },
+            connectTimeoutMs = 10_000,
+            readTimeoutMs = 10_000
+        )
+    }
+
+    private fun postBuildReport(
+        httpClient: TuistHttpClient,
+        url: URI,
+        report: BuildReportRequest
+    ): BuildReportResponse? {
+        return httpClient.execute { config ->
+            val connection = httpClient.openConnection(url, config)
+            try {
+                connection.requestMethod = "POST"
+                connection.doOutput = true
+                connection.setRequestProperty("Content-Type", "application/json")
+
+                OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
+                    Gson().toJson(report, writer)
+                }
+
+                when (connection.responseCode) {
+                    HttpURLConnection.HTTP_CREATED -> {
+                        BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
+                            Gson().fromJson(reader, BuildReportResponse::class.java)
+                        }
+                    }
+                    HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
+                    else -> null
+                }
+            } finally {
+                connection.disconnect()
+            }
+        }
+    }
+
     @Test
     fun `HTTP client sends correct JSON body and auth header`() {
         mockWebServer.enqueue(
@@ -38,7 +88,7 @@ class TuistBuildInsightsTest {
                 .addHeader("Content-Type", "application/json")
         )
 
-        val client = UrlConnectionBuildInsightsHttpClient()
+        val httpClient = createHttpClient()
         val report = BuildReportRequest(
             durationMs = 5000,
             status = "success",
@@ -73,7 +123,7 @@ class TuistBuildInsightsTest {
         )
 
         val url = URI(mockWebServer.url("/api/projects/my-org/my-project/gradle/builds").toString())
-        val response = client.postBuildReport(url, "test-token", report)
+        val response = postBuildReport(httpClient, url, report)
 
         assertNotNull(response)
         assertEquals("test-build-id", response.id)
@@ -103,14 +153,20 @@ class TuistBuildInsightsTest {
     }
 
     @Test
-    fun `HTTP client throws TokenExpiredException on 401 response`() {
+    fun `HTTP client retries on 401 and succeeds with refreshed token`() {
         mockWebServer.enqueue(
             MockResponse()
                 .setResponseCode(401)
                 .setBody("""{"error": "unauthorized"}""")
         )
+        mockWebServer.enqueue(
+            MockResponse()
+                .setResponseCode(201)
+                .setBody("""{"id": "retried-build-id"}""")
+                .addHeader("Content-Type", "application/json")
+        )
 
-        val client = UrlConnectionBuildInsightsHttpClient()
+        val httpClient = createHttpClient()
         val report = BuildReportRequest(
             durationMs = 1000,
             status = "success",
@@ -126,9 +182,11 @@ class TuistBuildInsightsTest {
         )
 
         val url = URI(mockWebServer.url("/api/projects/org/proj/gradle/builds").toString())
-        assertFailsWith<TokenExpiredException> {
-            client.postBuildReport(url, "bad-token", report)
-        }
+        val response = postBuildReport(httpClient, url, report)
+
+        assertNotNull(response)
+        assertEquals("retried-build-id", response.id)
+        assertEquals(2, mockWebServer.requestCount)
     }
 
     @Test
@@ -139,7 +197,7 @@ class TuistBuildInsightsTest {
                 .setBody("""{"error": "internal server error"}""")
         )
 
-        val client = UrlConnectionBuildInsightsHttpClient()
+        val httpClient = createHttpClient()
         val report = BuildReportRequest(
             durationMs = 1000,
             status = "success",
@@ -155,7 +213,7 @@ class TuistBuildInsightsTest {
         )
 
         val url = URI(mockWebServer.url("/api/projects/org/proj/gradle/builds").toString())
-        val response = client.postBuildReport(url, "token", report)
+        val response = postBuildReport(httpClient, url, report)
 
         assertNull(response)
     }

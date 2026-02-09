@@ -26,6 +26,11 @@ import org.gradle.tooling.events.task.TaskFinishEvent
 import org.gradle.tooling.events.task.TaskFailureResult
 import org.gradle.tooling.events.task.TaskSkippedResult
 import org.gradle.tooling.events.task.TaskSuccessResult
+import com.google.gson.Gson
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.io.OutputStreamWriter
+import java.net.HttpURLConnection
 import java.net.URI
 import java.time.Instant
 import java.time.ZoneOffset
@@ -270,8 +275,13 @@ abstract class TuistBuildInsightsService :
             url = parameters.url.get()
         )
 
-        val config = configProvider.getConfiguration()
-        if (config == null) {
+        val httpClient = TuistHttpClient(
+            configurationProvider = configProvider,
+            connectTimeoutMs = 10_000,
+            readTimeoutMs = 10_000
+        )
+
+        if (httpClient.getConfig() == null) {
             println("Tuist: Warning - Could not get configuration for build insights. Skipping report.")
             return
         }
@@ -309,19 +319,31 @@ abstract class TuistBuildInsightsService :
         )
 
         val baseUrl = parameters.url.get().trimEnd('/')
-        val url = URI("$baseUrl/api/projects/$accountHandle/$projectHandle/gradle/builds")
 
-        val httpClient: BuildInsightsHttpClient = UrlConnectionBuildInsightsHttpClient()
+        val response = httpClient.execute { config ->
+            val url = URI("$baseUrl/api/projects/$accountHandle/$projectHandle/gradle/builds")
+            val connection = httpClient.openConnection(url, config)
+            try {
+                connection.requestMethod = "POST"
+                connection.doOutput = true
+                connection.setRequestProperty("Content-Type", "application/json")
 
-        val response = try {
-            httpClient.postBuildReport(url, config.token, report)
-        } catch (e: TokenExpiredException) {
-            val refreshedConfig = configProvider.getConfiguration(forceRefresh = true)
-            if (refreshedConfig == null) {
-                println("Tuist: Warning - Failed to refresh configuration for build insights.")
-                return
+                OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
+                    Gson().toJson(report, writer)
+                }
+
+                when (connection.responseCode) {
+                    HttpURLConnection.HTTP_CREATED -> {
+                        BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
+                            Gson().fromJson(reader, BuildReportResponse::class.java)
+                        }
+                    }
+                    HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
+                    else -> null
+                }
+            } finally {
+                connection.disconnect()
             }
-            httpClient.postBuildReport(url, refreshedConfig.token, report)
         }
 
         if (response != null) {
