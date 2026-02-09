@@ -2,7 +2,6 @@ defmodule Cache.Registry.ReleaseWorkerTest do
   use CacheWeb.ConnCase, async: false
   use Mimic
 
-  alias Cache.Registry.GitHub
   alias Cache.Registry.Lock
   alias Cache.Registry.Metadata
   alias Cache.Registry.ReleaseWorker
@@ -25,9 +24,9 @@ defmodule Cache.Registry.ReleaseWorkerTest do
       {:ok, %{"releases" => %{"1.0.0" => %{"checksum" => "abc", "manifests" => []}}}}
     end)
 
-    stub(GitHub, :download_zipball, fn _, _, _, _ -> flunk("unexpected zipball download") end)
-    stub(GitHub, :list_repository_contents, fn _, _, _ -> flunk("unexpected contents request") end)
-    stub(GitHub, :get_file_content, fn _, _, _, _ -> flunk("unexpected file request") end)
+    stub(TuistCommon.GitHub, :download_zipball, fn _, _, _, _, _ -> flunk("unexpected zipball download") end)
+    stub(TuistCommon.GitHub, :list_repository_contents, fn _, _, _, _ -> flunk("unexpected contents request") end)
+    stub(TuistCommon.GitHub, :get_file_content, fn _, _, _, _, _ -> flunk("unexpected file request") end)
 
     assert :ok =
              ReleaseWorker.perform(%Oban.Job{
@@ -72,12 +71,20 @@ defmodule Cache.Registry.ReleaseWorkerTest do
     end)
 
     # No submodules
-    expect(GitHub, :get_file_content, fn "apple/swift-argument-parser", "token", ".gitmodules", "v1.0.0" ->
+    expect(TuistCommon.GitHub, :get_file_content, fn "apple/swift-argument-parser",
+                                                     "token",
+                                                     ".gitmodules",
+                                                     "v1.0.0",
+                                                     _ ->
       {:error, :not_found}
     end)
 
     # Download zipball — write a real file so checksum works
-    expect(GitHub, :download_zipball, fn "apple/swift-argument-parser", "token", "v1.0.0", archive_path ->
+    expect(TuistCommon.GitHub, :download_zipball, fn "apple/swift-argument-parser",
+                                                     "token",
+                                                     "v1.0.0",
+                                                     archive_path,
+                                                     _ ->
       File.write!(archive_path, "fake-zip-content")
       :ok
     end)
@@ -101,12 +108,16 @@ defmodule Cache.Registry.ReleaseWorkerTest do
     end)
 
     # List repo contents — return Package.swift
-    expect(GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0" ->
+    expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
       {:ok, [%{"path" => "Package.swift", "type" => "file"}]}
     end)
 
     # Fetch the manifest content
-    expect(GitHub, :get_file_content, fn "apple/swift-argument-parser", "token", "Package.swift", "v1.0.0" ->
+    expect(TuistCommon.GitHub, :get_file_content, fn "apple/swift-argument-parser",
+                                                     "token",
+                                                     "Package.swift",
+                                                     "v1.0.0",
+                                                     _ ->
       {:ok, manifest_content}
     end)
 
@@ -155,7 +166,11 @@ defmodule Cache.Registry.ReleaseWorkerTest do
       {:error, :not_found}
     end)
 
-    expect(GitHub, :download_zipball, fn "apple/swift-argument-parser", "token", "v1.0.0", archive_path ->
+    expect(TuistCommon.GitHub, :download_zipball, fn "apple/swift-argument-parser",
+                                                     "token",
+                                                     "v1.0.0",
+                                                     archive_path,
+                                                     _ ->
       File.write!(archive_path, "fake-zip-content")
       :ok
     end)
@@ -169,7 +184,7 @@ defmodule Cache.Registry.ReleaseWorkerTest do
     # 3 ExAws.request calls: source archive upload + 2 manifest uploads
     expect(ExAws, :request, 3, fn _op -> {:ok, %{status_code: 200, body: ""}} end)
 
-    expect(GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0" ->
+    expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
       {:ok,
        [
          %{"path" => "Package.swift", "type" => "file"},
@@ -179,14 +194,14 @@ defmodule Cache.Registry.ReleaseWorkerTest do
     end)
 
     # Three get_file_content calls: .gitmodules check + 2 manifest fetches
-    expect(GitHub, :get_file_content, 3, fn
-      "apple/swift-argument-parser", "token", ".gitmodules", "v1.0.0" ->
+    expect(TuistCommon.GitHub, :get_file_content, 3, fn
+      "apple/swift-argument-parser", "token", ".gitmodules", "v1.0.0", _ ->
         {:error, :not_found}
 
-      "apple/swift-argument-parser", "token", "Package.swift", "v1.0.0" ->
+      "apple/swift-argument-parser", "token", "Package.swift", "v1.0.0", _ ->
         {:ok, default_manifest}
 
-      "apple/swift-argument-parser", "token", "Package@swift-5.9.swift", "v1.0.0" ->
+      "apple/swift-argument-parser", "token", "Package@swift-5.9.swift", "v1.0.0", _ ->
         {:ok, alternate_manifest}
     end)
 

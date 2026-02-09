@@ -6,7 +6,6 @@ defmodule Cache.Registry.SyncWorker do
   use Oban.Worker, queue: :registry_sync
 
   alias Cache.Config
-  alias Cache.Registry.GitHub
   alias Cache.Registry.KeyNormalizer
   alias Cache.Registry.Lock
   alias Cache.Registry.Metadata
@@ -15,6 +14,8 @@ defmodule Cache.Registry.SyncWorker do
   alias Cache.Registry.SyncCursor
 
   require Logger
+
+  @github_opts [finch: Cache.Finch, retry: false]
 
   @default_limit 350
   @default_sync_interval_seconds 21_600
@@ -91,7 +92,7 @@ defmodule Cache.Registry.SyncWorker do
       end
 
     if should_sync? do
-      case GitHub.list_tags(full_handle, token) do
+      case TuistCommon.GitHub.list_tags(full_handle, token, @github_opts) do
         {:ok, tags} ->
           missing_versions = missing_versions(tags, metadata)
           updated_metadata = update_metadata(metadata, scope, name, full_handle)
@@ -134,7 +135,7 @@ defmodule Cache.Registry.SyncWorker do
     |> Map.put_new("scope", scope)
     |> Map.put_new("name", name)
     |> Map.put("repository_full_handle", full_handle)
-    |> Map.put_new("releases", Map.get(metadata, "releases", %{}))
+    |> Map.put_new("releases", %{})
     |> Map.put("updated_at", DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601())
   end
 

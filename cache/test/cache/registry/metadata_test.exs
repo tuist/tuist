@@ -42,7 +42,13 @@ defmodule Cache.Registry.MetadataTest do
       scope = "apple"
       name = "swift-argument-parser"
 
-      Cachex.put(Metadata.cache_name(), {scope, name}, @sample_metadata)
+      cached = %{
+        metadata: @sample_metadata,
+        etag: "some-etag",
+        checked_at: DateTime.truncate(DateTime.utc_now(), :second)
+      }
+
+      Cachex.put(Metadata.cache_name(), {scope, name}, cached)
 
       assert {:ok, metadata} = Metadata.get_package(scope, name)
       assert metadata == @sample_metadata

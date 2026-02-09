@@ -2,7 +2,6 @@ defmodule Cache.Registry.SyncWorkerTest do
   use CacheWeb.ConnCase, async: false
   use Mimic
 
-  alias Cache.Registry.GitHub
   alias Cache.Registry.Lock
   alias Cache.Registry.Metadata
   alias Cache.Registry.ReleaseWorker
@@ -34,7 +33,7 @@ defmodule Cache.Registry.SyncWorkerTest do
 
     expect(Metadata, :get_package, fn "apple", "swift-argument-parser" -> {:error, :not_found} end)
     expect(Metadata, :put_package, fn "apple", "swift-argument-parser", _metadata -> :ok end)
-    expect(GitHub, :list_tags, fn "apple/swift-argument-parser", "token" -> {:ok, ["v1.2.3"]} end)
+    expect(TuistCommon.GitHub, :list_tags, fn "apple/swift-argument-parser", "token", _ -> {:ok, ["v1.2.3"]} end)
 
     assert :ok = SyncWorker.perform(%Oban.Job{args: %{}})
 

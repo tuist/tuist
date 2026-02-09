@@ -124,9 +124,6 @@ defmodule Cache.Registry.Metadata do
         {:ok, %{metadata: metadata} = cached} ->
           maybe_revalidate(scope, name, cache_key, cached, metadata)
 
-        {:ok, metadata} when is_map(metadata) ->
-          {:ok, metadata}
-
         _ ->
           fetch_from_s3(scope, name, cache_key)
       end

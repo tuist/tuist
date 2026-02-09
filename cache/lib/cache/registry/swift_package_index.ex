@@ -3,14 +3,15 @@ defmodule Cache.Registry.SwiftPackageIndex do
   Fetches and parses the SwiftPackageIndex package list.
   """
 
-  alias Cache.Registry.GitHub
   alias Cache.Registry.KeyNormalizer
   alias Cache.Registry.RepositoryURL
 
   require Logger
 
+  @github_opts [finch: Cache.Finch, retry: false]
+
   def list_packages(token) do
-    with {:ok, json} <- GitHub.fetch_packages_json(token),
+    with {:ok, json} <- TuistCommon.GitHub.fetch_packages_json(token, @github_opts),
          {:ok, urls} <- Jason.decode(json) do
       packages =
         urls

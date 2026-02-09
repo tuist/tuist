@@ -6,13 +6,14 @@ defmodule Cache.Registry.ReleaseWorker do
   use Oban.Worker, queue: :registry_sync
 
   alias Cache.Config
-  alias Cache.Registry.GitHub
   alias Cache.Registry.KeyNormalizer
   alias Cache.Registry.Lock
   alias Cache.Registry.Metadata
   alias Cache.S3
 
   require Logger
+
+  @github_opts [finch: Cache.Finch, retry: false]
 
   @alternate_manifest_regex ~r/\APackage@swift-(\d+)(?:\.(\d+))?(?:\.(\d+))?\.swift\z/
   @lock_ttl_seconds 1_800
@@ -88,12 +89,12 @@ defmodule Cache.Registry.ReleaseWorker do
         zip_directory(source_directory, archive_path)
       end
     else
-      GitHub.download_zipball(full_handle, token, tag, archive_path)
+      TuistCommon.GitHub.download_zipball(full_handle, token, tag, archive_path, @github_opts)
     end
   end
 
   defp has_submodules?(full_handle, tag, token) do
-    case GitHub.get_file_content(full_handle, token, ".gitmodules", tag) do
+    case TuistCommon.GitHub.get_file_content(full_handle, token, ".gitmodules", tag, @github_opts) do
       {:ok, content} -> content != ""
       {:error, :not_found} -> false
       {:error, _reason} -> false
@@ -214,7 +215,7 @@ defmodule Cache.Registry.ReleaseWorker do
   end
 
   defp fetch_and_upload_manifests(scope, name, version, full_handle, tag, token) do
-    with {:ok, contents} <- GitHub.list_repository_contents(full_handle, token, tag) do
+    with {:ok, contents} <- TuistCommon.GitHub.list_repository_contents(full_handle, token, tag, @github_opts) do
       manifests =
         contents
         |> Enum.map(&Map.get(&1, "path"))
@@ -223,7 +224,7 @@ defmodule Cache.Registry.ReleaseWorker do
           filename = Path.basename(path)
           swift_version = manifest_swift_version(filename)
 
-          with {:ok, content} <- GitHub.get_file_content(full_handle, token, path, tag),
+          with {:ok, content} <- TuistCommon.GitHub.get_file_content(full_handle, token, path, tag, @github_opts),
                :ok <- upload_manifest(scope, name, version, filename, content) do
             %{
               "swift_version" => swift_version,
@@ -247,9 +248,8 @@ defmodule Cache.Registry.ReleaseWorker do
     case Lock.try_acquire(lock_key, @metadata_lock_ttl_seconds) do
       {:ok, :acquired} ->
         try do
-          with {:ok, metadata} <- get_or_create_metadata(scope, name, full_handle),
-               {:ok, updated_metadata} <-
-                 build_updated_metadata(metadata, scope, name, full_handle, version, checksum, manifests) do
+          with {:ok, metadata} <- get_or_create_metadata(scope, name, full_handle) do
+            updated_metadata = build_updated_metadata(metadata, scope, name, full_handle, version, checksum, manifests)
             Metadata.put_package(scope, name, updated_metadata)
           end
         after
@@ -276,24 +276,21 @@ defmodule Cache.Registry.ReleaseWorker do
   end
 
   defp build_updated_metadata(metadata, scope, name, full_handle, version, checksum, manifests) do
-    updated_metadata =
-      metadata
-      |> Map.put_new("scope", scope)
-      |> Map.put_new("name", name)
-      |> Map.put("repository_full_handle", full_handle)
-      |> Map.put("updated_at", DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601())
-      |> Map.update(
-        "releases",
-        %{version => %{"checksum" => checksum, "manifests" => manifests}},
-        fn releases ->
-          Map.put(releases || %{}, version, %{
-            "checksum" => checksum,
-            "manifests" => manifests
-          })
-        end
-      )
-
-    {:ok, updated_metadata}
+    metadata
+    |> Map.put_new("scope", scope)
+    |> Map.put_new("name", name)
+    |> Map.put("repository_full_handle", full_handle)
+    |> Map.put("updated_at", DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601())
+    |> Map.update(
+      "releases",
+      %{version => %{"checksum" => checksum, "manifests" => manifests}},
+      fn releases ->
+        Map.put(releases || %{}, version, %{
+          "checksum" => checksum,
+          "manifests" => manifests
+        })
+      end
+    )
   end
 
   defp upload_manifest(scope, name, version, filename, content) do
@@ -336,8 +333,6 @@ defmodule Cache.Registry.ReleaseWorker do
       |> Base.encode16(case: :lower)
 
     {:ok, hash}
-  rescue
-    error -> {:error, error}
   end
 
   defp temp_dir do

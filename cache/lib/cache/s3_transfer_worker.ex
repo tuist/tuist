@@ -38,7 +38,7 @@ defmodule Cache.S3TransferWorker do
         transfers
         |> Task.async_stream(
           fn transfer ->
-            result = execute_transfer(type, transfer.key)
+            result = execute_transfer(type, transfer)
             {transfer, result}
           end,
           max_concurrency: @concurrency,
@@ -53,8 +53,19 @@ defmodule Cache.S3TransferWorker do
     end
   end
 
-  defp execute_transfer(:upload, key), do: S3.upload(key)
-  defp execute_transfer(:download, key), do: S3.download(key)
+  defp execute_transfer(:upload, %{artifact_type: :registry, key: key}) do
+    local_path = Disk.artifact_path(key)
+
+    if File.exists?(local_path) do
+      S3.upload_file(key, local_path, type: :registry)
+    else
+      :ok
+    end
+  end
+
+  defp execute_transfer(:upload, %{key: key}), do: S3.upload(key)
+
+  defp execute_transfer(:download, %{key: key}), do: S3.download(key)
 
   defp handle_result(_type, {:ok, {transfer, :ok}}), do: transfer.id
 
