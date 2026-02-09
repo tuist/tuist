@@ -57,7 +57,7 @@ defmodule Cache.Registry.SyncWorker do
           _ ->
             {batch, next_cursor} = take_batch(packages, limit)
             Enum.each(batch, &sync_package(&1, token))
-            _ = SyncCursor.put(next_cursor)
+            SyncCursor.put(next_cursor)
             :ok
         end
 
