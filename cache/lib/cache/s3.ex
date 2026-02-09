@@ -39,14 +39,13 @@ defmodule Cache.S3 do
 
   def exists?(key) when is_binary(key) do
     bucket = Application.get_env(:cache, :s3)[:bucket]
-    start_time = System.monotonic_time()
 
-    result =
-      bucket
-      |> ExAws.S3.head_object(key)
-      |> ExAws.request(http_opts: [receive_timeout: 2_000])
-
-    duration = System.monotonic_time() - start_time
+    {duration, result} =
+      :timer.tc(fn ->
+        bucket
+        |> ExAws.S3.head_object(key)
+        |> ExAws.request(http_opts: [receive_timeout: 2_000])
+      end)
 
     case result do
       {:ok, _response} ->
@@ -97,15 +96,14 @@ defmodule Cache.S3 do
   defp upload_file(key, local_path) do
     if File.exists?(local_path) do
       bucket = Application.get_env(:cache, :s3)[:bucket]
-      start_time = System.monotonic_time()
 
-      result =
-        local_path
-        |> Upload.stream_file()
-        |> ExAws.S3.upload(bucket, key, timeout: 120_000)
-        |> ExAws.request()
-
-      duration = System.monotonic_time() - start_time
+      {duration, result} =
+        :timer.tc(fn ->
+          local_path
+          |> Upload.stream_file()
+          |> ExAws.S3.upload(bucket, key, timeout: 120_000)
+          |> ExAws.request()
+        end)
 
       case result do
         {:ok, _response} ->
@@ -165,14 +163,13 @@ defmodule Cache.S3 do
 
   defp check_exists(key) do
     bucket = Application.get_env(:cache, :s3)[:bucket]
-    start_time = System.monotonic_time()
 
-    result =
-      bucket
-      |> ExAws.S3.head_object(key)
-      |> ExAws.request()
-
-    duration = System.monotonic_time() - start_time
+    {duration, result} =
+      :timer.tc(fn ->
+        bucket
+        |> ExAws.S3.head_object(key)
+        |> ExAws.request()
+      end)
 
     case result do
       {:ok, _response} ->
@@ -198,14 +195,12 @@ defmodule Cache.S3 do
 
     local_path |> Path.dirname() |> File.mkdir_p!()
 
-    start_time = System.monotonic_time()
-
-    result =
-      bucket
-      |> ExAws.S3.download_file(key, local_path)
-      |> ExAws.request()
-
-    duration = System.monotonic_time() - start_time
+    {duration, result} =
+      :timer.tc(fn ->
+        bucket
+        |> ExAws.S3.download_file(key, local_path)
+        |> ExAws.request()
+      end)
 
     case result do
       {:ok, :done} ->
@@ -233,17 +228,15 @@ defmodule Cache.S3 do
 
     Logger.info("Deleting all S3 objects with prefix: #{prefix}")
 
-    start_time = System.monotonic_time()
+    {duration, result} = :timer.tc(fn -> list_and_delete_objects(bucket, prefix, 0) end)
 
-    case list_and_delete_objects(bucket, prefix, 0) do
+    case result do
       {:ok, count} ->
-        duration = System.monotonic_time() - start_time
         :telemetry.execute([:cache, :s3, :delete], %{duration: duration, count: count}, %{result: :ok})
         Logger.info("Successfully deleted #{count} objects from S3 with prefix: #{prefix}")
         {:ok, count}
 
       {:error, reason} = error ->
-        duration = System.monotonic_time() - start_time
         :telemetry.execute([:cache, :s3, :delete], %{duration: duration, count: 0}, %{result: :error})
         Logger.error("Failed to delete S3 objects with prefix #{prefix}: #{inspect(reason)}")
         error
