@@ -99,26 +99,7 @@ defmodule TuistWeb.OverviewLive do
         TuistWeb.GradleOverviewLive.assign_handle_params(socket, params, full_uri.path)
       }
     else
-      uri =
-        URI.new!(
-          "?" <>
-            (params
-             |> Map.take([
-               "analytics-environment",
-               "analytics-date-range",
-               "analytics-start-date",
-               "analytics-end-date",
-               "builds-environment",
-               "builds-date-range",
-               "builds-start-date",
-               "builds-end-date",
-               "bundle-size-date-range",
-               "bundle-size-start-date",
-               "bundle-size-end-date",
-               "bundle-size-app"
-             ])
-             |> URI.encode_query())
-        )
+      uri = URI.new!("?" <> URI.encode_query(params))
 
       {
         :noreply,

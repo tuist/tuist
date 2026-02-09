@@ -14,18 +14,7 @@ defmodule TuistWeb.GradleOverviewLive do
   Called from OverviewLive when the project is a gradle project.
   """
   def assign_handle_params(socket, params, uri_path) do
-    uri =
-      URI.new!(
-        "?" <>
-          (params
-           |> Map.take([
-             "analytics-environment",
-             "analytics-date-range",
-             "analytics-start-date",
-             "analytics-end-date"
-           ])
-           |> URI.encode_query())
-      )
+    uri = URI.new!("?" <> URI.encode_query(params))
 
     socket
     |> assign_analytics(params)
