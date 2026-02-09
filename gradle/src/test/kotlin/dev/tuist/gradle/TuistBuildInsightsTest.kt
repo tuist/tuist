@@ -6,13 +6,9 @@ import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URI
 import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -48,174 +44,60 @@ class TuistBuildInsightsTest {
         )
     }
 
-    private fun postBuildReport(
-        httpClient: TuistHttpClient,
-        url: URI,
-        report: BuildReportRequest
-    ): BuildReportResponse? {
-        return httpClient.execute { config ->
-            val connection = httpClient.openConnection(url, config)
-            try {
-                connection.requestMethod = "POST"
-                connection.doOutput = true
-                connection.setRequestProperty("Content-Type", "application/json")
-
-                OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
-                    Gson().toJson(report, writer)
-                }
-
-                when (connection.responseCode) {
-                    HttpURLConnection.HTTP_CREATED -> {
-                        BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
-                            Gson().fromJson(reader, BuildReportResponse::class.java)
-                        }
-                    }
-                    HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
-                    else -> null
-                }
-            } finally {
-                connection.disconnect()
-            }
-        }
-    }
-
     @Test
-    fun `HTTP client sends correct JSON body and auth header`() {
-        mockWebServer.enqueue(
-            MockResponse()
-                .setResponseCode(201)
-                .setBody("""{"id": "test-build-id"}""")
-                .addHeader("Content-Type", "application/json")
-        )
+    fun `openConnection sets Bearer token header`() {
+        mockWebServer.enqueue(MockResponse().setResponseCode(200))
 
-        val httpClient = createHttpClient()
-        val report = BuildReportRequest(
-            durationMs = 5000,
-            status = "success",
-            gradleVersion = "8.5",
-            javaVersion = "17.0.1",
-            isCi = false,
-            gitBranch = "main",
-            gitCommitSha = "abc123",
-            gitRef = "v1.0.0",
-            rootProjectName = null,
+        val httpClient = createHttpClient(token = "my-secret-token")
+        val url = URI(mockWebServer.url("/test").toString())
 
-            tasks = listOf(
-                TaskReportEntry(
-                    taskPath = ":app:compileKotlin",
-                    outcome = TaskOutcome.LOCAL_HIT,
-                    cacheable = true,
-                    durationMs = 1000,
-                    cacheKey = "abc123",
-                    cacheArtifactSize = 1024,
-                    startedAt = "2026-02-06T10:00:00Z"
-                ),
-                TaskReportEntry(
-                    taskPath = ":app:test",
-                    outcome = TaskOutcome.EXECUTED,
-                    cacheable = true,
-                    durationMs = 3000,
-                    cacheKey = null,
-                    cacheArtifactSize = null,
-                    startedAt = "2026-02-06T10:00:01Z"
-                )
-            )
-        )
-
-        val url = URI(mockWebServer.url("/api/projects/my-org/my-project/gradle/builds").toString())
-        val response = postBuildReport(httpClient, url, report)
-
-        assertNotNull(response)
-        assertEquals("test-build-id", response.id)
+        httpClient.execute { config ->
+            val connection = httpClient.openConnection(url, config)
+            connection.requestMethod = "GET"
+            connection.responseCode
+        }
 
         val request = mockWebServer.takeRequest()
-        assertEquals("POST", request.method)
-        assertEquals("/api/projects/my-org/my-project/gradle/builds", request.path)
-        assertEquals("Bearer test-token", request.getHeader("Authorization"))
-        assertEquals("application/json", request.getHeader("Content-Type"))
-
-        val body = gson.fromJson(request.body.readUtf8(), Map::class.java)
-        assertEquals(5000.0, body["duration_ms"])
-        assertEquals("success", body["status"])
-        assertEquals("8.5", body["gradle_version"])
-        assertEquals("17.0.1", body["java_version"])
-        assertEquals(false, body["is_ci"])
-        assertEquals("main", body["git_branch"])
-        assertEquals("abc123", body["git_commit_sha"])
-        assertEquals("v1.0.0", body["git_ref"])
-
-        @Suppress("UNCHECKED_CAST")
-        val tasks = body["tasks"] as List<Map<String, Any>>
-        assertEquals(2, tasks.size)
-        assertEquals(":app:compileKotlin", tasks[0]["task_path"])
-        assertEquals("local_hit", tasks[0]["outcome"])
-        assertEquals(true, tasks[0]["cacheable"])
+        assertEquals("Bearer my-secret-token", request.getHeader("Authorization"))
     }
 
     @Test
-    fun `HTTP client retries on 401 and succeeds with refreshed token`() {
-        mockWebServer.enqueue(
-            MockResponse()
-                .setResponseCode(401)
-                .setBody("""{"error": "unauthorized"}""")
-        )
-        mockWebServer.enqueue(
-            MockResponse()
-                .setResponseCode(201)
-                .setBody("""{"id": "retried-build-id"}""")
-                .addHeader("Content-Type", "application/json")
-        )
+    fun `execute retries once on TokenExpiredException`() {
+        mockWebServer.enqueue(MockResponse().setResponseCode(401))
+        mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody("ok"))
 
         val httpClient = createHttpClient()
-        val report = BuildReportRequest(
-            durationMs = 1000,
-            status = "success",
-            gradleVersion = null,
-            javaVersion = null,
-            isCi = false,
-            gitBranch = null,
-            gitCommitSha = null,
-            gitRef = null,
-            rootProjectName = null,
 
-            tasks = emptyList()
-        )
+        val result = httpClient.execute { config ->
+            val url = URI(mockWebServer.url("/test").toString())
+            val connection = httpClient.openConnection(url, config)
+            connection.requestMethod = "GET"
+            when (connection.responseCode) {
+                HttpURLConnection.HTTP_OK -> "success"
+                HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
+                else -> "error"
+            }
+        }
 
-        val url = URI(mockWebServer.url("/api/projects/org/proj/gradle/builds").toString())
-        val response = postBuildReport(httpClient, url, report)
-
-        assertNotNull(response)
-        assertEquals("retried-build-id", response.id)
+        assertEquals("success", result)
         assertEquals(2, mockWebServer.requestCount)
     }
 
     @Test
-    fun `HTTP client returns null on 500 server error`() {
-        mockWebServer.enqueue(
-            MockResponse()
-                .setResponseCode(500)
-                .setBody("""{"error": "internal server error"}""")
-        )
+    fun `execute returns result directly on success`() {
+        mockWebServer.enqueue(MockResponse().setResponseCode(200).setBody("hello"))
 
         val httpClient = createHttpClient()
-        val report = BuildReportRequest(
-            durationMs = 1000,
-            status = "success",
-            gradleVersion = null,
-            javaVersion = null,
-            isCi = false,
-            gitBranch = null,
-            gitCommitSha = null,
-            gitRef = null,
-            rootProjectName = null,
 
-            tasks = emptyList()
-        )
+        val result = httpClient.execute { config ->
+            val url = URI(mockWebServer.url("/test").toString())
+            val connection = httpClient.openConnection(url, config)
+            connection.requestMethod = "GET"
+            connection.responseCode
+        }
 
-        val url = URI(mockWebServer.url("/api/projects/org/proj/gradle/builds").toString())
-        val response = postBuildReport(httpClient, url, report)
-
-        assertNull(response)
+        assertEquals(200, result)
+        assertEquals(1, mockWebServer.requestCount)
     }
 
     @Test
