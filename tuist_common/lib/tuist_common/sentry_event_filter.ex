@@ -31,11 +31,15 @@ defmodule TuistCommon.SentryEventFilter do
   """
   def before_send(event, additional_ignored \\ [])
 
-  def before_send(%Sentry.Event{original_exception: exception, source: event_source} = event, additional_ignored)
+  def before_send(
+        %Sentry.Event{original_exception: exception, source: event_source} = event,
+        additional_ignored
+      )
       when is_exception(exception) do
     ignored = ignored_exceptions(additional_ignored)
 
-    if exception.__struct__ in ignored or Sentry.DefaultEventFilter.exclude_exception?(exception, event_source) do
+    if exception.__struct__ in ignored or
+         Sentry.DefaultEventFilter.exclude_exception?(exception, event_source) do
       false
     else
       event

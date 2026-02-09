@@ -1,0 +1,333 @@
+defmodule Cache.Registry.ReleaseWorker do
+  @moduledoc """
+  Downloads and uploads missing registry artifacts, and updates metadata in S3.
+  """
+
+  use Oban.Worker, queue: :registry_sync
+
+  alias Cache.Config
+  alias Cache.Registry.KeyNormalizer
+  alias Cache.Registry.Lock
+  alias Cache.Registry.Metadata
+  alias Cache.S3
+
+  require Logger
+
+  @github_opts [finch: Cache.Finch, retry: false]
+
+  @alternate_manifest_regex ~r/\APackage@swift-(\d+)(?:\.(\d+))?(?:\.(\d+))?\.swift\z/
+  @lock_ttl_seconds 1_800
+  @metadata_lock_ttl_seconds 300
+
+  @impl Oban.Worker
+  def perform(%Oban.Job{
+        args: %{"scope" => scope, "name" => name, "repository_full_handle" => full_handle, "tag" => tag}
+      }) do
+    lock_key = {:release, scope, name, KeyNormalizer.normalize_version(tag)}
+
+    case Lock.try_acquire(lock_key, @lock_ttl_seconds) do
+      {:ok, :acquired} ->
+        try do
+          do_sync_release(scope, name, full_handle, tag)
+        after
+          Lock.release(lock_key)
+        end
+
+      {:error, :already_locked} ->
+        :ok
+    end
+  end
+
+  defp do_sync_release(scope, name, full_handle, tag) do
+    case Config.registry_github_token() do
+      nil ->
+        Logger.warning("Registry release sync skipped for #{scope}/#{name}@#{tag}: missing token")
+        :ok
+
+      token ->
+        normalized_version = KeyNormalizer.normalize_version(tag)
+
+        case Metadata.get_package(scope, name, fresh: true) do
+          {:ok, metadata} ->
+            releases = Map.get(metadata, "releases", %{})
+
+            if Map.has_key?(releases, normalized_version) do
+              :ok
+            else
+              sync_release(scope, name, full_handle, tag, normalized_version, token)
+            end
+
+          {:error, :not_found} ->
+            sync_release(scope, name, full_handle, tag, normalized_version, token)
+        end
+    end
+  end
+
+  defp sync_release(scope, name, full_handle, tag, version, token) do
+    {:ok, tmp_dir} = Briefly.create(directory: true)
+    archive_path = Path.join(tmp_dir, "source_archive.zip")
+
+    with :ok <- fetch_source_archive(full_handle, tag, token, tmp_dir, archive_path),
+         {:ok, checksum} <- checksum_for_file(archive_path),
+         :ok <- upload_source_archive(scope, name, version, archive_path),
+         {:ok, manifests} <- fetch_and_upload_manifests(scope, name, version, full_handle, tag, token) do
+      update_metadata_with_release(scope, name, full_handle, version, checksum, manifests)
+    else
+      {:error, reason} ->
+        Logger.warning("Failed to sync release #{scope}/#{name}@#{tag}: #{inspect(reason)}")
+        {:error, reason}
+    end
+  end
+
+  defp fetch_source_archive(full_handle, tag, token, tmp_dir, archive_path) do
+    if has_submodules?(full_handle, tag, token) do
+      with {:ok, source_directory} <- clone_with_submodules(full_handle, tag, token, tmp_dir) do
+        zip_directory(source_directory, archive_path)
+      end
+    else
+      TuistCommon.GitHub.download_zipball(full_handle, token, tag, archive_path, @github_opts)
+    end
+  end
+
+  defp has_submodules?(full_handle, tag, token) do
+    case TuistCommon.GitHub.get_file_content(full_handle, token, ".gitmodules", tag, @github_opts) do
+      {:ok, content} -> content != ""
+      {:error, :not_found} -> false
+      {:error, _reason} -> false
+    end
+  end
+
+  defp clone_with_submodules(full_handle, tag, token, tmp_dir) do
+    repo_name = full_handle |> String.split("/") |> List.last()
+    clone_dest = Path.join(tmp_dir, "#{repo_name}-#{String.replace(tag, "/", "-")}")
+    clone_url = "https://#{token}@github.com/#{full_handle}.git"
+
+    case System.cmd(
+           "git",
+           [
+             "-c",
+             "url.https://github.com/.insteadOf=git@github.com:",
+             "clone",
+             "--depth",
+             "1",
+             "--branch",
+             tag,
+             clone_url,
+             clone_dest
+           ],
+           stderr_to_stdout: true
+         ) do
+      {_, 0} ->
+        case update_submodules(%{destination: clone_dest, repository_full_handle: full_handle, tag: tag}) do
+          :ok ->
+            remove_git_metadata(clone_dest)
+            {:ok, clone_dest}
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+
+      {_output, status} ->
+        {:error, {:git_clone_failed, status}}
+    end
+  end
+
+  defp update_submodules(%{destination: destination, repository_full_handle: full_handle, tag: tag}) do
+    destination
+    |> submodule_paths()
+    |> Enum.reduce_while(:ok, fn submodule_path, :ok ->
+      case System.cmd(
+             "git",
+             [
+               "-c",
+               "url.https://github.com/.insteadOf=git@github.com:",
+               "-C",
+               destination,
+               "submodule",
+               "update",
+               "--init",
+               "--recursive",
+               "--depth",
+               "1",
+               submodule_path
+             ],
+             stderr_to_stdout: true
+           ) do
+        {_, 0} ->
+          {:cont, :ok}
+
+        {output, status} ->
+          if private_submodule_error?(output) do
+            Logger.info("Skipping private submodule #{submodule_path} for #{full_handle}@#{tag}")
+            {:cont, :ok}
+          else
+            {:halt, {:error, {:git_submodule_failed, status, output}}}
+          end
+      end
+    end)
+  end
+
+  defp submodule_paths(destination) do
+    gitmodules_path = Path.join(destination, ".gitmodules")
+
+    if File.exists?(gitmodules_path) do
+      gitmodules_content = File.read!(gitmodules_path)
+
+      ~r/^\s*path\s*=\s*(.+)\s*$/m
+      |> Regex.scan(gitmodules_content)
+      |> Enum.map(fn [_, path] -> String.trim(path) end)
+    else
+      []
+    end
+  end
+
+  defp private_submodule_error?(output) do
+    String.contains?(output, "fatal: could not read Username for")
+  end
+
+  defp remove_git_metadata(directory) do
+    directory
+    |> Path.join("**/.git")
+    |> Path.wildcard(match_dot: true)
+    |> Enum.each(&File.rm_rf!/1)
+
+    gitmodules_path = Path.join(directory, ".gitmodules")
+    if File.exists?(gitmodules_path), do: File.rm(gitmodules_path)
+  end
+
+  defp zip_directory(directory, archive_path) do
+    parent_dir = Path.dirname(directory)
+    base_name = Path.basename(directory)
+
+    case System.cmd("zip", ["--symlinks", "-r", archive_path, base_name], cd: parent_dir) do
+      {_, 0} -> :ok
+      {output, status} -> {:error, {:zip_failed, status, output}}
+    end
+  end
+
+  defp upload_source_archive(scope, name, version, archive_path) do
+    key = KeyNormalizer.package_object_key(%{scope: scope, name: name}, version: version, path: "source_archive.zip")
+    S3.upload_file(key, archive_path, type: :registry, content_type: "application/zip")
+  end
+
+  defp fetch_and_upload_manifests(scope, name, version, full_handle, tag, token) do
+    with {:ok, contents} <- TuistCommon.GitHub.list_repository_contents(full_handle, token, tag, @github_opts) do
+      manifests =
+        contents
+        |> Enum.map(&Map.get(&1, "path"))
+        |> Enum.filter(&manifest_path?/1)
+        |> Enum.map(fn path ->
+          filename = Path.basename(path)
+          swift_version = manifest_swift_version(filename)
+
+          with {:ok, content} <- TuistCommon.GitHub.get_file_content(full_handle, token, path, tag, @github_opts),
+               :ok <- upload_manifest(scope, name, version, filename, content) do
+            %{
+              "swift_version" => swift_version,
+              "swift_tools_version" => swift_tools_version(content)
+            }
+          else
+            {:error, reason} ->
+              Logger.warning("Failed to fetch manifest #{path} for #{scope}/#{name}@#{tag}: #{inspect(reason)}")
+              nil
+          end
+        end)
+        |> Enum.reject(&is_nil/1)
+
+      {:ok, manifests}
+    end
+  end
+
+  defp update_metadata_with_release(scope, name, full_handle, version, checksum, manifests) do
+    lock_key = {:package, scope, name}
+
+    case Lock.try_acquire(lock_key, @metadata_lock_ttl_seconds) do
+      {:ok, :acquired} ->
+        try do
+          with {:ok, metadata} <- get_or_create_metadata(scope, name, full_handle) do
+            updated_metadata = build_updated_metadata(metadata, scope, name, full_handle, version, checksum, manifests)
+            Metadata.put_package(scope, name, updated_metadata)
+          end
+        after
+          Lock.release(lock_key)
+        end
+
+      {:error, :already_locked} ->
+        Logger.info("Metadata update skipped for #{scope}/#{name}@#{version}: lock held by another node")
+        :ok
+    end
+  end
+
+  defp get_or_create_metadata(scope, name, full_handle) do
+    case Metadata.get_package(scope, name, fresh: true) do
+      {:ok, metadata} ->
+        {:ok, metadata}
+
+      {:error, :not_found} ->
+        {:ok, %{"scope" => scope, "name" => name, "repository_full_handle" => full_handle, "releases" => %{}}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp build_updated_metadata(metadata, scope, name, full_handle, version, checksum, manifests) do
+    metadata
+    |> Map.put_new("scope", scope)
+    |> Map.put_new("name", name)
+    |> Map.put("repository_full_handle", full_handle)
+    |> Map.put("updated_at", DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601())
+    |> Map.update(
+      "releases",
+      %{version => %{"checksum" => checksum, "manifests" => manifests}},
+      fn releases ->
+        Map.put(releases || %{}, version, %{
+          "checksum" => checksum,
+          "manifests" => manifests
+        })
+      end
+    )
+  end
+
+  defp upload_manifest(scope, name, version, filename, content) do
+    key = KeyNormalizer.package_object_key(%{scope: scope, name: name}, version: version, path: filename)
+    S3.upload_content(key, content, type: :registry, content_type: "text/x-swift")
+  end
+
+  defp manifest_path?("Package.swift"), do: true
+  defp manifest_path?(path) when is_binary(path), do: Regex.match?(@alternate_manifest_regex, Path.basename(path))
+  defp manifest_path?(_), do: false
+
+  defp manifest_swift_version("Package.swift"), do: nil
+
+  defp manifest_swift_version(filename) do
+    case Regex.run(@alternate_manifest_regex, filename) do
+      [_, major] -> major
+      [_, major, minor] -> "#{major}.#{minor}"
+      [_, major, minor, patch] -> "#{major}.#{minor}.#{patch}"
+      _ -> nil
+    end
+  end
+
+  defp swift_tools_version(content) do
+    case Regex.run(~r/^\/\/ swift-tools-version:\s?(\d+)(?:\.(\d+))?(?:\.(\d+))?/, content) do
+      [_, major] -> major
+      [_, major, minor] -> "#{major}.#{minor}"
+      [_, major, minor, patch] -> "#{major}.#{minor}.#{patch}"
+      _ -> nil
+    end
+  end
+
+  defp checksum_for_file(path) do
+    hash =
+      path
+      |> File.stream!(2048, [])
+      |> Enum.reduce(:crypto.hash_init(:sha256), fn chunk, acc ->
+        :crypto.hash_update(acc, chunk)
+      end)
+      |> :crypto.hash_final()
+      |> Base.encode16(case: :lower)
+
+    {:ok, hash}
+  end
+end

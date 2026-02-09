@@ -25,6 +25,7 @@ defmodule Cache.Application do
       Cache.Authentication,
       Cache.KeyValueStore,
       Cache.MultipartUploads,
+      Cache.Registry.Metadata,
       CacheWeb.Endpoint,
       Cache.SocketLinker,
       # Cannot alias Cache.Finch to Finch or it'll conflict with the top-level library

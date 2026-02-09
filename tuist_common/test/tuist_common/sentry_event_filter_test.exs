@@ -34,10 +34,13 @@ defmodule TuistCommon.SentryEventFilterTest do
     end
 
     test "excludes ignored exception types even without original_exception" do
-      event = event(%{
-        original_exception: nil,
-        exception: [%Sentry.Interfaces.Exception{type: "Phoenix.Router.NoRouteError", value: "no route"}]
-      })
+      event =
+        event(%{
+          original_exception: nil,
+          exception: [
+            %Sentry.Interfaces.Exception{type: "Phoenix.Router.NoRouteError", value: "no route"}
+          ]
+        })
 
       assert SentryEventFilter.before_send(event) == false
     end
