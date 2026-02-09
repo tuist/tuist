@@ -900,7 +900,7 @@ defmodule Tuist.Builds.Analytics do
       fn -> build_percentile_durations(project_id, 0.9, opts) end,
       fn -> build_percentile_durations(project_id, 0.5, opts) end,
       fn -> build_analytics(project_id, opts) end,
-      fn -> build_analytics(project_id, Keyword.put(opts, :status, :failure)) end,
+      fn -> build_analytics(project_id, Keyword.put(opts, :status, "failure")) end,
       fn -> build_success_rate_analytics(project_id, opts) end
     ]
 

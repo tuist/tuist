@@ -46,23 +46,23 @@ defmodule Tuist.VCS do
     host = if host == "", do: nil, else: host
 
     case {provider, project_handle} do
-      {:github, project_handle} when not is_nil(project_handle) and project_handle != "" ->
+      {"github", project_handle} when not is_nil(project_handle) and project_handle != "" ->
         "https://github.com/#{project_handle}/actions/runs/#{run_id}"
 
-      {:gitlab, project_path} when not is_nil(project_path) and project_path != "" ->
+      {"gitlab", project_path} when not is_nil(project_path) and project_path != "" ->
         gitlab_host = host || "gitlab.com"
         "https://#{gitlab_host}/#{project_path}/-/pipelines/#{run_id}"
 
-      {:bitrise, _} ->
+      {"bitrise", _} ->
         "https://app.bitrise.io/build/#{run_id}"
 
-      {:circleci, project_handle} when not is_nil(project_handle) and project_handle != "" ->
+      {"circleci", project_handle} when not is_nil(project_handle) and project_handle != "" ->
         "https://app.circleci.com/pipelines/github/#{project_handle}/#{run_id}"
 
-      {:buildkite, project_handle} when not is_nil(project_handle) and project_handle != "" ->
+      {"buildkite", project_handle} when not is_nil(project_handle) and project_handle != "" ->
         "https://buildkite.com/#{project_handle}/builds/#{run_id}"
 
-      {:codemagic, project_id} when not is_nil(project_id) and project_id != "" ->
+      {"codemagic", project_id} when not is_nil(project_id) and project_id != "" ->
         "https://codemagic.io/app/#{project_id}/build/#{run_id}"
 
       _ ->
@@ -667,7 +667,6 @@ defmodule Tuist.VCS do
     |> where([b], b.project_id == ^project.id and like(b.git_ref, ^git_ref_pattern))
     |> order_by([b], desc: b.inserted_at)
     |> ClickHouseRepo.all()
-    |> Enum.map(&Builds.Build.normalize_enums/1)
     |> Enum.filter(&(not is_nil(&1.scheme)))
     |> Enum.reduce(%{}, fn build, acc ->
       scheme = build.scheme
@@ -745,8 +744,8 @@ defmodule Tuist.VCS do
 
   defp get_build_status_text(build) do
     case build.status do
-      :failure -> "❌"
-      :success -> "✅"
+      "failure" -> "❌"
+      "success" -> "✅"
     end
   end
 
