@@ -60,11 +60,6 @@ class TuistPlugin : Plugin<Settings> {
     }
 
     private fun configureBuildInsights(settings: Settings, extension: TuistExtension) {
-        if (!extension.buildInsights.enabled) {
-            logger.info("Tuist: Build insights is disabled.")
-            return
-        }
-
         settings.gradle.rootProject {
             extensions.extraProperties.set("tuist.url", extension.url)
             extensions.extraProperties.set("tuist.project", extension.project)
@@ -124,22 +119,10 @@ open class TuistExtension {
     val buildCache: BuildCacheExtension = BuildCacheExtension()
 
     /**
-     * Build insights configuration.
-     */
-    val buildInsights: BuildInsightsExtension = BuildInsightsExtension()
-
-    /**
      * Configure build cache settings.
      */
     fun buildCache(configure: BuildCacheExtension.() -> Unit) {
         buildCache.configure()
-    }
-
-    /**
-     * Configure build insights settings.
-     */
-    fun buildInsights(configure: BuildInsightsExtension.() -> Unit) {
-        buildInsights.configure()
     }
 }
 
@@ -163,12 +146,3 @@ open class BuildCacheExtension {
     var allowInsecureProtocol: Boolean = false
 }
 
-/**
- * Configuration for Tuist build insights feature.
- */
-open class BuildInsightsExtension {
-    /**
-     * Whether the build insights feature is enabled. Defaults to true.
-     */
-    var enabled: Boolean = true
-}

@@ -41,11 +41,12 @@ import javax.inject.Inject
 
 // --- Data classes ---
 
+enum class CacheHitType { LOCAL, REMOTE, MISS }
+
 data class TaskCacheMetadata(
     val cacheKey: String? = null,
     val artifactSize: Long? = null,
-    val isRemoteHit: Boolean = false,
-    val isLocalHit: Boolean = false
+    val cacheHitType: CacheHitType = CacheHitType.MISS
 )
 
 data class TaskOutcomeData(
@@ -53,7 +54,6 @@ data class TaskOutcomeData(
     val outcome: String,
     val cacheable: Boolean,
     val durationMs: Long,
-    val taskType: String?,
     val cacheKey: String?,
     val cacheArtifactSize: Long?,
     val startedAt: String?
@@ -64,7 +64,6 @@ data class TaskReportEntry(
     val outcome: String,
     val cacheable: Boolean,
     @SerializedName("duration_ms") val durationMs: Long,
-    @SerializedName("task_type") val taskType: String?,
     @SerializedName("cache_key") val cacheKey: String?,
     @SerializedName("cache_artifact_size") val cacheArtifactSize: Long?,
     @SerializedName("started_at") val startedAt: String?
@@ -219,7 +218,7 @@ abstract class TuistBuildInsightsService :
                     taskCacheMetadata[taskPath] = existing.copy(
                         cacheKey = cacheKey,
                         artifactSize = result.archiveSize,
-                        isLocalHit = true
+                        cacheHitType = CacheHitType.LOCAL
                     )
                 }
             }
@@ -231,7 +230,7 @@ abstract class TuistBuildInsightsService :
                     taskCacheMetadata[taskPath] = existing.copy(
                         cacheKey = cacheKey,
                         artifactSize = result.archiveSize,
-                        isRemoteHit = true
+                        cacheHitType = CacheHitType.REMOTE
                     )
                 }
             }
@@ -273,7 +272,10 @@ abstract class TuistBuildInsightsService :
             is TaskSuccessResult -> {
                 when {
                     result.isFromCache -> {
-                        val outcome = if (metadata?.isRemoteHit == true) "remote_hit" else "local_hit"
+                        val outcome = when (metadata?.cacheHitType) {
+                            CacheHitType.REMOTE -> "remote_hit"
+                            else -> "local_hit"
+                        }
                         outcome to true
                     }
                     result.isUpToDate -> "up_to_date" to cacheableTaskPaths.contains(taskPath)
@@ -302,7 +304,6 @@ abstract class TuistBuildInsightsService :
                 outcome = outcome,
                 cacheable = cacheable,
                 durationMs = durationMs,
-                taskType = null,
                 cacheKey = metadata?.cacheKey,
                 cacheArtifactSize = metadata?.artifactSize,
                 startedAt = startedAt
@@ -366,7 +367,6 @@ abstract class TuistBuildInsightsService :
                     outcome = task.outcome,
                     cacheable = task.cacheable,
                     durationMs = task.durationMs,
-                    taskType = task.taskType,
                     cacheKey = task.cacheKey,
                     cacheArtifactSize = task.cacheArtifactSize,
                     startedAt = task.startedAt

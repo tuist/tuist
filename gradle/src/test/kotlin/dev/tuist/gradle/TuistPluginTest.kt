@@ -260,42 +260,6 @@ class TuistPluginTest {
     }
 
     @Test
-    fun `build insights can be disabled`() {
-        settingsFile.writeText("""
-            plugins {
-                id("dev.tuist")
-            }
-
-            tuist {
-                project = "test-account/test-project"
-
-                buildInsights {
-                    enabled = false
-                }
-            }
-
-            rootProject.name = "test-project"
-        """.trimIndent())
-
-        buildFile.writeText("""
-            tasks.register("hello") {
-                doLast {
-                    println("Hello!")
-                }
-            }
-        """.trimIndent())
-
-        val result = GradleRunner.create()
-            .withProjectDir(testProjectDir)
-            .withArguments("hello", "--info")
-            .withPluginClasspath()
-            .build()
-
-        assertEquals(TaskOutcome.SUCCESS, result.task(":hello")?.outcome)
-        assertTrue(result.output.contains("Build insights is disabled"))
-    }
-
-    @Test
     fun `custom server URL can be configured`() {
         settingsFile.writeText("""
             plugins {
@@ -305,10 +269,6 @@ class TuistPluginTest {
             tuist {
                 project = "test-account/test-project"
                 url = "https://custom.server.dev"
-
-                buildInsights {
-                    enabled = false
-                }
             }
 
             rootProject.name = "test-project"
@@ -343,10 +303,6 @@ class TuistPluginTest {
 
                 buildCache {
                     enabled = false
-                }
-
-                buildInsights {
-                    enabled = true
                 }
             }
 
