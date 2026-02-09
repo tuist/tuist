@@ -117,9 +117,9 @@ abstract class TuistBuildInsightsService :
     internal var ciDetector: CIDetector = EnvironmentCIDetector()
 
     private val taskOutcomes = ConcurrentLinkedQueue<TaskOutcomeData>()
-    private val cacheableTaskPaths = mutableSetOf<String>()
+    private val cacheableTaskPaths: MutableSet<String> = ConcurrentHashMap.newKeySet()
     private var buildStartTime: Long = System.currentTimeMillis()
-    private var buildFailed = false
+    @Volatile private var buildFailed = false
 
     private val operationParents = ConcurrentHashMap<OperationIdentifier, OperationIdentifier>()
     private val operationTaskPaths = ConcurrentHashMap<OperationIdentifier, String>()
